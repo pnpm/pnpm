@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Respect custom modules-dir setting when resolving binary node paths for shims.
+Binary shims now correctly resolve dependency paths when `modules-dir` is customized [#3604](https://github.com/pnpm/pnpm/issues/3604).

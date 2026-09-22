@@ -2,7 +2,8 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 /**
- * Returns the node_modules paths relevant to a binary in the virtual store layout.
+ * Returns the node_modules paths relevant to a binary in the virtual store layout
+ * or a custom modules directory.
  * For a binary at `.pnpm/pkg@version/node_modules/pkg/bin/cli.js`, this returns:
  *   1. `.pnpm/pkg@version/node_modules/pkg/node_modules` (bundled dependencies)
  *   2. `.pnpm/pkg@version/node_modules` (sibling/regular dependencies)
@@ -22,36 +23,72 @@ export async function getBinNodePaths (target: string, modulesDirName: string = 
     }
     dir = targetDir
   }
-  // Walk up from the resolved directory to find the first non-nested node_modules or modules-dir
+
   let currentDir = dir
+  let nodeModulesDir: string | undefined
   while (true) {
-    const currentBase = path.basename(currentDir)
-    if (currentBase === modulesDirName || currentBase === 'node_modules') {
-      // Skip nested modules directories (e.g., node_modules/node_modules)
-      const parentBase = path.basename(path.dirname(currentDir))
-      if (parentBase !== modulesDirName && parentBase !== 'node_modules') {
-        const nodeModulesDir = currentDir
-        const result: string[] = []
-
-        // Determine the package directory from the relative path between
-        // the modules directory and the resolved binary directory
-        const rel = path.relative(nodeModulesDir, dir)
-        if (rel) {
-          const relSegments = rel.split(path.sep)
-          // For scoped packages, the package dir is two levels deep: @scope/pkg
-          const pkgDir = relSegments[0].startsWith('@')
-            ? path.join(nodeModulesDir, relSegments[0], relSegments[1])
-            : path.join(nodeModulesDir, relSegments[0])
-          result.push(path.join(pkgDir, currentBase))
-        }
-
-        result.push(nodeModulesDir)
-        return result
+    if (path.basename(currentDir) === 'node_modules') {
+      if (path.basename(path.dirname(currentDir)) !== 'node_modules') {
+        nodeModulesDir = currentDir
+        break
       }
     }
     const parent = path.dirname(currentDir)
     if (parent === currentDir) break
     currentDir = parent
   }
+
+  if (nodeModulesDir) {
+    return getNodePathsForModulesDir(nodeModulesDir, dir)
+  }
+
+  if (modulesDirName !== 'node_modules') {
+    const candidates: string[] = []
+    currentDir = dir
+    while (true) {
+      if (path.basename(currentDir) === modulesDirName) {
+        if (path.basename(path.dirname(currentDir)) !== modulesDirName) {
+          candidates.push(currentDir)
+        }
+      }
+      const parent = path.dirname(currentDir)
+      if (parent === currentDir) break
+      currentDir = parent
+    }
+
+    const modulesDir = candidates.find((candidate) =>
+      !candidates.some((other) => other !== candidate && isInsidePackageIn(candidate, other))
+    )
+    if (modulesDir) {
+      return getNodePathsForModulesDir(modulesDir, dir)
+    }
+  }
+
   return []
+}
+
+function isInsidePackageIn (childDir: string, modulesDir: string): boolean {
+  const rel = path.relative(modulesDir, childDir)
+  if (!rel || rel.startsWith('..')) return false
+  const segments = rel.split(path.sep)
+  if (segments[0].startsWith('@')) {
+    return segments.length >= 3
+  }
+  return segments.length >= 2
+}
+
+function getNodePathsForModulesDir (modulesDir: string, dir: string): string[] {
+  const result: string[] = []
+  const rel = path.relative(modulesDir, dir)
+  if (rel) {
+    const relSegments = rel.split(path.sep)
+    const pkgDir = relSegments[0].startsWith('@')
+      ? (relSegments.length > 1 ? path.join(modulesDir, relSegments[0], relSegments[1]) : null)
+      : path.join(modulesDir, relSegments[0])
+    if (pkgDir) {
+      result.push(path.join(pkgDir, 'node_modules'))
+    }
+  }
+  result.push(modulesDir)
+  return result
 }

@@ -128,18 +128,60 @@ test('binary at root of package (no subdirectory)', async () => {
   ])
 })
 
-test('returns custom modules-dir and package modules-dir when modulesDirName is customized', async () => {
+test('returns custom modules-dir and package node_modules when modulesDirName is customized', async () => {
   const tmp = await tmpdir()
-  // Simulate: .pnpm/pkg@1.0.0/vendor/pkg/bin/cli.js
-  const binPath = path.join(tmp, '.pnpm', 'pkg@1.0.0', 'vendor', 'pkg', 'bin', 'cli.js')
-  fs.mkdirSync(path.dirname(binPath), { recursive: true })
-  fs.writeFileSync(binPath, '')
+  const binPath = path.join(tmp, 'vendor', 'pkg', 'bin', 'cli.js')
+  await fsPromises.mkdir(path.dirname(binPath), { recursive: true })
+  await fsPromises.writeFile(binPath, '')
 
   const result = await getBinNodePaths(binPath, 'vendor')
 
   expect(result).toEqual([
-    path.join(tmp, '.pnpm', 'pkg@1.0.0', 'vendor', 'pkg', 'vendor'),
-    path.join(tmp, '.pnpm', 'pkg@1.0.0', 'vendor'),
+    path.join(tmp, 'vendor', 'pkg', 'node_modules'),
+    path.join(tmp, 'vendor'),
   ])
 })
+
+test('does not stop at package-internal directory matching modulesDirName in hoisted layout', async () => {
+  const tmp = await tmpdir()
+  const binPath = path.join(tmp, 'vendor', 'pkg', 'vendor', 'tool.js')
+  await fsPromises.mkdir(path.dirname(binPath), { recursive: true })
+  await fsPromises.writeFile(binPath, '')
+
+  const result = await getBinNodePaths(binPath, 'vendor')
+
+  expect(result).toEqual([
+    path.join(tmp, 'vendor', 'pkg', 'node_modules'),
+    path.join(tmp, 'vendor'),
+  ])
+})
+
+test('does not stop at package-internal directory matching modulesDirName in virtual store layout', async () => {
+  const tmp = await tmpdir()
+  const binPath = path.join(tmp, '.pnpm', 'pkg@1.0.0', 'node_modules', 'pkg', 'vendor', 'tool.js')
+  await fsPromises.mkdir(path.dirname(binPath), { recursive: true })
+  await fsPromises.writeFile(binPath, '')
+
+  const result = await getBinNodePaths(binPath, 'vendor')
+
+  expect(result).toEqual([
+    path.join(tmp, '.pnpm', 'pkg@1.0.0', 'node_modules', 'pkg', 'node_modules'),
+    path.join(tmp, '.pnpm', 'pkg@1.0.0', 'node_modules'),
+  ])
+})
+
+test('handles scoped packages with custom modulesDirName in hoisted layout', async () => {
+  const tmp = await tmpdir()
+  const binPath = path.join(tmp, 'vendor', '@scope', 'pkg', 'bin', 'cli.js')
+  await fsPromises.mkdir(path.dirname(binPath), { recursive: true })
+  await fsPromises.writeFile(binPath, '')
+
+  const result = await getBinNodePaths(binPath, 'vendor')
+
+  expect(result).toEqual([
+    path.join(tmp, 'vendor', '@scope', 'pkg', 'node_modules'),
+    path.join(tmp, 'vendor'),
+  ])
+})
+
 
