@@ -63,7 +63,7 @@ fn report_fatal_error(error: &miette::Report) {
             cause.downcast_ref::<pnpm_package_manager::InstallError>()
         {
             if let Some(rendered) = rendered {
-                eprintln!("{rendered}");
+                eprint!("{rendered}");
             }
             return;
         }

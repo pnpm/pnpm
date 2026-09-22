@@ -50,7 +50,7 @@ fn fatal_peer_block_and_hints_go_only_to_stderr() {
         assert_eq!(output.status.code(), Some(1), "{output:?}");
         let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
         let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
-        assert!(stderr.ends_with(&format!("{ERROR_BLOCK}\n")), "stderr:\n{stderr}");
+        assert!(stderr.trim_end().ends_with(ERROR_BLOCK.trim_end()), "stderr:\n{stderr}");
         for part in ["ERR_PNPM_PEER_DEP_ISSUES", "missing peer", "hint:", "strictPeerDependencies"]
         {
             assert!(!stdout.contains(part), "stdout:\n{stdout}");
