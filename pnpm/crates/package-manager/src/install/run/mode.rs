@@ -126,15 +126,19 @@ fn reject_conflicting_store_config(config: &Config) -> Result<(), InstallError> 
 pub(super) struct WorkspaceManifestRollbackGuard {
     pub(super) path: PathBuf,
     pub(super) original_content: String,
-    pub(super) pruned_content: String,
+    pub(super) pruned_content: Option<String>,
     pub(super) committed: bool,
 }
 
 impl WorkspaceManifestRollbackGuard {
     pub(super) fn new(path: PathBuf, original_content: Option<String>) -> Option<Self> {
         let original = original_content?;
-        let pruned = std::fs::read_to_string(&path).ok()?;
-        (original != pruned).then_some(Self {
+        let pruned = match std::fs::read_to_string(&path) {
+            Ok(content) => Some(content),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(_) => return None,
+        };
+        (Some(&original) != pruned.as_ref()).then_some(Self {
             path,
             original_content: original,
             pruned_content: pruned,
@@ -149,11 +153,15 @@ impl WorkspaceManifestRollbackGuard {
 
 impl Drop for WorkspaceManifestRollbackGuard {
     fn drop(&mut self) {
-        if !self.committed
-            && let Ok(current) = std::fs::read_to_string(&self.path)
-            && current == self.pruned_content
-        {
-            let _ = pnpm_fs::write_atomic(&self.path, self.original_content.as_bytes());
+        if !self.committed {
+            let current = match std::fs::read_to_string(&self.path) {
+                Ok(content) => Some(content),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+                Err(_) => return,
+            };
+            if current == self.pruned_content {
+                let _ = pnpm_fs::write_atomic(&self.path, self.original_content.as_bytes());
+            }
         }
     }
 }

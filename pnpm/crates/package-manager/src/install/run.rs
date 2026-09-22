@@ -103,20 +103,17 @@ where
         time_machine_exclusions: &mut super::TimeMachineExclusions,
     ) -> Result<(), InstallError> {
         let (config, manifest) = (self.context.config, self.context.manifest);
-        let (outcome, rollback_guard) =
+        let outcome =
             Box::pin(self.run_inner_impl::<Reporter>(options, time_machine_exclusions)).await?;
         if let Some(lockfile_dir) = branch_lockfiles_to_clean {
             Lockfile::clean_git_branch_lockfiles(&lockfile_dir)
                 .map_err(InstallError::CleanGitBranchLockfiles)?;
         }
         if prune_excludes
-            && let InstallRunOutcome::LockfileSettled { workspace_manifest_dir } = &outcome
+            && let InstallRunOutcome::LockfileSettled { workspace_manifest_dir } = outcome
         {
-            post_install_prune(config, Some(workspace_manifest_dir), manifest)
+            post_install_prune(config, Some(&workspace_manifest_dir), manifest)
                 .map_err(InstallError::WriteWorkspaceManifest)?;
-        }
-        if let Some(guard) = rollback_guard {
-            guard.commit();
         }
         Ok(())
     }
@@ -167,7 +164,7 @@ where
         self,
         options: InstallRunOptions<'a, '_>,
         time_machine_exclusions: &mut super::TimeMachineExclusions,
-    ) -> Result<(InstallRunOutcome, Option<WorkspaceManifestRollbackGuard>), InstallError> {
+    ) -> Result<InstallRunOutcome, InstallError> {
         let (install, mut owned) = self.split();
         install.context.http_client.set_warning_handler(
             pnpm_reporter::emit_global_warning::<Reporter>,
@@ -196,7 +193,10 @@ where
             .run::<Reporter>(time_machine_exclusions),
         )
         .await?;
-        Ok((outcome, rollback_guard))
+        if let Some(guard) = rollback_guard {
+            guard.commit();
+        }
+        Ok(outcome)
     }
 }
 

@@ -697,6 +697,35 @@ fn failed_resolution_rolls_back_pruned_workspace_catalogs() {
     drop((root, anchor));
 }
 
+#[test]
+fn failed_resolution_rolls_back_deleted_workspace_manifest() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, r#"{ "nonexistent-pkg-xyz-12345": "1.0.0" }"#);
+    let npmrc_path = workspace.join(".npmrc");
+    let mut npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    npmrc.push_str("catalog-prune=true\n");
+    fs::write(&npmrc_path, npmrc).expect("write .npmrc");
+
+    fs::write(workspace.join("pnpm-workspace.yaml"), format!("catalog:\n  '{FOO}': 1.0.0\n"))
+        .expect("write pnpm-workspace.yaml");
+
+    let output = pacquet(&workspace, ["install"]).output().expect("run install");
+    assert!(!output.status.success());
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml_path.exists(),
+        "deleted pnpm-workspace.yaml must be restored after install failure",
+    );
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(FOO),
+        "restored pnpm-workspace.yaml must contain the original catalog:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
 /// With `minimumReleaseAgeExcludePrune: true`, a
 /// manifest-persisting command (`pnpm add` here) prunes the
 /// `minimumReleaseAgeExclude` entries the freshly resolved lockfile no
