@@ -17,7 +17,6 @@ use pnpm_package_manager::{
 use pnpm_workspace::read_project_name;
 use std::{
     collections::HashMap,
-    ffi::OsString,
     path::Path,
     process::{Command, ExitStatus, Stdio},
 };
@@ -256,11 +255,6 @@ pub(super) fn set_package_manager_env(
     init_cwd: &Path,
     extra_env: &HashMap<String, String>,
 ) {
-    let parent_path = extra_env
-        .get("PATH")
-        .filter(|value| !value.is_empty())
-        .map(OsString::from)
-        .or_else(|| std::env::var_os("PATH"));
     cmd.env_remove("NODE").env_remove("npm_node_execpath");
     cmd.envs(pnpm_executor::package_manager_env(
         init_cwd,
@@ -269,7 +263,7 @@ pub(super) fn set_package_manager_env(
             .filter(|value| !value.is_empty())
             .map(Path::new),
         None,
-        parent_path.as_deref(),
+        std::env::var_os("PATH").as_deref(),
     ));
 }
 

@@ -280,7 +280,7 @@ fn exec_does_not_resolve_node_from_project_bin() {
     fs::write(workspace.join("package.json"), "{}").expect("write manifest");
     let bin_dir = workspace.join("node_modules").join(".bin");
     fs::create_dir_all(&bin_dir).expect("create .bin directory");
-    let fake_node = bin_dir.join(if cfg!(windows) { "node.cmd" } else { "node" });
+    let fake_node = bin_dir.join(if cfg!(windows) { "node.exe" } else { "node" });
     fs::write(
         &fake_node,
         if cfg!(windows) { "@echo off\r\necho fake" } else { "#!/bin/sh\necho fake\n" },
