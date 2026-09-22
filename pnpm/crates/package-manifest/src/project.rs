@@ -14,7 +14,10 @@ pub fn project_manifest_path(project_dir: &Path) -> PathBuf {
     PROJECT_MANIFEST_BASENAMES
         .iter()
         .map(|basename| project_dir.join(basename))
-        .find(|path| path.is_file())
+        .find(|path| match fs::metadata(path) {
+            Ok(_) => true,
+            Err(error) => error.kind() != io::ErrorKind::NotFound,
+        })
         .unwrap_or_else(|| project_dir.join("package.json"))
 }
 
