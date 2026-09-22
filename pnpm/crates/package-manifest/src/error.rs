@@ -68,6 +68,11 @@ pub enum PackageManifestError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_INVALID_ATTRIBUTE))]
     InvalidAttribute(#[error(not(source))] String),
 
+    #[from(ignore)]
+    #[display("{}: the manifest root must be an object", path.display())]
+    #[diagnostic(code(ERR_PNPM_INVALID_MANIFEST))]
+    InvalidRoot { path: PathBuf },
+
     #[from(ignore)] // TODO: remove this after derive(From) has been removed
     #[display("No package.json was found in {_0}")]
     #[diagnostic(code(ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND))]

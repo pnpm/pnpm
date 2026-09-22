@@ -135,10 +135,14 @@ pub(super) fn parse_project_manifest(
         return Ok(serde_json::json!({}));
     }
     if !value.is_object() {
-        return Err(PackageManifestError::InvalidAttribute(format!(
-            "{}: the manifest root must be an object",
-            path.display(),
-        )));
+        return Err(if is_yaml_path(path) {
+            PackageManifestError::InvalidAttribute(format!(
+                "{}: the manifest root must be an object",
+                path.display(),
+            ))
+        } else {
+            PackageManifestError::InvalidRoot { path: path.to_path_buf() }
+        });
     }
     Ok(value)
 }

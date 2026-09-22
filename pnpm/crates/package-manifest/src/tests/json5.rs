@@ -1,4 +1,4 @@
-use crate::{DependencyGroup, PackageManifest};
+use crate::{DependencyGroup, PackageManifest, safe_read_project_manifest_from_dir};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::fs;
@@ -14,6 +14,14 @@ fn project_manifests_reject_non_object_roots() {
             let error =
                 PackageManifest::from_path(path.clone()).err().expect("reject non-object root");
             eprintln!("ERROR: {error}");
+            let expected_code = if filename == "package.yaml" {
+                "ERR_PNPM_PACKAGE_MANIFEST_INVALID_ATTRIBUTE"
+            } else {
+                "ERR_PNPM_INVALID_MANIFEST"
+            };
+            assert_eq!(miette::Diagnostic::code(&error).unwrap().to_string(), expected_code);
+            let raw_error = safe_read_project_manifest_from_dir(dir.path()).unwrap_err();
+            assert_eq!(miette::Diagnostic::code(&raw_error).unwrap().to_string(), expected_code);
             assert!(error.to_string().contains("the manifest root must be an object"));
             assert!(
                 error
@@ -22,6 +30,22 @@ fn project_manifests_reject_non_object_roots() {
             );
             assert_eq!(fs::read_to_string(path).unwrap(), source);
         }
+    }
+}
+
+#[test]
+fn json_null_roots_keep_the_invalid_manifest_error_code() {
+    for filename in ["package.json", "package.json5"] {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join(filename);
+        fs::write(&path, "null").unwrap();
+        let error = PackageManifest::from_path(path.clone()).err().unwrap();
+        eprintln!("ERROR: {error}");
+        assert_eq!(
+            miette::Diagnostic::code(&error).unwrap().to_string(),
+            "ERR_PNPM_INVALID_MANIFEST",
+        );
+        assert_eq!(fs::read_to_string(path).unwrap(), "null");
     }
 }
 
