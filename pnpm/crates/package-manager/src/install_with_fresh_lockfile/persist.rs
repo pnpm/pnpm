@@ -40,9 +40,9 @@ pub(super) fn fix_lockfile_copy(
             lockfile
         })
 }
-/// The built wanted lockfile whenever lockfiles are enabled, whether or
-/// not this run wrote it, and whether a verification may be recorded
-/// against the file on disk, which only a written one allows.
+/// The resolved lockfile for materialization and virtual-store state,
+/// whether or not written to `pnpm-lock.yaml`, and whether a verification
+/// may be recorded against the on-disk wanted lockfile.
 pub(super) struct PersistedLockfile {
     pub(super) lockfile: Option<Lockfile>,
     pub(super) can_record_lockfile_verification: bool,
@@ -56,12 +56,9 @@ pub(super) async fn persist_fresh_lockfile(
     save_lockfile: bool,
     after_all_resolved: (Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>, Option<pnpm_hooks::LogFn>),
 ) -> Result<PersistedLockfile, InstallWithFreshLockfileError> {
-    if !config.lockfile {
-        return Ok(PersistedLockfile { lockfile: None, can_record_lockfile_verification: false });
-    }
-    if !save_lockfile {
-        // Nothing was persisted, so there is no `pnpm-lock.yaml` whose
-        // verification a later install could key off.
+    if !config.lockfile || !save_lockfile {
+        // Nothing was persisted to the wanted lockfile on disk, so there is no
+        // `pnpm-lock.yaml` whose verification a later install could key off.
         return Ok(PersistedLockfile {
             lockfile: Some(built_lockfile),
             can_record_lockfile_verification: false,

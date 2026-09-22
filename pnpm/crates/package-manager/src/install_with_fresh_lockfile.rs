@@ -372,11 +372,10 @@ pub(crate) struct FreshProjectInputs {
 /// Output of [`InstallWithFreshLockfile::run`].
 ///
 /// Returns the hoist-graph slot the dispatch already consumed plus the
-/// freshly-built [`Lockfile`] (when the writer ran), so the caller can
-/// save it as `<virtual_store_dir>/lock.yaml` after `.modules.yaml`
-/// succeeds — the same ordering the frozen-lockfile path uses to
-/// guarantee a manifest failure can't leave a current-lockfile
-/// pointing at incomplete install state.
+/// freshly-built [`Lockfile`], so the caller can save it as
+/// `<virtual_store_dir>/lock.yaml` after `.modules.yaml` succeeds — the
+/// same ordering the frozen-lockfile path uses to guarantee a manifest
+/// failure can't leave a current-lockfile pointing at incomplete install state.
 #[must_use]
 pub struct InstallWithFreshLockfileResult {
     pub hoisted: pnpm_deps_restorer::InstalledHoistedState,
@@ -386,10 +385,10 @@ pub struct InstallWithFreshLockfileResult {
     /// the resolver's parent chains leave out — but walks only these
     /// importers.
     pub peer_issue_importer_ids: HashSet<String>,
-    /// `Some` when the install resolved a graph that was written to
-    /// `pnpm-lock.yaml`; `None` when the write was skipped (today: only
-    /// `config.lockfile=false`). The caller mirrors the same gate when
-    /// deciding whether to persist the current-lockfile.
+    /// The resolved [`Lockfile`] for the install. Retained in-memory to
+    /// materialize the dependency graph and write `<virtual_store_dir>/lock.yaml`
+    /// even when disk persistence of the wanted `pnpm-lock.yaml` is skipped
+    /// (`config.lockfile=false` or `save_lockfile=false`).
     pub wanted_lockfile: Option<Lockfile>,
     /// `true` when the wanted lockfile written to disk is the same
     /// typed lockfile returned in [`Self::wanted_lockfile`]. A

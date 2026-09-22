@@ -193,11 +193,10 @@ pub(super) fn save_current_lockfile(
 /// Sweep the virtual store of everything the install no longer needs, and
 /// report whether the sweep actually ran (enumerated the store) rather than
 /// just being allowed by the throttle. It does not run when there is no
-/// wanted lockfile to derive the needed set from (`config.lockfile == false`
-/// leaves both `fresh_lockfile` and a loaded `lockfile` absent), when the
-/// target is refused as unsafe, or when enumeration failed. `prunedAt` must
-/// not advance on a run where nothing was swept, or the next real sweep is
-/// throttled off for `modulesCacheMaxAge`.
+/// lockfile to derive the needed set from (`materialized_current_lockfile` is
+/// `None`), when the target is refused as unsafe, or when enumeration failed.
+/// `prunedAt` must not advance on a run where nothing was swept, or the next
+/// real sweep is throttled off for `modulesCacheMaxAge`.
 pub(super) fn sweep_virtual_store(
     config: &Config,
     prior_modules: Option<&pnpm_modules_yaml::ModulesLayout>,

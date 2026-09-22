@@ -859,11 +859,11 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
 
     drop((dirs.dir, mock_instance));
 }
-/// `config.lockfile = false` opts out of *both* lockfile writes (the
-/// wanted `pnpm-lock.yaml` and the per-virtual-store `lock.yaml`) —
-/// the `useLockfile` setting is all-or-nothing.
+/// `config.lockfile = false` opts out of the wanted `pnpm-lock.yaml` write,
+/// but still persists the per-virtual-store `lock.yaml` so subsequent operations
+/// (such as `prune`) can determine the installed dependency graph.
 #[tokio::test]
-async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
+async fn fresh_install_with_lockfile_disabled_writes_current_lockfile() {
     let mock_instance = TestRegistry::start();
 
     let dirs = InstallDirs::new();
@@ -940,8 +940,15 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
     .expect("install should succeed");
 
     assert!(
-        !dirs.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists(),
-        "current-lockfile must also be skipped when config.lockfile = false",
+        !dirs
+            .path()
+            .join(Lockfile::FILE_NAME)
+            .exists(),
+        "wanted-lockfile must be skipped when config.lockfile = false",
+    );
+    assert!(
+        dirs.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists(),
+        "current-lockfile must be written even when config.lockfile = false",
     );
 
     drop((dirs.dir, mock_instance));
