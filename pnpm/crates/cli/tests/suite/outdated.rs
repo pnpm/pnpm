@@ -641,11 +641,7 @@ fn outdated_recursive_validates_workspace_dependencies() {
     let spread = pacquet(&workspace, ["outdated", "-r", DEP, FOO])
         .output()
         .expect("run recursive outdated across projects");
-    assert_eq!(
-        spread.status.code(),
-        Some(1),
-        "both packages exist across workspace and are outdated"
-    );
+    assert_eq!(spread.status.code(), Some(1));
 
     for args in [
         vec!["outdated", "-r", "not-a-dep"],
