@@ -1,4 +1,5 @@
 ---
+"@pnpm/crypto.hash": patch
 "@pnpm/installing.deps-installer": patch
 "@pnpm/lockfile.verification": patch
 "pacquet": patch

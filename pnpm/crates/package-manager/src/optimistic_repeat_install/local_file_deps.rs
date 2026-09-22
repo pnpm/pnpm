@@ -5,7 +5,7 @@ use super::{
     IncludedDependencies, Lockfile, OptimisticRepeatInstallCheck, Path, PathBuf, WantedDependency,
     resolve_from_catalog,
 };
-use pnpm_lockfile::{LockfileResolution, PkgName};
+use pnpm_lockfile::{LockfileResolution, PkgName, is_local_tarball_path};
 use pnpm_resolving_local_resolver::local_tarball_path;
 use pnpm_workspace::importer_id_from_root_dir;
 use ssri::Integrity;
@@ -55,6 +55,9 @@ pub(crate) fn frozen_local_tarballs_to_verify(
             continue;
         };
         let LockfileResolution::Tarball(resolution) = &metadata.resolution else { continue };
+        if !is_local_tarball_path(&resolution.tarball) {
+            continue;
+        }
         let url = crate::local_file_tarball_install_url(
             Cow::Borrowed(&resolution.tarball),
             check.workspace_root,
@@ -422,9 +425,7 @@ pub(crate) fn is_local_file_spec(spec: &str) -> bool {
     if spec.contains([':', '#']) {
         return false;
     }
-    ends_with_ignore_ascii_case(spec, ".tgz")
-        || ends_with_ignore_ascii_case(spec, ".tar.gz")
-        || ends_with_ignore_ascii_case(spec, ".tar")
+    is_local_tarball_path(spec)
 }
 
 fn is_unambiguous_local_file_spec(spec: &str) -> bool {
@@ -439,12 +440,6 @@ fn is_unambiguous_local_file_spec(spec: &str) -> bool {
         return true;
     }
     false
-}
-
-fn ends_with_ignore_ascii_case(spec: &str, suffix: &str) -> bool {
-    let spec = spec.as_bytes();
-    let suffix = suffix.as_bytes();
-    spec.len() >= suffix.len() && spec[spec.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
 }
 
 /// `c:/...`, `c:\...`, or drive-relative `c:foo` — a Windows drive

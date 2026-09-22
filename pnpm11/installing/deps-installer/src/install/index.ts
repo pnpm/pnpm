@@ -1749,7 +1749,8 @@ Note that in CI environments, this setting is enabled by default.`,
         skipRuntimes: opts.skipRuntimes,
         supportedArchitectures: opts.supportedArchitectures,
       })
-      await Promise.all(Object.entries(lockfile.packages ?? {}).map(async ([depPath, snapshot]) => {
+      const limitVerification = pLimit(16)
+      await Promise.all(Object.entries(lockfile.packages ?? {}).map(([depPath, snapshot]) => limitVerification(async () => {
         if (skipped.has(depPath)) return
         const mismatch = await findPackageTarballIntegrityMismatch({
           fileIntegrityCache,
@@ -1764,7 +1765,7 @@ Note that in CI environments, this setting is enabled by default.`,
           sri: mismatch.expected,
           url: mismatch.path,
         })
-      }))
+      })))
     }
     if (opts.lockfileOnly) {
       // The lockfile will only be changed if the workspace will have new projects with no dependencies.

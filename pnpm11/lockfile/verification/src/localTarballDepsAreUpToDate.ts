@@ -31,6 +31,8 @@ export interface LocalTarballIntegrityMismatch {
   readonly path: string
 }
 
+const LOCAL_TARBALL_EXTENSIONS = /\.(?:tgz|tar\.gz|tar)$/i
+
 function isUncLikeFilePayload (pathPart: string): boolean {
   return pathPart.startsWith('\\\\') ||
     pathPart.startsWith('////') ||
@@ -42,7 +44,7 @@ function isUncLikeFilePayload (pathPart: string): boolean {
  * Rejects UNC, network paths, and malformed inputs.
  */
 export function resolveLocalTarballPath (lockfileDir: string, tarball: string): string | undefined {
-  if (!tarball.startsWith('file:')) return undefined
+  if (!tarball.startsWith('file:') || !LOCAL_TARBALL_EXTENSIONS.test(tarball)) return undefined
   const pathPart = tarball.slice('file:'.length)
   if (isUncLikeFilePayload(pathPart) || pathPart.includes('\0')) {
     return undefined

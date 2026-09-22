@@ -662,6 +662,8 @@ describe('local tgz file dependency', () => {
     expect(resolveLocalTarballPath(lockfileDir, 'file:////server/share/pkg.tgz')).toBeUndefined()
     expect(resolveLocalTarballPath(lockfileDir, 'file:pkg\0.tgz')).toBeUndefined()
     expect(resolveLocalTarballPath(lockfileDir, 'not-a-file-protocol')).toBeUndefined()
+    expect(resolveLocalTarballPath(lockfileDir, 'file:/etc/passwd')).toBeUndefined()
+    expect(resolveLocalTarballPath(lockfileDir, 'file:../../etc/shadow')).toBeUndefined()
     expect(resolveLocalTarballPath(lockfileDir, 'file:./vendor/tar.tgz')).toBe(path.resolve(lockfileDir, './vendor/tar.tgz'))
     expect(resolveLocalTarballPath(lockfileDir, 'file:vendor/tar.tgz')).toBe(path.resolve(lockfileDir, 'vendor/tar.tgz'))
   })
