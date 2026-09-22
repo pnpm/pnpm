@@ -327,7 +327,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     // the store, but we won't necessarily have reapplied the executable bit -
     // so apply it here.
     if (EXECUTABLE_SHEBANG_SUPPORTED) {
-      await ensureExecutableIfNeeded(cmd.path, 0o755)
+      await ensureExecutableIfNeeded(cmd.path, 0o755, { allowMissing: true })
     }
     return
   }
@@ -371,7 +371,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null && await canSymlinkExecutable(cmd.path)) {
     try {
       await symlinkDir(cmd.path, externalBinPath)
-      await ensureExecutable(cmd.path, 0o755)
+      await ensureExecutableIfNeeded(cmd.path, 0o755)
     } catch (err: any) { // eslint-disable-line
       if (err.code !== 'ENOENT' && err.code !== 'EISDIR') {
         throw err
@@ -412,7 +412,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // ensure that bin are executable and not containing
   // windows line-endings(CRLF) on the hashbang line
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
-    await ensureExecutable(cmd.path, 0o755)
+    await ensureExecutableIfNeeded(cmd.path, 0o755)
   }
 }
 
@@ -503,6 +503,17 @@ async function canSymlinkExecutable (file: string): Promise<boolean> {
   }
 }
 
+async function ensureExecutableIfNeeded (file: string, mode: number, opts?: { allowMissing?: boolean }): Promise<void> {
+  const stat = await fs.stat(file).catch((err: any) => { // eslint-disable-line
+    if (opts?.allowMissing && err.code === 'ENOENT') return undefined
+    throw err
+  })
+  if (stat == null) return
+  if ((stat.mode & 0o111) !== 0o111 || await hasWindowsShebang(file)) {
+    await ensureExecutable(file, mode)
+  }
+}
+
 // Only installed package files may be repaired. Resolve symlinks before checking
 // because workspace and link: dependencies also appear under node_modules.
 async function ensureExecutable (file: string, mode: number): Promise<void> {
@@ -515,20 +526,9 @@ async function ensureExecutable (file: string, mode: number): Promise<void> {
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EROFS') {
       const stat = await fs.stat(realFile).catch(() => undefined)
-      if (stat != null && (stat.mode & 0o111) !== 0 && !(await hasWindowsShebang(realFile))) return
+      if (stat != null && (stat.mode & 0o111) === 0o111 && !(await hasWindowsShebang(realFile))) return
     }
     throw err
-  }
-}
-
-// A missing or unreadable source is skipped rather than failing the install:
-// the existing bin was accepted as correctly linked, and before this repair
-// step the skip path returned without touching the source at all.
-async function ensureExecutableIfNeeded (file: string, mode: number): Promise<void> {
-  const stat = await fs.stat(file).catch(() => undefined)
-  if (stat == null) return
-  if ((stat.mode & 0o111) === 0 || await hasWindowsShebang(file)) {
-    await ensureExecutable(file, mode)
   }
 }
 

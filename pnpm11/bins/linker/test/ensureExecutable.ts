@@ -95,3 +95,49 @@ testOnPosix('linkBins() rethrows a chmod failure when the bin still has a CRLF s
   const warn = jest.fn()
   await expect(linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })).rejects.toHaveProperty('code', 'EROFS')
 })
+
+testOnPosix('linkBins() invokes fixBin when the bin source has only partial execute bits', async () => {
+  const binTarget = temporaryDirectory()
+  const fixture = f.prepare('simple-fixture')
+  const binSource = path.join(fixture, 'node_modules', 'simple', 'index.js')
+  fs.chmodSync(binSource, 0o744)
+
+  const warn = jest.fn()
+  await expect(linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })).resolves.toBeDefined()
+
+  expect(fixBinMock).toHaveBeenCalledWith(binSource, 0o755)
+  expect(fs.existsSync(path.join(binTarget, 'simple'))).toBe(true)
+})
+
+testOnPosix('linkBins() rethrows EPERM from fixBin when the bin source has only partial execute bits', async () => {
+  const eperm = Object.assign(new Error('EPERM: operation not permitted, chmod'), { code: 'EPERM' })
+  fixBinMock.mockRejectedValue(eperm)
+
+  const binTarget = temporaryDirectory()
+  const fixture = f.prepare('simple-fixture')
+  const binSource = path.join(fixture, 'node_modules', 'simple', 'index.js')
+  fs.chmodSync(binSource, 0o744)
+
+  const warn = jest.fn()
+  await expect(linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })).rejects.toHaveProperty('code', 'EPERM')
+  expect(fixBinMock).toHaveBeenCalledWith(binSource, 0o755)
+})
+
+testOnPosix('linkBins() does not swallow non-ENOENT stat errors on already linked bins', async () => {
+  const binTarget = temporaryDirectory()
+  const fixture = f.prepare('simple-fixture')
+  const warn = jest.fn()
+
+  await linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })
+
+  const statSpy = jest.spyOn(fs.promises, 'stat').mockRejectedValueOnce(
+    Object.assign(new Error('EACCES: permission denied, stat'), { code: 'EACCES' })
+  )
+
+  try {
+    await expect(linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })).rejects.toHaveProperty('code', 'EACCES')
+  } finally {
+    statSpy.mockRestore()
+  }
+})
+
