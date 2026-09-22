@@ -132,6 +132,27 @@ fn leaves_comment_free_serialization_unchanged() {
 }
 
 #[test]
+fn anchors_standalone_comments_after_each_line_ending() {
+    for separator in ["\n", "\r\n", "\r", "\u{2028}", "\u{2029}"] {
+        let source = ["{", "// package name", "name: 'demo'", "}"].join(separator);
+        let restored = assert_restored(&source, &json!({"name": "demo"}), &["// package name"]);
+        assert_eq!(restored, "{\n// package name\n  \"name\": \"demo\"\n}");
+    }
+}
+
+#[test]
+fn anchors_comments_after_crlf_in_block_comments_and_strings() {
+    let source = "/* heading\r\n details */\r\n{\r\nvalue: 'a\\\r\nb',\r\n// package name\r\nname: 'demo'\r\n}";
+    let restored = assert_restored(
+        source,
+        &json!({"value": "ab", "name": "demo"}),
+        &["/* heading\r\n details */", "// package name"],
+    );
+    assert!(restored.contains("// package name\n  \"name\": \"demo\""));
+    assert!(!restored.contains(RELOCATION_MARKER));
+}
+
+#[test]
 fn repeated_edits_do_not_accumulate_relocation_markers() {
     let mut source = "{\nremoved: 1,\n// retained note\nvalue: 1\n}".to_owned();
     for version in 2..=11 {

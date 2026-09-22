@@ -21,6 +21,7 @@ pub(crate) fn restore_comments(original: &str, serialized: &str) -> String {
         .iter()
         .any(|comment| comment.text == RELOCATION_MARKER);
     let source_lines: Vec<_> = stripped
+        .replace("\r\n", "\n")
         .split(is_line_break)
         .map(canonicalize)
         .collect();
@@ -70,13 +71,17 @@ fn extract_comments(source: &str) -> (String, Vec<Comment<'_>>) {
         line += token
             .chars()
             .filter(|&character| is_line_break(character))
-            .count();
+            .count()
+            - token.matches("\r\n").count();
         cursor += length;
     }
     (stripped, comments)
 }
 
 fn token_length(source: &str) -> usize {
+    if source.starts_with("\r\n") {
+        return 2;
+    }
     if source.starts_with("//") {
         return source.find(is_line_break).unwrap_or(source.len());
     }
