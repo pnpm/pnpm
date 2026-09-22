@@ -228,6 +228,7 @@ jobs:
           {
             echo "SCCACHE_DIR=$RUNNER_TEMP/sccache"
             echo "SCCACHE_CACHE_SIZE=3G"
+            echo "SCCACHE_IDLE_TIMEOUT=0"
             echo "RUSTC_WRAPPER=sccache"
             echo "CARGO_INCREMENTAL=0"
           } >> "$GITHUB_ENV"
