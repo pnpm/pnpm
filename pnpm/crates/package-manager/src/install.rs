@@ -45,8 +45,9 @@ use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, NodeLinker, PNPM_VERSION};
 use pnpm_executor::{
-    DEV_PREINSTALL_ALREADY_RAN_ENV, ROOT_PREINSTALL_ALREADY_RAN_ENV, RunPostinstallHooks,
-    run_project_lifecycle_scripts, run_project_lifecycle_scripts_after_preinstall,
+    DEV_PREINSTALL_ALREADY_RAN_ENV, PROJECT_LIFECYCLE_STAGES, PROJECT_POST_UNINSTALL_STAGES,
+    PROJECT_PRE_UNINSTALL_STAGES, ROOT_PREINSTALL_ALREADY_RAN_ENV, RunPostinstallHooks,
+    run_project_lifecycle_stages,
 };
 use pnpm_lockfile::{
     LazyLockfile, Lockfile, LockfileEntries, MaybeLazyLockfile, PnpmfileChecksumCheck,
@@ -100,7 +101,8 @@ mod workspace_state;
 use apply_materialization::{ApplyMaterializationInputs, apply_materialization_result};
 use lifecycle::{
     dev_preinstall_already_ran, load_workspace_projects, project_lifecycle_graph,
-    root_preinstall_already_ran, run_projects_lifecycle_scripts, run_root_hook,
+    project_script_stages, root_preinstall_already_ran, run_pre_uninstall_scripts,
+    run_projects_lifecycle_scripts, run_root_hook,
 };
 use lockfile_freshness::{
     FastUpdateLockfileOptions, check_lockfile_freshness, try_fast_update_lockfile,
@@ -120,8 +122,8 @@ use prepare_modules_state::{
 use time_machine::TimeMachineExclusions;
 use workspace_state::{
     ProjectScriptsInputs, build_project_manifests_list, build_root_importer_project_manifests_list,
-    build_selected_project_manifests_list, lockfile_root_for, projects_running_own_scripts,
-    selected_manifest_freshness_inputs,
+    build_selected_project_manifests_list, lockfile_root_for, mutated_project_dirs,
+    projects_running_own_scripts, selected_manifest_freshness_inputs,
 };
 
 #[cfg(test)]
@@ -258,6 +260,9 @@ pub struct WorkspaceInstallSelection<'a> {
     /// Projects chosen by the original filter. Manifest mutations stay
     /// scoped to these projects.
     pub selected_dirs: &'a HashSet<PathBuf>,
+    /// The subset of [`Self::selected_dirs`] whose manifests the command
+    /// changed; `None` when it changed every one of them.
+    pub edited_dirs: Option<&'a HashSet<PathBuf>>,
     /// Importers to materialize: [`Self::selected_dirs`] plus an omitted
     /// workspace root that pnpm treats as a full-install importer.
     pub install_dirs: &'a HashSet<PathBuf>,
@@ -311,7 +316,8 @@ pub enum ProjectMutation {
     InstallSome,
     /// pnpm's `mutation: 'uninstallSome'`: `pacquet remove`, which
     /// deletes named dependencies from the manifest before the install
-    /// runs.
+    /// runs. The edited projects run the uninstall stages, not the
+    /// install stages.
     UninstallSome,
     /// A run that installs no project's manifest: the commands that
     /// only materialize what the lockfile already records

@@ -30,6 +30,8 @@ import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
   makeProjectNodePathOption,
+  POST_UNINSTALL_STAGES,
+  PRE_UNINSTALL_STAGES,
   runLifecycleHook,
   runLifecycleHooksConcurrently,
   type RunLifecycleHooksConcurrentlyOptions,
@@ -87,19 +89,20 @@ import {
   type ResolutionPolicyViolation,
 } from '@pnpm/resolving.resolver-base'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type {
-  AllowBuild,
-  Dependencies,
-  DependenciesField,
-  DependencyManifest,
-  DepPath,
-  IgnoredBuilds,
-  IncludedDependencies,
-  PeerDependencyIssues,
-  ProjectId,
-  ProjectManifest,
-  ProjectRootDir,
-  ReadPackageHook,
+import {
+  type AllowBuild,
+  type Dependencies,
+  DEPENDENCIES_FIELDS,
+  type DependenciesField,
+  type DependencyManifest,
+  type DepPath,
+  type IgnoredBuilds,
+  type IncludedDependencies,
+  type PeerDependencyIssues,
+  type ProjectId,
+  type ProjectManifest,
+  type ProjectRootDir,
+  type ReadPackageHook,
 } from '@pnpm/types'
 import { verifiedFileIntegritySince, verifiedFileIntegritySnapshot } from '@pnpm/worker'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -732,6 +735,19 @@ export async function mutateModules (
   }
 
   async function _install (): Promise<InnerInstallResult> {
+    // Read before `removeDeps` edits the manifests below.
+    const projectDirsRemovingDeps = new Set(projects
+      .filter((project) => project.mutation === 'uninstallSome' && removesAnyDependency(project, ctx.projects[project.rootDir]?.manifest))
+      .map((project) => project.rootDir))
+    if (!opts.ignoreScripts && !opts.ignorePackageManifest && projectDirsRemovingDeps.size > 0) {
+      await runLifecycleHooksConcurrently({
+        childConcurrency: opts.childConcurrency,
+        importers: [...projectDirsRemovingDeps].map((rootDir) => ctx.projects[rootDir]),
+        opts: scriptsOpts,
+        projectDependencies: opts.projectDependencies,
+        stages: PRE_UNINSTALL_STAGES,
+      })
+    }
     const packageExtensionsChecksum = hashObjectNullableWithPrefix(opts.packageExtensions)
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
     const untrackedPnpmfileReadPackageHook = getUntrackedPnpmfileReadPackageHook(opts.hooks)
@@ -1008,6 +1024,7 @@ export async function mutateModules (
       frozenLockfile,
       needsFullResolution,
       patchGroups,
+      projectDirsRemovingDeps,
       untrackedReadPackageHookMayHaveChanged,
       rootProjectPreinstallRan,
       upToDateLockfileMajorVersion,
@@ -1490,6 +1507,7 @@ export async function mutateModules (
     const result = await installInContext(projectsToInstall, ctx, {
       ...opts,
       allowBuild,
+      projectDirsRemovingDeps,
       currentLockfileIsUpToDate: !ctx.existsNonEmptyWantedLockfile || ctx.currentLockfileIsUpToDate,
       makePartialCurrentLockfile,
       needsFullResolution,
@@ -1544,6 +1562,7 @@ export async function mutateModules (
     frozenLockfile,
     needsFullResolution,
     patchGroups,
+    projectDirsRemovingDeps,
     untrackedReadPackageHookMayHaveChanged,
     rootProjectPreinstallRan,
     upToDateLockfileMajorVersion,
@@ -1557,6 +1576,7 @@ export async function mutateModules (
     addedManifestsAreCommitted: boolean
     didFastUpdateOverrides: boolean
     frozenLockfile: boolean
+    projectDirsRemovingDeps: Set<ProjectRootDir>
     needsFullResolution: boolean
     patchGroups?: PatchGroupRecord
     untrackedReadPackageHookMayHaveChanged: boolean
@@ -1720,6 +1740,7 @@ Note that in CI environments, this setting is enabled by default.`,
           .filter((project) => project.mutation !== 'uninstallSome')
           .map((project) => project.rootDir),
         rootProjectPreinstallRan,
+        projectDirsRunningUninstallScripts: [...projectDirsRemovingDeps],
         allProjects: ctx.projects,
         prunedAt: ctx.modulesFile?.prunedAt,
         pruneVirtualStore,
@@ -2113,6 +2134,7 @@ type InstallFunction = (
     pruneVirtualStore: boolean
     /** The root project's `preinstall` already ran, ahead of resolution. */
     rootProjectPreinstallRan: boolean
+    projectDirsRemovingDeps: Set<ProjectRootDir>
     scriptsOpts: RunLifecycleHooksConcurrentlyOptions
     currentLockfileIsUpToDate: boolean
     hoistWorkspacePackages?: boolean
@@ -2720,7 +2742,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           ...makeNodePackageMapOption(path.join(ctx.rootModulesDir, PACKAGE_MAP_FILENAME), opts.scriptsOpts.extraEnv),
         }
       }
-      const projectsToBeBuilt = projectsWithTargetDirs.filter(({ mutation }) => mutation === 'install') as ProjectToBeInstalled[]
+      const projectsToBeBuilt = projectsWithTargetDirs
+        .filter(({ mutation, rootDir }) => mutation === 'install' || (mutation === 'uninstallSome' && opts.projectDirsRemovingDeps.has(rootDir)))
+        .map((project) => project.mutation === 'uninstallSome' ? { ...project, stages: POST_UNINSTALL_STAGES } : project) as ProjectToBeInstalled[]
       // The projects' own lifecycle scripts import dependency code linked
       // from the lockfile, so they are held to the same gate as dependency
       // builds — also when no new dep paths made the buildModules branch run.
@@ -2965,6 +2989,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           projectDirsRunningScripts: projects
             .filter((project) => project.mutation !== 'uninstallSome')
             .map((project) => project.rootDir),
+          projectDirsRunningUninstallScripts: [...opts.projectDirsRemovingDeps],
           allProjects: ctx.projects,
           prunedAt: ctx.modulesFile?.prunedAt,
           wantedLockfile: result.newLockfile,
@@ -3007,6 +3032,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         projectDirsRunningScripts: projects
           .filter((project) => project.mutation !== 'uninstallSome')
           .map((project) => project.rootDir),
+        projectDirsRunningUninstallScripts: [...opts.projectDirsRemovingDeps],
         allProjects: ctx.projects,
         prunedAt: ctx.modulesFile?.prunedAt,
         wantedLockfile: result.newLockfile,
@@ -3186,9 +3212,16 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
  */
 function canUsePnprForMutations (
   projects: MutatedProject[],
-  opts: Pick<MutateModulesOptions, 'allProjects' | 'depth' | 'includeDirect'>
+  opts: Pick<MutateModulesOptions, 'allProjects' | 'depth' | 'ignoreScripts' | 'includeDirect'>
 ): boolean {
   if (projects.length === 0) return false
+  // The server path materializes without the uninstall stages.
+  if (!opts.ignoreScripts && projects.some((project) => project.mutation === 'uninstallSome')) {
+    const scriptsByRootDir = new Map(opts.allProjects?.map((project) => [project.rootDir, project.manifest.scripts]))
+    if (projects.some((project) => project.mutation === 'uninstallSome' && definesUninstallStage(scriptsByRootDir.get(project.rootDir)))) {
+      return false
+    }
+  }
   const refreshesRevisions = projects.some(project =>
     (project.mutation === 'install' || project.mutation === 'installSome') && project.updatePatches === true
   )
@@ -3214,6 +3247,10 @@ function canUsePnprForMutations (
     const m = p as InstallDepsMutation | InstallSomeDepsMutation
     return !m.update && !m.updateToLatest && m.updateMatching == null
   })
+}
+
+function definesUninstallStage (scripts: ProjectManifest['scripts']): boolean {
+  return scripts != null && [...PRE_UNINSTALL_STAGES, ...POST_UNINSTALL_STAGES].some((stage) => scripts[stage] != null)
 }
 
 function canUsePnprForInstall (opts: Opts): boolean {
@@ -3757,4 +3794,12 @@ function setUntrackedPnpmfileReadPackageHook (
   } else {
     lockfile.untrackedPnpmfileReadPackageHook = value
   }
+}
+
+function removesAnyDependency (project: UninstallSomeDepsMutation, manifest: ProjectManifest | undefined): boolean {
+  if (manifest == null) return false
+  const fields: Array<DependenciesField | 'peerDependencies'> = project.targetDependenciesField != null
+    ? [project.targetDependenciesField]
+    : [...DEPENDENCIES_FIELDS, 'peerDependencies']
+  return project.dependencyNames.some((name) => fields.some((field) => manifest[field]?.[name] != null))
 }

@@ -18,6 +18,8 @@ use workspace::{InstallScope, InstallWorkspace, workspace_projects};
 
 mod execution;
 mod time_machine_capture;
+mod uninstall_hooks;
+use uninstall_hooks::run_pre_uninstall_hooks;
 
 use super::{
     Arc, DependencyGroup, InMemoryPackageMetaCache, IncludedDependencies, Install, InstallError,

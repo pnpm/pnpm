@@ -22,6 +22,12 @@ export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
   preferSymlinkedExecutables?: boolean
 }
 
+/** The project stages `pnpm remove` runs before it unlinks anything. */
+export const PRE_UNINSTALL_STAGES = ['preuninstall', 'uninstall']
+
+/** The project stage `pnpm remove` runs after unlinking. */
+export const POST_UNINSTALL_STAGES = ['postuninstall']
+
 export interface Importer {
   buildIndex: number
   manifest: ProjectManifest

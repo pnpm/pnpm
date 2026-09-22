@@ -1,11 +1,16 @@
+pub(super) use uninstall::{project_script_stages, run_pre_uninstall_scripts};
+
+mod uninstall;
+
 use pnpm_deps_restorer::build_modules::exec_scripts_prepend_node_path;
 
 use super::{
     Config, DEV_PREINSTALL_ALREADY_RAN_ENV, DependencyGroup, HashMap, HashSet, InstallError,
     Lockfile, NodeLinker, PackageManifest, Path, PathBuf, ROOT_PREINSTALL_ALREADY_RAN_ENV,
     Reporter, RunPostinstallHooks, link_project_bins, project_requires_lifecycle_scripts,
-    run_project_lifecycle_scripts, run_project_lifecycle_scripts_after_preinstall,
+    run_project_lifecycle_stages,
 };
+
 use indexmap::IndexMap;
 use pnpm_executor::LifecycleScriptError;
 use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, TaskCompletion, schedule_graph};
@@ -281,7 +286,7 @@ fn run_project_stages(
     workspace_root: &Path,
     project_dir: &Path,
     mut extra_env: HashMap<String, String>,
-    stages: fn(&RunPostinstallHooks<'_>) -> Result<bool, LifecycleScriptError>,
+    stages: impl FnOnce(&RunPostinstallHooks<'_>) -> Result<bool, LifecycleScriptError>,
 ) -> Result<(), InstallError> {
     let root_modules_dir = project_dir.join(config.modules_dir_name());
     let bin_dir = root_modules_dir.join(".bin");
@@ -340,23 +345,25 @@ impl ProjectScriptRunner<'_> {
         &self,
         project_dir: &Path,
         manifest: &PackageManifest,
+        stages: &[&str],
     ) -> Result<(), InstallError> {
         let root_modules_dir = project_dir.join(self.config.modules_dir_name());
         link_project_bins(&root_modules_dir, &direct_dep_names(manifest), &self.link_options)
             .map_err(InstallError::ProjectBinLink)?;
         let stages = if self.root_preinstall_ran
+            && stages.first() == Some(&"preinstall")
             && pnpm_fs::lexical_normalize(project_dir) == self.normalized_workspace_root
         {
-            run_project_lifecycle_scripts_after_preinstall::<Reporter>
+            &stages[1..]
         } else {
-            run_project_lifecycle_scripts::<Reporter>
+            stages
         };
         run_project_stages(
             self.config,
             self.workspace_root,
             project_dir,
             self.extra_env.clone(),
-            stages,
+            |opts| run_project_lifecycle_stages::<Reporter>(opts, stages),
         )
     }
 }
@@ -395,24 +402,25 @@ impl<'a> ProjectScriptRunner<'a> {
     }
 }
 
-/// Run workspace projects' own lifecycle scripts as soon as their dependency
-/// projects settle.
+/// Run `stages` of workspace projects' own lifecycle scripts as soon as
+/// their dependency projects settle.
 pub(super) fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
     project_graph: &ProjectLifecycleGraph<'_>,
     config: &Config,
     node_linker: NodeLinker,
     workspace_root: &Path,
     root_preinstall_ran: bool,
+    stages: &[&str],
 ) -> Result<(), InstallError> {
     let runner = ProjectScriptRunner::new(config, node_linker, workspace_root, root_preinstall_ran);
     let first_error: Mutex<Option<InstallError>> = Mutex::new(None);
     let on_node_skipped: fn(&PathBuf) = |_| {};
     let run_node = |project_dir: PathBuf| {
         let project = &project_graph.projects_by_dir[&project_dir];
-        if !project_requires_lifecycle_scripts(&project.0, project.1) {
+        if !project_requires_lifecycle_scripts(&project.0, project.1, stages) {
             return TaskCompletion::Passed;
         }
-        match runner.run::<Reporter>(&project.0, project.1) {
+        match runner.run::<Reporter>(&project.0, project.1, stages) {
             Ok(()) => TaskCompletion::Passed,
             Err(error) => {
                 first_error

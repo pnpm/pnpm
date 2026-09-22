@@ -111,6 +111,12 @@ const DEPENDENCY_LIFECYCLE_STAGES: [&str; 3] = ["preinstall", "install", "postin
 pub const PROJECT_LIFECYCLE_STAGES: [&str; 6] =
     ["preinstall", "install", "postinstall", "preprepare", "prepare", "postprepare"];
 
+/// The project stages `pnpm remove` runs before it unlinks anything.
+pub const PROJECT_PRE_UNINSTALL_STAGES: [&str; 2] = ["preuninstall", "uninstall"];
+
+/// The project stage `pnpm remove` runs after unlinking.
+pub const PROJECT_POST_UNINSTALL_STAGES: [&str; 1] = ["postuninstall"];
+
 /// The pnpm-specific hook the root project may define to prepare state
 /// the install itself depends on. It runs before resolution, so unlike
 /// [`PROJECT_LIFECYCLE_STAGES`] it cannot rely on `node_modules`.
@@ -166,7 +172,17 @@ pub fn run_postinstall_hooks<Reporter: self::Reporter>(
 pub fn run_project_lifecycle_scripts<Reporter: self::Reporter>(
     opts: &RunPostinstallHooks<'_>,
 ) -> Result<bool, LifecycleScriptError> {
-    run_lifecycle_stages::<Reporter>(opts, &PROJECT_LIFECYCLE_STAGES)
+    run_project_lifecycle_stages::<Reporter>(opts, &PROJECT_LIFECYCLE_STAGES)
+}
+
+/// Run `stages` of a workspace project's own lifecycle scripts, in order.
+///
+/// Returns `true` if any script was present and executed.
+pub fn run_project_lifecycle_stages<Reporter: self::Reporter>(
+    opts: &RunPostinstallHooks<'_>,
+    stages: &[&str],
+) -> Result<bool, LifecycleScriptError> {
+    run_lifecycle_stages::<Reporter>(opts, stages)
 }
 
 /// [`run_project_lifecycle_scripts`] without its `preinstall` stage, for
@@ -204,7 +220,7 @@ pub fn run_dev_preinstall_hook<Reporter: self::Reporter>(
 
 /// Read the manifest at `opts.pkg_root` and run each of `stages` whose
 /// script is present, in order. Shared by [`run_postinstall_hooks`],
-/// [`run_project_lifecycle_scripts`], and [`run_dev_preinstall_hook`].
+/// [`run_project_lifecycle_stages`], and [`run_dev_preinstall_hook`].
 ///
 /// The `install` stage falls back to `node-gyp rebuild` when neither
 /// `install` nor `preinstall` is defined and a `binding.gyp` exists.

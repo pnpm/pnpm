@@ -1,7 +1,7 @@
 pub use discovery::check_deps_status_before_run_at;
 pub(super) use projects::{
     ProjectScriptsInputs, build_project_manifests_list, build_root_importer_project_manifests_list,
-    build_selected_project_manifests_list, projects_running_own_scripts,
+    build_selected_project_manifests_list, mutated_project_dirs, projects_running_own_scripts,
     selected_manifest_freshness_inputs,
 };
 

@@ -1,7 +1,8 @@
 use super::{
     super::{
-        Install, ProjectMutation, configured_or_discovered_workspace_dir, load_workspace_projects,
-        project_requires_lifecycle_scripts,
+        Install, PROJECT_LIFECYCLE_STAGES, PROJECT_POST_UNINSTALL_STAGES,
+        PROJECT_PRE_UNINSTALL_STAGES, ProjectMutation, configured_or_discovered_workspace_dir,
+        load_workspace_projects, project_requires_lifecycle_scripts,
     },
     InstallDirs, empty_test_lockfile, install_with_pnpmfile,
     install_workspace_member_with_pnpmfile,
@@ -28,17 +29,39 @@ fn project_lifecycle_detection_includes_scripts_and_binding_gyp_fallback() {
         project_dir.join("package.json"),
         serde_json::json!({ "name": "project" }),
     );
-    assert!(!project_requires_lifecycle_scripts(project_dir, &scriptless));
+    assert!(!project_requires_lifecycle_scripts(
+        project_dir,
+        &scriptless,
+        &PROJECT_LIFECYCLE_STAGES
+    ));
 
     fs::write(project_dir.join("binding.gyp"), "{}").unwrap();
-    assert!(project_requires_lifecycle_scripts(project_dir, &scriptless));
+    assert!(project_requires_lifecycle_scripts(
+        project_dir,
+        &scriptless,
+        &PROJECT_LIFECYCLE_STAGES
+    ));
+    assert!(!project_requires_lifecycle_scripts(
+        project_dir,
+        &scriptless,
+        &PROJECT_PRE_UNINSTALL_STAGES
+    ));
 
     fs::remove_file(project_dir.join("binding.gyp")).unwrap();
     let with_prepare = PackageManifest::from_value(
         project_dir.join("package.json"),
         serde_json::json!({ "scripts": { "prepare": "node prepare.js" } }),
     );
-    assert!(project_requires_lifecycle_scripts(project_dir, &with_prepare));
+    assert!(project_requires_lifecycle_scripts(
+        project_dir,
+        &with_prepare,
+        &PROJECT_LIFECYCLE_STAGES
+    ));
+    assert!(!project_requires_lifecycle_scripts(
+        project_dir,
+        &with_prepare,
+        &PROJECT_POST_UNINSTALL_STAGES
+    ));
 }
 /// [`Config::workspace_search_skipped`] alone suppresses the ancestor walk,
 /// never [`Config::ignore_workspace`]. No CLI run reaches the state where
