@@ -3539,12 +3539,17 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
     const rootProjectManifest = (allInstallProjects ?? [{ rootDir, manifest }])
       .find((project) => project.rootDir === lockfileDir)?.manifest ??
       await safeReadProjectManifestOnly(lockfileDir)
+    const rootModulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
     const rootHookOpts = {
       depPath: lockfileDir,
       extraBinPaths: opts.extraBinPaths,
-      extraEnv: opts.extraEnv,
+      extraEnv: {
+        ...opts.extraEnv,
+        ...await makeProjectNodePathOption({ modulesDir: rootModulesDir, rootDir: lockfileDir }, opts),
+      },
       pkgRoot: lockfileDir,
-      rootModulesDir: path.join(lockfileDir, opts.modulesDir ?? 'node_modules'),
+      rootModulesDir,
+      wdBinDir: path.join(rootModulesDir, '.bin'),
       scriptShell: opts.scriptShell,
       scriptsPrependNodePath: opts.scriptsPrependNodePath,
       shellEmulator: opts.shellEmulator,
