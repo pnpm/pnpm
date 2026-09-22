@@ -5,7 +5,6 @@ use super::{
 use assert_cmd::assert::OutputAssertExt;
 use std::collections::HashMap;
 
-/// The requested version fits the raw manifest range but not its effective override.
 #[test]
 fn update_no_save_skips_version_excluded_by_selector_override() {
     let (root, workspace, anchor) = setup();
@@ -54,7 +53,6 @@ fn update_no_save_skips_version_excluded_by_selector_override() {
     drop((root, anchor));
 }
 
-/// A removal override leaves no effective dependency for a versioned update to change.
 #[test]
 fn update_no_save_does_not_restore_dependency_removed_by_selector_override() {
     let (root, workspace, anchor) = setup();
