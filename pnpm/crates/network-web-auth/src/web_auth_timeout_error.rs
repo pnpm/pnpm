@@ -1,4 +1,7 @@
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 
 /// Web-based authentication did not complete before the timeout.
 ///

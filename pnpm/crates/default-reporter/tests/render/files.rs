@@ -1,4 +1,10 @@
-use super::{ReporterOptions, ignored_scripts, render, state, state_with_options};
+use super::{
+    ReporterOptions,
+    ignored_scripts,
+    render,
+    state,
+    state_with_options,
+};
 
 #[test]
 fn the_ignored_builds_instruction_defaults_to_the_pnpm_command() {

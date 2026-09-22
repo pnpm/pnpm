@@ -1,7 +1,19 @@
 use super::{
-    Arc, DateTime, MINIMUM_RELEASE_AGE_VIOLATION_CODE, NpmResolutionVerifier, OnceCell, PkgName,
-    ResolutionVerification, SkippedTimeCheck, Utc, package_key, parse_packument_timestamp,
-    to_registry_url, uncheckable, version_key, warn_missing_time_once,
+    Arc,
+    DateTime,
+    MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+    NpmResolutionVerifier,
+    OnceCell,
+    PkgName,
+    ResolutionVerification,
+    SkippedTimeCheck,
+    Utc,
+    package_key,
+    parse_packument_timestamp,
+    to_registry_url,
+    uncheckable,
+    version_key,
+    warn_missing_time_once,
 };
 
 impl NpmResolutionVerifier {

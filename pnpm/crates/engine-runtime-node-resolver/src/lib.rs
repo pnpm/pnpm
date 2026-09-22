@@ -22,19 +22,33 @@
 //!   into the dispatcher chain.
 
 pub use get_node_artifact_address::{
-    GetNodeArtifactAddressOptions, NodeArtifactAddress, get_node_artifact_address,
+    GetNodeArtifactAddressOptions,
+    NodeArtifactAddress,
+    get_node_artifact_address,
 };
 pub use get_node_mirror::{
-    DEFAULT_NODE_MIRROR_BASE_URL, UNOFFICIAL_NODE_MIRROR_BASE_URL, get_node_mirror,
+    DEFAULT_NODE_MIRROR_BASE_URL,
+    UNOFFICIAL_NODE_MIRROR_BASE_URL,
+    get_node_mirror,
 };
 pub use node_resolver::{
-    NodeResolver, NodeResolverError, normalize_node_runtime_version_specifier,
+    NodeResolver,
+    NodeResolverError,
+    normalize_node_runtime_version_specifier,
 };
 pub use normalize_arch::get_normalized_arch;
-pub use parse_node_specifier::{NodeSpecifier, ParseNodeSpecifierError, parse_node_specifier};
+pub use parse_node_specifier::{
+    NodeSpecifier,
+    ParseNodeSpecifierError,
+    parse_node_specifier,
+};
 pub use resolve_node_version::{
-    NODE_EXTRAS_IGNORE_PATTERN, ResolveNodeVersionError, resolve_node_version,
-    resolve_node_version_with_auth, resolve_node_versions, resolve_node_versions_with_auth,
+    NODE_EXTRAS_IGNORE_PATTERN,
+    ResolveNodeVersionError,
+    resolve_node_version,
+    resolve_node_version_with_auth,
+    resolve_node_versions,
+    resolve_node_versions_with_auth,
 };
 
 mod get_node_artifact_address;

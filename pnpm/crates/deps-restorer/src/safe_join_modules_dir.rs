@@ -6,10 +6,16 @@
 //! time, so the hoisted restore path enforces the boundary the
 //! resolution path already enforces.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_package_name::is_valid_dependency_alias;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A dependency alias that would escape `modules` or collide with
 /// pnpm's own `node_modules` layout. Surfaces pnpm's

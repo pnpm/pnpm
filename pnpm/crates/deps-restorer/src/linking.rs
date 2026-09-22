@@ -8,21 +8,46 @@
 //! reports.
 
 use crate::{
-    LinkVirtualStoreBins, SkippedSnapshots, SymlinkDirectDependencies, VirtualStoreLayout,
+    LinkVirtualStoreBins,
+    SkippedSnapshots,
+    SymlinkDirectDependencies,
+    VirtualStoreLayout,
     install_frozen_lockfile::{
-        HoistPlan, HoistedLinkerError, HoistedLinkerInputs, collect_public_hoist_targets,
-        compute_hoist_plan, run_hoisted_linker, workspace_packages_for_hoist,
+        HoistPlan,
+        HoistedLinkerError,
+        HoistedLinkerInputs,
+        collect_public_hoist_targets,
+        compute_hoist_plan,
+        run_hoisted_linker,
+        workspace_packages_for_hoist,
     },
-    link_direct_dep_bins_resolved, link_root_component_members, symlink_hoisted_dependencies,
+    link_direct_dep_bins_resolved,
+    link_root_component_members,
+    symlink_hoisted_dependencies,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_cmd_shim::LinkBinsOptions;
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 use pnpm_lockfile::PackageKey;
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    Reporter,
+    StatsLog,
+    StatsMessage,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     path::PathBuf,
 };
 

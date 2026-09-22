@@ -1,4 +1,9 @@
-use super::{is_config_file_key, is_ini_config_key, is_type_key, type_includes_number};
+use super::{
+    is_config_file_key,
+    is_ini_config_key,
+    is_type_key,
+    type_includes_number,
+};
 
 #[test]
 fn type_membership() {

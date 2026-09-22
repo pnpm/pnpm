@@ -1,4 +1,7 @@
-use clap::{Parser, ValueEnum};
+use clap::{
+    Parser,
+    ValueEnum,
+};
 use std::path::PathBuf;
 
 /// Install real-world JavaScript stacks with pnpm and pacquet across

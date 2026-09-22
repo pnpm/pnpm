@@ -1,44 +1,97 @@
 mod archive_contract;
 
 use super::{
-    ArchiveStoreProjection, FetchTarballForResolution, MAX_UNTRUSTED_PREALLOC_BYTES, MemCache,
-    RetryOpts, SharedReportedProgressKeys, auth_header_for_package_download,
+    ArchiveStoreProjection,
+    FetchTarballForResolution,
+    MAX_UNTRUSTED_PREALLOC_BYTES,
+    MemCache,
+    RetryOpts,
+    SharedReportedProgressKeys,
+    auth_header_for_package_download,
     download::{
-        IngestTarballToStore, download_priority, fetch_and_extract_with_retry, is_transient_error,
-        slow_download_warning, store_index_cache_key,
+        IngestTarballToStore,
+        download_priority,
+        fetch_and_extract_with_retry,
+        is_transient_error,
+        slow_download_warning,
+        store_index_cache_key,
     },
-    error::{HttpStatusError, NetworkError, TarballError, VerifyChecksumError},
+    error::{
+        HttpStatusError,
+        NetworkError,
+        TarballError,
+        VerifyChecksumError,
+    },
     extract::{
-        STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD, allocate_tarball_buffer,
-        apply_append_manifest, apply_placeholder_manifest, bounded_gzip_size_hint, decompress_gzip,
-        extract_gzipped_tarball, extract_tarball_entries, gzip_isize_hint,
-        is_eager_decode_limit_exceeded, normalize_bundled_manifest, should_stream_extract,
+        STREAM_ENTRY_BUFFER_MAX,
+        STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+        allocate_tarball_buffer,
+        apply_append_manifest,
+        apply_placeholder_manifest,
+        bounded_gzip_size_hint,
+        decompress_gzip,
+        extract_gzipped_tarball,
+        extract_tarball_entries,
+        gzip_isize_hint,
+        is_eager_decode_limit_exceeded,
+        normalize_bundled_manifest,
+        should_stream_extract,
         stream_extract_gzipped_tarball,
     },
     local_tarball::{
-        allocate_local_tarball_buffer, local_file_tarball_path, open_local_tarball,
-        read_local_tarball_buffer, read_local_tarball_metadata,
+        allocate_local_tarball_buffer,
+        local_file_tarball_path,
+        open_local_tarball,
+        read_local_tarball_buffer,
+        read_local_tarball_metadata,
     },
-    prefetch::{PrefetchIntegrityCheck, PrefetchedCasPaths, prefetch_cas_paths},
-    zip_archive::{extract_zip_entries, write_zip_entry_to_cas},
+    prefetch::{
+        PrefetchIntegrityCheck,
+        PrefetchedCasPaths,
+        prefetch_cas_paths,
+    },
+    zip_archive::{
+        extract_zip_entries,
+        write_zip_entry_to_cas,
+    },
 };
 use pipe_trait::Pipe;
-use pnpm_network::{AuthHeaders, MAX_THROUGHPUT_PRIORITY, ThrottledClient, UNPRIORITIZED};
+use pnpm_network::{
+    AuthHeaders,
+    MAX_THROUGHPUT_PRIORITY,
+    ThrottledClient,
+    UNPRIORITIZED,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::{
-    CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
-    StoreIndexWriter, store_index_key,
+    CafsFileInfo,
+    PackageFilesIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    StoreIndex,
+    StoreIndexWriter,
+    store_index_key,
 };
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use std::{
     collections::HashMap,
-    io::{Cursor, ErrorKind, Read},
-    path::{Path, PathBuf},
+    io::{
+        Cursor,
+        ErrorKind,
+        Read,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::Duration,
 };
-use tempfile::{TempDir, tempdir};
+use tempfile::{
+    TempDir,
+    tempdir,
+};
 
 fn integrity(integrity_str: &str) -> Integrity {
     integrity_str.parse().expect("parse integrity string")

@@ -1,4 +1,7 @@
-use super::{BTreeMap, BTreeSet};
+use super::{
+    BTreeMap,
+    BTreeSet,
+};
 
 /// Which dependencies `pacquet update` excludes from lockfile-resolution
 /// reuse. An excluded package re-resolves to highest-in-range, and its

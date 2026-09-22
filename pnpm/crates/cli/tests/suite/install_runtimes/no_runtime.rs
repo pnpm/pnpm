@@ -1,11 +1,22 @@
 use super::{
-    assert_installed, command, mock_node_release, prepare_workspace, runtime_fixture,
-    write_devengines_manifest, write_runtime_lockfile_for_group,
+    assert_installed,
+    command,
+    mock_node_release,
+    prepare_workspace,
+    runtime_fixture,
+    write_devengines_manifest,
+    write_runtime_lockfile_for_group,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_graph_hasher::{host_arch, host_platform};
-use serde_json::{Value, json};
+use pnpm_graph_hasher::{
+    host_arch,
+    host_platform,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::fs;
 
 #[test]

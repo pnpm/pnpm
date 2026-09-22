@@ -1,7 +1,15 @@
 use super::{
-    AsyncWriteExt, BlobWrite, CanonicalPackageName, ErrorKind, HostedRevisionRefWrite,
-    HostedStoreConfig, MAX_HOSTED_REVISION_REFS, RegistryError, Storage,
-    atomic_write::create_tmp_file_with, fs,
+    AsyncWriteExt,
+    BlobWrite,
+    CanonicalPackageName,
+    ErrorKind,
+    HostedRevisionRefWrite,
+    HostedStoreConfig,
+    MAX_HOSTED_REVISION_REFS,
+    RegistryError,
+    Storage,
+    atomic_write::create_tmp_file_with,
+    fs,
 };
 use tempfile::TempDir;
 

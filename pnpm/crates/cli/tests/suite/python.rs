@@ -1,25 +1,48 @@
-use super::_utils::{flatten_report, pacquet_in};
+use super::_utils::{
+    flatten_report,
+    pacquet_in,
+};
 use assert_cmd::prelude::*;
 use base64::{
     Engine as _,
-    engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
+    engine::general_purpose::{
+        STANDARD,
+        URL_SAFE_NO_PAD,
+    },
 };
 use pipe_trait::Pipe;
 use serde_json::json;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use std::{
     fmt::Write as _,
     fs,
-    io::{Cursor, Write},
-    path::{Path, PathBuf},
+    io::{
+        Cursor,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     sync::{
-        Arc, Condvar, Mutex,
-        atomic::{AtomicBool, Ordering},
+        Arc,
+        Condvar,
+        Mutex,
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
     time::Duration,
 };
-use zip::{ZipWriter, write::SimpleFileOptions};
+use zip::{
+    ZipWriter,
+    write::SimpleFileOptions,
+};
 
 fn wheel(name: &str, version: &str, metadata: &str, extra: &[(&str, &str)]) -> Vec<u8> {
     wheel_with_tags(name, version, metadata, extra, "Tag: py3-none-any\n")

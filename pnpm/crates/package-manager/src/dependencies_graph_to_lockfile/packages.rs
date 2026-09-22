@@ -1,17 +1,38 @@
 use super::{
     DependenciesGraphToLockfileError,
-    importers::{real_name, self_aliased_file_ver},
+    importers::{
+        real_name,
+        self_aliased_file_ver,
+    },
     optional_children_of,
 };
 use pnpm_lockfile::{
-    BundledDependencies, LockfileFormError, LockfileFormOptions, LockfileResolution, PackageKey,
-    PackageMetadata, PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer, RegistryOptions,
-    SnapshotDepRef, SnapshotEntry, registry_server_type,
+    BundledDependencies,
+    LockfileFormError,
+    LockfileFormOptions,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PeerDependencyMeta,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+    RegistryOptions,
+    SnapshotDepRef,
+    SnapshotEntry,
+    registry_server_type,
 };
-use pnpm_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
+use pnpm_resolving_deps_resolver::{
+    DepPath,
+    DependenciesGraph,
+    DependenciesGraphNode,
+};
 use rayon::prelude::*;
 use serde_json::Value;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 pub(super) type PackagesAndSnapshots =
     (HashMap<PackageKey, PackageMetadata>, HashMap<PackageKey, SnapshotEntry>);

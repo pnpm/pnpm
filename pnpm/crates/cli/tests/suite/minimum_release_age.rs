@@ -6,10 +6,20 @@
 //! port of this file.
 #![cfg(unix)]
 
-use crate::_utils::{append_workspace_yaml_key, set_minimum_release_age, without_colors};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    set_minimum_release_age,
+    without_colors,
+};
 use pnpm_config::WorkspaceSettings;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
-use std::{fs, process::Command};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
+use std::{
+    fs,
+    process::Command,
+};
 
 #[test]
 fn approval_prints_the_version_list_once_and_persists_excludes() {

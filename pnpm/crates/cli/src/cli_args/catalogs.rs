@@ -1,6 +1,9 @@
 //! The catalogs a command dereferences `catalog:` specifiers against.
 
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;

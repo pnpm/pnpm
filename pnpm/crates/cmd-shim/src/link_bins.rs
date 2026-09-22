@@ -3,28 +3,57 @@ pub use relocatable::bin_dir_is_relocatable;
 pub use shim_writer::remove_bin;
 
 use crate::{
-    bin_resolver::{Command, get_bins_from_package_manifest, pkg_owns_bin},
+    bin_resolver::{
+        Command,
+        get_bins_from_package_manifest,
+        pkg_owns_bin,
+    },
     capabilities::{
-        DirCreation, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
-        FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite,
+        DirCreation,
+        FsCreateDirAll,
+        FsEnsureExecutableBits,
+        FsReadDir,
+        FsReadFile,
+        FsReadHead,
+        FsReadToString,
+        FsSetExecutable,
+        FsWalkFiles,
+        FsWrite,
     },
     shim::{
-        ScriptRuntime, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
-        is_sh_shim_hardened, is_shim_pointing_at, search_script_runtime,
+        ScriptRuntime,
+        generate_cmd_shim,
+        generate_pwsh_shim,
+        generate_sh_shim,
+        is_sh_shim_hardened,
+        is_shim_pointing_at,
+        search_script_runtime,
     },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use serde_json::Value;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     ffi::OsString,
     io,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 /// One package known to be installed at `location`, with its parsed
@@ -542,12 +571,21 @@ fn package_version(pkg: &PackageBinSource) -> Option<Version> {
 mod tests;
 
 mod shim_writer;
-use shim_writer::{ShimSpec, remove_stale_bin, write_shim};
+use shim_writer::{
+    ShimSpec,
+    remove_stale_bin,
+    write_shim,
+};
 
 mod executable;
 use executable::{
-    bin_node_paths, chmod_tolerating_removal, ensure_target_executable, is_node_bin_name,
-    link_node_bin, link_symlinked_executable, symlink_already_points_at,
+    bin_node_paths,
+    chmod_tolerating_removal,
+    ensure_target_executable,
+    is_node_bin_name,
+    link_node_bin,
+    link_symlinked_executable,
+    symlink_already_points_at,
 };
 
 mod discovery;

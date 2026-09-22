@@ -1,9 +1,18 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 use pnpm_network::ThrottledClient;
 use pnpm_resolving_resolver_base::{
-    LatestInfo, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
-    Resolver, WantedDependency,
+    LatestInfo,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 
 use super::BunResolver;

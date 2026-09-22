@@ -1,18 +1,46 @@
 use super::{
-    ApplySharedSideEffectsOptions, BaseCasPaths, artifact_platform, decoded_trusted_keys,
-    dependency_package, insert_side_effects_map, non_empty, planning::CandidateGroup,
-    quarantine_remote_side_effects, store_holds,
+    ApplySharedSideEffectsOptions,
+    BaseCasPaths,
+    artifact_platform,
+    decoded_trusted_keys,
+    dependency_package,
+    insert_side_effects_map,
+    non_empty,
+    planning::CandidateGroup,
+    quarantine_remote_side_effects,
+    store_holds,
 };
-use crate::{RemoteSideEffectsQuarantineBySnapshot, SideEffectsMapsBySnapshot};
+use crate::{
+    RemoteSideEffectsQuarantineBySnapshot,
+    SideEffectsMapsBySnapshot,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
-use pnpm_pnpr_client::{
-    ArtifactBlobRequest, ArtifactFile, OwnerScope, PnprClient, PnprClientError, RejectedArtifact,
-    ResolveArtifactsOptions, blob_id,
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
 };
-use pnpm_store_dir::{CafsFileInfo, RemoteSideEffectsOrigin, SideEffectsDiff, StoreIndexWriter};
+use pnpm_pnpr_client::{
+    ArtifactBlobRequest,
+    ArtifactFile,
+    OwnerScope,
+    PnprClient,
+    PnprClientError,
+    RejectedArtifact,
+    ResolveArtifactsOptions,
+    blob_id,
+};
+use pnpm_store_dir::{
+    CafsFileInfo,
+    RemoteSideEffectsOrigin,
+    SideEffectsDiff,
+    StoreIndexWriter,
+};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     path::PathBuf,
     sync::Arc,
 };

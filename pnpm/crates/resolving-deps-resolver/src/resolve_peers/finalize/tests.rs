@@ -4,14 +4,24 @@ use crate::{
     node_id::NodeId,
     resolve_peers::{
         finalize::NodeRecord,
-        test_support::{package, tree_node, walker_for_tests},
+        test_support::{
+            package,
+            tree_node,
+            walker_for_tests,
+        },
     },
     resolved_tree::ResolvedTree,
 };
 use pnpm_deps_path::DepPath;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     sync::Arc,
 };
 

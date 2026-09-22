@@ -2,16 +2,37 @@
 //! graph plus one hosted and one upstream registry of the ecosystem under
 //! test, all fronted by the `main` router, and small response helpers.
 
-use axum::body::{Body, to_bytes};
+use axum::body::{
+    Body,
+    to_bytes,
+};
 use pnpr::{
-    AccessList, Config, Ecosystem, HostedConfig, PackagePattern, PackageRules, Registries,
-    Registry, Teams, UpstreamConfig,
+    AccessList,
+    Config,
+    Ecosystem,
+    HostedConfig,
+    PackagePattern,
+    PackageRules,
+    Registries,
+    Registry,
+    Teams,
+    UpstreamConfig,
 };
 use reqwest::header::HeaderMap;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::{Path, PathBuf},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Duration,
 };
 
@@ -113,8 +134,14 @@ pub fn find_file(root: &Path, filename: &str) -> Option<PathBuf> {
 }
 
 pub async fn assert_cache_tracks_metadata(ecosystem: Ecosystem) {
-    use axum::http::{Request, StatusCode};
-    use pnpr::{AuthState, router_with_auth};
+    use axum::http::{
+        Request,
+        StatusCode,
+    };
+    use pnpr::{
+        AuthState,
+        router_with_auth,
+    };
     use serde_json::json;
     use tempfile::TempDir;
     use tower::ServiceExt;

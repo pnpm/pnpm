@@ -1,5 +1,11 @@
-use crate::{PkgName, SnapshotDepRef};
-use serde::{Deserialize, Serialize};
+use crate::{
+    PkgName,
+    SnapshotDepRef,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::collections::HashMap;
 
 #[cfg(test)]

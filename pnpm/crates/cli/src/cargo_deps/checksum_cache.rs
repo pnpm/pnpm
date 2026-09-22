@@ -1,10 +1,17 @@
 use super::add_cargo_checksum;
 use miette::Result;
 use pnpm_store_dir::{
-    PackageFilesIndex, SharedReadonlyStoreIndex, StoreDir, StoreIndexWriter, VerifiedFilesCache,
+    PackageFilesIndex,
+    SharedReadonlyStoreIndex,
+    StoreDir,
+    StoreIndexWriter,
+    VerifiedFilesCache,
     check_pkg_files_integrity,
 };
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 const CHECKSUM_FILE: &str = ".cargo-checksum.json";
 

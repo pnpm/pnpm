@@ -1,5 +1,13 @@
 use super::{
-    AncestorIds, Arc, BTreeMap, ChildEdge, HashMap, HashSet, MissingSummary, NodeId, ResolvedTree,
+    AncestorIds,
+    Arc,
+    BTreeMap,
+    ChildEdge,
+    HashMap,
+    HashSet,
+    MissingSummary,
+    NodeId,
+    ResolvedTree,
 };
 
 /// The resolved peers an ancestor still has to satisfy: the ones this node

@@ -1,8 +1,21 @@
-use super::resolve::{ResolvedEntry, fallback_version};
-use pnpm_lockfile::{ImporterDepVersion, PackageKey, PackageMetadata};
+use super::resolve::{
+    ResolvedEntry,
+    fallback_version,
+};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    PackageKey,
+    PackageMetadata,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{
-    AddedRoot, DependencyType, LogEvent, LogLevel, Reporter, RootLog, RootMessage,
+    AddedRoot,
+    DependencyType,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    RootLog,
+    RootMessage,
 };
 use std::collections::HashMap;
 

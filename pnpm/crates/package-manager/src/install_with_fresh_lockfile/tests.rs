@@ -1,13 +1,22 @@
 use super::{
-    ImporterUpdateSeedPolicy, UpdateSeedPolicy, compute_package_extensions_checksum,
-    importers_consuming_linked_peers, include_transitive_optional_dependencies,
+    ImporterUpdateSeedPolicy,
+    UpdateSeedPolicy,
+    compute_package_extensions_checksum,
+    importers_consuming_linked_peers,
+    include_transitive_optional_dependencies,
     is_partial_workspace_selection,
 };
 use crate::install_with_fresh_lockfile::{
     persist::verify_merged_repair,
-    seed_policy::{full_resolution_required, update_reuse_scopes},
+    seed_policy::{
+        full_resolution_required,
+        update_reuse_scopes,
+    },
 };
-use pnpm_config::{Config, PackageExtension};
+use pnpm_config::{
+    Config,
+    PackageExtension,
+};
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::SilentReporter;

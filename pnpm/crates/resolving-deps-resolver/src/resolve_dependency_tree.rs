@@ -1,4 +1,9 @@
-pub use update_scope::{UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine};
+pub use update_scope::{
+    UpdateDepth,
+    UpdateReuseScope,
+    UpdateTargets,
+    VersionLine,
+};
 
 pub use reuse::real_package_name_of;
 
@@ -10,33 +15,63 @@ pub(crate) use catalogs::resolve_catalog_specifiers;
 
 pub(crate) use importer::importer_direct_wanted_specs;
 
-pub(crate) use reuse::{record_changed_direct_deps, unwrap_package_name};
+pub(crate) use reuse::{
+    record_changed_direct_deps,
+    unwrap_package_name,
+};
 
 pub(crate) use workspace_ctx::SyncCursor;
 
 mod update_scope;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use futures_util::future;
 use miette::Diagnostic;
 use pipe_trait::Pipe;
-use pnpm_catalogs_resolver::{CatalogAnchor, CatalogResolutionError};
+use pnpm_catalogs_resolver::{
+    CatalogAnchor,
+    CatalogResolutionError,
+};
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_patching::{PatchGroupRecord, PatchKeyConflictError};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_patching::{
+    PatchGroupRecord,
+    PatchKeyConflictError,
+};
 use pnpm_resolving_resolver_base::{
-    GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError,
-    ResolveOptions, Resolver, WantedDependency,
+    GitResolveError,
+    NoMatchingVersionError,
+    PreferredVersionsOverlay,
+    RegistryResponseError,
+    ResolveOptions,
+    Resolver,
+    WantedDependency,
 };
 use serde_json::Value;
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::{Arc, Mutex, MutexGuard},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    sync::{
+        Arc,
+        Mutex,
+        MutexGuard,
+    },
 };
 
 use crate::{
     parent_pkg_aliases::ParentPkgAliases,
-    resolved_tree::{DirectDep, ResolvedTree},
+    resolved_tree::{
+        DirectDep,
+        ResolvedTree,
+    },
 };
 
 mod catalogs;
@@ -51,10 +86,21 @@ mod workspace_ctx;
 #[cfg(test)]
 mod test_support;
 
-use importer::{importer_injected_dependency_names, importer_optional_dependency_names};
-use reuse::{ReuseSource, record_direct_dep_versions};
+use importer::{
+    importer_injected_dependency_names,
+    importer_optional_dependency_names,
+};
+use reuse::{
+    ReuseSource,
+    record_direct_dep_versions,
+};
 use walk::{
-    ChildEdge, NodeSeed, level_aliases, level_versions, resolve_node_seed, walk_from_seeds,
+    ChildEdge,
+    NodeSeed,
+    level_aliases,
+    level_versions,
+    resolve_node_seed,
+    walk_from_seeds,
     warm_children_resolutions,
 };
 

@@ -1,12 +1,25 @@
 use super::{
-    Arc, Host, LinkBinsOptions, PackageBinSource, Path, PathBuf, create_dir_all, json,
-    link_bins_of_packages, read_to_string, tempdir, write_file,
+    Arc,
+    Host,
+    LinkBinsOptions,
+    PackageBinSource,
+    Path,
+    PathBuf,
+    create_dir_all,
+    json,
+    link_bins_of_packages,
+    read_to_string,
+    tempdir,
+    write_file,
 };
 use crate::link_bins::bin_dir_is_relocatable;
 use pnpm_fs::lexical_normalize;
 use std::{
     fs,
-    os::unix::fs::{MetadataExt, symlink},
+    os::unix::fs::{
+        MetadataExt,
+        symlink,
+    },
     process::Command,
 };
 

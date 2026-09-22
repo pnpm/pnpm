@@ -1,6 +1,13 @@
 use super::{
-    NetworkConfigInput, NoProxySetting, NodeApiProject, PeerIssuesOptions, ProxyConfigInput,
-    build_overlay, network_config, peer_issues_install_options, peer_issues_options,
+    NetworkConfigInput,
+    NoProxySetting,
+    NodeApiProject,
+    PeerIssuesOptions,
+    ProxyConfigInput,
+    build_overlay,
+    network_config,
+    peer_issues_install_options,
+    peer_issues_options,
 };
 
 #[test]
@@ -123,7 +130,10 @@ fn safe_intersect_matches_merge_peers_semantics() {
 #[test]
 fn peer_issues_to_json_derives_conflicts_and_intersections() {
     use pnpm_resolving_deps_resolver::{
-        MissingPeer, ParentChain, PeerDependencyIssue, PeerDependencyIssues,
+        MissingPeer,
+        ParentChain,
+        PeerDependencyIssue,
+        PeerDependencyIssues,
     };
 
     let missing_entry = |range: &str, optional: bool| MissingPeer {

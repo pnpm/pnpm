@@ -1,19 +1,31 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
 use pnpm_lockfile::LockfileResolution;
 use pnpm_resolving_resolver_base::{
-    ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
+    ResolutionVerification,
+    ResolutionVerifier,
+    VerifyCtx,
+    VerifyFuture,
 };
 use serde_json::Value as JsonValue;
 use tempfile::TempDir;
 
 use super::{
-    CACHE_FILE_NAME, CacheLockfile, CachePrecomputed, CacheRecord, MAX_CACHE_ENTRIES,
-    lockfile_verification_is_cached_by_hash, record_verification, try_lockfile_verification_cache,
+    CACHE_FILE_NAME,
+    CacheLockfile,
+    CachePrecomputed,
+    CacheRecord,
+    MAX_CACHE_ENTRIES,
+    lockfile_verification_is_cached_by_hash,
+    record_verification,
+    try_lockfile_verification_cache,
 };
 
 /// Trivial verifier that records what policy it advertises and

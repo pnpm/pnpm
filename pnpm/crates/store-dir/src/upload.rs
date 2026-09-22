@@ -4,13 +4,23 @@
 //! [`StoreIndexWriter`].
 
 use crate::{
-    AddFilesFromDirError, CafsFileInfo, SideEffectsDiff, StoreDir, StoreIndexWriter,
+    AddFilesFromDirError,
+    CafsFileInfo,
+    SideEffectsDiff,
+    StoreDir,
+    StoreIndexWriter,
     add_files_from_dir,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     path::Path,
 };
 

@@ -3,7 +3,11 @@
 //! copied under the alias name rather than linked, which reaches the same code
 //! on every platform.
 
-use std::{env::consts::EXE_SUFFIX, fs, process::Command};
+use std::{
+    env::consts::EXE_SUFFIX,
+    fs,
+    process::Command,
+};
 
 use tempfile::TempDir;
 

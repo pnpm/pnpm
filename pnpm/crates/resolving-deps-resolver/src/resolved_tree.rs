@@ -1,8 +1,17 @@
 use crate::node_id::NodeId;
 use pnpm_deps_path::DepPath;
-use pnpm_resolving_resolver_base::{ResolutionPolicyViolation, ResolveResult};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, sync::Arc};
+use pnpm_resolving_resolver_base::{
+    ResolutionPolicyViolation,
+    ResolveResult,
+};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 /// Per-occurrence tree carried by [`ResolvedTree::dependencies_tree`].
 pub type DependenciesTree = HashMap<NodeId, DependenciesTreeNode>;

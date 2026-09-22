@@ -1,6 +1,14 @@
 use super::{
-    TeamError, TeamInfo, UserInfo, normalize_registry_url, org_team_url, parse_scope_team,
-    render_members, render_teams, team_url, team_user_url,
+    TeamError,
+    TeamInfo,
+    UserInfo,
+    normalize_registry_url,
+    org_team_url,
+    parse_scope_team,
+    render_members,
+    render_teams,
+    team_url,
+    team_user_url,
 };
 
 #[test]

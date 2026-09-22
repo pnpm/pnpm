@@ -7,7 +7,10 @@ use std::collections::VecDeque;
 use pnpm_deps_path::DepPath;
 use rustc_hash::FxHashSet as HashSet;
 
-use crate::dependencies_graph::{DependenciesGraph, DependenciesGraphNode};
+use crate::dependencies_graph::{
+    DependenciesGraph,
+    DependenciesGraphNode,
+};
 
 /// Number of edges a variant carries: its child dependencies plus the
 /// peers it resolved against its ancestors.

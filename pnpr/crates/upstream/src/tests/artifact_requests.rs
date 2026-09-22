@@ -1,6 +1,15 @@
 use super::{
-    AsyncReadExt, AsyncWriteExt, CanonicalPackageName, Duration, FetchOutcome, HeaderMap,
-    TcpListener, Upstream, UpstreamConfig, assert_redirect_timeout, auth_and_custom_headers,
+    AsyncReadExt,
+    AsyncWriteExt,
+    CanonicalPackageName,
+    Duration,
+    FetchOutcome,
+    HeaderMap,
+    TcpListener,
+    Upstream,
+    UpstreamConfig,
+    assert_redirect_timeout,
+    auth_and_custom_headers,
     upstream,
 };
 

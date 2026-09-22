@@ -1,4 +1,7 @@
-use super::{LatestPicker, ResolveLatestError};
+use super::{
+    LatestPicker,
+    ResolveLatestError,
+};
 use crate::resolution_policy::PickPolicy;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;

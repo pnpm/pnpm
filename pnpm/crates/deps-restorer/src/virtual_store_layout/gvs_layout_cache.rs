@@ -1,9 +1,19 @@
-use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
+};
 use sha2::Digest as _;
 use std::{
     collections::HashMap,
-    io::{Read as _, Write},
-    path::{Path, PathBuf},
+    io::{
+        Read as _,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Bumped whenever the derived suffixes or this file's encoding

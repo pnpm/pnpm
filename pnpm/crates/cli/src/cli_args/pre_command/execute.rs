@@ -1,8 +1,24 @@
 use super::{
-    Config, Context, EnvLockfileSync, OsString, PNPM_VERSION, PackageManager, PackageManagerCheck,
-    Path, PathBuf, PreCommandPlan, SilentReporter, SwitchPlan, SwitchSource, SwitchTarget,
-    assert_release_is_installable, config_deps, install_engine_from_env, install_engine_to_store,
-    slice, spawn_pnpm,
+    Config,
+    Context,
+    EnvLockfileSync,
+    OsString,
+    PNPM_VERSION,
+    PackageManager,
+    PackageManagerCheck,
+    Path,
+    PathBuf,
+    PreCommandPlan,
+    SilentReporter,
+    SwitchPlan,
+    SwitchSource,
+    SwitchTarget,
+    assert_release_is_installable,
+    config_deps,
+    install_engine_from_env,
+    install_engine_to_store,
+    slice,
+    spawn_pnpm,
 };
 
 /// Carry out what the pre-command checks planned. Returns whether the command

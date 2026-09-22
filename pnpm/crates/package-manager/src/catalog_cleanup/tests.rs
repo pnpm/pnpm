@@ -1,4 +1,7 @@
-use super::{post_install_prune, resolved_package_versions};
+use super::{
+    post_install_prune,
+    resolved_package_versions,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;

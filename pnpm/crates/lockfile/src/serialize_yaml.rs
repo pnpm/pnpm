@@ -10,9 +10,16 @@
 use rayon::prelude::*;
 use serde::{
     Serialize,
-    ser::{SerializeMap, Serializer},
+    ser::{
+        SerializeMap,
+        Serializer,
+    },
 };
-use std::{cell::RefCell, collections::HashMap, fmt::Display};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    fmt::Display,
+};
 
 /// Serialize `value` to a YAML string matching pnpm's lockfile formatting.
 ///
@@ -65,7 +72,10 @@ const STASH_MARKER_PREFIX: &str = "\u{f8ff}pacquet-lowered-map:";
 /// process-random [`std::hash::RandomState`] leaves nothing to
 /// enumerate.
 fn next_stash_id() -> u64 {
-    use std::hash::{BuildHasher, Hasher};
+    use std::hash::{
+        BuildHasher,
+        Hasher,
+    };
     static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     static RANDOM: std::sync::LazyLock<std::hash::RandomState> =
         std::sync::LazyLock::new(std::hash::RandomState::new);

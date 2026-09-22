@@ -9,13 +9,19 @@
 //! gives users a release to migrate.
 
 #[cfg(unix)]
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 #[cfg(unix)]
 use miette::Diagnostic;
 
 use super::cli_command::CliCommand;
 #[cfg(unix)]
-use super::config::{ConfigArgs, ConfigSubcommand};
+use super::config::{
+    ConfigArgs,
+    ConfigSubcommand,
+};
 
 pub(crate) fn check_sudo(command: &CliCommand) -> miette::Result<()> {
     #[cfg(unix)]

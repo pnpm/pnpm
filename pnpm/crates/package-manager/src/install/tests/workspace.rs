@@ -1,22 +1,43 @@
 use super::{
     super::{
-        Install, ProjectMutation, configured_or_discovered_workspace_dir, load_workspace_projects,
+        Install,
+        ProjectMutation,
+        configured_or_discovered_workspace_dir,
+        load_workspace_projects,
         project_requires_lifecycle_scripts,
     },
-    InstallDirs, empty_test_lockfile, install_with_pnpmfile,
+    InstallDirs,
+    empty_test_lockfile,
+    install_with_pnpmfile,
     install_workspace_member_with_pnpmfile,
 };
 use crate::PolicyExcludes;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
 use pnpm_modules_yaml::Modules;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_testing_utils::registry::TestRegistry;
 use pnpm_workspace_state::{
-    self as workspace_state, NodeLinker as WorkspaceStateNodeLinker, load_workspace_state,
+    self as workspace_state,
+    NodeLinker as WorkspaceStateNodeLinker,
+    load_workspace_state,
 };
-use std::{fs, sync::Mutex, time::Duration};
+use std::{
+    fs,
+    sync::Mutex,
+    time::Duration,
+};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 

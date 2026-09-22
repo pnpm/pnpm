@@ -1,15 +1,29 @@
 use super::{
-    super::{Add, AddError},
-    add_jsr_selector, add_npm_selector, package_body,
+    super::{
+        Add,
+        AddError,
+    },
+    add_jsr_selector,
+    add_npm_selector,
+    package_body,
 };
-use crate::{ResolvedPackages, add::specifier::ProtocolSelector};
+use crate::{
+    ResolvedPackages,
+    add::specifier::ProtocolSelector,
+};
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::SilentReporter;
 use std::{
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
     time::Duration,
 };
 use tempfile::tempdir;

@@ -58,8 +58,15 @@ mod yaml_documents;
 mod yaml_emit;
 
 use indexmap::IndexMap;
-use serde::{Deserialize, Deserializer, Serialize};
-use std::collections::{BTreeMap, HashMap};
+use serde::{
+    Deserialize,
+    Deserializer,
+    Serialize,
+};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 /// Package key used by the `packages:` and `snapshots:` maps.
 ///

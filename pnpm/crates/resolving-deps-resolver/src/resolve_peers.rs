@@ -31,8 +31,15 @@
 //! to `name@version` as the peer-id.
 
 pub(crate) use context::SharedChain;
-pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
-pub(crate) use walker::{MissingNames, index_missing_names};
+pub(crate) use discovery::{
+    PeerDiscoveryResult,
+    PeerHoistDiscovery,
+    apply_hoist_missing_scope,
+};
+pub(crate) use walker::{
+    MissingNames,
+    index_missing_names,
+};
 
 mod cache;
 mod context;
@@ -43,22 +50,40 @@ mod walker;
 use crate::{
     dedupe_injected_deps::dedupe_injected_deps,
     dedupe_peer_dependents::dedupe_peer_dependents,
-    dependencies_graph::{DependenciesGraph, PeerDependencyIssues},
+    dependencies_graph::{
+        DependenciesGraph,
+        PeerDependencyIssues,
+    },
     node_id::NodeId,
-    resolved_tree::{DirectDep, ResolvedTree},
+    resolved_tree::{
+        DirectDep,
+        ResolvedTree,
+    },
 };
 use context::{
-    ChainSuffixMemo, CurrentProviderSource, ParentRefs, importer_relative_link_dep_path,
+    ChainSuffixMemo,
+    CurrentProviderSource,
+    ParentRefs,
+    importer_relative_link_dep_path,
 };
 use discovery::PeerDiscoveryCaches;
 use pnpm_deps_path::DepPath;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
-use walker::{NodeWalkContext, Walker};
+use walker::{
+    NodeWalkContext,
+    Walker,
+};
 
 /// Options threaded into [`fn@resolve_peers`].
 #[derive(Debug, Clone)]

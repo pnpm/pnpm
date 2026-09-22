@@ -34,12 +34,21 @@
 
 use std::{
     cmp::Ordering,
-    collections::{BinaryHeap, VecDeque},
-    sync::{Arc, Mutex},
+    collections::{
+        BinaryHeap,
+        VecDeque,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 use tokio::sync::oneshot;
 
-use crate::{BACKGROUND, UNPRIORITIZED};
+use crate::{
+    BACKGROUND,
+    UNPRIORITIZED,
+};
 
 /// Counting semaphore with the class-aware grant policy described in
 /// the module docs. Cancel-safe: dropping a waiting [`acquire`] future

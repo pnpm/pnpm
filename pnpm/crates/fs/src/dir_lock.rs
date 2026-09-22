@@ -12,11 +12,23 @@
 //! refuses to run.
 
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
     thread::sleep,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{
+        Duration,
+        Instant,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 /// How often the lock directory is retried while another process holds

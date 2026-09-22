@@ -18,20 +18,38 @@
 //!   verifier path uses it when only one variant's hash is needed.
 
 pub use disk_cache::RUNTIME_SHASUMS_CACHE_DIR;
-pub use errors::{FetchShasumsFileError, FetchVerifiedNodeShasumsError, PickFileChecksumError};
+pub use errors::{
+    FetchShasumsFileError,
+    FetchVerifiedNodeShasumsError,
+    PickFileChecksumError,
+};
 
 mod disk_cache;
 mod errors;
 mod node_release_keys;
 
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{
+    path::Path,
+    sync::Arc,
+    time::Duration,
+};
 
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64_STANDARD,
+};
 
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
 
 use disk_cache::{
-    MAX_CACHED_SHASUMS_LEN, ShasumsTrust, read_cached_bytes, read_cached_shasums,
+    MAX_CACHED_SHASUMS_LEN,
+    ShasumsTrust,
+    read_cached_bytes,
+    read_cached_shasums,
     write_cached_shasums,
 };
 mod signatures;

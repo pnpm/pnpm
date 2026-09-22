@@ -4,15 +4,24 @@
 //! so tools the project installs can load its plugins. Mirrors
 //! `pnpm11/installing/deps-installer/test/install/modulesDir.ts`.
 
-use crate::_utils::{append_workspace_yaml_key, pacquet_in};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    pacquet_in,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use pretty_assertions::assert_eq;
 use std::{
     fs,
     path::Path,
-    process::{Command, Output},
+    process::{
+        Command,
+        Output,
+    },
 };
 
 #[test]

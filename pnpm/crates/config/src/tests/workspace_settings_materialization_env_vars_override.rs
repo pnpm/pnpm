@@ -1,7 +1,25 @@
 use super::{
-    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, HostNoHome, LinkProbe, NodeLinker,
-    NodePackageMapType, OsString, Path, PathBuf, TrustPolicy, WorkspaceSettings, assert_eq, fs, io,
-    safe_host_var, tempdir, write_file,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    GetCurrentDir,
+    GetHomeDir,
+    Host,
+    HostNoHome,
+    LinkProbe,
+    NodeLinker,
+    NodePackageMapType,
+    OsString,
+    Path,
+    PathBuf,
+    TrustPolicy,
+    WorkspaceSettings,
+    assert_eq,
+    fs,
+    io,
+    safe_host_var,
+    tempdir,
+    write_file,
 };
 
 #[test]

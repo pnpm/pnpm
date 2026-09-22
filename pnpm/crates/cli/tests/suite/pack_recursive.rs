@@ -6,7 +6,10 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` (name + version) per name under its own subdirectory.

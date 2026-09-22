@@ -15,7 +15,10 @@
 //! test in each stack asserts the derived flag against the same file,
 //! `pnpm11/exec/esm-node-path-loader/test/import-flag.txt`.
 
-use std::{fmt::Write, sync::LazyLock};
+use std::{
+    fmt::Write,
+    sync::LazyLock,
+};
 
 const RESOLVE_HELPERS: &str = r"const nodePaths = (process.env.NODE_PATH ?? '').split(delimiter).filter(Boolean)
 const isBareSpecifier = (specifier) => !specifier.startsWith('.') && !specifier.startsWith('/') && !specifier.startsWith('#') && !specifier.includes(':')";

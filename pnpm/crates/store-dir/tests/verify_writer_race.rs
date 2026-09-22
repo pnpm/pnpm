@@ -40,15 +40,26 @@
 
 use std::{
     fs,
-    sync::{Arc, Mutex, mpsc},
+    sync::{
+        Arc,
+        Mutex,
+        mpsc,
+    },
     thread,
     time::Duration,
 };
 
 use pnpm_store_dir::{
-    CafsFileInfo, PackageFilesIndex, StoreDir, VerifiedFilesCache, check_pkg_files_integrity,
+    CafsFileInfo,
+    PackageFilesIndex,
+    StoreDir,
+    VerifiedFilesCache,
+    check_pkg_files_integrity,
 };
-use sha2::{Digest, Sha512};
+use sha2::{
+    Digest,
+    Sha512,
+};
 use tempfile::tempdir;
 
 const CONTENT_SIZE: usize = 64 * 1024;

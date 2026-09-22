@@ -1,8 +1,30 @@
 use super::{
-    AccessList, AuthState, Body, Ecosystem, Request, ServiceExt, StatusCode, TempDir, Value, app,
-    app_allowing_deletes, basic, body_bytes, digest_of, get, header, image_manifest, json,
-    oci_config, pausing_store, push_blob, push_image, repository_with_colliding_lock_keys,
-    router_with_auth, strip_referrer_metadata, token,
+    AccessList,
+    AuthState,
+    Body,
+    Ecosystem,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    Value,
+    app,
+    app_allowing_deletes,
+    basic,
+    body_bytes,
+    digest_of,
+    get,
+    header,
+    image_manifest,
+    json,
+    oci_config,
+    pausing_store,
+    push_blob,
+    push_image,
+    repository_with_colliding_lock_keys,
+    router_with_auth,
+    strip_referrer_metadata,
+    token,
 };
 
 #[tokio::test]
@@ -448,7 +470,10 @@ async fn referrer_migration_does_not_block_writers_or_restore_deleted_manifests(
 
 #[tokio::test]
 async fn batch_publishes_an_oci_manifest_and_rolls_back_on_invalid_siblings() {
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD,
+    };
     let tmp = TempDir::new().unwrap();
     let app = app(&tmp);
     let auth = basic(&token(&app).await);

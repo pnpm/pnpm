@@ -6,23 +6,43 @@
 //! the routes, because a scope resolves to exactly one registry while a
 //! registry serves many.
 
-pub use python::{EcosystemIndex, PythonRegistryRoute};
+pub use python::{
+    EcosystemIndex,
+    PythonRegistryRoute,
+};
 
-pub use ecosystems::{Ecosystem, serves_another_ecosystem, take_roles_from_earlier_layers};
+pub use ecosystems::{
+    Ecosystem,
+    serves_another_ecosystem,
+    take_roles_from_earlier_layers,
+};
 
 use super::LoadWorkspaceYamlError;
 use crate::workspace_yaml::{
-    normalize_registry_url, redact_registry_url, registry_url_has_userinfo,
+    normalize_registry_url,
+    redact_registry_url,
+    registry_url_has_userinfo,
 };
 use ecosystems::DeclaredIndexes;
 use indexmap::IndexMap;
-use pnpm_lockfile::{RegistryOptions, RegistryServerType};
+use pnpm_lockfile::{
+    RegistryOptions,
+    RegistryServerType,
+};
 use serde::{
-    Deserialize, Deserializer,
-    de::{MapAccess, Visitor, value::MapAccessDeserializer},
+    Deserialize,
+    Deserializer,
+    de::{
+        MapAccess,
+        Visitor,
+        value::MapAccessDeserializer,
+    },
 };
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fmt,
 };
 

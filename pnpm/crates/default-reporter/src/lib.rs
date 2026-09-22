@@ -24,19 +24,37 @@ pub use progress::set_progress;
 mod progress;
 
 use std::{
-    io::{IsTerminal, Write},
-    sync::{LazyLock, Mutex, OnceLock},
-    time::{Duration, Instant},
+    io::{
+        IsTerminal,
+        Write,
+    },
+    sync::{
+        LazyLock,
+        Mutex,
+        OnceLock,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 use console::Term;
 use pnpm_config::ColorMode;
-use pnpm_reporter::{FetchingProgressMessage, LogEvent, PromptAction, Reporter};
+use pnpm_reporter::{
+    FetchingProgressMessage,
+    LogEvent,
+    PromptAction,
+    Reporter,
+};
 
 use crate::{
     colors::Colors,
     format::visible_width,
-    state::{Output, ReporterState},
+    state::{
+        Output,
+        ReporterState,
+    },
 };
 
 static CWD: OnceLock<String> = OnceLock::new();

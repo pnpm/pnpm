@@ -1,5 +1,13 @@
 use super::{
-    ArtifactCleanupError, CmdShimHost, Diagnostic, Display, Error, FsGlobalRemoval, Path, fs, io,
+    ArtifactCleanupError,
+    CmdShimHost,
+    Diagnostic,
+    Display,
+    Error,
+    FsGlobalRemoval,
+    Path,
+    fs,
+    io,
 };
 
 /// Discard the half-built install directory when a step of the global

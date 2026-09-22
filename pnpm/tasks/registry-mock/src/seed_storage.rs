@@ -6,8 +6,15 @@
 //! falls back to `copy` if hard-linking isn't supported on the
 //! target filesystem (cross-device, ACL, etc.).
 
-use crate::{registry_mock_storage, runtime_storage};
-use std::{fs, io, path::Path};
+use crate::{
+    registry_mock_storage,
+    runtime_storage,
+};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 use walkdir::WalkDir;
 
 /// Mirror every file under `registry_mock_storage()` into

@@ -1,28 +1,67 @@
 use super::{
-    DistHashes, PackedPkg, PublishHttpError, PublishNetwork, PublishPackedPkgError,
-    PublishPackedPkgOptions, build_publish_document,
+    DistHashes,
+    PackedPkg,
+    PublishHttpError,
+    PublishNetwork,
+    PublishPackedPkgError,
+    PublishPackedPkgOptions,
+    build_publish_document,
     document::clean_version,
-    publish_packed_pkg, publish_with_otp_handling, registry_for_display,
-    request::{is_otp_challenge, parse_otp_challenge, put_publish},
+    publish_packed_pkg,
+    publish_with_otp_handling,
+    registry_for_display,
+    request::{
+        is_otp_challenge,
+        parse_otp_challenge,
+        put_publish,
+    },
     web_auth_fetch_options,
 };
 use crate::{
-    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+        OidcFetchError,
+        OidcRequest,
+        OidcResponse,
+    },
     oidc::OidcHttpOptions,
-    provenance_gen::{ProvenanceGenError, SignProvenance, SignedProvenance},
-    publish_options::{CreatePublishOptionsError, PublishUnsupportedRegistryProtocolError},
+    provenance_gen::{
+        ProvenanceGenError,
+        SignProvenance,
+        SignedProvenance,
+    },
+    publish_options::{
+        CreatePublishOptionsError,
+        PublishUnsupportedRegistryProtocolError,
+    },
     registry_config_keys::parse_supported_registry_url,
 };
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_network_web_auth::{
-    Host as WebAuthHost, OtpChallenge, OtpError, WebAuthFetchOptions, WithOtpError,
+    Host as WebAuthHost,
+    OtpChallenge,
+    OtpError,
+    WebAuthFetchOptions,
+    WithOtpError,
 };
 use pnpm_network_web_auth_testing::{
-    InputResponse, SleepBehavior, ok_202, ok_token, web_auth_fake,
+    InputResponse,
+    SleepBehavior,
+    ok_202,
+    ok_token,
+    web_auth_fake,
 };
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::time::Duration;
 
 /// A `WebAuthFetchOptions` the success paths never reach: when the PUT

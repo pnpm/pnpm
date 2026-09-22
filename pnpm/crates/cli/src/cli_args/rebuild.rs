@@ -1,20 +1,40 @@
 use crate::{
     State,
-    cli_args::pipelines::{InstallFamilySelection, project_names, select_workspace_projects},
+    cli_args::pipelines::{
+        InstallFamilySelection,
+        project_names,
+        select_workspace_projects,
+    },
 };
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
-use pnpm_modules_yaml::{Host, read_modules_layout, read_modules_manifest};
-use pnpm_package_manager::{ProjectMutation, RebuildOptions, allow_build_key_from_ignored_build};
+use pnpm_modules_yaml::{
+    Host,
+    read_modules_layout,
+    read_modules_manifest,
+};
+use pnpm_package_manager::{
+    ProjectMutation,
+    RebuildOptions,
+    allow_build_key_from_ignored_build,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
 use pnpm_workspace_task_scheduler::{
-    ScheduleGraphAsyncOptions, TaskCompletion, schedule_graph_async,
+    ScheduleGraphAsyncOptions,
+    TaskCompletion,
+    schedule_graph_async,
 };
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Mutex,
 };
 

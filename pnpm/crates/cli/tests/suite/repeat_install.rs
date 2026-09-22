@@ -12,11 +12,17 @@ use crate::_utils;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fixtures::tarball_with_manifest,
     fs::SameFileWitness,
 };
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// `version` field of the `package.json` under `workspace/relative`.
 pub(crate) fn version_of(workspace: &Path, relative: &str) -> String {

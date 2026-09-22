@@ -25,19 +25,32 @@ use graph_hash::GvsHasher;
 
 use crate::{
     AllowBuildPolicy,
-    install_frozen_lockfile::{find_runtime_node_major, parse_major_from_version},
+    install_frozen_lockfile::{
+        find_runtime_node_major,
+        parse_major_from_version,
+    },
 };
 use pnpm_config::Config;
 use pnpm_graph_hasher::{
-    detect_node_major, engine_name, format_global_virtual_store_path,
+    detect_node_major,
+    engine_name,
+    format_global_virtual_store_path,
     join_global_virtual_store_path,
 };
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgVerPeer, SnapshotEntry, VersionPart,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgVerPeer,
+    SnapshotEntry,
+    VersionPart,
 };
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Precomputed mapping from each snapshot key to the directory where

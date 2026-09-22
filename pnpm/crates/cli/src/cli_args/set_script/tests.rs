@@ -1,4 +1,7 @@
-use super::{reject_unsafe_key, set_script};
+use super::{
+    reject_unsafe_key,
+    set_script,
+};
 use serde_json::json;
 
 #[test]

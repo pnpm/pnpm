@@ -1,9 +1,19 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 use pnpm_network::ThrottledClient;
 
-use super::{RealGitProbe, RealGitRunner, ls_remote_command};
-use crate::{git_resolver::GitProbe, resolve_ref::GitCommandRunner};
+use super::{
+    RealGitProbe,
+    RealGitRunner,
+    ls_remote_command,
+};
+use crate::{
+    git_resolver::GitProbe,
+    resolve_ref::GitCommandRunner,
+};
 
 fn args(ref_: Option<&str>) -> Vec<String> {
     ls_remote_command(None, "--upload-pack=malicious", ref_)

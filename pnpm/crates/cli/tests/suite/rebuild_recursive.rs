@@ -1,7 +1,11 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn write_project(workspace: &Path, relative_dir: &str, name: &str) {
     let project_dir = workspace.join(relative_dir);

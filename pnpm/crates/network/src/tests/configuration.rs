@@ -1,7 +1,15 @@
 use super::{
-    NetworkSettings, PerRegistryTls, ProxyConfig, ThrottledClient, TlsConfig, bundled_root_certs,
+    NetworkSettings,
+    PerRegistryTls,
+    ProxyConfig,
+    ThrottledClient,
+    TlsConfig,
+    bundled_root_certs,
 };
-use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+use tokio::io::{
+    AsyncReadExt as _,
+    AsyncWriteExt as _,
+};
 
 #[test]
 fn for_installs_with_empty_proxy_config_builds() {

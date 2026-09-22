@@ -2,8 +2,14 @@ use super::run_peers;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use serde_json::{Value, json};
-use std::{fs, process::Command};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    process::Command,
+};
 
 #[test]
 fn named_registry_peers_match_their_semver() {

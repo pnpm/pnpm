@@ -1,4 +1,7 @@
-use super::{Deserialize, Serialize};
+use super::{
+    Deserialize,
+    Serialize,
+};
 
 /// `linkWorkspacePackages` from `pnpm-workspace.yaml`. Tri-state: a
 /// bare-semver dependency on a workspace package may resolve to the
@@ -52,7 +55,10 @@ impl<'de> serde::Deserialize<'de> for LinkWorkspacePackages {
     where
         De: serde::Deserializer<'de>,
     {
-        use serde::de::{self, Visitor};
+        use serde::de::{
+            self,
+            Visitor,
+        };
         use std::fmt;
 
         struct V;
@@ -125,7 +131,10 @@ impl<'de> serde::Deserialize<'de> for SaveWorkspaceProtocol {
     where
         De: serde::Deserializer<'de>,
     {
-        use serde::de::{self, Visitor};
+        use serde::de::{
+            self,
+            Visitor,
+        };
         use std::fmt;
 
         struct V;

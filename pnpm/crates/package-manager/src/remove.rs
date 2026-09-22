@@ -1,23 +1,50 @@
 use crate::{
-    CommandLockfile, Install, InstallError, ProjectMutation, ResolvedPackages, SelectedProjects,
+    CommandLockfile,
+    Install,
+    InstallError,
+    ProjectMutation,
+    ResolvedPackages,
+    SelectedProjects,
     UpdateSeedPolicy,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
+        WriteWorkspaceCatalogsError,
+        post_install_prune,
+        write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
-    defer_ignored_builds, emit_initial_package_manifest, included_direct_groups,
-    package_manifest_prefix, selected_project_indices,
+    defer_ignored_builds,
+    emit_initial_package_manifest,
+    included_direct_groups,
+    package_manifest_prefix,
+    selected_project_indices,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+    PackageManifestError,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PackageManifestLog,
+    PackageManifestMessage,
+    Reporter,
+};
 use pnpm_tarball::MemCache;
-use std::{collections::HashSet, fmt::Write as _, sync::Arc};
+use std::{
+    collections::HashSet,
+    fmt::Write as _,
+    sync::Arc,
+};
 
 #[must_use]
 pub struct Remove<'a> {

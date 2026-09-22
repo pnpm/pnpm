@@ -14,19 +14,44 @@
 
 use std::time::Duration;
 
-use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network::{RetryOpts, redact_url_credentials};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
+use pnpm_network::{
+    RetryOpts,
+    redact_url_credentials,
+};
 use pnpm_reporter::Reporter;
-use serde_json::{Value, json};
-use sha2::{Digest, Sha512};
-use sigstore_sign::{SigningContext, oidc::IdentityToken};
+use serde_json::{
+    Value,
+    json,
+};
+use sha2::{
+    Digest,
+    Sha512,
+};
+use sigstore_sign::{
+    SigningContext,
+    oidc::IdentityToken,
+};
 
 use crate::{
-    capabilities::{Clock, EnvVar, Host, OidcFetch, OidcFetchError},
+    capabilities::{
+        Clock,
+        EnvVar,
+        Host,
+        OidcFetch,
+        OidcFetchError,
+    },
     global_log::global_info,
     oidc::{
-        GitHubRequestTokenError, OidcHttpOptions, github_request_token, is_github_actions,
-        is_gitlab, truthy_env,
+        GitHubRequestTokenError,
+        OidcHttpOptions,
+        github_request_token,
+        is_github_actions,
+        is_gitlab,
+        truthy_env,
     },
 };
 

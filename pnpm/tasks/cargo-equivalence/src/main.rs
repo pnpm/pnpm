@@ -6,10 +6,16 @@ mod runner;
 mod workspaces;
 
 use cli_args::CliArgs;
-use runner::{Outcome, Verdict};
+use runner::{
+    Outcome,
+    Verdict,
+};
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::ExitCode,
 };
 use which::which;

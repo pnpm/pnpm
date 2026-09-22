@@ -1,6 +1,13 @@
 use super::{
-    Catalogs, Lockfile, LockfileSettingsCheck, PnpmfileChecksumCheck, StalenessReason, assert_eq,
-    check_lockfile_settings, settings_check, text_block,
+    Catalogs,
+    Lockfile,
+    LockfileSettingsCheck,
+    PnpmfileChecksumCheck,
+    StalenessReason,
+    assert_eq,
+    check_lockfile_settings,
+    settings_check,
+    text_block,
 };
 
 // ---------------------------------------------------------------------------

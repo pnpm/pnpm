@@ -1,4 +1,8 @@
-use super::{IndexMap, RegistryEntry, WorkspaceSettings};
+use super::{
+    IndexMap,
+    RegistryEntry,
+    WorkspaceSettings,
+};
 
 impl WorkspaceSettings {
     /// Zero out the release-age and trust policies for `self-update`.

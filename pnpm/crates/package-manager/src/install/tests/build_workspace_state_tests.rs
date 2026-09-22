@@ -1,12 +1,18 @@
 use super::super::build_workspace_state;
 use pnpm_config::Config;
-use pnpm_modules_yaml::{Clock, IncludedDependencies};
+use pnpm_modules_yaml::{
+    Clock,
+    IncludedDependencies,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::ConfigDependency;
 use std::{
     collections::BTreeMap,
     path::PathBuf,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 use tempfile::tempdir;
 

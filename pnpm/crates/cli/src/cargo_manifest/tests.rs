@@ -1,4 +1,7 @@
-use super::{CargoDependencyKind, upsert_dependency};
+use super::{
+    CargoDependencyKind,
+    upsert_dependency,
+};
 
 #[test]
 fn adds_a_dependency_without_reformatting_the_manifest() {

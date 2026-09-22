@@ -7,8 +7,15 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    diagnostics::assert_diagnostic_contains,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 /// A `pnpm` command that actually probes the registry (no assume-published
 /// seam), for the first-release tests that run against the mock registry.

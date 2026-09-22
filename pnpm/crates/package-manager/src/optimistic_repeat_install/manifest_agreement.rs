@@ -1,9 +1,20 @@
 //! Whether the manifests on disk still agree with the lockfile.
 
 use super::{
-    Config, DependencyGroup, FileMtime, ImporterDepVersion, Lockfile, OptimisticRepeatInstallCheck,
-    PackageManifest, Path, PathBuf, ProjectSnapshot, WorkspaceState,
-    current_lockfile::assert_wanted_lockfile_equals_current, file_mtime, modified_at_or_after,
+    Config,
+    DependencyGroup,
+    FileMtime,
+    ImporterDepVersion,
+    Lockfile,
+    OptimisticRepeatInstallCheck,
+    PackageManifest,
+    Path,
+    PathBuf,
+    ProjectSnapshot,
+    WorkspaceState,
+    current_lockfile::assert_wanted_lockfile_equals_current,
+    file_mtime,
+    modified_at_or_after,
     mtime_ms,
 };
 use pnpm_modules_yaml::IncludedDependencies;

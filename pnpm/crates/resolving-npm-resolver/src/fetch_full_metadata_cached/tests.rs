@@ -5,15 +5,27 @@ mod metadata_cache_body_read_failure_retries;
 mod metadata_cache_cold_cache_writes_mirror;
 
 use mockito::Matcher;
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
 use tempfile::TempDir;
 
-use super::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
+use super::{
+    FetchFullMetadataCachedOptions,
+    fetch_full_metadata_cached,
+};
 use crate::{
     FetchMetadataError,
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_pkg_mirror_path,
-        load_meta, load_meta_headers, save_meta_indexed,
+        ABBREVIATED_META_DIR,
+        FULL_FILTERED_META_DIR,
+        FULL_META_DIR,
+        get_pkg_mirror_path,
+        load_meta,
+        load_meta_headers,
+        save_meta_indexed,
     },
 };
 

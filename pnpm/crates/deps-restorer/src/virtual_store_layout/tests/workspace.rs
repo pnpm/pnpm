@@ -1,12 +1,27 @@
-use super::{super::VirtualStoreLayout, make_config, package_metadata, snapshot_with_link};
-use pnpm_lockfile::{
-    DirectoryResolution, LockfileResolution, PackageKey, SnapshotEntry, TarballResolution,
+use super::{
+    super::VirtualStoreLayout,
+    make_config,
+    package_metadata,
+    snapshot_with_link,
 };
-use pretty_assertions::{assert_eq, assert_ne};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+    PackageKey,
+    SnapshotEntry,
+    TarballResolution,
+};
+use pretty_assertions::{
+    assert_eq,
+    assert_ne,
+};
 use std::{
     collections::HashMap,
     ffi::OsStr,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Two unrelated projects that both depend on a `./dep` directory

@@ -1,6 +1,9 @@
 //! Unit tests for reading a walk's subtree missing-peer summaries.
 
-use super::{MissingSummary, index_missing_names};
+use super::{
+    MissingSummary,
+    index_missing_names,
+};
 use rustc_hash::FxHashSet as HashSet;
 use std::sync::Arc;
 

@@ -1,4 +1,8 @@
-use super::{MissingWithCurrentCommand, option_consumes_value, plan};
+use super::{
+    MissingWithCurrentCommand,
+    option_consumes_value,
+    plan,
+};
 use std::ffi::OsString;
 
 /// Build an argv (with a leading program name) from string slices.

@@ -2,53 +2,89 @@ pub(crate) use latest::is_workspace_local_path_specifier;
 
 mod install;
 use install::{
-    UnsavedManifests, UpdateSeed, hook_selected_manifests, nothing_to_update,
-    run_prepared_selected_update, run_prepared_update,
+    UnsavedManifests,
+    UpdateSeed,
+    hook_selected_manifests,
+    nothing_to_update,
+    run_prepared_selected_update,
+    run_prepared_update,
 };
 
 mod prepare;
 use prepare::{
-    ReadPackageHook, apply_read_package_hook_to_update_manifest, prepare_manifest,
-    prepare_selected_manifests, update_read_package_hook,
+    ReadPackageHook,
+    apply_read_package_hook_to_update_manifest,
+    prepare_manifest,
+    prepare_selected_manifests,
+    update_read_package_hook,
 };
 
 mod workspace;
-use workspace::{WorkspaceLinkTarget, workspace_specifier};
+use workspace::{
+    WorkspaceLinkTarget,
+    workspace_specifier,
+};
 
 mod latest;
 
 use latest::{
-    LatestResolverChain, LatestRewriteCtx, emit_latest_ignored, latest_specifier, tag_version,
+    LatestResolverChain,
+    LatestRewriteCtx,
+    emit_latest_ignored,
+    latest_specifier,
+    tag_version,
 };
 
 mod catalogs;
 use catalogs::CatalogCtx;
 
 mod rewrite;
-use rewrite::{MatchedRewriteInputs, record_matched_direct_update};
+use rewrite::{
+    MatchedRewriteInputs,
+    record_matched_direct_update,
+};
 
 mod seed_policy;
 
 mod selectors;
-use selectors::{parse_selectors, reject_versions_of_indirect_update_specs};
+use selectors::{
+    parse_selectors,
+    reject_versions_of_indirect_update_specs,
+};
 
 use crate::{
-    CatalogVersionMismatchError, CommandLockfile, InstallError, ProjectMutation, ResolvedPackages,
-    WorkspaceInstallSelection, catalog_cleanup::WriteWorkspaceCatalogsError,
-    package_manifest_prefix, selected_project_indices,
+    CatalogVersionMismatchError,
+    CommandLockfile,
+    InstallError,
+    ProjectMutation,
+    ResolvedPackages,
+    WorkspaceInstallSelection,
+    catalog_cleanup::WriteWorkspaceCatalogsError,
+    package_manifest_prefix,
+    selected_project_indices,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_catalogs_config::InvalidCatalogsConfigurationError;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+    PackageManifestError,
+};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::WorkspacePackages;
 use pnpm_tarball::MemCache;
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

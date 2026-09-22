@@ -1,6 +1,13 @@
-use super::super::walker::{walk_all_files, walk_package_files};
+use super::super::walker::{
+    walk_all_files,
+    walk_package_files,
+};
 use pretty_assertions::assert_eq;
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 fn touch(root: &Path, rel: &str) {

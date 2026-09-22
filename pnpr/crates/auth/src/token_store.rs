@@ -1,6 +1,19 @@
 use super::{
-    AtomicU64, Connection, Digest, HashMap, Mutex, Ordering, PathBuf, RegistryError, Result,
-    Sha256, SystemTime, TokenBackend, UNIX_EPOCH, async_trait, token_timestamp_from_sql,
+    AtomicU64,
+    Connection,
+    Digest,
+    HashMap,
+    Mutex,
+    Ordering,
+    PathBuf,
+    RegistryError,
+    Result,
+    Sha256,
+    SystemTime,
+    TokenBackend,
+    UNIX_EPOCH,
+    async_trait,
+    token_timestamp_from_sql,
     token_timestamp_to_sql,
 };
 use std::fmt::Write as _;

@@ -1,5 +1,14 @@
-use super::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
-use pnpr_registry::{Ecosystem, PackagePattern};
+use super::{
+    AccessList,
+    AccessToken,
+    Identity,
+    PackageRule,
+    PackageRules,
+};
+use pnpr_registry::{
+    Ecosystem,
+    PackagePattern,
+};
 
 fn list(token: &str) -> AccessList {
     AccessList::from_tokens([token])

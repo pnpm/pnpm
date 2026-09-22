@@ -1,23 +1,47 @@
 pub mod package_manager_spec;
 pub use error::PackageManifestError;
-pub use initialization::{InitAuthor, InitOptions};
+pub use initialization::{
+    InitAuthor,
+    InitOptions,
+};
 pub use runtime::{
-    apply_runtime_on_fail_override, convert_dependencies_to_engines_runtime,
-    convert_engines_runtime_to_dependencies, engines_runtime_dependencies, is_runtime_alias,
+    apply_runtime_on_fail_override,
+    convert_dependencies_to_engines_runtime,
+    convert_engines_runtime_to_dependencies,
+    engines_runtime_dependencies,
+    is_runtime_alias,
     node_version_from_engines_runtime,
 };
-pub use serialization::{parse_manifest, parse_manifest_bytes, safe_read_package_json_from_dir};
+pub use serialization::{
+    parse_manifest,
+    parse_manifest_bytes,
+    safe_read_package_json_from_dir,
+};
 pub use truthiness::is_truthy;
 
 use std::{
-    fmt, fs,
-    io::{self, Write},
-    path::{Path, PathBuf},
+    fmt,
+    fs,
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use node_semver::Range;
-use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value, json};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 use strum::IntoStaticStr;
 use tempfile::NamedTempFile;
 mod error;
@@ -521,4 +545,7 @@ mod runtime;
 mod initialization;
 
 mod serialization;
-use serialization::{normalize_dependency_fields, serialize_with_indent};
+use serialization::{
+    normalize_dependency_fields,
+    serialize_with_indent,
+};

@@ -1,5 +1,12 @@
-use pnpr::{Config, Ecosystem};
-use std::{fmt::Write as _, fs, path::Path};
+use pnpr::{
+    Config,
+    Ecosystem,
+};
+use std::{
+    fmt::Write as _,
+    fs,
+    path::Path,
+};
 
 pub fn grouped_config(root: &Path, npm_access: &str) -> Config {
     let mut yaml = String::from("storage: ./storage\nregistries:\n");

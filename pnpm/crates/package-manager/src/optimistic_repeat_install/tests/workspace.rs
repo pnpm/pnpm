@@ -2,22 +2,46 @@
 use super::FOO_LOCKFILE;
 use super::{
     super::{
-        Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
+        Decision,
+        OptimisticRepeatInstallCheck,
+        check_optimistic_repeat_install,
         settings::current_settings,
     },
-    FOO_MANIFEST, RunDepsStatus, assert_content_check_converges_after_collision,
-    backdate_validated_files, check, check_with_lockfile, collide_mtimes_with_recorded_state,
-    content_check_decision, isolated_included, linked_sibling_decision_for_spec,
-    setup_content_check_project, setup_fresh_install, setup_fresh_install_with_config,
-    validate_existing_files, workspace_deps_status, write_local_tarball_lockfile, write_state,
+    FOO_MANIFEST,
+    RunDepsStatus,
+    assert_content_check_converges_after_collision,
+    backdate_validated_files,
+    check,
+    check_with_lockfile,
+    collide_mtimes_with_recorded_state,
+    content_check_decision,
+    isolated_included,
+    linked_sibling_decision_for_spec,
+    setup_content_check_project,
+    setup_fresh_install,
+    setup_fresh_install_with_config,
+    validate_existing_files,
+    workspace_deps_status,
+    write_local_tarball_lockfile,
+    write_state,
 };
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_testing_utils::fs::set_mtime;
-use pnpm_workspace_state::{ProjectEntry, load_workspace_state, update_workspace_state};
-use std::{collections::BTreeMap, fs};
+use pnpm_workspace_state::{
+    ProjectEntry,
+    load_workspace_state,
+    update_workspace_state,
+};
+use std::{
+    collections::BTreeMap,
+    fs,
+};
 use tempfile::tempdir;
 
 /// A filtered install refreshes `lastValidatedTimestamp` while leaving

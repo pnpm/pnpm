@@ -18,7 +18,11 @@
 //! them into a violation reason instead of swallowing.
 
 use chrono::DateTime;
-use pnpm_network::{AuthHeaders, ThrottledClient, redact_url_credentials};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+    redact_url_credentials,
+};
 
 use crate::FetchMetadataError;
 

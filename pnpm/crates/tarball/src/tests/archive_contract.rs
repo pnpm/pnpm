@@ -1,13 +1,37 @@
-use super::{build_zip, fast_retry_opts, gzipped_tar, tempdir_with_leaked_path};
-use crate::{ArchiveStoreProjection, IngestTarballToStore, IngestZipArchiveToStore, TarballError};
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
-use pnpm_store_dir::{StoreIndex, StoreIndexWriter};
+use super::{
+    build_zip,
+    fast_retry_opts,
+    gzipped_tar,
+    tempdir_with_leaked_path,
+};
+use crate::{
+    ArchiveStoreProjection,
+    IngestTarballToStore,
+    IngestZipArchiveToStore,
+    TarballError,
+};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+    SilentReporter,
+};
+use pnpm_store_dir::{
+    StoreIndex,
+    StoreIndexWriter,
+};
 use ssri::Integrity;
 use std::{
     collections::HashMap,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 #[tokio::test]

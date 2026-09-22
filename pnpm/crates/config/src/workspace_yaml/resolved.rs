@@ -1,6 +1,15 @@
 use super::{
-    AllowBuild, Config, MacosBackupSettings, PackageConfigsSetting, PnpmfileSetting,
-    WorkspaceSettings, as_set, global_shims_setting, opt_path, path, side_effects_cache_setting,
+    AllowBuild,
+    Config,
+    MacosBackupSettings,
+    PackageConfigsSetting,
+    PnpmfileSetting,
+    WorkspaceSettings,
+    as_set,
+    global_shims_setting,
+    opt_path,
+    path,
+    side_effects_cache_setting,
 };
 
 impl WorkspaceSettings {

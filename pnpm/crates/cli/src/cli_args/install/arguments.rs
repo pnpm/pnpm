@@ -1,4 +1,7 @@
-use super::{LockfileDirArg, NodeLinkerArg};
+use super::{
+    LockfileDirArg,
+    NodeLinkerArg,
+};
 #[derive(Debug, Default, Clone, clap::Args)]
 pub struct InstallLockfileArgs {
     /// Don't generate a lockfile, and fail if an update to it is needed. This

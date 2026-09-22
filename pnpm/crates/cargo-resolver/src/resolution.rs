@@ -1,20 +1,55 @@
 use crate::{
     features::{
-        feature_selections_for_solution, indexed_version, locked_dependencies,
-        root_feature_selections, supports_features,
+        feature_selections_for_solution,
+        indexed_version,
+        locked_dependencies,
+        root_feature_selections,
+        supports_features,
     },
     lockfile::lockfile_from_solution,
-    metadata::{parse_metadata, root_dependencies},
-    model::{FeatureSelection, PackageKey, RegistryDependency, RegistryVersion},
-    packages::{chosen_line, package_key},
-    registry::{Registry, compatibility_line, matching_lines, matching_versions},
+    metadata::{
+        parse_metadata,
+        root_dependencies,
+    },
+    model::{
+        FeatureSelection,
+        PackageKey,
+        RegistryDependency,
+        RegistryVersion,
+    },
+    packages::{
+        chosen_line,
+        package_key,
+    },
+    registry::{
+        Registry,
+        compatibility_line,
+        matching_lines,
+        matching_versions,
+    },
 };
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use pubgrub::{
-    DefaultStringReporter, OfflineDependencyProvider, PubGrubError, Ranges, Reporter, resolve,
+    DefaultStringReporter,
+    OfflineDependencyProvider,
+    PubGrubError,
+    Ranges,
+    Reporter,
+    resolve,
 };
-use semver::{Version, VersionReq};
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use semver::{
+    Version,
+    VersionReq,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    VecDeque,
+};
 
 /// What discovery has reached a crate with so far: the features every
 /// dependency edge has asked of it together, and the versions those edges

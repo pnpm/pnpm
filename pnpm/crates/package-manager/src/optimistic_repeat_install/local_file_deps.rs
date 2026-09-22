@@ -1,15 +1,34 @@
 //! Detecting dependency specs that point at the local filesystem.
 
 use super::{
-    CatalogAnchor, CatalogResolutionResult, Catalogs, Config, DependencyGroup,
-    IncludedDependencies, Lockfile, OptimisticRepeatInstallCheck, Path, PathBuf, WantedDependency,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    Catalogs,
+    Config,
+    DependencyGroup,
+    IncludedDependencies,
+    Lockfile,
+    OptimisticRepeatInstallCheck,
+    Path,
+    PathBuf,
+    WantedDependency,
     resolve_from_catalog,
 };
-use pnpm_lockfile::{LockfileResolution, PkgName};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgName,
+};
 use pnpm_resolving_local_resolver::local_tarball_path;
 use pnpm_workspace::importer_id_from_root_dir;
-use ssri::{Integrity, IntegrityChecker};
-use std::{borrow::Cow, fs, io::Read};
+use ssri::{
+    Integrity,
+    IntegrityChecker,
+};
+use std::{
+    borrow::Cow,
+    fs,
+    io::Read,
+};
 
 struct LocalTarballDependency {
     project_dir: PathBuf,

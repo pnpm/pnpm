@@ -1,7 +1,15 @@
-use super::{super::removed_child_aliases, name, snapshot};
+use super::{
+    super::removed_child_aliases,
+    name,
+    snapshot,
+};
 use crate::create_virtual_store::slot_linking::emit_warm_snapshot_progress;
 use pnpm_lockfile::PkgName;
-use pnpm_reporter::{LogEvent, ProgressMessage, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    ProgressMessage,
+    Reporter,
+};
 use std::sync::Mutex;
 
 #[test]

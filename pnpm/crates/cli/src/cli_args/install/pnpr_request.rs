@@ -1,7 +1,19 @@
 use super::{
-    Catalogs, Context, InstallFamilySelection, IntoDiagnostic, Lockfile, LockfileResolution,
-    PathBuf, PnprLink, PnprSession, ResolveProject, ResolveProjectsOptions, State,
-    discover_workspace_projects, get_catalogs_from_workspace_manifest, prefetch_allowed,
+    Catalogs,
+    Context,
+    InstallFamilySelection,
+    IntoDiagnostic,
+    Lockfile,
+    LockfileResolution,
+    PathBuf,
+    PnprLink,
+    PnprSession,
+    ResolveProject,
+    ResolveProjectsOptions,
+    State,
+    discover_workspace_projects,
+    get_catalogs_from_workspace_manifest,
+    prefetch_allowed,
     resolve_project,
 };
 

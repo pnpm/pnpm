@@ -1,14 +1,27 @@
 use super::LinkVirtualStoreBinsError;
 use pnpm_cmd_shim::{
-    FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-    FsSetExecutable, FsWalkFiles, FsWrite, LinkBinsError, LinkBinsOptions, PackageBinSource,
+    FsCreateDirAll,
+    FsEnsureExecutableBits,
+    FsReadDir,
+    FsReadFile,
+    FsReadHead,
+    FsReadToString,
+    FsSetExecutable,
+    FsWalkFiles,
+    FsWrite,
+    LinkBinsError,
+    LinkBinsOptions,
+    PackageBinSource,
     link_bins_of_packages,
 };
 use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

@@ -1,4 +1,11 @@
-use super::{fs, json, packlist, tempdir, touch, write};
+use super::{
+    fs,
+    json,
+    packlist,
+    tempdir,
+    touch,
+    write,
+};
 
 #[test]
 fn bundle_dependencies_subtree_is_included() {

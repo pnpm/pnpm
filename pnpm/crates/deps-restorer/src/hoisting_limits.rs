@@ -1,7 +1,14 @@
 use pnpm_config::HoistingLimits;
-use pnpm_lockfile::{Lockfile, ProjectSnapshot, ResolvedDependencyMap};
+use pnpm_lockfile::{
+    Lockfile,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+};
 use pnpm_real_hoist::percent_encode_path;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{
+    BTreeSet,
+    HashMap,
+};
 
 /// Translate the user-facing [`HoistingLimits`] mode into the
 /// `@yarnpkg/nm` hoister's per-locator border map (the shape

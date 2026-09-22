@@ -1,4 +1,7 @@
-use super::{package_version, platform::validate_windows_kernel_version};
+use super::{
+    package_version,
+    platform::validate_windows_kernel_version,
+};
 use crate::shared_side_effects::platform::parse_macos_product_version;
 use pnpm_lockfile::PackageKey;
 
@@ -38,8 +41,14 @@ fn package_identity_uses_the_manifest_version_for_non_registry_sources() {
 /// the store already held.
 #[test]
 fn an_artifact_digest_addresses_the_file_the_store_wrote() {
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-    use sha2::{Digest as _, Sha512};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
+    use sha2::{
+        Digest as _,
+        Sha512,
+    };
 
     let store = tempfile::tempdir().unwrap();
     let store_dir = pnpm_store_dir::StoreDir::new(store.path());
@@ -71,8 +80,14 @@ fn an_artifact_digest_addresses_the_file_the_store_wrote() {
 /// installing whatever happens to sit there.
 #[tokio::test]
 async fn corrupted_store_content_is_not_reused() {
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-    use sha2::{Digest as _, Sha512};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
+    use sha2::{
+        Digest as _,
+        Sha512,
+    };
 
     let store = tempfile::tempdir().unwrap();
     let store_dir = pnpm_store_dir::StoreDir::new(store.path());
@@ -96,8 +111,14 @@ async fn corrupted_store_content_is_not_reused() {
 /// path is a miss the download and CAS write can repair.
 #[tokio::test]
 async fn a_non_regular_file_is_not_reused_as_store_content() {
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-    use sha2::{Digest as _, Sha512};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
+    use sha2::{
+        Digest as _,
+        Sha512,
+    };
 
     let store = tempfile::tempdir().unwrap();
     let store_dir = pnpm_store_dir::StoreDir::new(store.path());
@@ -141,26 +162,64 @@ async fn a_non_regular_file_is_not_reused_as_store_content() {
 /// libc, operating-system, and architecture combinations have no restore to
 /// observe, so the platform gates below make that boundary visible to tests.
 mod restore {
-    use crate::{AllowBuildPolicy, RequiresBuildBySnapshot, SideEffectsMapsBySnapshot};
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use crate::{
+        AllowBuildPolicy,
+        RequiresBuildBySnapshot,
+        SideEffectsMapsBySnapshot,
+    };
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
     use p256::{
         SecretKey,
-        pkcs8::{EncodePrivateKey as _, EncodePublicKey as _},
+        pkcs8::{
+            EncodePrivateKey as _,
+            EncodePublicKey as _,
+        },
     };
-    use pnpm_config::{Config, RemoteSideEffectsCacheSettings};
-    use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
+    use pnpm_config::{
+        Config,
+        RemoteSideEffectsCacheSettings,
+    };
+    use pnpm_lockfile::{
+        PackageKey,
+        PackageMetadata,
+        SnapshotEntry,
+    };
     use pnpm_pnpr_client::{
-        ARTIFACT_KIND, ArtifactFile, ArtifactManifest, ArtifactPayload, ArtifactSubject,
-        BuilderProfile, CompatibilityConstraints, OwnerScope, ResolveArtifactsRequest,
+        ARTIFACT_KIND,
+        ArtifactFile,
+        ArtifactManifest,
+        ArtifactPayload,
+        ArtifactSubject,
+        BuilderProfile,
+        CompatibilityConstraints,
+        OwnerScope,
+        ResolveArtifactsRequest,
         SignedArtifactEnvelope,
     };
     use pnpm_shared_artifact_protocol::{
-        ArtifactVariant, ResolveArtifactsResponse, ResolvedArtifact,
+        ArtifactVariant,
+        ResolveArtifactsResponse,
+        ResolvedArtifact,
     };
-    use pnpm_store_dir::{CafsFileInfo, RemoteSideEffectsOrigin, SideEffectsDiff, StoreDir};
-    use sha2::{Digest as _, Sha512};
+    use pnpm_store_dir::{
+        CafsFileInfo,
+        RemoteSideEffectsOrigin,
+        SideEffectsDiff,
+        StoreDir,
+    };
+    use sha2::{
+        Digest as _,
+        Sha512,
+    };
     use std::{
-        collections::{BTreeMap, HashMap, HashSet},
+        collections::{
+            BTreeMap,
+            HashMap,
+            HashSet,
+        },
         path::PathBuf,
     };
 

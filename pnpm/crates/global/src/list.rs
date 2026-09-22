@@ -5,12 +5,25 @@
 //! list their resolved direct deps under a single private root.
 
 use crate::scan::{
-    GlobalPackageInfo, InstalledGlobalPackage, get_global_package_details, scan_global_packages,
+    GlobalPackageInfo,
+    InstalledGlobalPackage,
+    get_global_package_details,
+    scan_global_packages,
 };
-use owo_colors::{OwoColorize, Stream};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+};
 use pnpm_matcher::WildcardMatcher;
-use serde_json::{Map, Value, json};
-use std::path::{Path, PathBuf};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Output format for [`list_global_packages`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

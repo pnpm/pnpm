@@ -1,4 +1,7 @@
-use super::{LockfileResolution, REVISION_SHA512};
+use super::{
+    LockfileResolution,
+    REVISION_SHA512,
+};
 
 #[test]
 fn registry_revision_rejects_values_outside_the_positive_safe_integer_range() {

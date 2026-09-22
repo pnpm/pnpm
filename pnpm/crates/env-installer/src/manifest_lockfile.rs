@@ -1,6 +1,10 @@
 use pnpm_lockfile::{
-    BundledDependencies, LockfileFormError, LockfileFormOptions, PackageMetadata,
-    PeerDependencyMeta, StringOrList,
+    BundledDependencies,
+    LockfileFormError,
+    LockfileFormOptions,
+    PackageMetadata,
+    PeerDependencyMeta,
+    StringOrList,
 };
 use pnpm_resolving_resolver_base::ResolveResult;
 use serde_json::Value;

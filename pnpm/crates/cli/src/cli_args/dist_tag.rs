@@ -2,25 +2,51 @@ mod registry;
 
 use super::sanitize;
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use node_semver::Version;
 use pnpm_config::Config;
 use pnpm_network::{
-    RetryOpts, ThrottledClient, encode_uri_component, read_limited_body, redact_url_credentials,
-    retry_async, send_with_retry,
+    RetryOpts,
+    ThrottledClient,
+    encode_uri_component,
+    read_limited_body,
+    redact_url_credentials,
+    retry_async,
+    send_with_retry,
 };
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use registry::{
-    DeleteDistTagRequest, SetDistTagRequest, auth_header_for_registry, build_http_client,
-    delete_dist_tag, fetch_dist_tags, normalize_registry_url, package_name_for_url,
-    registry_for_package, set_dist_tag,
+    DeleteDistTagRequest,
+    SetDistTagRequest,
+    auth_header_for_registry,
+    build_http_client,
+    delete_dist_tag,
+    fetch_dist_tags,
+    normalize_registry_url,
+    package_name_for_url,
+    registry_for_package,
+    set_dist_tag,
 };
-use reqwest::{RequestBuilder, Response, StatusCode};
+use reqwest::{
+    RequestBuilder,
+    Response,
+    StatusCode,
+};
 use serde::Deserialize;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     time::Duration,
 };
 

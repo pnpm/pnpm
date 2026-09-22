@@ -1,6 +1,11 @@
 use super::{
-    BTreeMap, EXISTING_VERSION_SELECTOR_WEIGHT, Package, VersionSelectorEntry, VersionSelectorType,
-    VersionSelectors, semver_satisfies_loose,
+    BTreeMap,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    Package,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectors,
+    semver_satisfies_loose,
 };
 
 pub(crate) fn dominant_lockfile_version(

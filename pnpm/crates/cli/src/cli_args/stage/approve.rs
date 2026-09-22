@@ -6,31 +6,69 @@
 //! first, and its published manifest determines dependency order.
 
 use super::{
-    StageArgs, StageContext, StageError, StageRegistryError, fetch_stage_items,
-    fetch_stage_tarball, global_info, global_warn, is_uuid, stage_endpoint_url, stage_json_request,
-    stage_request_in_session, summarize_tarball::read_tarball_manifest,
+    StageArgs,
+    StageContext,
+    StageError,
+    StageRegistryError,
+    fetch_stage_items,
+    fetch_stage_tarball,
+    global_info,
+    global_warn,
+    is_uuid,
+    stage_endpoint_url,
+    stage_json_request,
+    stage_request_in_session,
+    summarize_tarball::read_tarball_manifest,
 };
-use crate::cli_args::{recursive::sequence_graph, sanitize::sanitize_inline};
-use derive_more::{Display, Error};
+use crate::cli_args::{
+    recursive::sequence_graph,
+    sanitize::sanitize_inline,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use dialoguer::MultiSelect;
-use miette::{Diagnostic, IntoDiagnostic};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
 use node_semver::Version;
-use ordering::{read_stage_approval_order, sort_items_for_approval, unavailable_dependencies};
+use ordering::{
+    read_stage_approval_order,
+    sort_items_for_approval,
+    unavailable_dependencies,
+};
 use pnpm_config::Config;
-use pnpm_network_web_auth::{Host as WebAuthHost, OtpSession, StdinIsTty, StdoutIsTty};
+use pnpm_network_web_auth::{
+    Host as WebAuthHost,
+    OtpSession,
+    StdinIsTty,
+    StdoutIsTty,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::{
-    ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range,
+    ANY_VERSION_RANGE,
+    is_any_version_range,
+    is_valid_semver_range,
 };
-use pnpm_workspace::{GraphPkg, Project};
+use pnpm_workspace::{
+    GraphPkg,
+    Project,
+};
 use pnpm_workspace_projects_graph::{
-    CreateProjectsGraphOptions, ProjectGraph, create_projects_graph,
+    CreateProjectsGraphOptions,
+    ProjectGraph,
+    create_projects_graph,
 };
 use serde_json::Value;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::PathBuf,
 };
 

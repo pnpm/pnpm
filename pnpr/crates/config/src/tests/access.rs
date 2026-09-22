@@ -1,5 +1,12 @@
 use super::{
-    Config, Identity, Path, RegistryError, hosted_rules_config, hosted_rules_err, listen, user,
+    Config,
+    Identity,
+    Path,
+    RegistryError,
+    hosted_rules_config,
+    hosted_rules_err,
+    listen,
+    user,
 };
 
 /// A hosted `org` becomes a storage path segment, so a traversal-y value —

@@ -1,11 +1,20 @@
-use std::{collections::HashMap, sync::Mutex};
+use std::{
+    collections::HashMap,
+    sync::Mutex,
+};
 
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_resolving_resolver_base::ResolveOptions;
 
-use super::{StubResolver, fake_manifest, fake_result};
+use super::{
+    StubResolver,
+    fake_manifest,
+    fake_result,
+};
 use crate::resolve_dependency_tree::{
-    ResolveDependencyTreeError, ResolveDependencyTreeOptions, resolve_dependency_tree,
+    ResolveDependencyTreeError,
+    ResolveDependencyTreeOptions,
+    resolve_dependency_tree,
 };
 
 fn git_result(

@@ -1,8 +1,19 @@
-use super::{cargo_workspace, crate_archive_with_manifest, install_in};
+use super::{
+    cargo_workspace,
+    crate_archive_with_manifest,
+    install_in,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use sha2::{Digest, Sha256};
-use std::{fs, process::Command, str::FromStr};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use std::{
+    fs,
+    process::Command,
+    str::FromStr,
+};
 
 #[test]
 fn weak_optional_dependencies_match_cargo_without_activating_them_for_builds() {

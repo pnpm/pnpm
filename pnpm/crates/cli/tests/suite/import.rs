@@ -12,12 +12,21 @@
 //! upstream would make these tests depend on the network and on versions
 //! published after they were written.
 
-use crate::_utils::{append_workspace_yaml_key, lockfile_package_keys};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    lockfile_package_keys,
+};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn assert_no_import_backups(lockfile_dir: &Path) {
     let leftovers: Vec<_> = fs::read_dir(lockfile_dir)

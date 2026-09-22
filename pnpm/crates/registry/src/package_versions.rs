@@ -20,13 +20,24 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     fs::File,
-    sync::{Arc, OnceLock},
+    sync::{
+        Arc,
+        OnceLock,
+    },
 };
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{
+    Deserialize,
+    Deserializer,
+    Serialize,
+    Serializer,
+};
 use serde_json::value::RawValue;
 
-use crate::package_version::{PackageVersion, deserialize_deprecated_field};
+use crate::package_version::{
+    PackageVersion,
+    deserialize_deprecated_field,
+};
 
 /// Single-field view of a version manifest for
 /// [`PackageVersions::is_deprecated`] — same normalization as

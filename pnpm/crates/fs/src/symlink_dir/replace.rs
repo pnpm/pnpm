@@ -1,6 +1,13 @@
 use super::{
-    ForceSymlinkOutcome, Path, force_symlink_inner, fs, io, is_transient_file_lock_error,
-    remove_dir_all_with_retry, rename_with_retry, retry_transient_file_locks,
+    ForceSymlinkOutcome,
+    Path,
+    force_symlink_inner,
+    fs,
+    io,
+    is_transient_file_lock_error,
+    remove_dir_all_with_retry,
+    rename_with_retry,
+    retry_transient_file_locks,
 };
 
 /// The one-shot recoveries [`force_symlink_inner`] has already spent on a

@@ -1,9 +1,18 @@
 #[cfg(unix)]
 use super::{
-    super::BuildModules, TEST_LOGGED_METHODS, create_postinstall_modifies_source_fixture, key,
-    policy_from_specs, report_store_file_differences, root_importers, snapshot_regular_files,
+    super::BuildModules,
+    TEST_LOGGED_METHODS,
+    create_postinstall_modifies_source_fixture,
+    key,
+    policy_from_specs,
+    report_store_file_differences,
+    root_importers,
+    snapshot_regular_files,
 };
-use super::{frozen_backstop_run, gvs_layout};
+use super::{
+    frozen_backstop_run,
+    gvs_layout,
+};
 #[cfg(unix)]
 use crate::SkippedSnapshots;
 use crate::VirtualStoreLayout;
@@ -86,7 +95,10 @@ fn frozen_store_without_gvs_does_not_trip_backstop() {
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
 async fn frozen_store_skips_side_effects_upload() {
-    use pnpm_store_dir::{StoreDir, StoreIndexWriter};
+    use pnpm_store_dir::{
+        StoreDir,
+        StoreIndexWriter,
+    };
 
     let pkg_key = key("@pnpm/postinstall-modifies-source", "1.0.0");
     let integrity_str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";

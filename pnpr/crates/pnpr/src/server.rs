@@ -7,70 +7,129 @@ use tcp_listener::NodelayTcpListener;
 
 mod pnpr_protocol;
 use pnpr_protocol::{
-    pnpr_protocols_disabled, serve_artifact_blob, serve_pnpr_handshake, serve_publish_artifact,
-    serve_resolve, serve_resolve_artifacts, serve_verify_lockfile,
+    pnpr_protocols_disabled,
+    serve_artifact_blob,
+    serve_pnpr_handshake,
+    serve_publish_artifact,
+    serve_resolve,
+    serve_resolve_artifacts,
+    serve_verify_lockfile,
 };
 
 mod pipeline_runs;
 use pipeline_runs::{
-    serve_get_pipeline_run, serve_list_pipeline_runs, serve_pipeline_ui, serve_publish_pipeline_run,
+    serve_get_pipeline_run,
+    serve_list_pipeline_runs,
+    serve_pipeline_ui,
+    serve_publish_pipeline_run,
 };
 
 mod organizations;
-use organizations::{get_org_teams, get_team_members, reject_team_mutation, serve_org_packages};
+use organizations::{
+    get_org_teams,
+    get_team_members,
+    reject_team_mutation,
+    serve_org_packages,
+};
 
 mod package_search;
 use package_search::{
-    DiscoverySource, SearchPage, discovery_sources, hosted_search_names, serve_search,
+    DiscoverySource,
+    SearchPage,
+    discovery_sources,
+    hosted_search_names,
+    serve_search,
 };
 
 mod package_responses;
 use package_responses::{
-    DistBlock, TarballDist, ensure_osv_allowed, expected_tarball_dist,
-    filter_osv_vulnerable_dist_tags, is_osv_vulnerable_packument_version, packument_bytes_response,
-    packument_response, resolve_version_or_tag, revision_tarball_response, tarball_integrity_error,
-    tarball_response, tarball_stream_error, tarball_stream_error_for_package, wants_abbreviated,
+    DistBlock,
+    TarballDist,
+    ensure_osv_allowed,
+    expected_tarball_dist,
+    filter_osv_vulnerable_dist_tags,
+    is_osv_vulnerable_packument_version,
+    packument_bytes_response,
+    packument_response,
+    resolve_version_or_tag,
+    revision_tarball_response,
+    tarball_integrity_error,
+    tarball_response,
+    tarball_stream_error,
+    tarball_stream_error_for_package,
+    wants_abbreviated,
 };
 
 mod package_reads;
 use package_reads::{
-    HostedGate, RegistrySource, default_registry_target, hosted_gate, hosted_read_namespace,
-    resolve_ecosystem_source, resolve_registry_source, resolves_to_private_source, serve_packument,
-    serve_tarball, serve_version_manifest,
+    HostedGate,
+    RegistrySource,
+    default_registry_target,
+    hosted_gate,
+    hosted_read_namespace,
+    resolve_ecosystem_source,
+    resolve_registry_source,
+    resolves_to_private_source,
+    serve_packument,
+    serve_tarball,
+    serve_version_manifest,
 };
 
 mod revision_refs;
 use revision_refs::{
-    RevisionScan, RevisionSource, hosted_revision_refs, hosted_revision_sources,
-    serve_private_revision_refs, serve_revision_refs,
+    RevisionScan,
+    RevisionSource,
+    hosted_revision_refs,
+    hosted_revision_sources,
+    serve_private_revision_refs,
+    serve_revision_refs,
 };
 
 mod revision_tarballs;
 use revision_tarballs::{
-    declared_tarball_integrity, hosted_original_is_current, open_hosted_revision_tarball,
+    declared_tarball_integrity,
+    hosted_original_is_current,
+    open_hosted_revision_tarball,
     serve_revision_tarball,
 };
 
 mod upstream_tarballs;
-use upstream_tarballs::{cached_upstream_tarball, serve_tarball_via_upstream};
+use upstream_tarballs::{
+    cached_upstream_tarball,
+    serve_tarball_via_upstream,
+};
 
 mod upstream_packuments;
 use upstream_packuments::{
-    load_packument_for_read, load_upstream_packument, read_source_packument,
+    load_packument_for_read,
+    load_upstream_packument,
+    read_source_packument,
     serve_packument_via_upstream,
 };
 
 mod request_access;
 use request_access::{
-    authorized_revision_upstream, authorized_upstream, compute_upstream_cache_namespace,
-    require_artifact_caller, require_caller, require_pipeline_caller, require_resolver_caller,
-    revision_registry_is_private, revision_source_registry, single_authorization_header,
+    authorized_revision_upstream,
+    authorized_upstream,
+    compute_upstream_cache_namespace,
+    require_artifact_caller,
+    require_caller,
+    require_pipeline_caller,
+    require_resolver_caller,
+    revision_registry_is_private,
+    revision_source_registry,
+    single_authorization_header,
     upstream_cache_namespace,
 };
 
 mod user_accounts;
 use user_accounts::{
-    delete_session_token, delete_token_by_key, get_profile, get_token_list, get_whoami, put_login,
+    delete_session_token,
+    delete_token_by_key,
+    get_profile,
+    get_token_list,
+    get_whoami,
+    put_login,
 };
 
 mod authentication;
@@ -93,16 +152,34 @@ mod striped_locks;
 mod tests;
 
 use self::{
-    authentication::{Action, AuthedCaller, authenticate, authorize},
+    authentication::{
+        Action,
+        AuthedCaller,
+        authenticate,
+        authorize,
+    },
     documents::RegistryDocuments,
-    ecosystem::{addressed_registry, caller_scoped, registry_endpoint},
+    ecosystem::{
+        addressed_registry,
+        caller_scoped,
+        registry_endpoint,
+    },
     package_mutation::{
-        delete_package, delete_tarball, get_dist_tags, remove_dist_tag, set_dist_tag,
+        delete_package,
+        delete_tarball,
+        get_dist_tags,
+        remove_dist_tag,
+        set_dist_tag,
         update_packument,
     },
     publishing::{
-        PublishTarget, commit_publishes, publish_package, resolve_publish_target_for,
-        serve_batch_publish, stage_publish, validate_publish_doc,
+        PublishTarget,
+        commit_publishes,
+        publish_package,
+        resolve_publish_target_for,
+        serve_batch_publish,
+        stage_publish,
+        validate_publish_doc,
     },
     routing::router_with_auth_and_osv,
 };
@@ -111,39 +188,86 @@ use axum::{
     Router,
     body::Body,
     extract::{
-        FromRequestParts, Path, RawPathParams, Request, State, connect_info::Connected,
+        FromRequestParts,
+        Path,
+        RawPathParams,
+        Request,
+        State,
+        connect_info::Connected,
         rejection::RawPathParamsRejection,
     },
-    http::{HeaderMap, StatusCode, header, request::Parts},
+    http::{
+        HeaderMap,
+        StatusCode,
+        header,
+        request::Parts,
+    },
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
     serve::IncomingStream,
 };
 use chrono::Utc;
 use indexmap::IndexMap;
-use pnpm_crypto_hash::{integrity_addressed_tarball_integrity, integrity_addressed_tarball_path};
+use pnpm_crypto_hash::{
+    integrity_addressed_tarball_integrity,
+    integrity_addressed_tarball_path,
+};
 use pnpm_lockfile::TarballRevision;
-use pnpr_auth::{AuthState, UpsertOutcome, identify};
-use pnpr_config::{Config, HostedConfig};
+use pnpr_auth::{
+    AuthState,
+    UpsertOutcome,
+    identify,
+};
+use pnpr_config::{
+    Config,
+    HostedConfig,
+};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_registry::{ConcreteKind, Ecosystem, Registry, Resolved};
+use pnpr_registry::{
+    ConcreteKind,
+    Ecosystem,
+    Registry,
+    Resolved,
+};
 use pnpr_storage::{
     Storage,
-    publish::{iso_from_unix_millis, now_iso},
+    publish::{
+        iso_from_unix_millis,
+        now_iso,
+    },
     streaming,
 };
 
 use pnpr_upstream::{
-    CacheValidators, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
-    extract_upstream_version_manifest, extract_version_manifest, rewrite_tarball_urls,
-    rewrite_upstream_tarball_urls, tarball_basename,
+    CacheValidators,
+    FetchOutcome,
+    PackumentFetch,
+    Upstream,
+    abbreviate_packument,
+    extract_upstream_version_manifest,
+    extract_version_manifest,
+    rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls,
+    tarball_basename,
 };
 use serde::Deserialize;
-use serde_json::{Map, Value, json};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 use ssri::Integrity;
-use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
+use std::{
+    collections::HashSet,
+    net::SocketAddr,
+    sync::Arc,
+    time::Duration,
+};
 
 /// MIME the npm registry uses for the abbreviated install-v1 form.
 /// Matches what pacquet (and pnpm/npm/yarn) send in `Accept` when

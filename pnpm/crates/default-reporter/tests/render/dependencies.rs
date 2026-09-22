@@ -1,6 +1,16 @@
 use super::{
-    CWD, DependencyType, LogEvent, LogLevel, SkippedOptionalDependencyLog, SkippedOptionalPackage,
-    SkippedOptionalReason, added_root, added_root_with_latest_at, render, state, summary,
+    CWD,
+    DependencyType,
+    LogEvent,
+    LogLevel,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    SkippedOptionalReason,
+    added_root,
+    added_root_with_latest_at,
+    render,
+    state,
+    summary,
     update_check,
 };
 

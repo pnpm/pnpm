@@ -1,17 +1,45 @@
 use super::{
-    Arc, DepPath, DependencyGroup, EXISTING_VERSION_SELECTOR_WEIGHT, HashMap, HashSet, Mutex,
-    PreferredVersions, SnapshotEntry, StubResolver, VersionSelectorEntry, VersionSelectorType,
-    VersionSelectorWithWeight, VersionSelectors, alias_dependency, assert_eq, default_opts,
-    fake_manifest, fake_result, importer_locked_peer_versions, link_dependency, locked_peer_names,
-    peer_context_lockfile, peer_declaring_metadata, plain_dependency, resolve_importer,
-    snapshot_with_dependencies, snapshot_with_dependency,
+    Arc,
+    DepPath,
+    DependencyGroup,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    HashMap,
+    HashSet,
+    Mutex,
+    PreferredVersions,
+    SnapshotEntry,
+    StubResolver,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
+    VersionSelectors,
+    alias_dependency,
+    assert_eq,
+    default_opts,
+    fake_manifest,
+    fake_result,
+    importer_locked_peer_versions,
+    link_dependency,
+    locked_peer_names,
+    peer_context_lockfile,
+    peer_declaring_metadata,
+    plain_dependency,
+    resolve_importer,
+    snapshot_with_dependencies,
+    snapshot_with_dependency,
 };
 
 #[test]
 fn locked_peer_versions_are_recorded_for_direct_deps() {
     use pnpm_lockfile::{
-        ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PkgName, PkgVerPeer,
-        ProjectSnapshot, ResolvedDependencySpec,
+        ComVer,
+        ImporterDepVersion,
+        Lockfile,
+        LockfileVersion,
+        PkgName,
+        PkgVerPeer,
+        ProjectSnapshot,
+        ResolvedDependencySpec,
     };
 
     let consumer = PkgName::parse("consumer").unwrap();

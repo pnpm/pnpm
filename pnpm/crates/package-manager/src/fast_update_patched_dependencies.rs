@@ -1,13 +1,28 @@
 use crate::fast_update_compose::Drift;
-use pnpm_deps_path::{index_of_dep_path_suffix, remove_suffix};
+use pnpm_deps_path::{
+    index_of_dep_path_suffix,
+    remove_suffix,
+};
 use pnpm_lockfile::{
-    ImporterDepVersion, Lockfile, PackageKey, ProjectSnapshot, ResolvedDependencyMap,
+    ImporterDepVersion,
+    Lockfile,
+    PackageKey,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
     SnapshotDepRef,
 };
 use pnpm_patching::{
-    PatchGroupRecord, PatchInput, all_patch_keys, get_patch_info, group_patched_dependencies,
+    PatchGroupRecord,
+    PatchInput,
+    all_patch_keys,
+    get_patch_info,
+    group_patched_dependencies,
 };
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashMap,
+};
 
 /// Where a package's snapshot key moves to when its patch changes.
 type Rekeys = HashMap<PackageKey, PackageKey>;

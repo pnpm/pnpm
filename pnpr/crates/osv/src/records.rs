@@ -1,7 +1,17 @@
 use super::{
-    Advisory, Cow, Deserialize, HashMap, MAX_ADVISORY_ID_BYTES, MAX_EVENTS_PER_RANGE,
-    MAX_RANGES_PER_AFFECTED, MAX_VERSIONS_PER_AFFECTED, RegistryError, SemverEvent, SemverRange,
-    Version, invalid_config,
+    Advisory,
+    Cow,
+    Deserialize,
+    HashMap,
+    MAX_ADVISORY_ID_BYTES,
+    MAX_EVENTS_PER_RANGE,
+    MAX_RANGES_PER_AFFECTED,
+    MAX_VERSIONS_PER_AFFECTED,
+    RegistryError,
+    SemverEvent,
+    SemverRange,
+    Version,
+    invalid_config,
 };
 
 #[derive(Deserialize)]

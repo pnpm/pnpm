@@ -1,10 +1,31 @@
 use super::{
-    ALIAS_TOKEN, AccessList, Duration, Footprint, HashMap, Identity,
-    MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY, Mutex, PrivateAccessDescriptor, ResolveRequest,
-    RouteContext, cached_resolution, config, config_for_registry, deps, lockfile,
-    private_alias_footprint, public_registry_config, registry_config, reject_inline_url_auth,
-    reject_invalid_patch_hashes, reject_off_allowlist_fetches, resolution_cache_key,
-    store_resolution, tarball_router, upstream_with_access, user,
+    ALIAS_TOKEN,
+    AccessList,
+    Duration,
+    Footprint,
+    HashMap,
+    Identity,
+    MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY,
+    Mutex,
+    PrivateAccessDescriptor,
+    ResolveRequest,
+    RouteContext,
+    cached_resolution,
+    config,
+    config_for_registry,
+    deps,
+    lockfile,
+    private_alias_footprint,
+    public_registry_config,
+    registry_config,
+    reject_inline_url_auth,
+    reject_invalid_patch_hashes,
+    reject_off_allowlist_fetches,
+    resolution_cache_key,
+    store_resolution,
+    tarball_router,
+    upstream_with_access,
+    user,
 };
 
 /// The `registries` map is keyed by URL and carries declarations only. The
@@ -115,8 +136,14 @@ fn public_cached_resolution_matches_every_caller() {
 
 #[test]
 fn package_qualified_alias_descriptor_rechecks_upstream_rules_on_replay() {
-    use pnpr_policy::{PackageRule, PackageRules};
-    use pnpr_registry::{Ecosystem, PackagePattern};
+    use pnpr_policy::{
+        PackageRule,
+        PackageRules,
+    };
+    use pnpr_registry::{
+        Ecosystem,
+        PackagePattern,
+    };
 
     let cache = Mutex::new(HashMap::new());
     let key = "base".to_string();

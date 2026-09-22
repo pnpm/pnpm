@@ -1,7 +1,14 @@
 use node_semver::Version;
-use pnpm_registry::{PackageVersion, RangeSpecStyle};
+use pnpm_registry::{
+    PackageVersion,
+    RangeSpecStyle,
+};
 
-use super::{calc_prefixed_specifier, calc_specifier, calc_version_range};
+use super::{
+    calc_prefixed_specifier,
+    calc_specifier,
+    calc_version_range,
+};
 use crate::infer_range_spec_style;
 
 fn picked(version: &str) -> PackageVersion {

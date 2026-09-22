@@ -1,7 +1,14 @@
-use pnpm_lockfile::{Lockfile, PackageKey};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{
+        HashMap,
+        HashSet,
+        VecDeque,
+    },
     path::Path,
 };
 

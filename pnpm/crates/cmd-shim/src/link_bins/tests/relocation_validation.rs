@@ -1,5 +1,11 @@
-use crate::{link_bins::bin_dir_is_relocatable, shim::is_relocatable_shim};
-use std::{fs, os::unix::fs::symlink};
+use crate::{
+    link_bins::bin_dir_is_relocatable,
+    shim::is_relocatable_shim,
+};
+use std::{
+    fs,
+    os::unix::fs::symlink,
+};
 use tempfile::tempdir;
 
 #[test]

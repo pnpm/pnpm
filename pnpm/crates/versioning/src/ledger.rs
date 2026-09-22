@@ -1,19 +1,33 @@
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    fmt, fs,
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    fmt,
+    fs,
     io::ErrorKind,
     path::Path,
 };
 
 use serde::{
-    Deserialize, Deserializer,
+    Deserialize,
+    Deserializer,
     de::{
-        MapAccess, SeqAccess, Visitor,
-        value::{MapAccessDeserializer, SeqAccessDeserializer},
+        MapAccess,
+        SeqAccess,
+        Visitor,
+        value::{
+            MapAccessDeserializer,
+            SeqAccessDeserializer,
+        },
     },
 };
 
-use crate::{error::VersioningError, intents::CHANGES_DIR};
+use crate::{
+    error::VersioningError,
+    intents::CHANGES_DIR,
+};
 
 pub const LEDGER_FILENAME: &str = "ledger.yaml";
 

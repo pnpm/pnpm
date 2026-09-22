@@ -1,44 +1,83 @@
 use crate::cli_args::{
     deps_tree::{
-        dep_types::{DepType, detect_dep_types},
+        dep_types::{
+            DepType,
+            detect_dep_types,
+        },
         pkg_info::is_unsafe_path_component,
     },
     install::resolve_bool_override,
     recursive::{
-        AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
+        AutoExcludeRoot,
+        discover_workspace_projects,
+        select_recursive_projects,
         selected_importer_ids,
     },
-    sanitize::{sanitize, sanitize_inline},
+    sanitize::{
+        sanitize,
+        sanitize_inline,
+    },
 };
 use clap::Args;
 use dependencies::{
-    collect_dependencies, compare_package_names, compare_versions, select_newer_version,
+    collect_dependencies,
+    compare_package_names,
+    compare_versions,
+    select_newer_version,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
-use miette::{Diagnostic, IntoDiagnostic};
-use owo_colors::{OwoColorize, Stream};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, PackageKey, ResolvedDependencyMap};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    ResolvedDependencyMap,
+};
 use pnpm_package_is_installable::{
-    InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
+    InstallabilityOptions,
+    WantedPlatformRef,
+    platform_is_supported_with_inference,
 };
 use pnpm_package_manager::{
-    AllowBuildPolicy, validate_virtual_store_slot_containment, virtual_store_layout_for_lockfile,
+    AllowBuildPolicy,
+    validate_virtual_store_slot_containment,
+    virtual_store_layout_for_lockfile,
 };
 use pnpm_package_manifest::{
-    extract_license, node_version_from_engines_runtime, safe_read_package_json_from_dir,
+    extract_license,
+    node_version_from_engines_runtime,
+    safe_read_package_json_from_dir,
 };
 use pnpm_resolving_git_resolver::HostedGit;
 use serde::Serialize;
 use std::{
     cmp::Ordering,
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
 };
-use tabled::{builder::Builder, settings::Style};
+use tabled::{
+    builder::Builder,
+    settings::Style,
+};
 
 mod license_resolver;
-use license_resolver::{extract_license_author, extract_license_homepage};
+use license_resolver::{
+    extract_license_author,
+    extract_license_homepage,
+};
 
 #[derive(Debug, Args)]
 pub struct LicensesArgs {

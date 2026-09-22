@@ -1,12 +1,25 @@
 mod open_directory;
-use crate::{FindWorkspaceProjectsError, directory_patterns::negated_directory_pattern};
-use derive_more::{Display, Error};
+use crate::{
+    FindWorkspaceProjectsError,
+    directory_patterns::negated_directory_pattern,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     ffi::OsStr,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use wax::Program as _;
 

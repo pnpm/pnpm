@@ -3,12 +3,21 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use pnpm_store_dir::STORE_VERSION;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
 use pretty_assertions::assert_eq;
 use std::{
     fs,
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
 fn pacquet_at(workspace: &Path) -> Command {

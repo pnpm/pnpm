@@ -7,16 +7,38 @@
 //! "Already up to date" says nothing about cycles — pnpm returns before
 //! its own check in that case.
 
-use pnpm_config::{Config, LinkWorkspacePackages};
-use pnpm_deps_restorer::{PathNode, graph_sequencer};
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pnpm_workspace::{GraphPkg, Project};
+use pnpm_config::{
+    Config,
+    LinkWorkspacePackages,
+};
+use pnpm_deps_restorer::{
+    PathNode,
+    graph_sequencer,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
+use pnpm_workspace::{
+    GraphPkg,
+    Project,
+};
 use pnpm_workspace_projects_graph::{
-    CreateProjectsGraphOptions, ProjectGraph, create_projects_graph,
+    CreateProjectsGraphOptions,
+    ProjectGraph,
+    create_projects_graph,
 };
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The dependency cycles among `graph`'s projects, or `None` when they

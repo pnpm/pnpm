@@ -32,27 +32,63 @@
 
 mod transaction_files;
 use transaction_files::{
-    cleanup_lost_tmp_paths, revision_ref_owner, roll_back, sync_dir, txn_id, write_transaction,
+    cleanup_lost_tmp_paths,
+    revision_ref_owner,
+    roll_back,
+    sync_dir,
+    txn_id,
+    write_transaction,
 };
 
 use crate::{
-    BlobFinalize, BlobSlot, COMMIT_DOCUMENT_WRITE_RETRIES, DocumentUpdate, DocumentWrite,
-    HostedDocumentVersion, HostedRevisionRefWrite, Storage, is_canonical_revision_ref_owner,
+    BlobFinalize,
+    BlobSlot,
+    COMMIT_DOCUMENT_WRITE_RETRIES,
+    DocumentUpdate,
+    DocumentWrite,
+    HostedDocumentVersion,
+    HostedRevisionRefWrite,
+    Storage,
+    is_canonical_revision_ref_owner,
     unique_tmp_path,
 };
 use pnpr_config::Config;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
-use serde::{Deserialize, Serialize};
-use std::{
-    collections::{HashMap, HashSet},
-    io::{self, ErrorKind},
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
-    time::{SystemTime, UNIX_EPOCH},
+use serde::{
+    Deserialize,
+    Serialize,
 };
-use tokio::{fs, io::AsyncWriteExt};
+use std::{
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    io::{
+        self,
+        ErrorKind,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
+    time::{
+        SystemTime,
+        UNIX_EPOCH,
+    },
+};
+use tokio::{
+    fs,
+    io::AsyncWriteExt,
+};
 
 /// Name of the journal directory. It sits inside the local root that
 /// also holds the staged tmp files (the hosted store root on the fs

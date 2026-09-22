@@ -8,26 +8,53 @@
 //! should trigger it.
 
 pub use dir_patcher::{
-    Change, DirDiff, DirPatcher, FileId, InodeMap, PatchError, Value, apply_patch, diff_dir,
+    Change,
+    DirDiff,
+    DirPatcher,
+    FileId,
+    InodeMap,
+    PatchError,
+    Value,
+    apply_patch,
+    diff_dir,
     extend_files_map,
 };
 
 mod dir_patcher;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{
-    LinkBinsError, LinkBinsOptions, PackageBinSource, get_bins_from_package_manifest, link_bins,
-    link_bins_of_packages, remove_bin,
+    LinkBinsError,
+    LinkBinsOptions,
+    PackageBinSource,
+    get_bins_from_package_manifest,
+    link_bins,
+    link_bins_of_packages,
+    remove_bin,
 };
-use pnpm_modules_yaml::{ReadModulesError, read_modules_manifest};
-use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_modules_yaml::{
+    ReadModulesError,
+    read_modules_manifest,
+};
+use pnpm_package_manifest::{
+    PackageManifestError,
+    safe_read_package_json_from_dir,
+};
 use pnpm_workspace::{
-    FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, find_workspace_projects_no_check,
+    FindWorkspaceProjectsError,
+    FindWorkspaceProjectsOpts,
+    find_workspace_projects_no_check,
 };
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

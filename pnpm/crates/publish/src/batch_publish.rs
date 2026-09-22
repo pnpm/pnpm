@@ -1,20 +1,39 @@
 //! Publish several packed packages through pnpr's atomic batch endpoint.
 
-use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network_web_auth::{Host as WebAuthHost, WithOtpError};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
+use pnpm_network_web_auth::{
+    Host as WebAuthHost,
+    WithOtpError,
+};
 use pnpm_reporter::Reporter;
 use serde_json::Value;
 
 use crate::{
     failed_to_publish_error::FailedToPublishError,
-    global_log::{global_info, global_warn},
+    global_log::{
+        global_info,
+        global_warn,
+    },
     publish_options::{
-        PublishUnsupportedRegistryProtocolError, find_registry_info, resolve_access,
+        PublishUnsupportedRegistryProtocolError,
+        find_registry_info,
+        resolve_access,
     },
     publish_packed_pkg::{
-        DistHashes, PackedPkg, PublishHttpError, PublishNetwork, PublishPackedPkgError,
-        PublishPackedPkgOptions, build_publish_document, join_registry, publish_with_otp_handling,
-        registry_for_display, web_auth_fetch_options,
+        DistHashes,
+        PackedPkg,
+        PublishHttpError,
+        PublishNetwork,
+        PublishPackedPkgError,
+        PublishPackedPkgOptions,
+        build_publish_document,
+        join_registry,
+        publish_with_otp_handling,
+        registry_for_display,
+        web_auth_fetch_options,
     },
     publish_summary::PublishSummary,
     registry_config_keys::NormalizedRegistryUrl,

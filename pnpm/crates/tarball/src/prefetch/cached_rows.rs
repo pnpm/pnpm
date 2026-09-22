@@ -1,7 +1,17 @@
 use super::{
-    ArchiveStoreProjection, GlobalLog, HashMap, LogEvent, LogLevel, PackageContentCheck,
-    PackageFilesIndex, PathBuf, PkgContentMismatch, SharedReadonlyStoreIndex,
-    SharedVerifiedFilesCache, StoreDir, TarballError,
+    ArchiveStoreProjection,
+    GlobalLog,
+    HashMap,
+    LogEvent,
+    LogLevel,
+    PackageContentCheck,
+    PackageFilesIndex,
+    PathBuf,
+    PkgContentMismatch,
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    TarballError,
 };
 
 /// Files reconstructed from a store-index row, plus the bundled

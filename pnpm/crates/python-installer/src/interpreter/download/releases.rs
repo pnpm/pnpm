@@ -1,17 +1,34 @@
 //! Finding an exact Python patch in historical releases.
 
-use super::{Build, builds_in};
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use super::{
+    Build,
+    builds_in,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use pnpm_config::Config;
 use pnpm_crypto_shasums_file::{
-    FetchShasumsFileError, ShasumsFileItem, fetch_shasums_file_cached_with_retry,
+    FetchShasumsFileError,
+    ShasumsFileItem,
+    fetch_shasums_file_cached_with_retry,
 };
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
 use serde::Deserialize;
 use std::{
     cmp::Ordering,
     collections::VecDeque,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Duration,
 };
 

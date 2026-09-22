@@ -13,25 +13,51 @@
 //! emit boundaries — is in place so the cache slice only needs to
 //! plug into the existing call sites.
 
-use std::{collections::BTreeMap, path::Path, sync::Arc, time::Instant};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::Arc,
+    time::Instant,
+};
 
-use futures_util::{StreamExt, stream::FuturesUnordered};
-use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName, is_git_hosted_tarball_url};
+use futures_util::{
+    StreamExt,
+    stream::FuturesUnordered,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    PkgName,
+    is_git_hosted_tarball_url,
+};
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_reporter::{
-    LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, Reporter,
+    LockfileVerificationLog,
+    LockfileVerificationMessage,
+    LogEvent,
+    LogLevel,
+    Reporter,
 };
 use pnpm_resolving_resolver_base::{
-    ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
+    ResolutionPolicyViolation,
+    ResolutionVerification,
+    ResolutionVerifier,
+    VerifyCtx,
+    VerifyFuture,
 };
 use tokio::sync::Semaphore;
 
 use crate::{
     cache::{
-        CachePrecomputed, lockfile_verification_is_cached_by_hash, record_verification,
+        CachePrecomputed,
+        lockfile_verification_is_cached_by_hash,
+        record_verification,
         try_lockfile_verification_cache,
     },
-    errors::{RenderedViolation, VerifyError},
+    errors::{
+        RenderedViolation,
+        VerifyError,
+    },
     hash_lockfile,
 };
 
@@ -558,4 +584,9 @@ impl<Reporter: self::Reporter> Drop for TerminalEmitGuard<Reporter> {
 mod tests;
 
 mod candidates;
-use candidates::{Candidate, build_verification_error, collect_candidates, run_fan_out};
+use candidates::{
+    Candidate,
+    build_verification_error,
+    collect_candidates,
+    run_fan_out,
+};

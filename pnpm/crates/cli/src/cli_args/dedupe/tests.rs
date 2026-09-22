@@ -1,12 +1,32 @@
 use super::{
-    DedupeResolutionReporter, emit_dedupe_check_error, render_dedupe_check_error,
-    render_dedupe_check_issues, reusable_skipped_package_id,
+    DedupeResolutionReporter,
+    emit_dedupe_check_error,
+    render_dedupe_check_error,
+    render_dedupe_check_issues,
+    reusable_skipped_package_id,
 };
 use pnpm_lockfile::PackageMetadata;
-use pnpm_package_manager::{InstallabilityHost, LockfileDiff, SnapshotDiff};
-use pnpm_reporter::{LogEvent, ProgressMessage, Reporter};
-use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndex, store_index_key};
-use std::{collections::HashSet, marker::PhantomData, sync::Mutex};
+use pnpm_package_manager::{
+    InstallabilityHost,
+    LockfileDiff,
+    SnapshotDiff,
+};
+use pnpm_reporter::{
+    LogEvent,
+    ProgressMessage,
+    Reporter,
+};
+use pnpm_store_dir::{
+    PackageFilesIndex,
+    StoreDir,
+    StoreIndex,
+    store_index_key,
+};
+use std::{
+    collections::HashSet,
+    marker::PhantomData,
+    sync::Mutex,
+};
 use tempfile::TempDir;
 
 #[test]

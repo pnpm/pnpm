@@ -1,12 +1,31 @@
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
-pub use package::{DerivedPackuments, Package};
-pub use package_distribution::{AttestationsDist, PackageDistribution, ProvenanceMeta};
+pub use package::{
+    DerivedPackuments,
+    Package,
+};
+pub use package_distribution::{
+    AttestationsDist,
+    PackageDistribution,
+    ProvenanceMeta,
+};
 pub use package_tag::PackageTag;
-pub use package_version::{Approver, NpmUser, PackageVersion, TrustedPublisher};
-pub use package_versions::{MirrorFile, PackageVersions, read_exact_at};
-pub use range_spec_style::{RangeSpecGranularity, RangeSpecStyle};
+pub use package_version::{
+    Approver,
+    NpmUser,
+    PackageVersion,
+    TrustedPublisher,
+};
+pub use package_versions::{
+    MirrorFile,
+    PackageVersions,
+    read_exact_at,
+};
+pub use range_spec_style::{
+    RangeSpecGranularity,
+    RangeSpecStyle,
+};
 
 mod package;
 mod package_distribution;
@@ -16,7 +35,11 @@ mod package_versions;
 mod range_spec_style;
 mod wire_tolerance;
 
-use derive_more::{Display, Error, From};
+use derive_more::{
+    Display,
+    Error,
+    From,
+};
 use miette::Diagnostic;
 
 #[derive(Debug, Display, Error)]

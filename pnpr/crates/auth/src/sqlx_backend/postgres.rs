@@ -1,12 +1,33 @@
 use super::{
-    super::{TokenRecord, token_timestamp_from_sql, token_timestamp_to_sql},
-    AuthSqlBackend, InsertUser, SqlAuth, StoredUser, invalid_pool_size, sql_max_users,
-    timeout_millis, with_auth_timeout,
+    super::{
+        TokenRecord,
+        token_timestamp_from_sql,
+        token_timestamp_to_sql,
+    },
+    AuthSqlBackend,
+    InsertUser,
+    SqlAuth,
+    StoredUser,
+    invalid_pool_size,
+    sql_max_users,
+    timeout_millis,
+    with_auth_timeout,
 };
 use async_trait::async_trait;
-use pnpr_config::{MaxUsers, SqlBackendSettings};
-use pnpr_error::{RegistryError, Result};
-use sqlx::{PgConnection, PgPool, Row, postgres::PgPoolOptions};
+use pnpr_config::{
+    MaxUsers,
+    SqlBackendSettings,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use sqlx::{
+    PgConnection,
+    PgPool,
+    Row,
+    postgres::PgPoolOptions,
+};
 use std::time::Duration;
 
 #[derive(Debug)]

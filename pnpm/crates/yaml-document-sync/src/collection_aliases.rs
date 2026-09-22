@@ -1,8 +1,25 @@
-use super::{Error, edits, inline, scalar_aliases::byte_range, source_keys::SourceKeys};
+use super::{
+    Error,
+    edits,
+    inline,
+    scalar_aliases::byte_range,
+    source_keys::SourceKeys,
+};
 use serde_json::Value;
-use serde_saphyr::granit_parser::{Scanner, StrInput, Token, TokenType};
-use std::{collections::HashMap, ops::Range};
-use yamlpath::{Document, Route};
+use serde_saphyr::granit_parser::{
+    Scanner,
+    StrInput,
+    Token,
+    TokenType,
+};
+use std::{
+    collections::HashMap,
+    ops::Range,
+};
+use yamlpath::{
+    Document,
+    Route,
+};
 
 /// Detach collection references when either side changes. YAML path queries
 /// otherwise edit the anchor definition even when addressing an alias.

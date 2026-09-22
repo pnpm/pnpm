@@ -1,7 +1,20 @@
 use super::{
-    Arc, AuthHeaders, InMemoryPackageMetaCache, MetadataCacheScope, PACKAGE_BODY,
-    PickPackageContext, RetryOpts, ScopeHook, TempDir, ThrottledClient, UpstreamRouteHook,
-    assert_eq, default_opts, persist_meta_to_mirror, pick_package, range_spec,
+    Arc,
+    AuthHeaders,
+    InMemoryPackageMetaCache,
+    MetadataCacheScope,
+    PACKAGE_BODY,
+    PickPackageContext,
+    RetryOpts,
+    ScopeHook,
+    TempDir,
+    ThrottledClient,
+    UpstreamRouteHook,
+    assert_eq,
+    default_opts,
+    persist_meta_to_mirror,
+    pick_package,
+    range_spec,
     shared_packument_fetch_locker,
 };
 

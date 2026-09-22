@@ -1,8 +1,18 @@
-use super::workspace_yaml::{allow_builds, append_workspace_yaml_key};
+use super::workspace_yaml::{
+    allow_builds,
+    append_workspace_yaml_key,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, os::unix::fs::PermissionsExt, path::Path};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    os::unix::fs::PermissionsExt,
+    path::Path,
+};
 
 /// Install a shell shim that appends each script it is asked to run
 /// to a log beside itself, then hands the script to the real

@@ -1,8 +1,21 @@
 use super::{
-    BTreeMap, EnvLockfile, Include, MAX_PATHS_PER_FINDING, SnapshotEntry, SpecifierAndResolution,
-    all_dependencies, build_audit_path_index, empty_lockfile, fixture_env_lockfile,
-    fixture_lockfile, lockfile_to_audit_request, parse_lockfile, path_info, prod_without_optional,
-    snapshot, vulnerable_names,
+    BTreeMap,
+    EnvLockfile,
+    Include,
+    MAX_PATHS_PER_FINDING,
+    SnapshotEntry,
+    SpecifierAndResolution,
+    all_dependencies,
+    build_audit_path_index,
+    empty_lockfile,
+    fixture_env_lockfile,
+    fixture_lockfile,
+    lockfile_to_audit_request,
+    parse_lockfile,
+    path_info,
+    prod_without_optional,
+    snapshot,
+    vulnerable_names,
 };
 use std::fmt::Write as _;
 

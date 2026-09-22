@@ -1,19 +1,38 @@
 use super::{
-    ScriptRuntime, extension_program, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
-    is_sh_shim_hardened, is_shim_pointing_at, parse_shebang, parse_shebang_from_bytes,
-    read_head_filled, relative_target, search_script_runtime,
+    ScriptRuntime,
+    extension_program,
+    generate_cmd_shim,
+    generate_pwsh_shim,
+    generate_sh_shim,
+    is_sh_shim_hardened,
+    is_shim_pointing_at,
+    parse_shebang,
+    parse_shebang_from_bytes,
+    read_head_filled,
+    relative_target,
+    search_script_runtime,
     sh::{
-        SH_SHIM_CYGPATH_LINE, SH_SHIM_HARDENED_HELPER_LINE, SH_SHIM_PATH_PRINTF_LINE,
-        SH_SHIM_WSLPATH_LINE, escape_msys_cmd_switches, strip_exe_suffix,
+        SH_SHIM_CYGPATH_LINE,
+        SH_SHIM_HARDENED_HELPER_LINE,
+        SH_SHIM_PATH_PRINTF_LINE,
+        SH_SHIM_WSLPATH_LINE,
+        escape_msys_cmd_switches,
+        strip_exe_suffix,
     },
 };
 use crate::{
-    capabilities::{FsReadHead, Host},
+    capabilities::{
+        FsReadHead,
+        Host,
+    },
     path_util::lexical_normalize,
 };
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 mod relocatable;
@@ -559,7 +578,10 @@ fn read_head_filled_real_fs_short_file_returns_partial() {
 /// never return short reads at offset 0.
 #[test]
 fn read_head_filled_accumulates_short_reads_from_fake() {
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{
+        AtomicUsize,
+        Ordering,
+    };
 
     /// Tracks the offsets each call sees, plus how many bytes the
     /// fake produces per call. We deliver the input slice to the
@@ -706,7 +728,11 @@ fn generate_pwsh_shim_emits_direct_exec_when_no_runtime() {
 #[cfg(unix)]
 #[test]
 fn shim_execution_resolves_symlink_chain() {
-    use std::{fs, os::unix::fs::symlink, process::Command};
+    use std::{
+        fs,
+        os::unix::fs::symlink,
+        process::Command,
+    };
     use tempfile::tempdir;
 
     let tmp = tempdir().unwrap();
@@ -947,7 +973,10 @@ fn write_executable(path: &Path, body: &str) {
 #[test]
 fn a_shim_lets_the_targets_signal_death_reach_the_caller() {
     use std::{
-        os::unix::{fs::PermissionsExt, process::ExitStatusExt},
+        os::unix::{
+            fs::PermissionsExt,
+            process::ExitStatusExt,
+        },
         process::Command,
     };
 

@@ -1,6 +1,14 @@
 use super::{
-    Instant, ProjectExecution, ProjectScripts, RunContext, ScriptRunState, apply_script_result,
-    reenters_running_script, run_stages, runnable_project_script, start_script,
+    Instant,
+    ProjectExecution,
+    ProjectScripts,
+    RunContext,
+    ScriptRunState,
+    apply_script_result,
+    reenters_running_script,
+    run_stages,
+    runnable_project_script,
+    start_script,
 };
 
 /// Run the task's scripts one at a time, in selection order: the mode a

@@ -1,16 +1,28 @@
 //! Which Python projects an install acts on.
 
-use super::{EcosystemManifest, EcosystemWorkspaceInventory};
+use super::{
+    EcosystemManifest,
+    EcosystemWorkspaceInventory,
+};
 use crate::cli_args::{
     pipelines::WorkspaceScope,
-    recursive::{filter_against, recursive_filter_options},
+    recursive::{
+        filter_against,
+        recursive_filter_options,
+    },
 };
 use miette::Result;
 use pnpm_config::Config;
 use pnpm_python_installer::Discovery;
 use std::{
-    collections::{BTreeSet, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeSet,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Every Python project in the workspace, read once for both the selection

@@ -40,8 +40,14 @@ use std::{
     fmt::Write as _,
     fs,
     io::Write as _,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
     time::Duration,
 };
 

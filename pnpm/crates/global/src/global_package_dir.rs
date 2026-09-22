@@ -3,9 +3,18 @@
 
 use std::{
     io,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU32, Ordering},
-    time::{SystemTime, UNIX_EPOCH},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU32,
+        Ordering,
+    },
+    time::{
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 /// The path of the hash symlink for `hash` under `global_dir`.

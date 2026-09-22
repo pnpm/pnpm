@@ -1,6 +1,10 @@
 use pnpm_reporter::SilentReporter;
 
-use super::{AddUserError, ClassicLoginOpError, add_user_error_to_op};
+use super::{
+    AddUserError,
+    ClassicLoginOpError,
+    add_user_error_to_op,
+};
 
 /// A transport failure of the classic `PUT` rewraps into
 /// `ClassicLoginOpError::Transport`. Unlike the other arms, this one is not

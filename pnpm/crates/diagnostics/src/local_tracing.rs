@@ -1,12 +1,19 @@
 use std::str::FromStr;
 
 use tracing::Level;
-use tracing_subscriber::{EnvFilter, Layer, fmt::format::FmtSpan};
+use tracing_subscriber::{
+    EnvFilter,
+    Layer,
+    fmt::format::FmtSpan,
+};
 
 pub fn enable_tracing_by_env() {
     let Ok(trace_var) = std::env::var("TRACE") else { return };
 
-    use tracing_subscriber::{fmt, prelude::*};
+    use tracing_subscriber::{
+        fmt,
+        prelude::*,
+    };
     // Never panic here: this runs at `@pnpm/napi` module load (and CLI
     // startup), where a malformed `TRACE` value or an already-installed
     // subscriber must degrade to "tracing stays off", not abort the host

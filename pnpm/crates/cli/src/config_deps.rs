@@ -8,36 +8,82 @@
 //! separately.
 
 pub use hooks::{
-    load_before_packing_hooks, may_update_config, prepare_config, run_update_config_hooks,
+    load_before_packing_hooks,
+    may_update_config,
+    prepare_config,
+    run_update_config_hooks,
 };
 
 use crate::config_overrides::apply_store_dir_override;
 
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_config::{
-    Config, Host, PNPM_VERSION, WorkspaceSettings, default_state_dir,
-    known_settings::is_known_setting_key, resolve_configured_state_dir,
+    Config,
+    Host,
+    PNPM_VERSION,
+    WorkspaceSettings,
+    default_state_dir,
+    known_settings::is_known_setting_key,
+    resolve_configured_state_dir,
 };
 use pnpm_env_installer::{
-    ConfigDepsInstallOptions, pnpm_engine_packages, resolve_and_install_config_deps,
+    ConfigDepsInstallOptions,
+    pnpm_engine_packages,
+    resolve_and_install_config_deps,
     resolve_package_manager_integrities,
 };
-use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
-use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
+use pnpm_graph_hasher::{
+    detect_node_version,
+    host_arch,
+    host_libc,
+    host_platform,
+};
+use pnpm_hooks::{
+    HookContext,
+    LogFn,
+    PnpmfileHooks,
+    finder,
+};
 use pnpm_lockfile::EnvLockfile;
-use pnpm_network::{RetryOpts, ThrottledClient};
-use pnpm_reporter::{GlobalLog, HookLog, LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_network::{
+    RetryOpts,
+    ThrottledClient,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    HookLog,
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
+    InMemoryPackageMetaCache,
+    NpmResolver,
+    shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    Resolver,
+    WantedDependency,
+};
 use pnpm_workspace_state::ConfigDependency;
 use serde_json::Value;
 use std::{
-    collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

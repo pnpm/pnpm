@@ -23,8 +23,17 @@
 //! exercises the lock; this suite exercises the unprotected
 //! filesystem-only path.
 
-use sha2::{Digest, Sha512};
-use std::{fs, path::Path, process::Command, sync::Arc, thread};
+use sha2::{
+    Digest,
+    Sha512,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+    sync::Arc,
+    thread,
+};
 use tempfile::tempdir;
 
 /// Number of worker processes per test.

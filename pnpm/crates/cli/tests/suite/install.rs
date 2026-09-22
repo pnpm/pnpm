@@ -8,13 +8,27 @@ use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use pnpm_store_dir::STORE_VERSION;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
-    fixtures::{BIG_LOCKFILE, BIG_MANIFEST},
-    fs::{bump_mtime, get_all_files, get_all_folders, is_symlink_or_junction},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    fixtures::{
+        BIG_LOCKFILE,
+        BIG_MANIFEST,
+    },
+    fs::{
+        bump_mtime,
+        get_all_files,
+        get_all_folders,
+        is_symlink_or_junction,
+    },
 };
 use std::{
     fmt::Write as _,
-    fs::{self, OpenOptions},
+    fs::{
+        self,
+        OpenOptions,
+    },
     io::Write,
     path::Path,
     process::Command,
@@ -204,7 +218,11 @@ fn should_install_exec_files() {
     {
         use pnpm_testing_utils::fs::is_path_executable;
         use pretty_assertions::assert_eq;
-        use std::{fs::File, iter::repeat, os::unix::fs::MetadataExt};
+        use std::{
+            fs::File,
+            iter::repeat,
+            os::unix::fs::MetadataExt,
+        };
 
         eprintln!("All files that end with '-exec' are executable, others not");
         let (suffix_exec, suffix_other) = store_files

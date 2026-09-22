@@ -1,20 +1,44 @@
 use super::{
-    super::{BuildModules, allow_build_policy::AllowBuildPolicy, deferred_builds},
-    TEST_LOGGED_METHODS, create_buildable_pkg, key, policy_from_specs, root_importers,
+    super::{
+        BuildModules,
+        allow_build_policy::AllowBuildPolicy,
+        deferred_builds,
+    },
+    TEST_LOGGED_METHODS,
+    create_buildable_pkg,
+    key,
+    policy_from_specs,
+    root_importers,
 };
 #[cfg(unix)]
-use super::{create_failing_postinstall_fixture, create_postinstall_modifies_source_fixture};
-use crate::{RequiresBuildBySnapshot, SkippedSnapshots, VirtualStoreLayout};
-use pnpm_config::{Config, PackageImportMethod};
+use super::{
+    create_failing_postinstall_fixture,
+    create_postinstall_modifies_source_fixture,
+};
+use crate::{
+    RequiresBuildBySnapshot,
+    SkippedSnapshots,
+    VirtualStoreLayout,
+};
+use pnpm_config::{
+    Config,
+    PackageImportMethod,
+};
 use pnpm_executor::ScriptsPrependNodePath;
 use pnpm_lockfile::SnapshotEntry;
 use pnpm_reporter::SilentReporter;
 #[cfg(unix)]
-use pnpm_reporter::{LogEvent, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+};
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::sync::Mutex;
-use std::{collections::HashMap, fs};
+use std::{
+    collections::HashMap,
+    fs,
+};
 use tempfile::tempdir;
 
 #[test]

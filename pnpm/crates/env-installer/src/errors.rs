@@ -1,10 +1,23 @@
-use derive_more::{Display, Error};
-use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_lockfile::{LoadLockfileError, LockfileFormError, SaveLockfileError};
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
+use pnpm_lockfile::{
+    LoadLockfileError,
+    LockfileFormError,
+    SaveLockfileError,
+};
 use pnpm_package_manager::ImportIndexedDirError;
 use pnpm_resolving_resolver_base::ResolveError;
 use pnpm_tarball::TarballError;
-use std::{io, path::PathBuf};
+use std::{
+    io,
+    path::PathBuf,
+};
 
 /// Errors surfaced while resolving or installing configurational
 /// dependencies. The user-facing `code(...)` values mirror the

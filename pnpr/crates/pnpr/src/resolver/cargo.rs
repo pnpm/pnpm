@@ -27,30 +27,60 @@
 
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+    path::{
+        Path,
+        PathBuf,
     },
-    time::{Duration, SystemTime},
+    sync::{
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
-use axum::{http::StatusCode, response::Response};
-use futures_util::{StreamExt, TryStreamExt, stream};
-use pnpm_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
+use axum::{
+    http::StatusCode,
+    response::Response,
+};
+use futures_util::{
+    StreamExt,
+    TryStreamExt,
+    stream,
+};
+use pnpm_network::{
+    AuthHeaders,
+    MetadataCacheScope,
+    RetryOpts,
+    ThrottledClient,
+};
 
 use pnpr_policy::Identity;
-use pnpr_route::{Footprint, url_has_inline_credentials};
+use pnpr_route::{
+    Footprint,
+    url_has_inline_credentials,
+};
 
 use crate::server::StripedLocks;
 
 use super::{
-    Resolver, json_error,
+    Resolver,
+    json_error,
     package_route::PackageRoute,
     protocol::CargoResolveRequest,
     report_message,
     request_validation::forbidden_off_allowlist,
-    wire::{cargo_done_frame, error_frame, ndjson_single_frame},
+    wire::{
+        cargo_done_frame,
+        error_frame,
+        ndjson_single_frame,
+    },
 };
 
 /// How many index files one resolve may fetch. A crate graph reaches a few

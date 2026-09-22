@@ -8,10 +8,17 @@ mod installation;
 
 #[cfg(unix)]
 use super::Host;
-use super::{FsHardLink, FsReflink};
+use super::{
+    FsHardLink,
+    FsReflink,
+};
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 fn write_source(dir: &Path, name: &str, contents: &[u8]) -> PathBuf {

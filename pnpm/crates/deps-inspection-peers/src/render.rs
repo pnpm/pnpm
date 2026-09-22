@@ -1,4 +1,12 @@
-use super::{BTreeMap, IssuesByProjects, ParentPkg, PeerIssues, Serialize, Stream, sanitize};
+use super::{
+    BTreeMap,
+    IssuesByProjects,
+    ParentPkg,
+    PeerIssues,
+    Serialize,
+    Stream,
+    sanitize,
+};
 use owo_colors::OwoColorize as _;
 
 #[derive(Debug, Clone, Serialize)]

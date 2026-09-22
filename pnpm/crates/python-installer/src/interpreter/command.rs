@@ -8,11 +8,17 @@
 
 use std::{
     cmp::Reverse,
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     env,
     ffi::OsString,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tokio::process::Command;
 

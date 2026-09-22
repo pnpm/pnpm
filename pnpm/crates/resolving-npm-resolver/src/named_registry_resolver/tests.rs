@@ -1,19 +1,33 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     sync::Arc,
 };
 
 use chrono::TimeZone;
 use pnpm_lockfile::LockfileResolution;
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    Resolver,
+    WantedDependency,
+};
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
 use crate::{
-    NamedRegistryResolver, merge_named_registries,
+    NamedRegistryResolver,
+    merge_named_registries,
     pick_package::{
-        InMemoryPackageMetaCache, shared_packument_fetch_locker, shared_picked_manifest_cache,
+        InMemoryPackageMetaCache,
+        shared_packument_fetch_locker,
+        shared_picked_manifest_cache,
     },
 };
 

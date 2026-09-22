@@ -22,21 +22,44 @@ pub use dir_clone::HoistedDirCloneCache;
 mod dir_clone;
 
 use crate::{
-    DepHierarchy, DependenciesGraph, DependenciesGraphNode, ImportIndexedDirError,
-    ImportIndexedDirOpts, import_indexed_dir, link_direct_dep_bins,
+    DepHierarchy,
+    DependenciesGraph,
+    DependenciesGraphNode,
+    ImportIndexedDirError,
+    ImportIndexedDirOpts,
+    import_indexed_dir,
+    link_direct_dep_bins,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_cmd_shim::{Host, LinkBinsError, LinkBinsOptions, link_bins};
+use pnpm_cmd_shim::{
+    Host,
+    LinkBinsError,
+    LinkBinsOptions,
+    link_bins,
+};
 use pnpm_lockfile::PkgIdWithPatchHash;
 use pnpm_reporter::{
-    LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog, StatsMessage,
+    LogEvent,
+    LogLevel,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
+    StatsLog,
+    StatsMessage,
 };
 use rayon::prelude::*;
 use std::{
     collections::HashMap,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

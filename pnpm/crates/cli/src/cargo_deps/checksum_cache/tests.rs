@@ -1,6 +1,19 @@
-use super::{CHECKSUM_FILE, ChecksumCache, checksum_cache_key};
-use pnpm_store_dir::{SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexWriter};
-use std::{collections::HashMap, fs, path::PathBuf};
+use super::{
+    CHECKSUM_FILE,
+    ChecksumCache,
+    checksum_cache_key,
+};
+use pnpm_store_dir::{
+    SharedVerifiedFilesCache,
+    StoreDir,
+    StoreIndex,
+    StoreIndexWriter,
+};
+use std::{
+    collections::HashMap,
+    fs,
+    path::PathBuf,
+};
 
 async fn add_cached_checksum(
     store: &StoreDir,

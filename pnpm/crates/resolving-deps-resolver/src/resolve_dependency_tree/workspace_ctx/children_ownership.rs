@@ -1,6 +1,16 @@
 use super::{
-    AncestorIds, Arc, BTreeMap, DependenciesTreeNode, HashMap, HashSet, NodeId, PeerDep,
-    PkgNameVerPeer, TreeCtx, UpdateReuseScope, lock_recoverable,
+    AncestorIds,
+    Arc,
+    BTreeMap,
+    DependenciesTreeNode,
+    HashMap,
+    HashSet,
+    NodeId,
+    PeerDep,
+    PkgNameVerPeer,
+    TreeCtx,
+    UpdateReuseScope,
+    lock_recoverable,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

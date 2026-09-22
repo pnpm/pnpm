@@ -1,4 +1,8 @@
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use std::path::PathBuf;
 use tokio::sync::OnceCell;
 

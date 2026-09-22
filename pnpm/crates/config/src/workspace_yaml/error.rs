@@ -1,4 +1,10 @@
-use super::{Diagnostic, Display, Error, PathBuf, io};
+use super::{
+    Diagnostic,
+    Display,
+    Error,
+    PathBuf,
+    io,
+};
 
 /// Error when reading `pnpm-workspace.yaml`.
 ///

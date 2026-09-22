@@ -1,36 +1,68 @@
 pub use errors::InstallWithFreshLockfileError;
 pub(crate) use lockfile_build::compute_package_extensions_checksum;
 pub(crate) use seed_policy::prefer_requested_version;
-pub use seed_policy::{ImporterUpdateSeedPolicy, UpdateSeedPolicy};
+pub use seed_policy::{
+    ImporterUpdateSeedPolicy,
+    UpdateSeedPolicy,
+};
 
 mod persist;
 use persist::{
-    LockfileOnlyOptions, finish_lockfile_only, fix_lockfile_copy, importers_consuming_linked_peers,
-    persist_fresh_lockfile, verify_repair_if_filtered,
+    LockfileOnlyOptions,
+    finish_lockfile_only,
+    fix_lockfile_copy,
+    importers_consuming_linked_peers,
+    persist_fresh_lockfile,
+    verify_repair_if_filtered,
 };
 
 mod lockfile_build;
 
 use lockfile_build::{
-    build_lockfile_phase, compose_manifest_hooks, ignored_optional_dependencies_match,
-    overrides_match, parse_config_overrides, resolved_overrides_map,
+    build_lockfile_phase,
+    compose_manifest_hooks,
+    ignored_optional_dependencies_match,
+    overrides_match,
+    parse_config_overrides,
+    resolved_overrides_map,
 };
 
 mod on_disk;
-use on_disk::{OnDiskInputs, OnDiskOutput, finish_early_materialization, run_on_disk_phases};
+use on_disk::{
+    OnDiskInputs,
+    OnDiskOutput,
+    finish_early_materialization,
+    run_on_disk_phases,
+};
 
 mod plan;
 use plan::{
-    FinalScope, FreshPlan, HostProbeInputs, LockfileViews, MaterializationScope, PlanLockfiles,
-    PlanScope, include_transitive_optional_dependencies, is_partial_workspace_selection,
+    FinalScope,
+    FreshPlan,
+    HostProbeInputs,
+    LockfileViews,
+    MaterializationScope,
+    PlanLockfiles,
+    PlanScope,
+    include_transitive_optional_dependencies,
+    is_partial_workspace_selection,
     plan_fresh_materialization,
 };
 
 mod resolution;
-use resolution::{ManifestSlots, Resolved, resolve_graph, start_early_materialization};
+use resolution::{
+    ManifestSlots,
+    Resolved,
+    resolve_graph,
+    start_early_materialization,
+};
 
 mod setup;
-use setup::{InstallShape, ResolverSetup, set_up_resolvers};
+use setup::{
+    InstallShape,
+    ResolverSetup,
+    set_up_resolvers,
+};
 
 mod materialization;
 use materialization::finish_resolved_install;
@@ -39,25 +71,48 @@ mod errors;
 
 mod seed_policy;
 
-use crate::{PolicyExcludes, SkippedSnapshots};
+use crate::{
+    PolicyExcludes,
+    SkippedSnapshots,
+};
 use dashmap::DashMap;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::{
-    DeprecationLog, GlobalLog, HookLog, LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog,
-    SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason,
+    DeprecationLog,
+    GlobalLog,
+    HookLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    SkippedOptionalParent,
+    SkippedOptionalReason,
 };
 use pnpm_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 use pnpm_tarball::MemCache;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
     path::Path,
-    sync::{Arc, atomic::AtomicU8},
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
 };
 use tokio::sync::watch;
 

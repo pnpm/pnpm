@@ -1,7 +1,18 @@
 use super::{
-    DepPath, DependencyGroup, HashMap, Mutex, ResolveDependencyTreeOptions, ResolveOptions,
-    ResolvePeersOptions, StubResolver, assert_eq, fake_manifest, fake_result,
-    resolve_dependency_tree, resolve_emotion_fixture, resolve_peers,
+    DepPath,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    ResolveDependencyTreeOptions,
+    ResolveOptions,
+    ResolvePeersOptions,
+    StubResolver,
+    assert_eq,
+    fake_manifest,
+    fake_result,
+    resolve_dependency_tree,
+    resolve_emotion_fixture,
+    resolve_peers,
 };
 
 /// `p → q → p` is a cycle whose re-entry of `p` resolves against truncated

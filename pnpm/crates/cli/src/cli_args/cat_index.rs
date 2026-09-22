@@ -1,18 +1,34 @@
 use clap::Args;
-use miette::{Context, IntoDiagnostic, Result};
+use miette::{
+    Context,
+    IntoDiagnostic,
+    Result,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageMetadata, PkgName, ProjectSnapshot, ResolvedDependencySpec,
+    Lockfile,
+    LockfileResolution,
+    PackageMetadata,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencySpec,
 };
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pnpm_store_dir::{
-    PackageFilesIndex, StoreIndex, StoreIndexError, git_hosted_store_index_key, store_index_key,
+    PackageFilesIndex,
+    StoreIndex,
+    StoreIndexError,
+    git_hosted_store_index_key,
+    store_index_key,
 };
 use serde_json::Value;
 use std::{
     collections::HashSet,
     io::Write as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 const MAX_JSON_SORT_DEPTH: usize = 128;

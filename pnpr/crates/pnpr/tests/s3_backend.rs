@@ -7,17 +7,46 @@
 mod npm;
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
 use futures_util::StreamExt;
-use npm::{publish_doc, sri_sha512};
-use object_store::{ObjectStore, ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
-use pnpr::{Config, HostedStoreConfig, MaxUsers, router};
-use serde_json::{Value, json};
+use npm::{
+    publish_doc,
+    sri_sha512,
+};
+use object_store::{
+    ObjectStore,
+    ObjectStoreExt,
+    memory::InMemory,
+    path::Path as ObjectPath,
+};
+use pnpr::{
+    Config,
+    HostedStoreConfig,
+    MaxUsers,
+    router,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::{Path, PathBuf},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 use tempfile::TempDir;

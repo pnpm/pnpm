@@ -6,16 +6,29 @@ mod peer_resolution_cycle_reentry_does_not;
 
 mod behavior;
 
-use std::{collections::HashMap, sync::Mutex};
+use std::{
+    collections::HashMap,
+    sync::Mutex,
+};
 
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_resolving_resolver_base::ResolveOptions;
 use pretty_assertions::assert_eq;
 
-use super::{StubResolver, fake_manifest, fake_result};
+use super::{
+    StubResolver,
+    fake_manifest,
+    fake_result,
+};
 use crate::{
-    resolve_dependency_tree::{ResolveDependencyTreeOptions, resolve_dependency_tree},
-    resolve_peers::{ResolvePeersOptions, resolve_peers},
+    resolve_dependency_tree::{
+        ResolveDependencyTreeOptions,
+        resolve_dependency_tree,
+    },
+    resolve_peers::{
+        ResolvePeersOptions,
+        resolve_peers,
+    },
 };
 use pnpm_deps_path::DepPath;
 

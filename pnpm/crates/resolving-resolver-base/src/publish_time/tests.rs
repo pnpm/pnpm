@@ -1,5 +1,8 @@
 use super::parse_packument_timestamp;
-use chrono::{TimeZone, Utc};
+use chrono::{
+    TimeZone,
+    Utc,
+};
 
 #[test]
 fn parses_full_rfc3339_with_and_without_fraction() {

@@ -1,7 +1,10 @@
 use super::HoistGraphNode;
 use pnpm_lockfile::PackageKey;
 use pnpm_modules_yaml::HoistKind;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 /// Create the hoist symlinks.
 ///
@@ -386,10 +389,17 @@ fn validate_real_hoist_dir(dir: &std::path::Path) -> Result<(), crate::SymlinkPa
 
 #[cfg(windows)]
 fn windows_file_attributes(dir: &std::path::Path) -> std::io::Result<u32> {
-    use std::os::windows::ffi::OsStrExt;
-    use std::os::windows::fs::MetadataExt;
-    use windows_sys::Win32::Foundation::ERROR_SHARING_VIOLATION;
-    use windows_sys::Win32::Storage::FileSystem::{GetFileAttributesW, INVALID_FILE_ATTRIBUTES};
+    use std::os::windows::{
+        ffi::OsStrExt,
+        fs::MetadataExt,
+    };
+    use windows_sys::Win32::{
+        Foundation::ERROR_SHARING_VIOLATION,
+        Storage::FileSystem::{
+            GetFileAttributesW,
+            INVALID_FILE_ATTRIBUTES,
+        },
+    };
 
     match std::fs::symlink_metadata(dir) {
         Ok(metadata) => return Ok(metadata.file_attributes()),
@@ -413,7 +423,8 @@ fn windows_file_attributes(dir: &std::path::Path) -> std::io::Result<u32> {
 #[cfg(windows)]
 fn validate_real_hoist_dir(attributes: u32) -> std::io::Result<()> {
     use windows_sys::Win32::Storage::FileSystem::{
-        FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_REPARSE_POINT,
+        FILE_ATTRIBUTE_DIRECTORY,
+        FILE_ATTRIBUTE_REPARSE_POINT,
     };
 
     if attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0 || attributes & FILE_ATTRIBUTE_DIRECTORY == 0

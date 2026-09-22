@@ -2,15 +2,36 @@
 
 use crate::{
     node_id::NodeId,
-    resolve_peers::{ResolvePeersOptions, discovery::PeerDiscoveryCaches, walker::Walker},
-    resolved_tree::{DependenciesTreeNode, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren},
+    resolve_peers::{
+        ResolvePeersOptions,
+        discovery::PeerDiscoveryCaches,
+        walker::Walker,
+    },
+    resolved_tree::{
+        DependenciesTreeNode,
+        PeerDep,
+        ResolvedPackage,
+        ResolvedTree,
+        TreeChildren,
+    },
 };
 use pnpm_lockfile::{
-    DirectoryResolution, LockfileResolution, PkgName, PkgNameVer, TarballResolution,
+    DirectoryResolution,
+    LockfileResolution,
+    PkgName,
+    PkgNameVer,
+    TarballResolution,
 };
-use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveResult,
+};
 use rustc_hash::FxHashMap as HashMap;
-use std::{collections::BTreeMap, str::FromStr, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    str::FromStr,
+    sync::Arc,
+};
 
 pub(super) fn tree_node(
     pkg_id: &str,

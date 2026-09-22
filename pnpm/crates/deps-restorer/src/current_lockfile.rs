@@ -18,13 +18,25 @@ mod reachability;
 use reachability::collect_reachable;
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
 };
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_lockfile::{Lockfile, PackageKey, Prefix, ProjectSnapshot, ResolvedDependencyMap};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    Prefix,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 
 use crate::SkippedSnapshots;

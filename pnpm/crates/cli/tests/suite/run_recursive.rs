@@ -4,7 +4,10 @@
 //! the same body reaches `sh -c` and `cmd /d /s /c` alike. Only the two
 //! process-group tests stay Unix-only, and they say so where they sit.
 
-use crate::_utils::{append_line_script, write_marker_script};
+use crate::_utils::{
+    append_line_script,
+    write_marker_script,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_cmd_shim::ScriptRuntime;
@@ -13,8 +16,17 @@ use pnpm_cmd_shim::generate_cmd_shim;
 #[cfg(unix)]
 use pnpm_cmd_shim::generate_sh_shim;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use serde_json::{Value, json};
-use std::{collections::HashMap, fs, path::Path, process::Command, time::Duration};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+    process::Command,
+    time::Duration,
+};
 
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` per name under its own subdirectory of `workspace`.

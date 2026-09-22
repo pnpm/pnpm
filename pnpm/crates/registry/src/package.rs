@@ -1,14 +1,28 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
+    sync::{
+        Arc,
+        Mutex,
+        MutexGuard,
+        PoisonError,
+    },
 };
 
 use pipe_trait::Pipe;
-use pnpm_network::{AuthHeaders, ThrottledClient};
-use serde::{Deserialize, Serialize};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 use crate::{
-    NetworkError, RegistryError, package_version::PackageVersion, package_versions::PackageVersions,
+    NetworkError,
+    RegistryError,
+    package_version::PackageVersion,
+    package_versions::PackageVersions,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

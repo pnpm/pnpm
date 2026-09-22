@@ -7,12 +7,29 @@ fn registry_context(registries: HashMap<String, String>) -> pnpm_lockfile::Regis
 }
 
 use pnpm_lockfile::{
-    BundledDependencies, ComVer, GitResolution, ImporterDepVersion, Lockfile, LockfileResolution,
-    LockfileVersion, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot,
-    RegistryResolution, ResolvedDependencySpec, StringOrList, TarballResolution, TarballRevision,
+    BundledDependencies,
+    ComVer,
+    GitResolution,
+    ImporterDepVersion,
+    Lockfile,
+    LockfileResolution,
+    LockfileVersion,
+    PackageMetadata,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+    ProjectSnapshot,
+    RegistryResolution,
+    ResolvedDependencySpec,
+    StringOrList,
+    TarballResolution,
+    TarballRevision,
 };
 
-use super::{reusable_importer_dep, synthesize_reused_result};
+use super::{
+    reusable_importer_dep,
+    synthesize_reused_result,
+};
 
 fn single_dep_lockfile(alias: &str, specifier: &str, resolved: &str) -> Lockfile {
     let mut deps = HashMap::new();

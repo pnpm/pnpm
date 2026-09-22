@@ -1,15 +1,30 @@
 use indexmap::IndexMap;
-use pnpm_config::{Config, NeedsFullMetadataFor};
+use pnpm_config::{
+    Config,
+    NeedsFullMetadataFor,
+};
 use pnpm_lockfile::Lockfile;
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pnpm_resolving_resolver_base::PreferredVersions;
 use pnpm_store_dir::{
-    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndexWriter,
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    StoreIndexWriter,
 };
-use pnpm_tarball::{MemCache, SharedReportedProgressKeys};
+use pnpm_tarball::{
+    MemCache,
+    SharedReportedProgressKeys,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     path::Path,
     sync::Arc,
 };

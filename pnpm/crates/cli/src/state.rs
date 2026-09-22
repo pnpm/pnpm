@@ -1,17 +1,39 @@
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_config::Config;
-use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
-use pnpm_network::{ForInstallsError, ThrottledClient};
-use pnpm_package_is_installable::{Engine, InstallabilityError, WantedEngine, check_engine};
-use pnpm_package_manager::{CommandLockfile, ResolvedPackages};
+use pnpm_lockfile::{
+    LazyLockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_network::{
+    ForInstallsError,
+    ThrottledClient,
+};
+use pnpm_package_is_installable::{
+    Engine,
+    InstallabilityError,
+    WantedEngine,
+    check_engine,
+};
+use pnpm_package_manager::{
+    CommandLockfile,
+    ResolvedPackages,
+};
 use pnpm_package_manifest::{
-    PackageManifest, PackageManifestError, node_version_from_engines_runtime,
+    PackageManifest,
+    PackageManifestError,
+    node_version_from_engines_runtime,
 };
 use pnpm_tarball::MemCache;
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

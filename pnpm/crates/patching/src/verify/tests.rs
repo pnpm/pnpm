@@ -1,6 +1,14 @@
 use crate::{
-    group::{PatchInput, group_patched_dependencies},
-    verify::{UnusedPatchError, UnusedPatches, all_patch_keys, verify_patches},
+    group::{
+        PatchInput,
+        group_patched_dependencies,
+    },
+    verify::{
+        UnusedPatchError,
+        UnusedPatches,
+        all_patch_keys,
+        verify_patches,
+    },
 };
 use pretty_assertions::assert_eq;
 use std::collections::HashSet;

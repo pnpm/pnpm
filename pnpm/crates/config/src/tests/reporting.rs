@@ -1,4 +1,10 @@
-use super::{assert_eq, capture_warnings, load_with_project_and_user, tempdir, write_file};
+use super::{
+    assert_eq,
+    capture_warnings,
+    load_with_project_and_user,
+    tempdir,
+    write_file,
+};
 
 /// The rescope warning names the file it read and every key it pinned,
 /// so a user can find and migrate the offending line.

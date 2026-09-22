@@ -5,7 +5,11 @@
 //! subprocesses and are out of scope for unit tests.
 
 use super::{
-    PackAppArgs, parse_runtime, parse_target, read_project_app_config, validate_output_name,
+    PackAppArgs,
+    parse_runtime,
+    parse_target,
+    read_project_app_config,
+    validate_output_name,
 };
 use crate::cli_args::pack_app::config::is_reserved_windows_name;
 use pnpm_config::Config;

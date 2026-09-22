@@ -1,7 +1,14 @@
-use super::{emulator_working_dir, is_refused_directory, shorter_working_dirs};
+use super::{
+    emulator_working_dir,
+    is_refused_directory,
+    shorter_working_dirs,
+};
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[test]

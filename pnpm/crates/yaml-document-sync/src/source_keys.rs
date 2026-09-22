@@ -1,7 +1,14 @@
-use super::{Error, parse, scalar_aliases::paths::mapping_paths};
+use super::{
+    Error,
+    parse,
+    scalar_aliases::paths::mapping_paths,
+};
 use serde_json::Value;
 use std::collections::HashMap;
-use yamlpath::{Component, Route};
+use yamlpath::{
+    Component,
+    Route,
+};
 
 type KeyNames = HashMap<String, HashMap<String, String>>;
 

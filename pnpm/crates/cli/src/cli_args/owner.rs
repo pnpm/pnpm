@@ -1,15 +1,32 @@
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic, WrapErr};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+    WrapErr,
+};
 use pnpm_config::Config;
 use pnpm_network::{
-    RedirectGuard, RetryOpts, ThrottledClient, encode_package_name, encode_uri_component,
-    read_limited_body, redact_url_credentials, send_with_retry,
+    RedirectGuard,
+    RetryOpts,
+    ThrottledClient,
+    encode_package_name,
+    encode_uri_component,
+    read_limited_body,
+    redact_url_credentials,
+    send_with_retry,
 };
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use reqwest::Response;
 use serde::Deserialize;
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::Duration,
+};
 
 const OWNER_BODY_LIMIT: usize = 1024 * 1024;
 const OWNER_ERROR_BODY_LIMIT: usize = 64 * 1024;

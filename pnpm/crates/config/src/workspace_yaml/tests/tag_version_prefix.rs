@@ -1,4 +1,9 @@
-use super::{Config, Path, WorkspaceSettings, assert_eq};
+use super::{
+    Config,
+    Path,
+    WorkspaceSettings,
+    assert_eq,
+};
 
 #[test]
 fn defaults_to_v() {

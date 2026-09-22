@@ -1,5 +1,12 @@
-use crate::{PkgName, ProjectSnapshot, freshness::auto_installed_peer_deps};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use crate::{
+    PkgName,
+    ProjectSnapshot,
+    freshness::auto_installed_peer_deps,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use std::collections::HashSet;
 
 /// Drop the entries of `importer` that `manifest` does not declare and

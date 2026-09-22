@@ -1,5 +1,13 @@
-use super::{ImporterDepVersion, ParseImporterDepVersionError, ResolvedDependencySpec};
-use crate::{PkgName, PkgNameVerPeer, PkgVerPeer};
+use super::{
+    ImporterDepVersion,
+    ParseImporterDepVersionError,
+    ResolvedDependencySpec,
+};
+use crate::{
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+};
 use pretty_assertions::assert_eq;
 use std::borrow::Cow;
 

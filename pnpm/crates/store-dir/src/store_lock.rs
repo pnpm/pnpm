@@ -1,10 +1,16 @@
 use crate::StoreDir;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::{
     fs::File,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Display, Error, Diagnostic)]

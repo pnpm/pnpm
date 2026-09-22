@@ -1,6 +1,10 @@
 use super::{
-    ReadProjectManifestError, ReadProjectManifestOnlyError, read_exact_project_manifest,
-    read_project_manifest_only, safe_read_project_manifest_only, try_read_project_manifest,
+    ReadProjectManifestError,
+    ReadProjectManifestOnlyError,
+    read_exact_project_manifest,
+    read_project_manifest_only,
+    safe_read_project_manifest_only,
+    try_read_project_manifest,
 };
 use pretty_assertions::assert_eq;
 use std::fs;

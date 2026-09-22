@@ -1,4 +1,10 @@
-use super::{Map, PkgError, Segment, Value, parse_property_path};
+use super::{
+    Map,
+    PkgError,
+    Segment,
+    Value,
+    parse_property_path,
+};
 
 const UNSAFE_KEYS: [&str; 3] = ["__proto__", "constructor", "prototype"];
 

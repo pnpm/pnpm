@@ -9,58 +9,132 @@
 //! clean-install command.
 
 pub(crate) use agent::WatchPolling;
-pub use agent::{WatchInvocation, run_watch};
-pub use arguments::{PipelineReportArgs, WatchArgs};
+pub use agent::{
+    WatchInvocation,
+    run_watch,
+};
+pub use arguments::{
+    PipelineReportArgs,
+    WatchArgs,
+};
 pub use report::RunUpload;
-pub use selection::{Selection, SelectionMode};
+pub use selection::{
+    Selection,
+    SelectionMode,
+};
 
 mod arguments;
 
 use super::{
     install::InstallArgs,
-    recursive::{ExecutionStatus, Status, discover_workspace_projects},
-    reporter::{ReporterType, reporter_emit},
-    run::{RunContext, ScriptSelector, run_stages},
+    recursive::{
+        ExecutionStatus,
+        Status,
+        discover_workspace_projects,
+    },
+    reporter::{
+        ReporterType,
+        reporter_emit,
+    },
+    run::{
+        RunContext,
+        ScriptSelector,
+        run_stages,
+    },
 };
 use crate::cli_args::recursive::filtered_projects_dependencies;
 
-use cache::{CacheDisposition, TaskCache};
+use cache::{
+    CacheDisposition,
+    TaskCache,
+};
 use clap::Args;
-use derive_more::{Display, Error};
-use execution::{RunTaskOptions, run_pipeline_task, task_environment};
+use derive_more::{
+    Display,
+    Error,
+};
+use execution::{
+    RunTaskOptions,
+    run_pipeline_task,
+    task_environment,
+};
 use indexmap::IndexMap;
-use miette::{Diagnostic, IntoDiagnostic};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_executor::ScriptOutput;
-use pnpm_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
+use pnpm_injected_deps_syncer::{
+    SyncInjectedDeps,
+    sync_injected_deps,
+};
 use pnpm_package_manager::{
-    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    make_node_package_map_option,
+    make_node_require_option,
+    package_map_path_for_execution,
     pnp_path_for_execution,
 };
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
-use pnpm_workspace::{GraphPkg, Project};
-use pnpm_workspace_projects_filter::{GetChangedProjectsOptions, get_changed_projects};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+};
+use pnpm_workspace::{
+    GraphPkg,
+    Project,
+};
+use pnpm_workspace_projects_filter::{
+    GetChangedProjectsOptions,
+    get_changed_projects,
+};
 use pnpm_workspace_projects_graph::{
-    CreateProjectsGraphOptions, ProjectGraph, create_projects_graph,
+    CreateProjectsGraphOptions,
+    ProjectGraph,
+    create_projects_graph,
 };
 use pnpm_workspace_task_scheduler::{
-    BuildPipelineTaskGraphOptions, ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion,
-    TaskGraph, TaskKey, TaskNode, build_pipeline_task_graph, format_task,
-    render_task_graph_dry_run, schedule_tasks, sequence_tasks, task_graph_to_json,
+    BuildPipelineTaskGraphOptions,
+    ScheduleTasksOptions,
+    SequenceTasksOptions,
+    TaskCompletion,
+    TaskGraph,
+    TaskKey,
+    TaskNode,
+    build_pipeline_task_graph,
+    format_task,
+    render_task_graph_dry_run,
+    schedule_tasks,
+    sequence_tasks,
+    task_graph_to_json,
 };
 use report::RunReport;
 
-use reporting::{StatusCounts, compute_task_keys, print_dry_run, record_task_outcome};
+use reporting::{
+    StatusCounts,
+    compute_task_keys,
+    print_dry_run,
+    record_task_outcome,
+};
 use selection::{
-    SelectAffectedOptions, build_full_graph, git_stdout, select_affected_projects,
+    SelectAffectedOptions,
+    build_full_graph,
+    git_stdout,
+    select_affected_projects,
     workspace_identity,
 };
 
 use serde_json::Value;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     env,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     sync::Mutex,
     time::Instant,

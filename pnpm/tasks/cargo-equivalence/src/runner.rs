@@ -1,8 +1,14 @@
-use crate::workspaces::{Expectation, Workspace};
+use crate::workspaces::{
+    Expectation,
+    Workspace,
+};
 use cargo_lock::Lockfile;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     str::FromStr,
     time::Instant,

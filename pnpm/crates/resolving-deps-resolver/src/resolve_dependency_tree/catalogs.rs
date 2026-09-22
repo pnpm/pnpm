@@ -3,12 +3,17 @@
 use std::path::Path;
 
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionResult, WantedDependency as CatalogWantedDependency,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    WantedDependency as CatalogWantedDependency,
     resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
 
-use super::{ResolveDependencyTreeError, WantedSpec};
+use super::{
+    ResolveDependencyTreeError,
+    WantedSpec,
+};
 
 /// The anchor for an entry the manifest in `consumer_dir` dereferences.
 /// An install with no `pnpm-workspace.yaml` declares no catalogs, so

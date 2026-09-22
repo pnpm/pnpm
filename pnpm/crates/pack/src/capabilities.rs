@@ -18,7 +18,10 @@
 //! `PermissionDenied` / `ENOSPC` test needs a fake.
 
 use std::{
-    io::{self, Write},
+    io::{
+        self,
+        Write,
+    },
     path::Path,
 };
 

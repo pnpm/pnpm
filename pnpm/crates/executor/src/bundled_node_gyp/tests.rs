@@ -1,6 +1,9 @@
 use super::bundled_node_gyp_bin_in;
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// Lay out the published payload under `exe_dir` the way the npm
 /// wrapper package ships it.

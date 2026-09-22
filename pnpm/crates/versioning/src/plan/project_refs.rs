@@ -1,6 +1,16 @@
 use super::{
-    BTreeMap, HashMap, HashSet, InternalDep, Participant, Path, Range, Version, VersioningError,
-    VersioningSettings, WorkspaceProject, normalize_project_dir,
+    BTreeMap,
+    HashMap,
+    HashSet,
+    InternalDep,
+    Participant,
+    Path,
+    Range,
+    Version,
+    VersioningError,
+    VersioningSettings,
+    WorkspaceProject,
+    normalize_project_dir,
 };
 
 /// Whether a package reference is a workspace-relative directory path rather

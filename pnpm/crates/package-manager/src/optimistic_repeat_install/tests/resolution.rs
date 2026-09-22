@@ -1,18 +1,28 @@
 use super::{
     super::{
         Decision,
-        manifest_agreement::{LinkedPackagesContext, linked_packages_are_up_to_date},
+        manifest_agreement::{
+            LinkedPackagesContext,
+            linked_packages_are_up_to_date,
+        },
         settings::current_settings,
     },
-    backdate_validated_files, check, isolated_included, linked_sibling_decision,
-    setup_fresh_install_with_config, write_state,
+    backdate_validated_files,
+    check,
+    isolated_included,
+    linked_sibling_decision,
+    setup_fresh_install_with_config,
+    write_state,
 };
 use indexmap::IndexMap;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::ProjectEntry;
-use std::{collections::BTreeMap, fs};
+use std::{
+    collections::BTreeMap,
+    fs,
+};
 use tempfile::tempdir;
 
 /// A `pnpm.overrides` entry mapping to a local file spec must bail the

@@ -1,6 +1,14 @@
 use super::{
-    ErrorKind, HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR, HostedRevisionRefIndex,
-    HostedRevisionRefWrite, PathBuf, Result, Store, fs, write_atomic,
+    ErrorKind,
+    HOSTED_REVISION_REF_INDEX_FILE,
+    HOSTED_REVISION_REFS_DIR,
+    HostedRevisionRefIndex,
+    HostedRevisionRefWrite,
+    PathBuf,
+    Result,
+    Store,
+    fs,
+    write_atomic,
 };
 
 impl Store {

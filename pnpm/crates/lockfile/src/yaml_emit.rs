@@ -24,7 +24,10 @@
 //! [`@zkochan/js-yaml`]: https://github.com/pnpm/js-yaml
 
 use rayon::prelude::*;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::cmp::Ordering;
 
 /// Entry count from which a map's independent per-entry work (deep key
@@ -513,7 +516,10 @@ impl TimestampScan<'_> {
 mod tests;
 
 mod implicit;
-use implicit::{TimestampScan, resolves_implicitly};
+use implicit::{
+    TimestampScan,
+    resolves_implicitly,
+};
 
 mod scalars;
 use scalars::write_scalar;

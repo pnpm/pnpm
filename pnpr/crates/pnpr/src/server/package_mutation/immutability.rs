@@ -1,4 +1,9 @@
-use super::{CanonicalPackageName, RegistryError, Value, tarball_basename};
+use super::{
+    CanonicalPackageName,
+    RegistryError,
+    Value,
+    tarball_basename,
+};
 
 /// Hold a published version's security-critical `dist` fields immutable across
 /// the partial-unpublish `PUT`, which otherwise persists the body verbatim.

@@ -3,7 +3,10 @@
 //! Credential-bearing keys are replaced with `(protected)` so the command
 //! never prints a token, password, or username.
 
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 const PROTECTED_SUFFIXES: &[&str] = &["_auth", "_authToken", "username", "_password"];
 

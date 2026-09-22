@@ -1,5 +1,9 @@
 use super::{
-    NetworkConfigInput, STORE_VERSION, build_overlay, install_options, network_config,
+    NetworkConfigInput,
+    STORE_VERSION,
+    build_overlay,
+    install_options,
+    network_config,
     resolve_config,
 };
 

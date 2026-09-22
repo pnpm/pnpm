@@ -9,11 +9,22 @@
 
 use std::sync::Arc;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_crypto_shasums_file::{FetchShasumsFileError, ShasumsFileItem, fetch_shasums_file};
+use pnpm_crypto_shasums_file::{
+    FetchShasumsFileError,
+    ShasumsFileItem,
+    fetch_shasums_file,
+};
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PlatformAssetResolution,
+    BinaryArchive,
+    BinaryResolution,
+    BinarySpec,
+    LockfileResolution,
+    PlatformAssetResolution,
     PlatformAssetTarget,
 };
 use pnpm_network::ThrottledClient;

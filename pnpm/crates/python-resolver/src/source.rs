@@ -1,5 +1,12 @@
-use crate::{LockedVcs, validate_url};
-use miette::{IntoDiagnostic, Result, bail};
+use crate::{
+    LockedVcs,
+    validate_url,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    bail,
+};
 use url::Url;
 
 /// The explicit source of a PEP 508 requirement.

@@ -1,62 +1,158 @@
 pub(crate) use fix::{
-    AuditFixObserver, PackumentPublishInfo, VulnerabilityGuard, fetch_publish_times,
-    filter_advisories_for_fix, fix_override, fix_with_update, format_fix_with_update_output,
-    ignore_vulnerabilities, interactive_select, prune_ignored_ghsas,
+    AuditFixObserver,
+    PackumentPublishInfo,
+    VulnerabilityGuard,
+    fetch_publish_times,
+    filter_advisories_for_fix,
+    fix_override,
+    fix_with_update,
+    format_fix_with_update_output,
+    ignore_vulnerabilities,
+    interactive_select,
+    prune_ignored_ghsas,
 };
-pub(crate) use paths::{AuditPathIndex, PathInfo, build_audit_path_index, package_version};
+pub(crate) use paths::{
+    AuditPathIndex,
+    PathInfo,
+    build_audit_path_index,
+    package_version,
+};
 pub(crate) use render::{
-    blue, bold, color_severity, green, red, render_json_report, render_text_report,
+    blue,
+    bold,
+    color_severity,
+    green,
+    red,
+    render_json_report,
+    render_text_report,
 };
 pub(crate) use report::{
-    AuditAdvisory, AuditError, AuditReport, AuditVulnerabilityCounts, RawBulkAdvisory,
-    bulk_response_to_audit_report, empty_audit_report, normalize_ghsa_id, normalize_registry,
-    redact_url_userinfo, sanitize_response_body,
+    AuditAdvisory,
+    AuditError,
+    AuditReport,
+    AuditVulnerabilityCounts,
+    RawBulkAdvisory,
+    bulk_response_to_audit_report,
+    empty_audit_report,
+    normalize_ghsa_id,
+    normalize_registry,
+    redact_url_userinfo,
+    sanitize_response_body,
 };
 pub(crate) use request::{
-    AuditGraph, AuditIndexRequest, DepClass, DepKind, Edge, GraphImporter, Include,
-    append_snapshot_edges, classify_graph, empty_snapshots, env_roots, importer_roots,
-    lockfile_to_audit_request, root_included,
+    AuditGraph,
+    AuditIndexRequest,
+    DepClass,
+    DepKind,
+    Edge,
+    GraphImporter,
+    Include,
+    append_snapshot_edges,
+    classify_graph,
+    empty_snapshots,
+    env_roots,
+    importer_roots,
+    lockfile_to_audit_request,
+    root_included,
 };
 pub(crate) use version_ranges::{
-    caret_range_for_patched, infer_patched_versions, patched_range_for_style,
-    satisfies_including_prerelease, satisfies_safe,
+    caret_range_for_patched,
+    infer_patched_versions,
+    patched_range_for_style,
+    satisfies_including_prerelease,
+    satisfies_safe,
 };
 
 use crate::{
     State,
-    cli_args::{install::resolve_bool_override, sanitize::sanitize_inline},
+    cli_args::{
+        install::resolve_bool_override,
+        sanitize::sanitize_inline,
+    },
 };
 use advisories::{
-    audit, correct_inferred_patched_versions, filter_ignored_advisories, parse_audit_level,
-    retry_opts_from_config, severity_name, severity_number,
+    audit,
+    correct_inferred_patched_versions,
+    filter_ignored_advisories,
+    parse_audit_level,
+    retry_opts_from_config,
+    severity_name,
+    severity_number,
 };
-use chrono::{DateTime, Utc};
-use clap::{Args, ValueEnum};
-use derive_more::{Display, Error};
+use chrono::{
+    DateTime,
+    Utc,
+};
+use clap::{
+    Args,
+    ValueEnum,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use dialoguer::MultiSelect;
 
-use miette::{Diagnostic, IntoDiagnostic};
-use node_semver::{Range, Version};
-use owo_colors::{OwoColorize, Stream};
-
-use pnpm_config::{AuditLevel as ConfigAuditLevel, Config};
-use pnpm_lockfile::{
-    EnvLockfile, ImporterDepVersion, Lockfile, PackageKey, PkgName, ResolvedDependencyMap,
-    SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, pick_registry_for_package,
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
 };
-use pnpm_network::{RetryOpts, encode_package_name, send_with_retry};
-use pnpm_package_manager::{ResolutionObserver, ResolvedPackageHint, Update};
+use node_semver::{
+    Range,
+    Version,
+};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+};
+
+use pnpm_config::{
+    AuditLevel as ConfigAuditLevel,
+    Config,
+};
+use pnpm_lockfile::{
+    EnvLockfile,
+    ImporterDepVersion,
+    Lockfile,
+    PackageKey,
+    PkgName,
+    ResolvedDependencyMap,
+    SnapshotDepRef,
+    SnapshotEntry,
+    SpecifierAndResolution,
+    pick_registry_for_package,
+};
+use pnpm_network::{
+    RetryOpts,
+    encode_package_name,
+    send_with_retry,
+};
+use pnpm_package_manager::{
+    ResolutionObserver,
+    ResolvedPackageHint,
+    Update,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::{
-    GuardExhaustionPolicy, PackageVersionGuard, PackageVersionGuardDecision,
-    PackageVersionGuardFuture, parse_packument_timestamp,
+    GuardExhaustionPolicy,
+    PackageVersionGuard,
+    PackageVersionGuardDecision,
+    PackageVersionGuardFuture,
+    parse_packument_timestamp,
 };
 
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     io::Write,
     path::Path,
     rc::Rc,

@@ -1,10 +1,26 @@
-use super::{DirectByImporter, dedupe_peer_dependents, deduplicate_dep_paths};
-use crate::dependencies_graph::{DependenciesGraph, DependenciesGraphNode};
+use super::{
+    DirectByImporter,
+    dedupe_peer_dependents,
+    deduplicate_dep_paths,
+};
+use crate::dependencies_graph::{
+    DependenciesGraph,
+    DependenciesGraphNode,
+};
 use pnpm_deps_path::DepPath;
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
-use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveResult,
+};
 use rustc_hash::FxHashSet as HashSet;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 fn dp(raw: &str) -> DepPath {
     DepPath::from(raw.to_string())

@@ -5,8 +5,12 @@
 //! any global state.
 
 use crate::{
-    ArchitectureAxes, SupportedArchitectures, UnsupportedPlatformError, WantedPlatform,
-    WantedPlatformRef, check_platform,
+    ArchitectureAxes,
+    SupportedArchitectures,
+    UnsupportedPlatformError,
+    WantedPlatform,
+    WantedPlatformRef,
+    check_platform,
 };
 
 const PACKAGE_ID: &str = "registry.npmjs.org/foo/1.0.0";

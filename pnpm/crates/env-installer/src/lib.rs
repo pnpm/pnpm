@@ -12,15 +12,27 @@
 
 pub use errors::ConfigDepError;
 pub use install_config_deps::install_config_deps;
-pub use options::{ConfigDependencyStore, ConfigDepsInstallOptions};
-pub use parse_integrity::{NormalizedConfigDep, NormalizedSubdep, parse_integrity};
+pub use options::{
+    ConfigDependencyStore,
+    ConfigDepsInstallOptions,
+};
+pub use parse_integrity::{
+    NormalizedConfigDep,
+    NormalizedSubdep,
+    parse_integrity,
+};
 pub use prune::prune_env_lockfile;
 pub use resolve_and_install_config_deps::resolve_and_install_config_deps;
 pub use resolve_optional_subdeps::resolve_optional_subdeps;
 pub use resolve_package_manager_integrities::{
-    is_package_manager_resolved, pnpm_engine_packages, resolve_package_manager_integrities,
+    is_package_manager_resolved,
+    pnpm_engine_packages,
+    resolve_package_manager_integrities,
 };
-pub use verify_env_lockfile::{verify_env_lockfile, write_verified_env_lockfile};
+pub use verify_env_lockfile::{
+    verify_env_lockfile,
+    write_verified_env_lockfile,
+};
 
 mod errors;
 mod install_config_deps;

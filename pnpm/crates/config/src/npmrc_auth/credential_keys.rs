@@ -1,4 +1,9 @@
-use super::{DEFAULT_REGISTRY_SCOPE, LoadWorkspaceYamlError, NpmrcAuth, split_inline_identity_key};
+use super::{
+    DEFAULT_REGISTRY_SCOPE,
+    LoadWorkspaceYamlError,
+    NpmrcAuth,
+    split_inline_identity_key,
+};
 
 /// Reject a `tokenHelper` that a workspace or project `.npmrc` contributed.
 ///

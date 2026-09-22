@@ -1,5 +1,11 @@
 use super::{
-    Arc, EngineCallGuard, EngineMode, InstallOptions, PeerIssuesOptions, engine_call_lock, napi,
+    Arc,
+    EngineCallGuard,
+    EngineMode,
+    InstallOptions,
+    PeerIssuesOptions,
+    engine_call_lock,
+    napi,
     run_install_inner,
 };
 

@@ -1,6 +1,9 @@
 use derive_more::Display;
 use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// A bump a release can apply. Ordered: `patch < minor < major`.
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

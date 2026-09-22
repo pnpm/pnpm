@@ -2,21 +2,35 @@ pub use placement::marker_present;
 
 mod placement;
 
-use placement::{all_files_match, file_matches_store_entry, populate_dir};
+use placement::{
+    all_files_match,
+    file_matches_store_entry,
+    populate_dir,
+};
 
 mod staging;
 use staging::stage_and_swap;
 
-use crate::{LinkFileError, remove_quarantine::remove_quarantine_from_native_binaries};
-use derive_more::{Display, Error};
+use crate::{
+    LinkFileError,
+    remove_quarantine::remove_quarantine_from_native_binaries,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::Reporter;
 use std::{
     collections::HashMap,
     ffi::OsString,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::atomic::AtomicU8,
 };
 

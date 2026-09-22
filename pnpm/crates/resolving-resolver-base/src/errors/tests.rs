@@ -1,12 +1,24 @@
 use std::collections::HashMap;
 
-use chrono::{TimeDelta, Utc};
+use chrono::{
+    TimeDelta,
+    Utc,
+};
 use miette::Diagnostic;
-use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
+use pnpm_registry::{
+    DerivedPackuments,
+    Package,
+    PackageDistribution,
+    PackageVersion,
+};
 
 use super::{
-    GitResolveError, NoMatchingVersionError, RegistryResponseError, RegistryResponseErrorOptions,
-    stringify_date, strip_trailing_semver_suffix,
+    GitResolveError,
+    NoMatchingVersionError,
+    RegistryResponseError,
+    RegistryResponseErrorOptions,
+    stringify_date,
+    strip_trailing_semver_suffix,
 };
 
 fn make_package(name: &str, versions: &[&str], dist_tags: &[(&str, &str)]) -> Package {

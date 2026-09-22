@@ -1,6 +1,11 @@
 use pretty_assertions::assert_eq;
 
-use super::{Ledger, LedgerEntry, render_ledger, yaml_scalar};
+use super::{
+    Ledger,
+    LedgerEntry,
+    render_ledger,
+    yaml_scalar,
+};
 
 #[test]
 fn real_content_renders_as_plain_scalars() {

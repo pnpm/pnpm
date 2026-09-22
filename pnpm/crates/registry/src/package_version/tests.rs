@@ -1,4 +1,9 @@
-use super::{AuthHeaders, PackageTag, PackageVersion, ThrottledClient};
+use super::{
+    AuthHeaders,
+    PackageTag,
+    PackageVersion,
+    ThrottledClient,
+};
 
 #[tokio::test]
 async fn fetch_from_registry_attaches_authorization_header() {

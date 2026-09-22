@@ -1,10 +1,25 @@
-use pnpr_error::{RegistryError, Result};
-use reqwest::dns::{Addrs, Name, Resolve, Resolving};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use reqwest::dns::{
+    Addrs,
+    Name,
+    Resolve,
+    Resolving,
+};
 use std::{
-    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    net::{
+        IpAddr,
+        Ipv4Addr,
+        Ipv6Addr,
+    },
     sync::Arc,
 };
-use url::{Host, Url};
+use url::{
+    Host,
+    Url,
+};
 
 pub(super) struct PublicResolver(pub Arc<dyn Resolve>);
 

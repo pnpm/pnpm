@@ -1,8 +1,19 @@
 use super::{
-    Install, InterpreterCommand, Interpreters, VersionRequest, download,
-    request::{parse_version_request, version_request},
+    Install,
+    InterpreterCommand,
+    Interpreters,
+    VersionRequest,
+    download,
+    request::{
+        parse_version_request,
+        version_request,
+    },
 };
-use pnpm_config::{Config, Tool, ToolSettings};
+use pnpm_config::{
+    Config,
+    Tool,
+    ToolSettings,
+};
 use pnpm_network::ThrottledClient;
 use pnpm_reporter::SilentReporter;
 use std::path::PathBuf;

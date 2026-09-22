@@ -1,7 +1,18 @@
 use super::{
-    Config, LOCKED_9_1_1, LOCKED_9_3_0_WITH_FILE_DEP_PATH, LOCKED_9_3_0_WITH_PEER_SUFFIX,
-    LOCKED_9_3_0_WITH_TARBALL_RESOLUTION, LOCKED_99_0_0, PmOnFail, SwitchSource, TempDir,
-    pin_roots, switch_target, write_dev_engine_manifest, write_lockfile, write_manifest,
+    Config,
+    LOCKED_9_1_1,
+    LOCKED_9_3_0_WITH_FILE_DEP_PATH,
+    LOCKED_9_3_0_WITH_PEER_SUFFIX,
+    LOCKED_9_3_0_WITH_TARBALL_RESOLUTION,
+    LOCKED_99_0_0,
+    PmOnFail,
+    SwitchSource,
+    TempDir,
+    pin_roots,
+    switch_target,
+    write_dev_engine_manifest,
+    write_lockfile,
+    write_manifest,
 };
 
 #[test]

@@ -1,8 +1,22 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, DirWitness, ModulesHost, fs,
-    fs_remove_dir_all, is_real_dir, is_symlink_or_junction, pacquet_at, pacquet_in,
-    read_modules_manifest, read_pkg_version, retouch_recorded_integrity, symlink_dir, symlink_file,
-    write_manifest, write_workspace_yaml,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    DirWitness,
+    ModulesHost,
+    fs,
+    fs_remove_dir_all,
+    is_real_dir,
+    is_symlink_or_junction,
+    pacquet_at,
+    pacquet_in,
+    read_modules_manifest,
+    read_pkg_version,
+    retouch_recorded_integrity,
+    symlink_dir,
+    symlink_file,
+    write_manifest,
+    write_workspace_yaml,
 };
 use assert_cmd::assert::OutputAssertExt;
 

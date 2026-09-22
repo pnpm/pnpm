@@ -1,6 +1,16 @@
 use super::{
-    Approver, Arc, DerivedPackuments, DistStats, HashMap, JsonValue, NpmUser, Package,
-    PackageDistribution, PackageVersion, Pipe, PublishedAtTimeMap,
+    Approver,
+    Arc,
+    DerivedPackuments,
+    DistStats,
+    HashMap,
+    JsonValue,
+    NpmUser,
+    Package,
+    PackageDistribution,
+    PackageVersion,
+    Pipe,
+    PublishedAtTimeMap,
 };
 
 /// Build a [`Package`] that retains only the fields

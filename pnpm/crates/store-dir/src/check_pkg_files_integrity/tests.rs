@@ -1,17 +1,33 @@
 use super::{
-    VerifiedFileIntegrity, VerifiedFilesCache, build_file_maps_from_index,
-    check_pkg_files_integrity, defer_pkg_files_integrity, package_dir_matches_index,
+    VerifiedFileIntegrity,
+    VerifiedFilesCache,
+    build_file_maps_from_index,
+    check_pkg_files_integrity,
+    defer_pkg_files_integrity,
+    package_dir_matches_index,
 };
-use crate::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreDir};
+use crate::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    SideEffectsDiff,
+    StoreDir,
+};
 use pretty_assertions::assert_eq;
-use sha2::{Digest, Sha512};
+use sha2::{
+    Digest,
+    Sha512,
+};
 use std::{
     collections::HashMap,
     fs,
     io::Write,
     path::PathBuf,
     sync::Mutex,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 use tempfile::tempdir;
 

@@ -1,4 +1,7 @@
-use super::{EcosystemManifest, EcosystemWorkspaceInventory};
+use super::{
+    EcosystemManifest,
+    EcosystemWorkspaceInventory,
+};
 use std::fs;
 
 #[tokio::test]

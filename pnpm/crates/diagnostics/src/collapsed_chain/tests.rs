@@ -1,6 +1,16 @@
-use super::{Collapsed, CollapsingHandler};
-use miette::{Diagnostic, MietteHandlerOpts, ReportHandler};
-use std::{error::Error, fmt};
+use super::{
+    Collapsed,
+    CollapsingHandler,
+};
+use miette::{
+    Diagnostic,
+    MietteHandlerOpts,
+    ReportHandler,
+};
+use std::{
+    error::Error,
+    fmt,
+};
 
 /// A `#[diagnostic(transparent)]` wrapper: displays as its inner error
 /// and keeps it as the source.

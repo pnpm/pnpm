@@ -1,8 +1,18 @@
-use super::{DirPatcher, InodeMap, Value, extend_files_map, file_id};
+use super::{
+    DirPatcher,
+    InodeMap,
+    Value,
+    extend_files_map,
+    file_id,
+};
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::os::unix::fs::FileTypeExt as _;
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{
+    collections::HashMap,
+    fs,
+    path::PathBuf,
+};
 use tempfile::TempDir;
 
 fn create_file(path: &std::path::Path, content: &str) {

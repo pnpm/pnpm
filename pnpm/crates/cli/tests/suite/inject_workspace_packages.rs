@@ -11,7 +11,10 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use std::fs;
 
 /// Three-project workspace with `injectWorkspacePackages: true`.

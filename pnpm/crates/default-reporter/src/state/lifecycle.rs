@@ -1,7 +1,20 @@
 use super::{
-    BlockSlot, COLOR_WHEEL, LifecycleEntry, LifecycleMessage, LifecycleState, LifecycleStdio,
-    RenderingContext, ReporterState, contains_path, cut_line, format_prefix, format_prefix_no_trim,
-    highlight_last_folder, lifecycle_ids, pretty_ms, visible_width,
+    BlockSlot,
+    COLOR_WHEEL,
+    LifecycleEntry,
+    LifecycleMessage,
+    LifecycleState,
+    LifecycleStdio,
+    RenderingContext,
+    ReporterState,
+    contains_path,
+    cut_line,
+    format_prefix,
+    format_prefix_no_trim,
+    highlight_last_folder,
+    lifecycle_ids,
+    pretty_ms,
+    visible_width,
 };
 use std::fmt::Write as _;
 

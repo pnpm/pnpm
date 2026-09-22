@@ -9,13 +9,24 @@ use pnpm_deps_inspection::{
     TreeNodeId,
     dependents::resolve_package_nodes,
     graph::DependencyGraph,
-    pkg_info::{ManifestSource, PkgInfoEnv},
+    pkg_info::{
+        ManifestSource,
+        PkgInfoEnv,
+    },
     search::SearchMatch,
 };
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_package_manifest::parse_manifest_bytes;
-use pnpm_store_dir::{StoreDir, StoreIndex, store_index_key};
-use std::{collections::HashMap, path::Path, sync::Arc};
+use pnpm_store_dir::{
+    StoreDir,
+    StoreIndex,
+    store_index_key,
+};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::Arc,
+};
 
 /// One resolved finder: the name it was requested by and the pnpmfile
 /// hook set that exports it.

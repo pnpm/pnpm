@@ -1,6 +1,15 @@
 use crate::ComVer;
-use derive_more::{AsRef, Deref, Display, Error, Into};
-use serde::{Deserialize, Serialize};
+use derive_more::{
+    AsRef,
+    Deref,
+    Display,
+    Error,
+    Into,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// Wrapper that checks compatibility with the lockfile versions this client supports.
 #[derive(

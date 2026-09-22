@@ -1,7 +1,19 @@
 use super::{
-    BTreeMap, BTreeSet, DepPath, FinalPeerContext, HashMap, HashSet, NodeId, PeerId,
-    PeerNameTarjan, PeerSccPass, Walker, create_peer_dep_graph_hash, link_path_to_peer_version,
-    peer_id_pair, pkg_name,
+    BTreeMap,
+    BTreeSet,
+    DepPath,
+    FinalPeerContext,
+    HashMap,
+    HashSet,
+    NodeId,
+    PeerId,
+    PeerNameTarjan,
+    PeerSccPass,
+    Walker,
+    create_peer_dep_graph_hash,
+    link_path_to_peer_version,
+    peer_id_pair,
+    pkg_name,
 };
 
 impl Walker<'_> {

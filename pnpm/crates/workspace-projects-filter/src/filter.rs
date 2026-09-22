@@ -1,18 +1,36 @@
 use crate::{
-    get_changed_projects::{GetChangedProjectsOptions, get_changed_projects},
+    get_changed_projects::{
+        GetChangedProjectsOptions,
+        get_changed_projects,
+    },
     glob,
-    parse_project_selector::{DependencyTraversal, ProjectSelector, parse_project_selector},
+    parse_project_selector::{
+        DependencyTraversal,
+        ProjectSelector,
+        parse_project_selector,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexSet;
 use miette::Diagnostic;
 use pnpm_matcher::create_matcher;
 use pnpm_workspace_projects_graph::{
-    BaseProject, CreateProjectsGraphOptions, GraphProject, ProjectGraph, create_projects_graph,
+    BaseProject,
+    CreateProjectsGraphOptions,
+    GraphProject,
+    ProjectGraph,
+    create_projects_graph,
 };
 use std::{
     collections::HashMap,
-    path::{Component, Path, PathBuf},
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 /// One raw `--filter` / `--filter-prod` entry, before parsing.
@@ -435,4 +453,7 @@ fn select_all_projects<Pkg: GraphProject + Clone>(
 mod tests;
 
 mod subgraph;
-use subgraph::{WalkState, reverse_graph};
+use subgraph::{
+    WalkState,
+    reverse_graph,
+};

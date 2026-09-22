@@ -1,8 +1,14 @@
 #[cfg(test)]
 mod tests;
 
-use derive_more::{Display, Error};
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 
 /// Error type of [`crate::prepare_package()`].
 ///

@@ -25,7 +25,10 @@
 //! `PathBuf` via `display` + `replace` — so the per-edge cost is one
 //! pass over the target's components and a single allocation.
 
-use std::path::{Component, Path};
+use std::path::{
+    Component,
+    Path,
+};
 
 /// The importer-side inputs of `link:` re-anchoring, derived once per
 /// importer: its directory as a clean relative suffix of the lockfile

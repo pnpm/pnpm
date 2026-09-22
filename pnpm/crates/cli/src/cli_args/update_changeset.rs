@@ -1,30 +1,61 @@
 mod catalogs;
-use catalogs::{find_changed_catalog_entries, uses_changed_catalog_entry};
+use catalogs::{
+    find_changed_catalog_entries,
+    uses_changed_catalog_entry,
+};
 
 use super::recursive::discover_workspace_projects;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_matcher::{Matcher, create_matcher};
-use pnpm_package_manifest::{PackageManifest, PackageManifestError};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use pnpm_versioning::{IntentBumpType, format_change_intent};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
+use pnpm_package_manifest::{
+    PackageManifest,
+    PackageManifestError,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
+use pnpm_versioning::{
+    IntentBumpType,
+    format_change_intent,
+};
 use pnpm_workspace::{
-    ReadProjectManifestOnlyError, ReadWorkspaceManifestError, read_workspace_manifest,
+    ReadProjectManifestOnlyError,
+    ReadWorkspaceManifestError,
+    read_workspace_manifest,
     safe_read_project_manifest_only,
 };
 use serde_json::Value;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fs,
     fs::OpenOptions,
     io,
-    io::{ErrorKind, Write as _},
-    path::{Path, PathBuf},
+    io::{
+        ErrorKind,
+        Write as _,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Display, Error, Diagnostic)]

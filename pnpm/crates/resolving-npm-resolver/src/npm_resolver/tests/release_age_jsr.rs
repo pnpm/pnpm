@@ -1,5 +1,9 @@
 use super::{
-    HashMap, JSR_PACKAGE_BODY, ResolveOptions, WantedDependency, assert_eq,
+    HashMap,
+    JSR_PACKAGE_BODY,
+    ResolveOptions,
+    WantedDependency,
+    assert_eq,
     build_resolver_with_registries,
 };
 use chrono::TimeZone;

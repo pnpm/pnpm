@@ -1,15 +1,34 @@
 mod restore;
-use restore::{clone_file, invalidate_fingerprints};
+use restore::{
+    clone_file,
+    invalidate_fingerprints,
+};
 
-use super::paths::{check_ancestors, validate_relative_path};
-use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_from_file};
-use serde::{Deserialize, Serialize};
+use super::paths::{
+    check_ancestors,
+    validate_relative_path,
+};
+use pnpm_crypto_hash::{
+    create_hex_hash,
+    create_hex_hash_from_file,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
     collections::BTreeMap,
-    env, fs,
-    fs::{File, OpenOptions},
+    env,
+    fs,
+    fs::{
+        File,
+        OpenOptions,
+    },
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 

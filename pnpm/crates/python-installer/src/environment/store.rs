@@ -1,10 +1,19 @@
 //! Where a project's environment generations live, and the link that
 //! makes one the project's own.
 
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The environments pnpm manages, kept in the store rather than beside

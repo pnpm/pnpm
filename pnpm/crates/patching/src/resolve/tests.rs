@@ -1,4 +1,7 @@
-use crate::resolve::{ResolvePatchedDependenciesError, resolve_and_group};
+use crate::resolve::{
+    ResolvePatchedDependenciesError,
+    resolve_and_group,
+};
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 use std::fs;

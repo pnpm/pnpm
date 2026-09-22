@@ -1,4 +1,11 @@
-use super::{AccessList, AccessToken, BTreeSet, Deserialize, IndexMap, RegistryError};
+use super::{
+    AccessList,
+    AccessToken,
+    BTreeSet,
+    Deserialize,
+    IndexMap,
+    RegistryError,
+};
 
 /// One `packages:` map value: `access` / `publish` / `unpublish` are
 /// permission lists (the built-in `$all` / `$authenticated` / `$anonymous`

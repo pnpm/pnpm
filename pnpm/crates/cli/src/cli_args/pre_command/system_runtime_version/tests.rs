@@ -1,4 +1,7 @@
-use super::{parse_bun_version, parse_deno_version};
+use super::{
+    parse_bun_version,
+    parse_deno_version,
+};
 
 #[test]
 fn deno_version_is_read_from_the_leading_line() {

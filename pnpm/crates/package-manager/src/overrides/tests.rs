@@ -2,10 +2,16 @@ use super::VersionsOverrider;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::parse_overrides;
 use pnpm_package_manifest::PackageManifest;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 fn parsed(map: &[(&str, &str)]) -> Vec<pnpm_config_parse_overrides::VersionOverride> {

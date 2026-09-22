@@ -1,6 +1,12 @@
 use super::{
-    Duration, NetworkSettings, PerRegistryTls, ProxyConfig, ThrottledClient, TlsConfig,
-    client_with_fetch_timeout, drain_until_timed_out,
+    Duration,
+    NetworkSettings,
+    PerRegistryTls,
+    ProxyConfig,
+    ThrottledClient,
+    TlsConfig,
+    client_with_fetch_timeout,
+    drain_until_timed_out,
 };
 
 /// Regression test for <https://github.com/pnpm/pnpm/issues/14604>.

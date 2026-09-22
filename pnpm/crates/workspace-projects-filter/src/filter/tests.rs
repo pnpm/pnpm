@@ -1,13 +1,25 @@
 use crate::{
     filter::{
-        FilterError, FilterProjectsOptions, FilterWorkspaceProjectsOptions, WorkspaceFilter,
-        filter_projects, filter_workspace_projects,
+        FilterError,
+        FilterProjectsOptions,
+        FilterWorkspaceProjectsOptions,
+        WorkspaceFilter,
+        filter_projects,
+        filter_workspace_projects,
     },
     parse_project_selector::ProjectSelector,
 };
 use indexmap::IndexMap;
-use pnpm_workspace_projects_graph::{BaseProject, GraphProject, ProjectGraph, ProjectGraphNode};
-use std::path::{Path, PathBuf};
+use pnpm_workspace_projects_graph::{
+    BaseProject,
+    GraphProject,
+    ProjectGraph,
+    ProjectGraphNode,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 #[derive(Clone)]
 struct TestPkg {
@@ -508,14 +520,25 @@ fn is_subdir_contract() {
 /// upstream's "select changed packages" suite. Each builds a real git
 /// repository in a temp directory.
 mod changed_packages {
-    use super::{TestPkg, node_at};
+    use super::{
+        TestPkg,
+        node_at,
+    };
     use crate::{
-        filter::{FilterError, FilterWorkspaceProjectsOptions, filter_workspace_projects},
+        filter::{
+            FilterError,
+            FilterWorkspaceProjectsOptions,
+            filter_workspace_projects,
+        },
         parse_project_selector::ProjectSelector,
     };
     use indexmap::IndexMap;
     use pnpm_workspace_projects_graph::ProjectGraph;
-    use std::{fs, path::Path, process::Command};
+    use std::{
+        fs,
+        path::Path,
+        process::Command,
+    };
     use tempfile::TempDir;
 
     fn git(cwd: &Path, args: &[&str]) {

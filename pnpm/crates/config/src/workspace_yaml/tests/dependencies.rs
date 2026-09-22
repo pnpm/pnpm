@@ -1,4 +1,9 @@
-use super::{Config, Path, WorkspaceSettings, assert_eq};
+use super::{
+    Config,
+    Path,
+    WorkspaceSettings,
+    assert_eq,
+};
 
 /// `patchedDependencies` in `pnpm-workspace.yaml` is a string→string
 /// map where keys carry an optional `@version` suffix and values are

@@ -1,6 +1,9 @@
 use assert_cmd::prelude::*;
 use pnpm_testing_utils::command_env::CommandTestExt;
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 #[test]
 fn configured_environment_changes_invalidate_task_outputs() {

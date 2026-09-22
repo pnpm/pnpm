@@ -1,6 +1,15 @@
 use super::{
-    BTreeMap, DirectDep, HashSet, PackageManifestError, Path, ResolvedTree, Version,
-    WorkspaceRootDep, io, safe_read_package_json_from_dir, unwrap_package_name,
+    BTreeMap,
+    DirectDep,
+    HashSet,
+    PackageManifestError,
+    Path,
+    ResolvedTree,
+    Version,
+    WorkspaceRootDep,
+    io,
+    safe_read_package_json_from_dir,
+    unwrap_package_name,
 };
 
 /// `link:` / `file:` and the path form of `workspace:` name a directory

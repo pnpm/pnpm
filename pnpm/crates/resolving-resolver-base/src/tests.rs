@@ -1,10 +1,25 @@
-use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, RegistryResolution};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgName,
+    PkgNameVer,
+    RegistryResolution,
+};
 use ssri::Integrity;
 
 use crate::{
-    DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, LatestInfo, LatestQuery,
-    ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, ResolveOptions,
-    ResolveResult, Resolver, UpdateBehavior, VerifyCtx, WantedDependency,
+    DIRECT_DEP_SELECTOR_WEIGHT,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    LatestInfo,
+    LatestQuery,
+    ResolutionPolicyViolation,
+    ResolutionVerification,
+    ResolutionVerifier,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    VerifyCtx,
+    WantedDependency,
 };
 
 fn fake_resolution() -> LockfileResolution {

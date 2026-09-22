@@ -9,9 +9,16 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::Lockfile;
-use pnpm_testing_utils::{bin::CommandTempCwd, fixtures::tarball_with_manifest};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    fixtures::tarball_with_manifest,
+};
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 const TARBALL: &str = "tarballs/pkg-from-tarball-1.0.0.tgz";
 

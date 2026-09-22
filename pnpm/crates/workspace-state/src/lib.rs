@@ -10,16 +10,34 @@
 //! pnpm read state written by pacquet, which is what lets
 //! `verify-deps-before-run` stay enabled.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
-use pnpm_diagnostics::miette::{self, Diagnostic};
-use serde::{Deserialize, Serialize};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
     collections::BTreeMap,
     fs,
-    io::{self, Write},
-    path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 use tempfile::NamedTempFile;
 

@@ -3,11 +3,22 @@
 
 use std::sync::Arc;
 
-use futures_util::{StreamExt, stream::FuturesUnordered};
+use futures_util::{
+    StreamExt,
+    stream::FuturesUnordered,
+};
 use serde_json::Value;
 
-use pnpm_hooks::{CustomResolver, HookError, PnpmfileHooks};
-use pnpm_lockfile::{Lockfile, PackageKey, SnapshotEntry};
+use pnpm_hooks::{
+    CustomResolver,
+    HookError,
+    PnpmfileHooks,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    SnapshotEntry,
+};
 
 /// Whether the install's custom resolvers require a fresh resolution.
 /// A `true` result prevents the prefer-frozen-lockfile optimization.

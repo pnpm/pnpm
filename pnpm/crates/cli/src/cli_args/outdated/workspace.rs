@@ -1,6 +1,16 @@
 use super::{
-    Config, DependencyGroup, HashMap, IntoDiagnostic, Lockfile, OutdatedPackage, OutdatedQuery,
-    OutdatedRun, PackageManifest, PathBuf, State, collect_outdated_for_importer_in_run,
+    Config,
+    DependencyGroup,
+    HashMap,
+    IntoDiagnostic,
+    Lockfile,
+    OutdatedPackage,
+    OutdatedQuery,
+    OutdatedRun,
+    PackageManifest,
+    PathBuf,
+    State,
+    collect_outdated_for_importer_in_run,
 };
 
 pub(super) struct OutdatedInWorkspace {

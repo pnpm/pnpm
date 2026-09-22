@@ -1,4 +1,7 @@
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
 

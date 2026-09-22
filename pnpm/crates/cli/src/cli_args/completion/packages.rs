@@ -1,7 +1,10 @@
 use super::CompletionContext;
 use pnpm_workspace::{
-    FindWorkspaceProjectsOpts, find_workspace_dir, find_workspace_projects,
-    read_workspace_manifest, workspace_package_patterns,
+    FindWorkspaceProjectsOpts,
+    find_workspace_dir,
+    find_workspace_projects,
+    read_workspace_manifest,
+    workspace_package_patterns,
 };
 
 pub(super) fn complete_packages(context: &CompletionContext<'_>) -> miette::Result<Vec<String>> {

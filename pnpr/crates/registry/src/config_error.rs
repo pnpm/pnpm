@@ -1,4 +1,7 @@
-use super::{Ecosystem, wildcard_shapes};
+use super::{
+    Ecosystem,
+    wildcard_shapes,
+};
 
 /// A static registry-configuration defect. Surfaced by [`crate::Registries::validate`] and by
 /// [`crate::PackagePattern::parse`]; the `config` module turns it into an

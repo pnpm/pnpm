@@ -1,8 +1,29 @@
 use super::{
-    AccessList, AuthState, Body, Ecosystem, PackagePattern, PackageRules, Registries, Registry,
-    Request, ServiceExt, StatusCode, TempDir, Value, access_rule, body_json, config_for, header,
-    hosted_with_access, json, router, router_config, router_with_auth, seed_hosted,
-    sha512_integrity, to_bytes,
+    AccessList,
+    AuthState,
+    Body,
+    Ecosystem,
+    PackagePattern,
+    PackageRules,
+    Registries,
+    Registry,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    Value,
+    access_rule,
+    body_json,
+    config_for,
+    header,
+    hosted_with_access,
+    json,
+    router,
+    router_config,
+    router_with_auth,
+    seed_hosted,
+    sha512_integrity,
+    to_bytes,
 };
 
 #[tokio::test]
@@ -197,7 +218,10 @@ async fn starved_upstream_still_counts_toward_the_search_total() {
 #[tokio::test]
 async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_version_manifest()
 {
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());

@@ -2,10 +2,25 @@
 
 pub mod platform;
 
-use platform::{Architecture, Libc, LibcFamily, NamedPlatform, Os, SupportedPlatform};
+use platform::{
+    Architecture,
+    Libc,
+    LibcFamily,
+    NamedPlatform,
+    Os,
+    SupportedPlatform,
+};
 use serde::{
-    Deserialize, Deserializer, Serialize,
-    de::{self, MapAccess, SeqAccess, Visitor, value::MapAccessDeserializer},
+    Deserialize,
+    Deserializer,
+    Serialize,
+    de::{
+        self,
+        MapAccess,
+        SeqAccess,
+        Visitor,
+        value::MapAccessDeserializer,
+    },
 };
 use std::fmt;
 

@@ -1,4 +1,8 @@
-use super::{IntoDiagnostic, PublishSummary, Value};
+use super::{
+    IntoDiagnostic,
+    PublishSummary,
+    Value,
+};
 
 /// One `+ <pkg> (staged...)` line of the non-JSON `stage publish` output.
 pub(super) fn render_stage_publish_summary(summary: &PublishSummary, dry_run: bool) -> String {

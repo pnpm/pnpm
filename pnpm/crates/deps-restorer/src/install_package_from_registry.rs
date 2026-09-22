@@ -1,19 +1,40 @@
 use crate::{
-    ImportIndexedDirError, ImportIndexedDirOpts, SymlinkPackageError, import_indexed_dir,
+    ImportIndexedDirError,
+    ImportIndexedDirOpts,
+    SymlinkPackageError,
+    import_indexed_dir,
     retry_config::retry_opts_from_config,
-    safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
+    safe_join_modules_dir::{
+        InvalidDependencyAliasError,
+        safe_join_modules_dir,
+    },
     symlink_package,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_lockfile::LockfileResolution;
-use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
+};
 use pnpm_resolving_resolver_base::ResolveResult;
 use pnpm_store_dir::SharedVerifiedFilesCache;
-use pnpm_tarball::{IngestTarballToStore, TarballError};
+use pnpm_tarball::{
+    IngestTarballToStore,
+    TarballError,
+};
 use serde_json::Value;
 use ssri::Integrity;
-use std::{path::Path, sync::atomic::AtomicU8};
+use std::{
+    path::Path,
+    sync::atomic::AtomicU8,
+};
 
 /// Materialize one pre-resolved package on disk:
 ///

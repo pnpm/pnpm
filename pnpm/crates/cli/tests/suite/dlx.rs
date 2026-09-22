@@ -1,4 +1,7 @@
-use crate::_utils::{append_workspace_yaml_key, flatten_report};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    flatten_report,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;

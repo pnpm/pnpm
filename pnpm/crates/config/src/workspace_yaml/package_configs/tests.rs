@@ -1,5 +1,11 @@
-use super::{PackageConfigsSetting, ProjectConfig};
-use crate::{Config, WorkspaceSettings};
+use super::{
+    PackageConfigsSetting,
+    ProjectConfig,
+};
+use crate::{
+    Config,
+    WorkspaceSettings,
+};
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 use std::path::Path;

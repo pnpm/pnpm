@@ -2,14 +2,26 @@ mod cargo;
 
 use axum::{
     Router,
-    body::{Body, Bytes, to_bytes},
-    http::{Method, Request, StatusCode, header},
+    body::{
+        Body,
+        Bytes,
+        to_bytes,
+    },
+    http::{
+        Method,
+        Request,
+        StatusCode,
+        header,
+    },
 };
 use pnpr_config::Config;
 use tempfile::TempDir;
 use tower::ServiceExt as _;
 
-use super::{app_with_config_and_token, record};
+use super::{
+    app_with_config_and_token,
+    record,
+};
 
 const ENTRY: &str = "/-/pnpr/v0/compiler-cache/acme/a/b/cache-key";
 

@@ -10,18 +10,33 @@ mod peer_dependencies;
 
 mod behavior;
 
-use std::{str::FromStr, sync::Mutex, time::Duration};
+use std::{
+    str::FromStr,
+    sync::Mutex,
+    time::Duration,
+};
 
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_resolver_base::{
-    LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
-    Resolver, WantedDependency,
+    LatestQuery,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 use pretty_assertions::assert_eq;
 use rustc_hash::FxHashMap as HashMap;
 
 use crate::resolve_dependency_tree::{
-    ResolveDependencyTreeError, ResolveDependencyTreeOptions, resolve_dependency_tree,
+    ResolveDependencyTreeError,
+    ResolveDependencyTreeOptions,
+    resolve_dependency_tree,
 };
 
 /// Stub resolver fed from a `(name, range)` → `ResolveResult` map.
@@ -240,7 +255,12 @@ async fn resolve_settlement_tree(
 }
 
 fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> ResolveResult {
-    use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+    use pnpm_lockfile::{
+        LockfileResolution,
+        PkgName,
+        PkgNameVer,
+        TarballResolution,
+    };
     let name_ver = PkgNameVer::new(
         PkgName::parse(name).unwrap(),
         node_semver::Version::from_str(version).unwrap(),

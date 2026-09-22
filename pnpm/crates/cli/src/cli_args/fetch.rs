@@ -1,7 +1,10 @@
 use crate::State;
 use clap::Args;
 use miette::Context;
-use pnpm_package_manager::{Install, ProjectMutation};
+use pnpm_package_manager::{
+    Install,
+    ProjectMutation,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
 

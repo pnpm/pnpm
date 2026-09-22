@@ -1,28 +1,63 @@
 use super::{
-    FsGlobalRemoval, GlobalPackageBinSnapshot, activation::FsRename, check_virtual_shim_conflicts,
-    infer_local_package_alias, replacement_aliases, should_replace_existing_package,
-    snapshot_global_package, update_selectors,
+    FsGlobalRemoval,
+    GlobalPackageBinSnapshot,
+    activation::FsRename,
+    check_virtual_shim_conflicts,
+    infer_local_package_alias,
+    replacement_aliases,
+    should_replace_existing_package,
+    snapshot_global_package,
+    update_selectors,
 };
 use crate::{
     cli_args::{
         global::{
-            cleanup::{FsRemoveDirAll, discard_install_dir_on_error_with_fs},
-            remove::{GlobalInstallCleanup, GlobalRemovalTransaction, commit_global_removal},
-            selectors::{is_windows_drive_path, resolve_local_param, split_comma_separated},
+            cleanup::{
+                FsRemoveDirAll,
+                discard_install_dir_on_error_with_fs,
+            },
+            remove::{
+                GlobalInstallCleanup,
+                GlobalRemovalTransaction,
+                commit_global_removal,
+            },
+            selectors::{
+                is_windows_drive_path,
+                resolve_local_param,
+                split_comma_separated,
+            },
         },
         shim::record_virtual_shim_state,
     },
-    shim_dispatch::{ShimTarget, install_native_shim, remove_native_shim},
+    shim_dispatch::{
+        ShimTarget,
+        install_native_shim,
+        remove_native_shim,
+    },
 };
 use miette::IntoDiagnostic;
-use pnpm_cmd_shim::{Host as CmdShimHost, PackageBinSource, remove_bin as remove_cmd_shim};
-use pnpm_fs::{force_symlink_dir, remove_symlink_dir};
+use pnpm_cmd_shim::{
+    Host as CmdShimHost,
+    PackageBinSource,
+    remove_bin as remove_cmd_shim,
+};
+use pnpm_fs::{
+    force_symlink_dir,
+    remove_symlink_dir,
+};
 use pnpm_global::GlobalPackageInfo;
 use serde_json::json;
 use std::{
-    collections::{HashMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 use tempfile::TempDir;

@@ -9,18 +9,31 @@ pub(crate) use remote::RemoteUploadStore;
 
 mod remote;
 
-use crate::{BlobFinalize, BlobSlot, Storage};
-use pnpr_error::{RegistryError, Result};
+use crate::{
+    BlobFinalize,
+    BlobSlot,
+    Storage,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::CanonicalPackageName;
 use std::{
     fmt::Write as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::Duration,
 };
 use tokio::{
     fs,
-    io::{AsyncWriteExt, ErrorKind},
+    io::{
+        AsyncWriteExt,
+        ErrorKind,
+    },
 };
 
 /// Where in-progress uploads live under the backend's local scratch root.

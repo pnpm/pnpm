@@ -20,22 +20,44 @@
 //!   install-time concern.
 
 use crate::DefaultResolver;
-use pnpm_config::{Config, Tool};
+use pnpm_config::{
+    Config,
+    Tool,
+};
 use pnpm_engine_pm_yarn_resolver::YarnResolver;
 use pnpm_engine_runtime_bun_resolver::BunResolver;
 use pnpm_engine_runtime_deno_resolver::DenoResolver;
 use pnpm_engine_runtime_node_resolver::NodeResolver;
-use pnpm_network::{RetryOpts, ThrottledClient};
-use pnpm_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
-use pnpm_resolving_local_resolver::{LocalPathResolver, LocalResolverContext, LocalSchemeResolver};
+use pnpm_network::{
+    RetryOpts,
+    ThrottledClient,
+};
+use pnpm_resolving_git_resolver::{
+    GitResolver,
+    RealGitProbe,
+    RealGitRunner,
+};
+use pnpm_resolving_local_resolver::{
+    LocalPathResolver,
+    LocalResolverContext,
+    LocalSchemeResolver,
+};
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, MergeNamedRegistriesError, NamedRegistryResolver, NpmResolver,
-    merge_named_registries, shared_in_memory_cache, shared_packument_fetch_locker,
+    InMemoryPackageMetaCache,
+    MergeNamedRegistriesError,
+    NamedRegistryResolver,
+    NpmResolver,
+    merge_named_registries,
+    shared_in_memory_cache,
+    shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::Resolver;
 use pnpm_resolving_tarball_resolver::TarballResolver;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 /// Inputs of [`build_standalone_chain`].
 pub struct StandaloneChainOptions<'a> {

@@ -1,6 +1,18 @@
 use super::{
-    Config, ConfigError, ConfigFlags, DEFAULT_JSR_REGISTRY, GLOBAL_CONFIG_YAML_FILENAME, IndexMap,
-    Map, Path, Segment, Value, config_types, naming_cases, property_path, protected_settings,
+    Config,
+    ConfigError,
+    ConfigFlags,
+    DEFAULT_JSR_REGISTRY,
+    GLOBAL_CONFIG_YAML_FILENAME,
+    IndexMap,
+    Map,
+    Path,
+    Segment,
+    Value,
+    config_types,
+    naming_cases,
+    property_path,
+    protected_settings,
 };
 
 /// `castField`: coerce a string value per its key's type. Booleans, `null`,

@@ -1,21 +1,46 @@
 use std::{
-    net::{IpAddr, SocketAddr},
+    net::{
+        IpAddr,
+        SocketAddr,
+    },
     sync::LazyLock,
 };
 
 use axum::{
-    extract::{ConnectInfo, FromRequestParts, Request, State},
-    http::{Method, request::Parts},
+    extract::{
+        ConnectInfo,
+        FromRequestParts,
+        Request,
+        State,
+    },
+    http::{
+        Method,
+        request::Parts,
+    },
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64_STANDARD,
+};
 use pnpr_auth::TokenRecord;
 use pnpr_error::RegistryError;
-use pnpr_policy::{Identity, PackageRules};
+use pnpr_policy::{
+    Identity,
+    PackageRules,
+};
 
-use super::{AppState, PeerAddr, RegistrySource, single_authorization_header};
+use super::{
+    AppState,
+    PeerAddr,
+    RegistrySource,
+    single_authorization_header,
+};
 
 /// What the caller is trying to do with a package. Drives which
 /// rule from the access policy applies.

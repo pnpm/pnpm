@@ -1,8 +1,22 @@
 use super::{
-    ABBREVIATED_META_DIR, AuthHeaders, EXISTING_VERSION_SELECTOR_WEIGHT, InMemoryPackageMetaCache,
-    PACKAGE_BODY, PickPackageContext, RetryOpts, TempDir, ThrottledClient, VersionSelectorEntry,
-    VersionSelectorType, VersionSelectorWithWeight, VersionSelectors, default_opts,
-    persist_meta_to_mirror, pick_package, range_spec, shared_packument_fetch_locker,
+    ABBREVIATED_META_DIR,
+    AuthHeaders,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    InMemoryPackageMetaCache,
+    PACKAGE_BODY,
+    PickPackageContext,
+    RetryOpts,
+    TempDir,
+    ThrottledClient,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
+    VersionSelectors,
+    default_opts,
+    persist_meta_to_mirror,
+    pick_package,
+    range_spec,
+    shared_packument_fetch_locker,
 };
 
 #[tokio::test]

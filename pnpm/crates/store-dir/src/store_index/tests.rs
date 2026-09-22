@@ -1,11 +1,21 @@
 use super::{
-    CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreIndex, StoreIndexError,
-    git_hosted_store_index_key, immutable_sqlite_uri, pick_store_index_key,
-    queries::GET_MANY_CHUNK, store_index_key,
+    CafsFileInfo,
+    PackageFilesIndex,
+    SideEffectsDiff,
+    StoreIndex,
+    StoreIndexError,
+    git_hosted_store_index_key,
+    immutable_sqlite_uri,
+    pick_store_index_key,
+    queries::GET_MANY_CHUNK,
+    store_index_key,
 };
 use crate::StoreDir;
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 use tempfile::tempdir;
 
 // `Url::from_file_path` only accepts a platform-absolute path: a POSIX
@@ -511,8 +521,10 @@ fn get_many_handles_more_keys_than_chunk_size() {
 #[cfg(unix)]
 #[test]
 fn open_immutable_reads_wal_db_on_readonly_directory() {
-    use std::fs;
-    use std::os::unix::fs::PermissionsExt;
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+    };
 
     let dir = tempdir().unwrap();
     let key = store_index_key("sha512-ro", "frozen@1.0.0");

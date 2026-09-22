@@ -1,23 +1,47 @@
 mod immutability;
-use immutability::{enforce_published_version_immutability, submitted_packument};
+use immutability::{
+    enforce_published_version_immutability,
+    submitted_packument,
+};
 
 use axum::{
     body::Body,
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
+    http::{
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate, DocumentWrite, publish::now_iso};
+use pnpr_storage::{
+    DOCUMENT_WRITE_RETRIES,
+    DocumentUpdate,
+    DocumentWrite,
+    publish::now_iso,
+};
 
 use pnpr_upstream::tarball_basename;
 
 use super::{
-    Action, AppState, RegistrySource, authorize, filter_osv_vulnerable_dist_tags, hosted_storage,
-    load_packument_for_read, not_found, resolve_write_target,
+    Action,
+    AppState,
+    RegistrySource,
+    authorize,
+    filter_osv_vulnerable_dist_tags,
+    hosted_storage,
+    load_packument_for_read,
+    not_found,
+    resolve_write_target,
 };
 
 /// `PUT /:pkg/-rev/:rev` (path-less) or `PUT /~<name>/:pkg/-rev/:rev` —

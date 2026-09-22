@@ -1,8 +1,16 @@
 use super::{
-    FsRemoveDirAll, FsRemoveNonDirDirent, clear_dir_blocking_file, clear_dirent_blocking_dir,
-    dir_fits_at, file_fits_at,
+    FsRemoveDirAll,
+    FsRemoveNonDirDirent,
+    clear_dir_blocking_file,
+    clear_dirent_blocking_dir,
+    dir_fits_at,
+    file_fits_at,
 };
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 use tempfile::tempdir;
 
 #[test]

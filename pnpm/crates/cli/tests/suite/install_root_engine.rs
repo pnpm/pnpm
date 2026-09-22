@@ -1,7 +1,11 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 #[test]
 fn engine_strict_rejects_an_incompatible_root_project() {

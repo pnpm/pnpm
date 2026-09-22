@@ -1,4 +1,8 @@
-use super::{CanonicalPackageName, json, rewrite_upstream_tarball_urls};
+use super::{
+    CanonicalPackageName,
+    json,
+    rewrite_upstream_tarball_urls,
+};
 
 #[test]
 fn drops_invalid_upstream_revision_history_entries() {

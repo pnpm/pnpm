@@ -1,7 +1,16 @@
-use super::{EnvLockfile, SpecifierAndResolution};
+use super::{
+    EnvLockfile,
+    SpecifierAndResolution,
+};
 use crate::{
-    Lockfile, LockfileResolution, PackageKey, PackageMetadata, RegistryResolution, SnapshotEntry,
-    extract_env_document, extract_main_document,
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    RegistryResolution,
+    SnapshotEntry,
+    extract_env_document,
+    extract_main_document,
 };
 use tempfile::TempDir;
 use text_block_macros::text_block_fnl;

@@ -1,4 +1,8 @@
-use super::{HashMap, HashSet, NodeId};
+use super::{
+    HashMap,
+    HashSet,
+    NodeId,
+};
 
 /// Iterative Tarjan over the peer graph. The DFS stack is explicit so deep
 /// peer graphs don't overflow the call stack.

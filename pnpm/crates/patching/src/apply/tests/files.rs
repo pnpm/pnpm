@@ -1,8 +1,22 @@
 use super::{
-    BINDING_GYP_DELETE_PATCH, BINDING_GYP_PATCH, IS_POSITIVE_INDEX_JS,
-    IS_POSITIVE_INDEX_JS_PATCHED, IS_POSITIVE_PATCH, MANIFEST, MANIFEST_PATCH,
-    MANIFEST_SECOND_PATCH, PatchApplyError, applied_hunk, apply_patch_to_dir, assert_eq, fs,
-    preview_patch, tempdir, text_block, text_block_fnl, write_patch,
+    BINDING_GYP_DELETE_PATCH,
+    BINDING_GYP_PATCH,
+    IS_POSITIVE_INDEX_JS,
+    IS_POSITIVE_INDEX_JS_PATCHED,
+    IS_POSITIVE_PATCH,
+    MANIFEST,
+    MANIFEST_PATCH,
+    MANIFEST_SECOND_PATCH,
+    PatchApplyError,
+    applied_hunk,
+    apply_patch_to_dir,
+    assert_eq,
+    fs,
+    preview_patch,
+    tempdir,
+    text_block,
+    text_block_fnl,
+    write_patch,
 };
 
 #[test]

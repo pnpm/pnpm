@@ -39,32 +39,72 @@ mod registry_groups;
 
 use axum::{
     Router,
-    body::{Body, Bytes, to_bytes},
-    http::{HeaderValue, Request, StatusCode, header},
+    body::{
+        Body,
+        Bytes,
+        to_bytes,
+    },
+    http::{
+        HeaderValue,
+        Request,
+        StatusCode,
+        header,
+    },
 };
 use flate2::read::GzDecoder;
 use futures_util::stream;
 use pnpm_crypto_hash::integrity_addressed_tarball_path;
 use pnpr::{
-    AccessList, AuthState, Config, Ecosystem, HostedConfig, MaxUsers, PackagePattern, PackageRule,
-    PackageRules, PublicRoute, Registries, Registry, router, router_with_auth,
+    AccessList,
+    AuthState,
+    Config,
+    Ecosystem,
+    HostedConfig,
+    MaxUsers,
+    PackagePattern,
+    PackageRule,
+    PackageRules,
+    PublicRoute,
+    Registries,
+    Registry,
+    router,
+    router_with_auth,
 };
-use serde_json::{Value, json};
-use ssri::{Algorithm, IntegrityOpts};
+use serde_json::{
+    Value,
+    json,
+};
+use ssri::{
+    Algorithm,
+    IntegrityOpts,
+};
 use std::{
     convert::Infallible,
     fs,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::{Path, PathBuf},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };
 use tempfile::TempDir;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{
+        AsyncReadExt,
+        AsyncWriteExt,
+    },
     net::TcpListener,
 };
 use tower::ServiceExt;
@@ -247,7 +287,10 @@ fn hosted_publish_request(
     tarball: &[u8],
     token: &str,
 ) -> Request<Body> {
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
 
     let basename = package.rsplit('/').next().unwrap();
     let attachment = format!("{package}-{version}.tgz");
@@ -274,7 +317,10 @@ fn hosted_publish_request(
 /// The 40-char hex SHA-1 the way pre-2017 npm publishes carry it in the
 /// legacy `dist.shasum` field.
 fn sha1_hex_of(bytes: &[u8]) -> String {
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
     let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha1);
     opts.input(bytes);
     let integrity = opts.result();

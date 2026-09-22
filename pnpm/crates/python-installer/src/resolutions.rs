@@ -1,8 +1,17 @@
-use super::environment::{LockfileInputs, PythonPrepare};
-use miette::{IntoDiagnostic, Result};
+use super::environment::{
+    LockfileInputs,
+    PythonPrepare,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+};
 use pnpm_python_resolver::Lockfile;
 use pnpm_reporter::Reporter;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 use tokio::sync::Mutex;
 
 type Entry = Arc<Mutex<Option<String>>>;

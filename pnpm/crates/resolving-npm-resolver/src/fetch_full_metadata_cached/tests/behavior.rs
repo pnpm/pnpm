@@ -1,7 +1,15 @@
 use super::{
-    ABBREVIATED_META_DIR, ACCEPT_ABBREVIATED, AuthHeaders, FetchFullMetadataCachedOptions,
-    PACKAGE_BODY, TempDir, ThrottledClient, fetch_full_metadata_cached, get_pkg_mirror_path,
-    load_meta, no_retry_opts,
+    ABBREVIATED_META_DIR,
+    ACCEPT_ABBREVIATED,
+    AuthHeaders,
+    FetchFullMetadataCachedOptions,
+    PACKAGE_BODY,
+    TempDir,
+    ThrottledClient,
+    fetch_full_metadata_cached,
+    get_pkg_mirror_path,
+    load_meta,
+    no_retry_opts,
 };
 
 #[tokio::test]

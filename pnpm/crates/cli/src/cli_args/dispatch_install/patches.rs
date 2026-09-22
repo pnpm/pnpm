@@ -1,6 +1,17 @@
 use super::{
-    CommandFuture, Config, Context, DefaultReporter, InstallArgs, NdjsonReporter, PatchArgs,
-    PatchCommitArgs, PatchRemoveArgs, Path, ReporterType, RunCtx, SilentReporter,
+    CommandFuture,
+    Config,
+    Context,
+    DefaultReporter,
+    InstallArgs,
+    NdjsonReporter,
+    PatchArgs,
+    PatchCommitArgs,
+    PatchRemoveArgs,
+    Path,
+    ReporterType,
+    RunCtx,
+    SilentReporter,
 };
 use crate::State;
 use indexmap::IndexMap;

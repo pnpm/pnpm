@@ -1,6 +1,16 @@
 use super::{
-    Arc, Matcher, Mutex, SECOND_STAGE_ID, STAGE_ID, assert_failure_with_code, assert_success, json,
-    package_tarball, stage, staged_item_of, write_registry_config,
+    Arc,
+    Matcher,
+    Mutex,
+    SECOND_STAGE_ID,
+    STAGE_ID,
+    assert_failure_with_code,
+    assert_success,
+    json,
+    package_tarball,
+    stage,
+    staged_item_of,
+    write_registry_config,
 };
 
 #[test]

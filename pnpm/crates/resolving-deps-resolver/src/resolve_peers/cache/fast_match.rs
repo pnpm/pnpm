@@ -1,6 +1,12 @@
 use super::{
-    FastCacheMatch, FastProvider, FastProviderQuery, NodeId, ParentRefs, PeersCacheItem,
-    TreeChildren, Walker,
+    FastCacheMatch,
+    FastProvider,
+    FastProviderQuery,
+    NodeId,
+    ParentRefs,
+    PeersCacheItem,
+    TreeChildren,
+    Walker,
 };
 
 impl Walker<'_> {

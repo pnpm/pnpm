@@ -1,10 +1,19 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 mod metadata_file;
 mod mutation;
 
-use futures_util::future::{BoxFuture, join_all};
+use futures_util::future::{
+    BoxFuture,
+    join_all,
+};
 use miette::Result;
 use mutation::MetadataMutation;
-use std::{future::Future, path::PathBuf};
+use std::{
+    future::Future,
+    path::PathBuf,
+};
 
 /// An install projection ready to publish after all participants have settled.
 /// Dropping an unpublished result must clean up its temporary resources.

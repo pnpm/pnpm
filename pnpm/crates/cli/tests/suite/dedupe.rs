@@ -1,11 +1,21 @@
-use crate::_utils::{importer_version, read_lockfile};
+use crate::_utils::{
+    importer_version,
+    read_lockfile,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm")

@@ -1,7 +1,18 @@
 use super::{
-    ARTIFACTORY_REGISTRY, BTreeMap, GIT_COMMIT, LockfileResolution, RegistryOptions,
-    RegistryServerType, TarballResolution, assert_eq, libc_matches, registry_server_type,
-    select_platform_variant, selector, target, variant,
+    ARTIFACTORY_REGISTRY,
+    BTreeMap,
+    GIT_COMMIT,
+    LockfileResolution,
+    RegistryOptions,
+    RegistryServerType,
+    TarballResolution,
+    assert_eq,
+    libc_matches,
+    registry_server_type,
+    select_platform_variant,
+    selector,
+    target,
+    variant,
 };
 
 /// The flag is a hint: the fetch dispatch and the store-index key

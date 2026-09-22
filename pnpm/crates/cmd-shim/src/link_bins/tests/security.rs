@@ -1,9 +1,23 @@
 use super::{
-    Arc, Host, LinkBinsOptions, PackageBinSource, Path, Value, create_dir_all, json,
-    link_bins_of_packages, read_file, read_to_string, tempdir, write_file,
+    Arc,
+    Host,
+    LinkBinsOptions,
+    PackageBinSource,
+    Path,
+    Value,
+    create_dir_all,
+    json,
+    link_bins_of_packages,
+    read_file,
+    read_to_string,
+    tempdir,
+    write_file,
 };
 #[cfg(unix)]
-use super::{is_sh_shim_hardened, is_shim_pointing_at};
+use super::{
+    is_sh_shim_hardened,
+    is_shim_pointing_at,
+};
 #[cfg(unix)]
 use crate::shim::generate_sh_shim;
 #[cfg(unix)]

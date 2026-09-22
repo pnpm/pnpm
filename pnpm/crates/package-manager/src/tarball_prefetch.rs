@@ -15,21 +15,40 @@
 //! while the prefetch finishes).
 
 use crate::{
-    install_package_by_snapshot::tarball_url_and_integrity, retry_config::retry_opts_from_config,
+    install_package_by_snapshot::tarball_url_and_integrity,
+    retry_config::retry_opts_from_config,
 };
 use dashmap::DashSet;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, LockfileResolution};
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::{
-    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndex, StoreIndexError,
-    StoreIndexWriter, store_index_key,
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreIndex,
+    StoreIndexError,
+    StoreIndexWriter,
+    store_index_key,
 };
-use pnpm_tarball::{IngestTarballToStore, MemCache, RetryOpts, TarballError};
+use pnpm_tarball::{
+    IngestTarballToStore,
+    MemCache,
+    RetryOpts,
+    TarballError,
+};
 use ssri::Integrity;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::PathBuf,
     sync::Arc,
 };

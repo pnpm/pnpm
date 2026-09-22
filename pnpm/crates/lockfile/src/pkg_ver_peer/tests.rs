@@ -1,4 +1,9 @@
-use super::{ParsePkgVerPeerError, PkgVerPeer, Prefix, VersionPart};
+use super::{
+    ParsePkgVerPeerError,
+    PkgVerPeer,
+    Prefix,
+    VersionPart,
+};
 use node_semver::Version;
 use pretty_assertions::assert_eq;
 

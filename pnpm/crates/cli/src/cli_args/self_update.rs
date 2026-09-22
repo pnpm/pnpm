@@ -12,21 +12,58 @@
 pub(crate) mod install_pnpm;
 pub(crate) mod verify_engine;
 
-use crate::config_deps::{self, EnginePolicyViolation};
+use crate::config_deps::{
+    self,
+    EnginePolicyViolation,
+};
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_cmd_shim::{Host as CmdShimHost, LinkBinsOptions, link_bins_of_packages_with_excludes};
-use pnpm_config::{Config, PNPM_VERSION, standalone_install_command};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
+use pnpm_cmd_shim::{
+    Host as CmdShimHost,
+    LinkBinsOptions,
+    link_bins_of_packages_with_excludes,
+};
+use pnpm_config::{
+    Config,
+    PNPM_VERSION,
+    standalone_install_command,
+};
 use pnpm_fs::force_symlink_dir;
-use pnpm_global::{create_global_cache_key, get_hash_link, read_installed_packages};
+use pnpm_global::{
+    create_global_cache_key,
+    get_hash_link,
+    read_installed_packages,
+};
 use pnpm_lockfile::EnvLockfile;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pnpm_resolving_npm_resolver::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, infer_range_spec_style};
-use project_pin::{read_project_pinned_pnpm_version, update_project_pin};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
+use pnpm_resolving_npm_resolver::{
+    MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+    infer_range_spec_style,
+};
+use project_pin::{
+    read_project_pinned_pnpm_version,
+    update_project_pin,
+};
 use serde_json::Value;
-use std::{collections::HashSet, io::IsTerminal, path::Path};
+use std::{
+    collections::HashSet,
+    io::IsTerminal,
+    path::Path,
+};
 
 /// Migration guidance printed once when `self-update` crosses a major
 /// boundary. Add an entry per future major that ships breaking changes

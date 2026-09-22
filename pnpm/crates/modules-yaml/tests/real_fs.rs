@@ -6,10 +6,22 @@
 
 use indexmap::IndexSet;
 use pipe_trait::Pipe;
-use pnpm_modules_yaml::{DepPath, Host, Modules, read_modules_manifest, write_modules_manifest};
+use pnpm_modules_yaml::{
+    DepPath,
+    Host,
+    Modules,
+    read_modules_manifest,
+    write_modules_manifest,
+};
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
-use std::{fs, path::Path};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn manifest_from_json(value: Value) -> Modules {
     serde_json::from_value(value).expect("deserialize Modules fixture")

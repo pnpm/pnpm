@@ -13,11 +13,17 @@
 //! the outer mutex is dropped before the await so unrelated keys stay
 //! unblocked.
 //!
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 use pnpm_registry::Package;
 use ssri::Integrity;
-use tokio::sync::{Mutex, OnceCell};
+use tokio::sync::{
+    Mutex,
+    OnceCell,
+};
 
 /// Per-version time map keyed by version string. The verifier only
 /// reads the publish timestamp for a specific version, so storing

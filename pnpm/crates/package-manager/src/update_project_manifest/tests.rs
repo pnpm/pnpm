@@ -1,9 +1,18 @@
 use super::{
-    CatalogLookup, ResolvedDirectDependency, UpdateProjectManifestOptions, WantedDependencyUpdate,
+    CatalogLookup,
+    ResolvedDirectDependency,
+    UpdateProjectManifestOptions,
+    WantedDependencyUpdate,
     update_project_manifest,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use serde_json::{Value, json};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 
 fn manifest_from_json(value: &Value) -> (TempDir, PackageManifest) {

@@ -11,13 +11,26 @@
 mod common;
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use pnpr::{Config, router};
+use pnpr::{
+    Config,
+    router,
+};
 use serde_json::Value;
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::PathBuf,
 };
 use tower::ServiceExt;

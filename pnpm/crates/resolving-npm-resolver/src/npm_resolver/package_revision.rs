@@ -1,7 +1,15 @@
 use super::{
-    Cow, Integrity, InvalidRevisionSpecifierError, InvalidTarballRevisionMetadataError,
-    MalformedRevisionHistoryError, NoMatchingRevisionError, PackageVersion, RegistryPackageSpec,
-    RegistryRevisionSelector, ResolveError, TarballRevision,
+    Cow,
+    Integrity,
+    InvalidRevisionSpecifierError,
+    InvalidTarballRevisionMetadataError,
+    MalformedRevisionHistoryError,
+    NoMatchingRevisionError,
+    PackageVersion,
+    RegistryPackageSpec,
+    RegistryRevisionSelector,
+    ResolveError,
+    TarballRevision,
     is_integrity_addressed_registry_tarball_url,
 };
 

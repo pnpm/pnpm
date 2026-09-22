@@ -1,6 +1,18 @@
 use super::{
-    Arc, BTreeMap, DependencyOverrider, DirectDep, DirectSeeds, HashMap, HashSet, HoistSettings,
-    ImporterHoistState, LockedPeers, MissingPeer, PreferredVersions, TreeCtx, WorkspaceRootDep,
+    Arc,
+    BTreeMap,
+    DependencyOverrider,
+    DirectDep,
+    DirectSeeds,
+    HashMap,
+    HashSet,
+    HoistSettings,
+    ImporterHoistState,
+    LockedPeers,
+    MissingPeer,
+    PreferredVersions,
+    TreeCtx,
+    WorkspaceRootDep,
 };
 
 pub(super) struct ImporterHoistPolicy {

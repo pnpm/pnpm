@@ -1,5 +1,12 @@
-use super::{LazyLockfile, MaybeLazyLockfile};
-use crate::{LoadLockfileError, Lockfile, WantedLockfileSelection};
+use super::{
+    LazyLockfile,
+    MaybeLazyLockfile,
+};
+use crate::{
+    LoadLockfileError,
+    Lockfile,
+    WantedLockfileSelection,
+};
 use std::fs;
 use text_block_macros::text_block;
 

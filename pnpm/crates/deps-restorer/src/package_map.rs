@@ -1,13 +1,22 @@
 pub use hoisted::dependencies_graph_to_package_map;
 pub use node_options::{
-    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    make_node_package_map_option,
+    make_node_require_option,
+    package_map_path_for_execution,
 };
 
 mod dependencies;
 use dependencies::{
-    LinkReference, LinkTarget, PhysicalPackageIndex, add_importer_dependencies,
-    add_loose_dependencies, add_physical_importer_dependencies, add_physical_snapshot_dependencies,
-    add_snapshot_dependencies, get_node_modules_path, resolve_link_target,
+    LinkReference,
+    LinkTarget,
+    PhysicalPackageIndex,
+    add_importer_dependencies,
+    add_loose_dependencies,
+    add_physical_importer_dependencies,
+    add_physical_snapshot_dependencies,
+    add_snapshot_dependencies,
+    get_node_modules_path,
+    resolve_link_target,
 };
 
 mod hoisted;
@@ -17,13 +26,19 @@ mod node_options;
 use crate::LockfileToDepGraphResult;
 use pnpm_config::NodePackageMapType;
 use pnpm_fs::lexical_normalize;
-use pnpm_lockfile::{Lockfile, PackageKey};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+};
 use pnpm_package_manifest::PackageManifest;
 use serde::Serialize;
 use std::{
     collections::BTreeMap,
     fmt::Write as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub const PACKAGE_MAP_FILENAME: &str = ".package-map.json";

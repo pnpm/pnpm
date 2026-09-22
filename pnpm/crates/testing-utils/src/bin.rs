@@ -1,7 +1,14 @@
-use crate::{command_env::CommandTestExt, registry::TestRegistry};
+use crate::{
+    command_env::CommandTestExt,
+    registry::TestRegistry,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use std::{fs, path::PathBuf, process::Command};
+use std::{
+    fs,
+    path::PathBuf,
+    process::Command,
+};
 use tempfile::TempDir;
 use text_block_macros::text_block_fnl;
 

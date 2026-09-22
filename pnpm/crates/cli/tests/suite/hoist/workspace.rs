@@ -1,6 +1,14 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, ManifestDeps, WorkspaceFixture, fs,
-    generate_lockfile, is_symlink_or_junction, pacquet_in, repin_snapshot_dependency,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    ManifestDeps,
+    WorkspaceFixture,
+    fs,
+    generate_lockfile,
+    is_symlink_or_junction,
+    pacquet_in,
+    repin_snapshot_dependency,
     write_workspace_yaml,
 };
 use assert_cmd::assert::OutputAssertExt;

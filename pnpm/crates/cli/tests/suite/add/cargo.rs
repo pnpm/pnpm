@@ -1,7 +1,16 @@
 use super::{
-    Command, CommandExtra, TempDir, assert_eq, cache_foo_index, cargo_add_project, prod_spec,
+    Command,
+    CommandExtra,
+    TempDir,
+    assert_eq,
+    cache_foo_index,
+    cargo_add_project,
+    prod_spec,
 };
-use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+use assert_cmd::{
+    assert::OutputAssertExt,
+    cargo::CommandCargoExt,
+};
 
 #[test]
 fn add_crate_updates_cargo_without_creating_a_node_manifest() {

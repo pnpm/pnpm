@@ -13,7 +13,10 @@ mod runtimes;
 mod installation;
 
 use super::LockfileToHoistedDepGraphOptions;
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+};
 use std::path::PathBuf;
 
 fn sample_resolution() -> LockfileResolution {
@@ -29,8 +32,18 @@ const ACCEPTS_DEP_PATH: &str = "accepts@1.3.7";
 // --- Walker tests ----------------------------------------------------
 
 use pnpm_lockfile::{
-    ComVer, Lockfile, LockfileSettings, LockfileVersion, PackageKey, PackageMetadata, PkgName,
-    PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
+    ComVer,
+    Lockfile,
+    LockfileSettings,
+    LockfileVersion,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
     SnapshotEntry,
 };
 use std::collections::HashMap;

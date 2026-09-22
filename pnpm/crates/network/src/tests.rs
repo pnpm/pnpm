@@ -12,21 +12,42 @@
 //! absolute-form URI and a decoded `Proxy-Authorization` header.
 
 use super::{
-    AuthHeaders, CappedDnsResolver, ForInstallsError, NetworkSettings, NoProxyMatcher,
-    NoProxySetting, PerRegistryTls, ProxyConfig, ProxyError, ThrottledClient, TlsConfig,
-    bundled_root_certs, nerf_dart, origin_of, parse_proxy_url, percent_decode_str,
+    AuthHeaders,
+    CappedDnsResolver,
+    ForInstallsError,
+    NetworkSettings,
+    NoProxyMatcher,
+    NoProxySetting,
+    PerRegistryTls,
+    ProxyConfig,
+    ProxyError,
+    ThrottledClient,
+    TlsConfig,
+    bundled_root_certs,
+    nerf_dart,
+    origin_of,
+    parse_proxy_url,
+    percent_decode_str,
 };
 use crate::proxy::strip_userinfo;
 use pnpm_testing_utils::env_guard::EnvGuard;
 use reqwest::{
     Url,
-    dns::{Addrs, Name, Resolve, Resolving},
+    dns::{
+        Addrs,
+        Name,
+        Resolve,
+        Resolving,
+    },
 };
 use std::{
     num::NonZeroUsize,
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };

@@ -1,4 +1,8 @@
-use super::{TokenHelperError, TokenHelperOutput, execute_token_helper};
+use super::{
+    TokenHelperError,
+    TokenHelperOutput,
+    execute_token_helper,
+};
 use std::io;
 
 fn ok_stdout(stdout: &str) -> io::Result<TokenHelperOutput> {
@@ -19,7 +23,10 @@ fn a_timed_out_runner_maps_to_the_timeout_error() {
 #[cfg(unix)]
 #[test]
 fn a_hung_command_is_killed_at_the_deadline() {
-    use std::time::{Duration, Instant};
+    use std::time::{
+        Duration,
+        Instant,
+    };
 
     let command = vec!["/bin/sh".to_owned(), "-c".to_owned(), "sleep 10".to_owned()];
     let started = Instant::now();

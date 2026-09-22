@@ -17,25 +17,49 @@
 //! rendered.
 
 use std::{
-    collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use napi_derive::napi;
 use pnpm_deps_inspection::{
     MAX_WALK_DEPTH,
-    build::{LoadedState, importer_root_ids, read_project_manifest, safe_importer_dir},
-    dependents::{BuildDependentsOptions, DependentsTree, ImporterInfo, build_dependents_tree},
+    build::{
+        LoadedState,
+        importer_root_ids,
+        read_project_manifest,
+        safe_importer_dir,
+    },
+    dependents::{
+        BuildDependentsOptions,
+        DependentsTree,
+        ImporterInfo,
+        build_dependents_tree,
+    },
     dependents_render::{
-        RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
+        RenderDependentsOptions,
+        render_dependents_json,
+        render_dependents_parseable,
         render_dependents_tree,
     },
-    graph::{BuildGraphOptions, build_dependency_graph},
+    graph::{
+        BuildGraphOptions,
+        build_dependency_graph,
+    },
     search::Searcher,
 };
 use pnpm_lockfile::Lockfile;
 use pnpm_matcher::create_matcher;
-use pnpm_modules_yaml::{DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, IncludedDependencies};
+use pnpm_modules_yaml::{
+    DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+    IncludedDependencies,
+};
 
 use crate::error::report_to_napi_error;
 

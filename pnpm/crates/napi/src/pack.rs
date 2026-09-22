@@ -7,16 +7,26 @@
 //! scripts, so it runs on a blocking pool. Lifecycle-script output is
 //! forwarded to the optional `onLog` sink through [`NodeBridgeReporter`].
 
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 use napi_derive::napi;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{NodeLinker, PNPM_VERSION};
+use pnpm_config::{
+    NodeLinker,
+    PNPM_VERSION,
+};
 
 use crate::{
     error::to_napi_error,
     install::engine_call_lock,
-    reporter_bridge::{EngineCallGuard, LogSink, NodeBridgeReporter},
+    reporter_bridge::{
+        EngineCallGuard,
+        LogSink,
+        NodeBridgeReporter,
+    },
 };
 
 /// Inputs for [`pack`]. Mirrors [`PackOptions`] in `index.d.ts`.

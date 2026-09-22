@@ -1,4 +1,8 @@
-use super::{OtpChallenge, OtpErrorBody, otp_challenge_from_unauthorized_body};
+use super::{
+    OtpChallenge,
+    OtpErrorBody,
+    otp_challenge_from_unauthorized_body,
+};
 
 #[test]
 fn a_body_with_both_web_auth_urls_is_a_web_challenge() {

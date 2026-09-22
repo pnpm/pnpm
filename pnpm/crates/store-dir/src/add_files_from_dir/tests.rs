@@ -1,9 +1,15 @@
-use super::{AddFilesFromDirError, add_files_from_dir};
+use super::{
+    AddFilesFromDirError,
+    add_files_from_dir,
+};
 use crate::StoreDir;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::os::unix::fs as unix_fs;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 fn make_store() -> (tempfile::TempDir, StoreDir) {

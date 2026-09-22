@@ -1,8 +1,20 @@
-use super::{link_cached_engine_bins, package_dir, package_manager_engine_config, resolve_slot};
+use super::{
+    link_cached_engine_bins,
+    package_dir,
+    package_manager_engine_config,
+    resolve_slot,
+};
 use pnpm_config::Config;
-use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_graph_hasher::{
+    host_arch,
+    host_libc,
+    host_platform,
+};
 use pnpm_store_dir::StoreDir;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[test]
 fn cache_hit_relinks_missing_pnpm_bin() {

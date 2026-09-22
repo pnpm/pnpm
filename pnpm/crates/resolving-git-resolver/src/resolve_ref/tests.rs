@@ -1,8 +1,16 @@
 use super::{
-    GitCommandRunner, GitResolveRefError, GitRunError, looks_like_version_tag, parse_ls_remote,
+    GitCommandRunner,
+    GitResolveRefError,
+    GitRunError,
+    looks_like_version_tag,
+    parse_ls_remote,
     resolve_ref,
 };
-use std::{future::Future, pin::Pin, sync::Mutex};
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::Mutex,
+};
 
 struct Stub {
     result: Result<String, String>,

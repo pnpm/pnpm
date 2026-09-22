@@ -1,6 +1,15 @@
 use super::{
-    FAKE_INTEGRITY, LockfileResolution, PkgName, ResolutionVerification, TarballResolution, Utc,
-    assert_eq, create_npm_resolution_verifier, ctx, default_opts, fake_integrity,
+    FAKE_INTEGRITY,
+    LockfileResolution,
+    PkgName,
+    ResolutionVerification,
+    TarballResolution,
+    Utc,
+    assert_eq,
+    create_npm_resolution_verifier,
+    ctx,
+    default_opts,
+    fake_integrity,
     registry_resolution,
 };
 use pnpm_resolving_resolver_base::ResolutionVerifier;

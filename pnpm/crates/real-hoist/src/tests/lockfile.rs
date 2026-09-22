@@ -1,4 +1,9 @@
-use super::{HoistOpts, assert_eq, empty_lockfile, hoist};
+use super::{
+    HoistOpts,
+    assert_eq,
+    empty_lockfile,
+    hoist,
+};
 
 #[test]
 fn empty_lockfile_yields_empty_root() {

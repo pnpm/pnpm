@@ -1,4 +1,10 @@
-use qrcode::{EcLevel, QrCode, Version, bits::Bits, types::Color};
+use qrcode::{
+    EcLevel,
+    QrCode,
+    Version,
+    bits::Bits,
+    types::Color,
+};
 
 /// Render `text` as a compact half-block Unicode QR code for a terminal,
 /// matching the output of pnpm's `qrcode-terminal` small mode.

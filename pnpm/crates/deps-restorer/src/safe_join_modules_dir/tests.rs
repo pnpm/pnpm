@@ -1,4 +1,7 @@
-use super::{safe_join_modules_dir, safe_join_workspace_modules_dir};
+use super::{
+    safe_join_modules_dir,
+    safe_join_workspace_modules_dir,
+};
 use std::path::Path;
 
 #[test]

@@ -2,26 +2,46 @@ pub(crate) mod state_options;
 
 pub use entry_points::apply_deploy_manifest_hook;
 pub(crate) use entry_points::apply_deploy_manifest_hook_to_arc;
-pub use errors::{InstallError, defer_ignored_builds};
+pub use errors::{
+    InstallError,
+    defer_ignored_builds,
+};
 pub(crate) use lockfile_freshness::{
-    CheckLockfileSettingsDriftOptions, FreshnessCheckError, FreshnessScope,
-    ImporterSatisfactionCheck, check_importer_satisfies, check_lockfile_settings_drift,
+    CheckLockfileSettingsDriftOptions,
+    FreshnessCheckError,
+    FreshnessScope,
+    ImporterSatisfactionCheck,
+    check_importer_satisfies,
+    check_lockfile_settings_drift,
     parse_config_overrides,
 };
 pub use lockfile_freshness::{
-    WantedLockfileSatisfactionCheck, wanted_lockfile_satisfies_workspace,
+    WantedLockfileSatisfactionCheck,
+    wanted_lockfile_satisfies_workspace,
 };
 pub(crate) use modules_state::{
-    frozen_tree_intact, hoisted_workspace_packages_present, modules_layout_consistent_with,
-    moved_tree_is_reusable, tree_may_move,
+    frozen_tree_intact,
+    hoisted_workspace_packages_present,
+    modules_layout_consistent_with,
+    moved_tree_is_reusable,
+    tree_may_move,
 };
-pub use run::{InstallExecution, InstallLockfilePolicy, ResolutionInputs};
+pub use run::{
+    InstallExecution,
+    InstallLockfilePolicy,
+    ResolutionInputs,
+};
 pub use workspace_state::{
-    UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,
-    check_deps_status_before_run_at, install_already_up_to_date,
+    UpToDateFastPathCheck,
+    UpToDateWorkspace,
+    build_workspace_packages_map,
+    check_deps_status_before_run_at,
+    install_already_up_to_date,
 };
 pub(crate) use workspace_state::{
-    build_workspace_state, configured_or_discovered_workspace_dir, lockfile_root_dir,
+    build_workspace_state,
+    configured_or_discovered_workspace_dir,
+    lockfile_root_dir,
     workspace_packages_for_freshness,
 };
 
@@ -29,52 +49,117 @@ mod entry_points;
 
 mod errors;
 
-use errors::{map_fresh_lockfile_error, map_frozen_lockfile_error};
+use errors::{
+    map_fresh_lockfile_error,
+    map_frozen_lockfile_error,
+};
 
 use crate::{
-    HoistedDependencies, InstallFrozenLockfile, InstallWithFreshLockfile,
-    InstallWithFreshLockfileError, LockfileVerificationOverride, OptimisticRepeatInstallCheck,
-    RebuildOptions, ResolvedPackages, UpdateSeedPolicy, build_resolution_verifiers,
-    check_optimistic_repeat_install, emit_initial_package_manifest, link_project_bins,
+    HoistedDependencies,
+    InstallFrozenLockfile,
+    InstallWithFreshLockfile,
+    InstallWithFreshLockfileError,
+    LockfileVerificationOverride,
+    OptimisticRepeatInstallCheck,
+    RebuildOptions,
+    ResolvedPackages,
+    UpdateSeedPolicy,
+    build_resolution_verifiers,
+    check_optimistic_repeat_install,
+    emit_initial_package_manifest,
+    link_project_bins,
     optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
-    prune_merged_branch_lockfile::prune_merged_branch_lockfile, report_merged_lockfile_conflicts,
+    prune_merged_branch_lockfile::prune_merged_branch_lockfile,
+    report_merged_lockfile_conflicts,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, NodeLinker, PNPM_VERSION};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+    PNPM_VERSION,
+};
 use pnpm_executor::{
-    DEV_PREINSTALL_ALREADY_RAN_ENV, RunPostinstallHooks,
-    ScriptsPrependNodePath as ExecScriptsPrependNodePath, run_dev_preinstall_hook,
+    DEV_PREINSTALL_ALREADY_RAN_ENV,
+    RunPostinstallHooks,
+    ScriptsPrependNodePath as ExecScriptsPrependNodePath,
+    run_dev_preinstall_hook,
     run_project_lifecycle_scripts,
 };
 use pnpm_lockfile::{
-    LazyLockfile, Lockfile, LockfileEntries, MaybeLazyLockfile, PnpmfileChecksumCheck,
-    StalenessReason, VersionPart, satisfies_package_manifest,
+    LazyLockfile,
+    Lockfile,
+    LockfileEntries,
+    MaybeLazyLockfile,
+    PnpmfileChecksumCheck,
+    StalenessReason,
+    VersionPart,
+    satisfies_package_manifest,
 };
 use pnpm_lockfile_verification::{
-    VerifyLockfileResolutionsOptions, record_lockfile_verified, verify_lockfile_resolutions,
+    VerifyLockfileResolutionsOptions,
+    record_lockfile_verified,
+    verify_lockfile_resolutions,
 };
 use pnpm_modules_yaml::{
-    Clock, Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
+    Clock,
+    Host,
+    IncludedDependencies,
+    LayoutVersion,
+    Modules,
+    NodeLinker as ModulesNodeLinker,
     write_modules_manifest,
 };
-use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, node_version_from_engines_runtime};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+    node_version_from_engines_runtime,
+};
 use pnpm_reporter::{
-    ContextLog, GlobalLog, LogEvent, LogLevel, PnpmLog, Reporter, ScopeLog, Stage, StageLog,
+    ContextLog,
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+    ScopeLog,
+    Stage,
+    StageLog,
     SummaryLog,
 };
 use pnpm_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 use pnpm_tarball::MemCache;
-use pnpm_workspace_state::{ProjectEntry, WorkspaceState, update_workspace_state};
+use pnpm_workspace_state::{
+    ProjectEntry,
+    WorkspaceState,
+    update_workspace_state,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+        HashSet,
+    },
     io::IsTerminal,
-    path::{Path, PathBuf},
-    sync::{Arc, atomic::AtomicU8},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
     time::SystemTime,
 };
 
@@ -98,30 +183,58 @@ pub(super) fn included_dependencies(dependency_groups: &[DependencyGroup]) -> In
 mod run;
 mod workspace_state;
 
-use apply_materialization::{ApplyMaterializationInputs, apply_materialization_result};
+use apply_materialization::{
+    ApplyMaterializationInputs,
+    apply_materialization_result,
+};
 use lifecycle::{
-    dev_preinstall_already_ran, load_workspace_projects, project_lifecycle_graph,
-    run_dev_preinstall, run_projects_lifecycle_scripts,
+    dev_preinstall_already_ran,
+    load_workspace_projects,
+    project_lifecycle_graph,
+    run_dev_preinstall,
+    run_projects_lifecycle_scripts,
 };
 use lockfile_freshness::{
-    FastUpdateLockfileOptions, check_lockfile_freshness, try_fast_update_lockfile,
+    FastUpdateLockfileOptions,
+    check_lockfile_freshness,
+    try_fast_update_lockfile,
 };
-use materialize::{MaterializationInputs, Materialized, materialize};
+use materialize::{
+    MaterializationInputs,
+    Materialized,
+    materialize,
+};
 use modules_state::{
-    build_modules_manifest, check_modules_settings_diff, current_contains_dep_path,
-    drain_settled_projects, gvs_build_marker_present, gvs_build_markers_may_require_recovery,
-    has_newly_allowed_ignored_builds, manifest_string_field, merge_filtered_modules_metadata,
-    merge_pending_builds, modules_consistent_with, project_requires_lifecycle_scripts,
-    recorded_allow_builds_differ, unapproved_recorded_ignored_builds,
+    build_modules_manifest,
+    check_modules_settings_diff,
+    current_contains_dep_path,
+    drain_settled_projects,
+    gvs_build_marker_present,
+    gvs_build_markers_may_require_recovery,
+    has_newly_allowed_ignored_builds,
+    manifest_string_field,
+    merge_filtered_modules_metadata,
+    merge_pending_builds,
+    modules_consistent_with,
+    project_requires_lifecycle_scripts,
+    recorded_allow_builds_differ,
+    unapproved_recorded_ignored_builds,
 };
 use prepare_modules_state::{
-    PrepareModulesStateInputs, PreparedModulesState, prepare_modules_state,
-    prior_hoisted_dependencies, prior_hoisted_locations,
+    PrepareModulesStateInputs,
+    PreparedModulesState,
+    prepare_modules_state,
+    prior_hoisted_dependencies,
+    prior_hoisted_locations,
 };
 use time_machine::TimeMachineExclusions;
 use workspace_state::{
-    ProjectScriptsInputs, build_project_manifests_list, build_root_importer_project_manifests_list,
-    build_selected_project_manifests_list, lockfile_root_for, projects_running_own_scripts,
+    ProjectScriptsInputs,
+    build_project_manifests_list,
+    build_root_importer_project_manifests_list,
+    build_selected_project_manifests_list,
+    lockfile_root_for,
+    projects_running_own_scripts,
     selected_manifest_freshness_inputs,
 };
 

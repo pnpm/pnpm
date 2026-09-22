@@ -4,7 +4,10 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use pretty_assertions::assert_eq;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 

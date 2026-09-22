@@ -2,14 +2,24 @@
 //! (deps/inspection/tree-builder/test/getPkgInfo.test.ts).
 
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use pnpm_lockfile::Lockfile;
 use pretty_assertions::assert_eq;
 
-use super::{EdgeContext, PkgInfoEnv, get_pkg_info};
+use super::{
+    EdgeContext,
+    PkgInfoEnv,
+    get_pkg_info,
+};
 use crate::graph::GraphEdge;
 
 // Port of upstream's 'getPkgInfo handles missing pkgSnapshot without crashing'

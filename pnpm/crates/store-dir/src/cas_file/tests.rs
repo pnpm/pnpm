@@ -1,6 +1,15 @@
-use crate::{StoreDir, WriteCasFileFromReaderError};
-use sha2::{Digest, Sha512};
-use std::{io, path::PathBuf};
+use crate::{
+    StoreDir,
+    WriteCasFileFromReaderError,
+};
+use sha2::{
+    Digest,
+    Sha512,
+};
+use std::{
+    io,
+    path::PathBuf,
+};
 
 #[test]
 fn cas_file_path() {

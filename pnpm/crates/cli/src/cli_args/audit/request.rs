@@ -1,8 +1,19 @@
 //! Turning a lockfile into the dependency graph the registry audits.
 
 use super::{
-    BTreeMap, EnvLockfile, HashMap, HashSet, ImporterDepVersion, Lockfile, PackageKey, PkgName,
-    ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, package_version,
+    BTreeMap,
+    EnvLockfile,
+    HashMap,
+    HashSet,
+    ImporterDepVersion,
+    Lockfile,
+    PackageKey,
+    PkgName,
+    ResolvedDependencyMap,
+    SnapshotDepRef,
+    SnapshotEntry,
+    SpecifierAndResolution,
+    package_version,
 };
 
 #[derive(Debug, Default)]

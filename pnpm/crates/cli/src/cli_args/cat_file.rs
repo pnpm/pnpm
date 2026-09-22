@@ -1,9 +1,18 @@
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_store_dir::StoreDir;
-use std::{fs::File, io::Write as _};
+use std::{
+    fs::File,
+    io::Write as _,
+};
 
 #[derive(Debug, Args)]
 pub struct CatFileArgs {

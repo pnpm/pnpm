@@ -1,4 +1,7 @@
-use super::{FastCatalogUpdate, try_fast_update_catalogs};
+use super::{
+    FastCatalogUpdate,
+    try_fast_update_catalogs,
+};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::Lockfile;
 

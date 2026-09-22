@@ -2,24 +2,59 @@
 //! ls-remote runner into a single [`Resolver`] the dispatcher can
 //! compose into the default-resolver chain.
 
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::Arc,
+};
 
-use pnpm_git_fetcher::{GitManifestQuery, read_git_manifest};
-use pnpm_lockfile::{GitResolution, LockfileResolution, TarballResolution};
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_git_fetcher::{
+    GitManifestQuery,
+    read_git_manifest,
+};
+use pnpm_lockfile::{
+    GitResolution,
+    LockfileResolution,
+    TarballResolution,
+};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_resolving_resolver_base::{
-    GitResolveError, LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture,
-    ResolveOptions, ResolveResult, Resolver, WantedDependency,
+    GitResolveError,
+    LatestInfo,
+    LatestQuery,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
-use pnpm_store_dir::{StoreDir, StoreIndexWriter};
-use pnpm_tarball::{FetchTarballForResolution, RetryOpts};
+use pnpm_store_dir::{
+    StoreDir,
+    StoreIndexWriter,
+};
+use pnpm_tarball::{
+    FetchTarballForResolution,
+    RetryOpts,
+};
 
 use crate::{
     create_git_hosted_pkg_id::create_git_hosted_pkg_id,
     hosted_git::HostedOpts,
-    parse_bare_specifier::{HostedPackageSpec, parse_bare_specifier},
-    resolve_ref::{GitCommandRunner, GitResolveRefError, resolve_ref},
+    parse_bare_specifier::{
+        HostedPackageSpec,
+        parse_bare_specifier,
+    },
+    resolve_ref::{
+        GitCommandRunner,
+        GitResolveRefError,
+        resolve_ref,
+    },
 };
 
 /// Boxed-future return type used by [`GitProbe`]. Same shape as the

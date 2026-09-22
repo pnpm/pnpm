@@ -1,7 +1,22 @@
-use crate::{ParsePkgNameSuffixError, ParsePkgVerPeerError, PkgName, PkgNameVerPeer, PkgVerPeer};
-use derive_more::{Display, Error};
-use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, str::FromStr};
+use crate::{
+    ParsePkgNameSuffixError,
+    ParsePkgVerPeerError,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::{
+    borrow::Cow,
+    str::FromStr,
+};
 
 /// Value of a single entry in [`SnapshotEntry::dependencies`](crate::SnapshotEntry::dependencies)
 /// (or `optional_dependencies`).

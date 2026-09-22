@@ -1,20 +1,52 @@
 use super::{
-    super::{Install, InstallError, ProjectMutation},
-    InstallDirs, PARTIAL_INSTALL_LOCKFILE,
+    super::{
+        Install,
+        InstallError,
+        ProjectMutation,
+    },
+    InstallDirs,
+    PARTIAL_INSTALL_LOCKFILE,
 };
 use crate::PolicyExcludes;
 use pipe_trait::Pipe;
-use pnpm_config::{Config, NodePackageMapType};
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
-use pnpm_modules_yaml::{Host, LayoutVersion, Modules, NodeLinker, read_modules_manifest};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_config::{
+    Config,
+    NodePackageMapType,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_modules_yaml::{
+    Host,
+    LayoutVersion,
+    Modules,
+    NodeLinker,
+    read_modules_manifest,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::{
-    LogEvent, PackageManifestLog, PackageManifestMessage, ProgressLog, ProgressMessage, Reporter,
-    SilentReporter, Stage, StageLog, StatsLog, StatsMessage,
+    LogEvent,
+    PackageManifestLog,
+    PackageManifestMessage,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
+    SilentReporter,
+    Stage,
+    StageLog,
+    StatsLog,
+    StatsMessage,
 };
 use pnpm_store_dir::STORE_VERSION;
 use pnpm_testing_utils::{
-    fs::{get_all_folders, is_symlink_or_junction},
+    fs::{
+        get_all_folders,
+        is_symlink_or_junction,
+    },
     registry::TestRegistry,
 };
 use std::sync::Mutex;

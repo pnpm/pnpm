@@ -1,4 +1,8 @@
-use super::{BinaryChannel, Channel, PackageManager};
+use super::{
+    BinaryChannel,
+    Channel,
+    PackageManager,
+};
 
 fn yarn_channel_of(version_spec: &str) -> Channel {
     PackageManager::Yarn.channel(version_spec)

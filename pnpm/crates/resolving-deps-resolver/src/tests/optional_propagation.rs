@@ -1,6 +1,13 @@
 use super::{
-    DependencyGroup, HashMap, Mutex, PackageManifest, ResolveDependencyTreeOptions, ResolveOptions,
-    StubResolver, fake_result, resolve_dependency_tree,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    PackageManifest,
+    ResolveDependencyTreeOptions,
+    ResolveOptions,
+    StubResolver,
+    fake_result,
+    resolve_dependency_tree,
 };
 
 /// `package.json` builder that takes both `dependencies` and

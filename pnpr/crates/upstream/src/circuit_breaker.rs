@@ -1,4 +1,8 @@
-use super::{Duration, Instant, Mutex};
+use super::{
+    Duration,
+    Instant,
+    Mutex,
+};
 
 /// Verdaccio's `max_fails` / `fail_timeout` circuit breaker. After
 /// `max_fails` consecutive failures the upstream is considered down and

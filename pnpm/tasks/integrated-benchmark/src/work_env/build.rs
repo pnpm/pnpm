@@ -1,10 +1,24 @@
-use super::{BenchId, PNPM_BUNDLE_PATHS, WorkEnv, sync_bench_repo};
-use crate::{cli_args::TargetKind, verify::executor};
+use super::{
+    BenchId,
+    PNPM_BUNDLE_PATHS,
+    WorkEnv,
+    sync_bench_repo,
+};
+use crate::{
+    cli_args::TargetKind,
+    verify::executor,
+};
 use pipe_trait::Pipe;
 use std::{
     fs,
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
 impl WorkEnv {

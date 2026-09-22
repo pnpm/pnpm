@@ -1,6 +1,10 @@
 use super::Manifest;
 use crate::host::WheelMetadata;
-use miette::{IntoDiagnostic, Result, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    bail,
+};
 use pep508_rs::ExtraName;
 use pnpm_python_resolver::parse_requirement;
 use std::collections::BTreeSet;

@@ -1,20 +1,47 @@
-use std::{collections::BTreeMap, fs, path::Path, time::SystemTime};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::Path,
+    time::SystemTime,
+};
 
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 use pnpm_lockfile::Lockfile;
-use pnpm_modules_yaml::{AllowBuildValue, IncludedDependencies, LayoutVersion, ModulesLayout};
+use pnpm_modules_yaml::{
+    AllowBuildValue,
+    IncludedDependencies,
+    LayoutVersion,
+    ModulesLayout,
+};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace_state::{ProjectEntry, WorkspaceState, load_workspace_state};
+use pnpm_workspace_state::{
+    ProjectEntry,
+    WorkspaceState,
+    load_workspace_state,
+};
 use tempfile::tempdir;
 
 use crate::install::{
     moved_tree_is_reusable,
     prepare_modules_state::{
-        purge::{is_safe_modules_purge_target, purge_modules_dir_entries},
+        purge::{
+            is_safe_modules_purge_target,
+            purge_modules_dir_entries,
+        },
         recorded_workspace,
-        up_to_date::{FrozenTreeUpToDate, frozen_tree_up_to_date},
+        up_to_date::{
+            FrozenTreeUpToDate,
+            frozen_tree_up_to_date,
+        },
     },
-    state_options::{ModulesTreeContext, RecordedWorkspace, RepeatInstallPolicy},
+    state_options::{
+        ModulesTreeContext,
+        RecordedWorkspace,
+        RepeatInstallPolicy,
+    },
 };
 
 #[test]

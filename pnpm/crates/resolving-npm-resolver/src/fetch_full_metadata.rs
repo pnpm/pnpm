@@ -18,14 +18,31 @@
 //! demands it.
 
 use pnpm_network::{
-    AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, redact_url_credentials,
-    redact_url_for_display, retry_async, send_with_retry_at_priority,
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+    ThrottledClientGuard,
+    redact_url_credentials,
+    redact_url_for_display,
+    retry_async,
+    send_with_retry_at_priority,
 };
 use pnpm_registry::Package;
-use reqwest::{Response, StatusCode, header};
-use std::time::{Duration, Instant};
+use reqwest::{
+    Response,
+    StatusCode,
+    header,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
-use crate::{FetchMetadataError, mirror::clear_meta, registry_url::to_registry_url};
+use crate::{
+    FetchMetadataError,
+    mirror::clear_meta,
+    registry_url::to_registry_url,
+};
 
 /// Accept header for the full packument.
 pub(crate) const ACCEPT_FULL_DOC: &str = "application/json; q=1.0, */*";

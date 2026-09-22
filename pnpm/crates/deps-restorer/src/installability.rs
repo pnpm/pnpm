@@ -14,24 +14,46 @@
 //! install wrote `.modules.yaml`.
 
 pub use platform::{
-    InstallabilityHost, any_installability_constraint, any_optional_installability_constraint,
-    check_installability, manifest_with_inferred_platform, platform_manifest_from_resolve_result,
+    InstallabilityHost,
+    any_installability_constraint,
+    any_optional_installability_constraint,
+    check_installability,
+    manifest_with_inferred_platform,
+    platform_manifest_from_resolve_result,
 };
 
 mod reachability;
-use reachability::{LockfileEdgeReach, walk_lockfile_edges};
+use reachability::{
+    LockfileEdgeReach,
+    walk_lockfile_edges,
+};
 
 mod platform;
 use platform::manifest_from_metadata;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    ProjectSnapshot,
+    SnapshotEntry,
 };
-use pnpm_package_is_installable::{InstallabilityError, InstallabilityOptions, SkipReason};
+use pnpm_package_is_installable::{
+    InstallabilityError,
+    InstallabilityOptions,
+    SkipReason,
+};
 use pnpm_reporter::{
-    LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
     SkippedOptionalReason,
 };
 

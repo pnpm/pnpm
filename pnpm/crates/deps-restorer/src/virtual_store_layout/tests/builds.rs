@@ -1,14 +1,24 @@
 use super::{
-    super::VirtualStoreLayout, LinkHashParityFixture, make_config, package_metadata,
+    super::VirtualStoreLayout,
+    LinkHashParityFixture,
+    make_config,
+    package_metadata,
     snapshot_with_link,
 };
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, RegistryResolution, SnapshotEntry,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    RegistryResolution,
+    SnapshotEntry,
 };
 use pretty_assertions::assert_eq;
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[test]

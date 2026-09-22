@@ -1,6 +1,15 @@
 use super::{
-    BTreeMap, Config, Deserialize, HashMap, SignaturesError, ThrottledClient, encode_package_name,
-    redact_url_credentials, retry_opts_from_config, sanitize_response_body, send_with_retry,
+    BTreeMap,
+    Config,
+    Deserialize,
+    HashMap,
+    SignaturesError,
+    ThrottledClient,
+    encode_package_name,
+    redact_url_credentials,
+    retry_opts_from_config,
+    sanitize_response_body,
+    send_with_retry,
 };
 
 #[derive(Debug, Clone, Deserialize)]

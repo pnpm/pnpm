@@ -15,13 +15,25 @@
 //! queue drops the event, matching the "a reporter problem can never crash an
 //! install" contract on the trait.
 
-use std::sync::{Mutex, OnceLock, RwLock};
+use std::sync::{
+    Mutex,
+    OnceLock,
+    RwLock,
+};
 
 use napi::{
     Status,
-    threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode, UnknownReturnValue},
+    threadsafe_function::{
+        ThreadsafeFunction,
+        ThreadsafeFunctionCallMode,
+        UnknownReturnValue,
+    },
 };
-use pnpm_reporter::{LogEvent, Reporter, StatsMessage};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+    StatsMessage,
+};
 
 use crate::native_reporter::NativeRenderer;
 

@@ -1,6 +1,15 @@
 use super::{
-    Arc, AuthHeaders, FetchTarballForResolution, SilentReporter, StoreIndex, StoreIndexWriter,
-    ThrottledClient, fast_retry_opts, gzipped_archive, store_index_key, tempdir_with_leaked_path,
+    Arc,
+    AuthHeaders,
+    FetchTarballForResolution,
+    SilentReporter,
+    StoreIndex,
+    StoreIndexWriter,
+    ThrottledClient,
+    fast_retry_opts,
+    gzipped_archive,
+    store_index_key,
+    tempdir_with_leaked_path,
 };
 
 /// The row would be keyed by the subpackage (read from

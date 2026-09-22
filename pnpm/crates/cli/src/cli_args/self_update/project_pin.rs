@@ -1,6 +1,13 @@
 use super::{
-    Config, Context, EnvLockfile, PackageManifest, Path, Value, infer_range_spec_style,
-    range_satisfies, version_lt,
+    Config,
+    Context,
+    EnvLockfile,
+    PackageManifest,
+    Path,
+    Value,
+    infer_range_spec_style,
+    range_satisfies,
+    version_lt,
 };
 use crate::config_deps;
 

@@ -16,9 +16,15 @@
 //! so a caller can ask what a specifier is without depending on the code
 //! that resolves it.
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-use pnpm_fs::{lexical_normalize, relative_path};
+use pnpm_fs::{
+    lexical_normalize,
+    relative_path,
+};
 
 /// The two local-filesystem protocols a specifier can carry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

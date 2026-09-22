@@ -4,9 +4,16 @@ mod redact_url;
 
 use axum::{
     http::StatusCode,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
-use derive_more::{Display, Error, From};
+use derive_more::{
+    Display,
+    Error,
+    From,
+};
 
 #[derive(Debug, Display, Error, From)]
 #[non_exhaustive]

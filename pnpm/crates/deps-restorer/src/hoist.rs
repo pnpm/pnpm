@@ -14,12 +14,22 @@ mod symlinks;
 mod workspace_aliases;
 
 use indexmap::IndexMap;
-use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, ProjectSnapshot, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    ProjectSnapshot,
+    SnapshotEntry,
+};
 use pnpm_matcher::Matcher;
 use pnpm_modules_yaml::HoistKind;
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     path::PathBuf,
 };
 

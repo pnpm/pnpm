@@ -1,6 +1,10 @@
 //! Semver questions the audit asks of advisory ranges.
 
-use super::{Range, RangeSpecStyle, Version};
+use super::{
+    Range,
+    RangeSpecStyle,
+    Version,
+};
 
 pub(crate) fn satisfies_safe(version: &str, range: &str) -> bool {
     let Ok(version) = version.parse::<Version>() else { return false };

@@ -1,11 +1,25 @@
 use super::{
-    Digest, ErrorCode, ImageDocument, MAX_MANIFEST_REFERENCES, Manifest, ManifestEntry, Refusal,
+    Digest,
+    ErrorCode,
+    ImageDocument,
+    MAX_MANIFEST_REFERENCES,
+    Manifest,
+    ManifestEntry,
+    Refusal,
     now_millis,
 };
 use crate::server::{
-    Action, AppState, Identity, RegistrySource, authorize,
+    Action,
+    AppState,
+    Identity,
+    RegistrySource,
+    authorize,
     documents::stage_hosted_artifact,
-    publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
+    publishing::{
+        PublishTarget,
+        StagedPublish,
+        resolve_publish_target_for,
+    },
 };
 use axum::body::Bytes;
 use pnpr_error::RegistryError;

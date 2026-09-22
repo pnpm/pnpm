@@ -22,18 +22,28 @@
 //! the per-resolution private key the cache layer will gate on.
 
 pub use url_credentials::{
-    sanitize_registry_tarball_url, strip_url_credentials, url_has_inline_credentials,
+    sanitize_registry_tarball_url,
+    strip_url_credentials,
+    url_has_inline_credentials,
 };
 
 pub use route_hook::RouteHook;
 
 pub use footprint::{
-    Footprint, PrivateAccessDescriptor, credential_digest, headers_credential_digest,
+    Footprint,
+    PrivateAccessDescriptor,
+    credential_digest,
+    headers_credential_digest,
     upstream_cache_digest,
 };
 
 mod url_credentials;
-use url_credentials::{addressed_registry_segment, contains_dot_segment, nerf_prefix, scheme_of};
+use url_credentials::{
+    addressed_registry_segment,
+    contains_dot_segment,
+    nerf_prefix,
+    scheme_of,
+};
 
 mod route_hook;
 
@@ -42,18 +52,47 @@ mod footprint;
 use std::{
     collections::BTreeSet,
     fmt,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 use indexmap::IndexMap;
-use pnpm_network::{MetadataCacheScope, UpstreamRouteHook, nerf_dart};
-use reqwest::header::{AUTHORIZATION, HeaderMap};
-use sha2::{Digest, Sha256};
-use wax::{Glob, Program};
+use pnpm_network::{
+    MetadataCacheScope,
+    UpstreamRouteHook,
+    nerf_dart,
+};
+use reqwest::header::{
+    AUTHORIZATION,
+    HeaderMap,
+};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use wax::{
+    Glob,
+    Program,
+};
 
-use pnpr_config::{Config, PublicRoute, UpstreamConfig};
-use pnpr_policy::{AccessList, Identity, PackageRules};
-use pnpr_registry::{ConcreteKind, Ecosystem, Registries, Resolved};
+use pnpr_config::{
+    Config,
+    PublicRoute,
+    UpstreamConfig,
+};
+use pnpr_policy::{
+    AccessList,
+    Identity,
+    PackageRules,
+};
+use pnpr_registry::{
+    ConcreteKind,
+    Ecosystem,
+    Registries,
+    Resolved,
+};
 
 /// The classification of a single fetch route.
 #[derive(Debug, Clone, PartialEq, Eq)]

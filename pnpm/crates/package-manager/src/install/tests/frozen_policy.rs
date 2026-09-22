@@ -1,13 +1,33 @@
 use super::{
-    super::{Install, InstallError, ProjectMutation},
+    super::{
+        Install,
+        InstallError,
+        ProjectMutation,
+    },
     InstallDirs,
 };
 use crate::PolicyExcludes;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
-use pnpm_modules_yaml::{Host, LayoutVersion, Modules, NodeLinker, write_modules_manifest};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_modules_yaml::{
+    Host,
+    LayoutVersion,
+    Modules,
+    NodeLinker,
+    write_modules_manifest,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_workspace_state as workspace_state;
 use std::sync::Mutex;
 use tempfile::tempdir;

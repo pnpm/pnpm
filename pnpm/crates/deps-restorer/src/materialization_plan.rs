@@ -10,15 +10,31 @@
 //! [`SkipSetInputs::exclude_optional`].
 
 use crate::{
-    InstallabilityHost, SkippedSnapshots, add_direct_runtime_skips, compute_skipped_snapshots,
+    InstallabilityHost,
+    SkippedSnapshots,
+    add_direct_runtime_skips,
+    compute_skipped_snapshots,
     extend_skipped_with_dependency_closure,
-    install_frozen_lockfile::{find_runtime_node_major, parse_major_from_version},
+    install_frozen_lockfile::{
+        find_runtime_node_major,
+        parse_major_from_version,
+    },
 };
-use pnpm_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
-use pnpm_package_is_installable::{InstallabilityError, SupportedArchitectures};
+use pnpm_lockfile::{
+    PackageKey,
+    ProjectSnapshot,
+    SnapshotEntry,
+};
+use pnpm_package_is_installable::{
+    InstallabilityError,
+    SupportedArchitectures,
+};
 use std::{
     collections::HashMap,
-    sync::{Arc, OnceLock},
+    sync::{
+        Arc,
+        OnceLock,
+    },
 };
 
 /// The host Node, reduced to what the phases after the installability

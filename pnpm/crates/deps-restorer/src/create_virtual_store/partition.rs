@@ -6,14 +6,25 @@
 //! Runs immediately after the prefetch, whose results it consumes.
 
 use super::{
-    PackageManifests, RemoteSideEffectsQuarantineBySnapshot, RequiresBuildBySnapshot,
-    SideEffectsBySnapshot, SideEffectsMapsBySnapshot, SnapshotWithCacheKey,
-    StoreIndexKeysBySnapshot, snapshot_needs_build_marker,
+    PackageManifests,
+    RemoteSideEffectsQuarantineBySnapshot,
+    RequiresBuildBySnapshot,
+    SideEffectsBySnapshot,
+    SideEffectsMapsBySnapshot,
+    SnapshotWithCacheKey,
+    StoreIndexKeysBySnapshot,
+    snapshot_needs_build_marker,
 };
 use pnpm_config::NodeLinker;
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
 use pnpm_tarball::PrefetchResult;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// One warm entry: the snapshot, its prefetched CAS paths, the cache key
 /// that found them, and whether its slot needs a build marker.

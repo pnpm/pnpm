@@ -1,4 +1,8 @@
-use super::{super::normalized_save_specifier, add_jsr_selector, add_npm_selector};
+use super::{
+    super::normalized_save_specifier,
+    add_jsr_selector,
+    add_npm_selector,
+};
 
 #[tokio::test]
 async fn add_keeps_the_range_operator_a_jsr_selector_asks_for() {

@@ -1,15 +1,31 @@
 use super::{
-    super::{LockfileToHoistedDepGraphOptions, lockfile_to_hoisted_dep_graph},
-    dep_key, directory_resolution, lockfile_with, metadata_stub, pkg_name, resolved_dep, ver_peer,
+    super::{
+        LockfileToHoistedDepGraphOptions,
+        lockfile_to_hoisted_dep_graph,
+    },
+    dep_key,
+    directory_resolution,
+    lockfile_with,
+    metadata_stub,
+    pkg_name,
+    resolved_dep,
+    ver_peer,
     workspace_lockfile,
 };
 use pnpm_lockfile::{
-    Lockfile, PackageMetadata, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef,
+    Lockfile,
+    PackageMetadata,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
     SnapshotEntry,
 };
 use pnpm_modules_yaml::DepPath;
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 /// A peer-suffixed reference (`b@1.0.0(peer@2.0.0)`) must resolve its
 /// metadata through the peer-stripped `packages:` key (`b@1.0.0`) —

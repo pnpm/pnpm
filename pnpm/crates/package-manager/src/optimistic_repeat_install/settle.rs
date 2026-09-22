@@ -1,20 +1,45 @@
 use super::{
-    Decision, OptimisticRepeatInstallCheck,
-    manifest_agreement::{LinkedPackagesContext, ManifestStat},
-    manifest_has_runtime_deps, manifest_string_field,
+    Decision,
+    OptimisticRepeatInstallCheck,
+    manifest_agreement::{
+        LinkedPackagesContext,
+        ManifestStat,
+    },
+    manifest_has_runtime_deps,
+    manifest_string_field,
 };
-use pnpm_config::{Config, LinkWorkspacePackages, NodeLinker};
+use pnpm_config::{
+    Config,
+    LinkWorkspacePackages,
+    NodeLinker,
+};
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{
-    Lockfile, MaybeLazyLockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec,
+    Lockfile,
+    MaybeLazyLockfile,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencySpec,
 };
-use pnpm_modules_yaml::{Host, IncludedDependencies};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_modules_yaml::{
+    Host,
+    IncludedDependencies,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_workspace::importer_id_from_root_dir;
-use pnpm_workspace_state::{WorkspaceState, update_workspace_state};
+use pnpm_workspace_state::{
+    WorkspaceState,
+    update_workspace_state,
+};
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The verdict the fast path can already reach from the current lockfile and

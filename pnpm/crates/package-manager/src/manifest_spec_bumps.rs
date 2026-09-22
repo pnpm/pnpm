@@ -1,26 +1,45 @@
 //! Moving an update's declared ranges onto the versions it resolved.
 
 use crate::{
-    OverriddenDependencyMatcher, VersionsOverrider,
-    runtime_specifier::{RUNTIME_PROTOCOL, node_runtime_version_spec},
+    OverriddenDependencyMatcher,
+    VersionsOverrider,
+    runtime_specifier::{
+        RUNTIME_PROTOCOL,
+        node_runtime_version_spec,
+    },
 };
 use node_semver::Range;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_engine_runtime_node_resolver::{
-    normalize_node_runtime_version_specifier, parse_node_specifier,
+    normalize_node_runtime_version_specifier,
+    parse_node_specifier,
 };
 use pnpm_lockfile::{
-    ImporterDepVersion, Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap,
+    ImporterDepVersion,
+    Lockfile,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
     ResolvedDependencySpec,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_registry::RangeSpecStyle;
-use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style};
+use pnpm_resolving_npm_resolver::{
+    calc_version_range,
+    infer_range_spec_style,
+};
 use pnpm_resolving_resolver_base::VersionSelectorType;
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     sync::Mutex,
 };
 

@@ -1,6 +1,13 @@
 use super::{
-    LoadWorkspaceStateError, NodeLinker, ProjectEntry, UpdateWorkspaceStateError, WorkspaceState,
-    WorkspaceStateSettings, get_file_path, load_workspace_state, now_millis,
+    LoadWorkspaceStateError,
+    NodeLinker,
+    ProjectEntry,
+    UpdateWorkspaceStateError,
+    WorkspaceState,
+    WorkspaceStateSettings,
+    get_file_path,
+    load_workspace_state,
+    now_millis,
     update_workspace_state,
 };
 use indexmap::IndexMap;

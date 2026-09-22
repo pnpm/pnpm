@@ -4,19 +4,33 @@
 
 use std::collections::BTreeMap;
 
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_reporter::Reporter;
 use serde_json::Value;
 
 use crate::{
-    capabilities::{Clock, EnvVar, OidcFetch},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+    },
     display_error::display_diagnostic,
     global_log::global_warn,
     oidc::{
-        DetermineProvenanceError, GetIdTokenError, OidcHttpOptions, determine_provenance,
-        fetch_auth_token, get_id_token,
+        DetermineProvenanceError,
+        GetIdTokenError,
+        OidcHttpOptions,
+        determine_provenance,
+        fetch_auth_token,
+        get_id_token,
     },
-    registry_config_keys::{NormalizedRegistryUrl, parse_supported_registry_url},
+    registry_config_keys::{
+        NormalizedRegistryUrl,
+        parse_supported_registry_url,
+    },
 };
 
 /// The package access level the registry should record. `public` or

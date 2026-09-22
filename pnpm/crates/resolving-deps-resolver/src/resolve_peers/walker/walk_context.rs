@@ -1,7 +1,22 @@
 use super::{
-    AncestorIds, Arc, BTreeMap, ChildEdge, DepPath, DirectDep, HashMap, HashSet, NodeId,
-    ParentPkgInfo, ParentRefs, PeerProviderChildren, ResolvedPackage, ResolvedTree, SharedChain,
-    UndoRealize, Walker, pkg_name_version,
+    AncestorIds,
+    Arc,
+    BTreeMap,
+    ChildEdge,
+    DepPath,
+    DirectDep,
+    HashMap,
+    HashSet,
+    NodeId,
+    ParentPkgInfo,
+    ParentRefs,
+    PeerProviderChildren,
+    ResolvedPackage,
+    ResolvedTree,
+    SharedChain,
+    UndoRealize,
+    Walker,
+    pkg_name_version,
 };
 
 /// Output of [`Walker::resolve_node`] — the per-node result the parent

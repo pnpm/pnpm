@@ -1,4 +1,8 @@
-use super::{parse_getconf, parse_glibc_version, parse_ldd};
+use super::{
+    parse_getconf,
+    parse_glibc_version,
+    parse_ldd,
+};
 use crate::Implementation;
 
 #[test]

@@ -1,8 +1,16 @@
-use super::{filesystem_root, host_can_link_between_dirs, next_path, resolve_store_dir};
+use super::{
+    filesystem_root,
+    host_can_link_between_dirs,
+    next_path,
+    resolve_store_dir,
+};
 use pretty_assertions::assert_eq;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::tempdir;
 

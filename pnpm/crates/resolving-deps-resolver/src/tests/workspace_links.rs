@@ -1,6 +1,14 @@
 use super::{
-    DependencyGroup, HashMap, Mutex, ResolveDependencyTreeOptions, ResolveOptions, ResolveResult,
-    StubResolver, assert_eq, fake_manifest, resolve_dependency_tree,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    ResolveDependencyTreeOptions,
+    ResolveOptions,
+    ResolveResult,
+    StubResolver,
+    assert_eq,
+    fake_manifest,
+    resolve_dependency_tree,
 };
 
 /// Regression for [#11939](https://github.com/pnpm/pnpm/issues/11939):
@@ -13,7 +21,10 @@ use super::{
 /// `link:<rel-path>` with no peer-graph suffix.
 #[tokio::test]
 async fn workspace_link_node_is_short_circuited_in_tree() {
-    use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+    use pnpm_lockfile::{
+        DirectoryResolution,
+        LockfileResolution,
+    };
     use pnpm_resolving_resolver_base::PkgResolutionId;
 
     let link_id = "link:../shared";

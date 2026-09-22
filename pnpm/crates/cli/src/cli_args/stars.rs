@@ -1,10 +1,21 @@
 use crate::cli_args::registry_client::build_registry_client;
 use clap::Parser;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_network::{
-    RetryOpts, ThrottledClient, ThrottledClientGuard, encode_uri_component, send_with_retry,
+    RetryOpts,
+    ThrottledClient,
+    ThrottledClientGuard,
+    encode_uri_component,
+    send_with_retry,
 };
 use reqwest::Response;
 use serde_json::Value;

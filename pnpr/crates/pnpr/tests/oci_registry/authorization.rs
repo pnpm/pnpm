@@ -1,6 +1,21 @@
 use super::{
-    AccessList, AuthState, Body, Request, ServiceExt, StatusCode, TempDir, Value, basic,
-    body_bytes, get, header, oci_config, push_blob, push_image, router_with_auth, token,
+    AccessList,
+    AuthState,
+    Body,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    Value,
+    basic,
+    body_bytes,
+    get,
+    header,
+    oci_config,
+    push_blob,
+    push_image,
+    router_with_auth,
+    token,
 };
 
 #[tokio::test]

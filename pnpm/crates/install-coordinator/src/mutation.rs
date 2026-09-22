@@ -1,6 +1,13 @@
 use super::metadata_file::MetadataFile;
-use miette::{IntoDiagnostic, Result, WrapErr};
-use std::{fs, path::PathBuf};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
+use std::{
+    fs,
+    path::PathBuf,
+};
 
 pub(crate) struct MetadataMutation {
     snapshots: Vec<MetadataFile>,

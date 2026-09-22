@@ -1,7 +1,17 @@
 use super::{
-    BadPeerIssue, IssuesByProjects, MissingPeerIssue, ParentPkg, PeerIssues, canonical_path_within,
-    filter::parse_allowed_versions, filter_peer_issues, intersect_multiple_ranges,
-    merge_missing_peers, ranges::normalize_version_str, render::format_range, satisfies,
+    BadPeerIssue,
+    IssuesByProjects,
+    MissingPeerIssue,
+    ParentPkg,
+    PeerIssues,
+    canonical_path_within,
+    filter::parse_allowed_versions,
+    filter_peer_issues,
+    intersect_multiple_ranges,
+    merge_missing_peers,
+    ranges::normalize_version_str,
+    render::format_range,
+    satisfies,
 };
 use pnpm_config::PeerDependencyRules;
 use std::collections::BTreeMap;

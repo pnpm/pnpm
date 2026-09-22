@@ -8,27 +8,41 @@ pub use install::*;
 pub use install_with_fresh_lockfile::*;
 pub use link_manifest_link_deps::*;
 pub use lockfile_diff::*;
-pub use manifest_spec_bumps::{AppliedSpecBumps, ManifestSpecBumps};
-pub use minimum_release_age::{MinimumReleaseAgeError, PolicyExcludes};
+pub use manifest_spec_bumps::{
+    AppliedSpecBumps,
+    ManifestSpecBumps,
+};
+pub use minimum_release_age::{
+    MinimumReleaseAgeError,
+    PolicyExcludes,
+};
 pub use optimistic_repeat_install::*;
 pub use overrides::*;
 pub use package_extender::*;
 pub use patch::*;
 pub use pnpm_deps_restorer::*;
 pub use pnpm_patching::{
-    PatchCommitError, PkgFilesForDiff, diff_folders, prepare_pkg_files_for_diff,
+    PatchCommitError,
+    PkgFilesForDiff,
+    diff_folders,
+    prepare_pkg_files_for_diff,
 };
 pub use prefetching_resolver::*;
 pub use remove::*;
 pub use resolution_observer::*;
-pub use resolution_policy::{PickPolicy, create_configured_registry_resolver};
+pub use resolution_policy::{
+    PickPolicy,
+    create_configured_registry_resolver,
+};
 pub use resolve_latest::ResolveLatestError;
 pub use tarball_prefetch::*;
 pub use update::*;
 pub use update_project_manifest::*;
 pub use update_project_manifest_object::*;
 pub use workspace_cycles::{
-    CyclicWorkspaceDependenciesError, install_scope_cycles, report_workspace_cycles,
+    CyclicWorkspaceDependenciesError,
+    install_scope_cycles,
+    report_workspace_cycles,
     workspace_cycles,
 };
 

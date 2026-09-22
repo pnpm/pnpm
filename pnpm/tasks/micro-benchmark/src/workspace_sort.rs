@@ -15,13 +15,22 @@
 
 use criterion::Criterion;
 use pnpm_workspace_projects_graph::{
-    BaseProject, CreateProjectsGraphOptions, GraphProject, create_projects_graph,
+    BaseProject,
+    CreateProjectsGraphOptions,
+    GraphProject,
+    create_projects_graph,
 };
 use pnpm_workspace_task_scheduler::graph_sequencer;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     hint::black_box,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 const PROJECT_COUNT: usize = 4_000;

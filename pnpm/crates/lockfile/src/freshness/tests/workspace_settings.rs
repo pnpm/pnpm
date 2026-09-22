@@ -1,6 +1,13 @@
 use super::{
-    BTreeMap, Catalogs, Lockfile, LockfileSettingsCheck, StalenessReason, assert_eq,
-    check_lockfile_settings, settings_check, text_block,
+    BTreeMap,
+    Catalogs,
+    Lockfile,
+    LockfileSettingsCheck,
+    StalenessReason,
+    assert_eq,
+    check_lockfile_settings,
+    settings_check,
+    text_block,
 };
 
 // ---------------------------------------------------------------------------

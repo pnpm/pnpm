@@ -2,49 +2,97 @@ pub(crate) mod allow_build_policy;
 pub(crate) mod build_one_snapshot;
 pub(crate) mod slots;
 pub use allow_build_policy::{
-    AllowBuildPolicy, allow_build_key_from_ignored_build, normalize_build_dep_path,
+    AllowBuildPolicy,
+    allow_build_key_from_ignored_build,
+    normalize_build_dep_path,
     parse_allow_build_selector,
 };
 pub(crate) use build_one_snapshot::build_one_snapshot;
 pub(crate) use build_requirements::deferred_builds;
 pub use slots::parse_name_version_from_key;
 pub(crate) use slots::{
-    PkgRoots, bin_dirs_in_all_parent_dirs, discard_failed_global_virtual_store_slot,
-    materialize_side_effects, slot_carries_overlay,
+    PkgRoots,
+    bin_dirs_in_all_parent_dirs,
+    discard_failed_global_virtual_store_slot,
+    materialize_side_effects,
+    slot_carries_overlay,
 };
 
 mod build_requirements;
 
 use build_requirements::{
-    RequiresBuildInputs, SideEffectsCacheGate, requires_build_by_key,
+    RequiresBuildInputs,
+    SideEffectsCacheGate,
+    requires_build_by_key,
     side_effects_cache_gate_active,
 };
 
 use crate::{
-    ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, SkippedSnapshots,
+    ImportIndexedDirError,
+    ImportIndexedDirOpts,
+    NEEDS_BUILD_MARKER,
+    SkippedSnapshots,
     build_graph::build_graph,
-    import_indexed_dir, store_index_key_for_resolution,
-    version_policy::{VersionPolicyError, expand_package_version_specs},
+    import_indexed_dir,
+    store_index_key_for_resolution,
+    version_policy::{
+        VersionPolicyError,
+        expand_package_version_specs,
+    },
 };
 
-use derive_more::{Display, Error};
-use miette::Diagnostic;
-use pnpm_config::{Config, PackageImportMethod};
-use pnpm_deps_path::{get_pkg_id_with_patch_hash, index_of_dep_path_suffix, remove_suffix};
-use pnpm_executor::{
-    LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_postinstall_hooks,
+use derive_more::{
+    Display,
+    Error,
 };
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
-use pnpm_patching::{PatchApplyError, apply_patch_to_dir};
+use miette::Diagnostic;
+use pnpm_config::{
+    Config,
+    PackageImportMethod,
+};
+use pnpm_deps_path::{
+    get_pkg_id_with_patch_hash,
+    index_of_dep_path_suffix,
+    remove_suffix,
+};
+use pnpm_executor::{
+    LifecycleScriptError,
+    RunPostinstallHooks,
+    ScriptsPrependNodePath,
+    run_postinstall_hooks,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
+use pnpm_patching::{
+    PatchApplyError,
+    apply_patch_to_dir,
+};
 use pnpm_reporter::{
-    LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
     SkippedOptionalReason,
 };
-use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, TaskCompletion, schedule_graph};
+use pnpm_workspace_task_scheduler::{
+    ScheduleGraphOptions,
+    TaskCompletion,
+    schedule_graph,
+};
 use std::{
     borrow::Cow,
-    collections::{BTreeSet, HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeSet,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Mutex,
 };
 

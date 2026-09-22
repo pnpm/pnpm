@@ -1,9 +1,20 @@
 use pnpm_matcher::WildcardMatcher;
 
 use super::{
-    BTreeMap, ChangeIntent, HashMap, HashSet, IntentBumpType, Participant, ProjectRefIndex,
-    ResolvedEpic, VersioningError, VersioningSettings, bump_release_order, is_dir_ref,
-    normalize_project_dir, resolve_config_ref,
+    BTreeMap,
+    ChangeIntent,
+    HashMap,
+    HashSet,
+    IntentBumpType,
+    Participant,
+    ProjectRefIndex,
+    ResolvedEpic,
+    VersioningError,
+    VersioningSettings,
+    bump_release_order,
+    is_dir_ref,
+    normalize_project_dir,
+    resolve_config_ref,
 };
 
 pub(super) fn resolve_lanes(

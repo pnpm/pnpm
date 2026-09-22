@@ -1,14 +1,32 @@
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
-use pnpm_fs::{FsReflink, Host, is_cross_device};
+use pnpm_fs::{
+    FsReflink,
+    Host,
+    is_cross_device,
+};
 use pnpm_reporter::{
-    LogEvent, LogLevel, PackageImportMethod as WireImportMethod, PackageImportMethodLog, Reporter,
+    LogEvent,
+    LogLevel,
+    PackageImportMethod as WireImportMethod,
+    PackageImportMethodLog,
+    Reporter,
 };
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU8, Ordering},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU8,
+        Ordering,
+    },
 };
 
 /// Error type for [`link_file`].
@@ -483,7 +501,10 @@ fn path_still_names(created: &fs::File, path: &Path) -> bool {
 /// [`copy_file`] asserts the exact mode once the bytes are written.
 #[cfg(unix)]
 fn create_new_with_permissions(path: &Path, permissions: &fs::Permissions) -> io::Result<fs::File> {
-    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    use std::os::unix::fs::{
+        OpenOptionsExt,
+        PermissionsExt,
+    };
     fs::OpenOptions::new()
         .write(true)
         .create_new(true)

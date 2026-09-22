@@ -1,4 +1,9 @@
-use super::{Endpoint, api_base, parse_endpoint, query_param};
+use super::{
+    Endpoint,
+    api_base,
+    parse_endpoint,
+    query_param,
+};
 
 fn endpoint(tail: &str) -> Endpoint {
     parse_endpoint(tail).expect("tail names an endpoint")

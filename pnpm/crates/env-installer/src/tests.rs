@@ -1,29 +1,65 @@
 use crate::{
-    ConfigDepError, ConfigDepsInstallOptions, install_config_deps, is_package_manager_resolved,
-    pnpm_engine_packages, prune_env_lockfile, resolve_and_install_config_deps,
+    ConfigDepError,
+    ConfigDepsInstallOptions,
+    install_config_deps,
+    is_package_manager_resolved,
+    pnpm_engine_packages,
+    prune_env_lockfile,
+    resolve_and_install_config_deps,
     resolve_package_manager_integrities,
 };
 use pnpm_lockfile::{
-    EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, RegistryResolution,
-    SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, TarballResolution,
+    EnvLockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    RegistryResolution,
+    SnapshotDepRef,
+    SnapshotEntry,
+    SpecifierAndResolution,
+    TarballResolution,
 };
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pnpm_reporter::{InstallingConfigDepsStatus, LogEvent, Reporter, SilentReporter};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
+use pnpm_reporter::{
+    InstallingConfigDepsStatus,
+    LogEvent,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
+    InMemoryPackageMetaCache,
+    NpmResolver,
+    shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, PkgResolutionId, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, WantedDependency,
+    LatestInfo,
+    LatestQuery,
+    PkgResolutionId,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::registry::TestRegistry;
 use pnpm_workspace_state::ConfigDependency;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     path::Path,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 use tempfile::TempDir;
 

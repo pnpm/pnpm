@@ -8,16 +8,33 @@ pub(super) mod postgres;
 pub(super) mod mysql;
 
 use super::{
-    DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
-    hash_bcrypt, sha256_hex,
-    token_store::{mint_token, unix_seconds},
-    validate_username, verify_returning_user, with_auth_timeout,
+    DEFAULT_BCRYPT_COST,
+    TokenBackend,
+    TokenRecord,
+    UpsertOutcome,
+    UserBackend,
+    fresh_secret,
+    hash_bcrypt,
+    sha256_hex,
+    token_store::{
+        mint_token,
+        unix_seconds,
+    },
+    validate_username,
+    verify_returning_user,
+    with_auth_timeout,
 };
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::{
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
     time::Duration,
 };
 

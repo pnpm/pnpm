@@ -1,9 +1,20 @@
 use super::{
-    FixedResolver, manifestless_tarball_result, resolver, resolver_with_prefetch,
-    result_without_manifest, tarball_with_a_dependency,
+    FixedResolver,
+    manifestless_tarball_result,
+    resolver,
+    resolver_with_prefetch,
+    result_without_manifest,
+    tarball_with_a_dependency,
 };
-use pnpm_lockfile::{LockfileResolution, TarballResolution};
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_lockfile::{
+    LockfileResolution,
+    TarballResolution,
+};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    Resolver,
+    WantedDependency,
+};
 use pnpm_tarball::package_mem_cache_key;
 use serde_json::json;
 use std::sync::Arc;

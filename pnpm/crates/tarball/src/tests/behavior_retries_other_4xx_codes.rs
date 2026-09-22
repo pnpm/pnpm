@@ -1,9 +1,31 @@
 use super::{
-    Arc, ArchiveStoreProjection, AuthHeaders, Duration, EndlessReader, FASTIFY_ERROR_INTEGRITY,
-    FASTIFY_ERROR_TARBALL, HashMap, IngestTarballToStore, Integrity, MemCache, PrefetchedCasPaths,
-    RetryOpts, STREAM_ENTRY_BUFFER_MAX, SharedVerifiedFilesCache, SilentReporter, StoreIndexWriter,
-    TarballError, ThrottledClient, assert_eq, fast_retry_opts, fetch_and_extract_with_retry,
-    integrity, store_index_key, tempdir_with_leaked_path, test_retry_opts, write_zip_entry_to_cas,
+    Arc,
+    ArchiveStoreProjection,
+    AuthHeaders,
+    Duration,
+    EndlessReader,
+    FASTIFY_ERROR_INTEGRITY,
+    FASTIFY_ERROR_TARBALL,
+    HashMap,
+    IngestTarballToStore,
+    Integrity,
+    MemCache,
+    PrefetchedCasPaths,
+    RetryOpts,
+    STREAM_ENTRY_BUFFER_MAX,
+    SharedVerifiedFilesCache,
+    SilentReporter,
+    StoreIndexWriter,
+    TarballError,
+    ThrottledClient,
+    assert_eq,
+    fast_retry_opts,
+    fetch_and_extract_with_retry,
+    integrity,
+    store_index_key,
+    tempdir_with_leaked_path,
+    test_retry_opts,
+    write_zip_entry_to_cas,
 };
 
 #[tokio::test]
@@ -110,8 +132,10 @@ async fn retry_exhaustion_returns_last_error() {
 ///   hanging the test process forever.
 #[test]
 fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
-    use std::sync::mpsc;
-    use std::thread;
+    use std::{
+        sync::mpsc,
+        thread,
+    };
 
     const RESPONSE_LATENCY: Duration = Duration::from_millis(300);
     const TEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -425,7 +449,11 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
 async fn started_fires_for_connection_level_failures() {
     use std::sync::Mutex;
 
-    use pnpm_reporter::{FetchingProgressLog, FetchingProgressMessage, LogEvent};
+    use pnpm_reporter::{
+        FetchingProgressLog,
+        FetchingProgressMessage,
+        LogEvent,
+    };
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
@@ -506,7 +534,10 @@ async fn started_fires_for_connection_level_failures() {
 async fn found_in_store_event_fires_on_cache_hit() {
     use std::sync::Mutex;
 
-    use pnpm_reporter::{LogEvent, ProgressMessage};
+    use pnpm_reporter::{
+        LogEvent,
+        ProgressMessage,
+    };
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
@@ -664,7 +695,10 @@ async fn found_in_store_event_fires_on_cache_hit() {
 async fn request_retry_event_fires_per_retried_attempt() {
     use std::sync::Mutex;
 
-    use pnpm_reporter::{LogEvent, RequestRetryLog};
+    use pnpm_reporter::{
+        LogEvent,
+        RequestRetryLog,
+    };
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 

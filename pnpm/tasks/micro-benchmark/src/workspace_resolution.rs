@@ -21,7 +21,10 @@
 
 use criterion::Criterion;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     hint::black_box,
     path::PathBuf,
     str::FromStr,
@@ -29,15 +32,37 @@ use std::{
     time::Instant,
 };
 
-use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, RegistryContext, TarballResolution};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgName,
+    PkgNameVer,
+    RegistryContext,
+    TarballResolution,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_deps_resolver::{
-    ResolveImporterOptions, UpdateDepth, UpdateReuseScope, UpdateTargets, WorkspaceImporter,
-    WorkspaceResolveOptions, resolve_workspace,
+    ResolveImporterOptions,
+    UpdateDepth,
+    UpdateReuseScope,
+    UpdateTargets,
+    WorkspaceImporter,
+    WorkspaceResolveOptions,
+    resolve_workspace,
 };
 use pnpm_resolving_resolver_base::{
-    LatestQuery, PkgResolutionId, PreferredVersions, ResolveError, ResolveFuture,
-    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
+    LatestQuery,
+    PkgResolutionId,
+    PreferredVersions,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 
 const PACKAGES_PER_LAYER: usize = 20;

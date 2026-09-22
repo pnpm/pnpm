@@ -1,14 +1,33 @@
-use super::{CreateVirtualDirBySnapshot, optimistic_wire_method, remove_obsolete_child};
+use super::{
+    CreateVirtualDirBySnapshot,
+    optimistic_wire_method,
+    remove_obsolete_child,
+};
 use pnpm_config::PackageImportMethod;
 use pnpm_fs::force_symlink_dir;
-use pnpm_lockfile::{PackageKey, PkgName, SnapshotEntry};
-use pnpm_reporter::{LogEvent, PackageImportMethod as WireImportMethod, ProgressMessage, Reporter};
+use pnpm_lockfile::{
+    PackageKey,
+    PkgName,
+    SnapshotEntry,
+};
+use pnpm_reporter::{
+    LogEvent,
+    PackageImportMethod as WireImportMethod,
+    ProgressMessage,
+    Reporter,
+};
 use std::{
     collections::HashMap,
     path::Path,
     sync::{
-        Condvar, Mutex,
-        atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering},
+        Condvar,
+        Mutex,
+        atomic::{
+            AtomicBool,
+            AtomicU8,
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };

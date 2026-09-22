@@ -1,8 +1,16 @@
 use super::PACQUET_PNPM_SPEEDUP_MIN;
 use crate::cli_args::BenchmarkScenario;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value;
-use std::{collections::HashMap, fmt::Write as _, fs, path::Path};
+use std::{
+    collections::HashMap,
+    fmt::Write as _,
+    fs,
+    path::Path,
+};
 
 /// How much faster pacquet resolved the peer-heavy DAG than the TypeScript CLI,
 /// or the gate's failure message when that is under

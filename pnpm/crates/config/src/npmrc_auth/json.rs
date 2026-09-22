@@ -1,6 +1,15 @@
 use super::{
-    BTreeSet, Config, DEFAULT_REGISTRY_SCOPE, EnvVar, IndexMap, NpmrcAuth, apply_creds_field,
-    is_package_scope, nerf_dart, normalize_registry_url, split_creds_key,
+    BTreeSet,
+    Config,
+    DEFAULT_REGISTRY_SCOPE,
+    EnvVar,
+    IndexMap,
+    NpmrcAuth,
+    apply_creds_field,
+    is_package_scope,
+    nerf_dart,
+    normalize_registry_url,
+    split_creds_key,
 };
 
 /// What the config files — the `.npmrc` files as much as the yamls —

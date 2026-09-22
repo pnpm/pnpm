@@ -1,7 +1,21 @@
 use super::{
-    Body, Request, ServiceExt, StatusCode, TempDir, Value, body_bytes, config_for, foo_packument,
-    json, mock_packument_for_tarball, public_cache_pkg, router, sha1_hex_of, sha512_integrity,
-    tarball_cache_entries, to_bytes,
+    Body,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    Value,
+    body_bytes,
+    config_for,
+    foo_packument,
+    json,
+    mock_packument_for_tarball,
+    public_cache_pkg,
+    router,
+    sha1_hex_of,
+    sha512_integrity,
+    tarball_cache_entries,
+    to_bytes,
 };
 
 #[tokio::test]

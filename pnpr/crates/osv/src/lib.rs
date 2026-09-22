@@ -1,21 +1,35 @@
 mod records;
-use records::{ingest_record_bytes, normalized_name};
+use records::{
+    ingest_record_bytes,
+    normalized_name,
+};
 
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fs::File,
     io::Read,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
 use node_semver::Version;
 use pnpm_resolving_resolver_base::{
-    PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
+    PackageVersionGuard,
+    PackageVersionGuardDecision,
+    PackageVersionGuardFuture,
 };
 use serde::Deserialize;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 
 use pnpr_config::Config;
 use pnpr_error::RegistryError;

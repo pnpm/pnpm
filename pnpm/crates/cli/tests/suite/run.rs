@@ -5,7 +5,10 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
-use std::{fs, time::Duration};
+use std::{
+    fs,
+    time::Duration,
+};
 
 /// `pacquet run <script>` looks up the named entry under
 /// `scripts` in the workspace's `package.json` and spawns it via
@@ -720,7 +723,10 @@ mod shell_emulator {
     use command_extra::CommandExtra;
     use pnpm_testing_utils::bin::CommandTempCwd;
     use serde_json::json;
-    use std::{fs, path::Path};
+    use std::{
+        fs,
+        path::Path,
+    };
 
     fn write_project(workspace: &Path, scripts: &serde_json::Value, shell_emulator: bool) {
         let manifest =

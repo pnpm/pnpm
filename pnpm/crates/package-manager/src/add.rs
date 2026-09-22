@@ -1,10 +1,18 @@
 mod install;
 use install::{
-    AddSeed, add_install, merged_catalogs_override, project_seed_policy, selected_add_seed,
+    AddSeed,
+    add_install,
+    merged_catalogs_override,
+    project_seed_policy,
+    selected_add_seed,
 };
 
 mod specifier;
-use specifier::{normalized_save_specifier, resolve_added_dependency, workspace_packages_for_add};
+use specifier::{
+    normalized_save_specifier,
+    resolve_added_dependency,
+    workspace_packages_for_add,
+};
 
 mod registry;
 
@@ -14,18 +22,31 @@ mod aliasless;
 
 mod manifest;
 use manifest::{
-    catalog_version_requests, finish_selected_add, persist_manifest, prepare_selected_add,
+    catalog_version_requests,
+    finish_selected_add,
+    persist_manifest,
+    prepare_selected_add,
     prepare_single_add,
 };
 
 use crate::{
-    CatalogVersionMismatchError, CommandLockfile, InstallError, ResolvedPackages, SelectedProjects,
-    catalog_cleanup::{WriteWorkspaceCatalogsError, post_install_prune},
+    CatalogVersionMismatchError,
+    CommandLockfile,
+    InstallError,
+    ResolvedPackages,
+    SelectedProjects,
+    catalog_cleanup::{
+        WriteWorkspaceCatalogsError,
+        post_install_prune,
+    },
     defer_ignored_builds,
     resolve_latest::LatestPicker,
     selected_project_indices,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_catalogs_config::InvalidCatalogsConfigurationError;
@@ -33,15 +54,25 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_engine_runtime_node_resolver::NodeResolverError;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+    PackageManifestError,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_jsr_specifier_parser::ParseJsrSpecifierError;
 use pnpm_resolving_local_resolver::ResolveLocalError;
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError, shared_packument_fetch_locker,
+    InMemoryPackageMetaCache,
+    PackumentFetchLocker,
+    PickPackageError,
+    shared_packument_fetch_locker,
 };
-use pnpm_resolving_resolver_base::{GitResolveError, WorkspacePackages};
+use pnpm_resolving_resolver_base::{
+    GitResolveError,
+    WorkspacePackages,
+};
 use pnpm_tarball::MemCache;
 
 #[must_use]

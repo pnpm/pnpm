@@ -1,5 +1,8 @@
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::OnceLock,
 };
 

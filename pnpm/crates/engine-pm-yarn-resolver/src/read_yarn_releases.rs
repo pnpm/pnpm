@@ -6,11 +6,18 @@
 
 use std::sync::Arc;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_crypto_shasums_file::sha256_hex_to_sri;
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PlatformAssetResolution,
+    BinaryArchive,
+    BinaryResolution,
+    BinarySpec,
+    LockfileResolution,
+    PlatformAssetResolution,
     PlatformAssetTarget,
 };
 use pnpm_network::ThrottledClient;

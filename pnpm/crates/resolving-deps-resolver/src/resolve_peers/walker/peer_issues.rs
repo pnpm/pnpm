@@ -1,7 +1,23 @@
 use super::{
-    Arc, ComparablePeerRange, DepPath, HashMap, MissingPeer, MissingPeerInfo, NodeId, ParentChain,
-    ParentPkgInfo, ParentRefs, PeerDep, PeerDependencyIssue, PeerId, ResolvedPackage, SharedChain,
-    Walker, link_node_id_as_dep_path, link_path_to_peer_version, peer_id_pair,
+    Arc,
+    ComparablePeerRange,
+    DepPath,
+    HashMap,
+    MissingPeer,
+    MissingPeerInfo,
+    NodeId,
+    ParentChain,
+    ParentPkgInfo,
+    ParentRefs,
+    PeerDep,
+    PeerDependencyIssue,
+    PeerId,
+    ResolvedPackage,
+    SharedChain,
+    Walker,
+    link_node_id_as_dep_path,
+    link_path_to_peer_version,
+    peer_id_pair,
 };
 
 impl Walker<'_> {}

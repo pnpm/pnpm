@@ -1,4 +1,7 @@
-use super::{annotate_unknown_setting, is_known_setting_key};
+use super::{
+    annotate_unknown_setting,
+    is_known_setting_key,
+};
 
 #[test]
 fn recognizes_type_keys_in_both_spellings() {

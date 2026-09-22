@@ -1,5 +1,11 @@
 use super::{
-    BTreeMap, Cursor, MAX_METADATA_BYTES, Offered, Target, WheelMetadata, candidates_from_page,
+    BTreeMap,
+    Cursor,
+    MAX_METADATA_BYTES,
+    Offered,
+    Target,
+    WheelMetadata,
+    candidates_from_page,
 };
 use std::io::Read;
 

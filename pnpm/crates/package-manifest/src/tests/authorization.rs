@@ -1,4 +1,7 @@
-use super::{InitAuthor, assert_eq};
+use super::{
+    InitAuthor,
+    assert_eq,
+};
 
 #[test]
 fn an_author_renders_every_part_it_was_given() {

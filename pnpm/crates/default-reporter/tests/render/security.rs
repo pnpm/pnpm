@@ -1,7 +1,18 @@
 use super::{
-    DependencyType, ReporterOptions, Stage, added_root, added_root_at, package_manifest_initial_at,
-    package_manifest_updated_at, progress_at, render, stage_at, state, state_with_options,
-    state_without_summary_prefix_filter, summary,
+    DependencyType,
+    ReporterOptions,
+    Stage,
+    added_root,
+    added_root_at,
+    package_manifest_initial_at,
+    package_manifest_updated_at,
+    progress_at,
+    render,
+    stage_at,
+    state,
+    state_with_options,
+    state_without_summary_prefix_filter,
+    summary,
 };
 
 #[test]

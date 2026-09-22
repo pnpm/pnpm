@@ -1,9 +1,16 @@
 //! Candidate identity: which package provides a bin, and the
 //! fingerprint a trust approval is bound to.
 
-use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes, create_hex_hash_from_file};
+use pnpm_crypto_hash::{
+    create_hex_hash,
+    create_hex_hash_bytes,
+    create_hex_hash_from_file,
+};
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 pub(super) const MAX_HASHED_BIN_SIZE: u64 = 1024 * 1024;
 
@@ -127,10 +134,16 @@ pub(super) fn small_file_hash(path: &Path, expected_len: u64) -> Option<String> 
 
 #[cfg(windows)]
 pub(super) fn windows_file_identity(path: &Path) -> Option<String> {
-    use std::{mem::MaybeUninit, os::windows::io::AsRawHandle as _};
-    use windows_sys::Win32::Foundation::HANDLE;
-    use windows_sys::Win32::Storage::FileSystem::{
-        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
+    use std::{
+        mem::MaybeUninit,
+        os::windows::io::AsRawHandle as _,
+    };
+    use windows_sys::Win32::{
+        Foundation::HANDLE,
+        Storage::FileSystem::{
+            BY_HANDLE_FILE_INFORMATION,
+            GetFileInformationByHandle,
+        },
     };
 
     let file = std::fs::File::open(path).ok()?;

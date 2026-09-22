@@ -1,16 +1,47 @@
 use super::{
-    super::{Install, InstallError, ProjectMutation, build_workspace_state},
-    InstallDirs, PARTIAL_INSTALL_LOCKFILE, seed_placeholder_virtual_store_slot,
+    super::{
+        Install,
+        InstallError,
+        ProjectMutation,
+        build_workspace_state,
+    },
+    InstallDirs,
+    PARTIAL_INSTALL_LOCKFILE,
+    seed_placeholder_virtual_store_slot,
 };
 use crate::PolicyExcludes;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
-use pnpm_modules_yaml::{Host, LayoutVersion, Modules, NodeLinker, write_modules_manifest};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, Reporter, SilentReporter, Stage};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_modules_yaml::{
+    Host,
+    LayoutVersion,
+    Modules,
+    NodeLinker,
+    write_modules_manifest,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+    SilentReporter,
+    Stage,
+};
 use pnpm_testing_utils::registry::TestRegistry;
-use pnpm_workspace_state::{load_workspace_state, update_workspace_state};
-use std::{fs, sync::Mutex, time::Duration};
+use pnpm_workspace_state::{
+    load_workspace_state,
+    update_workspace_state,
+};
+use std::{
+    fs,
+    sync::Mutex,
+    time::Duration,
+};
 use text_block_macros::text_block;
 
 /// Frozen-lockfile install with a `VariationsResolution` whose

@@ -1,6 +1,10 @@
 use std::{
-    fs, io,
-    path::{Component, Path},
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+    },
 };
 
 pub(super) fn validate_relative_path(path: &Path) -> io::Result<()> {

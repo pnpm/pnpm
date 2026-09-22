@@ -7,4 +7,7 @@
 //! sibling — needed by `minimumReleaseAgeExclude` /
 //! `trustPolicyExclude` — can share the same parser.
 
-pub use pnpm_config::version_policy::{VersionPolicyError, expand_package_version_specs};
+pub use pnpm_config::version_policy::{
+    VersionPolicyError,
+    expand_package_version_specs,
+};

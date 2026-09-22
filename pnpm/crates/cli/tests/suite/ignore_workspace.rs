@@ -3,9 +3,16 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
 use serde_json::json;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn write_workspace(workspace: &Path, packages: &[&str], names: &[&str]) {
     let patterns = packages

@@ -5,19 +5,49 @@
 //! canonicalization algorithm before they can interoperate.
 
 pub use compatibility::{
-    CompatibilityScopes, compatibility_rank, compatibility_rank_prevalidated, compatibility_scopes,
-    linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags, macos_tag,
-    platform_fingerprint, validate_supported_tags, windows_supported_tags, windows_tag,
+    CompatibilityScopes,
+    compatibility_rank,
+    compatibility_rank_prevalidated,
+    compatibility_scopes,
+    linux_glibc_supported_tags,
+    linux_glibc_tag,
+    macos_supported_tags,
+    macos_tag,
+    platform_fingerprint,
+    validate_supported_tags,
+    windows_supported_tags,
+    windows_tag,
 };
-pub use validation::{blob_id, validate_manifest_path, verify_blob};
+pub use validation::{
+    blob_id,
+    validate_manifest_path,
+    verify_blob,
+};
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashSet,
+};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
-use derive_more::{Display, Error};
-use p256::ecdsa::{Signature, SigningKey, VerifyingKey};
-use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Sha512};
+use derive_more::{
+    Display,
+    Error,
+};
+use p256::ecdsa::{
+    Signature,
+    SigningKey,
+    VerifyingKey,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use sha2::{
+    Sha256,
+    Sha512,
+};
 
 pub const DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND: &str = "dependency-side-effects:v1";
 pub const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX: &str = "dependency-side-effects:v1:";
@@ -281,4 +311,7 @@ use compatibility::validate_compatibility;
 
 mod validation;
 
-use validation::{hex, validate_scalar};
+use validation::{
+    hex,
+    validate_scalar,
+};

@@ -1,4 +1,8 @@
-use super::{Finding, Verdict, judge};
+use super::{
+    Finding,
+    Verdict,
+    judge,
+};
 use crate::workspaces::Expectation;
 
 const TRACKED: Expectation = Expectation::Differ { issue: "https://example.test/issue" };

@@ -1,5 +1,11 @@
-use miette::{Result, bail};
-use serde::{Deserialize, Serialize};
+use miette::{
+    Result,
+    bail,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// What resolution reads out of a wheel's `METADATA`: what it requires,
 /// which extras it offers, and which interpreters it accepts. A caller

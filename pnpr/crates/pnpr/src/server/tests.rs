@@ -1,6 +1,9 @@
 use super::{
     revision_tarballs::{
-        HostedRevisionDist, HostedRevisionRecord, RevisionField, original_integrity,
+        HostedRevisionDist,
+        HostedRevisionRecord,
+        RevisionField,
+        original_integrity,
     },
     user_accounts::token_timestamp_millis,
 };
@@ -9,24 +12,57 @@ mod compiler_cache;
 use super::{
     PeerAddr,
     authentication::{
-        bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows, is_write_request,
+        bearer_credentials,
+        canonical_ip,
+        cidr_contains,
+        cidr_whitelist_allows,
+        is_write_request,
         token_credentials,
     },
-    router_with_auth, tilde_registry,
+    router_with_auth,
+    tilde_registry,
 };
 use async_trait::async_trait;
 use axum::{
-    body::{Body, to_bytes},
+    body::{
+        Body,
+        to_bytes,
+    },
     extract::ConnectInfo,
-    http::{Method, Request, StatusCode, header},
+    http::{
+        Method,
+        Request,
+        StatusCode,
+        header,
+    },
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
-use pnpr_auth::{AuthState, TokenBackend, TokenRecord, UserStore};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64_STANDARD,
+};
+use pnpr_auth::{
+    AuthState,
+    TokenBackend,
+    TokenRecord,
+    UserStore,
+};
 use pnpr_config::Config;
-use pnpr_error::{RegistryError, Result};
-use pnpr_policy::{AccessList, PackageRule, PackageRules};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use pnpr_policy::{
+    AccessList,
+    PackageRule,
+    PackageRules,
+};
 use std::{
-    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
+    net::{
+        IpAddr,
+        Ipv4Addr,
+        Ipv6Addr,
+        SocketAddr,
+    },
     sync::Arc,
 };
 use tempfile::TempDir;
@@ -356,8 +392,14 @@ async fn team_tokens_reach_package_authorization() {
     let tmp = TempDir::new().unwrap();
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
-    use pnpr_policy::{AccessToken, Identity};
-    use pnpr_registry::{Ecosystem, PackagePattern};
+    use pnpr_policy::{
+        AccessToken,
+        Identity,
+    };
+    use pnpr_registry::{
+        Ecosystem,
+        PackagePattern,
+    };
     config.routing.hosted.get_mut("local").unwrap().rules = PackageRules::new(
         vec![PackageRule {
             pattern: PackagePattern::parse("@team/*", Ecosystem::Npm).unwrap(),

@@ -1,5 +1,10 @@
 use super::{
-    EngineMode, HashMap, NodeApiProject, TestRegistry, install_options, run_install_inner,
+    EngineMode,
+    HashMap,
+    NodeApiProject,
+    TestRegistry,
+    install_options,
+    run_install_inner,
 };
 
 /// The lockfile must record `overrides` in declaration order — the

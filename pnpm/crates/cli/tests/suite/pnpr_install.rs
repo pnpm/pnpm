@@ -10,25 +10,52 @@
 
 use crate::{
     _utils::{
-        CONFLICTED_DEPENDENCY, assert_merged_conflicted_lockfile, write_conflicted_lockfile_fixture,
+        CONFLICTED_DEPENDENCY,
+        assert_merged_conflicted_lockfile,
+        write_conflicted_lockfile_fixture,
     },
     cargo_install::crate_archive,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_crypto_hash::integrity_addressed_tarball_path;
-use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
-use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
-    fs::{get_all_files, is_symlink_or_junction},
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+    ProjectSnapshot,
+    SnapshotEntry,
 };
-use pnpr::{Ecosystem, Registries, Registry, TokenBackend, UpstreamConfig};
+use pnpm_testing_utils::{
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    fs::{
+        get_all_files,
+        is_symlink_or_junction,
+    },
+};
+use pnpr::{
+    Ecosystem,
+    Registries,
+    Registry,
+    TokenBackend,
+    UpstreamConfig,
+};
 use reqwest::header::HeaderMap;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use std::{
     fs,
     io::Write as _,
-    net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        TcpListener,
+        TcpStream,
+    },
     path::Path,
     process::Command,
     thread,

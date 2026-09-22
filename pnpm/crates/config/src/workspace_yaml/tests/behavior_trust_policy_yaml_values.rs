@@ -1,7 +1,22 @@
 use super::{
-    AuditLevel, BTreeMap, Config, GetHomeDir, LoadWorkspaceYamlError, NodeLinker, Path, PathBuf,
-    RegistryDeclaration, RegistryEntry, RegistryOptions, RegistryServerType, ResolutionMode,
-    TrustPolicy, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
+    AuditLevel,
+    BTreeMap,
+    Config,
+    GetHomeDir,
+    LoadWorkspaceYamlError,
+    NodeLinker,
+    Path,
+    PathBuf,
+    RegistryDeclaration,
+    RegistryEntry,
+    RegistryOptions,
+    RegistryServerType,
+    ResolutionMode,
+    TrustPolicy,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    assert_eq,
+    fs,
 };
 
 /// `trustPolicy` accepts the two upstream string values; an absent

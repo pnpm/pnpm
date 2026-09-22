@@ -1,4 +1,7 @@
-use super::{clean::CleanArgs, install::InstallArgs};
+use super::{
+    clean::CleanArgs,
+    install::InstallArgs,
+};
 use clap::Args;
 
 #[derive(Debug, Args)]

@@ -1,8 +1,24 @@
 use super::{
-    Arc, FetchFullMetadataOptions, FetchFullMetadataOutcome, FetchMetadataError, Package,
-    PackageMetaCache, PackumentFetchLocker, Path, PickPackageContext, PickPackageError,
-    PickPackageOptions, PolicyMatch, RegistryPackageSpec, Semaphore, clear_meta,
-    fetch_full_metadata, load_meta, parse_packument_timestamp, save_meta_indexed, save_meta_ndjson,
+    Arc,
+    FetchFullMetadataOptions,
+    FetchFullMetadataOutcome,
+    FetchMetadataError,
+    Package,
+    PackageMetaCache,
+    PackumentFetchLocker,
+    Path,
+    PickPackageContext,
+    PickPackageError,
+    PickPackageOptions,
+    PolicyMatch,
+    RegistryPackageSpec,
+    Semaphore,
+    clear_meta,
+    fetch_full_metadata,
+    load_meta,
+    parse_packument_timestamp,
+    save_meta_indexed,
+    save_meta_ndjson,
 };
 
 /// Outcome of [`maybe_upgrade_abbreviated_meta_for_release_age`].

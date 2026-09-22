@@ -1,6 +1,20 @@
 use super::{
-    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, LinkProbe, OsString, Path, PathBuf,
-    STORED_LOGIN, assert_eq, fs, io, load_with_auth_file, load_with_auth_file_and_npmrc, tempdir,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    GetCurrentDir,
+    GetHomeDir,
+    LinkProbe,
+    OsString,
+    Path,
+    PathBuf,
+    STORED_LOGIN,
+    assert_eq,
+    fs,
+    io,
+    load_with_auth_file,
+    load_with_auth_file_and_npmrc,
+    tempdir,
 };
 
 /// Only what something else declares is kept back; the stored credential

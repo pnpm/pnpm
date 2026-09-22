@@ -1,9 +1,16 @@
 use super::{
-    FreshInputs, errors::InstallWithFreshLockfileError, on_disk::await_lockfile_gate,
-    plan::LockfileViews, resolution::Resolved, setup::pnpmfile_checksum, verify_repair_if_filtered,
+    FreshInputs,
+    errors::InstallWithFreshLockfileError,
+    on_disk::await_lockfile_gate,
+    plan::LockfileViews,
+    resolution::Resolved,
+    setup::pnpmfile_checksum,
+    verify_repair_if_filtered,
 };
 use crate::{
-    DependenciesGraphToLockfileError, GraphToLockfileOptions, ImporterLockfileInput,
+    DependenciesGraphToLockfileError,
+    GraphToLockfileOptions,
+    ImporterLockfileInput,
     dependencies_graph_to_lockfile,
 };
 use indexmap::IndexMap;
@@ -14,7 +21,11 @@ use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_deps_resolver::ManifestHook;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     path::Path,
     sync::Arc,
 };

@@ -15,8 +15,15 @@ use super::{
     change::ChangeArgs,
     ci::CiArgs,
     clean::CleanArgs,
-    completion::{CompletionArgs, CompletionServerArgs},
-    config::{ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs},
+    completion::{
+        CompletionArgs,
+        CompletionServerArgs,
+    },
+    config::{
+        ConfigArgs,
+        ConfigGetAliasArgs,
+        ConfigSetAliasArgs,
+    },
     create::CreateArgs,
     dedupe::DedupeArgs,
     deploy::DeployArgs,
@@ -58,7 +65,10 @@ use super::{
     rebuild::RebuildArgs,
     remove::RemoveArgs,
     repo::RepoArgs,
-    reporter::{LogLevelSetting, ReporterType},
+    reporter::{
+        LogLevelSetting,
+        ReporterType,
+    },
     restart::RestartArgs,
     root::RootArgs,
     run::RunArgs,
@@ -86,9 +96,17 @@ use super::{
     why::WhyArgs,
     with::WithArgs,
 };
-use clap::{CommandFactory, Parser, Subcommand, error::ErrorKind};
+use clap::{
+    CommandFactory,
+    Parser,
+    Subcommand,
+    error::ErrorKind,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_default_reporter::SummaryScope;

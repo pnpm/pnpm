@@ -7,14 +7,23 @@ pub mod streaming;
 pub mod upload;
 
 pub use atomic_write::{
-    remove_atomic_write_temps, unique_tmp_path, write_atomic, write_atomic_new,
+    remove_atomic_write_temps,
+    unique_tmp_path,
+    write_atomic,
+    write_atomic_new,
 };
 
 pub use revision_ref_index::HostedRevisionRefWrite;
 
-pub(crate) use revision_ref_index::{HostedRevisionRefIndex, is_canonical_revision_ref_owner};
+pub(crate) use revision_ref_index::{
+    HostedRevisionRefIndex,
+    is_canonical_revision_ref_owner,
+};
 
-pub use blob_write::{BlobSlot, BlobWrite};
+pub use blob_write::{
+    BlobSlot,
+    BlobWrite,
+};
 
 pub(crate) use local_store::read_dir_if_present;
 
@@ -22,7 +31,11 @@ pub use object_store::GetRange;
 
 pub(crate) use self::backend::HostedBackend;
 
-pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVersion};
+pub use self::backend::{
+    BlobFinalize,
+    HostedDocumentForUpdate,
+    HostedDocumentVersion,
+};
 
 mod staged_records;
 
@@ -31,7 +44,9 @@ use atomic_write::create_tmp_file;
 
 mod revision_ref_index;
 use revision_ref_index::{
-    validate_revision_digest, validate_revision_ref_id, validate_revision_ref_owner,
+    validate_revision_digest,
+    validate_revision_ref_id,
+    validate_revision_ref_owner,
 };
 
 mod blob_write;
@@ -47,26 +62,55 @@ use async_trait::async_trait;
 use axum::body::Body;
 use futures_util::{
     StreamExt,
-    stream::{self, BoxStream},
+    stream::{
+        self,
+        BoxStream,
+    },
 };
 use pnpm_crypto_hash::integrity_addressed_tarball_integrity;
-use pnpr_config::{HostedStoreConfig, build_s3_store, normalize_key_prefix};
-use pnpr_error::{RegistryError, Result};
+use pnpr_config::{
+    HostedStoreConfig,
+    build_s3_store,
+    normalize_key_prefix,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::CanonicalPackageName;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
     collections::HashSet,
-    io::{ErrorKind, SeekFrom},
-    path::{Path, PathBuf},
+    io::{
+        ErrorKind,
+        SeekFrom,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 use tokio::{
     fs,
-    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
+    io::{
+        AsyncReadExt,
+        AsyncSeekExt,
+        AsyncWriteExt,
+    },
 };
 
 const DOCUMENT_FILE: &str = "package.json";

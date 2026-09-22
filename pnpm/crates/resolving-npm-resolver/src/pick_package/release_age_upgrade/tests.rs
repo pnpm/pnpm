@@ -1,6 +1,9 @@
 use tempfile::tempdir;
 
-use super::{Package, persist_upgraded_to_mirror};
+use super::{
+    Package,
+    persist_upgraded_to_mirror,
+};
 use crate::mirror::load_meta_headers;
 
 const FULL_ETAG: &str = r#""full-etag""#;

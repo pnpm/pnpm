@@ -1,20 +1,46 @@
 pub(crate) use credential_keys::enforce_token_helper_trust;
 pub(crate) use credentials::RawCreds;
-pub use credentials::{BasicAuth, RegistryCreds};
-pub use json::{DeclaredRegistries, is_json_auth_scope, validate_json_auth_registry};
+pub use credentials::{
+    BasicAuth,
+    RegistryCreds,
+};
+pub use json::{
+    DeclaredRegistries,
+    is_json_auth_scope,
+    validate_json_auth_registry,
+};
 pub(crate) use tls::parse_no_proxy;
 
-use crate::{Config, api::EnvVar, proxy_keys::ProxyValue, workspace_yaml::LoadWorkspaceYamlError};
+use crate::{
+    Config,
+    api::EnvVar,
+    proxy_keys::ProxyValue,
+    workspace_yaml::LoadWorkspaceYamlError,
+};
 use indexmap::IndexMap;
 use pnpm_env_replace::env_replace_lossy;
 use pnpm_network::{
-    AuthHeaders, DEFAULT_REGISTRY_SCOPE, NoProxySetting, PerRegistryTls, RegistryTls,
-    base64_encode, base64_encode_bytes, nerf_dart, redact_npm_auth_key,
+    AuthHeaders,
+    DEFAULT_REGISTRY_SCOPE,
+    NoProxySetting,
+    PerRegistryTls,
+    RegistryTls,
+    base64_encode,
+    base64_encode_bytes,
+    nerf_dart,
+    redact_npm_auth_key,
 };
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, BTreeSet, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -292,14 +318,24 @@ use credentials::apply_creds_field;
 
 mod credential_keys;
 use credential_keys::{
-    is_auth_value_key, is_package_scope, parse_token_helper_field, parse_url_scoped_env_name,
-    split_creds_key, split_ini_creds_key, split_scope_from_uri,
+    is_auth_value_key,
+    is_package_scope,
+    parse_token_helper_field,
+    parse_url_scoped_env_name,
+    split_creds_key,
+    split_ini_creds_key,
+    split_scope_from_uri,
 };
 
 mod tls;
 use tls::{
-    apply_tls_field, expand_inline_pem, load_cafile, parse_bool, resolve_cafile,
-    split_inline_identity_key, split_ssl_key,
+    apply_tls_field,
+    expand_inline_pem,
+    load_cafile,
+    parse_bool,
+    resolve_cafile,
+    split_inline_identity_key,
+    split_ssl_key,
 };
 
 impl NpmrcTls {

@@ -1,7 +1,13 @@
-use super::{CommandTestExt, is_pnpm_config_var};
+use super::{
+    CommandTestExt,
+    is_pnpm_config_var,
+};
 use crate::env_guard::EnvGuard;
 use command_extra::CommandExtra;
-use std::{ffi::OsStr, process::Command};
+use std::{
+    ffi::OsStr,
+    process::Command,
+};
 
 const SETTING: &str = "PNPM_CONFIG_GLOBAL_SHIMS";
 const CI_SETTING: &str = "PNPM_CONFIG_CI";

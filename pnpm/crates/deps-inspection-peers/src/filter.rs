@@ -1,6 +1,15 @@
 use super::{
-    BTreeMap, BadPeerIssue, HashMap, HashSet, IssuesByProjects, MissingPeerIssue,
-    PeerDependencyRules, PeerIssues, intersect_multiple_ranges, parse_wanted_dependency, satisfies,
+    BTreeMap,
+    BadPeerIssue,
+    HashMap,
+    HashSet,
+    IssuesByProjects,
+    MissingPeerIssue,
+    PeerDependencyRules,
+    PeerIssues,
+    intersect_multiple_ranges,
+    parse_wanted_dependency,
+    satisfies,
 };
 
 pub(super) fn merge_missing_peers(

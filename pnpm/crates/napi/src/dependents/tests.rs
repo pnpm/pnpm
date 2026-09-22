@@ -1,9 +1,17 @@
 use std::path::Path;
 
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
-use super::{DependentsOptions, RenderDependentsInput, build_trees, render_dependents};
+use super::{
+    DependentsOptions,
+    RenderDependentsInput,
+    build_trees,
+    render_dependents,
+};
 
 /// A workspace whose root project depends on `dep@1.0.0`, which in turn
 /// depends on `nested@2.0.0`. Only the lockfile and the manifests the tree

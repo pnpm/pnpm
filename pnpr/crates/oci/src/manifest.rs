@@ -1,6 +1,15 @@
-use crate::{Digest, media_type};
-use derive_more::{Display, Error};
-use serde::{Deserialize, Serialize};
+use crate::{
+    Digest,
+    media_type,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::collections::BTreeMap;
 
 /// The schema every manifest pnpr accepts declares. Docker's schema 1 is a

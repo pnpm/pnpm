@@ -5,7 +5,10 @@
 //! the same value pnpm produces for the same aliases + registries.
 
 use pnpm_crypto_hash::create_hex_hash;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 /// Compute the global-install cache key for a group of resolved aliases
 /// and the active registry map.

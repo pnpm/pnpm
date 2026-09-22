@@ -1,7 +1,19 @@
 use super::{
-    AddRequest, Context, GlobalError, GlobalPackageInfo, HashMap, IntoDiagnostic, Path, PathBuf,
-    fs, is_plain_version_spec, is_valid_old_npm_package_name, lexical_normalize,
-    parse_wanted_dependency, safe_read_package_json_from_dir, tool_install_selector,
+    AddRequest,
+    Context,
+    GlobalError,
+    GlobalPackageInfo,
+    HashMap,
+    IntoDiagnostic,
+    Path,
+    PathBuf,
+    fs,
+    is_plain_version_spec,
+    is_valid_old_npm_package_name,
+    lexical_normalize,
+    parse_wanted_dependency,
+    safe_read_package_json_from_dir,
+    tool_install_selector,
 };
 
 /// The packages one global install request asks for: the tokens a

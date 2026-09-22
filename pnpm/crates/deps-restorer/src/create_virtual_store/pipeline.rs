@@ -1,22 +1,64 @@
 use super::{
-    CasIndexes, CasPrefetch, CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput,
-    CreateVirtualStoreStoreContext, LinkPlan, WantedEntries,
-    cache_keys::{SlotReuse, SnapshotCacheKey},
-    cold::{ColdBatch, ColdBatchState, ColdInputs, run_cold_batch},
-    create_build_marker_source, init_store_dir_unless_frozen, nothing_to_materialize, partition,
-    publish_planned_canonical_fetches, removed_aliases_by_key,
+    CasIndexes,
+    CasPrefetch,
+    CreateVirtualStore,
+    CreateVirtualStoreError,
+    CreateVirtualStoreOutput,
+    CreateVirtualStoreStoreContext,
+    LinkPlan,
+    WantedEntries,
+    cache_keys::{
+        SlotReuse,
+        SnapshotCacheKey,
+    },
+    cold::{
+        ColdBatch,
+        ColdBatchState,
+        ColdInputs,
+        run_cold_batch,
+    },
+    create_build_marker_source,
+    init_store_dir_unless_frozen,
+    nothing_to_materialize,
+    partition,
+    publish_planned_canonical_fetches,
+    removed_aliases_by_key,
     slot_linking::LinkSlotsParallel,
     snapshot_plan,
-    warm::{WarmLinkBatch, enforce_cached_git_prepare_policy, link_warm_batch},
+    warm::{
+        WarmLinkBatch,
+        enforce_cached_git_prepare_policy,
+        link_warm_batch,
+    },
 };
-use crate::{InstallPackageBySnapshot, install_package_by_snapshot::runtime_platform_selector};
+use crate::{
+    InstallPackageBySnapshot,
+    install_package_by_snapshot::runtime_platform_selector,
+};
 use pnpm_config::NodeLinker;
-use pnpm_lockfile::{LockfileEntries, PackageKey, PackageMetadata, PlatformSelector};
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
-use pnpm_store_dir::{SharedVerifiedFilesCache, StoreDir};
+use pnpm_lockfile::{
+    LockfileEntries,
+    PackageKey,
+    PackageMetadata,
+    PlatformSelector,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    Reporter,
+    StatsLog,
+    StatsMessage,
+};
+use pnpm_store_dir::{
+    SharedVerifiedFilesCache,
+    StoreDir,
+};
 use pnpm_tarball::PrefetchResult;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
 };
 

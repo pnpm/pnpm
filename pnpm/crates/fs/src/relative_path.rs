@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Express `path` relative to `base`, mirroring Node's
 /// `path.relative(base, path)`: the shortest relative path when the two
@@ -45,7 +48,10 @@ fn same_path_root(a: &Path, b: &Path) -> bool {
         }
     }
     fn case_normalize(prefix: std::path::Prefix<'_>) -> std::path::Prefix<'_> {
-        use std::path::Prefix::{Disk, VerbatimDisk};
+        use std::path::Prefix::{
+            Disk,
+            VerbatimDisk,
+        };
         match prefix {
             Disk(d) => Disk(d.to_ascii_uppercase()),
             VerbatimDisk(d) => VerbatimDisk(d.to_ascii_uppercase()),

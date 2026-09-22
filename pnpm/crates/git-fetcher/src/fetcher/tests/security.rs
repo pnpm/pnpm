@@ -1,5 +1,10 @@
 use super::{
-    GitFetcherError, GitManifestQuery, PreparePackageError, fs, make_bare_repo, read_git_manifest,
+    GitFetcherError,
+    GitManifestQuery,
+    PreparePackageError,
+    fs,
+    make_bare_repo,
+    read_git_manifest,
     tempdir,
 };
 

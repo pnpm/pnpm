@@ -1,7 +1,20 @@
 use super::{
-    Arc, BTreeMap, DepPath, DirectDep, HashMap, HashSet, NodeId, ResolvePeersOptions, ResolvedTree,
-    assert_cyclic_alias_peer_graph_is_closed, cyclic_alias_peer_tree, named_registry_peer_tree,
-    package, package_with_peer_dependencies, resolve_peers, tree_node,
+    Arc,
+    BTreeMap,
+    DepPath,
+    DirectDep,
+    HashMap,
+    HashSet,
+    NodeId,
+    ResolvePeersOptions,
+    ResolvedTree,
+    assert_cyclic_alias_peer_graph_is_closed,
+    cyclic_alias_peer_tree,
+    named_registry_peer_tree,
+    package,
+    package_with_peer_dependencies,
+    resolve_peers,
+    tree_node,
 };
 
 #[test]

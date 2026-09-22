@@ -1,5 +1,9 @@
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     fs,
     path::Path,
 };
@@ -7,13 +11,37 @@ use std::{
 use serde::Serialize;
 
 use crate::{
-    changelog::{compose_changelog_section, prepend_changelog_section},
+    changelog::{
+        compose_changelog_section,
+        prepend_changelog_section,
+    },
     error::VersioningError,
-    intents::{ChangeIntent, IntentBumpType},
-    ledger::{Ledger, PackageConsumption, append_to_ledger, build_consumption_index},
-    pending::{remove_pending_changelog, write_pending_changelog},
-    plan::{PlannedRelease, ProjectRefIndex, ReleasePlan, WorkspaceProject, index_project_refs},
-    settings::{ChangelogStorage, VersioningSettings, changelog_storage},
+    intents::{
+        ChangeIntent,
+        IntentBumpType,
+    },
+    ledger::{
+        Ledger,
+        PackageConsumption,
+        append_to_ledger,
+        build_consumption_index,
+    },
+    pending::{
+        remove_pending_changelog,
+        write_pending_changelog,
+    },
+    plan::{
+        PlannedRelease,
+        ProjectRefIndex,
+        ReleasePlan,
+        WorkspaceProject,
+        index_project_refs,
+    },
+    settings::{
+        ChangelogStorage,
+        VersioningSettings,
+        changelog_storage,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

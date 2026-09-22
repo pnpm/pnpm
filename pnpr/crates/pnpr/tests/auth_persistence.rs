@@ -6,15 +6,35 @@
 //! [#11974]: https://github.com/pnpm/pnpm/issues/11974
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
 use pnpr::{
-    AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokensConfig, router, router_with_auth,
+    AuthConfig,
+    AuthState,
+    Config,
+    HtpasswdConfig,
+    MaxUsers,
+    TokensConfig,
+    router,
+    router_with_auth,
 };
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::PathBuf,
     process::Command,
 };

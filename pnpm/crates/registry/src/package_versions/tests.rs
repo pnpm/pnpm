@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::{Package, PackageVersion};
+use crate::{
+    Package,
+    PackageVersion,
+};
 
 fn parse_package(json: &str) -> Package {
     serde_json::from_str(json).expect("parse package")

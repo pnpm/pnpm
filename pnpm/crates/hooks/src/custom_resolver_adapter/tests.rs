@@ -1,17 +1,31 @@
 use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicUsize, Ordering},
+    Arc,
+    Mutex,
+    atomic::{
+        AtomicUsize,
+        Ordering,
+    },
 };
 
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 use async_trait::async_trait;
 use pnpm_resolving_resolver_base::{
-    CurrentPkg, PkgResolutionId, ResolveOptions, Resolver, WantedDependency,
+    CurrentPkg,
+    PkgResolutionId,
+    ResolveOptions,
+    Resolver,
+    WantedDependency,
 };
 
 use super::CustomResolverAdapter;
-use crate::{CustomResolver, HookError};
+use crate::{
+    CustomResolver,
+    HookError,
+};
 
 struct ScriptedResolver {
     can_resolve: bool,

@@ -1,7 +1,14 @@
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 #[cfg(any(windows, test))]
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 #[cfg(any(windows, test))]
 const RETRY_BUDGET: Duration = Duration::from_mins(1);

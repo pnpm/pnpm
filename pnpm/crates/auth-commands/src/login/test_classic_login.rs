@@ -4,19 +4,32 @@
 use std::{
     cell::RefCell,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Mutex,
 };
 
 use pipe_trait::Pipe;
-use pnpm_network_web_auth_testing::{InputResponse, ok_token, web_auth_fake};
+use pnpm_network_web_auth_testing::{
+    InputResponse,
+    ok_token,
+    web_auth_fake,
+};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
 use super::{
-    LoginError, login,
+    LoginError,
+    login,
     support::{
-        PromptScript, ReadScript, client, credential_prompts, login_fake, opts,
+        PromptScript,
+        ReadScript,
+        client,
+        credential_prompts,
+        login_fake,
+        opts,
         written_registry_token,
     },
 };

@@ -1,17 +1,39 @@
 mod tolerant;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use diffy::{
     Patch,
-    patch_set::{FileOperation, FilePatch, ParseOptions, PatchSet},
+    patch_set::{
+        FileOperation,
+        FilePatch,
+        ParseOptions,
+        PatchSet,
+    },
 };
 use indexmap::IndexSet;
 use miette::Diagnostic;
 use std::{
-    fs::{self, OpenOptions, Permissions},
-    io::{self, Write},
-    path::{Component, Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    fs::{
+        self,
+        OpenOptions,
+        Permissions,
+    },
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 
 /// Error from [`apply_patch_to_dir`].

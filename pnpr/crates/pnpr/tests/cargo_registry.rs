@@ -20,14 +20,36 @@ mod registry_groups;
 
 use axum::{
     body::Body,
-    http::{Request, StatusCode, header},
+    http::{
+        Request,
+        StatusCode,
+        header,
+    },
 };
-use common::{HostedSource, body_bytes, find_file, mixed_router_config, sha256_hex};
-use pnpr::{AuthState, Config, Ecosystem, recover_publish_journal, router_with_auth};
-use serde_json::{Value, json};
+use common::{
+    HostedSource,
+    body_bytes,
+    find_file,
+    mixed_router_config,
+    sha256_hex,
+};
+use pnpr::{
+    AuthState,
+    Config,
+    Ecosystem,
+    recover_publish_journal,
+    router_with_auth,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     io::Write as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::TempDir;
 use tower::ServiceExt;

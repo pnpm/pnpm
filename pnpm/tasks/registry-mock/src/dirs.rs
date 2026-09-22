@@ -1,6 +1,9 @@
 use pipe_trait::Pipe;
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     sync::LazyLock,
 };

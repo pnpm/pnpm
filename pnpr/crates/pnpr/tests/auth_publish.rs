@@ -21,15 +21,36 @@ mod common;
 mod npm;
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
 use base64::engine::general_purpose::STANDARD as BASE64;
-use npm::{publish_doc, sha1_hex, sri_sha512};
-use pnpr::{Config, MaxUsers, router};
-use serde_json::{Value, json};
+use npm::{
+    publish_doc,
+    sha1_hex,
+    sri_sha512,
+};
+use pnpr::{
+    Config,
+    MaxUsers,
+    router,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::PathBuf,
 };
 use tempfile::TempDir;

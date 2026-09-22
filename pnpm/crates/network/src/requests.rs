@@ -1,6 +1,14 @@
 use super::{
-    AuthHeaders, MAX_REDIRECT_HOPS, RetryOpts, SecureAuthResponse, ThrottledClient,
-    ThrottledClientGuard, UNPRIORITIZED, is_redirect_status, read_limited_body, retry,
+    AuthHeaders,
+    MAX_REDIRECT_HOPS,
+    RetryOpts,
+    SecureAuthResponse,
+    ThrottledClient,
+    ThrottledClientGuard,
+    UNPRIORITIZED,
+    is_redirect_status,
+    read_limited_body,
+    retry,
 };
 
 impl ThrottledClient {

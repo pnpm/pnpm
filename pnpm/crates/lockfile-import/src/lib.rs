@@ -12,16 +12,32 @@
 //! published is ignored rather than fatal.
 
 pub use npm::collect_npm_lockfile_versions;
-pub use yarn::{YarnSyntaxError, collect_yarn_lockfile_versions};
-
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+pub use yarn::{
+    YarnSyntaxError,
+    collect_yarn_lockfile_versions,
 };
 
-use derive_more::{Display, Error};
+use std::{
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+};
+
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_resolving_resolver_base::{PreferredVersions, VersionSelectorEntry, VersionSelectorType};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions,
+    VersionSelectorEntry,
+    VersionSelectorType,
+};
 
 mod npm;
 mod yarn;

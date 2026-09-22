@@ -3,7 +3,10 @@ use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::SilentReporter;
-use pnpm_resolving_resolver_base::{WorkspacePackage, WorkspacePackages};
+use pnpm_resolving_resolver_base::{
+    WorkspacePackage,
+    WorkspacePackages,
+};
 use pnpm_testing_utils::fs::is_symlink_or_junction;
 use std::fs;
 use tempfile::tempdir;
@@ -177,7 +180,11 @@ fn relink_replaces_stale_symlink() {
 /// is not undone by the manifest pass.
 #[test]
 fn lockfile_tracked_alias_is_skipped() {
-    use pnpm_lockfile::{ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
+    use pnpm_lockfile::{
+        ProjectSnapshot,
+        ResolvedDependencyMap,
+        ResolvedDependencySpec,
+    };
 
     let dir = tempdir().unwrap();
     let project_dir = dir.path().join("packages/sibling");

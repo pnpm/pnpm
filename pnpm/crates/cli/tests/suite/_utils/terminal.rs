@@ -5,13 +5,26 @@
 
 use std::{
     fs::File,
-    io::{self, Read, Write},
+    io::{
+        self,
+        Read,
+        Write,
+    },
     os::{
-        fd::{AsRawFd, FromRawFd, OwnedFd},
+        fd::{
+            AsRawFd,
+            FromRawFd,
+            OwnedFd,
+        },
         unix::process::CommandExt,
     },
-    process::{Child, Command, Stdio},
-    ptr, thread,
+    process::{
+        Child,
+        Command,
+        Stdio,
+    },
+    ptr,
+    thread,
 };
 
 /// A pseudo-terminal the test types into, with pacquet as its foreground

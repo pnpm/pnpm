@@ -1,11 +1,26 @@
 use super::{
-    DependencyGroup, InitializedImporters, PassSettings, ResolveImporterError,
-    ResolveImporterOptions, ResolveWorkspaceResult, Resolver, WorkspaceImporter,
-    WorkspaceResolveOptions, WorkspaceTreeCtx, finish, init_importers, run_hoist_rounds,
-    share_root_deps, sorted_importers, time_cutoff,
+    DependencyGroup,
+    InitializedImporters,
+    PassSettings,
+    ResolveImporterError,
+    ResolveImporterOptions,
+    ResolveWorkspaceResult,
+    Resolver,
+    WorkspaceImporter,
+    WorkspaceResolveOptions,
+    WorkspaceTreeCtx,
+    finish,
+    init_importers,
+    run_hoist_rounds,
+    share_root_deps,
+    sorted_importers,
+    time_cutoff,
 };
 use pnpm_resolving_resolver_base::PreferredVersions;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 /// A dependency tree before automatic peer installation and peer-context resolution.
 /// Dropping an intermediate tree avoids all peer processing for that tree.

@@ -1,5 +1,8 @@
 use super::CargoCache;
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 fn project() -> tempfile::TempDir {
     let project = tempfile::tempdir().unwrap();

@@ -107,7 +107,10 @@ use crate::{
     store::Store,
 };
 use pipe_trait::Pipe;
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+};
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;

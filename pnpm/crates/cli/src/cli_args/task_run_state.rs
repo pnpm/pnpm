@@ -1,21 +1,54 @@
-use journal::{current_generation, remove_state_file, validate_real_directory};
-use miette::{IntoDiagnostic, WrapErr as _};
+use journal::{
+    current_generation,
+    remove_state_file,
+    validate_real_directory,
+};
+use miette::{
+    IntoDiagnostic,
+    WrapErr as _,
+};
 use pnpm_crypto_hash::create_hex_hash;
-use pnpm_workspace_task_scheduler::{TaskGraph, TaskKey, TaskNode};
-use serde::{Deserialize, Serialize};
+use pnpm_workspace_task_scheduler::{
+    TaskGraph,
+    TaskKey,
+    TaskNode,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
-    collections::{HashMap, HashSet},
-    ffi::{OsStr, OsString},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    ffi::{
+        OsStr,
+        OsString,
+    },
     fs,
-    fs::{File, OpenOptions},
+    fs::{
+        File,
+        OpenOptions,
+    },
     io,
     io::Write as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         Mutex,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 const STATE_VERSION: u8 = 1;

@@ -1,4 +1,10 @@
-use super::{Map, PackageManifestError, Range, Value, json};
+use super::{
+    Map,
+    PackageManifestError,
+    Range,
+    Value,
+    json,
+};
 
 /// Runtime aliases recognised by `devEngines.runtime` /
 /// `engines.runtime` reification.

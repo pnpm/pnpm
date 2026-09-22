@@ -1,5 +1,14 @@
-use super::{CheckboxChoice, CheckboxItem, CheckboxPrompt, CheckboxTheme, KeyOutcome};
-use console::{Key, strip_ansi_codes};
+use super::{
+    CheckboxChoice,
+    CheckboxItem,
+    CheckboxPrompt,
+    CheckboxTheme,
+    KeyOutcome,
+};
+use console::{
+    Key,
+    strip_ansi_codes,
+};
 
 fn separator(text: &str) -> CheckboxItem<&'static str> {
     CheckboxItem::Separator(text.to_string())

@@ -1,6 +1,14 @@
 use crate::{
-    get_patch_info::{PatchKeyConflictError, get_patch_info},
-    types::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem, PatchGroupRecord},
+    get_patch_info::{
+        PatchKeyConflictError,
+        get_patch_info,
+    },
+    types::{
+        ExtendedPatchInfo,
+        PatchGroup,
+        PatchGroupRangeItem,
+        PatchGroupRecord,
+    },
 };
 use pretty_assertions::assert_eq;
 

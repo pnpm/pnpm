@@ -1,7 +1,22 @@
 use super::{
-    Cursor, SimpleFileOptions, Write, ZipWriter, assert_failure_contains, cargo_project,
-    environments::{generations, project_directories},
-    flatten_report, fs, json, pacquet_in, project, python, serve, wheel,
+    Cursor,
+    SimpleFileOptions,
+    Write,
+    ZipWriter,
+    assert_failure_contains,
+    cargo_project,
+    environments::{
+        generations,
+        project_directories,
+    },
+    flatten_report,
+    fs,
+    json,
+    pacquet_in,
+    project,
+    python,
+    serve,
+    wheel,
 };
 use assert_cmd::assert::OutputAssertExt;
 

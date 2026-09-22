@@ -1,4 +1,7 @@
-use super::{INDENT, resolves_implicitly};
+use super::{
+    INDENT,
+    resolves_implicitly,
+};
 
 /// Scalar styles, mirroring the fork's `STYLE_*` constants. `Folded` never
 /// occurs here because `lineWidth` is `-1`.

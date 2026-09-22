@@ -1,33 +1,65 @@
 #[cfg(windows)]
 use super::ensure_workspace_directory_windows;
 use super::{
-    ArchiveStoreProjection, Config, LockedCrate, add_cargo_checksum, discover_workspace_roots,
-    managed_config, parse_lockfile, update_managed_config, workspace_root,
+    ArchiveStoreProjection,
+    Config,
+    LockedCrate,
+    add_cargo_checksum,
+    discover_workspace_roots,
+    managed_config,
+    parse_lockfile,
+    update_managed_config,
+    workspace_root,
 };
 #[cfg(unix)]
 use super::{
-    CRATES_SOURCE_DIRECTORY, ensure_workspace_directory, link_workspace, link_workspace_in,
-    write_cargo_config, write_cargo_config_in,
+    CRATES_SOURCE_DIRECTORY,
+    ensure_workspace_directory,
+    link_workspace,
+    link_workspace_in,
+    write_cargo_config,
+    write_cargo_config_in,
 };
 use crate::cargo_deps::{
-    materialize::{MaterializeOptions, materialize},
-    sparse_registry::{download_auth_headers, fetch_sparse_index_file, sparse_index_path},
+    materialize::{
+        MaterializeOptions,
+        materialize,
+    },
+    sparse_registry::{
+        download_auth_headers,
+        fetch_sparse_index_file,
+        sparse_index_path,
+    },
 };
 use cargo_util_schemas::index::RegistryConfig;
 use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::{
-    CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
+    CafsFileInfo,
+    PackageFilesIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    StoreIndex,
     StoreIndexWriter,
 };
-use ssri::{Algorithm, Integrity};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
 #[cfg(unix)]
 use std::os::unix::fs::symlink;
 use std::{
     collections::HashMap,
     fs,
-    sync::{Arc, atomic::AtomicU8},
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
     time::Duration,
 };
 

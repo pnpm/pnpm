@@ -1,12 +1,22 @@
 use super::{
-    lockfile::{LockedPackages, parse_lockfile},
+    lockfile::{
+        LockedPackages,
+        parse_lockfile,
+    },
     resolution::configs_in_scope,
 };
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use pnpm_network::redact_and_sanitize_multiline;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 

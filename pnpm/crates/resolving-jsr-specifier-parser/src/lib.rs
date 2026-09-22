@@ -11,7 +11,10 @@
 //! into another parser (npm-style bare specifier, named-registry,
 //! etc.) without sniffing the prefix itself.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_package_name::is_valid_old_npm_package_name;
 

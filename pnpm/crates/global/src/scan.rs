@@ -3,19 +3,36 @@
 
 use crate::read_package_json;
 use pnpm_cmd_shim::{
-    FsReadDir, FsReadFile, FsWalkFiles, Host, PackageBinSource, get_bins_from_package_manifest,
+    FsReadDir,
+    FsReadFile,
+    FsWalkFiles,
+    Host,
+    PackageBinSource,
+    get_bins_from_package_manifest,
 };
 use pnpm_fs::is_symlink_or_junction;
-use pnpm_package_manifest::{PackageManifestError, parse_manifest_bytes};
+use pnpm_package_manifest::{
+    PackageManifestError,
+    parse_manifest_bytes,
+};
 use pnpm_package_name::is_valid_dependency_alias;
 use serde_json::Value;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     fs::DirEntry,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 /// A single global install group: a hash symlink pointing at an install

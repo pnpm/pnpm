@@ -15,11 +15,18 @@ use crate::_utils;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fixtures::minimal_tarball,
     fs::get_all_files,
 };
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 /// A fresh `pacquet` command rooted at `workspace`. `std::process::Command`
 /// isn't `Clone` and each invocation consumes the builder, so tests that

@@ -1,10 +1,16 @@
 use crate::pick_package_from_meta::{
-    PickVersionByVersionRangeOptions, RegistryPackageSpec, RegistryPackageSpecType,
-    apply_published_by_policy, pick_version_by_version_range,
+    PickVersionByVersionRangeOptions,
+    RegistryPackageSpec,
+    RegistryPackageSpecType,
+    apply_published_by_policy,
+    pick_version_by_version_range,
 };
 use pnpm_registry::Package;
 use pnpm_resolving_resolver_base::{
-    ResolveOptions, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
+    ResolveOptions,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectors,
 };
 use std::sync::Mutex;
 

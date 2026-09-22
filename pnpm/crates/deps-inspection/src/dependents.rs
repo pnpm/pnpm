@@ -1,22 +1,41 @@
 //! Reverse (dependents) tree for `pnpm why`. Rust counterpart of the
 //! TypeScript tree-builder's `buildDependentsTree`.
 
-pub use selection::{compare_versions, name_ver_from_dep_path, resolve_package_nodes};
+pub use selection::{
+    compare_versions,
+    name_ver_from_dep_path,
+    resolve_package_nodes,
+};
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
 };
 
-use pnpm_lockfile::{Lockfile, PkgNameVerPeer, ProjectSnapshot};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+};
 use pnpm_package_manifest::parse_manifest_bytes;
 
 use super::{
     TreeNodeId,
     graph::DependencyGraph,
     peers_suffix_hash,
-    pkg_info::{EdgeContext, ManifestSource, PkgInfoEnv, get_pkg_info},
-    search::{SearchMatch, Searcher},
+    pkg_info::{
+        EdgeContext,
+        ManifestSource,
+        PkgInfoEnv,
+        get_pkg_info,
+    },
+    search::{
+        SearchMatch,
+        Searcher,
+    },
 };
 
 /// One node of the reverse tree: a package or workspace project that
@@ -429,4 +448,7 @@ fn dep_field_for_alias(alias: &str, importer: &ProjectSnapshot) -> Option<DepFie
 
 mod selection;
 
-use selection::{has_snapshot, match_package};
+use selection::{
+    has_snapshot,
+    match_package,
+};

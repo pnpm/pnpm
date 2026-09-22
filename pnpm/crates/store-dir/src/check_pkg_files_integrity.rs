@@ -4,19 +4,41 @@
 //! implements that check — with a fast path that skips filesystem work
 //! entirely when the caller opted out of integrity verification.
 
-use crate::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreDir};
+use crate::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    SideEffectsDiff,
+    StoreDir,
+};
 use dashmap::DashSet;
-use sha2::{Digest, Sha512};
+use sha2::{
+    Digest,
+    Sha512,
+};
 use std::{
     collections::HashMap,
     fs,
-    io::{self, BufReader, Read},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        BufReader,
+        Read,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
-    time::{Duration, Instant, UNIX_EPOCH},
+    time::{
+        Duration,
+        Instant,
+        UNIX_EPOCH,
+    },
 };
 
 /// Process-wide tally of the CAFS files [`verify_file_integrity`] had

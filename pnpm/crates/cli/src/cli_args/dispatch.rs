@@ -1,39 +1,92 @@
 pub(crate) use context::{
-    CommandFuture, CommandLoaders, CommandLocations, RunCtx, WorkspaceInvocation,
+    CommandFuture,
+    CommandLoaders,
+    CommandLocations,
+    RunCtx,
+    WorkspaceInvocation,
 };
 
-pub(super) use configuration::{apply_update_config, seed_config};
+pub(super) use configuration::{
+    apply_update_config,
+    seed_config,
+};
 
 use super::{
-    cli_command::{CliArgs, CliCommand},
-    dispatch_install, dispatch_query, dispatch_script,
+    cli_command::{
+        CliArgs,
+        CliCommand,
+    },
+    dispatch_install,
+    dispatch_query,
+    dispatch_script,
     install::resolve_bool_override,
     reporter::{
-        DefaultReporterSetup, ReporterType, configure_color, configure_default_reporter,
-        configure_max_log_level, reporter_emit,
+        DefaultReporterSetup,
+        ReporterType,
+        configure_color,
+        configure_default_reporter,
+        configure_max_log_level,
+        reporter_emit,
     },
 };
 use crate::{
     config_deps::prepare_config,
-    config_overrides::{ConfigOverrides, apply_state_dir_override, apply_store_dir_override},
+    config_overrides::{
+        ConfigOverrides,
+        apply_state_dir_override,
+        apply_store_dir_override,
+    },
 };
 
 use configuration::{
-    OutputOverrides, ProjectSelectors, RunAnchors, RunSetup, apply_color_override,
-    apply_location_overrides, apply_output_overrides, apply_project_selectors,
+    OutputOverrides,
+    ProjectSelectors,
+    RunAnchors,
+    RunSetup,
+    apply_color_override,
+    apply_location_overrides,
+    apply_output_overrides,
+    apply_project_selectors,
     warn_config_overrides,
 };
-use miette::{Context, IntoDiagnostic};
-use pnpm_config::{ColorMode, Config, Host, default_pnpm_home_dir};
-use pnpm_default_reporter::{DefaultReporter, SummaryScope};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use pnpm_config::{
+    ColorMode,
+    Config,
+    Host,
+    default_pnpm_home_dir,
+};
+use pnpm_default_reporter::{
+    DefaultReporter,
+    SummaryScope,
+};
 use pnpm_network_web_auth::OtpNonInteractiveError;
-use pnpm_reporter::{ExecutionTimeLog, LogEvent, LogLevel, NdjsonReporter, SilentReporter};
+use pnpm_reporter::{
+    ExecutionTimeLog,
+    LogEvent,
+    LogLevel,
+    NdjsonReporter,
+    SilentReporter,
+};
 use routing::{
-    emit_execution_time, now_millis, print_json_error, prints_json_errors, run_routed_command,
+    emit_execution_time,
+    now_millis,
+    print_json_error,
+    prints_json_errors,
+    run_routed_command,
 };
 use std::{
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicBool, Ordering},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicBool,
+        Ordering,
+    },
 };
 
 impl CliArgs {

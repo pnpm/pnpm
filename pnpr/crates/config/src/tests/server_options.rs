@@ -1,5 +1,13 @@
 use super::{
-    Config, Identity, LogFormat, LogLevel, Path, PathBuf, RegistryError, listen, parse_log_yaml,
+    Config,
+    Identity,
+    LogFormat,
+    LogLevel,
+    Path,
+    PathBuf,
+    RegistryError,
+    listen,
+    parse_log_yaml,
 };
 
 #[test]

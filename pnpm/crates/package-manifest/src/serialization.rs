@@ -1,6 +1,17 @@
 use super::{
-    DEFAULT_INDENT, InitOptions, NamedTempFile, PackageManifest, PackageManifestError, Path,
-    PathBuf, Serialize, Value, Write, convert_engines_runtime_to_dependencies, fs, io,
+    DEFAULT_INDENT,
+    InitOptions,
+    NamedTempFile,
+    PackageManifest,
+    PackageManifestError,
+    Path,
+    PathBuf,
+    Serialize,
+    Value,
+    Write,
+    convert_engines_runtime_to_dependencies,
+    fs,
+    io,
 };
 
 /// pnpm's on-write manifest normalization: within each dependency field,

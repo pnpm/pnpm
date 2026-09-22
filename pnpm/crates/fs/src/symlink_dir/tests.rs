@@ -9,10 +9,17 @@ use super::symlink_dir;
 #[cfg(windows)]
 use super::to_native_separators;
 use super::{
-    ForceSymlinkOutcome, TriedOnce, force_absolute_symlink_dir, force_symlink_dir, read_symlink_dir,
+    ForceSymlinkOutcome,
+    TriedOnce,
+    force_absolute_symlink_dir,
+    force_symlink_dir,
+    read_symlink_dir,
 };
 #[cfg(windows)]
-use super::{is_reparse_point, relative_target_for};
+use super::{
+    is_reparse_point,
+    relative_target_for,
+};
 use std::fs;
 use tempfile::tempdir;
 
@@ -222,7 +229,10 @@ fn remove_occupant_clears_files_directories_and_missing_paths() {
 
 #[test]
 fn rename_error_allows_destination_removal_covers_occupied_and_locked_destinations() {
-    use std::io::{Error, ErrorKind};
+    use std::io::{
+        Error,
+        ErrorKind,
+    };
 
     for kind in
         [ErrorKind::AlreadyExists, ErrorKind::DirectoryNotEmpty, ErrorKind::PermissionDenied]

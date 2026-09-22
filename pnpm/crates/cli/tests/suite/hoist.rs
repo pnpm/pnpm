@@ -28,10 +28,20 @@ use crate::_utils;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
-    fs::{bump_mtime, is_symlink_or_junction},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    fs::{
+        bump_mtime,
+        is_symlink_or_junction,
+    },
 };
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 /// Generate a `pnpm-lock.yaml` in `workspace` against the mocked
 /// registry, without installing anything. Pacquet then consumes that

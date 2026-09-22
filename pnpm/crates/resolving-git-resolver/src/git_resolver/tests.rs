@@ -1,14 +1,28 @@
-use super::{GitProbe, GitResolver, ProbeFuture};
-use crate::resolve_ref::{GitCommandRunner, GitRunError};
+use super::{
+    GitProbe,
+    GitResolver,
+    ProbeFuture,
+};
+use crate::resolve_ref::{
+    GitCommandRunner,
+    GitRunError,
+};
 use miette::Diagnostic;
 use pnpm_lockfile::LockfileResolution;
 use pnpm_resolving_resolver_base::{
-    GitResolveError, ResolveOptions, ResolveResult, Resolver, WantedDependency,
+    GitResolveError,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 use std::{
     future::Future,
     pin::Pin,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 struct FakeProbe {

@@ -1,7 +1,16 @@
 use super::{
-    EnvVar, GetHomeDir, Path, WorkspaceSettings, has_env_placeholder, join_fragment, registries,
-    substitute_json_string, substitute_optional_inner_string, substitute_optional_string,
-    substitute_optional_string_map, substitute_registry_entries,
+    EnvVar,
+    GetHomeDir,
+    Path,
+    WorkspaceSettings,
+    has_env_placeholder,
+    join_fragment,
+    registries,
+    substitute_json_string,
+    substitute_optional_inner_string,
+    substitute_optional_string,
+    substitute_optional_string_map,
+    substitute_registry_entries,
 };
 
 impl WorkspaceSettings {

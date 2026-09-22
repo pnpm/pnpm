@@ -1,7 +1,16 @@
 //! Unit tests for the [`super`] TLS types.
 
-use super::{PerRegistryTls, RegistryTls, TlsConfig, TlsError, strip_port};
-use std::{collections::HashMap, net::Ipv4Addr};
+use super::{
+    PerRegistryTls,
+    RegistryTls,
+    TlsConfig,
+    TlsError,
+    strip_port,
+};
+use std::{
+    collections::HashMap,
+    net::Ipv4Addr,
+};
 
 fn registry_with(ca: Option<&str>, cert: Option<&str>, key: Option<&str>) -> RegistryTls {
     RegistryTls {

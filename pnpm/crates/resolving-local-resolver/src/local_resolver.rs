@@ -5,17 +5,41 @@
 
 use std::path::PathBuf;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
-use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+    TarballResolution,
+};
+use pnpm_package_manifest::{
+    PackageManifestError,
+    safe_read_package_json_from_dir,
+};
 use pnpm_package_name::is_valid_old_npm_package_name;
-use pnpm_resolving_resolver_base::{LatestInfo, LatestQuery, PkgResolutionId, ResolveResult};
-use pnpm_tarball::{LocalTarballMetadata, TarballError, read_local_tarball_metadata};
+use pnpm_resolving_resolver_base::{
+    LatestInfo,
+    LatestQuery,
+    PkgResolutionId,
+    ResolveResult,
+};
+use pnpm_tarball::{
+    LocalTarballMetadata,
+    TarballError,
+    read_local_tarball_metadata,
+};
 
 use crate::parse_bare_specifier::{
-    LocalPackageSpec, LocalSpecKind, ParseOptions, PathProtocolNotSupportedError,
-    WantedLocalDependency, parse_local_path, parse_local_scheme,
+    LocalPackageSpec,
+    LocalSpecKind,
+    ParseOptions,
+    PathProtocolNotSupportedError,
+    WantedLocalDependency,
+    parse_local_path,
+    parse_local_scheme,
 };
 
 /// Per-install knobs the dispatcher threads into every resolver call.

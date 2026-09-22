@@ -1,12 +1,22 @@
 use bytes::Bytes;
 use futures_util::future::join_all;
-use object_store::{ObjectStoreExt as _, memory::InMemory};
+use object_store::{
+    ObjectStoreExt as _,
+    memory::InMemory,
+};
 use pnpr_config::HostedStoreConfig;
 use std::sync::Arc;
 use tempfile::TempDir;
 
-use super::{CompilerCacheKey, DIGEST_SIZE, compiler_cache_path};
-use crate::{SharedArtifactStore, owner_key};
+use super::{
+    CompilerCacheKey,
+    DIGEST_SIZE,
+    compiler_cache_path,
+};
+use crate::{
+    SharedArtifactStore,
+    owner_key,
+};
 use pnpm_shared_artifact_protocol::OwnerScope;
 
 fn key(value: &str) -> CompilerCacheKey {

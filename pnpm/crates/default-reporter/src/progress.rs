@@ -1,6 +1,9 @@
 //! The gate the `progress` setting puts in front of the progress streams.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 use pnpm_reporter::LogEvent;
 

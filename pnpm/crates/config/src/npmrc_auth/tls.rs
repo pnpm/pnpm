@@ -1,4 +1,9 @@
-use super::{NoProxySetting, Path, PathBuf, RegistryTls};
+use super::{
+    NoProxySetting,
+    Path,
+    PathBuf,
+    RegistryTls,
+};
 
 /// Turn the `\n` escapes of an inline PEM into real newlines, so a
 /// single INI line can carry a multi-line certificate. The unscoped

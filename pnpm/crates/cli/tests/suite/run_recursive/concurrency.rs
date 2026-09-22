@@ -2,7 +2,14 @@
 //! concurrently when the run's concurrency allows it, as they do in
 //! pnpm 11 — <https://github.com/pnpm/pnpm/issues/14933>.
 
-use super::{CommandExtra, CommandTempCwd, Duration, fs, json, write_workspace};
+use super::{
+    CommandExtra,
+    CommandTempCwd,
+    Duration,
+    fs,
+    json,
+    write_workspace,
+};
 use assert_cmd::assert::OutputAssertExt;
 
 /// A pair of scripts that record whether they ever ran simultaneously:

@@ -1,4 +1,7 @@
-use super::{Buffer, MAX_CAPTURE_BYTES};
+use super::{
+    Buffer,
+    MAX_CAPTURE_BYTES,
+};
 use pnpm_reporter::LifecycleStdio;
 
 #[test]

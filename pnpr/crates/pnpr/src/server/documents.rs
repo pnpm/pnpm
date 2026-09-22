@@ -11,10 +11,17 @@
 //! it re-runs when a transaction is applied after a crash.
 
 use super::{
-    AppState, hosted_read_namespace,
-    publishing::{StagedPublish, commit_publishes},
+    AppState,
+    hosted_read_namespace,
+    publishing::{
+        StagedPublish,
+        commit_publishes,
+    },
 };
-use pnpr_cargo::{CrateDocument, crate_filename};
+use pnpr_cargo::{
+    CrateDocument,
+    crate_filename,
+};
 use pnpr_error::RegistryError;
 use pnpr_oci::ImageDocument;
 use pnpr_package_name::CanonicalPackageName;
@@ -22,7 +29,10 @@ use pnpr_policy::Identity;
 use pnpr_pypi::ProjectDocument;
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
-    journal::{DocumentMerge, HostedDocuments},
+    journal::{
+        DocumentMerge,
+        HostedDocuments,
+    },
     publish::merge_journaled_packument,
 };
 use std::collections::HashSet;

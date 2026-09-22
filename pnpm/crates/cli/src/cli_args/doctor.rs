@@ -9,12 +9,18 @@
 
 use crate::cli_args::ping::PingArgs;
 use clap::Args;
-use pnpm_config::{Config, PNPM_VERSION};
+use pnpm_config::{
+    Config,
+    PNPM_VERSION,
+};
 use serde::Serialize;
 use std::{
     fmt::Write as _,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     time::Instant,
 };

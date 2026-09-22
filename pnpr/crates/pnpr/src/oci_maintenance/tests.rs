@@ -1,11 +1,25 @@
-use super::{collect, referenced_blobs};
+use super::{
+    collect,
+    referenced_blobs,
+};
 use crate::RegistryError;
 use pnpr_config::HostedStoreConfig;
-use pnpr_oci::{Digest, ImageDocument, ManifestEntry, media_type};
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_oci::{
+    Digest,
+    ImageDocument,
+    ManifestEntry,
+    media_type,
+};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use pnpr_storage::Storage;
 use serde_json::json;
-use std::{collections::HashSet, time::Duration};
+use std::{
+    collections::HashSet,
+    time::Duration,
+};
 use tempfile::TempDir;
 
 const MANIFEST_LIMIT: usize = 4 * 1024 * 1024;

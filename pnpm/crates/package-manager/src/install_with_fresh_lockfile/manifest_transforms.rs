@@ -7,20 +7,34 @@
 //! [`super::resolve`].
 
 use super::{
-    InstallWithFreshLockfileError, compose_manifest_hooks, parse_config_overrides,
+    InstallWithFreshLockfileError,
+    compose_manifest_hooks,
+    parse_config_overrides,
     resolved_overrides_map,
 };
 use crate::{
-    VersionsOverrider, apply_deploy_manifest_hook, install::apply_deploy_manifest_hook_to_arc,
+    VersionsOverrider,
+    apply_deploy_manifest_hook,
+    install::apply_deploy_manifest_hook_to_arc,
 };
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_matcher::{Matcher, create_matcher};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_resolving_deps_resolver::{DependencyOverrider, ManifestHook};
+use pnpm_resolving_deps_resolver::{
+    DependencyOverrider,
+    ManifestHook,
+};
 use serde_json::Value;
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::Arc,
+};
 
 /// pnpm's built-in read-package hook chain for the manifests fresh
 /// resolution consumes, plus the pieces later phases read off it.

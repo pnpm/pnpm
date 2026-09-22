@@ -1,8 +1,26 @@
 use super::{
-    AmazonS3ConfigKey, BackendConfig, ClientConfigKey, Config, ConfigSource, Duration, Ecosystem,
-    EnvGuard, FeatureOverrides, Identity, MINIMAL_YAML, Path, PathBuf, RegistryError,
-    hosted_rules_config, hosted_rules_err, listen, normalize_key_prefix, resolve_relative,
-    s3_settings_for, user, write_yaml,
+    AmazonS3ConfigKey,
+    BackendConfig,
+    ClientConfigKey,
+    Config,
+    ConfigSource,
+    Duration,
+    Ecosystem,
+    EnvGuard,
+    FeatureOverrides,
+    Identity,
+    MINIMAL_YAML,
+    Path,
+    PathBuf,
+    RegistryError,
+    hosted_rules_config,
+    hosted_rules_err,
+    listen,
+    normalize_key_prefix,
+    resolve_relative,
+    s3_settings_for,
+    user,
+    write_yaml,
 };
 
 #[test]
@@ -115,7 +133,10 @@ fn resolve_relative_joins_relative_paths_to_base() {
 
 #[test]
 fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
-    use pnpr_registry::{ConcreteKind, Resolved};
+    use pnpr_registry::{
+        ConcreteKind,
+        Resolved,
+    };
     let config = Config::proxy(listen(), PathBuf::from("/tmp"));
     assert!(config.routing.upstreams.contains_key("npmjs"));
     assert_eq!(config.routing.registries.default_registry(), Some("main"));
@@ -532,7 +553,10 @@ fn bundled_default_config_enforces_its_protections() {
     assert!(!public.unpublish.allows(&Identity::Anonymous));
     // `lodash` is not local: it is unclaimed by the hosted registry and
     // resolves to the npmjs catch-all through the router.
-    use pnpr_registry::{ConcreteKind, Resolved};
+    use pnpr_registry::{
+        ConcreteKind,
+        Resolved,
+    };
     assert_eq!(
         config.routing.registries.resolve_default(Ecosystem::Npm, "lodash"),
         Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },

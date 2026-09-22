@@ -1,5 +1,9 @@
 use super::deprecate::{
-    DeprecateContext, DeprecateError, PackageSpec, parse_package_spec, update_deprecation,
+    DeprecateContext,
+    DeprecateError,
+    PackageSpec,
+    parse_package_spec,
+    update_deprecation,
 };
 use clap::Args;
 use pnpm_config::Config;

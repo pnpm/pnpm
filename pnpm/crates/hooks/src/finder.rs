@@ -1,15 +1,27 @@
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
 use async_trait::async_trait;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use serde_json::Value;
 
 use super::{
-    CustomFetcher, CustomResolver, HookContext, HookError, PnpmfileHooks, PreResolutionHookContext,
-    PreResolutionHookLogger, ReadPackageResult,
+    CustomFetcher,
+    CustomResolver,
+    HookContext,
+    HookError,
+    PnpmfileHooks,
+    PreResolutionHookContext,
+    PreResolutionHookLogger,
+    ReadPackageResult,
 };
 
 #[must_use]

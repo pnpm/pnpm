@@ -1,7 +1,13 @@
 use super::{
-    create_hash, create_hash_from_file, create_hex_hash, create_hex_hash_bytes,
-    create_hex_hash_from_file, create_short_hash, integrity_addressed_tarball_integrity,
-    integrity_addressed_tarball_path, shorten_virtual_store_name,
+    create_hash,
+    create_hash_from_file,
+    create_hex_hash,
+    create_hex_hash_bytes,
+    create_hex_hash_from_file,
+    create_short_hash,
+    integrity_addressed_tarball_integrity,
+    integrity_addressed_tarball_path,
+    shorten_virtual_store_name,
 };
 use ssri::Integrity;
 

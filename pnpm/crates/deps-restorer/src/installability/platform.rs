@@ -1,11 +1,24 @@
-use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
+};
 use pnpm_package_is_installable::{
-    InstallabilityError, InstallabilityOptions, PackageInstallabilityManifest,
-    SupportedArchitectures, WantedEngine, WantedPlatformRef, check_package, inferred_platform,
+    InstallabilityError,
+    InstallabilityOptions,
+    PackageInstallabilityManifest,
+    SupportedArchitectures,
+    WantedEngine,
+    WantedPlatformRef,
+    check_package,
+    inferred_platform,
 };
 use pnpm_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
-use std::{borrow::Cow, collections::HashMap};
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+};
 
 /// Host context for the installability check. Built once per install
 /// so the per-snapshot calls don't each re-spawn `node --version`

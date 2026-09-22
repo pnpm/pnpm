@@ -1,9 +1,21 @@
-use super::workspace_yaml::{allow_builds, append_workspace_yaml_key};
+use super::workspace_yaml::{
+    allow_builds,
+    append_workspace_yaml_key,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_modules_yaml::{Host, read_modules_manifest};
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use pnpm_modules_yaml::{
+    Host,
+    read_modules_manifest,
+};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn read_pending_builds(workspace: &Path) -> Vec<String> {
     read_modules_manifest::<Host>(&workspace.join("node_modules"))

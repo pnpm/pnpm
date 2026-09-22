@@ -1,6 +1,18 @@
 use super::{
-    AsyncBufReadExt, AsyncBufReader, AsyncRead, BufRead, BufReader, ExitStatus, LifecycleLog,
-    LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Read, io, thread,
+    AsyncBufReadExt,
+    AsyncBufReader,
+    AsyncRead,
+    BufRead,
+    BufReader,
+    ExitStatus,
+    LifecycleLog,
+    LifecycleMessage,
+    LifecycleStdio,
+    LogEvent,
+    LogLevel,
+    Read,
+    io,
+    thread,
 };
 use crate::process_tracker::SpawnedChild;
 

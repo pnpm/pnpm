@@ -1,4 +1,11 @@
-use super::{ArtifactBlobRequest, BASE64, OwnerScope, PnprClient, PnprClientError, Sha512};
+use super::{
+    ArtifactBlobRequest,
+    BASE64,
+    OwnerScope,
+    PnprClient,
+    PnprClientError,
+    Sha512,
+};
 use base64::Engine as _;
 use sha2::Digest as _;
 

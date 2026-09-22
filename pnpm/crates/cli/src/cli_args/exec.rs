@@ -1,24 +1,46 @@
 mod recursive;
 
-use super::reporter::{ReporterType, reporter_emit};
-use crate::path_env::{BadPathDir, prepend_dirs_to_path, set_command_path};
+use super::reporter::{
+    ReporterType,
+    reporter_emit,
+};
+use crate::path_env::{
+    BadPathDir,
+    prepend_dirs_to_path,
+    set_command_path,
+};
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_executor::{
-    ProcessTracker, ScriptExit, ScriptOutput, StreamedScript, exit_like, push_script_arg,
-    select_shell, spawn_child,
+    ProcessTracker,
+    ScriptExit,
+    ScriptOutput,
+    StreamedScript,
+    exit_like,
+    push_script_arg,
+    select_shell,
+    spawn_child,
 };
 use pnpm_package_manager::{
-    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    make_node_package_map_option,
+    make_node_require_option,
+    package_map_path_for_execution,
     pnp_path_for_execution,
 };
 use pnpm_workspace::read_project_name;
 use std::{
     collections::HashMap,
     path::Path,
-    process::{Command, ExitStatus, Stdio},
+    process::{
+        Command,
+        ExitStatus,
+        Stdio,
+    },
 };
 
 /// Run a shell command in the context of a project.

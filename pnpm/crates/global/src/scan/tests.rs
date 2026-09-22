@@ -1,12 +1,23 @@
 use super::{
-    GlobalPackageInfo, find_global_package, get_installed_bin_names,
-    get_installed_bin_names_with_fs, read_direct_dependency_aliases, read_installed_packages,
+    GlobalPackageInfo,
+    find_global_package,
+    get_installed_bin_names,
+    get_installed_bin_names_with_fs,
+    read_direct_dependency_aliases,
+    read_installed_packages,
     scan_global_packages,
 };
-use pnpm_cmd_shim::{FsReadDir, FsReadFile, FsWalkFiles};
+use pnpm_cmd_shim::{
+    FsReadDir,
+    FsReadFile,
+    FsWalkFiles,
+};
 use pnpm_package_manifest::PackageManifestError;
 use serde_json::json;
-use std::{io, path::Path};
+use std::{
+    io,
+    path::Path,
+};
 use tempfile::TempDir;
 
 fn write_json(path: &Path, value: &serde_json::Value) {

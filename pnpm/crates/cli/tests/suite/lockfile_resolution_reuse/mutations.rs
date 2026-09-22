@@ -1,5 +1,10 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, dead_registry_url, fs, pacquet_at,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    dead_registry_url,
+    fs,
+    pacquet_at,
     write_two_member_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;

@@ -2,17 +2,37 @@
 //! the workspace selection and the install itself see the same manifests.
 
 use super::{
-    manifest::{Manifest, RequirementScope},
+    manifest::{
+        Manifest,
+        RequirementScope,
+    },
     requirements,
-    workspace::{Workspace, members::DeclaredWorkspaces},
+    workspace::{
+        Workspace,
+        members::DeclaredWorkspaces,
+    },
 };
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use pep508_rs::PackageName;
-use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph, ProjectGraphNode};
+use pnpm_workspace_projects_graph::{
+    BaseProject,
+    ProjectGraph,
+    ProjectGraphNode,
+};
 use std::{
     cmp::Ordering,
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

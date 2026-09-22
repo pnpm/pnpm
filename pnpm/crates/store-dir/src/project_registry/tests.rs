@@ -1,6 +1,14 @@
-use super::{create_short_hash, get_registered_projects, path_contains, register_project};
+use super::{
+    create_short_hash,
+    get_registered_projects,
+    path_contains,
+    register_project,
+};
 use crate::StoreDir;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 /// `path_contains` must resolve `..` segments lexically when the

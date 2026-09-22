@@ -12,7 +12,9 @@ use crate::cli_args::{
     catalogs::configured_catalogs,
     install::resolve_bool_override,
     recursive::{
-        AutoExcludeRoot, discover_workspace_projects, filtered_projects_dependencies,
+        AutoExcludeRoot,
+        discover_workspace_projects,
+        filtered_projects_dependencies,
         select_recursive_projects,
     },
 };
@@ -22,20 +24,41 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_pack::{
-    Host, PackError, PackOptions, PackOutputLocks, PackResultJson, api, format_pack_output,
-    pack_output_path, to_pack_result_json,
+    Host,
+    PackError,
+    PackOptions,
+    PackOutputLocks,
+    PackResultJson,
+    api,
+    format_pack_output,
+    pack_output_path,
+    to_pack_result_json,
 };
-use pnpm_reporter::{LifecycleMessage, LifecycleStdio, LogEvent, Reporter};
+use pnpm_reporter::{
+    LifecycleMessage,
+    LifecycleStdio,
+    LogEvent,
+    Reporter,
+};
 use pnpm_workspace_task_scheduler::{
-    ScheduleGraphAsyncOptions, TaskCompletion, graph_sequencer, schedule_graph_async,
+    ScheduleGraphAsyncOptions,
+    TaskCompletion,
+    graph_sequencer,
+    schedule_graph_async,
 };
 use recursive::RecursivePack;
 use std::{
     collections::HashMap,
     io,
     io::Write,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 /// The `wrap_err` framing `pack` and `publish` attach to a failed pack.

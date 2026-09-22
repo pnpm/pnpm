@@ -1,5 +1,11 @@
-use super::{PackageSelector, ResolvedOverride};
-use node_semver::{Range, Version};
+use super::{
+    PackageSelector,
+    ResolvedOverride,
+};
+use node_semver::{
+    Range,
+    Version,
+};
 
 /// Parse a dependency edge's declared spec for the convergence
 /// consult. Only plain semver ranges participate — `workspace:`,

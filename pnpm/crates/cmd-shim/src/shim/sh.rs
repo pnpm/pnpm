@@ -1,7 +1,13 @@
 use super::{
-    Path, ScriptRuntime, normalize_node_path_env_var, relative_target,
+    Path,
+    ScriptRuntime,
+    normalize_node_path_env_var,
+    relative_target,
     relocatable::{
-        BASEDIR_ABS_PRELUDE, is_within_root, marker_target, sh_node_path_entries,
+        BASEDIR_ABS_PRELUDE,
+        is_within_root,
+        marker_target,
+        sh_node_path_entries,
         shim_target_markers,
     },
 };

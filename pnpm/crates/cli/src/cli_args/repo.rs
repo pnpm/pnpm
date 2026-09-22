@@ -1,17 +1,40 @@
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_network::{
+    RetryOpts,
+    ThrottledClient,
+};
 use pnpm_network_web_auth::OpenUrlAndWait;
-use pnpm_package_manifest::{PackageManifest, PackageManifestError};
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_package_manifest::{
+    PackageManifest,
+    PackageManifestError,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use pnpm_resolving_npm_resolver::{
-    FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
+    FetchFullMetadataOptions,
+    FetchFullMetadataOutcome,
+    fetch_full_metadata,
     pick_registry_for_package,
 };
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use std::{borrow::Cow, collections::HashMap};
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+};
 
 /// Opens the URL of the package's repository in a browser.
 #[derive(Debug, Args)]

@@ -1,6 +1,13 @@
 use super::{
-    ArtifactCandidate, ArtifactPayload, ArtifactSubject, CompatibilityConstraints, ObjectPath,
-    OwnerScope, RegistryError, Result, Sha256,
+    ArtifactCandidate,
+    ArtifactPayload,
+    ArtifactSubject,
+    CompatibilityConstraints,
+    ObjectPath,
+    OwnerScope,
+    RegistryError,
+    Result,
+    Sha256,
 };
 use sha2::Digest as _;
 

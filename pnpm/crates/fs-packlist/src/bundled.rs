@@ -1,6 +1,15 @@
 use super::{
-    BTreeSet, HashSet, PacklistError, Path, PathBuf, Value, VecDeque, collect_own_files, fs,
-    relative_forward_slash, safe_read_package_json_from_dir,
+    BTreeSet,
+    HashSet,
+    PacklistError,
+    Path,
+    PathBuf,
+    Value,
+    VecDeque,
+    collect_own_files,
+    fs,
+    relative_forward_slash,
+    safe_read_package_json_from_dir,
 };
 
 /// Cap on `bundleDependencies` closure depth. Real packages bundle

@@ -1,7 +1,18 @@
 use super::{
-    Arc, BTreeMap, DependencyGroup, HashMap, LockfileResolution, Mutex, RecordingResolver,
-    SlowAliasResolver, WorkspaceImporter, fake_manifest, fake_result, importer_opts,
-    resolve_workspace, workspace_opts,
+    Arc,
+    BTreeMap,
+    DependencyGroup,
+    HashMap,
+    LockfileResolution,
+    Mutex,
+    RecordingResolver,
+    SlowAliasResolver,
+    WorkspaceImporter,
+    fake_manifest,
+    fake_result,
+    importer_opts,
+    resolve_workspace,
+    workspace_opts,
 };
 use std::str::FromStr;
 
@@ -13,9 +24,19 @@ pub(super) fn importer_scoped_update_lockfile(
     transitive: Option<(&str, &str)>,
 ) -> pnpm_lockfile::Lockfile {
     use pnpm_lockfile::{
-        ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageMetadata, PkgName,
-        PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution, ResolvedDependencySpec,
-        SnapshotDepRef, SnapshotEntry,
+        ComVer,
+        ImporterDepVersion,
+        Lockfile,
+        LockfileVersion,
+        PackageMetadata,
+        PkgName,
+        PkgNameVerPeer,
+        PkgVerPeer,
+        ProjectSnapshot,
+        RegistryResolution,
+        ResolvedDependencySpec,
+        SnapshotDepRef,
+        SnapshotEntry,
     };
 
     let direct_name = PkgName::parse(direct_name).expect("parse direct package name");
@@ -152,7 +173,11 @@ pub(super) fn recorded_time(entries: &[(&str, &str)]) -> BTreeMap<String, String
 }
 
 pub(super) fn lockfile_recording_time(entries: &[(&str, &str)]) -> pnpm_lockfile::Lockfile {
-    use pnpm_lockfile::{ComVer, Lockfile, LockfileVersion};
+    use pnpm_lockfile::{
+        ComVer,
+        Lockfile,
+        LockfileVersion,
+    };
 
     Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).expect("lockfile v9"),
@@ -174,7 +199,11 @@ pub(super) fn lockfile_recording_time(entries: &[(&str, &str)]) -> pnpm_lockfile
 /// A wanted lockfile whose `packages:` map holds exactly one entry.
 pub(super) fn lockfile_with_package(key: &str) -> pnpm_lockfile::Lockfile {
     use pnpm_lockfile::{
-        ComVer, LockfileVersion, PackageMetadata, PkgNameVerPeer, TarballResolution,
+        ComVer,
+        LockfileVersion,
+        PackageMetadata,
+        PkgNameVerPeer,
+        TarballResolution,
     };
     let key: PkgNameVerPeer = key.parse().expect("parse package key");
     let metadata = PackageMetadata {
@@ -226,9 +255,20 @@ pub(super) fn reuse_graph_lockfile(
     catalogs: &[(&str, &str, &str, &str)],
 ) -> pnpm_lockfile::Lockfile {
     use pnpm_lockfile::{
-        ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageMetadata, PkgName,
-        PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution, ResolvedCatalogEntry,
-        ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+        ComVer,
+        ImporterDepVersion,
+        Lockfile,
+        LockfileVersion,
+        PackageMetadata,
+        PkgName,
+        PkgNameVerPeer,
+        PkgVerPeer,
+        ProjectSnapshot,
+        RegistryResolution,
+        ResolvedCatalogEntry,
+        ResolvedDependencySpec,
+        SnapshotDepRef,
+        SnapshotEntry,
     };
 
     let dependencies = direct
@@ -413,9 +453,19 @@ pub(super) async fn resolve_pinned_versus_fresh(slow: (&str, &str)) -> crate::Re
 
 pub(super) fn reuse_steal_lockfile() -> pnpm_lockfile::Lockfile {
     use pnpm_lockfile::{
-        ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageMetadata, PkgName,
-        PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution, ResolvedDependencySpec,
-        SnapshotDepRef, SnapshotEntry,
+        ComVer,
+        ImporterDepVersion,
+        Lockfile,
+        LockfileVersion,
+        PackageMetadata,
+        PkgName,
+        PkgNameVerPeer,
+        PkgVerPeer,
+        ProjectSnapshot,
+        RegistryResolution,
+        ResolvedDependencySpec,
+        SnapshotDepRef,
+        SnapshotEntry,
     };
 
     let metadata = || {

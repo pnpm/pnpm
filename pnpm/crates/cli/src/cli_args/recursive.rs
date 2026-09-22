@@ -8,33 +8,67 @@
 //! `exec/recursive.rs`.
 
 pub use execution_args::RecursiveExecutionArgs;
-pub use summary::{ExecutionStatus, Status, count_failures, write_recursive_summary};
+pub use summary::{
+    ExecutionStatus,
+    Status,
+    count_failures,
+    write_recursive_summary,
+};
 pub use unmatched::UnmatchedFilters;
 
 mod execution_args;
 mod unmatched;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_config::{Config, LinkWorkspacePackages};
-use pnpm_package_manager::{GraphSequencerResult, graph_sequencer};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
+use pnpm_config::{
+    Config,
+    LinkWorkspacePackages,
+};
+use pnpm_package_manager::{
+    GraphSequencerResult,
+    graph_sequencer,
+};
 use pnpm_workspace::{
-    FindWorkspaceProjectsOpts, GraphPkg, Project, find_workspace_projects,
-    importer_id_from_root_dir, read_workspace_manifest, workspace_package_patterns,
+    FindWorkspaceProjectsOpts,
+    GraphPkg,
+    Project,
+    find_workspace_projects,
+    importer_id_from_root_dir,
+    read_workspace_manifest,
+    workspace_package_patterns,
 };
 use pnpm_workspace_projects_filter::{
-    FilterWorkspaceProjectsOptions, ProjectSelector, filter_workspace_projects,
+    FilterWorkspaceProjectsOptions,
+    ProjectSelector,
+    filter_workspace_projects,
     parse_project_selector,
 };
 use pnpm_workspace_projects_graph::{
-    BaseProject, CreateProjectsGraphOptions, ProjectGraph, create_projects_graph,
+    BaseProject,
+    CreateProjectsGraphOptions,
+    ProjectGraph,
+    create_projects_graph,
 };
 use rayon::prelude::*;
 use serde::Serialize;
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use unmatched::unmatched_filters;
 

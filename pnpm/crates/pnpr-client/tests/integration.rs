@@ -14,30 +14,63 @@
 //! access-bearing upstream the caller is authorized to use.
 
 use std::{
-    collections::{BTreeMap, HashSet},
-    net::{Ipv4Addr, SocketAddr},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+    },
     sync::Arc,
     time::Duration,
 };
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use p256::{
-    ecdsa::{SigningKey, signature::Signer as _},
+    ecdsa::{
+        SigningKey,
+        signature::Signer as _,
+    },
     pkcs8::EncodePublicKey as _,
 };
 use pnpm_config::RegistryDeclaration;
 use pnpm_pnpr_client::{
-    ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
-    ArtifactPayload, ArtifactSubject, BuilderProfile, CompatibilityConstraints, OwnerScope,
-    PackageIdentity, PnprClient, PnprClientError, PublishArtifactRequest, ResolveArtifactsOptions,
-    ResolveOptions, ResolveProject, ResolveProjectsOptions, SignedArtifactEnvelope,
+    ArtifactBlobRequest,
+    ArtifactBlobUpload,
+    ArtifactCandidate,
+    ArtifactFile,
+    ArtifactManifest,
+    ArtifactPayload,
+    ArtifactSubject,
+    BuilderProfile,
+    CompatibilityConstraints,
+    OwnerScope,
+    PackageIdentity,
+    PnprClient,
+    PnprClientError,
+    PublishArtifactRequest,
+    ResolveArtifactsOptions,
+    ResolveOptions,
+    ResolveProject,
+    ResolveProjectsOptions,
+    SignedArtifactEnvelope,
     VerifyLockfileOptions,
 };
 use pnpm_testing_utils::registry::TestRegistry;
-use sha2::{Digest as _, Sha512};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
 use tempfile::TempDir;
 use tokio::{
-    io::{AsyncReadExt as _, AsyncWriteExt as _},
+    io::{
+        AsyncReadExt as _,
+        AsyncWriteExt as _,
+    },
     net::TcpListener,
     sync::Barrier,
 };

@@ -1,8 +1,16 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use serde_json::{Value, json};
-use std::{fmt::Write as _, fs, path::Path, process::Command};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fmt::Write as _,
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn serve_package(server: &mut mockito::Server, name: &str, extra: &Value) -> Vec<mockito::Mock> {
     let (version, packument) = package_metadata(server, name, extra);

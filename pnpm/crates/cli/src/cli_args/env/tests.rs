@@ -1,4 +1,8 @@
-use super::{EnvArgs, EnvError, EnvSubcommand};
+use super::{
+    EnvArgs,
+    EnvError,
+    EnvSubcommand,
+};
 use pnpm_config::Config;
 use pnpm_reporter::SilentReporter;
 use std::path::PathBuf;

@@ -16,7 +16,12 @@
 //! [`relocate_pre_subcommand_flags`]: crate::flag_relocation::relocate_pre_subcommand_flags
 //! [`subcommand_option_names`]: crate::parse_boundary::subcommand_option_names
 
-use crate::flag_relocation::{ArgTable, PositionalScan, find_positional, scan_for_positional};
+use crate::flag_relocation::{
+    ArgTable,
+    PositionalScan,
+    find_positional,
+    scan_for_positional,
+};
 use clap::Command;
 use std::ffi::OsString;
 

@@ -1,10 +1,16 @@
 use super::child_seeds::landed_on_prior_entry;
 mod shared_workspace_resolution_cache;
 
-use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, RegistryResolution, TarballRevision};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgNameVerPeer,
+    RegistryResolution,
+    TarballRevision,
+};
 
 use super::locked_versions::{
-    exact_registry_specifier_for_revision_refresh, registry_revisions_conflict,
+    exact_registry_specifier_for_revision_refresh,
+    registry_revisions_conflict,
 };
 
 fn key(raw: &str) -> PkgNameVerPeer {
@@ -114,8 +120,15 @@ fn revision_refresh_pins_registry_specifiers_without_overriding_revision_selecto
 /// A resolver that hands back no manifest still has to give the package
 /// an identity — see <https://github.com/pnpm/pnpm/issues/13410>.
 mod fallback_manifest {
-    use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
-    use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, WantedDependency};
+    use pnpm_lockfile::{
+        DirectoryResolution,
+        LockfileResolution,
+    };
+    use pnpm_resolving_resolver_base::{
+        CurrentPkg,
+        PkgResolutionId,
+        WantedDependency,
+    };
 
     fn wanted(alias: Option<&str>, bare_specifier: Option<&str>) -> WantedDependency {
         WantedDependency {

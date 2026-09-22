@@ -4,21 +4,38 @@
 //! which occurrence of a package records its children.
 
 pub(super) use children_ownership::{
-    ChildrenOwner, ChildrenOwnerClaim, RecordedChildren, RecordedChildrenContext,
-    claim_children_owner, claim_children_warmup, insert_tree_node, is_current_children_owner,
-    lazy_children, make_non_owner_nodes_lazy, record_children, recorded_children_match,
-    register_peer_dep_names, remember_node_parent_ids,
+    ChildrenOwner,
+    ChildrenOwnerClaim,
+    RecordedChildren,
+    RecordedChildrenContext,
+    claim_children_owner,
+    claim_children_warmup,
+    insert_tree_node,
+    is_current_children_owner,
+    lazy_children,
+    make_non_owner_nodes_lazy,
+    record_children,
+    recorded_children_match,
+    register_peer_dep_names,
+    remember_node_parent_ids,
 };
 
 pub(super) use cache_keys::{
-    PathKey, SharedWorkspaceWantedKey, WantedKey, WorkspaceFinalWantedKey,
+    PathKey,
+    SharedWorkspaceWantedKey,
+    WantedKey,
+    WorkspaceFinalWantedKey,
     WorkspaceResolutionOptionsKey,
 };
 
 mod reachable_nodes;
 use reachable_nodes::{
-    collect_newly_visited, fold_version, fold_visited_versions, merge_synced_child_spec,
-    walk_reachable_children, walk_reachable_nodes,
+    collect_newly_visited,
+    fold_version,
+    fold_visited_versions,
+    merge_synced_child_spec,
+    walk_reachable_children,
+    walk_reachable_nodes,
 };
 
 mod version_snapshot;
@@ -30,29 +47,61 @@ use children_ownership::ChildrenOwnerEntry;
 
 mod cache_keys;
 
-use chrono::{DateTime, Utc};
+use chrono::{
+    DateTime,
+    Utc,
+};
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_lockfile::{PkgName, PkgNameVerPeer, RegistryContext};
-use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveOptions, WorkspacePackages};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use pnpm_lockfile::{
+    PkgName,
+    PkgNameVerPeer,
+    RegistryContext,
+};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveOptions,
+    WorkspacePackages,
+};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::{
     collections::BTreeMap,
-    hash::{Hash, Hasher},
+    hash::{
+        Hash,
+        Hasher,
+    },
     path::PathBuf,
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{
+        Arc,
+        Mutex,
+        MutexGuard,
+    },
 };
 
 use crate::{
     node_id::NodeId,
     resolve_peers::MissingNames,
     resolved_tree::{
-        AncestorIds, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree,
+        AncestorIds,
+        DependenciesTreeNode,
+        DirectDep,
+        PeerDep,
+        ResolvedPackage,
+        ResolvedTree,
     },
 };
 
 use super::{
-    DeprecationLogFn, FinalizedPackageFn, ManifestHook, SkippedOptionalLogFn, UpdateDepth,
-    UpdateReuseScope, lock_recoverable, tree_ctx::TreeCtx,
+    DeprecationLogFn,
+    FinalizedPackageFn,
+    ManifestHook,
+    SkippedOptionalLogFn,
+    UpdateDepth,
+    UpdateReuseScope,
+    lock_recoverable,
+    tree_ctx::TreeCtx,
 };
 
 type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);

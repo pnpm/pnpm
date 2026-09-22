@@ -1,8 +1,22 @@
 use super::{
-    Arc, CurrentPkg, GitResolveError, NoMatchingVersionError, Path, PreferredVersionsOverlay,
-    RegistryResponseError, ResolveDependencyTreeError, ResolveError, ResolveOptions, Resolver,
-    SharedWorkspaceWantedKey, TreeCtx, WantedDependency, WantedKey, WorkspaceFinalWantedKey,
-    lock_recoverable, render_specifier,
+    Arc,
+    CurrentPkg,
+    GitResolveError,
+    NoMatchingVersionError,
+    Path,
+    PreferredVersionsOverlay,
+    RegistryResponseError,
+    ResolveDependencyTreeError,
+    ResolveError,
+    ResolveOptions,
+    Resolver,
+    SharedWorkspaceWantedKey,
+    TreeCtx,
+    WantedDependency,
+    WantedKey,
+    WorkspaceFinalWantedKey,
+    lock_recoverable,
+    render_specifier,
 };
 
 /// Convert a workspace directory resolution into the representation shared by

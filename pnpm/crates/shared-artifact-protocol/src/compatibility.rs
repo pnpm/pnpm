@@ -1,7 +1,17 @@
 use super::{
-    ArtifactProtocolError, BTreeSet, COMPATIBILITY_FLOOR_RANK_OFFSET,
-    COMPATIBILITY_FLOOR_RANK_STRIDE, COMPATIBILITY_TAG_SCHEMA, CompatibilityConstraints, HashSet,
-    LinuxGlibcPlatform, MacOsPlatform, Sha256, WindowsPlatform, hex, validate_scalar,
+    ArtifactProtocolError,
+    BTreeSet,
+    COMPATIBILITY_FLOOR_RANK_OFFSET,
+    COMPATIBILITY_FLOOR_RANK_STRIDE,
+    COMPATIBILITY_TAG_SCHEMA,
+    CompatibilityConstraints,
+    HashSet,
+    LinuxGlibcPlatform,
+    MacOsPlatform,
+    Sha256,
+    WindowsPlatform,
+    hex,
+    validate_scalar,
 };
 use sha2::Digest as _;
 

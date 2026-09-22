@@ -1,4 +1,12 @@
-use super::{AsyncSeekExt, AsyncWriteExt, CanonicalPackageName, ErrorKind, PathBuf, SeekFrom, fs};
+use super::{
+    AsyncSeekExt,
+    AsyncWriteExt,
+    CanonicalPackageName,
+    ErrorKind,
+    PathBuf,
+    SeekFrom,
+    fs,
+};
 
 /// Handle returned from [`crate::Storage::open_upstream_blob_tmp`]. The caller
 /// writes through [`Self::write_all`] (and on success calls [`Self::finalize`] to

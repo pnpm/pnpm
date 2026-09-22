@@ -11,17 +11,42 @@
 
 use crate::{
     journal::DocumentMerge,
-    streaming::{integrity_checker, parse_integrity},
+    streaming::{
+        integrity_checker,
+        parse_integrity,
+    },
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64, read::DecoderReader};
-use pnpr_error::{RegistryError, Result};
-use serde_json::{Map, Value};
-use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+    read::DecoderReader,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use serde_json::{
+    Map,
+    Value,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+    IntegrityChecker,
+    IntegrityOpts,
+};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
     fmt::Write as FmtWrite,
     fs::File,
-    io::{Cursor, Read, Write},
+    io::{
+        Cursor,
+        Read,
+        Write,
+    },
     path::Path,
 };
 
@@ -499,7 +524,10 @@ fn drop_lost_versions(journaled: &mut Value, lost: &HashSet<String>) {
 /// the shape npm and verdaccio use in `time.modified`.
 #[must_use]
 pub fn now_iso() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::{
+        SystemTime,
+        UNIX_EPOCH,
+    };
     let since_epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
     iso_from_unix_millis(since_epoch.as_millis() as i64)
 }

@@ -1,7 +1,17 @@
 use super::{
-    CommandTempCwd, advisory_entry, advisory_response, assert_failure, assert_success,
-    audit_config_ignore_ghsas, audit_mock, fs, pacquet_cmd, set_minimum_release_age, stderr,
-    stdout, write_audit_workspace,
+    CommandTempCwd,
+    advisory_entry,
+    advisory_response,
+    assert_failure,
+    assert_success,
+    audit_config_ignore_ghsas,
+    audit_mock,
+    fs,
+    pacquet_cmd,
+    set_minimum_release_age,
+    stderr,
+    stdout,
+    write_audit_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;
 

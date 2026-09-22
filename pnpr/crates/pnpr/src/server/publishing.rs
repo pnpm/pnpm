@@ -1,38 +1,80 @@
 pub(super) use attachments::{
-    StagedPublish, ValidatedPublish, stage_publish, validate_publish_doc,
+    StagedPublish,
+    ValidatedPublish,
+    stage_publish,
+    validate_publish_doc,
 };
 
 mod attachments;
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{
+    BTreeSet,
+    HashSet,
+};
 
 use axum::{
     body::Body,
     extract::State,
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
+    http::{
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
-use pnpm_crypto_hash::{create_hex_hash, integrity_addressed_tarball_path};
-use serde_json::{Value, json};
+use pnpm_crypto_hash::{
+    create_hex_hash,
+    integrity_addressed_tarball_path,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use ssri::Integrity;
 
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_registry::{Ecosystem, Registry};
+use pnpr_registry::{
+    Ecosystem,
+    Registry,
+};
 use pnpr_storage::{
-    HostedDocumentForUpdate, HostedDocumentVersion, Storage,
-    journal::{CommitOutcome, JournaledPublish, JournaledRevisionRef},
+    HostedDocumentForUpdate,
+    HostedDocumentVersion,
+    Storage,
+    journal::{
+        CommitOutcome,
+        JournaledPublish,
+        JournaledRevisionRef,
+    },
     publish::{
-        PendingAttachment, extract_attachments, merge_manifest, now_iso,
+        PendingAttachment,
+        extract_attachments,
+        merge_manifest,
+        now_iso,
         stream_decode_verify_and_write,
     },
 };
 
 use super::{
-    Action, AppState, AuthedCaller, HostedGate, HostedOriginalRef, RegistrySource, WriteTarget,
-    authorize, authorized_upstream, default_registry_target, documents::RegistryDocuments,
-    hosted_gate, hosted_storage, resolve_ecosystem_source, resolve_write_target,
+    Action,
+    AppState,
+    AuthedCaller,
+    HostedGate,
+    HostedOriginalRef,
+    RegistrySource,
+    WriteTarget,
+    authorize,
+    authorized_upstream,
+    default_registry_target,
+    documents::RegistryDocuments,
+    hosted_gate,
+    hosted_storage,
+    resolve_ecosystem_source,
+    resolve_write_target,
 };
 
 /// Where a publish of `package` writes, given an optional explicit `/~<name>/`.

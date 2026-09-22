@@ -1,5 +1,8 @@
 use super::{
-    OverlayPickResolver, dependency_result, fake_result, resolve_settlement_tree,
+    OverlayPickResolver,
+    dependency_result,
+    fake_result,
+    resolve_settlement_tree,
     settlement_versions,
 };
 

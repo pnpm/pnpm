@@ -1,7 +1,23 @@
 use super::{
-    CWD, ExecutionTimeLog, LogEvent, LogLevel, MaxLogLevel, Output, ReporterOptions, Stage,
-    fetching_in_progress, fetching_started, interleaved_lifecycle_events, lifecycle_stdio_events,
-    pnpm_log, progress, progress_at, render, stage_at, state, state_with_options,
+    CWD,
+    ExecutionTimeLog,
+    LogEvent,
+    LogLevel,
+    MaxLogLevel,
+    Output,
+    ReporterOptions,
+    Stage,
+    fetching_in_progress,
+    fetching_started,
+    interleaved_lifecycle_events,
+    lifecycle_stdio_events,
+    pnpm_log,
+    progress,
+    progress_at,
+    render,
+    stage_at,
+    state,
+    state_with_options,
 };
 
 #[test]

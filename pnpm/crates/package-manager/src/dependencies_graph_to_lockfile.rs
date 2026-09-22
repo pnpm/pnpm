@@ -7,7 +7,10 @@
 //! fanning it out on write.
 
 pub(crate) use importers::manifest_publish_config;
-pub use packages::{PackageMetadataSources, manifest_has_bin};
+pub use packages::{
+    PackageMetadataSources,
+    manifest_has_bin,
+};
 
 mod packages;
 
@@ -15,23 +18,47 @@ use packages::build_packages_and_snapshots;
 
 mod importers;
 
-use importers::{build_importers, catalog_snapshot_version, manifest_alias_to_group};
+use importers::{
+    build_importers,
+    catalog_snapshot_version,
+    manifest_alias_to_group,
+};
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+    HashSet,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{
-    CatalogSnapshots, ComVer, Lockfile, LockfileFormError, LockfileVersion,
-    ParseImporterDepVersionError, ParsePkgNameSuffixError, ParsePkgVerPeerError, ProjectSnapshot,
+    CatalogSnapshots,
+    ComVer,
+    Lockfile,
+    LockfileFormError,
+    LockfileVersion,
+    ParseImporterDepVersionError,
+    ParsePkgNameSuffixError,
+    ParsePkgVerPeerError,
+    ProjectSnapshot,
     ResolvedCatalogEntry,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_deps_resolver::{
-    DepPath, DependenciesGraph, DependenciesGraphNode, UpdateReuseScope,
+    DepPath,
+    DependenciesGraph,
+    DependenciesGraphNode,
+    UpdateReuseScope,
 };
 use serde_json::Value;
 

@@ -5,13 +5,26 @@
 //! in `crates/package-manager/tests/` and `crates/cli/tests/`.
 
 use super::{
-    DirectDepsByImporter, HoistGraphNode, HoistInputs, HoistedDependencies,
-    build_direct_deps_by_importer, build_hoist_graph, get_hoisted_dependencies,
+    DirectDepsByImporter,
+    HoistGraphNode,
+    HoistInputs,
+    HoistedDependencies,
+    build_direct_deps_by_importer,
+    build_hoist_graph,
+    get_hoisted_dependencies,
 };
 use indexmap::IndexMap;
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgVerPeer, ProjectSnapshot,
-    RegistryResolution, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    PkgVerPeer,
+    ProjectSnapshot,
+    RegistryResolution,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
     SnapshotEntry,
 };
 use pnpm_matcher::create_matcher;
@@ -19,7 +32,10 @@ use pnpm_modules_yaml::HoistKind;
 use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 fn name(text: &str) -> PkgName {
     PkgName::parse(text).expect("parse pkg name")

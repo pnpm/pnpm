@@ -1,6 +1,18 @@
-use super::{checked_recently, read_state, to_utc_string, write_state};
-use chrono::{TimeZone, Utc};
-use serde_json::{Map, Value, json};
+use super::{
+    checked_recently,
+    read_state,
+    to_utc_string,
+    write_state,
+};
+use chrono::{
+    TimeZone,
+    Utc,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 use tempfile::tempdir;
 
 fn state_with_last_check(value: &Value) -> Map<String, Value> {

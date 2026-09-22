@@ -1,14 +1,22 @@
 //! Ecosystem index declarations and exclusive Python package routing.
 
 use super::{
-    EcosystemIndex, LoadWorkspaceYamlError, RegistryDeclaration, RegistryLookups,
-    normalize_registry_url, quote_and_join, redact_registry_url,
+    EcosystemIndex,
+    LoadWorkspaceYamlError,
+    RegistryDeclaration,
+    RegistryLookups,
+    normalize_registry_url,
+    quote_and_join,
+    redact_registry_url,
 };
 use indexmap::IndexMap;
 use pnpm_lockfile::RegistryOptions;
 use serde::Deserialize;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fmt,
 };
 

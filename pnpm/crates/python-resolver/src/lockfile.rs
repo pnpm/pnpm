@@ -1,17 +1,45 @@
-pub use environments::{Metadata, Solved, Target, environment_marker};
-pub use files::{LockedSdist, LockedWheel};
+pub use environments::{
+    Metadata,
+    Solved,
+    Target,
+    environment_marker,
+};
+pub use files::{
+    LockedSdist,
+    LockedWheel,
+};
 pub use inputs::Inputs;
 
 mod environments;
 mod files;
 mod inputs;
 
-use crate::packages::{Candidate, IndexCandidate, Packages};
-use environments::{check_environment_decides, referenced_marker_keys};
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use crate::packages::{
+    Candidate,
+    IndexCandidate,
+    Packages,
+};
+use environments::{
+    check_environment_decides,
+    referenced_marker_keys,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use pep440_rs::Version;
-use pep508_rs::{MarkerEnvironment, MarkerTree, PackageName, Requirement};
-use serde::{Deserialize, Serialize};
+use pep508_rs::{
+    MarkerEnvironment,
+    MarkerTree,
+    PackageName,
+    Requirement,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::collections::BTreeMap;
 
 #[derive(Debug, Serialize, Deserialize)]

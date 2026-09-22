@@ -1,7 +1,20 @@
 use super::{
-    AssembleReleasePlanOptions, HashSet, IndexMap, Ledger, ReleaseCause, VersioningSettings,
-    assemble, assemble_release_plan, assert_eq, epic, ledger, make_intent, make_project, on_lane,
-    release, release_names,
+    AssembleReleasePlanOptions,
+    HashSet,
+    IndexMap,
+    Ledger,
+    ReleaseCause,
+    VersioningSettings,
+    assemble,
+    assemble_release_plan,
+    assert_eq,
+    epic,
+    ledger,
+    make_intent,
+    make_project,
+    on_lane,
+    release,
+    release_names,
 };
 
 #[test]

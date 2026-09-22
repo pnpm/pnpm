@@ -1,12 +1,24 @@
 use super::{
-    EnsureFileError, create_exclusive_temp_file, ensure_file, file_equals_bytes, strip_dash_suffix,
+    EnsureFileError,
+    create_exclusive_temp_file,
+    ensure_file,
+    file_equals_bytes,
+    strip_dash_suffix,
     temp_path_in,
 };
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 use tempfile::tempdir;
 
 #[cfg(unix)]
-use super::{EMFILE, ENFILE, retry_on_fd_pressure};
+use super::{
+    EMFILE,
+    ENFILE,
+    retry_on_fd_pressure,
+};
 
 #[test]
 fn writes_a_new_file() {
@@ -253,9 +265,15 @@ fn retry_on_fd_pressure_retries_emfile_and_enfile_until_success() {
 #[cfg(unix)]
 #[test]
 fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
-    use std::os::unix::fs::MetadataExt;
-    use std::sync::{Arc, Barrier, Mutex};
-    use std::thread;
+    use std::{
+        os::unix::fs::MetadataExt,
+        sync::{
+            Arc,
+            Barrier,
+            Mutex,
+        },
+        thread,
+    };
 
     let tmp = tempdir().unwrap();
     let path = Arc::new(tmp.path().join("shared"));

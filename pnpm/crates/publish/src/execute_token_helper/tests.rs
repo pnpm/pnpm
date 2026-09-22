@@ -1,8 +1,17 @@
-use super::{execute_token_helper, strip_bearer_prefix};
-use crate::capabilities::{CommandOutput, RunCommand};
+use super::{
+    execute_token_helper,
+    strip_bearer_prefix,
+};
+use crate::capabilities::{
+    CommandOutput,
+    RunCommand,
+};
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
-use std::{io, path::Path};
+use std::{
+    io,
+    path::Path,
+};
 
 #[test]
 fn strips_bearer_prefix_case_insensitively() {

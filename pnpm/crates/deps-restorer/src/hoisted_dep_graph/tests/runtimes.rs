@@ -1,12 +1,19 @@
 use super::{
-    super::{DependenciesGraph, DependenciesGraphNode},
-    ACCEPTS_DEP_PATH, sample_resolution,
+    super::{
+        DependenciesGraph,
+        DependenciesGraphNode,
+    },
+    ACCEPTS_DEP_PATH,
+    sample_resolution,
 };
 use pnpm_lockfile::PkgIdWithPatchHash;
 use pnpm_modules_yaml::DepPath;
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     path::PathBuf,
 };
 

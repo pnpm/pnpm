@@ -1,20 +1,37 @@
 use std::{
     path::Path,
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
 };
 
-use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName};
-use pnpm_reporter::{LockfileVerificationMessage, LogEvent, Reporter, SilentReporter};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    PkgName,
+};
+use pnpm_reporter::{
+    LockfileVerificationMessage,
+    LogEvent,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_resolving_resolver_base::{
-    ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
+    ResolutionVerification,
+    ResolutionVerifier,
+    VerifyCtx,
+    VerifyFuture,
 };
 use tempfile::TempDir;
 
 use super::{
-    VerifyLockfileResolutionsOptions, collect_resolution_policy_violations,
+    VerifyLockfileResolutionsOptions,
+    collect_resolution_policy_violations,
     verify_lockfile_resolutions,
 };
 use crate::VerifyError;

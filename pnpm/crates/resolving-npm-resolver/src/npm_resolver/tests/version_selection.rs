@@ -1,6 +1,15 @@
 use super::{
-    HashMap, JSR_PACKAGE_BODY, LatestQuery, LockfileResolution, PACKAGE_BODY, ResolveOptions,
-    UpdateBehavior, WantedDependency, assert_eq, build_resolver, build_resolver_with_registries,
+    HashMap,
+    JSR_PACKAGE_BODY,
+    LatestQuery,
+    LockfileResolution,
+    PACKAGE_BODY,
+    ResolveOptions,
+    UpdateBehavior,
+    WantedDependency,
+    assert_eq,
+    build_resolver,
+    build_resolver_with_registries,
 };
 use chrono::TimeZone;
 use pnpm_resolving_resolver_base::Resolver;

@@ -1,6 +1,15 @@
 use super::{
-    Arc, FailArtifactWrites, FailOnly, HostedStoreConfig, InMemory, ObjectStore, RegistryError,
-    SharedArtifactStore, TempDir, publication, publication_tagged,
+    Arc,
+    FailArtifactWrites,
+    FailOnly,
+    HostedStoreConfig,
+    InMemory,
+    ObjectStore,
+    RegistryError,
+    SharedArtifactStore,
+    TempDir,
+    publication,
+    publication_tagged,
 };
 
 /// Matching a tag set is order-independent, so two orderings are the same

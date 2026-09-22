@@ -11,11 +11,21 @@
 
 pub mod standalone;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, WantedDependency,
+    LatestInfo,
+    LatestQuery,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 
 /// Composed chain that wraps an ordered list of per-protocol

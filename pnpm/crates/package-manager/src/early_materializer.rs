@@ -12,28 +12,55 @@
 //! from the lockfile, so a slot whose children were re-recorded after
 //! the announcement heals there.
 
-use pnpm_config::{Config, PackageImportMethod};
+use pnpm_config::{
+    Config,
+    PackageImportMethod,
+};
 use pnpm_deps_restorer::{
-    ImportIndexedDirOpts, SkippedSnapshots, VirtualStoreLayout, create_symlink_layout,
-    import_indexed_dir, install_package_from_registry::extract_tarball,
+    ImportIndexedDirOpts,
+    SkippedSnapshots,
+    VirtualStoreLayout,
+    create_symlink_layout,
+    import_indexed_dir,
+    install_package_from_registry::extract_tarball,
     safe_join_modules_dir::safe_join_modules_dir,
 };
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PkgName, SnapshotDepRef, is_git_hosted_tarball_url,
+    LockfileResolution,
+    PackageKey,
+    PkgName,
+    SnapshotDepRef,
+    is_git_hosted_tarball_url,
 };
-use pnpm_resolving_deps_resolver::{FinalizedPackage, FinalizedPackageFn};
-use pnpm_tarball::{CacheValue, MemCache, package_mem_cache_key};
+use pnpm_resolving_deps_resolver::{
+    FinalizedPackage,
+    FinalizedPackageFn,
+};
+use pnpm_tarball::{
+    CacheValue,
+    MemCache,
+    package_mem_cache_key,
+};
 use std::{
     collections::HashMap,
     marker::PhantomData,
     path::PathBuf,
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering},
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicBool,
+            AtomicU8,
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };
-use tokio::{sync::Semaphore, task::JoinSet};
+use tokio::{
+    sync::Semaphore,
+    task::JoinSet,
+};
 
 /// How long a materialization task waits between looks at the tarball
 /// cache while the prefetch it depends on has not registered yet.

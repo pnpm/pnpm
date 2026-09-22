@@ -7,11 +7,17 @@
 pub(crate) use direct_versions::record_changed_direct_deps;
 
 pub(super) use direct_versions::{
-    higher_direct_dep_version, node_depends_on_changed_direct_dep, record_direct_dep_versions,
+    higher_direct_dep_version,
+    node_depends_on_changed_direct_dep,
+    record_direct_dep_versions,
 };
 
 mod snapshot_children;
-use snapshot_children::{ReusedChildren, reused_children, snapshot_child_refs};
+use snapshot_children::{
+    ReusedChildren,
+    reused_children,
+    snapshot_child_refs,
+};
 
 mod direct_versions;
 
@@ -19,30 +25,71 @@ use async_recursion::async_recursion;
 use futures_util::future;
 use pipe_trait::Pipe;
 use pnpm_lockfile::{
-    PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
-use pnpm_resolving_resolver_base::{Resolver, WantedDependency};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
+use pnpm_resolving_resolver_base::{
+    Resolver,
+    WantedDependency,
+};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    borrow::Cow,
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 use crate::{
-    lockfile_reuse::{reusable_importer_dep, synthesize_reused_result},
+    lockfile_reuse::{
+        reusable_importer_dep,
+        synthesize_reused_result,
+    },
     node_id::NodeId,
     parent_pkg_aliases::ParentPkgAliases,
-    resolved_tree::{DirectDep, PeerDep, ResolvedPackage},
+    resolved_tree::{
+        DirectDep,
+        PeerDep,
+        ResolvedPackage,
+    },
 };
 
 use super::{
-    ResolveDependencyTreeError, UpdateDepth, UpdateReuseScope, WantedSpec, lock_recoverable,
+    ResolveDependencyTreeError,
+    UpdateDepth,
+    UpdateReuseScope,
+    WantedSpec,
+    lock_recoverable,
     manifest::{
-        build_pkg_id_with_patch_hash, emit_deprecation_if_needed, extract_peer_dependencies,
+        build_pkg_id_with_patch_hash,
+        emit_deprecation_if_needed,
+        extract_peer_dependencies,
     },
     tree_ctx::TreeCtx,
-    walk::{ChildEdge, closes_cycle, node_alias, node_id_for, resolve_node},
+    walk::{
+        ChildEdge,
+        closes_cycle,
+        node_alias,
+        node_id_for,
+        resolve_node,
+    },
     workspace_ctx::{
-        ChildrenOwnerClaim, DirectDepVersions, RecordedChildrenContext, claim_children_owner,
-        insert_tree_node, is_current_children_owner, lazy_children, make_non_owner_nodes_lazy,
-        record_children, remember_node_parent_ids,
+        ChildrenOwnerClaim,
+        DirectDepVersions,
+        RecordedChildrenContext,
+        claim_children_owner,
+        insert_tree_node,
+        is_current_children_owner,
+        lazy_children,
+        make_non_owner_nodes_lazy,
+        record_children,
+        remember_node_parent_ids,
     },
 };
 

@@ -1,6 +1,17 @@
 use super::{
-    Arc, BinOrigin, Host, LinkBinsOptions, PackageBinSource, Value, create_dir_all, json,
-    link_bins_of_packages, read_file, read_to_string, tempdir, write_file,
+    Arc,
+    BinOrigin,
+    Host,
+    LinkBinsOptions,
+    PackageBinSource,
+    Value,
+    create_dir_all,
+    json,
+    link_bins_of_packages,
+    read_file,
+    read_to_string,
+    tempdir,
+    write_file,
 };
 
 #[test]

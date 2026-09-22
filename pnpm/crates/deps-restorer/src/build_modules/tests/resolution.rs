@@ -3,7 +3,10 @@ use crate::VirtualStoreLayout;
 use pnpm_config::Config;
 use pnpm_lockfile::PackageKey;
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 use tempfile::tempdir;
 
 #[test]

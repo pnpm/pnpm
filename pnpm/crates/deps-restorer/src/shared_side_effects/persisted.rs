@@ -1,14 +1,38 @@
 use super::planning::CandidateGroup;
-use crate::{SideEffectsBySnapshot, SideEffectsMapsBySnapshot};
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use crate::{
+    SideEffectsBySnapshot,
+    SideEffectsMapsBySnapshot,
+};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use pnpm_lockfile::PackageKey;
-use pnpm_pnpr_client::{ArtifactCandidate, ArtifactManifest, RejectedArtifact, blob_id};
+use pnpm_pnpr_client::{
+    ArtifactCandidate,
+    ArtifactManifest,
+    RejectedArtifact,
+    blob_id,
+};
 use pnpm_shared_artifact_protocol::compatibility_rank;
-use pnpm_store_dir::{SideEffectsDiff, StoreIndexWriter};
-use sha2::{Digest as _, Sha512};
+use pnpm_store_dir::{
+    SideEffectsDiff,
+    StoreIndexWriter,
+};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

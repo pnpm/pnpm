@@ -1,8 +1,21 @@
 use super::{
-    Builder, Duration, LibsqlAuth, MaxUsers, RegistryError, Result, TokenBackend, UpsertOutcome,
-    UserBackend, params, retry_database_conflicts,
-    schema::{ensure_user_counter, is_transaction_conflict},
-    sha256_hex, with_auth_timeout,
+    Builder,
+    Duration,
+    LibsqlAuth,
+    MaxUsers,
+    RegistryError,
+    Result,
+    TokenBackend,
+    UpsertOutcome,
+    UserBackend,
+    params,
+    retry_database_conflicts,
+    schema::{
+        ensure_user_counter,
+        is_transaction_conflict,
+    },
+    sha256_hex,
+    with_auth_timeout,
 };
 
 /// In-memory libsql database, exercising the same driver and SQL the
@@ -366,7 +379,10 @@ async fn registration_waits_for_another_database_writer() {
 async fn registration_transaction_retries_only_remote_lock_conflicts() {
     use std::sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     };
 
     for (code, expected_attempts) in [("SQLITE_BUSY", 9), ("SQLITE_AUTH", 1)] {

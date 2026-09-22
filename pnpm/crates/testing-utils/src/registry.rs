@@ -1,7 +1,13 @@
 use pnpr::Config;
 use std::{
-    net::{Ipv4Addr, TcpListener},
-    path::{Path, PathBuf},
+    net::{
+        Ipv4Addr,
+        TcpListener,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::LazyLock,
     thread,
 };

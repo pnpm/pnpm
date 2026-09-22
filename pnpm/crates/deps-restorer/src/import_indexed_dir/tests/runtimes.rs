@@ -1,10 +1,19 @@
 #[cfg(unix)]
 use super::super::ImportIndexedDirError;
-use super::{super::import_indexed_dir, FORCE_KEEP, FORCE_ONLY, cas_map, write_source};
+use super::{
+    super::import_indexed_dir,
+    FORCE_KEEP,
+    FORCE_ONLY,
+    cas_map,
+    write_source,
+};
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
-use std::{fs, sync::atomic::AtomicU8};
+use std::{
+    fs,
+    sync::atomic::AtomicU8,
+};
 use tempfile::tempdir;
 
 #[test]

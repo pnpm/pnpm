@@ -1,4 +1,8 @@
-use super::{Line, lines, top_level_key_line};
+use super::{
+    Line,
+    lines,
+    top_level_key_line,
+};
 
 /// Whether the blank lines that end at `line_start` are the tail of a
 /// keep-chomped block scalar rather than a separator. Such a scalar keeps

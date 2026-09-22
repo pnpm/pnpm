@@ -1,6 +1,15 @@
 use super::{
-    DocumentWrite, PIPELINE_RUNS_DIR, RegistryError, Result, STAGED_DIR, Storage, pipeline_run_key,
-    staged_body_object, staged_id_of_meta_object, staged_meta_object, validated_record_name,
+    DocumentWrite,
+    PIPELINE_RUNS_DIR,
+    RegistryError,
+    Result,
+    STAGED_DIR,
+    Storage,
+    pipeline_run_key,
+    staged_body_object,
+    staged_id_of_meta_object,
+    staged_meta_object,
+    validated_record_name,
 };
 
 impl Storage {

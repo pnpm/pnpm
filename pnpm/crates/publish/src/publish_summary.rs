@@ -5,7 +5,10 @@ use std::path::Path;
 
 use serde::Serialize;
 use serde_json::Value;
-use ssri::{Algorithm, IntegrityOpts};
+use ssri::{
+    Algorithm,
+    IntegrityOpts,
+};
 
 /// Per-package summary describing a successful publish. Field names serialize
 /// to the `npm publish --json` shape.

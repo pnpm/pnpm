@@ -1,4 +1,9 @@
-use super::{detect_node_major, detect_node_version, engine_name, parse_node_version_output};
+use super::{
+    detect_node_major,
+    detect_node_version,
+    engine_name,
+    parse_node_version_output,
+};
 use pretty_assertions::assert_eq;
 
 /// Format matches pnpm's `${platform};${arch};node${major}`

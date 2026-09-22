@@ -1,6 +1,17 @@
 use super::{
-    AuthFile, BackendFile, Deserialize, Duration, Interval, Path, PathBuf, RegistryError,
-    SqlBackendFile, default_tokens_path_sibling_of, oidc, parse_interval, resolve_relative,
+    AuthFile,
+    BackendFile,
+    Deserialize,
+    Duration,
+    Interval,
+    Path,
+    PathBuf,
+    RegistryError,
+    SqlBackendFile,
+    default_tokens_path_sibling_of,
+    oidc,
+    parse_interval,
+    resolve_relative,
 };
 
 /// The resolved record-store backend for auth (users + tokens). Unlike

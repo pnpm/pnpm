@@ -1,7 +1,17 @@
-use super::{PublishArgs, PublishFlags, run_publish_scripts};
+use super::{
+    PublishArgs,
+    PublishFlags,
+    run_publish_scripts,
+};
 use pnpm_config::Config;
-use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_publish::{Access, PublishNetwork};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
+use pnpm_publish::{
+    Access,
+    PublishNetwork,
+};
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::json;

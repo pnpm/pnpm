@@ -1,20 +1,41 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
-use chrono::{DateTime, Utc};
+use chrono::{
+    DateTime,
+    Utc,
+};
 use node_semver::Version;
 use pnpm_config::version_policy::create_package_version_policy;
-use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
+use pnpm_registry::{
+    DerivedPackuments,
+    Package,
+    PackageDistribution,
+    PackageVersion,
+};
 use pnpm_resolving_resolver_base::{
-    EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
-    VersionSelectorWithWeight, VersionSelectors,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
+    VersionSelectors,
 };
 use pretty_assertions::assert_eq;
 
 use super::{
-    PickPackageFromMetaError, PickPackageFromMetaOptions, PickVersionByVersionRangeOptions,
-    RegistryPackageSpec, RegistryPackageSpecType, filter_pkg_metadata_by_publish_date,
-    filter_pkg_metadata_versions, pick_lowest_version_by_version_range, pick_package_from_meta,
-    pick_stable_cached_range_version, pick_version_by_version_range,
+    PickPackageFromMetaError,
+    PickPackageFromMetaOptions,
+    PickVersionByVersionRangeOptions,
+    RegistryPackageSpec,
+    RegistryPackageSpecType,
+    filter_pkg_metadata_by_publish_date,
+    filter_pkg_metadata_versions,
+    pick_lowest_version_by_version_range,
+    pick_package_from_meta,
+    pick_stable_cached_range_version,
+    pick_version_by_version_range,
 };
 
 fn parse_iso(input: &str) -> DateTime<Utc> {

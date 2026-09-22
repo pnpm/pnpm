@@ -11,20 +11,49 @@
 //! signature is present but does not validate is **invalid** — a tamper
 //! signal.
 
-use super::{bold, red, retry_opts_from_config, sanitize_response_body};
+use super::{
+    bold,
+    red,
+    retry_opts_from_config,
+    sanitize_response_body,
+};
 use base64::Engine as _;
-use owo_colors::{OwoColorize, Stream};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+};
 use p256::{
-    ecdsa::{Signature, VerifyingKey, signature::Verifier},
+    ecdsa::{
+        Signature,
+        VerifyingKey,
+        signature::Verifier,
+    },
     pkcs8::DecodePublicKey,
 };
 use pnpm_config::Config;
-use pnpm_network::{ThrottledClient, encode_package_name, redact_url_credentials, send_with_retry};
-use registry::{
-    PackageSignature, Packument, RegistryKey, fetch_packument, fetch_registry_keys, parse_timestamp,
+use pnpm_network::{
+    ThrottledClient,
+    encode_package_name,
+    redact_url_credentials,
+    send_with_retry,
 };
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use registry::{
+    PackageSignature,
+    Packument,
+    RegistryKey,
+    fetch_packument,
+    fetch_registry_keys,
+    parse_timestamp,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashMap,
+};
 
 /// One installed package to check, already routed to the registry it was
 /// installed from.
@@ -449,7 +478,10 @@ fn push_invalid_signatures(lines: &mut Vec<String>, invalid: &[SignatureIssue]) 
 }
 
 fn issue_table(issues: &[SignatureIssue], with_reason: bool) -> String {
-    use tabled::{builder::Builder, settings::Style};
+    use tabled::{
+        builder::Builder,
+        settings::Style,
+    };
 
     let mut builder = Builder::default();
     for issue in issues {

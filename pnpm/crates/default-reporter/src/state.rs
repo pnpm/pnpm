@@ -4,35 +4,82 @@
 //! pins fixed blocks below scrolling non-fixed blocks, with one rendering
 //! path per log channel.
 
-pub use options::{LifecycleOptions, ProgressOptions, ReporterOptions, ScopeOptions};
+pub use options::{
+    LifecycleOptions,
+    ProgressOptions,
+    ReporterOptions,
+    ScopeOptions,
+};
 
 mod options;
 
 use std::{
     collections::HashMap,
-    path::{Component, Path, PathBuf},
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
-use chrono::{DateTime, Utc};
+use chrono::{
+    DateTime,
+    Utc,
+};
 use pnpm_reporter::{
-    AddedRoot, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog, ExecutionTimeLog,
-    FetchingProgressMessage, HookLog, IgnoredScriptsLog, InstallingConfigDepsLog,
-    InstallingConfigDepsStatus, LifecycleMessage, LifecycleStdio, LockfileVerificationMessage,
-    LogEvent, LogLevel, PackageImportMethod, PackageManifestMessage, ProgressMessage, RemovedRoot,
-    RequestRetryLog, ScopeLog, SkippedOptionalDependencyLog, SkippedOptionalPackage, Stage,
-    StatsMessage, UpdateCheckLog,
+    AddedRoot,
+    ContextLog,
+    DedupeCheckLog,
+    DependencyType,
+    DeprecationLog,
+    ExecutionTimeLog,
+    FetchingProgressMessage,
+    HookLog,
+    IgnoredScriptsLog,
+    InstallingConfigDepsLog,
+    InstallingConfigDepsStatus,
+    LifecycleMessage,
+    LifecycleStdio,
+    LockfileVerificationMessage,
+    LogEvent,
+    LogLevel,
+    PackageImportMethod,
+    PackageManifestMessage,
+    ProgressMessage,
+    RemovedRoot,
+    RequestRetryLog,
+    ScopeLog,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    Stage,
+    StatsMessage,
+    UpdateCheckLog,
 };
 use serde_json::Value;
 
 use pnpm_config::standalone_install_command;
-use pnpm_matcher::{Matcher, create_matcher};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
 
 use crate::{
-    MaxLogLevel, SummaryScope,
+    MaxLogLevel,
+    SummaryScope,
     colors::Colors,
     format::{
-        contains_path, cut_line, format_prefix, format_prefix_no_trim, highlight_last_folder,
-        normalize, pretty_bytes, pretty_ms, pretty_ms_compact, relative, visible_width, zoom_out,
+        contains_path,
+        cut_line,
+        format_prefix,
+        format_prefix_no_trim,
+        highlight_last_folder,
+        normalize,
+        pretty_bytes,
+        pretty_ms,
+        pretty_ms_compact,
+        relative,
+        visible_width,
+        zoom_out,
     },
 };
 
@@ -397,7 +444,11 @@ mod summary;
 
 mod manifest_diff;
 use manifest_diff::{
-    added_diff, diff_key, manifest_dep_versions, record_missing, remove_optional_from_prod,
+    added_diff,
+    diff_key,
+    manifest_dep_versions,
+    record_missing,
+    remove_optional_from_prod,
     removed_diff,
 };
 
@@ -406,10 +457,17 @@ mod lifecycle;
 mod notices;
 
 mod update_check;
-use update_check::{detect_install_source, is_strictly_newer, update_command};
+use update_check::{
+    detect_install_source,
+    is_strictly_newer,
+    update_command,
+};
 
 mod frame;
-use frame::{BlockSlot, Frame};
+use frame::{
+    BlockSlot,
+    Frame,
+};
 
 mod paths;
 use paths::normalized_prefix;

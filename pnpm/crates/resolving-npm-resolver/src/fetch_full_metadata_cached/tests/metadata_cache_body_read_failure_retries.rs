@@ -1,7 +1,15 @@
 use super::{
-    AuthHeaders, FULL_META_DIR, FetchFullMetadataCachedOptions, PACKAGE_BODY, TempDir,
-    ThrottledClient, corrupt_gzip_body_mock, fast_retry_opts, fetch_full_metadata_cached,
-    get_pkg_mirror_path, load_meta_headers,
+    AuthHeaders,
+    FULL_META_DIR,
+    FetchFullMetadataCachedOptions,
+    PACKAGE_BODY,
+    TempDir,
+    ThrottledClient,
+    corrupt_gzip_body_mock,
+    fast_retry_opts,
+    fetch_full_metadata_cached,
+    get_pkg_mirror_path,
+    load_meta_headers,
 };
 
 #[tokio::test]

@@ -1,14 +1,27 @@
 use super::{
     super::{
-        Arc, FastUpdateLockfileOptions, FreshnessScope, InstallError, Lockfile, PackageManifest,
-        Path, PathBuf, Reporter, check_lockfile_freshness,
-        lockfile_freshness::LockfileFreshnessInputs, prune_merged_branch_lockfile,
+        Arc,
+        FastUpdateLockfileOptions,
+        FreshnessScope,
+        InstallError,
+        Lockfile,
+        PackageManifest,
+        Path,
+        PathBuf,
+        Reporter,
+        check_lockfile_freshness,
+        lockfile_freshness::LockfileFreshnessInputs,
+        prune_merged_branch_lockfile,
         try_fast_update_lockfile,
     },
-    InstallView, RunMode,
+    InstallView,
+    RunMode,
     lockfile_load::Loaded,
     manifest_freshness_inputs,
-    workspace::{InstallScope, InstallWorkspace},
+    workspace::{
+        InstallScope,
+        InstallWorkspace,
+    },
 };
 use pnpm_config::Config;
 

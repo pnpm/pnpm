@@ -1,5 +1,7 @@
 use super::{
-    is_well_formed_registry_name, parse_registry_qualified_version, shadows_reserved_version_prefix,
+    is_well_formed_registry_name,
+    parse_registry_qualified_version,
+    shadows_reserved_version_prefix,
 };
 use node_semver::Version;
 

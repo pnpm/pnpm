@@ -12,31 +12,67 @@
 #[cfg(test)]
 pub(crate) mod tests;
 
-pub use bundles::{cache_checkout_bundles, checkout_cached_bundles};
-pub use revision::{checkout_existing_revision, checkout_revision, checkout_submodules_offline};
+pub use bundles::{
+    cache_checkout_bundles,
+    checkout_cached_bundles,
+};
+pub use revision::{
+    checkout_existing_revision,
+    checkout_revision,
+    checkout_submodules_offline,
+};
 
 mod bundles;
 mod revision;
 
 use crate::{
-    GitSource, GitSourceCache,
-    cas_io::{ImportedFiles, import_into_cas},
-    error::{GitFetcherError, PreparePackageError},
-    prepare_package::{AllowBuildRef, PreparePackageOptions, prepare_package, safe_join_path},
-    protocols::{read_protocol_policies, submodule_protocols},
+    GitSource,
+    GitSourceCache,
+    cas_io::{
+        ImportedFiles,
+        import_into_cas,
+    },
+    error::{
+        GitFetcherError,
+        PreparePackageError,
+    },
+    prepare_package::{
+        AllowBuildRef,
+        PreparePackageOptions,
+        prepare_package,
+        safe_join_path,
+    },
+    protocols::{
+        read_protocol_policies,
+        submodule_protocols,
+    },
 };
 use pnpm_fs_packlist::packlist;
-use pnpm_network::{redact_and_sanitize, redact_and_sanitize_multiline};
+use pnpm_network::{
+    redact_and_sanitize,
+    redact_and_sanitize_multiline,
+};
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use pnpm_reporter::Reporter;
-use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreIndexWriter};
+use pnpm_store_dir::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    StoreIndexWriter,
+};
 use serde_json::Value;
 use std::{
     collections::HashMap,
-    env, fs,
-    path::{Path, PathBuf},
+    env,
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
-    sync::{Arc, LazyLock},
+    sync::{
+        Arc,
+        LazyLock,
+    },
 };
 
 /// One-shot fetcher for a single git resolution. Holds borrows for the

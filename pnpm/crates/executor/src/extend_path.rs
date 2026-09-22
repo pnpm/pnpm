@@ -1,7 +1,14 @@
 use std::{
     env,
-    ffi::{OsStr, OsString},
-    path::{self, Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    path::{
+        self,
+        Path,
+        PathBuf,
+    },
 };
 
 /// Controls whether the dir containing the current `node` interpreter

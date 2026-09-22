@@ -1,22 +1,49 @@
 use super::{
-    AddError, AddResolveInputs,
-    aliasless::{AliaslessDependency, resolve_aliasless_specifier},
+    AddError,
+    AddResolveInputs,
+    aliasless::{
+        AliaslessDependency,
+        resolve_aliasless_specifier,
+    },
     manifest::apply_catalog_decision,
-    registry::{pick_latest_range, resolve_explicit_registry_spec},
+    registry::{
+        pick_latest_range,
+        resolve_explicit_registry_spec,
+    },
 };
-use crate::{CatalogModeDep, decide_catalog_outcome, runtime_specifier::node_runtime_version_spec};
+use crate::{
+    CatalogModeDep,
+    decide_catalog_outcome,
+    runtime_specifier::node_runtime_version_spec,
+};
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, SaveWorkspaceProtocol, Tool};
+use pnpm_config::{
+    Config,
+    SaveWorkspaceProtocol,
+    Tool,
+};
 use pnpm_engine_runtime_node_resolver::NodeResolver;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_package_name::is_valid_dependency_alias;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::LogEvent;
-use pnpm_resolving_git_resolver::{HostedGit, HostedOpts};
-use pnpm_resolving_jsr_specifier_parser::{JsrSpec, parse_jsr_specifier};
+use pnpm_resolving_git_resolver::{
+    HostedGit,
+    HostedOpts,
+};
+use pnpm_resolving_jsr_specifier_parser::{
+    JsrSpec,
+    parse_jsr_specifier,
+};
 use pnpm_resolving_npm_resolver::{
-    DeclaredSpecifiers, calc_specifier_for_workspace_dep, parse_bare_specifier,
-    pick_matching_local_version_or_null, pick_registry_for_package,
+    DeclaredSpecifiers,
+    calc_specifier_for_workspace_dep,
+    parse_bare_specifier,
+    pick_matching_local_version_or_null,
+    pick_registry_for_package,
 };
 use pnpm_resolving_resolver_base::WorkspacePackages;
 use pnpm_workspace_range_resolver::resolve_workspace_range;

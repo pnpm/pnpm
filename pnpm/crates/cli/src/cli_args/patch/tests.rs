@@ -1,12 +1,23 @@
 use super::{
-    DialoguerPatchPrompt, PatchCandidate, PatchCandidateSet, PatchError, PatchPrompt, PatchTarget,
-    reject_non_empty_custom_edit_dir, reject_non_empty_edit_dir, render_success,
-    select_patch_target, select_patch_target_with_prompt,
+    DialoguerPatchPrompt,
+    PatchCandidate,
+    PatchCandidateSet,
+    PatchError,
+    PatchPrompt,
+    PatchTarget,
+    reject_non_empty_custom_edit_dir,
+    reject_non_empty_edit_dir,
+    render_success,
+    select_patch_target,
+    select_patch_target_with_prompt,
 };
 #[cfg(unix)]
 use crate::cli_args::patch::paths::checked_existing_patch_file_path;
 use crate::cli_args::patch::paths::default_edit_dir_name;
-use std::{io::IsTerminal, path::Path};
+use std::{
+    io::IsTerminal,
+    path::Path,
+};
 use tempfile::tempdir;
 
 #[test]

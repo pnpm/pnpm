@@ -1,7 +1,21 @@
-use crate::model::{DependencyKind, RegistryDependency, RegistryVersion};
-use cargo_util_schemas::index::{IndexPackage, RegistryDependency as IndexDependency};
-use miette::{IntoDiagnostic, Result, WrapErr};
-use semver::{Version, VersionReq};
+use crate::model::{
+    DependencyKind,
+    RegistryDependency,
+    RegistryVersion,
+};
+use cargo_util_schemas::index::{
+    IndexPackage,
+    RegistryDependency as IndexDependency,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
+use semver::{
+    Version,
+    VersionReq,
+};
 use std::collections::BTreeMap;
 
 /// The source identifier `cargo` writes for a crates.io package. A crate is

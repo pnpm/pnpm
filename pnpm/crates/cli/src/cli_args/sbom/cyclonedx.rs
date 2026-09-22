@@ -1,6 +1,13 @@
 use super::{
-    DepType, HashMap, SbomComponent, SbomComponentType, SbomResult, base64_to_hex, build_purl,
-    classify_license, generate_uuid_v4,
+    DepType,
+    HashMap,
+    SbomComponent,
+    SbomComponentType,
+    SbomResult,
+    base64_to_hex,
+    build_purl,
+    classify_license,
+    generate_uuid_v4,
 };
 
 pub(super) struct CycloneDxOpts<'a> {

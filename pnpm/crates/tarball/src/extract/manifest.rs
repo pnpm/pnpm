@@ -1,6 +1,13 @@
 use super::{
-    CafsFileInfo, HashMap, PackageFilesIndex, PathBuf, StoreDir, TarballError, UNIX_EPOCH,
-    manifest_requires_build, parse_manifest_bytes,
+    CafsFileInfo,
+    HashMap,
+    PackageFilesIndex,
+    PathBuf,
+    StoreDir,
+    TarballError,
+    UNIX_EPOCH,
+    manifest_requires_build,
+    parse_manifest_bytes,
 };
 
 /// Pick the `package.json` fields downstream code actually reads — bin

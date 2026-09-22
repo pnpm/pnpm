@@ -1,9 +1,17 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
 use super::{
-    Catalogs, Config, IncludedDependencies, LinkWorkspacePackages, NodeLinker,
-    SupportedArchitectures, TrustPolicy, WorkspaceState, WorkspaceStateNodeLinker,
-    WorkspaceStateSettings, WorkspaceStateTrustPolicy,
+    Catalogs,
+    Config,
+    IncludedDependencies,
+    LinkWorkspacePackages,
+    NodeLinker,
+    SupportedArchitectures,
+    TrustPolicy,
+    WorkspaceState,
+    WorkspaceStateNodeLinker,
+    WorkspaceStateSettings,
+    WorkspaceStateTrustPolicy,
 };
 
 /// Whether the `supportedArchitectures` recorded by the last install

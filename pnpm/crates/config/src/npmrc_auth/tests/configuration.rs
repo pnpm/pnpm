@@ -1,5 +1,12 @@
 use super::{
-    Config, EnvVar, NoEnv, NoProxySetting, NpmrcAuth, Path, TEST_CA_PEM, assert_eq,
+    Config,
+    EnvVar,
+    NoEnv,
+    NoProxySetting,
+    NpmrcAuth,
+    Path,
+    TEST_CA_PEM,
+    assert_eq,
     default_auth_token,
 };
 

@@ -1,7 +1,10 @@
 use std::{
     borrow::Cow,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(windows)]
@@ -84,9 +87,18 @@ fn windows_path_len(path: &Path) -> usize {
 #[cfg(windows)]
 fn short_path(path: &Path) -> Option<PathBuf> {
     use std::{
-        ffi::{OsStr, OsString},
-        os::windows::ffi::{OsStrExt, OsStringExt},
-        path::{Component, Prefix},
+        ffi::{
+            OsStr,
+            OsString,
+        },
+        os::windows::ffi::{
+            OsStrExt,
+            OsStringExt,
+        },
+        path::{
+            Component,
+            Prefix,
+        },
         ptr,
     };
     use windows_sys::Win32::Storage::FileSystem::GetShortPathNameW;

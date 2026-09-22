@@ -1,18 +1,34 @@
 //! Unit tests for the peer-hoist discovery engine.
 
-use super::{PeerDiscoveryCaches, PeerHoistDiscovery, discover_peers};
+use super::{
+    PeerDiscoveryCaches,
+    PeerHoistDiscovery,
+    discover_peers,
+};
 use crate::{
     node_id::NodeId,
     resolve_dependency_tree::WorkspaceTreeCtx,
     resolve_peers::{
         ResolvePeersOptions,
-        test_support::{package, tree_node},
+        test_support::{
+            package,
+            tree_node,
+        },
     },
-    resolved_tree::{DirectDep, ResolvedTree},
+    resolved_tree::{
+        DirectDep,
+        ResolvedTree,
+    },
 };
 use pnpm_deps_path::DepPath;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, sync::Arc};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 /// See [`PeersCacheItem`] for why a cache hit reports no providers.
 #[test]

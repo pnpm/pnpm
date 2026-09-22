@@ -3,7 +3,12 @@ use std::path::Path;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
-use super::{FilterLockfileOptions, LockfileKind, filter_lockfile_by_importers, lockfile_path};
+use super::{
+    FilterLockfileOptions,
+    LockfileKind,
+    filter_lockfile_by_importers,
+    lockfile_path,
+};
 
 const LOCKFILE: &str = "lockfileVersion: '9.0'
 

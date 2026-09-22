@@ -1,29 +1,68 @@
 pub use direct::{
-    PrefetchedBinLookup, PrefetchedDepBin, link_direct_dep_bins,
-    link_direct_dep_bins_from_locations, link_direct_dep_bins_prefetched,
-    link_direct_dep_bins_resolved, link_project_bins, link_top_level_bins,
-    resolve_hoisted_bin_deps, shim_link_options,
+    PrefetchedBinLookup,
+    PrefetchedDepBin,
+    link_direct_dep_bins,
+    link_direct_dep_bins_from_locations,
+    link_direct_dep_bins_prefetched,
+    link_direct_dep_bins_resolved,
+    link_project_bins,
+    link_top_level_bins,
+    resolve_hoisted_bin_deps,
+    shim_link_options,
 };
 
 mod scan;
-use scan::{read_package, run_with_readdir};
+use scan::{
+    read_package,
+    run_with_readdir,
+};
 
 mod direct;
 
-use crate::{PackageManifests, SkippedSnapshots};
-use derive_more::{Display, Error};
+use crate::{
+    PackageManifests,
+    SkippedSnapshots,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{
-    FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-    FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions, PackageBinSource,
-    collect_packages_in_modules_dir, link_bins_of_packages,
+    FsCreateDirAll,
+    FsEnsureExecutableBits,
+    FsReadDir,
+    FsReadFile,
+    FsReadHead,
+    FsReadToString,
+    FsSetExecutable,
+    FsWalkFiles,
+    FsWrite,
+    Host,
+    LinkBinsError,
+    LinkBinsOptions,
+    PackageBinSource,
+    collect_packages_in_modules_dir,
+    link_bins_of_packages,
 };
-use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotEntry};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    SnapshotEntry,
+};
 use rayon::prelude::*;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

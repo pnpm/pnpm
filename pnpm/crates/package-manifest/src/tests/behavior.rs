@@ -1,10 +1,21 @@
 use super::{
-    DependencyGroup, InitOptions, NamedTempFile, PackageManifest, Write, assert_eq, json,
-    manifest_requires_build, read_to_string, tempdir,
+    DependencyGroup,
+    InitOptions,
+    NamedTempFile,
+    PackageManifest,
+    Write,
+    assert_eq,
+    json,
+    manifest_requires_build,
+    read_to_string,
+    tempdir,
 };
 
 #[cfg(unix)]
-use super::{PackageManifestError, safe_read_package_json_from_dir};
+use super::{
+    PackageManifestError,
+    safe_read_package_json_from_dir,
+};
 
 #[cfg(unix)]
 #[test]

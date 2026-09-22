@@ -1,10 +1,21 @@
 use crate::{
-    CheckoutOptions, GitFetcherError, GitSource, checkout_commit, fetcher::should_use_shallow,
+    CheckoutOptions,
+    GitFetcherError,
+    GitSource,
+    checkout_commit,
+    fetcher::should_use_shallow,
 };
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex, OnceLock},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+        OnceLock,
+    },
 };
 use tempfile::TempDir;
 

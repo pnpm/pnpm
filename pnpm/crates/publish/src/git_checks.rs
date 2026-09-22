@@ -3,13 +3,22 @@
 
 use std::path::Path;
 
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_git_utils::{
-    get_current_branch, is_git_repo, is_head_detached, is_remote_history_clean,
+    get_current_branch,
+    is_git_repo,
+    is_head_detached,
+    is_remote_history_clean,
     is_working_tree_clean,
 };
 
-use crate::capabilities::{ConfirmPrompt, RunCommand};
+use crate::capabilities::{
+    ConfirmPrompt,
+    RunCommand,
+};
 
 const GIT_CHECKS_HINT: &str = r#"If you want to disable Git checks on publish, set the "git-checks" setting to "false", or run again with "--no-git-checks"."#;
 

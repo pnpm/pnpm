@@ -1,42 +1,85 @@
 pub(crate) use environment::script_environment;
 pub(crate) use execution::exec_scripts_prepend_node_path;
-pub(super) use execution::{RunContext, get_run_script_commands, run_stages};
+pub(super) use execution::{
+    RunContext,
+    get_run_script_commands,
+    run_stages,
+};
 pub(super) use listing::ScriptSelector;
 
 use super::{
-    exec::{ExecArgs, ExecDirs},
-    reporter::{ReporterType, reporter_emit},
+    exec::{
+        ExecArgs,
+        ExecDirs,
+    },
+    reporter::{
+        ReporterType,
+        reporter_emit,
+    },
 };
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 
 use execution::{
-    ScriptOutcome, no_matching_script, run_selected_scripts, script_concurrency, script_extra_env,
+    ScriptOutcome,
+    no_matching_script,
+    run_selected_scripts,
+    script_concurrency,
+    script_extra_env,
     selected_scripts,
 };
 use indexmap::IndexMap;
 
-use listing::{render_project_commands, throw_or_filter_hidden_scripts};
-use miette::{Diagnostic, IntoDiagnostic};
+use listing::{
+    render_project_commands,
+    throw_or_filter_hidden_scripts,
+};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_executor::{
-    ProcessTracker, RunScript, ScriptExit, ScriptOutput, ScriptsPrependNodePath, exit_like,
+    ProcessTracker,
+    RunScript,
+    ScriptExit,
+    ScriptOutput,
+    ScriptsPrependNodePath,
+    exit_like,
     run_script,
 };
-use pnpm_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
+use pnpm_injected_deps_syncer::{
+    SyncInjectedDeps,
+    sync_injected_deps,
+};
 use pnpm_package_manager::{
-    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    make_node_package_map_option,
+    make_node_require_option,
+    package_map_path_for_execution,
     pnp_path_for_execution,
 };
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace::{ReadProjectManifestOnlyError, read_project_manifest_only};
-use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, TaskCompletion, schedule_graph};
+use pnpm_workspace::{
+    ReadProjectManifestOnlyError,
+    read_project_manifest_only,
+};
+use pnpm_workspace_task_scheduler::{
+    ScheduleGraphOptions,
+    TaskCompletion,
+    schedule_graph,
+};
 use regex::Regex;
 use serde_json::Value;
 use std::{
     collections::HashMap,
     env,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Mutex,
 };
 

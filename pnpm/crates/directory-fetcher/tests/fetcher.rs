@@ -5,7 +5,10 @@
 
 use pnpm_directory_fetcher::DirectoryFetcher;
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 fn touch(root: &Path, rel: &str, body: &str) {

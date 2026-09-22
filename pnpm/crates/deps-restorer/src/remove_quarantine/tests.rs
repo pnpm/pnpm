@@ -2,8 +2,17 @@
 // call) are scoped to it; the whole module compiles to nothing elsewhere.
 #![cfg(target_os = "macos")]
 
-use super::{is_native_binary, remove_quarantine, remove_quarantine_from_native_binaries};
-use std::{collections::HashMap, fs, path::Path, process::Command};
+use super::{
+    is_native_binary,
+    remove_quarantine,
+    remove_quarantine_from_native_binaries,
+};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+    process::Command,
+};
 
 const QUARANTINE_ATTR: &str = "com.apple.quarantine";
 

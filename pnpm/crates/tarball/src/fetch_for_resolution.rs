@@ -2,17 +2,44 @@
 //! through the in-memory cache.
 
 use crate::{
-    CacheValue, CachedTarball, MemCache, RetryOpts, TarballError, TarballPackage,
-    apply_placeholder_manifest, claim_cache_entry, download::fetch_and_extract_with_retry,
-    package_mem_cache_key, publish_cache_failure, publish_cached_tarball, read_cas_package_json,
-    read_subdir_manifest, wait_for_cached_tarball,
+    CacheValue,
+    CachedTarball,
+    MemCache,
+    RetryOpts,
+    TarballError,
+    TarballPackage,
+    apply_placeholder_manifest,
+    claim_cache_entry,
+    download::fetch_and_extract_with_retry,
+    package_mem_cache_key,
+    publish_cache_failure,
+    publish_cached_tarball,
+    read_cas_package_json,
+    read_subdir_manifest,
+    wait_for_cached_tarball,
 };
-use pnpm_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+    UNPRIORITIZED,
+};
 use pnpm_reporter::Reporter;
-use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter, store_index_key};
+use pnpm_store_dir::{
+    PackageFilesIndex,
+    StoreDir,
+    StoreIndexWriter,
+    store_index_key,
+};
 use ssri::Integrity;
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
-use tokio::sync::{Notify, RwLock};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::Arc,
+};
+use tokio::sync::{
+    Notify,
+    RwLock,
+};
 
 /// Outcome of [`FetchTarballForResolution::run`]: the sha512 integrity
 /// computed from the downloaded tarball and the bundled manifest read

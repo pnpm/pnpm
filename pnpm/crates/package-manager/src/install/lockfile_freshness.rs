@@ -1,13 +1,29 @@
 pub(super) mod manifest;
 pub(super) use manifest::manifest_has_effective_dependencies;
-pub(crate) use manifest::{ImporterSatisfactionCheck, check_importer_satisfies};
+pub(crate) use manifest::{
+    ImporterSatisfactionCheck,
+    check_importer_satisfies,
+};
 
 use rayon::prelude::*;
 
 use super::{
-    Arc, Catalogs, Config, Diagnostic, Display, Error, InstallError, InstallWithFreshLockfileError,
-    Lockfile, PackageManifest, Path, PathBuf, PnpmfileChecksumCheck, StalenessReason,
-    build_project_manifests_list, configured_or_discovered_workspace_dir,
+    Arc,
+    Catalogs,
+    Config,
+    Diagnostic,
+    Display,
+    Error,
+    InstallError,
+    InstallWithFreshLockfileError,
+    Lockfile,
+    PackageManifest,
+    Path,
+    PathBuf,
+    PnpmfileChecksumCheck,
+    StalenessReason,
+    build_project_manifests_list,
+    configured_or_discovered_workspace_dir,
 };
 
 /// Inputs for [`wanted_lockfile_satisfies_workspace`].

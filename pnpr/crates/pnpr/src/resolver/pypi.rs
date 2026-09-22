@@ -25,33 +25,70 @@
 mod metadata;
 mod response;
 use metadata::{
-    CachedDocument, metadata_from_wheel, metadata_url, parse_metadata, parse_page,
-    project_page_url, text, verify_digest,
+    CachedDocument,
+    metadata_from_wheel,
+    metadata_url,
+    parse_metadata,
+    parse_page,
+    project_page_url,
+    text,
+    verify_digest,
 };
 
 use std::{
     collections::BTreeMap,
     io::Cursor,
-    path::{Path, PathBuf},
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+    path::{
+        Path,
+        PathBuf,
     },
-    time::{Duration, SystemTime},
+    sync::{
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
-use axum::{http::StatusCode, response::Response};
-use pnpm_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
-use pnpm_python_resolver::{
-    IndexCandidate, Offered, Packages, Step, Target, WheelMetadata, candidates_from_page,
-    parse_requirement, validate_url,
+use axum::{
+    http::StatusCode,
+    response::Response,
 };
-use pnpr_route::{Footprint, url_has_inline_credentials};
+use pnpm_network::{
+    AuthHeaders,
+    MetadataCacheScope,
+    RetryOpts,
+    ThrottledClient,
+};
+use pnpm_python_resolver::{
+    IndexCandidate,
+    Offered,
+    Packages,
+    Step,
+    Target,
+    WheelMetadata,
+    candidates_from_page,
+    parse_requirement,
+    validate_url,
+};
+use pnpr_route::{
+    Footprint,
+    url_has_inline_credentials,
+};
 
 use crate::server::StripedLocks;
 
 use super::{
-    Resolver, json_error, package_route::PackageRoute, protocol::PypiResolveRequest,
+    Resolver,
+    json_error,
+    package_route::PackageRoute,
+    protocol::PypiResolveRequest,
     request_validation::forbidden_off_allowlist,
 };
 

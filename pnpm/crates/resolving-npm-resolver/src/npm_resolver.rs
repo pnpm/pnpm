@@ -23,78 +23,158 @@
 //!   store. Pacquet today goes through the picker unconditionally;
 //!   adding the fast path is a separate item.
 
-pub(crate) use resolution_result::{RegistryResolutionSource, ResolvedSpecifier};
+pub(crate) use resolution_result::{
+    RegistryResolutionSource,
+    ResolvedSpecifier,
+};
 
 pub(crate) use package_revision::validate_revision_selector;
 
 pub(crate) use guarded_pick::{
-    PickFromRegistryOptions, PickedFromRegistry, RegistryPick, pick_from_registry_with_guard,
+    PickFromRegistryOptions,
+    PickedFromRegistry,
+    RegistryPick,
+    pick_from_registry_with_guard,
 };
 
-pub(crate) use workspace_pick::{no_matching_version, swallowed_as_no_latest};
+pub(crate) use workspace_pick::{
+    no_matching_version,
+    swallowed_as_no_latest,
+};
 
 mod release_policy;
 mod resolution_result;
 use release_policy::latest_allowed_by_policy;
 use resolution_result::{
-    calculated_specifier, fail_if_trust_downgraded_for_pick, is_not_found_error,
+    calculated_specifier,
+    fail_if_trust_downgraded_for_pick,
+    is_not_found_error,
     registry_response_status,
 };
 
 mod package_revision;
-use package_revision::{select_package_revision, tarball_revision};
+use package_revision::{
+    select_package_revision,
+    tarball_revision,
+};
 
 mod guarded_pick;
 
 mod workspace_pick;
 use workspace_pick::{
-    prefer_workspace_pick, saved_specifier_options, wanted_spec, workspace_fallback_for,
-    workspace_packages_active, workspace_shadow_pick,
+    prefer_workspace_pick,
+    saved_specifier_options,
+    wanted_spec,
+    workspace_fallback_for,
+    workspace_packages_active,
+    workspace_shadow_pick,
 };
 
-use std::{borrow::Cow, collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    path::PathBuf,
+    sync::Arc,
+};
 
-use chrono::{DateTime, Utc};
+use chrono::{
+    DateTime,
+    Utc,
+};
 use node_semver::Version;
 use pnpm_config::{
-    DEFAULT_JSR_REGISTRY, NeedsFullMetadataFor, TrustPolicy, version_policy::PackageVersionPolicy,
+    DEFAULT_JSR_REGISTRY,
+    NeedsFullMetadataFor,
+    TrustPolicy,
+    version_policy::PackageVersionPolicy,
 };
 use pnpm_lockfile::{
-    LockfileResolution, PkgName, PkgNameVer, TarballResolution, TarballRevision,
+    LockfileResolution,
+    PkgName,
+    PkgNameVer,
+    TarballResolution,
+    TarballRevision,
     is_integrity_addressed_registry_tarball_url,
 };
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
-use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
-use pnpm_resolving_resolver_base::{
-    GuardExhaustionPolicy, LatestInfo, LatestQuery, NoMatchingVersionError,
-    PackageVersionGuardDecision, PkgResolutionId, RegistryResponseError,
-    RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError, ResolveFuture,
-    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
-    WorkspacePackages, parse_packument_timestamp,
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+    redact_and_sanitize,
 };
-use ssri::{Algorithm, Integrity};
+use pnpm_registry::{
+    Package,
+    PackageDistribution,
+    PackageVersion,
+    RangeSpecStyle,
+};
+use pnpm_resolving_resolver_base::{
+    GuardExhaustionPolicy,
+    LatestInfo,
+    LatestQuery,
+    NoMatchingVersionError,
+    PackageVersionGuardDecision,
+    PkgResolutionId,
+    RegistryResponseError,
+    RegistryResponseErrorOptions,
+    ResolutionPolicyViolation,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    WantedDependency,
+    WorkspacePackages,
+    parse_packument_timestamp,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
 
 use crate::{
     errors::{
-        AllVersionsBlockedError, GuardRepickLimitError, InvalidRevisionSpecifierError,
-        InvalidTarballIntegrityError, InvalidTarballRevisionMetadataError,
-        MalformedRevisionHistoryError, NoMatchingRevisionError,
+        AllVersionsBlockedError,
+        GuardRepickLimitError,
+        InvalidRevisionSpecifierError,
+        InvalidTarballIntegrityError,
+        InvalidTarballRevisionMetadataError,
+        MalformedRevisionHistoryError,
+        NoMatchingRevisionError,
     },
     named_registry::pick_registry_for_package,
-    parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
+    parse_bare_specifier::{
+        parse_bare_specifier,
+        parse_jsr_specifier_to_registry_package_spec,
+    },
     pick_package::{
-        PackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions, pick_package,
+        PackageMetaCache,
+        PickPackageContext,
+        PickPackageError,
+        PickPackageOptions,
+        pick_package,
     },
     pick_package_from_meta::{
-        RegistryPackageSpec, RegistryPackageSpecType, RegistryRevisionSelector,
+        RegistryPackageSpec,
+        RegistryPackageSpecType,
+        RegistryRevisionSelector,
     },
     registry_url::to_registry_url,
     resolve_from_workspace::{
-        ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, SavedSpecifierOptions,
-        pick_matching_local_version_or_null, resolve_from_local_package,
-        try_resolve_from_workspace, try_resolve_from_workspace_packages,
+        ResolveFromWorkspaceError,
+        ResolveFromWorkspaceOptions,
+        SavedSpecifierOptions,
+        pick_matching_local_version_or_null,
+        resolve_from_local_package,
+        try_resolve_from_workspace,
+        try_resolve_from_workspace_packages,
     },
-    trust_checks::{TrustCheckOptions, fail_if_trust_downgraded},
+    trust_checks::{
+        TrustCheckOptions,
+        fail_if_trust_downgraded,
+    },
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
 };
 

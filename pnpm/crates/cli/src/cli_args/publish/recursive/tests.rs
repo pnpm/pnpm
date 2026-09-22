@@ -1,5 +1,11 @@
-use super::{publish_eligible, write_publish_summary};
-use pnpm_publish::{PackedPkgInfo, create_publish_summary};
+use super::{
+    publish_eligible,
+    write_publish_summary,
+};
+use pnpm_publish::{
+    PackedPkgInfo,
+    create_publish_summary,
+};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 

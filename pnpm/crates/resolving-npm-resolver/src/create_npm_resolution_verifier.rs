@@ -25,8 +25,12 @@ mod trust_check;
 
 mod policy_snapshot;
 use policy_snapshot::{
-    BuildPolicySnapshot, build_policy_snapshot, cached_policy_patterns, minimum_release_age_cutoff,
-    named_registries_routing_digest, sorted_unique,
+    BuildPolicySnapshot,
+    build_policy_snapshot,
+    cached_policy_patterns,
+    minimum_release_age_cutoff,
+    named_registries_routing_digest,
+    sorted_unique,
 };
 
 mod registry_artifact;
@@ -37,54 +41,110 @@ mod age_check;
 
 mod artifact_binding;
 use artifact_binding::{
-    canonical_tarball_url, current_history_violation, current_revision_number, lockfile_revision,
-    missing_artifact_violation, select_revision, tarball_url_violation,
+    canonical_tarball_url,
+    current_history_violation,
+    current_revision_number,
+    lockfile_revision,
+    missing_artifact_violation,
+    select_revision,
+    tarball_url_violation,
 };
 
 mod metadata_projection;
-use metadata_projection::{load_local_meta_time, project_abbreviated_meta, project_trust_meta};
+use metadata_projection::{
+    load_local_meta_time,
+    project_abbreviated_meta,
+    project_trust_meta,
+};
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     path::PathBuf,
     sync::Arc,
 };
 
-use chrono::{DateTime, Utc};
+use chrono::{
+    DateTime,
+    Utc,
+};
 use dashmap::DashMap;
 use miette::Diagnostic as _;
 use pipe_trait::Pipe;
-use pnpm_config::{TrustPolicy, version_policy::PackageVersionPolicy};
+use pnpm_config::{
+    TrustPolicy,
+    version_policy::PackageVersionPolicy,
+};
 use pnpm_lockfile::{
-    LockfileResolution, PkgName, TarballRevision, is_git_hosted_tarball_url,
+    LockfileResolution,
+    PkgName,
+    TarballRevision,
+    is_git_hosted_tarball_url,
     is_integrity_addressed_registry_tarball_url,
 };
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+    redact_url_credentials,
+};
 use pnpm_registry::{
-    Approver, DerivedPackuments, NpmUser, Package, PackageDistribution, PackageVersion,
+    Approver,
+    DerivedPackuments,
+    NpmUser,
+    Package,
+    PackageDistribution,
+    PackageVersion,
 };
 use pnpm_resolving_resolver_base::{
-    ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture, parse_packument_timestamp,
+    ResolutionVerification,
+    ResolutionVerifier,
+    VerifyCtx,
+    VerifyFuture,
+    parse_packument_timestamp,
 };
 use serde_json::Value as JsonValue;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use tokio::sync::OnceCell;
 
 use crate::{
-    FetchAttestationOptions, FetchFullMetadataCachedOptions, TrustCheckOptions, TrustViolation,
-    fetch_attestation_published_at, fetch_full_metadata_cached,
+    FetchAttestationOptions,
+    FetchFullMetadataCachedOptions,
+    TrustCheckOptions,
+    TrustViolation,
+    fetch_attestation_published_at,
+    fetch_full_metadata_cached,
     lookup_context::{
-        PublishedAtLookupContext, PublishedAtTimeMap, RegistryArtifact, RegistryArtifactHistory,
-        package_key, version_key,
+        PublishedAtLookupContext,
+        PublishedAtTimeMap,
+        RegistryArtifact,
+        RegistryArtifactHistory,
+        package_key,
+        version_key,
     },
-    named_registry::{named_registry_tarball_prefixes, pick_registry_for_package},
-    pick_package::{PackageMetaCache, SkippedTimeCheck, warn_missing_time_once},
+    named_registry::{
+        named_registry_tarball_prefixes,
+        pick_registry_for_package,
+    },
+    pick_package::{
+        PackageMetaCache,
+        SkippedTimeCheck,
+        warn_missing_time_once,
+    },
     registry_url::to_registry_url,
     trust_checks::fail_if_trust_downgraded,
     violation_codes::{
-        MINIMUM_RELEASE_AGE_VIOLATION_CODE, MISSING_NAMED_REGISTRY_VIOLATION_CODE,
-        MISSING_TARBALL_INTEGRITY_VIOLATION_CODE, TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
-        TARBALL_URL_MISMATCH_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE,
+        MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+        MISSING_NAMED_REGISTRY_VIOLATION_CODE,
+        MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
+        TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+        TARBALL_URL_MISMATCH_VIOLATION_CODE,
+        TRUST_DOWNGRADE_VIOLATION_CODE,
     },
 };
 

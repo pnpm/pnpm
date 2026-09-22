@@ -3,9 +3,15 @@
 //! `catalogs.default` nested under the named catalogs — into the
 //! single flat [`Catalogs`] map every resolver consumer expects.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
+use pnpm_catalogs_types::{
+    Catalogs,
+    DEFAULT_CATALOG_NAME,
+};
 use pnpm_workspace::WorkspaceManifest;
 
 /// Raised when the workspace manifest defines the default catalog

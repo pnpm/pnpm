@@ -1,5 +1,13 @@
 use super::{
-    Arc, DateTime, Hash, Hasher, PathBuf, PkgNameVerPeer, PkgResolutionId, ResolveOptions, Utc,
+    Arc,
+    DateTime,
+    Hash,
+    Hasher,
+    PathBuf,
+    PkgNameVerPeer,
+    PkgResolutionId,
+    ResolveOptions,
+    Utc,
     WorkspacePackages,
 };
 

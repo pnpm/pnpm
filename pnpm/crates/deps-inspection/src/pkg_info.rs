@@ -4,19 +4,38 @@
 //! `resolvePackagePath`.
 
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
-use pnpm_fs::{is_subdir, lexical_normalize};
+use pnpm_fs::{
+    is_subdir,
+    lexical_normalize,
+};
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PkgNameVerPeer, RegistryOptions, TarballUrlOptions,
-    npm_tarball_url, pick_registry_for_package, registry_server_type,
+    Lockfile,
+    LockfileResolution,
+    PkgNameVerPeer,
+    RegistryOptions,
+    TarballUrlOptions,
+    npm_tarball_url,
+    pick_registry_for_package,
+    registry_server_type,
 };
 
 use super::{
     DependencyNode,
-    dep_types::{DepType, DepTypes},
+    dep_types::{
+        DepType,
+        DepTypes,
+    },
     graph::GraphEdge,
     peers_suffix_hash,
 };

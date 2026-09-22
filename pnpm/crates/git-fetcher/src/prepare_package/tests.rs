@@ -1,5 +1,8 @@
 use super::{
-    PreparePackageOptions, PreparedPackage, package_should_be_built, prepare_package,
+    PreparePackageOptions,
+    PreparedPackage,
+    package_should_be_built,
+    prepare_package,
     safe_join_path,
 };
 use crate::error::PreparePackageError;
@@ -11,7 +14,11 @@ use std::{
     collections::HashMap,
     fs,
     path::Path,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{
+        Arc,
+        LazyLock,
+        Mutex,
+    },
 };
 use tempfile::tempdir;
 

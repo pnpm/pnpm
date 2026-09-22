@@ -1,4 +1,7 @@
-use super::{encode_pkg_name_path, to_registry_url};
+use super::{
+    encode_pkg_name_path,
+    to_registry_url,
+};
 
 #[test]
 fn unscoped_name_passes_through() {

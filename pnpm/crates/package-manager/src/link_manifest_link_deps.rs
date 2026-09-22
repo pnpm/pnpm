@@ -1,19 +1,41 @@
 use crate::{
     SymlinkPackageError,
-    safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
+    safe_join_modules_dir::{
+        InvalidDependencyAliasError,
+        safe_join_modules_dir,
+    },
     symlink_package,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_lockfile::ProjectSnapshot;
 use pnpm_modules_yaml::IncludedDependencies;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{AddedRoot, DependencyType, LogEvent, LogLevel, RootLog, RootMessage};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    AddedRoot,
+    DependencyType,
+    LogEvent,
+    LogLevel,
+    RootLog,
+    RootMessage,
+};
 use pnpm_resolving_resolver_base::WorkspacePackages;
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Symlink direct dependencies omitted from the lockfile importer because

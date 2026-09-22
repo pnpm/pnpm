@@ -1,6 +1,12 @@
 use super::{
-    JsonValue, NpmResolutionVerifier, PkgName, ResolutionVerification,
-    TRUST_DOWNGRADE_VIOLATION_CODE, TrustCheckOptions, TrustPolicy, fail_if_trust_downgraded,
+    JsonValue,
+    NpmResolutionVerifier,
+    PkgName,
+    ResolutionVerification,
+    TRUST_DOWNGRADE_VIOLATION_CODE,
+    TrustCheckOptions,
+    TrustPolicy,
+    fail_if_trust_downgraded,
     format_trust_violation,
 };
 

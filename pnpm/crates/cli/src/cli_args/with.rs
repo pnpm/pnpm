@@ -18,16 +18,33 @@ use crate::{
     engine_pm::{
         channel::PackageManager,
         error::EngineError,
-        provision::{engine_bin, provision},
+        provision::{
+            engine_bin,
+            provision,
+        },
     },
-    path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
+    path_env::{
+        BadPathDir,
+        prepend_dirs_to_path,
+        set_command_path,
+    },
 };
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_reporter::Reporter;
-use std::{path::PathBuf, process::Command};
+use std::{
+    path::PathBuf,
+    process::Command,
+};
 
 /// Errors specific to `pacquet with`. The codes carry the shared
 /// `ERR_PNPM_` prefix.

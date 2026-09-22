@@ -11,9 +11,15 @@
 
 use crate::{
     cli_args::grammar,
-    flag_relocation::{ArgTable, short_cluster_consumes_value},
+    flag_relocation::{
+        ArgTable,
+        short_cluster_consumes_value,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::ffi::OsString;
 

@@ -1,10 +1,17 @@
-use super::{DocsArgs, documentation_url_from_manifest, is_http_url};
+use super::{
+    DocsArgs,
+    documentation_url_from_manifest,
+    is_http_url,
+};
 use crate::cli_args::view::ViewError;
 use pnpm_config::Config;
 use pnpm_network_web_auth::OpenUrl;
 use pnpm_registry::PackageVersion;
 use serde_json::json;
-use std::{io, sync::Mutex};
+use std::{
+    io,
+    sync::Mutex,
+};
 
 fn packument() -> String {
     json!({

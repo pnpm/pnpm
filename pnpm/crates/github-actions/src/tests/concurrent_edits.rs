@@ -1,5 +1,16 @@
-use super::{FakeGitRunner, GitCommandRunner, GitRunError, SilentReporter, update_with_runner};
-use std::{fs, future::Future, path::PathBuf, pin::Pin};
+use super::{
+    FakeGitRunner,
+    GitCommandRunner,
+    GitRunError,
+    SilentReporter,
+    update_with_runner,
+};
+use std::{
+    fs,
+    future::Future,
+    path::PathBuf,
+    pin::Pin,
+};
 
 struct EditingGitRunner {
     workflow: PathBuf,

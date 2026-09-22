@@ -8,27 +8,60 @@
 //! `--recursive` (workspace publishing), including pnpr's batch endpoint,
 //! lives in [`recursive`].
 
-pub use arguments::{PublishGitArgs, PublishManifestArgs, PublishOutputArgs, PublishRegistryArgs};
+pub use arguments::{
+    PublishGitArgs,
+    PublishManifestArgs,
+    PublishOutputArgs,
+    PublishRegistryArgs,
+};
 mod recursive;
 
 mod arguments;
 
-use crate::cli_args::{install::resolve_bool_override, registry_client::build_registry_client};
+use crate::cli_args::{
+    install::resolve_bool_override,
+    registry_client::build_registry_client,
+};
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
-use pnpm_executor::{RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook};
+use pnpm_executor::{
+    RunPostinstallHooks,
+    ScriptsPrependNodePath,
+    run_lifecycle_hook,
+};
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_pack::{Host as PackHost, PackOptions, PackResult, api as pack_api};
+use pnpm_pack::{
+    Host as PackHost,
+    PackOptions,
+    PackResult,
+    api as pack_api,
+};
 use pnpm_publish::{
-    Access, Host, OidcHttpOptions, PackedPkg, PublishNetwork, PublishPackedPkgOptions,
-    PublishSummary, extract_publish_manifest_from_packed, is_tarball_path, publish_packed_pkg,
-    resolve_otp_from_env, run_git_checks,
+    Access,
+    Host,
+    OidcHttpOptions,
+    PackedPkg,
+    PublishNetwork,
+    PublishPackedPkgOptions,
+    PublishSummary,
+    extract_publish_manifest_from_packed,
+    is_tarball_path,
+    publish_packed_pkg,
+    resolve_otp_from_env,
+    run_git_checks,
 };
 use pnpm_reporter::Reporter;
 use serde_json::Value;
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::Arc,
+};
 
 /// Publish a package to the registry.
 #[derive(Debug, Args)]

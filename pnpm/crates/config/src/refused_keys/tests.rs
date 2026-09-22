@@ -1,4 +1,7 @@
-use super::{is_refused_by_a_project_manifest, where_refused_key_belongs};
+use super::{
+    is_refused_by_a_project_manifest,
+    where_refused_key_belongs,
+};
 
 /// The global config file takes these under a name of their own.
 #[test]

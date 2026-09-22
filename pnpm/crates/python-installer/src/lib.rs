@@ -2,8 +2,16 @@
 // graph; proving it `Send` walks deeper than rustc's default limit.
 #![recursion_limit = "256"]
 
-pub use add::{AddOptions, plan_add, writable_project};
-pub use discovery::{Discovery, PythonProject, discover};
+pub use add::{
+    AddOptions,
+    plan_add,
+    writable_project,
+};
+pub use discovery::{
+    Discovery,
+    PythonProject,
+    discover,
+};
 pub use manifest::DependencySelection;
 pub use workspace::members::in_declared_workspace;
 
@@ -27,21 +35,60 @@ mod sources;
 mod targets;
 mod workspace;
 
-use environment::{Generation, LockfileInputs, PythonPrepare, Shared, publish_link};
+use environment::{
+    Generation,
+    LockfileInputs,
+    PythonPrepare,
+    Shared,
+    publish_link,
+};
 use generation::EnvironmentProject;
 use host::Interpreter;
-use interpreter::{Interpreters, Mismatch};
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
-use pnpm_pnpr_client::{PYPI_ECOSYSTEM, PnprClient, PypiResolveOptions};
-use pnpm_python_resolver::{Inputs, Lockfile};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use pnpm_store_dir::{StoreIndex, StoreIndexWriter};
+use interpreter::{
+    Interpreters,
+    Mismatch,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
+use pnpm_pnpr_client::{
+    PYPI_ECOSYSTEM,
+    PnprClient,
+    PypiResolveOptions,
+};
+use pnpm_python_resolver::{
+    Inputs,
+    Lockfile,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
+use pnpm_store_dir::{
+    StoreIndex,
+    StoreIndexWriter,
+};
 use registry::Registry;
-use settings::{Index, python_index};
+use settings::{
+    Index,
+    python_index,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 use targets::Environments;

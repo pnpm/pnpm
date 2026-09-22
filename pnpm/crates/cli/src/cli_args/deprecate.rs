@@ -1,27 +1,59 @@
 pub(crate) use registry::{
-    auth_header_for_registry, build_http_client, fetch_package_meta, normalize_registry_url,
-    package_url, registry_for_package, registry_operation_error, registry_operation_failed,
-    registry_write_error, write_error_for_status,
+    auth_header_for_registry,
+    build_http_client,
+    fetch_package_meta,
+    normalize_registry_url,
+    package_url,
+    registry_for_package,
+    registry_operation_error,
+    registry_operation_failed,
+    registry_write_error,
+    write_error_for_status,
 };
 
 use super::sanitize;
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use node_semver::Range;
 use pnpm_config::Config;
 use pnpm_network::{
-    LimitedBody, RetryOpts, ThrottledClient, encode_uri_component, read_limited_body,
-    redact_url_credentials, retry_async, send_with_retry,
+    LimitedBody,
+    RetryOpts,
+    ThrottledClient,
+    encode_uri_component,
+    read_limited_body,
+    redact_url_credentials,
+    retry_async,
+    send_with_retry,
 };
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use registry::{PackageMeta, put_package_meta};
+use registry::{
+    PackageMeta,
+    put_package_meta,
+};
 
-use reqwest::{Response, StatusCode};
-use serde::{Deserialize, Serialize};
+use reqwest::{
+    Response,
+    StatusCode,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     time::Duration,
 };
 

@@ -4,9 +4,20 @@
 //! Node.js runtime, so `runtimeOnFail` decides this the same way.
 
 use super::Interpreter;
-use miette::{Result, bail};
-use pnpm_config::{Config, RuntimeOnFail};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use miette::{
+    Result,
+    bail,
+};
+use pnpm_config::{
+    Config,
+    RuntimeOnFail,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use std::path::Path;
 
 /// What an install does with an interpreter outside the project's

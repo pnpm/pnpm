@@ -3,16 +3,39 @@
 //! resolution + subtree instead of re-resolving from the registry.
 //! See `pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md`.
 
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 use pnpm_lockfile::{
-    BundledDependencies, Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer,
-    ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotEntry, StringOrList,
-    TarballResolution, TarballUrlOptions, integrity_addressed_registry_tarball_url,
-    npm_tarball_url, pick_registry_for_package, registry_server_type,
+    BundledDependencies,
+    Lockfile,
+    LockfileResolution,
+    PkgName,
+    PkgNameVer,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    RegistryContext,
+    ResolvedDependencySpec,
+    SnapshotEntry,
+    StringOrList,
+    TarballResolution,
+    TarballUrlOptions,
+    integrity_addressed_registry_tarball_url,
+    npm_tarball_url,
+    pick_registry_for_package,
+    registry_server_type,
 };
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
-use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
-use serde_json::{Map, Value};
+use pnpm_resolving_resolver_base::{
+    CurrentPkg,
+    PkgResolutionId,
+    ResolveResult,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// The `currentPkg` payload for re-resolving `key`'s edge: the prior
 /// lockfile entry shaped into what the resolver expects.

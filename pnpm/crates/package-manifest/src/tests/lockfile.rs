@@ -1,4 +1,8 @@
-use super::{PackageManifest, PackageManifestError, tempdir};
+use super::{
+    PackageManifest,
+    PackageManifestError,
+    tempdir,
+};
 
 #[test]
 fn from_path_errors_no_importer_when_missing() {

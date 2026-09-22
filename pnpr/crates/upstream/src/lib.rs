@@ -1,12 +1,20 @@
 pub use packument::{
-    abbreviate_packument, extract_upstream_version_manifest, extract_version_manifest,
-    rewrite_tarball_urls, rewrite_upstream_tarball_urls, tarball_basename,
+    abbreviate_packument,
+    extract_upstream_version_manifest,
+    extract_version_manifest,
+    rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls,
+    tarball_basename,
 };
 
 pub use oci::oci_download_allowed;
 
 mod http;
-use http::{UpstreamHttp, read_upstream_error_body, same_origin};
+use http::{
+    UpstreamHttp,
+    read_upstream_error_body,
+    same_origin,
+};
 
 mod circuit_breaker;
 use circuit_breaker::CircuitBreaker;
@@ -15,29 +23,62 @@ mod packument;
 
 mod oci;
 
-use chrono::{DateTime, Utc};
+use chrono::{
+    DateTime,
+    Utc,
+};
 use pnpm_lockfile::{
-    MAX_TARBALL_REVISION, TarballRevision, integrity_addressed_registry_tarball_url,
+    MAX_TARBALL_REVISION,
+    TarballRevision,
+    integrity_addressed_registry_tarball_url,
     is_integrity_addressed_registry_tarball_url,
 };
 use pnpm_network::{
-    RedirectGuard, ThrottledClient, ThrottledClientGuard, ThrottledResponse, UNPRIORITIZED,
-    is_url_secure_for_credentials, read_limited_body,
+    RedirectGuard,
+    ThrottledClient,
+    ThrottledClientGuard,
+    ThrottledResponse,
+    UNPRIORITIZED,
+    is_url_secure_for_credentials,
+    read_limited_body,
 };
-use pnpr_config::{RedactedHeaders, UpstreamConfig};
-use pnpr_error::{RegistryError, Result};
+use pnpr_config::{
+    RedactedHeaders,
+    UpstreamConfig,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::CanonicalPackageName;
 use reqwest::{
     StatusCode,
-    header::{self, HeaderMap, HeaderValue},
+    header::{
+        self,
+        HeaderMap,
+        HeaderValue,
+    },
 };
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use serde_json::{Map, Value};
+use serde::{
+    Deserialize,
+    Serialize,
+    de::DeserializeOwned,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 use ssri::Integrity;
 use std::{
     fmt,
-    sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    sync::{
+        Arc,
+        Mutex,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 const UPSTREAM_DISCOVERY_BODY_LIMIT: usize = 16 * 1024 * 1024;

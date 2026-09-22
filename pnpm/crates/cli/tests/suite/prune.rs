@@ -1,8 +1,15 @@
-use crate::_utils::{has_link, importer_has_group_dependency, read_lockfile};
+use crate::_utils::{
+    has_link,
+    importer_has_group_dependency,
+    read_lockfile,
+};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use std::fs;
 
 const PROD: &str = "@pnpm.e2e/pkg-with-1-dep";

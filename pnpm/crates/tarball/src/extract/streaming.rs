@@ -1,7 +1,18 @@
 use super::{
-    Archive, CafsFileInfo, HashMap, IgnoreEntryFilter, PackageFilesIndex, PathBuf, PendingFile,
-    Read, StoreDir, TarballError, clean_archive_entry_path, file_mode,
-    files_include_install_scripts, write_pending_files,
+    Archive,
+    CafsFileInfo,
+    HashMap,
+    IgnoreEntryFilter,
+    PackageFilesIndex,
+    PathBuf,
+    PendingFile,
+    Read,
+    StoreDir,
+    TarballError,
+    clean_archive_entry_path,
+    file_mode,
+    files_include_install_scripts,
+    write_pending_files,
 };
 
 /// Body chunks in flight between the download loop and the extractor.

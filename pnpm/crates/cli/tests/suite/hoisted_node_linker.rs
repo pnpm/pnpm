@@ -16,12 +16,26 @@ use crate::_utils;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_fs::symlink_dir;
-use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest};
-use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
-    fs::{DirWitness, is_symlink_or_junction, symlink_file},
+use pnpm_modules_yaml::{
+    Host as ModulesHost,
+    read_modules_manifest,
 };
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::{
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    fs::{
+        DirWitness,
+        is_symlink_or_junction,
+        symlink_file,
+    },
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 /// Replace the `pnpm-workspace.yaml` written by `add_mocked_registry`
 /// with one that keeps the mock's `storeDir` / `cacheDir` and appends

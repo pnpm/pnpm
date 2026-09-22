@@ -1,4 +1,13 @@
-use super::{Arc, Catalogs, HashMap, NodeLinker, Path, PathBuf, PnpmfileHooks, lexical_normalize};
+use super::{
+    Arc,
+    Catalogs,
+    HashMap,
+    NodeLinker,
+    Path,
+    PathBuf,
+    PnpmfileHooks,
+    lexical_normalize,
+};
 
 /// Inputs for [`crate::api`]. The CLI maps the resolved [`pnpm_config::Config`]
 /// and command-line flags onto this struct.

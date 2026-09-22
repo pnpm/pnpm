@@ -1,14 +1,30 @@
 use super::{
-    BuildPhaseInputs, Config, HashMap, PackageKey, SkippedSnapshots, resolve_snapshot_patches,
+    BuildPhaseInputs,
+    Config,
+    HashMap,
+    PackageKey,
+    SkippedSnapshots,
+    resolve_snapshot_patches,
     run_build_phase,
 };
-use crate::{AllowBuildPolicy, VirtualStoreLayout};
+use crate::{
+    AllowBuildPolicy,
+    VirtualStoreLayout,
+};
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_lockfile::{
-    GitResolution, LockfileResolution, PackageMetadata, ProjectSnapshot, SnapshotEntry,
+    GitResolution,
+    LockfileResolution,
+    PackageMetadata,
+    ProjectSnapshot,
+    SnapshotEntry,
 };
 use pnpm_package_manifest::DependencyGroup;
-use pnpm_patching::{ExtendedPatchInfo, PatchGroup, PatchGroupRecord};
+use pnpm_patching::{
+    ExtendedPatchInfo,
+    PatchGroup,
+    PatchGroupRecord,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::StoreIndexWriter;
 use std::sync::atomic::AtomicU8;

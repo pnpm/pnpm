@@ -7,14 +7,28 @@
 //! the directory so [`upload`](crate::upload()) can diff it against
 //! the pristine `PackageFilesIndex.files` row and seed the cache.
 
-use crate::{CafsFileInfo, StoreDir, WriteCasFileError};
-use derive_more::{Display, Error};
+use crate::{
+    CafsFileInfo,
+    StoreDir,
+    WriteCasFileError,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_fs::file_mode::is_executable;
 use std::{
-    collections::{HashMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Result of [`add_files_from_dir()`]. The map's key is the file's

@@ -1,8 +1,14 @@
 //! Version extraction from npm's lockfile formats.
 
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
-use crate::{VersionsByPackageName, add_version};
+use crate::{
+    VersionsByPackageName,
+    add_version,
+};
 
 const NODE_MODULES_PREFIX: &str = "node_modules/";
 

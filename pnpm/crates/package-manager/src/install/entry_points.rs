@@ -1,14 +1,29 @@
 use super::{
-    Install, InstallRunOptions, ProjectMutation, WorkspaceInstallSelection, errors::InstallError,
+    Install,
+    InstallRunOptions,
+    ProjectMutation,
+    WorkspaceInstallSelection,
+    errors::InstallError,
 };
-use crate::{LockfileVerificationOverride, RebuildOptions, ResolvedPackages};
+use crate::{
+    LockfileVerificationOverride,
+    RebuildOptions,
+    ResolvedPackages,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::MaybeLazyLockfile;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::Reporter;
 use pnpm_tarball::MemCache;
-use std::{collections::HashSet, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+    sync::Arc,
+};
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
 where

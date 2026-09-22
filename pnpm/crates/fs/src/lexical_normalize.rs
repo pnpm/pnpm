@@ -1,6 +1,14 @@
 use std::{
-    ffi::{OsStr, OsString},
-    path::{Component, MAIN_SEPARATOR_STR, Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    path::{
+        Component,
+        MAIN_SEPARATOR_STR,
+        Path,
+        PathBuf,
+    },
 };
 
 /// Lexically resolve `.` and `..` components without touching the

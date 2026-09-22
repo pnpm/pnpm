@@ -12,7 +12,10 @@
 use pnpm_crypto_hash::create_short_hash;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     time::Duration,
 };

@@ -1,6 +1,12 @@
 use super::{
-    HashMap, HashSet, alias_dependency, assert_eq, importer_locked_peer_versions,
-    peer_context_lockfile, peer_declaring_metadata, snapshot_with_dependencies,
+    HashMap,
+    HashSet,
+    alias_dependency,
+    assert_eq,
+    importer_locked_peer_versions,
+    peer_context_lockfile,
+    peer_declaring_metadata,
+    snapshot_with_dependencies,
 };
 
 /// Nothing ranks two ordinary aliases onto one provider, and guessing

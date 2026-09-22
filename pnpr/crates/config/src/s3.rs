@@ -1,5 +1,11 @@
 use super::{
-    AmazonS3Builder, AmazonS3ConfigKey, Arc, Deserialize, ObjectStore, fmt, redact_url_credentials,
+    AmazonS3Builder,
+    AmazonS3ConfigKey,
+    Arc,
+    Deserialize,
+    ObjectStore,
+    fmt,
+    redact_url_credentials,
 };
 
 /// The YAML `s3:` block. Selects the object store for hosted packages and

@@ -1,15 +1,23 @@
 #[cfg(unix)]
 use super::{
-    super::BuildModules, TEST_LOGGED_METHODS, create_failing_postinstall_fixture,
-    create_postinstall_modifies_source_fixture, create_postinstall_with_unreadable_fixture,
+    super::BuildModules,
+    TEST_LOGGED_METHODS,
+    create_failing_postinstall_fixture,
+    create_postinstall_modifies_source_fixture,
+    create_postinstall_with_unreadable_fixture,
     root_importers,
 };
 use super::{
     super::{
         allow_build_policy::AllowBuildPolicy,
-        slots::{is_contained_descendant, parse_name_version_from_key, virtual_store_dir_for_key},
+        slots::{
+            is_contained_descendant,
+            parse_name_version_from_key,
+            virtual_store_dir_for_key,
+        },
     },
-    key, policy_from_specs,
+    key,
+    policy_from_specs,
 };
 #[cfg(unix)]
 use crate::SkippedSnapshots;
@@ -24,12 +32,20 @@ use pnpm_lockfile::PackageKey;
 use pnpm_lockfile::SnapshotEntry;
 #[cfg(unix)]
 use pnpm_reporter::{
-    LogEvent, Reporter, SilentReporter, SkippedOptionalPackage, SkippedOptionalReason,
+    LogEvent,
+    Reporter,
+    SilentReporter,
+    SkippedOptionalPackage,
+    SkippedOptionalReason,
 };
 use pretty_assertions::assert_eq;
 use std::path::Path;
 #[cfg(unix)]
-use std::{collections::HashMap, fs, sync::Mutex};
+use std::{
+    collections::HashMap,
+    fs,
+    sync::Mutex,
+};
 use tempfile::tempdir;
 
 #[test]
@@ -391,7 +407,12 @@ pub(super) fn fail_when_failing_postinstall_is_required() {
 #[tokio::test(flavor = "current_thread")]
 async fn write_path_disabled_skips_upload() {
     use pnpm_store_dir::{
-        HASH_ALGORITHM, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexWriter, store_index_key,
+        HASH_ALGORITHM,
+        PackageFilesIndex,
+        StoreDir,
+        StoreIndex,
+        StoreIndexWriter,
+        store_index_key,
     };
 
     let pkg_key = key("@pnpm/postinstall-modifies-source", "1.0.0");
@@ -528,7 +549,12 @@ async fn write_path_disabled_skips_upload() {
 #[tokio::test(flavor = "current_thread")]
 async fn upload_error_does_not_interrupt_install() {
     use pnpm_store_dir::{
-        HASH_ALGORITHM, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexWriter, store_index_key,
+        HASH_ALGORITHM,
+        PackageFilesIndex,
+        StoreDir,
+        StoreIndex,
+        StoreIndexWriter,
+        store_index_key,
     };
 
     let pkg_key = key("@pnpm/postinstall-modifies-source", "1.0.0");

@@ -1,4 +1,7 @@
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
 use std::path::Path;
 
 /// The wanted lockfile as a manifest-mutating command received it.

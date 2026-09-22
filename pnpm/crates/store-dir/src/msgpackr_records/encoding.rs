@@ -1,6 +1,18 @@
 use super::{
-    CafsFileInfo, Diagnostic, Display, Error, HashMap, PackageFilesIndex, RECORD_DEF_EXT_TYPE,
-    SLOT_HI, SLOT_LO, SideEffectsDiff, SmartDefault, Value, write_map_header, write_str,
+    CafsFileInfo,
+    Diagnostic,
+    Display,
+    Error,
+    HashMap,
+    PackageFilesIndex,
+    RECORD_DEF_EXT_TYPE,
+    SLOT_HI,
+    SLOT_LO,
+    SideEffectsDiff,
+    SmartDefault,
+    Value,
+    write_map_header,
+    write_str,
 };
 
 /// Encode a [`PackageFilesIndex`] to msgpackr-records bytes that match

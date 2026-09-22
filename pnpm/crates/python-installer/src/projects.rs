@@ -6,18 +6,37 @@ pub(super) use disagreement::disagreement;
 mod disagreement;
 
 use super::{
-    Environments, Interpreter, Interpreters, Prepared,
+    Environments,
+    Interpreter,
+    Interpreters,
+    Prepared,
     build::MetadataScope,
-    environment::{PythonPrepare, Shared},
-    interpreter, manifest,
-    workspace::{self, members::Membership},
+    environment::{
+        PythonPrepare,
+        Shared,
+    },
+    interpreter,
+    manifest,
+    workspace::{
+        self,
+        members::Membership,
+    },
 };
-use futures_util::{StreamExt, stream};
+use futures_util::{
+    StreamExt,
+    stream,
+};
 use miette::Result;
 use pnpm_reporter::Reporter;
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

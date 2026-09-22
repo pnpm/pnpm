@@ -1,7 +1,18 @@
 use super::{
-    HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR, HostedRevisionRefIndex,
-    HostedRevisionRefWrite, ObjectPath, ObjectStoreExt, PutMode, PutOptions, PutPayload,
-    REVISION_REF_WRITE_RETRIES, RegistryError, Result, S3Store, UpdateVersion,
+    HOSTED_REVISION_REF_INDEX_FILE,
+    HOSTED_REVISION_REFS_DIR,
+    HostedRevisionRefIndex,
+    HostedRevisionRefWrite,
+    ObjectPath,
+    ObjectStoreExt,
+    PutMode,
+    PutOptions,
+    PutPayload,
+    REVISION_REF_WRITE_RETRIES,
+    RegistryError,
+    Result,
+    S3Store,
+    UpdateVersion,
     wait_after_document_write_conflict,
 };
 

@@ -1,7 +1,21 @@
 use super::{
-    Arc, Command, Glob, IntoDiagnostic, Path, ProjectInputHashes, TaskCache, TaskKeyInputs,
-    TaskNode, TaskSettings, check_input_directories, create_hex_hash, create_hex_hash_bytes,
-    create_hex_hash_from_file, env, fs, io,
+    Arc,
+    Command,
+    Glob,
+    IntoDiagnostic,
+    Path,
+    ProjectInputHashes,
+    TaskCache,
+    TaskKeyInputs,
+    TaskNode,
+    TaskSettings,
+    check_input_directories,
+    create_hex_hash,
+    create_hex_hash_bytes,
+    create_hex_hash_from_file,
+    env,
+    fs,
+    io,
 };
 use wax::Program;
 

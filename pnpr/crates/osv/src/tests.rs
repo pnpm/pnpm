@@ -1,10 +1,16 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
-use pnpm_resolving_resolver_base::{PackageVersionGuard, PackageVersionGuardDecision};
+use pnpm_resolving_resolver_base::{
+    PackageVersionGuard,
+    PackageVersionGuardDecision,
+};
 
 use super::OsvIndex;
 

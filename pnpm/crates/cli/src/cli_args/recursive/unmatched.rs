@@ -1,9 +1,16 @@
 //! What `--fail-if-no-match` does with a `--filter` selection that came
 //! back empty.
 
-use super::{NoMatchingProjects, no_projects_matched_message, notice_workspace_dir};
+use super::{
+    NoMatchingProjects,
+    no_projects_matched_message,
+    notice_workspace_dir,
+};
 use pnpm_config::Config;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// pnpm's `--fail-if-no-match`: a selection that came back empty ends the
 /// run with exit code 1 instead of letting the command operate on no

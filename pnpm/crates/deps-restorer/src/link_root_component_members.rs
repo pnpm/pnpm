@@ -1,13 +1,33 @@
-use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, symlink_package};
-use derive_more::{Display, Error};
+use crate::{
+    SkippedSnapshots,
+    SymlinkPackageError,
+    VirtualStoreLayout,
+    symlink_package,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_lockfile::{
-    ImporterDepVersion, PackageKey, PkgName, ProjectSnapshot, ResolvedDependencySpec,
-    SnapshotEntry, VersionPart,
+    ImporterDepVersion,
+    PackageKey,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencySpec,
+    SnapshotEntry,
+    VersionPart,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+    PackageManifestError,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::PathBuf,
 };
 

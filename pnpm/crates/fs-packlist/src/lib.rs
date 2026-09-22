@@ -44,16 +44,33 @@
 //!   that has both ignore files gets them combined rather than
 //!   `.npmignore` winning. This is rare in published packages.
 
-use derive_more::{Display, Error};
-use ignore::{WalkBuilder, gitignore::Gitignore};
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use ignore::{
+    WalkBuilder,
+    gitignore::Gitignore,
+};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use serde_json::Value;
 use std::{
-    collections::{BTreeSet, HashSet, VecDeque},
+    collections::{
+        BTreeSet,
+        HashSet,
+        VecDeque,
+    },
     ffi::OsStr,
     fs,
-    path::{Component, Path, PathBuf},
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(test)]

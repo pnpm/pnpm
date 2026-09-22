@@ -1,11 +1,26 @@
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_resolver_base::{
-    LatestQuery, PkgResolutionId, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, WantedDependency,
+    LatestQuery,
+    PkgResolutionId,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 
-use super::{ResolveDependencyTreeOptions, resolve_dependency_tree};
+use super::{
+    ResolveDependencyTreeOptions,
+    resolve_dependency_tree,
+};
 
 struct NestedWorkspaceLinkResolver {
     target_dir: std::path::PathBuf,

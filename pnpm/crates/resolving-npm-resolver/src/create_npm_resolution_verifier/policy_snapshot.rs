@@ -1,5 +1,12 @@
 use super::{
-    BTreeMap, DateTime, Digest, HashMap, JsonValue, Sha256, TrustPolicy, Utc,
+    BTreeMap,
+    DateTime,
+    Digest,
+    HashMap,
+    JsonValue,
+    Sha256,
+    TrustPolicy,
+    Utc,
     VerificationReleaseAgeOptions,
 };
 

@@ -1,6 +1,12 @@
 use crate::LockfileResolution;
-use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, ops::Deref};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::{
+    collections::HashMap,
+    ops::Deref,
+};
 
 /// Metadata for one resolved package version, as stored in the v9
 /// `packages:` map. This is the per-version data that does not vary by

@@ -1,8 +1,13 @@
 use super::{
-    delete_object_value_by_property_path, fix_manifest, get_output,
+    delete_object_value_by_property_path,
+    fix_manifest,
+    get_output,
     set_object_value_by_property_path,
 };
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 #[test]
 fn test_get_single_key() {

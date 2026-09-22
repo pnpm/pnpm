@@ -1,18 +1,36 @@
 mod up_to_date;
-use up_to_date::{FrozenTreeUpToDate, UpToDateInstall, frozen_tree_up_to_date, report_up_to_date};
+use up_to_date::{
+    FrozenTreeUpToDate,
+    UpToDateInstall,
+    frozen_tree_up_to_date,
+    report_up_to_date,
+};
 
 mod purge;
 use purge::{
-    ExcludedGroupPrune, InconsistentModulesDir, prune_excluded_direct_deps,
+    ExcludedGroupPrune,
+    InconsistentModulesDir,
+    prune_excluded_direct_deps,
     purge_inconsistent_modules_dir,
 };
 
 use super::{
-    Config, Host, InstallError, Lockfile, Modules, NodeLinker, PackageManifest, PathBuf, Reporter,
-    WorkspaceState, modules_layout_consistent_with, tree_may_move,
+    Config,
+    Host,
+    InstallError,
+    Lockfile,
+    Modules,
+    NodeLinker,
+    PackageManifest,
+    PathBuf,
+    Reporter,
+    WorkspaceState,
+    modules_layout_consistent_with,
+    tree_may_move,
 };
 use crate::{
-    install::state_options::RecordedWorkspace, optimistic_repeat_install::recorded_elsewhere,
+    install::state_options::RecordedWorkspace,
+    optimistic_repeat_install::recorded_elsewhere,
 };
 use pnpm_workspace_state::load_workspace_state;
 

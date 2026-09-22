@@ -1,13 +1,27 @@
 #[cfg(unix)]
 use super::process_group_probe;
 use super::{
-    Command, CommandExtra, CommandTempCwd, Value, WORKSPACE_ROOT_START_DIRS,
-    build_appends_run_order, build_writes_marker, fs, json, workspace_root_run_selection,
-    write_marker_script, write_node_bin, write_workspace, write_workspace_with_root_and_packages,
+    Command,
+    CommandExtra,
+    CommandTempCwd,
+    Value,
+    WORKSPACE_ROOT_START_DIRS,
+    build_appends_run_order,
+    build_writes_marker,
+    fs,
+    json,
+    workspace_root_run_selection,
+    write_marker_script,
+    write_node_bin,
+    write_workspace,
+    write_workspace_with_root_and_packages,
 };
 #[cfg(unix)]
 use crate::_utils::terminal::Terminal;
-use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+use assert_cmd::{
+    assert::OutputAssertExt,
+    cargo::CommandCargoExt,
+};
 
 /// A single filtered script cannot run alongside a sibling, so at a
 /// terminal it stays in pacquet's own process group: a child moved into

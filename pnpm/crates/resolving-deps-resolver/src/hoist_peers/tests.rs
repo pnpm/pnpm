@@ -1,17 +1,30 @@
 //! Tests for [`super::hoist_peers`] and
 //! [`super::get_hoistable_optional_peers`].
 
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, path::Path};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
 use pnpm_resolving_resolver_base::{
-    PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
+    PreferredVersions,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
 };
 use pretty_assertions::assert_eq;
 
 use super::{
-    HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep, get_hoistable_optional_peers,
-    get_hoistable_optional_peers_with_locked_versions, hoist_peers,
+    HoistPeersOptions,
+    MissingPeerInfo,
+    WorkspaceRootDep,
+    get_hoistable_optional_peers,
+    get_hoistable_optional_peers_with_locked_versions,
+    hoist_peers,
 };
 
 fn preferred(entries: &[(&str, &[(&str, VersionSelectorEntry)])]) -> PreferredVersions {

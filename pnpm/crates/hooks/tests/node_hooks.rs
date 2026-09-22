@@ -1,7 +1,13 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 use tempfile::TempDir;
 
-use pnpm_hooks::{PnpmfileHooks, finder};
+use pnpm_hooks::{
+    PnpmfileHooks,
+    finder,
+};
 
 /// Helper: write `source` to a `.pnpmfile.cjs` in a fresh temp dir and return
 /// the hooks bridge plus the dir (kept alive for the file's lifetime).

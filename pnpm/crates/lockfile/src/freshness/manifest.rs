@@ -1,6 +1,14 @@
 use super::{
-    BTreeMap, BTreeSet, DependencyGroup, PackageManifest, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec, SpecDiff, StalenessReason, git_specifiers_are_equivalent,
+    BTreeMap,
+    BTreeSet,
+    DependencyGroup,
+    PackageManifest,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SpecDiff,
+    StalenessReason,
+    git_specifiers_are_equivalent,
 };
 
 /// Verify the on-disk `package.json` is still satisfied by the

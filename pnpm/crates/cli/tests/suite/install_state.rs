@@ -1,11 +1,21 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest, write_modules_manifest};
+use pnpm_modules_yaml::{
+    Host as ModulesHost,
+    read_modules_manifest,
+    write_modules_manifest,
+};
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::is_symlink_or_junction,
 };
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 #[test]
 fn frozen_reinstall_writes_modules_manifest_current_lockfile_and_bins() {

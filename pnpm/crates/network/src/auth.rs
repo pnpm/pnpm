@@ -17,16 +17,36 @@
 //! `.npmrc`; if it redirects across hosts, no header is attached.
 
 pub use redaction::{
-    hide_auth_information, redact_and_sanitize, redact_and_sanitize_multiline, redact_npm_auth_key,
-    redact_url_credentials, redact_url_for_display,
+    hide_auth_information,
+    redact_and_sanitize,
+    redact_and_sanitize_multiline,
+    redact_npm_auth_key,
+    redact_url_credentials,
+    redact_url_for_display,
 };
-pub use url::{base64_encode, base64_encode_bytes, is_url_secure_for_credentials, nerf_dart};
+pub use url::{
+    base64_encode,
+    base64_encode_bytes,
+    is_url_secure_for_credentials,
+    nerf_dart,
+};
 
-use crate::token_helper::{TokenHelperRunner, execute_token_helper, run_token_helper_command};
+use crate::token_helper::{
+    TokenHelperRunner,
+    execute_token_helper,
+    run_token_helper_command,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     fmt,
-    sync::{Arc, Mutex, OnceLock},
+    sync::{
+        Arc,
+        Mutex,
+        OnceLock,
+    },
 };
 
 pub const DEFAULT_REGISTRY_SCOPE: &str = "@";

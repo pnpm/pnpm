@@ -1,10 +1,22 @@
 use crate::_utils;
 
-use _utils::{enable_gvs_in_workspace_yaml, pacquet_in};
+use _utils::{
+    enable_gvs_in_workspace_yaml,
+    pacquet_in,
+};
 use assert_cmd::prelude::*;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use serde_json::{Value, json};
-use std::{fs, path::Path};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[test]
 fn licenses_normalizes_metadata_and_orders_groups_by_package() {

@@ -1,4 +1,12 @@
-use super::{Host, NodeLinker, SilentReporter, api, fixture, install_module, json};
+use super::{
+    Host,
+    NodeLinker,
+    SilentReporter,
+    api,
+    fixture,
+    install_module,
+    json,
+};
 
 /// `pack` bundles dependencies listed in `bundleDependencies`.
 /// Covers the `fs-packlist` `bundleDependencies` recursion and the

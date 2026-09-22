@@ -5,8 +5,15 @@
 //! header — that are drawn but never selected: the cursor skips them and
 //! they take no part in the answer.
 
-use console::{Key, Term, measure_text_width};
-use owo_colors::{OwoColorize, Stream};
+use console::{
+    Key,
+    Term,
+    measure_text_width,
+};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+};
 use std::io;
 
 /// One line of a [`CheckboxPrompt`].

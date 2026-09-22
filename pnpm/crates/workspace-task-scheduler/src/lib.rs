@@ -8,28 +8,67 @@
 //! `taskScheduler.ts` in pnpm's `@pnpm/workspace.task-scheduler`.
 
 pub use asynchronous::schedule_graph_async;
-pub use build::{build_pipeline_task_graph, build_task_graph};
+pub use build::{
+    build_pipeline_task_graph,
+    build_task_graph,
+};
 pub use graph::{
-    DryRunDocument, DryRunTask, DryRunTaskDependency, SequenceTasksOptions, format_task,
-    is_serial_task_graph, render_task_graph_dry_run, resume_task_graph_from, reverse_task_graph,
-    sequence_tasks, task_graph_to_json, task_summary_key,
+    DryRunDocument,
+    DryRunTask,
+    DryRunTaskDependency,
+    SequenceTasksOptions,
+    format_task,
+    is_serial_task_graph,
+    render_task_graph_dry_run,
+    resume_task_graph_from,
+    reverse_task_graph,
+    sequence_tasks,
+    task_graph_to_json,
+    task_summary_key,
 };
 pub use graph_sequencer::{
-    GraphSequencerResult, PathNode, StronglyConnectedComponents, graph_sequencer,
+    GraphSequencerResult,
+    PathNode,
+    StronglyConnectedComponents,
+    graph_sequencer,
 };
-pub use synchronous::{schedule_graph, schedule_tasks};
+pub use synchronous::{
+    schedule_graph,
+    schedule_tasks,
+};
 
-use derive_more::{Display, Error};
-use futures_util::{StreamExt, stream::FuturesUnordered};
+use derive_more::{
+    Display,
+    Error,
+};
+use futures_util::{
+    StreamExt,
+    stream::FuturesUnordered,
+};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_config::TaskSettings;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+};
 use serde::Serialize;
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
-    path::{Path, PathBuf},
-    sync::{Condvar, Mutex, MutexGuard},
+    collections::{
+        HashMap,
+        HashSet,
+        VecDeque,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Condvar,
+        Mutex,
+        MutexGuard,
+    },
 };
 
 mod graph_sequencer;
@@ -345,7 +384,10 @@ mod build;
 mod graph;
 
 mod synchronous;
-use synchronous::{node_edges, task_concurrency};
+use synchronous::{
+    node_edges,
+    task_concurrency,
+};
 
 mod asynchronous;
 use asynchronous::AbortOnUnwind;

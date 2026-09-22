@@ -1,6 +1,18 @@
 use super::{
-    AppState, Config, HeaderMap, Identity, Next, Registry, RegistryError, Request, Response, State,
-    Upstream, authentication, header, identify,
+    AppState,
+    Config,
+    HeaderMap,
+    Identity,
+    Next,
+    Registry,
+    RegistryError,
+    Request,
+    Response,
+    State,
+    Upstream,
+    authentication,
+    header,
+    identify,
 };
 use axum::response::IntoResponse;
 

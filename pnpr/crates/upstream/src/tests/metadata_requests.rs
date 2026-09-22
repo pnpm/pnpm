@@ -1,6 +1,15 @@
 use super::{
-    CacheValidators, CanonicalPackageName, FetchOutcome, HeaderMap, PackumentFetch, RegistryError,
-    UPSTREAM_ERROR_BODY_LIMIT, auth_and_custom_headers, breaking_upstream, json, upstream,
+    CacheValidators,
+    CanonicalPackageName,
+    FetchOutcome,
+    HeaderMap,
+    PackumentFetch,
+    RegistryError,
+    UPSTREAM_ERROR_BODY_LIMIT,
+    auth_and_custom_headers,
+    breaking_upstream,
+    json,
+    upstream,
 };
 
 #[tokio::test]

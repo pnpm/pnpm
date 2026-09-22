@@ -2,17 +2,35 @@ use super::HoistedDirCloneCache;
 use crate::{
     DirCloneCache,
     dir_clone_cache::EngineNameSource,
-    link_hoisted_modules::{LinkHoistedModulesOpts, import_node, tests::make_node},
+    link_hoisted_modules::{
+        LinkHoistedModulesOpts,
+        import_node,
+        tests::make_node,
+    },
 };
-use pnpm_config::{Config, NodeLinker, PackageImportMethod};
-use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+    PackageImportMethod,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
+};
 use pnpm_patching::PatchInfo;
 use pnpm_reporter::SilentReporter;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     fs,
     path::Path,
-    sync::{Arc, atomic::AtomicU8},
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
 };
 
 fn metadata() -> PackageMetadata {

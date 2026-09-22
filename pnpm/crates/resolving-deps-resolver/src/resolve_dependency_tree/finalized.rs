@@ -3,11 +3,18 @@
 //! peer-free is announced once, so the install layer can materialize
 //! it before peer resolution.
 
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::sync::Arc;
 
 use super::{
-    FinalizedChild, FinalizedPackage, TreeCtx, lock_recoverable, workspace_ctx::RecordedChildren,
+    FinalizedChild,
+    FinalizedPackage,
+    TreeCtx,
+    lock_recoverable,
+    workspace_ctx::RecordedChildren,
 };
 use crate::resolved_tree::ResolvedPackage;
 

@@ -1,8 +1,18 @@
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use pipe_trait::Pipe;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use split_first_char::SplitFirstChar;
-use std::{borrow::Cow, fmt, str::FromStr};
+use std::{
+    borrow::Cow,
+    fmt,
+    str::FromStr,
+};
 
 /// Represent the name of an npm package.
 ///

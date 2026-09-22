@@ -22,31 +22,72 @@ mod record;
 use record::staged_record;
 
 mod list_query;
-use list_query::{MAX_PER_PAGE, StagedListQuery, parse_staged_list_query};
+use list_query::{
+    MAX_PER_PAGE,
+    StagedListQuery,
+    parse_staged_list_query,
+};
 
 mod approval;
 use approval::serve_staged_approve;
 
 use axum::{
     body::Body,
-    extract::{OriginalUri, Path, State},
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
+    extract::{
+        OriginalUri,
+        Path,
+        State,
+    },
+    http::{
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
 use super::{
-    Action, AppState, AuthedCaller, Identity, RegistrySource, TargetRegistry, authorize,
-    commit_publishes, json_response, not_found, private_no_cache,
-    publishing::{ValidatedPublish, cleanup_tmp_slots, report_unrecorded},
-    resolve_write_target, stage_publish, validate_publish_doc,
+    Action,
+    AppState,
+    AuthedCaller,
+    Identity,
+    RegistrySource,
+    TargetRegistry,
+    authorize,
+    commit_publishes,
+    json_response,
+    not_found,
+    private_no_cache,
+    publishing::{
+        ValidatedPublish,
+        cleanup_tmp_slots,
+        report_unrecorded,
+    },
+    resolve_write_target,
+    stage_publish,
+    validate_publish_doc,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_search::percent_decode;
-use pnpr_storage::{DocumentWrite, publish::extract_attachments};
+use pnpr_storage::{
+    DocumentWrite,
+    publish::extract_attachments,
+};
 use std::time::Duration;
 
 /// One staged publish's metadata, stored next to the held publish body and

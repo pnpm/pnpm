@@ -13,16 +13,37 @@ mod npm;
 mod pausing_store;
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
 use npm::publish_doc;
-use object_store::{ObjectStore, memory::InMemory};
+use object_store::{
+    ObjectStore,
+    memory::InMemory,
+};
 use pausing_store::PausingStore;
-use pnpr::{Config, HostedStoreConfig, MaxUsers, router};
-use serde_json::{Value, json};
+use pnpr::{
+    Config,
+    HostedStoreConfig,
+    MaxUsers,
+    router,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     sync::Arc,
 };
 use tempfile::TempDir;

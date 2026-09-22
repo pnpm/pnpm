@@ -1,4 +1,11 @@
-use super::{BTreeSet, Digest, HeaderMap, Identity, RouteContext, Sha256};
+use super::{
+    BTreeSet,
+    Digest,
+    HeaderMap,
+    Identity,
+    RouteContext,
+    Sha256,
+};
 
 /// The cache-namespace identity of a private route: a key input plus
 /// (for the cache layer) an authorization gate. The key input is what

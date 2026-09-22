@@ -4,14 +4,28 @@
 //! tree-builder's `getTree` / `materializeChildren` / `fixCircularRefs`.
 
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use super::{
-    DependencyNode, TreeNodeId,
-    graph::{DependencyGraph, GraphEdge},
-    pkg_info::{EdgeContext, PkgInfoEnv, get_pkg_info},
+    DependencyNode,
+    TreeNodeId,
+    graph::{
+        DependencyGraph,
+        GraphEdge,
+    },
+    pkg_info::{
+        EdgeContext,
+        PkgInfoEnv,
+        get_pkg_info,
+    },
     search::Searcher,
 };
 

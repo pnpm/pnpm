@@ -1,20 +1,59 @@
 pub use bundled_node_gyp::bundled_node_gyp_bin;
-pub use extend_path::{ScriptsPrependNodePath, extend_path};
+pub use extend_path::{
+    ScriptsPrependNodePath,
+    extend_path,
+};
 pub use interrupt::exit_like;
-pub use job_control::{JobGuard, arm_process_tree_cleanup};
+pub use job_control::{
+    JobGuard,
+    arm_process_tree_cleanup,
+};
 pub use lifecycle::{
-    DEV_PREINSTALL_ALREADY_RAN_ENV, DEV_PREINSTALL_STAGE, LifecycleScriptError,
-    PROJECT_LIFECYCLE_STAGES, RunPostinstallHooks, StreamedScript, push_script_arg,
-    run_dev_preinstall_hook, run_lifecycle_hook, run_postinstall_hooks,
+    DEV_PREINSTALL_ALREADY_RAN_ENV,
+    DEV_PREINSTALL_STAGE,
+    LifecycleScriptError,
+    PROJECT_LIFECYCLE_STAGES,
+    RunPostinstallHooks,
+    StreamedScript,
+    push_script_arg,
+    run_dev_preinstall_hook,
+    run_lifecycle_hook,
+    run_postinstall_hooks,
     run_project_lifecycle_scripts,
 };
-pub use make_env::{EnvBuild, EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env};
-pub use process_tracker::{ProcessTracker, SpawnedChild, spawn_child};
-pub use run_script::{RunScript, RunScriptError, ScriptOutput, run_script};
+pub use make_env::{
+    EnvBuild,
+    EnvOptions,
+    VERIFY_DEPS_BEFORE_RUN_ENV,
+    build_env,
+};
+pub use process_tracker::{
+    ProcessTracker,
+    SpawnedChild,
+    spawn_child,
+};
+pub use run_script::{
+    RunScript,
+    RunScriptError,
+    ScriptOutput,
+    run_script,
+};
 pub use script_exit::ScriptExit;
-pub use script_options::{ScriptEnvironment, ScriptExecutionOptions, ScriptInvocation};
-pub use shell::{ScriptShellError, SelectedShell, select_shell};
-pub use shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated};
+pub use script_options::{
+    ScriptEnvironment,
+    ScriptExecutionOptions,
+    ScriptInvocation,
+};
+pub use shell::{
+    ScriptShellError,
+    SelectedShell,
+    select_shell,
+};
+pub use shell_emulator::{
+    EmulatedOutput,
+    ShellEmulatorError,
+    execute_emulated,
+};
 
 mod bundled_node_gyp;
 mod extend_path;
@@ -30,11 +69,17 @@ mod script_working_dir;
 mod shell;
 mod shell_emulator;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::{
     path::Path,
-    process::{Command, ExitStatus},
+    process::{
+        Command,
+        ExitStatus,
+    },
 };
 
 #[derive(Debug, Display, Error, Diagnostic)]

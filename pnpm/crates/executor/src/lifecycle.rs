@@ -2,33 +2,77 @@ pub use output::StreamedScript;
 
 use crate::{
     extend_path::extend_path,
-    make_env::{EnvBuild, EnvOptions, build_env, path_value},
-    process_tracker::{SpawnedChild, spawn_child},
+    make_env::{
+        EnvBuild,
+        EnvOptions,
+        build_env,
+        path_value,
+    },
+    process_tracker::{
+        SpawnedChild,
+        spawn_child,
+    },
     script_exit::ScriptExit,
     script_working_dir::{
-        emulator_working_dir, is_refused_directory, script_working_dir, shorter_working_dirs,
+        emulator_working_dir,
+        is_refused_directory,
+        script_working_dir,
+        shorter_working_dirs,
     },
-    shell::{ScriptShellError, SelectedShell, select_shell},
-    shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
+    shell::{
+        ScriptShellError,
+        SelectedShell,
+        select_shell,
+    },
+    shell_emulator::{
+        EmulatedOutput,
+        ShellEmulatorError,
+        execute_emulated,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_package_manifest::{
-    PackageManifest, PackageManifestError, safe_read_package_json_from_dir,
+    PackageManifest,
+    PackageManifestError,
+    safe_read_package_json_from_dir,
 };
-use pnpm_reporter::{LifecycleLog, LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{
+    LifecycleLog,
+    LifecycleMessage,
+    LifecycleStdio,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use serde_json::Value;
 use std::{
     collections::HashMap,
     env,
     ffi::OsString,
     fs,
-    io::{self, BufRead, BufReader, Read},
+    io::{
+        self,
+        BufRead,
+        BufReader,
+        Read,
+    },
     path::Path,
-    process::{Command, ExitStatus, Stdio},
+    process::{
+        Command,
+        ExitStatus,
+        Stdio,
+    },
     thread,
 };
-use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader as AsyncBufReader};
+use tokio::io::{
+    AsyncBufReadExt,
+    AsyncRead,
+    BufReader as AsyncBufReader,
+};
 
 /// Error from running lifecycle scripts.
 #[derive(Debug, Display, Error, Diagnostic)]

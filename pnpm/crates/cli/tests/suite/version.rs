@@ -1,12 +1,18 @@
 use crate::_utils::write_fake_bin;
 use command_extra::CommandExtra;
 use pnpm_lockfile::EnvLockfile;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use pretty_assertions::assert_eq;
 use std::{
     collections::BTreeMap,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 

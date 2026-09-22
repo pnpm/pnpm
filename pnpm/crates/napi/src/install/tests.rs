@@ -1,18 +1,36 @@
 use super::{
-    DepsRequiringBuildSink, EngineMode, InstallOptions, NetworkConfigInput, NodeApiProject,
-    PeerIssuesOptions, ProxyConfigInput, build_overlay, peer_issues::peer_issues_install_options,
-    reject_non_object_manifests, reject_unsupported_install_options, run_install_inner,
+    DepsRequiringBuildSink,
+    EngineMode,
+    InstallOptions,
+    NetworkConfigInput,
+    NodeApiProject,
+    PeerIssuesOptions,
+    ProxyConfigInput,
+    build_overlay,
+    peer_issues::peer_issues_install_options,
+    reject_non_object_manifests,
+    reject_unsupported_install_options,
+    run_install_inner,
     take_deps_requiring_build,
 };
 use crate::{
-    config::{ConfigOverlay, resolve_config},
-    reporter_bridge::{begin_stats, take_stats},
+    config::{
+        ConfigOverlay,
+        resolve_config,
+    },
+    reporter_bridge::{
+        begin_stats,
+        take_stats,
+    },
 };
 use pnpm_network::NoProxySetting;
 use pnpm_store_dir::STORE_VERSION;
 use pnpm_testing_utils::registry::TestRegistry;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     path::Path,
     sync::Arc,
 };

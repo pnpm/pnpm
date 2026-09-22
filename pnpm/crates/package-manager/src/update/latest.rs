@@ -1,14 +1,27 @@
 use super::{
     UpdateError,
-    catalogs::{CatalogCtx, effective_specifier},
+    catalogs::{
+        CatalogCtx,
+        effective_specifier,
+    },
 };
 use crate::{
     package_manifest_prefix,
-    resolution_policy::{PickPolicy, create_configured_registry_resolver},
+    resolution_policy::{
+        PickPolicy,
+        create_configured_registry_resolver,
+    },
 };
-use chrono::{DateTime, Utc};
+use chrono::{
+    DateTime,
+    Utc,
+};
 use node_semver::Version;
-use pnpm_config::{Config, Tool, version_policy::PackageVersionPolicy};
+use pnpm_config::{
+    Config,
+    Tool,
+    version_policy::PackageVersionPolicy,
+};
 use pnpm_engine_pm_yarn_resolver::YarnResolver;
 use pnpm_engine_runtime_bun_resolver::BunResolver;
 use pnpm_engine_runtime_deno_resolver::DenoResolver;
@@ -17,10 +30,19 @@ use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_registry::RangeSpecStyle;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_resolver_base::{
-    ResolveOptions, Resolver, UpdateBehavior, VersionSelectorType, WantedDependency,
+    ResolveOptions,
+    Resolver,
+    UpdateBehavior,
+    VersionSelectorType,
+    WantedDependency,
 };
 use std::sync::Arc;
 

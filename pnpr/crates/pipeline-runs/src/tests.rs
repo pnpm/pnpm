@@ -1,4 +1,7 @@
-use super::{PipelineRunStore, PublishPipelineRun};
+use super::{
+    PipelineRunStore,
+    PublishPipelineRun,
+};
 use pnpr_config::HostedStoreConfig;
 use pnpr_storage::Storage;
 use serde_json::json;

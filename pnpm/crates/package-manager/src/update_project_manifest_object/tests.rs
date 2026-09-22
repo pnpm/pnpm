@@ -1,7 +1,17 @@
-use super::{PackageSpecObject, guess_dependency_type, update_project_manifest_object};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use super::{
+    PackageSpecObject,
+    guess_dependency_type,
+    update_project_manifest_object,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_registry::RangeSpecStyle;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 
 /// Build an on-disk `PackageManifest` from a JSON literal. The `TempDir` is

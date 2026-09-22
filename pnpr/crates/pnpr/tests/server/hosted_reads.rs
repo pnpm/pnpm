@@ -1,8 +1,27 @@
 use super::{
-    AccessList, AuthState, Body, Ecosystem, PackagePattern, Registries, Registry, Request,
-    ServiceExt, StatusCode, TempDir, access_rule, body_bytes, body_json, config_for, header,
-    hosted_publish_request, hosted_with_access, integrity_addressed_tarball_path, json,
-    router_with_auth, seed_hosted, sha512_integrity,
+    AccessList,
+    AuthState,
+    Body,
+    Ecosystem,
+    PackagePattern,
+    Registries,
+    Registry,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    access_rule,
+    body_bytes,
+    body_json,
+    config_for,
+    header,
+    hosted_publish_request,
+    hosted_with_access,
+    integrity_addressed_tarball_path,
+    json,
+    router_with_auth,
+    seed_hosted,
+    sha512_integrity,
 };
 
 #[tokio::test]
@@ -164,7 +183,10 @@ async fn private_hosted_org_masks_dist_tags_before_the_package_acl() {
 
 #[tokio::test]
 async fn publish_to_hosted_round_trips_in_its_own_namespace() {
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
@@ -562,7 +584,10 @@ async fn hosted_digest_route_rechecks_package_access() {
 /// store and later surface as authoritative.
 #[tokio::test]
 async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
@@ -766,7 +791,10 @@ async fn publish_to_a_private_upstream_is_denied_before_the_upstream_rejection()
 /// reads use, so the write path reveals nothing about the registry either.
 #[tokio::test]
 async fn private_hosted_registry_denies_writes_from_non_members() {
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());

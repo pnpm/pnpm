@@ -1,8 +1,14 @@
 //! The npm publish fixtures the integration suites send: the document a
 //! client `PUT`s for one version, and the two digests it carries.
 
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use serde_json::{Value, json};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::fmt::Write;
 
 /// The publish document an npm client sends for one version of `name`, with

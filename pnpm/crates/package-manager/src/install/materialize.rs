@@ -1,20 +1,49 @@
 mod frozen;
 mod scope;
 use scope::{
-    allow_builds_changed_since, anchored_project_manifests, announce_headless_install,
-    frozen_project_anchor_ids, importer_manifests_by_id, initial_materialization_ids,
-    lockfile_specifier_manifests_by_id, previously_skipped, prior_unbuilt_builds,
-    record_fresh_lockfile_verified, settle_frozen_verification,
+    allow_builds_changed_since,
+    anchored_project_manifests,
+    announce_headless_install,
+    frozen_project_anchor_ids,
+    importer_manifests_by_id,
+    initial_materialization_ids,
+    lockfile_specifier_manifests_by_id,
+    previously_skipped,
+    prior_unbuilt_builds,
+    record_fresh_lockfile_verified,
+    settle_frozen_verification,
 };
 
 use super::{
-    Arc, AtomicU8, Catalogs, DependencyGroup, HashSet, HoistedDependencies, IncludedDependencies,
-    InstallError, InstallFrozenLockfile, InstallWithFreshLockfile, Lockfile, LockfileEntries,
-    MemCache, PackageManifest, Path, PathBuf, RebuildOptions, Reporter, ResolutionVerifier,
-    ThrottledClient, build_workspace_packages_map, map_fresh_lockfile_error,
-    map_frozen_lockfile_error, run::InstallView,
+    Arc,
+    AtomicU8,
+    Catalogs,
+    DependencyGroup,
+    HashSet,
+    HoistedDependencies,
+    IncludedDependencies,
+    InstallError,
+    InstallFrozenLockfile,
+    InstallWithFreshLockfile,
+    Lockfile,
+    LockfileEntries,
+    MemCache,
+    PackageManifest,
+    Path,
+    PathBuf,
+    RebuildOptions,
+    Reporter,
+    ResolutionVerifier,
+    ThrottledClient,
+    build_workspace_packages_map,
+    map_fresh_lockfile_error,
+    map_frozen_lockfile_error,
+    run::InstallView,
 };
-use crate::install_with_fresh_lockfile::{FreshInputs, OwnedInputs};
+use crate::install_with_fresh_lockfile::{
+    FreshInputs,
+    OwnedInputs,
+};
 
 pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) install: InstallView<'a>,

@@ -1,5 +1,8 @@
 use super::workspace_cycles;
-use pnpm_workspace_projects_graph::{ProjectGraph, ProjectGraphNode};
+use pnpm_workspace_projects_graph::{
+    ProjectGraph,
+    ProjectGraphNode,
+};
 use pretty_assertions::assert_eq;
 use std::path::PathBuf;
 

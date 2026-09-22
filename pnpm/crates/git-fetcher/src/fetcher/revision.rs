@@ -1,4 +1,8 @@
-use super::{exec_git_with, is_safe_repo_arg, is_valid_commit_hash};
+use super::{
+    exec_git_with,
+    is_safe_repo_arg,
+    is_valid_commit_hash,
+};
 use crate::GitFetcherError;
 use std::path::Path;
 

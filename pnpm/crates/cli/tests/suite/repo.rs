@@ -9,7 +9,10 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 fn pacquet(workspace: &std::path::Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)

@@ -43,20 +43,41 @@
 //! `ENOTSUP`, ...) disable the cache for the rest of the process.
 
 use crate::{
-    AllowBuildPolicy, VirtualStoreLayout,
-    import_indexed_dir::{ImportIndexedDirOpts, marker_present},
+    AllowBuildPolicy,
+    VirtualStoreLayout,
+    import_indexed_dir::{
+        ImportIndexedDirOpts,
+        marker_present,
+    },
     safe_join_modules_dir::safe_join_modules_dir,
 };
-use pnpm_config::{Config, NodeLinker, PackageImportMethod};
-use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+    PackageImportMethod,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
+};
 use pnpm_reporter::Reporter;
 use std::{
     collections::HashMap,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
-        Arc, OnceLock,
-        atomic::{AtomicBool, AtomicU8, Ordering},
+        Arc,
+        OnceLock,
+        atomic::{
+            AtomicBool,
+            AtomicU8,
+            Ordering,
+        },
     },
 };
 

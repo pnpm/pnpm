@@ -4,15 +4,21 @@
 //! `tempfile::TempDir` so they exercise `replace_workspace_protocol`
 //! and `replace_workspace_protocol_peer_dependency` in isolation.
 
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 use pnpm_catalogs_types::Catalogs;
 use serde_json::Value;
 use tempfile::TempDir;
 
 use super::{
-    CannotResolveWorkspaceProtocolError, CreateExportableManifestOptions,
-    ReplaceWorkspaceProtocolError, create_exportable_manifest, replace_workspace_protocol,
+    CannotResolveWorkspaceProtocolError,
+    CreateExportableManifestOptions,
+    ReplaceWorkspaceProtocolError,
+    create_exportable_manifest,
+    replace_workspace_protocol,
     replace_workspace_protocol_peer_dependency,
 };
 

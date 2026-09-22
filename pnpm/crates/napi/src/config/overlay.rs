@@ -1,5 +1,13 @@
 use super::{
-    BTreeMap, Config, ConfigOverlay, HashMap, Host, Path, StoreDir, default_registry, nerf_dart,
+    BTreeMap,
+    Config,
+    ConfigOverlay,
+    HashMap,
+    Host,
+    Path,
+    StoreDir,
+    default_registry,
+    nerf_dart,
     normalize_auth_key,
 };
 

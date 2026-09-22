@@ -1,5 +1,9 @@
 use super::{
-    Lockfile, StalenessReason, manifest_from_json, satisfies_package_manifest, text_block,
+    Lockfile,
+    StalenessReason,
+    manifest_from_json,
+    satisfies_package_manifest,
+    text_block,
 };
 
 /// Lockfile has no `importers["."]` entry — even though pacquet's

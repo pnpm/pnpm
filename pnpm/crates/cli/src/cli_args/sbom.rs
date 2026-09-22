@@ -8,47 +8,95 @@ use crate::{
     cli_args::{
         install::resolve_bool_override,
         recursive::{
-            AutoExcludeRoot, discover_workspace_projects, no_projects_matched_message,
-            notice_workspace_dir, select_recursive_projects, selected_importer_ids,
+            AutoExcludeRoot,
+            discover_workspace_projects,
+            no_projects_matched_message,
+            notice_workspace_dir,
+            select_recursive_projects,
+            selected_importer_ids,
         },
     },
 };
 use clap::Args;
 use collection::collect_components;
-use cyclonedx::{CycloneDxOpts, serialize_cyclonedx};
+use cyclonedx::{
+    CycloneDxOpts,
+    serialize_cyclonedx,
+};
 use indexmap::IndexMap;
 use license::classify_license;
 use metadata::{
-    base64_to_hex, build_purl, extract_bugs_url, extract_repository, generate_uuid_v4,
-    integrity_string, normalize_link_path, peer_names_from_manifest,
-    platform_incompatible_optional, read_pkg_metadata_from_store, sanitize_package_name,
-    sanitize_path_segment, tarball_url_for_component,
+    base64_to_hex,
+    build_purl,
+    extract_bugs_url,
+    extract_repository,
+    generate_uuid_v4,
+    integrity_string,
+    normalize_link_path,
+    peer_names_from_manifest,
+    platform_incompatible_optional,
+    read_pkg_metadata_from_store,
+    sanitize_package_name,
+    sanitize_path_segment,
+    tarball_url_for_component,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    LazyLockfile, Lockfile, LockfileResolution, PackageKey, PackageMetadata, PkgName,
-    PkgNameVerPeer, SnapshotEntry,
+    LazyLockfile,
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    PkgNameVerPeer,
+    SnapshotEntry,
 };
 use pnpm_package_is_installable::{
-    InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
+    InstallabilityOptions,
+    WantedPlatformRef,
+    platform_is_supported_with_inference,
 };
-use pnpm_package_manager::{importer_root_dir, validate_importer_id};
-use pnpm_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
-use pnpm_resolving_git_resolver::{HostedGit, HostedOpts};
+use pnpm_package_manager::{
+    importer_root_dir,
+    validate_importer_id,
+};
+use pnpm_package_manifest::{
+    extract_author,
+    extract_homepage,
+    safe_read_package_json_from_dir,
+};
+use pnpm_resolving_git_resolver::{
+    HostedGit,
+    HostedOpts,
+};
 use spdx::serialize_spdx;
 use std::{
-    collections::{HashMap, HashSet, hash_map::Entry},
+    collections::{
+        HashMap,
+        HashSet,
+        hash_map::Entry,
+    },
     fmt::Display,
     hash::Hash,
     io::Write,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use walk::{
-    ImporterComponents, WalkContext, WalkStores, component_walk_context, walk_importer_components,
+    ImporterComponents,
+    WalkContext,
+    WalkStores,
+    component_walk_context,
+    walk_importer_components,
 };
 use workspace::{
-    merged_dedicated_lockfile_state, required_sbom_lockfile, select_importer_ids,
-    selectors_narrow_the_run, sorted_importer_ids,
+    merged_dedicated_lockfile_state,
+    required_sbom_lockfile,
+    select_importer_ids,
+    selectors_narrow_the_run,
+    sorted_importer_ids,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]

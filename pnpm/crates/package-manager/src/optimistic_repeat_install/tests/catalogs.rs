@@ -1,19 +1,36 @@
 use super::{
     super::{
-        Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
+        Decision,
+        OptimisticRepeatInstallCheck,
+        check_optimistic_repeat_install,
         settings::current_settings_with_catalogs,
     },
-    backdate_validated_files, check_with_catalogs, check_workspace, isolated_included,
-    setup_fresh_install, setup_fresh_install_with_config, write_empty_lockfile, write_state,
+    backdate_validated_files,
+    check_with_catalogs,
+    check_workspace,
+    isolated_included,
+    setup_fresh_install,
+    setup_fresh_install_with_config,
+    write_empty_lockfile,
+    write_state,
 };
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_testing_utils::fs::set_mtime_ms;
-use pnpm_workspace_state::{ProjectEntry, WORKSPACE_STATE_FILENAME};
-use std::{collections::BTreeMap, fs};
+use pnpm_workspace_state::{
+    ProjectEntry,
+    WORKSPACE_STATE_FILENAME,
+};
+use std::{
+    collections::BTreeMap,
+    fs,
+};
 use tempfile::tempdir;
 
 /// A `catalog:` dependency whose catalog entry holds a bare local path

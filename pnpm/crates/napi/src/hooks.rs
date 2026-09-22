@@ -26,9 +26,17 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use napi::{Status, bindgen_prelude::FnArgs, threadsafe_function::ThreadsafeFunction};
+use napi::{
+    Status,
+    bindgen_prelude::FnArgs,
+    threadsafe_function::ThreadsafeFunction,
+};
 use pnpm_hooks::{
-    HookContext, HookError, PnpmfileHooks, PreResolutionHookContext, PreResolutionHookLogger,
+    HookContext,
+    HookError,
+    PnpmfileHooks,
+    PreResolutionHookContext,
+    PreResolutionHookLogger,
     ReadPackageResult,
 };
 use serde_json::Value;

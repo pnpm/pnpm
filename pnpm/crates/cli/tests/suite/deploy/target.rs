@@ -1,6 +1,12 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, flatten_miette_report, fs, pacquet_cmd,
-    write_project, write_workspace,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    flatten_miette_report,
+    fs,
+    pacquet_cmd,
+    write_project,
+    write_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;
 

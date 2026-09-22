@@ -1,16 +1,34 @@
-use super::{DlxArgs, DlxError, get_bin_name, scopeless};
+use super::{
+    DlxArgs,
+    DlxError,
+    get_bin_name,
+    scopeless,
+};
 use crate::cli_args::dlx::{
-    cache::{create_cache_key, get_prepare_dir, get_valid_cache_dir},
+    cache::{
+        create_cache_key,
+        get_prepare_dir,
+        get_valid_cache_dir,
+    },
     clean::clean_expired_dlx_cache,
 };
 use clap::Parser;
 use pnpm_fs::force_symlink_dir;
-use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
+use pnpm_package_is_installable::{
+    ArchitectureAxes,
+    SupportedArchitectures,
+};
 use std::{
     collections::BTreeMap,
     fs,
-    path::{Path, PathBuf},
-    time::{Duration, SystemTime},
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 use tempfile::tempdir;
 
@@ -628,7 +646,10 @@ fn get_bin_name_finds_a_runtime_recorded_as_engines_runtime() {
 /// ordinary path.
 #[test]
 fn only_managed_tools_are_provisioned_by_name() {
-    use super::provision::{parse_package_manager_spec, parse_runtime_spec};
+    use super::provision::{
+        parse_package_manager_spec,
+        parse_runtime_spec,
+    };
     use crate::engine_pm::channel::PackageManager;
 
     assert_eq!(parse_package_manager_spec("yarn@4"), Some((PackageManager::Yarn, "4")));

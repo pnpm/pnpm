@@ -4,8 +4,14 @@ mod strongly_connected_components;
 
 use rustc_hash::FxHashMap;
 use std::{
-    collections::{HashMap, VecDeque},
-    hash::{Hash, Hasher},
+    collections::{
+        HashMap,
+        VecDeque,
+    },
+    hash::{
+        Hash,
+        Hasher,
+    },
     path::Path,
 };
 

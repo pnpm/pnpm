@@ -1,16 +1,53 @@
 pub(super) use maintenance::{
-    bin, bugs, cache, cat_file, cat_index, clean, config, config_get, config_set, docs, doctor,
-    find_hash, ignored_builds, not_implemented, prefix, repo, root, self_update, setup, shim,
-    store, tasks, with,
+    bin,
+    bugs,
+    cache,
+    cat_file,
+    cat_index,
+    clean,
+    config,
+    config_get,
+    config_set,
+    docs,
+    doctor,
+    find_hash,
+    ignored_builds,
+    not_implemented,
+    prefix,
+    repo,
+    root,
+    self_update,
+    setup,
+    shim,
+    store,
+    tasks,
+    with,
 };
 pub(super) use registry::{
-    access, deprecate, dist_tag, login, logout, owner, ping, search, star, stars, team,
-    undeprecate, unpublish, unstar, view, whoami,
+    access,
+    deprecate,
+    dist_tag,
+    login,
+    logout,
+    owner,
+    ping,
+    search,
+    star,
+    stars,
+    team,
+    undeprecate,
+    unpublish,
+    unstar,
+    view,
+    whoami,
 };
 
 use super::{
     access::AccessArgs,
-    audit::{AuditArgs, AuditOutcome},
+    audit::{
+        AuditArgs,
+        AuditOutcome,
+    },
     bin::BinArgs,
     bugs::BugsArgs,
     cache::CacheCommand,
@@ -18,12 +55,24 @@ use super::{
     cat_index::CatIndexArgs,
     change::ChangeArgs,
     clean::CleanArgs,
-    config::{ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, ConfigSubcommand},
+    config::{
+        ConfigArgs,
+        ConfigGetAliasArgs,
+        ConfigSetAliasArgs,
+        ConfigSubcommand,
+    },
     deprecate::DeprecateArgs,
-    dispatch::{CommandFuture, RunCtx, apply_update_config},
+    dispatch::{
+        CommandFuture,
+        RunCtx,
+        apply_update_config,
+    },
     dist_tag::DistTagArgs,
     docs::DocsArgs,
-    doctor::{DoctorArgs, DoctorOutcome},
+    doctor::{
+        DoctorArgs,
+        DoctorOutcome,
+    },
     find_hash::FindHashArgs,
     ignored_builds::IgnoredBuildsArgs,
     lane::LaneArgs,
@@ -32,11 +81,20 @@ use super::{
     login::LoginArgs,
     logout::LogoutArgs,
     not_implemented::NotImplementedError,
-    outdated::{OutdatedArgs, OutdatedOutcome},
+    outdated::{
+        OutdatedArgs,
+        OutdatedOutcome,
+    },
     owner::OwnerArgs,
-    pack::{PackArgs, PackJsonReporter},
+    pack::{
+        PackArgs,
+        PackJsonReporter,
+    },
     pack_app::PackAppArgs,
-    peers::{PeersArgs, PeersOutcome},
+    peers::{
+        PeersArgs,
+        PeersOutcome,
+    },
     ping::PingArgs,
     prefix::PrefixArgs,
     publish::PublishArgs,
@@ -67,7 +125,10 @@ use clap::CommandFactory;
 
 use pnpm_config::Config;
 use pnpm_default_reporter::DefaultReporter;
-use pnpm_reporter::{NdjsonReporter, SilentReporter};
+use pnpm_reporter::{
+    NdjsonReporter,
+    SilentReporter,
+};
 
 pub(super) fn recursive<'a>(_ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     Ok(Box::pin(async move {

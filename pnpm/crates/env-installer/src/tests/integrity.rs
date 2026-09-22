@@ -1,7 +1,18 @@
 use super::{
-    BTreeMap, ConfigDependency, EnvLockfile, FixtureResolver, LockfileResolution, SilentReporter,
-    TempDir, build_resolver, harness, integrity_of, options, pnpm_engine_packages,
-    resolve_and_install_config_deps, resolve_package_manager_integrities,
+    BTreeMap,
+    ConfigDependency,
+    EnvLockfile,
+    FixtureResolver,
+    LockfileResolution,
+    SilentReporter,
+    TempDir,
+    build_resolver,
+    harness,
+    integrity_of,
+    options,
+    pnpm_engine_packages,
+    resolve_and_install_config_deps,
+    resolve_package_manager_integrities,
 };
 
 /// A registry that advertises tarballs on another host (a load-balanced

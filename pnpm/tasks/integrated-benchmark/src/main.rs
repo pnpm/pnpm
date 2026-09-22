@@ -8,10 +8,20 @@ mod verify;
 mod work_env;
 mod workspace_manifest;
 
-use cli_args::{RegistryMode, TargetKind};
-use latency_proxy::{LatencyProxy, LinkProfile, mbps_to_bytes_per_sec};
+use cli_args::{
+    RegistryMode,
+    TargetKind,
+};
+use latency_proxy::{
+    LatencyProxy,
+    LinkProfile,
+    mbps_to_bytes_per_sec,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+    },
     time::Duration,
 };
 

@@ -1,6 +1,13 @@
 use super::{
-    DependencyGroup, IntoDiagnostic, OutdatedInWorkspace, OutdatedPackage, SortBy, Stream, Version,
-    Write, sanitize_inline,
+    DependencyGroup,
+    IntoDiagnostic,
+    OutdatedInWorkspace,
+    OutdatedPackage,
+    SortBy,
+    Stream,
+    Version,
+    Write,
+    sanitize_inline,
 };
 use owo_colors::OwoColorize;
 
@@ -93,8 +100,10 @@ pub(super) fn render_table(outdated: &[OutdatedPackage], long: bool) -> String {
     if outdated.is_empty() {
         return String::new();
     }
-    use tabled::builder::Builder;
-    use tabled::settings::Style;
+    use tabled::{
+        builder::Builder,
+        settings::Style,
+    };
 
     let mut header: Vec<String> = ["Package", "Current", "Latest"]
         .iter()
@@ -177,9 +186,15 @@ pub(super) fn render_recursive_table(outdated: &[OutdatedInWorkspace], long: boo
     if outdated.is_empty() {
         return String::new();
     }
-    use tabled::builder::Builder;
-    use tabled::settings::object::Columns;
-    use tabled::settings::{Modify, Style, Width};
+    use tabled::{
+        builder::Builder,
+        settings::{
+            Modify,
+            Style,
+            Width,
+            object::Columns,
+        },
+    };
 
     const DEPENDENTS_COLUMN: usize = 3;
 

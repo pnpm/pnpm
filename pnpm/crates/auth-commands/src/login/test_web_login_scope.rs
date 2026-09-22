@@ -5,17 +5,30 @@
 use std::{
     cell::RefCell,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Mutex,
 };
 
-use pnpm_network_web_auth_testing::{ok_token, web_auth_fake};
+use pnpm_network_web_auth_testing::{
+    ok_token,
+    web_auth_fake,
+};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
 use super::{
     login,
-    support::{PromptScript, ReadScript, client, login_fake, opts, written_document},
+    support::{
+        PromptScript,
+        ReadScript,
+        client,
+        login_fake,
+        opts,
+        written_document,
+    },
 };
 
 #[tokio::test]

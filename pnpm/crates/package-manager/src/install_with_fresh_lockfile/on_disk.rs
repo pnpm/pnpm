@@ -1,14 +1,40 @@
-use super::{FreshInputs, errors::InstallWithFreshLockfileError, resolver_setup};
-use crate::{CreateVirtualStore, CreateVirtualStoreOutput, SkippedSnapshots};
-use pnpm_config::{Config, NodeLinker};
-use pnpm_lockfile::{Lockfile, LockfileEntries};
+use super::{
+    FreshInputs,
+    errors::InstallWithFreshLockfileError,
+    resolver_setup,
+};
+use crate::{
+    CreateVirtualStore,
+    CreateVirtualStoreOutput,
+    SkippedSnapshots,
+};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileEntries,
+};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    Reporter,
+    Stage,
+    StageLog,
+};
 use pnpm_tarball::MemCache;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
-    sync::{Arc, atomic::AtomicU8},
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
 };
 
 /// Write the freshly-built wanted lockfile to `target`, first running the

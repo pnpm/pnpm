@@ -1,13 +1,23 @@
 use super::resolve;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
-use pnpm_resolving_deps_resolver::{ResolveWorkspaceResult, UpdateTargets};
+use pnpm_resolving_deps_resolver::{
+    ResolveWorkspaceResult,
+    UpdateTargets,
+};
 use pnpm_resolving_resolver_base::{
-    EXISTING_VERSION_SELECTOR_WEIGHT, PreferredVersions, VersionSelectorEntry, VersionSelectorType,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    PreferredVersions,
+    VersionSelectorEntry,
+    VersionSelectorType,
     VersionSelectorWithWeight,
 };
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     sync::Arc,
 };
 

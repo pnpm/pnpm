@@ -1,7 +1,10 @@
 //! Rewriting the POSIX `${...}` parameter expansions that the bundled shell
 //! parser does not recognize into the `$NAME` references it does.
 
-use std::{cell::Cell, collections::HashMap};
+use std::{
+    cell::Cell,
+    collections::HashMap,
+};
 
 /// Rewrite the POSIX `${...}` parameter expansions that the bundled shell
 /// parser does not recognize into the `$NAME` references it does.

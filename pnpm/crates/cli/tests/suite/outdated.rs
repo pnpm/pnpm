@@ -1,11 +1,21 @@
 use crate::_utils::{
-    append_workspace_yaml_key, bravo_dep_mature_up_to_1_0_1_minimum_release_age,
-    set_ignore_dependencies, set_minimum_release_age,
+    append_workspace_yaml_key,
+    bravo_dep_mature_up_to_1_0_1_minimum_release_age,
+    set_ignore_dependencies,
+    set_minimum_release_age,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{ffi::OsStr, fs, path::Path, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    ffi::OsStr,
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";

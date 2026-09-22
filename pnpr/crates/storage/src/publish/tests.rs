@@ -1,13 +1,31 @@
 use super::{
-    DocumentMerge, drop_lost_versions, extract_attachments, merge_journaled_packument,
-    merge_manifest, now_iso, sha1_hex_from_integrity_opts, stream_decode_verify_and_write,
+    DocumentMerge,
+    drop_lost_versions,
+    extract_attachments,
+    merge_journaled_packument,
+    merge_manifest,
+    now_iso,
+    sha1_hex_from_integrity_opts,
+    stream_decode_verify_and_write,
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
-use serde_json::{Value, json};
-use ssri::{Algorithm, IntegrityOpts};
-use std::{collections::HashSet, path::PathBuf};
+use serde_json::{
+    Value,
+    json,
+};
+use ssri::{
+    Algorithm,
+    IntegrityOpts,
+};
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+};
 use tempfile::TempDir;
 
 fn sri_sha512(bytes: &[u8]) -> String {

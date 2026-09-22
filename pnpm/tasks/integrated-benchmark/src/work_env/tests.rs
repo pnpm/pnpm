@@ -1,16 +1,34 @@
 use super::{
-    BenchId, HyperfineCommand, LINKED_WORKSPACE_DEPTH, LINKED_WORKSPACE_WIDTH, PEER_HEAVY_DEPTH,
-    PEER_HEAVY_PROVIDER, PEER_HEAVY_WIDTH, WorkEnv, collect_pnpr_direct_ratios,
-    create_install_script, create_package_json, create_pnpm_workspace,
+    BenchId,
+    HyperfineCommand,
+    LINKED_WORKSPACE_DEPTH,
+    LINKED_WORKSPACE_WIDTH,
+    PEER_HEAVY_DEPTH,
+    PEER_HEAVY_PROVIDER,
+    PEER_HEAVY_WIDTH,
+    WorkEnv,
+    collect_pnpr_direct_ratios,
+    create_install_script,
+    create_package_json,
+    create_pnpm_workspace,
     fixtures::peer_heavy_package_name,
     measurements::PhaseEvent,
-    non_trivial_cold_batch, read_phase_events, render_diagnostics_markdown,
-    requires_fresh_pnpr_cold_batch_metrics, seed_peer_heavy_registry,
-    server_config::{pnpr_auth_config_key, pnpr_benchmark_config_yaml},
+    non_trivial_cold_batch,
+    read_phase_events,
+    render_diagnostics_markdown,
+    requires_fresh_pnpr_cold_batch_metrics,
+    seed_peer_heavy_registry,
+    server_config::{
+        pnpr_auth_config_key,
+        pnpr_benchmark_config_yaml,
+    },
     summarize_phase_events,
 };
 use crate::cli_args::BenchmarkScenario;
-use std::{collections::HashMap, fs};
+use std::{
+    collections::HashMap,
+    fs,
+};
 
 #[test]
 fn offline_scenario_writes_online_prewarm_script() {

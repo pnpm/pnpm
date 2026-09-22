@@ -1,7 +1,20 @@
 use super::{
-    ArgTable, CliArgs, CliCommand, ColorMode, Config, ConfigLocation, ConfigSubcommand,
-    InstallArgs, LockfileDirArg, LogEvent, OsStr, OsString, PACKAGE_MANAGER_SWITCH_ENV_VARS, Path,
-    PathBuf, resolve_bool_override,
+    ArgTable,
+    CliArgs,
+    CliCommand,
+    ColorMode,
+    Config,
+    ConfigLocation,
+    ConfigSubcommand,
+    InstallArgs,
+    LockfileDirArg,
+    LogEvent,
+    OsStr,
+    OsString,
+    PACKAGE_MANAGER_SWITCH_ENV_VARS,
+    Path,
+    PathBuf,
+    resolve_bool_override,
 };
 
 pub(super) struct PreCommandInput {

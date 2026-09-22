@@ -1,11 +1,17 @@
 use pretty_assertions::assert_eq;
 use std::{
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
     time::Duration,
 };
 
 use super::PrioritySemaphore;
-use crate::{BACKGROUND, UNPRIORITIZED};
+use crate::{
+    BACKGROUND,
+    UNPRIORITIZED,
+};
 
 /// Spawn a task that acquires with `priority`, records `label` on
 /// grant, and releases immediately. Returns once the waiter is queued,

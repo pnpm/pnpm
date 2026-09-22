@@ -1,8 +1,19 @@
 use super::{
-    TWO_IMPORTERS, WITH_A_NEW_PROJECT, WITH_ONLY_A_PEER_VARIANT, WITH_SHARED_OPTIONAL_CHILD,
-    WITH_TWO_IMPORTERS, WITH_TWO_LOCKED_VERSIONS, a_new_project_lockfile_projects, manifest,
-    manifest_from, parsed_lockfile, projects_of_a_new_project_lockfile, snapshot_optional,
-    try_fast_update_importers, try_prune_stale_importers, with_a_direct_foo_at,
+    TWO_IMPORTERS,
+    WITH_A_NEW_PROJECT,
+    WITH_ONLY_A_PEER_VARIANT,
+    WITH_SHARED_OPTIONAL_CHILD,
+    WITH_TWO_IMPORTERS,
+    WITH_TWO_LOCKED_VERSIONS,
+    a_new_project_lockfile_projects,
+    manifest,
+    manifest_from,
+    parsed_lockfile,
+    projects_of_a_new_project_lockfile,
+    snapshot_optional,
+    try_fast_update_importers,
+    try_prune_stale_importers,
+    with_a_direct_foo_at,
 };
 use pnpm_config::ResolutionMode::LowestDirect as LOWEST_DIRECT;
 use pnpm_lockfile::PkgName;

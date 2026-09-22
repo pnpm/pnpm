@@ -1,5 +1,12 @@
 use super::{
-    Component, MIN_BUILDER_VERSION, PackAppError, Path, SUPPORTED_OS, Value, fs, parse_manifest,
+    Component,
+    MIN_BUILDER_VERSION,
+    PackAppError,
+    Path,
+    SUPPORTED_OS,
+    Value,
+    fs,
+    parse_manifest,
 };
 
 /// A parsed `<os>-<arch>[-<libc>]` target triplet.

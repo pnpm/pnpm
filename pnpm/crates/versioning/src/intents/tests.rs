@@ -3,7 +3,12 @@ use std::path::Path;
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 
-use super::{IntentBumpType, parse_change_intent, read_change_intents, write_change_intent};
+use super::{
+    IntentBumpType,
+    parse_change_intent,
+    read_change_intents,
+    write_change_intent,
+};
 
 #[test]
 fn parses_the_changesets_file_format() {

@@ -1,12 +1,26 @@
 use super::{
-    _utils::{assert_success, ndjson_records, pacquet_in},
-    workspace_yaml::{allow_builds, append_workspace_yaml_key, set_strict_dep_builds},
+    _utils::{
+        assert_success,
+        ndjson_records,
+        pacquet_in,
+    },
+    workspace_yaml::{
+        allow_builds,
+        append_workspace_yaml_key,
+        set_strict_dep_builds,
+    },
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    process::Command,
+};
 
 /// `packageNames` from the run's `pnpm:ignored-scripts` NDJSON event.
 /// The build phase emits the event exactly once per install, with an

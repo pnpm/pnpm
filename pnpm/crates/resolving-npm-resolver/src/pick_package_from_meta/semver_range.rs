@@ -1,4 +1,10 @@
-use super::{Arc, DashMap, LazyLock, Range, Version};
+use super::{
+    Arc,
+    DashMap,
+    LazyLock,
+    Range,
+    Version,
+};
 
 /// Process-global cache of parsed [`Range`]s keyed by their source
 /// string. Most installs hit the same handful of ranges thousands of times

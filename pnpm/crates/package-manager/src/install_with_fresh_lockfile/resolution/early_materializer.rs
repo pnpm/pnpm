@@ -1,9 +1,16 @@
 #[cfg(test)]
 mod tests;
 
-use super::super::{FreshInputs, OwnedInputs, setup::ResolverSetup};
+use super::super::{
+    FreshInputs,
+    OwnedInputs,
+    setup::ResolverSetup,
+};
 use crate::PolicyExcludes;
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 use pnpm_reporter::Reporter;
 use std::sync::Arc;
 

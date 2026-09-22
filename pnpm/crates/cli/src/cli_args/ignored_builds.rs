@@ -2,7 +2,11 @@ use clap::Args;
 use indexmap::IndexSet;
 use miette::IntoDiagnostic;
 use pnpm_config::Config;
-use pnpm_modules_yaml::{Host, Modules, read_modules_manifest};
+use pnpm_modules_yaml::{
+    Host,
+    Modules,
+    read_modules_manifest,
+};
 use pnpm_package_manager::allow_build_key_from_ignored_build;
 use std::path::PathBuf;
 

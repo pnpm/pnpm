@@ -15,16 +15,29 @@ use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_store_dir::{STORE_VERSION, StoreDir, StoreIndex};
+use pnpm_store_dir::{
+    STORE_VERSION,
+    StoreDir,
+    StoreIndex,
+};
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::is_symlink_or_junction,
 };
 use std::{
     fmt::Write as _,
     fs,
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
 /// `<store_dir>/v11/links` — the root every GVS slot hangs off.

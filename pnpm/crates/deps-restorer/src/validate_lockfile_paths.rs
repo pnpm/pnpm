@@ -13,9 +13,15 @@
 
 use crate::VirtualStoreLayout;
 use pnpm_fs::is_subdir;
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
 use pnpm_lockfile_verification::VerifyError;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{
+    BTreeSet,
+    HashMap,
+};
 
 /// Reject the install when any snapshot's computed virtual-store slot
 /// resolves outside the store root. The whole `snapshots` map is

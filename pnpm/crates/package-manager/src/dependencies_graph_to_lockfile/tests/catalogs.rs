@@ -1,10 +1,19 @@
 use super::{
-    super::{GraphToLockfileOptions, ImporterLockfileInput},
-    EMPTY_NAMED_REGISTRIES, EMPTY_REGISTRY_OPTIONS, dependencies_graph_to_lockfile, make_node,
+    super::{
+        GraphToLockfileOptions,
+        ImporterLockfileInput,
+    },
+    EMPTY_NAMED_REGISTRIES,
+    EMPTY_REGISTRY_OPTIONS,
+    dependencies_graph_to_lockfile,
+    make_node,
     write_manifest,
 };
 use pnpm_deps_path::DepPath;
-use pnpm_resolving_deps_resolver::{DependenciesGraph, UpdateReuseScope};
+use pnpm_resolving_deps_resolver::{
+    DependenciesGraph,
+    UpdateReuseScope,
+};
 use rustc_hash::FxHashSet as HashSet;
 use serde_json::json;
 use std::collections::BTreeMap;

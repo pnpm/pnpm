@@ -1,5 +1,11 @@
 use super::{
-    Envelope, LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Pipe, Value,
+    Envelope,
+    LogEvent,
+    LogLevel,
+    PackageManifestLog,
+    PackageManifestMessage,
+    Pipe,
+    Value,
     assert_eq,
 };
 

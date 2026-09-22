@@ -1,12 +1,30 @@
-use std::{cell::Cell, time::Duration};
+use std::{
+    cell::Cell,
+    time::Duration,
+};
 
 use super::{
-    ProvenanceGenError, SignProvenance, SignedProvenance, build_statement, fetch_sigstore_token,
-    generate_provenance, github_statement, gitlab_statement, npm_purl, sign_with_retry,
+    ProvenanceGenError,
+    SignProvenance,
+    SignedProvenance,
+    build_statement,
+    fetch_sigstore_token,
+    generate_provenance,
+    github_statement,
+    gitlab_statement,
+    npm_purl,
+    sign_with_retry,
     with_sign_deadline,
 };
 use crate::{
-    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+        OidcFetchError,
+        OidcRequest,
+        OidcResponse,
+    },
     oidc::OidcHttpOptions,
 };
 use pnpm_reporter::SilentReporter;

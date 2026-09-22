@@ -1,5 +1,8 @@
 use super::{
-    DepPathSuffixIndex, get_pkg_id_with_patch_hash, index_of_dep_path_suffix, remove_suffix,
+    DepPathSuffixIndex,
+    get_pkg_id_with_patch_hash,
+    index_of_dep_path_suffix,
+    remove_suffix,
 };
 
 #[test]

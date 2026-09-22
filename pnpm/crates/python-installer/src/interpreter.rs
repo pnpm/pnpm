@@ -18,17 +18,43 @@ mod mismatch;
 mod request;
 mod search;
 
-use super::{host, manifest::Manifest, targets};
-use command::{InterpreterCommand, path_outside, scan_for_interpreters};
+use super::{
+    host,
+    manifest::Manifest,
+    targets,
+};
+use command::{
+    InterpreterCommand,
+    path_outside,
+    scan_for_interpreters,
+};
 use host::Interpreter;
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use mismatch::check_requires_python;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use request::VersionRequest;
-use search::{Fallbacks, Search};
-use std::{ffi::OsString, fmt::Write as _, path::Path, sync::Arc};
+use search::{
+    Fallbacks,
+    Search,
+};
+use std::{
+    ffi::OsString,
+    fmt::Write as _,
+    path::Path,
+    sync::Arc,
+};
 
 const WRITE_TO_STRING: &str = "writing to a String cannot fail";
 

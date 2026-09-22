@@ -1,4 +1,7 @@
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::sync::Arc;
 
 use super::children_ownership::update_parent_index;

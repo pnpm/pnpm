@@ -1,4 +1,8 @@
-use super::{assert_package_absent, assert_package_present, fresh_lockfile_only_with_overrides};
+use super::{
+    assert_package_absent,
+    assert_package_present,
+    fresh_lockfile_only_with_overrides,
+};
 
 #[tokio::test]
 async fn fresh_lockfile_resolves_catalog_protocol_in_overrides() {

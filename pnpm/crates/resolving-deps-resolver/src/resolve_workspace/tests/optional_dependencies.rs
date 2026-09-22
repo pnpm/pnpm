@@ -1,6 +1,16 @@
 use super::{
-    DependencyGroup, FailureShape, HashMap, Mutex, RecordingResolver, WorkspaceImporter, assert_eq,
-    fake_manifest, fake_result, importer_opts, optional_failure_fixture, resolve_workspace,
+    DependencyGroup,
+    FailureShape,
+    HashMap,
+    Mutex,
+    RecordingResolver,
+    WorkspaceImporter,
+    assert_eq,
+    fake_manifest,
+    fake_result,
+    importer_opts,
+    optional_failure_fixture,
+    resolve_workspace,
     workspace_opts,
 };
 use std::str::FromStr;

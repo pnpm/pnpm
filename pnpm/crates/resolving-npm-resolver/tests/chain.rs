@@ -9,7 +9,10 @@
 
 use std::collections::HashMap;
 
-use pnpm_resolving_npm_resolver::{MergeNamedRegistriesError, merge_named_registries};
+use pnpm_resolving_npm_resolver::{
+    MergeNamedRegistriesError,
+    merge_named_registries,
+};
 
 /// Reserved local-scheme aliases are rejected up front instead of being
 /// silently shadowed by the local resolvers in the chain.

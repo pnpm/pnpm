@@ -1,6 +1,11 @@
-pub use runtime::{host_platform_selector, runtime_platform_selector};
+pub use runtime::{
+    host_platform_selector,
+    runtime_platform_selector,
+};
 pub use tarball_resolution::{
-    local_file_tarball_install_url, tarball_url_and_integrity, unverified_fetch_is_allowed,
+    local_file_tarball_install_url,
+    tarball_url_and_integrity,
+    unverified_fetch_is_allowed,
 };
 
 mod fetch;
@@ -10,13 +15,20 @@ mod runtime;
 mod tarball_resolution;
 
 use crate::CreateVirtualDirError;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_directory_fetcher::DirectoryFetcherError;
 use pnpm_git_fetcher::GitFetcherError;
 use pnpm_lockfile::PlatformSelector;
 use pnpm_tarball::TarballError;
-use std::{collections::HashMap, path::PathBuf, sync::LazyLock};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::LazyLock,
+};
 
 /// The running pnpm, which a git-hosted dependency's build is given so it
 /// can install with the package manager it asks for.

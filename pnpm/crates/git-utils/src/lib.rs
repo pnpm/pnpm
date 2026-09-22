@@ -6,18 +6,28 @@
 //!
 //! Counterpart of pnpm's `@pnpm/network.git-utils`.
 
-pub use capabilities::{CommandOutput, Host, RunCommand};
+pub use capabilities::{
+    CommandOutput,
+    Host,
+    RunCommand,
+};
 pub use non_interactive::{
-    disable_git_prompts, has_configured_ssh_command, non_interactive_git_env,
+    disable_git_prompts,
+    has_configured_ssh_command,
+    non_interactive_git_env,
 };
 
 mod capabilities;
 mod non_interactive;
 
 use std::{
-    fs, io,
+    fs,
+    io,
     io::Read,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Whether `cwd` is inside a git repository.

@@ -1,6 +1,12 @@
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 use pnpm_catalogs_types::Catalogs;
-use pnpm_lockfile::{Lockfile, PkgName};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+};
 use std::collections::BTreeMap;
 
 pub(crate) enum FastCatalogUpdate {

@@ -1,5 +1,10 @@
 use super::exec_git_with;
-use std::{collections::BTreeMap, env, fs, path::Path};
+use std::{
+    collections::BTreeMap,
+    env,
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 /// A `git` shim that echoes the variables deciding whether git or ssh may

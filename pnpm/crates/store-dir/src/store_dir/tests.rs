@@ -1,7 +1,13 @@
-use super::{STORE_VERSION, StoreDir};
+use super::{
+    STORE_VERSION,
+    StoreDir,
+};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 #[test]
 fn file_path_by_head_tail() {

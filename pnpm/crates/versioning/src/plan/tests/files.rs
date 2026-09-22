@@ -1,6 +1,16 @@
 use super::{
-    AssembleReleasePlanOptions, IndexMap, Ledger, LedgerEntry, VersioningSettings, assemble,
-    assemble_release_plan, assert_eq, make_intent, make_project, release_names, twins,
+    AssembleReleasePlanOptions,
+    IndexMap,
+    Ledger,
+    LedgerEntry,
+    VersioningSettings,
+    assemble,
+    assemble_release_plan,
+    assert_eq,
+    make_intent,
+    make_project,
+    release_names,
+    twins,
 };
 
 #[test]

@@ -1,6 +1,10 @@
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Resolve symlinks through the deepest existing ancestor of `path`, then

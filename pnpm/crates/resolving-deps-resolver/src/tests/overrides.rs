@@ -1,7 +1,16 @@
 use super::{
-    DependencyGroup, HashMap, Mutex, ReplacingHook, ResolveDependencyTreeError,
-    ResolveDependencyTreeOptions, ResolveOptions, StubResolver, assert_eq, fake_manifest,
-    fake_result, resolve_dependency_tree,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    ReplacingHook,
+    ResolveDependencyTreeError,
+    ResolveDependencyTreeOptions,
+    ResolveOptions,
+    StubResolver,
+    assert_eq,
+    fake_manifest,
+    fake_result,
+    resolve_dependency_tree,
 };
 
 /// A transitive dependency whose alias contains `..` segments would

@@ -1,11 +1,17 @@
-use axum::{http::StatusCode, response::Response};
+use axum::{
+    http::StatusCode,
+    response::Response,
+};
 use pnpm_lockfile::LockfileResolution;
 
 use pnpr_route::RouteContext;
 
 use super::{
     json_error,
-    protocol::{ProjectDeps, ResolveRequest},
+    protocol::{
+        ProjectDeps,
+        ResolveRequest,
+    },
 };
 
 /// Reject a request that would have pnpr fetch from an origin that is not on

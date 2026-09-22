@@ -1,4 +1,8 @@
-use super::{oci_download_allowed, parse_challenge, token_realm_allowed};
+use super::{
+    oci_download_allowed,
+    parse_challenge,
+    token_realm_allowed,
+};
 use reqwest::Url;
 
 #[test]
@@ -25,7 +29,10 @@ fn only_trusts_origin_specific_token_and_download_hosts() {
 
 #[tokio::test]
 async fn negotiates_pull_scope_and_reuses_token_without_forwarding_client_scope() {
-    use crate::{FetchOutcome, Upstream};
+    use crate::{
+        FetchOutcome,
+        Upstream,
+    };
     use pnpr_config::UpstreamConfig;
     use reqwest::header::HeaderMap;
     let mut server = mockito::Server::new_async().await;
@@ -71,7 +78,11 @@ async fn negotiates_pull_scope_and_reuses_token_without_forwarding_client_scope(
 async fn rejects_an_untrusted_token_realm_without_contacting_it() {
     use crate::Upstream;
     use pnpr_config::UpstreamConfig;
-    use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
+    use reqwest::header::{
+        AUTHORIZATION,
+        HeaderMap,
+        HeaderValue,
+    };
     let mut server = mockito::Server::new_async().await;
     let mut attacker = mockito::Server::new_async().await;
     let stolen = attacker

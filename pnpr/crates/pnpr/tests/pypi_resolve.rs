@@ -9,14 +9,32 @@
 //! wheel only when there is no such file.
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use pnpr::{AuthState, Config, PublicRoute, router_with_auth};
-use serde_json::{Value, json};
+use pnpr::{
+    AuthState,
+    Config,
+    PublicRoute,
+    router_with_auth,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     io::Write as _,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::PathBuf,
     time::Duration,
 };

@@ -1,4 +1,11 @@
-use crate::{Digest, ImageDocument, Manifest, ManifestEntry, TagEntry, media_type};
+use crate::{
+    Digest,
+    ImageDocument,
+    Manifest,
+    ManifestEntry,
+    TagEntry,
+    media_type,
+};
 use std::collections::HashSet;
 
 fn digest_of(body: &str) -> Digest {

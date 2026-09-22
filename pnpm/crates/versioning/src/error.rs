@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
 /// Errors of the versioning engine. Codes and messages match the TypeScript

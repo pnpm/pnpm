@@ -1,13 +1,26 @@
 use super::{
-    cleanup_after_diff, normalize_patches_dir_name, patch_target_from_state,
-    path_from_forward_slash, remove_dir_if_exists, write_patch_file_atomically,
+    cleanup_after_diff,
+    normalize_patches_dir_name,
+    patch_target_from_state,
+    path_from_forward_slash,
+    remove_dir_if_exists,
+    write_patch_file_atomically,
 };
 use crate::cli_args::patch_state::EditDirState;
-use pnpm_lockfile::{ComVer, Lockfile, LockfileVersion, PackageKey, PackageMetadata};
+use pnpm_lockfile::{
+    ComVer,
+    Lockfile,
+    LockfileVersion,
+    PackageKey,
+    PackageMetadata,
+};
 use pnpm_package_manager::PkgFilesForDiff;
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 use tempfile::tempdir;
 
 fn empty_lockfile() -> Lockfile {

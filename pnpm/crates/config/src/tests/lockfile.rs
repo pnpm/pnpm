@@ -1,6 +1,20 @@
 use super::{
-    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, HostNoHome, LinkProbe, OsString, Path,
-    PathBuf, assert_eq, fs, io, repo_on_branch, safe_host_var, tempdir,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    GetCurrentDir,
+    GetHomeDir,
+    HostNoHome,
+    LinkProbe,
+    OsString,
+    Path,
+    PathBuf,
+    assert_eq,
+    fs,
+    io,
+    repo_on_branch,
+    safe_host_var,
+    tempdir,
 };
 
 #[test]

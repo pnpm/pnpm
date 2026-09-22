@@ -1,4 +1,11 @@
-use super::{Ipv4Addr, PnprClient, TcpListener, capture_one_request, deps, options};
+use super::{
+    Ipv4Addr,
+    PnprClient,
+    TcpListener,
+    capture_one_request,
+    deps,
+    options,
+};
 
 /// The request must identify the caller to pnpr (`Authorization`) but
 /// must never carry the client's own upstream registry credentials in the

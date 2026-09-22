@@ -1,6 +1,13 @@
-use super::{Error, edits, source_keys::SourceKeys};
+use super::{
+    Error,
+    edits,
+    source_keys::SourceKeys,
+};
 use serde_json::Value;
-use yamlpath::{Document, Route};
+use yamlpath::{
+    Document,
+    Route,
+};
 
 #[derive(Default)]
 struct Changes<'a> {

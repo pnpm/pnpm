@@ -9,14 +9,26 @@
 //! (`pnpm_config` is not a dependency of this crate, so it is not
 //! linked here.)
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_catalogs_types::{Catalog, Catalogs};
+use pnpm_catalogs_types::{
+    Catalog,
+    Catalogs,
+};
 use serde::Deserialize;
 use std::{
     fs,
-    io::{self, ErrorKind},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        ErrorKind,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Basename of the workspace manifest.

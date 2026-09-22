@@ -4,15 +4,34 @@
 //! request, integrity, retry, progress and store-publication lifecycle.
 
 use super::{
-    Arc, ArchiveStoreProjection, Component, Cursor, HashMap, IgnoreEntryFilter, NetworkError,
-    PathBuf, Read, STREAM_ENTRY_BUFFER_MAX, TarballError, UNIX_EPOCH, allocate_tarball_buffer,
+    Arc,
+    ArchiveStoreProjection,
+    Component,
+    Cursor,
+    HashMap,
+    IgnoreEntryFilter,
+    NetworkError,
+    PathBuf,
+    Read,
+    STREAM_ENTRY_BUFFER_MAX,
+    TarballError,
+    UNIX_EPOCH,
+    allocate_tarball_buffer,
     post_download_semaphore,
 };
 use pnpm_fs::file_mode;
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{
-    CafsFileInfo, FileHash, PackageFilesIndex, StoreDir, WriteCasFileFromReaderError,
+    CafsFileInfo,
+    FileHash,
+    PackageFilesIndex,
+    StoreDir,
+    WriteCasFileFromReaderError,
 };
 use ssri::Integrity;
 

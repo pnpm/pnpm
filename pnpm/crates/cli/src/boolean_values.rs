@@ -28,11 +28,22 @@ use crate::{
     boolean_negations::negation_of,
     cli_args::grammar,
     config_overrides::parse_bool,
-    parse_boundary::{option_width, passthrough_from, union_arity},
+    parse_boundary::{
+        option_width,
+        passthrough_from,
+        union_arity,
+    },
 };
-use clap::{Arg, ArgAction, Command};
+use clap::{
+    Arg,
+    ArgAction,
+    Command,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     ffi::OsString,
     sync::OnceLock,
 };

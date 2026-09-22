@@ -1,4 +1,7 @@
-use super::{all_registry_config_keys, parse_supported_registry_url};
+use super::{
+    all_registry_config_keys,
+    parse_supported_registry_url,
+};
 use pretty_assertions::assert_eq;
 
 #[test]

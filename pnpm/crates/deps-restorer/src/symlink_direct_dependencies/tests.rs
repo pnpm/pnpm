@@ -1,16 +1,35 @@
 mod importer_paths;
 
-use super::{SymlinkDirectDependencies, SymlinkDirectDependenciesError};
+use super::{
+    SymlinkDirectDependencies,
+    SymlinkDirectDependenciesError,
+};
 use crate::SkippedSnapshots;
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
+use pnpm_lockfile::{
+    Lockfile,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{
-    AddedRoot, DependencyType, LogEvent, Reporter, RootLog, RootMessage, SilentReporter,
+    AddedRoot,
+    DependencyType,
+    LogEvent,
+    Reporter,
+    RootLog,
+    RootMessage,
+    SilentReporter,
 };
 use pnpm_testing_utils::fs::is_symlink_or_junction;
-use std::{collections::HashMap, fs, path::PathBuf, sync::Mutex};
+use std::{
+    collections::HashMap,
+    fs,
+    path::PathBuf,
+    sync::Mutex,
+};
 use tempfile::tempdir;
 
 #[test]

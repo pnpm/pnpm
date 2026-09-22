@@ -12,11 +12,18 @@ mod installation;
 
 mod workspace;
 
-use super::{Add, AddOptions, AddOwned};
+use super::{
+    Add,
+    AddOptions,
+    AddOwned,
+};
 use crate::ResolvedPackages;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::SilentReporter;
 use pnpm_workspace::Project;

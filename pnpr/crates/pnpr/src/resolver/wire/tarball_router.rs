@@ -1,8 +1,21 @@
 use super::{
-    Arc, CanonicalPackageName, HashMap, Identity, Lockfile, LockfileResolution, PacquetConfig,
-    RouteClass, RouteContext, TarballResolution, is_git_hosted_tarball_url, is_http_tarball_url,
-    pick_registry_for_package, sanitize_registry_tarball_url, strip_url_credentials,
-    tarball_basename, tarball_url_and_integrity,
+    Arc,
+    CanonicalPackageName,
+    HashMap,
+    Identity,
+    Lockfile,
+    LockfileResolution,
+    PacquetConfig,
+    RouteClass,
+    RouteContext,
+    TarballResolution,
+    is_git_hosted_tarball_url,
+    is_http_tarball_url,
+    pick_registry_for_package,
+    sanitize_registry_tarball_url,
+    strip_url_credentials,
+    tarball_basename,
+    tarball_url_and_integrity,
 };
 
 #[derive(Clone)]

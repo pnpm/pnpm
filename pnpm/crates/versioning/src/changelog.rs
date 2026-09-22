@@ -1,10 +1,17 @@
-use std::{fs, io::ErrorKind, path::Path};
+use std::{
+    fs,
+    io::ErrorKind,
+    path::Path,
+};
 
 use crate::{
     error::VersioningError,
     intents::IntentBumpType,
     ledger::normalize_project_dir,
-    plan::{PlannedRelease, is_dir_ref},
+    plan::{
+        PlannedRelease,
+        is_dir_ref,
+    },
     settings::ReleaseBumpType,
 };
 

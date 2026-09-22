@@ -1,6 +1,11 @@
 use super::{
-    MINIMUM_RELEASE_AGE_VIOLATION_CODE, PACKAGE_BODY, ResolveOptions, WantedDependency, assert_eq,
-    build_resolver, create_package_version_policy,
+    MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+    PACKAGE_BODY,
+    ResolveOptions,
+    WantedDependency,
+    assert_eq,
+    build_resolver,
+    create_package_version_policy,
 };
 use chrono::TimeZone;
 use pnpm_resolving_resolver_base::Resolver;

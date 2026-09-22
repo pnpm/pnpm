@@ -1,4 +1,9 @@
-use super::{ConfigOverlay, build_overlay, install_options, resolve_config};
+use super::{
+    ConfigOverlay,
+    build_overlay,
+    install_options,
+    resolve_config,
+};
 
 #[test]
 fn resolve_config_reloads_changed_workspace_yaml() {

@@ -2,7 +2,10 @@ use crate::fast_update_lockfile::GraphEdits;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+};
 
 /// What a fast-update handler's detector concluded about its slice of
 /// the configuration and manifests.

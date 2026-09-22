@@ -1,4 +1,7 @@
-use super::{TargetKind, TargetSpec};
+use super::{
+    TargetKind,
+    TargetSpec,
+};
 use std::str::FromStr;
 
 #[test]

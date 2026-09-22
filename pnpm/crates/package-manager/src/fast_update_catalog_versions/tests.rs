@@ -1,13 +1,30 @@
 use super::try_fast_update_catalog_versions;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_lockfile::{Lockfile, LockfileResolution, TarballResolution};
-use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, PkgResolutionId, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, WantedDependency,
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    TarballResolution,
 };
-use serde_json::{Value, json};
+use pnpm_resolving_resolver_base::{
+    LatestInfo,
+    LatestQuery,
+    PkgResolutionId,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     sync::Arc,
 };
 

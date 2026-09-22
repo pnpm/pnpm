@@ -10,9 +10,15 @@
 use crate::{
     WorkspaceSettings,
     config_types::is_type_key,
-    naming_cases::{to_camel_case, to_kebab_case},
+    naming_cases::{
+        to_camel_case,
+        to_kebab_case,
+    },
 };
-use std::{collections::HashSet, sync::OnceLock};
+use std::{
+    collections::HashSet,
+    sync::OnceLock,
+};
 
 /// A YAML-language-server schema association, not a setting; tools put it in
 /// config files pnpm reads, so it must not trip the unknown-setting warnings.

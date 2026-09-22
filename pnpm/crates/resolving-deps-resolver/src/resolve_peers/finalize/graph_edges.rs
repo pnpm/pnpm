@@ -1,6 +1,17 @@
 use super::{
-    BTreeMap, BTreeSet, DepPath, DependenciesGraph, DependenciesGraphNode, HashMap, HashSet,
-    MissingPeerInfo, NodeId, ResolveResult, ResolvedPackage, peer_segment_names, pkg_name_version,
+    BTreeMap,
+    BTreeSet,
+    DepPath,
+    DependenciesGraph,
+    DependenciesGraphNode,
+    HashMap,
+    HashSet,
+    MissingPeerInfo,
+    NodeId,
+    ResolveResult,
+    ResolvedPackage,
+    peer_segment_names,
+    pkg_name_version,
 };
 
 /// Merge one record's graph node into the depPath-keyed graph. Records that

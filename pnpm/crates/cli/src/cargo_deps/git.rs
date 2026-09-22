@@ -9,22 +9,51 @@
 
 use super::add_cargo_checksum;
 use cargo_lock::package::GitReference;
-use futures_util::{StreamExt, stream};
-use manifest::{Checkout, CheckoutPackage, entry_file_type, read_directory};
-use miette::{IntoDiagnostic, Result, WrapErr};
+use futures_util::{
+    StreamExt,
+    stream,
+};
+use manifest::{
+    Checkout,
+    CheckoutPackage,
+    entry_file_type,
+    read_directory,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use pnpm_config::PackageImportMethod;
-use pnpm_deps_restorer::{ImportIndexedDirOpts, import_indexed_dir};
+use pnpm_deps_restorer::{
+    ImportIndexedDirOpts,
+    import_indexed_dir,
+};
 use pnpm_git_fetcher::{
-    CheckoutOptions, SUPPORTED_GIT_PROTOCOLS, checkout_commit, checkout_submodules,
+    CheckoutOptions,
+    SUPPORTED_GIT_PROTOCOLS,
+    checkout_commit,
+    checkout_submodules,
 };
 use pnpm_network::redact_and_sanitize;
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::StoreDir;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    fs, io,
-    path::{Path, PathBuf},
-    sync::{Arc, atomic::AtomicU8},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
 };
 
 /// Directory the vendored git packages are linked into, relative to the

@@ -1,9 +1,15 @@
-use std::{collections::HashSet, sync::Mutex};
+use std::{
+    collections::HashSet,
+    sync::Mutex,
+};
 
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
-use pnpm_reporter::{LogEvent, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+};
 
 use super::report_peer_dependency_issues;
 use crate::InstallError;

@@ -1,8 +1,16 @@
 //! Locating and repairing the virtual-store slot a build runs in.
 
 use super::{
-    BuildModulesError, HashMap, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, PackageImportMethod,
-    PackageKey, Path, PathBuf, Reporter, import_indexed_dir,
+    BuildModulesError,
+    HashMap,
+    ImportIndexedDirOpts,
+    NEEDS_BUILD_MARKER,
+    PackageImportMethod,
+    PackageKey,
+    Path,
+    PathBuf,
+    Reporter,
+    import_indexed_dir,
 };
 
 /// Compute the package directory inside the virtual store for a snapshot key.

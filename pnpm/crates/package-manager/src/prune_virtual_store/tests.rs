@@ -1,13 +1,19 @@
 use std::{
     collections::HashSet,
     fs,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 use pnpm_lockfile::PkgNameVerPeer;
 
 use super::{
-    prune_target_within_modules, prune_virtual_store, same_dir, should_prune_virtual_store,
+    prune_target_within_modules,
+    prune_virtual_store,
+    same_dir,
+    should_prune_virtual_store,
 };
 use crate::SkippedSnapshots;
 

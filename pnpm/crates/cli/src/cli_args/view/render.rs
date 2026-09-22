@@ -1,4 +1,12 @@
-use super::{DateTime, Map, OwoColorize, Stream, Style, Utc, Value};
+use super::{
+    DateTime,
+    Map,
+    OwoColorize,
+    Stream,
+    Style,
+    Utc,
+    Value,
+};
 
 /// Render the selected `fields` of `info`. A single field unwraps to its
 /// value (raw for `--json`, plain for text); multiple fields render as a
