@@ -297,13 +297,7 @@ fn config_set(
             }
             key = validate_workspace_key(&key)?;
             let cast = cast_field(value, &naming_cases::to_kebab_case(&key));
-            if key == "macosBackup" && !cast.is_null() {
-                serde_json::from_value::<MacosBackupSettings>(cast.clone())
-                    .map_err(|error| ConfigError::SetStructuredValue {
-                        key: key.clone(),
-                        reason: error.to_string(),
-                    })?;
-            }
+            validate_macos_backup_value(&key, &cast)?;
             update_manifest_field(&config_path, &key, &cast).map_err(miette::Report::new)?;
         }
         _ => {
@@ -314,6 +308,31 @@ fn config_set(
         }
     }
     Ok(())
+}
+
+fn validate_macos_backup_value(key: &str, value: &Value) -> Result<(), ConfigError> {
+    if key != "macosBackup" || value.is_null() {
+        return Ok(());
+    }
+    if let Some(unknown) = value
+        .as_object()
+        .and_then(|object| {
+            object
+                .keys()
+                .find(|field| !matches!(field.as_str(), "modulesDir" | "storeDir"))
+        })
+    {
+        return Err(ConfigError::SetStructuredValue {
+            key: key.to_string(),
+            reason: format!("unknown field {unknown:?}"),
+        });
+    }
+    serde_json::from_value::<MacosBackupSettings>(value.clone())
+        .map(|_| ())
+        .map_err(|error| ConfigError::SetStructuredValue {
+            key: key.to_string(),
+            reason: error.to_string(),
+        })
 }
 
 /// Write an auth setting to the global `auth.ini` or the directory's

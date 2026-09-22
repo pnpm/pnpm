@@ -15,7 +15,7 @@ fn captures_unselected_workspace_projects_reached_by_workspace_dependencies() {
     );
     let linked_manifest = PackageManifest::from_value(
         linked_dir.join("package.json"),
-        json!({ "name": "linked", "dependencies": { "workspace": "workspace:*" } }),
+        json!({ "name": "linked", "peerDependencies": { "workspace": "workspace:*" } }),
     );
     let workspace_manifest = PackageManifest::from_value(
         workspace_dir.join("package.json"),

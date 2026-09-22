@@ -178,7 +178,9 @@ fn set_macos_backup_requires_a_json_object() {
     assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_CONFIG_SET_STRUCTURED_VALUE");
     assert!(!config_dir.join("config.yaml").exists());
 
-    for value in [r#"{"modulesDir":"invalid"}"#, r#"{"storeDir":"invalid"}"#] {
+    for value in
+        [r#"{"modulesDir":"invalid"}"#, r#"{"storeDir":"invalid"}"#, r#"{"storeDirectory":false}"#]
+    {
         let err = config_set(
             &config,
             tmp.path(),

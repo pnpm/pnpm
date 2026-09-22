@@ -150,6 +150,7 @@ impl GraphProject for CaptureProject<'_> {
     fn merged_dependencies(&self, _: bool) -> Vec<(String, String)> {
         let mut dependencies = IndexMap::new();
         for (name, spec) in self.manifest.dependencies([
+            DependencyGroup::Peer,
             DependencyGroup::Dev,
             DependencyGroup::Optional,
             DependencyGroup::Prod,
