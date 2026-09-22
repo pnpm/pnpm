@@ -29,8 +29,6 @@ pub(super) fn capture_time_machine_exclusions(
         return;
     }
     let project_dirs = if config.macos_backup.exclude_modules_dir {
-        Vec::new()
-    } else {
         // A filtered non-hoisted install can follow dependency edges into
         // unselected workspace importers. Capture the selected importers and
         // that transitive closure before the install; `apply` keeps only
@@ -40,6 +38,8 @@ pub(super) fn capture_time_machine_exclusions(
             execution.options.selection.as_ref().map(|selection| selection.install_dirs),
             config.link_workspace_packages != LinkWorkspacePackages::Off,
         )
+    } else {
+        Vec::new()
     };
     *exclusions = super::super::TimeMachineExclusions::capture(
         config,
