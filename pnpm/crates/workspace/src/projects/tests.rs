@@ -1056,9 +1056,7 @@ fn workspace_nested_inside_managed_directory_keeps_its_projects() {
     let tmp = TempDir::new().unwrap();
     make_project(tmp.path(), "xdg-state/pnpm/pipeline/agent/checkout/demo", "root");
     make_project(tmp.path(), "xdg-state/pnpm/pipeline/agent/checkout/demo/pkg", "pkg");
-    let checkout = tmp
-        .path()
-        .join("xdg-state/pnpm/pipeline/agent/checkout/demo");
+    let checkout = tmp.path().join("xdg-state/pnpm/pipeline/agent/checkout/demo");
 
     let names = find_workspace_projects(
         &checkout,
@@ -1070,8 +1068,7 @@ fn workspace_nested_inside_managed_directory_keeps_its_projects() {
     .unwrap()
     .iter()
     .map(|project| {
-        project
-            .manifest
+        project.manifest
             .value()
             .get("name")
             .unwrap()
@@ -1109,8 +1106,7 @@ fn managed_directory_equal_to_workspace_root_hides_nothing() {
     .unwrap()
     .iter()
     .map(|project| {
-        project
-            .manifest
+        project.manifest
             .value()
             .get("name")
             .unwrap()
