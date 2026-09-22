@@ -5,9 +5,9 @@ use super::{
 };
 use crate::{DependenciesGraphNode, LockfileToDepGraphResult, VirtualStoreLayout};
 use pnpm_lockfile::{
-    ComVer, Lockfile, LockfileResolution, LockfileVersion, PackageKey, PkgIdWithPatchHash, PkgName,
-    ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
-    TarballResolution,
+    ComVer, Lockfile, LockfileResolution, LockfileVersion, PackageKey, PackageMetadata,
+    PkgIdWithPatchHash, PkgName, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
+    SnapshotDepRef, SnapshotEntry, TarballResolution,
 };
 use pnpm_modules_yaml::DepPath;
 use pnpm_package_manifest::PackageManifest;
@@ -176,6 +176,64 @@ fn lockfile_package_map_uses_global_virtual_store_layout() {
     assert!(
         !url.contains("dep1@1.0.0/node_modules"),
         "must not fall back to the flat local layout, got {url:?}",
+    );
+}
+
+#[test]
+fn lockfile_package_map_resolves_metadata_only_entries_through_snapshot_siblings() {
+    // pnpm/pnpm#14938: a metadata-only key (`name@version`) carries no
+    // peer/patch suffix, so it is not among the snapshot keys the GVS
+    // layout precomputed slots for. Resolving it directly falls back to
+    // the legacy flat name — a directory that does not exist on disk.
+    // The entry must resolve through a peer-suffixed snapshot sibling
+    // instead.
+    let cwd = std::env::current_dir().expect("current dir");
+    let mut config = pnpm_config::Config::new();
+    config.enable_global_virtual_store = true;
+    config.global_virtual_store_dir = cwd.join("store/links");
+    config.virtual_store_dir = cwd.join("node_modules/.pnpm");
+
+    let snapshot_key = "dep1@1.0.0(dep2@2.0.0)".parse::<PackageKey>().unwrap();
+    let snapshots = HashMap::from([(snapshot_key.clone(), SnapshotEntry::default())]);
+    let layout = VirtualStoreLayout::new(&config, None, Some(&snapshots), None, None, None);
+
+    let root_manifest = manifest("root");
+    let project_manifests = vec![(cwd.clone(), &root_manifest)];
+    let package_map = lockfile_to_package_map(
+        &Lockfile {
+            importers: HashMap::from([(
+                ".".to_string(),
+                ProjectSnapshot {
+                    dependencies: Some(deps(&[("dep1", "1.0.0")])),
+                    ..ProjectSnapshot::default()
+                },
+            )]),
+            packages: Some(HashMap::from([(snapshot_key.without_peer(), package_metadata())])),
+            snapshots: Some(snapshots),
+            ..empty_lockfile()
+        },
+        &PackageMapOptions {
+            lockfile_dir: &cwd,
+            modules_dir: &cwd.join("node_modules"),
+            package_map_type: pnpm_config::NodePackageMapType::Standard,
+            layout: &layout,
+            project_manifests: &project_manifests,
+        },
+    );
+
+    let sibling_url = &package_map.packages["dep1@1.0.0(dep2@2.0.0)"].url;
+    assert!(
+        sibling_url.contains("store/links/") && sibling_url.contains("/dep1/1.0.0/"),
+        "sibling entry must use the GVS slot, got {sibling_url:?}",
+    );
+    let metadata_url = &package_map.packages["dep1@1.0.0"].url;
+    assert_eq!(
+        metadata_url, sibling_url,
+        "metadata-only entry must resolve through the snapshot sibling's slot",
+    );
+    assert!(
+        !metadata_url.contains("dep1@1.0.0/node_modules"),
+        "must not fall back to the flat local layout, got {metadata_url:?}",
     );
 }
 
@@ -428,6 +486,31 @@ fn manifest(name: &str) -> PackageManifest {
         .expect("create package manifest");
     manifest.value_mut()["name"] = serde_json::json!(name);
     manifest
+}
+
+/// A metadata record whose value the package-map builder never inspects —
+/// only the `packages:` key it is filed under matters.
+fn package_metadata() -> PackageMetadata {
+    PackageMetadata {
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: String::new(),
+            integrity: None,
+            revision: None,
+            git_hosted: None,
+            path: None,
+        }),
+        version: None,
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
 }
 
 fn deps(entries: &[(&str, &str)]) -> ResolvedDependencyMap {
