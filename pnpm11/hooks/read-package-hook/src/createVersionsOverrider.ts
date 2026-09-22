@@ -231,7 +231,7 @@ function overrideDeps (
     genericVersionOverrides: VersionOverride[]
     dir: string | undefined
     convergeOpts: ConvergeOptions
-    peerDependenciesMeta: PackageManifest['peerDependenciesMeta']
+    peerDependenciesMeta: PackageManifest['peerDependenciesMeta'],
   },
   deps: Dependencies,
   peerDeps: Dependencies | undefined
