@@ -35,9 +35,6 @@ test('calcVersionRange() ignores the requested specifier range style for a prere
   expect(calcVersionRange('3.1.0', { bareSpecifier: '~3.0.0' })).toBe('~3.1.0')
 })
 
-// An update moves the version inside the shape the manifest already declares.
-// The version is the one an update inside the range picks, then the one
-// `--latest` picks past it.
 test.each([
   ['<= 1.2.5', '1.2.0', '<= 1.2.5'],
   ['<= 1.2.5', '100.1.0', '^100.1.0'],
@@ -58,9 +55,11 @@ test.each([
   expect(calcVersionRange(version, { prevSpecifier, bareSpecifier: prevSpecifier })).toBe(expected)
 })
 
-test('calcVersionRange() lets a request that pins a style replace a kept range', () => {
+test('calcVersionRange() lets a request that names a specifier replace a kept range', () => {
   expect(calcVersionRange('1.2.0', { prevSpecifier: '<= 1.2.5', bareSpecifier: '1.2.0' })).toBe('1.2.0')
   expect(calcVersionRange('1.2.0', { prevSpecifier: '<= 1.2.5', bareSpecifier: '^1.2.0' })).toBe('^1.2.0')
+  expect(calcVersionRange('1.2.0', { prevSpecifier: '<= 1.2.5', bareSpecifier: '>=1.1.0 <1.3.0' })).toBe('^1.2.0')
+  expect(calcVersionRange('1.2.0', { prevSpecifier: '<= 1.2.5', bareSpecifier: 'latest' })).toBe('^1.2.0')
 })
 
 test('rangeSpecGranularity() collapses exact to patch', () => {

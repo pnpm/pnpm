@@ -537,9 +537,6 @@ fn update_latest_preserves_exact() {
     drop((root, anchor));
 }
 
-/// A range in a shape no save prefix describes keeps its bounds: an update
-/// inside it leaves the entry as written, and only `--latest`, which
-/// reaches past it by design, falls back to the default prefix.
 /// Regression test for <https://github.com/pnpm/pnpm/issues/6714>.
 #[test]
 fn update_keeps_a_range_whose_shape_no_save_prefix_describes() {

@@ -12,8 +12,8 @@ use pnpm_registry::{PackageVersion, RangeSpecStyle};
 use crate::infer_range_spec_style::{infer_range_spec_style, range_of_specifier};
 
 /// The manifest range that pins `version` for a dependency whose existing
-/// manifest entry, if it already had one, read `prev_specifier`, and whose
-/// requested specifier pins `spec_style`.
+/// manifest entry, if it already had one, read `prev_specifier`, and that
+/// the request, if it named one, asked for as `requested`.
 ///
 /// The existing entry's style wins over the requested specifier's, which
 /// wins over `default_style`, so a re-add keeps the pinning style the
@@ -23,22 +23,22 @@ use crate::infer_range_spec_style::{infer_range_spec_style, range_of_specifier};
 ///
 /// An existing range in a shape no style describes (`<= 3.0.0`, `>=1 <2`,
 /// `1 || 2`) is kept as written when it still admits `version` and the
-/// request pins no style of its own, so an update moves the version without
-/// trading the range's bounds for `default_style` (pnpm/pnpm#6714). A
-/// request that does pin a style (`pnpm add foo@1.2.3`) names the range it
-/// wants instead.
+/// request names no specifier of its own, so an update moves the version
+/// without trading the range's bounds for `default_style` (pnpm/pnpm#6714).
+/// A request that names one (`pnpm add foo@1.2.3`) is the range it wants
+/// instead.
 ///
 /// Mirrors the TypeScript `calcVersionRange`.
 #[must_use]
 pub fn calc_version_range(
     version: &Version,
     prev_specifier: Option<&str>,
-    spec_style: Option<RangeSpecStyle>,
+    requested: Option<&str>,
     default_style: RangeSpecStyle,
 ) -> String {
     let prev_style = prev_specifier.and_then(infer_range_spec_style);
     if prev_style.is_none()
-        && spec_style.is_none()
+        && requested.is_none_or(|requested| Some(requested) == prev_specifier)
         && let Some(prev_range) = prev_specifier.and_then(range_of_specifier)
         && prev_range
             .parse::<Range>()
@@ -52,7 +52,9 @@ pub fn calc_version_range(
             None => version.to_string(),
         };
     }
-    let style = prev_style.or(spec_style).unwrap_or(default_style);
+    let style = prev_style
+        .or_else(|| requested.and_then(infer_range_spec_style))
+        .unwrap_or(default_style);
     format!("{}{version}", style.range_prefix())
 }
 
@@ -75,12 +77,8 @@ pub fn calc_specifier(
     picked: &PackageVersion,
     default_pin: RangeSpecStyle,
 ) -> String {
-    let range = calc_version_range(
-        &picked.version,
-        prev_specifier,
-        infer_range_spec_style(bare_specifier),
-        default_pin,
-    );
+    let range =
+        calc_version_range(&picked.version, prev_specifier, Some(bare_specifier), default_pin);
     match npm_alias_target(bare_specifier, alias) {
         Some(real_name) => format!("npm:{real_name}@{range}"),
         None => range,
@@ -108,12 +106,8 @@ pub fn calc_prefixed_specifier(
     picked: &PackageVersion,
     default_pin: RangeSpecStyle,
 ) -> String {
-    let range = calc_version_range(
-        &picked.version,
-        prev_specifier,
-        infer_range_spec_style(bare_specifier),
-        default_pin,
-    );
+    let range =
+        calc_version_range(&picked.version, prev_specifier, Some(bare_specifier), default_pin);
     match alias {
         Some(alias) if !alias.is_empty() && alias != pkg_name => {
             format!("{prefix}{pkg_name}@{range}")

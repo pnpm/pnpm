@@ -34,9 +34,9 @@ export function getRangeSpecStyle (opts: { saveExact?: boolean, savePrefix?: str
  *
  * An existing range in a shape no style describes (`<= 3.0.0`, `>=1 <2`,
  * `1 || 2`) is kept as written when it still admits `version` and the request
- * pins no style of its own, so an update moves the version without trading the
- * range's bounds for the default prefix (pnpm/pnpm#6714). A request that does
- * pin a style (`pnpm add foo@1.2.3`) names the range it wants instead.
+ * names no specifier of its own, so an update moves the version without
+ * trading the range's bounds for the default prefix (pnpm/pnpm#6714). A request
+ * that names one (`pnpm add foo@1.2.3`) is the range it wants instead.
  */
 export function calcVersionRange (
   version: string,
@@ -47,8 +47,7 @@ export function calcVersionRange (
   }
 ): string {
   const prevRangeSpecStyle = opts.prevSpecifier ? inferRangeSpecStyle(opts.prevSpecifier) : undefined
-  const bareRangeSpecStyle = opts.bareSpecifier ? inferRangeSpecStyle(opts.bareSpecifier) : undefined
-  if (prevRangeSpecStyle == null && bareRangeSpecStyle == null && opts.prevSpecifier) {
+  if (prevRangeSpecStyle == null && opts.prevSpecifier && (opts.bareSpecifier == null || opts.bareSpecifier === opts.prevSpecifier)) {
     const prevRange = getRangeOfSpecifier(opts.prevSpecifier)
     if (prevRange != null && semver.validRange(prevRange) != null && semver.satisfies(version, prevRange)) {
       return prevRange
@@ -57,7 +56,9 @@ export function calcVersionRange (
   if (semver.parse(version)?.prerelease.length) {
     return prevRangeSpecStyle ? versionWithRangeSpecStyle(version, prevRangeSpecStyle) : version
   }
-  const rangeSpecStyle = prevRangeSpecStyle ?? bareRangeSpecStyle ?? opts.defaultRangeSpecStyle
+  const rangeSpecStyle = prevRangeSpecStyle ??
+    (opts.bareSpecifier ? inferRangeSpecStyle(opts.bareSpecifier) : undefined) ??
+    opts.defaultRangeSpecStyle
   return versionWithRangeSpecStyle(version, rangeSpecStyle ?? 'major')
 }
 
