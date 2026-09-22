@@ -104,7 +104,9 @@ pub(crate) fn read_local_tarball_error(
     }
 }
 
-pub(crate) fn local_file_tarball_path(package_url: &str) -> Option<PathBuf> {
+/// Decode a local archive URL without probing the filesystem. Network paths are excluded.
+#[must_use]
+pub fn local_file_tarball_path(package_url: &str) -> Option<PathBuf> {
     let path = package_url.strip_prefix("file:")?;
     if is_unc_like_file_payload(path) {
         return None;

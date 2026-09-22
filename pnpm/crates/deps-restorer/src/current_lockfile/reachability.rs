@@ -5,11 +5,12 @@ use std::{
     path::Path,
 };
 
-pub(super) struct ReachableLockfileGraph {
-    pub(super) importer_ids: HashSet<String>,
-    pub(super) snapshot_keys: HashSet<PackageKey>,
+pub struct ReachableLockfileGraph {
+    pub importer_ids: HashSet<String>,
+    pub snapshot_keys: HashSet<PackageKey>,
 }
-pub(super) fn collect_reachable<ShouldSkip>(
+#[must_use]
+pub fn collect_reachable<ShouldSkip>(
     lockfile: &Lockfile,
     workspace_root: &Path,
     initial_importer_ids: &HashSet<String>,

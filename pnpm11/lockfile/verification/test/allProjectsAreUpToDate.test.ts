@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import { allProjectsAreUpToDate, findLocalTarballIntegrityMismatch } from '@pnpm/lockfile.verification'
+import { allProjectsAreUpToDate, findPackageTarballIntegrityMismatch } from '@pnpm/lockfile.verification'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, DepPath, ProjectId, ProjectRootDir } from '@pnpm/types'
@@ -586,7 +586,7 @@ describe('local tgz file dependency', () => {
     expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir })).toBeFalsy()
   })
 
-  test('findLocalTarballIntegrityMismatch(): reports a changed local file', async () => {
+  test('findPackageTarballIntegrityMismatch(): reports a changed local file', async () => {
     expect.hasAssertions()
 
     const pack = tar.pack()
@@ -599,11 +599,10 @@ describe('local tgz file dependency', () => {
     await pipeline(pack, createWriteStream('./local-tarball.tar'))
 
     const lockfileDir = process.cwd()
-    await expect(findLocalTarballIntegrityMismatch({
+    await expect(findPackageTarballIntegrityMismatch({
       fileIntegrityCache: new Map(),
-      lockfilePackages: wantedLockfile.packages,
       lockfileDir,
-    }, { snapshot: wantedLockfile.importers['bar' as ProjectId]! })).resolves.toMatchObject({
+    }, wantedLockfile.packages!['local-tarball@file:local-tarball.tar' as DepPath]!)).resolves.toMatchObject({
       expected: 'sha512-nQP7gWOhNQ/5HoM/rJmzOgzZt6Wg6k56CyvO/0sMmiS3UkLSmzY5mW8mMrnbspgqpmOW8q/FHyb0YIr4n2A8VQ==',
       path: path.join(lockfileDir, 'local-tarball.tar'),
     })
@@ -614,6 +613,25 @@ describe('local tgz file dependency', () => {
 
     const lockfileDir = process.cwd()
     expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir })).toBeFalsy()
+  })
+
+  test('findPackageTarballIntegrityMismatch(): rejects unreadable files with their path', async () => {
+    const lockfileDir = process.cwd()
+    await expect(findPackageTarballIntegrityMismatch({
+      fileIntegrityCache: new Map(),
+      lockfileDir,
+    }, wantedLockfile.packages!['local-tarball@file:local-tarball.tar' as DepPath]!)).rejects.toThrow(path.join(lockfileDir, 'local-tarball.tar'))
+  })
+
+  test('findPackageTarballIntegrityMismatch(): reuses the file read across snapshots', async () => {
+    const lockfileDir = process.cwd()
+    await writeFile('local-tarball.tar', 'first')
+    const ctx = { fileIntegrityCache: new Map<string, Promise<string>>(), lockfileDir }
+    const snapshot = wantedLockfile.packages!['local-tarball@file:local-tarball.tar' as DepPath]!
+    const first = await findPackageTarballIntegrityMismatch(ctx, snapshot)
+    await writeFile('local-tarball.tar', 'second')
+    expect(await findPackageTarballIntegrityMismatch(ctx, snapshot)).toEqual(first)
+    expect(ctx.fileIntegrityCache.size).toBe(1)
   })
 })
 

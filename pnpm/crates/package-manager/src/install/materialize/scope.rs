@@ -153,7 +153,7 @@ pub(super) fn frozen_project_anchor_ids(
 }
 /// The importers a frozen install materializes first. Hoisted installs share
 /// one tree and manifest-independent installs use the entire lockfile.
-pub(super) fn initial_materialization_ids(
+pub(in crate::install) fn initial_materialization_ids(
     lockfile: &Lockfile,
     requested_importer_ids: Option<&HashSet<String>>,
     node_linker: NodeLinker,
