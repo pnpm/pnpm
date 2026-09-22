@@ -215,6 +215,7 @@ pub(super) fn global_group_config(
     // isolated single project.
     cfg.workspace_dir = Some(install_dir.to_path_buf());
     cfg.supported_architectures = supported_architectures;
+    merge_persisted_minimum_release_age_excludes(&mut cfg, install_dir)?;
 
     // A global install is isolated from the caller's project, so it must
     // not inherit that project's dependency-graph configuration. pnpm
@@ -263,4 +264,25 @@ pub(super) fn global_group_config(
     cfg.strict_dep_builds = false;
 
     Ok(cfg)
+}
+
+/// Add the group's own `minimumReleaseAgeExclude` to `cfg`. `update -g`
+/// resolves a group more than once before it materializes, and that manifest
+/// is where a strict `minimumReleaseAge` approval is recorded, so every pass
+/// after the approving one reads the approval back from here instead of
+/// asking for the same `name@version` again.
+fn merge_persisted_minimum_release_age_excludes(
+    cfg: &mut Config,
+    install_dir: &Path,
+) -> miette::Result<()> {
+    let Some(settings) = WorkspaceSettings::load_at(install_dir)
+        .map_err(miette::Report::new)
+        .wrap_err("load the group's minimumReleaseAgeExclude")?
+    else {
+        return Ok(());
+    };
+    if let Some(exclude) = settings.minimum_release_age_exclude {
+        cfg.minimum_release_age_exclude.get_or_insert_with(Vec::new).extend(exclude);
+    }
+    Ok(())
 }

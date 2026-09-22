@@ -1,7 +1,7 @@
 use super::{
     FsGlobalRemoval, GlobalPackageBinSnapshot, activation::FsRename, check_virtual_shim_conflicts,
-    infer_local_package_alias, replacement_aliases, should_replace_existing_package,
-    snapshot_global_package, update_selectors,
+    global_group_config, infer_local_package_alias, replacement_aliases,
+    should_replace_existing_package, snapshot_global_package, update_selectors,
 };
 use crate::{
     cli_args::{
@@ -16,6 +16,7 @@ use crate::{
 };
 use miette::IntoDiagnostic;
 use pnpm_cmd_shim::{Host as CmdShimHost, PackageBinSource, remove_bin as remove_cmd_shim};
+use pnpm_config::Config;
 use pnpm_fs::{force_symlink_dir, remove_symlink_dir};
 use pnpm_global::GlobalPackageInfo;
 use serde_json::json;
@@ -579,4 +580,25 @@ fn create_local_package(root: &Path, directory_name: &str, manifest: &str) -> Pa
     std::fs::write(package_dir.join("package.json"), manifest)
         .expect("write local package manifest");
     package_dir
+}
+
+/// A group's own manifest records the `minimumReleaseAgeExclude` entries a
+/// strict approval added, and `update -g` resolves the group more than once.
+/// Each pass after the first builds its config here, so the recorded approval
+/// has to reach it or the user is asked for the same version twice.
+#[test]
+fn a_group_config_carries_the_persisted_minimum_release_age_excludes() {
+    let dir = TempDir::new().expect("temp dir");
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "minimumReleaseAgeExclude:\n  - foo@2.0.0\n")
+        .expect("write the group manifest");
+    let mut base = Config::new();
+    base.minimum_release_age_exclude = Some(vec!["bar@1.0.0".to_string()]);
+
+    let config =
+        global_group_config(&base, dir.path(), dir.path(), None).expect("build the group config");
+
+    assert_eq!(
+        config.minimum_release_age_exclude,
+        Some(vec!["bar@1.0.0".to_string(), "foo@2.0.0".to_string()]),
+    );
 }
