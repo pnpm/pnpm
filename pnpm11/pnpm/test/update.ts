@@ -1076,6 +1076,22 @@ test('update keeps a range whose shape no save prefix describes', async function
   expect((await readPackageJsonFromDir('.')).dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
 })
 
+test('update <pkg>@<tag> replaces a range whose shape no save prefix describes', async function () {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '<= 1.2.5',
+    },
+  })
+
+  await execPnpm(['install'])
+  await addDistTag('@pnpm.e2e/foo', '1.1.0', 'stable')
+
+  await execPnpm(['update', '@pnpm.e2e/foo@stable'])
+
+  expect((await readPackageJsonFromDir('.')).dependencies?.['@pnpm.e2e/foo']).toBe('^1.1.0')
+  expect(project.readLockfile().packages).toHaveProperty(['@pnpm.e2e/foo@1.1.0'])
+})
+
 test('update with tag @latest will downgrade prerelease', async function () {
   prepare()
 

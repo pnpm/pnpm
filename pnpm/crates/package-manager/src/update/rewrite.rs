@@ -321,7 +321,7 @@ pub(super) async fn tag_rewrite(
                         name,
                         &version.to_string(),
                     );
-                    Some(calc_version_range(&version, Some(previous), None, range_spec_style))
+                    Some(calc_version_range(&version, Some(previous), Some(tag), range_spec_style))
                 }
                 None => requested,
             }
