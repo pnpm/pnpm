@@ -79,7 +79,7 @@ import {
   resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, removePackageMap, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
-import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAreUpToDate, satisfiesPackageManifest, unresolvedOptionalDependencies } from '@pnpm/lockfile.verification'
+import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAreUpToDate, findLocalTarballIntegrityMismatch, satisfiesPackageManifest, unresolvedOptionalDependencies } from '@pnpm/lockfile.verification'
 import { logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs, getSpecFromPackageManifest, guessDependencyType } from '@pnpm/pkg-manifest.utils'
@@ -107,7 +107,7 @@ import {
   type ProjectRootDir,
   type ReadPackageHook,
 } from '@pnpm/types'
-import { verifiedFileIntegritySince, verifiedFileIntegritySnapshot } from '@pnpm/worker'
+import { TarballIntegrityError, verifiedFileIntegritySince, verifiedFileIntegritySnapshot } from '@pnpm/worker'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
@@ -1711,7 +1711,7 @@ Note that in CI environments, this setting is enabled by default.`,
 
   Failure reason:
   ${detailedReason ?? ''}`,
-            })
+          })
         }
       }
     }
@@ -1722,6 +1722,27 @@ Note that in CI environments, this setting is enabled by default.`,
           parents: [],
           prefix,
           reason: 'resolution_failure',
+        })
+      }
+    }
+    if (frozenLockfile) {
+      const fileIntegrityCache = new Map<string, Promise<string>>()
+      for (const { id } of Object.values(ctx.projects)) {
+        const importer = ctx.wantedLockfile.importers[id]
+        if (importer == null) continue
+        const mismatch = await findLocalTarballIntegrityMismatch({
+          fileIntegrityCache,
+          includedDependencies: opts.include,
+          lockfilePackages: ctx.wantedLockfile.packages,
+          lockfileDir: opts.lockfileDir,
+        }, { snapshot: importer })
+        if (mismatch == null) continue
+        throw new TarballIntegrityError({
+          algorithm: mismatch.expected.split('-', 1)[0] ?? 'sha512',
+          expected: mismatch.expected,
+          found: mismatch.found,
+          sri: mismatch.expected,
+          url: mismatch.path,
         })
       }
     }

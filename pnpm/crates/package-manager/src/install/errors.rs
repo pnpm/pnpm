@@ -123,6 +123,9 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     FrozenLockfile(#[error(source)] InstallFrozenLockfileError),
 
+    #[diagnostic(transparent)]
+    LocalTarballIntegrity(#[error(source)] pnpm_tarball::TarballError),
+
     /// A workspace project's own lifecycle script
     /// (`pnpm:devPreinstall`, or
     /// preinstall/install/postinstall/preprepare/prepare/postprepare)

@@ -1,12 +1,13 @@
 import { createWriteStream } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
 
 import { beforeEach, describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import { allProjectsAreUpToDate } from '@pnpm/lockfile.verification'
+import { allProjectsAreUpToDate, findLocalTarballIntegrityMismatch } from '@pnpm/lockfile.verification'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, DepPath, ProjectId, ProjectRootDir } from '@pnpm/types'
@@ -583,6 +584,29 @@ describe('local tgz file dependency', () => {
 
     const lockfileDir = process.cwd()
     expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir })).toBeFalsy()
+  })
+
+  test('findLocalTarballIntegrityMismatch(): reports a changed local file', async () => {
+    expect.hasAssertions()
+
+    const pack = tar.pack()
+    pack.entry({ name: 'package.json', mtime: new Date('2000-01-01T00:00:00') }, JSON.stringify({
+      name: 'local-tarball',
+      version: '1.0.0',
+    }))
+    pack.entry({ name: 'newly-added-file.txt' }, 'This file changes the tarball.')
+    pack.finalize()
+    await pipeline(pack, createWriteStream('./local-tarball.tar'))
+
+    const lockfileDir = process.cwd()
+    await expect(findLocalTarballIntegrityMismatch({
+      fileIntegrityCache: new Map(),
+      lockfilePackages: wantedLockfile.packages,
+      lockfileDir,
+    }, { snapshot: wantedLockfile.importers['bar' as ProjectId]! })).resolves.toMatchObject({
+      expected: 'sha512-nQP7gWOhNQ/5HoM/rJmzOgzZt6Wg6k56CyvO/0sMmiS3UkLSmzY5mW8mMrnbspgqpmOW8q/FHyb0YIr4n2A8VQ==',
+      path: path.join(lockfileDir, 'local-tarball.tar'),
+    })
   })
 
   test('allProjectsAreUpToDate(): returns false if local dep does not exist', async () => {
