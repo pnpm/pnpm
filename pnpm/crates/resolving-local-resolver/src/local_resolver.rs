@@ -85,7 +85,6 @@ impl From<LocalResolveResult> for ResolveResult {
             alias: None,
             policy_violation: None,
             package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-                requested_name: None,
                 // Local resolutions don't have a `name@version` shape —
                 // the canonical name lives in the fetched manifest, not
                 // the resolver-time signal. Leave `name_ver` empty so

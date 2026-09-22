@@ -259,7 +259,6 @@ impl Resolver for FixtureResolver {
                 alias: Some(alias.to_string()),
                 policy_violation: None,
                 package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-                    requested_name: None,
                     name_ver: Some(id.parse().expect("fixture name/version parses")),
                     latest: Some(version),
                     published_at: None,

@@ -259,15 +259,7 @@ export interface ResolutionPolicyViolation {
   resolution: Resolution
   code: string
   reason: string
-  /** Immediate parent's resolution ID, used only for retries; it may contain URL secrets. */
-  retryParentId?: PkgResolutionId
-  /** The nearest 32 dependent labels, ordered from ancestor to immediate parent. */
-  parents?: Array<{ name: string, version: string }>
-  parentsTruncated?: boolean
 }
-
-/** Versions excluded by the retry, keyed by package name. Named-registry versions retain their `registryName:` prefix. */
-export type BlockedVersions = ReadonlyMap<string, ReadonlySet<string>>
 
 /** Concrete platform selector used when picking a variant from a VariationsResolution. */
 export interface PlatformSelector {
@@ -343,8 +335,6 @@ export interface NonDeprecatedAlternative {
 }
 
 export interface ResolveResult {
-  /** Registry package identity before reading the manifest or applying hooks. */
-  requestedName?: string
   id: PkgResolutionId
   latest?: string
   /**
@@ -424,7 +414,6 @@ export interface ResolveOptions {
   pickLowestVersion?: boolean
   publishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
-  blockedVersions?: BlockedVersions
   projectDir: string
   lockfileDir: string
   preferredVersions: PreferredVersions

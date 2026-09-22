@@ -482,7 +482,6 @@ fn same_name_injected_dep_serializes_as_plain_file_ref() {
             alias: Some("@scope/comp1".to_string()),
             policy_violation: None,
             package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-                requested_name: None,
                 // Directory resolutions carry no structured name.
                 name_ver: None,
                 latest: None,

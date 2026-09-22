@@ -107,10 +107,8 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> super::ResolutionContext<'_, R
         lockfile_reuse_seed: Option<Arc<Lockfile>>,
         mut preferred_versions_seed: Arc<PreferredVersions>,
         mut preferred_versions_seeds_by_importer: BTreeMap<String, Arc<PreferredVersions>>,
-        blocked_versions: Option<Arc<pnpm_resolving_resolver_base::BlockedVersions>>,
     ) -> Result<ResolveWorkspaceResult, super::InstallWithFreshLockfileError> {
-        let mut shared_resolve_options = self.shared_options();
-        shared_resolve_options.policy.blocked_versions = blocked_versions;
+        let shared_resolve_options = self.shared_options();
         let mut dedupe = targets(
             self.install.drivers.config,
             self.wanted_lockfile(),

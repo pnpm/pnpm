@@ -21,32 +21,24 @@ use super::{
 /// version it can date.
 pub(super) fn latest_allowed_by_policy<'a>(
     meta: &'a Package,
-    requested_name: &str,
     published_by: Option<DateTime<Utc>>,
     published_by_exclude: Option<&PackageVersionPolicy>,
-    blocked: Option<&std::collections::HashSet<String>>,
 ) -> Option<&'a str> {
     let latest = meta.dist_tag("latest")?;
-    if blocked
-        .filter(|blocked| !blocked.is_empty())
-        .is_some_and(|blocked| crate::pick_package::is_version_blocked(meta, latest, blocked))
-    {
-        return None;
-    }
     let Some(cutoff) = published_by else { return Some(latest) };
-    (!known_immature(meta, requested_name, latest, cutoff, published_by_exclude)).then_some(latest)
+    (!known_immature(meta, latest, cutoff, published_by_exclude)).then_some(latest)
 }
 
 /// Whether the policy trusts `version` outright, by excluding the package
 /// wholesale or by naming that exact version.
 fn policy_trusts(
-    requested_name: &str,
+    meta: &Package,
     version: &str,
     published_by_exclude: Option<&PackageVersionPolicy>,
 ) -> bool {
     use pnpm_config::version_policy::PolicyMatch;
     let Some(policy) = published_by_exclude else { return false };
-    match policy.matches(requested_name) {
+    match policy.matches(&meta.name) {
         PolicyMatch::AnyVersion => true,
         PolicyMatch::ExactVersions(versions) => versions
             .iter()
@@ -63,12 +55,11 @@ fn policy_trusts(
 /// version over metadata pnpm failed to read would be its own wrong answer.
 fn known_immature(
     meta: &Package,
-    requested_name: &str,
     version: &str,
     cutoff: DateTime<Utc>,
     published_by_exclude: Option<&PackageVersionPolicy>,
 ) -> bool {
-    if policy_trusts(requested_name, version, published_by_exclude) {
+    if policy_trusts(meta, version, published_by_exclude) {
         return false;
     }
     matches!(
@@ -90,13 +81,12 @@ fn known_immature(
 /// metadata still gets told where to go.
 pub(super) fn installable_under_policy(
     meta: &Package,
-    requested_name: &str,
     version: &str,
     published_by: Option<DateTime<Utc>>,
     published_by_exclude: Option<&PackageVersionPolicy>,
 ) -> bool {
     let Some(cutoff) = published_by else { return true };
-    if policy_trusts(requested_name, version, published_by_exclude) {
+    if policy_trusts(meta, version, published_by_exclude) {
         return true;
     }
     if meta.time.is_none() {
@@ -121,12 +111,8 @@ pub(super) fn detect_min_release_age_violation(
     resolution: &LockfileResolution,
     published_by: Option<DateTime<Utc>>,
     published_by_exclude: Option<&PackageVersionPolicy>,
-    blocked: bool,
 ) -> Option<ResolutionPolicyViolation> {
     let cutoff = published_by?;
-    if blocked {
-        return Some(blocked_violation(name, version, resolution));
-    }
     let timestamp = published_at?;
     if let Some(policy) = published_by_exclude {
         use pnpm_config::version_policy::PolicyMatch;
@@ -147,9 +133,6 @@ pub(super) fn detect_min_release_age_violation(
         return None;
     }
     Some(ResolutionPolicyViolation {
-        parents: Vec::new(),
-        parents_truncated: false,
-        retry_parent: None,
         name: name.clone(),
         version: version.to_string(),
         resolution: resolution.clone(),
@@ -159,21 +142,4 @@ pub(super) fn detect_min_release_age_violation(
             cutoff = cutoff.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
         ),
     })
-}
-
-fn blocked_violation(
-    name: &PkgName,
-    version: &str,
-    resolution: &LockfileResolution,
-) -> ResolutionPolicyViolation {
-    ResolutionPolicyViolation {
-        name: name.clone(),
-        version: version.to_string(),
-        resolution: resolution.clone(),
-        code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
-        reason: "has no dependency tree that satisfies the minimumReleaseAge cutoff".to_string(),
-        parents: Vec::new(),
-        parents_truncated: false,
-        retry_parent: None,
-    }
 }

@@ -22,7 +22,6 @@ pub(crate) struct BuildResolveResult<'a> {
     pub published_by: Option<DateTime<Utc>>,
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     pub picked_manifest_cache: &'a crate::PickedManifestCache,
-    pub blocked_versions: Option<&'a pnpm_resolving_resolver_base::BlockedVersions>,
     pub registry: RegistryResolutionSource<'a>,
     pub specifier: ResolvedSpecifier<'a>,
 }
@@ -51,16 +50,14 @@ pub(crate) fn build_resolve_result(
 ) -> Result<ResolveResult, ResolveError> {
     let picked = select_package_revision(args.picked, args.specifier.spec, args.registry.registry)?;
     let picked = picked.as_ref();
-    let pkg_name = PkgName::parse(args.specifier.spec.name.as_str())
-        .map_err(|err| Box::new(err) as ResolveError)?;
+    let pkg_name =
+        PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
     let version_str = picked.version.to_string();
     let name_ver = PkgNameVer::new(pkg_name.clone(), picked.version.clone());
     let (resolution, revision) = picked_tarball_resolution(picked, args.registry.registry)?;
-    let published_at = args.meta
-        .published_at(picked.packument_version.as_deref().unwrap_or(&version_str))
-        .map(str::to_string);
+    let published_at = args.meta.published_at(&version_str).map(str::to_string);
     let manifest = args.manifest_for_revision(picked, &version_str, revision)?;
-    let id = resolution_id(args.registry.registry_name, &args.specifier.spec.name, picked);
+    let id = resolution_id(args.registry.registry_name, picked, &name_ver);
     let policy_violation = detect_min_release_age_violation(
         &pkg_name,
         &version_str,
@@ -68,7 +65,6 @@ pub(crate) fn build_resolve_result(
         &resolution,
         args.published_by,
         args.published_by_exclude,
-        args.is_blocked(&version_str),
     );
     let package = resolved_package_info(&args, name_ver, &version_str, published_at, manifest);
     Ok(ResolveResult {
@@ -94,25 +90,17 @@ fn resolved_package_info(
     manifest: Arc<serde_json::Value>,
 ) -> pnpm_resolving_resolver_base::ResolvedPackageInfo {
     pnpm_resolving_resolver_base::ResolvedPackageInfo {
-        requested_name: Some(args.specifier.spec.name.clone()),
         name_ver: Some(name_ver),
-        latest: latest_allowed_by_policy(
-            args.meta,
-            &args.specifier.spec.name,
-            args.published_by,
-            args.published_by_exclude,
-            args.blocked_versions.and_then(|blocked| blocked.get(&args.specifier.spec.name)),
-        )
-        .map(str::to_string),
+        latest: latest_allowed_by_policy(args.meta, args.published_by, args.published_by_exclude)
+            .map(str::to_string),
         published_at,
         manifest: Some(manifest),
         non_deprecated_alternative: find_non_deprecated_alternative(
             args.meta,
-            args.picked.packument_version.as_deref().unwrap_or(version_str),
+            version_str,
             args.specifier.spec,
             args.published_by,
             args.published_by_exclude,
-            args.blocked_versions.and_then(|blocked| blocked.get(&args.specifier.spec.name)),
         ),
     }
 }
@@ -140,20 +128,26 @@ pub(super) fn calculated_specifier(
 
 pub(super) fn resolution_id(
     registry_name: Option<&str>,
-    requested_name: &str,
     picked: &PackageVersion,
+    name_ver: &PkgNameVer,
 ) -> PkgResolutionId {
     match registry_name {
         Some(registry_name) => {
-            PkgResolutionId::from(format!("{requested_name}@{registry_name}:{}", picked.version))
+            PkgResolutionId::from(format!("{}@{registry_name}:{}", picked.name, picked.version))
         }
-        None => PkgResolutionId::from(format!("{requested_name}@{}", picked.version)),
+        None => name_ver.into(),
     }
 }
 
-/// Serialize each distinct selected manifest once per install. The key scopes
-/// registry, requested name, raw packument key, version, and revision so picks
-/// with different artifacts or dependency metadata cannot share a cached value.
+/// Dedupe `serde_json::to_value(picked)` across picks of the same
+/// `(registry, pkg_name, version)` triple — see [`PickedManifestCache`](crate::pick_package::PickedManifestCache)
+/// for the rationale. The cache is shared across the npm / JSR /
+/// named-registry resolvers, so the key has to scope by `registry` too;
+/// two registries may serve different artifacts under the same
+/// `name@version`, and collapsing them would hand the second registry's
+/// resolver the first registry's manifest — wrong dependency graph,
+/// wrong peers, wrong lockfile metadata. Matches `meta_cache`'s
+/// `{registry}\x00{name}` scoping shape.
 pub(super) fn cached_manifest(
     cache: &crate::PickedManifestCache,
     key: String,
@@ -274,7 +268,6 @@ fn find_non_deprecated_alternative(
     spec: &RegistryPackageSpec,
     published_by: Option<DateTime<Utc>>,
     published_by_exclude: Option<&PackageVersionPolicy>,
-    blocked: Option<&std::collections::HashSet<String>>,
 ) -> Option<NonDeprecatedAlternative> {
     if !meta.versions.is_deprecated(picked_version) {
         return None;
@@ -283,12 +276,7 @@ fn find_non_deprecated_alternative(
         .keys()
         .filter(|version| !meta.versions.is_deprecated(version))
         .filter(|version| {
-            blocked.is_none_or(|blocked| {
-                !crate::pick_package::is_version_blocked(meta, version, blocked)
-            })
-        })
-        .filter(|version| {
-            installable_under_policy(meta, &spec.name, version, published_by, published_by_exclude)
+            installable_under_policy(meta, version, published_by, published_by_exclude)
         })
         .filter_map(|version| Version::parse(version).ok())
         .max()?;
@@ -372,12 +360,6 @@ pub(super) fn picked_tarball_resolution(
 }
 
 impl BuildResolveResult<'_> {
-    fn is_blocked(&self, version: &str) -> bool {
-        self.blocked_versions
-            .and_then(|blocked| blocked.get(&self.specifier.spec.name))
-            .is_some_and(|versions| versions.contains(version))
-    }
-
     pub(super) fn manifest_for_revision(
         &self,
         picked: &PackageVersion,
@@ -386,14 +368,12 @@ impl BuildResolveResult<'_> {
     ) -> Result<Arc<serde_json::Value>, ResolveError> {
         cached_manifest(
             self.picked_manifest_cache,
-            serde_json::to_string(&(
+            format!(
+                "{}\x00{}@{version_str}+r{}",
                 self.registry.registry,
-                &self.specifier.spec.name,
-                picked.packument_version.as_deref().unwrap_or(version_str),
-                version_str,
+                picked.name,
                 revision.map_or(0, TarballRevision::get),
-            ))
-            .map_err(|error| Box::new(error) as ResolveError)?,
+            ),
             picked,
         )
     }
@@ -410,7 +390,6 @@ impl RegistryResolutionSource<'_> {
         build_resolve_result(BuildResolveResult {
             meta: &picked.meta,
             picked: &picked.version,
-            blocked_versions: policy.blocked_versions.as_deref(),
             published_by: policy.published_by,
             published_by_exclude: policy.published_by_exclude.as_ref(),
             picked_manifest_cache,

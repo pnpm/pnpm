@@ -198,7 +198,6 @@ fn benchmark_resolution(name: &str, manifest: serde_json::Value) -> ResolveResul
         alias: Some(name.to_string()),
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-            requested_name: None,
             name_ver: Some(name_ver),
             latest: Some("1.0.0".to_string()),
             published_at: None,

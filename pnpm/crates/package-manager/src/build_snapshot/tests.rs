@@ -12,7 +12,6 @@ fn integrity(text: &str) -> Integrity {
 
 fn make_package(name: &str, version: &str) -> PackageVersion {
     PackageVersion {
-        packument_version: None,
         name: name.to_string(),
         version: version.parse::<Version>().expect("parse semver"),
         dist: PackageDistribution {

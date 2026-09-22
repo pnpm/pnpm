@@ -27,9 +27,7 @@ pub(crate) mod semver_range;
 
 pub(crate) use preferred_versions::dominant_lockfile_version;
 
-pub(crate) use release_age::{
-    PublishedByView, apply_published_by_policy, filter_pkg_metadata_versions_with_dist_tag_bound,
-};
+pub(crate) use release_age::{PublishedByView, apply_published_by_policy};
 
 pub use release_age::{filter_pkg_metadata_by_publish_date, filter_pkg_metadata_versions};
 
@@ -184,7 +182,7 @@ where
     let view: PublishedByView;
     let meta_ref: &Package = match opts.published_by {
         Some(cutoff) => {
-            view = apply_published_by_policy(meta, &spec.name, cutoff, opts.published_by_exclude);
+            view = apply_published_by_policy(meta, cutoff, opts.published_by_exclude);
             mature_view(&view, meta, cutoff)?
         }
         None => meta,
@@ -215,7 +213,7 @@ where
             undecodable_excluded = Some(without_version(meta_now, &version));
             continue;
         };
-        return Ok(Some(pinned_manifest(manifest, meta_now, &version)));
+        return Ok(Some(pinned_manifest(manifest, meta_now)));
     }
 }
 
@@ -228,26 +226,15 @@ fn no_versions_error(meta: &Package, spec: &RegistryPackageSpec) -> PickPackageF
     PickPackageFromMetaError::NoVersions { pkg_name: spec.name.clone() }
 }
 
-/// Packument coordinates are authoritative over a manifest's name and version.
-/// GitHub registries may omit the scope from per-version manifest names.
-fn pinned_manifest(
-    manifest: Arc<PackageVersion>,
-    meta: &Package,
-    version: &str,
-) -> Arc<PackageVersion> {
-    if (meta.name.is_empty() || manifest.name == meta.name)
-        && manifest.version.to_string() == version
-    {
+/// GitHub registry quirk: a scoped package can be published as `@owner/foo`
+/// while the per-version `name` is just `foo`. The manifest name is pinned
+/// to the packument-level name.
+fn pinned_manifest(manifest: Arc<PackageVersion>, meta: &Package) -> Arc<PackageVersion> {
+    if meta.name.is_empty() || manifest.name == meta.name {
         return manifest;
     }
     let mut pinned = (*manifest).clone();
-    pinned.packument_version = Some(version.to_string());
-    if !meta.name.is_empty() {
-        pinned.name.clone_from(&meta.name);
-    }
-    if let Ok(version) = Version::parse(version) {
-        pinned.version = version;
-    }
+    pinned.name.clone_from(&meta.name);
     Arc::new(pinned)
 }
 

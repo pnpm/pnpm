@@ -121,7 +121,7 @@ pub fn shared_packument_fetch_locker() -> PackumentFetchLocker {
 /// pick the same version of the same package (the common case for
 /// shared deps like `react`, `lodash`, ...) every duplicate would
 /// otherwise re-walk and re-allocate the same JSON tree. Cache the
-/// `Arc<Value>` once per `(registry, requested_name, raw_key, version, revision)` tuple so
+/// `Arc<Value>` once per `(registry, pkg_name, version)` triple so
 /// the second pick onwards is an `Arc::clone` instead of a full
 /// reserialise.
 ///
@@ -133,8 +133,8 @@ pub fn shared_packument_fetch_locker() -> PackumentFetchLocker {
 /// name-version pair are not interchangeable, and a registry-
 /// agnostic key would hand one resolver the other's manifest,
 /// breaking the downstream dependency graph / peer extraction /
-/// lockfile metadata. Keys use JSON tuple encoding to keep arbitrary raw
-/// packument keys distinct, including those with separator characters.
+/// lockfile metadata. Same `{registry}\x00…` scoping shape as
+/// [`PackageMetaCache`].
 pub type PickedManifestCache = Arc<DashMap<String, Arc<serde_json::Value>>>;
 
 /// Construct a fresh [`PickedManifestCache`] for a new install.

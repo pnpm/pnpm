@@ -1,7 +1,7 @@
 use super::{
     Arc, AuthHeaders, HashMap, InMemoryPackageMetaCache, LockfileResolution,
-    MalformedRevisionHistoryError, NpmResolver, PACKAGE_BODY, ResolveOptions, RetryOpts,
-    TarballRevision, TempDir, ThrottledClient, WantedDependency, assert_eq, build_resolver, json,
+    MalformedRevisionHistoryError, NpmResolver, ResolveOptions, RetryOpts, TarballRevision,
+    TempDir, ThrottledClient, WantedDependency, assert_eq, build_resolver, json,
     revision_package_body, shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::Resolver;
@@ -233,40 +233,4 @@ async fn invalid_shasum_error_redacts_registry_metadata() {
         !error.chars().any(char::is_control),
         "control characters must not reach the message: {error:?}",
     );
-}
-
-#[tokio::test]
-async fn manifest_cache_keeps_distinct_raw_keys_with_the_same_version() {
-    let mut body: serde_json::Value = serde_json::from_str(PACKAGE_BODY).unwrap();
-    body["versions"]["1.0.0"]["dependencies"] = json!({ "canonical": "1.0.0" });
-    body["versions"]["banana"] = body["versions"]["1.0.0"].clone();
-    body["versions"]["banana"]["dependencies"] = json!({ "tagged": "2.0.0" });
-    body["versions"]["banana"]["dist"]["tarball"] = json!("https://registry/acme-banana.tgz");
-    body["dist-tags"]["tagged"] = json!("banana");
-    let mut server = mockito::Server::new_async().await;
-    let _mock = server
-        .mock("GET", "/acme")
-        .with_status(200)
-        .with_body(body.to_string())
-        .create_async()
-        .await;
-    let (resolver, _tempdir) = build_resolver(&format!("{}/", server.url()));
-    for (specifier, dependency) in
-        [("1.0.0", "canonical"), ("tagged", "tagged"), ("1.0.0", "canonical")]
-    {
-        let wanted = WantedDependency {
-            alias: Some("acme".to_string()),
-            bare_specifier: Some(specifier.to_string()),
-            ..WantedDependency::default()
-        };
-        let result = resolver
-            .resolve(&wanted, &ResolveOptions::default())
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            result.package.manifest.unwrap()["dependencies"],
-            json!({ dependency: if dependency == "tagged" { "2.0.0" } else { "1.0.0" } }),
-        );
-    }
 }

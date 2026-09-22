@@ -2,9 +2,9 @@ use super::{
     Arc, DateTime, HashSet, Package, PackageMetaCache, PackageVersion, PackageVersionPolicy,
     PickPackageContext, PickPackageFromMetaError, PickPackageFromMetaOptions, PickPackageOptions,
     RegistryPackageSpec, RegistryPackageSpecType, SkippedTimeCheck, TrustPolicy, Utc,
-    VersionSelectors, filter_pkg_metadata_versions_with_dist_tag_bound,
-    pick_lowest_version_by_version_range, pick_package_from_meta, pick_stable_cached_range_version,
-    pick_version_by_version_range, warn_missing_time_once,
+    VersionSelectors, filter_pkg_metadata_versions, pick_lowest_version_by_version_range,
+    pick_package_from_meta, pick_stable_cached_range_version, pick_version_by_version_range,
+    warn_missing_time_once,
 };
 
 /// Whether a pick made from a registry-unverified entry can be returned as
@@ -72,12 +72,11 @@ pub(super) fn pick_from_meta_fast(
     meta: Arc<Package>,
     blocked_versions: Option<&HashSet<String>>,
 ) -> Result<(Arc<Package>, Option<Arc<PackageVersion>>), PickPackageFromMetaError> {
-    let filtered = filter_blocked_versions(&meta, blocked_versions);
-    let view = filtered.as_ref().unwrap_or(&meta);
-    if view.versions.is_empty() && blocked_versions.is_some_and(|blocked| !blocked.is_empty()) {
+    let meta = filter_blocked_versions(meta, blocked_versions);
+    if meta.versions.is_empty() && blocked_versions.is_some_and(|blocked| !blocked.is_empty()) {
         return Ok((meta, None));
     }
-    let picked = pick_matching_version_fast(picker_opts, spec, view)?;
+    let picked = pick_matching_version_fast(picker_opts, spec, &meta)?;
     Ok((meta, picked))
 }
 
@@ -87,35 +86,25 @@ pub(super) fn pick_from_meta(
     meta: Arc<Package>,
     blocked_versions: Option<&HashSet<String>>,
 ) -> Result<(Arc<Package>, Option<Arc<PackageVersion>>), PickPackageFromMetaError> {
-    let filtered = filter_blocked_versions(&meta, blocked_versions);
-    let view = filtered.as_ref().unwrap_or(&meta);
-    if view.versions.is_empty() && blocked_versions.is_some_and(|blocked| !blocked.is_empty()) {
+    let meta = filter_blocked_versions(meta, blocked_versions);
+    if meta.versions.is_empty() && blocked_versions.is_some_and(|blocked| !blocked.is_empty()) {
         return Ok((meta, None));
     }
-    let picked = pick_matching_version_final(picker_opts, spec, view)?;
+    let picked = pick_matching_version_final(picker_opts, spec, &meta)?;
     Ok((meta, picked))
 }
 
-pub(crate) fn filter_blocked_versions(
-    meta: &Package,
+pub(super) fn filter_blocked_versions(
+    meta: Arc<Package>,
     blocked_versions: Option<&HashSet<String>>,
-) -> Option<Package> {
-    let blocked_versions = blocked_versions.filter(|blocked| !blocked.is_empty())?;
-    Some(filter_pkg_metadata_versions_with_dist_tag_bound(
-        meta,
-        |version| !is_version_blocked(meta, version, blocked_versions),
-        true,
-    ))
-}
-
-pub(crate) fn is_version_blocked(meta: &Package, version: &str, blocked: &HashSet<String>) -> bool {
-    if blocked.is_empty() {
-        return false;
+) -> Arc<Package> {
+    let Some(blocked_versions) = blocked_versions else {
+        return meta;
+    };
+    if blocked_versions.is_empty() {
+        return meta;
     }
-    blocked.contains(version)
-        || meta.versions
-            .resolve_version(version)
-            .is_none_or(|parsed| blocked.contains(&parsed.to_string()))
+    Arc::new(filter_pkg_metadata_versions(&meta, |version| !blocked_versions.contains(version)))
 }
 
 /// Picker used at terminal return sites where there's no further

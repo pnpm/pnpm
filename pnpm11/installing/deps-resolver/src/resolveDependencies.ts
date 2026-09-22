@@ -29,7 +29,6 @@ import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
 import { parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
 import {
-  type BlockedVersions,
   DIRECT_DEP_SELECTOR_WEIGHT,
   type DirectoryResolution,
   type PkgResolutionId,
@@ -72,11 +71,10 @@ const omitDepsFields = omit(['dependencies', 'optionalDependencies', 'peerDepend
 
 export function getPkgsInfoFromIds (
   ids: PkgResolutionId[],
-  resolvedPkgsById: ResolvedPkgsById,
-  limit = Infinity
+  resolvedPkgsById: ResolvedPkgsById
 ): Array<{ id: PkgResolutionId, name: string, version: string }> {
   return ids
-    .slice(Math.max(1, ids.length - limit))
+    .slice(1)
     .map((id) => {
       const { name, version } = resolvedPkgsById[id]
       return { id, name, version }
@@ -203,13 +201,6 @@ export interface ResolutionContext extends RegistryContext {
   maximumPublishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
   /**
-   * Versions this resolution pass must not pick. Grows between passes as
-   * the install backs out of dependency trees that no `minimumReleaseAge`
-   * cutoff can satisfy; empty on the first pass and on every install with
-   * no maturity policy.
-   */
-  blockedVersions?: BlockedVersions
-  /**
    * Shared accumulator the resolver pushes into when an inline policy
    * check (today: minimumReleaseAge in `npm-resolver`) flags a pick.
    * resolveDependencyTree hands the populated array back to the install
@@ -301,7 +292,6 @@ export interface PeerDependency {
 export type PeerDependencies = Record<string, PeerDependency>
 
 export interface ResolvedPackage {
-  requestedName?: string
   id: PkgResolutionId
   isLeaf: boolean
   resolution: Resolution
@@ -2038,7 +2028,6 @@ async function resolveDependency (
         ignoreScripts: ctx.ignoreScripts,
         publishedBy: options.publishedBy,
         publishedByExclude: ctx.publishedByExclude,
-        blockedVersions: ctx.blockedVersions,
         pickLowestVersion: options.pickLowestVersion,
         downloadPriority: -options.currentDepth,
         lockfileDir: ctx.lockfileDir,
@@ -2112,11 +2101,7 @@ async function resolveDependency (
     // can hand the full set to the install command between
     // resolveDependencyTree and resolvePeers.
     if (pkgResponse.body.policyViolation) {
-      // The first ID names the importer, whose choice cannot be retried.
-      ctx.resolutionPolicyViolations.push({
-        ...pkgResponse.body.policyViolation,
-        ...getPolicyViolationContext(options.parentIds, ctx.resolvedPkgsById),
-      })
+      ctx.resolutionPolicyViolations.push(pkgResponse.body.policyViolation)
     }
 
     // Check if exotic dependencies are disallowed in subdependencies
@@ -2201,9 +2186,8 @@ async function resolveDependency (
     if (!pkg.name) { // TODO: don't fail on optional dependencies
       throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.bareSpecifier}: Missing package name`)
     }
-    const pkgName = pkgResponse.body.requestedName ?? pkg.name
-    let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${pkgName}@`) ? pkgResponse.body.id : `${pkgName}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
-    const patch = getPatchInfo(ctx.patchedDependencies, pkgName, pkg.version)
+    let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
+    const patch = getPatchInfo(ctx.patchedDependencies, pkg.name, pkg.version)
     if (patch) {
       pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patch.hash})` as PkgIdWithPatchHash
     }
@@ -2548,8 +2532,7 @@ function getResolvedPackage (
     hasBin: options.hasBin,
     hasBundledDependencies: !((options.pkg.bundledDependencies ?? options.pkg.bundleDependencies) == null),
     id: options.pkgResponse.body.id,
-    name: options.pkgResponse.body.requestedName ?? options.pkg.name,
-    requestedName: options.pkgResponse.body.requestedName,
+    name: options.pkg.name,
     optional: options.optional,
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),
     patch: options.patch,
@@ -2684,19 +2667,4 @@ const NON_EXOTIC_RESOLVED_VIA = new Set([
 
 function isExoticDep (resolvedVia: string): boolean {
   return !NON_EXOTIC_RESOLVED_VIA.has(resolvedVia)
-}
-
-export function getPolicyViolationContext (
-  parentIds: PkgResolutionId[],
-  resolvedPkgsById: ResolvedPkgsById
-): Pick<ResolutionPolicyViolation, 'retryParentId' | 'parents' | 'parentsTruncated'> {
-  const maxParentLabels = 32
-  return {
-    retryParentId: parentIds.length > 1 ? parentIds.at(-1) : undefined,
-    parentsTruncated: parentIds.length > maxParentLabels + 1,
-    parents: getPkgsInfoFromIds(parentIds, resolvedPkgsById, maxParentLabels).map(({ id, name, version }) => {
-      const parsed = dp.parse(id)
-      return { name, version: parsed.registryName && parsed.version ? `${parsed.registryName}:${parsed.version}` : version }
-    }),
-  }
 }

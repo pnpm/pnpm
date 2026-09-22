@@ -13,8 +13,6 @@ use super::{
     wanted_lockfile_contains_satisfying_entry,
 };
 
-const MAX_POLICY_PARENT_LABELS: usize = 32;
-
 #[async_recursion]
 pub(in super::super) async fn resolve_node_seed<'e, Chain>(
     ctx: &TreeCtx,
@@ -77,11 +75,7 @@ where
         return Ok(NodeSeed::Done(None));
     };
 
-    if let Some(mut violation) = result.policy_violation.clone() {
-        violation.parents_truncated = edge.ancestor_ids.len() > MAX_POLICY_PARENT_LABELS;
-        let start = edge.ancestor_ids.len().saturating_sub(MAX_POLICY_PARENT_LABELS);
-        (violation.parents, violation.retry_parent) =
-            parent_chain_from_ids(ctx, &edge.ancestor_ids[start..]);
+    if let Some(violation) = result.policy_violation.clone() {
         lock_recoverable(&ctx.workspace.policy.policy_violations).push(violation);
     }
 
@@ -496,48 +490,4 @@ impl ChildEdge<'_> {
             current_is_optional,
         }
     }
-}
-
-fn parent_chain_from_ids(
-    ctx: &TreeCtx,
-    ancestor_ids: &[String],
-) -> (Vec<pnpm_lockfile::PackageKey>, Option<pnpm_lockfile::PackageKey>) {
-    let packages = lock_recoverable(&ctx.workspace.tree.packages);
-    let mut parents = Vec::new();
-    let mut retry_parent = None;
-    for id in ancestor_ids {
-        retry_parent = None;
-        let Some(package) = packages.get(id.as_str()) else { continue };
-        retry_parent = registry_parent(&package.result);
-        let label = retry_parent
-            .clone()
-            .or_else(|| {
-                let manifest = package.result.package.manifest.as_ref()?;
-                let name = manifest.get("name")?.as_str()?;
-                let version = manifest.get("version")?.as_str()?;
-                format!("{name}@{version}").parse().ok()
-            });
-        if let Some(label) = label {
-            parents.push(label);
-        }
-    }
-    (parents, retry_parent)
-}
-
-fn registry_parent(
-    result: &pnpm_resolving_resolver_base::ResolveResult,
-) -> Option<pnpm_lockfile::PackageKey> {
-    result.package.name_ver.as_ref()?;
-    let mut key: pnpm_lockfile::PackageKey = result.id.as_str().parse().ok()?;
-    if !matches!(
-        key.suffix.version(),
-        pnpm_lockfile::VersionPart::Semver(_)
-            | pnpm_lockfile::VersionPart::RegistryQualified { .. },
-    ) {
-        return None;
-    }
-    if let Some(name) = &result.package.requested_name {
-        key.name = name.parse().ok()?;
-    }
-    Some(key)
 }

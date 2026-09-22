@@ -1,10 +1,9 @@
 import { confirm } from '@inquirer/prompts'
 import { mergePackageVersionSpecs } from '@pnpm/config.version-policy'
 import { promptLogger } from '@pnpm/core-loggers'
-import { PnpmError, redactUrlForDisplay } from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
-import { sanitizeInline } from '@pnpm/text.sanitize'
 import { isCI } from 'ci-info'
 
 /**
@@ -25,10 +24,6 @@ export interface PolicyViolation {
   version: string
   code: string
   reason: string
-  /** Retry identifiers, never display labels: URL-based IDs may contain secrets. */
-  retryParentId?: string
-  parents?: Array<{ name: string, version: string }>
-  parentsTruncated?: boolean
 }
 
 /**
@@ -242,7 +237,7 @@ function pickImmatureEntries (
 
 function failOnImmature (immature: readonly PolicyViolation[]): PnpmError {
   const sorted = [...immature].sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`))
-  const list = sorted.map((v) => `  ${v.name}@${v.version} ${v.reason}${formatDependentChain(v)}`).join('\n')
+  const list = sorted.map((v) => `  ${v.name}@${v.version} ${v.reason}`).join('\n')
   return new PnpmError(
     'NO_MATURE_MATCHING_VERSION',
     `${sorted.length} ${sorted.length === 1 ? 'version does' : 'versions do'} not meet the minimumReleaseAge constraint:\n${list}`,
@@ -284,23 +279,4 @@ async function promptForApproval (immature: readonly PolicyViolation[]): Promise
       }
     )
   }
-}
-
-
-/**
- * The chain of dependents that pulled a pick into the tree. Empty when the
- * importer asked for the package itself, which the message already makes
- * clear by naming no dependent.
- */
-function formatDependentChain (violation: PolicyViolation): string {
-  const dependents = (violation.parents ?? []).map(({ name, version }) =>
-    `${formatPackageLabel(name)}@${formatPackageLabel(version)}`
-  )
-  if (violation.parentsTruncated) dependents.unshift('...')
-  return dependents.length === 0 ? '' : ` (required by ${dependents.join(' > ')})`
-}
-
-function formatPackageLabel (value: string): string {
-  const label = sanitizeInline(value)
-  return label.includes('://') ? redactUrlForDisplay(label) : label
 }

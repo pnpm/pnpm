@@ -18,9 +18,6 @@ use crate::{NetworkError, PackageTag, RegistryError, package_distribution::Packa
 pub struct PackageVersion {
     pub name: String,
     pub version: node_semver::Version,
-    /// Selected raw packument key, retained when it differs from the normalized version.
-    #[serde(skip)]
-    pub packument_version: Option<String>,
     pub dist: PackageDistribution,
     #[serde(
         default,

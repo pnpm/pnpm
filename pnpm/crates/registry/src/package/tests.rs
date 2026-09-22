@@ -13,7 +13,6 @@ pub fn package_version_should_include_peers() {
     let mut peer_dependencies = HashMap::<String, String>::new();
     peer_dependencies.insert("fast-querystring".to_string(), "1.0.0".to_string());
     let version = PackageVersion {
-        packument_version: None,
         name: String::new(),
         version: Version::parse("1.0.0").unwrap(),
         dist: PackageDistribution::default(),
@@ -97,7 +96,6 @@ fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package
             (
                 version.to_string(),
                 PackageVersion {
-                    packument_version: None,
                     name: name.to_string(),
                     version: Version::parse(version).unwrap(),
                     dist: PackageDistribution::default(),

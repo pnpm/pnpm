@@ -198,7 +198,6 @@ async fn catalogs_work_in_injected_workspace_packages() {
                     alias: Some("project2".to_string()),
                     policy_violation: None,
                     package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-                        requested_name: None,
                         name_ver: None,
                         latest: None,
                         published_at: None,

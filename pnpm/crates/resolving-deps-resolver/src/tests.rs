@@ -217,7 +217,7 @@ fn dependency_result(name: &str, dependencies: &serde_json::Value) -> (String, V
 }
 
 async fn resolve_settlement_tree(
-    resolver: &impl Resolver,
+    resolver: &OverlayPickResolver,
     root_deps: serde_json::Value,
 ) -> crate::ResolvedTree {
     let (_tmp, manifest) = fake_manifest(root_deps);
@@ -259,7 +259,6 @@ fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> Resolv
         alias: Some(name.to_string()),
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-            requested_name: None,
             name_ver: Some(name_ver),
             latest: Some(version.to_string()),
             published_at: None,

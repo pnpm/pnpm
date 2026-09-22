@@ -216,30 +216,3 @@ test('approval prompts list each package version once', async () => {
     })
   })
 })
-
-
-test('dependent diagnostics omit locator secrets and sanitize display labels', async () => {
-  await withStdinTTY(false, async () => {
-    const plan = setupPolicyHandlers({ minimumReleaseAge: 60, minimumReleaseAgeStrict: true })!
-    const unsafe = {
-      ...violation('child', '1.0.0'),
-      retryParentId: 'git+https://user:password@example.com/repo?token=secret#fragment',
-      parents: [{ name: 'parent\u001b\n', version: '2.0.0\r' }],
-    }
-    await expect(plan.handleResolutionPolicyViolations([unsafe])).rejects.toMatchObject({
-      message: '1 version does not meet the minimumReleaseAge constraint:\n  child@1.0.0 stub reason (required by parent@2.0.0)',
-    })
-    await expect(plan.handleResolutionPolicyViolations([{
-      ...unsafe,
-      parents: [{ name: 'https://user:password@example.com/pkg?token=secret#fragment', version: '2.0.0' }],
-    }])).rejects.toMatchObject({
-      message: '1 version does not meet the minimumReleaseAge constraint:\n  child@1.0.0 stub reason (required by https://example.com/pkg@2.0.0)',
-    })
-    await expect(plan.handleResolutionPolicyViolations([{ ...unsafe, parentsTruncated: true }])).rejects.toMatchObject({
-      message: expect.stringContaining('(required by ... > parent@2.0.0)'),
-    })
-    await expect(plan.handleResolutionPolicyViolations([{ ...unsafe, parents: undefined }])).rejects.toMatchObject({
-      message: expect.not.stringContaining('required by'),
-    })
-  })
-})

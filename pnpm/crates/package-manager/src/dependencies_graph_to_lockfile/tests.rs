@@ -121,7 +121,6 @@ fn make_resolve_result(name: &str, version: &str, manifest: serde_json::Value) -
         alias: Some(name.to_string()),
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-            requested_name: None,
             name_ver: Some(name_ver),
             latest: None,
             published_at: None,
@@ -215,7 +214,6 @@ fn git_hosted_node(alias: &str) -> (DepPath, DependenciesGraphNode) {
         alias: Some(alias.to_string()),
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-            requested_name: None,
             name_ver: None,
             latest: None,
             published_at: None,
@@ -287,7 +285,6 @@ fn make_link_node(target: &str, manifest: serde_json::Value) -> DependenciesGrap
         alias: None,
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-            requested_name: None,
             name_ver: None,
             latest: None,
             published_at: None,
@@ -330,7 +327,6 @@ fn make_file_node(name: &str, directory: &str) -> DependenciesGraphNode {
         alias: None,
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-            requested_name: None,
             name_ver: None,
             latest: None,
             published_at: None,
@@ -420,7 +416,6 @@ fn make_named_registry_node(
         alias: Some(name.to_string()),
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-            requested_name: None,
             name_ver: Some(name_ver),
             latest: None,
             published_at: None,

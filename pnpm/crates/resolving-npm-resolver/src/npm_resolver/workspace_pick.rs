@@ -49,12 +49,8 @@ pub(super) fn workspace_shadow_pick(
         try_workspace_shadow(workspace_packages?, spec, &picked.version, wanted_dependency, opts)?;
     result.package.latest = latest_allowed_by_policy(
         &picked.meta,
-        &spec.name,
         opts.policy.published_by,
         opts.policy.published_by_exclude.as_ref(),
-        opts.policy.blocked_versions
-            .as_ref()
-            .and_then(|blocked| blocked.get(&spec.name)),
     )
     .map(str::to_string);
     Some(result)

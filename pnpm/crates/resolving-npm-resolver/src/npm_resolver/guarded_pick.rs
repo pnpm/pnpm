@@ -29,79 +29,16 @@ pub(crate) struct PickFromRegistryOptions<'a> {
     pub preferred_version_selectors: Option<&'a pnpm_resolving_resolver_base::VersionSelectors>,
     pub pick_lowest_version: bool,
     pub include_latest_tag: bool,
-    pub guard: RegistryGuardOptions<'a>,
+    pub package_version_guard:
+        Option<&'a Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
     pub policy: crate::PackagePickPolicy<'a>,
     pub request: crate::MetadataPickRequest,
-}
-
-pub(crate) struct RegistryGuardOptions<'a> {
-    pub hook: Option<&'a Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
-    pub blocked_versions: Option<&'a std::collections::HashSet<String>>,
-}
-
-impl<'a> RegistryGuardOptions<'a> {
-    pub(crate) fn new(opts: &'a super::ResolveOptions, name: &str) -> Self {
-        Self {
-            hook: opts.policy.package_version_guard.as_ref(),
-            blocked_versions: opts.policy.blocked_versions
-                .as_deref()
-                .and_then(|blocked| blocked.get(name)),
-        }
-    }
-}
-
-struct BlockedCandidates {
-    versions: std::collections::HashSet<String>,
-    guard_versions: std::collections::HashSet<String>,
-    policy_active: bool,
-}
-
-impl BlockedCandidates {
-    fn new(policy: Option<&std::collections::HashSet<String>>) -> Self {
-        Self {
-            versions: policy.cloned().unwrap_or_default(),
-            guard_versions: std::collections::HashSet::new(),
-            policy_active: policy.is_some_and(|versions| !versions.is_empty()),
-        }
-    }
-
-    fn lift_policy_blocks(&mut self) -> bool {
-        if !self.policy_active {
-            return false;
-        }
-        self.versions.clone_from(&self.guard_versions);
-        self.policy_active = false;
-        true
-    }
-
-    fn reject(&mut self, key: String) -> Option<RepickStop> {
-        self.versions.insert(key.clone());
-        repick_limit_reached(&mut self.guard_versions, key)
-    }
-}
-
-async fn guard_rejection(
-    opts: &PickFromRegistryOptions<'_>,
-    version: &PackageVersion,
-    semantic_version: &str,
-) -> Result<Option<String>, ResolveError> {
-    let Some(guard) = opts.guard.hook else { return Ok(None) };
-    let candidate = pnpm_resolving_resolver_base::PackageVersionGuardCandidate {
-        name: &opts.spec.name,
-        version: semantic_version,
-        registry: opts.registry,
-        packument_key: version.packument_version.as_deref().unwrap_or(semantic_version),
-    };
-    match guard.check_candidate(candidate).await? {
-        PackageVersionGuardDecision::Reject { reason } => Ok(Some(reason)),
-        PackageVersionGuardDecision::Allow => Ok(None),
-    }
 }
 
 /// Upper bound on guard rejections for one package before the resolver
 /// gives up. Far beyond any realistic run of consecutive blocked
 /// versions, so it only fires on a pathological/hostile packument.
-pub const GUARD_REPICK_LIMIT: usize = 1000;
+pub(super) const GUARD_REPICK_LIMIT: usize = 1000;
 
 pub(super) fn pick_options<'o>(
     opts: &'o PickFromRegistryOptions<'o>,
@@ -126,31 +63,42 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     opts: PickFromRegistryOptions<'_>,
 ) -> Result<RegistryPick, ResolveError> {
-    let mut blocked = BlockedCandidates::new(opts.guard.blocked_versions);
+    let mut blocked_versions = std::collections::HashSet::new();
     let mut last_rejection: Option<String> = None;
     // The first candidate the guard turned down, i.e. the one the picker
     // would have returned with no guard at all.
     let mut first_rejected: Option<PickedFromRegistry> = None;
     loop {
-        let pick_result = pick_package(ctx, opts.spec, &pick_options(&opts, &blocked.versions))
+        let pick_result = pick_package(ctx, opts.spec, &pick_options(&opts, &blocked_versions))
             .await
             .map_err(|err| map_pick_error(ctx, &opts, err))?;
 
         let Some(version) = pick_result.picked_package else {
-            if blocked.lift_policy_blocks() {
-                continue;
-            }
-            return no_candidate(&opts, first_rejected, last_rejection, pick_result.meta);
+            // No candidate left. With no prior guard rejection this is the
+            // ordinary "no matching version" outcome; once the guard has
+            // rejected every match, the guard's own policy decides, and a
+            // failure names the guard rather than blaming the range the user
+            // wrote.
+            return match last_rejection {
+                Some(reason) => exhausted(&opts, first_rejected, reason, all_versions_blocked),
+                None => Ok(RegistryPick::NoMatchingVersion(pick_result.meta)),
+            };
         };
+        let Some(guard) = opts.package_version_guard else {
+            return Ok(RegistryPick::Picked(PickedFromRegistry {
+                meta: pick_result.meta,
+                version,
+            }));
+        };
+
         let version_str = version.version.to_string();
-        let Some(reason) = guard_rejection(&opts, &version, &version_str).await? else {
-            let meta = crate::pick_package::filter_blocked_versions(
-                &pick_result.meta,
-                Some(&blocked.guard_versions),
-            )
-            .map(Arc::new)
-            .unwrap_or(pick_result.meta);
-            return Ok(RegistryPick::Picked(PickedFromRegistry { meta, version }));
+        let PackageVersionGuardDecision::Reject { reason } =
+            guard.check(&opts.spec.name, &version_str).await?
+        else {
+            return Ok(RegistryPick::Picked(PickedFromRegistry {
+                meta: pick_result.meta,
+                version,
+            }));
         };
         log_guard_rejection(&opts.spec.name, &version_str, &reason);
         // Block by the *packument key*, which the next pick filters on. It
@@ -160,23 +108,11 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
         // forever and wrongly reporting every version blocked when a lower
         // one is still fine.
         let blocked_key = blocked_packument_key(&pick_result.meta, &version, &version_str);
-        if let Some(stop) = blocked.reject(blocked_key) {
+        if let Some(stop) = repick_limit_reached(&mut blocked_versions, blocked_key) {
             return exhausted(&opts, first_rejected, reason, stop.into_error());
         }
         last_rejection = Some(reason);
         first_rejected.get_or_insert(PickedFromRegistry { meta: pick_result.meta, version });
-    }
-}
-
-fn no_candidate(
-    opts: &PickFromRegistryOptions<'_>,
-    first_rejected: Option<PickedFromRegistry>,
-    last_rejection: Option<String>,
-    meta: Arc<Package>,
-) -> Result<RegistryPick, ResolveError> {
-    match last_rejection {
-        Some(reason) => exhausted(opts, first_rejected, reason, all_versions_blocked),
-        None => Ok(RegistryPick::NoMatchingVersion(meta)),
     }
 }
 
@@ -223,16 +159,12 @@ pub(super) fn repick_limit_reached(
 /// exact entry the next pick filters on. Fast-paths the common case where
 /// the parsed manifest version is itself the key; only falls back to
 /// locating the key by identity when a registry served a mismatched key.
-#[must_use]
-pub fn blocked_packument_key(
+pub(super) fn blocked_packument_key(
     meta: &Package,
     picked: &Arc<PackageVersion>,
     version_str: &str,
 ) -> String {
-    if let Some(key) = &picked.packument_version {
-        return key.clone();
-    }
-    if meta.versions.get(version_str).is_some_and(|candidate| Arc::ptr_eq(&candidate, picked)) {
+    if meta.versions.contains_key(version_str) {
         return version_str.to_string();
     }
     meta.versions
@@ -252,7 +184,7 @@ pub(super) fn exhausted(
     reason: String,
     fail: impl FnOnce(String, String) -> ResolveError,
 ) -> Result<RegistryPick, ResolveError> {
-    let accepts_rejected = opts.guard.hook.is_some_and(|guard| {
+    let accepts_rejected = opts.package_version_guard.is_some_and(|guard| {
         guard.exhaustion_policy() == GuardExhaustionPolicy::AcceptRejected
     });
     match first_rejected.filter(|_| accepts_rejected) {

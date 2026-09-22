@@ -111,7 +111,6 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
         alias: Some("node".to_string()),
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-            requested_name: None,
             name_ver: None,
             latest: None,
             published_at: None,
@@ -291,7 +290,6 @@ fn non_host_git_dependency_records_bare_git_url_in_importer() {
         alias: Some("is-negative".to_string()),
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-            requested_name: None,
             name_ver: None,
             latest: None,
             published_at: None,

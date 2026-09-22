@@ -19,7 +19,6 @@ fn parse_iso(input: &str) -> DateTime<Utc> {
 
 fn make_pkg_version(name: &str, version: &str) -> PackageVersion {
     PackageVersion {
-        packument_version: None,
         name: name.to_string(),
         version: version.parse::<Version>().expect("parse semver"),
         dist: PackageDistribution::default(),
@@ -189,42 +188,4 @@ fn version_trusted_by_exact_version_stays_in_the_baseline() {
         "2.1.3",
     );
     assert_eq!(preferred, Some("2.1.4".to_string()));
-}
-
-#[test]
-fn does_not_recommend_a_version_with_an_immature_dependency_tree() {
-    let mut opts = update_opts();
-    opts.policy.blocked_versions = Some(std::sync::Arc::new(HashMap::from([(
-        "foo".to_string(),
-        std::collections::HashSet::from(["2.1.4".to_string()]),
-    )])));
-    let preferred = held_back_preferred(
-        &opts,
-        &range_spec(),
-        Some(&range_selectors()),
-        &make_package(),
-        "2.1.3",
-    );
-    assert_eq!(preferred, None);
-}
-
-#[test]
-fn does_not_recommend_a_blocked_version_under_a_raw_packument_key() {
-    let mut opts = update_opts();
-    opts.policy.blocked_versions = Some(std::sync::Arc::new(HashMap::from([(
-        "foo".to_string(),
-        std::collections::HashSet::from(["2.1.4".to_string()]),
-    )])));
-    let mut meta = make_package();
-    meta.versions = [
-        ("2.1.3".to_string(), make_pkg_version("foo", "2.1.3")),
-        ("v2.1.4".to_string(), make_pkg_version("foo", "2.1.4")),
-    ]
-    .into_iter()
-    .collect();
-    meta.dist_tags.insert("latest".to_string(), "v2.1.4".to_string());
-    assert_eq!(
-        held_back_preferred(&opts, &range_spec(), Some(&range_selectors()), &meta, "2.1.3"),
-        None,
-    );
 }

@@ -115,7 +115,6 @@ function canReuseStableCachedRange (
     !opts.includeLatestTag &&
     !opts.updateChecksums &&
     opts.publishedBy == null &&
-    !hasBlockedVersions(opts, spec) &&
     opts.trustPolicy !== 'no-downgrade'
   )
 }
@@ -146,11 +145,10 @@ function pickMax (
 const pickHighest = pickPackageFromMeta.bind(null, pickVersionByVersionRange)
 const pickLowest = pickPackageFromMeta.bind(null, pickLowestVersionByVersionRange)
 
-// `minimumReleaseAge` (and any version the install has blocked while backing
-// out of a dead end) narrows which versions are on offer; `pickLowestVersion`
+// `minimumReleaseAge` narrows which versions are on offer; `pickLowestVersion`
 // decides which end of what is left to take. The fallback deliberately drops
-// both filters so a range nothing acceptable satisfies still yields a pick,
-// which the install layer reports as a violation rather than this layer
+// the maturity filter so a range no mature version satisfies still yields a
+// pick, which the install layer reports as a violation rather than this layer
 // throwing.
 function pickRespectingMinReleaseAge (
   pickerOpts: PickerOptions,
@@ -185,7 +183,7 @@ function pickMatchingVersionFast (
   spec: RegistryPackageSpec,
   meta: PackageMeta
 ): PackageInRegistry | null {
-  return (pickerOpts.publishedBy || hasBlockedVersions(pickerOpts, spec))
+  return pickerOpts.publishedBy
     ? pickRespectingMinReleaseAge(pickerOpts, spec, meta)
     : pickIgnoringReleaseAge(pickerOpts, spec, meta)
 }
@@ -283,7 +281,6 @@ export async function pickPackage (
     preferredVersionSelectors: opts.preferredVersionSelectors,
     publishedBy: opts.publishedBy,
     publishedByExclude: opts.publishedByExclude,
-    blockedVersions: opts.blockedVersions,
     pickLowestVersion: opts.pickLowestVersion,
     includeLatestTag: opts.includeLatestTag,
     ignoreMissingTimeField: ctx.ignoreMissingTimeField,
@@ -581,7 +578,7 @@ export async function pickPackage (
         // takes the abbreviated fast path: `modified` is an upper bound on
         // every version's publish time, so when it equals the cutoff every
         // version passes the per-version `<=` filter in
-        // `filterPkgMetadata` and a full re-fetch isn't needed.
+        // `filterPkgMetadataByPublishDate` and a full re-fetch isn't needed.
         if (!isModifiedValid || modifiedDate > opts.publishedBy) {
           // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
           if (!opts.dryRun) {
@@ -672,7 +669,7 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     // `modified` is an upper bound on every version's publish time, no version
     // can be newer than the cutoff, so the abbreviated form is fine.
     // Inclusive at the boundary on purpose: matches the per-version `<=` filter
-    // in `filterPkgMetadata`.
+    // in `filterPkgMetadataByPublishDate`.
     return { meta }
   }
   // When `modified` is missing or malformed we fall through to the upgrade
@@ -958,8 +955,4 @@ function validatePackageName (pkgName: string) {
   if (pkgName.includes('/') && pkgName[0] !== '@') {
     throw new PnpmError('INVALID_PACKAGE_NAME', `Package name ${pkgName} is invalid, it should have a @scope`)
   }
-}
-
-function hasBlockedVersions (opts: PickPackageFromMetaOptions, spec: RegistryPackageSpec): boolean {
-  return (opts.blockedVersions?.get(spec.name)?.size ?? 0) > 0
 }

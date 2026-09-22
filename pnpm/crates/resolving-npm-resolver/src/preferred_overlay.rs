@@ -1,9 +1,6 @@
-use crate::{
-    pick_package::is_version_blocked,
-    pick_package_from_meta::{
-        PickVersionByVersionRangeOptions, RegistryPackageSpec, RegistryPackageSpecType,
-        apply_published_by_policy, filter_pkg_metadata_versions, pick_version_by_version_range,
-    },
+use crate::pick_package_from_meta::{
+    PickVersionByVersionRangeOptions, RegistryPackageSpec, RegistryPackageSpecType,
+    apply_published_by_policy, pick_version_by_version_range,
 };
 use pnpm_registry::Package;
 use pnpm_resolving_resolver_base::{
@@ -122,26 +119,12 @@ fn held_back_preferred(
     // the filtered view.
     let baseline_meta: &Package = match opts.policy.published_by {
         Some(cutoff) => {
-            view = apply_published_by_policy(
-                meta,
-                &spec.name,
-                cutoff,
-                opts.policy.published_by_exclude.as_ref(),
-            );
+            view =
+                apply_published_by_policy(meta, cutoff, opts.policy.published_by_exclude.as_ref());
             view.filtered.as_deref().unwrap_or(meta)
         }
         None => meta,
     };
-    let blocked_view = opts.policy.blocked_versions
-        .as_ref()
-        .and_then(|blocked| blocked.get(&spec.name))
-        .filter(|versions| !versions.is_empty())
-        .map(|versions| {
-            filter_pkg_metadata_versions(baseline_meta, |version| {
-                !is_version_blocked(baseline_meta, version, versions)
-            })
-        });
-    let baseline_meta = blocked_view.as_ref().unwrap_or(baseline_meta);
     let preferred = pick_version_by_version_range(&PickVersionByVersionRangeOptions {
         meta: baseline_meta,
         version_range: &spec.fetch_spec,

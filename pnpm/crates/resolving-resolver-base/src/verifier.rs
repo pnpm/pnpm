@@ -57,17 +57,6 @@ pub struct ResolutionPolicyViolation {
     pub resolution: LockfileResolution,
     pub code: &'static str,
     pub reason: String,
-    /// Up to 32 nearest dependents, the immediate parent last.
-    /// `parents_truncated` indicates omitted ancestors. Empty when
-    /// the importer asked for the package itself, and when the violation
-    /// was raised outside a dependency walk — the lockfile verifier checks
-    /// entries it has no path for. The install names the dependent with
-    /// it; these diagnostic labels do not imply registry addressability.
-    pub parents: Vec<pnpm_lockfile::PackageKey>,
-    pub parents_truncated: bool,
-    /// The immediate parent's registry coordinate, when its version can be
-    /// retried. Non-registry parents have diagnostic labels but no retry key.
-    pub retry_parent: Option<pnpm_lockfile::PackageKey>,
 }
 
 /// `ctx` argument bundle for [`ResolutionVerifier::verify`].

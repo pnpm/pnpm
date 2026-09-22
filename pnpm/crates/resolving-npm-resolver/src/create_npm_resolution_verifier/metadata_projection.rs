@@ -58,7 +58,6 @@ pub(super) fn project_trust_package_version(version: &PackageVersion) -> Package
         trusted_publisher: trusted_publisher.cloned(),
     });
     PackageVersion {
-        packument_version: None,
         // `fail_if_trust_downgraded` keys off the outer `meta.versions`
         // map and the version-level npm_user / attestations fields. The
         // per-version `name`, `version`, and `dist` non-attestation fields

@@ -42,14 +42,10 @@ async fn package_version_guard_excludes_rejected_versions_and_repicks() {
 #[tokio::test]
 async fn package_version_guard_repopulates_latest_tag() {
     let mut server = mockito::Server::new_async().await;
-    let mut metadata: serde_json::Value = serde_json::from_str(PACKAGE_BODY).unwrap();
-    let mut untagged = metadata["versions"]["1.1.0"].clone();
-    untagged["version"] = "2.0.0".into();
-    metadata["versions"]["2.0.0"] = untagged;
     let _mock = server
         .mock("GET", "/acme")
         .with_status(200)
-        .with_body(metadata.to_string())
+        .with_body(PACKAGE_BODY)
         .create_async()
         .await;
     let registry = format!("{}/", server.url());
@@ -214,7 +210,7 @@ async fn package_version_guard_accepting_rejected_falls_back_at_the_repick_limit
 }
 
 #[tokio::test]
-async fn package_version_guard_receives_and_blocks_the_packument_version() {
+async fn package_version_guard_blocks_the_packument_key_not_the_parsed_version() {
     let mut server = mockito::Server::new_async().await;
     let _mock = server
         .mock("GET", "/acme")
@@ -225,9 +221,13 @@ async fn package_version_guard_receives_and_blocks_the_packument_version() {
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
+    // The guard rejects the parsed manifest version `1.5.0`, whose
+    // packument key is `1.5.0+build`. The repick must still exclude that
+    // entry and fall back to `1.0.0`, rather than wrongly reporting that
+    // every version is blocked.
     let opts = ResolveOptions {
         policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
-            package_version_guard: Some(reject_versions(&["1.5.0+build"])),
+            package_version_guard: Some(reject_versions(&["1.5.0"])),
             ..Default::default()
         },
         ..ResolveOptions::default()
@@ -251,178 +251,4 @@ async fn package_version_guard_receives_and_blocks_the_packument_version() {
             .to_string(),
         "1.0.0",
     );
-}
-
-#[tokio::test]
-async fn lifting_maturity_blocks_keeps_guard_rejections() {
-    let mut server = mockito::Server::new_async().await;
-    let _mock = server
-        .mock("GET", "/acme")
-        .with_status(200)
-        .with_body(PACKAGE_BODY)
-        .create_async()
-        .await;
-    let (resolver, _tempdir) = build_resolver(&format!("{}/", server.url()));
-    let opts = ResolveOptions {
-        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
-            package_version_guard: Some(reject_versions(&["1.1.0"])),
-            blocked_versions: Some(std::sync::Arc::new(std::collections::HashMap::from([(
-                "acme".to_string(),
-                std::collections::HashSet::from(["1.0.0".to_string()]),
-            )]))),
-            ..Default::default()
-        },
-        ..Default::default()
-    };
-    let wanted = WantedDependency {
-        alias: Some("acme".to_string()),
-        bare_specifier: Some("^1.0.0".to_string()),
-        ..Default::default()
-    };
-    let result = resolver
-        .resolve(&wanted, &opts)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(result.package.name_ver.unwrap().suffix.to_string(), "1.0.0");
-}
-
-#[test]
-fn a_mismatched_manifest_version_does_not_block_another_packument_entry() {
-    let meta: pnpm_registry::Package = serde_json::from_value(serde_json::json!({
-        "name": "acme", "dist-tags": { "latest": "2.0.0" },
-        "versions": {
-            "1.0.0": { "name": "acme", "version": "1.0.0", "dist": { "tarball": "https://registry/one.tgz" } },
-            "2.0.0": { "name": "acme", "version": "1.0.0", "dist": { "tarball": "https://registry/two.tgz" } }
-        }
-    })).unwrap();
-    let picked = meta.versions.get("2.0.0").unwrap();
-    assert_eq!(crate::blocked_packument_key(&meta, &picked, "1.0.0"), "2.0.0");
-}
-
-#[tokio::test]
-async fn blocked_policy_uses_requested_name_when_manifest_name_differs() {
-    let mut body: serde_json::Value = serde_json::from_str(PACKAGE_BODY).unwrap();
-    body["name"] = serde_json::json!("other");
-    body["versions"]["1.1.0"]["name"] = serde_json::json!("other");
-    body["versions"]["1.1.0"]["version"] = serde_json::json!("1.0.0");
-    let mut server = mockito::Server::new_async().await;
-    let _mock = server
-        .mock("GET", "/acme")
-        .with_status(200)
-        .with_body(body.to_string())
-        .create_async()
-        .await;
-    let (resolver, _tempdir) = build_resolver(&format!("{}/", server.url()));
-    let mut opts = ResolveOptions::default();
-    opts.policy.published_by = Some(chrono::Utc::now());
-    opts.policy.blocked_versions = Some(std::sync::Arc::new(std::collections::HashMap::from([(
-        "acme".to_string(),
-        std::collections::HashSet::from(["1.1.0".to_string()]),
-    )])));
-    let wanted = WantedDependency {
-        alias: Some("acme".to_string()),
-        bare_specifier: Some("1.1.0".to_string()),
-        ..WantedDependency::default()
-    };
-    let result = resolver
-        .resolve(&wanted, &opts)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(result.id.as_str(), "acme@1.1.0");
-    let violation = result.policy_violation.unwrap();
-    assert_eq!(violation.name.to_string(), "acme");
-    assert_eq!(violation.code, crate::MINIMUM_RELEASE_AGE_VIOLATION_CODE);
-}
-
-#[tokio::test]
-async fn raw_packument_keys_drive_guards_blocks_and_publication_checks() {
-    for raw_key in ["v1.1.0", "banana"] {
-        let mut body: serde_json::Value = serde_json::from_str(PACKAGE_BODY).unwrap();
-        let version = body["versions"]
-            .as_object_mut()
-            .unwrap()
-            .remove("1.1.0")
-            .unwrap();
-        body["versions"][raw_key] = version;
-        body["time"][raw_key] = body["time"]
-            .as_object_mut()
-            .unwrap()
-            .remove("1.1.0")
-            .unwrap();
-        body["dist-tags"]["latest"] = raw_key.into();
-        body["versions"][raw_key]["deprecated"] = serde_json::json!("obsolete");
-        body["versions"]["1.0.0"]["deprecated"] = serde_json::json!("obsolete");
-        let mut server = mockito::Server::new_async().await;
-        let _mock = server
-            .mock("GET", "/acme")
-            .with_status(200)
-            .with_body(body.to_string())
-            .create_async()
-            .await;
-        let (resolver, _tempdir) = build_resolver(&format!("{}/", server.url()));
-        let wanted = WantedDependency { alias: Some("acme".to_string()), ..Default::default() };
-        for policy in [
-            pnpm_resolving_resolver_base::ResolutionPolicyOptions {
-                package_version_guard: Some(reject_versions(&["1.1.0"])),
-                ..Default::default()
-            },
-            pnpm_resolving_resolver_base::ResolutionPolicyOptions {
-                blocked_versions: Some(std::sync::Arc::new(std::collections::HashMap::from([(
-                    "acme".to_string(),
-                    std::collections::HashSet::from(["1.1.0".to_string()]),
-                )]))),
-                ..Default::default()
-            },
-        ] {
-            let has_retry_blocks = policy.blocked_versions.is_some();
-            let result = resolver
-                .resolve(&wanted, &ResolveOptions { policy, ..Default::default() })
-                .await
-                .unwrap()
-                .unwrap();
-            assert_eq!(result.package.name_ver.unwrap().suffix.to_string(), "1.0.0");
-            assert_eq!(
-                result.package.non_deprecated_alternative.as_ref().unwrap().version,
-                "1.0.0-canary.1",
-            );
-            assert_eq!(result.package.latest.as_deref(), (!has_retry_blocks).then_some("1.0.0"));
-        }
-        let unrelated_block = ResolveOptions {
-            policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
-                blocked_versions: Some(std::sync::Arc::new(std::collections::HashMap::from([(
-                    "acme".to_string(),
-                    std::collections::HashSet::from(["2.0.0".to_string()]),
-                )]))),
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-        let allowed = resolver
-            .resolve(&wanted, &unrelated_block)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(allowed.package.name_ver.unwrap().suffix.to_string(), "1.1.0");
-        assert_eq!(allowed.package.latest.as_deref(), Some(raw_key));
-        assert_eq!(
-            allowed.package.non_deprecated_alternative.as_ref().unwrap().version,
-            "1.0.0-canary.1",
-        );
-        let opts = ResolveOptions {
-            policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
-                published_by: Some("2023-01-01T00:00:00Z".parse().unwrap()),
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-        let result = resolver
-            .resolve(&wanted, &opts)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(result.package.published_at.as_deref(), Some("2024-12-10T08:30:00.000Z"));
-        assert!(result.policy_violation.is_some());
-    }
 }

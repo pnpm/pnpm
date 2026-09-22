@@ -10,10 +10,8 @@ import type {
 } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
 import { calcVersionRange, inferRangeSpecStyle, rangeSpecGranularity, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
-import { isVersionBlocked } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageRevision } from '@pnpm/resolving.registry.types'
 import type {
-  BlockedVersions,
   DirectoryResolution,
   LatestInfo,
   LatestQuery,
@@ -75,7 +73,7 @@ import {
   pickPackage,
   type PickPackageOptions,
 } from './pickPackage.js'
-import { applyPublishedByPolicy, findNonDeprecatedAlternative, getPackumentVersion, knownImmature, pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
+import { applyPublishedByPolicy, findNonDeprecatedAlternative, knownImmature, pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from './violationCodes.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
@@ -387,10 +385,9 @@ function stripLockfileVersionPins (selectors?: VersionSelectors): VersionSelecto
  * applied — `range`/`tag` selectors such as the `pnpm audit --fix`
  * vulnerability penalties steer the baseline too, so the warning never
  * recommends a version those selectors avoid. The baseline also honors the
- * `publishedBy` maturity cutoff and the blocklist the actual pick applied: a
- * version `minimumReleaseAge` rules out, directly or because its own
- * dependency tree cannot satisfy the cutoff, is not an update the manifests
- * held back, and recommending an override for it would defeat the age gate.
+ * `publishedBy` maturity cutoff the actual pick applied: a version blocked
+ * by `minimumReleaseAge` is not an update the manifests held back, and
+ * recommending an override for it would defeat the age gate.
  *
  * The recommended override is scoped to the declared range being resolved
  * (`name@<range>`), so applying it can never violate any consumer's range:
@@ -399,7 +396,7 @@ function stripLockfileVersionPins (selectors?: VersionSelectors): VersionSelecto
  */
 function warnOnceOnHeldBackUpdate (
   ctx: Pick<ResolveFromNpmContext, 'warnedHeldBackUpdates'>,
-  opts: Pick<ResolveFromNpmOptions, 'updateRequested' | 'preferredVersions' | 'publishedBy' | 'publishedByExclude' | 'blockedVersions'>,
+  opts: Pick<ResolveFromNpmOptions, 'updateRequested' | 'preferredVersions' | 'publishedBy' | 'publishedByExclude'>,
   spec: RegistryPackageSpec,
   meta: PackageMeta,
   pickedVersion: string
@@ -417,9 +414,8 @@ function warnOnceOnHeldBackUpdate (
   // `needsFullMetadata` is not this caller's problem: the pick already
   // succeeded on this metadata, which for an abbreviated packument means
   // every version cleared the cutoff, so `meta` is the filtered view.
-  const blockedForPkg = opts.blockedVersions?.get(spec.name)
-  const baselineMeta = (opts.publishedBy != null || blockedForPkg?.size)
-    ? applyPublishedByPolicy(meta, { requestedName: spec.name, publishedBy: opts.publishedBy, publishedByExclude: opts.publishedByExclude, blockedVersions: blockedForPkg }).meta
+  const baselineMeta = opts.publishedBy != null
+    ? applyPublishedByPolicy(meta, opts.publishedBy, opts.publishedByExclude).meta
     : meta
   const preferred = pickVersionByVersionRange({
     meta: baselineMeta,
@@ -525,7 +521,6 @@ export type ResolveFromNpmOptions = {
   defaultTag?: string
   publishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
-  blockedVersions?: BlockedVersions
   pickLowestVersion?: boolean
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
@@ -599,17 +594,13 @@ async function resolveNpm (
   // If publishedBy is set (resolutionMode=time-based or minimumReleaseAge is configured), we only take
   // the fast path when publishedAt is already known from the lockfile's `time:` block; otherwise we
   // fall through to a registry fetch so the cutoff isn't computed from missing data.
-  // A locked version the install has blocked never takes it either: peeking
-  // would hand back the very version the retry is trying to move off, so the
-  // pick has to go through the picker that knows about the block.
   if (
     ctx.peekManifestFromStore &&
     opts.currentPkg?.resolution &&
     !opts.update &&
     !opts.updatePatches &&
     spec.revision == null &&
-    (opts.publishedBy == null || opts.currentPkg.publishedAt != null) &&
-    !isBlocked(opts.blockedVersions, spec.name, opts.currentPkg.version)
+    (opts.publishedBy == null || opts.currentPkg.publishedAt != null)
   ) {
     const currentResolution = opts.currentPkg.resolution
     // Only use this optimization for tarball resolutions with integrity (npm packages)
@@ -622,13 +613,12 @@ async function resolveNpm (
       })
       // Verify the manifest matches what we expect
       if (manifest?.name && manifest?.version) {
-        const id = `${spec.name}@${manifest.version}` as PkgResolutionId
+        const id = `${manifest.name}@${manifest.version}` as PkgResolutionId
         // Only return if the ID matches what we have in currentPkg
         if (id === opts.currentPkg.id) {
           return {
             id,
             manifest,
-            requestedName: spec.name,
             resolution: currentResolution as TarballResolution,
             resolvedVia: 'npm-registry',
             publishedAt: opts.currentPkg.publishedAt,
@@ -639,13 +629,11 @@ async function resolveNpm (
             // to the install command.
             policyViolation: detectMinReleaseAgeViolation({
               name: manifest.name,
-              requestedName: spec.name,
               version: manifest.version,
               publishedAt: opts.currentPkg.publishedAt,
               resolution: currentResolution,
               publishedBy: opts.publishedBy,
               publishedByExclude: opts.publishedByExclude,
-              blockedVersions: opts.blockedVersions,
             }),
           }
         }
@@ -691,7 +679,6 @@ async function resolveNpm (
       pickLowestVersion: opts.pickLowestVersion,
       publishedBy: opts.publishedBy,
       publishedByExclude: opts.publishedByExclude,
-      blockedVersions: opts.blockedVersions,
       authHeaderValue,
       dryRun: opts.dryRun === true,
       preferredVersionSelectors: preferredVersionSelectorsFor(opts, spec.name),
@@ -759,7 +746,7 @@ async function resolveNpm (
     })
   }
 
-  const latest = latestAllowedByPolicy(meta, opts, spec.name)
+  const latest = latestAllowedByPolicy(meta, opts)
   const workspacePkgsMatchingName = spec.revision == null ? workspacePackages?.get(pickedPackage.name) : undefined
   if (workspacePkgsMatchingName && opts.projectDir) {
     const matchedPkg = workspacePkgsMatchingName.get(pickedPackage.version)
@@ -796,7 +783,7 @@ async function resolveNpm (
 
   warnOnceOnHeldBackUpdate(ctx, opts, spec, meta, pickedPackage.version)
   const selectedPackage = selectPackageRevision(pickedPackage, spec, registry)
-  const id = `${spec.name}@${pickedPackage.version}` as PkgResolutionId
+  const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
   const resolution = createRegistryTarballResolution(selectedPackage.dist, registry)
   let normalizedBareSpecifier: string | undefined
   if (opts.calcSpecifier) {
@@ -807,11 +794,10 @@ async function resolveNpm (
       defaultRangeSpecStyle: opts.rangeSpecStyle,
     })
   }
-  const publishedAt = meta.time?.[getPackumentVersion(pickedPackage)]
+  const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id,
     latest,
-    requestedName: spec.name,
     manifest: selectedPackage,
     resolution,
     resolvedVia: 'npm-registry',
@@ -819,13 +805,11 @@ async function resolveNpm (
     normalizedBareSpecifier,
     policyViolation: detectMinReleaseAgeViolation({
       name: pickedPackage.name,
-      requestedName: spec.name,
       version: pickedPackage.version,
       publishedAt,
       resolution,
       publishedBy: opts.publishedBy,
       publishedByExclude: opts.publishedByExclude,
-      blockedVersions: opts.blockedVersions,
     }),
   }
 }
@@ -925,19 +909,14 @@ async function resolveFromNamedRegistry (
   const registry = ctx.registriesByPrefix[spec.registryName]
   if (!registry) return null // defensive: should never trigger because parse checks the alias set
 
-  const blocked = opts.blockedVersions?.get(spec.name)
-  const prefix = `${spec.registryName}:`
-  const blockedVersions = blocked && new Map([[spec.name, new Set(
-    [...blocked].filter(version => version.startsWith(prefix)).map(version => version.slice(prefix.length))
-  )]])
-  const picked = await pickFromSimpleRegistry(ctx, wantedDependency, { ...opts, blockedVersions }, spec, registry)
+  const picked = await pickFromSimpleRegistry(ctx, wantedDependency, opts, spec, registry)
   return {
     ...picked,
     // Qualifying the id with the registry alias is what keeps the same
     // name@version resolved from two registries distinct in the lockfile.
     // Without it they collapse onto one entry and whichever resolved first
     // decides the tarball both consumers get.
-    id: `${spec.name}@${spec.registryName}:${picked.manifest.version}` as PkgResolutionId,
+    id: `${picked.manifest.name}@${spec.registryName}:${picked.manifest.version}` as PkgResolutionId,
     normalizedBareSpecifier: opts.calcSpecifier
       ? calcPrefixedSpecifier({
         prefix: `${spec.registryName}:`,
@@ -970,7 +949,6 @@ async function pickFromSimpleRegistry (
   id: PkgResolutionId
   latest?: string
   nonDeprecatedAlternative?: NonDeprecatedAlternative
-  requestedName: string
   manifest: DependencyManifest
   resolution: TarballResolution
   publishedAt?: string
@@ -981,7 +959,6 @@ async function pickFromSimpleRegistry (
     pickLowestVersion: opts.pickLowestVersion,
     publishedBy: opts.publishedBy,
     publishedByExclude: opts.publishedByExclude,
-    blockedVersions: opts.blockedVersions,
     authHeaderValue,
     dryRun: opts.dryRun === true,
     preferredVersionSelectors: preferredVersionSelectorsFor(opts, spec.name),
@@ -997,27 +974,24 @@ async function pickFromSimpleRegistry (
   warnOnceOnHeldBackUpdate(ctx, opts, spec, meta, pickedPackage.version)
   const selectedPackage = selectPackageRevision(pickedPackage, spec, registry)
   const resolution = createRegistryTarballResolution(selectedPackage.dist, registry)
-  const publishedAt = meta.time?.[getPackumentVersion(pickedPackage)]
+  const publishedAt = meta.time?.[pickedPackage.version]
   return {
-    id: `${spec.name}@${pickedPackage.version}` as PkgResolutionId,
-    latest: latestAllowedByPolicy(meta, opts, spec.name),
+    id: `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId,
+    latest: latestAllowedByPolicy(meta, opts),
     // Only worked out for a deprecated pick, so the scan stays on the rare path.
     nonDeprecatedAlternative: pickedPackage.deprecated
       ? findNonDeprecatedAlternative(meta, spec, opts)
       : undefined,
-    requestedName: spec.name,
     manifest: selectedPackage,
     resolution,
     publishedAt,
     policyViolation: detectMinReleaseAgeViolation({
       name: pickedPackage.name,
-      requestedName: spec.name,
       version: pickedPackage.version,
       publishedAt,
       resolution,
       publishedBy: opts.publishedBy,
       publishedByExclude: opts.publishedByExclude,
-      blockedVersions: opts.blockedVersions,
     }),
   }
 }
@@ -1280,7 +1254,7 @@ function defaultTagForAlias (alias: string, defaultTag: string): RegistryPackage
 }
 
 /**
- * The raw `dist-tags.latest` when the age cutoff and retry blocks would
+ * The raw `dist-tags.latest` when the active `minimumReleaseAge` policy would
  * allow installing it, `undefined` otherwise. The install summary's
  * "(X is available)" hint must only ever name the actual latest tag, so an
  * immature latest suppresses the hint instead of being rewritten to an older
@@ -1294,15 +1268,11 @@ function latestAllowedByPolicy (
   opts: {
     publishedBy?: Date
     publishedByExclude?: PackageVersionPolicy
-    blockedVersions?: BlockedVersions
-  },
-  requestedName: string
+  }
 ): string | undefined {
   const latest = meta['dist-tags'].latest
   if (!latest) return undefined
-  const blocked = opts.blockedVersions?.get(requestedName)
-  if (blocked?.size && isVersionBlocked(latest, blocked, meta.versions)) return undefined
-  return knownImmature(meta, latest, { ...opts, requestedName }) ? undefined : latest
+  return knownImmature(meta, latest, opts) ? undefined : latest
 }
 
 /**
@@ -1314,56 +1284,28 @@ function latestAllowedByPolicy (
  * deps-resolver aggregates the per-resolve `policyViolation` fields into
  * a single set the install command reacts to.
  *
- * A version the install has blocked also reports a violation, even when it
- * is mature: the block means its own dependency tree could not satisfy the
- * cutoff, and the picker fell back to it only because nothing acceptable was
- * left in range. Reporting it is what lets the retry blame the next ancestor
- * up instead of stopping at a dead end it already knows about.
- *
  * Returns `undefined` for resolutions outside the policy — no policy
  * active, version excluded by pattern, timestamp missing or malformed,
  * or version mature. Specific-version exclusions (`pkg@1.0.0`) and
  * full-name exclusions (`pkg`) are both honored so an entry already on
  * the user's exclude list isn't re-announced every install.
  */
-function isBlocked (
-  blockedVersions: BlockedVersions | undefined,
-  name: string | undefined,
-  version: string | undefined
-): boolean {
-  if (blockedVersions == null || name == null || version == null) return false
-  return blockedVersions.get(name)?.has(version) === true
-}
-
 function detectMinReleaseAgeViolation (args: {
   name: string
-  requestedName?: string
   version: string
   publishedAt: string | undefined
   resolution: Resolution
   publishedBy: Date | undefined
   publishedByExclude: PackageVersionPolicy | undefined
-  blockedVersions?: BlockedVersions
 }): ResolutionPolicyViolation | undefined {
-  if (!args.publishedBy) return undefined
-  const name = args.requestedName ?? args.name
-  if (isBlocked(args.blockedVersions, name, args.version)) {
-    return {
-      name,
-      version: args.version,
-      resolution: args.resolution,
-      code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
-      reason: 'has no dependency tree that satisfies the minimumReleaseAge cutoff',
-    }
-  }
-  if (!args.publishedAt) return undefined
-  const excludeResult = args.publishedByExclude?.(name)
+  if (!args.publishedBy || !args.publishedAt) return undefined
+  const excludeResult = args.publishedByExclude?.(args.name)
   if (excludeResult === true) return undefined
   if (Array.isArray(excludeResult) && excludeResult.includes(args.version)) return undefined
   const ts = new Date(args.publishedAt).getTime()
   if (Number.isNaN(ts) || ts <= args.publishedBy.getTime()) return undefined
   return {
-    name,
+    name: args.name,
     version: args.version,
     resolution: args.resolution,
     code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,

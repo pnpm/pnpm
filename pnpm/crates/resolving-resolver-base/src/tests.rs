@@ -48,9 +48,6 @@ fn resolution_policy_violation_carries_pkg_name_and_resolution() {
         resolution: fake_resolution(),
         code: "MINIMUM_RELEASE_AGE_VIOLATION",
         reason: "was published yesterday".to_string(),
-        parents: Vec::new(),
-        parents_truncated: false,
-        retry_parent: None,
     };
     assert_eq!(violation.name.to_string(), "lodash");
     assert_eq!(violation.version, "4.17.21");
@@ -154,7 +151,6 @@ impl Resolver for StubResolver {
                 alias: wanted_dependency.alias.clone(),
                 policy_violation: None,
                 package: crate::ResolvedPackageInfo {
-                    requested_name: None,
                     name_ver: Some(name_ver),
                     latest: None,
                     published_at: None,

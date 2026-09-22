@@ -31,11 +31,10 @@ pub(crate) struct PublishedByView {
 #[must_use]
 pub(crate) fn apply_published_by_policy(
     meta: &Package,
-    requested_name: &str,
     cutoff: chrono::DateTime<chrono::Utc>,
     exclude: Option<&PackageVersionPolicy>,
 ) -> PublishedByView {
-    let exclude_result = exclude.map_or(PolicyMatch::No, |policy| policy.matches(requested_name));
+    let exclude_result = exclude.map_or(PolicyMatch::No, |policy| policy.matches(&meta.name));
     if matches!(exclude_result, PolicyMatch::AnyVersion) {
         return PublishedByView { filtered: None, needs_full_metadata: false };
     }
@@ -91,12 +90,12 @@ pub(super) fn publish_date_policy_key(
     cutoff: chrono::DateTime<chrono::Utc>,
     trusted_versions: Option<&[String]>,
 ) -> String {
-    serde_json::json!([
-        cutoff.timestamp(),
-        cutoff.timestamp_subsec_nanos(),
-        trusted_versions.unwrap_or_default(),
-    ])
-    .to_string()
+    let mut key = format!("{}.{}", cutoff.timestamp(), cutoff.timestamp_subsec_nanos());
+    for trusted in trusted_versions.unwrap_or_default() {
+        key.push('\0');
+        key.push_str(trusted);
+    }
+    key
 }
 
 pub(super) fn filter_pkg_metadata_by_publish_date_uncached(
@@ -141,12 +140,13 @@ pub fn filter_pkg_metadata_versions(meta: &Package, keep: impl FnMut(&str) -> bo
     filter_pkg_metadata_versions_with_dist_tag_bound(meta, keep, false)
 }
 
-pub(crate) fn filter_pkg_metadata_versions_with_dist_tag_bound(
+pub(super) fn filter_pkg_metadata_versions_with_dist_tag_bound(
     meta: &Package,
     mut keep: impl FnMut(&str) -> bool,
     bound_dist_tags: bool,
 ) -> Package {
-    // Decide membership on version strings; slots move as raw fragments.
+    // Decide on version strings alone; slots move as raw fragments, so
+    // the filter never hydrates a manifest.
     let filtered_versions = meta.versions.filtered(|version| keep(version));
     let dist_tags = repopulate_dist_tags(meta, &filtered_versions, bound_dist_tags);
 
@@ -182,12 +182,12 @@ pub(super) fn repopulate_dist_tags(
             dist_tags_within_date.insert(tag.clone(), version.clone());
             continue;
         }
-        let Some(original) = meta.versions.resolve_version(version) else { continue };
+        let Ok(original) = Version::parse(version) else { continue };
         let candidates = parsed_candidates.get_or_insert_with(|| {
             filtered_versions
                 .keys()
                 .filter_map(|raw| {
-                    let parsed = filtered_versions.resolve_version(raw)?;
+                    let parsed = Version::parse(raw).ok()?;
                     Some((parsed, raw, OnceCell::new()))
                 })
                 .collect()
@@ -244,6 +244,3 @@ pub(super) fn best_tag_candidate<'a>(
     }
     best.map(|slot| slot.1)
 }
-
-#[cfg(test)]
-mod tests;

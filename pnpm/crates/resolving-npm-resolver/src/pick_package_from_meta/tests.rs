@@ -23,7 +23,6 @@ fn parse_iso(input: &str) -> DateTime<Utc> {
 
 fn make_pkg_version(name: &str, version: &str, deprecated: Option<&str>) -> PackageVersion {
     PackageVersion {
-        packument_version: None,
         name: name.to_string(),
         version: version.parse::<Version>().expect("parse semver"),
         dist: PackageDistribution::default(),
@@ -857,28 +856,4 @@ fn filter_tag_rewrite_reads_deprecation_from_raw_fragments() {
         Some("2.1.0"),
         "deprecation must be read from the raw fragment, not via hydration",
     );
-}
-
-#[test]
-fn blocked_latest_can_fall_back_to_an_allowed_malformed_key() {
-    let pkg: Package = serde_json::from_value(serde_json::json!({
-        "name": "acme", "dist-tags": { "latest": "2.0.0" },
-        "versions": {
-            "banana": { "name": "acme", "version": "1.0.0", "dist": { "tarball": "https://registry/acme-1.tgz" } },
-            "2.0.0": { "name": "acme", "version": "2.0.0", "dist": { "tarball": "https://registry/acme-2.tgz" } }
-        }
-    })).unwrap();
-    let filtered =
-        super::filter_pkg_metadata_versions_with_dist_tag_bound(&pkg, |key| key != "2.0.0", true);
-    assert_eq!(filtered.dist_tag("latest"), Some("banana"));
-    let picked = pick_package_from_meta(
-        pick_version_by_version_range,
-        &PickPackageFromMetaOptions::default(),
-        &filtered,
-        &RegistryPackageSpec::latest_tag("acme"),
-    )
-    .unwrap()
-    .unwrap();
-    assert_eq!(picked.version.to_string(), "1.0.0");
-    assert_eq!(picked.packument_version.as_deref(), Some("banana"));
 }

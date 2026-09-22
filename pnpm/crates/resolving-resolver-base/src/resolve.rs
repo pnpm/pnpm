@@ -6,13 +6,7 @@
 //! runtimes, named-registry, workspace) implement [`Resolver`]; the
 //! default-resolver dispatcher composes them into a chain.
 
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    future::Future,
-    path::PathBuf,
-    pin::Pin,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, future::Future, path::PathBuf, pin::Pin, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use derive_more::{Display, From};
@@ -244,10 +238,6 @@ pub type PackageVersionGuardFuture<'a> = Pin<
     >,
 >;
 
-/// Versions excluded by the retry, keyed by package name.
-/// Named-registry versions retain their `registryName:` prefix.
-pub type BlockedVersions = HashMap<String, HashSet<String>>;
-
 /// What the resolver does for a package whose every matching version the
 /// guard rejected.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -262,44 +252,15 @@ pub enum GuardExhaustionPolicy {
     AcceptRejected,
 }
 
-/// Selected registry entry exposed to guards that inspect its metadata.
-#[derive(Debug, Clone, Copy)]
-pub struct PackageVersionGuardCandidate<'a> {
-    pub name: &'a str,
-    pub version: &'a str,
-    pub registry: &'a str,
-    pub packument_key: &'a str,
-}
-
 /// Optional resolver-time policy that can reject a concrete
 /// `name@version` candidate before it is committed to the lockfile.
 ///
 /// A guard is expected to be deterministic for the duration of one
 /// resolve call. Callers that consult external services should cache
-/// per `(registry, name, version)` within that operation so repeated graph edges
+/// per `(name, version)` within that operation so repeated graph edges
 /// don't multiply network traffic.
 pub trait PackageVersionGuard: Send + Sync + std::fmt::Debug {
     fn check<'a>(&'a self, name: &'a str, version: &'a str) -> PackageVersionGuardFuture<'a>;
-
-    /// Check a candidate from the selected registry. Guards that inspect registry
-    /// metadata must use this URL rather than reconstructing routing from the name.
-    fn check_in_registry<'a>(
-        &'a self,
-        name: &'a str,
-        version: &'a str,
-        _registry: &'a str,
-    ) -> PackageVersionGuardFuture<'a> {
-        self.check(name, version)
-    }
-
-    /// Metadata-aware guards can use the raw entry key; ordinary guards receive
-    /// the semantic version through `check_in_registry`.
-    fn check_candidate<'a>(
-        &'a self,
-        candidate: PackageVersionGuardCandidate<'a>,
-    ) -> PackageVersionGuardFuture<'a> {
-        self.check_in_registry(candidate.name, candidate.version, candidate.registry)
-    }
 
     /// What the resolver does for a request whose every matching version
     /// [`Self::check`] rejected.
@@ -439,10 +400,6 @@ pub struct ResolutionPolicyOptions {
     /// disallowed high version can fall back to a lower safe version
     /// instead of aborting the whole resolution.
     pub package_version_guard: Option<Arc<dyn PackageVersionGuard>>,
-    /// Versions this resolution pass must not pick. See
-    /// [`BlockedVersions`]. Empty on the first pass and on every install
-    /// with no maturity policy.
-    pub blocked_versions: Option<Arc<BlockedVersions>>,
     /// When `true`, reject exotic (git, tarball, file, ...) dependencies
     /// appearing anywhere below the importer. Direct dependencies are
     /// still allowed; only transitive deps are gated. The check
@@ -523,8 +480,6 @@ pub struct ResolveResult {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct ResolvedPackageInfo {
-    /// Registry package identity before reading the manifest or applying hooks.
-    pub requested_name: Option<String>,
     /// Structured `name@version` when the resolver knows both at
     /// resolve time. The npm-registry resolver always fills this;
     /// resolvers that learn the package name from the manifest only

@@ -86,7 +86,6 @@ mod lockfile_verification;
 mod login;
 mod logout;
 mod minimum_release_age;
-mod minimum_release_age_backtracking;
 mod multiple_importers;
 mod named_registry_install;
 mod nested_file_dependencies;

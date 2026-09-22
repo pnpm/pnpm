@@ -1,11 +1,10 @@
 import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
-import { filterPkgMetadata, isVersionBlocked } from '@pnpm/resolving.registry.pkg-metadata-filter'
+import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
 import type { NonDeprecatedAlternative } from '@pnpm/resolving.resolver-base'
 import {
-  type BlockedVersions,
   EXISTING_VERSION_SELECTOR_WEIGHT,
   type VersionSelectors,
   type VersionSelectorType,
@@ -14,8 +13,6 @@ import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
 
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
-
-const packumentVersions = new WeakMap<PackageInRegistry, string>()
 
 export interface PickVersionByVersionRangeOptions {
   meta: PackageMeta
@@ -30,7 +27,6 @@ export interface PickPackageFromMetaOptions {
   preferredVersionSelectors: VersionSelectors | undefined
   publishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
-  blockedVersions?: BlockedVersions
 }
 
 export function pickPackageFromMeta (
@@ -39,16 +35,14 @@ export function pickPackageFromMeta (
     preferredVersionSelectors,
     publishedBy,
     publishedByExclude,
-    blockedVersions,
   }: PickPackageFromMetaOptions,
   meta: PackageMeta,
   spec: RegistryPackageSpec
 ): PackageInRegistry | null {
-  const blockedForPkg = blockedVersions?.get(spec.name)
-  if (publishedBy || blockedForPkg?.size) {
-    const view = applyPublishedByPolicy(meta, { requestedName: spec.name, publishedBy, publishedByExclude, blockedVersions: blockedForPkg })
+  if (publishedBy) {
+    const view = applyPublishedByPolicy(meta, publishedBy, publishedByExclude)
     meta = view.meta
-    if (view.needsFullMetadata && publishedBy) {
+    if (view.needsFullMetadata) {
       const modifiedDate = parseModifiedDate(meta.modified)
       if (modifiedDate == null || modifiedDate > publishedBy) {
         // The package was modified after the cutoff (or carries no usable
@@ -59,7 +53,7 @@ export function pickPackageFromMeta (
       // else: `modified` is an upper bound on every per-version timestamp, so
       // `modified <= publishedBy` means they all pass the maturity filter and
       // nothing would be dropped. Inclusive at the boundary on purpose, to
-      // match the per-version `<=` in `filterPkgMetadata`.
+      // match the per-version `<=` in `filterPkgMetadataByPublishDate`.
     }
   }
   if ((!meta.versions || Object.keys(meta.versions).length === 0) && !publishedBy) {
@@ -89,21 +83,14 @@ export function pickPackageFromMeta (
         break
     }
     if (!version) return null
-    // A version the narrowing above removed, or a dist-tag pointing at one
-    // the registry never published, leaves no manifest behind. The declared
-    // return type is the contract every caller reads, so answer it with
-    // `null` rather than letting `undefined` stand in for "no match".
-    const manifest = meta.versions[version] ?? null
-    if (manifest == null) return null
-    const name = meta.name || manifest.name
-    const parsedVersion = manifest.version !== version ? semver.parse(version) : null
-    const selectedVersion = parsedVersion == null
-      ? manifest.version
-      : parsedVersion.version + (parsedVersion.build.length ? `+${parsedVersion.build.join('.')}` : '')
-    if (manifest.name !== name || manifest.version !== selectedVersion || version !== selectedVersion) {
-      const picked = { ...manifest, name, version: selectedVersion }
-      packumentVersions.set(picked, version)
-      return picked
+    const manifest = meta.versions[version]
+    if (manifest && meta['name']) {
+      // Packages that are published to the GitHub registry are always published with a scope.
+      // However, the name in the package.json for some reason may omit the scope.
+      // So the package published to the GitHub registry will be published under @foo/bar
+      // but the name in package.json will be just bar.
+      // In order to avoid issues, we consider that the real name of the package is the one with the scope.
+      manifest.name = meta['name']
     }
     return manifest
   } catch (err: unknown) {
@@ -136,39 +123,27 @@ export interface PublishedByView {
 }
 
 /**
- * Applies the age cutoff unless the package or version is excluded.
- * Explicitly blocked versions are always removed, including excluded packages.
- * Requests full metadata when the cutoff needs timestamps absent from meta.
+ * Narrows `meta` to the versions the `publishedBy` cutoff admits, honoring
+ * `publishedByExclude`: a package the policy excludes wholesale keeps its
+ * unfiltered metadata, and versions the policy names explicitly stay in
+ * regardless of their age.
+ *
+ * Every consumer of the cutoff goes through here so they agree on what the
+ * policy admits — a baseline that filters differently from the pick would
+ * misreport why a version was chosen.
  */
 export function applyPublishedByPolicy (
   meta: PackageMeta,
-  { requestedName, publishedBy, publishedByExclude, blockedVersions }: {
-    requestedName?: string
-    publishedBy?: Date
-    publishedByExclude?: PackageVersionPolicy
-    blockedVersions?: ReadonlySet<string>
-  }
+  publishedBy: Date,
+  publishedByExclude?: PackageVersionPolicy
 ): PublishedByView {
-  const excludeResult = publishedByExclude?.(requestedName ?? meta.name) ?? false
-  // A blocked version is out even here: the exclusion says the cutoff does
-  // not apply to this package, not that a version whose own dependency tree
-  // cannot satisfy the cutoff is installable.
-  if (excludeResult === true || publishedBy == null) {
-    return {
-      meta: blockedVersions?.size ? filterPkgMetadata(meta, { blockedVersions }) : meta,
-      needsFullMetadata: false,
-    }
-  }
-  if (meta.time == null) {
-    return {
-      meta: blockedVersions?.size ? filterPkgMetadata(meta, { blockedVersions }) : meta,
-      needsFullMetadata: true,
-    }
-  }
+  const excludeResult = publishedByExclude?.(meta.name) ?? false
+  if (excludeResult === true) return { meta, needsFullMetadata: false }
+  if (meta.time == null) return { meta, needsFullMetadata: true }
   assertMetaHasTime(meta)
   const trustedVersions = Array.isArray(excludeResult) ? excludeResult : undefined
   return {
-    meta: filterPkgMetadata(meta, { publishedBy, trustedVersions, blockedVersions }),
+    meta: filterPkgMetadataByPublishDate(meta, publishedBy, trustedVersions),
     needsFullMetadata: false,
   }
 }
@@ -418,8 +393,6 @@ function semverSatisfiesLoose (version: string, range: string): boolean {
  * already holds, so it costs no extra request.
  */
 export interface PublishPolicyOptions {
-  blockedVersions?: BlockedVersions
-  requestedName?: string
   publishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
 }
@@ -430,7 +403,7 @@ function policyTrusts (
   version: string,
   opts: PublishPolicyOptions
 ): boolean {
-  const excludeResult = opts.publishedByExclude?.(opts.requestedName ?? meta.name)
+  const excludeResult = opts.publishedByExclude?.(meta.name)
   if (excludeResult === true) return true
   return Array.isArray(excludeResult) && excludeResult.includes(version)
 }
@@ -490,13 +463,10 @@ export function findNonDeprecatedAlternative (
   spec: RegistryPackageSpec,
   opts: PublishPolicyOptions
 ): NonDeprecatedAlternative | undefined {
-  const policyOptions = { ...opts, requestedName: spec.name }
-  const blocked = opts.blockedVersions?.get(spec.name)
   let newest: semver.SemVer | undefined
   for (const [version, versionMeta] of Object.entries(meta.versions)) {
     if (versionMeta.deprecated) continue
-    if (blocked?.size && isVersionBlocked(version, blocked, meta.versions)) continue
-    if (!installableUnderPolicy(meta, version, policyOptions)) continue
+    if (!installableUnderPolicy(meta, version, opts)) continue
     const parsed = semver.parse(version, true)
     if (parsed != null && (newest == null || parsed.compare(newest) > 0)) {
       newest = parsed
@@ -577,8 +547,3 @@ function parseSemverLoose (version: string): semver.SemVer | null {
 const SEMVER_CACHE_MAX_SIZE = 50_000
 const semverRangeCache = new Map<string, semver.Range | null>()
 const semverInstanceCache = new Map<string, semver.SemVer | null>()
-
-/** Raw metadata key used for timestamp lookups, independent of the manifest's version spelling. */
-export function getPackumentVersion (manifest: PackageInRegistry): string {
-  return packumentVersions.get(manifest) ?? manifest.version
-}

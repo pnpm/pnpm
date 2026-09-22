@@ -23,15 +23,12 @@
 //!   store. Pacquet today goes through the picker unconditionally;
 //!   adding the fast path is a separate item.
 
-pub use guarded_pick::{GUARD_REPICK_LIMIT, blocked_packument_key};
-
 pub(crate) use resolution_result::{RegistryResolutionSource, ResolvedSpecifier};
 
 pub(crate) use package_revision::validate_revision_selector;
 
 pub(crate) use guarded_pick::{
-    PickFromRegistryOptions, PickedFromRegistry, RegistryGuardOptions, RegistryPick,
-    pick_from_registry_with_guard,
+    PickFromRegistryOptions, PickedFromRegistry, RegistryPick, pick_from_registry_with_guard,
 };
 
 pub(crate) use workspace_pick::{no_matching_version, swallowed_as_no_latest};
@@ -431,7 +428,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 preferred_version_selectors: base_selectors,
                 pick_lowest_version: opts.version.pick_lowest_version,
                 include_latest_tag: opts.refresh.update == UpdateBehavior::Latest,
-                guard: crate::npm_resolver::RegistryGuardOptions::new(opts, &spec.name),
+                package_version_guard: opts.policy.package_version_guard.as_ref(),
                 policy: crate::PackagePickPolicy {
                     published_by: opts.policy.published_by,
                     published_by_exclude: opts.policy.published_by_exclude.as_ref(),

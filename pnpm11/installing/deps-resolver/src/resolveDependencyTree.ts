@@ -6,7 +6,7 @@ import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
 import { BUILTIN_REGISTRIES_BY_PREFIX } from '@pnpm/resolving.npm-resolver'
-import type { BlockedVersions, PreferredVersions, Resolution, ResolutionPolicyViolation, WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type { PreferredVersions, Resolution, ResolutionPolicyViolation, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type { AllowBuild, AllowedDeprecatedVersions, PkgResolutionId, ProjectId, ProjectManifest, ProjectRootDir, RangeSpecStyle, ReadPackageHook, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 import { partition } from 'ramda'
@@ -145,13 +145,6 @@ export interface ResolveDependenciesOptions extends RegistryContext {
   peersSuffixMaxLength: number
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
-  /**
-   * Versions this pass must not pick. Set only by the retry in
-   * `resolveDependencies`, which re-runs the whole tree with the versions
-   * whose dependency trees could not satisfy `minimumReleaseAge` recorded
-   * here.
-   */
-  blockedVersions?: BlockedVersions
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
@@ -234,7 +227,6 @@ export async function resolveDependencyTree<T> (
     allPeerDepNames: new Set(),
     maximumPublishedBy: publishedBy,
     publishedByExclude,
-    blockedVersions: opts.blockedVersions,
     packageResolutionBarrier: {
       activeByDepth: new Map(),
       waiters: [],

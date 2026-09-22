@@ -37,11 +37,6 @@ struct DeprecatedProbe {
     deprecated: Option<String>,
 }
 
-#[derive(Deserialize)]
-struct VersionProbe {
-    version: node_semver::Version,
-}
-
 #[derive(Debug, Default, Clone)]
 pub struct PackageVersions {
     slots: Vec<(String, VersionSlot)>,
@@ -53,7 +48,6 @@ struct VersionSlot {
     /// Hydration cache. `Some(None)` records a fragment that failed
     /// to decode so the parse error is paid (and warned about) once.
     parsed: OnceLock<Option<Arc<PackageVersion>>>,
-    probed_version: OnceLock<Option<Arc<node_semver::Version>>>,
 }
 
 /// A mirror file held open for on-demand fragment reads, counted
@@ -186,7 +180,6 @@ impl Clone for VersionSlot {
     fn clone(&self) -> Self {
         VersionSlot {
             source: self.source.clone(),
-            probed_version: self.probed_version.clone(),
             parsed: match self.parsed.get() {
                 Some(value) => OnceLock::from(value.clone()),
                 None => OnceLock::new(),
@@ -199,7 +192,6 @@ impl VersionSlot {
     fn from_parsed(manifest: PackageVersion) -> Self {
         VersionSlot {
             source: FragmentSource::None,
-            probed_version: OnceLock::new(),
             parsed: OnceLock::from(Some(Arc::new(manifest))),
         }
     }
@@ -232,28 +224,6 @@ impl PackageVersions {
     #[must_use]
     pub fn get(&self, version: &str) -> Option<Arc<PackageVersion>> {
         self.slot(version)?.hydrate(version)
-    }
-
-    /// The semantic version of a raw key, falling back to the embedded version
-    /// for malformed keys. Probes only that field without hydrating a manifest.
-    #[must_use]
-    pub fn resolve_version(&self, key: &str) -> Option<node_semver::Version> {
-        if let Ok(version) = node_semver::Version::parse(key) {
-            return Some(version);
-        }
-        let slot = self.slot(key)?;
-        if let Some(Some(parsed)) = slot.parsed.get() {
-            return Some(parsed.version.clone());
-        }
-        slot.probed_version
-            .get_or_init(|| {
-                let json = slot.source.json()?;
-                serde_json::from_str::<VersionProbe>(&json)
-                    .ok()
-                    .map(|probe| Arc::new(probe.version))
-            })
-            .as_deref()
-            .cloned()
     }
 
     /// Whether the packument lists `version`. Never hydrates.
@@ -387,7 +357,6 @@ impl PackageVersions {
                                 len,
                             },
                             parsed: OnceLock::new(),
-                            probed_version: OnceLock::new(),
                         },
                     )
                 })
@@ -413,7 +382,6 @@ impl PackageVersions {
                         VersionSlot {
                             source: FragmentSource::Raw(Arc::from(raw)),
                             parsed: OnceLock::new(),
-                            probed_version: OnceLock::new(),
                         },
                     )
                 })
@@ -484,7 +452,6 @@ impl<'de> Deserialize<'de> for PackageVersions {
                         VersionSlot {
                             source: FragmentSource::Raw(Arc::from(raw)),
                             parsed: OnceLock::new(),
-                            probed_version: OnceLock::new(),
                         },
                     )
                 })

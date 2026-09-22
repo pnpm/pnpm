@@ -5,10 +5,8 @@
 //! [`super::manifest_transforms`]; the resolver chain it walks is built
 //! by [`super::resolver_setup`].
 
-pub(super) use maturity::resolve_mature_dependency_tree;
 pub(super) use reuse::{ReuseSeedInputs, lockfile_reuse_seed, preferred_versions_seeds};
 
-mod maturity;
 mod reuse;
 
 use super::InstallWithFreshLockfileError;
@@ -70,7 +68,6 @@ pub(super) async fn run_pre_resolution_hook<Reporter: pnpm_reporter::Reporter>(
 /// The [`ResolveOptions`] fields that are the same for every importer and
 /// for the fast-override pre-pass. Only the consuming project's directory
 /// and its preferred-versions seed vary — see [`Self::build`].
-#[derive(Clone)]
 pub(super) struct SharedResolveOptions<'a> {
     pub policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions,
     pub config: &'a Config,
@@ -114,7 +111,6 @@ impl SharedResolveOptions<'_> {
                 trust_policy_ignore_after: self.config.trust_policy_ignore_after,
                 package_version_guard: self.policy.package_version_guard.clone(),
                 block_exotic_subdeps: self.config.block_exotic_subdeps,
-                blocked_versions: self.policy.blocked_versions.clone(),
             },
             ..ResolveOptions::default()
         }
