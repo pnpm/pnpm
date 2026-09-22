@@ -193,18 +193,26 @@ pub(super) fn is_under_ignored_directory(path: &Path, ignored_directories: &[Pat
 }
 
 /// Resolve pnpm-managed directories against the workspace root into
-/// absolute, lexically-normalized paths. Lexical rather than
-/// canonicalized: discovery compares these against walked paths
-/// textually, and both sides are built from the same `workspace_root`,
-/// so a symlinked root cannot desynchronize the comparison the way it
-/// could a canonicalized one.
+/// absolute, lexically-normalized paths, keeping only the ones nested
+/// strictly inside the workspace root.
+///
+/// A managed directory that contains the workspace root (rather than the
+/// other way around) cannot hide this workspace's projects, so the guard
+/// keeps only directories strictly inside the root.
+///
+/// Lexical rather than canonicalized: discovery compares these against
+/// walked paths textually, and both sides are built from the same
+/// `workspace_root`, so a symlinked root cannot desynchronize the
+/// comparison the way it could a canonicalized one.
 pub(super) fn resolve_ignored_directories(
     workspace_root: &Path,
     ignored_directories: &[PathBuf],
 ) -> Vec<PathBuf> {
+    let workspace_root = pnpm_fs::lexical_normalize(workspace_root);
     ignored_directories
         .iter()
         .map(|dir| pnpm_fs::lexical_normalize(&workspace_root.join(dir)))
+        .filter(|dir| dir != &workspace_root && dir.starts_with(&workspace_root))
         .collect()
 }
 

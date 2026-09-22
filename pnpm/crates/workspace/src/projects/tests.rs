@@ -1046,3 +1046,85 @@ fn skips_pnpm_managed_directories() {
         "expected the `root` project to be enumerated; got {guarded:?}",
     );
 }
+
+#[test]
+fn workspace_nested_inside_managed_directory_keeps_its_projects() {
+    // The pipeline watch agent checks repositories out under the state
+    // directory, which `Config::managed_directories` reports. The guard
+    // prunes managed directories *inside* the workspace; a workspace
+    // nested inside a managed directory must keep its own projects.
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), "xdg-state/pnpm/pipeline/agent/checkout/demo", "root");
+    make_project(tmp.path(), "xdg-state/pnpm/pipeline/agent/checkout/demo/pkg", "pkg");
+    let checkout = tmp
+        .path()
+        .join("xdg-state/pnpm/pipeline/agent/checkout/demo");
+
+    let names = find_workspace_projects(
+        &checkout,
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["pkg".to_string()]),
+            ignored_directories: vec![tmp.path().join("xdg-state/pnpm")],
+        },
+    )
+    .unwrap()
+    .iter()
+    .map(|project| {
+        project
+            .manifest
+            .value()
+            .get("name")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string()
+    })
+    .collect::<Vec<_>>();
+    assert!(
+        names.contains(&"pkg".to_string()),
+        "a project in a workspace nested inside a managed directory must be discovered: {names:?}",
+    );
+    assert!(
+        names.contains(&"root".to_string()),
+        "a project in a workspace nested inside a managed directory must be discovered: {names:?}",
+    );
+}
+
+#[test]
+fn managed_directory_equal_to_workspace_root_hides_nothing() {
+    // A managed directory that *is* the workspace root cannot hide the
+    // workspace's own projects either: there is nothing strictly inside
+    // the workspace for the guard to prune.
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "pkg", "pkg");
+
+    let names = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["pkg".to_string()]),
+            ignored_directories: vec![tmp.path().to_path_buf()],
+        },
+    )
+    .unwrap()
+    .iter()
+    .map(|project| {
+        project
+            .manifest
+            .value()
+            .get("name")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string()
+    })
+    .collect::<Vec<_>>();
+    assert!(
+        names.contains(&"pkg".to_string()),
+        "a managed directory equal to the workspace root must not hide projects: {names:?}",
+    );
+    assert!(
+        names.contains(&"root".to_string()),
+        "a managed directory equal to the workspace root must not hide projects: {names:?}",
+    );
+}
