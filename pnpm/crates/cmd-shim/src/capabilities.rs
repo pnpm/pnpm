@@ -11,6 +11,9 @@
 //! real filesystem can't reach portably (e.g. permission denied,
 //! ENOSPC).
 
+#[cfg(unix)]
+mod executable;
+
 use pipe_trait::Pipe;
 use std::{
     io,
@@ -187,10 +190,9 @@ pub trait FsSetExecutable {
     fn set_executable(path: &Path) -> io::Result<()>;
 }
 
-/// Read the existing permission bits at `path`, OR in `0o111`, and
-/// write them back. Used to add the executable bits to the underlying
-/// target binary (mirrors pnpm's `fixBin`) without clobbering the
-/// existing read/write bits the way [`FsSetExecutable`] would.
+/// Add missing executable bits to bin targets whose real path is inside
+/// `node_modules`, preserving existing read/write bits. Already executable
+/// files and targets outside `node_modules` are left unchanged.
 ///
 /// The method is always present for the same reason as
 /// [`FsSetExecutable::set_executable`]; the production impl is a
@@ -345,10 +347,7 @@ impl FsSetExecutable for Host {
 #[cfg(unix)]
 impl FsEnsureExecutableBits for Host {
     fn ensure_executable_bits(path: &Path) -> io::Result<()> {
-        use std::os::unix::fs::PermissionsExt;
-        let metadata = std::fs::metadata(path)?;
-        let mode = metadata.permissions().mode() | 0o111;
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+        executable::ensure_executable_bits::<Host>(path)
     }
 }
 

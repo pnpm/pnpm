@@ -307,7 +307,8 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     const stat = await fs.lstat(externalBinPath)
     if (stat.isSymbolicLink()) {
       const target = await fs.readlink(externalBinPath)
-      isCorrectlyLinked = target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)
+      isCorrectlyLinked = (target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)) &&
+        (!EXECUTABLE_SHEBANG_SUPPORTED || await canSymlinkExecutable(cmd.path))
     } else if (stat.isFile() && stat.size < CMD_SHIM_MAX_SIZE) {
       const content = await fs.readFile(externalBinPath, 'utf8')
       isCorrectlyLinked = isShimPointingAt(content, cmd.path) && isShimHardened(content) &&
@@ -367,7 +368,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     return
   }
 
-  if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null) {
+  if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null && await canSymlinkExecutable(cmd.path)) {
     try {
       await symlinkDir(cmd.path, externalBinPath)
       await ensureExecutable(cmd.path, 0o755)
@@ -490,25 +491,31 @@ async function haveEqualContents (pathA: string, pathB: string): Promise<boolean
   }
 }
 
-// `fixBin` chmods the bin's source file (which lives inside the store) to make
-// it executable and rewrites a Windows CRLF shebang to LF. Under the global
-// virtual store that source is `{storeDir}/links/...`, so on a read-only store
-// (e.g. `frozenStore`) the chmod is refused — with EPERM/EACCES when the file is
-// owned but permissions forbid it, or EROFS on a genuinely read-only filesystem
-// (Nix store, RO bind mount, OCI layer). A complete seed already ships its bins
-// executable and shebang-normalized by the writable seed-build, so that work is
-// redundant: treat an already-correct target as a no-op, keeping bin-linking
-// write-free (see building/during-install: "Bin-linking reuses existing symlinks
-// write-free"). A non-executable bin — or one still carrying a CRLF shebang that
-// `fixBin` could not rewrite here — still throws, because that means the seed is
-// broken and the bin would not run.
-async function ensureExecutable (file: string, mode: number): Promise<void> {
+async function canSymlinkExecutable (file: string): Promise<boolean> {
   try {
-    await fixBin(file, mode)
+    const realFile = await fs.realpath(file)
+    if (path.dirname(realFile).split(path.sep).includes('node_modules')) return true
+    const stat = await fs.stat(realFile)
+    return (stat.mode & 0o111) === 0o111 && !(await hasWindowsShebang(realFile))
+  } catch (err: any) { // eslint-disable-line
+    if (err.code === 'ENOENT') return true
+    throw err
+  }
+}
+
+// Only installed package files may be repaired. Resolve symlinks before checking
+// because workspace and link: dependencies also appear under node_modules.
+async function ensureExecutable (file: string, mode: number): Promise<void> {
+  const realFile = await fs.realpath(file)
+  if (!path.dirname(realFile).split(path.sep).includes('node_modules')) return
+  const stat = await fs.stat(realFile)
+  if ((stat.mode & 0o111) === 0o111 && !(await hasWindowsShebang(realFile))) return
+  try {
+    await fixBin(realFile, mode)
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EROFS') {
-      const stat = await fs.stat(file).catch(() => undefined)
-      if (stat != null && (stat.mode & 0o111) !== 0 && !(await hasWindowsShebang(file))) return
+      const stat = await fs.stat(realFile).catch(() => undefined)
+      if (stat != null && (stat.mode & 0o111) !== 0 && !(await hasWindowsShebang(realFile))) return
     }
     throw err
   }

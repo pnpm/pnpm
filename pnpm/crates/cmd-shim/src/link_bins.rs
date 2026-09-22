@@ -547,7 +547,7 @@ use shim_writer::{ShimSpec, remove_stale_bin, write_shim};
 mod executable;
 use executable::{
     bin_node_paths, chmod_tolerating_removal, ensure_target_executable, is_node_bin_name,
-    link_node_bin, link_symlinked_executable, symlink_already_points_at,
+    link_node_bin, link_symlinked_executable, symlink_already_points_at, target_requires_shim,
 };
 
 mod discovery;

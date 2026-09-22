@@ -653,6 +653,7 @@ testOnPosix('run puts the custom modules directory on the NODE_PATH of the symli
   prepare({ name: 'root', version: '1.0.0', scripts: { lint: 'tool' }, dependencies: { plugin: 'file:plugin', tool: 'file:tool' } })
   writeYamlFileSync('pnpm-workspace.yaml', { modulesDir: 'vendor', nodeLinker: 'hoisted' })
   writePluginTool()
+  fs.chmodSync('tool/bin.js', 0o755)
 
   await execPnpm(['install'])
   expect(fs.lstatSync('vendor/.bin/tool').isSymbolicLink()).toBe(true)

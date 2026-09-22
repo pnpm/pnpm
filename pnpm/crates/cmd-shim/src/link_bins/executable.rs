@@ -4,15 +4,44 @@ use super::is_shim_pointing_at;
 use super::shim_writer::with_extension_appended;
 use super::{FsEnsureExecutableBits, FsReadToString, LinkBinsError, Path, io, remove_stale_bin};
 use crate::shim::is_within_root;
+#[cfg(unix)]
+use crate::{FsReadHead, read_head_filled};
 
-/// Make the underlying script executable: apply a minimum mode of
-/// 0o755 without rewriting CRLF shebangs. Targets shipped by npm
-/// already use LF in practice, so a chmod alone suffices.
+/// Add missing executable bits to installed targets without modifying
+/// workspace files or rewriting CRLF shebangs.
 pub(super) fn ensure_target_executable<Sys>(target_path: &Path) -> Result<(), LinkBinsError>
 where
     Sys: FsEnsureExecutableBits,
 {
     chmod_tolerating_removal(target_path, Sys::ensure_executable_bits)
+}
+
+#[cfg(unix)]
+pub(super) fn target_requires_shim<Sys: FsReadHead>(target_path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    if std::fs::metadata(target_path)
+        .is_ok_and(|metadata| metadata.permissions().mode() & 0o111 != 0o111)
+    {
+        return true;
+    }
+    let mut head = [0; 2048];
+    let Ok(read) = read_head_filled::<Sys>(target_path, &mut head) else {
+        return false;
+    };
+    head.starts_with(b"#!")
+        && head[..read]
+            .split(|&byte| byte == b'\n')
+            .next()
+            .is_some_and(|line| line.ends_with(b"\r"))
+}
+
+#[cfg(not(unix))]
+#[expect(
+    clippy::extra_unused_type_parameters,
+    reason = "The Windows stub shares the Unix call site."
+)]
+pub(super) fn target_requires_shim<Sys>(_target_path: &Path) -> bool {
+    false
 }
 
 /// Apply `chmod` to `path`, treating a path that has vanished as success.
@@ -184,7 +213,7 @@ pub(super) fn link_symlinked_executable<Sys>(
     shim_path: &Path,
 ) -> Result<bool, LinkBinsError>
 where
-    Sys: FsReadToString + FsEnsureExecutableBits,
+    Sys: FsReadToString,
 {
     use std::os::unix::fs::symlink;
     // pnpm's warm-install short-circuit also accepts an existing shim
@@ -196,7 +225,6 @@ where
         Sys::read_to_string(shim_path),
         Ok(existing) if is_shim_pointing_at(&existing, shim_path, target_path),
     ) {
-        ensure_target_executable::<Sys>(target_path)?;
         return Ok(true);
     }
     let link_target = shim_path
@@ -212,22 +240,16 @@ where
             dst: shim_path.to_path_buf(),
             error,
         })?;
-    match Sys::ensure_executable_bits(target_path) {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            // pnpm's `Failed to create bin at ...` globalWarn: the
-            // symlink dangles until a later step materializes the
-            // target, which is worth telling the user about but not
-            // worth failing the install over.
-            let shim_path = shim_path.display();
-            let target_path = target_path.display();
-            tracing::warn!(
-                "Failed to create bin at {shim_path}. The target {target_path} does not exist",
-            );
-        }
-        Err(error) => {
-            return Err(LinkBinsError::Chmod { path: target_path.to_path_buf(), error });
-        }
+    if !target_path.exists() {
+        // pnpm's `Failed to create bin at ...` globalWarn: the
+        // symlink dangles until a later step materializes the
+        // target, which is worth telling the user about but not
+        // worth failing the install over.
+        let shim_path = shim_path.display();
+        let target_path = target_path.display();
+        tracing::warn!(
+            "Failed to create bin at {shim_path}. The target {target_path} does not exist",
+        );
     }
     Ok(true)
 }

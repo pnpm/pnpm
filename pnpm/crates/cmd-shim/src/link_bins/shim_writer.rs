@@ -3,7 +3,7 @@ use super::{
     LinkBinsError, Path, PathBuf, ScriptRuntime, ShimTargetCache, chmod_tolerating_removal,
     generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, io, is_node_bin_name,
     is_sh_shim_hardened, is_shim_pointing_at, link_node_bin, link_symlinked_executable,
-    symlink_already_points_at,
+    symlink_already_points_at, target_requires_shim,
 };
 
 /// Write the canonical bin shim for `target_path` at `shim_path`,
@@ -77,13 +77,15 @@ where
     };
 
     // pnpm's warm-install short-circuit: an existing symlink that
-    // already resolves to the target is correct as-is — regardless of
-    // `preferSymlinkedExecutables` — so a relink pass that doesn't
+    // already resolves to a directly executable target can
+    // stay regardless of `preferSymlinkedExecutables`, so a relink pass that doesn't
     // carry the setting (the injected-deps syncer's workspace-wide
     // relink, for one) leaves symlinked bins alone instead of
     // rewriting them into shims.
-    if symlink_already_points_at(spec.shim_path, spec.target_path, spec.relocatable_root) {
-        return cache.ensure_target_executable_once::<Sys>(spec.probe_path);
+    if symlink_already_points_at(spec.shim_path, spec.target_path, spec.relocatable_root)
+        && prepare_direct_target::<Sys>(&spec, cache)?
+    {
+        return Ok(());
     }
 
     // The node runtime binary is special: never wrap it in a shell
@@ -117,6 +119,8 @@ where
     // Stays below the node-runtime special case, which links `node`
     // regardless of the setting.
     if spec.prefer_symlinked_executables
+        && cfg!(unix)
+        && prepare_direct_target::<Sys>(&spec, cache)?
         && link_symlinked_executable::<Sys>(spec.target_path, spec.shim_path)?
     {
         return Ok(());
@@ -139,9 +143,18 @@ where
     }
 
     chmod_tolerating_removal(spec.shim_path, Sys::set_executable)?;
-    cache.ensure_target_executable_once::<Sys>(spec.probe_path)?;
+    cache.ensure_target_executable_once::<Sys>(spec.probe_path)
+}
 
-    Ok(())
+fn prepare_direct_target<Sys>(
+    spec: &ShimSpec<'_>,
+    cache: &ShimTargetCache,
+) -> Result<bool, LinkBinsError>
+where
+    Sys: FsReadHead + FsEnsureExecutableBits,
+{
+    cache.ensure_target_executable_once::<Sys>(spec.probe_path)?;
+    Ok(!target_requires_shim::<Sys>(spec.probe_path))
 }
 
 /// What occupies the shim path.
