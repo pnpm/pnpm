@@ -98,11 +98,28 @@ fn separates_line_comments_anchored_to_the_same_line() {
 
 #[test]
 fn preserves_compact_block_comments_and_eof_comment() {
-    assert_restored(
+    let restored = assert_restored(
         "{/*first*/name:/*second*/'demo'/*third*/} // eof",
         &json!({"name": "demo"}),
         &["/*first*/", "/*second*/", "/*third*/", "// eof"],
     );
+    assert!(restored.contains(RELOCATION_MARKER));
+}
+
+#[test]
+fn first_line_heading_comments_do_not_need_relocation_markers() {
+    let restored =
+        assert_restored("// heading\n{name: 'demo'}", &json!({"name": "demo"}), &["// heading"]);
+    assert!(!restored.contains(RELOCATION_MARKER));
+}
+
+#[test]
+fn matching_first_line_inline_comments_do_not_need_relocation_markers() {
+    let serialized = r#"{"name":"demo"}"#;
+    let restored = restore_comments(&format!("{serialized} // eof"), serialized);
+    eprintln!("RESTORED:\n{restored}");
+    assert!(!restored.contains(RELOCATION_MARKER));
+    assert_eq!(json5::from_str::<Value>(&restored).unwrap(), json!({"name": "demo"}));
 }
 
 #[test]

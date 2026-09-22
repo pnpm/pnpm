@@ -139,7 +139,7 @@ fn locate_comment(
         return (location, false);
     }
     if comment.line == 0 {
-        return (0, false);
+        return (0, !source.first().is_some_and(String::is_empty));
     }
     if let Some(location) = find_line(source.get(comment.line + 1), index) {
         return (location, false);
