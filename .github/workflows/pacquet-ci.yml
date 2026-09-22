@@ -30,6 +30,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       rust: ${{ steps.manual.outputs.rust || steps.filter.outputs.rust }}
+      changesets: ${{ steps.filter.outputs.changesets }}
     steps:
       # Force the full Rust suite on manual runs and in the merge queue.
       # The merge queue tests the merged commit, so path filtering it away
@@ -71,6 +72,24 @@ jobs:
               - '.github/actions/install-crates/**'
               - '.github/scripts/measure-command.mjs'
               - '.github/workflows/pacquet-ci.yml'
+            changesets:
+              - '.changeset/**'
+
+  change-check:
+    name: Rust CI / Change Check
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.outputs.rust == 'true' || needs.changes.outputs.changesets == 'true') }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          install: false
+      - name: Validate changeset files
+        run: pnpm change check
 
   test:
     name: Rust CI / Test / ${{ matrix.os_label }}
@@ -580,6 +599,7 @@ jobs:
     if: ${{ always() }}
     needs:
       - changes
+      - change-check
       - test
       - npm-wrapper
       - clippy
