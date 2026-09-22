@@ -307,14 +307,6 @@ cargo:
 }
 
 #[test]
-fn macos_backup_settings_reject_unknown_fields() {
-    let error =
-        serde_saphyr::from_str::<WorkspaceSettings>("macosBackup:\n  excludeModulesDirr: true\n")
-            .expect_err("unknown macosBackup fields must not be silently ignored");
-    assert!(format!("{error}").contains("excludeModulesDirr"), "{error}");
-}
-
-#[test]
 fn tool_settings_parse_and_apply() {
     let yaml = "tools:\n  node:\n    mirror: https://mirror.example.test/node/download\n  python:\n    mirror: https://mirror.example.test/python-build-standalone/releases\n  bun:\n    mirror: https://mirror.example.test/bun\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();

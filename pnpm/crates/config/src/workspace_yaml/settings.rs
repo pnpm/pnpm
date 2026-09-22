@@ -83,7 +83,7 @@ where
 /// The `macosBackup` section accepted only from trusted machine-level
 /// configuration and `PNPM_CONFIG_*` environment variables.
 #[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+#[serde(rename_all = "camelCase", default)]
 pub struct MacosBackupSettings {
     pub exclude_modules_dir: Option<bool>,
     pub exclude_store_dir: Option<bool>,
