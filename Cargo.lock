@@ -6238,6 +6238,7 @@ dependencies = [
  "derive_more",
  "flate2",
  "futures-util",
+ "libc",
  "miette 7.6.0",
  "mockito",
  "num_cpus",

@@ -17,10 +17,13 @@ use tar::Archive;
 pub(crate) async fn open_local_tarball(
     path: &Path,
 ) -> Result<(tokio::fs::File, u64), TarballError> {
-    let metadata = tokio::fs::metadata(path).await
-        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
-    reject_non_file_local_tarball(path, &metadata)?;
-    let file = tokio::fs::File::open(path).await
+    let mut options = tokio::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    options.custom_flags(libc::O_NONBLOCK);
+    let file = options
+        .open(path)
+        .await
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
     let metadata = file
         .metadata()
@@ -356,10 +359,15 @@ fn finish_bundled_manifest(
 
 /// Verifies a local tarball on disk matches the expected integrity.
 pub fn verify_local_file_integrity(path: &Path, integrity: &Integrity) -> Result<(), TarballError> {
-    let metadata = std::fs::metadata(path)
-        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
-    reject_non_file_local_tarball(path, &metadata)?;
-    let mut file = std::fs::File::open(path)
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.custom_flags(libc::O_NONBLOCK);
+    }
+    let mut file = options
+        .open(path)
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
     let metadata = file
         .metadata()

@@ -1,7 +1,6 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 
-import gfs from '@pnpm/fs.graceful-fs'
 import ssri from 'ssri'
 
 export function createShortHash (input: string): string {
@@ -38,5 +37,17 @@ async function readNormalizedFile (file: string): Promise<string> {
 }
 
 export async function getTarballIntegrity (filename: string): Promise<string> {
-  return (await ssri.fromStream(gfs.createReadStream(filename))).toString()
+  const handle = await fs.promises.open(
+    filename,
+    fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK ?? 0)
+  )
+  try {
+    const stats = await handle.stat()
+    if (!stats.isFile()) {
+      throw new Error('expected a file')
+    }
+    return (await ssri.fromStream(handle.createReadStream({ autoClose: false }))).toString()
+  } finally {
+    await handle.close()
+  }
 }
