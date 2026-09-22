@@ -5,7 +5,7 @@ use super::{
 use pnpm_config::Config;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_store_dir::VerifiedFileIntegrity;
-use std::io::IsTerminal;
+use std::{io::IsTerminal, path::PathBuf};
 
 /// What the run's flags settle into before anything is read from disk.
 pub(super) struct RunMode {
@@ -121,4 +121,39 @@ fn reject_conflicting_store_config(config: &Config) -> Result<(), InstallError> 
         return Err(InstallError::ConfigConflictVirtualStoreOnlyWithNoModulesDir);
     }
     Ok(())
+}
+
+pub(super) struct WorkspaceManifestRollbackGuard {
+    pub(super) path: PathBuf,
+    pub(super) original_content: String,
+    pub(super) pruned_content: String,
+    pub(super) committed: bool,
+}
+
+impl WorkspaceManifestRollbackGuard {
+    pub(super) fn new(path: PathBuf, original_content: Option<String>) -> Option<Self> {
+        let original = original_content?;
+        let pruned = std::fs::read_to_string(&path).ok()?;
+        (original != pruned).then_some(Self {
+            path,
+            original_content: original,
+            pruned_content: pruned,
+            committed: false,
+        })
+    }
+
+    pub(super) fn commit(mut self) {
+        self.committed = true;
+    }
+}
+
+impl Drop for WorkspaceManifestRollbackGuard {
+    fn drop(&mut self) {
+        if !self.committed
+            && let Ok(current) = std::fs::read_to_string(&self.path)
+            && current == self.pruned_content
+        {
+            let _ = pnpm_fs::write_atomic(&self.path, self.original_content.as_bytes());
+        }
+    }
 }
