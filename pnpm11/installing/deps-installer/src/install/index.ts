@@ -1679,18 +1679,25 @@ Note that in CI environments, this setting is enabled by default.`,
         allowUnresolvedOptionalDependencies: frozenLockfile,
       })
       const fileIntegrityCache = new Map<string, Promise<string>>()
-      for (const { id, manifest, rootDir } of Object.values(ctx.projects)) {
-        const importer = ctx.wantedLockfile.importers[id]
+      const projectChecks = await Promise.all(
+        Object.values(ctx.projects).map(async (project) => {
+          const importer = ctx.wantedLockfile.importers[project.id]
+          const localTarballsAreUpToDate = importer == null
+            ? true
+            : await localTarballDepsAreUpToDate({
+              fileIntegrityCache,
+              lockfilePackages: ctx.wantedLockfile.packages,
+              lockfileDir: opts.lockfileDir,
+            }, { snapshot: importer })
+          return {
+            importer,
+            localTarballsAreUpToDate,
+            project,
+          }
+        })
+      )
+      for (const { importer, localTarballsAreUpToDate, project: { manifest, rootDir } } of projectChecks) {
         const { satisfies, detailedReason } = _satisfiesPackageManifest(importer, manifest)
-        let localTarballsAreUpToDate = true
-        if (importer != null) {
-          // eslint-disable-next-line no-await-in-loop
-          localTarballsAreUpToDate = await localTarballDepsAreUpToDate({
-            fileIntegrityCache,
-            lockfilePackages: ctx.wantedLockfile.packages,
-            lockfileDir: opts.lockfileDir,
-          }, { snapshot: importer })
-        }
         if (satisfies && localTarballsAreUpToDate && frozenLockfile && importer != null) {
           const skipped = unresolvedOptionalDependencies({
             excludeLinksFromLockfile: opts.excludeLinksFromLockfile,

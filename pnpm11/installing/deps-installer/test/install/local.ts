@@ -340,7 +340,9 @@ test('frozen-lockfile: installation fails if the integrity of a tarball dependen
 
   await expect(
     install(manifest, testDefaults({ frozenLockfile: true }))
-  ).rejects.toThrow(/Got unexpected checksum/)
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_OUTDATED_LOCKFILE',
+  })
 })
 
 test('deep local', async () => {
