@@ -307,7 +307,8 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     const stat = await fs.lstat(externalBinPath)
     if (stat.isSymbolicLink()) {
       const target = await fs.readlink(externalBinPath)
-      isCorrectlyLinked = target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)
+      isCorrectlyLinked = (target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)) &&
+        (!EXECUTABLE_SHEBANG_SUPPORTED || await canSymlinkExecutable(cmd.path))
     } else if (stat.isFile() && stat.size < CMD_SHIM_MAX_SIZE) {
       const content = await fs.readFile(externalBinPath, 'utf8')
       isCorrectlyLinked = isShimPointingAt(content, cmd.path) && isShimHardened(content) &&
@@ -367,7 +368,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     return
   }
 
-  if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null) {
+  if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null && await canSymlinkExecutable(cmd.path)) {
     try {
       await symlinkDir(cmd.path, externalBinPath)
       await ensureExecutable(cmd.path, 0o755)
@@ -487,6 +488,18 @@ async function haveEqualContents (pathA: string, pathB: string): Promise<boolean
   } finally {
     await fhA.close().catch(() => {})
     await fhB.close().catch(() => {})
+  }
+}
+
+async function canSymlinkExecutable (file: string): Promise<boolean> {
+  try {
+    const realFile = await fs.realpath(file)
+    if (path.dirname(realFile).split(path.sep).includes('node_modules')) return true
+    const stat = await fs.stat(realFile)
+    return (stat.mode & 0o111) === 0o111 && !(await hasWindowsShebang(realFile))
+  } catch (err: any) { // eslint-disable-line
+    if (err.code === 'ENOENT') return true
+    throw err
   }
 }
 

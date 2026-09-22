@@ -36,6 +36,7 @@ testOnPosix('linkBins() skips fixBin when an executable source would reject chmo
   const binTarget = temporaryDirectory()
   const fixture = f.prepare('simple-fixture')
   const binSource = path.join(fixture, 'node_modules', 'simple', 'index.js')
+  // A complete seed already has executable bins, including on a read-only store.
   fs.chmodSync(binSource, 0o755)
 
   const warn = jest.fn()

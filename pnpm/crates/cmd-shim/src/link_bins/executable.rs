@@ -4,6 +4,8 @@ use super::is_shim_pointing_at;
 use super::shim_writer::with_extension_appended;
 use super::{FsEnsureExecutableBits, FsReadToString, LinkBinsError, Path, io, remove_stale_bin};
 use crate::shim::is_within_root;
+#[cfg(unix)]
+use crate::{FsReadHead, read_head_filled};
 
 /// Add missing executable bits to installed targets without modifying
 /// workspace files or rewriting CRLF shebangs.
@@ -12,6 +14,34 @@ where
     Sys: FsEnsureExecutableBits,
 {
     chmod_tolerating_removal(target_path, Sys::ensure_executable_bits)
+}
+
+#[cfg(unix)]
+pub(super) fn target_requires_shim<Sys: FsReadHead>(target_path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    if std::fs::metadata(target_path)
+        .is_ok_and(|metadata| metadata.permissions().mode() & 0o111 != 0o111)
+    {
+        return true;
+    }
+    let mut head = [0; 2048];
+    let Ok(read) = read_head_filled::<Sys>(target_path, &mut head) else {
+        return false;
+    };
+    head.starts_with(b"#!")
+        && head[..read]
+            .split(|&byte| byte == b'\n')
+            .next()
+            .is_some_and(|line| line.ends_with(b"\r"))
+}
+
+#[cfg(not(unix))]
+#[expect(
+    clippy::extra_unused_type_parameters,
+    reason = "The Windows stub shares the Unix call site."
+)]
+pub(super) fn target_requires_shim<Sys>(_target_path: &Path) -> bool {
+    false
 }
 
 /// Apply `chmod` to `path`, treating a path that has vanished as success.

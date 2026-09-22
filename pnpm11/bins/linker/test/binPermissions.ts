@@ -28,7 +28,14 @@ testOnPosix.each([0o555, 0o755])('linking an executable bin with mode %i leaves 
   expect(after.ctimeNs).toBe(before.ctimeNs)
 })
 
-testOnPosix.each([false, true])('linking a workspace bin preserves its source mode (preferSymlinkedExecutables=%s)', async (preferSymlinkedExecutables) => {
+testOnPosix.each([
+  { preferSymlinkedExecutables: false, existingSymlink: false, mode: 0o644, eol: '\n' },
+  { preferSymlinkedExecutables: true, existingSymlink: false, mode: 0o644, eol: '\n' },
+  { preferSymlinkedExecutables: true, existingSymlink: true, mode: 0o644, eol: '\n' },
+  { preferSymlinkedExecutables: true, existingSymlink: false, mode: 0o744, eol: '\n' },
+  { preferSymlinkedExecutables: true, existingSymlink: false, mode: 0o755, eol: '\r\n' },
+  { preferSymlinkedExecutables: true, existingSymlink: true, mode: 0o755, eol: '\r\n' },
+])('linking a workspace bin preserves and executes its source: %j', async ({ preferSymlinkedExecutables, existingSymlink, mode, eol }) => {
   const project = temporaryDirectory()
   const modules = path.join(project, 'node_modules')
   const pkg = path.join(project, 'packages', 'tool')
@@ -36,16 +43,24 @@ testOnPosix.each([false, true])('linking a workspace bin preserves its source mo
   fs.mkdirSync(modules)
   fs.writeFileSync(path.join(pkg, 'package.json'), JSON.stringify({ name: 'tool', bin: 'cli.js' }))
   const source = path.join(pkg, 'cli.js')
-  fs.writeFileSync(source, '#!/usr/bin/env node\nconsole.log("ok")\n')
-  fs.chmodSync(source, 0o644)
+  const content = `#!/usr/bin/env node${eol}console.log("ok")\n`
+  fs.writeFileSync(source, content)
+  fs.chmodSync(source, mode)
   fs.symlinkSync(pkg, path.join(modules, 'tool'))
   const binDir = path.join(modules, '.bin')
 
+  if (existingSymlink) {
+    fs.mkdirSync(binDir)
+    fs.symlinkSync(source, path.join(binDir, 'tool'))
+  }
   await linkBins(modules, binDir, { warn: () => {}, preferSymlinkedExecutables })
-  expect(fs.statSync(source).mode & 0o777).toBe(0o644)
+  assertRunnableSource()
   await linkBins(modules, binDir, { warn: () => {}, preferSymlinkedExecutables })
-  expect(fs.statSync(source).mode & 0o777).toBe(0o644)
-  if (!preferSymlinkedExecutables) {
+  assertRunnableSource()
+
+  function assertRunnableSource () {
+    expect(fs.statSync(source).mode & 0o777).toBe(mode)
+    expect(fs.readFileSync(source, 'utf8')).toBe(content)
     const result = spawnSync(path.join(binDir, 'tool'), { encoding: 'utf8' })
     expect(result.status).toBe(0)
     expect(result.stdout.trim()).toBe('ok')
