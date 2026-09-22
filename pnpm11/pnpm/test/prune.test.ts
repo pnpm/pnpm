@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+
 import { test } from '@jest/globals'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -74,11 +76,13 @@ test('prune --prod removes devDependencies when lockfile is disabled', async () 
   writeYamlFileSync('pnpm-workspace.yaml', { lockfile: false })
 
   await execPnpm(['install'])
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
   project.has('is-positive')
   project.has('is-negative')
 
   await execPnpm(['prune', '--prod', '--config.confirmModulesPurge=false'])
 
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
   project.has('is-positive')
   project.hasNot('is-negative')
 })

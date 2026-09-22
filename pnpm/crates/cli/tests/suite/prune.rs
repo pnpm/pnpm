@@ -3,7 +3,7 @@ use crate::_utils::{has_link, importer_has_group_dependency, read_lockfile};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::fs;
+use std::{fs, io::Write};
 
 const PROD: &str = "@pnpm.e2e/pkg-with-1-dep";
 const FILTERED: &str = "@pnpm.e2e/hello-world-js-bin";
@@ -143,7 +143,14 @@ fn prune_with_prod_only_and_no_lockfile_unlinks_dev_deps() {
         .to_string(),
     )
     .expect("write package.json");
-    fs::write(workspace.join(".npmrc"), "lockfile=false\n").expect("write .npmrc");
+    writeln!(
+        fs::OpenOptions::new()
+            .append(true)
+            .open(workspace.join(".npmrc"))
+            .expect("open .npmrc"),
+        "lockfile=false"
+    )
+    .expect("append .npmrc");
 
     pacquet
         .with_arg("install")
