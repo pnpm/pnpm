@@ -100,8 +100,8 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     })
     .await?;
 
-    if take_frozen_path && install.lockfile_policy.frozen {
-        super::frozen_local_tarballs::verify_frozen_tarballs::<Reporter>(settled).await?;
+    if take_frozen_path && install.lockfile_policy.frozen && !mode.lockfile_only {
+        super::frozen_local_tarballs::verify_frozen_tarballs(settled).await?;
     }
 
     if take_frozen_path && mode.lockfile_only {

@@ -165,6 +165,65 @@ fn frozen_install_skips_deleted_tarballs_in_unsupported_optional_dependencies() 
 }
 
 #[test]
+fn frozen_install_force_verifies_tarballs_in_unsupported_optional_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let tarball = workspace.join("pkg-from-tarball-1.0.0.tgz");
+    fs::write(
+        &tarball,
+        tarball_entries(&[
+            (
+                "package/package.json",
+                br#"{"name":"pkg-from-tarball","version":"1.0.0","os":["nonexistent-os"]}"#,
+            ),
+            ("package/index.js", b"module.exports = 'first'\n"),
+        ]),
+    )
+    .expect("write initial tarball");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "optionalDependencies": { "pkg-from-tarball": "file:./pkg-from-tarball-1.0.0.tgz" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    fs::remove_file(&tarball).expect("remove tarball");
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--force"])
+        .output()
+        .expect("run forced frozen install");
+    assert!(!output.status.success(), "force must verify previously skipped optional tarballs");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_TARBALL_READ_LOCAL_TARBALL"));
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn frozen_install_skips_deleted_tarballs_in_lockfile_only_mode() {
+    check_frozen_transitive_tarball("lockfile-only");
+}
+
+#[test]
 fn fetch_rejects_changed_tarballs_from_lockfile_only_workspace_importers() {
     check_frozen_transitive_tarball("fetch");
 }
@@ -215,7 +274,7 @@ fn apply_mutation(workspace: &Path, tarball: &Path, mutation: &str) {
     )
     .expect("replace tarball");
     match mutation {
-        "deleted" => {
+        "deleted" | "lockfile-only" => {
             fs::remove_file(tarball).expect("remove tarball");
         }
         "directory" => {
@@ -235,8 +294,11 @@ fn apply_mutation(workspace: &Path, tarball: &Path, mutation: &str) {
 }
 
 fn assert_mutation_output(output: &std::process::Output, mutation: &str) {
-    if mutation == "excluded" {
-        assert!(output.status.success(), "excluded tarballs must not be read: {output:?}");
+    if matches!(mutation, "excluded" | "lockfile-only") {
+        assert!(
+            output.status.success(),
+            "excluded or lockfile-only tarballs must not be read: {output:?}",
+        );
         return;
     }
     assert!(!output.status.success(), "a changed local tarball must fail a frozen install");
@@ -283,6 +345,8 @@ fn check_frozen_transitive_tarball(mutation: &str) {
         command.with_arg("fetch")
     } else if mutation == "excluded" {
         command.with_args(["install", "--frozen-lockfile", "--prod"])
+    } else if mutation == "lockfile-only" {
+        command.with_args(["install", "--frozen-lockfile", "--lockfile-only"])
     } else {
         command.with_args(["install", "--frozen-lockfile"])
     };

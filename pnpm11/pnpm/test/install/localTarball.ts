@@ -9,15 +9,16 @@ import {
   execPnpmSync,
 } from '../utils/index.js'
 
-test.each(['changed', 'deleted', 'directory', 'excluded', 'direct', 'fetch', 'unsupported-optional'])('frozen install verifies a %s local tarball from a warm store', async (mutation) => {
+test.each(['changed', 'deleted', 'directory', 'excluded', 'direct', 'fetch', 'unsupported-optional', 'lockfile-only', 'forced-unsupported-optional'])('frozen install verifies a %s local tarball from a warm store', async (mutation) => {
   prepareEmpty()
   const packageDir = path.resolve('local-tarball')
   const tarball = path.resolve('local-tarball.tgz')
+  const isUnsupported = mutation === 'unsupported-optional' || mutation === 'forced-unsupported-optional'
   fs.mkdirSync(packageDir)
   fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({
     name: 'local-tarball',
     version: '1.0.0',
-    ...(mutation === 'unsupported-optional' ? { os: ['nonexistent-os'] } : {}),
+    ...(isUnsupported ? { os: ['nonexistent-os'] } : {}),
   }))
   fs.writeFileSync(path.join(packageDir, 'index.js'), "module.exports = 'first'\n")
   packLocalTarball(packageDir, tarball)
@@ -32,7 +33,7 @@ test.each(['changed', 'deleted', 'directory', 'excluded', 'direct', 'fetch', 'un
   fs.writeFileSync('package.json', JSON.stringify({
     name: 'project',
     version: '1.0.0',
-    [mutation === 'excluded' ? 'devDependencies' : mutation === 'unsupported-optional' ? 'optionalDependencies' : 'dependencies']: mutation === 'direct' || mutation === 'unsupported-optional'
+    [mutation === 'excluded' ? 'devDependencies' : isUnsupported ? 'optionalDependencies' : 'dependencies']: mutation === 'direct' || isUnsupported
       ? { 'local-tarball': 'file:./local-tarball.tgz' }
       : { parent: 'file:./parent-1.0.0.tgz' },
   }))
@@ -51,10 +52,15 @@ test.each(['changed', 'deleted', 'directory', 'excluded', 'direct', 'fetch', 'un
     fs.writeFileSync('package.json', JSON.stringify({ name: 'project', version: '1.0.0' }))
     fs.writeFileSync('pnpm-lock.yaml', fs.readFileSync('pnpm-lock.yaml', 'utf8').replace('\n  .:', '\n  packages/app:'))
   }
-  const { status, stdout, stderr } = execPnpmSync(mutation === 'fetch'
+  const installArgs = mutation === 'fetch'
     ? ['fetch']
-    : ['install', '--frozen-lockfile', ...(mutation === 'excluded' ? ['--prod'] : [])], { env: { CI: 'true' } })
-  if (['excluded', 'unsupported-optional'].includes(mutation)) {
+    : mutation === 'lockfile-only'
+      ? ['install', '--frozen-lockfile', '--lockfile-only']
+      : mutation === 'forced-unsupported-optional'
+        ? ['install', '--frozen-lockfile', '--force']
+        : ['install', '--frozen-lockfile', ...(mutation === 'excluded' ? ['--prod'] : [])]
+  const { status, stdout, stderr } = execPnpmSync(installArgs, { env: { CI: 'true' } })
+  if (['excluded', 'unsupported-optional', 'lockfile-only'].includes(mutation)) {
     expect(status).toBe(0)
     return
   }
