@@ -739,7 +739,14 @@ export async function mutateModules (
     const projectDirsRemovingDeps = new Set(projects
       .filter((project) => project.mutation === 'uninstallSome' && removesAnyDependency(project, ctx.projects[project.rootDir]?.manifest))
       .map((project) => project.rootDir))
-    if (!opts.ignoreScripts && !opts.ignorePackageManifest && projectDirsRemovingDeps.size > 0) {
+    if (
+      !opts.ignoreScripts &&
+      !opts.ignorePackageManifest &&
+      !opts.lockfileOnly &&
+      !isCheckOnlyInstall(opts) &&
+      !opts.virtualStoreOnly &&
+      projectDirsRemovingDeps.size > 0
+    ) {
       await runLifecycleHooksConcurrently({
         childConcurrency: opts.childConcurrency,
         importers: [...projectDirsRemovingDeps].map((rootDir) => ctx.projects[rootDir]),
@@ -3215,7 +3222,6 @@ function canUsePnprForMutations (
   opts: Pick<MutateModulesOptions, 'allProjects' | 'depth' | 'ignoreScripts' | 'includeDirect'>
 ): boolean {
   if (projects.length === 0) return false
-  // The server path materializes without the uninstall stages.
   if (!opts.ignoreScripts && projects.some((project) => project.mutation === 'uninstallSome')) {
     const scriptsByRootDir = new Map(opts.allProjects?.map((project) => [project.rootDir, project.manifest.scripts]))
     if (projects.some((project) => project.mutation === 'uninstallSome' && definesUninstallStage(scriptsByRootDir.get(project.rootDir)))) {
@@ -3799,7 +3805,7 @@ function setUntrackedPnpmfileReadPackageHook (
 function removesAnyDependency (project: UninstallSomeDepsMutation, manifest: ProjectManifest | undefined): boolean {
   if (manifest == null) return false
   const fields: Array<DependenciesField | 'peerDependencies'> = project.targetDependenciesField != null
-    ? [project.targetDependenciesField]
+    ? [project.targetDependenciesField, 'peerDependencies']
     : [...DEPENDENCIES_FIELDS, 'peerDependencies']
   return project.dependencyNames.some((name) => fields.some((field) => manifest[field]?.[name] != null))
 }

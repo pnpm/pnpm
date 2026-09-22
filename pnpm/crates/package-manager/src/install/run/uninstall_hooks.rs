@@ -18,6 +18,7 @@ pub(super) fn run_pre_uninstall_hooks<Reporter: self::Reporter>(
     let config = install.context.config;
     if install.execution.mutation != crate::ProjectMutation::UninstallSome
         || config.ignore_scripts
+        || config.virtual_store_only
         || mode.resolve_only
     {
         return Ok(());

@@ -469,3 +469,47 @@ test('uninstalling a dependency listed only in peerDependencies runs the uninsta
   expect(recordedStages().map((line) => line.split(' ')[0])).toStrictEqual(['preuninstall', 'uninstall', 'postuninstall'])
   expect(updatedProject.manifest.peerDependencies).toStrictEqual({})
 })
+
+test('recursive save-dev removal runs uninstall scripts when it also removes a peer entry', async () => {
+  const pkgs: PackageManifest[] = [
+    { name: 'project-1', version: '1.0.0', devDependencies: { 'is-negative': '2.1.0' }, scripts: UNINSTALL_SCRIPTS },
+    { name: 'project-2', version: '1.0.0', peerDependencies: { 'is-negative': '*' }, scripts: UNINSTALL_SCRIPTS },
+  ]
+  preparePackages(pkgs)
+  const allProjects = pkgs.map((manifest) => ({
+    buildIndex: 0,
+    manifest,
+    rootDir: path.resolve(manifest.name!) as ProjectRootDir,
+  }))
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install' as const, rootDir })), testDefaults({ allProjects }))
+  for (const { rootDir } of allProjects) fs.rmSync(path.join(rootDir, 'order.txt'))
+
+  const { updatedProjects } = await mutateModules(allProjects.map(({ rootDir }) => ({
+    dependencyNames: ['is-negative'],
+    mutation: 'uninstallSome' as const,
+    targetDependenciesField: 'devDependencies' as const,
+    rootDir,
+  })), testDefaults({ allProjects }))
+
+  expect(updatedProjects[1].manifest.peerDependencies).toStrictEqual({})
+  for (const { rootDir } of allProjects) {
+    expect(fs.readFileSync(path.join(rootDir, 'order.txt'), 'utf8').trim().split('\n').map((line) => line.split(' ')[0]))
+      .toStrictEqual(['preuninstall', 'uninstall', 'postuninstall'])
+  }
+})
+
+test('uninstall does not run the project\'s uninstall scripts with virtualStoreOnly', async () => {
+  const project = prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({ scripts: UNINSTALL_SCRIPTS }, ['is-negative@2.1.0'], testDefaults({ save: true }))
+
+  await mutateModulesInSingleProject({
+    dependencyNames: ['is-negative'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ save: true, virtualStoreOnly: true }))
+
+  expect(fs.existsSync('order.txt')).toBeFalsy()
+  project.hasNot('is-negative')
+})
+

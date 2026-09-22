@@ -279,7 +279,6 @@ fn edited_project_dirs(
             let manifest = &project.manifest;
             let peer_dependencies = manifest
                 .dependencies([DependencyGroup::Peer])
-                .filter(|_| save_type.is_none())
                 .map(|(name, _)| name.to_string());
             let listed: HashSet<String> = manifest
                 .available_dependency_names(save_type)
