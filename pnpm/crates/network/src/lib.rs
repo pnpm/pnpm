@@ -199,14 +199,14 @@ impl ClientPair {
     }
 }
 
-/// Per-origin concurrent-connection cap, mirroring undici's `connections`
-/// option (the `maxSockets` setting pnpm applies per registry origin).
+/// How the `maxSockets` configuration maps to a per-origin cap.
 ///
-/// When an explicit `maxSockets` limit is configured, every origin
-/// (direct or proxied) is capped at that limit. When uncapped (`None`,
-/// the default), direct origins remain uncapped (bounded only by the
-/// global concurrency semaphore), while proxied requests share a cap of
-/// [`DEFAULT_MAX_SOCKETS`] on the proxy origin to avoid exhausting
+/// - [`Default`](Self::Default) — no explicit setting; direct origins
+///   are uncapped, proxied origins are capped at [`DEFAULT_MAX_SOCKETS`].
+/// - [`Disabled`](Self::Disabled) — explicitly `Some(0)`; all origins
+///   are uncapped.
+/// - [`Explicit`](Self::Explicit) — `Some(n)`; all origins are capped
+///   at `n`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum HostSocketCap {
     Default,
@@ -214,7 +214,14 @@ enum HostSocketCap {
     Explicit(NonZeroUsize),
 }
 
-/// proxy connection backlogs or tripping proxy rate limits.
+/// Per-origin concurrent-connection cap, mirroring undici's `connections`
+/// option (the `maxSockets` setting pnpm applies per registry origin).
+///
+/// When an explicit limit is configured, every origin is capped. When
+/// uncapped (the default), direct origins are bounded only by the global
+/// concurrency semaphore, while proxied origins share a cap of
+/// [`DEFAULT_MAX_SOCKETS`] to avoid exhausting proxy connection backlogs
+/// or tripping proxy rate limits.
 ///
 /// Each distinct origin gets its own [`Semaphore`], minted on first
 /// request to that origin. Acquired *before* the global
