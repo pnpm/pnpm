@@ -212,29 +212,33 @@ jobs:
       # workspace member and gets pruned. sccache keys each compiler call by
       # its inputs instead. On Windows a warm sccache build was no faster than
       # a plain one and a cold one was slower, so it stays off there.
-      - name: Restore sccache
-        if: runner.os != 'Windows'
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/sccache
-          key: sccache-test-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-${{ github.run_id }}
-          restore-keys: |
-            sccache-test-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-
-            sccache-test-v1-${{ runner.os }}-main-
-        timeout-minutes: 2
-        continue-on-error: true
-
       - name: Use sccache
         if: runner.os != 'Windows'
         shell: bash
         run: |
           {
+            echo "SCCACHE_DAY=$(date -u +%Y-%m-%d)"
             echo "SCCACHE_DIR=$RUNNER_TEMP/sccache"
-            echo "SCCACHE_CACHE_SIZE=3G"
+            echo "SCCACHE_CACHE_SIZE=2G"
             echo "SCCACHE_IDLE_TIMEOUT=0"
             echo "RUSTC_WRAPPER=sccache"
             echo "CARGO_INCREMENTAL=0"
           } >> "$GITHUB_ENV"
+
+      # One cache entry per scope and day: a later run on the same day finds
+      # the key taken and skips the upload, which keeps the repository's
+      # cache quota for other entries.
+      - name: Restore sccache
+        if: runner.os != 'Windows'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/sccache
+          key: sccache-test-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-${{ env.SCCACHE_DAY }}
+          restore-keys: |
+            sccache-test-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-
+            sccache-test-v1-${{ runner.os }}-main-
+        timeout-minutes: 2
+        continue-on-error: true
 
       - name: Install Python for ecosystem tests
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 #v7.0.0  v6
@@ -285,7 +289,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/sccache
-          key: sccache-test-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-${{ github.run_id }}
+          key: sccache-test-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-${{ env.SCCACHE_DAY }}
         timeout-minutes: 3
         continue-on-error: true
 
