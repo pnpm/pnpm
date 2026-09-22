@@ -787,7 +787,7 @@ fn from_ini_warns_on_empty_auth_env_placeholder() {
     assert!(
         auth.warnings
             .iter()
-            .any(|warning| { warning.contains("Failed to replace env in config: ${MY_TOKEN}") })
+            .any(|warning| { warning.contains("Failed to replace env in config: ${MY_TOKEN}") }),
     );
     assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("")));
 }
