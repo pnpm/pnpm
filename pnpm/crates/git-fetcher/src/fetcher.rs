@@ -483,7 +483,7 @@ fn prefix_git_args() -> &'static [&'static str] {
     }
 }
 
-fn prepare_git_cmd(
+pub(crate) fn prepare_git_cmd(
     bin: &Path,
     args: &[&str],
     cwd: Option<&Path>,
