@@ -11,9 +11,9 @@
 //!   [`pick_lowest_version_by_version_range`] — choose the
 //!   highest/lowest version in `meta.versions` satisfying a range
 //!   string, biased by an optional [`VersionSelectors`] preference
-//!   table. The high-side variant also runs the deprecated-version
-//!   fallback (if the max pick is deprecated and other versions
-//!   exist, retry against the non-deprecated subset).
+//!   table. The high-side variant skips deprecated versions wherever it
+//!   is free to choose one, retrying within the winning dist-tag target
+//!   or preference group.
 //! - [`filter_pkg_metadata_by_publish_date`] — derive a packument
 //!   that contains only versions published at or before a cutoff,
 //!   plus rewritten `dist-tags` pointing to the highest within-cutoff
@@ -331,6 +331,10 @@ pub fn pick_version_by_version_range(
     opts: &PickVersionByVersionRangeOptions<'_>,
 ) -> Option<String> {
     let latest = opts.meta.dist_tag("latest");
+    let all_versions: Vec<&str> = opts.meta.versions
+        .keys()
+        .map(String::as_str)
+        .collect();
 
     if let Some(pick) = preferred_max_pick(opts, latest) {
         return Some(pick);
@@ -342,19 +346,19 @@ pub fn pick_version_by_version_range(
     if let Some(latest) = latest
         && (opts.version_range == "*" || semver_satisfies_loose(latest, opts.version_range))
     {
-        return Some(latest.to_string());
+        return Some(
+            non_deprecated_pick(opts, &all_versions, latest).unwrap_or_else(|| latest.to_string()),
+        );
     }
 
-    let all_versions: Vec<&str> = opts.meta.versions
-        .keys()
-        .map(String::as_str)
-        .collect();
     let max_pick = max_satisfying(&all_versions, opts.version_range)?;
     non_deprecated_pick(opts, &all_versions, &max_pick).or(Some(max_pick))
 }
 
 /// The highest satisfying version of the first preference group that has
-/// one, with `latest` winning inside its own group.
+/// one, with `latest` winning inside its own group. A deprecated winner
+/// falls back within its own group, so a group that is a single pinned
+/// version keeps that version.
 fn preferred_max_pick(
     opts: &PickVersionByVersionRangeOptions<'_>,
     latest: Option<&str>,
@@ -362,34 +366,38 @@ fn preferred_max_pick(
     let selectors = opts.preferred_version_selectors.filter(|selectors| !selectors.is_empty())?;
     let groups = prioritize_preferred_versions(opts.meta, opts.version_range, Some(selectors));
     for group in groups {
-        if let Some(latest) = latest
+        let pick = if let Some(latest) = latest
             && group
                 .iter()
                 .any(|version| version == latest)
             && semver_satisfies_loose(latest, opts.version_range)
         {
-            return Some(latest.to_string());
-        }
-        if let Some(pick) = max_satisfying(&group, opts.version_range) {
-            return Some(pick);
+            Some(latest.to_string())
+        } else {
+            max_satisfying(&group, opts.version_range)
+        };
+        if let Some(pick) = pick {
+            return Some(non_deprecated_pick(opts, &group, &pick).unwrap_or(pick));
         }
     }
     None
 }
 
-/// A deprecated top pick falls back to the highest non-deprecated version,
-/// when the packument carries another one at all.
-fn non_deprecated_pick(
+/// A deprecated pick falls back to the highest non-deprecated version
+/// among `candidates`, when the packument carries another one at all.
+/// Scoping the retry to the candidates keeps a preference group that is
+/// one explicitly pinned version from being overridden.
+fn non_deprecated_pick<Raw: AsRef<str>>(
     opts: &PickVersionByVersionRangeOptions<'_>,
-    all_versions: &[&str],
+    candidates: &[Raw],
     picked: &str,
 ) -> Option<String> {
-    if !opts.meta.versions.is_deprecated(picked) || all_versions.len() <= 1 {
+    if !opts.meta.versions.is_deprecated(picked) || candidates.len() <= 1 {
         return None;
     }
-    let non_deprecated: Vec<&str> = all_versions
+    let non_deprecated: Vec<&str> = candidates
         .iter()
-        .copied()
+        .map(AsRef::as_ref)
         .filter(|version| !opts.meta.versions.is_deprecated(version))
         .collect();
     max_satisfying(&non_deprecated, opts.version_range)

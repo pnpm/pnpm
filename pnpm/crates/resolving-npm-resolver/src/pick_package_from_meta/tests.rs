@@ -5,8 +5,8 @@ use node_semver::Version;
 use pnpm_config::version_policy::create_package_version_policy;
 use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
 use pnpm_resolving_resolver_base::{
-    EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
-    VersionSelectorWithWeight, VersionSelectors,
+    DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry,
+    VersionSelectorType, VersionSelectorWithWeight, VersionSelectors,
 };
 use pretty_assertions::assert_eq;
 
@@ -179,6 +179,99 @@ fn version_range_all_deprecated_returns_deprecated_max() {
         published_by: None,
     };
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.1.0"));
+}
+
+#[test]
+fn version_range_deprecated_latest_tag_falls_back_to_non_deprecated() {
+    let pkg = make_package(
+        "acme",
+        &[("1.0.0", None), ("1.1.0", None), ("2.0.0", Some("use 1.x"))],
+        &[("latest", "2.0.0")],
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: ">=1.0.0",
+        preferred_version_selectors: None,
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.1.0"));
+}
+
+/// A project manifest's own specifier is seeded as a preferred `Range`
+/// selector, so a plain install takes the preferred-versions branch even
+/// with no lockfile. That branch has to run the fallback too.
+#[test]
+fn version_range_deprecated_range_selector_falls_back_to_non_deprecated() {
+    let pkg = make_package(
+        "acme",
+        &[("1.0.0", None), ("2.0.0", Some("use 2.0.0-beta.1")), ("2.0.0-beta.1", None)],
+        &[("latest", "1.0.0"), ("beta", "2.0.0-beta.1")],
+    );
+    let mut selectors = VersionSelectors::new();
+    selectors.insert(
+        "^2.0.0-beta.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Range,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
+        }),
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "^2.0.0-beta.0",
+        preferred_version_selectors: Some(&selectors),
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("2.0.0-beta.1"));
+}
+
+#[test]
+fn version_range_all_deprecated_with_range_selector_returns_deprecated_max() {
+    let pkg = make_package(
+        "acme",
+        &[("1.0.0", Some("old")), ("1.1.0", Some("old"))],
+        &[("latest", "0.9.0")],
+    );
+    let mut selectors = VersionSelectors::new();
+    selectors.insert(
+        "^1.0.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Range,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
+        }),
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "^1.0.0",
+        preferred_version_selectors: Some(&selectors),
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.1.0"));
+}
+
+/// A lockfile records the version a previous install settled on, so the
+/// fallback must not override that pin.
+#[test]
+fn version_range_deprecated_version_pin_is_kept() {
+    let pkg = make_package(
+        "acme",
+        &[("1.0.0", None), ("1.1.0", None), ("2.0.0", Some("use 1.x"))],
+        &[("latest", "1.1.0")],
+    );
+    let mut selectors = VersionSelectors::new();
+    selectors.insert(
+        "2.0.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+        }),
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: ">=1.0.0",
+        preferred_version_selectors: Some(&selectors),
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("2.0.0"));
 }
 
 #[test]
@@ -557,6 +650,35 @@ fn pick_from_meta_published_by_filters_immature_versions() {
     )
     .expect("ok");
     assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("1.1.0"));
+}
+
+/// `minimumReleaseAge` narrows the candidates before the pick, so a
+/// deprecated version that has matured beats a newer non-deprecated one
+/// that the cutoff excludes.
+#[test]
+fn pick_from_meta_published_by_beats_deprecation_skip() {
+    let mut pkg = make_package(
+        "acme",
+        &[("2.0.0", Some("use 2.0.0-beta.1")), ("2.0.0-beta.1", None)],
+        &[("latest", "2.0.0")],
+    );
+    pkg.time = Some(make_time_map(&[
+        ("2.0.0", "2024-01-01T00:00:00.000Z"),
+        ("2.0.0-beta.1", "2025-06-01T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2025-01-01T00:00:00.000Z");
+    let picked = pick_package_from_meta(
+        pick_version_by_version_range,
+        &PickPackageFromMetaOptions {
+            preferred_version_selectors: None,
+            published_by: Some(cutoff),
+            published_by_exclude: None,
+        },
+        &pkg,
+        &spec("acme", "^2.0.0-beta.0", RegistryPackageSpecType::Range),
+    )
+    .expect("ok");
+    assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("2.0.0"));
 }
 
 #[test]
