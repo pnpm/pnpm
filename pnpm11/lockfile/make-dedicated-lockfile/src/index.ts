@@ -86,10 +86,18 @@ function withWorkspaceDependencies (manifest: ProjectManifest, publishManifest: 
   for (const depField of [...DEPENDENCIES_FIELDS, 'peerDependencies'] as const) {
     const deps = manifest[depField]
     if (deps == null || result[depField] == null) continue
+    let updatedDeps: Record<string, string> | undefined
     for (const [depName, spec] of Object.entries(deps)) {
-      if (spec.includes('workspace:')) {
-        result[depField] = { ...result[depField], [depName]: spec }
+      const isWorkspace = depField === 'peerDependencies' ? spec.includes('workspace:') : spec.startsWith('workspace:')
+      if (isWorkspace) {
+        if (updatedDeps == null) {
+          updatedDeps = { ...result[depField] }
+        }
+        updatedDeps[depName] = spec
       }
+    }
+    if (updatedDeps != null) {
+      result[depField] = updatedDeps
     }
   }
   return result
