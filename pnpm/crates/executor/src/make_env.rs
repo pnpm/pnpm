@@ -3,6 +3,7 @@ use serde_json::Value;
 use std::{
     collections::HashMap,
     env,
+    ffi::OsStr,
     path::{Path, PathBuf},
 };
 
@@ -242,7 +243,7 @@ pub(crate) fn path_value(env: &HashMap<String, String>) -> Option<String> {
 /// `parent_env`'s PATH (not the process-global env) so [`build_env`]
 /// stays deterministic given its inputs — matching the docstring
 /// contract.
-fn find_node_in_path(path: Option<&str>) -> Option<PathBuf> {
+fn find_node_in_path(path: Option<&OsStr>) -> Option<PathBuf> {
     let path = path?;
     let node_name = if cfg!(windows) { "node.exe" } else { "node" };
     env::split_paths(path)
@@ -314,7 +315,7 @@ fn stamp_executables(
         opts.init_cwd,
         opts.node_execpath,
         opts.npm_execpath,
-        parent_path.as_deref(),
+        parent_path.as_deref().map(OsStr::new),
     ));
 
     env.insert(
@@ -336,7 +337,7 @@ pub fn package_manager_env(
     init_cwd: &Path,
     node_execpath: Option<&Path>,
     npm_execpath: Option<&Path>,
-    path: Option<&str>,
+    path: Option<&OsStr>,
 ) -> HashMap<String, String> {
     let mut env = HashMap::new();
     env.insert("INIT_CWD".into(), init_cwd.to_string_lossy().into_owned());

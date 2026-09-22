@@ -260,9 +260,12 @@ pub(super) fn set_package_manager_env(
     cmd.env_remove("NODE").env_remove("npm_node_execpath");
     cmd.envs(pnpm_executor::package_manager_env(
         init_cwd,
-        extra_env.get("NODE").map(Path::new),
+        extra_env
+            .get("NODE")
+            .filter(|value| !value.is_empty())
+            .map(Path::new),
         None,
-        path.to_str(),
+        Some(path),
     ));
 }
 
