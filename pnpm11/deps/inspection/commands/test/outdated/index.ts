@@ -576,4 +576,10 @@ test('pnpm outdated should fail when a specified package is not in dependencies'
   ).rejects.toMatchObject({
     code: 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES',
   })
+
+  const compoundResult = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    dir: process.cwd(),
+  }, ['!not-a-dep', 'is-*'])
+  expect(compoundResult.exitCode).toBe(1)
 })

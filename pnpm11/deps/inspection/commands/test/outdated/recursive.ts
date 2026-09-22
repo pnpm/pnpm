@@ -460,6 +460,15 @@ test('pnpm recursive outdated should fail when a specified package is not in wor
     code: 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES',
   })
 
+  const compoundResult = await outdated.handler({
+    ...DEFAULT_OUTDATED_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['!not-a-dep', 'is-positive'])
+  expect(compoundResult.exitCode).toBe(1)
+
   const emptySelectionResult = await outdated.handler({
     ...DEFAULT_OUTDATED_OPTS,
     allProjects,

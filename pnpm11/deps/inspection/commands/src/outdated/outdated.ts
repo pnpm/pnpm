@@ -298,10 +298,12 @@ export function hasUnmatchedPackageParams (
   const deps = Array.from(availableDeps)
   const combinedMatcher = createMatcher(packageParams)
   if (!deps.some((dep) => combinedMatcher(dep))) return true
-  return packageParams.some((param) => {
-    const matcher = createMatcher([param])
-    return !deps.some((dep) => matcher(dep))
-  })
+  return packageParams
+    .filter((param) => !param.startsWith('!'))
+    .some((param) => {
+      const matcher = createMatcher([param])
+      return !deps.some((dep) => matcher(dep))
+    })
 }
 
 export type OutdatedItem = OutdatedPackage & { dependencyType?: 'githubAction' }

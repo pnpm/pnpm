@@ -183,10 +183,10 @@ impl OutdatedArgs {
 
         let config = state.config;
         let manifest = &state.manifest;
-        let lockfile = loaded_lockfile(&state)?;
         let package_patterns = self.package_patterns();
         let filters =
             OutdatedFilters::validated(&self, config, &package_patterns, [manifest], false)?;
+        let lockfile = loaded_lockfile(&state)?;
         if self.checks_packages(manifest, &package_patterns) && lockfile.is_none() {
             return Err(no_lockfile_error(project_dir(manifest)));
         }

@@ -607,6 +607,22 @@ fn outdated_fails_when_package_not_in_dependencies() {
         );
     }
 
+    let compound = pacquet(&workspace, ["outdated", "!not-a-dep", DEP])
+        .output()
+        .expect("run pacquet outdated with compound pattern");
+    assert_eq!(compound.status.code(), Some(1));
+
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove lockfile");
+    let no_lockfile = pacquet(&workspace, ["outdated", "not-a-dep"])
+        .output()
+        .expect("run pacquet outdated without lockfile");
+    let stderr = String::from_utf8_lossy(&no_lockfile.stderr);
+    assert!(!no_lockfile.status.success());
+    assert!(
+        stderr.contains("ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES"),
+        "must fail with ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES before checking lockfile: {stderr}",
+    );
+
     drop((root, anchor));
 }
 
@@ -669,6 +685,11 @@ fn outdated_recursive_validates_workspace_dependencies() {
             .output()
             .expect("run recursive outdated with empty filter");
     assert!(empty_filter.status.success(), "empty filter selection should exit 0");
+
+    let compound = pacquet(&workspace, ["outdated", "-r", "!not-a-dep", DEP])
+        .output()
+        .expect("run recursive outdated with compound pattern");
+    assert_eq!(compound.status.code(), Some(1));
 
     drop((root, anchor));
 }

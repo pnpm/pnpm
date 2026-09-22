@@ -79,6 +79,7 @@ pub(super) fn validate_package_patterns<'a>(
         .any(|dep| combined.matches(dep))
         || package_patterns
             .iter()
+            .filter(|pattern| !pattern.starts_with('!'))
             .any(|pattern| {
                 let matcher = create_matcher(std::slice::from_ref(pattern));
                 !deps
