@@ -8,7 +8,7 @@
 # or via the `just dylint` recipe.
 [workspace.metadata.dylint]
 libraries = [
-    { git = "https://github.com/KSXGitHub/perfectionist", rev = "c780eb9a15dc8501076abd9d6554005ef589dfdb" },
+    { git = "https://github.com/KSXGitHub/perfectionist", rev = "5c9057ab4f839a2f96e04aa39f932c3b55cfe9d6" },
 ]
 
 # Project-local DSL / test macros that perfectionist's exactly-once
