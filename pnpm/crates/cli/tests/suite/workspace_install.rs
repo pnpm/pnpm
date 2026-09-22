@@ -856,7 +856,7 @@ fn install_does_not_scaffold_a_root_manifest_in_a_workspace() {
 }
 
 /// With `preferSymlinkedExecutables`, the isolated linker also
-/// materializes `.bin` entries as symlinks to the bin file instead of
+/// materializes `.bin` entries as symlinks to executable bin files instead of
 /// shell shims — pnpm's `deps-installer` "prefer-symlinked-executables"
 /// install coverage.
 #[test]
@@ -874,8 +874,14 @@ fn prefer_symlinked_executables_symlinks_workspace_bins() {
     let mut provider_manifest = read_manifest(&provider);
     provider_manifest["bin"] = serde_json::json!({ "project-2": "index.js" });
     write_manifest_value(&provider, &provider_manifest);
+    #[cfg(windows)]
     fs::write(provider.join("index.js"), "#!/usr/bin/env node\nconsole.log('hello')\n")
         .expect("write project bin");
+    #[cfg(unix)]
+    _utils::write_executable(
+        &provider.join("index.js"),
+        "#!/usr/bin/env node\nconsole.log('hello')\n",
+    );
 
     fixture.run(["install"]);
 
