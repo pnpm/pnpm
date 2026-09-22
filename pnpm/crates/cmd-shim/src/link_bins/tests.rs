@@ -45,3 +45,6 @@ mod relocatable;
 
 #[cfg(unix)]
 mod relocation_validation;
+
+#[cfg(unix)]
+mod permissions;

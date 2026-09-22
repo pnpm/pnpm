@@ -5,9 +5,8 @@ use super::shim_writer::with_extension_appended;
 use super::{FsEnsureExecutableBits, FsReadToString, LinkBinsError, Path, io, remove_stale_bin};
 use crate::shim::is_within_root;
 
-/// Make the underlying script executable: apply a minimum mode of
-/// 0o755 without rewriting CRLF shebangs. Targets shipped by npm
-/// already use LF in practice, so a chmod alone suffices.
+/// Add missing executable bits to installed targets without modifying
+/// workspace files or rewriting CRLF shebangs.
 pub(super) fn ensure_target_executable<Sys>(target_path: &Path) -> Result<(), LinkBinsError>
 where
     Sys: FsEnsureExecutableBits,
