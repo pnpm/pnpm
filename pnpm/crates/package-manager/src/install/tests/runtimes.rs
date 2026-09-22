@@ -1,6 +1,7 @@
 use super::{
     super::{Install, ProjectMutation},
     InstallDirs, is_modules_yaml_consistent, run_purge_regression_install,
+    run_purge_regression_install_with_lockfile,
 };
 use crate::PolicyExcludes;
 use pipe_trait::Pipe;
@@ -445,9 +446,7 @@ async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_i
 
     // 1. A full install creates node_modules + .modules.yaml (included = full).
     run_purge_regression_install(
-        &dirs.store_dir,
-        &dirs.modules_dir,
-        &dirs.virtual_store_dir,
+        &dirs,
         mock_instance.url(),
         &manifest,
         full(),
@@ -468,9 +467,7 @@ async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_i
     // 2. Switching to --prod is an included drift only, so the file survives —
     // but the now-excluded dev dep's link and bin shim must be pruned.
     run_purge_regression_install(
-        &dirs.store_dir,
-        &dirs.modules_dir,
-        &dirs.virtual_store_dir,
+        &dirs,
         mock_instance.url(),
         &manifest,
         prod_only(),
@@ -490,9 +487,7 @@ async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_i
 
     // 3. A real layout drift (virtual-store-dirs.dir-max-length) still wipes it.
     run_purge_regression_install(
-        &dirs.store_dir,
-        &dirs.modules_dir,
-        &dirs.virtual_store_dir,
+        &dirs,
         mock_instance.url(),
         &manifest,
         prod_only(),
@@ -500,6 +495,52 @@ async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_i
     )
     .await;
     assert!(!vendored.exists(), "layout drift must still recreate node_modules from scratch");
+}
+
+#[tokio::test]
+async fn included_drift_without_lockfile_prunes_excluded_dev_deps() {
+    let mock_instance = TestRegistry::start();
+    let dirs = InstallDirs::new();
+
+    fs::create_dir_all(&dirs.project_root).unwrap();
+    let manifest_path = dirs.project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest.add_dependency("@pnpm.e2e/console-log", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Dev).unwrap();
+    manifest.save().unwrap();
+
+    let full = || vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+    let prod_only = || vec![DependencyGroup::Prod];
+
+    run_purge_regression_install_with_lockfile(
+        &dirs,
+        mock_instance.url(),
+        &manifest,
+        full(),
+        DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+        false,
+    )
+    .await;
+
+    let prod_link = dirs.modules_dir.join("@pnpm.e2e/console-log");
+    let dev_link = dirs.modules_dir.join("@pnpm.e2e/hello-world-js-bin");
+    let dev_shim = dirs.modules_dir.join(".bin/hello-world-js-bin");
+    assert!(dev_link.symlink_metadata().is_ok());
+    assert!(dev_shim.exists());
+
+    run_purge_regression_install_with_lockfile(
+        &dirs,
+        mock_instance.url(),
+        &manifest,
+        prod_only(),
+        DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+        false,
+    )
+    .await;
+
+    assert!(dev_link.symlink_metadata().is_err());
+    assert!(!dev_shim.exists());
+    assert!(prod_link.symlink_metadata().is_ok());
 }
 #[tokio::test]
 async fn test_install_purges_node_modules_on_layout_mismatch() {
