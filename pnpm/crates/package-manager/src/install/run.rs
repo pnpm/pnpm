@@ -23,6 +23,8 @@ mod time_machine_capture;
 mod uninstall_hooks;
 use uninstall_hooks::run_pre_uninstall_hooks;
 
+use std::fs;
+
 use super::{
     Arc, DependencyGroup, InMemoryPackageMetaCache, Install, InstallError, InstallRunOptions,
     Lockfile, Path, PathBuf, Reporter, UpdateSeedPolicy, build_resolution_verifiers,
@@ -169,15 +171,17 @@ where
         );
         owned.http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let mode = RunMode::settle(install, &owned, &options)?;
-        if install.should_prune_catalogs(&options) {
+        let rollback_guard = if install.should_prune_catalogs(&options) {
             install.prune_workspace_catalogs(
                 &options,
                 owned.projects.workspace_projects_override.as_deref(),
-            )?;
-        }
+            )?
+        } else {
+            None
+        };
         let mut workspace = InstallWorkspace::discover::<Reporter>(install, &mut owned, &options)?;
         let loaded_workspace_projects = workspace.loaded_workspace_projects.take();
-        Box::pin(
+        let outcome = Box::pin(
             RunExecution {
                 install,
                 owned,
@@ -188,7 +192,11 @@ where
             }
             .run::<Reporter>(time_machine_exclusions),
         )
-        .await
+        .await?;
+        if let Some(guard) = rollback_guard {
+            guard.commit();
+        }
+        Ok(outcome)
     }
 }
 
@@ -225,6 +233,7 @@ impl InstallView<'_> {
             && options.save_lockfile
             && !options.lockfile_check
             && !self.execution.dry_run
+            && !self.lockfile_policy.frozen
             && self.execution.mutation.is_full_install()
     }
 
@@ -232,7 +241,7 @@ impl InstallView<'_> {
         &self,
         options: &InstallRunOptions<'_, '_>,
         workspace_projects_override: Option<&[pnpm_workspace::Project]>,
-    ) -> Result<(), InstallError> {
+    ) -> Result<Option<WorkspaceManifestRollbackGuard>, InstallError> {
         let manifest_dir = self.context.manifest
             .path()
             .parent()
@@ -241,8 +250,10 @@ impl InstallView<'_> {
             configured_or_discovered_workspace_dir(self.context.config, manifest_dir)
                 .map_err(InstallError::FindWorkspaceDir)?
         else {
-            return Ok(());
+            return Ok(None);
         };
+        let workspace_manifest_path = workspace_dir.join("pnpm-workspace.yaml");
+        let original_content = fs::read_to_string(&workspace_manifest_path).ok();
         if let Some(projects) = workspace_projects_override {
             write_workspace_catalogs_selected(
                 self.context.config,
@@ -265,7 +276,32 @@ impl InstallView<'_> {
                 self.context.manifest,
             )
         }
-        .map_err(InstallError::WriteWorkspaceManifest)
+        .map_err(InstallError::WriteWorkspaceManifest)?;
+        Ok(original_content.map(|content| WorkspaceManifestRollbackGuard {
+            path: workspace_manifest_path,
+            original_content: content,
+            committed: false,
+        }))
+    }
+}
+
+struct WorkspaceManifestRollbackGuard {
+    path: PathBuf,
+    original_content: String,
+    committed: bool,
+}
+
+impl WorkspaceManifestRollbackGuard {
+    fn commit(mut self) {
+        self.committed = true;
+    }
+}
+
+impl Drop for WorkspaceManifestRollbackGuard {
+    fn drop(&mut self) {
+        if !self.committed {
+            let _ = fs::write(&self.path, &self.original_content);
+        }
     }
 }
 

@@ -621,6 +621,52 @@ fn warm_install_prunes_unused_catalog_entries_when_catalog_prune_is_enabled() {
     drop((root, anchor));
 }
 
+#[test]
+fn install_frozen_lockfile_with_missing_lockfile_does_not_prune_catalogs() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalogPrune: true\ncatalog:\n  '{FOO}': 1.0.0\n  '@pnpm.e2e/bar': 100.0.0\n"),
+    );
+
+    let output =
+        pacquet(&workspace, ["install", "--frozen-lockfile"]).output().expect("run install");
+    assert!(!output.status.success());
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/bar"),
+        "frozen install without lockfile must not prune pnpm-workspace.yaml:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn failed_resolution_rolls_back_pruned_workspace_catalogs() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "{FOO}": "catalog:", "nonexistent-pkg-xyz-12345": "1.0.0" }}"#),
+    );
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalogPrune: true\ncatalog:\n  '{FOO}': 1.0.0\n  '@pnpm.e2e/bar': 100.0.0\n"),
+    );
+
+    let output = pacquet(&workspace, ["install"]).output().expect("run install");
+    assert!(!output.status.success());
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/bar"),
+        "install failure after validation must roll back pnpm-workspace.yaml:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
 /// With `minimumReleaseAgeExcludePrune: true`, a
 /// manifest-persisting command (`pnpm add` here) prunes the
 /// `minimumReleaseAgeExclude` entries the freshly resolved lockfile no
