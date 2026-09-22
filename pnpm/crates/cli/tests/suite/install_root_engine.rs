@@ -68,6 +68,7 @@ fn engine_strict_accepts_the_active_node_version() {
 
     pacquet
         .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node":false}"#)
+        .with_env("PNPM_SHIM_BYPASS", "1")
         .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
@@ -168,6 +169,7 @@ fn no_runtime_checks_the_active_node_instead_of_the_manifest_runtime() {
 
     pacquet
         .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node":false}"#)
+        .with_env("PNPM_SHIM_BYPASS", "1")
         .with_args(["install", "--lockfile-only", "--no-runtime"])
         .assert()
         .success();
@@ -179,6 +181,7 @@ fn node_version_at(dir: &Path) -> String {
     let node_output = Command::new("node")
         .without_ambient_pnpm_config()
         .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node":false}"#)
+        .env("PNPM_SHIM_BYPASS", "1")
         .arg("--version")
         .current_dir(dir)
         .output()

@@ -36,17 +36,8 @@ export async function findPackages (root: string, opts?: FindPackagesOptions): P
   }
 
   return pFilter(
-    // `Array.from()` doesn't create an intermediate instance,
-    // unlike `array.map()`
     Array.from(
-      // Remove duplicate paths using `Set`
-      new Set(
-        paths
-          .map(manifestPath => path.join(root, manifestPath))
-          .sort((path1, path2) =>
-            lexCompare(path.dirname(path1), path.dirname(path2))
-          )
-      ),
+      pickManifestPerDirectory(root, paths),
       async manifestPath => {
         try {
           const rootDir = path.dirname(manifestPath) as ProjectRootDir
@@ -78,15 +69,7 @@ export function findPackagesSync (root: string, opts?: FindPackagesOptions): Pro
     paths.push(...globSync(normalizePatterns(['.']), globOpts))
   }
 
-  const uniquePaths = Array.from(
-    new Set(
-      paths
-        .map(manifestPath => path.join(root, manifestPath))
-        .sort((path1, path2) =>
-          lexCompare(path.dirname(path1), path.dirname(path2))
-        )
-    )
-  )
+  const uniquePaths = pickManifestPerDirectory(root, paths)
 
   const projects: Project[] = []
   for (const manifestPath of uniquePaths) {
@@ -105,4 +88,20 @@ export function findPackagesSync (root: string, opts?: FindPackagesOptions): Pro
     }
   }
   return projects
+}
+
+function pickManifestPerDirectory (root: string, paths: string[]): string[] {
+  const byDir = new Map<string, string>()
+  for (const manifestPath of paths) {
+    const fullPath = path.join(root, manifestPath)
+    const dir = path.dirname(fullPath)
+    const selected = byDir.get(dir)
+    // The supported names sort in reader order: package.json, package.json5, package.yaml.
+    if (selected == null || lexCompare(path.basename(fullPath), path.basename(selected)) < 0) {
+      byDir.set(dir, fullPath)
+    }
+  }
+  return Array.from(byDir.values()).sort((path1, path2) =>
+    lexCompare(path.dirname(path1), path.dirname(path2))
+  )
 }

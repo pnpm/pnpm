@@ -207,6 +207,7 @@ rusqlite = { version = "0.39.0", features = ["bundled"] }
 same-file = { version = "1.0.6" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.150", features = ["preserve_order", "raw_value"] }
+json5 = { version = "=1.3.1" }
 semver = { version = "1.0.28" }
 shell-words = { version = "1.1.1" }
 rustc-hash = { version = "2.1.1" }

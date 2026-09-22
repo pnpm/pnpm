@@ -367,7 +367,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     ? path.join(opts.dir, entryManifest.publishConfig.directory)
     : opts.dir
   // always read the latest manifest, as "prepack" or "prepare" script may modify package manifest.
-  const { manifest } = await readProjectManifest(dir, opts)
+  const { manifest, fileName: selectedManifestFileName } = await readProjectManifest(dir, opts)
   preventBundledDependenciesWithoutHoistedNodeLinker(opts.nodeLinker, manifest)
   if (!manifest.name) {
     throw new PnpmError('PACKAGE_NAME_NOT_FOUND', `Package name is not defined in the ${manifestFileName}.`)
@@ -416,6 +416,10 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     workspaceDir: opts.workspaceDir,
   })
   const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
+  for (const name of Object.keys(filesMap)) {
+    if (isManifestEntry(name)) delete filesMap[name]
+  }
+  filesMap['package/package.json'] = path.join(dir, selectedManifestFileName)
   // cspell:disable-next-line
   if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /^LICEN[CS]E(?:\..+)?$/i.test(path.basename(file)))) {
     const { workspaceDir } = opts

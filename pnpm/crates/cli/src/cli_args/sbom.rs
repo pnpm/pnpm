@@ -33,7 +33,10 @@ use pnpm_package_is_installable::{
     InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
 };
 use pnpm_package_manager::{importer_root_dir, validate_importer_id};
-use pnpm_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
+use pnpm_package_manifest::{
+    extract_author, extract_homepage, safe_read_package_json_from_dir,
+    safe_read_project_manifest_from_dir,
+};
 use pnpm_resolving_git_resolver::{HostedGit, HostedOpts};
 use spdx::serialize_spdx;
 use std::{
@@ -199,7 +202,7 @@ struct SbomResult {
 }
 
 /// Resolve a lockfile importer key to the on-disk directory whose
-/// `package.json` the SBOM reads, returning `None` when that directory does
+/// project manifest the SBOM reads, returning `None` when that directory does
 /// not stay inside the lockfile dir. Mirrors pnpm's SBOM importer handling
 /// (`sbom.ts`): `validate_importer_id` is the cheap lexical pre-filter, then
 /// both the lockfile dir and the importer dir are canonicalized so a

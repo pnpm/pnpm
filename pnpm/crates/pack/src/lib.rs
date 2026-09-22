@@ -48,7 +48,9 @@ use pnpm_exportable_manifest::{
 use pnpm_fs::lexical_normalize;
 use pnpm_fs_packlist::{PacklistError, PacklistOptions, packlist_with_options};
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks};
-use pnpm_package_manifest::{PackageManifestError, is_truthy, safe_read_package_json_from_dir};
+use pnpm_package_manifest::{
+    PackageManifestError, is_truthy, project_manifest_path, safe_read_project_manifest_from_dir,
+};
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
 use serde_json::Value;
@@ -59,9 +61,7 @@ use std::{
     sync::Arc,
 };
 
-/// The single supported manifest basename. pacquet only reads
-/// `package.json`; the name appears in the "name/version not defined"
-/// errors, matching pnpm's `manifestFileName`.
+/// The published manifest basename used in identity validation errors.
 const MANIFEST_FILE_NAME: &str = "package.json";
 
 /// Result of packing one project.
@@ -289,6 +289,8 @@ fn packed_files_map(
     )
     .map_err(PackError::Packlist)?;
     let mut files_map = build_files_map(&source.dir, &files);
+    files_map.retain(|name, _| !is_manifest_entry(name));
+    files_map.insert("package/package.json".to_string(), project_manifest_path(&source.dir));
     inject_workspace_license(opts, &source.dir, &mut files_map);
     // A composed entry supersedes any same-named on-disk file (e.g. a stale
     // committed CHANGELOG.md), so drop it from the file map before packing.
@@ -429,7 +431,7 @@ fn with_registry_readme(mut manifest: Value, dir: &Path) -> Result<Value, PackEr
 
 /// Read the raw manifest under `dir`, erroring when it is absent.
 fn read_manifest(dir: &Path) -> Result<Value, PackError> {
-    match safe_read_package_json_from_dir(dir) {
+    match safe_read_project_manifest_from_dir(dir) {
         Ok(Some(manifest)) => Ok(manifest),
         Ok(None) => Err(PackError::ManifestNotFound { dir: dir.display().to_string() }),
         Err(source) => Err(PackError::ReadManifest(source)),

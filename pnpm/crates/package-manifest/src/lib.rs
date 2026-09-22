@@ -1,6 +1,9 @@
 pub mod package_manager_spec;
 pub use error::PackageManifestError;
 pub use initialization::{InitAuthor, InitOptions};
+pub use project::{
+    PROJECT_MANIFEST_BASENAMES, project_manifest_path, safe_read_project_manifest_from_dir,
+};
 pub use runtime::{
     apply_runtime_on_fail_override, convert_dependencies_to_engines_runtime,
     convert_engines_runtime_to_dependencies, engines_runtime_dependencies, is_runtime_alias,
@@ -21,6 +24,8 @@ use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;
 use tempfile::NamedTempFile;
 mod error;
+mod json5;
+mod project;
 mod truthiness;
 
 #[derive(Debug, Clone, Copy, PartialEq, IntoStaticStr)]
@@ -46,7 +51,8 @@ pub enum BundleDependencies {
 /// (freshly scaffolded or in-memory).
 const DEFAULT_INDENT: &str = "  ";
 
-/// Content of a `package.json` or `package.yaml` manifest and its path.
+/// Content of a `package.json`, `package.json5`, or `package.yaml` manifest and its path.
+/// JSON5 numbers must be finite and values may be nested at most 128 levels.
 ///
 /// Carries the source file's formatting (indentation unit, final-newline
 /// state) and its parsed value across the read/save round-trip, so
@@ -163,8 +169,8 @@ impl PackageManifest {
     /// Persist the manifest in its on-disk shape (`devEngines` folded back,
     /// dependency fields normalized) and return that shape.
     ///
-    /// Preserves JSON indentation and final-newline state, or YAML comments
-    /// and existing key order. A save that changes nothing leaves the file
+    /// Preserves JSON indentation and final-newline state, JSON5 comments,
+    /// or YAML comments and existing key order. A save that changes nothing leaves the file
     /// and its modification time untouched.
     pub fn save_and_get_written_value(&mut self) -> Result<Value, PackageManifestError> {
         let value = self.written_value()?;
@@ -174,7 +180,11 @@ impl PackageManifest {
         let mut contents = if self.is_yaml() {
             self.serialize_yaml(&value)?
         } else {
-            let mut contents = serialize_with_indent(&value, &self.indent)?;
+            let mut contents = if self.is_json5() {
+                self.serialize_json5(&value)?
+            } else {
+                serialize_with_indent(&value, &self.indent)?
+            };
             if self.insert_final_newline {
                 contents.push('\n');
             }

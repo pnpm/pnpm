@@ -110,6 +110,43 @@ fn strip_utf8_bom(contents: &str) -> &str {
     contents.strip_prefix('\u{feff}').unwrap_or(contents)
 }
 
+pub(super) fn parse_project_manifest(
+    path: &Path,
+    contents: &str,
+) -> Result<Value, PackageManifestError> {
+    let contents = strip_utf8_bom(contents);
+    let value = if is_yaml_path(path) {
+        pnpm_yaml_document_sync::parse(contents)
+            .map_err(|source| PackageManifestError::ParseYaml {
+                path: path.to_path_buf(),
+                source,
+            })?
+    } else if is_json5_path(path) {
+        crate::json5::parse(contents)
+            .map_err(|source| PackageManifestError::ParseJson5 {
+                path: path.to_path_buf(),
+                source,
+            })?
+    } else {
+        parse_manifest(contents)
+            .map_err(|source| PackageManifestError::Parse { path: path.to_path_buf(), source })?
+    };
+    if is_yaml_path(path) && value.is_null() {
+        return Ok(serde_json::json!({}));
+    }
+    if !value.is_object() {
+        return Err(if is_yaml_path(path) {
+            PackageManifestError::InvalidAttribute(format!(
+                "{}: the manifest root must be an object",
+                path.display(),
+            ))
+        } else {
+            PackageManifestError::InvalidRoot { path: path.to_path_buf() }
+        });
+    }
+    Ok(value)
+}
+
 impl PackageManifest {
     pub(super) fn write_to_file(
         path: &Path,
@@ -170,22 +207,7 @@ impl PackageManifest {
     pub(super) fn read_from_file(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
         let file_contents = fs::read_to_string(&path)?;
         let contents = strip_utf8_bom(&file_contents);
-        let mut value: Value = if is_yaml_path(&path) {
-            pnpm_yaml_document_sync::parse(contents)
-                .map_err(|source| PackageManifestError::ParseYaml { path: path.clone(), source })?
-        } else {
-            parse_manifest(contents)
-                .map_err(|source| PackageManifestError::Parse { path: path.clone(), source })?
-        };
-        if is_yaml_path(&path) && value.is_null() {
-            value = serde_json::json!({});
-        }
-        if is_yaml_path(&path) && !value.is_object() {
-            return Err(PackageManifestError::InvalidAttribute(format!(
-                "{}: the manifest root must be an object",
-                path.display(),
-            )));
-        }
+        let mut value = parse_project_manifest(&path, contents)?;
         let empty_dependency_fields = empty_dependency_fields(&value);
         let mut on_disk = value.clone();
         normalize_dependency_fields(&mut on_disk, &empty_dependency_fields);
@@ -236,7 +258,36 @@ fn is_yaml_path(path: &Path) -> bool {
         .is_some_and(|name| name.eq_ignore_ascii_case("package.yaml"))
 }
 
+fn is_json5_path(path: &Path) -> bool {
+    path.file_name()
+        .is_some_and(|name| name.eq_ignore_ascii_case("package.json5"))
+}
+
 impl PackageManifest {
+    pub(super) fn is_json5(&self) -> bool {
+        is_json5_path(&self.path)
+    }
+
+    pub(super) fn serialize_json5(&self, value: &Value) -> Result<String, PackageManifestError> {
+        let serialized = serialize_with_indent(value, &self.indent)?;
+        let text = match fs::read_to_string(&self.path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(serialized),
+            Err(source) => {
+                return Err(PackageManifestError::Read { path: self.path.clone(), source });
+            }
+        };
+        parse_project_manifest(&self.path, &text)?;
+        let restored = crate::json5::restore_comments(strip_utf8_bom(&text), &serialized);
+        if parse_project_manifest(&self.path, &restored)? != *value {
+            return Err(PackageManifestError::InvalidAttribute(format!(
+                "{}: preserving JSON5 comments changed the manifest value",
+                self.path.display(),
+            )));
+        }
+        Ok(restored)
+    }
+
     pub(super) fn is_yaml(&self) -> bool {
         is_yaml_path(&self.path)
     }

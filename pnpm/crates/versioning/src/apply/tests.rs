@@ -507,3 +507,53 @@ fn prepend_keeps_the_title_above_the_new_section_even_without_a_trailing_newline
     let changelog = fs::read_to_string(dir.path().join("CHANGELOG.md")).expect("read changelog");
     assert!(changelog.starts_with("# lib\n\n## 1.0.1"), "unexpected changelog: {changelog}");
 }
+
+#[test]
+fn apply_updates_the_selected_json5_manifest_without_creating_json() {
+    let workspace = make_workspace(&[("lib", "1.0.0", &[])]);
+    let root_dir = &workspace.projects[0].root_dir;
+    fs::remove_file(root_dir.join("package.json")).expect("remove the fixture JSON manifest");
+    let manifest_path = root_dir.join("package.json5");
+    fs::write(
+        &manifest_path,
+        "// release metadata\n{ name: 'lib', version: '1.0.0', /* version note */ }\n",
+    )
+    .expect("write the JSON5 manifest");
+    let yaml = "name: alternate\nversion: 9.0.0\n";
+    fs::write(root_dir.join("package.yaml"), yaml).expect("write the alternate YAML manifest");
+    let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Patch)]);
+    write_change_intent(workspace.dir.path(), &releases, "Fixed a bug.").expect("intent writes");
+    let intents = read_change_intents(workspace.dir.path()).expect("intents read");
+    let ledger = read_ledger(workspace.dir.path()).expect("ledger reads");
+    let plan = assemble_release_plan(
+        &workspace.projects,
+        workspace.dir.path(),
+        &intents,
+        &ledger,
+        None,
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect("plan assembles");
+
+    let applied = apply_release_plan(
+        &plan,
+        workspace.dir.path(),
+        &workspace.projects,
+        &intents,
+        Some(&repository()),
+        &HashSet::new(),
+    )
+    .expect("plan applies");
+
+    assert_eq!(applied.len(), 1);
+    assert_eq!(applied[0].new_version, "1.0.1");
+    let manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path.clone())
+        .expect("read the updated manifest");
+    assert_eq!(manifest.value()["version"], "1.0.1");
+    let written = fs::read_to_string(manifest_path).expect("read the JSON5 source");
+    eprintln!("WRITTEN:\n{written}");
+    assert!(written.contains("// release metadata"));
+    assert!(written.contains("/* version note */"));
+    assert!(!root_dir.join("package.json").exists());
+    assert_eq!(fs::read_to_string(root_dir.join("package.yaml")).expect("read YAML"), yaml);
+}

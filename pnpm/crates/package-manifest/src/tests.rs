@@ -40,3 +40,5 @@ mod files;
 mod lockfile;
 
 mod yaml;
+
+mod json5;

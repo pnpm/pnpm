@@ -88,16 +88,19 @@ pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
 }
 
 /// The root project's manifest, whichever supported basename it uses, as a
-/// JSON value. A missing manifest is `None`; a malformed one is an error, so
-/// the caller can report it.
+/// JSON value. A manifest that is missing, unreadable, or malformed yields
+/// `None`: pre-command checks have nothing to switch or sync, and the command
+/// path reports it with far more context.
 ///
 /// [`pnpm_workspace::try_read_project_manifest`] decides between
-/// `package.json` and `package.yaml`, the same way the install pipeline does,
-/// so a pin recorded from the pre-command checks is the one the install reads.
-pub(crate) fn read_root_manifest(root_dir: &Path) -> miette::Result<Option<Value>> {
+/// `package.json`, `package.json5`, and `package.yaml`, the same way the
+/// install pipeline does, so a pin recorded from the pre-command checks is
+/// the one the install reads.
+pub(crate) fn read_root_manifest(root_dir: &Path) -> Option<Value> {
     pnpm_workspace::try_read_project_manifest(root_dir)
-        .map(|manifest| manifest.map(|(_, manifest)| manifest.value().clone()))
-        .map_err(miette::Report::new)
+        .ok()
+        .flatten()
+        .map(|(_, manifest)| manifest.value().clone())
 }
 
 pub(crate) fn wanted_package_manager(manifest: &Value) -> Option<WantedPackageManager> {

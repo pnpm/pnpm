@@ -28,6 +28,7 @@ use pnpm_package_manager::{
 };
 use pnpm_package_manifest::{
     extract_license, node_version_from_engines_runtime, safe_read_package_json_from_dir,
+    safe_read_project_manifest_from_dir,
 };
 use pnpm_resolving_git_resolver::HostedGit;
 use serde::Serialize;
@@ -206,7 +207,7 @@ fn lockfile_layout(
     lockfile: &Lockfile,
 ) -> miette::Result<pnpm_deps_restorer::VirtualStoreLayout> {
     let allow_build_policy = AllowBuildPolicy::from_config(config).into_diagnostic()?;
-    let project_manifest = safe_read_package_json_from_dir(dir).into_diagnostic()?;
+    let project_manifest = safe_read_project_manifest_from_dir(dir).into_diagnostic()?;
     let manifest_node_version =
         project_manifest.as_ref().and_then(node_version_from_engines_runtime);
     let effective_node_version =

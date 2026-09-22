@@ -250,6 +250,21 @@ fn pre_command_plan_accepts_a_pnpm_pin_when_version_switching_is_turned_off() {
 }
 
 #[test]
+fn pre_command_plan_yields_no_plan_when_root_manifest_is_not_an_object() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(root.path(), "null");
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected switch plan");
+}
+
+#[test]
 fn pre_command_plan_reports_a_project_pinned_to_another_package_manager() {
     let root = TempDir::new().expect("tmp dir");
     write_manifest(root.path(), r#"{"packageManager":"yarn@4.0.0"}"#);

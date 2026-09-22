@@ -132,7 +132,7 @@ fn pre_command_plan_from_input(
         manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.clone()),
         env: config.root_project_manifest_dir(&dir).to_path_buf(),
     };
-    let manifest = read_root_manifest(&roots.manifest)?;
+    let manifest = read_root_manifest(&roots.manifest);
 
     let wanted_pm = manifest.as_ref().and_then(wanted_package_manager);
     let running_matches_pin = pin_matches_running(wanted_pm.as_ref());
