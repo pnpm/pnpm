@@ -51,11 +51,25 @@ pub fn main() -> ExitCode {
     match run_on_big_stack(run_cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            if !is_reported_error(&error) {
-                eprintln!("Error: {error:?}");
-            }
+            report_fatal_error(&error);
             ExitCode::FAILURE
         }
+    }
+}
+
+fn report_fatal_error(error: &miette::Report) {
+    for cause in error.chain() {
+        if let Some(pnpm_package_manager::InstallError::PeerDependencyIssues { rendered }) =
+            cause.downcast_ref::<pnpm_package_manager::InstallError>()
+        {
+            if let Some(rendered) = rendered {
+                eprint!("{rendered}");
+            }
+            return;
+        }
+    }
+    if !is_reported_error(error) {
+        eprintln!("Error: {error:?}");
     }
 }
 
@@ -65,9 +79,7 @@ fn is_reported_error(error: &miette::Report) -> bool {
         .is_some_and(|code| {
             matches!(
                 code.to_string().as_str(),
-                "ERR_PNPM_DEDUPE_CHECK_ISSUES"
-                    | "ERR_PNPM_PEER_DEP_ISSUES"
-                    | cli_args::recursive::NO_MATCHING_PROJECTS_CODE,
+                "ERR_PNPM_DEDUPE_CHECK_ISSUES" | cli_args::recursive::NO_MATCHING_PROJECTS_CODE,
             )
         })
 }

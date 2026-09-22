@@ -409,13 +409,13 @@ fn dedupe_fails_on_peer_dependency_issues_when_strict() {
         !output.status.success(),
         "dedupe must fail when strictPeerDependencies is true: {output:?}",
     );
-    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
-    assert!(stdout.contains("ERR_PNPM_PEER_DEP_ISSUES"), "stdout:\n{stdout}");
-    assert!(stdout.contains("Unmet peer dependencies"), "stdout:\n{stdout}");
-    assert!(stdout.contains("@pnpm.e2e/foo"), "stdout:\n{stdout}");
-    assert!(stdout.contains("Wanted:"), "stdout:\n{stdout}");
-    assert!(stdout.contains("strictPeerDependencies: false"), "stdout:\n{stdout}");
-    assert!(!stdout.contains("autoInstallPeers: true"), "stdout:\n{stdout}");
+    let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+    assert!(stderr.contains("ERR_PNPM_PEER_DEP_ISSUES"), "stderr:\n{stderr}");
+    assert!(stderr.contains("Unmet peer dependencies"), "stderr:\n{stderr}");
+    assert!(stderr.contains("@pnpm.e2e/foo"), "stderr:\n{stderr}");
+    assert!(stderr.contains("Wanted:"), "stderr:\n{stderr}");
+    assert!(stderr.contains("strictPeerDependencies: false"), "stderr:\n{stderr}");
+    assert!(!stderr.contains("autoInstallPeers: true"), "stderr:\n{stderr}");
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     assert!(lockfile_path.exists(), "dedupe still writes the lockfile before failing");
@@ -460,10 +460,10 @@ fn dedupe_strict_failure_hints_at_auto_install_peers_for_a_missing_peer() {
         !output.status.success(),
         "dedupe must fail when strictPeerDependencies is true: {output:?}",
     );
-    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
-    assert!(stdout.contains("missing peer"), "stdout:\n{stdout}");
-    assert!(stdout.contains("autoInstallPeers: true"), "stdout:\n{stdout}");
-    assert!(stdout.contains("strictPeerDependencies: false"), "stdout:\n{stdout}");
+    let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+    assert!(stderr.contains("missing peer"), "stderr:\n{stderr}");
+    assert!(stderr.contains("autoInstallPeers: true"), "stderr:\n{stderr}");
+    assert!(stderr.contains("strictPeerDependencies: false"), "stderr:\n{stderr}");
 
     drop((root, mock_instance));
 }

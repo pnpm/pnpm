@@ -68,7 +68,7 @@ snapshots:
         Some(&catalogs),
     )
     .expect_err("a resolver candidate with a missing peer must fail in strict mode");
-    assert!(matches!(error, InstallError::PeerDependencyIssues));
+    assert!(matches!(error, InstallError::PeerDependencyIssues { rendered: None }));
     let events = EVENTS.lock().unwrap();
     assert!(matches!(events.as_slice(), [LogEvent::Global(_)]), "unexpected events: {events:?}");
 }
