@@ -86,10 +86,10 @@ impl<Db> SqlAuth<Db> {
     }
 }
 
-/// Every future is declared `Send` because [`SqlAuth`] is reached through
-/// `Arc<dyn UserBackend>` and `Arc<dyn TokenBackend>`, whose boxed futures
-/// must be `Send`; a bare `async fn` here would leave the returned future's
-/// auto traits unnamed and those casts would not compile.
+// The `Send` bounds are not decoration: `SqlAuth<Db>` reaches its callers
+// through `Arc<dyn UserBackend>` and `Arc<dyn TokenBackend>`, which box their
+// futures as `Send`, so a future awaited inside one has to name that
+// guarantee where it is declared.
 trait AuthSqlBackend: Send + Sync {
     fn stored_user(
         &self,
