@@ -133,6 +133,17 @@ pub const DEV_PREINSTALL_STAGE: &str = "pnpm:devPreinstall";
 /// [`build_env`]: crate::build_env
 pub const DEV_PREINSTALL_ALREADY_RAN_ENV: &str = "PNPM_INTERNAL_DEV_PREINSTALL_ALREADY_RAN";
 
+/// Set by the TypeScript CLI when it delegates an install to pacquet
+/// after running the root project's `preinstall` itself, so pacquet
+/// runs neither its early copy ([`run_root_preinstall_hook`]) nor the
+/// stage after linking. Unlike [`DEV_PREINSTALL_ALREADY_RAN_ENV`] it is
+/// set on every delegation shape, because whether the TypeScript side
+/// ran the hook depends on the command, not on the shape: a `pnpm add`
+/// at a workspace root does not run the root's scripts there, and
+/// pacquet then still owes the hook. Handled like its sibling
+/// otherwise: private, and dropped from every script environment.
+pub const ROOT_PREINSTALL_ALREADY_RAN_ENV: &str = "PNPM_INTERNAL_ROOT_PREINSTALL_ALREADY_RAN";
+
 /// Run the preinstall, install, and postinstall lifecycle scripts for
 /// a single dependency.
 ///
@@ -156,6 +167,30 @@ pub fn run_project_lifecycle_scripts<Reporter: self::Reporter>(
     opts: &RunPostinstallHooks<'_>,
 ) -> Result<bool, LifecycleScriptError> {
     run_lifecycle_stages::<Reporter>(opts, &PROJECT_LIFECYCLE_STAGES)
+}
+
+/// [`run_project_lifecycle_scripts`] without its `preinstall` stage, for
+/// the root project, whose `preinstall` [`run_root_preinstall_hook`] ran
+/// before the install began.
+///
+/// Returns `true` if any script was present and executed.
+pub fn run_project_lifecycle_scripts_after_preinstall<Reporter: self::Reporter>(
+    opts: &RunPostinstallHooks<'_>,
+) -> Result<bool, LifecycleScriptError> {
+    run_lifecycle_stages::<Reporter>(opts, &PROJECT_LIFECYCLE_STAGES[1..])
+}
+
+/// Run the root project's `preinstall` script, if it has one.
+///
+/// Like [`run_dev_preinstall_hook`] it runs before resolution, so a guard
+/// such as `npx only-allow yarn` can refuse the install before any
+/// dependency reaches `node_modules`.
+///
+/// Returns `true` when the script was present and executed.
+pub fn run_root_preinstall_hook<Reporter: self::Reporter>(
+    opts: &RunPostinstallHooks<'_>,
+) -> Result<bool, LifecycleScriptError> {
+    run_lifecycle_stages::<Reporter>(opts, &PROJECT_LIFECYCLE_STAGES[..1])
 }
 
 /// Run the root project's [`DEV_PREINSTALL_STAGE`] script, if it has one.

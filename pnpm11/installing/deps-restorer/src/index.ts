@@ -158,6 +158,11 @@ export interface HeadlessOptions extends RegistryContext {
    * project without running its scripts, matching the resolution path.
    */
   projectDirsRunningScripts?: string[]
+  /**
+   * The root project's `preinstall` already ran, ahead of resolution, so its
+   * lifecycle scripts here start at `install`.
+   */
+  rootProjectPreinstallRan?: boolean
   allProjects: Record<string, Project>
   prunedAt?: string
   hoistedDependencies: HoistedDependencies
@@ -891,6 +896,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       importers: projectsToBeBuilt.filter((project) => projectsRunningScripts.some(({ rootDir }) => rootDir === project.rootDir)),
       opts: scriptsOpts,
       projectDependencies: opts.projectDependencies,
+      projectWithPreinstallRan: opts.rootProjectPreinstallRan ? opts.lockfileDir : undefined,
       stages: ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
     })
   }

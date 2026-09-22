@@ -38,9 +38,14 @@ export async function runLifecycleHooksConcurrently (
     opts: RunLifecycleHooksConcurrentlyOptions
     projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
     stages: string[]
+    /**
+     * The project whose `preinstall` already ran before the install began,
+     * so its run here starts at the stage after it.
+     */
+    projectWithPreinstallRan?: string
   }
 ): Promise<void> {
-  const { childConcurrency, importers, opts, projectDependencies, stages } = params
+  const { childConcurrency, importers, opts, projectDependencies, projectWithPreinstallRan, stages } = params
   const importersByRootDir = new Map(importers.map((importer) => [importer.rootDir, importer]))
   const dependencies = projectDependencies == null
     ? dependenciesFromBuildIndexes(importers)
@@ -77,6 +82,10 @@ export async function runLifecycleHooksConcurrently (
         }
         let isBuilt = false
         for (const stage of (importerStages ?? stages)) {
+          if (stage === 'preinstall' && rootDir === projectWithPreinstallRan) {
+            if (manifest.scripts?.preinstall != null) isBuilt = true
+            continue
+          }
           if (await runLifecycleHook(stage, manifest, runLifecycleHookOpts)) { // eslint-disable-line no-await-in-loop
             isBuilt = true
           }

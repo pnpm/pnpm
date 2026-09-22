@@ -196,6 +196,48 @@ test('installation fails if lifecycle script fails', async () => {
   ).rejects.toThrow(/@ preinstall: `exit 1`/)
 })
 
+// https://github.com/pnpm/pnpm/issues/3760
+test('the root project preinstall script runs before its dependencies are installed', async () => {
+  await using server = await createTestIpcServer()
+  prepareEmpty()
+  const reportDepPresence = (stage: string) =>
+    `node -e "console.log('${stage} ' + require('fs').existsSync('node_modules/is-positive'))" | ${server.generateSendStdinScript()}`
+  const manifest = {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    scripts: {
+      preinstall: reportDepPresence('preinstall'),
+      postinstall: reportDepPresence('postinstall'),
+    },
+  }
+
+  await install(manifest, testDefaults({ fastUnpack: false }))
+  expect(server.getLines()).toStrictEqual(['preinstall false', 'postinstall true'])
+
+  server.clear()
+  rimrafSync('node_modules')
+  await install(manifest, testDefaults({ fastUnpack: false, frozenLockfile: true }))
+  expect(server.getLines()).toStrictEqual(['preinstall false', 'postinstall true'])
+})
+
+test('a failing root project preinstall script aborts the install before any dependency is installed', async () => {
+  prepareEmpty()
+
+  await expect(
+    install({
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+      scripts: {
+        preinstall: 'exit 1',
+      },
+    }, testDefaults({ fastUnpack: false }))
+  ).rejects.toThrow(/@ preinstall: `exit 1`/)
+  expect(fs.existsSync('node_modules/is-positive')).toBeFalsy()
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy()
+})
+
 test('INIT_CWD is always set to lockfile directory', async () => {
   prepareEmpty()
   const rootDir = process.cwd() as ProjectRootDir

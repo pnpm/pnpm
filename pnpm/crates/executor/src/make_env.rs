@@ -1,4 +1,4 @@
-use crate::lifecycle::DEV_PREINSTALL_ALREADY_RAN_ENV;
+use crate::lifecycle::{DEV_PREINSTALL_ALREADY_RAN_ENV, ROOT_PREINSTALL_ALREADY_RAN_ENV};
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -91,13 +91,14 @@ fn build_env_for_platform(
     //    PNPM_SCRIPT_SRC_DIR, npm_config_user_agent }` — the reserved
     //    keys overwrite anything `extra_env` set. A non-reserved key
     //    still takes effect.
-    //    `extra_env` is also the one route by which
-    //    [`DEV_PREINSTALL_ALREADY_RAN_ENV`] could re-enter after
+    //    `extra_env` is also the one route by which a delegation marker
+    //    ([`DEV_PREINSTALL_ALREADY_RAN_ENV`] or
+    //    [`ROOT_PREINSTALL_ALREADY_RAN_ENV`]) could re-enter after
     //    [`filter_parent_env`] dropped it, so it is refused here — under
     //    the same casing rule that filter uses, since on Windows a
     //    differently-cased entry names the same variable.
     for (k, v) in opts.environment.extra_env {
-        if is_dev_preinstall_marker(k, is_windows) {
+        if is_delegation_marker(k, is_windows) {
             continue;
         }
         env.insert(k.clone(), v.clone());
@@ -157,11 +158,12 @@ fn filter_parent_env(env: HashMap<String, String>, is_windows: bool) -> HashMap<
 /// Whether `key` must be dropped from the inherited parent env: an
 /// `npm_package_*` stamp, a `(npm|pnpm)_config_*` auth credential, a
 /// per-call stamp [`build_env`] re-derives (`NODE`, `INIT_CWD`,
-/// `PNPM_SCRIPT_SRC_DIR`), or
-/// [`DEV_PREINSTALL_ALREADY_RAN_ENV`]. Stripping the auth credentials
-/// keeps them out of dependency lifecycle scripts; stripping the
-/// delegation marker keeps it scoped to the install that received it,
-/// so a nested install started by a script still runs its own hook.
+/// `PNPM_SCRIPT_SRC_DIR`), or a delegation marker
+/// ([`DEV_PREINSTALL_ALREADY_RAN_ENV`], [`ROOT_PREINSTALL_ALREADY_RAN_ENV`]).
+/// Stripping the auth credentials keeps them out of dependency lifecycle
+/// scripts; stripping the delegation markers keeps them scoped to the
+/// install that received them, so a nested install started by a script
+/// still runs its own hooks.
 ///
 /// `is_windows` toggles case-insensitive matching so test code can
 /// drive both branches without `#[cfg(windows)]` gating the test
@@ -176,8 +178,13 @@ fn is_stamping_key(key: &str, is_windows: bool) -> bool {
     {
         return true;
     }
-    const DROPPED: [&str; 4] =
-        ["NODE", "INIT_CWD", "PNPM_SCRIPT_SRC_DIR", DEV_PREINSTALL_ALREADY_RAN_ENV];
+    const DROPPED: [&str; 5] = [
+        "NODE",
+        "INIT_CWD",
+        "PNPM_SCRIPT_SRC_DIR",
+        DEV_PREINSTALL_ALREADY_RAN_ENV,
+        ROOT_PREINSTALL_ALREADY_RAN_ENV,
+    ];
     if is_windows {
         return DROPPED
             .iter()
@@ -186,14 +193,18 @@ fn is_stamping_key(key: &str, is_windows: bool) -> bool {
     DROPPED.contains(&key)
 }
 
-/// Whether `key` names [`DEV_PREINSTALL_ALREADY_RAN_ENV`], under the
-/// same casing rule [`is_stamping_key`] applies: on Windows every
-/// spelling is the same variable, so every spelling must be dropped.
-fn is_dev_preinstall_marker(key: &str, is_windows: bool) -> bool {
+/// Whether `key` names [`DEV_PREINSTALL_ALREADY_RAN_ENV`] or
+/// [`ROOT_PREINSTALL_ALREADY_RAN_ENV`], under the same casing rule
+/// [`is_stamping_key`] applies: on Windows every spelling is the same
+/// variable, so every spelling must be dropped.
+fn is_delegation_marker(key: &str, is_windows: bool) -> bool {
+    const MARKERS: [&str; 2] = [DEV_PREINSTALL_ALREADY_RAN_ENV, ROOT_PREINSTALL_ALREADY_RAN_ENV];
     if is_windows {
-        return key.eq_ignore_ascii_case(DEV_PREINSTALL_ALREADY_RAN_ENV);
+        return MARKERS
+            .iter()
+            .any(|name| key.eq_ignore_ascii_case(name));
     }
-    key == DEV_PREINSTALL_ALREADY_RAN_ENV
+    MARKERS.contains(&key)
 }
 
 /// Return the slice of `key` after `prefix` when `key` starts with it
