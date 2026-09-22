@@ -3,7 +3,6 @@ import path from 'node:path'
 import { pnpmExec } from '@pnpm/exec'
 import {
   getLockfileImporterId,
-  type ProjectSnapshot,
   readWantedLockfile,
   writeWantedLockfile,
 } from '@pnpm/lockfile.fs'
@@ -11,7 +10,6 @@ import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import { createExportableManifest } from '@pnpm/releasing.exportable-manifest'
 import { DEPENDENCIES_FIELDS, type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
-import { pickBy } from 'ramda'
 import { renameOverwrite } from 'rename-overwrite'
 
 export async function makeDedicatedLockfile (lockfileDir: string, projectDir: string): Promise<void> {
@@ -25,11 +23,11 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
   for (const [importerId, importer] of Object.entries(allImporters)) {
     if (importerId.startsWith(`${baseImporterId}/`)) {
       const newImporterId = importerId.slice(baseImporterId.length + 1) as ProjectId
-      lockfile.importers[newImporterId] = projectSnapshotWithoutLinkedDeps(importer)
+      lockfile.importers[newImporterId] = importer
       continue
     }
     if (importerId === baseImporterId) {
-      lockfile.importers['.' as ProjectId] = projectSnapshotWithoutLinkedDeps(importer)
+      lockfile.importers['.' as ProjectId] = importer
     }
   }
   const dedicatedLockfile = pruneSharedLockfile(lockfile)
@@ -43,7 +41,7 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
     // intentionally.
     catalogs: {},
   })
-  await writeProjectManifest(publishManifest as ProjectManifest)
+  await writeProjectManifest(withWorkspaceDependencies(manifest, publishManifest as ProjectManifest))
 
   const modulesDir = path.join(projectDir, 'node_modules')
   const tmp = path.join(projectDir, 'tmp_node_modules')
@@ -64,7 +62,6 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
       '--lockfile-dir=.',
       '--fix-lockfile',
       '--filter=.',
-      '--no-link-workspace-packages',
       '--config.dedupe-peer-dependents=false', // TODO: remove this. It should work without it
     ], {
       cwd: projectDir,
@@ -78,13 +75,22 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
   }
 }
 
-function projectSnapshotWithoutLinkedDeps (projectSnapshot: ProjectSnapshot): ProjectSnapshot {
-  const newProjectSnapshot: ProjectSnapshot = {
-    specifiers: projectSnapshot.specifiers,
+/**
+ * The exportable manifest replaces `workspace:` specifiers with the version
+ * range a published copy would use, which the install would then look up in
+ * the registry. The dedicated lockfile keeps the workspace project linked, so
+ * its specifier stays as declared.
+ */
+function withWorkspaceDependencies (manifest: ProjectManifest, publishManifest: ProjectManifest): ProjectManifest {
+  const result = { ...publishManifest }
+  for (const depField of [...DEPENDENCIES_FIELDS, 'peerDependencies'] as const) {
+    const deps = manifest[depField]
+    if (deps == null || result[depField] == null) continue
+    for (const [depName, spec] of Object.entries(deps)) {
+      if (spec.startsWith('workspace:')) {
+        result[depField] = { ...result[depField], [depName]: spec }
+      }
+    }
   }
-  for (const depField of DEPENDENCIES_FIELDS) {
-    if (projectSnapshot[depField] == null) continue
-    newProjectSnapshot[depField] = pickBy((depVersion) => !depVersion.startsWith('link:'), projectSnapshot[depField])
-  }
-  return newProjectSnapshot
+  return result
 }
