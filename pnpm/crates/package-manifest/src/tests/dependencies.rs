@@ -668,7 +668,6 @@ fn remove_dependencies_with_save_type_keeps_other_dependency_fields() {
 
 /// A write sorts each dependency field by name and drops a dependency
 /// field the edit emptied, like pnpm's on-write manifest normalization.
-/// Moving `aardvark` to `dependencies` leaves `devDependencies` empty.
 #[test]
 fn save_sorts_dependency_fields_and_drops_empty_ones() {
     let dir = tempdir().unwrap();
@@ -683,7 +682,6 @@ fn save_sorts_dependency_fields_and_drops_empty_ones() {
     manifest.save().unwrap();
 
     let saved = read_to_string(&path).unwrap();
-    eprintln!("SAVED:\n{saved}");
     let aardvark = saved.find("aardvark").unwrap();
     let zebra = saved.find("zebra").unwrap();
     assert!(aardvark < zebra);
@@ -753,5 +751,15 @@ fn save_drops_a_dependency_field_the_removal_emptied() {
 
     manifest.add_dependency("baz", "1.0.0", DependencyGroup::Dev).unwrap();
     manifest.save().unwrap();
-    assert!(!read_to_string(&path).unwrap().contains(r#""dependencies""#));
+    assert_eq!(
+        read_to_string(&path).unwrap(),
+        r#"{
+  "name": "foo",
+  "devDependencies": {
+    "baz": "1.0.0"
+  },
+  "peerDependencies": {}
+}
+"#,
+    );
 }
