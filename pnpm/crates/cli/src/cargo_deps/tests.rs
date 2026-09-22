@@ -1,5 +1,5 @@
 #[cfg(windows)]
-use super::ensure_workspace_directory_windows;
+use super::workspace_directory::ensure_workspace_directory_windows;
 use super::{
     ArchiveStoreProjection, Config, LockedCrate, add_cargo_checksum, discover_workspace_roots,
     managed_config, parse_lockfile, update_managed_config, workspace_root,

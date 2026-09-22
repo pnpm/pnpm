@@ -328,6 +328,31 @@ fn dash_override_deletes_the_peer_dependency() {
 }
 
 #[test]
+fn dash_override_deletes_optional_peer_metadata() {
+    for selector in ["unwanted-peer", "my-app>unwanted-peer"] {
+        let overrides = parsed(&[(selector, "-")]);
+        let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+        let mut manifest = manifest_from_value(json!({
+            "name": "my-app",
+            "version": "1.0.0",
+            "peerDependencies": { "unwanted-peer": "^1.0.0", "kept": "^2.0.0" },
+            "peerDependenciesMeta": {
+                "unwanted-peer": { "optional": true },
+                "kept": { "optional": true },
+            },
+        }));
+        overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+        assert_eq!(dep_spec(&manifest, "peerDependencies", "unwanted-peer"), None);
+        assert_eq!(dep_spec(&manifest, "peerDependencies", "kept"), Some("^2.0.0"));
+        assert_eq!(
+            manifest.value()["peerDependenciesMeta"],
+            json!({ "kept": { "optional": true } }),
+        );
+    }
+}
+
+#[test]
 fn convergence_override_rewrites_only_edges_its_version_satisfies() {
     let overrides = parsed(&[("form-data@", "4.0.6")]);
     let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));

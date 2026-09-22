@@ -390,19 +390,19 @@ fn windows_concurrent_junction_creation_reuses_one_link() {
             .join(format!("link-{iteration}"));
         let barrier = std::sync::Barrier::new(32);
         let outcomes = std::thread::scope(|scope| {
-            let handles: Vec<_> = (0..32)
-                .map(|_| {
-                    scope.spawn(|| {
-                        barrier.wait();
-                        super::force_symlink_inner(
-                            &target,
-                            &link,
-                            TriedOnce::default(),
-                            super::windows::create_junction,
-                        )
-                    })
-                })
-                .collect();
+            let worker = || {
+                barrier.wait();
+                super::force_symlink_inner(
+                    &target,
+                    &link,
+                    TriedOnce::default(),
+                    super::windows::create_junction,
+                )
+            };
+            let mut handles = Vec::with_capacity(32);
+            for _ in 0..32 {
+                handles.push(scope.spawn(worker));
+            }
             handles
                 .into_iter()
                 .map(|handle| handle.join().expect("junction worker panicked"))

@@ -141,7 +141,7 @@ fn without_thread_privileges(operation: impl FnOnce()) {
         unsafe { ImpersonateSelf(SecurityImpersonation) },
         0,
         "{}",
-        io::Error::last_os_error()
+        io::Error::last_os_error(),
     );
     let _revert = RevertImpersonation;
     let mut token = null_mut();
@@ -150,7 +150,7 @@ fn without_thread_privileges(operation: impl FnOnce()) {
         unsafe { OpenThreadToken(GetCurrentThread(), TOKEN_ADJUST_PRIVILEGES, 1, &raw mut token) },
         0,
         "{}",
-        io::Error::last_os_error()
+        io::Error::last_os_error(),
     );
     // SAFETY: OpenThreadToken succeeded and ownership of its handle transfers exactly once.
     let token = unsafe { OwnedHandle::from_raw_handle(token) };
@@ -162,7 +162,7 @@ fn without_thread_privileges(operation: impl FnOnce()) {
         },
         0,
         "{}",
-        io::Error::last_os_error()
+        io::Error::last_os_error(),
     );
     operation();
 }

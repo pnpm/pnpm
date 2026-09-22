@@ -66,7 +66,7 @@ pub fn to_native_separators(path: &Path) -> Cow<'_, Path> {
     // path `components` treats `/` as a literal byte and leaves it in
     // place. Package paths are valid Unicode, so `to_str` succeeds.
     match path.to_str() {
-        Some(s) => Cow::Owned(PathBuf::from(s.replace('/', "\\"))),
+        Some(s) => Cow::Owned(PathBuf::from(s.replace('/', r"\"))),
         None => Cow::Borrowed(path),
     }
 }
@@ -347,8 +347,8 @@ mod windows {
     };
 
     /// Cached choice of writer. `UNDECIDED` until the first successful
-    /// call resolves the EPERM probe; afterward `USE_SYMLINK` or
-    /// `USE_JUNCTION`. Caching the winning branch after the first call
+    /// call resolves the EPERM probe; afterward [`USE_SYMLINK`] or
+    /// [`USE_JUNCTION`]. Caching the winning branch after the first call
     /// avoids re-probing on every subsequent symlink.
     const UNDECIDED: u8 = 0;
     const USE_SYMLINK: u8 = 1;

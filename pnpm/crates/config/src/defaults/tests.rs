@@ -386,7 +386,7 @@ fn default_unsafe_perm_on_cygwin_is_always_true() {
 #[cfg(windows)]
 #[test]
 fn test_should_get_the_correct_drive_letter() {
-    let current_dir = Path::new("C:\\Users\\user\\project");
+    let current_dir = Path::new(r"C:\Users\user\project");
     let drive_letter = get_drive_letter(current_dir);
     assert_eq!(drive_letter, Some('C'));
 }
@@ -394,8 +394,8 @@ fn test_should_get_the_correct_drive_letter() {
 #[cfg(windows)]
 #[test]
 fn test_default_store_dir_with_windows_diff_drive() {
-    let current_dir = Path::new("D:\\Users\\user\\project");
-    let home_dir = Path::new("C:\\Users\\user");
+    let current_dir = Path::new(r"D:\Users\user\project");
+    let home_dir = Path::new(r"C:\Users\user");
 
     let store_dir = default_store_dir_windows(home_dir, current_dir);
     assert_eq!(store_dir, Path::new(r"D:\.pnpm-store"));
@@ -409,8 +409,8 @@ fn test_default_store_dir_with_windows_diff_drive() {
 #[cfg(windows)]
 #[test]
 fn test_dynamic_default_store_dir_with_windows_same_drive() {
-    let current_dir = Path::new("C:\\Users\\user\\project");
-    let home_dir = Path::new("C:\\Users\\user");
+    let current_dir = Path::new(r"C:\Users\user\project");
+    let home_dir = Path::new(r"C:\Users\user");
 
     let store_dir = default_store_dir_windows(home_dir, current_dir);
     assert_eq!(store_dir.to_str().unwrap(), r"C:\Users\user\AppData\Local\pnpm\store");
@@ -419,7 +419,7 @@ fn test_dynamic_default_store_dir_with_windows_same_drive() {
 /// `default_virtual_store_dir` joins onto the current directory, so the
 /// separator it appends is what lands in the `virtualStoreDir` recorded
 /// in `.modules.yaml`. Compares the rendered string for the reason given
-/// on `test_dynamic_default_store_dir_with_windows_same_drive`, through
+/// in the Windows store-directory test above, through
 /// `display` so a working directory that is not valid Unicode renders
 /// lossily instead of panicking before the assertion.
 #[test]

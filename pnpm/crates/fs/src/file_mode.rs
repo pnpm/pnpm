@@ -91,7 +91,7 @@ pub fn set_path_permissions(path: &Path, mode: u32) -> io::Result<()> {
 /// Skips the `set_permissions` syscall (and the ctime bump it would cause) when
 /// every exec bit is already set, so re-asserting executability on a file that
 /// already has it costs only the stat.
-#[cfg_attr(windows, allow(unused))]
+#[cfg_attr(windows, allow(unused, reason = "POSIX executable bits do not apply on Windows"))]
 pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
     #[cfg(unix)]
     return {
