@@ -1,6 +1,7 @@
 use super::{
     Config, DependencyGroup, HashMap, IntoDiagnostic, Lockfile, OutdatedPackage, OutdatedQuery,
     OutdatedRun, PackageManifest, PathBuf, State, collect_outdated_for_importer_in_run,
+    create_matcher,
 };
 
 pub(super) struct OutdatedInWorkspace {
@@ -42,6 +43,57 @@ pub(super) fn isolated_global_config(config: &Config) -> &'static Config {
     isolated_config.lockfile_dir = None;
     isolated_config.lockfile = true;
     Config::leak(isolated_config)
+}
+
+pub(super) fn global_states(
+    global_pkg_dir: &std::path::Path,
+    config: &'static Config,
+) -> miette::Result<Vec<State>> {
+    pnpm_global::scan_global_packages(global_pkg_dir)
+        .map_err(|err| miette::miette!("failed to scan global packages: {err}"))?
+        .into_iter()
+        .map(|pkg| {
+            State::init(pkg.install_dir.join("package.json"), config, false)
+                .map_err(|err| miette::Report::new(err).wrap_err("initialize global state"))
+        })
+        .collect()
+}
+
+pub(super) fn validate_package_patterns<'a>(
+    manifests: impl IntoIterator<Item = &'a PackageManifest>,
+    package_patterns: &[String],
+    include: &[DependencyGroup],
+    recursive: bool,
+) -> miette::Result<()> {
+    if package_patterns.is_empty() {
+        return Ok(());
+    }
+    let deps: Vec<&str> = manifests
+        .into_iter()
+        .flat_map(|manifest| manifest.dependencies(include.iter().copied()))
+        .map(|(name, _)| name)
+        .collect();
+    let combined = create_matcher(package_patterns);
+    let unmatched = !deps
+        .iter()
+        .any(|dep| combined.matches(dep))
+        || package_patterns
+            .iter()
+            .any(|pattern| {
+                let matcher = create_matcher(std::slice::from_ref(pattern));
+                !deps
+                    .iter()
+                    .any(|dep| matcher.matches(dep))
+            });
+    if unmatched {
+        let message = if recursive {
+            "None of the specified packages were found in the dependencies of any of the projects."
+        } else {
+            "None of the specified packages were found in the dependencies."
+        };
+        return Err(miette::miette!(code = "ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES", "{message}"));
+    }
+    Ok(())
 }
 
 /// Every selected project's outdated dependencies, grouped by package.
