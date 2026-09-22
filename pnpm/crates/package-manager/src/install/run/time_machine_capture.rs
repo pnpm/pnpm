@@ -20,10 +20,7 @@ pub(super) fn capture_time_machine_exclusions(
         // into unselected workspace importers. Capture every possible
         // importer before the install; `apply` keeps only directories the
         // install actually created.
-        scope.project_manifests
-            .iter()
-            .map(|(dir, _)| dir.clone())
-            .collect()
+        project_dirs_to_capture(scope)
     };
     *exclusions = super::super::TimeMachineExclusions::capture(
         config,
@@ -31,6 +28,14 @@ pub(super) fn capture_time_machine_exclusions(
         &execution.workspace.dirs.workspace_root,
         &project_dirs,
     );
+}
+
+#[cfg(target_os = "macos")]
+fn project_dirs_to_capture(scope: &InstallScope<'_>) -> Vec<std::path::PathBuf> {
+    scope.project_manifests
+        .iter()
+        .map(|(dir, _)| dir.clone())
+        .collect()
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -41,3 +46,7 @@ pub(super) fn capture_time_machine_exclusions(
 ) {
     *exclusions = super::super::TimeMachineExclusions::empty();
 }
+
+#[cfg(all(test, target_os = "macos"))]
+#[path = "time_machine_capture/tests.rs"]
+mod tests;
