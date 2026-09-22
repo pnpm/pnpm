@@ -753,6 +753,7 @@ export async function mutateModules (
         importers: [...projectDirsRemovingDeps].map((rootDir) => ctx.projects[rootDir]),
         opts: scriptsOpts,
         projectDependencies: opts.projectDependencies,
+        skipBinLinking: true,
         stages: PRE_UNINSTALL_STAGES,
       })
     }

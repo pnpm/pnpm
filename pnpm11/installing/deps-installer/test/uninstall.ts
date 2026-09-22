@@ -401,6 +401,30 @@ test('a failing uninstall script aborts the removal before anything is unlinked'
   expect(project.readLockfile()).toStrictEqual(lockfileBefore)
 })
 
+test('a failing uninstall script aborts without modifying node_modules bin directory', async () => {
+  const project = prepareEmpty()
+  const scripts = { ...UNINSTALL_SCRIPTS, uninstall: 'node -e "process.exit(1)"' }
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    { bin: { 'test-bin': './bin.js' }, scripts },
+    ['is-negative@2.1.0'],
+    testDefaults({ save: true })
+  )
+  fs.rmSync(path.resolve('node_modules/.bin'), { force: true, recursive: true })
+  const lockfileBefore = project.readLockfile()
+
+  await expect(mutateModulesInSingleProject({
+    dependencyNames: ['is-negative'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ save: true }))).rejects.toThrow(/uninstall/)
+
+  expect(recordedStages()).toStrictEqual(['preuninstall dep=true'])
+  expect(fs.existsSync(path.resolve('node_modules/.bin'))).toBeFalsy()
+  project.has('is-negative')
+  expect(project.readLockfile()).toStrictEqual(lockfileBefore)
+})
+
 test('uninstall does not run the project\'s uninstall scripts when scripts are ignored', async () => {
   const project = prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage({ scripts: UNINSTALL_SCRIPTS }, ['is-negative@2.1.0'], testDefaults({ save: true }))
