@@ -120,6 +120,25 @@ fn non_silent_loglevels_keep_the_selected_reporter() {
 }
 
 #[test]
+fn configured_silent_loglevel_selects_silent_reporter_when_cli_loglevel_unset() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "install"]).expect("parses");
+    assert!(matches!(
+        parsed.effective_reporter_with_config(Some(pnpm_config::LogLevel::Silent)),
+        ReporterType::Silent
+    ));
+}
+
+#[test]
+fn cli_loglevel_takes_precedence_over_configured_silent_loglevel() {
+    let parsed =
+        CliArgs::try_parse_from(["pacquet", "--loglevel", "warn", "install"]).expect("parses");
+    assert!(matches!(
+        parsed.effective_reporter_with_config(Some(pnpm_config::LogLevel::Silent)),
+        ReporterType::Default
+    ));
+}
+
+#[test]
 fn loglevel_rejects_unknown_values() {
     CliArgs::try_parse_from(["pacquet", "install", "--loglevel", "verbose"])
         .expect_err("unknown loglevel value must be rejected");

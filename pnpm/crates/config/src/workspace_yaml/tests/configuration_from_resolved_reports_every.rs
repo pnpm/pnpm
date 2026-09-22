@@ -1,7 +1,7 @@
 use super::{
-    AuditLevel, BTreeMap, Config, IndexMap, NodeLinker, Path, PathBuf, PmOnFail, ProjectConfig,
-    RemoteSideEffectsCacheSettings, RuntimeOnFail, SupportedArchitectures, UNREPORTED_SETTINGS,
-    UpdateConfig, WorkspaceSettings, assert_eq,
+    AuditLevel, BTreeMap, Config, IndexMap, LogLevel, NodeLinker, Path, PathBuf, PmOnFail,
+    ProjectConfig, RemoteSideEffectsCacheSettings, RuntimeOnFail, SupportedArchitectures,
+    UNREPORTED_SETTINGS, UpdateConfig, WorkspaceSettings, assert_eq,
 };
 
 /// Every setting must report its resolved value, so that a hook reading the
@@ -21,6 +21,7 @@ fn from_resolved_reports_every_setting() {
         pnpr_server: Some("https://pnpr.example".to_string()),
         frozen_lockfile: Some(true),
         reporter_hide_prefix: Some(true),
+        loglevel: Some(LogLevel::Error),
         prefer_symlinked_executables: Some(true),
         max_sockets: Some(4),
         node_version: Some("24.0.0".to_string()),

@@ -1,6 +1,6 @@
 use super::{
     AuditLevel, BTreeMap, CASE, ColorMode, Config, ConfigDependency, ConfigDependencyDetail,
-    EnvVar, LoadWorkspaceYamlError, NAMED_UNRECOGNIZED_TASK_SETTINGS, NodeLinker,
+    EnvVar, LoadWorkspaceYamlError, LogLevel, NAMED_UNRECOGNIZED_TASK_SETTINGS, NodeLinker,
     NodePackageMapType, Path, StoreDir, TrustPolicy, WORKSPACE_MANIFEST_FILENAME,
     WorkspaceSettings, assert_eq, fs,
 };
@@ -41,6 +41,7 @@ fn parity_settings_parse_and_apply() {
         r"
 bail: false
 color: never
+loglevel: error
 embedReadme: true
 ignoreWorkspaceRootCheck: true
 optional: false
@@ -60,6 +61,7 @@ useBetaCli: true
 
     assert!(!config.bail);
     assert_eq!(config.color, ColorMode::Never);
+    assert_eq!(config.loglevel, Some(LogLevel::Error));
     assert!(config.embed_readme);
     assert!(config.ignore_workspace_root_check);
     assert!(!config.optional);
@@ -79,6 +81,7 @@ fn parity_settings_follow_global_config_key_routing() {
         r"
 bail: false
 color: never
+loglevel: error
 embedReadme: true
 ignoreWorkspaceRootCheck: true
 optional: false
@@ -97,6 +100,7 @@ useBetaCli: true
 
     assert_eq!(settings.bail, Some(false));
     assert_eq!(settings.color, Some(ColorMode::Never));
+    assert_eq!(settings.loglevel, Some(LogLevel::Error));
     assert_eq!(settings.optional, Some(false));
     assert_eq!(settings.package_lock, Some(false));
     assert_eq!(settings.shell_emulator, Some(true));

@@ -5,20 +5,33 @@ use pnpm_reporter::{LogEvent, NdjsonReporter, Reporter, SilentReporter};
 use std::path::Path;
 
 /// Output format for progress and log messages.
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[repr(u8)]
 pub enum ReporterType {
     /// Rich visual output: a progress line, a packages diff, lifecycle
     /// output, and a `Done in ...` summary. The default; renders in place
     /// on a terminal and falls back to `append-only` output when stdout is
     /// not a terminal.
-    Default,
+    Default = 0,
     /// Like `default` but forces the append-only rendering even on a TTY —
     /// one line per update, no cursor movement.
-    AppendOnly,
+    AppendOnly = 1,
     /// Newline-delimited JSON on stderr.
-    Ndjson,
+    Ndjson = 2,
     /// No progress output.
-    Silent,
+    Silent = 3,
+}
+
+impl From<u8> for ReporterType {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => ReporterType::Default,
+            1 => ReporterType::AppendOnly,
+            2 => ReporterType::Ndjson,
+            3 => ReporterType::Silent,
+            _ => unreachable!("invalid reporter discriminant: {value}"),
+        }
+    }
 }
 
 /// Accepted values of pnpm's universal `--loglevel` option.
@@ -43,6 +56,18 @@ impl LogLevelSetting {
             LogLevelSetting::Warn => Some(MaxLogLevel::Warn),
             LogLevelSetting::Info => Some(MaxLogLevel::Info),
             LogLevelSetting::Debug => Some(MaxLogLevel::Debug),
+        }
+    }
+}
+
+impl From<pnpm_config::LogLevel> for LogLevelSetting {
+    fn from(level: pnpm_config::LogLevel) -> Self {
+        match level {
+            pnpm_config::LogLevel::Silent => LogLevelSetting::Silent,
+            pnpm_config::LogLevel::Error => LogLevelSetting::Error,
+            pnpm_config::LogLevel::Warn => LogLevelSetting::Warn,
+            pnpm_config::LogLevel::Info => LogLevelSetting::Info,
+            pnpm_config::LogLevel::Debug => LogLevelSetting::Debug,
         }
     }
 }

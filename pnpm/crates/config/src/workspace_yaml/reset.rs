@@ -123,7 +123,7 @@ impl WorkspaceSettings {
             prefer_frozen_lockfile, lockfile, merge_git_branch_lockfiles,
             optimistic_repeat_install, minimum_release_age, global_shims, frozen_lockfile,
             registry, scope, pnpr_server, cargo, python, tools, remote_side_effects_cache,
-            reporter_hide_prefix, max_sockets, patched_dependencies, patches_dir,
+            reporter_hide_prefix, loglevel, max_sockets, patched_dependencies, patches_dir,
             config_dependencies, dangerously_allow_all_builds, strict_dep_builds,
             ignore_scripts, ignore_pnpmfile, git_checks, engine_strict, node_version,
             runtime_on_fail, node_download_mirrors, scripts_prepend_node_path, script_shell,

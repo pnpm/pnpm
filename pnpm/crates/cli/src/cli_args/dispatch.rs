@@ -6,8 +6,9 @@ pub(super) use configuration::{apply_update_config, seed_config};
 
 use super::{
     cli_command::{CliArgs, CliCommand},
+    config_warnings::warn_shared_workspace_lockfile_outside_workspace,
     dispatch_install, dispatch_query, dispatch_script,
-    install::resolve_bool_override,
+    install::{InstallArgs, resolve_bool_override},
     reporter::{
         DefaultReporterSetup, ReporterType, configure_color, configure_default_reporter,
         configure_max_log_level, reporter_emit,
@@ -19,9 +20,8 @@ use crate::{
 };
 
 use configuration::{
-    OutputOverrides, ProjectSelectors, RunAnchors, RunSetup, apply_color_override,
-    apply_location_overrides, apply_output_overrides, apply_project_selectors,
-    warn_config_overrides,
+    ProjectSelectors, RunAnchors, RunSetup, apply_color_override, apply_location_overrides,
+    apply_project_selectors, apply_run_output_config, warn_fast_path_config,
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{ColorMode, Config, Host, default_pnpm_home_dir};
@@ -33,7 +33,7 @@ use routing::{
 };
 use std::{
     path::{Path, PathBuf},
-    sync::atomic::{AtomicBool, Ordering},
+    sync::atomic::{AtomicBool, AtomicU8, Ordering},
 };
 
 impl CliArgs {
@@ -103,6 +103,43 @@ impl CliArgs {
         }
     }
 
+    fn prepare_fast_path_config(
+        &self,
+        config_overrides: &ConfigOverrides,
+        install_args: &InstallArgs,
+    ) -> Option<(PathBuf, Config)> {
+        if !self.workspace.selection.filter.is_empty()
+            || !self.workspace.selection.filter_prod.is_empty()
+        {
+            return None;
+        }
+        let dir = dunce::canonicalize(&self.paths.dir).ok()?;
+        let mut config =
+            seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace)
+                .current::<Host>(&dir)
+                .ok()?;
+        config_overrides.apply(&mut config, &dir);
+        self.network.apply(&mut config);
+        if let Some(store_dir) = self.paths.store_dir.as_deref()
+            && apply_store_dir_override::<Host>(&mut config, store_dir, &dir).is_err()
+        {
+            return None;
+        }
+        if let Some(state_dir) = self.paths.state_dir.as_deref() {
+            apply_state_dir_override::<Host>(&mut config, state_dir, &dir);
+        }
+        install_args.lockfile.directory.apply_to(&mut config, &dir);
+        config.progress = self.progress_enabled(config.progress);
+        self.configure_reporter();
+        if self.output.presentation.loglevel.is_none()
+            && let Some(config_loglevel) = config.loglevel
+        {
+            configure_max_log_level(Some(config_loglevel.into()));
+        }
+        pnpm_default_reporter::set_progress(config.progress);
+        Some((dir, config))
+    }
+
     /// Try to finish `pacquet install` synchronously through the
     /// repeat-install fast path, before the caller builds the async
     /// runtime. `true` means the install completed (the "Already up to
@@ -124,38 +161,14 @@ impl CliArgs {
         let CliCommand::Install(install_args) = &self.command else {
             return false;
         };
-        if !self.workspace.selection.filter.is_empty()
-            || !self.workspace.selection.filter_prod.is_empty()
-        {
-            return false;
-        }
-        let Ok(dir) = dunce::canonicalize(&self.paths.dir) else {
+        let Some((dir, config)) = self.prepare_fast_path_config(config_overrides, install_args)
+        else {
             return false;
         };
-        let loaded =
-            seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace)
-                .current::<Host>(&dir);
-        let Ok(mut config) = loaded else {
-            return false;
-        };
-        config_overrides.apply(&mut config, &dir);
-        self.network.apply(&mut config);
-        if let Some(store_dir) = self.paths.store_dir.as_deref()
-            && apply_store_dir_override::<Host>(&mut config, store_dir, &dir).is_err()
-        {
-            return false;
-        }
-        if let Some(state_dir) = self.paths.state_dir.as_deref() {
-            apply_state_dir_override::<Host>(&mut config, state_dir, &dir);
-        }
-        install_args.lockfile.directory.apply_to(&mut config, &dir);
-        config.progress = self.progress_enabled(config.progress);
-        self.configure_reporter();
-        pnpm_default_reporter::set_progress(config.progress);
-        let emit = reporter_emit(self.effective_reporter());
+        let emit = reporter_emit(self.effective_reporter_with_config(config.loglevel));
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
-            warn_config_overrides(config_overrides, &config);
+            warn_fast_path_config(config_overrides, &config);
             emit_execution_time(emit, started_at);
         }
         finished
@@ -179,7 +192,8 @@ impl CliArgs {
         self.configure_reporter();
 
         let anchors = RunAnchors::resolve(&self)?;
-        let setup = RunSetup::of(&self);
+        let effective_reporter = AtomicU8::new(self.effective_reporter() as u8);
+        let setup = RunSetup::of(&self, &effective_reporter);
         let command = std::mem::replace(&mut self.command, CliCommand::Recursive);
 
         let builtin_replaced_by_script =
@@ -190,7 +204,8 @@ impl CliArgs {
         // `pnpm:execution-time` emit in `main.ts`. Only the install-family
         // commands drive the visual reporter, so the rest stay silent.
         if setup.is_install_family && !builtin_replaced_by_script {
-            emit_execution_time(reporter_emit(setup.reporter), setup.started_at);
+            let final_reporter: ReporterType = effective_reporter.load(Ordering::Relaxed).into();
+            emit_execution_time(reporter_emit(final_reporter), setup.started_at);
         }
 
         Ok(())
@@ -200,7 +215,7 @@ impl CliArgs {
         command: CliCommand,
         config_overrides: &ConfigOverrides,
         builtin_command_forced: bool,
-        setup: &RunSetup,
+        setup: &RunSetup<'_>,
         anchors: &RunAnchors,
     ) -> miette::Result<bool> {
         // Load config anchored at `anchor`, reading `.npmrc` /
@@ -230,7 +245,7 @@ impl CliArgs {
         };
         let builtin_replaced_by_script = AtomicBool::new(false);
         let ctx = RunCtx {
-            reporter: setup.reporter,
+            effective_reporter: setup.effective_reporter,
             builtin_command_forced,
             builtin_replaced_by_script: &builtin_replaced_by_script,
             locations: CommandLocations::from(anchors),
@@ -250,7 +265,7 @@ impl CliArgs {
         anchor: &Path,
         is_global: bool,
         config_overrides: &ConfigOverrides,
-        setup: &RunSetup,
+        setup: &RunSetup<'_>,
         anchors: &RunAnchors,
     ) -> miette::Result<&'static mut Config> {
         seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace)
@@ -268,12 +283,15 @@ impl CliArgs {
         anchor: &Path,
         is_global: bool,
         config_overrides: &ConfigOverrides,
-        setup: &RunSetup,
+        setup: &RunSetup<'_>,
         anchors: &RunAnchors,
     ) -> miette::Result<&'static mut Config> {
         config_overrides.apply(&mut cfg, anchor);
         if !is_global {
-            warn_config_overrides(config_overrides, &cfg);
+            warn_shared_workspace_lockfile_outside_workspace(
+                config_overrides.shared_workspace_lockfile(),
+                cfg.workspace_dir.as_deref(),
+            );
         }
         apply_color_override(
             &mut cfg,
@@ -302,15 +320,28 @@ impl CliArgs {
                 fail_if_no_match: self.workspace.selection.fail_if_no_match,
             },
         );
-        self.apply_run_output_config(&mut cfg);
-        self.configure_run_reporter(&cfg, setup, anchors);
+        apply_run_output_config(self, &mut cfg);
+        let reporter = self.effective_reporter_with_config(cfg.loglevel);
+        setup.effective_reporter.store(reporter as u8, Ordering::Relaxed);
+        self.configure_run_reporter(&cfg, reporter, setup, anchors);
         Ok(Config::leak(cfg))
     }
 
-    fn configure_run_reporter(&self, cfg: &Config, setup: &RunSetup, anchors: &RunAnchors) {
+    fn configure_run_reporter(
+        &self,
+        cfg: &Config,
+        reporter: ReporterType,
+        setup: &RunSetup,
+        anchors: &RunAnchors,
+    ) {
         pnpm_default_reporter::set_progress(cfg.progress);
+        if self.output.presentation.loglevel.is_none()
+            && let Some(config_loglevel) = cfg.loglevel
+        {
+            configure_max_log_level(Some(config_loglevel.into()));
+        }
         configure_default_reporter(&DefaultReporterSetup {
-            reporter: setup.reporter,
+            reporter,
             dir: &anchors.dir,
             summary_scope: setup.summary_scope,
             reports_scope: setup.reports_scope,
@@ -323,45 +354,6 @@ impl CliArgs {
                 hide_prefix: cfg.reporter_hide_prefix.unwrap_or(false),
             },
         });
-    }
-
-    fn apply_run_output_config(&self, cfg: &mut Config) {
-        cfg.bail = resolve_bool_override(
-            self.workspace.execution.bail,
-            self.workspace.execution.no_bail,
-            cfg.bail,
-        );
-        cfg.progress = self.progress_enabled(cfg.progress);
-        cfg.stream |= self.output.lifecycle.stream;
-        cfg.aggregate_output |= self.output.lifecycle.aggregate_output;
-        cfg.use_stderr |= self.output.lifecycle.use_stderr;
-        cfg.sort = resolve_bool_override(
-            self.workspace.ordering.sort,
-            self.workspace.ordering.no_sort,
-            cfg.sort,
-        );
-        cfg.reverse = resolve_bool_override(
-            self.workspace.ordering.reverse,
-            self.workspace.ordering.no_reverse,
-            cfg.reverse,
-        );
-        cfg.include_workspace_root = resolve_bool_override(
-            self.workspace.selection.include_workspace_root,
-            self.workspace.selection.no_include_workspace_root,
-            cfg.include_workspace_root,
-        );
-        apply_output_overrides(
-            cfg,
-            &OutputOverrides {
-                reporter_hide_prefix: self.output.lifecycle.hide_prefix,
-                no_reporter_hide_prefix: self.output.lifecycle.no_hide_prefix,
-                workspace_packages: &self.paths.workspace_packages,
-                test_pattern: &self.workspace.selection.test_pattern,
-                changed_files_ignore_pattern: &self.workspace.selection
-                    .changed_files_ignore_pattern,
-                workspace_concurrency: self.workspace.ordering.concurrency,
-            },
-        );
     }
 }
 

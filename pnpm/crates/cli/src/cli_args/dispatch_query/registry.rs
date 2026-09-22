@@ -134,7 +134,7 @@ pub(in super::super) fn unpublish<'a>(
         }
         Ok(())
     }
-    Ok(match ctx.reporter {
+    Ok(match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => {
             Box::pin(print_output::<DefaultReporter>(args, cfg))
         }
@@ -233,7 +233,7 @@ pub(in super::super) fn login<'a>(
             Box::pin(async move { args.run::<$reporter>(config).await })
         };
     }
-    Ok(match ctx.reporter {
+    Ok(match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => run_login!(DefaultReporter),
         ReporterType::Ndjson => run_login!(NdjsonReporter),
         ReporterType::Silent => run_login!(SilentReporter),
@@ -256,7 +256,7 @@ pub(in super::super) fn logout<'a>(
             Box::pin(async move { args.run::<$reporter>(config, &prefix).await })
         };
     }
-    Ok(match ctx.reporter {
+    Ok(match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => run_logout!(DefaultReporter),
         ReporterType::Ndjson => run_logout!(NdjsonReporter),
         ReporterType::Silent => run_logout!(SilentReporter),
