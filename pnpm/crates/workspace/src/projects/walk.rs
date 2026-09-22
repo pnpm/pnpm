@@ -39,6 +39,7 @@ pub(super) fn collect_manifests_in_children(
     parent: &Path,
     workspace_root: &Path,
     user_negations: &wax::Any<'_>,
+    ignored_directories: &[PathBuf],
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) -> Result<(), FindWorkspaceProjectsError> {
     for_each_directory_entry(parent, workspace_root, |entry| {
@@ -52,6 +53,7 @@ pub(super) fn collect_manifests_in_children(
             &entry.path(),
             workspace_root,
             user_negations,
+            ignored_directories,
             manifest_paths,
         );
         Ok(())
@@ -99,11 +101,13 @@ fn collect_candidate_manifests_in(
     directory: &Path,
     workspace_root: &Path,
     user_negations: &wax::Any<'_>,
+    ignored_directories: &[PathBuf],
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) {
     for basename in PROJECT_MANIFEST_BASENAMES {
         let manifest_path = directory.join(basename);
-        if !is_ignored_manifest(&manifest_path, workspace_root, user_negations) {
+        if !is_ignored_manifest(&manifest_path, workspace_root, user_negations, ignored_directories)
+        {
             manifest_paths.insert(manifest_path);
         }
     }
@@ -113,12 +117,18 @@ pub(super) fn collect_literal_manifests_in(
     directory: &Path,
     workspace_root: &Path,
     user_negations: &wax::Any<'_>,
+    ignored_directories: &[PathBuf],
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) {
     for basename in PROJECT_MANIFEST_BASENAMES {
         let manifest_path = directory.join(basename);
         if manifest_path.is_file()
-            && !is_ignored_manifest(&manifest_path, workspace_root, user_negations)
+            && !is_ignored_manifest(
+                &manifest_path,
+                workspace_root,
+                user_negations,
+                ignored_directories,
+            )
         {
             manifest_paths.insert(manifest_path);
         }
@@ -164,9 +174,22 @@ fn is_ignored_manifest(
     manifest_path: &Path,
     workspace_root: &Path,
     user_negations: &wax::Any<'_>,
+    ignored_directories: &[PathBuf],
 ) -> bool {
     let relative = manifest_path.strip_prefix(workspace_root).unwrap_or(manifest_path);
-    has_always_ignored_component(relative) || user_negations.is_match(relative)
+    is_under_ignored_directory(manifest_path, ignored_directories)
+        || has_always_ignored_component(relative)
+        || user_negations.is_match(relative)
+}
+
+/// Whether `path` sits under one of pnpm's managed directories (store,
+/// cache, state, ...), which project discovery must never report
+/// projects from. Both sides are absolute paths built from the same
+/// workspace root, so the component-wise prefix check is exact.
+pub(super) fn is_under_ignored_directory(path: &Path, ignored_directories: &[PathBuf]) -> bool {
+    ignored_directories
+        .iter()
+        .any(|dir| path.starts_with(dir))
 }
 
 /// [`IGNORE_PATTERNS`](super::IGNORE_PATTERNS) by hand: `**/node_modules/**` and
@@ -240,6 +263,7 @@ pub(super) fn collect_walk_manifests<Entries, Matched, Failure>(
     walk_root: &Path,
     workspace_root: &Path,
     user_negations: &wax::Any<'_>,
+    ignored_directories: &[PathBuf],
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) -> Result<(), FindWorkspaceProjectsError>
 where
@@ -264,6 +288,13 @@ where
             }
         };
         let manifest_path = entry.path();
+        // The wax `not` filter already prunes managed directories from
+        // the descent, but a pattern that names one outright (or a
+        // managed directory outside the walk root) still reaches this
+        // per-entry check.
+        if is_under_ignored_directory(manifest_path, ignored_directories) {
+            continue;
+        }
         if pathdiff::diff_paths(manifest_path, workspace_root)
             .is_some_and(|relative| user_negations.is_match(relative.as_path()))
         {

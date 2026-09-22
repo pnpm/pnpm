@@ -1799,6 +1799,24 @@ impl Config {
         Self::default()
     }
 
+    /// pnpm-managed directories that workspace project discovery must
+    /// never report projects from: the store, cache, and state roots
+    /// plus the install-target directories. Entries may be absolute or
+    /// relative to the workspace root; discovery resolves them the way
+    /// [`pnpm_workspace::find_workspace_inventory`] resolves its
+    /// `ignored_directories`.
+    #[must_use]
+    pub fn managed_directories(&self) -> Vec<PathBuf> {
+        vec![
+            self.store_dir.root().to_path_buf(),
+            self.cache_dir.clone(),
+            self.state_dir.clone(),
+            self.modules_dir.clone(),
+            self.virtual_store_dir.clone(),
+            self.global_virtual_store_dir.clone(),
+        ]
+    }
+
     /// Persist the config data until the program terminates.
     pub fn leak(self) -> &'static mut Self {
         self.pipe(Box::new).pipe(Box::leak)

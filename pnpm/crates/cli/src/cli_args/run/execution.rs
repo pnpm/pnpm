@@ -376,6 +376,7 @@ fn run_script_stages(
             workspace_dir: ctx.config.workspace_dir.as_deref(),
             // Read before the script ran, so a bin it drops can still be named.
             manifest_before_scripts: Some(ctx.manifest.value()),
+            ignored_directories: ctx.config.managed_directories(),
         })?;
     }
 

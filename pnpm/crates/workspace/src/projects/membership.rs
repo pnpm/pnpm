@@ -3,8 +3,11 @@
 use super::{
     FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, PROJECT_MANIFEST_BASENAMES, Path,
     PathBuf, WorkspacePattern, compile_user_negations, dot_pruning_ignore_template,
-    manifest_walk_ignores, split_include_and_negation,
-    walk::{has_always_ignored_component, normalize_manifest_patterns, split_parent_prefix},
+    manifest_walk_ignores, resolve_ignored_directories, split_include_and_negation,
+    walk::{
+        has_always_ignored_component, is_under_ignored_directory, normalize_manifest_patterns,
+        split_parent_prefix,
+    },
 };
 use wax::{Glob, Program as _};
 
@@ -31,7 +34,7 @@ pub fn belongs_to_workspace(
     is_workspace_project_dir(
         workspace_dir,
         dir,
-        &FindWorkspaceProjectsOpts { patterns: Some(patterns) },
+        &FindWorkspaceProjectsOpts { patterns: Some(patterns), ..Default::default() },
     )
 }
 
@@ -77,6 +80,12 @@ pub fn is_workspace_project_dir(
     if relative_dir.as_os_str().is_empty() {
         return Ok(true);
     }
+    // A managed directory is never a project, however the patterns read.
+    let ignored_directories =
+        resolve_ignored_directories(workspace_root, &opts.ignored_directories);
+    if is_under_ignored_directory(dir, &ignored_directories) {
+        return Ok(false);
+    }
 
     let default_patterns = [".".to_string(), "**".to_string()];
     let patterns: &[String] = opts.patterns.as_deref().unwrap_or(&default_patterns);
@@ -99,7 +108,13 @@ pub fn is_workspace_project_dir(
 
     let dot_pruning_ignore_template = dot_pruning_ignore_template()?;
     for pattern in &include_patterns {
-        if pattern_selects(pattern, workspace_root, &candidates, &dot_pruning_ignore_template)? {
+        if pattern_selects(
+            pattern,
+            workspace_root,
+            &candidates,
+            &dot_pruning_ignore_template,
+            &ignored_directories,
+        )? {
             return Ok(true);
         }
     }
@@ -111,6 +126,7 @@ fn pattern_selects(
     workspace_root: &Path,
     candidates: &[PathBuf],
     dot_pruning_ignore_template: &wax::Any<'_>,
+    ignored_directories: &[PathBuf],
 ) -> Result<bool, FindWorkspaceProjectsError> {
     let invalid_glob = |err: wax::BuildError| FindWorkspaceProjectsError::InvalidGlob {
         pattern: pattern.source.to_string(),
@@ -121,8 +137,13 @@ fn pattern_selects(
             continue;
         };
         let glob = Glob::new(normalized).map_err(invalid_glob)?;
-        let ignores =
-            manifest_walk_ignores(normalized, dot_pruning_ignore_template).map_err(invalid_glob)?;
+        let ignores = manifest_walk_ignores(
+            normalized,
+            dot_pruning_ignore_template,
+            walk_root,
+            ignored_directories,
+        )
+        .map_err(invalid_glob)?;
         for candidate in candidates {
             // A `../` prefix moves the directory the glob is anchored at
             // above the workspace root, so the candidate is re-expressed

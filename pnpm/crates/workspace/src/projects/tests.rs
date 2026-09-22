@@ -32,6 +32,7 @@ fn find_project_names(root: &Path, patterns: &[&str]) -> Vec<String> {
                     .map(|pattern| (*pattern).to_string())
                     .collect(),
             ),
+            ..Default::default()
         },
     )
     .unwrap()
@@ -100,7 +101,10 @@ fn expands_packages_glob() {
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["packages/*".to_string()]),
+            ..Default::default()
+        },
     )
     .unwrap();
 
@@ -287,7 +291,10 @@ fn expands_packages_glob_to_package_yaml() {
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["packages/*".to_string()]),
+            ..Default::default()
+        },
     )
     .unwrap();
 
@@ -360,7 +367,10 @@ fn package_json_wins_when_both_manifest_files_exist() {
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["packages/*".to_string()]),
+            ..Default::default()
+        },
     )
     .unwrap();
 
@@ -389,7 +399,10 @@ fn always_includes_workspace_root() {
     // surfaces it (https://github.com/pnpm/pnpm/issues/1986).
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["apps/*".to_string()]) },
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["apps/*".to_string()]),
+            ..Default::default()
+        },
     )
     .unwrap();
 
@@ -417,7 +430,7 @@ fn filters_node_modules() {
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["**".to_string()]) },
+        &FindWorkspaceProjectsOpts { patterns: Some(vec!["**".to_string()]), ..Default::default() },
     )
     .unwrap();
 
@@ -453,6 +466,7 @@ fn dedupes_overlapping_patterns() {
         tmp.path(),
         &FindWorkspaceProjectsOpts {
             patterns: Some(vec!["packages/*".to_string(), "**".to_string()]),
+            ..Default::default()
         },
     )
     .unwrap();
@@ -478,8 +492,11 @@ fn default_patterns_when_packages_omitted() {
     make_project(tmp.path(), ".", "root");
     make_project(tmp.path(), "apps/web", "web");
 
-    let projects =
-        find_workspace_projects(tmp.path(), &FindWorkspaceProjectsOpts { patterns: None }).unwrap();
+    let projects = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts { patterns: None, ..Default::default() },
+    )
+    .unwrap();
 
     let names: Vec<String> = projects
         .iter()
@@ -508,6 +525,7 @@ fn negation_pattern_excludes_matching_projects() {
         tmp.path(),
         &FindWorkspaceProjectsOpts {
             patterns: Some(vec!["**".to_string(), "!libs/**".to_string()]),
+            ..Default::default()
         },
     )
     .unwrap();
@@ -546,6 +564,7 @@ fn negation_pattern_with_leading_slash_is_noop() {
         tmp.path(),
         &FindWorkspaceProjectsOpts {
             patterns: Some(vec!["**".to_string(), "!/libs/**".to_string()]),
+            ..Default::default()
         },
     )
     .unwrap();
@@ -582,7 +601,7 @@ fn empty_patterns_array_enumerates_root_only() {
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(Vec::new()) },
+        &FindWorkspaceProjectsOpts { patterns: Some(Vec::new()), ..Default::default() },
     )
     .unwrap();
 
@@ -614,6 +633,7 @@ fn missing_pattern_directory_matches_nothing() {
         tmp.path(),
         &FindWorkspaceProjectsOpts {
             patterns: Some(vec!["packages/*".to_string(), "apps/**".to_string()]),
+            ..Default::default()
         },
     )
     .expect("a missing pattern directory is not an error");
@@ -648,7 +668,10 @@ fn non_notfound_walk_failure_still_errors() {
 
     let result = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["packages/*".to_string()]),
+            ..Default::default()
+        },
     );
 
     // `expect_err` would need `Project: Debug`, which it deliberately is not.
@@ -673,7 +696,10 @@ fn non_notfound_walk_failure_still_errors_on_the_generic_path() {
     // the filesystem through their own enumeration.
     let result = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*/lib".to_string()]) },
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["packages/*/lib".to_string()]),
+            ..Default::default()
+        },
     );
 
     let Err(FindWorkspaceProjectsError::Walk { source, .. }) = result else {
@@ -702,6 +728,7 @@ fn discovers_projects_declared_above_the_workspace_root() {
                 "../shared".to_string(),
                 "../vendor/libs/*".to_string(),
             ]),
+            ..Default::default()
         },
     )
     .unwrap();
@@ -743,6 +770,7 @@ fn negation_pattern_excludes_a_project_above_the_workspace_root() {
         &tmp.path().join("workspace"),
         &FindWorkspaceProjectsOpts {
             patterns: Some(vec!["../shared/*".to_string(), "!../shared/drop".to_string()]),
+            ..Default::default()
         },
     )
     .unwrap();
@@ -790,6 +818,7 @@ fn pattern_climbing_past_the_filesystem_root_matches_nothing() {
         &workspace_root,
         &FindWorkspaceProjectsOpts {
             patterns: Some(vec![format!("{overflow}*"), format!("{overflow}shared")]),
+            ..Default::default()
         },
     )
     .unwrap();
@@ -827,7 +856,10 @@ fn discovers_a_project_whose_manifest_starts_with_a_utf8_bom() {
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["packages/*".to_string()]),
+            ..Default::default()
+        },
     )
     .unwrap();
 
@@ -903,7 +935,10 @@ fn a_malformed_manifest_fails_discovery_deterministically() {
 
     let result = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["packages/*".to_string()]),
+            ..Default::default()
+        },
     );
 
     // `expect_err` would need `Project: Debug`, which it deliberately is not.
@@ -938,6 +973,7 @@ fn an_invalid_glob_pattern_fails_before_any_walk() {
         tmp.path(),
         &FindWorkspaceProjectsOpts {
             patterns: Some(vec!["packages/*/lib".to_string(), "nodes/[invalid".to_string()]),
+            ..Default::default()
         },
     );
 
@@ -946,4 +982,67 @@ fn an_invalid_glob_pattern_fails_before_any_walk() {
         panic!("an invalid glob must fail discovery before any walk");
     };
     assert_eq!(pattern, "nodes/[invalid");
+}
+
+#[test]
+fn skips_pnpm_managed_directories() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/real", "real");
+    // pnpm's own managed directories live inside the workspace when
+    // `storeDir` (or the cache/state dirs) points there. Their
+    // manifests must never surface as workspace projects: anything
+    // discovered runs its lifecycle scripts outside the `allowBuilds`
+    // approval gate.
+    make_project(tmp.path(), "store/v11/python-envs/tool", "tool");
+    make_project(tmp.path(), "store/v11/files/pkg", "pkg");
+
+    let find_names = |ignored_directories: Vec<std::path::PathBuf>| {
+        find_workspace_projects(
+            tmp.path(),
+            &FindWorkspaceProjectsOpts {
+                patterns: Some(vec!["**".to_string()]),
+                ignored_directories,
+            },
+        )
+        .unwrap()
+        .iter()
+        .map(|project| {
+            project.manifest
+                .value()
+                .get("name")
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string()
+        })
+        .collect::<Vec<_>>()
+    };
+
+    // Without the guard the store's manifests are discovered: the bug.
+    let unguarded = find_names(Vec::new());
+    assert!(
+        unguarded.contains(&"tool".to_string()),
+        "expected the store's manifests to be discovered without the guard, proving the bug: {unguarded:?}",
+    );
+
+    // With the guard they are not, while real projects still are. The
+    // entry is relative, the way `storeDir: store` reaches the option.
+    let guarded = find_names(vec![std::path::PathBuf::from("store")]);
+    assert!(
+        !guarded.contains(&"tool".to_string()),
+        "a manifest under the store must not surface as a workspace project: {guarded:?}",
+    );
+    assert!(
+        !guarded.contains(&"pkg".to_string()),
+        "a manifest under the store must not surface as a workspace project: {guarded:?}",
+    );
+    assert!(
+        guarded.contains(&"real".to_string()),
+        "expected the `real` project to be enumerated; got {guarded:?}",
+    );
+    assert!(
+        guarded.contains(&"root".to_string()),
+        "expected the `root` project to be enumerated; got {guarded:?}",
+    );
 }

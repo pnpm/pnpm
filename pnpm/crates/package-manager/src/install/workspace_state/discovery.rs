@@ -98,9 +98,10 @@ pub(super) fn check_discovered_deps(
     // The sibling projects only belong in the comparison when one
     // lockfile and one state file cover them all; a dedicated-lockfile
     // install records this project alone.
+    let ignored_directories = config.managed_directories();
     let Ok(workspace_projects) = config
         .shares_one_lockfile()
-        .then(|| load_workspace_projects(workspace_root, workspace_manifest))
+        .then(|| load_workspace_projects(workspace_root, workspace_manifest, &ignored_directories))
         .transpose()
     else {
         return cannot_check_deps();

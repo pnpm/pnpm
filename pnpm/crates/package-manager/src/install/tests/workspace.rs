@@ -105,7 +105,7 @@ fn workspace_without_packages_field_enumerates_root_only() {
         .expect("read workspace manifest")
         .expect("workspace manifest present");
 
-    let projects = load_workspace_projects(dir.path(), Some(&manifest))
+    let projects = load_workspace_projects(dir.path(), Some(&manifest), &[])
         .expect("load workspace projects")
         .expect("workspace projects");
     let names: Vec<&str> = projects

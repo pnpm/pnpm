@@ -83,6 +83,11 @@ pub struct SyncInjectedDeps<'a> {
     /// which bins they used to have: their `package.json` is hardlinked to
     /// the source, so an in-place rewrite has already reached them.
     pub manifest_before_scripts: Option<&'a serde_json::Value>,
+    /// pnpm-managed directories (store, cache, state, ...) that project
+    /// discovery must never report projects from, even when a pattern
+    /// would otherwise match them. Entries may be absolute or relative
+    /// to the workspace root.
+    pub ignored_directories: Vec<PathBuf>,
 }
 
 /// Bring every injected copy of `pkg_root_dir` back in step with it.
@@ -158,6 +163,7 @@ fn sync_workspace_injected_deps(
         workspace_dir,
         previous_bin_names: &previous_bin_names,
         hoisted_bin_dir: hoisted_bin_dir.as_deref(),
+        ignored_directories: &opts.ignored_directories,
     })
 }
 
@@ -208,6 +214,7 @@ struct SyncBinLinks<'a> {
     workspace_dir: &'a Path,
     previous_bin_names: &'a [String],
     hoisted_bin_dir: Option<&'a Path>,
+    ignored_directories: &'a [PathBuf],
 }
 
 /// Where one injected target's dropped bins have to be cleared from.
@@ -265,7 +272,7 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
         .map_err(SyncInjectedDepsError::LinkBins)?;
     }
 
-    relink_project_bins(opts.workspace_dir, &stale_bin_names)
+    relink_project_bins(opts.workspace_dir, &stale_bin_names, opts.ignored_directories)
 }
 
 /// The workspace's bins name the paths inside it relative to themselves,
@@ -283,10 +290,16 @@ fn workspace_link_options(workspace_dir: &Path) -> LinkBinsOptions {
 fn relink_project_bins(
     workspace_dir: &Path,
     stale_bin_names: &[&String],
+    ignored_directories: &[PathBuf],
 ) -> Result<(), SyncInjectedDepsError> {
-    let projects =
-        find_workspace_projects_no_check(workspace_dir, &FindWorkspaceProjectsOpts::default())
-            .map_err(|error| SyncInjectedDepsError::FindProjects { error })?;
+    let projects = find_workspace_projects_no_check(
+        workspace_dir,
+        &FindWorkspaceProjectsOpts {
+            patterns: None,
+            ignored_directories: ignored_directories.to_vec(),
+        },
+    )
+    .map_err(|error| SyncInjectedDepsError::FindProjects { error })?;
     let link_options = workspace_link_options(workspace_dir);
     for project in projects {
         let project_modules_dir = project.root_dir.join("node_modules");

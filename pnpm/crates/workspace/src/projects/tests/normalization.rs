@@ -98,7 +98,10 @@ fn invalid_normalized_globs_report_the_original_pattern() {
     for source in ["./packages//[", "!./packages//["] {
         let result = find_workspace_projects(
             tmp.path(),
-            &FindWorkspaceProjectsOpts { patterns: Some(vec![source.to_string()]) },
+            &FindWorkspaceProjectsOpts {
+                patterns: Some(vec![source.to_string()]),
+                ..Default::default()
+            },
         );
         let Err(FindWorkspaceProjectsError::InvalidGlob { pattern, .. }) = result else {
             panic!("expected an invalid glob for {source}");
