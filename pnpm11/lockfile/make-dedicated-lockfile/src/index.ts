@@ -87,7 +87,7 @@ function withWorkspaceDependencies (manifest: ProjectManifest, publishManifest: 
     const deps = manifest[depField]
     if (deps == null || result[depField] == null) continue
     for (const [depName, spec] of Object.entries(deps)) {
-      if (spec.startsWith('workspace:')) {
+      if (spec.includes('workspace:')) {
         result[depField] = { ...result[depField], [depName]: spec }
       }
     }
