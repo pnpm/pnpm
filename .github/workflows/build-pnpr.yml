@@ -27,6 +27,7 @@ jobs:
     env:
       CARGO_PROFILE_RELEASE_LTO: "off"
       CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+      CARGO_PROFILE_RELEASE_OPT_LEVEL: "1"
     steps:
     - name: Free up runner disk space
       if: ${{ runner.os == 'Linux' }}
