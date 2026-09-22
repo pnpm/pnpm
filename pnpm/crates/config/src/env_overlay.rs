@@ -194,14 +194,14 @@ impl WorkspaceSettings {
 
     fn read_macos_backup_env<Sys: EnvVar>(&mut self) {
         if let Some(value) =
-            read_env::<Sys>("MACOS_BACKUP_MODULES_DIR").and_then(|value| parse_json(&value))
+            read_env::<Sys>("MACOS_BACKUP_EXCLUDE_MODULES_DIR").and_then(|value| parse_json(&value))
         {
-            self.macos_backup.get_or_insert_default().modules_dir = Some(value);
+            self.macos_backup.get_or_insert_default().exclude_modules_dir = Some(value);
         }
         if let Some(value) =
-            read_env::<Sys>("MACOS_BACKUP_STORE_DIR").and_then(|value| parse_json(&value))
+            read_env::<Sys>("MACOS_BACKUP_EXCLUDE_STORE_DIR").and_then(|value| parse_json(&value))
         {
-            self.macos_backup.get_or_insert_default().store_dir = Some(value);
+            self.macos_backup.get_or_insert_default().exclude_store_dir = Some(value);
         }
     }
 

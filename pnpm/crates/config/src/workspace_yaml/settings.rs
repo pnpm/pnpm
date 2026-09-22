@@ -85,8 +85,8 @@ where
 #[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct MacosBackupSettings {
-    pub modules_dir: Option<bool>,
-    pub store_dir: Option<bool>,
+    pub exclude_modules_dir: Option<bool>,
+    pub exclude_store_dir: Option<bool>,
 }
 
 /// Settings readable from `pnpm-workspace.yaml`.

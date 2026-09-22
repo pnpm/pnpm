@@ -99,8 +99,8 @@ impl WorkspaceSettings {
             prefer_symlinked_executables: as_set(config, "preferSymlinkedExecutables"),
 
             macos_backup: Some(MacosBackupSettings {
-                modules_dir: Some(config.macos_backup.modules_dir),
-                store_dir: Some(config.macos_backup.store_dir),
+                exclude_modules_dir: Some(config.macos_backup.exclude_modules_dir),
+                exclude_store_dir: Some(config.macos_backup.exclude_store_dir),
             }),
 
             global_shims: Some(global_shims_setting(config)),

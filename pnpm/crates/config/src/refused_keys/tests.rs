@@ -20,7 +20,7 @@ fn a_key_the_global_config_file_takes_is_routed_there() {
 fn the_structured_macos_backup_key_is_routed_to_its_global_fields() {
     assert_eq!(
         where_refused_key_belongs("macosBackup"),
-        "Set macosBackup.modulesDir or macosBackup.storeDir in the global config.yaml instead",
+        "Set macosBackup.excludeModulesDir or macosBackup.excludeStoreDir in the global config.yaml instead",
     );
 }
 

@@ -21,7 +21,10 @@ fn selects_only_missing_configured_directories() {
         modules_dir,
         virtual_store_dir: virtual_store_dir.clone(),
         store_dir: StoreDir::new(&store_dir),
-        macos_backup: pnpm_config::MacosBackupConfig { modules_dir: false, store_dir: false },
+        macos_backup: pnpm_config::MacosBackupConfig {
+            exclude_modules_dir: true,
+            exclude_store_dir: true,
+        },
         ..Config::default()
     };
 
@@ -38,7 +41,10 @@ fn an_embedded_virtual_store_uses_the_modules_exclusion() {
     let config = Config {
         modules_dir: modules_dir.clone(),
         virtual_store_dir: modules_dir.join(".pnpm"),
-        macos_backup: pnpm_config::MacosBackupConfig { modules_dir: false, ..Default::default() },
+        macos_backup: pnpm_config::MacosBackupConfig {
+            exclude_modules_dir: true,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -54,7 +60,10 @@ fn selects_a_missing_embedded_virtual_store_under_existing_modules() {
     let config = Config {
         modules_dir,
         virtual_store_dir: virtual_store_dir.clone(),
-        macos_backup: pnpm_config::MacosBackupConfig { modules_dir: false, ..Default::default() },
+        macos_backup: pnpm_config::MacosBackupConfig {
+            exclude_modules_dir: true,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -73,7 +82,10 @@ fn selects_missing_workspace_modules_directories() {
     let config = Config {
         modules_dir: modules_dir.clone(),
         virtual_store_dir: modules_dir.join(".pnpm"),
-        macos_backup: pnpm_config::MacosBackupConfig { modules_dir: false, ..Default::default() },
+        macos_backup: pnpm_config::MacosBackupConfig {
+            exclude_modules_dir: true,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -93,7 +105,10 @@ fn deduplicates_workspace_modules_directories() {
     let config = Config {
         virtual_store_dir: modules_dir.join(".pnpm"),
         modules_dir,
-        macos_backup: pnpm_config::MacosBackupConfig { modules_dir: false, ..Default::default() },
+        macos_backup: pnpm_config::MacosBackupConfig {
+            exclude_modules_dir: true,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -117,7 +132,10 @@ fn selects_relocated_workspace_modules_directories() {
     let config = Config {
         modules_dir: modules_dir.clone(),
         virtual_store_dir: modules_dir.join(".pnpm"),
-        macos_backup: pnpm_config::MacosBackupConfig { modules_dir: false, ..Default::default() },
+        macos_backup: pnpm_config::MacosBackupConfig {
+            exclude_modules_dir: true,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -139,7 +157,10 @@ fn normalizes_virtual_store_containment() {
     let config = Config {
         modules_dir: modules_dir.clone(),
         virtual_store_dir,
-        macos_backup: pnpm_config::MacosBackupConfig { modules_dir: false, ..Default::default() },
+        macos_backup: pnpm_config::MacosBackupConfig {
+            exclude_modules_dir: true,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -159,7 +180,10 @@ fn selects_the_effective_global_virtual_store() {
         virtual_store_dir: modules_dir.join(".pnpm"),
         global_virtual_store_dir: global_virtual_store_dir.clone(),
         enable_global_virtual_store: true,
-        macos_backup: pnpm_config::MacosBackupConfig { modules_dir: false, ..Default::default() },
+        macos_backup: pnpm_config::MacosBackupConfig {
+            exclude_modules_dir: true,
+            ..Default::default()
+        },
         ..Config::default()
     };
 

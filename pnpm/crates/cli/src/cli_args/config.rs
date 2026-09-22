@@ -319,7 +319,7 @@ fn validate_macos_backup_value(key: &str, value: &Value) -> Result<(), ConfigErr
         .and_then(|object| {
             object
                 .keys()
-                .find(|field| !matches!(field.as_str(), "modulesDir" | "storeDir"))
+                .find(|field| !matches!(field.as_str(), "excludeModulesDir" | "excludeStoreDir"))
         })
     {
         return Err(ConfigError::SetStructuredValue {

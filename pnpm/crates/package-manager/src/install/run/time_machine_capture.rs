@@ -24,11 +24,11 @@ pub(super) fn capture_time_machine_exclusions(
     let config = execution.install.context.config;
     if execution.install.execution.lockfile_only
         || execution.install.execution.dry_run
-        || (config.macos_backup.modules_dir && config.macos_backup.store_dir)
+        || (!config.macos_backup.exclude_modules_dir && !config.macos_backup.exclude_store_dir)
     {
         return;
     }
-    let project_dirs = if config.macos_backup.modules_dir {
+    let project_dirs = if config.macos_backup.exclude_modules_dir {
         Vec::new()
     } else {
         // A filtered non-hoisted install can follow dependency edges into

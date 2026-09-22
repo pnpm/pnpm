@@ -208,7 +208,7 @@ fn new_directories_to_exclude(
 ) -> Vec<PathBuf> {
     let mut paths = Vec::with_capacity(project_dirs.len() + 3);
     let mut seen = HashSet::with_capacity(project_dirs.len() + 3);
-    if !config.macos_backup.modules_dir {
+    if config.macos_backup.exclude_modules_dir {
         push_missing(&mut paths, &mut seen, config.modules_dir.clone());
         let modules_dir_name =
             config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
@@ -235,7 +235,7 @@ fn new_directories_to_exclude(
             push_missing(&mut paths, &mut seen, virtual_store_dir);
         }
     }
-    if !config.macos_backup.store_dir {
+    if config.macos_backup.exclude_store_dir {
         push_missing(&mut paths, &mut seen, config.store_dir.root().to_path_buf());
     }
     paths

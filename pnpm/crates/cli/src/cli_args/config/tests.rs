@@ -178,9 +178,11 @@ fn set_macos_backup_requires_a_json_object() {
     assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_CONFIG_SET_STRUCTURED_VALUE");
     assert!(!config_dir.join("config.yaml").exists());
 
-    for value in
-        [r#"{"modulesDir":"invalid"}"#, r#"{"storeDir":"invalid"}"#, r#"{"storeDirectory":false}"#]
-    {
+    for value in [
+        r#"{"excludeModulesDir":"invalid"}"#,
+        r#"{"excludeStoreDir":"invalid"}"#,
+        r#"{"excludeStoreDirectory":false}"#,
+    ] {
         let err = config_set(
             &config,
             tmp.path(),
@@ -198,12 +200,12 @@ fn set_macos_backup_requires_a_json_object() {
         tmp.path(),
         flags(true, None, true),
         "macos-backup",
-        Some(r#"{"modulesDir":false,"storeDir":true}"#.into()),
+        Some(r#"{"excludeModulesDir":false,"excludeStoreDir":true}"#.into()),
     )
     .unwrap();
     assert_eq!(
         read_yaml(&config_dir.join("config.yaml")).unwrap(),
-        json!({ "macosBackup": { "modulesDir": false, "storeDir": true } }),
+        json!({ "macosBackup": { "excludeModulesDir": false, "excludeStoreDir": true } }),
     );
 }
 

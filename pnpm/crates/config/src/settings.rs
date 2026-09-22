@@ -41,10 +41,10 @@ pub struct HoistPatterns {
 /// through `PNPM_CONFIG_*` environment variables.
 #[derive(Debug, Clone, SmartDefault)]
 pub struct MacosBackupConfig {
-    #[default = true]
-    pub modules_dir: bool,
-    #[default = true]
-    pub store_dir: bool,
+    #[default = false]
+    pub exclude_modules_dir: bool,
+    #[default = false]
+    pub exclude_store_dir: bool,
 }
 
 /// Resolved runtime config built from defaults, the auth subset of
@@ -262,7 +262,7 @@ pub struct Config {
     pub store_dir: StoreDir,
 
     /// Whether macOS Time Machine may back up newly created pnpm directories.
-    /// Set `macosBackup.modulesDir` or `macosBackup.storeDir` to `false` in
+    /// Set `macosBackup.excludeModulesDir` or `macosBackup.excludeStoreDir` to `true` in
     /// the global pnpm configuration to exclude them with `tmutil`.
     pub macos_backup: MacosBackupConfig,
 

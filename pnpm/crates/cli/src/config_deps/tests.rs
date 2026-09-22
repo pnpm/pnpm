@@ -356,18 +356,18 @@ async fn update_config_hook_cannot_read_or_change_macos_backup_policy() {
     fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
     fs::write(
         root.path().join(".pnpmfile.cjs"),
-        "module.exports = { hooks: { updateConfig (config) { if ('macosBackup' in config) throw new Error('backup policy leaked'); config.macosBackup = { modulesDir: true, storeDir: true }; return config } } }",
+        "module.exports = { hooks: { updateConfig (config) { if ('macosBackup' in config) throw new Error('backup policy leaked'); config.macosBackup = { excludeModulesDir: true, excludeStoreDir: true }; return config } } }",
     )
     .expect("write pnpmfile");
     let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
-    config.macos_backup.modules_dir = false;
-    config.macos_backup.store_dir = false;
+    config.macos_backup.exclude_modules_dir = false;
+    config.macos_backup.exclude_store_dir = false;
 
     run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
-    assert!(!config.macos_backup.modules_dir);
-    assert!(!config.macos_backup.store_dir);
+    assert!(!config.macos_backup.exclude_modules_dir);
+    assert!(!config.macos_backup.exclude_store_dir);
 }
 
 /// `Accept` header the resolver sends for full metadata

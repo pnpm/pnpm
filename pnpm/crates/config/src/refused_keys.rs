@@ -99,7 +99,7 @@ pub fn where_refused_key_belongs(camel_key: &str) -> String {
         return "Pass --dir on the command line instead".to_string();
     }
     if camel_key == "macosBackup" {
-        return "Set macosBackup.modulesDir or macosBackup.storeDir in the global config.yaml instead"
+        return "Set macosBackup.excludeModulesDir or macosBackup.excludeStoreDir in the global config.yaml instead"
             .to_string();
     }
     let kebab_key =

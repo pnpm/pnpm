@@ -19,8 +19,8 @@ pub fn materialization_env_vars_override_workspace_yaml() {
             match name {
                 "PNPM_CONFIG_VIRTUAL_STORE_ONLY" => Some("true".to_owned()),
                 "PNPM_CONFIG_ENABLE_MODULES_DIR" => Some("false".to_owned()),
-                "PNPM_CONFIG_MACOS_BACKUP_MODULES_DIR" => Some("false".to_owned()),
-                "PNPM_CONFIG_MACOS_BACKUP_STORE_DIR" => Some("false".to_owned()),
+                "PNPM_CONFIG_MACOS_BACKUP_EXCLUDE_MODULES_DIR" => Some("false".to_owned()),
+                "PNPM_CONFIG_MACOS_BACKUP_EXCLUDE_STORE_DIR" => Some("false".to_owned()),
                 _ => safe_host_var(name),
             }
         }
@@ -41,8 +41,8 @@ pub fn materialization_env_vars_override_workspace_yaml() {
     let config = Config::new().current::<HostWithMaterializationEnv>(tmp.path()).expect("loads");
     assert!(config.virtual_store_only);
     assert!(!config.enable_modules_dir);
-    assert!(!config.macos_backup.modules_dir);
-    assert!(!config.macos_backup.store_dir);
+    assert!(!config.macos_backup.exclude_modules_dir);
+    assert!(!config.macos_backup.exclude_store_dir);
     assert_eq!(config.hoist_pattern, Some(vec![]));
     assert_eq!(config.public_hoist_pattern, Some(vec![]));
 }
@@ -52,14 +52,14 @@ pub fn time_machine_settings_cannot_be_set_by_a_project() {
     let tmp = tempdir().unwrap();
     fs::write(
         tmp.path().join("pnpm-workspace.yaml"),
-        "macosBackup:\n  modulesDir: false\n  storeDir: false\n",
+        "macosBackup:\n  excludeModulesDir: false\n  excludeStoreDir: false\n",
     )
     .expect("write to pnpm-workspace.yaml");
 
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
 
-    assert!(config.macos_backup.modules_dir);
-    assert!(config.macos_backup.store_dir);
+    assert!(!config.macos_backup.exclude_modules_dir);
+    assert!(!config.macos_backup.exclude_store_dir);
     assert_eq!(config.workspace_key_issues.refused, ["macosBackup"]);
 }
 
@@ -68,7 +68,7 @@ pub fn global_config_may_disable_time_machine_backups() {
     let tmp = tempdir().unwrap();
     fs::write(
         tmp.path().join("config.yaml"),
-        "macosBackup:\n  modulesDir: false\n  storeDir: false\n",
+        "macosBackup:\n  excludeModulesDir: false\n  excludeStoreDir: false\n",
     )
     .expect("write global config.yaml");
     let settings = WorkspaceSettings::load_global(tmp.path())
@@ -78,8 +78,8 @@ pub fn global_config_may_disable_time_machine_backups() {
 
     settings.apply_to(&mut config, tmp.path());
 
-    assert!(!config.macos_backup.modules_dir);
-    assert!(!config.macos_backup.store_dir);
+    assert!(!config.macos_backup.exclude_modules_dir);
+    assert!(!config.macos_backup.exclude_store_dir);
 }
 
 #[test]
