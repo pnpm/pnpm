@@ -184,7 +184,7 @@ pnpm 12.6.0 ships with automatic dependency deduplication, relocatable node_modu
 
 - `pnpm setup` now describes displayed configuration changes as "The following configuration changes were made" [#15100](https://github.com/pnpm/pnpm/issues/15100).
 
-- `minimumReleaseAge` approval prompts in `pnpm install` and `pnpm update -g` now count and display each package version once [#15083](https://github.com/pnpm/pnpm/issues/15083), [#15091](https://github.com/pnpm/issues/15091).
+- `minimumReleaseAge` approval prompts in `pnpm install` and `pnpm update -g` now count and display each package version once [#15083](https://github.com/pnpm/pnpm/issues/15083), [#15091](https://github.com/pnpm/pnpm/issues/15091).
 
 - `.npmrc` authentication warnings now report when an empty environment variable removes an auth token and name the affected key [#4806](https://github.com/pnpm/pnpm/issues/4806).
 
