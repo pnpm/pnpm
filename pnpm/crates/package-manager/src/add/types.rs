@@ -1,10 +1,9 @@
 use super::{
     AddError, AddResolveInputs,
-    registry::{explicit_registry_pick_options, package_registry},
+    registry::{add_pick_policy, explicit_registry_pick_options, package_registry},
     specifier::declared_specifier,
 };
-use crate::resolution_policy::{PickPolicy, pick_package_context};
-use pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
+use crate::resolution_policy::pick_package_context;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_registry::PackageVersion;
 use pnpm_resolving_npm_resolver::{
@@ -28,19 +27,26 @@ pub(super) async fn resolve_types_selector(
     let Some(specifier) = catalog_specifier(package_name, specifier, inputs) else {
         return Ok(None);
     };
-    let preferred_versions = get_preferred_versions_from_lockfile_and_manifests(
-        inputs.add.lockfile.document.and_then(|lockfile| lockfile.snapshots.as_ref()),
-        &[manifest],
-    );
-    let Some(package) =
-        pick_types_metadata(package_name, specifier, inputs, Some(&preferred_versions)).await?
+    let preferred_versions = inputs.preferred_versions(manifest);
+    let Some((package, registry)) =
+        pick_types_metadata(package_name, specifier, inputs, Some(preferred_versions)).await?
     else {
         return Ok(None);
     };
     if package.name.starts_with("@types/") || has_bundled_types(&package) {
         return Ok(None);
     }
-    resolve_companion_selector(&types_alias, &types_package_name(&package.name), inputs).await
+    let types_name = types_package_name(&package.name);
+    if !can_discover_types(&registry, &types_name, inputs) {
+        return Ok(None);
+    }
+    resolve_companion_selector(&types_alias, &types_name, inputs).await
+}
+
+fn can_discover_types(registry: &str, types_name: &str, inputs: &AddResolveInputs<'_, '_>) -> bool {
+    inputs.add.config.registries_by_scope.contains_key("@types")
+        || registry.trim_end_matches('/')
+            == package_registry(inputs.add.config, types_name).trim_end_matches('/')
 }
 
 async fn resolve_companion_selector(
@@ -48,7 +54,7 @@ async fn resolve_companion_selector(
     types_name: &str,
     inputs: &AddResolveInputs<'_, '_>,
 ) -> Result<Option<String>, AddError> {
-    let catalog_name = crate::per_dep_catalog_name(None, inputs.save_catalog_name);
+    let catalog_name = crate::per_dep_catalog_name(None, inputs.owned.save_catalog_name.as_deref());
     let catalog_entry = inputs.catalogs
         .get(catalog_name)
         .and_then(|entries| entries.get(types_alias));
@@ -58,7 +64,7 @@ async fn resolve_companion_selector(
         Err(AddError::ResolveSpec(error)) if is_not_found(&error) => return Ok(None),
         Err(error) => return Err(error),
     };
-    Ok(types_package.map(|package| {
+    Ok(types_package.map(|(package, _registry)| {
         if catalog_entry.is_some() {
             return types_alias.to_string();
         }
@@ -108,7 +114,7 @@ async fn pick_types_metadata(
     specifier: &str,
     inputs: &AddResolveInputs<'_, '_>,
     preferred_versions: Option<&pnpm_resolving_resolver_base::PreferredVersions>,
-) -> Result<Option<Arc<PackageVersion>>, AddError> {
+) -> Result<Option<(Arc<PackageVersion>, String)>, AddError> {
     let registry = package_registry(inputs.add.config, name);
     let Some(spec) = parse_bare_specifier(specifier, Some(name), "latest", &registry)
         .filter(|spec| spec.normalized_bare_specifier.is_none())
@@ -116,9 +122,7 @@ async fn pick_types_metadata(
         return Ok(None);
     };
     let registry = package_registry(inputs.add.config, &spec.name);
-    let mut policy =
-        PickPolicy::from_config(inputs.add.config).map_err(AddError::MinimumReleaseAgeExclude)?;
-    policy.force_unfiltered_full_metadata();
+    let policy = add_pick_policy(inputs.add)?;
     let context = pick_package_context(
         inputs.add.http_client,
         inputs.add.config,
@@ -133,7 +137,7 @@ async fn pick_types_metadata(
         preferred_versions.and_then(|preferred| preferred.get(&spec.name)),
     );
     pick_package(&context, &spec, &options).await
-        .map(|result| result.picked_package)
+        .map(|result| result.picked_package.map(|package| (package, registry)))
         .map_err(|error| AddError::ResolveSpec(Box::new(error)))
 }
 

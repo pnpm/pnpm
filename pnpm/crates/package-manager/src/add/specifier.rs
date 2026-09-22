@@ -1,5 +1,5 @@
 use super::{
-    AddError, AddOptions, AddResolution, AddResolveInputs,
+    AddError, AddResolveInputs,
     aliasless::{AliaslessDependency, resolve_aliasless_specifier},
     manifest::apply_catalog_decision,
     registry::{pick_latest_range, resolve_explicit_registry_spec},
@@ -51,7 +51,7 @@ pub(super) async fn resolve_added_dependency(
     let mut updated_catalogs = Catalogs::new();
     let outcome = decide_catalog_outcome(
         inputs.add.config.catalog_mode,
-        inputs.save_catalog_name,
+        inputs.owned.save_catalog_name.as_deref(),
         inputs.catalogs,
         &CatalogModeDep {
             alias: package_name,
@@ -180,32 +180,26 @@ pub(super) async fn bare_save_specifier(
         return resolve_node_runtime_specifier(version_spec, prev_specifier, inputs).await;
     }
     if let Some(ProtocolSelector::Jsr(jsr)) = selector.protocol.as_ref() {
-        return Ok(resolve_jsr_save_specifier(jsr, inputs.add, manifest, inputs.resolution)
-            .await?
+        return Ok(resolve_jsr_save_specifier(jsr, manifest, inputs).await?
             .unwrap_or_else(|| package_selector.to_string()));
     }
     match (explicit_spec, prev_specifier) {
-        (Some(spec), prev) => Ok(resolve_explicit_registry_spec(
-            package_name,
-            spec,
-            prev,
-            inputs.add,
-            manifest,
-            inputs.resolution,
-        )
-        .await?
-        .unwrap_or_else(|| normalized_save_specifier(spec))),
+        (Some(spec), prev) => {
+            Ok(resolve_explicit_registry_spec(package_name, spec, prev, manifest, inputs)
+                .await?
+                .unwrap_or_else(|| normalized_save_specifier(spec)))
+        }
         (None, Some(prev)) => Ok(prev.to_string()),
         (None, None) => match cataloged_specifier(package_name, inputs) {
             Some(specifier) => Ok(specifier),
-            None => pick_latest_range(package_name, inputs).await,
+            None => pick_latest_range(package_name, manifest, inputs).await,
         },
     }
 }
 /// The `catalog:` reference for a dependency the catalog already lists, or
 /// `None` when it lists no entry for it.
 fn cataloged_specifier(package_name: &str, inputs: &AddResolveInputs<'_, '_>) -> Option<String> {
-    let catalog_name = crate::per_dep_catalog_name(None, inputs.save_catalog_name);
+    let catalog_name = crate::per_dep_catalog_name(None, inputs.owned.save_catalog_name.as_deref());
     inputs.catalogs.get(catalog_name)?.get(package_name)?;
     Some(if catalog_name == pnpm_catalogs_types::DEFAULT_CATALOG_NAME {
         "catalog:".to_string()
@@ -221,7 +215,7 @@ pub(super) async fn resolve_node_runtime_specifier(
 ) -> Result<String, AddError> {
     let config = inputs.add.config;
     let mut node_resolver = NodeResolver::new_with_auth(
-        std::sync::Arc::clone(inputs.http_client_arc),
+        std::sync::Arc::clone(&inputs.owned.http_client_arc),
         std::sync::Arc::clone(&config.auth_headers),
     );
     node_resolver.node_download_mirrors.clone_from(&config.node_download_mirrors);
@@ -418,9 +412,8 @@ pub(super) fn protocol_package_name(name: &str, selector: &str) -> Result<String
 /// argument verbatim, as it does for any other unresolvable specifier.
 pub(super) async fn resolve_jsr_save_specifier(
     spec: &JsrSpec,
-    add: AddOptions<'_>,
     manifest: &PackageManifest,
-    resolution: &AddResolution<'_>,
+    inputs: &AddResolveInputs<'_, '_>,
 ) -> Result<Option<String>, AddError> {
     let version_selector = spec.version_selector.as_deref().unwrap_or("latest");
     let range = resolve_explicit_registry_spec(
@@ -430,9 +423,8 @@ pub(super) async fn resolve_jsr_save_specifier(
         // way pnpm reads it for an alias-less request: there is no alias to
         // find a manifest entry by.
         None,
-        add,
         manifest,
-        resolution,
+        inputs,
     )
     .await?;
     Ok(range.map(|range| format!("jsr:{range}")))

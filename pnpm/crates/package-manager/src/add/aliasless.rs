@@ -40,9 +40,13 @@ pub(super) async fn resolve_aliasless_specifier(
         return resolve_aliasless_git(specifier, inputs).await.map(Some);
     }
     if specifier.starts_with("http:") || specifier.starts_with("https:") {
-        return resolve_aliasless_tarball(specifier, inputs.add.config, inputs.http_client_arc)
-            .await
-            .map(Some);
+        return resolve_aliasless_tarball(
+            specifier,
+            inputs.add.config,
+            &inputs.owned.http_client_arc,
+        )
+        .await
+        .map(Some);
     }
     resolve_aliasless_local(specifier, manifest).await
 }
@@ -315,7 +319,7 @@ pub(super) fn aliasless_git_resolver(
     inputs: &AddResolveInputs<'_, '_>,
 ) -> GitResolver<RealGitProbe, RealGitRunner> {
     let config = inputs.add.config;
-    let http_client = inputs.http_client_arc;
+    let http_client = &inputs.owned.http_client_arc;
     GitResolver::new(
         Arc::new(RealGitProbe::new(Arc::clone(http_client))),
         Arc::new(RealGitRunner::new()),

@@ -2,24 +2,10 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::{Value, json};
-use std::{fs, path::Path, process::Command};
+use std::{fmt::Write as _, fs, path::Path, process::Command};
 
 fn serve_package(server: &mut mockito::Server, name: &str, extra: &Value) -> Vec<mockito::Mock> {
-    let tarball = pnpm_testing_utils::fixtures::minimal_tarball(name, "1.0.0");
-    let integrity = ssri::Integrity::from(tarball.as_slice()).to_string();
-    let mut version = json!({
-        "name": name, "version": "1.0.0",
-        "dist": {"tarball": format!("{}/{name}/-/package.tgz", server.url()), "integrity": integrity}
-    });
-    version
-        .as_object_mut()
-        .unwrap()
-        .extend(extra.as_object().unwrap().clone());
-    let packument = json!({
-        "name": name, "dist-tags": {"latest": "1.0.0"},
-        "versions": {"1.0.0": version},
-        "time": {"1.0.0": "2020-01-01T00:00:00.000Z"}
-    });
+    let (version, packument) = package_metadata(server, name, extra);
     let encoded = name.replace('/', "%2f");
     vec![
         server
@@ -35,6 +21,25 @@ fn serve_package(server: &mut mockito::Server, name: &str, extra: &Value) -> Vec
             .expect_at_least(0)
             .create(),
     ]
+}
+
+fn package_metadata(server: &mockito::Server, name: &str, extra: &Value) -> (Value, Value) {
+    let tarball = pnpm_testing_utils::fixtures::minimal_tarball(name, "1.0.0");
+    let integrity = ssri::Integrity::from(tarball.as_slice()).to_string();
+    let mut version = json!({
+        "name": name, "version": "1.0.0",
+        "dist": {"tarball": format!("{}/{name}/-/package.tgz", server.url()), "integrity": integrity}
+    });
+    version
+        .as_object_mut()
+        .unwrap()
+        .extend(extra.as_object().unwrap().clone());
+    let packument = json!({
+        "name": name, "dist-tags": {"latest": "1.0.0"},
+        "versions": {"1.0.0": version},
+        "time": {"1.0.0": "2020-01-01T00:00:00.000Z"}
+    });
+    (version, packument)
 }
 
 fn setup(workspace: &Path, registry: &str) {
@@ -383,5 +388,97 @@ fn reuses_an_existing_types_catalog_entry() {
     assert_eq!(manifest(&workspace)["devDependencies"]["@types/example"], "catalog:");
     let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
     assert!(yaml.contains("'1.0.0'"), "{yaml}");
+    drop(root);
+}
+
+#[test]
+fn cross_registry_types_require_an_explicit_types_registry() {
+    for explicit_types_registry in [false, true] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        let mut private = mockito::Server::new();
+        let mut public = mockito::Server::new();
+        let _package = serve_package(&mut private, "@private/example", &json!({}));
+        let _types = serve_package(&mut public, "@types/private__example", &json!({}));
+        setup(&workspace, &public.url());
+        let mut npmrc =
+            format!("registry={}/\n@private:registry={}/\n", public.url(), private.url());
+        if explicit_types_registry {
+            writeln!(npmrc, "@types:registry={}/", public.url()).unwrap();
+        }
+        fs::write(workspace.join(".npmrc"), npmrc).unwrap();
+        let forbidden_lookup = (!explicit_types_registry).then(|| {
+            public
+                .mock("GET", mockito::Matcher::Any)
+                .expect(0)
+                .create()
+        });
+        add(&workspace, &["@private/example", "--save-types"]).assert().success();
+        let expected = if explicit_types_registry { json!("^1.0.0") } else { Value::Null };
+        assert_eq!(manifest(&workspace)["devDependencies"]["@types/private__example"], expected);
+        if let Some(lookup) = forbidden_lookup {
+            lookup.assert();
+        }
+        drop(root);
+    }
+}
+
+#[test]
+fn bulk_add_reuses_full_metadata_for_runtime_and_companion_resolution() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let mut full_metadata = Vec::new();
+    let mut abbreviated_metadata = Vec::new();
+    for name in ["first", "second", "@types/first", "@types/second"] {
+        let (_, packument) = package_metadata(&server, name, &json!({}));
+        let encoded = name.replace('/', "%2f");
+        full_metadata.push(
+            server
+                .mock("GET", mockito::Matcher::Regex(format!("(?i)^/{encoded}$")))
+                .match_header("accept", "application/json; q=1.0, */*")
+                .with_header("content-type", "application/json")
+                .with_body(packument.to_string())
+                .expect(1)
+                .create(),
+        );
+        abbreviated_metadata.push(
+            server
+                .mock("GET", mockito::Matcher::Regex(format!("(?i)^/{encoded}$")))
+                .match_header(
+                    "accept",
+                    "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+                )
+                .with_header("content-type", "application/json")
+                .with_body(packument.to_string())
+                .expect_at_least(0)
+                .create(),
+        );
+    }
+    setup(&workspace, &server.url());
+    add(&workspace, &["first", "second", "--save-types"]).assert().success();
+    let result = manifest(&workspace);
+    assert_eq!(result["devDependencies"]["@types/first"], "^1.0.0");
+    assert_eq!(result["devDependencies"]["@types/second"], "^1.0.0");
+    for mock in full_metadata {
+        mock.assert();
+    }
+    drop((root, abbreviated_metadata));
+}
+
+#[test]
+fn an_alias_needs_its_own_types_import_name() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let _package = serve_package(&mut server, "example", &json!({}));
+    let _types = serve_package(&mut server, "@types/example", &json!({}));
+    setup(&workspace, &server.url());
+    fs::write(
+        workspace.join("package.json"),
+        json!({"devDependencies": {"@types/example": "1.0.0"}}).to_string(),
+    )
+    .unwrap();
+    add(&workspace, &["renamed@npm:example", "--save-types"]).assert().success();
+    let result = manifest(&workspace);
+    assert_eq!(result["devDependencies"]["@types/example"], "1.0.0");
+    assert_eq!(result["devDependencies"]["@types/renamed"], "npm:@types/example@^1.0.0");
     drop(root);
 }

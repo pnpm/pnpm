@@ -18,8 +18,14 @@ export condition do not need a companion package and are skipped. If the
 registry returns 404 for the companion package, the requested package is still
 added. Other registry errors are reported.
 
+When a dependency's registry differs from the registry for `@types`, automatic
+lookup is skipped unless an `@types:registry` is explicitly configured. This
+prevents private scoped packages from silently pulling declarations from a
+public registry. Explicitly adding a declaration package uses its normal
+configured registry.
+
 Scoped packages map to `@types/scope__name`. An npm alias gets a matching type
-alias. Existing type dependencies keep their declared ranges and groups;
+alias. Existing type dependencies for the same import name keep their declared ranges and groups;
 explicit type package arguments take precedence over automatic additions.
 New type packages use the latest version allowed by the configured resolution
 policies, with the normal save prefix, exact-version, and catalog settings.

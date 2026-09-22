@@ -365,15 +365,31 @@ impl AddResolution<'_> {
 /// What every selector of an add resolves against.
 struct AddResolveInputs<'a, 'r> {
     add: AddOptions<'a>,
-    http_client_arc: &'r std::sync::Arc<ThrottledClient>,
+    owned: &'r AddOwned,
     /// One checkout per repository and commit for every alias-less git
     /// selector this command resolves.
     git_source_cache: &'r std::sync::Arc<pnpm_git_fetcher::GitSourceCache>,
     resolution: &'r AddResolution<'a>,
-    save_catalog_name: Option<&'r str>,
+    preferred_versions: &'r std::sync::OnceLock<pnpm_resolving_resolver_base::PreferredVersions>,
     catalogs: &'r Catalogs,
     prefix: &'r str,
     workspace_packages: Option<&'r WorkspacePackages>,
+}
+
+impl AddResolveInputs<'_, '_> {
+    fn preferred_versions(
+        &self,
+        manifest: &PackageManifest,
+    ) -> &pnpm_resolving_resolver_base::PreferredVersions {
+        self.preferred_versions.get_or_init(|| {
+            pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
+                self.add.lockfile.document.and_then(|lockfile| {
+                    lockfile.snapshots.as_ref()
+                }),
+                &[manifest],
+            )
+        })
+    }
 }
 
 #[cfg(test)]

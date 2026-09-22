@@ -68,10 +68,10 @@ pub(super) async fn prepare_single_add<Reporter: self::Reporter>(
         manifest,
         &AddResolveInputs {
             add,
-            http_client_arc: &owned.http_client_arc,
+            owned,
             git_source_cache: &git_source_cache,
             resolution: &resolution,
-            save_catalog_name: owned.save_catalog_name.as_deref(),
+            preferred_versions: &std::sync::OnceLock::new(),
             catalogs: &catalog_ctx.catalogs,
             prefix: &catalog_ctx.prefix,
             workspace_packages: workspace_packages.as_ref(),
@@ -192,10 +192,10 @@ pub(super) async fn prepare_selected_manifests<Reporter: self::Reporter>(
             &mut projects[index].manifest,
             &AddResolveInputs {
                 add,
-                http_client_arc: &owned.http_client_arc,
+                owned,
                 git_source_cache: &git_source_cache,
                 resolution: &resolution,
-                save_catalog_name: owned.save_catalog_name.as_deref(),
+                preferred_versions: &std::sync::OnceLock::new(),
                 catalogs: &catalogs,
                 prefix: &catalog_ctx.prefix,
                 workspace_packages: workspace_packages.as_ref(),
@@ -244,9 +244,14 @@ pub(super) async fn prepare_manifest<Reporter: self::Reporter>(
     inputs: &AddResolveInputs<'_, '_>,
     dependency_groups: Option<&[DependencyGroup]>,
 ) -> Result<Catalogs, AddError> {
-    let resolved_dependencies = resolve_dependencies::<Reporter>(manifest, inputs).await?;
+    let resolved_dependencies = resolve_dependencies::<Reporter>(
+        manifest,
+        inputs,
+        inputs.add.package_names.iter().map(String::as_str),
+    )
+    .await?;
     let types_dependencies =
-        resolve_types_dependencies(manifest, inputs, &resolved_dependencies).await?;
+        resolve_types_dependencies::<Reporter>(manifest, inputs, &resolved_dependencies).await?;
 
     emit_initial_package_manifest::<Reporter>(manifest);
 
@@ -265,9 +270,6 @@ pub(super) async fn prepare_manifest<Reporter: self::Reporter>(
     }
 
     for dependency in &types_dependencies {
-        if let Some(warning) = &dependency.warning {
-            Reporter::emit(warning);
-        }
         manifest
             .add_dependency(
                 &dependency.package_name,
@@ -282,15 +284,16 @@ pub(super) async fn prepare_manifest<Reporter: self::Reporter>(
     }
     Ok(updated_catalogs)
 }
-async fn resolve_dependencies<Reporter: self::Reporter>(
+async fn resolve_dependencies<'s, Reporter: self::Reporter>(
     manifest: &PackageManifest,
     inputs: &AddResolveInputs<'_, '_>,
+    selectors: impl IntoIterator<Item = &'s str>,
 ) -> Result<Vec<super::specifier::ResolvedAddedDependency>, AddError> {
     let mut resolution_futures = FuturesOrdered::new();
-    for package_selector in inputs.add.package_names {
+    for package_selector in selectors {
         resolution_futures.push_back(resolve_added_dependency(package_selector, manifest, inputs));
     }
-    let mut dependencies = Vec::with_capacity(inputs.add.package_names.len());
+    let mut dependencies = Vec::with_capacity(resolution_futures.len());
     while let Some(result) = resolution_futures.next().await {
         let dependency = result?;
         if let Some(warning) = &dependency.warning {
@@ -301,7 +304,7 @@ async fn resolve_dependencies<Reporter: self::Reporter>(
     Ok(dependencies)
 }
 
-async fn resolve_types_dependencies(
+async fn resolve_types_dependencies<Reporter: self::Reporter>(
     manifest: &PackageManifest,
     inputs: &AddResolveInputs<'_, '_>,
     dependencies: &[super::specifier::ResolvedAddedDependency],
@@ -309,19 +312,15 @@ async fn resolve_types_dependencies(
     if !inputs.add.save_types {
         return Ok(Vec::new());
     }
-    let mut types_dependencies = Vec::new();
-    let mut types_selectors: HashSet<&str> = dependencies
+    let mut names: HashSet<&str> = dependencies
         .iter()
         .map(|dependency| dependency.package_name.as_str())
         .collect();
-    for selector in
-        dependencies.iter().filter_map(|dependency| dependency.types_selector.as_deref())
-    {
-        if types_selectors.insert(super::specifier::split_name_spec(selector).0) {
-            types_dependencies.push(resolve_added_dependency(selector, manifest, inputs).await?);
-        }
-    }
-    Ok(types_dependencies)
+    let selectors = dependencies
+        .iter()
+        .filter_map(|dependency| dependency.types_selector.as_deref())
+        .filter(|selector| names.insert(super::specifier::split_name_spec(selector).0));
+    resolve_dependencies::<Reporter>(manifest, inputs, selectors).await
 }
 
 /// The manifest groups an added dependency is written to. With none requested
