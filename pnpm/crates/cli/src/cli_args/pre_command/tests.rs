@@ -177,7 +177,7 @@ fn the_pre_command_config_resolves_the_store_dir_flag() {
     ]);
     switch.paths.dir = dir.clone();
 
-    let config = load_pre_command_config(&switch, &ConfigOverrides::default(), &dir)
+    let config = load_pre_command_config(&switch, &ConfigOverrides::default(), &dir, false)
         .expect("load the pre-command config");
 
     assert_eq!(

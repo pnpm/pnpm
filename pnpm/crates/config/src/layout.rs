@@ -462,6 +462,9 @@ impl Config {
         &mut self,
         start_dir: &Path,
     ) {
+        if self.skip_store_dir_resolution {
+            return;
+        }
         let Some(home_dir) = Sys::home_dir() else {
             return;
         };

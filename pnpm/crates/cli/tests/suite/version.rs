@@ -26,6 +26,41 @@ fn version_flag_prints_the_bare_version() {
 }
 
 #[test]
+#[cfg(unix)]
+fn version_flags_do_not_modify_the_project_directory() {
+    use std::time::{Duration, UNIX_EPOCH};
+
+    for args in [vec!["--version"], vec!["-v"], vec!["--store-dir=", "--version"]] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let modified = UNIX_EPOCH + Duration::from_hours(262_968);
+        fs::File::open(&workspace)
+            .expect("open workspace directory")
+            .set_times(fs::FileTimes::new().set_modified(modified))
+            .expect("set directory timestamp");
+
+        let output = test_command(pacquet, root.path())
+            .args(&args)
+            .output()
+            .expect("run version flag");
+        assert!(output.status.success(), "{args:?}: {output:?}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            format!("{}\n", pnpm_config::PNPM_VERSION),
+        );
+        // Creating and deleting a probe leaves no file but changes the directory timestamp.
+        assert_eq!(
+            fs::metadata(&workspace)
+                .unwrap()
+                .modified()
+                .unwrap(),
+            modified,
+            "{args:?}",
+        );
+        assert!(!root.path().join("pnpm-home").exists());
+    }
+}
+
+#[test]
 fn version_flag_accepts_shamefully_hoist() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 
