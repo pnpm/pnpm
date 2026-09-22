@@ -429,8 +429,8 @@ catalogs:
       specifier: ^9.0.0
       version: 9.0.0
     camelcase-keys:
-      specifier: ^10.0.2
-      version: 10.0.2
+      specifier: ^10.0.3
+      version: 10.0.3
     can-link:
       specifier: ^3.0.0
       version: 3.0.0
@@ -819,8 +819,8 @@ catalogs:
       specifier: 1.2.0
       version: 1.2.0
     symlink-dir:
-      specifier: ^10.0.2
-      version: 10.0.2
+      specifier: ^10.0.3
+      version: 10.0.3
     tar:
       specifier: ^7.5.22
       version: 7.5.22
@@ -1555,7 +1555,7 @@ importers:
         version: 7.8.5
       symlink-dir:
         specifier: 'catalog:'
-        version: 10.0.2
+        version: 10.0.3
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -2632,7 +2632,7 @@ importers:
         version: 9.0.0
       camelcase-keys:
         specifier: 'catalog:'
-        version: 10.0.2
+        version: 10.0.3
       can-write-to-dir:
         specifier: 'catalog:'
         version: 2.0.0
@@ -2699,7 +2699,7 @@ importers:
         version: 7.8.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 10.0.2
+        version: 10.0.3
       write-yaml-file:
         specifier: 'catalog:'
         version: 6.0.0
@@ -3580,7 +3580,7 @@ importers:
         version: safe-execa@0.3.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 10.0.2
+        version: 10.0.3
       write-yaml-file:
         specifier: 'catalog:'
         version: 6.0.0
@@ -4093,7 +4093,7 @@ importers:
         version: 7.8.5
       symlink-dir:
         specifier: 'catalog:'
-        version: 10.0.2
+        version: 10.0.3
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -4432,7 +4432,7 @@ importers:
         version: 2.0.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 10.0.2
+        version: 10.0.3
       which:
         specifier: 'catalog:'
         version: '@pnpm/which@3.0.1'
@@ -5121,7 +5121,7 @@ importers:
         version: link:../../core/types
       symlink-dir:
         specifier: 'catalog:'
-        version: 10.0.2
+        version: 10.0.3
       validate-npm-package-name:
         specifier: 'catalog:'
         version: 7.0.2
@@ -5212,7 +5212,7 @@ importers:
         version: 7.8.5
       symlink-dir:
         specifier: 'catalog:'
-        version: 10.0.2
+        version: 10.0.3
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -5744,7 +5744,7 @@ importers:
         version: 3.0.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 10.0.2
+        version: 10.0.3
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -6171,7 +6171,7 @@ importers:
         version: 3.0.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 10.0.2
+        version: 10.0.3
       write-json-file:
         specifier: 'catalog:'
         version: 7.0.0
@@ -6590,7 +6590,7 @@ importers:
         version: 7.8.5
       symlink-dir:
         specifier: 'catalog:'
-        version: 10.0.2
+        version: 10.0.3
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -6682,7 +6682,7 @@ importers:
         version: 3.0.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 10.0.2
+        version: 10.0.3
     devDependencies:
       '@pnpm/installing.linking.hoist':
         specifier: workspace:*
@@ -8306,7 +8306,7 @@ importers:
         version: 1.1.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 10.0.2
+        version: 10.0.3
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -9395,7 +9395,7 @@ importers:
         version: 7.8.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 10.0.2
+        version: 10.0.3
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -9649,7 +9649,7 @@ importers:
         version: 13.0.1
       symlink-dir:
         specifier: 'catalog:'
-        version: 10.0.2
+        version: 10.0.3
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -10030,7 +10030,7 @@ importers:
         version: link:../project-manifest-writer
       camelcase-keys:
         specifier: 'catalog:'
-        version: 10.0.2
+        version: 10.0.3
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -13583,8 +13583,8 @@ packages:
     resolution: {integrity: sha512-P8BjAsXvZS+VIDUI11hHCQEv74YT67YUi5JJFNWIqL235sBmjX4+qx9Muvls5ivyNENctx46xQLQ3aTuE7ssaQ==}
     engines: {node: '>=6'}
 
-  camelcase-keys@10.0.2:
-    resolution: {integrity: sha512-PVHCLVbJ7nWGal0lPAmBN5eSLjIynlMUk2EPmL9aPl6QyJ6+FoszTKwldPzkuVqg5teZbPTbb8Oenzyw9GSJRw==}
+  camelcase-keys@10.0.3:
+    resolution: {integrity: sha512-+WSfgt7e6uZSWfEO9xdFmWEf/bwvA6lJY2mmj4U+N1MHY6h01jQUlZ2dyxnaL4dumg/cxXyRci1fKUtGQfX5+g==}
     engines: {node: '>=20'}
 
   camelcase-keys@6.2.2:
@@ -14397,8 +14397,8 @@ packages:
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
 
-  fast-equals@6.0.3:
-    resolution: {integrity: sha512-IECu4C0fFZFoUC2cA2rDaNUuVIfWIZMwh3tY+ng924vOuD9OaUFFrcIrVwCKbV7TJDkGmrHfhwZ7R0AnHfVhyw==}
+  fast-equals@6.0.4:
+    resolution: {integrity: sha512-JiBeR0k76FIahi9zAtQR7X1jgZDKLE+fs5S9ryjOGYZWZCOcm8QiwgeahkFvaboS3i6PkGBopRznHKuKhm9zpg==}
     engines: {node: '>=6.0.0'}
 
   fast-fifo@1.3.2:
@@ -16502,8 +16502,8 @@ packages:
     resolution: {integrity: sha512-NPE8TDbzl/3YQYY7CSS228s3g2ollTFnc+Qi3tqmqJp9Vg2ovUpixcJEo2HJScN2Ez+kEaal6y70c0ehqJBJeA==}
     engines: {node: '>=10'}
 
-  pnpm@11.27.0:
-    resolution: {integrity: sha512-rRKCFGO7FDKV8fo+zed6a5uXp5kDhtqAD/V7/8OWTcZLexx1WdXb5cM3rqZZ7ZyJN9Q3C9GYyiAJvG+gJJgI5w==}
+  pnpm@11.27.1:
+    resolution: {integrity: sha512-qB1MIbmwmksK6/kO9eUn1CYr3aMi0mCCl4y1SQI6xtnK/Jixn/+qXHHbQ4pl9wIk7beNcxEYeGH/lkgNHNyiPA==}
     engines: {node: '>=22.13'}
     hasBin: true
 
@@ -17258,8 +17258,8 @@ packages:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
 
-  symlink-dir@10.0.2:
-    resolution: {integrity: sha512-BG0D9CT7sm7sm3+c0MquUhYo9ePbDd8c4Sq8HWtUkhaGV6IMC095+3U5fbIDH74w9loRDP2960B7+FpFF8KpcA==}
+  symlink-dir@10.0.3:
+    resolution: {integrity: sha512-2cMcEPjZ1h6OgiXiNKfb+XA5lkKIPdVKXkMfWG3ORiQhfxy+8WGfJhcS6YwMa7RrDZYJ4jt8jXRSsPkgjiSBJg==}
     engines: {node: '>=22.13'}
 
   symlink-dir@6.0.5:
@@ -17843,8 +17843,8 @@ packages:
     resolution: {integrity: sha512-GZtjxm/J/4TSxuL3FNYjCmLktBTnIw/rVmKSIyKeYAZpmJB2ig9VauCC5xsa82GNKVKDAqpOn3KVzNt0zmrU0g==}
     engines: {node: '>=12'}
 
-  yargs@18.1.0:
-    resolution: {integrity: sha512-2rAgRKu54VsHkqI0/tYkmluGXHD4KW7yZoycuqDQ15QOTnc2VVfy0nN/1eMhnQLO00A+dwtK20xuCnc1YGeUyg==}
+  yargs@18.2.0:
+    resolution: {integrity: sha512-9OpKOLeaoNFecEp7P6iYbzze/5CqWoH7N3SMs/6y1XF4nMvFMspEGZzJ6uFi9MmQwXhyzqYoSEKO3tvA3Z/o2w==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=23}
 
   yocto-queue@0.1.0:
@@ -18102,7 +18102,7 @@ snapshots:
       '@commitlint/read': 21.2.3(conventional-commits-parser@7.1.2)
       '@commitlint/types': 21.2.3
       tinyexec: 1.3.1
-      yargs: 18.1.0
+      yargs: 18.2.0
     transitivePeerDependencies:
       - '@types/node'
       - conventional-commits-filter
@@ -19517,7 +19517,7 @@ snapshots:
     dependencies:
       command-exists: 1.2.9
       cross-spawn: 7.0.6
-      pnpm: 11.27.0
+      pnpm: 11.27.1
 
   '@pnpm/fetch@1001.0.0(@pnpm/logger@1001.0.1)(supports-color@10.2.2)':
     dependencies:
@@ -21388,7 +21388,7 @@ snapshots:
       istanbul-reports: '@zkochan/istanbul-reports@3.0.2'
       test-exclude: 8.0.0
       v8-to-istanbul: 9.3.0
-      yargs: 18.1.0
+      yargs: 18.2.0
       yargs-parser: 21.1.1
 
   cacache@19.0.1:
@@ -21458,7 +21458,7 @@ snapshots:
 
   callsites@3.1.0: {}
 
-  camelcase-keys@10.0.2:
+  camelcase-keys@10.0.3:
     dependencies:
       camelcase: 9.0.0
       map-obj: 6.0.0
@@ -21707,7 +21707,7 @@ snapshots:
       '@cspell/cspell-pipe': 9.8.0
       '@cspell/cspell-types': 9.8.0
       cspell-trie-lib: 9.8.0(@cspell/cspell-types@9.8.0)
-      fast-equals: 6.0.3
+      fast-equals: 6.0.4
 
   cspell-gitignore@9.8.0:
     dependencies:
@@ -22403,7 +22403,7 @@ snapshots:
 
   fast-deep-equal@3.1.3: {}
 
-  fast-equals@6.0.3: {}
+  fast-equals@6.0.4: {}
 
   fast-fifo@1.3.2: {}
 
@@ -23733,7 +23733,7 @@ snapshots:
   lcov-result-merger@6.0.0:
     dependencies:
       fast-glob: 3.3.3
-      yargs: 18.1.0
+      yargs: 18.2.0
 
   leven@3.1.0: {}
 
@@ -24740,7 +24740,7 @@ snapshots:
     dependencies:
       find-up: 5.0.0
 
-  pnpm@11.27.0: {}
+  pnpm@11.27.1: {}
 
   possible-typed-array-names@1.1.0: {}
 
@@ -25567,7 +25567,7 @@ snapshots:
 
   supports-preserve-symlinks-flag@1.0.0: {}
 
-  symlink-dir@10.0.2:
+  symlink-dir@10.0.3:
     dependencies:
       better-path-resolve: 2.0.0
       rename-overwrite: 7.0.1
@@ -26227,7 +26227,7 @@ snapshots:
       y18n: 5.0.8
       yargs-parser: 21.1.1
 
-  yargs@18.1.0:
+  yargs@18.2.0:
     dependencies:
       cliui: 9.0.1
       escalade: 3.2.0
