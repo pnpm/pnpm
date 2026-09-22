@@ -31,7 +31,7 @@ pub(in crate::install) fn run_pre_uninstall_scripts<Reporter: self::Reporter>(
     for (project_dir, manifest) in projects {
         if project_requires_lifecycle_scripts(project_dir, manifest, &PROJECT_PRE_UNINSTALL_STAGES)
         {
-            runner.run::<Reporter>(project_dir, manifest, &PROJECT_PRE_UNINSTALL_STAGES)?;
+            runner.run_without_bin_linking::<Reporter>(project_dir, &PROJECT_PRE_UNINSTALL_STAGES)?;
         }
     }
     Ok(())

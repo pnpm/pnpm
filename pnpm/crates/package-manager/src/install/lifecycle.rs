@@ -358,6 +358,14 @@ impl ProjectScriptRunner<'_> {
         } else {
             stages
         };
+        self.run_without_bin_linking::<Reporter>(project_dir, stages)
+    }
+
+    pub(super) fn run_without_bin_linking<Reporter: self::Reporter>(
+        &self,
+        project_dir: &Path,
+        stages: &[&str],
+    ) -> Result<(), InstallError> {
         run_project_stages(
             self.config,
             self.workspace_root,
