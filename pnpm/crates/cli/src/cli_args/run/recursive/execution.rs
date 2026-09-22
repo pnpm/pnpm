@@ -132,7 +132,7 @@ impl RunOutcome<'_> {
             return TaskCompletion::Passed;
         }
         let key = TaskKey { project: node.project.clone(), task_name: node.task_name.clone() };
-        match self.task_run_state.record_passed(&key, node, self.workspace_root) {
+        match self.task_run_state.record_passed(key, node, self.workspace_root) {
             Ok(()) => TaskCompletion::Passed,
             Err(error) => self.abort(error),
         }
