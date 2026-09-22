@@ -844,8 +844,6 @@ fn overrides_comment_key_is_ignored() {
     assert_eq!(selectors, vec!["foo"]);
 }
 
-/// An `overrides` map holding only the comment collapses to `None`,
-/// like an empty map.
 #[test]
 fn overrides_with_only_the_comment_key_collapse_to_none() {
     let yaml = "overrides:\n  '//': nothing pinned yet\n";
