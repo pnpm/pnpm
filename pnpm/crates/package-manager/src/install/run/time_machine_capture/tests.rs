@@ -30,7 +30,7 @@ fn captures_unselected_workspace_projects_reached_by_workspace_dependencies() {
             (selected_dir.clone(), &selected_manifest),
             (linked_dir.clone(), &linked_manifest),
             (workspace_dir.clone(), &workspace_manifest),
-            (unrelated_dir, &unrelated_manifest),
+            (unrelated_dir.clone(), &unrelated_manifest),
         ],
         importers: crate::install::run::workspace::ImporterSelection {
             real_importer_ids: HashSet::new(),
@@ -42,6 +42,14 @@ fn captures_unselected_workspace_projects_reached_by_workspace_dependencies() {
 
     assert_eq!(
         project_dirs_to_capture(&scope, Some(&HashSet::from([selected_dir.clone()])), true),
-        vec![selected_dir, linked_dir, workspace_dir],
+        vec![selected_dir.clone(), linked_dir.clone(), workspace_dir.clone()],
+    );
+
+    // The production path passes `None` when module exclusions are enabled;
+    // every workspace root must be considered so hooks cannot introduce an
+    // unselected project after this snapshot.
+    assert_eq!(
+        project_dirs_to_capture(&scope, None, true),
+        vec![selected_dir, linked_dir, workspace_dir, unrelated_dir],
     );
 }
