@@ -148,7 +148,7 @@ fn manifest_name(dir: &Path) -> Result<Option<String>, ViewError> {
 fn invalid_manifest(dir: &Path) -> ViewError {
     ViewError::InvalidPackageJson {
         message: format!(
-            r#"Invalid package.json at "{}". The "name" field is required and must be a non-empty string."#,
+            r#"Invalid project manifest at "{}". The "name" field is required and must be a non-empty string."#,
             dir.display(),
         ),
     }

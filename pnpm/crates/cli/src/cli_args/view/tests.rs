@@ -4,7 +4,32 @@ use crate::cli_args::view::render::{
     get_nested_property, parse_date, published_info, publisher,
 };
 use chrono::{DateTime, Utc};
+use miette::Diagnostic;
 use serde_json::{Value, json};
+
+#[test]
+fn invalid_project_names_report_format_neutral_diagnostic() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("package.json"), r#"{"name":"parent"}"#).unwrap();
+    for basename in ["package.json", "package.json5", "package.yaml"] {
+        let project = root
+            .path()
+            .join(format!("project-{basename}"));
+        std::fs::create_dir(&project).unwrap();
+        for content in [r#"{"version":"1.0.0"}"#, r#"{"name":""}"#, r#"{"name":42}"#] {
+            std::fs::write(project.join(basename), content).unwrap();
+            let error = nearest_manifest_name(&project).unwrap_err();
+            assert_eq!(error.code().unwrap().to_string(), "ERR_PNPM_INVALID_PACKAGE_JSON");
+            assert_eq!(
+                error.to_string(),
+                format!(
+                    r#"Invalid project manifest at "{}". The "name" field is required and must be a non-empty string."#,
+                    project.display(),
+                ),
+            );
+        }
+    }
+}
 
 #[test]
 fn nearest_project_name_uses_alternative_manifests_and_precedence() {
