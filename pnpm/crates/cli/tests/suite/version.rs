@@ -974,6 +974,21 @@ fn recursive_dry_run_previews_the_plan_without_applying_it() {
     drop(root);
 }
 
+#[test]
+fn version_bumps_package_yaml_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.yaml"), "name: pkg-yaml\nversion: 1.0.0\n")
+        .expect("write package.yaml");
+    let output = pacquet
+        .with_args(["version", "patch", "--no-git-tag-version", "--no-git-checks"])
+        .output()
+        .expect("run pacquet version patch");
+    assert!(output.status.success(), "pnpm version patch failed:\n{}", stderr_of(&output));
+    let yaml = fs::read_to_string(workspace.join("package.yaml")).expect("read package.yaml");
+    assert!(yaml.contains("version: 1.0.1"), "unexpected package.yaml: {yaml}");
+    drop(root);
+}
+
 /// Everything `pnpm version -r` reads and rewrites — the workspace manifests
 /// and the change intents — so a dry run can be held to leaving all of it
 /// byte-identical.

@@ -392,3 +392,19 @@ fn the_scaffold_placeholders_stand_without_the_init_settings() {
 
     drop((root, npmrc_info));
 }
+
+#[test]
+fn init_fails_when_package_yaml_already_exists() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.yaml"), "name: test-pkg\nversion: 1.0.0\n")
+        .expect("write to package.yaml");
+    let output = pacquet
+        .with_arg("init")
+        .output()
+        .expect("run pacquet init");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("package.yaml"), "stderr should mention package.yaml: {stderr}");
+    assert!(!workspace.join("package.json").exists());
+    drop(root);
+}

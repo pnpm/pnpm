@@ -110,7 +110,12 @@ impl PackageManifest {
     /// and therefore inherits the root's pin.
     pub fn init(path: &Path, options: InitOptions<'_>) -> Result<(), PackageManifestError> {
         if path.exists() {
-            return Err(PackageManifestError::AlreadyExist);
+            let filename = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("package.json")
+                .to_string();
+            return Err(PackageManifestError::AlreadyExist { filename });
         }
         let manifest = PackageManifest::init_value_for(path, options);
         let contents = PackageManifest::write_to_file(path, &manifest)?;
