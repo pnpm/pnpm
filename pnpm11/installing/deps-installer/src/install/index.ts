@@ -1680,6 +1680,16 @@ Note that in CI environments, this setting is enabled by default.`,
         }
       }
     }
+    for (const { prefix, skipped } of skippedOptionalDependencies) {
+      for (const [name, bareSpecifier] of Object.entries(skipped)) {
+        skippedOptionalDependencyLogger.debug({
+          package: { name, version: bareSpecifier, bareSpecifier },
+          parents: [],
+          prefix,
+          reason: 'resolution_failure',
+        })
+      }
+    }
     if (opts.lockfileOnly) {
       // The lockfile will only be changed if the workspace will have new projects with no dependencies.
       await writeWantedLockfile(ctx.lockfileDir, ctx.wantedLockfile)
@@ -1699,16 +1709,6 @@ Note that in CI environments, this setting is enabled by default.`,
       logger.info({ message: 'Importing packages to virtual store', prefix: opts.lockfileDir })
     } else {
       logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
-    }
-    for (const { prefix, skipped } of skippedOptionalDependencies) {
-      for (const [name, bareSpecifier] of Object.entries(skipped)) {
-        skippedOptionalDependencyLogger.debug({
-          package: { name, version: bareSpecifier, bareSpecifier },
-          parents: [],
-          prefix,
-          reason: 'resolution_failure',
-        })
-      }
     }
     if (opts.runPacquet != null && opts.useLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
       try {
