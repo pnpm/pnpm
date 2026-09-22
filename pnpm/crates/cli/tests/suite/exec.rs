@@ -202,6 +202,31 @@ fn exec_sets_node_environment_with_non_utf8_path() {
     drop(root);
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn exec_preserves_non_utf8_node_paths() {
+    use std::{
+        ffi::OsString,
+        os::unix::{ffi::OsStringExt, fs::symlink},
+    };
+
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let bin_dir = workspace.join(OsString::from_vec(b"node-\xff".to_vec()));
+    fs::create_dir(&bin_dir).expect("create Node directory");
+    symlink(which::which("node").expect("find node"), bin_dir.join("node"))
+        .expect("link Node executable");
+    let mut path = bin_dir.into_os_string();
+    path.push(":");
+    path.push(std::env::var_os("PATH").expect("PATH"));
+    pacquet
+        .env("PATH", path)
+        .args(["exec", "/bin/sh", "-c", r#""$NODE" -p 42; "$npm_node_execpath" -p 42"#])
+        .assert()
+        .success()
+        .stdout("42\n42\n");
+    drop(root);
+}
+
 #[test]
 fn exec_clears_inherited_node_environment_without_node_on_path() {
     let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();

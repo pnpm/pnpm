@@ -3,7 +3,7 @@ use serde_json::Value;
 use std::{
     collections::HashMap,
     env,
-    ffi::OsStr,
+    ffi::{OsStr, OsString},
     path::{Path, PathBuf},
 };
 
@@ -311,12 +311,16 @@ fn stamp_executables(
     pkg_root: &Path,
 ) {
     let parent_path = path_value(env);
-    env.extend(package_manager_env(
-        opts.init_cwd,
-        opts.node_execpath,
-        opts.npm_execpath,
-        parent_path.as_deref().map(OsStr::new),
-    ));
+    env.extend(
+        package_manager_env(
+            opts.init_cwd,
+            opts.node_execpath,
+            opts.npm_execpath,
+            parent_path.as_deref().map(OsStr::new),
+        )
+        .into_iter()
+        .map(|(key, value)| (key, value.to_string_lossy().into_owned())),
+    );
 
     env.insert(
         "npm_package_json".into(),
@@ -338,20 +342,20 @@ pub fn package_manager_env(
     node_execpath: Option<&Path>,
     npm_execpath: Option<&Path>,
     path: Option<&OsStr>,
-) -> HashMap<String, String> {
+) -> HashMap<String, OsString> {
     let mut env = HashMap::new();
-    env.insert("INIT_CWD".into(), init_cwd.to_string_lossy().into_owned());
+    env.insert("INIT_CWD".into(), init_cwd.as_os_str().to_os_string());
     let node_execpath = node_execpath.map(Path::to_path_buf).or_else(|| find_node_in_path(path));
     if let Some(node) = node_execpath {
-        let node_str = node.to_string_lossy().into_owned();
-        env.insert("npm_node_execpath".into(), node_str.clone());
-        env.insert("NODE".into(), node_str);
+        let node_path = node.into_os_string();
+        env.insert("npm_node_execpath".into(), node_path.clone());
+        env.insert("NODE".into(), node_path);
     }
     let npm_execpath = npm_execpath
         .map(Path::to_path_buf)
         .or_else(|| env::current_exe().ok());
     if let Some(path) = npm_execpath {
-        env.insert("npm_execpath".into(), path.to_string_lossy().into_owned());
+        env.insert("npm_execpath".into(), path.into_os_string());
     }
     env
 }
