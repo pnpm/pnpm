@@ -184,4 +184,24 @@ test('handles scoped packages with custom modulesDirName in hoisted layout', asy
   ])
 })
 
+test('selects project modules-dir when project is nested below an ancestor named vendor', async () => {
+  const tmp = await tmpdir()
+  const projectModulesDir = path.join(tmp, 'vendor', 'project', 'vendor')
+  const binPath = path.join(projectModulesDir, 'pkg', 'bin', 'cli.js')
+  await fsPromises.mkdir(path.dirname(binPath), { recursive: true })
+  await fsPromises.writeFile(binPath, '')
+
+  const resultWithAbsolute = await getBinNodePaths(binPath, projectModulesDir)
+  expect(resultWithAbsolute).toEqual([
+    path.join(projectModulesDir, 'pkg', 'node_modules'),
+    projectModulesDir,
+  ])
+
+  const resultWithName = await getBinNodePaths(binPath, 'vendor')
+  expect(resultWithName).toEqual([
+    path.join(projectModulesDir, 'pkg', 'node_modules'),
+    projectModulesDir,
+  ])
+})
+
 

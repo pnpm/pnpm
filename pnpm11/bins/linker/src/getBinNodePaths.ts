@@ -12,7 +12,7 @@ import path from 'node:path'
  * (used by jest, eslint, etc.) which resolve from CWD can find the correct
  * dependency versions.
  */
-export async function getBinNodePaths (target: string, modulesDirName: string = 'node_modules'): Promise<string[]> {
+export async function getBinNodePaths (target: string, modulesDirNameOrPath: string = 'node_modules'): Promise<string[]> {
   const targetDir = path.dirname(target)
   let dir: string
   try {
@@ -42,39 +42,42 @@ export async function getBinNodePaths (target: string, modulesDirName: string = 
     return getNodePathsForModulesDir(nodeModulesDir, dir)
   }
 
+  if (path.isAbsolute(modulesDirNameOrPath)) {
+    let resolvedModulesDir: string
+    try {
+      resolvedModulesDir = await fs.realpath(modulesDirNameOrPath)
+    } catch {
+      resolvedModulesDir = modulesDirNameOrPath
+    }
+    const rel = path.relative(resolvedModulesDir, dir)
+    if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
+      return getNodePathsForModulesDir(resolvedModulesDir, dir)
+    }
+  }
+
+  const modulesDirName = path.basename(modulesDirNameOrPath)
   if (modulesDirName !== 'node_modules') {
-    const candidates: string[] = []
     currentDir = dir
     while (true) {
       if (path.basename(currentDir) === modulesDirName) {
         if (path.basename(path.dirname(currentDir)) !== modulesDirName) {
-          candidates.push(currentDir)
+          const rel = path.relative(currentDir, dir)
+          if (rel && !rel.startsWith('..')) {
+            const relSegments = rel.split(path.sep)
+            const isScoped = relSegments[0].startsWith('@')
+            if (isScoped ? relSegments.length >= 2 : relSegments.length >= 1) {
+              return getNodePathsForModulesDir(currentDir, dir)
+            }
+          }
         }
       }
       const parent = path.dirname(currentDir)
       if (parent === currentDir) break
       currentDir = parent
     }
-
-    const modulesDir = candidates.find((candidate) =>
-      !candidates.some((other) => other !== candidate && isInsidePackageIn(candidate, other))
-    )
-    if (modulesDir) {
-      return getNodePathsForModulesDir(modulesDir, dir)
-    }
   }
 
   return []
-}
-
-function isInsidePackageIn (childDir: string, modulesDir: string): boolean {
-  const rel = path.relative(modulesDir, childDir)
-  if (!rel || rel.startsWith('..')) return false
-  const segments = rel.split(path.sep)
-  if (segments[0].startsWith('@')) {
-    return segments.length >= 3
-  }
-  return segments.length >= 2
 }
 
 function getNodePathsForModulesDir (modulesDir: string, dir: string): string[] {
