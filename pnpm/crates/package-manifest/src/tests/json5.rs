@@ -91,7 +91,7 @@ fn json5_save_preserves_comments_when_version_and_dependencies_change() {
 
 #[test]
 fn json_manifest_still_rejects_json5_syntax() {
-    for source in ["{name: 'fixture'}", "{\"name\": \"fixture\",}", "{/* comment */}"] {
+    for source in ["{name: 'fixture'}", r#"{"name": "fixture",}"#, "{/* comment */}"] {
         let dir = tempdir().unwrap();
         let path = dir.path().join("package.json");
         fs::write(&path, source).unwrap();
@@ -100,7 +100,7 @@ fn json_manifest_still_rejects_json5_syntax() {
         assert!(
             error
                 .to_string()
-                .contains(&path.display().to_string())
+                .contains(&path.display().to_string()),
         );
         assert_eq!(fs::read_to_string(path).unwrap(), source);
     }

@@ -14,7 +14,7 @@ fn assert_restored(original: &str, expected: &Value, comments: &[&str]) -> Strin
                 .iter()
                 .filter(|item| item.text == *comment)
                 .count(),
-            1
+            1,
         );
     }
     restored
@@ -55,7 +55,7 @@ fn skips_comment_markers_inside_strings_and_escaped_quotes() {
     let original = r#"{url: 'https://example.com', text: 'it\'s /* not a comment */', other: "quote: \" // text"} // actual"#;
     assert_restored(
         original,
-        &json!({"url": "https://example.com", "text": "it's /* not a comment */", "other": "quote: \" // text"}),
+        &json!({"url": "https://example.com", "text": "it's /* not a comment */", "other": r#"quote: " // text"#}),
         &["// actual"],
     );
     assert_eq!(extract_comments(original).1.len(), 1);
@@ -85,14 +85,14 @@ fn separates_line_comments_anchored_to_the_same_line() {
             .iter()
             .filter(|comment| comment.text == "// first")
             .count(),
-        1
+        1,
     );
     assert_eq!(
         comments
             .iter()
             .filter(|comment| comment.text == "// second")
             .count(),
-        1
+        1,
     );
 }
 
@@ -127,7 +127,7 @@ fn preserves_multiline_block_comment() {
 fn leaves_comment_free_serialization_unchanged() {
     assert_eq!(
         restore_comments("{name: 'demo'}", "{\"name\":\"demo\"}\n"),
-        "{\"name\":\"demo\"}\n"
+        "{\"name\":\"demo\"}\n",
     );
 }
 
@@ -142,7 +142,7 @@ fn repeated_edits_do_not_accumulate_relocation_markers() {
                 .iter()
                 .filter(|comment| comment.text == RELOCATION_MARKER)
                 .count(),
-            1
+            1,
         );
     }
 }

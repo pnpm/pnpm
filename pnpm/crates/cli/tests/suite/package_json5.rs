@@ -135,7 +135,7 @@ fn install_runs_json5_project_hooks() {
 #[test]
 fn pack_normalizes_alternative_project_manifests() {
     for basename in ["package.json5", "package.yaml"] {
-        for (extra, ignored) in [("", false), ("", true), (", \"files\": [\"dist\"]", false)] {
+        for (extra, ignored) in [("", false), ("", true), (r#", "files": ["dist"]"#, false)] {
             assert_packed_manifest(basename, extra, ignored);
         }
     }
@@ -145,7 +145,7 @@ fn assert_packed_manifest(basename: &str, extra: &str, ignored: bool) {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(
         workspace.join(basename),
-        format!("{{\"name\": \"json5-fixture\", \"version\": \"1.0.0\"{extra}}}"),
+        format!(r#"{{"name": "json5-fixture", "version": "1.0.0"{extra}}}"#),
     )
     .unwrap();
     if basename == "package.json5" {
