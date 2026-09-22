@@ -26,7 +26,9 @@ use crate::cli_args::{
         filtered_projects_dependencies, find_resume_root, select_recursive_projects,
         write_recursive_summary,
     },
+    reporter::{ReporterType, reporter_emit},
     task_run_state::{TaskRunExecutionSettings, TaskRunStateContext, task_run_execution_settings},
+    verify_deps::verify_deps_before_recursive_run,
 };
 use derive_more::{Display, Error};
 use execution::{RunOutcome, RunSlots, TaskRunner};
@@ -113,8 +115,7 @@ pub fn run_recursive(
     args: &RunArgs,
     config: &Config,
     dir: &Path,
-    emit: fn(&LogEvent),
-    silent: bool,
+    reporter: ReporterType,
 ) -> miette::Result<()> {
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
 
@@ -129,11 +130,17 @@ pub fn run_recursive(
     let Some(script_name) = args.script_name() else {
         return print_selected_project_commands(graph, &projects, workspace_root);
     };
+    let emit = reporter_emit(reporter);
+    let silent = matches!(reporter, ReporterType::Ndjson | ReporterType::Silent);
     emit_selection_scope(emit, config, graph.len(), projects.len());
     // An empty `--filter` selection is a no-op (exit 0); an empty
     // workspace instead falls through to the no-script error below.
     if !projects.is_empty() && graph.is_empty() {
         return Ok(());
+    }
+
+    if !args.dry_run {
+        verify_deps_before_recursive_run(workspace_root, graph.keys(), config, reporter)?;
     }
 
     let run = RecursiveRun {

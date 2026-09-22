@@ -73,6 +73,34 @@ pub(crate) fn verify_deps_before_run(
     }
 }
 
+/// Run the verify-deps-before-run check before a recursive run or exec.
+///
+/// When a single shared lockfile covers the entire workspace, verifying the
+/// workspace root checks the shared lockfile and shared workspace state once.
+///
+/// Under dedicated per-project lockfiles (`sharedWorkspaceLockfile: false`),
+/// each project owns its own lockfile and workspace state file, and the
+/// workspace root may not participate in the install. In that case, each
+/// selected project directory is verified independently.
+pub(crate) fn verify_deps_before_recursive_run<ProjectPath: AsRef<Path>>(
+    workspace_root: &Path,
+    selected_project_dirs: impl IntoIterator<Item = ProjectPath>,
+    config: &Config,
+    reporter: ReporterType,
+) -> miette::Result<()> {
+    if !config.verify_deps_before_run.is_enabled() {
+        return Ok(());
+    }
+    if config.shares_one_lockfile() {
+        verify_deps_before_run(workspace_root, config, reporter)
+    } else {
+        for project_dir in selected_project_dirs {
+            verify_deps_before_run(project_dir.as_ref(), config, reporter)?;
+        }
+        Ok(())
+    }
+}
+
 /// Re-run the kind of install the workspace state recorded, in-place
 /// and with inherited stdio, the way pnpm's `runDepsStatusCheck` spawns
 /// `pnpm install` through `runPnpmCli`. Reporter output goes to stderr so

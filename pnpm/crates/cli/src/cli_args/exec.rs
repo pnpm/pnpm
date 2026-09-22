@@ -1,6 +1,6 @@
 mod recursive;
 
-use super::reporter::{ReporterType, reporter_emit};
+use super::reporter::ReporterType;
 use crate::path_env::{BadPathDir, prepend_dirs_to_path, set_command_path};
 use clap::Args;
 use derive_more::{Display, Error};
@@ -123,8 +123,7 @@ impl ExecArgs {
         dir: &Path,
         reporter: ReporterType,
     ) -> miette::Result<()> {
-        super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
-        recursive::exec_recursive(self, config, dir, reporter_emit(reporter)).await
+        recursive::exec_recursive(self, config, dir, reporter).await
     }
 }
 

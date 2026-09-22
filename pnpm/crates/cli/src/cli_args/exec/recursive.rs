@@ -18,7 +18,9 @@ use crate::cli_args::{
         filtered_projects_dependencies, find_resume_root, select_recursive_projects,
         write_recursive_summary,
     },
+    reporter::{ReporterType, reporter_emit},
     task_run_state::{TaskRunExecutionSettings, TaskRunStateContext, task_run_execution_settings},
+    verify_deps::verify_deps_before_recursive_run,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -81,7 +83,7 @@ pub async fn exec_recursive(
     args: &ExecArgs,
     config: &Config,
     dir: &Path,
-    emit: fn(&LogEvent),
+    reporter: ReporterType,
 ) -> miette::Result<()> {
     let command = prepare_command(args.command.clone())?;
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
@@ -104,7 +106,17 @@ pub async fn exec_recursive(
         return Ok(());
     }
 
-    execute_selection(args, config, dir, emit, &command, workspace_root, &selection)
+    verify_deps_before_recursive_run(workspace_root, selection.selected.keys(), config, reporter)?;
+
+    execute_selection(
+        args,
+        config,
+        dir,
+        reporter_emit(reporter),
+        &command,
+        workspace_root,
+        &selection,
+    )
 }
 
 /// What identifies an exec run in the task-run state: its command line and
