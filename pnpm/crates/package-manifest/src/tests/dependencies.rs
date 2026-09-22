@@ -722,8 +722,6 @@ fn save_keeps_a_dependency_field_that_was_already_empty_on_read() {
     );
 }
 
-/// Removing the last entry of a dependency field drops the field, while a
-/// field that was already empty on read stays.
 #[test]
 fn save_drops_a_dependency_field_the_removal_emptied() {
     let dir = tempdir().unwrap();

@@ -66,11 +66,13 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
   try {
     const manifestPath = path.join(projectDir, 'package.json')
     const { data, text } = await readJsonFile(manifestPath)
+    const emptyDependencyFields = findEmptyDependencyFields(data)
     return {
       fileName: 'package.json',
       manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({
         ...detectFileFormatting(text),
+        emptyDependencyFields,
         initialManifest: data,
         manifestPath,
       }),
@@ -81,11 +83,13 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
   try {
     const manifestPath = path.join(projectDir, 'package.json5')
     const { data, text } = await readJson5File(manifestPath)
+    const emptyDependencyFields = findEmptyDependencyFields(data)
     return {
       fileName: 'package.json5',
       manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({
         ...detectFileFormattingAndComments(text),
+        emptyDependencyFields,
         initialManifest: data,
         manifestPath,
       }),
@@ -96,10 +100,11 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
   try {
     const manifestPath = path.join(projectDir, 'package.yaml')
     const manifest = await readPackageYaml(manifestPath)
+    const emptyDependencyFields = findEmptyDependencyFields(manifest)
     return {
       fileName: 'package.yaml',
       manifest: convertManifestAfterRead(manifest),
-      writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
+      writeProjectManifest: createManifestWriter({ emptyDependencyFields, initialManifest: manifest, manifestPath }),
     }
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err
@@ -168,10 +173,12 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
   switch (base) {
     case 'package.json': {
       const { data, text } = await readJsonFile(manifestPath)
+      const emptyDependencyFields = findEmptyDependencyFields(data)
       return {
         manifest: convertManifestAfterRead(data),
         writeProjectManifest: createManifestWriter({
           ...detectFileFormatting(text),
+          emptyDependencyFields,
           initialManifest: data,
           manifestPath,
         }),
@@ -179,10 +186,12 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
     }
     case 'package.json5': {
       const { data, text } = await readJson5File(manifestPath)
+      const emptyDependencyFields = findEmptyDependencyFields(data)
       return {
         manifest: convertManifestAfterRead(data),
         writeProjectManifest: createManifestWriter({
           ...detectFileFormattingAndComments(text),
+          emptyDependencyFields,
           initialManifest: data,
           manifestPath,
         }),
@@ -190,9 +199,10 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
     }
     case 'package.yaml': {
       const manifest = await readPackageYaml(manifestPath)
+      const emptyDependencyFields = findEmptyDependencyFields(manifest)
       return {
         manifest: convertManifestAfterRead(manifest),
-        writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
+        writeProjectManifest: createManifestWriter({ emptyDependencyFields, initialManifest: manifest, manifestPath }),
       }
     }
   }
@@ -204,10 +214,12 @@ export function readExactProjectManifestSync (manifestPath: string): ReadExactPr
   switch (base) {
     case 'package.json': {
       const { data, text } = readJsonFileSync(manifestPath)
+      const emptyDependencyFields = findEmptyDependencyFields(data)
       return {
         manifest: convertManifestAfterRead(data),
         writeProjectManifest: createManifestWriter({
           ...detectFileFormatting(text),
+          emptyDependencyFields,
           initialManifest: data,
           manifestPath,
         }),
@@ -215,10 +227,12 @@ export function readExactProjectManifestSync (manifestPath: string): ReadExactPr
     }
     case 'package.json5': {
       const { data, text } = readJson5FileSync(manifestPath)
+      const emptyDependencyFields = findEmptyDependencyFields(data)
       return {
         manifest: convertManifestAfterRead(data),
         writeProjectManifest: createManifestWriter({
           ...detectFileFormattingAndComments(text),
+          emptyDependencyFields,
           initialManifest: data,
           manifestPath,
         }),
@@ -226,9 +240,10 @@ export function readExactProjectManifestSync (manifestPath: string): ReadExactPr
     }
     case 'package.yaml': {
       const manifest = readPackageYamlSync(manifestPath)
+      const emptyDependencyFields = findEmptyDependencyFields(manifest)
       return {
         manifest: convertManifestAfterRead(manifest),
-        writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
+        writeProjectManifest: createManifestWriter({ emptyDependencyFields, initialManifest: manifest, manifestPath }),
       }
     }
   }
@@ -260,6 +275,7 @@ function readPackageYamlSync (filePath: string): ProjectManifest {
 function createManifestWriter (
   opts: {
     initialManifest: ProjectManifest
+    emptyDependencyFields?: ReadonlySet<string>
     comments?: CommentSpecifier[]
     crlf?: boolean
     indent?: string | number | undefined
@@ -267,8 +283,8 @@ function createManifestWriter (
     manifestPath: string
   }
 ): WriteProjectManifest {
-  let emptyDependencyFields = findEmptyDependencyFields(opts.initialManifest)
-  let initialManifest = normalize(opts.initialManifest, emptyDependencyFields)
+  let emptyDependencyFields = opts.emptyDependencyFields ?? findEmptyDependencyFields(opts.initialManifest)
+  let initialManifest = convertManifestBeforeWrite(normalize(opts.initialManifest, emptyDependencyFields))
   return async (updatedManifest: ProjectManifest, force?: boolean) => {
     updatedManifest = convertManifestBeforeWrite(normalize(updatedManifest, emptyDependencyFields))
     if (force === true || !equal(initialManifest, updatedManifest)) {
@@ -293,9 +309,22 @@ function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
 }
 
 function convertManifestBeforeWrite (manifest: ProjectManifest): ProjectManifest {
-  convertDependenciesToEnginesRuntime(manifest, 'devDependencies', 'devEngines')
-  convertDependenciesToEnginesRuntime(manifest, 'dependencies', 'engines')
-  return manifest
+  const cloned: ProjectManifest = { ...manifest }
+  if (manifest.dependencies != null && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) {
+    cloned.dependencies = { ...manifest.dependencies }
+  }
+  if (manifest.devDependencies != null && typeof manifest.devDependencies === 'object' && !Array.isArray(manifest.devDependencies)) {
+    cloned.devDependencies = { ...manifest.devDependencies }
+  }
+  if (manifest.engines != null && typeof manifest.engines === 'object' && !Array.isArray(manifest.engines)) {
+    cloned.engines = { ...manifest.engines }
+  }
+  if (manifest.devEngines != null && typeof manifest.devEngines === 'object' && !Array.isArray(manifest.devEngines)) {
+    cloned.devEngines = { ...manifest.devEngines }
+  }
+  convertDependenciesToEnginesRuntime(cloned, 'devDependencies', 'devEngines')
+  convertDependenciesToEnginesRuntime(cloned, 'dependencies', 'engines')
+  return cloned
 }
 
 function convertDependenciesToEnginesRuntime (

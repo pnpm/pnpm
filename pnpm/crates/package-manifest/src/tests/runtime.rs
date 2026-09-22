@@ -173,3 +173,76 @@ fn convert_engines_ignores_non_array_non_object_runtime_entries() {
     convert_engines_runtime_to_dependencies(&mut manifest, "devEngines", "devDependencies");
     assert_eq!(manifest, before, "manifest must be unchanged for unsupported `runtime` shape");
 }
+
+#[test]
+fn from_path_preserves_empty_dependency_field_when_runtime_engine_is_present() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    std::fs::write(
+        &path,
+        r#"{
+  "name": "fixture",
+  "dependencies": {},
+  "engines": {
+    "runtime": {
+      "name": "node",
+      "version": "24.6.0",
+      "onFail": "download"
+    }
+  }
+}
+"#,
+    )
+    .unwrap();
+
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.add_dependency("bar", "1.0.0", DependencyGroup::Dev).unwrap();
+    manifest.save().unwrap();
+
+    assert_eq!(
+        read_to_string(&path).unwrap(),
+        r#"{
+  "name": "fixture",
+  "dependencies": {},
+  "engines": {
+    "runtime": {
+      "name": "node",
+      "version": "24.6.0",
+      "onFail": "download"
+    }
+  },
+  "devDependencies": {
+    "bar": "1.0.0"
+  }
+}
+"#,
+    );
+}
+
+#[test]
+fn from_path_does_not_create_empty_dependency_field_when_runtime_engine_is_present() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    std::fs::write(
+        &path,
+        r#"{
+  "name": "fixture",
+  "engines": {
+    "runtime": {
+      "name": "node",
+      "version": "24.6.0",
+      "onFail": "download"
+    }
+  }
+}
+"#,
+    )
+    .unwrap();
+
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.add_dependency("bar", "1.0.0", DependencyGroup::Dev).unwrap();
+    manifest.save().unwrap();
+
+    let saved = read_to_string(&path).unwrap();
+    assert!(!saved.contains(r#""dependencies""#));
+}

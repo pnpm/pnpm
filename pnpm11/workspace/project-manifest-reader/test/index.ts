@@ -445,6 +445,41 @@ test('writeProjectManifest() drops a dependency field the write emptied', async 
   expect(fs.readFileSync('package.json', 'utf8')).toBe('{\n  "name": "foo",\n  "peerDependencies": {}\n}\n')
 })
 
+test('writeProjectManifest() keeps a dependency field that was already empty on read when engines runtime is present', async () => {
+  process.chdir(temporaryDirectory())
+
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'foo',
+    dependencies: {},
+    engines: {
+      runtime: {
+        name: 'node',
+        version: '24.6.0',
+        onFail: 'download',
+      },
+    },
+  }, null, 2) + '\n', 'utf8')
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+
+  await writeProjectManifest({ ...manifest, devDependencies: { bar: '1.0.0' } })
+
+  expect(JSON.parse(fs.readFileSync('package.json', 'utf8'))).toStrictEqual({
+    name: 'foo',
+    dependencies: {},
+    devDependencies: {
+      bar: '1.0.0',
+    },
+    engines: {
+      runtime: {
+        name: 'node',
+        version: '24.6.0',
+        onFail: 'download',
+      },
+    },
+  })
+})
+
 test('fail on invalid JSON', async () => {
   let err!: Error & { code: string }
   try {
