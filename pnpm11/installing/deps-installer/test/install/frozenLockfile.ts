@@ -10,7 +10,7 @@ import {
 } from '@pnpm/installing.deps-installer'
 import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import type { ProjectRootDir } from '@pnpm/types'
+import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
 
@@ -393,6 +393,81 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
 
   projects['p1'].has('p2')
   projects['p2'].has('is-negative')
+})
+
+test.each([true, false])('frozen-lockfile: an unresolved optional dependency is skipped and reported (required dependency: %s)', async (hasRequiredDependency) => {
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: hasRequiredDependency ? {
+      'is-positive': '1.0.0',
+    } : {},
+    optionalDependencies: {
+      '@pnpm.e2e/i-do-not-exist': '1000',
+    },
+  }
+  await install(manifest, testDefaults())
+  const lockfileBefore = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
+  fs.rmSync('node_modules', { recursive: true, force: true })
+
+  const reporter = jest.fn()
+  await install(manifest, testDefaults({ frozenLockfile: true, reporter }))
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'info',
+    message: 'Lockfile is up to date, resolution step is skipped',
+    name: 'pnpm',
+  }))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    name: 'pnpm:skipped-optional-dependency',
+    package: {
+      bareSpecifier: '1000',
+      name: '@pnpm.e2e/i-do-not-exist',
+      version: '1000',
+    },
+    parents: [],
+    prefix: process.cwd(),
+    reason: 'resolution_failure',
+  }))
+  if (hasRequiredDependency) project.has('is-positive')
+  project.hasNot('@pnpm.e2e/i-do-not-exist')
+  expect(fs.readFileSync(WANTED_LOCKFILE, 'utf8')).toBe(lockfileBefore)
+})
+
+test('frozen-lockfile: an optional dependency that could not be resolved is reported when the install is delegated to pacquet', async () => {
+  prepareEmpty()
+  const manifest = {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    optionalDependencies: {
+      '@pnpm.e2e/i-do-not-exist': '1000',
+    },
+  }
+  await install(manifest, testDefaults())
+
+  const reporter = jest.fn()
+  const runPacquet = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
+  await install(manifest, testDefaults({
+    frozenLockfile: true,
+    reporter,
+    runPacquet: {
+      supportsResolution: true,
+      run: runPacquet,
+    },
+  }))
+
+  expect(runPacquet).toHaveBeenCalled()
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    name: 'pnpm:skipped-optional-dependency',
+    package: {
+      bareSpecifier: '1000',
+      name: '@pnpm.e2e/i-do-not-exist',
+      version: '1000',
+    },
+    parents: [],
+    prefix: process.cwd(),
+    reason: 'resolution_failure',
+  }))
 })
 
 test('frozen-lockfile: installation fails if the value of auto-install-peers changes', async () => {

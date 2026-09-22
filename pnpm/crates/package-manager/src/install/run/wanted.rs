@@ -119,6 +119,7 @@ pub(super) async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter 
                         ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
                         prune_stale_importers: scope.prune_stale_importers,
                         allow_missing_dependency_free_importers: true,
+                        allow_unresolved_optional_dependencies: false,
                     },
                 },
             })
@@ -169,6 +170,7 @@ pub(super) async fn synthesize_wanted(
                     ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
                     prune_stale_importers: scope.prune_stale_importers,
                     allow_missing_dependency_free_importers: true,
+                    allow_unresolved_optional_dependencies: false,
                 },
             },
         },
@@ -195,7 +197,7 @@ pub(super) async fn synthesize_lockfile_from_current(
     if !scope.lockfile_is_absent || scope.frozen_lockfile || !scope.prefer_frozen_lockfile {
         return None;
     }
-    check_lockfile_freshness(current, &scope.freshness).await.ok().map(|()| current.clone())
+    check_lockfile_freshness(current, &scope.freshness).await.ok().map(|_| current.clone())
 }
 
 /// Whether the fast update may run for this install. It cannot preserve

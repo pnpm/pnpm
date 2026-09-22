@@ -3,8 +3,8 @@ use super::{
         Arc, ContextLog, FreshnessCheckError, FreshnessScope, InstallError, InstallRunOptions,
         Lockfile, LogEvent, LogLevel, PackageManifest, Path, PathBuf, PrepareModulesStateInputs,
         PreparedModulesState, Reporter, Stage, StageLog, SummaryLog, check_lockfile_freshness,
-        lockfile_freshness::LockfileFreshnessInputs, map_frozen_lockfile_error,
-        prepare_modules_state, verify_lockfile_eagerly,
+        lockfile_freshness::{LockfileFreshnessInputs, UnresolvedOptionalDependency},
+        map_frozen_lockfile_error, prepare_modules_state, verify_lockfile_eagerly,
     },
     InstallOwned, InstallView, RunMode, Verification,
     lockfile_load::Loaded,
@@ -14,6 +14,7 @@ use super::{
     workspace::{InstallScope, InstallWorkspace},
 };
 use pnpm_config::Config;
+use pnpm_reporter::{SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason};
 
 /// Everything the run has settled before it dispatches.
 #[derive(Clone, Copy)]
@@ -86,7 +87,7 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     // the would-be lockfile to diff against the existing one, and the
     // frozen freshness gate would otherwise abort on a stale lockfile
     // instead of reporting the change.
-    let take_frozen_path = decide_frozen_path(&FrozenDispatch {
+    let take_frozen_path = decide_frozen_path::<Reporter>(&FrozenDispatch {
         dry_run: install.execution.dry_run,
         frozen_lockfile: install.lockfile_policy.frozen,
         lockfile_had_conflicts: settled.loaded.wanted.had_conflicts,
@@ -282,7 +283,7 @@ pub(super) struct FrozenDispatch<'a> {
 /// would-be lockfile to diff against the existing one, and the frozen
 /// freshness gate would otherwise abort on a stale lockfile instead of
 /// reporting the change.
-pub(super) async fn decide_frozen_path(
+pub(super) async fn decide_frozen_path<Reporter: self::Reporter>(
     dispatch: &FrozenDispatch<'_>,
 ) -> Result<bool, InstallError> {
     if dispatch.dry_run {
@@ -304,12 +305,15 @@ pub(super) async fn decide_frozen_path(
         let freshness = LockfileFreshnessInputs {
             scope: FreshnessScope {
                 allow_missing_dependency_free_importers: false,
+                allow_unresolved_optional_dependencies: true,
                 prune_stale_importers: false,
                 ..dispatch.freshness.scope
             },
             ..dispatch.freshness
         };
-        check_lockfile_freshness(lockfile, &freshness).await.map_err(InstallError::from)?;
+        let skipped =
+            check_lockfile_freshness(lockfile, &freshness).await.map_err(InstallError::from)?;
+        report_unresolved_optional_dependencies::<Reporter>(&skipped);
         return Ok(true);
     }
     // The wanted lockfile was only usable because its Git conflict markers
@@ -330,6 +334,24 @@ pub(super) async fn decide_frozen_path(
     }
     auto_frozen_path(dispatch, lockfile).await
 }
+fn report_unresolved_optional_dependencies<Reporter: self::Reporter>(
+    skipped: &[UnresolvedOptionalDependency],
+) {
+    for item in skipped {
+        Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+            level: LogLevel::Debug,
+            details: None,
+            package: SkippedOptionalPackage::ResolutionFailure {
+                name: Some(item.alias.clone()),
+                version: Some(item.specifier.clone()),
+                bare_specifier: item.specifier.clone(),
+            },
+            parents: Some(Vec::new()),
+            prefix: item.prefix.clone(),
+            reason: SkippedOptionalReason::ResolutionFailure,
+        }));
+    }
+}
 /// Consult the freshness gate for an auto-frozen install. A `Stale` /
 /// `NoImporter` outcome routes to the fresh-resolve path; a malformed
 /// `pnpm.overrides` is a user-config error that surfaces regardless of
@@ -344,7 +366,7 @@ pub(super) async fn auto_frozen_path(
         // hook's verdict blocks the frozen install. A lockfile synthesized
         // from the current snapshot skips the check (it only gates on a
         // non-empty wanted lockfile). A throwing hook aborts the install.
-        Ok(()) => {
+        Ok(_) => {
             // An unchecksummed `readPackage` hook can change dependency
             // manifests without changing the regular freshness inputs.
             if !dispatch.freshness.config.ignore_pnpmfile {
@@ -463,6 +485,7 @@ impl<'r> Settled<'r, '_> {
                 ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
                 prune_stale_importers: scope.prune_stale_importers,
                 allow_missing_dependency_free_importers: true,
+                allow_unresolved_optional_dependencies: false,
             },
         }
     }

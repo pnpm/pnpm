@@ -227,7 +227,10 @@ fn project_content_check(
             importer_id: &importer_id,
             config: context.config,
             workspace_packages: context.workspace_packages,
-            ignored_optional_matcher: context.ignored_optional_matcher,
+            optional_exclusions: crate::install::OptionalDependencyExclusions {
+                ignored: context.ignored_optional_matcher,
+                allow_unresolved: false,
+            },
             parsed_overrides: context.parsed_overrides,
         })
     {
