@@ -124,9 +124,11 @@ jobs:
   # build. `needs` can only target a whole job, never an individual matrix
   # leg, so a matrix build would make the ubuntu tests wait for the slower
   # windows build and vice versa.
+  # Every push to main builds them, including Rust-only pushes that skip the
+  # tests, so pull requests merged with the latest main find them cached.
   build-pnpr-linux:
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' }}
+    if: ${{ !cancelled() && (needs.changes.outputs.ts == 'true' || github.event_name == 'push') }}
     name: TS CI / Build pnpr
     uses: $/.github/workflows/build-pnpr.yml
     with:
@@ -134,7 +136,7 @@ jobs:
 
   build-pnpr-windows:
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' }}
+    if: ${{ !cancelled() && (needs.changes.outputs.ts == 'true' || github.event_name == 'push') }}
     name: TS CI / Build pnpr
     uses: $/.github/workflows/build-pnpr.yml
     with:
