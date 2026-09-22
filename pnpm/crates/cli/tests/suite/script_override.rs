@@ -273,4 +273,52 @@ mod scripts {
 
         drop(root);
     }
+
+    #[test]
+    fn ci_with_ignore_scripts_skips_lifecycle_scripts_when_clean_script_is_present() {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        super::write_manifest(
+            &workspace,
+            "ci-pkg",
+            &serde_json::json!({
+                "clean": "echo clean-script-ran",
+                "install": "echo project-install-script-ran",
+            }),
+        );
+        std::fs::write(
+            workspace.join("pnpm-lock.yaml"),
+            "lockfileVersion: '9.0'\nimporters:\n  .: {}\n",
+        )
+        .expect("write lockfile");
+
+        for flag in ["--ignore-scripts", "--config.ignore-scripts=true"] {
+            let output = run(&workspace, &["ci", flag]);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(output.status.success(), "pnpm ci {flag} should succeed:\n{stdout}\n{stderr}");
+            assert!(
+                !stdout.contains("clean-script-ran"),
+                "the clean script must not run with {flag}: {stdout}",
+            );
+            assert!(
+                !stdout.contains("project-install-script-ran"),
+                "the install lifecycle script must not run with {flag}: {stdout}",
+            );
+        }
+
+        let output = run(&workspace, &["ci"]);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "pnpm ci should succeed:\n{stdout}\n{stderr}");
+        assert!(
+            !stdout.contains("clean-script-ran"),
+            "the clean script must not run without ignore-scripts: {stdout}",
+        );
+        assert!(
+            stdout.contains("project-install-script-ran"),
+            "the install lifecycle script should run without ignore-scripts: {stdout}",
+        );
+
+        drop(root);
+    }
 }
