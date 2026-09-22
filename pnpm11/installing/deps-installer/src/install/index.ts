@@ -747,6 +747,7 @@ export async function mutateModules (
       !opts.virtualStoreOnly &&
       projectDirsRemovingDeps.size > 0
     ) {
+      await verifyLockfile?.()
       await runLifecycleHooksConcurrently({
         childConcurrency: opts.childConcurrency,
         importers: [...projectDirsRemovingDeps].map((rootDir) => ctx.projects[rootDir]),
