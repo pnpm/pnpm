@@ -82,10 +82,11 @@ export interface RunPacquetCallOpts {
   resolve?: boolean
   /**
    * `true` when pnpm already ran the root project's `preinstall`, or was
-   * eligible to and the project defines no `preinstall`, so pacquet runs neither
-   * its early copy nor the stage after linking. `false` when the command
-   * runs no root script on pnpm's side (a `pnpm add` at a workspace
-   * root), so pacquet still owes it.
+   * eligible to and the project defines no `preinstall`, so pacquet skips
+   * that one stage for the root, early and after linking, and still runs
+   * the root's later stages after linking. `false` when the command runs
+   * no root script on pnpm's side (a `pnpm add` at a workspace root), so
+   * pacquet still owes the `preinstall`.
    */
   rootProjectPreinstallRan?: boolean
 }
