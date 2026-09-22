@@ -1,6 +1,15 @@
 use super::{
-    BTreeMap, DateTime, DependencyGroup, Duration, PassSettings, ResolveImporterOptions, Resolver,
-    SortedImporters, Utc, WorkspaceImporter, importer_direct_wanted_specs,
+    BTreeMap,
+    DateTime,
+    DependencyGroup,
+    Duration,
+    PassSettings,
+    ResolveImporterOptions,
+    Resolver,
+    SortedImporters,
+    Utc,
+    WorkspaceImporter,
+    importer_direct_wanted_specs,
     parse_packument_timestamp,
 };
 

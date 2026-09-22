@@ -10,7 +10,12 @@
 //! and `ConfirmPrompt` reads an interactive TTY. Their consumers are covered
 //! through fake `Sys` providers instead.
 
-use super::{Host, OidcFetch, OidcMethod, OidcRequest};
+use super::{
+    Host,
+    OidcFetch,
+    OidcMethod,
+    OidcRequest,
+};
 
 #[cfg(unix)]
 use super::RunCommand;

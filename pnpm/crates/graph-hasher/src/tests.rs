@@ -1,5 +1,8 @@
 use crate::{
-    HashEncoding, hash_object, hash_object_nullable_with_prefix, hash_object_with_encoding,
+    HashEncoding,
+    hash_object,
+    hash_object_nullable_with_prefix,
+    hash_object_with_encoding,
     hash_object_without_sorting,
 };
 use pretty_assertions::assert_eq;

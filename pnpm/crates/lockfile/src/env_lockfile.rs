@@ -13,23 +13,45 @@
 //! serialization parity.
 
 use crate::{
-    LoadLockfileError, Lockfile, PackageKey, PackageMetadata, SaveLockfileError, SnapshotEntry,
+    LoadLockfileError,
+    Lockfile,
+    PackageKey,
+    PackageMetadata,
+    SaveLockfileError,
+    SnapshotEntry,
     extract_main_document,
-    git_merge_file::{ParsedWantedFile, parse_wanted_file},
+    git_merge_file::{
+        ParsedWantedFile,
+        parse_wanted_file,
+    },
     merge_env_lockfile_changes,
     save_lockfile::ensure_lockfile_is_not_symlink,
     serialize_yaml,
     yaml_documents::{
-        YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, normalize_lockfile_content,
+        YAML_DOCUMENT_SEPARATOR,
+        YAML_DOCUMENT_START,
+        normalize_lockfile_content,
         read_first_yaml_document,
     },
 };
 use pnpm_fs::write_atomic;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
-    fs::{self, File},
-    io::{self, ErrorKind},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    fs::{
+        self,
+        File,
+    },
+    io::{
+        self,
+        ErrorKind,
+    },
     path::Path,
 };
 

@@ -1,6 +1,17 @@
 use super::{
-    ActionReference, Component, Document, HashSet, Path, PathBuf, QueryError, Range, Route, Value,
-    VecDeque, fs, parse_version,
+    ActionReference,
+    Component,
+    Document,
+    HashSet,
+    Path,
+    PathBuf,
+    QueryError,
+    Range,
+    Route,
+    Value,
+    VecDeque,
+    fs,
+    parse_version,
 };
 
 pub(super) async fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {

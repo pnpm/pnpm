@@ -1,13 +1,32 @@
 use super::{
-    BENCHMARK_DIAGNOSTICS_JSON, BENCHMARK_DIAGNOSTICS_MD, BENCHMARK_OUTPUT_LOG,
-    BenchmarkDiagnostics, BenchmarkTargetDiagnostics, HyperfineCommand,
-    PNPR_DIRECT_ABS_SLACK_SECONDS, PNPR_DIRECT_RATIO_MAX, WorkEnv, check_peer_heavy_speedup,
-    collect_pnpr_direct_ratios, dir_contains_file, non_trivial_cold_batch,
-    read_benchmark_diagnostics, read_hyperfine_report, read_phase_events,
-    render_diagnostics_markdown, requires_fresh_pnpr_cold_batch_metrics, summarize_phase_events,
+    BENCHMARK_DIAGNOSTICS_JSON,
+    BENCHMARK_DIAGNOSTICS_MD,
+    BENCHMARK_OUTPUT_LOG,
+    BenchmarkDiagnostics,
+    BenchmarkTargetDiagnostics,
+    HyperfineCommand,
+    PNPR_DIRECT_ABS_SLACK_SECONDS,
+    PNPR_DIRECT_RATIO_MAX,
+    WorkEnv,
+    check_peer_heavy_speedup,
+    collect_pnpr_direct_ratios,
+    dir_contains_file,
+    non_trivial_cold_batch,
+    read_benchmark_diagnostics,
+    read_hyperfine_report,
+    read_phase_events,
+    render_diagnostics_markdown,
+    requires_fresh_pnpr_cold_batch_metrics,
+    summarize_phase_events,
 };
-use crate::cli_args::{BenchmarkScenario, TargetKind};
-use std::{collections::HashMap, fs};
+use crate::cli_args::{
+    BenchmarkScenario,
+    TargetKind,
+};
+use std::{
+    collections::HashMap,
+    fs,
+};
 
 impl WorkEnv {
     /// Fail the run if a `pnpr@<rev>` target never actually went through its

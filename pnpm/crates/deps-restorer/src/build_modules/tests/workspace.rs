@@ -1,10 +1,20 @@
 #[cfg(unix)]
 use super::{
-    super::{BuildModules, RebuildOptions},
-    TEST_LOGGED_METHODS, create_marker_pkg, key, policy_from_specs, root_importers,
+    super::{
+        BuildModules,
+        RebuildOptions,
+    },
+    TEST_LOGGED_METHODS,
+    create_marker_pkg,
+    key,
+    policy_from_specs,
+    root_importers,
 };
 #[cfg(unix)]
-use crate::{SkippedSnapshots, VirtualStoreLayout};
+use crate::{
+    SkippedSnapshots,
+    VirtualStoreLayout,
+};
 #[cfg(unix)]
 use pnpm_config::PackageImportMethod;
 #[cfg(unix)]

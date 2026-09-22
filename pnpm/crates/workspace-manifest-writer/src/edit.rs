@@ -11,28 +11,59 @@
 //! instead, and one neither can edit is reported through [`Inline`] so the
 //! caller can refuse the write.
 
-pub(crate) use allow_builds::{add_allow_build, add_undecided_allow_build, prune_allow_builds};
-pub(crate) use catalogs::{CatalogReferences, add_catalogs, remove_unused_catalogs};
+pub(crate) use allow_builds::{
+    add_allow_build,
+    add_undecided_allow_build,
+    prune_allow_builds,
+};
+pub(crate) use catalogs::{
+    CatalogReferences,
+    add_catalogs,
+    remove_unused_catalogs,
+};
 pub(crate) use policies::{
-    prune_minimum_release_age_excludes, prune_trust_policy_excludes, set_audit_ignore_ghsas,
+    prune_minimum_release_age_excludes,
+    prune_trust_policy_excludes,
+    set_audit_ignore_ghsas,
     set_minimum_release_age_excludes,
 };
-pub(crate) use scanning::{Inline, document_root_is_inline, has_unsupported_inline_value};
+pub(crate) use scanning::{
+    Inline,
+    document_root_is_inline,
+    has_unsupported_inline_value,
+};
 pub(crate) use spacing::uses_blank_line_style;
 
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{
+        HashMap,
+        HashSet,
+        VecDeque,
+    },
     ops::Range,
 };
 
 use indexmap::IndexMap;
-use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
-use yamlpatch::{Op, Patch};
-use yamlpath::{Component, Document, Route};
+use pnpm_catalogs_types::{
+    Catalogs,
+    DEFAULT_CATALOG_NAME,
+};
+use yamlpatch::{
+    Op,
+    Patch,
+};
+use yamlpath::{
+    Component,
+    Document,
+    Route,
+};
 
 use crate::{
     flow,
-    model::{AllowBuildValue, Manifest},
+    model::{
+        AllowBuildValue,
+        Manifest,
+    },
     render,
 };
 
@@ -477,24 +508,47 @@ mod catalogs;
 mod policies;
 
 mod sequences;
-use sequences::{reconcile_sequence_items, render_top_level_sequence, upsert_sequence_entry};
+use sequences::{
+    reconcile_sequence_items,
+    render_top_level_sequence,
+    upsert_sequence_entry,
+};
 
 mod allow_builds;
 use allow_builds::render_bool;
 
 mod mapping;
 use mapping::{
-    replace_bool_value_at, replace_value_at, upsert, write_entry_at, write_rendered_entry_at,
+    replace_bool_value_at,
+    replace_value_at,
+    upsert,
+    write_entry_at,
+    write_rendered_entry_at,
 };
 
 mod scanning;
 
 use scanning::{
-    Line, Mapping, TopLevelSpan, comment_start, leading_comment_start, lines, locate,
-    locate_mapping, locate_sequence, mapping_keys, structural_colon_index, structural_indent,
-    top_level_key_line, top_level_span,
+    Line,
+    Mapping,
+    TopLevelSpan,
+    comment_start,
+    leading_comment_start,
+    lines,
+    locate,
+    locate_mapping,
+    locate_sequence,
+    mapping_keys,
+    structural_colon_index,
+    structural_indent,
+    top_level_key_line,
+    top_level_span,
 };
 
 mod spacing;
 
-use spacing::{blank_run_start, blanks_belong_to_kept_scalar, ends_with_blank_line};
+use spacing::{
+    blank_run_start,
+    blanks_belong_to_kept_scalar,
+    ends_with_blank_line,
+};

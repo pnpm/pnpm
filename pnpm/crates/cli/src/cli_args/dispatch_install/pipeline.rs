@@ -1,7 +1,19 @@
 use super::{
-    super::install_test, CommandFuture, Config, InstallArgs, PipelineArgs, PipelineInvocation,
-    ReporterType, RunCtx, UpdateCheckPolicy, WatchInvocation, install_with_config,
-    install_with_update_check, reporter_emit, run_pipeline, run_watch,
+    super::install_test,
+    CommandFuture,
+    Config,
+    InstallArgs,
+    PipelineArgs,
+    PipelineInvocation,
+    ReporterType,
+    RunCtx,
+    UpdateCheckPolicy,
+    WatchInvocation,
+    install_with_config,
+    install_with_update_check,
+    reporter_emit,
+    run_pipeline,
+    run_watch,
 };
 
 pub(in super::super) fn install_test<'a>(

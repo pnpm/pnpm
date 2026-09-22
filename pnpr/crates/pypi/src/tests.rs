@@ -1,8 +1,22 @@
 use super::{
-    DistributionKind, ProjectDocument, ProjectFile, UploadError, Yanked, escape_html,
-    multipart::{FormPart, tests::encode_form},
-    normalize_name, normalize_version, parse_distribution_filename, parse_upload,
-    render_project_list_html, render_project_list_json, wants_json, wants_versioned_html,
+    DistributionKind,
+    ProjectDocument,
+    ProjectFile,
+    UploadError,
+    Yanked,
+    escape_html,
+    multipart::{
+        FormPart,
+        tests::encode_form,
+    },
+    normalize_name,
+    normalize_version,
+    parse_distribution_filename,
+    parse_upload,
+    render_project_list_html,
+    render_project_list_json,
+    wants_json,
+    wants_versioned_html,
 };
 use serde_json::json;
 use std::collections::BTreeMap;

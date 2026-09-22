@@ -1,51 +1,106 @@
 pub(super) use maintenance::{
-    approve_builds, dedupe, deploy, env, fetch, import, link, prune, rebuild, runtime, unlink,
+    approve_builds,
+    dedupe,
+    deploy,
+    env,
+    fetch,
+    import,
+    link,
+    prune,
+    rebuild,
+    runtime,
+    unlink,
 };
-pub(super) use patches::{patch, patch_commit, patch_remove};
-pub(super) use pipeline::{install_test, pipeline};
+pub(super) use patches::{
+    patch,
+    patch_commit,
+    patch_remove,
+};
+pub(super) use pipeline::{
+    install_test,
+    pipeline,
+};
 
 use super::{
-    add::{AddArgs, apply_allow_build},
+    add::{
+        AddArgs,
+        apply_allow_build,
+    },
     approve_builds::ApproveBuildsArgs,
     ci::CiArgs,
     clean::run as clean_builtin,
     create::CreateArgs,
     dedupe::DedupeArgs,
     deploy::DeployArgs,
-    dispatch::{CommandFuture, RunCtx, apply_update_config},
+    dispatch::{
+        CommandFuture,
+        RunCtx,
+        apply_update_config,
+    },
     dlx::DlxArgs,
-    env::{EnvArgs, EnvSubcommand},
+    env::{
+        EnvArgs,
+        EnvSubcommand,
+    },
     fetch::FetchArgs,
     global,
     import::ImportArgs,
-    install::{InstallArgs, resolve_bool_override},
+    install::{
+        InstallArgs,
+        resolve_bool_override,
+    },
     link::LinkArgs,
     patch::PatchArgs,
     patch_commit::PatchCommitArgs,
     patch_remove::PatchRemoveArgs,
-    pipeline::{PipelineArgs, PipelineInvocation, WatchInvocation, run_pipeline, run_watch},
+    pipeline::{
+        PipelineArgs,
+        PipelineInvocation,
+        WatchInvocation,
+        run_pipeline,
+        run_watch,
+    },
     pipelines::{
-        AddPipeline, DedupePipeline, DeployPipeline, InstallPipeline, PrunePipeline,
-        RemovePipeline, UpdatePipeline, apply_install_cli_config, derive_config_root,
+        AddPipeline,
+        DedupePipeline,
+        DeployPipeline,
+        InstallPipeline,
+        PrunePipeline,
+        RemovePipeline,
+        UpdatePipeline,
+        apply_install_cli_config,
+        derive_config_root,
     },
     prune::PruneArgs,
     rebuild::RebuildArgs,
     remove::RemoveArgs,
-    reporter::{ReporterType, reporter_emit},
+    reporter::{
+        ReporterType,
+        reporter_emit,
+    },
     runtime::RuntimeArgs,
     unlink::UnlinkArgs,
     update::UpdateArgs,
     update_notifier,
     workspace_option::workspace_link_root,
 };
-use crate::package_specifier::{EcosystemPackageSpecifier, PackageSpecifierPlan};
+use crate::package_specifier::{
+    EcosystemPackageSpecifier,
+    PackageSpecifierPlan,
+};
 
 use miette::Context;
 
 use pnpm_config::Config;
 use pnpm_default_reporter::DefaultReporter;
-use pnpm_reporter::{NdjsonReporter, SilentReporter};
-use std::path::{Path, PathBuf};
+use pnpm_reporter::{
+    NdjsonReporter,
+    SilentReporter,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 pub(super) fn add<'a>(ctx: &RunCtx<'a>, mut args: AddArgs) -> miette::Result<CommandFuture<'a>> {
     let ecosystem_packages = route_package_specifiers(&mut args)?;

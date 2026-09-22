@@ -20,23 +20,51 @@
 
 mod presence;
 use presence::{
-    installability_skip, lookup_package_metadata, package_present_at,
-    path_relative_to_lockfile_dir, resolution_changed_at,
+    installability_skip,
+    lookup_package_metadata,
+    package_present_at,
+    path_relative_to_lockfile_dir,
+    resolution_changed_at,
 };
 
 mod walk;
-use walk::{WalkState, walk_deps};
+use walk::{
+    WalkState,
+    walk_deps,
+};
 
-use crate::{HoistedLocations, safe_join_modules_dir::InvalidDependencyAliasError};
-use derive_more::{Display, Error, From};
+use crate::{
+    HoistedLocations,
+    safe_join_modules_dir::InvalidDependencyAliasError,
+};
+use derive_more::{
+    Display,
+    Error,
+    From,
+};
 use miette::Diagnostic;
-use pnpm_lockfile::{Lockfile, LockfileResolution, ParsePkgNameVerPeerError, PkgIdWithPatchHash};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    ParsePkgNameVerPeerError,
+    PkgIdWithPatchHash,
+};
 use pnpm_modules_yaml::DepPath;
-use pnpm_package_is_installable::{InstallabilityError, SupportedArchitectures};
+use pnpm_package_is_installable::{
+    InstallabilityError,
+    SupportedArchitectures,
+};
 use pnpm_patching::PatchInfo;
-use pnpm_real_hoist::{HoistError, HoistOpts, hoist};
+use pnpm_real_hoist::{
+    HoistError,
+    HoistOpts,
+    hoist,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     path::PathBuf,
 };
 

@@ -15,19 +15,49 @@
 //! `prepare_package` lives in this crate rather than a sibling because
 //! both fetchers above are its only consumers.
 
-pub use error::{GitFetcherError, PreparePackageError};
+pub use error::{
+    GitFetcherError,
+    PreparePackageError,
+};
 pub use fetcher::{
-    CheckoutOptions, GitFetchOutput, GitFetcher, GitManifestQuery, cache_checkout_bundles,
-    checkout_cached_bundles, checkout_commit, checkout_existing_revision, checkout_revision,
-    checkout_submodules, checkout_submodules_offline, read_git_manifest,
+    CheckoutOptions,
+    GitFetchOutput,
+    GitFetcher,
+    GitManifestQuery,
+    cache_checkout_bundles,
+    checkout_cached_bundles,
+    checkout_commit,
+    checkout_existing_revision,
+    checkout_revision,
+    checkout_submodules,
+    checkout_submodules_offline,
+    read_git_manifest,
 };
-pub use options::{GitSource, GitStoreContext, PrepareScriptOptions};
-pub use pnpm_fs_packlist::{PacklistError, packlist};
-pub use preferred_pm::{PreferredPm, WantedPm, detect_preferred_pm, detect_wanted_pm};
+pub use options::{
+    GitSource,
+    GitStoreContext,
+    PrepareScriptOptions,
+};
+pub use pnpm_fs_packlist::{
+    PacklistError,
+    packlist,
+};
+pub use preferred_pm::{
+    PreferredPm,
+    WantedPm,
+    detect_preferred_pm,
+    detect_wanted_pm,
+};
 pub use prepare_package::{
-    PreparePackageOptions, PreparedPackage, prepare_package, resolve_package_build_permission,
+    PreparePackageOptions,
+    PreparedPackage,
+    prepare_package,
+    resolve_package_build_permission,
 };
-pub use protocols::{SUPPORTED_GIT_PROTOCOLS, read_allowed_git_protocols};
+pub use protocols::{
+    SUPPORTED_GIT_PROTOCOLS,
+    read_allowed_git_protocols,
+};
 pub use source_cache::GitSourceCache;
 pub use tarball_fetcher::GitHostedTarballFetcher;
 

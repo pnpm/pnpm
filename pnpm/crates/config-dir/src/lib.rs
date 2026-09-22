@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Resolve the directory pnpm reads its global `config.yaml` from,
 /// for an application that follows pnpm's config-dir convention under

@@ -8,24 +8,47 @@ pub use loaded_state::LoadedState;
 mod loaded_state;
 
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_fs::lexical_normalize;
-use pnpm_lockfile::{Lockfile, ProjectSnapshot, RegistryOptions};
+use pnpm_lockfile::{
+    Lockfile,
+    ProjectSnapshot,
+    RegistryOptions,
+};
 use pnpm_modules_yaml::{
-    DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, IncludedDependencies, Modules,
+    DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+    Host,
+    IncludedDependencies,
+    Modules,
     read_modules_manifest,
 };
 use pnpm_package_manifest::parse_manifest_bytes;
 
 use super::{
-    DependencyNode, TreeNodeId,
+    DependencyNode,
+    TreeNodeId,
     dep_types::detect_dep_types,
-    get_tree::{GetTreeOptions, MaterializationCache, MaxDepth, get_tree},
+    get_tree::{
+        GetTreeOptions,
+        MaterializationCache,
+        MaxDepth,
+        get_tree,
+    },
     graph::DependencyGraph,
     pkg_info::PkgInfoEnv,
     search::Searcher,

@@ -1,7 +1,13 @@
 use super::{
-    cached_verdict, standalone_install_command, update_check::PnpmInstallSource, update_command,
+    cached_verdict,
+    standalone_install_command,
+    update_check::PnpmInstallSource,
+    update_command,
 };
-use chrono::{DateTime, Utc};
+use chrono::{
+    DateTime,
+    Utc,
+};
 use pretty_assertions::assert_eq;
 
 fn at(rfc3339: &str) -> DateTime<Utc> {

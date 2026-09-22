@@ -1,4 +1,7 @@
-use super::{sanitize, sanitize_inline};
+use super::{
+    sanitize,
+    sanitize_inline,
+};
 use std::borrow::Cow;
 
 #[test]

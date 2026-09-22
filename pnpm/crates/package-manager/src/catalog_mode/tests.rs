@@ -1,5 +1,9 @@
 use super::{
-    CatalogDecision, CatalogEntry, CatalogModeDep, CatalogVersionMismatchError, decide_catalog,
+    CatalogDecision,
+    CatalogEntry,
+    CatalogModeDep,
+    CatalogVersionMismatchError,
+    decide_catalog,
 };
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
@@ -381,7 +385,11 @@ fn save_catalog_name_targets_a_named_catalog() {
 
 #[test]
 fn prefer_warns_and_keeps_the_direct_version_on_mismatch() {
-    use pnpm_reporter::{LogEvent, LogLevel, Reporter};
+    use pnpm_reporter::{
+        LogEvent,
+        LogLevel,
+        Reporter,
+    };
     use std::sync::Mutex;
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());

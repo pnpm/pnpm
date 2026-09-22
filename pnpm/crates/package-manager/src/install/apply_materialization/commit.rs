@@ -1,7 +1,20 @@
 use super::super::{
-    Config, Host, InstallError, InstallWithFreshLockfileError, Lockfile, Modules, NodeLinker,
-    PackageManifest, Path, PathBuf, SystemTime, build_modules_manifest, current_contains_dep_path,
-    merge_filtered_modules_metadata, merge_pending_builds, project_requires_lifecycle_scripts,
+    Config,
+    Host,
+    InstallError,
+    InstallWithFreshLockfileError,
+    Lockfile,
+    Modules,
+    NodeLinker,
+    PackageManifest,
+    Path,
+    PathBuf,
+    SystemTime,
+    build_modules_manifest,
+    current_contains_dep_path,
+    merge_filtered_modules_metadata,
+    merge_pending_builds,
+    project_requires_lifecycle_scripts,
     write_modules_manifest,
 };
 

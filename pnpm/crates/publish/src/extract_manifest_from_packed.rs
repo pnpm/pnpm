@@ -2,10 +2,17 @@
 //! a pre-built `.tgz` so a tarball passed to `pnpm publish <tarball>` can be
 //! published without repacking.
 
-use std::{fs::File, io::Read, path::Path};
+use std::{
+    fs::File,
+    io::Read,
+    path::Path,
+};
 
 use flate2::read::GzDecoder;
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_package_manifest::parse_manifest;
 use serde_json::Value;
 

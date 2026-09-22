@@ -1,4 +1,7 @@
-use std::{fmt, process::ExitStatus};
+use std::{
+    fmt,
+    process::ExitStatus,
+};
 
 /// How a script finished.
 ///

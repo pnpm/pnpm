@@ -1,4 +1,11 @@
-use super::{Arc, DependencyGroup, HashMap, HashSet, PkgName, TreeCtx};
+use super::{
+    Arc,
+    DependencyGroup,
+    HashMap,
+    HashSet,
+    PkgName,
+    TreeCtx,
+};
 
 /// The peer versions the prior lockfile locked for the importer, and
 /// their names.

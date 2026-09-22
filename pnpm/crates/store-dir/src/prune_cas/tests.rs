@@ -1,6 +1,14 @@
 use super::prune_cas;
-use crate::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndex};
-use std::{collections::HashMap, fs};
+use crate::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    StoreDir,
+    StoreIndex,
+};
+use std::{
+    collections::HashMap,
+    fs,
+};
 
 fn package_index(digest: &str) -> PackageFilesIndex {
     PackageFilesIndex {

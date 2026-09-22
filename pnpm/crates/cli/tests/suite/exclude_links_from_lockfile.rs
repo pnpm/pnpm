@@ -4,13 +4,26 @@ use crate::_utils;
 use _utils::append_workspace_yaml_key;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{Lockfile, PackageKey, PkgName, SnapshotDepRef};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    PkgName,
+    SnapshotDepRef,
+};
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
     fs::is_symlink_or_junction,
 };
-use std::{fs, path::Path, process::Command, str::FromStr};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+    str::FromStr,
+};
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm")

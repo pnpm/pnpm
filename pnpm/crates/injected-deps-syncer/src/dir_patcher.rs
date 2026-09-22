@@ -2,13 +2,26 @@
 //! injected copy of a workspace package can be refreshed in place
 //! without re-running the installer.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_directory_fetcher::{DirectoryFetcher, DirectoryFetcherError};
+use pnpm_directory_fetcher::{
+    DirectoryFetcher,
+    DirectoryFetcherError,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// A file's identity. An inode number is only unique within one
@@ -324,9 +337,13 @@ fn file_id(path: &Path, metadata: &fs::Metadata) -> Result<FileId, PatchError> {
 
 #[cfg(windows)]
 fn windows_file_id(path: &Path) -> io::Result<FileId> {
-    use std::{mem::MaybeUninit, os::windows::io::AsRawHandle as _};
+    use std::{
+        mem::MaybeUninit,
+        os::windows::io::AsRawHandle as _,
+    };
     use windows_sys::Win32::Storage::FileSystem::{
-        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
+        BY_HANDLE_FILE_INFORMATION,
+        GetFileInformationByHandle,
     };
 
     let file = fs::File::open(path)?;

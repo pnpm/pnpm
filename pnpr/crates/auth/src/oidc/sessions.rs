@@ -1,6 +1,14 @@
 use super::{
-    LoginSession, MAX_ENTRIES, OidcState, Result, SESSION_PREFIX, Session, Utc, random_secret,
-    rejected, unavailable,
+    LoginSession,
+    MAX_ENTRIES,
+    OidcState,
+    Result,
+    SESSION_PREFIX,
+    Session,
+    Utc,
+    random_secret,
+    rejected,
+    unavailable,
 };
 
 impl OidcState {

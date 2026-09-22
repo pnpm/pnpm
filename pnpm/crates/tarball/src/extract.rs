@@ -1,27 +1,53 @@
 //! Tarball decompression and entry extraction into the CAS.
 
 pub(crate) use manifest::{
-    apply_append_manifest, apply_placeholder_manifest, normalize_bundled_manifest,
+    apply_append_manifest,
+    apply_placeholder_manifest,
+    normalize_bundled_manifest,
 };
 pub(crate) use streaming::{
-    BodyChunkSender, STREAM_ENTRY_BUFFER_MAX, body_chunk_channel, stream_extract_gzipped_channel,
-    stream_extract_gzipped_tarball, tar_entry_payload,
+    BodyChunkSender,
+    STREAM_ENTRY_BUFFER_MAX,
+    body_chunk_channel,
+    stream_extract_gzipped_channel,
+    stream_extract_gzipped_tarball,
+    tar_entry_payload,
 };
 
 use super::{
-    Cow, Cursor, HashMap, IgnoreEntryFilter, IntoParallelRefIterator, MAX_UNTRUSTED_PREALLOC_BYTES,
-    ParallelIterator, PathBuf, Read, TarballError, UNIX_EPOCH, cas_write_pool,
+    Cow,
+    Cursor,
+    HashMap,
+    IgnoreEntryFilter,
+    IntoParallelRefIterator,
+    MAX_UNTRUSTED_PREALLOC_BYTES,
+    ParallelIterator,
+    PathBuf,
+    Read,
+    TarballError,
+    UNIX_EPOCH,
+    cas_write_pool,
 };
 use pnpm_fs::file_mode;
 use pnpm_package_manifest::{
-    files_include_install_scripts, manifest_requires_build, parse_manifest_bytes,
+    files_include_install_scripts,
+    manifest_requires_build,
+    parse_manifest_bytes,
 };
 use pnpm_store_dir::{
-    CafsFileInfo, FileHash, PackageFilesIndex, StoreDir, WriteCasFileFromReaderError,
+    CafsFileInfo,
+    FileHash,
+    PackageFilesIndex,
+    StoreDir,
+    WriteCasFileFromReaderError,
 };
 use tar::Archive;
 use tracing::instrument;
-use zune_inflate::{DeflateDecoder, DeflateOptions, errors::DecodeErrorStatus};
+use zune_inflate::{
+    DeflateDecoder,
+    DeflateOptions,
+    errors::DecodeErrorStatus,
+};
 
 /// Build the buffer the tarball body streams into, pre-sized from the
 /// response's `Content-Length` where possible.
@@ -603,7 +629,11 @@ pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<&str>> {
 mod streaming;
 
 use streaming::{
-    EntryMeta, STREAM_BATCH_BUDGET_BYTES, StreamingExtract, entry_meta, flush_pending_batch,
+    EntryMeta,
+    STREAM_BATCH_BUDGET_BYTES,
+    StreamingExtract,
+    entry_meta,
+    flush_pending_batch,
     truncated_entry_error,
 };
 

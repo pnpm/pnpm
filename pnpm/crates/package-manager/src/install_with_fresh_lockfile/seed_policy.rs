@@ -1,4 +1,7 @@
-use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets};
+use pnpm_resolving_deps_resolver::{
+    UpdateDepth,
+    UpdateTargets,
+};
 use std::collections::BTreeMap;
 
 /// Which lockfile-pinned `(name, version)` pairs to *withhold* from the
@@ -66,7 +69,9 @@ pub(crate) fn prefer_requested_version(
     version: &str,
 ) {
     use pnpm_resolving_resolver_base::{
-        EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
+        EXISTING_VERSION_SELECTOR_WEIGHT,
+        VersionSelectorEntry,
+        VersionSelectorType,
         VersionSelectorWithWeight,
     };
 

@@ -1,13 +1,26 @@
 use super::{
-    TarballError, assert_eq, extract_tarball_entries, tar_with_raw_entry_name,
+    TarballError,
+    assert_eq,
+    extract_tarball_entries,
+    tar_with_raw_entry_name,
     tempdir_with_leaked_path,
 };
 
 #[cfg(not(target_os = "windows"))]
 use super::{
-    ArchiveStoreProjection, AuthHeaders, CafsFileInfo, HashMap, IngestTarballToStore,
-    PackageFilesIndex, SharedVerifiedFilesCache, SilentReporter, StoreIndex, fast_fail_client,
-    integrity, store_index_key, test_retry_opts,
+    ArchiveStoreProjection,
+    AuthHeaders,
+    CafsFileInfo,
+    HashMap,
+    IngestTarballToStore,
+    PackageFilesIndex,
+    SharedVerifiedFilesCache,
+    SilentReporter,
+    StoreIndex,
+    fast_fail_client,
+    integrity,
+    store_index_key,
+    test_retry_opts,
 };
 
 /// A symlink at the CAFS path — even one pointing at a valid regular

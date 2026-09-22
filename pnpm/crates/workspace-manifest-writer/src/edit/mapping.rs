@@ -1,9 +1,24 @@
 use crate::model::CatalogEntries;
 
 use super::{
-    Component, DEFAULT_CATALOG_NAME, Document, IndexMap, Inline, Manifest, Op, Patch, Route,
-    comment_start, flow, insert_top_level_block, locate, locate_mapping, render, render_bool,
-    splice, structural_colon_index,
+    Component,
+    DEFAULT_CATALOG_NAME,
+    Document,
+    IndexMap,
+    Inline,
+    Manifest,
+    Op,
+    Patch,
+    Route,
+    comment_start,
+    flow,
+    insert_top_level_block,
+    locate,
+    locate_mapping,
+    render,
+    render_bool,
+    splice,
+    structural_colon_index,
 };
 
 /// Where a catalog's entries live (or should be created) in the manifest.

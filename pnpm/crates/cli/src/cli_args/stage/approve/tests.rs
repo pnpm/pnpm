@@ -1,11 +1,20 @@
 use super::{
-    StageApprovalItem, StageError, parse_stage_ids, sort_items_for_approval,
+    StageApprovalItem,
+    StageError,
+    parse_stage_ids,
+    sort_items_for_approval,
     unavailable_dependencies,
 };
-use crate::cli_args::stage::approve::ordering::{StageApprovalOrder, manifest_for_graph};
+use crate::cli_args::stage::approve::ordering::{
+    StageApprovalOrder,
+    manifest_for_graph,
+};
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 fn item(id: &str, package_name: Option<&str>, version: Option<&str>) -> StageApprovalItem {
     StageApprovalItem {

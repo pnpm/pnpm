@@ -1,4 +1,8 @@
-use super::{BundledDependencies, PackageMetadata, StringOrList};
+use super::{
+    BundledDependencies,
+    PackageMetadata,
+    StringOrList,
+};
 use crate::serialize_yaml;
 use text_block_macros::text_block;
 

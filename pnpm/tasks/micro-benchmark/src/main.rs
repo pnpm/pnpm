@@ -1,21 +1,42 @@
 mod workspace_resolution;
 mod workspace_sort;
 
-use std::{fs, hint::black_box, path::Path, time::Duration};
+use std::{
+    fs,
+    hint::black_box,
+    path::Path,
+    time::Duration,
+};
 
 use clap::Parser;
-use criterion::{Criterion, Throughput};
-use flate2::{Compression, write::GzEncoder};
+use criterion::{
+    Criterion,
+    Throughput,
+};
+use flate2::{
+    Compression,
+    write::GzEncoder,
+};
 use futures_util::future;
 use mockito::ServerGuard;
 use pipe_trait::Pipe;
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_registry::Package;
 use pnpm_store_dir::StoreDir;
-use pnpm_tarball::{ArchiveStoreProjection, IngestTarballToStore, RetryOpts};
+use pnpm_tarball::{
+    ArchiveStoreProjection,
+    IngestTarballToStore,
+    RetryOpts,
+};
 use project_root::get_project_root;
 use ssri::Integrity;
-use tar::{Builder, Header};
+use tar::{
+    Builder,
+    Header,
+};
 use tempfile::tempdir;
 
 const BATCH_TARBALL_COUNT: usize = 256;

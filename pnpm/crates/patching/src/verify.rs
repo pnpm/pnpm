@@ -1,5 +1,8 @@
 use crate::types::PatchGroupRecord;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::collections::HashSet;
 

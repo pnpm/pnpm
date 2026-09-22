@@ -1,4 +1,10 @@
-use super::{NodePathEnvVar, Path, ScriptRuntime, normalize_node_path_env_var, relative_target};
+use super::{
+    NodePathEnvVar,
+    Path,
+    ScriptRuntime,
+    normalize_node_path_env_var,
+    relative_target,
+};
 
 /// Generate the cross-shell PowerShell `.ps1` shim contents for
 /// `target_path`, minus the `prependToPath`/`nodeExecPath`/`progArgs`

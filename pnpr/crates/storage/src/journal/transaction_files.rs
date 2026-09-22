@@ -1,7 +1,22 @@
 use super::{
-    AsyncWriteExt, COMMIT_MARKER, JournaledPublish, MANIFEST_FILE, Manifest, ManifestBlob,
-    ManifestPackage, Ordering, Path, RegistryError, Result, SystemTime, TXN_COUNTER, UNIX_EPOCH,
-    fs, io, is_canonical_revision_ref_owner, unique_tmp_path,
+    AsyncWriteExt,
+    COMMIT_MARKER,
+    JournaledPublish,
+    MANIFEST_FILE,
+    Manifest,
+    ManifestBlob,
+    ManifestPackage,
+    Ordering,
+    Path,
+    RegistryError,
+    Result,
+    SystemTime,
+    TXN_COUNTER,
+    UNIX_EPOCH,
+    fs,
+    io,
+    is_canonical_revision_ref_owner,
+    unique_tmp_path,
 };
 
 /// Write the transaction's documents and manifest and seal them with the

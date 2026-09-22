@@ -1,18 +1,57 @@
 pub use auth::{
-    AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, MetadataCacheScope, UpstreamRouteHook,
-    base64_encode, base64_encode_bytes, hide_auth_information, is_url_secure_for_credentials,
-    nerf_dart, normalize_auth_key, redact_and_sanitize, redact_and_sanitize_multiline,
-    redact_npm_auth_key, redact_url_credentials, redact_url_for_display,
+    AuthHeaders,
+    AuthHeadersByScope,
+    DEFAULT_REGISTRY_SCOPE,
+    MetadataCacheScope,
+    UpstreamRouteHook,
+    base64_encode,
+    base64_encode_bytes,
+    hide_auth_information,
+    is_url_secure_for_credentials,
+    nerf_dart,
+    normalize_auth_key,
+    redact_and_sanitize,
+    redact_and_sanitize_multiline,
+    redact_npm_auth_key,
+    redact_url_credentials,
+    redact_url_for_display,
 };
-pub use client_builder::{RedirectGuard, default_network_concurrency, native_dns_resolver};
-pub use limited_body::{LimitedBody, read_limited_body};
-pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
+pub use client_builder::{
+    RedirectGuard,
+    default_network_concurrency,
+    native_dns_resolver,
+};
+pub use limited_body::{
+    LimitedBody,
+    read_limited_body,
+};
+pub use proxy::{
+    NoProxySetting,
+    ProxyConfig,
+    ProxyError,
+};
 pub use retry::{
-    RetryOpts, retry_async, send_with_retry, send_with_retry_at_priority, should_retry_status,
+    RetryOpts,
+    retry_async,
+    send_with_retry,
+    send_with_retry_at_priority,
+    should_retry_status,
 };
-pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
-pub use token_helper::{TokenHelperOutput, TokenHelperRunner};
-pub use url_encoding::{encode_package_name, encode_uri_component, percent_decode_str};
+pub use tls::{
+    PerRegistryTls,
+    RegistryTls,
+    TlsConfig,
+    TlsError,
+};
+pub use token_helper::{
+    TokenHelperOutput,
+    TokenHelperRunner,
+};
+pub use url_encoding::{
+    encode_package_name,
+    encode_uri_component,
+    percent_decode_str,
+};
 
 mod auth;
 mod limited_body;
@@ -26,21 +65,50 @@ mod token_helper;
 
 mod url_encoding;
 
-use priority_semaphore::{Permit, PrioritySemaphore};
-use proxy::{NoProxyMatcher, parse_proxy_url, strip_userinfo};
+use priority_semaphore::{
+    Permit,
+    PrioritySemaphore,
+};
+use proxy::{
+    NoProxyMatcher,
+    parse_proxy_url,
+    strip_userinfo,
+};
 use reqwest::{
-    Certificate, Client, Identity, Proxy,
-    dns::{Addrs, Name, Resolve, Resolving},
-    header::{HeaderMap, HeaderValue, USER_AGENT},
+    Certificate,
+    Client,
+    Identity,
+    Proxy,
+    dns::{
+        Addrs,
+        Name,
+        Resolve,
+        Resolving,
+    },
+    header::{
+        HeaderMap,
+        HeaderValue,
+        USER_AGENT,
+    },
 };
 use std::{
     collections::HashMap,
     num::NonZeroUsize,
     ops::Deref,
-    sync::{Arc, LazyLock, Mutex},
-    time::{Duration, Instant},
+    sync::{
+        Arc,
+        LazyLock,
+        Mutex,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{
+    OwnedSemaphorePermit,
+    Semaphore,
+};
 
 /// Fallback `User-Agent` for the install client's no-config
 /// constructors ([`ThrottledClient::new_for_installs`]) and for the case where a
@@ -548,13 +616,21 @@ impl Default for ThrottledClient {
 
 mod certificates;
 use certificates::{
-    TrustRoots, apply_tls, bundled_root_certs, load_node_extra_ca_certs, merge_tls,
+    TrustRoots,
+    apply_tls,
+    bundled_root_certs,
+    load_node_extra_ca_certs,
+    merge_tls,
 };
 
 mod client_builder;
 use client_builder::{
-    CappedDnsResolver, ClientBuildInputs, MAX_REDIRECT_HOPS, build_client_with_root_fallback,
-    configured_proxy, is_redirect_status,
+    CappedDnsResolver,
+    ClientBuildInputs,
+    MAX_REDIRECT_HOPS,
+    build_client_with_root_fallback,
+    configured_proxy,
+    is_redirect_status,
 };
 
 mod requests;

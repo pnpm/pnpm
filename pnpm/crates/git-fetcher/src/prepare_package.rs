@@ -8,20 +8,43 @@
 
 use crate::{
     error::PreparePackageError,
-    pm_shims::{shim_names, write_pm_shims},
-    preferred_pm::{PreferredPm, WantedPm, detect_wanted_pm},
+    pm_shims::{
+        shim_names,
+        write_pm_shims,
+    },
+    preferred_pm::{
+        PreferredPm,
+        WantedPm,
+        detect_wanted_pm,
+    },
 };
-use pnpm_executor::{LifecycleScriptError, RunPostinstallHooks, run_lifecycle_hook};
+use pnpm_executor::{
+    LifecycleScriptError,
+    RunPostinstallHooks,
+    run_lifecycle_hook,
+};
 use pnpm_network::redact_and_sanitize;
 use pnpm_package_manifest::safe_read_package_json_from_dir;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use serde_json::Value;
 use std::{
     collections::HashMap,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
-    sync::{LazyLock, Mutex, PoisonError},
+    sync::{
+        LazyLock,
+        Mutex,
+        PoisonError,
+    },
 };
 
 /// Scripts to re-run after `<pm>-install` finishes. `prepare` itself

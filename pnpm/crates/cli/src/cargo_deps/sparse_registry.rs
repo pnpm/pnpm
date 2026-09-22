@@ -1,6 +1,21 @@
 use super::{
-    Arc, AuthHeaders, BTreeMap, Config, IntoDiagnostic, Path, PathBuf, RegistryConfig, Result,
-    RetryOpts, StreamExt, ThrottledClient, TryStreamExt, fs, is_crates_io, registry_auth, stream,
+    Arc,
+    AuthHeaders,
+    BTreeMap,
+    Config,
+    IntoDiagnostic,
+    Path,
+    PathBuf,
+    RegistryConfig,
+    Result,
+    RetryOpts,
+    StreamExt,
+    ThrottledClient,
+    TryStreamExt,
+    fs,
+    is_crates_io,
+    registry_auth,
+    stream,
     validate_package_field,
 };
 use miette::WrapErr;

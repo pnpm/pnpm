@@ -1,7 +1,10 @@
 use std::{
     fs::File,
     io,
-    path::{Component, Path},
+    path::{
+        Component,
+        Path,
+    },
 };
 
 /// Open a descendant without following symlinks in any component. Only normal
@@ -50,7 +53,10 @@ mod platform {
         fs::File,
         io,
         os::{
-            fd::{AsRawFd, FromRawFd},
+            fd::{
+                AsRawFd,
+                FromRawFd,
+            },
             unix::ffi::OsStrExt,
         },
         path::Path,
@@ -138,7 +144,10 @@ mod platform {
         io,
         os::windows::{
             ffi::OsStrExt,
-            io::{AsRawHandle, FromRawHandle},
+            io::{
+                AsRawHandle,
+                FromRawHandle,
+            },
         },
         path::Path,
         ptr,
@@ -147,17 +156,26 @@ mod platform {
         Wdk::{
             Foundation::OBJECT_ATTRIBUTES,
             Storage::FileSystem::{
-                FILE_DIRECTORY_FILE, FILE_OPEN, FILE_SYNCHRONOUS_IO_NONALERT, NtCreateFile,
+                FILE_DIRECTORY_FILE,
+                FILE_OPEN,
+                FILE_SYNCHRONOUS_IO_NONALERT,
+                NtCreateFile,
             },
         },
         Win32::{
             Foundation::{
-                OBJ_DONT_REPARSE, RtlNtStatusToDosError, STATUS_REPARSE_POINT_ENCOUNTERED,
+                OBJ_DONT_REPARSE,
+                RtlNtStatusToDosError,
+                STATUS_REPARSE_POINT_ENCOUNTERED,
                 UNICODE_STRING,
             },
             Storage::FileSystem::{
-                FILE_LIST_DIRECTORY, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ,
-                FILE_SHARE_WRITE, SYNCHRONIZE,
+                FILE_LIST_DIRECTORY,
+                FILE_READ_ATTRIBUTES,
+                FILE_SHARE_DELETE,
+                FILE_SHARE_READ,
+                FILE_SHARE_WRITE,
+                SYNCHRONIZE,
             },
             System::IO::IO_STATUS_BLOCK,
         },
@@ -232,7 +250,11 @@ mod platform {
 
 #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 mod platform {
-    use std::{fs::File, io, path::Path};
+    use std::{
+        fs::File,
+        io,
+        path::Path,
+    };
 
     pub(super) fn open_directory(root: &File, path: &Path, opens: &mut usize) -> io::Result<File> {
         super::open_components(root, path, opens)

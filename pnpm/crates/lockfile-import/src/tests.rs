@@ -1,11 +1,16 @@
 use std::path::Path;
 
 use miette::Diagnostic;
-use pnpm_resolving_resolver_base::{VersionSelectorEntry, VersionSelectorType};
+use pnpm_resolving_resolver_base::{
+    VersionSelectorEntry,
+    VersionSelectorType,
+};
 use pretty_assertions::assert_eq;
 
 use super::{
-    ImportLockfileError, VersionsByPackageName, read_foreign_lockfile_versions,
+    ImportLockfileError,
+    VersionsByPackageName,
+    read_foreign_lockfile_versions,
     to_preferred_versions,
 };
 

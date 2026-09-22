@@ -1,9 +1,31 @@
 use super::{
-    ActivationFixture, BinSlotKind, FirstRestoreFailure, HASH_FAILURE_CALLS, HashSet,
-    HashSwapFailure, Host, IntoDiagnostic, Ordering, PARTIAL_WRITE_CALLS, PartialWriteFailure,
-    SavedBinSlot, ShimTarget, activate_global_install, backup_dirs, canonical, fs,
-    hash_failure_guard, install_native_shim, io, read_symlink_dir, remove_symlink_dir,
-    replace_global_bin_slots, resolved_hash_target, restore_bin_slots, slot_state, test_link_bins,
+    ActivationFixture,
+    BinSlotKind,
+    FirstRestoreFailure,
+    HASH_FAILURE_CALLS,
+    HashSet,
+    HashSwapFailure,
+    Host,
+    IntoDiagnostic,
+    Ordering,
+    PARTIAL_WRITE_CALLS,
+    PartialWriteFailure,
+    SavedBinSlot,
+    ShimTarget,
+    activate_global_install,
+    backup_dirs,
+    canonical,
+    fs,
+    hash_failure_guard,
+    install_native_shim,
+    io,
+    read_symlink_dir,
+    remove_symlink_dir,
+    replace_global_bin_slots,
+    resolved_hash_target,
+    restore_bin_slots,
+    slot_state,
+    test_link_bins,
 };
 #[cfg(windows)]
 use std::path::PathBuf;
@@ -219,7 +241,11 @@ fn hash_failure_removes_hash_link_that_was_originally_absent() {
 #[test]
 fn hash_failure_restores_windows_file_and_directory_symlink_kinds() {
     let _guard = hash_failure_guard();
-    use std::os::windows::fs::{FileTypeExt, symlink_dir, symlink_file};
+    use std::os::windows::fs::{
+        FileTypeExt,
+        symlink_dir,
+        symlink_file,
+    };
 
     HASH_FAILURE_CALLS.store(0, Ordering::SeqCst);
     let fixture = ActivationFixture::new(&["file-link", "dir-link"]);

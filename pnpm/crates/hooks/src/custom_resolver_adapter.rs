@@ -1,13 +1,24 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 use serde_json::Value;
 
 use pnpm_resolving_resolver_base::{
-    LatestQuery, PkgResolutionId, PreferredVersions, ResolveError, ResolveFuture,
-    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, VersionSelectorEntry,
+    LatestQuery,
+    PkgResolutionId,
+    PreferredVersions,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    VersionSelectorEntry,
     WantedDependency,
 };
 

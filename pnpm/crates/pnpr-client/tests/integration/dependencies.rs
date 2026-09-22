@@ -1,4 +1,11 @@
-use super::{BTreeMap, PnprClient, TestRegistry, deps, options, start_pnpr};
+use super::{
+    BTreeMap,
+    PnprClient,
+    TestRegistry,
+    deps,
+    options,
+    start_pnpr,
+};
 
 /// Optional dependencies must reach the server in the request, not be
 /// silently dropped, so the resolved lockfile includes their edges.

@@ -1,4 +1,8 @@
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 /// Remove whatever occupies `path` without following links: a regular
 /// file (or file-shaped symlink) is unlinked, a real directory is

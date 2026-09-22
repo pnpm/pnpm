@@ -1,6 +1,14 @@
 use super::{
-    Arc, AuthEntry, AuthHeaders, DEFAULT_REGISTRY_SCOPE, ParsedUrl, TokenHelpers,
-    execute_token_helper, is_url_secure_for_credentials, package_scope, run_token_helper_command,
+    Arc,
+    AuthEntry,
+    AuthHeaders,
+    DEFAULT_REGISTRY_SCOPE,
+    ParsedUrl,
+    TokenHelpers,
+    execute_token_helper,
+    is_url_secure_for_credentials,
+    package_scope,
+    run_token_helper_command,
 };
 
 impl AuthHeaders {

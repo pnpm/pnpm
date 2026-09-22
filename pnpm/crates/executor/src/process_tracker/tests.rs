@@ -1,4 +1,7 @@
-use super::{ProcessTracker, spawn_child};
+use super::{
+    ProcessTracker,
+    spawn_child,
+};
 use std::process::Command;
 
 /// A foreground tracker keeps a child in the test's own process group

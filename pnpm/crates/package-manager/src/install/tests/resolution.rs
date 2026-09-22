@@ -1,13 +1,25 @@
 use super::{
-    super::{Install, ProjectMutation},
+    super::{
+        Install,
+        ProjectMutation,
+    },
     InstallDirs,
 };
 use crate::PolicyExcludes;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::SilentReporter;
-use pnpm_testing_utils::{fs::is_symlink_or_junction, registry::TestRegistry};
+use pnpm_testing_utils::{
+    fs::is_symlink_or_junction,
+    registry::TestRegistry,
+};
 use std::fs;
 use text_block_macros::text_block;
 

@@ -1,12 +1,25 @@
-use super::{PNPR_BENCHMARK_HTPASSWD, PNPR_BENCHMARK_PASSWORD, PNPR_BENCHMARK_USERNAME};
+use super::{
+    PNPR_BENCHMARK_HTPASSWD,
+    PNPR_BENCHMARK_PASSWORD,
+    PNPR_BENCHMARK_USERNAME,
+};
 use crate::latency_proxy::LatencyProxy;
 use serde::Serialize;
 use serde_json::Value;
 use std::{
-    fs::{self, OpenOptions},
+    fs::{
+        self,
+        OpenOptions,
+    },
     io::Write,
-    net::{TcpListener, TcpStream},
-    path::{Path, PathBuf},
+    net::{
+        TcpListener,
+        TcpStream,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Child,
     thread,
     time::Duration,

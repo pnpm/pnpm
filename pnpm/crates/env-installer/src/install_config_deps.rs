@@ -7,27 +7,55 @@
 //! level deep as siblings inside the parent's leaf `node_modules`.
 
 use crate::{
-    ConfigDepError, NormalizedConfigDep, NormalizedSubdep, options::ConfigDepsInstallOptions,
+    ConfigDepError,
+    NormalizedConfigDep,
+    NormalizedSubdep,
+    options::ConfigDepsInstallOptions,
     verify_env_lockfile::verify_env_lockfile,
 };
 use pnpm_graph_hasher::{
-    calc_global_virtual_store_path_with_subdeps, calc_leaf_global_virtual_store_path,
+    calc_global_virtual_store_path_with_subdeps,
+    calc_leaf_global_virtual_store_path,
     join_global_virtual_store_path,
 };
-use pnpm_lockfile::{EnvLockfile, LockfileResolution, TarballUrlOptions, npm_tarball_url};
-use pnpm_package_is_installable::{PackageInstallabilityManifest, check_package};
-use pnpm_package_manager::{ImportIndexedDirOpts, import_indexed_dir};
+use pnpm_lockfile::{
+    EnvLockfile,
+    LockfileResolution,
+    TarballUrlOptions,
+    npm_tarball_url,
+};
+use pnpm_package_is_installable::{
+    PackageInstallabilityManifest,
+    check_package,
+};
+use pnpm_package_manager::{
+    ImportIndexedDirOpts,
+    import_indexed_dir,
+};
 use pnpm_reporter::{
-    InstalledConfigDep, InstallingConfigDepsLog, InstallingConfigDepsStatus, LogEvent, LogLevel,
-    Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
+    InstalledConfigDep,
+    InstallingConfigDepsLog,
+    InstallingConfigDepsStatus,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    SkippedOptionalReason,
 };
 use pnpm_store_dir::SharedVerifiedFilesCache;
 use pnpm_tarball::IngestTarballToStore;
 use ssri::Integrity;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::atomic::AtomicU8,
 };
 
@@ -375,4 +403,7 @@ fn symlink_points_to(link_path: &Path, expected: &Path) -> bool {
 }
 
 mod optional_dependencies;
-use optional_dependencies::{install_optional_subdeps, normalize_from_lockfile};
+use optional_dependencies::{
+    install_optional_subdeps,
+    normalize_from_lockfile,
+};

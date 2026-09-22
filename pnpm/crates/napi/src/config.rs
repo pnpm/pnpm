@@ -24,20 +24,47 @@
 //! registries, linker, hoist patterns, overrides, peer/dedupe policy, ...) win.
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, hash_map::DefaultHasher},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+        hash_map::DefaultHasher,
+    },
     fs,
-    hash::{Hash, Hasher},
-    path::{Path, PathBuf},
+    hash::{
+        Hash,
+        Hasher,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::OnceLock,
 };
 
-use dashmap::{DashMap, mapref::entry::Entry};
+use dashmap::{
+    DashMap,
+    mapref::entry::Entry,
+};
 use indexmap::IndexMap;
 use pnpm_config::{
-    Config, GetHomeDir, Host, LinkWorkspacePackages, LoadWorkspaceYamlError, NodeLinker,
-    PackageExtension, PackageImportMethod, default_registry,
+    Config,
+    GetHomeDir,
+    Host,
+    LinkWorkspacePackages,
+    LoadWorkspaceYamlError,
+    NodeLinker,
+    PackageExtension,
+    PackageImportMethod,
+    default_registry,
 };
-use pnpm_network::{AuthHeaders, ProxyConfig, TlsConfig, nerf_dart, normalize_auth_key};
+use pnpm_network::{
+    AuthHeaders,
+    ProxyConfig,
+    TlsConfig,
+    nerf_dart,
+    normalize_auth_key,
+};
 use pnpm_store_dir::StoreDir;
 
 /// Host-supplied config values. Every field is optional: `None` keeps the
@@ -328,7 +355,16 @@ mod tests;
 
 mod overlay;
 use overlay::{
-    apply_build_policy, apply_dedupe_settings, apply_fetch_tuning, apply_install_flags,
-    apply_layout, apply_manifest_rewrites, apply_network_limits, apply_registries,
-    apply_release_policy, apply_store_dirs, overlay_default_registry, pin_unkeyed_header,
+    apply_build_policy,
+    apply_dedupe_settings,
+    apply_fetch_tuning,
+    apply_install_flags,
+    apply_layout,
+    apply_manifest_rewrites,
+    apply_network_limits,
+    apply_registries,
+    apply_release_policy,
+    apply_store_dirs,
+    overlay_default_registry,
+    pin_unkeyed_header,
 };

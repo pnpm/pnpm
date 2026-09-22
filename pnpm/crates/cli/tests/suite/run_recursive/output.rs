@@ -1,6 +1,15 @@
 use super::{
-    CommandExtra, CommandTempCwd, Value, build_writes_marker, echoes_ok, fs, json, sorted_lines,
-    summary_statuses, write_marker_script, write_workspace,
+    CommandExtra,
+    CommandTempCwd,
+    Value,
+    build_writes_marker,
+    echoes_ok,
+    fs,
+    json,
+    sorted_lines,
+    summary_statuses,
+    write_marker_script,
+    write_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;
 

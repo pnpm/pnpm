@@ -1,7 +1,18 @@
-use super::{project, python, python_project, serve, serve_backends, wheel};
+use super::{
+    project,
+    python,
+    python_project,
+    serve,
+    serve_backends,
+    wheel,
+};
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 /// A workspace project that declares nothing but its requirements.
 fn requirements_project(root: &Path, name: &str, dependencies: &[&str]) {

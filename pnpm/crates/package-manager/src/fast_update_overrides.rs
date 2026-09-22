@@ -1,22 +1,48 @@
-pub(crate) use planning::{FastOverride, build_replacement_plan};
+pub(crate) use planning::{
+    FastOverride,
+    build_replacement_plan,
+};
 
 mod planning;
 
-use planning::{ResolvedOverride, build_rewrite_plan, package_metadata, resolve_override};
+use planning::{
+    ResolvedOverride,
+    build_rewrite_plan,
+    package_metadata,
+    resolve_override,
+};
 
 use futures_util::future::join_all;
 use indexmap::IndexMap;
 use node_semver::Range;
 use pnpm_config_parse_overrides::VersionOverride;
 use pnpm_lockfile::{
-    ImporterDepVersion, Lockfile, LockfileFormOptions, LockfileResolution, PackageKey,
-    PackageMetadata, PkgName, Prefix, RegistryOptions, ResolvedDependencyMap, SnapshotDepRef,
-    SnapshotEntry, pick_registry_for_package, registry_server_type,
+    ImporterDepVersion,
+    Lockfile,
+    LockfileFormOptions,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    Prefix,
+    RegistryOptions,
+    ResolvedDependencyMap,
+    SnapshotDepRef,
+    SnapshotEntry,
+    pick_registry_for_package,
+    registry_server_type,
 };
 use pnpm_resolving_deps_resolver::ManifestHook;
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    Resolver,
+};
 use serde_json::Value;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+    HashSet,
+};
 
 pub(crate) struct RewritePlan {
     pub overrides: Vec<FastOverride>,

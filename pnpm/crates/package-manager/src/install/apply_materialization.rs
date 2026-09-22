@@ -1,23 +1,41 @@
 pub(super) mod completion;
 
 use completion::{
-    MaterializedProjectScriptsInputs, ReportInstallCompletionInputs, ResolveOnlyCompletionInputs,
-    complete_resolve_only, report_install_completion, run_materialized_project_scripts,
+    MaterializedProjectScriptsInputs,
+    ReportInstallCompletionInputs,
+    ResolveOnlyCompletionInputs,
+    complete_resolve_only,
+    report_install_completion,
+    run_materialized_project_scripts,
 };
 
 mod commit;
-use commit::{CommitModulesStateInputs, commit_modules_state};
+use commit::{
+    CommitModulesStateInputs,
+    commit_modules_state,
+};
 
 mod selection;
 use selection::{
-    LinkMaterializedLockfiles, LinkMaterializedManifestLinks, LinkMaterializedProjectsInputs,
-    MaterializedState, SelectMaterializedStateInputs, link_materialized_projects,
+    LinkMaterializedLockfiles,
+    LinkMaterializedManifestLinks,
+    LinkMaterializedProjectsInputs,
+    MaterializedState,
+    SelectMaterializedStateInputs,
+    link_materialized_projects,
     select_materialized_state,
 };
 
 use super::{
-    BTreeMap, HoistedDependencies, Host, InstallError, Lockfile, Materialized, Reporter,
-    build_workspace_state, update_workspace_state,
+    BTreeMap,
+    HoistedDependencies,
+    Host,
+    InstallError,
+    Lockfile,
+    Materialized,
+    Reporter,
+    build_workspace_state,
+    update_workspace_state,
 };
 use crate::optimistic_repeat_install::filesystem_now_ms;
 

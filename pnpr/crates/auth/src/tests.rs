@@ -1,7 +1,17 @@
 use super::{
-    MAX_USERNAME_CHARS, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend,
-    UserStore, identify, parse_htpasswd, sha256_hex, token_timestamp_from_sql,
-    token_timestamp_to_sql, validate_username,
+    MAX_USERNAME_CHARS,
+    TokenBackend,
+    TokenRecord,
+    TokenStore,
+    UpsertOutcome,
+    UserBackend,
+    UserStore,
+    identify,
+    parse_htpasswd,
+    sha256_hex,
+    token_timestamp_from_sql,
+    token_timestamp_to_sql,
+    validate_username,
 };
 use pnpr_config::MaxUsers;
 use std::sync::Arc;

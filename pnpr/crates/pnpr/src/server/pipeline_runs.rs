@@ -1,6 +1,16 @@
 use super::{
-    AppState, AuthedCaller, Identity, Path, RegistryError, Response, State, StatusCode, header,
-    not_found, private_no_cache, require_caller,
+    AppState,
+    AuthedCaller,
+    Identity,
+    Path,
+    RegistryError,
+    Response,
+    State,
+    StatusCode,
+    header,
+    not_found,
+    private_no_cache,
+    require_caller,
 };
 use axum::response::IntoResponse;
 

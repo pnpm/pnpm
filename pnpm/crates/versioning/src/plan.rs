@@ -1,19 +1,47 @@
-pub use project_refs::{ProjectRefIndex, index_project_refs, is_dir_ref, to_project_dir};
+pub use project_refs::{
+    ProjectRefIndex,
+    index_project_refs,
+    is_dir_ref,
+    to_project_dir,
+};
 pub use versions::materialize_workspace_range;
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use derive_more::Display;
-use node_semver::{Identifier, Range, Version};
+use node_semver::{
+    Identifier,
+    Range,
+    Version,
+};
 
 use crate::{
     error::VersioningError,
-    intents::{ChangeIntent, IntentBumpType},
-    ledger::{Ledger, PackageConsumption, build_consumption_index, normalize_project_dir},
-    settings::{ReleaseBumpType, VersioningSettings},
+    intents::{
+        ChangeIntent,
+        IntentBumpType,
+    },
+    ledger::{
+        Ledger,
+        PackageConsumption,
+        build_consumption_index,
+        normalize_project_dir,
+    },
+    settings::{
+        ReleaseBumpType,
+        VersioningSettings,
+    },
 };
 
 /// One workspace project as the release-plan assembler sees it: the manifest
@@ -366,25 +394,45 @@ mod tests;
 mod project_refs;
 
 use project_refs::{
-    assert_internal_deps_use_workspace_protocol, collect_participants, parse_workspace_spec_alias,
+    assert_internal_deps_use_workspace_protocol,
+    collect_participants,
+    parse_workspace_spec_alias,
     resolve_config_ref,
 };
 
 mod configuration;
 use configuration::{
-    resolve_epics, resolve_fixed_groups, resolve_intents, resolve_lanes, validate_epics,
+    resolve_epics,
+    resolve_fixed_groups,
+    resolve_intents,
+    resolve_lanes,
+    validate_epics,
     validate_fixed_group_lanes,
 };
 
 mod versions;
 use versions::{
-    apply_epic_band_versions, apply_fixed_group_versions, bump_release_order, compute_new_version,
-    enforce_epic_bands, enforce_max_bump, epic_band, epic_rebase_floor, max_bump_type,
-    max_bump_type_of, range_accepts,
+    apply_epic_band_versions,
+    apply_fixed_group_versions,
+    bump_release_order,
+    compute_new_version,
+    enforce_epic_bands,
+    enforce_max_bump,
+    epic_band,
+    epic_rebase_floor,
+    max_bump_type,
+    max_bump_type_of,
+    range_accepts,
 };
 
 mod propagation;
 use propagation::{
-    PlanIntents, assert_no_duplicate_release_identity, collect_lane_consumed_intents,
-    collect_pending_intents, compute_versions, planned_releases, propagate_bumps, seed_bumps,
+    PlanIntents,
+    assert_no_duplicate_release_identity,
+    collect_lane_consumed_intents,
+    collect_pending_intents,
+    compute_versions,
+    planned_releases,
+    propagate_bumps,
+    seed_bumps,
 };

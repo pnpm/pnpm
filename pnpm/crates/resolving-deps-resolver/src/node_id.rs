@@ -1,6 +1,9 @@
 use std::sync::{
     Arc,
-    atomic::{AtomicU64, Ordering},
+    atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 
 /// Per-occurrence identifier for a node in the [`DependenciesTree`].

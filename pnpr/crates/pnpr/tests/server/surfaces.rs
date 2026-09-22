@@ -1,6 +1,22 @@
 use super::{
-    Body, Config, HeaderValue, Ipv4Addr, MaxUsers, Request, ServiceExt, SocketAddr, SocketAddrV4,
-    StatusCode, TempDir, Value, body_bytes, body_json, config_for, header, json, router,
+    Body,
+    Config,
+    HeaderValue,
+    Ipv4Addr,
+    MaxUsers,
+    Request,
+    ServiceExt,
+    SocketAddr,
+    SocketAddrV4,
+    StatusCode,
+    TempDir,
+    Value,
+    body_bytes,
+    body_json,
+    config_for,
+    header,
+    json,
+    router,
 };
 
 #[tokio::test]

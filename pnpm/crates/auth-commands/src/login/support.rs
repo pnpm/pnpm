@@ -8,7 +8,10 @@ pub(crate) use crate::login_fake;
 
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use pnpm_network::ThrottledClient;

@@ -1,12 +1,27 @@
 use super::{
-    host, no_importers, root_importer, snapshot_dep_map, snapshot_key, synthetic_metadata,
+    host,
+    no_importers,
+    root_importer,
+    snapshot_dep_map,
+    snapshot_key,
+    synthetic_metadata,
 };
 use crate::installability::{
-    InstallabilityHost, SkippedSnapshots, any_installability_constraint,
-    any_optional_installability_constraint, compute_skipped_snapshots,
+    InstallabilityHost,
+    SkippedSnapshots,
+    any_installability_constraint,
+    any_optional_installability_constraint,
+    compute_skipped_snapshots,
 };
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
-use pnpm_reporter::{LogEvent, SkippedOptionalPackage, SkippedOptionalReason};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
+use pnpm_reporter::{
+    LogEvent,
+    SkippedOptionalPackage,
+    SkippedOptionalReason,
+};
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 

@@ -1,11 +1,20 @@
 use super::{
-    BugsArgs, is_http_url, parse_package_spec, pick_bugs_url, repository_to_issues_url,
+    BugsArgs,
+    is_http_url,
+    parse_package_spec,
+    pick_bugs_url,
+    repository_to_issues_url,
     try_hosted_git_shorthand,
 };
 use pnpm_config::Config;
 use pnpm_network_web_auth::OpenUrl;
 use serde_json::json;
-use std::{cell::RefCell, fs, io, path::Path};
+use std::{
+    cell::RefCell,
+    fs,
+    io,
+    path::Path,
+};
 
 #[test]
 fn pick_bugs_url_returns_bugs_url_from_object() {

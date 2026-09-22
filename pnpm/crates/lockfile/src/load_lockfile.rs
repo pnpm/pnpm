@@ -1,18 +1,39 @@
 use crate::{
-    EnvLockfile, Lockfile, ProjectSnapshot, extract_env_document, extract_main_document,
-    git_merge_file::{MERGE_CONFLICT_OURS, ParsedWantedFile, parse_wanted_file},
+    EnvLockfile,
+    Lockfile,
+    ProjectSnapshot,
+    extract_env_document,
+    extract_main_document,
+    git_merge_file::{
+        MERGE_CONFLICT_OURS,
+        ParsedWantedFile,
+        parse_wanted_file,
+    },
     load_lockfile::repair_document::prepare_value_for_fix,
     merge_lockfile_changes,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use pipe_trait::Pipe;
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use serde_saphyr::MessageFormatter;
 use std::{
     collections::HashMap,
-    env, fs,
-    io::{self, ErrorKind},
-    path::{Path, PathBuf},
+    env,
+    fs,
+    io::{
+        self,
+        ErrorKind,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

@@ -34,27 +34,55 @@
 //! an unpinned tarball before that read can download it.
 
 use crate::install_package_from_registry::{
-    extract_tarball, manifest_file_count, manifest_unpacked_size,
+    extract_tarball,
+    manifest_file_count,
+    manifest_unpacked_size,
 };
-use dashmap::{DashMap, DashSet};
+use dashmap::{
+    DashMap,
+    DashSet,
+};
 use pnpm_config::Config;
-use pnpm_deps_restorer::{CustomFetcherSession, ResolvedTarballMetadata};
-use pnpm_lockfile::{LockfileResolution, is_git_hosted_tarball_url};
+use pnpm_deps_restorer::{
+    CustomFetcherSession,
+    ResolvedTarballMetadata,
+};
+use pnpm_lockfile::{
+    LockfileResolution,
+    is_git_hosted_tarball_url,
+};
 use pnpm_network::ThrottledClient;
 use pnpm_package_is_installable::{
-    SupportedArchitectures, WantedPlatformRef, platform_is_supported,
+    SupportedArchitectures,
+    WantedPlatformRef,
+    platform_is_supported,
 };
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::{
-    LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver,
+    LatestQuery,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
     WantedDependency,
 };
-use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter};
+use pnpm_store_dir::{
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreIndexWriter,
+};
 use pnpm_tarball::{
-    ArchiveStoreProjection, IngestTarballToStore, MemCache, SharedReportedProgressKeys,
+    ArchiveStoreProjection,
+    IngestTarballToStore,
+    MemCache,
+    SharedReportedProgressKeys,
     package_mem_cache_key,
 };
-use std::{marker::PhantomData, sync::Arc};
+use std::{
+    marker::PhantomData,
+    sync::Arc,
+};
 use tokio::sync::OnceCell;
 
 /// Borrowed-data bag handed to [`PrefetchingResolver::new`]. Everything

@@ -2,17 +2,35 @@
 
 use std::sync::Arc;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_lockfile::{LockfileResolution, VariationsResolution};
+use pnpm_lockfile::{
+    LockfileResolution,
+    VariationsResolution,
+};
 use pnpm_network::ThrottledClient;
 use pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, UpdateBehavior, WantedDependency, resolve_package_version,
+    LatestInfo,
+    LatestQuery,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    WantedDependency,
+    resolve_package_version,
 };
 
-use crate::read_bun_assets::{ReadBunAssetsError, read_bun_assets};
+use crate::read_bun_assets::{
+    ReadBunAssetsError,
+    read_bun_assets,
+};
 
 const RESOLVED_VIA: &str = "github.com/oven-sh/bun";
 const BARE_SPEC_PREFIX: &str = "runtime:";

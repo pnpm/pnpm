@@ -1,15 +1,34 @@
 use super::{
-    HoistedPackageMapOptions, LinkReference, LinkTarget, PackageMap, PackageMapPackage,
-    PhysicalPackageIndex, add_external_link_package, add_loose_dependencies, add_package,
-    get_node_modules_path, graph_package_id, importer_names, resolve_link_target,
+    HoistedPackageMapOptions,
+    LinkReference,
+    LinkTarget,
+    PackageMap,
+    PackageMapPackage,
+    PhysicalPackageIndex,
+    add_external_link_package,
+    add_loose_dependencies,
+    add_package,
+    get_node_modules_path,
+    graph_package_id,
+    importer_names,
+    resolve_link_target,
 };
 use crate::LockfileToDepGraphResult;
 use pnpm_config::NodePackageMapType;
 use pnpm_fs::lexical_normalize;
-use pnpm_lockfile::{Lockfile, PackageKey};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub fn dependencies_graph_to_package_map(

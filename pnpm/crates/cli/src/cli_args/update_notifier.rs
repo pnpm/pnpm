@@ -17,14 +17,30 @@
 //! that has work to do.
 
 use crate::cli_args::registry_client::build_registry_client;
-use chrono::{DateTime, Utc};
-use pnpm_config::{Config, PNPM_VERSION};
+use chrono::{
+    DateTime,
+    Utc,
+};
+use pnpm_config::{
+    Config,
+    PNPM_VERSION,
+};
 use pnpm_fs::write_atomic;
 use pnpm_registry::Package;
-use pnpm_reporter::{LogEvent, LogLevel, UpdateCheckLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    UpdateCheckLog,
+};
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
-use serde_json::{Map, Value};
-use std::{collections::HashMap, path::Path};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 use tokio::task::JoinHandle;
 
 /// How long a recorded check suppresses the next one.

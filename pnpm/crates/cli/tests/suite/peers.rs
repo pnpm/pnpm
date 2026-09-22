@@ -3,12 +3,18 @@ use crate::_utils;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
     diagnostics::assert_diagnostic_contains,
 };
 use serde_json::Value;
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 fn write_project(workspace: &std::path::Path, relative_dir: &str, name: &str) {
     let project_dir = workspace.join(relative_dir);

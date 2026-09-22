@@ -1,6 +1,9 @@
 #[cfg(unix)]
 use super::configs_in_scope;
-use super::{resolution_command, resolution_settings};
+use super::{
+    resolution_command,
+    resolution_settings,
+};
 use crate::cargo_deps::build_std;
 use std::fs;
 use tempfile::TempDir;

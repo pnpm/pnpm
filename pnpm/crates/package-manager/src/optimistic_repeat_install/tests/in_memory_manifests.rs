@@ -4,8 +4,13 @@
 //! instead of by `package.json` mtime.
 
 use super::{
-    super::{Decision, ManifestFreshness},
-    FOO_MANIFEST, content_check_decision_for, setup_content_check_project,
+    super::{
+        Decision,
+        ManifestFreshness,
+    },
+    FOO_MANIFEST,
+    content_check_decision_for,
+    setup_content_check_project,
 };
 use pnpm_package_manifest::PackageManifest;
 use std::fs;

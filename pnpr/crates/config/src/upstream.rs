@@ -1,14 +1,28 @@
-use std::{fmt, time::Duration};
+use std::{
+    fmt,
+    time::Duration,
+};
 
 use indexmap::IndexMap;
 use pnpm_env_replace::EnvVar;
-use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName, HeaderValue};
+use reqwest::header::{
+    AUTHORIZATION,
+    HeaderMap,
+    HeaderName,
+    HeaderValue,
+};
 use serde::Deserialize;
 
 use pnpr_error::RegistryError;
-use pnpr_policy::{AccessList, PackageRules};
+use pnpr_policy::{
+    AccessList,
+    PackageRules,
+};
 
-use super::{AccessSpec, Teams};
+use super::{
+    AccessSpec,
+    Teams,
+};
 
 /// Runtime upstream declaration: the upstream `url`, the request headers
 /// pnpr attaches to every fetch it makes to that upstream, and the

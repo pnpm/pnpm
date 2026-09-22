@@ -1,6 +1,14 @@
-use super::{EmulatedOutput, ShellEmulatorError, execute_emulated};
+use super::{
+    EmulatedOutput,
+    ShellEmulatorError,
+    execute_emulated,
+};
 use pnpm_reporter::LifecycleStdio;
-use std::{collections::HashMap, path::Path, sync::Mutex};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::Mutex,
+};
 use tempfile::tempdir;
 
 /// Run `script` in `cwd`, returning its exit code and the lines it wrote,

@@ -1,5 +1,12 @@
 use super::{
-    AtomicU64, HashMap, Ordering, Path, PathBuf, RegistryError, Result, UpsertOutcome,
+    AtomicU64,
+    HashMap,
+    Ordering,
+    Path,
+    PathBuf,
+    RegistryError,
+    Result,
+    UpsertOutcome,
     validate_username,
 };
 

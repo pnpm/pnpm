@@ -1,4 +1,10 @@
-use super::{fs, json, packlist, tempdir, touch};
+use super::{
+    fs,
+    json,
+    packlist,
+    tempdir,
+    touch,
+};
 
 #[cfg(unix)]
 use super::write;

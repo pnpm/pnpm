@@ -1,19 +1,42 @@
 use super::InstallPackageBySnapshotError;
 use crate::retry_config::retry_opts_from_config;
 use pnpm_config::Config;
-use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_graph_hasher::{
+    host_arch,
+    host_libc,
+    host_platform,
+};
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PlatformSelector,
+    BinaryArchive,
+    BinaryResolution,
+    BinarySpec,
+    LockfileResolution,
+    PackageKey,
+    PlatformSelector,
     select_platform_variant,
 };
 use pnpm_network::ThrottledClient;
-use pnpm_package_is_installable::{SupportedArchitectures, SupportedPlatform};
-use pnpm_reporter::Reporter;
-use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter};
-use pnpm_tarball::{
-    IgnoreEntryFilter, IngestTarballToStore, IngestZipArchiveToStore, PrefetchedCasPaths,
+use pnpm_package_is_installable::{
+    SupportedArchitectures,
+    SupportedPlatform,
 };
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use pnpm_reporter::Reporter;
+use pnpm_store_dir::{
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreIndexWriter,
+};
+use pnpm_tarball::{
+    IgnoreEntryFilter,
+    IngestTarballToStore,
+    IngestZipArchiveToStore,
+    PrefetchedCasPaths,
+};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::Arc,
+};
 
 /// The archive a `Variations` resolution offers for this host.
 ///

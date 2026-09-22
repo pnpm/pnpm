@@ -17,34 +17,69 @@ pub(crate) use virtual_state::record_virtual_shim_state;
 
 mod policy;
 mod virtual_state;
-use virtual_state::{read_virtual_shim_state, remove_virtual_shim_state, virtual_shim_state_path};
+use virtual_state::{
+    read_virtual_shim_state,
+    remove_virtual_shim_state,
+    virtual_shim_state_path,
+};
 
 use crate::{
     cli_args::global_bin_lock::acquire_global_bin_lock,
     config_deps,
     engine_pm::channel::PackageManager,
     shim_dispatch::{
-        ShimTarget, install_native_shim, migrate_legacy_shims, native_shim_target, native_shims,
+        ShimTarget,
+        install_native_shim,
+        migrate_legacy_shims,
+        native_shim_target,
+        native_shims,
         remove_native_shim,
     },
 };
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest, is_safe_bin_name};
-use pnpm_config::{Config, NamedShimPolicy, ShimPolicyValue};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
+use pnpm_cmd_shim::{
+    Host as CmdShimHost,
+    get_bins_from_package_manifest,
+    is_safe_bin_name,
+};
+use pnpm_config::{
+    Config,
+    NamedShimPolicy,
+    ShimPolicyValue,
+};
 use pnpm_crypto_hash::create_short_hash;
 use pnpm_global::bin_slot_exists;
 use pnpm_package_name::is_valid_old_npm_package_name;
 
-use policy::{global_config_dir, set_policy, shims_disabled_globally, would_dispatch};
-use serde::{Deserialize, Serialize};
+use policy::{
+    global_config_dir,
+    set_policy,
+    shims_disabled_globally,
+    would_dispatch,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
     collections::BTreeMap,
     ffi::OsStr,
     fmt::Write as _,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 const MAX_VIRTUAL_SHIM_METADATA_BYTES: u64 = 64 * 1024;

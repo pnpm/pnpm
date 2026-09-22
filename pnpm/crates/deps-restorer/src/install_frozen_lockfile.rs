@@ -1,62 +1,138 @@
 pub use build_phase::{
-    BuildPhaseError, BuildPhaseInputs, resolve_snapshot_patches, run_build_phase,
+    BuildPhaseError,
+    BuildPhaseInputs,
+    resolve_snapshot_patches,
+    run_build_phase,
 };
 pub use hoisted::{
-    HoistPlan, HoistedLinkerError, HoistedLinkerInputs, HoistedLinkerOutput,
-    HoistedMaterialization, HoistedWorkspacePackages, collect_public_hoist_targets,
-    compute_hoist_plan, find_own_runtime_node_major, find_runtime_node_major,
-    parse_major_from_version, run_hoisted_linker, workspace_packages_for_hoist,
+    HoistPlan,
+    HoistedLinkerError,
+    HoistedLinkerInputs,
+    HoistedLinkerOutput,
+    HoistedMaterialization,
+    HoistedWorkspacePackages,
+    collect_public_hoist_targets,
+    compute_hoist_plan,
+    find_own_runtime_node_major,
+    find_runtime_node_major,
+    parse_major_from_version,
+    run_hoisted_linker,
+    workspace_packages_for_hoist,
 };
 
 mod verification;
-use verification::{ConcurrentVerification, fetch_verified, load_custom_fetcher_session};
+use verification::{
+    ConcurrentVerification,
+    fetch_verified,
+    load_custom_fetcher_session,
+};
 
 mod planning;
 use planning::{
-    BuildInputs, FetchInputs, FrozenInputs, HostDetectionInputs, HostPlan, LinkInputs,
-    MaterializationPlan, SkipSetPlan, detect_host, needs_installability_check, plan_engine_name,
-    seed_skip_set, settle_engine_name,
+    BuildInputs,
+    FetchInputs,
+    FrozenInputs,
+    HostDetectionInputs,
+    HostPlan,
+    LinkInputs,
+    MaterializationPlan,
+    SkipSetPlan,
+    detect_host,
+    needs_installability_check,
+    plan_engine_name,
+    seed_skip_set,
+    settle_engine_name,
 };
 
 mod materialization;
 
 use crate::{
-    AllowBuildPolicy, BuildModules, BuildModulesError, CreateVirtualStoreError,
-    CreateVirtualStoreOutput, HoistedDepGraphError, LinkHoistedModulesError,
-    LinkHoistedModulesOpts, LinkRootComponentMembersError, LinkVirtualStoreBinsError,
-    LockfileToHoistedDepGraphOptions, SkippedSnapshots, SymlinkDirectDependencies,
-    SymlinkDirectDependenciesError, SymlinkPackageError, VersionPolicyError,
-    build_direct_deps_by_importer, direct_dep_names_for_importer, get_hoisted_dependencies,
-    link_hoisted_modules, link_top_level_bins, lockfile_to_hoisted_dep_graph,
+    AllowBuildPolicy,
+    BuildModules,
+    BuildModulesError,
+    CreateVirtualStoreError,
+    CreateVirtualStoreOutput,
+    HoistedDepGraphError,
+    LinkHoistedModulesError,
+    LinkHoistedModulesOpts,
+    LinkRootComponentMembersError,
+    LinkVirtualStoreBinsError,
+    LockfileToHoistedDepGraphOptions,
+    SkippedSnapshots,
+    SymlinkDirectDependencies,
+    SymlinkDirectDependenciesError,
+    SymlinkPackageError,
+    VersionPolicyError,
+    build_direct_deps_by_importer,
+    direct_dep_names_for_importer,
+    get_hoisted_dependencies,
+    link_hoisted_modules,
+    link_top_level_bins,
+    lockfile_to_hoisted_dep_graph,
     symlink_direct_dependencies::importer_root_dir,
 };
 
 mod build_phase;
 mod hoisted;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_cmd_shim::LinkBinsError;
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 use pnpm_lockfile::{
-    Lockfile, LockfileEntries, PackageKey, PackageMetadata, Prefix, SnapshotEntry,
+    Lockfile,
+    LockfileEntries,
+    PackageKey,
+    PackageMetadata,
+    Prefix,
+    SnapshotEntry,
 };
 use pnpm_lockfile_verification::VerifyError;
 use pnpm_matcher::create_matcher;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_patching::{
-    ExtendedPatchInfo, PatchKeyConflictError, ResolvePatchedDependenciesError, get_patch_info,
+    ExtendedPatchInfo,
+    PatchKeyConflictError,
+    ResolvePatchedDependenciesError,
+    get_patch_info,
 };
-use pnpm_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
-use pnpm_store_dir::{StoreIndexError, StoreIndexWriter};
+use pnpm_reporter::{
+    IgnoredScriptsLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    Stage,
+    StageLog,
+};
+use pnpm_store_dir::{
+    StoreIndexError,
+    StoreIndexWriter,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+        HashSet,
+    },
     ffi::OsStr,
     future::Future,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     pin::Pin,
-    sync::{Arc, atomic::AtomicU8},
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
 };
 
 pub type LockfileVerificationOverride<'a> =

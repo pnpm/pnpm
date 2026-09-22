@@ -1,7 +1,16 @@
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
-use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveResult,
+};
 
-use super::{super::test_support::manifest_result, extract_children};
+use super::{
+    super::test_support::manifest_result,
+    extract_children,
+};
 
 #[test]
 fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {

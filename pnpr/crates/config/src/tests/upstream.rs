@@ -1,7 +1,22 @@
 use super::{
-    AUTHORIZATION, Config, Ecosystem, FeatureOverrides, Identity, IndexMap, Interval, Path,
-    RegistryError, TokenEnv, UpstreamAuthFile, UpstreamAuthType, UpstreamConfig, auth_header,
-    listen, resolve_upstream, upstream_config_file, user,
+    AUTHORIZATION,
+    Config,
+    Ecosystem,
+    FeatureOverrides,
+    Identity,
+    IndexMap,
+    Interval,
+    Path,
+    RegistryError,
+    TokenEnv,
+    UpstreamAuthFile,
+    UpstreamAuthType,
+    UpstreamConfig,
+    auth_header,
+    listen,
+    resolve_upstream,
+    upstream_config_file,
+    user,
 };
 
 #[test]
@@ -426,7 +441,10 @@ registries:
       '@corp/*': {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    use pnpr_registry::{ConcreteKind, Resolved};
+    use pnpr_registry::{
+        ConcreteKind,
+        Resolved,
+    };
     assert_eq!(
         config.routing.registries.resolve("corp", Ecosystem::Npm, "@corp/tool"),
         Resolved::Concrete { registry: "corp", kind: ConcreteKind::Upstream },

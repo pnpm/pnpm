@@ -1,10 +1,18 @@
 use std::path::Path;
 
 use super::{
-    CatalogAnchor, CatalogResolution, CatalogResolutionError, CatalogResolutionFound,
-    CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+    CatalogAnchor,
+    CatalogResolution,
+    CatalogResolutionError,
+    CatalogResolutionFound,
+    CatalogResolutionResult,
+    WantedDependency,
+    resolve_from_catalog,
 };
-use pnpm_catalogs_types::{Catalog, Catalogs};
+use pnpm_catalogs_types::{
+    Catalog,
+    Catalogs,
+};
 
 fn catalogs_from(entries: &[(&str, &[(&str, &str)])]) -> Catalogs {
     entries

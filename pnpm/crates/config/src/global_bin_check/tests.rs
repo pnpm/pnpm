@@ -1,4 +1,7 @@
-use super::{CheckGlobalBinDirError, check_global_bin_dir};
+use super::{
+    CheckGlobalBinDirError,
+    check_global_bin_dir,
+};
 use std::path::Path;
 
 #[test]

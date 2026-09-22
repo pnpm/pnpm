@@ -1,8 +1,14 @@
 //! Version extraction from yarn's two lockfile formats.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 
-use crate::{VersionsByPackageName, add_version};
+use crate::{
+    VersionsByPackageName,
+    add_version,
+};
 
 const METADATA_KEY: &str = "__metadata";
 const QUOTES: [char; 2] = ['"', '\''];

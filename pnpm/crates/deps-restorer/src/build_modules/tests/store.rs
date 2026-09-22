@@ -1,11 +1,21 @@
 #[cfg(unix)]
 use super::{
-    super::BuildModules, TEST_LOGGED_METHODS, create_failing_postinstall_fixture,
-    create_postinstall_modifies_source_fixture, key, policy_from_specs, root_importers, sha512_hex,
+    super::BuildModules,
+    TEST_LOGGED_METHODS,
+    create_failing_postinstall_fixture,
+    create_postinstall_modifies_source_fixture,
+    key,
+    policy_from_specs,
+    root_importers,
+    sha512_hex,
 };
 use crate::store_index_key_for_resolution;
 #[cfg(unix)]
-use crate::{RequiresBuildBySnapshot, SkippedSnapshots, VirtualStoreLayout};
+use crate::{
+    RequiresBuildBySnapshot,
+    SkippedSnapshots,
+    VirtualStoreLayout,
+};
 #[cfg(unix)]
 use pnpm_config::PackageImportMethod;
 #[cfg(unix)]
@@ -16,7 +26,10 @@ use pnpm_lockfile::SnapshotEntry;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
-use std::{collections::HashMap, fs};
+use std::{
+    collections::HashMap,
+    fs,
+};
 #[cfg(unix)]
 use tempfile::tempdir;
 
@@ -279,7 +292,12 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
 #[tokio::test(flavor = "current_thread")]
 async fn write_path_populates_side_effects_row() {
     use pnpm_store_dir::{
-        CafsFileInfo, HASH_ALGORITHM, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexWriter,
+        CafsFileInfo,
+        HASH_ALGORITHM,
+        PackageFilesIndex,
+        StoreDir,
+        StoreIndex,
+        StoreIndexWriter,
         store_index_key,
     };
 

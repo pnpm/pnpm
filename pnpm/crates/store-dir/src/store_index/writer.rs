@@ -1,6 +1,14 @@
 use super::{
-    Arc, AtomicBool, CafsFileInfo, HashMap, Ordering, PackageFilesIndex, SideEffectsDiff, StoreDir,
-    StoreIndex, StoreIndexError,
+    Arc,
+    AtomicBool,
+    CafsFileInfo,
+    HashMap,
+    Ordering,
+    PackageFilesIndex,
+    SideEffectsDiff,
+    StoreDir,
+    StoreIndex,
+    StoreIndexError,
 };
 
 /// Handle producers use to hand rows off to the batched writer task. Clone

@@ -1,4 +1,13 @@
-use super::{PacklistOptions, fs, json, packlist, packlist_with_options, tempdir, touch, write};
+use super::{
+    PacklistOptions,
+    fs,
+    json,
+    packlist,
+    packlist_with_options,
+    tempdir,
+    touch,
+    write,
+};
 
 #[test]
 fn bundle_dependencies_pull_in_hoisted_transitive_deps() {

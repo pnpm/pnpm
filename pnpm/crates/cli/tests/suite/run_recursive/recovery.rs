@@ -1,9 +1,22 @@
 use super::{
-    Command, CommandExtra, CommandTempCwd, Value, append_line_script,
-    assert_recursive_run_bail_cancels_in_flight, build_appends_run_order, build_writes_marker, fs,
-    json, summary_statuses, write_marker_script, write_workspace,
+    Command,
+    CommandExtra,
+    CommandTempCwd,
+    Value,
+    append_line_script,
+    assert_recursive_run_bail_cancels_in_flight,
+    build_appends_run_order,
+    build_writes_marker,
+    fs,
+    json,
+    summary_statuses,
+    write_marker_script,
+    write_workspace,
 };
-use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+use assert_cmd::{
+    assert::OutputAssertExt,
+    cargo::CommandCargoExt,
+};
 
 /// `--no-sort` disregards ordering entirely, so there is no graph for
 /// `--reverse` to turn around or for `--resume-from` to skip the anchor's

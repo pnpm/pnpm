@@ -1,8 +1,18 @@
 use super::{
-    DependencyGroup, HashMap, Mutex, ResolveDependencyTreeOptions, ResolveOptions, StubResolver,
-    fake_manifest, fake_result, resolve_dependency_tree,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    ResolveDependencyTreeOptions,
+    ResolveOptions,
+    StubResolver,
+    fake_manifest,
+    fake_result,
+    resolve_dependency_tree,
 };
-use crate::resolve_peers::{ResolvePeersOptions, resolve_peers};
+use crate::resolve_peers::{
+    ResolvePeersOptions,
+    resolve_peers,
+};
 
 /// A two-package cycle keeps its closing edge: the tree builder's
 /// cycle gate drops only the *second* lap of a cycle, so `b`'s

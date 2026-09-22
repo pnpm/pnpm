@@ -1,9 +1,20 @@
 use super::{
-    COMPLETE_FILE, build_storage_at, build_storage_at_with_substitutions, discard_unusable_storage,
-    ensure_storage, latest_version, packages_dir, publish_storage, restore_claimed_storage,
+    COMPLETE_FILE,
+    build_storage_at,
+    build_storage_at_with_substitutions,
+    discard_unusable_storage,
+    ensure_storage,
+    latest_version,
+    packages_dir,
+    publish_storage,
+    restore_claimed_storage,
     set_dist_tag,
 };
-use std::{collections::BTreeSet, fs, path::Path};
+use std::{
+    collections::BTreeSet,
+    fs,
+    path::Path,
+};
 use tempfile::TempDir;
 
 fn tarball_entries(tarball: &Path) -> BTreeSet<String> {

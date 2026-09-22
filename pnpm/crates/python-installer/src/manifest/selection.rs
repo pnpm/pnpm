@@ -1,6 +1,16 @@
-use super::{DependencySelection, Manifest};
-use miette::{IntoDiagnostic, Result, bail};
-use pep508_rs::{ExtraName, Requirement};
+use super::{
+    DependencySelection,
+    Manifest,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    bail,
+};
+use pep508_rs::{
+    ExtraName,
+    Requirement,
+};
 use pnpm_config::Config;
 use pnpm_python_resolver::parse_requirement;
 use serde::Deserialize;

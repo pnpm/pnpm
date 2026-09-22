@@ -4,10 +4,16 @@
 use crate::filter::FilterError;
 use indexmap::IndexMap;
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
-use wax::{Glob, Program};
+use wax::{
+    Glob,
+    Program,
+};
 
 /// Options for [`get_changed_projects`].
 pub struct GetChangedProjectsOptions<'a> {

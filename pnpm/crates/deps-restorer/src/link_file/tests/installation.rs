@@ -1,22 +1,40 @@
 use super::{
     super::{
-        AUTO_FIRST_TIER, Host, LINK_STATE_CLONE, LINK_STATE_HARDLINK, LinkFileError, auto_link,
-        clone_or_copy_link, downgrade_auto_tier, is_call_error, link_file, next_auto_tier,
+        AUTO_FIRST_TIER,
+        Host,
+        LINK_STATE_CLONE,
+        LINK_STATE_HARDLINK,
+        LinkFileError,
+        auto_link,
+        clone_or_copy_link,
+        downgrade_auto_tier,
+        is_call_error,
+        link_file,
+        next_auto_tier,
         recover_from_concurrent_import,
     },
     write_source,
 };
 #[cfg(unix)]
 use super::{
-    super::{LINK_STATE_COPY, import_into_fresh_target, path_still_names},
-    EaccesLinks, EpermLinks,
+    super::{
+        LINK_STATE_COPY,
+        import_into_fresh_target,
+        path_still_names,
+    },
+    EaccesLinks,
+    EpermLinks,
 };
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use std::{
-    fs, io,
-    sync::atomic::{AtomicU8, Ordering},
+    fs,
+    io,
+    sync::atomic::{
+        AtomicU8,
+        Ordering,
+    },
 };
 use tempfile::tempdir;
 

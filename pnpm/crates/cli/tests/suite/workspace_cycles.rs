@@ -1,7 +1,11 @@
 use assert_cmd::prelude::*;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn write_cyclic_workspace(workspace: &Path, extra_settings: &str) {
     fs::write(

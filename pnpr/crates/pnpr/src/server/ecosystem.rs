@@ -10,20 +10,47 @@
 //! The documents themselves live in [`super::documents`].
 
 use super::{
-    Action, AppState, MAX_TARBALL_BYTES, RegistrySource, authorize, authorized_upstream,
-    cached_upstream_tarball, default_registry_target, hosted_read_namespace, not_found,
-    private_no_cache, resolves_to_private_source, tarball_response, tarball_stream_error,
+    Action,
+    AppState,
+    MAX_TARBALL_BYTES,
+    RegistrySource,
+    authorize,
+    authorized_upstream,
+    cached_upstream_tarball,
+    default_registry_target,
+    hosted_read_namespace,
+    not_found,
+    private_no_cache,
+    resolves_to_private_source,
+    tarball_response,
+    tarball_stream_error,
     upstream_cache_namespace,
 };
-use axum::response::{IntoResponse, Response};
+use axum::response::{
+    IntoResponse,
+    Response,
+};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_registry::{Ecosystem, Registry};
+use pnpr_registry::{
+    Ecosystem,
+    Registry,
+};
 use pnpr_storage::streaming;
-use pnpr_upstream::{FetchOutcome, FetchedDocument, Upstream};
-use sha2::{Digest, Sha256};
-use ssri::{Algorithm, Integrity};
+use pnpr_upstream::{
+    FetchOutcome,
+    FetchedDocument,
+    Upstream,
+};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
 use std::sync::Arc;
 
 /// The registry a request addressed: the `~<name>` it named, else the

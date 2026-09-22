@@ -1,6 +1,20 @@
 use super::{
-    AuthState, Body, Request, ServiceExt, StatusCode, TempDir, Value, body_bytes, cargo_config,
-    crate_archive, header, json, metadata, publish_body, publish_request, router_with_auth,
+    AuthState,
+    Body,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    Value,
+    body_bytes,
+    cargo_config,
+    crate_archive,
+    header,
+    json,
+    metadata,
+    publish_body,
+    publish_request,
+    router_with_auth,
 };
 
 #[tokio::test]
@@ -91,7 +105,12 @@ async fn search_lists_hosted_crates_by_newest_version_and_description() {
 
 #[tokio::test]
 async fn cargo_advertises_auth_for_package_specific_private_access() {
-    use pnpr::{AccessList, Ecosystem, PackagePattern, PackageRule};
+    use pnpr::{
+        AccessList,
+        Ecosystem,
+        PackagePattern,
+        PackageRule,
+    };
     let tmp = TempDir::new().unwrap();
     let mut config = cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all");
     config.routing.hosted

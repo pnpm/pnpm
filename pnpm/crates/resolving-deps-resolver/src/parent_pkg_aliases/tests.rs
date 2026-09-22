@@ -1,4 +1,7 @@
-use super::{ParentPkgAliases, peer_shadowed_dependencies};
+use super::{
+    ParentPkgAliases,
+    peer_shadowed_dependencies,
+};
 use rustc_hash::FxHashSet as HashSet;
 
 fn names<const COUNT: usize>(names: [&str; COUNT]) -> HashSet<String> {

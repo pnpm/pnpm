@@ -9,13 +9,33 @@ mod gh_actions_env;
 mod path_extender;
 
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
-use path_extender::{
-    AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderReport,
+use miette::{
+    Context,
+    IntoDiagnostic,
 };
-use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir};
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use std::{fs, path::Path, process::Command};
+use path_extender::{
+    AddDirToEnvPathOpts,
+    AddingPosition,
+    ConfigFileChangeType,
+    ConfigReport,
+    PathExtenderReport,
+};
+use pnpm_config::{
+    Host,
+    PNPM_VERSION,
+    default_pnpm_home_dir,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 #[derive(Debug, Args)]
 pub struct SetupArgs {

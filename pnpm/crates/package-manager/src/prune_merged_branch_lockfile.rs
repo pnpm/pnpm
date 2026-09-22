@@ -1,5 +1,12 @@
-use crate::fast_update_lockfile::{prune_unreachable_packages, recompute_optional_flags};
-use pnpm_lockfile::{Lockfile, ProjectSnapshot, prune_undeclared_importer_deps};
+use crate::fast_update_lockfile::{
+    prune_unreachable_packages,
+    recompute_optional_flags,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    ProjectSnapshot,
+    prune_undeclared_importer_deps,
+};
 use pnpm_package_manifest::PackageManifest;
 use std::collections::HashMap;
 

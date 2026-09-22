@@ -1,8 +1,14 @@
 use super::validate_virtual_store_slot_containment;
 use crate::VirtualStoreLayout;
 use miette::Diagnostic;
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
-use std::{collections::HashMap, path::PathBuf};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 fn assert_invalid_dependency_name_code(err: &pnpm_lockfile_verification::VerifyError) {
     let code = err.code().map(|code| code.to_string());

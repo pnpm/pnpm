@@ -2,25 +2,59 @@ pub mod terminal;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
-use pnpm_modules_yaml::{Host as ModulesHost, Modules, read_modules_manifest};
-use pnpm_store_dir::{CafsFileInfo, StoreDir, StoreIndex};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+    ProjectSnapshot,
+    SnapshotEntry,
+};
+use pnpm_modules_yaml::{
+    Host as ModulesHost,
+    Modules,
+    read_modules_manifest,
+};
+use pnpm_store_dir::{
+    CafsFileInfo,
+    StoreDir,
+    StoreIndex,
+};
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
     fs::is_symlink_or_junction,
 };
 use pnpm_workspace_state::WorkspaceState;
-use serde_json::{Map, Value, json};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     ffi::OsStr,
     fmt::Write as _,
     fs,
-    path::{Path, PathBuf},
-    process::{Child, Command, ExitStatus, Output},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Child,
+        Command,
+        ExitStatus,
+        Output,
+    },
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tempfile::TempDir;
 

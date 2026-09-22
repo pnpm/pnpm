@@ -1,6 +1,12 @@
-use crate::object_hasher::{digest_base64, serialize_str};
+use crate::object_hasher::{
+    digest_base64,
+    serialize_str,
+};
 use indexmap::IndexMap;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 pub const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX: &str = "dependency-side-effects:v1:";
 

@@ -1,7 +1,18 @@
 use super::{
-    Arc, AuthHeaders, BTreeMap, Config, DEFAULT_REGISTRY, DEFAULT_REGISTRY_SCOPE, HashMap,
-    LoadWorkspaceYamlError, NpmrcAuth, base64_encode, base64_encode_bytes, normalize_registry_url,
-    parse_token_helper_field, split_scope_from_uri,
+    Arc,
+    AuthHeaders,
+    BTreeMap,
+    Config,
+    DEFAULT_REGISTRY,
+    DEFAULT_REGISTRY_SCOPE,
+    HashMap,
+    LoadWorkspaceYamlError,
+    NpmrcAuth,
+    base64_encode,
+    base64_encode_bytes,
+    normalize_registry_url,
+    parse_token_helper_field,
+    split_scope_from_uri,
 };
 
 /// Raw (unparsed) credential fields for a given registry URI.

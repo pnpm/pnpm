@@ -1,15 +1,44 @@
-use crate::{State, cli_args::ignored_builds::get_automatically_ignored_builds};
+use crate::{
+    State,
+    cli_args::ignored_builds::get_automatically_ignored_builds,
+};
 use clap::Args;
-use derive_more::{Display, Error};
-use dialoguer::{Confirm, MultiSelect};
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_config::{Config, WorkspaceSettings, decided_allow_builds};
-use pnpm_modules_yaml::{Host, write_modules_manifest};
-use pnpm_package_manager::{allow_build_key_from_ignored_build, parse_allow_build_selector};
-use pnpm_reporter::{Reporter, emit_global_warning};
+use derive_more::{
+    Display,
+    Error,
+};
+use dialoguer::{
+    Confirm,
+    MultiSelect,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
+use pnpm_config::{
+    Config,
+    WorkspaceSettings,
+    decided_allow_builds,
+};
+use pnpm_modules_yaml::{
+    Host,
+    write_modules_manifest,
+};
+use pnpm_package_manager::{
+    allow_build_key_from_ignored_build,
+    parse_allow_build_selector,
+};
+use pnpm_reporter::{
+    Reporter,
+    emit_global_warning,
+};
 use pnpm_workspace_manifest_writer::set_allow_builds_clearing_legacy;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
     io::IsTerminal,
     path::Path,
 };

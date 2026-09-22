@@ -18,7 +18,11 @@
 //! grammar stays intact — trailing pass-through args (`run`, `exec`,
 //! `dlx`) and value-taking flags are unaffected.
 
-use clap::{Arg, ArgAction, Command};
+use clap::{
+    Arg,
+    ArgAction,
+    Command,
+};
 use std::collections::HashSet;
 
 /// Add a hidden `--no-<flag>` negation for every boolean flag in `cmd`

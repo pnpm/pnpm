@@ -13,7 +13,10 @@ use std::io;
 
 use pnpm_reporter::Reporter;
 
-use crate::{capabilities::RunCommand, global_log::global_warn};
+use crate::{
+    capabilities::RunCommand,
+    global_log::global_warn,
+};
 
 /// Run the `tokenHelper` command (`[cmd, ...args]`) and return its stdout as a
 /// bare token. Each non-empty stderr line is surfaced as a warning, and a

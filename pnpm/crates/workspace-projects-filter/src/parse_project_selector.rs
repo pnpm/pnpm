@@ -1,5 +1,8 @@
 use crate::path_util::lexical_join;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A single parsed `--filter` selector.
 ///

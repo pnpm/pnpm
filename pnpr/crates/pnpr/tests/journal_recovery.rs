@@ -8,16 +8,43 @@
 mod npm;
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use npm::{sha1_hex, sri_sha512};
-use pnpr::{Config, MaxUsers, recover_publish_journal, router};
-use serde_json::{Value, json};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use npm::{
+    sha1_hex,
+    sri_sha512,
+};
+use pnpr::{
+    Config,
+    MaxUsers,
+    recover_publish_journal,
+    router,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::{Path, PathBuf},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::TempDir;
 use tower::ServiceExt;

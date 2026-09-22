@@ -8,26 +8,53 @@
 
 pub(crate) use native_binary::link_exe_platform_binary;
 pub(super) use native_binary::{
-    exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, native_target_name,
+    exe_platform_pkg_dir_name,
+    exe_platform_pkg_dir_name_next,
+    native_target_name,
 };
 
 use super::SelfUpdateError;
-use crate::{State, cli_args::add::add_package, executable_link::replace_executable};
-use miette::{Context, IntoDiagnostic};
-
-use pnpm_config::{Config, NodeLinker, PackageManagerBootstrap};
-use pnpm_global::{
-    GlobalPackageInfo, clean_orphaned_install_dirs, create_install_dir, scan_global_packages,
+use crate::{
+    State,
+    cli_args::add::add_package,
+    executable_link::replace_executable,
 };
-use pnpm_graph_hasher::{format_global_virtual_store_path, host_arch, host_libc, host_platform};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+
+use pnpm_config::{
+    Config,
+    NodeLinker,
+    PackageManagerBootstrap,
+};
+use pnpm_global::{
+    GlobalPackageInfo,
+    clean_orphaned_install_dirs,
+    create_install_dir,
+    scan_global_packages,
+};
+use pnpm_graph_hasher::{
+    format_global_virtual_store_path,
+    host_arch,
+    host_libc,
+    host_platform,
+};
 use pnpm_package_is_installable::SupportedArchitectures;
-use pnpm_package_manifest::{DependencyGroup, parse_manifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    parse_manifest,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use serde_json::Value;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 

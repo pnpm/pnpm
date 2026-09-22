@@ -1,4 +1,12 @@
-use super::{TINY_BACKEND, project, python, python_project, serve, serve_backends, wheel};
+use super::{
+    TINY_BACKEND,
+    project,
+    python,
+    python_project,
+    serve,
+    serve_backends,
+    wheel,
+};
 use assert_cmd::prelude::*;
 use std::fs;
 

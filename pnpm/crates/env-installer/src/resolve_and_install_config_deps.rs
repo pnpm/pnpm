@@ -16,15 +16,31 @@ use crate::{
     parse_integrity::parse_integrity,
     prune::prune_env_lockfile,
     resolve_optional_subdeps::resolve_optional_subdeps,
-    verify_env_lockfile::{assert_valid_migrated_config_dep, write_verified_env_lockfile},
+    verify_env_lockfile::{
+        assert_valid_migrated_config_dep,
+        write_verified_env_lockfile,
+    },
 };
 use pnpm_lockfile::{
-    EnvLockfile, LockfileFormOptions, LockfileResolution, PackageKey, PackageMetadata,
-    SnapshotEntry, SpecifierAndResolution, TarballResolution,
+    EnvLockfile,
+    LockfileFormOptions,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
+    SpecifierAndResolution,
+    TarballResolution,
 };
 use pnpm_reporter::Reporter;
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
-use pnpm_workspace_state::{ConfigDependency, ConfigDependencyDetail};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    Resolver,
+    WantedDependency,
+};
+use pnpm_workspace_state::{
+    ConfigDependency,
+    ConfigDependencyDetail,
+};
 use ssri::Integrity;
 use std::collections::BTreeMap;
 

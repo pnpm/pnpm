@@ -1,6 +1,16 @@
 use super::{
-    CanonicalPackageName, Digest, ImageDocument, MAX_REFERRER_READ_BYTES, MAX_REFERRER_READS,
-    Manifest, ManifestEntry, ReferrerMetadata, Response, Serialize, query_param, registry_error,
+    CanonicalPackageName,
+    Digest,
+    ImageDocument,
+    MAX_REFERRER_READ_BYTES,
+    MAX_REFERRER_READS,
+    Manifest,
+    ManifestEntry,
+    ReferrerMetadata,
+    Response,
+    Serialize,
+    query_param,
+    registry_error,
 };
 
 #[derive(Serialize)]

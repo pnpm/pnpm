@@ -9,15 +9,26 @@ use flate2::read::GzDecoder;
 use futures_util::StreamExt;
 use miette::IntoDiagnostic;
 use pnpm_config::Config;
-use pnpm_network::{ThrottledClient, encode_package_name, redact_url_credentials};
+use pnpm_network::{
+    ThrottledClient,
+    encode_package_name,
+    redact_url_credentials,
+};
 use pnpm_registry::Package;
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use pnpm_versioning::{
-    ChangelogStorage, ReleasePlan, changelog_storage, list_pending_changelogs,
-    read_pending_changelog, render_changelog,
+    ChangelogStorage,
+    ReleasePlan,
+    changelog_storage,
+    list_pending_changelogs,
+    read_pending_changelog,
+    render_changelog,
 };
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     io::Read,
     path::Path,
 };

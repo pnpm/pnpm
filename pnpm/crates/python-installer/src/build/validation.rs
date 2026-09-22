@@ -1,8 +1,18 @@
-use super::{Manifest, host};
-use miette::{IntoDiagnostic, Result, bail};
+use super::{
+    Manifest,
+    host,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    bail,
+};
 use pep508_rs::PackageName;
 use pnpm_python_resolver::parse_requirement;
-use std::{collections::BTreeSet, path::Path};
+use std::{
+    collections::BTreeSet,
+    path::Path,
+};
 
 /// Refuse a wheel that is not the project it was built from. It must
 /// preserve the manifest's identity and static requirements; a source

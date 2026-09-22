@@ -1,10 +1,26 @@
 use super::{
-    super::{LockfileToHoistedDepGraphOptions, lockfile_to_hoisted_dep_graph},
-    dep_key, lockfile_version, lockfile_with, metadata_stub, pkg_name, resolved_dep,
+    super::{
+        LockfileToHoistedDepGraphOptions,
+        lockfile_to_hoisted_dep_graph,
+    },
+    dep_key,
+    lockfile_version,
+    lockfile_with,
+    metadata_stub,
+    pkg_name,
+    resolved_dep,
 };
-use pnpm_lockfile::{Lockfile, LockfileSettings, ResolvedDependencyMap, SnapshotEntry};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileSettings,
+    ResolvedDependencyMap,
+    SnapshotEntry,
+};
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 /// Mirrors the `empty_lockfile_yields_empty_root` case from the hoister.
 #[test]

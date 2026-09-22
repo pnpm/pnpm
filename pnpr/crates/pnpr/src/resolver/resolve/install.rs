@@ -1,6 +1,15 @@
 use super::{
-    Arc, AuthHeaders, Config, DependencyGroup, Install, PackageManifest, Path, ResolutionObserver,
-    ResolveRequest, ResolvedPackages, ThrottledClient,
+    Arc,
+    AuthHeaders,
+    Config,
+    DependencyGroup,
+    Install,
+    PackageManifest,
+    Path,
+    ResolutionObserver,
+    ResolveRequest,
+    ResolvedPackages,
+    ThrottledClient,
 };
 use pnpm_config::NodeLinker;
 use pnpm_tarball::MemCache;

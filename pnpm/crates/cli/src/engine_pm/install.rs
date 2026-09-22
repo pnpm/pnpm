@@ -14,31 +14,65 @@
 
 use crate::{
     cli_args::self_update::{
-        install_pnpm::{link_exe_platform_binary, package_dir, run_install},
-        verify_engine::{EngineToVerify, PlatformBinaries, verify_engine_identity},
+        install_pnpm::{
+            link_exe_platform_binary,
+            package_dir,
+            run_install,
+        },
+        verify_engine::{
+            EngineToVerify,
+            PlatformBinaries,
+            verify_engine_identity,
+        },
     },
     config_deps,
     engine_pm::{
-        channel::{EnginePackages, PackageManager},
+        channel::{
+            EnginePackages,
+            PackageManager,
+        },
         error::EngineError,
     },
 };
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_cmd_shim::{
-    Host as CmdShimHost, LinkBinsOptions, PackageBinSource, link_bins_of_packages,
+    Host as CmdShimHost,
+    LinkBinsOptions,
+    PackageBinSource,
+    link_bins_of_packages,
 };
 use pnpm_config::Config;
 use pnpm_fs::DirLock;
-use pnpm_graph_hasher::{detect_node_major, engine_name};
-use pnpm_lockfile::{EnvLockfile, PackageKey};
-use pnpm_package_manager::{AllowBuildPolicy, VirtualStoreLayout};
+use pnpm_graph_hasher::{
+    detect_node_major,
+    engine_name,
+};
+use pnpm_lockfile::{
+    EnvLockfile,
+    PackageKey,
+};
+use pnpm_package_manager::{
+    AllowBuildPolicy,
+    VirtualStoreLayout,
+};
 use pnpm_package_manifest::parse_manifest;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use pnpm_store_dir::StoreDir;
 use serde_json::Value;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::Duration,
 };
@@ -421,7 +455,10 @@ fn remove_dir_if_not_symlink(path: &Path) -> std::io::Result<()> {
 /// A best-effort unique component for the temporary install directory
 /// name, so concurrent `pnpm with` invocations don't collide.
 fn unique_suffix() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::{
+        SystemTime,
+        UNIX_EPOCH,
+    };
     let nanos =
         SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_nanos());
     format!("{}-{nanos}", std::process::id())

@@ -1,5 +1,8 @@
 use crate::version_policy::{
-    PolicyMatch, VersionPolicyError, create_package_version_policy, expand_package_version_specs,
+    PolicyMatch,
+    VersionPolicyError,
+    create_package_version_policy,
+    expand_package_version_specs,
     merge_package_version_specs,
 };
 use pretty_assertions::assert_eq;

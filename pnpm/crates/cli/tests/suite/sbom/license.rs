@@ -1,5 +1,12 @@
-use super::{copy_fixture, pacquet, parse_sbom_output};
-use std::{fs, path::Path};
+use super::{
+    copy_fixture,
+    pacquet,
+    parse_sbom_output,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 const SPEC_VERSIONS: [&str; 3] = ["1.5", "1.6", "1.7"];
 

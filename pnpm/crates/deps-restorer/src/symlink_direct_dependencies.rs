@@ -4,20 +4,48 @@ mod report;
 use report::emit_root_added;
 
 mod resolve;
-use resolve::{ResolvedEntry, collect_resolved_entries, collect_resolved_targets};
+use resolve::{
+    ResolvedEntry,
+    collect_resolved_entries,
+    collect_resolved_targets,
+};
 
-use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, symlink_package};
-use derive_more::{Display, Error};
+use crate::{
+    SkippedSnapshots,
+    SymlinkPackageError,
+    VirtualStoreLayout,
+    symlink_package,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
-use pnpm_lockfile::{ImporterDepVersion, PackageKey, PackageMetadata, PkgName, ProjectSnapshot};
+use pnpm_cmd_shim::{
+    LinkBinsError,
+    LinkBinsOptions,
+};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    ProjectSnapshot,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     ffi::OsStr,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Create the `node_modules/` symlinks for every importer in the lockfile.

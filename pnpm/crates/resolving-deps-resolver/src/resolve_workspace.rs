@@ -15,28 +15,58 @@
 //! at a time. The peer-walker share captures the hot path; the
 //! resolved-pkgs share is a follow-up perf win.
 
-pub use dependencies::{ResolvedWorkspaceDependencies, resolve_workspace_dependencies};
+pub use dependencies::{
+    ResolvedWorkspaceDependencies,
+    resolve_workspace_dependencies,
+};
 
 mod dependencies;
 mod time_based;
-use time_based::{TimeBasedCutoff, time_cutoff};
+use time_based::{
+    TimeBasedCutoff,
+    time_cutoff,
+};
 
 use crate::{
     resolve_dependency_tree::{
-        UpdateDepth, UpdateReuseScope, WorkspaceTreeCtx, importer_direct_wanted_specs,
+        UpdateDepth,
+        UpdateReuseScope,
+        WorkspaceTreeCtx,
+        importer_direct_wanted_specs,
     },
-    resolve_importer::{ImporterHoistState, ResolveImporterError, ResolveImporterOptions},
+    resolve_importer::{
+        ImporterHoistState,
+        ResolveImporterError,
+        ResolveImporterOptions,
+    },
     resolve_peers::{
-        ImporterPeerInput, PeerHoistDiscovery, ResolvePeersOptions, WorkspaceResolvePeersResult,
+        ImporterPeerInput,
+        PeerHoistDiscovery,
+        ResolvePeersOptions,
+        WorkspaceResolvePeersResult,
         resolve_peers_workspace,
     },
     resolved_tree::ResolvedTree,
 };
-use chrono::{DateTime, Duration, Utc};
+use chrono::{
+    DateTime,
+    Duration,
+    Utc,
+};
 use pnpm_lockfile::RegistryContext;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_resolving_resolver_base::{Resolver, parse_packument_timestamp};
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_resolving_resolver_base::{
+    Resolver,
+    parse_packument_timestamp,
+};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    sync::Arc,
+};
 
 /// One importer's input to [`fn@resolve_workspace`].
 pub struct WorkspaceImporter<'a> {

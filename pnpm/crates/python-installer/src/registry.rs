@@ -1,15 +1,46 @@
-use super::{Index, host, host::Interpreter, host::Wheel, host::WheelMetadata};
-use futures_util::{StreamExt, stream};
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use super::{
+    Index,
+    host,
+    host::{
+        Interpreter,
+        Wheel,
+        WheelMetadata,
+    },
+};
+use futures_util::{
+    StreamExt,
+    stream,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use pep440_rs::Version;
 use pep508_rs::PackageName;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_python_resolver::{Excluded, LockedWheel, Packages, Target, candidates_from_page};
+use pnpm_python_resolver::{
+    Excluded,
+    LockedWheel,
+    Packages,
+    Target,
+    candidates_from_page,
+};
 use pnpm_reporter::Reporter;
-use pnpm_tarball::{ArchiveStoreProjection, IngestZipArchiveToStore};
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use pnpm_tarball::{
+    ArchiveStoreProjection,
+    IngestZipArchiveToStore,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 use url::Url;
 
 const MAX_INDEX_BYTES: usize = 64 * 1024 * 1024;

@@ -1,6 +1,12 @@
 use crate::Digest;
-use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, collections::HashSet};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::{
+    cmp::Ordering,
+    collections::HashSet,
+};
 
 /// One manifest the repository holds, keyed by the digest of its bytes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,9 +1,18 @@
 //! Read a project's package manifest.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_package_manifest::{PackageManifest, PackageManifestError};
-use std::path::{Path, PathBuf};
+use pnpm_package_manifest::{
+    PackageManifest,
+    PackageManifestError,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 pub(crate) const PROJECT_MANIFEST_BASENAMES: &[&str] = &["package.json", "package.yaml"];
 

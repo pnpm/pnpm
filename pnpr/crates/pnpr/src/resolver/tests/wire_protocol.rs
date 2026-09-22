@@ -1,9 +1,27 @@
 use super::{
-    AllowAllVersions, Arc, Duration, HashMap, Identity, Mutex, ResolveRequest, RouteContext,
-    cached_resolution, config, config_for_registry, lockfile, lockfile_tarball_url,
-    lockfile_with_tarball, private_alias_footprint, public_registry_config, registry_config,
-    reject_inline_url_auth, store_resolution, tarball_router, tarball_router_with_registries,
-    upstream_with_access, user,
+    AllowAllVersions,
+    Arc,
+    Duration,
+    HashMap,
+    Identity,
+    Mutex,
+    ResolveRequest,
+    RouteContext,
+    cached_resolution,
+    config,
+    config_for_registry,
+    lockfile,
+    lockfile_tarball_url,
+    lockfile_with_tarball,
+    private_alias_footprint,
+    public_registry_config,
+    registry_config,
+    reject_inline_url_auth,
+    store_resolution,
+    tarball_router,
+    tarball_router_with_registries,
+    upstream_with_access,
+    user,
 };
 
 #[test]
@@ -66,7 +84,10 @@ fn private_cached_resolution_keeps_routed_tarball_urls() {
 
 #[test]
 fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
-    use pnpm_package_manager::{ResolutionObserver, ResolvedPackageHint};
+    use pnpm_package_manager::{
+        ResolutionObserver,
+        ResolvedPackageHint,
+    };
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let registry = public_registry_config("https://r.test/");
@@ -211,7 +232,10 @@ fn package_frame_strips_signed_token_from_public_registry_tarball() {
 #[test]
 fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
     use pnpm_lockfile::Lockfile;
-    use pnpm_resolving_npm_resolver::{DistStats, observed_dist_stats_sink};
+    use pnpm_resolving_npm_resolver::{
+        DistStats,
+        observed_dist_stats_sink,
+    };
 
     let lockfile: Lockfile = serde_json::from_value(serde_json::json!({
         "lockfileVersion": "9.0",
@@ -283,7 +307,10 @@ fn frozen_package_frames_route_private_alias_tarballs_to_gateway() {
 
 #[test]
 fn osv_checkable_tarball_does_not_trust_git_hosted_flag_or_strict_url_parsing() {
-    use pnpm_lockfile::{LockfileResolution, TarballResolution};
+    use pnpm_lockfile::{
+        LockfileResolution,
+        TarballResolution,
+    };
 
     let tarball = |url: &str, git_hosted: Option<bool>| {
         LockfileResolution::Tarball(TarballResolution {

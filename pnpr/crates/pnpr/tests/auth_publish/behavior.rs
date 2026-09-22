@@ -1,6 +1,20 @@
 use super::{
-    Body, Config, Request, ServiceExt, StatusCode, TempDir, Value, add_user_and_get_token,
-    body_bytes, body_json, common, json, publish_doc, router, sri_sha512, static_config,
+    Body,
+    Config,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    Value,
+    add_user_and_get_token,
+    body_bytes,
+    body_json,
+    common,
+    json,
+    publish_doc,
+    router,
+    sri_sha512,
+    static_config,
 };
 
 #[tokio::test]
@@ -436,7 +450,11 @@ async fn search_returns_empty_for_made_up_query() {
 #[tokio::test]
 async fn search_augment_skips_when_upstream_404s() {
     use std::{
-        net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+        net::{
+            Ipv4Addr,
+            SocketAddr,
+            SocketAddrV4,
+        },
         time::Duration,
     };
 

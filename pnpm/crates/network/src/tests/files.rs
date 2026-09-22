@@ -1,5 +1,10 @@
 use super::{
-    NetworkSettings, PerRegistryTls, ProxyConfig, TEST_CLIENT_PKCS1_KEY, ThrottledClient, TlsConfig,
+    NetworkSettings,
+    PerRegistryTls,
+    ProxyConfig,
+    TEST_CLIENT_PKCS1_KEY,
+    ThrottledClient,
+    TlsConfig,
 };
 
 #[test]

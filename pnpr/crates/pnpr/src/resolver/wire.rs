@@ -2,26 +2,49 @@ pub(super) use tarball_router::TarballRouter;
 
 mod tarball_router;
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 use axum::{
     body::Body,
-    http::{StatusCode, header},
+    http::{
+        StatusCode,
+        header,
+    },
     response::Response,
 };
 use pnpm_config::Config as PacquetConfig;
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageKey, PackageMetadata, TarballResolution, TarballRevision,
-    is_git_hosted_tarball_url, pick_registry_for_package,
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    TarballResolution,
+    TarballRevision,
+    is_git_hosted_tarball_url,
+    pick_registry_for_package,
 };
-use pnpm_package_manager::{ResolvedPackageHint, tarball_url_and_integrity};
+use pnpm_package_manager::{
+    ResolvedPackageHint,
+    tarball_url_and_integrity,
+};
 use pnpm_resolving_npm_resolver::ObservedDistStats;
 use pnpm_resolving_resolver_base::PackageVersionGuard;
 
-use pnpr_osv::{OsvIndex, format_advisory_ids};
+use pnpr_osv::{
+    OsvIndex,
+    format_advisory_ids,
+};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_route::{RouteClass, RouteContext, sanitize_registry_tarball_url, strip_url_credentials};
+use pnpr_route::{
+    RouteClass,
+    RouteContext,
+    sanitize_registry_tarball_url,
+    strip_url_credentials,
+};
 use pnpr_upstream::tarball_basename;
 
 /// NDJSON content type for the `/-/pnpr/v0/resolve` response. One JSON object

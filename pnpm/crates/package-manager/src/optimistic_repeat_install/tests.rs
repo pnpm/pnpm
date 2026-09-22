@@ -23,22 +23,44 @@ mod hooks;
 mod in_memory_manifests;
 
 use super::{
-    Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
-    deps_status::{RunDepsStatus, check_deps_status_before_run},
+    Decision,
+    OptimisticRepeatInstallCheck,
+    check_optimistic_repeat_install,
+    deps_status::{
+        RunDepsStatus,
+        check_deps_status_before_run,
+    },
     settings::current_settings,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::{MTIME_STEP_MS, backdate_existing_files, set_mtime, set_mtime_ms};
+use pnpm_testing_utils::fs::{
+    MTIME_STEP_MS,
+    backdate_existing_files,
+    set_mtime,
+    set_mtime_ms,
+};
 use pnpm_workspace_state::{
-    ProjectEntry, WorkspaceState, WorkspaceStateSettings, load_workspace_state,
+    ProjectEntry,
+    WorkspaceState,
+    WorkspaceStateSettings,
+    load_workspace_state,
     update_workspace_state,
 };
-use ssri::{Algorithm, IntegrityOpts};
-use std::{collections::BTreeMap, fs};
+use ssri::{
+    Algorithm,
+    IntegrityOpts,
+};
+use std::{
+    collections::BTreeMap,
+    fs,
+};
 use tempfile::tempdir;
 
 fn isolated_included() -> IncludedDependencies {

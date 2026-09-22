@@ -1,5 +1,13 @@
 use super::{
-    Component, PatchError, PatchTarget, Path, PathBuf, fs, io, is_subdir, lexical_normalize,
+    Component,
+    PatchError,
+    PatchTarget,
+    Path,
+    PathBuf,
+    fs,
+    io,
+    is_subdir,
+    lexical_normalize,
 };
 
 pub(super) fn resolve_path(dir: &Path, path: &Path) -> PathBuf {

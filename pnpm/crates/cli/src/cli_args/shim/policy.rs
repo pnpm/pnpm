@@ -13,17 +13,34 @@
 //! - a removal never switches a shim *on*, which clearing the entry that
 //!   holds back a built-in shim would do.
 
-use crate::{cli_args::shim::ShimError, engine_pm::channel::PackageManager};
-use miette::{Context, IntoDiagnostic};
+use crate::{
+    cli_args::shim::ShimError,
+    engine_pm::channel::PackageManager,
+};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::{
-    Config, GLOBAL_CONFIG_YAML_FILENAME, GlobalShims, GlobalShimsSetting, Host, NamedShimPolicy,
-    ShimPolicy, ShimPolicyValue, WorkspaceSettings, default_config_dir,
+    Config,
+    GLOBAL_CONFIG_YAML_FILENAME,
+    GlobalShims,
+    GlobalShimsSetting,
+    Host,
+    NamedShimPolicy,
+    ShimPolicy,
+    ShimPolicyValue,
+    WorkspaceSettings,
+    default_config_dir,
 };
 use pnpm_workspace_manifest_writer::update_manifest_field;
 use std::{
     collections::BTreeSet,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Record (or clear) `package`'s entry in the global `config.yaml`'s

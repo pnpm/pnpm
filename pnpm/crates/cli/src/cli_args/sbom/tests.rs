@@ -1,14 +1,30 @@
 use super::{
-    LockfileResolution, base64_to_hex, build_purl, classify_license, confined_importer_dir,
-    extract_author, extract_repository, integrity_string, normalize_link_path,
-    peer_names_from_manifest, platform_incompatible_optional,
+    LockfileResolution,
+    base64_to_hex,
+    build_purl,
+    classify_license,
+    confined_importer_dir,
+    extract_author,
+    extract_repository,
+    integrity_string,
+    normalize_link_path,
+    peer_names_from_manifest,
+    platform_incompatible_optional,
 };
 use crate::cli_args::sbom::{
     cyclonedx::split_scoped_name,
-    metadata::{encode_purl_name, extract_bugs_url, url_without_credentials},
+    metadata::{
+        encode_purl_name,
+        extract_bugs_url,
+        url_without_credentials,
+    },
     spdx::sanitize_spdx_id,
 };
-use pnpm_lockfile::{PackageMetadata, RegistryResolution, StringOrList};
+use pnpm_lockfile::{
+    PackageMetadata,
+    RegistryResolution,
+    StringOrList,
+};
 use pnpm_package_is_installable::InstallabilityOptions;
 
 fn registry_package(

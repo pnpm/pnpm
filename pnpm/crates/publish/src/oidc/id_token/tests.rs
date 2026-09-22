@@ -1,6 +1,17 @@
-use super::{GetIdTokenError, IdTokenError, get_id_token};
+use super::{
+    GetIdTokenError,
+    IdTokenError,
+    get_id_token,
+};
 use crate::{
-    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+        OidcFetchError,
+        OidcRequest,
+        OidcResponse,
+    },
     oidc::OidcHttpOptions,
 };
 use pnpm_reporter::SilentReporter;

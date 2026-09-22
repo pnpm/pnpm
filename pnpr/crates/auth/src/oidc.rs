@@ -3,40 +3,95 @@ mod workload_verification;
 mod sessions;
 
 mod provider_config;
-use provider_config::{build_providers, secure_url};
+use provider_config::{
+    build_providers,
+    secure_url,
+};
 
 mod workload;
 use workload::{
-    bound_user, match_workload_binding, token_payload, token_verifier, verify_workload,
+    bound_user,
+    match_workload_binding,
+    token_payload,
+    token_verifier,
+    verify_workload,
 };
 
 mod network;
 
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE_NO_PAD};
+use base64::{
+    Engine as _,
+    engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE_NO_PAD,
+};
 use chrono::Utc;
 use openidconnect::{
-    AccessTokenHash, AuthType, AuthorizationCode, ClientId, ClientSecret, CsrfToken,
-    EndpointMaybeSet, EndpointNotSet, EndpointSet, HttpRequest, HttpResponse, IssuerUrl, Nonce,
-    OAuth2TokenResponse, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, TokenResponse,
+    AccessTokenHash,
+    AuthType,
+    AuthorizationCode,
+    ClientId,
+    ClientSecret,
+    CsrfToken,
+    EndpointMaybeSet,
+    EndpointNotSet,
+    EndpointSet,
+    HttpRequest,
+    HttpResponse,
+    IssuerUrl,
+    Nonce,
+    OAuth2TokenResponse,
+    PkceCodeChallenge,
+    PkceCodeVerifier,
+    RedirectUrl,
+    TokenResponse,
     core::{
-        CoreAuthenticationFlow, CoreClient, CoreClientAuthMethod, CoreIdToken, CoreIdTokenVerifier,
-        CoreJwsSigningAlgorithm, CoreProviderMetadata, CoreTokenResponse,
+        CoreAuthenticationFlow,
+        CoreClient,
+        CoreClientAuthMethod,
+        CoreIdToken,
+        CoreIdTokenVerifier,
+        CoreJwsSigningAlgorithm,
+        CoreProviderMetadata,
+        CoreTokenResponse,
     },
 };
 use p256::ecdsa::{
-    Signature, SigningKey,
-    signature::{Signer as _, Verifier as _},
+    Signature,
+    SigningKey,
+    signature::{
+        Signer as _,
+        Verifier as _,
+    },
 };
-use pnpr_config::oidc::{OidcBinding, OidcProvider, OidcWorkload};
-use pnpr_error::{RegistryError, Result};
-use serde::{Deserialize, Serialize};
+use pnpr_config::oidc::{
+    OidcBinding,
+    OidcProvider,
+    OidcWorkload,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value;
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{
+        HashMap,
+        HashSet,
+        VecDeque,
+    },
     sync::Mutex,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
-use tokio::sync::{Mutex as AsyncMutex, Semaphore};
+use tokio::sync::{
+    Mutex as AsyncMutex,
+    Semaphore,
+};
 use url::Url;
 
 const MAX_ENTRIES: usize = 1024;

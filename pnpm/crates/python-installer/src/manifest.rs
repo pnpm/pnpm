@@ -2,13 +2,24 @@ mod metadata;
 mod selection;
 use selection::Pnpm;
 
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use pep440_rs::Version;
-use pep508_rs::{PackageName, Requirement};
+use pep508_rs::{
+    PackageName,
+    Requirement,
+};
 use pnpm_python_resolver::parse_requirement;
 use serde::Deserialize;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fmt::Write as _,
     path::Path,
 };

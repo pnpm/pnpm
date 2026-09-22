@@ -1,11 +1,25 @@
-use super::{TaskRunExecutionSettings, TaskRunStateContext, task_run_execution_settings};
+use super::{
+    TaskRunExecutionSettings,
+    TaskRunStateContext,
+    task_run_execution_settings,
+};
 use indexmap::IndexMap;
-use pnpm_workspace_task_scheduler::{TaskGraph, TaskKey, TaskNode};
+use pnpm_workspace_task_scheduler::{
+    TaskGraph,
+    TaskKey,
+    TaskNode,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fs,
     io::Write as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[test]

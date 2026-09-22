@@ -1,5 +1,13 @@
 use super::{
-    HashMap, IndexMap, LazyLock, Mutex, PacquetConfig, Path, PathBuf, ResolveRequest, StoreDir,
+    HashMap,
+    IndexMap,
+    LazyLock,
+    Mutex,
+    PacquetConfig,
+    Path,
+    PathBuf,
+    ResolveRequest,
+    StoreDir,
 };
 
 /// Hard cap on how many distinct client configurations the server will

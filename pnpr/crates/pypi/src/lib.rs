@@ -12,12 +12,25 @@ pub mod multipart;
 
 pub use pnpr_package_name::PythonNameError as NameError;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use pep440_rs::Version;
 use pnpr_package_name::canonicalize_python_name;
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
-use std::{collections::BTreeMap, fmt::Write as _, str::FromStr};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    collections::BTreeMap,
+    fmt::Write as _,
+    str::FromStr,
+};
 
 /// The URL segment under a registry endpoint where the Simple API lives:
 /// `/~<name>/simple/`, `/~<name>/simple/<project>/`.

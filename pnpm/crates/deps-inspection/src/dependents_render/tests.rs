@@ -2,10 +2,16 @@ use pretty_assertions::assert_eq;
 use serde_json::Value;
 
 use super::{
-    RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
+    RenderDependentsOptions,
+    render_dependents_json,
+    render_dependents_parseable,
     render_dependents_tree,
 };
-use crate::dependents::{DepField, DependentNode, DependentsTree};
+use crate::dependents::{
+    DepField,
+    DependentNode,
+    DependentsTree,
+};
 
 fn tree(name: &str, version: &str, dependents: Vec<DependentNode>) -> DependentsTree {
     DependentsTree {

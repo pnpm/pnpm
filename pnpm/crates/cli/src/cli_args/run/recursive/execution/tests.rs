@@ -1,5 +1,13 @@
-use super::{ProcessTracker, RunProjectProcess, ScriptBudget, start_script};
-use std::sync::atomic::{AtomicBool, Ordering};
+use super::{
+    ProcessTracker,
+    RunProjectProcess,
+    ScriptBudget,
+    start_script,
+};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 /// The run settings [`start_script`] reads.
 fn queued_script<'a>(

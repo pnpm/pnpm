@@ -1,16 +1,31 @@
 use super::{
-    empty_lockfile, importer_link, importer_map, include_all, key, package_metadata, pkg,
-    snapshot_with_deps, ver,
+    empty_lockfile,
+    importer_link,
+    importer_map,
+    include_all,
+    key,
+    package_metadata,
+    pkg,
+    snapshot_with_deps,
+    ver,
 };
 use crate::SkippedSnapshots;
 use pnpm_lockfile::{
-    ImporterDepVersion, Lockfile, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
-    SnapshotDepRef, SnapshotEntry,
+    ImporterDepVersion,
+    Lockfile,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
 use pnpm_modules_yaml::IncludedDependencies;
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
 };
 

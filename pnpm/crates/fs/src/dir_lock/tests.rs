@@ -1,5 +1,10 @@
 use super::DirLock;
-use std::{fs, io, thread::sleep, time::Duration};
+use std::{
+    fs,
+    io,
+    thread::sleep,
+    time::Duration,
+};
 use tempfile::tempdir;
 
 /// How long the tests age a lock before declaring it abandoned, and the

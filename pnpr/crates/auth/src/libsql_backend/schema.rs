@@ -1,5 +1,11 @@
 use super::{
-    Connection, Duration, LibsqlError, RegistryError, Result, TransactionBehavior, params,
+    Connection,
+    Duration,
+    LibsqlError,
+    RegistryError,
+    Result,
+    TransactionBehavior,
+    params,
 };
 
 /// Take one slot of the capped user counter, reporting whether the cap left

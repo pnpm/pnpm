@@ -16,12 +16,27 @@
 pub(crate) use manifest::auto_installed_peer_deps;
 pub use manifest::satisfies_package_manifest;
 
-use crate::{Lockfile, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
-use derive_more::{Display, Error};
+use crate::{
+    Lockfile,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use pnpm_catalogs_types::Catalogs;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashMap,
+};
 
 #[derive(Clone, Copy)]
 pub struct LockfileSettingsCheck<'a> {

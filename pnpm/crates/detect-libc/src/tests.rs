@@ -1,6 +1,11 @@
 #[cfg(target_os = "linux")]
 use super::detect;
-use super::{Implementation, host_arch, host_platform, is_linux};
+use super::{
+    Implementation,
+    host_arch,
+    host_platform,
+    is_linux,
+};
 
 #[test]
 fn detect_non_linux() {

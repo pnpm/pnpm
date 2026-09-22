@@ -1,12 +1,27 @@
-use crate::{HookError, worker::NodeWorker};
+use crate::{
+    HookError,
+    worker::NodeWorker,
+};
 use async_trait::async_trait;
 use serde_json::Value;
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+};
 use tokio::{
-    io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncWriteExt, BufReader},
+    io::{
+        AsyncBufRead,
+        AsyncBufReadExt,
+        AsyncRead,
+        AsyncWriteExt,
+        BufReader,
+    },
     process::Command,
     sync::OnceCell,
-    time::{Duration, timeout},
+    time::{
+        Duration,
+        timeout,
+    },
 };
 
 /// Runs `.pnpmfile.{cjs,js,mjs}` hooks via Node.js.
@@ -429,4 +444,8 @@ fn is_js_truthy(value: &Value) -> bool {
 mod tests;
 
 mod output;
-use output::{STDERR_TAIL_LIMIT, forward_hook_stdout, read_tail};
+use output::{
+    STDERR_TAIL_LIMIT,
+    forward_hook_stdout,
+    read_tail,
+};

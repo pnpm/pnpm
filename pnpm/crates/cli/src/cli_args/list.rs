@@ -7,23 +7,44 @@ mod recursive;
 use crate::cli_args::{
     deps_tree::{
         build::{
-            BuildTreeOptions, DependenciesHierarchy, LoadedState, build_dependencies_tree,
+            BuildTreeOptions,
+            DependenciesHierarchy,
+            LoadedState,
+            build_dependencies_tree,
             importer_root_ids,
         },
         get_tree::MaxDepth,
-        graph::{BuildGraphOptions, build_dependency_graph},
+        graph::{
+            BuildGraphOptions,
+            build_dependency_graph,
+        },
         search::Searcher,
     },
-    deps_tree_finders::{evaluate_finders, finder_candidates, resolve_finders},
+    deps_tree_finders::{
+        evaluate_finders,
+        finder_candidates,
+        resolve_finders,
+    },
     install::resolve_bool_override,
 };
 use clap::Args;
 use miette::IntoDiagnostic;
 use pnpm_config::Config;
-use pnpm_global::{ListReportAs, find_global_install_dirs, list_global_packages};
+use pnpm_global::{
+    ListReportAs,
+    find_global_install_dirs,
+    list_global_packages,
+};
 use pnpm_modules_yaml::IncludedDependencies;
-use render::{ProjectHierarchy, RenderParseableOptions, RenderTreeOptions};
-use std::path::{Path, PathBuf};
+use render::{
+    ProjectHierarchy,
+    RenderParseableOptions,
+    RenderTreeOptions,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum RecursionLimit {

@@ -4,8 +4,14 @@
 
 use std::collections::HashMap;
 
-use node_semver::{Range, Version};
-use pnpm_matcher::{Matcher, create_matcher};
+use node_semver::{
+    Range,
+    Version,
+};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
 
 use super::TreeNodeId;
 

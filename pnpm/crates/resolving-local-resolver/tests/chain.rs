@@ -2,10 +2,22 @@
 //! [`pnpm_resolving_default_resolver::DefaultResolver`] chain.
 
 use pnpm_lockfile::LockfileResolution;
-use pnpm_resolving_default_resolver::{DefaultResolver, SpecNotSupportedByAnyResolverError};
-use pnpm_resolving_local_resolver::{LocalResolver, LocalResolverContext};
-use pnpm_resolving_resolver_base::{ResolveOptions, WantedDependency};
-use std::{fs, path::PathBuf};
+use pnpm_resolving_default_resolver::{
+    DefaultResolver,
+    SpecNotSupportedByAnyResolverError,
+};
+use pnpm_resolving_local_resolver::{
+    LocalResolver,
+    LocalResolverContext,
+};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    WantedDependency,
+};
+use std::{
+    fs,
+    path::PathBuf,
+};
 use tempfile::TempDir;
 
 fn setup_project() -> (TempDir, PathBuf) {

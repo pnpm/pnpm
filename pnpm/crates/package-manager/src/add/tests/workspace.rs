@@ -1,12 +1,21 @@
 use super::{
-    super::selected_project_indices, dependency_specifier, empty_project,
-    saved_dependency_specifier, test_add,
+    super::selected_project_indices,
+    dependency_specifier,
+    empty_project,
+    saved_dependency_specifier,
+    test_add,
 };
 use crate::add::{
-    manifest::{persist_selected_manifests, prepare_selected_manifests},
+    manifest::{
+        persist_selected_manifests,
+        prepare_selected_manifests,
+    },
     specifier::workspace_save_specifier,
 };
-use pnpm_config::{Config, LinkWorkspacePackages};
+use pnpm_config::{
+    Config,
+    LinkWorkspacePackages,
+};
 use pnpm_network::ThrottledClient;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::SilentReporter;

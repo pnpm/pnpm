@@ -1,5 +1,9 @@
 use super::package_metadata;
-use pnpm_lockfile::{LockfileResolution, PackageKey, TarballResolution};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PackageKey,
+    TarballResolution,
+};
 use pretty_assertions::assert_eq;
 
 /// A lockfile that keeps a `file:` snapshot but drops or mismatches its

@@ -1,6 +1,16 @@
 use super::{
-    Config, EnvVar, NoEnv, NoProxySetting, NpmrcAuth, Path, RawCreds, TEST_CA_PEM, assert_eq,
-    base64_decode, base64_encode, default_auth_token,
+    Config,
+    EnvVar,
+    NoEnv,
+    NoProxySetting,
+    NpmrcAuth,
+    Path,
+    RawCreds,
+    TEST_CA_PEM,
+    assert_eq,
+    base64_decode,
+    base64_encode,
+    default_auth_token,
 };
 
 #[test]

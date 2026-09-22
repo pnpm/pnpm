@@ -1,17 +1,41 @@
-use super::{build_has_bin_set, pkg_dir_under, read_package};
+use super::{
+    build_has_bin_set,
+    pkg_dir_under,
+    read_package,
+};
 use crate::PackageManifests;
 use pnpm_cmd_shim::{
-    BinOrigin, Host, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache,
-    collect_packages_in_modules_dir, link_bins_of_packages, link_bins_of_packages_cached,
+    BinOrigin,
+    Host,
+    LinkBinsError,
+    LinkBinsOptions,
+    PackageBinSource,
+    ShimTargetCache,
+    collect_packages_in_modules_dir,
+    link_bins_of_packages,
+    link_bins_of_packages_cached,
 };
-use pnpm_config::{Config, NodeLinker};
-use pnpm_lockfile::{PackageKey, PackageMetadata};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+};
 use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use std::{
-    collections::{HashMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

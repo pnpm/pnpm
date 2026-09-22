@@ -1,13 +1,33 @@
 //! `pacquet search` — search for packages in the registry.
 
-use crate::cli_args::{registry_client::build_registry_client, sanitize::sanitize};
+use crate::cli_args::{
+    registry_client::build_registry_client,
+    sanitize::sanitize,
+};
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic, WrapErr};
-use owo_colors::{OwoColorize, Stream};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+    WrapErr,
+};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+};
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, redact_and_sanitize, send_with_retry};
-use serde::{Deserialize, Serialize};
+use pnpm_network::{
+    RetryOpts,
+    redact_and_sanitize,
+    send_with_retry,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::time::Duration;
 
 #[derive(Debug, Display, Error, Diagnostic)]

@@ -1,7 +1,18 @@
 use super::{
-    Config, EnvVar, HostNoHome, assert_eq, fs, load_with_project_and_user, tempdir, write_file,
+    Config,
+    EnvVar,
+    HostNoHome,
+    assert_eq,
+    fs,
+    load_with_project_and_user,
+    tempdir,
+    write_file,
 };
-use std::{collections::HashMap, ffi::OsStr, path::Path};
+use std::{
+    collections::HashMap,
+    ffi::OsStr,
+    path::Path,
+};
 
 /// A `\n`-escaped inline PEM — the only way to fit a certificate on one
 /// INI line — expands to real newlines whichever spelling declared it,

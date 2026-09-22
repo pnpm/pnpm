@@ -1,9 +1,19 @@
 //! Materialization of pinned runtimes into the trusted global virtual
 //! store, under configuration a project cannot influence.
 
-use crate::{State, cli_args::add::add_package};
-use miette::{Context, IntoDiagnostic};
-use pnpm_config::{Config, Host, NodeLinker};
+use crate::{
+    State,
+    cli_args::add::add_package,
+};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use pnpm_config::{
+    Config,
+    Host,
+    NodeLinker,
+};
 use pnpm_crypto_hash::create_hex_hash;
 use pnpm_fs::DirLock;
 use pnpm_package_manifest::DependencyGroup;
@@ -12,7 +22,10 @@ use pnpm_reporter::SilentReporter;
 use serde_json::Value;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Duration,
 };
 

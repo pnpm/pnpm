@@ -1,4 +1,9 @@
-use super::{Arc, DashMap, Package, Semaphore};
+use super::{
+    Arc,
+    DashMap,
+    Package,
+    Semaphore,
+};
 
 /// A cached packument together with its registry-verification state.
 /// The two travel as one value so a reader can never pair a packument

@@ -1,4 +1,11 @@
-use super::{AuthState, Config, Storage, StripedLocks, Upstream, compute_upstream_cache_namespace};
+use super::{
+    AuthState,
+    Config,
+    Storage,
+    StripedLocks,
+    Upstream,
+    compute_upstream_cache_namespace,
+};
 use indexmap::IndexMap;
 use pnpr_registry::Ecosystem;
 use std::sync::Arc;

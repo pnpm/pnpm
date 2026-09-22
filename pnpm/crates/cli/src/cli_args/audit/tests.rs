@@ -1,26 +1,69 @@
 use super::{
-    BTreeMap, Config, ConfigAuditLevel, GuardExhaustionPolicy, HashMap, MAX_PATHS_PER_FINDING,
-    PackageVersionGuard, PackageVersionGuardDecision, Range, SnapshotDepRef,
+    BTreeMap,
+    Config,
+    ConfigAuditLevel,
+    GuardExhaustionPolicy,
+    HashMap,
+    MAX_PATHS_PER_FINDING,
+    PackageVersionGuard,
+    PackageVersionGuardDecision,
+    Range,
+    SnapshotDepRef,
     filter_ignored_advisories,
     fix::{
-        PackumentPublishInfo, VulnerabilityGuard, create_overrides, filter_advisories_for_fix,
-        format_fix_with_update_output, minimum_release_age_excludes,
+        PackumentPublishInfo,
+        VulnerabilityGuard,
+        create_overrides,
+        filter_advisories_for_fix,
+        format_fix_with_update_output,
+        minimum_release_age_excludes,
     },
-    paths::{AuditPathIndex, PathInfo, build_audit_path_index},
-    render::{render_json_report, render_text_report},
+    paths::{
+        AuditPathIndex,
+        PathInfo,
+        build_audit_path_index,
+    },
+    render::{
+        render_json_report,
+        render_text_report,
+    },
     report::{
-        AuditAdvisory, AuditFinding, AuditMetadata, AuditReport, AuditVulnerabilityCounts, Cwe,
-        RawBulkAdvisory, bulk_response_to_audit_report, normalize_ghsa_id, redact_url_userinfo,
+        AuditAdvisory,
+        AuditFinding,
+        AuditMetadata,
+        AuditReport,
+        AuditVulnerabilityCounts,
+        Cwe,
+        RawBulkAdvisory,
+        bulk_response_to_audit_report,
+        normalize_ghsa_id,
+        redact_url_userinfo,
         sanitize_control_chars,
     },
-    request::{Include, lockfile_to_audit_request},
-    version_ranges::{caret_range_for_patched, satisfies_safe},
+    request::{
+        Include,
+        lockfile_to_audit_request,
+    },
+    version_ranges::{
+        caret_range_for_patched,
+        satisfies_safe,
+    },
 };
 use crate::cli_args::audit::fix::update::{
-    InstalledPackages, classify_for_update, report_fixed_remaining,
+    InstalledPackages,
+    classify_for_update,
+    report_fixed_remaining,
 };
-use chrono::{DateTime, Utc};
-use pnpm_lockfile::{EnvLockfile, Lockfile, SnapshotEntry, SpecifierAndResolution};
+use chrono::{
+    DateTime,
+    Utc,
+};
+use pnpm_lockfile::{
+    EnvLockfile,
+    Lockfile,
+    SnapshotEntry,
+    SpecifierAndResolution,
+};
 use pnpm_registry::RangeSpecStyle;
 use std::collections::HashSet;
 

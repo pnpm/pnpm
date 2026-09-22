@@ -17,38 +17,88 @@
 pub(super) mod overlay;
 
 pub use options::{
-    InstallOptions, NetworkConfigInput, NodeApiProject, PackageExtensionInput, PeerIssuesOptions,
+    InstallOptions,
+    NetworkConfigInput,
+    NodeApiProject,
+    PackageExtensionInput,
+    PeerIssuesOptions,
     ProxyConfigInput,
 };
 pub(crate) use overlay::install_http_client;
 pub use peer_issues::get_peer_dependency_issues;
 
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     net::IpAddr,
-    path::{Path, PathBuf},
-    sync::{Arc, OnceLock},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        OnceLock,
+    },
 };
 
 use indexmap::IndexMap;
 use napi_derive::napi;
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
-use pnpm_network::{NoProxySetting, ProxyConfig, ThrottledClient, TlsConfig};
+use pnpm_lockfile::{
+    LazyLockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_network::{
+    NoProxySetting,
+    ProxyConfig,
+    ThrottledClient,
+    TlsConfig,
+};
 use pnpm_package_manager::{
-    DepsRequiringBuildSink, Install, ProjectMutation, RebuildOptions, ResolvedPackages,
+    DepsRequiringBuildSink,
+    Install,
+    ProjectMutation,
+    RebuildOptions,
+    ResolvedPackages,
     UpdateSeedPolicy,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_tarball::MemCache;
 use tokio::sync::Mutex;
 
 use crate::{
-    config::{ConfigOverlay, resolve_config},
-    error::{invalid_manifest_error, to_napi_error, unsupported_option_error},
-    hooks::{BatchHookSink, HookSink, JsBatchedReadPackageHook, JsReadPackageHook},
-    native_reporter::{NativeRenderer, OutputSink, ReporterOptions},
-    reporter_bridge::{EngineCallGuard, LogSink, NodeBridgeReporter, begin_stats, take_stats},
+    config::{
+        ConfigOverlay,
+        resolve_config,
+    },
+    error::{
+        invalid_manifest_error,
+        to_napi_error,
+        unsupported_option_error,
+    },
+    hooks::{
+        BatchHookSink,
+        HookSink,
+        JsBatchedReadPackageHook,
+        JsReadPackageHook,
+    },
+    native_reporter::{
+        NativeRenderer,
+        OutputSink,
+        ReporterOptions,
+    },
+    reporter_bridge::{
+        EngineCallGuard,
+        LogSink,
+        NodeBridgeReporter,
+        begin_stats,
+        take_stats,
+    },
 };
 
 /// Per-project add/remove counts. `linkedToRoot` mirrors pnpm's field; pacquet
@@ -543,11 +593,17 @@ fn run_rebuild_blocking(
 #[cfg(test)]
 mod tests;
 
-use overlay::{build_overlay, build_workspace_projects_override};
+use overlay::{
+    build_overlay,
+    build_workspace_projects_override,
+};
 
 mod peer_issues;
 
 mod options;
 
 mod validation;
-use validation::{reject_non_object_manifests, reject_unsupported_install_options};
+use validation::{
+    reject_non_object_manifests,
+    reject_unsupported_install_options,
+};

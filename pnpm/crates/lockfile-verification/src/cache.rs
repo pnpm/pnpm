@@ -21,18 +21,36 @@
 //!
 //! [`ResolutionVerifier::can_trust_past_check`]: pnpm_resolving_resolver_base::ResolutionVerifier::can_trust_past_check
 
-use chrono::{SecondsFormat, Utc};
+use chrono::{
+    SecondsFormat,
+    Utc,
+};
 use pnpm_resolving_resolver_base::ResolutionVerifier;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value as JsonValue;
 use std::{
     collections::HashMap,
-    fs::{self, OpenOptions},
-    io::{self, Write},
-    path::{Path, PathBuf},
+    fs::{
+        self,
+        OpenOptions,
+    },
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
     time::SystemTime,
 };

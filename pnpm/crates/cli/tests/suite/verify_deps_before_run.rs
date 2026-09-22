@@ -10,11 +10,20 @@ use crate::_utils;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
-    fs::{backdate_existing_files, bump_mtime},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    fs::{
+        backdate_existing_files,
+        bump_mtime,
+    },
 };
 use serde_json::json;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn write_manifest(workspace: &Path, marker: &Path) {
     write_manifest_with_dependency_groups(workspace, marker, json!({}));

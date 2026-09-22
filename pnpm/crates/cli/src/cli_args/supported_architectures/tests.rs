@@ -1,5 +1,8 @@
 use super::SupportedArchitecturesArgs;
-use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
+use pnpm_package_is_installable::{
+    ArchitectureAxes,
+    SupportedArchitectures,
+};
 use pretty_assertions::assert_eq;
 
 #[test]

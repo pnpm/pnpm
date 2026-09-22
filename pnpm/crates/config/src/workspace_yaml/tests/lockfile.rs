@@ -1,4 +1,10 @@
-use super::{Config, Path, ResolutionMode, WorkspaceSettings, assert_eq};
+use super::{
+    Config,
+    Path,
+    ResolutionMode,
+    WorkspaceSettings,
+    assert_eq,
+};
 
 /// `resolutionMode` accepts the three upstream string values; an
 /// absent key leaves the [`ResolutionMode::Highest`] default in place.

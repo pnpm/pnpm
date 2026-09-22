@@ -1,18 +1,43 @@
 use super::{
-    PNPM_VERSION, default_cache_dir, default_child_concurrency,
-    default_child_concurrency_with_parallelism, default_config_dir, default_fetch_timeout,
-    default_store_dir, default_unsafe_perm, default_user_agent, default_virtual_store_dir,
-    default_workspace_concurrency, install_command_for, is_unsafe_perm_posix,
-    resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
-    resolve_configured_state_dir, store_dir_for_os,
+    PNPM_VERSION,
+    default_cache_dir,
+    default_child_concurrency,
+    default_child_concurrency_with_parallelism,
+    default_config_dir,
+    default_fetch_timeout,
+    default_store_dir,
+    default_unsafe_perm,
+    default_user_agent,
+    default_virtual_store_dir,
+    default_workspace_concurrency,
+    install_command_for,
+    is_unsafe_perm_posix,
+    resolve_child_concurrency,
+    resolve_child_concurrency_with_parallelism,
+    resolve_configured_state_dir,
+    store_dir_for_os,
 };
-use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
-use pnpm_store_dir::{STORE_VERSION, StoreDir};
+use crate::api::{
+    EnvVar,
+    GetCurrentDir,
+    GetHomeDir,
+};
+use pnpm_store_dir::{
+    STORE_VERSION,
+    StoreDir,
+};
 use pretty_assertions::assert_eq;
-use std::{fs, io, path::PathBuf};
+use std::{
+    fs,
+    io,
+    path::PathBuf,
+};
 
 #[cfg(windows)]
-use super::{default_store_dir_windows, get_drive_letter};
+use super::{
+    default_store_dir_windows,
+    get_drive_letter,
+};
 #[cfg(windows)]
 use std::path::Path;
 

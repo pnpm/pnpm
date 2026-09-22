@@ -1,6 +1,14 @@
 use super::{
-    Config, ConfigOverrides, OsString, PackageImportMethod, Path, PmOnFail, RuntimeOnFail,
-    TrustPolicy, argv, assert_eq,
+    Config,
+    ConfigOverrides,
+    OsString,
+    PackageImportMethod,
+    Path,
+    PmOnFail,
+    RuntimeOnFail,
+    TrustPolicy,
+    argv,
+    assert_eq,
 };
 
 #[test]

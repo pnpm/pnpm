@@ -1,12 +1,22 @@
 use super::{
     FetchVerifiedNodeShasumsError,
-    node_release_keys::{NODE_RELEASE_KEYS, NodeReleaseKey},
+    node_release_keys::{
+        NODE_RELEASE_KEYS,
+        NodeReleaseKey,
+    },
 };
 use pgp::{
-    composed::{Deserializable, DetachedSignature, SignedPublicKey},
+    composed::{
+        Deserializable,
+        DetachedSignature,
+        SignedPublicKey,
+    },
     types::KeyDetails,
 };
-use std::{io::Cursor, sync::Arc};
+use std::{
+    io::Cursor,
+    sync::Arc,
+};
 pub(super) fn is_signed_by_trusted_node_release_key(
     content: &[u8],
     signature_bytes: &[u8],

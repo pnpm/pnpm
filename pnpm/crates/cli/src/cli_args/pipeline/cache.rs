@@ -8,26 +8,50 @@
 
 use super::{
     capture::CapturedScript,
-    paths::{check_ancestors, check_input_directories, validate_relative_path},
+    paths::{
+        check_ancestors,
+        check_input_directories,
+        validate_relative_path,
+    },
 };
-use inputs::{HashedFile, compile_globs};
+use inputs::{
+    HashedFile,
+    compile_globs,
+};
 use miette::IntoDiagnostic;
 use pnpm_config::TaskSettings;
 use pnpm_crypto_hash::{
-    create_hex_hash, create_hex_hash_bytes, create_hex_hash_from_file, create_short_hash,
+    create_hex_hash,
+    create_hex_hash_bytes,
+    create_hex_hash_from_file,
+    create_short_hash,
 };
 use pnpm_workspace_task_scheduler::TaskNode;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
     collections::HashMap,
-    env, fs, io,
-    path::{Path, PathBuf},
+    env,
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 use wax::{
     Glob,
-    walk::{Entry, FileIterator},
+    walk::{
+        Entry,
+        FileIterator,
+    },
 };
 
 /// How a task met the cache, for the run report.

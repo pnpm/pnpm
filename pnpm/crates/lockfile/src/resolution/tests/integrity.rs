@@ -1,8 +1,18 @@
 use super::{
-    GitResolution, LockfileFormError, LockfileResolution, REVISION_SHA512, RegistryResolution,
-    TarballResolution, TarballRevision, assert_eq, integrity,
-    integrity_addressed_registry_tarball_url, is_integrity_addressed_registry_tarball_url,
-    render_resolution, text_block, undeclared_form,
+    GitResolution,
+    LockfileFormError,
+    LockfileResolution,
+    REVISION_SHA512,
+    RegistryResolution,
+    TarballResolution,
+    TarballRevision,
+    assert_eq,
+    integrity,
+    integrity_addressed_registry_tarball_url,
+    is_integrity_addressed_registry_tarball_url,
+    render_resolution,
+    text_block,
+    undeclared_form,
 };
 
 /// An `integrity: ''` entry — what an edited lockfile carries when the hash

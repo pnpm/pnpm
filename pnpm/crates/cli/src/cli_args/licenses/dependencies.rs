@@ -1,6 +1,16 @@
 use super::{
-    BelongsTo, DepType, HashMap, Include, InstallabilityOptions, LicenseInfo, Lockfile, Ordering,
-    PackageKey, ResolvedDependencyMap, WantedPlatformRef, detect_dep_types,
+    BelongsTo,
+    DepType,
+    HashMap,
+    Include,
+    InstallabilityOptions,
+    LicenseInfo,
+    Lockfile,
+    Ordering,
+    PackageKey,
+    ResolvedDependencyMap,
+    WantedPlatformRef,
+    detect_dep_types,
     platform_is_supported_with_inference,
 };
 

@@ -6,11 +6,18 @@
 //! captures. Warnings emitted through the reporter stay on stdout; only
 //! config-load warnings belong here.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::{
-    Config, ProjectConfig, UnrecognizedTaskSettings, WorkspaceKeyIssues,
-    known_settings::annotate_unknown_setting, naming_cases::to_camel_case,
+    Config,
+    ProjectConfig,
+    UnrecognizedTaskSettings,
+    WorkspaceKeyIssues,
+    known_settings::annotate_unknown_setting,
+    naming_cases::to_camel_case,
     refused_keys::where_refused_key_belongs,
 };
 use pnpm_default_reporter::colors::Colors;
@@ -19,7 +26,10 @@ use pnpm_resolving_npm_resolver::BUILTIN_REGISTRIES_BY_PREFIX;
 use std::{
     collections::BTreeSet,
     fmt::Write as _,
-    io::{IsTerminal, Write},
+    io::{
+        IsTerminal,
+        Write,
+    },
 };
 
 /// Write a `[WARN]`-labelled config-load warning to stderr. Best-effort:

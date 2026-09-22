@@ -11,10 +11,21 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
-    fixtures::{tarball_entries, tarball_with_manifest, tarball_without_manifest},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    fixtures::{
+        tarball_entries,
+        tarball_with_manifest,
+        tarball_without_manifest,
+    },
 };
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn write_tarball(workspace: &Path, file_name: &str, manifest: &serde_json::Value) {
     fs::write(workspace.join(file_name), tarball_with_manifest(manifest)).expect("write tarball");

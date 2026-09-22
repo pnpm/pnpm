@@ -1,4 +1,7 @@
-use std::{io, path::Path};
+use std::{
+    io,
+    path::Path,
+};
 
 /// Bit mask to filter executable bits (`--x--x--x`).
 pub const EXEC_MASK: u32 = 0b001_001_001;
@@ -75,7 +78,10 @@ pub fn restore_exec_bit_from_cas_suffix(cas_path: &Path, target: &Path) -> io::R
 pub fn set_path_permissions(path: &Path, mode: u32) -> io::Result<()> {
     #[cfg(unix)]
     {
-        use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+        use std::{
+            fs::Permissions,
+            os::unix::fs::PermissionsExt,
+        };
         let file = crate::ensure_file::retry_on_fd_pressure(|| open_without_following(path))?;
         if file.metadata()?.permissions().mode() & 0o7777 != mode {
             file.set_permissions(Permissions::from_mode(mode))?;
@@ -97,7 +103,10 @@ pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
     return {
         use std::{
             fs::Permissions,
-            os::unix::fs::{MetadataExt, PermissionsExt},
+            os::unix::fs::{
+                MetadataExt,
+                PermissionsExt,
+            },
         };
         let mode = file.metadata()?.mode();
         if mode & EXEC_MASK == EXEC_MASK {

@@ -1,15 +1,31 @@
 use crate::{
-    ArchiveStoreProjection, CachedCasPaths, FetchedTarball, IgnoreEntryFilter,
-    SharedReportedProgressKeys, TarballError, apply_append_manifest, apply_placeholder_manifest,
-    download::{download_priority, fetch_and_extract_with_retry, store_index_cache_key},
-    emit_progress_found_in_store, load_cached_cas_paths, load_legacy_synthesized_cas_paths,
+    ArchiveStoreProjection,
+    CachedCasPaths,
+    FetchedTarball,
+    IgnoreEntryFilter,
+    SharedReportedProgressKeys,
+    TarballError,
+    apply_append_manifest,
+    apply_placeholder_manifest,
+    download::{
+        download_priority,
+        fetch_and_extract_with_retry,
+        store_index_cache_key,
+    },
+    emit_progress_found_in_store,
+    load_cached_cas_paths,
+    load_legacy_synthesized_cas_paths,
     local_file_tarball_path,
     zip_archive::fetch_and_extract_zip_with_retry,
 };
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::PackageFilesIndex;
 use ssri::Integrity;
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::Arc,
+};
 
 #[derive(Clone, Copy)]
 pub(crate) enum ArchiveFormat<'a> {

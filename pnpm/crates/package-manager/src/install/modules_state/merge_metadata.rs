@@ -1,4 +1,9 @@
-use super::super::{HashSet, Lockfile, Modules, VersionPart};
+use super::super::{
+    HashSet,
+    Lockfile,
+    Modules,
+    VersionPart,
+};
 
 /// The `pendingBuilds` list for this install: the builds still owed,
 /// carried-over entries first, then the ones this install deferred.

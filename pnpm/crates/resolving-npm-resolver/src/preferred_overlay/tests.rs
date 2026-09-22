@@ -1,17 +1,31 @@
 use std::collections::HashMap;
 
-use chrono::{DateTime, Utc};
+use chrono::{
+    DateTime,
+    Utc,
+};
 use node_semver::Version;
 use pnpm_config::version_policy::create_package_version_policy;
-use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
+use pnpm_registry::{
+    DerivedPackuments,
+    Package,
+    PackageDistribution,
+    PackageVersion,
+};
 use pnpm_resolving_resolver_base::{
-    ResolveOptions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
+    ResolveOptions,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
     VersionSelectors,
 };
 use pretty_assertions::assert_eq;
 
 use super::held_back_preferred;
-use crate::pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType};
+use crate::pick_package_from_meta::{
+    RegistryPackageSpec,
+    RegistryPackageSpecType,
+};
 
 fn parse_iso(input: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(input).expect("rfc3339").with_timezone(&Utc)

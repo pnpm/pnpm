@@ -1,9 +1,16 @@
 use pretty_assertions::assert_eq;
 
-use pnpm_network::{AuthHeaders, ThrottledClient, nerf_dart};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+    nerf_dart,
+};
 
 use super::{
-    NodeVersion, filter_versions, resolve_node_version, resolve_node_version_with_auth,
+    NodeVersion,
+    filter_versions,
+    resolve_node_version,
+    resolve_node_version_with_auth,
     resolve_node_versions,
 };
 

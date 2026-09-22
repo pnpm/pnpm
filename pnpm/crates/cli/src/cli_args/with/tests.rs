@@ -1,9 +1,16 @@
-use super::{PackageManagerCheck, configure_pnpm_environment};
+use super::{
+    PackageManagerCheck,
+    configure_pnpm_environment,
+};
 use crate::{
     cli_args::package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS,
     engine_pm::install::slot_from_package_dir,
 };
-use std::{ffi::OsStr, path::Path, process::Command};
+use std::{
+    ffi::OsStr,
+    path::Path,
+    process::Command,
+};
 
 #[test]
 fn child_pnpm_disables_all_package_manager_switch_env_variants() {

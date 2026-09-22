@@ -1,9 +1,21 @@
 //! One platform `supportedArchitectures` names.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
-use std::{fmt, str::FromStr};
+use serde::{
+    Deserialize,
+    Deserializer,
+    Serialize,
+    Serializer,
+    de,
+};
+use std::{
+    fmt,
+    str::FromStr,
+};
 
 /// One platform an install prepares for.
 #[derive(Debug, Clone, PartialEq, Eq)]

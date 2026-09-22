@@ -2,9 +2,15 @@
 //! the trait every resolver-side policy check implements, plus the
 //! shape used to materialize one rejection.
 
-use std::{future::Future, pin::Pin};
+use std::{
+    future::Future,
+    pin::Pin,
+};
 
-use pnpm_lockfile::{LockfileResolution, PkgName};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgName,
+};
 
 /// One verifier's decision about a single `(name, version, resolution)`
 /// entry. A discriminated union (`{ ok: true } | { ok: false, code,

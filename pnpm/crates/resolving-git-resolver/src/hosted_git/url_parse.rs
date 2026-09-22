@@ -1,4 +1,7 @@
-use super::{HostedGitType, Representation};
+use super::{
+    HostedGitType,
+    Representation,
+};
 
 pub(super) fn protocol_to_representation(protocol: &str) -> Representation {
     match protocol {

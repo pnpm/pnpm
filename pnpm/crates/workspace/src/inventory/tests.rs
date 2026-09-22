@@ -1,4 +1,7 @@
-use super::{find_workspace_inventory, find_workspace_inventory_with};
+use super::{
+    find_workspace_inventory,
+    find_workspace_inventory_with,
+};
 use pnpm_fs::symlink_dir as symlink;
 use pretty_assertions::assert_eq;
 use std::fs;

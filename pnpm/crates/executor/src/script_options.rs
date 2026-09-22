@@ -1,7 +1,10 @@
 use crate::ScriptsPrependNodePath;
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Clone, Copy)]

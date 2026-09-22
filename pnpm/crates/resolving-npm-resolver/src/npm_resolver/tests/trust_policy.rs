@@ -1,6 +1,11 @@
 use super::{
-    ResolveOptions, TRUST_DOWNGRADE_PACKAGE_BODY, TrustPolicy, WantedDependency, assert_eq,
-    build_resolver, trust_downgrade_body_without_time,
+    ResolveOptions,
+    TRUST_DOWNGRADE_PACKAGE_BODY,
+    TrustPolicy,
+    WantedDependency,
+    assert_eq,
+    build_resolver,
+    trust_downgrade_body_without_time,
 };
 use pnpm_resolving_resolver_base::Resolver;
 

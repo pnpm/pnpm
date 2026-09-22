@@ -1,5 +1,8 @@
 pub(super) use early_materializer::{
-    FastOverrideFit, fast_override_eligible, interactive_policy, start_early_materialization,
+    FastOverrideFit,
+    fast_override_eligible,
+    interactive_policy,
+    start_early_materialization,
 };
 
 mod automatic_dedupe;
@@ -8,21 +11,42 @@ mod early_materializer;
 use completion::collect_resolution;
 
 use super::{
-    FreshInputs, OwnedInputs, PatchUsageScope, check_patch_usage,
+    FreshInputs,
+    OwnedInputs,
+    PatchUsageScope,
+    check_patch_usage,
     errors::InstallWithFreshLockfileError,
-    importers_consuming_linked_peers, manifest_transforms, report_peer_issues, resolve,
+    importers_consuming_linked_peers,
+    manifest_transforms,
+    report_peer_issues,
+    resolve,
     resolver_setup,
     seed_policy::full_resolution_required,
-    setup::{ResolutionPrep, ResolverSetup, prepare_resolution, resolver_update_behavior},
+    setup::{
+        ResolutionPrep,
+        ResolverSetup,
+        prepare_resolution,
+        resolver_update_behavior,
+    },
 };
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    Reporter,
+    Stage,
+    StageLog,
+};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     path::Path,
     sync::Arc,
 };

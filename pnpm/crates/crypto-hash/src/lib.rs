@@ -9,11 +9,23 @@
 
 use base64::{
     Engine as _,
-    engine::general_purpose::{STANDARD as BASE64, URL_SAFE_NO_PAD},
+    engine::general_purpose::{
+        STANDARD as BASE64,
+        URL_SAFE_NO_PAD,
+    },
 };
-use sha2::{Digest, Sha256};
-use ssri::{Algorithm, Integrity};
-use std::{io, path::Path};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
+use std::{
+    io,
+    path::Path,
+};
 
 /// Build the registry-relative path for a complete, canonical sha512 SRI.
 ///

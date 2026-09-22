@@ -1,14 +1,31 @@
 use super::{
-    ColdCapture, CreateVirtualStoreError, cache_keys::dir_clone_cacheable, removed_aliases_for,
+    ColdCapture,
+    CreateVirtualStoreError,
+    cache_keys::dir_clone_cacheable,
+    removed_aliases_for,
     snapshot_needs_build_marker,
 };
 use crate::InstallPackageBySnapshotError;
-use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, SnapshotEntry};
-use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    SnapshotEntry,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
+};
 use pnpm_tarball::SharedReportedProgressKeys;
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) struct SlotLink<'a> {

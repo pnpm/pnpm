@@ -1,13 +1,34 @@
 use crate::{
     extend_path::extend_path,
-    lifecycle::{StreamedScript, push_script_arg},
-    make_env::{EnvOptions, build_env, path_value},
-    process_tracker::{ProcessTracker, spawn_child},
+    lifecycle::{
+        StreamedScript,
+        push_script_arg,
+    },
+    make_env::{
+        EnvOptions,
+        build_env,
+        path_value,
+    },
+    process_tracker::{
+        ProcessTracker,
+        spawn_child,
+    },
     script_exit::ScriptExit,
-    shell::{ScriptShellError, SelectedShell, select_shell},
-    shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
+    shell::{
+        ScriptShellError,
+        SelectedShell,
+        select_shell,
+    },
+    shell_emulator::{
+        EmulatedOutput,
+        ShellEmulatorError,
+        execute_emulated,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_reporter::LogEvent;
 use serde_json::Value;
@@ -15,9 +36,15 @@ use std::{
     collections::HashMap,
     env,
     ffi::OsString,
-    io::{self, Write},
+    io::{
+        self,
+        Write,
+    },
     path::Path,
-    process::{Command, Stdio},
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
 /// Error from running a user script through [`run_script`] — the

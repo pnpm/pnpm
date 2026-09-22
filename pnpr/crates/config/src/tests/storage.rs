@@ -1,6 +1,14 @@
 use super::{
-    BackendConfig, Config, Ecosystem, HostedStoreConfig, Path, PathBuf, RegistryError, S3Settings,
-    listen, s3_settings_for,
+    BackendConfig,
+    Config,
+    Ecosystem,
+    HostedStoreConfig,
+    Path,
+    PathBuf,
+    RegistryError,
+    S3Settings,
+    listen,
+    s3_settings_for,
 };
 use std::fmt::Write as _;
 

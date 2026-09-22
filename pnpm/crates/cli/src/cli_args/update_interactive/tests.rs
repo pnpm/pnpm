@@ -1,22 +1,41 @@
 mod named_registry;
 
 use super::{
-    InteractiveUpdateProject, PromptRow, UpdatePrompt, collect_choices, dependencies_prompt_message,
+    InteractiveUpdateProject,
+    PromptRow,
+    UpdatePrompt,
+    collect_choices,
+    dependencies_prompt_message,
 };
 use crate::cli_args::update::UpdateArgs;
 use clap::Parser;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_testing_utils::registry::TestRegistry;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     collections::VecDeque,
     fs,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 use tempfile::TempDir;
 
@@ -437,8 +456,12 @@ fn package_body_with_publish_times(name: &str, registry: &str) -> String {
 
 mod selection {
     use super::super::{
-        choices::{ChoiceGroup, ChoiceRow},
-        flatten_groups, selected_packages,
+        choices::{
+            ChoiceGroup,
+            ChoiceRow,
+        },
+        flatten_groups,
+        selected_packages,
     };
 
     fn group(message: &str, rows: &[(&str, Option<&str>)]) -> ChoiceGroup {

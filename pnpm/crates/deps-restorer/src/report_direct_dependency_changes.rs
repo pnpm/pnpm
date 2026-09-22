@@ -11,16 +11,35 @@
 //! The symlink outcome answers "did this install put it there". Here the
 //! previous install's `<virtual_store_dir>/lock.yaml` answers it.
 
-use crate::{HoistedLinkerInputs, SkippedSnapshots, symlink_direct_dependencies::fallback_version};
+use crate::{
+    HoistedLinkerInputs,
+    SkippedSnapshots,
+    symlink_direct_dependencies::fallback_version,
+};
 use pnpm_lockfile::{
-    ImporterDepVersion, Lockfile, PackageKey, PackageMetadata, PkgName, ProjectSnapshot,
+    ImporterDepVersion,
+    Lockfile,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    ProjectSnapshot,
     ResolvedDependencySpec,
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{
-    AddedRoot, DependencyType, LogEvent, LogLevel, RemovedRoot, Reporter, RootLog, RootMessage,
+    AddedRoot,
+    DependencyType,
+    LogEvent,
+    LogLevel,
+    RemovedRoot,
+    Reporter,
+    RootLog,
+    RootMessage,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// Emit one `pnpm:root` event per direct dependency this install added,
 /// replaced or dropped, for each project the run selected.

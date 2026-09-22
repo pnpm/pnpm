@@ -1,4 +1,8 @@
-use super::{CanonicalPackageName, Ecosystem, is_safe_path_segment};
+use super::{
+    CanonicalPackageName,
+    Ecosystem,
+    is_safe_path_segment,
+};
 
 #[test]
 fn canonicalizes_each_ecosystem() {

@@ -1,4 +1,9 @@
-use super::{CompletionError, CompletionShell, SUPPORTED_SHELLS, shell_from_args};
+use super::{
+    CompletionError,
+    CompletionShell,
+    SUPPORTED_SHELLS,
+    shell_from_args,
+};
 use crate::cli_args::CliArgs;
 use clap::Parser as _;
 use miette::Diagnostic as _;

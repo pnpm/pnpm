@@ -2,7 +2,10 @@
 
 use std::borrow::Cow;
 
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 
 /// A semver range evaluated the way npm's `semver` does with
 /// `includePrerelease: true`.

@@ -18,25 +18,47 @@ mod revision_refs;
 mod hosted_backend;
 
 use crate::{
-    BlobFinalize, DocumentWrite, HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR,
-    HostedBackend, HostedDocumentForUpdate, HostedDocumentVersion, HostedRevisionRefIndex,
-    HostedRevisionRefWrite, wait_after_document_write_conflict,
+    BlobFinalize,
+    DocumentWrite,
+    HOSTED_REVISION_REF_INDEX_FILE,
+    HOSTED_REVISION_REFS_DIR,
+    HostedBackend,
+    HostedDocumentForUpdate,
+    HostedDocumentVersion,
+    HostedRevisionRefIndex,
+    HostedRevisionRefWrite,
+    wait_after_document_write_conflict,
 };
 use async_trait::async_trait;
 use axum::body::Body;
 use futures_util::StreamExt;
 use object_store::{
-    MultipartUpload, ObjectStore, ObjectStoreExt, PutMode, PutOptions, PutPayload, UpdateVersion,
+    MultipartUpload,
+    ObjectStore,
+    ObjectStoreExt,
+    PutMode,
+    PutOptions,
+    PutPayload,
+    UpdateVersion,
     path::Path as ObjectPath,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::CanonicalPackageName;
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
-use tokio::{fs, io::AsyncReadExt as _};
+use tokio::{
+    fs,
+    io::AsyncReadExt as _,
+};
 
 /// The largest blob sent as one `put`.
 ///

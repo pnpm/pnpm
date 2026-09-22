@@ -1,5 +1,9 @@
 use super::DirCloneCache;
-use pnpm_config::{Config, NodeLinker, PackageImportMethod};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+    PackageImportMethod,
+};
 
 #[test]
 fn eligible_for_clone_capable_local_materialization() {
@@ -36,11 +40,27 @@ fn eligible_for_clone_capable_local_materialization() {
 
 #[cfg(target_os = "macos")]
 mod macos {
-    use super::{Config, DirCloneCache, NodeLinker, PackageImportMethod};
+    use super::{
+        Config,
+        DirCloneCache,
+        NodeLinker,
+        PackageImportMethod,
+    };
     use crate::dir_clone_cache::EngineNameSource;
-    use pnpm_lockfile::{PackageKey, SnapshotEntry};
-    use pnpm_reporter::{LogEvent, Reporter};
-    use std::{collections::HashMap, fs, path::PathBuf, sync::atomic::AtomicU8};
+    use pnpm_lockfile::{
+        PackageKey,
+        SnapshotEntry,
+    };
+    use pnpm_reporter::{
+        LogEvent,
+        Reporter,
+    };
+    use std::{
+        collections::HashMap,
+        fs,
+        path::PathBuf,
+        sync::atomic::AtomicU8,
+    };
     use tempfile::tempdir;
 
     struct NullReporter;

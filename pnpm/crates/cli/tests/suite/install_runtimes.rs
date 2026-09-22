@@ -2,13 +2,29 @@ mod no_runtime;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_graph_hasher::{host_arch, host_platform};
-use serde_json::{Map, Value, json};
-use sha2::{Digest, Sha256};
+use pnpm_graph_hasher::{
+    host_arch,
+    host_platform,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use std::{
     fs,
-    io::{Cursor, Write},
-    path::{Path, PathBuf},
+    io::{
+        Cursor,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 use tempfile::TempDir;

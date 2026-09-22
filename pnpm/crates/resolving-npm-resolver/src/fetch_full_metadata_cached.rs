@@ -14,27 +14,57 @@
 //! only the version fragments a pick consults.
 
 use std::{
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicBool, Ordering},
-    time::{Duration, Instant},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicBool,
+        Ordering,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 use pipe_trait::Pipe;
-use pnpm_network::{ThrottledClientGuard, redact_url_credentials, retry_async};
+use pnpm_network::{
+    ThrottledClientGuard,
+    redact_url_credentials,
+    retry_async,
+};
 use pnpm_registry::Package;
-use reqwest::{Response, StatusCode, header};
+use reqwest::{
+    Response,
+    StatusCode,
+    header,
+};
 
 use crate::{
     FetchMetadataError,
     fetch_full_metadata::{
-        ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC, MetadataRequestOptions,
-        is_abbreviated_content_type, normalize_abbreviated_meta, send_metadata_request,
+        ACCEPT_ABBREVIATED_DOC,
+        ACCEPT_FULL_DOC,
+        MetadataRequestOptions,
+        is_abbreviated_content_type,
+        normalize_abbreviated_meta,
+        send_metadata_request,
         warn_if_request_is_slow,
     },
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, MetaHeaders, clear_meta,
-        get_pkg_mirror_path, load_meta, load_meta_async, load_meta_headers_async,
-        save_meta_indexed, save_meta_ndjson, scoped_meta_dir,
+        ABBREVIATED_META_DIR,
+        FULL_FILTERED_META_DIR,
+        FULL_META_DIR,
+        MetaHeaders,
+        clear_meta,
+        get_pkg_mirror_path,
+        load_meta,
+        load_meta_async,
+        load_meta_headers_async,
+        save_meta_indexed,
+        save_meta_ndjson,
+        scoped_meta_dir,
     },
     registry_url::to_registry_url,
 };

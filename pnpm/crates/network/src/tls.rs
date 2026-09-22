@@ -33,7 +33,10 @@
 //!   pnpm-on-Node does.
 
 use crate::auth::nerf_dart;
-use std::{collections::HashMap, net::IpAddr};
+use std::{
+    collections::HashMap,
+    net::IpAddr,
+};
 
 /// Resolved TLS + local-address configuration.
 ///

@@ -1,7 +1,22 @@
 use super::{
-    BTreeSet, Cell, HashMap, HoistError, HoistOpts, HoisterDependencyKind, HoisterResult,
-    HoisterTree, IndexSet, Lockfile, PkgName, PkgNameVerPeer, ProjectSnapshot, Rc, RcByPtr,
-    RefCell, SnapshotEntry, VersionPart,
+    BTreeSet,
+    Cell,
+    HashMap,
+    HoistError,
+    HoistOpts,
+    HoisterDependencyKind,
+    HoisterResult,
+    HoisterTree,
+    IndexSet,
+    Lockfile,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    Rc,
+    RcByPtr,
+    RefCell,
+    SnapshotEntry,
+    VersionPart,
 };
 use std::fmt::Write as _;
 

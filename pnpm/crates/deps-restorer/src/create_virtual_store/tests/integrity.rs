@@ -1,4 +1,7 @@
-use super::{super::integrity_equal, metadata_with_integrity};
+use super::{
+    super::integrity_equal,
+    metadata_with_integrity,
+};
 
 #[test]
 fn integrity_equal_matches_when_integrities_agree() {

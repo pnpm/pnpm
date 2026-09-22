@@ -1,9 +1,20 @@
-use super::{LinkBinsError, LinkBinsOptions, PackageBinSource, bin_node_paths};
-use pnpm_fs::{is_subdir, realpath_missing};
+use super::{
+    LinkBinsError,
+    LinkBinsOptions,
+    PackageBinSource,
+    bin_node_paths,
+};
+use pnpm_fs::{
+    is_subdir,
+    realpath_missing,
+};
 use std::{
     borrow::Cow,
     ffi::OsStr,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) struct LinkingPaths<'a> {

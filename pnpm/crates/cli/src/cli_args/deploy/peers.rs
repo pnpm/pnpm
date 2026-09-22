@@ -1,6 +1,18 @@
 use super::{
-    DependencyGroup, DeployError, HashMap, HashSet, Lockfile, PackageKey, PkgName, PkgNameVerPeer,
-    ProjectInfo, ProjectSnapshot, SnapshotDepRef, SnapshotEntry, Value, VecDeque,
+    DependencyGroup,
+    DeployError,
+    HashMap,
+    HashSet,
+    Lockfile,
+    PackageKey,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectInfo,
+    ProjectSnapshot,
+    SnapshotDepRef,
+    SnapshotEntry,
+    Value,
+    VecDeque,
 };
 
 /// A linked workspace package has no package snapshot in the shared lockfile,

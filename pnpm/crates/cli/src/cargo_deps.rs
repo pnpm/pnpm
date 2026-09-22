@@ -1,49 +1,119 @@
 pub(crate) mod add;
 
 pub(crate) use lockfile::workspace_root;
-pub(crate) use sparse_registry::{cargo_auth_headers, latest_version};
+pub(crate) use sparse_registry::{
+    cargo_auth_headers,
+    latest_version,
+};
 
 use crate::{
-    cargo_deps::git::{GIT_SOURCE_DIRECTORY, GIT_SOURCE_NAME, GitPackage, GitSource},
-    ecosystem_install::{EcosystemManifest, EcosystemWorkspaceInventory, InstallContext},
+    cargo_deps::git::{
+        GIT_SOURCE_DIRECTORY,
+        GIT_SOURCE_NAME,
+        GitPackage,
+        GitSource,
+    },
+    ecosystem_install::{
+        EcosystemManifest,
+        EcosystemWorkspaceInventory,
+        InstallContext,
+    },
 };
 use cargo_util_schemas::index::RegistryConfig;
-use futures_util::{StreamExt, TryStreamExt, stream};
+use futures_util::{
+    StreamExt,
+    TryStreamExt,
+    stream,
+};
 
 use lockfile::{
-    LockedCrate, discover_workspace_roots, parse_lockfile, read_or_resolve_lockfile,
+    LockedCrate,
+    discover_workspace_roots,
+    parse_lockfile,
+    read_or_resolve_lockfile,
     validate_package_field,
 };
-use materialize::{DownloadOptions, add_cargo_checksum, download_crates};
-use miette::{IntoDiagnostic, Result, WrapErr};
+use materialize::{
+    DownloadOptions,
+    add_cargo_checksum,
+    download_crates,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use pnpm_cargo_resolver::is_crates_io;
 use pnpm_config::Config;
-use pnpm_deps_restorer::{ImportIndexedDirOpts, import_indexed_dir};
-use pnpm_install_coordinator::{InstallTask, PreparedInstall};
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pnpm_pnpr_client::{CargoResolveOptions, PnprClient};
+use pnpm_deps_restorer::{
+    ImportIndexedDirOpts,
+    import_indexed_dir,
+};
+use pnpm_install_coordinator::{
+    InstallTask,
+    PreparedInstall,
+};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
+use pnpm_pnpr_client::{
+    CargoResolveOptions,
+    PnprClient,
+};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{
-    CafsFileInfo, SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
+    CafsFileInfo,
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    StoreIndex,
     StoreIndexWriter,
 };
-use pnpm_tarball::{ArchiveStoreProjection, IngestTarballToStore};
-use serde::{Deserialize, Serialize};
+use pnpm_tarball::{
+    ArchiveStoreProjection,
+    IngestTarballToStore,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
-use sparse_registry::{fetch_sparse_index, registry_download_config};
-use ssri::{Algorithm, Integrity};
+use sparse_registry::{
+    fetch_sparse_index,
+    registry_download_config,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     str::FromStr,
-    sync::{Arc, atomic::AtomicU8},
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
 };
 #[cfg(all(test, windows))]
 use workspace_directory::ensure_workspace_directory_windows;
 use workspace_directory::{
-    ManagedDirectory, ensure_workspace_directory, force_workspace_symlink, read_workspace_file,
+    ManagedDirectory,
+    ensure_workspace_directory,
+    force_workspace_symlink,
+    read_workspace_file,
     write_workspace_file,
 };
 

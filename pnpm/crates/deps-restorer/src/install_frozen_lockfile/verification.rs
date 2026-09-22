@@ -1,10 +1,22 @@
-use super::{InstallFrozenLockfileError, LockfileVerificationOverride};
-use crate::{CreateVirtualStore, CreateVirtualStoreOutput};
+use super::{
+    InstallFrozenLockfileError,
+    LockfileVerificationOverride,
+};
+use crate::{
+    CreateVirtualStore,
+    CreateVirtualStoreOutput,
+};
 use pnpm_lockfile::Lockfile;
-use pnpm_lockfile_verification::{VerifyLockfileResolutionsOptions, verify_lockfile_resolutions};
+use pnpm_lockfile_verification::{
+    VerifyLockfileResolutionsOptions,
+    verify_lockfile_resolutions,
+};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 /// The lockfile verification that runs alongside the fetch.
 ///

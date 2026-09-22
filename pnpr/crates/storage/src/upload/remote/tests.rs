@@ -1,5 +1,13 @@
-use super::{MAX_CHUNKS, RemoteUploadStore, UploadRecord, VersionedRecord};
-use object_store::{PutMode, memory::InMemory};
+use super::{
+    MAX_CHUNKS,
+    RemoteUploadStore,
+    UploadRecord,
+    VersionedRecord,
+};
+use object_store::{
+    PutMode,
+    memory::InMemory,
+};
 use std::sync::Arc;
 
 #[tokio::test]

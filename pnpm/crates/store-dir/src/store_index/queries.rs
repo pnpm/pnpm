@@ -1,4 +1,11 @@
-use super::{HashMap, HashSet, PackageFilesIndex, StoreIndex, StoreIndexError, decode_index_value};
+use super::{
+    HashMap,
+    HashSet,
+    PackageFilesIndex,
+    StoreIndex,
+    StoreIndexError,
+    decode_index_value,
+};
 
 /// Per-query placeholder cap for [`StoreIndex::get_many`]. `SQLite`'s
 /// `SQLITE_MAX_VARIABLE_NUMBER` defaulted to 999 before 3.32.0 and is

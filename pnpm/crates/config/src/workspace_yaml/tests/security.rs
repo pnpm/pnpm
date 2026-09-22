@@ -1,4 +1,9 @@
-use super::{Config, Path, WorkspaceSettings, assert_eq};
+use super::{
+    Config,
+    Path,
+    WorkspaceSettings,
+    assert_eq,
+};
 
 /// `unsafePerm: false` from yaml propagates to `Config.unsafe_perm`
 /// on POSIX. The starting `Config::new()` value depends on the runtime

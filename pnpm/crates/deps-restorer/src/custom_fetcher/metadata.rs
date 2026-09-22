@@ -1,11 +1,20 @@
 use super::{
-    CustomFetchOutcome, CustomFetcherSession, FetchedTarball, InstallPackageBySnapshotError,
-    LockfileResolution, ResolvedTarballMetadata, decode_resolution, fetch_custom_tarball,
+    CustomFetchOutcome,
+    CustomFetcherSession,
+    FetchedTarball,
+    InstallPackageBySnapshotError,
+    LockfileResolution,
+    ResolvedTarballMetadata,
+    decode_resolution,
+    fetch_custom_tarball,
 };
 use pnpm_reporter::Reporter;
 use pnpm_tarball::IngestTarballToStore;
 use serde_json::Value;
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+};
 
 impl CustomFetcherSession {
     pub async fn resolve_tarball_metadata<Reporter: self::Reporter>(

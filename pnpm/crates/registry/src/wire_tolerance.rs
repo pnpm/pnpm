@@ -17,7 +17,11 @@
 use std::collections::HashMap;
 
 use pnpm_package_manifest::is_truthy;
-use serde::{Deserialize, Deserializer, de::DeserializeOwned};
+use serde::{
+    Deserialize,
+    Deserializer,
+    de::DeserializeOwned,
+};
 use serde_json::Value;
 
 /// Deserialize a field pnpm reads for presence alone, keeping the typed

@@ -18,18 +18,45 @@ mod behavior;
 mod version_selection;
 
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
-use pnpm_config::{TrustPolicy, version_policy::create_package_version_policy};
-use pnpm_lockfile::{LockfileResolution, RegistryResolution, TarballRevision};
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_config::{
+    TrustPolicy,
+    version_policy::create_package_version_policy,
+};
+use pnpm_lockfile::{
+    LockfileResolution,
+    RegistryResolution,
+    TarballRevision,
+};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
 use pnpm_resolving_resolver_base::{
-    CurrentPkg, GuardExhaustionPolicy, LatestQuery, PackageVersionGuard,
-    PackageVersionGuardDecision, PackageVersionGuardFuture, PkgResolutionId, ResolveOptions,
-    UpdateBehavior, WantedDependency, WorkspacePackage, WorkspacePackages,
+    CurrentPkg,
+    GuardExhaustionPolicy,
+    LatestQuery,
+    PackageVersionGuard,
+    PackageVersionGuardDecision,
+    PackageVersionGuardFuture,
+    PkgResolutionId,
+    ResolveOptions,
+    UpdateBehavior,
+    WantedDependency,
+    WorkspacePackage,
+    WorkspacePackages,
     WorkspacePackagesByVersion,
 };
 use pretty_assertions::assert_eq;
@@ -38,12 +65,19 @@ use tempfile::TempDir;
 
 use crate::{
     errors::{
-        InvalidRevisionSpecifierError, InvalidTarballIntegrityError, MalformedRevisionHistoryError,
+        InvalidRevisionSpecifierError,
+        InvalidTarballIntegrityError,
+        MalformedRevisionHistoryError,
         NoMatchingRevisionError,
     },
-    npm_resolver::{NpmResolver, is_not_found_error},
+    npm_resolver::{
+        NpmResolver,
+        is_not_found_error,
+    },
     pick_package::{
-        InMemoryPackageMetaCache, shared_packument_fetch_locker, shared_picked_manifest_cache,
+        InMemoryPackageMetaCache,
+        shared_packument_fetch_locker,
+        shared_picked_manifest_cache,
     },
     resolve_from_workspace::ResolveFromWorkspaceError,
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,

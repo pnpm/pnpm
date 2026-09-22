@@ -1,5 +1,10 @@
 use super::{
-    AddMockedRegistry, CommandTempCwd, fs, fs_remove_dir_all, pacquet_at, write_manifest,
+    AddMockedRegistry,
+    CommandTempCwd,
+    fs,
+    fs_remove_dir_all,
+    pacquet_at,
+    write_manifest,
     write_workspace_yaml,
 };
 use assert_cmd::prelude::*;

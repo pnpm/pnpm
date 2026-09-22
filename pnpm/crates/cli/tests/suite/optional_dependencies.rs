@@ -8,9 +8,16 @@ use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{Lockfile, PkgName};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+};
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 /// Nothing at `path` at all. `Path::exists` follows links, so it also reports
 /// `false` for a link whose target is missing — an excluded dependency that was

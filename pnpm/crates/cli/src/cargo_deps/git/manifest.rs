@@ -1,6 +1,14 @@
 use super::{
-    BTreeMap, BTreeSet, DEPENDENCY_KINDS, EXCLUDED_DIRECTORIES, IntoDiagnostic, Path, PathBuf,
-    Result, fs, io,
+    BTreeMap,
+    BTreeSet,
+    DEPENDENCY_KINDS,
+    EXCLUDED_DIRECTORIES,
+    IntoDiagnostic,
+    Path,
+    PathBuf,
+    Result,
+    fs,
+    io,
 };
 use miette::WrapErr;
 

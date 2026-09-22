@@ -1,6 +1,16 @@
 use super::{
-    DateTime, Diagnostic, Display, Error, MetadataCacheScope, Mutex, Package, Path,
-    PickPackageError, Utc, get_pkg_mirror_path, save_meta_indexed,
+    DateTime,
+    Diagnostic,
+    Display,
+    Error,
+    MetadataCacheScope,
+    Mutex,
+    Package,
+    Path,
+    PickPackageError,
+    Utc,
+    get_pkg_mirror_path,
+    save_meta_indexed,
 };
 
 /// The in-memory cache + fetch-lock key for a `(registry, package)` pick,

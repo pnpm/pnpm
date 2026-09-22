@@ -1,5 +1,8 @@
 use super::{
-    SilentReporter, VerifyError, VerifyLockfileResolutionsOptions, parse,
+    SilentReporter,
+    VerifyError,
+    VerifyLockfileResolutionsOptions,
+    parse,
     verify_lockfile_resolutions,
 };
 

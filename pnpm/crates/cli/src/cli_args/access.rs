@@ -1,18 +1,50 @@
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use permissions::{get_status, grant_access, revoke_access, set_mfa, set_status};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
+use permissions::{
+    get_status,
+    grant_access,
+    revoke_access,
+    set_mfa,
+    set_status,
+};
 use pnpm_config::Config;
 use pnpm_network::{
-    RedirectGuard, RetryOpts, ThrottledClient, ThrottledClientGuard, encode_uri_component,
-    redact_and_sanitize, send_with_retry,
+    RedirectGuard,
+    RetryOpts,
+    ThrottledClient,
+    ThrottledClientGuard,
+    encode_uri_component,
+    redact_and_sanitize,
+    send_with_retry,
 };
 use registry::{
-    AccessContext, build_access_context, escaped_package_name, fetch_error_from_response,
-    normalize_registry_url, send_get, send_json, write_error_from_response,
+    AccessContext,
+    build_access_context,
+    escaped_package_name,
+    fetch_error_from_response,
+    normalize_registry_url,
+    send_get,
+    send_json,
+    write_error_from_response,
 };
-use reqwest::{Method, Response, StatusCode};
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use reqwest::{
+    Method,
+    Response,
+    StatusCode,
+};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::Duration,
+};
 
 #[derive(Debug, Args)]
 pub struct AccessArgs {

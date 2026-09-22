@@ -16,7 +16,10 @@
 //! resolved to the declared member set when the config is loaded, so
 //! evaluation needs only the caller's identity.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 use pnpr_registry::PackagePattern;
 

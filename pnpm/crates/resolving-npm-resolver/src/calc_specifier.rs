@@ -6,8 +6,14 @@
 //! round-trips as `npm:<real name>@<range>`, or how a prerelease pick
 //! is pinned.
 
-use node_semver::{Range, Version};
-use pnpm_registry::{PackageVersion, RangeSpecStyle};
+use node_semver::{
+    Range,
+    Version,
+};
+use pnpm_registry::{
+    PackageVersion,
+    RangeSpecStyle,
+};
 
 use crate::infer_range_spec_style::infer_range_spec_style;
 

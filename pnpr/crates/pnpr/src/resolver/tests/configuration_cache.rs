@@ -1,7 +1,21 @@
 use super::{
-    HashMap, HashSet, Lockfile, Mutex, PacquetConfig, PathBuf, RegistryDeclaration, ResolutionMode,
-    ResolveRequest, ResolveRequestProject, RouteContext, config, deps, lockfile, registry_config,
-    reject_off_allowlist_fetches, resolution_cache_key,
+    HashMap,
+    HashSet,
+    Lockfile,
+    Mutex,
+    PacquetConfig,
+    PathBuf,
+    RegistryDeclaration,
+    ResolutionMode,
+    ResolveRequest,
+    ResolveRequestProject,
+    RouteContext,
+    config,
+    deps,
+    lockfile,
+    registry_config,
+    reject_off_allowlist_fetches,
+    resolution_cache_key,
 };
 
 #[test]
@@ -318,7 +332,11 @@ fn intern_config_applies_project_transforms() {
 fn intern_config_uses_lockfile_settings_for_a_legacy_frozen_request() {
     use super::super::intern_config;
     use pnpm_store_dir::StoreDir;
-    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+    use std::{
+        collections::HashMap,
+        path::PathBuf,
+        sync::Mutex,
+    };
 
     let configs = Mutex::new(HashMap::new());
     let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-lockfile-settings-store"));
@@ -453,7 +471,11 @@ fn intern_config_prefers_request_settings_and_keys_effective_values() {
 fn intern_config_uses_server_defaults_for_a_legacy_update_request() {
     use super::super::intern_config;
     use pnpm_store_dir::StoreDir;
-    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+    use std::{
+        collections::HashMap,
+        path::PathBuf,
+        sync::Mutex,
+    };
 
     let configs = Mutex::new(HashMap::new());
     let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-update-settings-store"));
@@ -490,7 +512,11 @@ fn intern_config_uses_server_defaults_for_a_legacy_update_request() {
 fn intern_config_ignores_unrelated_lockfile_settings() {
     use super::super::intern_config;
     use pnpm_store_dir::StoreDir;
-    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+    use std::{
+        collections::HashMap,
+        path::PathBuf,
+        sync::Mutex,
+    };
 
     let configs = Mutex::new(HashMap::new());
     let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-unadopted-settings-store"));
@@ -522,7 +548,11 @@ fn intern_config_ignores_unrelated_lockfile_settings() {
 fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
     use super::super::intern_config;
     use pnpm_store_dir::StoreDir;
-    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+    use std::{
+        collections::HashMap,
+        path::PathBuf,
+        sync::Mutex,
+    };
 
     let configs = Mutex::new(HashMap::new());
     let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-intern-test-store"));
@@ -562,7 +592,11 @@ fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
 fn intern_config_refuses_a_config_key_larger_than_the_byte_cap() {
     use super::super::intern_config;
     use pnpm_store_dir::StoreDir;
-    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+    use std::{
+        collections::HashMap,
+        path::PathBuf,
+        sync::Mutex,
+    };
 
     let configs = Mutex::new(HashMap::new());
     let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-bytecap-test-store"));
@@ -587,7 +621,11 @@ fn intern_config_refuses_a_config_key_larger_than_the_byte_cap() {
 fn intern_config_keys_overrides_canonically_regardless_of_order() {
     use super::super::intern_config;
     use pnpm_store_dir::StoreDir;
-    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+    use std::{
+        collections::HashMap,
+        path::PathBuf,
+        sync::Mutex,
+    };
 
     let configs = Mutex::new(HashMap::new());
     let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-canon-test-store"));

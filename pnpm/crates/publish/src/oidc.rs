@@ -7,9 +7,20 @@
 //! instead of a live registry. CI-provider detection is a plain `EnvVar` read
 //! ([`is_github_actions`], [`is_gitlab`]).
 
-pub use auth_token::{AuthTokenError, fetch_auth_token};
-pub use id_token::{GetIdTokenError, IdTokenError, get_id_token};
-pub use provenance::{DetermineProvenanceError, ProvenanceError, determine_provenance};
+pub use auth_token::{
+    AuthTokenError,
+    fetch_auth_token,
+};
+pub use id_token::{
+    GetIdTokenError,
+    IdTokenError,
+    get_id_token,
+};
+pub use provenance::{
+    DetermineProvenanceError,
+    ProvenanceError,
+    determine_provenance,
+};
 
 mod auth_token;
 mod id_token;
@@ -20,7 +31,14 @@ use serde_json::Value;
 use url::Url;
 
 use crate::{
-    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcMethod, OidcRequest},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+        OidcFetchError,
+        OidcMethod,
+        OidcRequest,
+    },
     global_log::global_info,
 };
 

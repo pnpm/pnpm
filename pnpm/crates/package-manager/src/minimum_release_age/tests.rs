@@ -1,14 +1,27 @@
-use std::{fs, sync::Mutex};
+use std::{
+    fs,
+    sync::Mutex,
+};
 
 use pnpm_config::Config;
-use pnpm_lockfile::{LockfileResolution, RegistryResolution};
-use pnpm_reporter::{LogEvent, PromptAction, Reporter, SilentReporter};
+use pnpm_lockfile::{
+    LockfileResolution,
+    RegistryResolution,
+};
+use pnpm_reporter::{
+    LogEvent,
+    PromptAction,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_resolving_resolver_base::ResolutionPolicyViolation;
 use ssri::Integrity;
 use tempfile::tempdir;
 
 use super::{
-    ApprovalPrompt, MinimumReleaseAgeError, PolicyExcludes,
+    ApprovalPrompt,
+    MinimumReleaseAgeError,
+    PolicyExcludes,
     handle_minimum_release_age_violations_with,
 };
 

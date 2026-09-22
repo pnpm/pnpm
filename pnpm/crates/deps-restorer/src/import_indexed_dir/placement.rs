@@ -1,13 +1,25 @@
-use super::{ImportIndexedDirError, Placement, remove_non_dir_dirent, staging::import_atomic};
+use super::{
+    ImportIndexedDirError,
+    Placement,
+    remove_non_dir_dirent,
+    staging::import_atomic,
+};
 use crate::import_into_fresh_target;
 use pnpm_config::PackageImportMethod;
 use pnpm_fs::Host;
 use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use std::{
-    collections::{HashMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::atomic::AtomicU8,
 };
 

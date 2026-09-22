@@ -3,11 +3,24 @@
 //! otherwise.
 
 use super::host::Interpreter;
-use miette::{IntoDiagnostic, Result, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    bail,
+};
 use pep508_rs::MarkerTree;
 use pnpm_config::Config;
-use pnpm_package_is_installable::{Libc, LibcFamily, NamedPlatform, Os, SupportedArchitectures};
-use pnpm_python_resolver::{Target, environment_marker};
+use pnpm_package_is_installable::{
+    Libc,
+    LibcFamily,
+    NamedPlatform,
+    Os,
+    SupportedArchitectures,
+};
+use pnpm_python_resolver::{
+    Target,
+    environment_marker,
+};
 use std::collections::BTreeSet;
 
 /// One environment a lockfile covers: the target a resolution pass runs

@@ -1,10 +1,20 @@
 #[cfg(windows)]
 pub(super) use windows::ensure_workspace_directory_windows;
 
-use super::{IntoDiagnostic, Path, PathBuf, Result, fs, io};
+use super::{
+    IntoDiagnostic,
+    Path,
+    PathBuf,
+    Result,
+    fs,
+    io,
+};
 use miette::WrapErr;
 #[cfg(unix)]
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 #[cfg(unix)]
 static MANAGED_TEMP_ID: AtomicU64 = AtomicU64::new(0);
@@ -103,7 +113,10 @@ fn accept_existing_directory(error: io::Error) -> io::Result<()> {
 
 #[cfg(unix)]
 fn open_directory_at(parent: &fs::File, name: &str) -> io::Result<fs::File> {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _};
+    use std::os::{
+        fd::AsRawFd as _,
+        unix::ffi::OsStrExt as _,
+    };
 
     let name = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
     // SAFETY: `name` is NUL-terminated, `parent` stays open for the call, and
@@ -120,7 +133,10 @@ fn open_directory_at(parent: &fs::File, name: &str) -> io::Result<fs::File> {
 
 #[cfg(unix)]
 fn create_directory_at(parent: &fs::File, name: &str) -> io::Result<()> {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _};
+    use std::os::{
+        fd::AsRawFd as _,
+        unix::ffi::OsStrExt as _,
+    };
 
     let name = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
     // SAFETY: `name` is NUL-terminated and `parent` stays open for the call.
@@ -133,7 +149,10 @@ fn create_directory_at(parent: &fs::File, name: &str) -> io::Result<()> {
 
 #[cfg(unix)]
 fn file_from_descriptor(descriptor: libc::c_int) -> io::Result<fs::File> {
-    use std::os::fd::{FromRawFd as _, OwnedFd};
+    use std::os::fd::{
+        FromRawFd as _,
+        OwnedFd,
+    };
 
     if descriptor == -1 {
         Err(io::Error::last_os_error())
@@ -149,7 +168,13 @@ pub(super) fn read_workspace_file(
     directory: &ManagedDirectory,
     name: &str,
 ) -> io::Result<(String, Option<u32>)> {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _, unix::fs::PermissionsExt as _};
+    use std::os::{
+        fd::AsRawFd as _,
+        unix::{
+            ffi::OsStrExt as _,
+            fs::PermissionsExt as _,
+        },
+    };
 
     let name = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
     // SAFETY: `name` is NUL-terminated, and the directory descriptor remains
@@ -182,8 +207,16 @@ pub(super) fn write_workspace_file(
     bytes: &[u8],
     mode: Option<u32>,
 ) -> io::Result<()> {
-    use std::io::Write as _;
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _, unix::fs::PermissionsExt as _};
+    use std::{
+        io::Write as _,
+        os::{
+            fd::AsRawFd as _,
+            unix::{
+                ffi::OsStrExt as _,
+                fs::PermissionsExt as _,
+            },
+        },
+    };
 
     let destination = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
     let (temporary, mut file) = create_workspace_temporary(directory, name)?;
@@ -235,7 +268,10 @@ pub(super) fn force_workspace_symlink(
     target: &Path,
     name: &str,
 ) -> io::Result<pnpm_fs::ForceSymlinkOutcome> {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _};
+    use std::os::{
+        fd::AsRawFd as _,
+        unix::ffi::OsStrExt as _,
+    };
 
     let wanted = pnpm_fs::relative_path(&directory.path, target);
     let wanted_c = std::ffi::CString::new(wanted.as_os_str().as_bytes())?;
@@ -326,7 +362,10 @@ fn move_occupant_aside(
 
 #[cfg(unix)]
 fn read_link_at(directory: &fs::File, name: &std::ffi::CStr) -> io::Result<PathBuf> {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStringExt as _};
+    use std::os::{
+        fd::AsRawFd as _,
+        unix::ffi::OsStringExt as _,
+    };
 
     let mut capacity = 256;
     loop {

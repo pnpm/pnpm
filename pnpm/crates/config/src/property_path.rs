@@ -10,7 +10,10 @@
 //! `foo.bar.baz`, `.foo.bar`, `foo.bar["baz"]`, `foo['bar'].baz`,
 //! `["foo"].bar`, `foo[123]`.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use serde_json::Value;
 
 /// One parsed property-path segment. A numeric literal keeps its numeric

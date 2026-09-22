@@ -1,5 +1,13 @@
-use miette::{IntoDiagnostic, Result, WrapErr};
-use std::{fs, ops::Range, path::Path};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
+use std::{
+    fs,
+    ops::Range,
+    path::Path,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CargoDependencyKind {

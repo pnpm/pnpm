@@ -1,4 +1,11 @@
-use super::{SearchParams, SearchText, parse_from, parse_params, parse_query, parse_size};
+use super::{
+    SearchParams,
+    SearchText,
+    parse_from,
+    parse_params,
+    parse_query,
+    parse_size,
+};
 
 #[test]
 fn parses_text_query() {

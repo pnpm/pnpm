@@ -1,6 +1,15 @@
 use super::{
-    DepPath, NodeId, Path, PathBuf, PeerId, Range, ResolvePeersOptions, ResolveResult, Version,
-    get_peer_version_range, index_of_dep_path_suffix,
+    DepPath,
+    NodeId,
+    Path,
+    PathBuf,
+    PeerId,
+    Range,
+    ResolvePeersOptions,
+    ResolveResult,
+    Version,
+    get_peer_version_range,
+    index_of_dep_path_suffix,
 };
 
 pub(super) fn version_gte(left: &str, right: &str) -> bool {

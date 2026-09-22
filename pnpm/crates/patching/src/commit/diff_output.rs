@@ -2,10 +2,20 @@ use super::PatchCommitError;
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
 use std::{
-    fs::{self, File, OpenOptions},
-    io::{self, Read},
+    fs::{
+        self,
+        File,
+        OpenOptions,
+    },
+    io::{
+        self,
+        Read,
+    },
     path::PathBuf,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 const MAX_DIFF_OUTPUT_BYTES: u64 = 128 * 1024 * 1024;
 pub(super) struct DiffTempFile {

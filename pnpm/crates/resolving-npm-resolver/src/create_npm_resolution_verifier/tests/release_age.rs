@@ -1,7 +1,16 @@
 use super::{
-    FAKE_INTEGRITY, PkgName, ResolutionVerification, abbreviated_packument_json, assert_eq,
-    create_npm_resolution_verifier, create_package_version_policy, ctx, default_opts,
-    min_age_packument_json, now_at, registry_resolution,
+    FAKE_INTEGRITY,
+    PkgName,
+    ResolutionVerification,
+    abbreviated_packument_json,
+    assert_eq,
+    create_npm_resolution_verifier,
+    create_package_version_policy,
+    ctx,
+    default_opts,
+    min_age_packument_json,
+    now_at,
+    registry_resolution,
 };
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 

@@ -1,6 +1,9 @@
 use super::{
-    super::InstallPackageBySnapshotError, leaked_offline_config, registry_metadata,
-    run_snapshot_install_with_session, scripted_session,
+    super::InstallPackageBySnapshotError,
+    leaked_offline_config,
+    registry_metadata,
+    run_snapshot_install_with_session,
+    scripted_session,
 };
 
 /// A throwing fetcher hook surfaces as

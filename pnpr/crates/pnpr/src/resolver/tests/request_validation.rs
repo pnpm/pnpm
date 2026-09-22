@@ -1,5 +1,9 @@
 use super::{
-    ResolveRequest, RouteContext, StatusCode, registry_config, reject_off_allowlist_fetches,
+    ResolveRequest,
+    RouteContext,
+    StatusCode,
+    registry_config,
+    reject_off_allowlist_fetches,
 };
 
 #[test]

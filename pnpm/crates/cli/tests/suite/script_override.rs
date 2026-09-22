@@ -4,8 +4,15 @@
 //! `clean` has its own coverage in `clean.rs`.
 
 use assert_cmd::cargo::CommandCargoExt;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn write_manifest(dir: &Path, name: &str, scripts: &serde_json::Value) {
     let manifest = serde_json::json!({
@@ -179,7 +186,11 @@ fn ci_cleans_node_modules_when_the_project_declares_a_clean_script() {
 /// the module covers the resolver on every platform.
 #[cfg(unix)]
 mod scripts {
-    use super::{CommandTempCwd, run, workspace_with_member_scripts};
+    use super::{
+        CommandTempCwd,
+        run,
+        workspace_with_member_scripts,
+    };
     use assert_cmd::cargo::CommandCargoExt;
     use pnpm_testing_utils::command_env::CommandTestExt;
     use std::process::Command;

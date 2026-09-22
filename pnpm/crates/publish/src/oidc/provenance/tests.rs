@@ -1,9 +1,22 @@
-use super::{DetermineProvenanceError, ProvenanceError, determine_provenance};
+use super::{
+    DetermineProvenanceError,
+    ProvenanceError,
+    determine_provenance,
+};
 use crate::{
-    capabilities::{EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
+    capabilities::{
+        EnvVar,
+        OidcFetch,
+        OidcFetchError,
+        OidcRequest,
+        OidcResponse,
+    },
     oidc::OidcHttpOptions,
 };
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use base64::{
+    Engine,
+    engine::general_purpose::URL_SAFE_NO_PAD,
+};
 use pretty_assertions::assert_eq;
 
 const REGISTRY: &str = "https://registry.npmjs.org/";

@@ -1,7 +1,13 @@
 use crate::HashEncoding;
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use serde_json::Value;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 
 /// Hash a JSON value with sorted keys, sha256, and base64 encoding.
 ///

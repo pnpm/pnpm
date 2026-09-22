@@ -1,11 +1,21 @@
 use super::{
-    DEV_PREINSTALL_ALREADY_RAN_ENV, EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env,
-    build_env_for_platform, escape_newlines, is_dev_preinstall_marker, is_stamping_key,
-    sanitize_env_key, stamp_package,
+    DEV_PREINSTALL_ALREADY_RAN_ENV,
+    EnvOptions,
+    VERIFY_DEPS_BEFORE_RUN_ENV,
+    build_env,
+    build_env_for_platform,
+    escape_newlines,
+    is_dev_preinstall_marker,
+    is_stamping_key,
+    sanitize_env_key,
+    stamp_package,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 
 fn empty_extra() -> HashMap<String, String> {
     HashMap::new()

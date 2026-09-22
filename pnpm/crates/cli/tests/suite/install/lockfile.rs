@@ -1,14 +1,30 @@
 #[cfg(unix)]
 use super::set_dir_modes;
 use super::{
-    AddMockedRegistry, BIG_LOCKFILE, BIG_MANIFEST, CommandExtra, CommandTempCwd, OpenOptions,
-    STORE_VERSION, Write, assert_merged_conflicted_lockfile, flatten_report, fs,
-    new_pacquet_command, write_conflicted_lockfile_fixture,
+    AddMockedRegistry,
+    BIG_LOCKFILE,
+    BIG_MANIFEST,
+    CommandExtra,
+    CommandTempCwd,
+    OpenOptions,
+    STORE_VERSION,
+    Write,
+    assert_merged_conflicted_lockfile,
+    flatten_report,
+    fs,
+    new_pacquet_command,
+    write_conflicted_lockfile_fixture,
     write_required_incompatible_engine_fixture,
 };
 #[cfg(unix)]
-use super::{enable_gvs_in_workspace_yaml, is_symlink_or_junction};
-use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+use super::{
+    enable_gvs_in_workspace_yaml,
+    is_symlink_or_junction,
+};
+use assert_cmd::{
+    assert::OutputAssertExt,
+    cargo::CommandCargoExt,
+};
 
 #[test]
 fn install_merges_git_conflicts_and_keeps_the_locked_version() {

@@ -5,21 +5,40 @@ use crate::{
         pipelines::InstallFamilySelection,
         recursive,
         supported_architectures::SupportedArchitecturesArgs,
-        update_interactive::{InteractiveUpdateOptions, UpdatePrompt},
-        workspace_option::{WorkspaceOptionError, workspace_link_root},
+        update_interactive::{
+            InteractiveUpdateOptions,
+            UpdatePrompt,
+        },
+        workspace_option::{
+            WorkspaceOptionError,
+            workspace_link_root,
+        },
     },
 };
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+};
 use pnpm_config::Config;
 use pnpm_github_actions as github_actions;
 use pnpm_matcher::Matcher;
-use pnpm_package_manager::{Update, build_workspace_packages_map, included_direct_groups};
+use pnpm_package_manager::{
+    Update,
+    build_workspace_packages_map,
+    included_direct_groups,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::Path,
+};
 
 /// The `--prod`, `--dev`, and `--no-optional` flags that select which
 /// dependency groups to update.

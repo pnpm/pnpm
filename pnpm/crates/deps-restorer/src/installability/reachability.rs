@@ -1,7 +1,22 @@
-use super::{CheckCache, cached_check};
-use pnpm_lockfile::{PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
-use pnpm_package_is_installable::{InstallabilityError, InstallabilityOptions};
-use std::collections::{HashMap, HashSet, VecDeque};
+use super::{
+    CheckCache,
+    cached_check,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    ProjectSnapshot,
+    SnapshotEntry,
+};
+use pnpm_package_is_installable::{
+    InstallabilityError,
+    InstallabilityOptions,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+    VecDeque,
+};
 
 /// Edge classification produced by [`walk_lockfile_edges`].
 pub(super) struct LockfileEdgeReach<'lock> {

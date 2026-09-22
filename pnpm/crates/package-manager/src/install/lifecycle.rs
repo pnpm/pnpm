@@ -1,13 +1,31 @@
 use pnpm_deps_restorer::build_modules::exec_scripts_prepend_node_path;
 
 use super::{
-    Config, DEV_PREINSTALL_ALREADY_RAN_ENV, DependencyGroup, ExecScriptsPrependNodePath, HashMap,
-    HashSet, InstallError, Lockfile, NodeLinker, PackageManifest, Path, PathBuf, Reporter,
-    RunPostinstallHooks, link_project_bins, project_requires_lifecycle_scripts,
-    run_dev_preinstall_hook, run_project_lifecycle_scripts,
+    Config,
+    DEV_PREINSTALL_ALREADY_RAN_ENV,
+    DependencyGroup,
+    ExecScriptsPrependNodePath,
+    HashMap,
+    HashSet,
+    InstallError,
+    Lockfile,
+    NodeLinker,
+    PackageManifest,
+    Path,
+    PathBuf,
+    Reporter,
+    RunPostinstallHooks,
+    link_project_bins,
+    project_requires_lifecycle_scripts,
+    run_dev_preinstall_hook,
+    run_project_lifecycle_scripts,
 };
 use indexmap::IndexMap;
-use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, TaskCompletion, schedule_graph};
+use pnpm_workspace_task_scheduler::{
+    ScheduleGraphOptions,
+    TaskCompletion,
+    schedule_graph,
+};
 use std::sync::Mutex;
 
 /// Walk every workspace project's `package.json`. Returns `Ok(None)`

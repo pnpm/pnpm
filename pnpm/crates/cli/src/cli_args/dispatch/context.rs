@@ -1,8 +1,19 @@
-use super::configuration::{RunAnchors, apply_update_config};
-use crate::{State, cli_args::reporter::ReporterType};
+use super::configuration::{
+    RunAnchors,
+    apply_update_config,
+};
+use crate::{
+    State,
+    cli_args::reporter::ReporterType,
+};
 use miette::Context;
 use pnpm_config::Config;
-use std::{future::Future, path::Path, pin::Pin, sync::atomic::AtomicBool};
+use std::{
+    future::Future,
+    path::Path,
+    pin::Pin,
+    sync::atomic::AtomicBool,
+};
 
 pub(crate) type CommandFuture<'a, Output = ()> =
     Pin<Box<dyn Future<Output = miette::Result<Output>> + Send + 'a>>;

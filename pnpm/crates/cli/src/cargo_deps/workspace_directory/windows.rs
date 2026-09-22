@@ -1,5 +1,12 @@
 use super::{
-    IntoDiagnostic, ManagedDirectory, Path, PathBuf, Result, accept_existing_directory, fs, io,
+    IntoDiagnostic,
+    ManagedDirectory,
+    Path,
+    PathBuf,
+    Result,
+    accept_existing_directory,
+    fs,
+    io,
 };
 use miette::WrapErr;
 
@@ -70,7 +77,10 @@ fn open_or_create_pinned_windows_directory(path: &Path) -> Result<fs::File> {
 fn open_pinned_windows_directory(path: &Path) -> io::Result<fs::File> {
     use std::os::windows::fs::OpenOptionsExt as _;
     use windows_sys::Win32::Storage::FileSystem::{
-        FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_SHARE_READ, FILE_SHARE_WRITE,
+        FILE_FLAG_BACKUP_SEMANTICS,
+        FILE_FLAG_OPEN_REPARSE_POINT,
+        FILE_SHARE_READ,
+        FILE_SHARE_WRITE,
     };
 
     fs::OpenOptions::new()

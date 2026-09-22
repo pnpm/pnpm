@@ -1,4 +1,9 @@
-use super::{STORE_VERSION, build_overlay, install_options, resolve_config};
+use super::{
+    STORE_VERSION,
+    build_overlay,
+    install_options,
+    resolve_config,
+};
 
 /// `pnpmHomeDir` resolves the default store under that home, and an
 /// explicit `storeDir` still wins.

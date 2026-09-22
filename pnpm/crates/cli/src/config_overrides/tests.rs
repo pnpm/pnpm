@@ -1,16 +1,33 @@
 use super::{
-    ConfigOverrides, apply_registry_override, apply_state_dir_override, apply_store_dir_override,
+    ConfigOverrides,
+    apply_registry_override,
+    apply_state_dir_override,
+    apply_store_dir_override,
 };
 use pnpm_config::{
-    ColorMode, Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, LinkWorkspacePackages,
-    NodeLinker, PackageImportMethod, PmOnFail, RemoteSideEffectsCacheSettings, RuntimeOnFail,
-    SaveWorkspaceProtocol, TrustPolicy,
+    ColorMode,
+    Config,
+    EnvVar,
+    GetCurrentDir,
+    GetHomeDir,
+    LinkProbe,
+    LinkWorkspacePackages,
+    NodeLinker,
+    PackageImportMethod,
+    PmOnFail,
+    RemoteSideEffectsCacheSettings,
+    RuntimeOnFail,
+    SaveWorkspaceProtocol,
+    TrustPolicy,
 };
 use pnpm_store_dir::STORE_VERSION;
 use pretty_assertions::assert_eq;
 use std::{
     ffi::OsString,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 fn argv<Items: IntoIterator<Item = &'static str>>(items: Items) -> Vec<OsString> {

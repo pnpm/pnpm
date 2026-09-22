@@ -1,6 +1,12 @@
 //! Lenient parsing of npm registry publish timestamps.
 
-use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeZone, Utc};
+use chrono::{
+    DateTime,
+    NaiveDate,
+    NaiveDateTime,
+    TimeZone,
+    Utc,
+};
 
 /// Parse a publish timestamp from registry metadata into a UTC
 /// instant, or `None` when the string is not a recognized form.

@@ -1,9 +1,19 @@
 use crate::{
-    base_project::{BaseProject, GraphProject},
-    create_projects_graph::{CreateProjectsGraphOptions, Unmatched, create_projects_graph},
+    base_project::{
+        BaseProject,
+        GraphProject,
+    },
+    create_projects_graph::{
+        CreateProjectsGraphOptions,
+        Unmatched,
+        create_projects_graph,
+    },
 };
 use indexmap::IndexMap;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 struct TestProject {
     root_dir: PathBuf,

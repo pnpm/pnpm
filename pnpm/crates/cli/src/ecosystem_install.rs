@@ -1,19 +1,28 @@
 pub(crate) mod python;
 
-pub(crate) use workspace_inventory::{EcosystemManifest, EcosystemWorkspaceInventory};
+pub(crate) use workspace_inventory::{
+    EcosystemManifest,
+    EcosystemWorkspaceInventory,
+};
 
 mod workspace_inventory;
 
 use crate::{
     cargo_deps,
-    cli_args::{install::InstallDependencyOptions, pipelines::WorkspaceScope},
+    cli_args::{
+        install::InstallDependencyOptions,
+        pipelines::WorkspaceScope,
+    },
 };
 use pnpm_config::Config;
 use pnpm_install_coordinator::InstallPlan;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::DependencyGroup;
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

@@ -1,9 +1,17 @@
 use super::get_hoisting_limits;
 use pnpm_config::HoistingLimits;
 use pnpm_lockfile::{
-    Lockfile, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
+    Lockfile,
+    PkgName,
+    PkgVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
 };
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{
+    BTreeSet,
+    HashMap,
+};
 
 fn project_with_deps(names: &[&str]) -> ProjectSnapshot {
     let mut deps = ResolvedDependencyMap::new();

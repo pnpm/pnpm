@@ -1,6 +1,9 @@
 //! Infers a package's supported platforms from the tokens of its name.
 
-use crate::check_platform::{WantedPlatform, WantedPlatformRef};
+use crate::check_platform::{
+    WantedPlatform,
+    WantedPlatformRef,
+};
 
 fn os_for_token(token: &str) -> Option<&'static str> {
     match token {

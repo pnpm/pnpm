@@ -1,6 +1,13 @@
-use super::{ScriptShellError, SelectedShell, select_shell};
+use super::{
+    ScriptShellError,
+    SelectedShell,
+    select_shell,
+};
 use pretty_assertions::assert_eq;
-use std::{ffi::OsString, path::Path};
+use std::{
+    ffi::OsString,
+    path::Path,
+};
 
 fn os(text: &str) -> OsString {
     OsString::from(text)

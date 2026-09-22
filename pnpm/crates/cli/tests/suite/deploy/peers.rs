@@ -1,6 +1,14 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, Lockfile, PkgName, fs, pacquet_cmd,
-    write_ambiguous_peer_workspace, write_peer_workspace, write_project,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    Lockfile,
+    PkgName,
+    fs,
+    pacquet_cmd,
+    write_ambiguous_peer_workspace,
+    write_peer_workspace,
+    write_project,
 };
 use assert_cmd::assert::OutputAssertExt;
 

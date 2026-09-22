@@ -1,13 +1,33 @@
-use crate::{AllowBuildPolicy, CasPathsByPkgId, PackageManifests, VirtualStoreLayout};
+use crate::{
+    AllowBuildPolicy,
+    CasPathsByPkgId,
+    PackageManifests,
+    VirtualStoreLayout,
+};
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    PackageMetadata,
+    ProjectSnapshot,
+    SnapshotEntry,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_store_dir::StoreIndexWriter;
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
-    sync::{Arc, atomic::AtomicU8},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
 };
 
 #[derive(Clone, Copy)]

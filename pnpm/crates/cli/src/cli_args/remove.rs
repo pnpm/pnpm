@@ -1,6 +1,9 @@
 use crate::{
     State,
-    cli_args::{lockfile_dir::LockfileDirArg, pipelines::InstallFamilySelection},
+    cli_args::{
+        lockfile_dir::LockfileDirArg,
+        pipelines::InstallFamilySelection,
+    },
     state::command_lockfile,
 };
 use clap::Args;

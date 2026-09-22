@@ -10,22 +10,38 @@
 //! the install just wrote (the catalog write happens before the install
 //! so the resolver reads the new entries back), so they cannot ride along.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_lockfile::{LoadLockfileError, Lockfile};
+use pnpm_lockfile::{
+    LoadLockfileError,
+    Lockfile,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::{
-    FindWorkspaceDirError, FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, Project,
-    ReadWorkspaceManifestError, find_workspace_projects, read_workspace_manifest,
+    FindWorkspaceDirError,
+    FindWorkspaceProjectsError,
+    FindWorkspaceProjectsOpts,
+    Project,
+    ReadWorkspaceManifestError,
+    find_workspace_projects,
+    read_workspace_manifest,
     workspace_package_patterns,
 };
 use pnpm_workspace_manifest_writer::{
-    ResolvedPackageVersions, UpdateWorkspaceManifestError, UpdateWorkspaceManifestOptions,
+    ResolvedPackageVersions,
+    UpdateWorkspaceManifestError,
+    UpdateWorkspaceManifestOptions,
     update_workspace_manifest,
 };
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Failure modes of the workspace-manifest write (including the
 /// project discovery the cleanup pass needs).

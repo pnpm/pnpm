@@ -1,6 +1,16 @@
 use super::{
-    BTreeMap, BumpState, Identifier, IntentBumpType, Participant, PlannedRelease, Range,
-    ReleaseBumpType, ResolvedEpic, Version, VersioningError, VersioningSettings,
+    BTreeMap,
+    BumpState,
+    Identifier,
+    IntentBumpType,
+    Participant,
+    PlannedRelease,
+    Range,
+    ReleaseBumpType,
+    ResolvedEpic,
+    Version,
+    VersioningError,
+    VersioningSettings,
     parse_workspace_spec_alias,
 };
 

@@ -1,5 +1,10 @@
 use super::{
-    CommandExtra, CommandTempCwd, Duration, assert_no_bail_lets_siblings_finish, fs, json,
+    CommandExtra,
+    CommandTempCwd,
+    Duration,
+    assert_no_bail_lets_siblings_finish,
+    fs,
+    json,
 };
 use assert_cmd::assert::OutputAssertExt;
 

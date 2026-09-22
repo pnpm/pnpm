@@ -3,7 +3,10 @@
 //! a named platform takes.
 
 use crate::{
-    ArchitectureAxes, SupportedArchitectures, SupportedPlatform, WantedPlatformRef,
+    ArchitectureAxes,
+    SupportedArchitectures,
+    SupportedPlatform,
+    WantedPlatformRef,
     platform_is_supported,
 };
 use pretty_assertions::assert_eq;

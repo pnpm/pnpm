@@ -3,7 +3,10 @@ use pretty_assertions::assert_eq;
 use std::sync::mpsc;
 use tokio::{
     runtime::Builder,
-    sync::{Semaphore, oneshot},
+    sync::{
+        Semaphore,
+        oneshot,
+    },
 };
 
 #[tokio::test]

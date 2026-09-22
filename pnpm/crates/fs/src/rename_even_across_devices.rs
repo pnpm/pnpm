@@ -1,5 +1,14 @@
-use crate::{FsRemoveDirent, FsRename, copy_dirent, cross_device::is_cross_device};
-use std::{fs, io, path::Path};
+use crate::{
+    FsRemoveDirent,
+    FsRename,
+    copy_dirent,
+    cross_device::is_cross_device,
+};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 /// Move `src` onto `dst`, falling back to a copy when the kernel
 /// refuses the rename as cross-device.

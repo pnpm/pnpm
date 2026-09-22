@@ -1,6 +1,12 @@
-use crate::{StoreDir, register_project};
+use crate::{
+    StoreDir,
+    register_project,
+};
 use pnpm_fs::symlink_dir;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::PathBuf,
+};
 use tempfile::tempdir;
 
 /// Helper: lay out a slot under

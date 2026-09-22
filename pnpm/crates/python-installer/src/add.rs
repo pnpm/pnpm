@@ -1,9 +1,25 @@
-use super::{Discovery, InstallOptions, Lockfile, Prepared, Reporter, manifest, prepare};
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use super::{
+    Discovery,
+    InstallOptions,
+    Lockfile,
+    Prepared,
+    Reporter,
+    manifest,
+    prepare,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use std::{
     collections::BTreeSet,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Clone)]

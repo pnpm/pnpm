@@ -1,14 +1,29 @@
 use super::{
-    super::{MAX_USERNAME_CHARS, TokenBackend, TokenRecord, UpsertOutcome, UserBackend},
-    AuthSqlBackend, InsertUser, SqlAuth, StoredUser,
+    super::{
+        MAX_USERNAME_CHARS,
+        TokenBackend,
+        TokenRecord,
+        UpsertOutcome,
+        UserBackend,
+    },
+    AuthSqlBackend,
+    InsertUser,
+    SqlAuth,
+    StoredUser,
 };
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::{
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
     time::Duration,
 };

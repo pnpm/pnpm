@@ -1,9 +1,20 @@
-use super::{append_workspace_yaml_key, is_absent, read_wanted_lockfile, write_manifest};
+use super::{
+    append_workspace_yaml_key,
+    is_absent,
+    read_wanted_lockfile,
+    write_manifest,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{Lockfile, PkgName};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+};
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 /// TS: `not installing optional dependencies when optional is false`
 /// (`optionalDependencies.ts:391`). The root's own optional is dropped,

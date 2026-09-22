@@ -1,5 +1,11 @@
-use super::{check_sudo_as, sudo_blocked_operation};
-use crate::cli_args::cli_command::{CliArgs, CliCommand};
+use super::{
+    check_sudo_as,
+    sudo_blocked_operation,
+};
+use crate::cli_args::cli_command::{
+    CliArgs,
+    CliCommand,
+};
 use clap::Parser;
 
 fn command(argv: &[&str]) -> CliCommand {

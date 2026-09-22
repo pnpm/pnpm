@@ -34,7 +34,11 @@ pub use pnpr_package_name::Ecosystem;
 mod config_error;
 
 mod package_pattern;
-use package_pattern::{reject_shadowed_source, validate_namespace, wildcard_shapes};
+use package_pattern::{
+    reject_shadowed_source,
+    validate_namespace,
+    wildcard_shapes,
+};
 
 use indexmap::IndexMap;
 use pnpr_package_name::CanonicalPackageName;

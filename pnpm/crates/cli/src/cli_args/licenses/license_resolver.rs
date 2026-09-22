@@ -1,5 +1,9 @@
 use regex::Regex;
-use std::{collections::HashSet, path::Path, sync::OnceLock};
+use std::{
+    collections::HashSet,
+    path::Path,
+    sync::OnceLock,
+};
 use tokio::io::AsyncReadExt;
 
 const MAX_LICENSE_FILE_SIZE: usize = 1024 * 1024;

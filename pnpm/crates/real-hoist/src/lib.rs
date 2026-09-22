@@ -37,17 +37,40 @@
 //!
 //! [yarn-hoist]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts
 
-pub use tree::{percent_encode_path, pkg_id};
+pub use tree::{
+    percent_encode_path,
+    pkg_id,
+};
 
-use derive_more::{Display, Error};
-use indexmap::{IndexMap, IndexSet};
+use derive_more::{
+    Display,
+    Error,
+};
+use indexmap::{
+    IndexMap,
+    IndexSet,
+};
 use miette::Diagnostic;
 use pnpm_lockfile::{
-    Lockfile, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotEntry, VersionPart,
+    Lockfile,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    SnapshotEntry,
+    VersionPart,
 };
 use std::{
-    cell::{Cell, RefCell},
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    cell::{
+        Cell,
+        RefCell,
+    },
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+        HashSet,
+        VecDeque,
+    },
     rc::Rc,
 };
 
@@ -807,12 +830,24 @@ mod tests;
 
 mod tree;
 use tree::{
-    ConvertContext, TreeCache, collect_importer_deps, convert, external_placeholder, importer_node,
+    ConvertContext,
+    TreeCache,
+    collect_importer_deps,
+    convert,
+    external_placeholder,
+    importer_node,
     sorted_non_root_importers,
 };
 
 mod preferences;
-use preferences::{build_hoist_ident_map, is_preferred_ident};
+use preferences::{
+    build_hoist_ident_map,
+    is_preferred_ident,
+};
 
 mod absorption;
-use absorption::{ChildStep, absorb_decision, apply_decision};
+use absorption::{
+    ChildStep,
+    absorb_decision,
+    apply_decision,
+};

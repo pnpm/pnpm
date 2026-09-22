@@ -1,7 +1,14 @@
 #[cfg(unix)]
 use super::{
-    Command, CommandExtra, CommandTempCwd, CommandTestExt, fs, global_command, global_shim_command,
-    prepare_global_home, symlink_entries,
+    Command,
+    CommandExtra,
+    CommandTempCwd,
+    CommandTestExt,
+    fs,
+    global_command,
+    global_shim_command,
+    prepare_global_home,
+    symlink_entries,
 };
 
 /// A `globalShims` entry for the package writes context-aware shims: the

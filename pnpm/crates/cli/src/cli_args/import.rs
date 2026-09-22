@@ -1,10 +1,22 @@
 use crate::State;
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
-use pnpm_lockfile::{EnvLockfile, Lockfile};
-use pnpm_lockfile_import::{read_foreign_lockfile_versions, to_preferred_versions};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use pnpm_lockfile::{
+    EnvLockfile,
+    Lockfile,
+};
+use pnpm_lockfile_import::{
+    read_foreign_lockfile_versions,
+    to_preferred_versions,
+};
 use pnpm_network::redact_url_for_display;
-use pnpm_package_manager::{Install, ProjectMutation};
+use pnpm_package_manager::{
+    Install,
+    ProjectMutation,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
 

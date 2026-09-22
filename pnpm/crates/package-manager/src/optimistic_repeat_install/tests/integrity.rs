@@ -1,11 +1,21 @@
 use super::{
-    super::{Decision, settings::current_settings},
-    backdate_validated_files, check, isolated_included, write_empty_lockfile, write_state,
+    super::{
+        Decision,
+        settings::current_settings,
+    },
+    backdate_validated_files,
+    check,
+    isolated_included,
+    write_empty_lockfile,
+    write_state,
 };
 use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::ProjectEntry;
-use std::{collections::BTreeMap, fs};
+use std::{
+    collections::BTreeMap,
+    fs,
+};
 use tempfile::tempdir;
 
 /// `explicit_settings` stands in for pnpm's raw (default-`undefined`)

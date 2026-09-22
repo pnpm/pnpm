@@ -1,4 +1,7 @@
-use crate::{State, cli_args::install::resolve_bool_override};
+use crate::{
+    State,
+    cli_args::install::resolve_bool_override,
+};
 use clap::Args;
 use miette::Context;
 use pnpm_package_manager::Install;

@@ -4,14 +4,23 @@
 //! into.
 
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     future::Future,
     pin::Pin,
 };
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 use pnpm_network::redact_and_sanitize;
 
 /// Capability seam for `git ls-remote`.

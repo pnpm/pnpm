@@ -1,8 +1,22 @@
 use super::{
-    Arc, BTreeSet, DepsRequiringBuildSink, EngineMode, InstallOptions, NetworkConfigInput,
-    NoProxySetting, ProxyConfigInput, begin_stats, build_overlay, install_options,
-    install_options_for, network_config, reject_unsupported_install_options, run_install_inner,
-    script_deps_install_options, take_deps_requiring_build, take_stats,
+    Arc,
+    BTreeSet,
+    DepsRequiringBuildSink,
+    EngineMode,
+    InstallOptions,
+    NetworkConfigInput,
+    NoProxySetting,
+    ProxyConfigInput,
+    begin_stats,
+    build_overlay,
+    install_options,
+    install_options_for,
+    network_config,
+    reject_unsupported_install_options,
+    run_install_inner,
+    script_deps_install_options,
+    take_deps_requiring_build,
+    take_stats,
 };
 
 #[test]

@@ -8,13 +8,23 @@
 //! components. Revisit if a regression turns up.
 
 use crate::{
-    FindWorkspaceProjectsError, ReadWorkspaceManifestError,
+    FindWorkspaceProjectsError,
+    ReadWorkspaceManifestError,
     api::EnvVarOs,
-    manifest::{WORKSPACE_MANIFEST_FILENAME, read_workspace_manifest},
+    manifest::{
+        WORKSPACE_MANIFEST_FILENAME,
+        read_workspace_manifest,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Misnamed `pnpm-workspace.yaml` variants that are rejected rather
 /// than silently treated as "no workspace manifest".

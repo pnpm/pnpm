@@ -1,4 +1,8 @@
-use super::{MAX_INDEX_TOTAL_BYTES, index_budget_has_room, over_index_budget};
+use super::{
+    MAX_INDEX_TOTAL_BYTES,
+    index_budget_has_room,
+    over_index_budget,
+};
 
 #[test]
 fn the_index_budget_covers_every_entry_a_resolve_holds() {

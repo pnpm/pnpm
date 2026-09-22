@@ -8,17 +8,37 @@
 //! install would reject
 //! ([pnpm/pnpm#11165](https://github.com/pnpm/pnpm/issues/11165)).
 
-use crate::resolution_policy::{PickPolicy, pick_package_context};
-use derive_more::{Display, Error};
+use crate::resolution_policy::{
+    PickPolicy,
+    pick_package_context,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::Config;
-use pnpm_network::{ThrottledClient, redact_and_sanitize};
-use pnpm_registry::{PackageTag, PackageVersion};
-use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError, PickPackageOptions,
-    RegistryPackageSpec, pick_package, pick_registry_for_package,
+use pnpm_network::{
+    ThrottledClient,
+    redact_and_sanitize,
 };
-use std::{collections::HashMap, sync::Arc};
+use pnpm_registry::{
+    PackageTag,
+    PackageVersion,
+};
+use pnpm_resolving_npm_resolver::{
+    InMemoryPackageMetaCache,
+    PackumentFetchLocker,
+    PickPackageError,
+    PickPackageOptions,
+    RegistryPackageSpec,
+    pick_package,
+    pick_registry_for_package,
+};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 /// Error type of the crate-internal `LatestPicker::resolve`.
 #[derive(Debug, Display, Error, Diagnostic)]

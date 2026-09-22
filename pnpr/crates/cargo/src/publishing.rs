@@ -1,6 +1,17 @@
 use super::{
-    BTreeMap, CrateNameError, DependencyKind, Deserialize, Display, Error, IndexDependency,
-    IndexEntry, MAX_CRATE_ARCHIVE_UNPACKED_BYTES, Read, Value, default_true, validate_crate_name,
+    BTreeMap,
+    CrateNameError,
+    DependencyKind,
+    Deserialize,
+    Display,
+    Error,
+    IndexDependency,
+    IndexEntry,
+    MAX_CRATE_ARCHIVE_UNPACKED_BYTES,
+    Read,
+    Value,
+    default_true,
+    validate_crate_name,
 };
 use std::io;
 

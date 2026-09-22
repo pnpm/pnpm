@@ -1,8 +1,23 @@
 use super::{
-    Arc, DepPath, DependencyGroup, HashMap, HashSet, Mutex, PreferredVersions,
-    ResolveImporterOptions, StubResolver, VersionSelectorEntry, VersionSelectorType,
-    VersionSelectors, aliased_fake_result, assert_eq, default_opts, fake_manifest,
-    fake_manifest_json, fake_result, resolve_importer,
+    Arc,
+    DepPath,
+    DependencyGroup,
+    HashMap,
+    HashSet,
+    Mutex,
+    PreferredVersions,
+    ResolveImporterOptions,
+    StubResolver,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectors,
+    aliased_fake_result,
+    assert_eq,
+    default_opts,
+    fake_manifest,
+    fake_manifest_json,
+    fake_result,
+    resolve_importer,
 };
 
 /// An optional peer with a real `peerDependencies` entry whose

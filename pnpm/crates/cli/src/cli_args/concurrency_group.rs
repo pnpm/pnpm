@@ -23,19 +23,35 @@
 pub(crate) mod pool;
 pub(crate) mod stamp;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::Config;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+};
 use pnpm_text_sanitize::sanitize_inline;
-use pool::{SlotPool, WaitSnapshot};
+use pool::{
+    SlotPool,
+    WaitSnapshot,
+};
 use stamp::format_elapsed;
 use std::{
     collections::HashMap,
     fmt::Write,
-    fs::{self, File},
+    fs::{
+        self,
+        File,
+    },
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Duration,
 };
 

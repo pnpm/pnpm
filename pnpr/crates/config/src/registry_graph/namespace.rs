@@ -1,4 +1,10 @@
-use super::{Ecosystem, IndexMap, PackageAccess, PackagePattern, RegistryError};
+use super::{
+    Ecosystem,
+    IndexMap,
+    PackageAccess,
+    PackagePattern,
+    RegistryError,
+};
 
 pub(in super::super) fn validate_registry_key(key: &str) -> Result<(), RegistryError> {
     if let Some((prefix, name)) = key.split_once('/')

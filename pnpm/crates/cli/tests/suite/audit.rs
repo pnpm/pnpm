@@ -7,7 +7,10 @@ use std::{
     ffi::OsStr,
     fs,
     path::Path,
-    process::{Command, Output},
+    process::{
+        Command,
+        Output,
+    },
 };
 
 #[test]

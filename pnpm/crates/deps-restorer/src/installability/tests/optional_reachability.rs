@@ -1,5 +1,14 @@
-use super::{host, root_importer, snapshot_dep_map, snapshot_key, synthetic_metadata};
-use crate::installability::{SkippedSnapshots, compute_skipped_snapshots};
+use super::{
+    host,
+    root_importer,
+    snapshot_dep_map,
+    snapshot_key,
+    synthetic_metadata,
+};
+use crate::installability::{
+    SkippedSnapshots,
+    compute_skipped_snapshots,
+};
 use pnpm_lockfile::SnapshotEntry;
 use pnpm_reporter::LogEvent;
 use pretty_assertions::assert_eq;

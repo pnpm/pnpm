@@ -1,4 +1,7 @@
-use crate::{ProjectSnapshot, prune_undeclared_importer_deps};
+use crate::{
+    ProjectSnapshot,
+    prune_undeclared_importer_deps,
+};
 use pnpm_package_manifest::PackageManifest;
 use serde_json::json;
 use std::path::PathBuf;

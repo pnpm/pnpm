@@ -1,8 +1,24 @@
 use super::{
-    Arc, FAKE_INTEGRITY, Integrity, LockfileResolution, PkgName, REVISION_ONE_DIGEST,
-    REVISION_TWO_DIGEST, RegistryResolution, ResolutionVerification, TarballResolution,
-    TarballRevision, assert_eq, create_npm_resolution_verifier, ctx, default_opts, fake_integrity,
-    now_at, observed_dist_stats_sink, revision_integrity, tarball_resolution,
+    Arc,
+    FAKE_INTEGRITY,
+    Integrity,
+    LockfileResolution,
+    PkgName,
+    REVISION_ONE_DIGEST,
+    REVISION_TWO_DIGEST,
+    RegistryResolution,
+    ResolutionVerification,
+    TarballResolution,
+    TarballRevision,
+    assert_eq,
+    create_npm_resolution_verifier,
+    ctx,
+    default_opts,
+    fake_integrity,
+    now_at,
+    observed_dist_stats_sink,
+    revision_integrity,
+    tarball_resolution,
 };
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 

@@ -1,6 +1,14 @@
 use super::{
-    DependencyGroup, HashMap, Mutex, ResolveDependencyTreeOptions, ResolveOptions, StubResolver,
-    assert_eq, fake_manifest, fake_result, resolve_dependency_tree,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    ResolveDependencyTreeOptions,
+    ResolveOptions,
+    StubResolver,
+    assert_eq,
+    fake_manifest,
+    fake_result,
+    resolve_dependency_tree,
 };
 
 #[tokio::test]

@@ -1,5 +1,9 @@
 use super::{
-    AddMockedRegistry, fs, pacquet, setup_installed, setup_installed_workspace_project,
+    AddMockedRegistry,
+    fs,
+    pacquet,
+    setup_installed,
+    setup_installed_workspace_project,
     write_patch_edit,
 };
 use assert_cmd::assert::OutputAssertExt;

@@ -6,17 +6,28 @@
 //! project. Every project keeps its own `node_modules` of symlinks.
 
 use crate::_utils::{
-    ManifestDeps, append_workspace_yaml_key, pacquet_in, read_manifest, write_project_manifest,
+    ManifestDeps,
+    append_workspace_yaml_key,
+    pacquet_in,
+    read_manifest,
+    write_project_manifest,
 };
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fixtures::minimal_tarball,
 };
 use serde_json::json;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 /// Whether an install reported the project as already up to date. Read
 /// off the NDJSON stream (which the reporter writes to stderr) because

@@ -1,6 +1,12 @@
 use crate::AllowBuildPolicy;
-use pnpm_config::{Config, NodeLinker};
-use std::{path::Path, sync::atomic::AtomicU8};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
+use std::{
+    path::Path,
+    sync::atomic::AtomicU8,
+};
 
 /// What every phase of one install reads and none of them changes.
 ///

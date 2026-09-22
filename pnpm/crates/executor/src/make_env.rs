@@ -3,7 +3,10 @@ use serde_json::Value;
 use std::{
     collections::HashMap,
     env,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Env var pnpm stamps as `false` into every spawned script and exec

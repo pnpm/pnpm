@@ -1,8 +1,24 @@
 use super::{
-    ArtifactUsage, BACKFILLED_SCOPE, HashSet, MAX_RESOLVE_RESPONSE_SIZE, MAX_SCOPE_MARKER_BYTES,
-    ObjectPath, ObjectStoreExt, RegistryError, Result, SharedArtifactStore, SignedArtifactEnvelope,
-    StoredArtifacts, artifact_operation_id, blob_id, digest_segment, entry_owner, is_blob_path,
-    is_variant_file, object_name, scope_name,
+    ArtifactUsage,
+    BACKFILLED_SCOPE,
+    HashSet,
+    MAX_RESOLVE_RESPONSE_SIZE,
+    MAX_SCOPE_MARKER_BYTES,
+    ObjectPath,
+    ObjectStoreExt,
+    RegistryError,
+    Result,
+    SharedArtifactStore,
+    SignedArtifactEnvelope,
+    StoredArtifacts,
+    artifact_operation_id,
+    blob_id,
+    digest_segment,
+    entry_owner,
+    is_blob_path,
+    is_variant_file,
+    object_name,
+    scope_name,
 };
 use futures_util::StreamExt as _;
 

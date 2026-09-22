@@ -8,9 +8,18 @@
 //! (`include_only_package_files`, `resolve_symlinks`, path containment)
 //! are per-fetch values in pacquet's install dispatch.
 
-use crate::{error::DirectoryFetcherError, walker};
-use pnpm_package_manifest::{pkg_requires_build, safe_read_package_json_from_dir};
-use std::{collections::HashMap, path::PathBuf};
+use crate::{
+    error::DirectoryFetcherError,
+    walker,
+};
+use pnpm_package_manifest::{
+    pkg_requires_build,
+    safe_read_package_json_from_dir,
+};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 /// One directory-fetch request. The `directory` is the absolute
 /// resolved path the caller wants packaged — the

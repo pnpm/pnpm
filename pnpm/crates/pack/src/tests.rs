@@ -1,16 +1,41 @@
-use super::{Host, PackError, PackOptions, PackResult, format_pack_output, to_pack_result_json};
-use crate::capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsReadFile};
+use super::{
+    Host,
+    PackError,
+    PackOptions,
+    PackResult,
+    format_pack_output,
+    to_pack_result_json,
+};
+use crate::capabilities::{
+    FsAtomicWrite,
+    FsCreateDirAll,
+    FsFileLen,
+    FsReadFile,
+};
 use flate2::read::GzDecoder;
 use pnpm_config::NodeLinker;
-use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
-use serde_json::{Value, json};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+    SilentReporter,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     io,
     path::Path,
     sync::Mutex,
 };
-use tempfile::{TempDir, tempdir};
+use tempfile::{
+    TempDir,
+    tempdir,
+};
 
 /// Minimal single-project fixture: a `package.json` plus whatever extra
 /// files the caller writes. `ignore_scripts` defaults to `true` so the

@@ -1,4 +1,10 @@
-use super::{Context, IndexMap, IntoDiagnostic, Path, Serialize};
+use super::{
+    Context,
+    IndexMap,
+    IntoDiagnostic,
+    Path,
+    Serialize,
+};
 
 /// Write the recursive summary to `pnpm-exec-summary.json` under `dir`.
 ///

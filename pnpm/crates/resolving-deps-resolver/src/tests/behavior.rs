@@ -1,8 +1,21 @@
 use super::{
-    DelayedAliasResolver, DependencyGroup, HashMap, Mutex, OverlayPickResolver, RecordingHooks,
-    ResolveDependencyTreeError, ResolveDependencyTreeOptions, ResolveOptions, StubResolver,
-    assert_eq, dependency_result, fake_manifest, fake_result, resolve_dependency_tree,
-    resolve_settlement_tree, settlement_versions,
+    DelayedAliasResolver,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    OverlayPickResolver,
+    RecordingHooks,
+    ResolveDependencyTreeError,
+    ResolveDependencyTreeOptions,
+    ResolveOptions,
+    StubResolver,
+    assert_eq,
+    dependency_result,
+    fake_manifest,
+    fake_result,
+    resolve_dependency_tree,
+    resolve_settlement_tree,
+    settlement_versions,
 };
 
 /// A package's children follow the occurrence that owns them — the
@@ -244,7 +257,10 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
 /// instance apart from registry packages and substitute its raw manifest.
 #[tokio::test]
 async fn read_package_hook_receives_the_directory_of_directory_resolutions() {
-    use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+    use pnpm_lockfile::{
+        DirectoryResolution,
+        LockfileResolution,
+    };
 
     let mut injected = fake_result(
         "injected",

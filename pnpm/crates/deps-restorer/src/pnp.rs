@@ -1,8 +1,17 @@
-use crate::package_map::{PackageMapOptions, lockfile_to_package_map};
-use derive_more::{Display, Error};
+use crate::package_map::{
+    PackageMapOptions,
+    lockfile_to_package_map,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 pub const PNP_FILENAME: &str = ".pnp.cjs";
 const PNP_LOADER_TEMPLATE: &str = include_str!("pnp_loader.cjs.inc");

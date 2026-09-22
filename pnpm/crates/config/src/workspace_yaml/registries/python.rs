@@ -1,5 +1,11 @@
-use super::{LoadWorkspaceYamlError, redact_registry_url};
-use pnpr_registry::{Ecosystem, PackagePattern};
+use super::{
+    LoadWorkspaceYamlError,
+    redact_registry_url,
+};
+use pnpr_registry::{
+    Ecosystem,
+    PackagePattern,
+};
 
 /// One ecosystem index and the Python namespace it owns.
 #[derive(Debug, Clone, PartialEq, Eq)]

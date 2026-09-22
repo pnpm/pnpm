@@ -1,6 +1,9 @@
 use pnpm_config::PackageImportMethod;
 use pnpm_store_dir::StoreDir;
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 
 /// Default npm registry used when neither the config nor a scope entry
 /// names one.

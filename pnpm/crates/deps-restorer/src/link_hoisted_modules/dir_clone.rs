@@ -1,12 +1,24 @@
 use crate::{
-    DependenciesGraphNode, DirCloneCache, RequiresBuildBySnapshot,
-    create_virtual_store::{dir_clone_cacheable, package_content_changed},
+    DependenciesGraphNode,
+    DirCloneCache,
+    RequiresBuildBySnapshot,
+    create_virtual_store::{
+        dir_clone_cacheable,
+        package_content_changed,
+    },
 };
-use pnpm_lockfile::{PackageKey, PackageMetadata};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+};
 use pnpm_reporter::Reporter;
 use std::{
-    collections::{HashMap, HashSet},
-    fmt, fs,
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fmt,
+    fs,
     path::PathBuf,
 };
 

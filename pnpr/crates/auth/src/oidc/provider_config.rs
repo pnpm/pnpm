@@ -1,5 +1,12 @@
 use super::{
-    AsyncMutex, HashMap, HashSet, MetadataCache, OidcProvider, Provider, Result, Url,
+    AsyncMutex,
+    HashMap,
+    HashSet,
+    MetadataCache,
+    OidcProvider,
+    Provider,
+    Result,
+    Url,
     invalid_config,
 };
 

@@ -5,11 +5,23 @@ mod cli_args;
 mod runner;
 mod stacks;
 
-use cli_args::{Binary, CliArgs, Layout};
-use runner::{Cell, Outcome, run_cell, scaffold_template};
+use cli_args::{
+    Binary,
+    CliArgs,
+    Layout,
+};
+use runner::{
+    Cell,
+    Outcome,
+    run_cell,
+    scaffold_template,
+};
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::ExitCode,
 };
 use which::which;

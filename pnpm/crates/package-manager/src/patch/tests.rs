@@ -1,23 +1,55 @@
 use super::{
-    PatchCandidate, PatchTarget, WritePackageForPatch, WritePackageForPatchError,
-    compare_candidates, default_patch_target, patch_candidates_from_lockfile, resolution_kind,
+    PatchCandidate,
+    PatchTarget,
+    WritePackageForPatch,
+    WritePackageForPatchError,
+    compare_candidates,
+    default_patch_target,
+    patch_candidates_from_lockfile,
+    resolution_kind,
 };
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, ComVer, GitResolution, Lockfile,
-    LockfileResolution, LockfileVersion, PackageKey, PackageMetadata, RegistryResolution,
-    TarballResolution, VariationsResolution,
+    BinaryArchive,
+    BinaryResolution,
+    BinarySpec,
+    ComVer,
+    GitResolution,
+    Lockfile,
+    LockfileResolution,
+    LockfileVersion,
+    PackageKey,
+    PackageMetadata,
+    RegistryResolution,
+    TarballResolution,
+    VariationsResolution,
 };
-use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_network::{
+    RetryOpts,
+    ThrottledClient,
+};
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
+    InMemoryPackageMetaCache,
+    NpmResolver,
+    shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
-use pnpm_store_dir::{StoreDir, StoreIndex, store_index_key};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    Resolver,
+    WantedDependency,
+};
+use pnpm_store_dir::{
+    StoreDir,
+    StoreIndex,
+    store_index_key,
+};
 use pnpm_testing_utils::registry::TestRegistry;
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 const GIT_HOSTED_COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 
@@ -538,8 +570,15 @@ impl PatchExtractFixture {
         use_git_hosted_url: bool,
         git_hosted_flag: bool,
     ) -> Self {
-        use pnpm_tarball::{CacheValue, CachedTarball};
-        use std::{collections::HashMap, path::PathBuf, sync::Arc};
+        use pnpm_tarball::{
+            CacheValue,
+            CachedTarball,
+        };
+        use std::{
+            collections::HashMap,
+            path::PathBuf,
+            sync::Arc,
+        };
 
         let tmp = tempfile::tempdir().expect("temp dir");
         let store_dir = tmp.path().join("store");

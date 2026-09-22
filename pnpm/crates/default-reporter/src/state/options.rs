@@ -1,4 +1,7 @@
-use crate::{MaxLogLevel, SummaryScope};
+use crate::{
+    MaxLogLevel,
+    SummaryScope,
+};
 
 /// Rendering settings that cannot be recovered from the event stream.
 #[derive(Debug, Clone)]

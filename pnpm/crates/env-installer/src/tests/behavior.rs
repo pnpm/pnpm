@@ -1,7 +1,19 @@
 use super::{
-    EnvLockfile, FixtureResolver, LockfileResolution, PackageKey, PackageMetadata,
-    RegistryResolution, SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, TempDir, harness,
-    is_package_manager_resolved, options, pnpm_engine_packages, prune_env_lockfile,
+    EnvLockfile,
+    FixtureResolver,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    RegistryResolution,
+    SnapshotDepRef,
+    SnapshotEntry,
+    SpecifierAndResolution,
+    TempDir,
+    harness,
+    is_package_manager_resolved,
+    options,
+    pnpm_engine_packages,
+    prune_env_lockfile,
     resolve_package_manager_integrities,
 };
 

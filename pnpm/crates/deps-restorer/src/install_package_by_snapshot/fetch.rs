@@ -1,24 +1,44 @@
 mod sources;
 
 use super::{
-    InstallPackageBySnapshot, InstallPackageBySnapshotError, InstalledPackage,
+    InstallPackageBySnapshot,
+    InstallPackageBySnapshotError,
+    InstalledPackage,
     runtime::binary_variant_for_host,
 };
 use crate::{
-    CreateVirtualDirBySnapshot, build_modules::exec_scripts_prepend_node_path,
+    CreateVirtualDirBySnapshot,
+    build_modules::exec_scripts_prepend_node_path,
     retry_config::retry_opts_from_config,
 };
 use pnpm_config::NodeLinker;
 use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{
-    DirectoryResolution, LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry,
+    DirectoryResolution,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
 };
-use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
-use pnpm_tarball::{IngestTarballToStore, MemCache, TarballError};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
+};
+use pnpm_tarball::{
+    IngestTarballToStore,
+    MemCache,
+    TarballError,
+};
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

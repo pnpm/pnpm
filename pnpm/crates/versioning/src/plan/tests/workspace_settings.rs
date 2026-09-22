@@ -1,7 +1,16 @@
 use super::{
-    AssembleReleasePlanOptions, DependencyUpdate, Ledger, ReleaseBumpType, assemble,
-    assemble_release_plan, assert_eq, make_intent, make_project, materialize_workspace_range,
-    release, release_names,
+    AssembleReleasePlanOptions,
+    DependencyUpdate,
+    Ledger,
+    ReleaseBumpType,
+    assemble,
+    assemble_release_plan,
+    assert_eq,
+    make_intent,
+    make_project,
+    materialize_workspace_range,
+    release,
+    release_names,
 };
 
 #[test]

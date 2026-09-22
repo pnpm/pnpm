@@ -1,27 +1,60 @@
 use super::{
-    AllowBuild, LoadWorkspaceYamlError, NAMED_UNRECOGNIZED_TASK_SETTINGS,
-    RemoteSideEffectsCacheSettings, SideEffectsCacheSetting, UpdateConfig,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
+    AllowBuild,
+    LoadWorkspaceYamlError,
+    NAMED_UNRECOGNIZED_TASK_SETTINGS,
+    RemoteSideEffectsCacheSettings,
+    SideEffectsCacheSetting,
+    UpdateConfig,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
     package_configs::ProjectConfig,
-    registries::{RegistryDeclaration, RegistryEntry},
+    registries::{
+        RegistryDeclaration,
+        RegistryEntry,
+    },
 };
 use crate::{
-    AuditLevel, CatalogMode, ColorMode, Config, GlobalShims, GlobalShimsSetting, HoistingLimits,
-    LinkWorkspacePackages, NodeLinker, NodePackageMapType, PmOnFail, ResolutionMode, RuntimeOnFail,
-    ScriptsPrependNodePath, ShimPolicy, TrustPolicy,
-    api::{EnvVar, GetHomeDir},
+    AuditLevel,
+    CatalogMode,
+    ColorMode,
+    Config,
+    GlobalShims,
+    GlobalShimsSetting,
+    HoistingLimits,
+    LinkWorkspacePackages,
+    NodeLinker,
+    NodePackageMapType,
+    PmOnFail,
+    ResolutionMode,
+    RuntimeOnFail,
+    ScriptsPrependNodePath,
+    ShimPolicy,
+    TrustPolicy,
+    api::{
+        EnvVar,
+        GetHomeDir,
+    },
 };
 use indexmap::IndexMap;
 use pipe_trait::Pipe;
-use pnpm_lockfile::{RegistryOptions, RegistryServerType};
+use pnpm_lockfile::{
+    RegistryOptions,
+    RegistryServerType,
+};
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_store_dir::StoreDir;
-use pnpm_workspace_state::{ConfigDependency, ConfigDependencyDetail};
+use pnpm_workspace_state::{
+    ConfigDependency,
+    ConfigDependencyDetail,
+};
 use pretty_assertions::assert_eq;
 use std::{
     collections::BTreeMap,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 thread_local! {

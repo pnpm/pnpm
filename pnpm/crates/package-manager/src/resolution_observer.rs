@@ -9,12 +9,20 @@
 //! while the server is still resolving.
 
 use crate::install_package_from_registry::{
-    extract_tarball, manifest_file_count, manifest_unpacked_size,
+    extract_tarball,
+    manifest_file_count,
+    manifest_unpacked_size,
 };
 use dashmap::DashSet;
 use pnpm_resolving_resolver_base::{
-    LatestQuery, PackageVersionGuard, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, WantedDependency,
+    LatestQuery,
+    PackageVersionGuard,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 use std::sync::Arc;
 

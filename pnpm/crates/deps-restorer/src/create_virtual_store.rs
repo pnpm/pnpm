@@ -1,39 +1,74 @@
-pub(crate) use cache_keys::{dir_clone_cacheable, package_content_changed};
+pub(crate) use cache_keys::{
+    dir_clone_cacheable,
+    package_content_changed,
+};
 
 mod pipeline;
 
 mod warm;
 use warm::{
-    gvs_slot_needs_rebuild, requires_build_from_cas_paths, snapshot_needs_build_marker,
-    warm_cas_paths_by_pkg_id, warm_shared_base_cas_paths,
+    gvs_slot_needs_rebuild,
+    requires_build_from_cas_paths,
+    snapshot_needs_build_marker,
+    warm_cas_paths_by_pkg_id,
+    warm_shared_base_cas_paths,
 };
 
 mod cold;
-use cold::{ColdCapture, add_cold_cas_paths};
+use cold::{
+    ColdCapture,
+    add_cold_cas_paths,
+};
 
 mod slot_linking;
 use slot_linking::LinkSlotsParallel;
 
 mod cache_keys;
 use cache_keys::{
-    SnapshotCacheKey, derive_cache_keys, integrity_equal, prefetch_keys, snapshot_deps_equal,
+    SnapshotCacheKey,
+    derive_cache_keys,
+    integrity_equal,
+    prefetch_keys,
+    snapshot_deps_equal,
 };
 
 use crate::{
-    CasPathsByPkgId, InstallPackageBySnapshotError, store_init::init_store_dir_best_effort,
+    CasPathsByPkgId,
+    InstallPackageBySnapshotError,
+    store_init::init_store_dir_best_effort,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_deps_path::get_pkg_id_with_patch_hash;
 use pnpm_lockfile::{
-    LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName,
-    PkgNameVerPeer, SnapshotEntry,
+    LockfileEntries,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgIdWithPatchHash,
+    PkgName,
+    PkgNameVerPeer,
+    SnapshotEntry,
 };
-use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndex};
-use pnpm_tarball::{PrefetchIntegrityCheck, PrefetchResult, prefetch_cas_paths};
+use pnpm_store_dir::{
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreIndex,
+};
+use pnpm_tarball::{
+    PrefetchIntegrityCheck,
+    PrefetchResult,
+    prefetch_cas_paths,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::PathBuf,
     sync::Arc,
 };

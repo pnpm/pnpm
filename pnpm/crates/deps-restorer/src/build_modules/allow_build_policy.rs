@@ -1,8 +1,14 @@
 //! Deciding which packages are allowed to run build scripts.
 
 use super::{
-    Config, Cow, HashSet, VersionPolicyError, expand_package_version_specs,
-    get_pkg_id_with_patch_hash, index_of_dep_path_suffix, parse_name_version_from_key,
+    Config,
+    Cow,
+    HashSet,
+    VersionPolicyError,
+    expand_package_version_specs,
+    get_pkg_id_with_patch_hash,
+    index_of_dep_path_suffix,
+    parse_name_version_from_key,
     remove_suffix,
 };
 

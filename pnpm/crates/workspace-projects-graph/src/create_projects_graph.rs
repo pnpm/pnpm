@@ -1,14 +1,23 @@
 use crate::{
     base_project::GraphProject,
-    graph::{ProjectGraph, ProjectGraphNode},
+    graph::{
+        ProjectGraph,
+        ProjectGraphNode,
+    },
 };
 use indexmap::IndexMap;
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 use pnpm_fs::lexical_normalize;
 use pnpm_workspace_range_resolver::resolve_workspace_range;
 use pnpm_workspace_spec::WorkspaceSpec;
 use rayon::prelude::*;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 /// Options for [`create_projects_graph()`].
 #[derive(Debug, Default, Clone, Copy)]

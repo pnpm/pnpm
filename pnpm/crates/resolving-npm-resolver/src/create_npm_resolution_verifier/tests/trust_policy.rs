@@ -1,7 +1,17 @@
 use super::{
-    PkgName, ResolutionVerification, TrustPolicy, assert_eq, create_npm_resolution_verifier,
-    create_package_version_policy, ctx, default_opts, now_at, registry_resolution,
-    stable_trust_packument, time_free_trust_packument, trust_downgrade_packument,
+    PkgName,
+    ResolutionVerification,
+    TrustPolicy,
+    assert_eq,
+    create_npm_resolution_verifier,
+    create_package_version_policy,
+    ctx,
+    default_opts,
+    now_at,
+    registry_resolution,
+    stable_trust_packument,
+    time_free_trust_packument,
+    trust_downgrade_packument,
 };
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 

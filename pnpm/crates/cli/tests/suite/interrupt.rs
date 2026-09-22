@@ -6,7 +6,10 @@
 //! instead, which needs its own tests rather than a port of these.
 #![cfg(unix)]
 
-use crate::_utils::terminal::{Terminal, spawn_without_terminal};
+use crate::_utils::terminal::{
+    Terminal,
+    spawn_without_terminal,
+};
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
@@ -14,9 +17,16 @@ use std::{
     fs,
     os::unix::process::ExitStatusExt,
     path::Path,
-    process::{Child, ExitStatus, Stdio},
+    process::{
+        Child,
+        ExitStatus,
+        Stdio,
+    },
     thread::sleep,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// How long a script is given to shut down before the test gives up. Well

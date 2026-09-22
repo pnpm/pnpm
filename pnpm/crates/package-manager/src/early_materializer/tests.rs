@@ -1,11 +1,23 @@
-use super::{EarlyMaterializer, lock};
+use super::{
+    EarlyMaterializer,
+    lock,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{LockfileResolution, TarballResolution};
+use pnpm_lockfile::{
+    LockfileResolution,
+    TarballResolution,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_resolving_deps_resolver::FinalizedPackage;
-use pnpm_resolving_resolver_base::{ResolveResult, ResolvedPackageInfo};
+use pnpm_resolving_resolver_base::{
+    ResolveResult,
+    ResolvedPackageInfo,
+};
 use pnpm_tarball::MemCache;
-use std::sync::{Arc, atomic::AtomicU8};
+use std::sync::{
+    Arc,
+    atomic::AtomicU8,
+};
 
 #[tokio::test]
 async fn repeated_resolution_rounds_schedule_each_slot_once() {

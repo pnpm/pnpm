@@ -19,45 +19,103 @@
 //! stateful protocol surface.
 
 pub use artifacts::{
-    ArtifactBuildPolicy, RejectedArtifact, ResolveArtifactsOptions, VerifiedArtifact,
+    ArtifactBuildPolicy,
+    RejectedArtifact,
+    ResolveArtifactsOptions,
+    VerifiedArtifact,
 };
 pub use ecosystem_cache::server_resolves;
-pub use ecosystems::{CARGO_ECOSYSTEM, PYPI_ECOSYSTEM};
+pub use ecosystems::{
+    CARGO_ECOSYSTEM,
+    PYPI_ECOSYSTEM,
+};
 pub use pnpm_shared_artifact_protocol::{
-    ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
-    ArtifactManifest, ArtifactPayload, ArtifactSubject, BuilderProfile, COMPATIBILITY_TAG_SCHEMA,
-    CompatibilityConstraints, DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND,
-    DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX, INPUT_KEY_PREFIX, LinuxGlibcPlatform, MacOsPlatform,
-    OwnerScope, PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest,
-    SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
-    WORKSPACE_TASK_INPUT_KEY_PREFIX, WindowsPlatform, blob_id, linux_glibc_supported_tags,
-    linux_glibc_tag, macos_supported_tags, macos_tag, platform_fingerprint, windows_supported_tags,
+    ARTIFACT_KIND,
+    ArtifactBlobRequest,
+    ArtifactBlobUpload,
+    ArtifactCandidate,
+    ArtifactFile,
+    ArtifactManifest,
+    ArtifactPayload,
+    ArtifactSubject,
+    BuilderProfile,
+    COMPATIBILITY_TAG_SCHEMA,
+    CompatibilityConstraints,
+    DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND,
+    DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX,
+    INPUT_KEY_PREFIX,
+    LinuxGlibcPlatform,
+    MacOsPlatform,
+    OwnerScope,
+    PackageIdentity,
+    PublishArtifactRequest,
+    ResolveArtifactsRequest,
+    SIGNATURE_ALGORITHM,
+    SignedArtifactEnvelope,
+    WORKSPACE_TASK_ARTIFACT_KIND,
+    WORKSPACE_TASK_INPUT_KEY_PREFIX,
+    WindowsPlatform,
+    blob_id,
+    linux_glibc_supported_tags,
+    linux_glibc_tag,
+    macos_supported_tags,
+    macos_tag,
+    platform_fingerprint,
+    windows_supported_tags,
     windows_tag,
 };
 
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
     time::Duration,
 };
 
-use derive_more::{Display, Error, From};
+use derive_more::{
+    Display,
+    Error,
+    From,
+};
 use futures_util::StreamExt as _;
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{PackageExtension, RegistryDeclaration, ResolutionMode, TrustPolicy};
+use pnpm_config::{
+    PackageExtension,
+    RegistryDeclaration,
+    ResolutionMode,
+    TrustPolicy,
+};
 use pnpm_graph_hasher::hash_object_nullable_with_prefix;
-use pnpm_lockfile::{Lockfile, TarballRevision};
-use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
+use pnpm_lockfile::{
+    Lockfile,
+    TarballRevision,
+};
+use pnpm_lockfile_verification::{
+    RenderedViolation,
+    VerifyError,
+};
 use pnpm_shared_artifact_protocol::{
-    ArtifactVariant, MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE,
-    MAX_VARIANTS_PER_CANDIDATE, ResolveArtifactsResponse, ResolvedArtifact,
-    compatibility_rank_prevalidated, validate_supported_tags, verify_blob,
+    ArtifactVariant,
+    MAX_CANDIDATES,
+    MAX_FILE_SIZE,
+    MAX_RESOLVE_RESPONSE_SIZE,
+    MAX_VARIANTS_PER_CANDIDATE,
+    ResolveArtifactsResponse,
+    ResolvedArtifact,
+    compatibility_rank_prevalidated,
+    validate_supported_tags,
+    verify_blob,
 };
 use reqwest::Client;
 
 /// The `registries` a request declares, keyed by registry URL.
 pub type RegistryDeclarations = IndexMap<String, RegistryDeclaration>;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// Dependency map (`name` -> `version range`).
 pub type DepMap = BTreeMap<String, String>;
@@ -553,4 +611,7 @@ use resolve::read_ndjson_frames;
 mod ecosystem_cache;
 mod ecosystems;
 
-use ecosystems::{WireViolation, build_verify_error};
+use ecosystems::{
+    WireViolation,
+    build_verify_error,
+};

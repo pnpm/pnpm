@@ -1,21 +1,48 @@
 //! The environments a lockfile is resolved for, and the markers that
 //! name them.
 
-use super::{LockedDirectory, LockedSdist, LockedVcs, LockedWheel};
+use super::{
+    LockedDirectory,
+    LockedSdist,
+    LockedVcs,
+    LockedWheel,
+};
 use crate::{
     candidates::parse_requirement,
     metadata::WheelMetadata,
-    packages::{Candidate, Packages},
+    packages::{
+        Candidate,
+        Packages,
+    },
     requires_python::declared_range,
 };
-use miette::{IntoDiagnostic, Result, bail};
-use pep440_rs::{Operator, Version, VersionSpecifiers};
-use pep508_rs::{
-    MarkerEnvironment, MarkerExpression, MarkerTree, MarkerTreeKind, MarkerValueVersion,
-    PackageName, Requirement,
+use miette::{
+    IntoDiagnostic,
+    Result,
+    bail,
 };
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use pep440_rs::{
+    Operator,
+    Version,
+    VersionSpecifiers,
+};
+use pep508_rs::{
+    MarkerEnvironment,
+    MarkerExpression,
+    MarkerTree,
+    MarkerTreeKind,
+    MarkerValueVersion,
+    PackageName,
+    Requirement,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 /// What one resolution pass is for: the interpreter's marker environment
 /// and the wheel tags it accepts, in the order it prefers them. Both come

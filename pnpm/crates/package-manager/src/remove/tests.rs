@@ -2,15 +2,25 @@
 //! errors before any install runs, exercising [`validate_removable`].
 
 use super::{
-    RemoveValidationError, persist_selected_manifests, prepare_selected_manifests,
-    selected_project_indices, validate_removable, validate_selected_remove,
+    RemoveValidationError,
+    persist_selected_manifests,
+    prepare_selected_manifests,
+    selected_project_indices,
+    validate_removable,
+    validate_selected_remove,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_workspace::Project;
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{collections::HashSet, path::PathBuf};
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+};
 use tempfile::TempDir;
 
 #[expect(

@@ -1,6 +1,15 @@
 use super::{
-    Config, HashSet, LogEvent, PreCommandError, Value, apply_runtime_on_fail_override, global_warn,
-    is_runtime_alias, sanitize_inline, system_runtime_version, version_satisfies,
+    Config,
+    HashSet,
+    LogEvent,
+    PreCommandError,
+    Value,
+    apply_runtime_on_fail_override,
+    global_warn,
+    is_runtime_alias,
+    sanitize_inline,
+    system_runtime_version,
+    version_satisfies,
 };
 
 /// pnpm's `getWantedRuntimes` + `checkRuntime`: validate every runtime the

@@ -29,11 +29,18 @@
 use std::{
     path::Path,
     sync::Mutex,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 use rusqlite::Connection;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// Soft cap on cached verdicts; the oldest rows (by `verified_at_ms`)
 /// are evicted past this. Generous — each row is a hash plus a small

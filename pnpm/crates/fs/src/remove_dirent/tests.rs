@@ -2,7 +2,11 @@
 
 use super::remove_dirent;
 use crate::symlink_dir;
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 use tempfile::tempdir;
 
 /// Assert `path` no longer exists, distinguishing "gone" (`NotFound`)

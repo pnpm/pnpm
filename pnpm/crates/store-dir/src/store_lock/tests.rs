@@ -1,5 +1,12 @@
-use super::{StoreDir, global_operation_lock_path, operation_lock_path};
-use std::fs::{File, TryLockError};
+use super::{
+    StoreDir,
+    global_operation_lock_path,
+    operation_lock_path,
+};
+use std::fs::{
+    File,
+    TryLockError,
+};
 use tempfile::tempdir;
 
 fn temp_store(root: &tempfile::TempDir) -> StoreDir {
@@ -121,7 +128,10 @@ fn operation_locks_stay_outside_the_store() {
 #[cfg(unix)]
 #[test]
 fn non_unicode_store_paths_keep_distinct_lock_identities() {
-    use std::{ffi::OsStr, os::unix::ffi::OsStrExt as _};
+    use std::{
+        ffi::OsStr,
+        os::unix::ffi::OsStrExt as _,
+    };
 
     let root = tempdir().unwrap();
     let first = StoreDir::new(

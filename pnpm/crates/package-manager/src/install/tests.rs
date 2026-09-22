@@ -39,22 +39,47 @@ mod workspace;
 
 mod hooks;
 
-use super::{Install, InstallError, ProjectMutation};
+use super::{
+    Install,
+    InstallError,
+    ProjectMutation,
+};
 use crate::{
-    PolicyExcludes, install::apply_materialization::completion::report_verified_file_integrity,
+    PolicyExcludes,
+    install::apply_materialization::completion::report_verified_file_integrity,
 };
 use pnpm_config::Config;
-use pnpm_lockfile::{ComVer, Lockfile, LockfileVersion, MaybeLazyLockfile};
+use pnpm_lockfile::{
+    ComVer,
+    Lockfile,
+    LockfileVersion,
+    MaybeLazyLockfile,
+};
 use pnpm_modules_yaml::Host;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter, SilentReporter};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    HookLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_store_dir::VerifiedFileIntegrity;
 use pnpm_testing_utils::registry::TestRegistry;
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Mutex,
 };
-use tempfile::{TempDir, tempdir};
+use tempfile::{
+    TempDir,
+    tempdir,
+};
 use text_block_macros::text_block;
 
 /// The temp directories one install test runs against: a store beside a

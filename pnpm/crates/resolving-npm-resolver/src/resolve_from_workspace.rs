@@ -7,25 +7,47 @@
 //! local-resolver in the chain takes them as `link:`-shaped
 //! directory specs.
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_config::SaveWorkspaceProtocol;
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_resolver_base::{
-    PkgResolutionId, ResolveResult, WantedDependency, WorkspacePackage, WorkspacePackages,
+    PkgResolutionId,
+    ResolveResult,
+    WantedDependency,
+    WorkspacePackage,
+    WorkspacePackages,
     WorkspacePackagesByVersion,
 };
 use pnpm_workspace_range_resolver::resolve_workspace_range;
 
 use crate::{
-    calc_specifier_for_workspace_dep::{DeclaredSpecifiers, calc_specifier_for_workspace_dep},
+    calc_specifier_for_workspace_dep::{
+        DeclaredSpecifiers,
+        calc_specifier_for_workspace_dep,
+    },
     parse_bare_specifier::parse_bare_specifier,
-    pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
-    workspace_pref_to_npm::{InvalidWorkspaceSpecError, workspace_pref_to_npm},
+    pick_package_from_meta::{
+        RegistryPackageSpec,
+        RegistryPackageSpecType,
+    },
+    workspace_pref_to_npm::{
+        InvalidWorkspaceSpecError,
+        workspace_pref_to_npm,
+    },
 };
 
 /// Options threaded into [`try_resolve_from_workspace`].

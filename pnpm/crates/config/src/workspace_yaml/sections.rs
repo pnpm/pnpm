@@ -1,4 +1,12 @@
-use super::{AuditLevel, BTreeMap, Deserialize, Deserializer, HashMap, IndexMap, overlay_some};
+use super::{
+    AuditLevel,
+    BTreeMap,
+    Deserialize,
+    Deserializer,
+    HashMap,
+    IndexMap,
+    overlay_some,
+};
 
 /// The value of an `allowBuilds` entry.
 ///

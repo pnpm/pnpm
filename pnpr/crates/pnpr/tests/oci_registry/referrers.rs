@@ -1,6 +1,22 @@
 use super::{
-    AuthState, Body, Ecosystem, Request, ServiceExt, StatusCode, TempDir, Value, basic, body_bytes,
-    digest_of, get, header, json, oci_config, router_with_auth, strip_referrer_metadata, token,
+    AuthState,
+    Body,
+    Ecosystem,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    Value,
+    basic,
+    body_bytes,
+    digest_of,
+    get,
+    header,
+    json,
+    oci_config,
+    router_with_auth,
+    strip_referrer_metadata,
+    token,
 };
 
 #[tokio::test]

@@ -2,14 +2,28 @@ pub use archive_options::*;
 pub use download::*;
 pub use error::*;
 pub(crate) use extract::{
-    GZIP_MAGIC, STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
-    STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, allocate_tarball_buffer, apply_append_manifest,
-    apply_placeholder_manifest, body_chunk_channel, clean_archive_entry_path, decompress_gzip,
-    extract_gzipped_tarball, is_eager_decode_limit_exceeded, non_gzip_body_error,
-    normalize_bundled_manifest, oversized_manifest_error, stream_extract_gzipped_channel,
+    GZIP_MAGIC,
+    STREAM_ENTRY_BUFFER_MAX,
+    STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+    STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD,
+    allocate_tarball_buffer,
+    apply_append_manifest,
+    apply_placeholder_manifest,
+    body_chunk_channel,
+    clean_archive_entry_path,
+    decompress_gzip,
+    extract_gzipped_tarball,
+    is_eager_decode_limit_exceeded,
+    non_gzip_body_error,
+    normalize_bundled_manifest,
+    oversized_manifest_error,
+    stream_extract_gzipped_channel,
     tar_entry_payload,
 };
-pub use fetch_for_resolution::{FetchTarballForResolution, ResolvedTarball};
+pub use fetch_for_resolution::{
+    FetchTarballForResolution,
+    ResolvedTarball,
+};
 pub use local_tarball::*;
 pub use pnpm_network::RetryOpts;
 pub(crate) use prefetch::CachedCasPaths;
@@ -32,19 +46,41 @@ mod zip_archive;
 use std::{
     borrow::Cow,
     collections::HashMap,
-    io::{self, Cursor, Read},
-    path::{Component, Path, PathBuf},
-    sync::{Arc, LazyLock},
-    time::{Duration, Instant, UNIX_EPOCH},
+    io::{
+        self,
+        Cursor,
+        Read,
+    },
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        LazyLock,
+    },
+    time::{
+        Duration,
+        Instant,
+        UNIX_EPOCH,
+    },
 };
 
-use dashmap::{DashMap, DashSet};
+use dashmap::{
+    DashMap,
+    DashSet,
+};
 use pipe_trait::Pipe;
 use pnpm_network::AuthHeaders;
 use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use ssri::Integrity;
-use tokio::sync::{Notify, RwLock, Semaphore};
+use tokio::sync::{
+    Notify,
+    RwLock,
+    Semaphore,
+};
 
 /// Ceiling on a single eager buffer reservation sized from untrusted
 /// archive metadata — `dist.unpackedSize` in registry metadata and an

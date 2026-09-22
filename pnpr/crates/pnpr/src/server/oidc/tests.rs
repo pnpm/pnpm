@@ -1,7 +1,15 @@
-use super::{check_workload_request, validate_workloads};
+use super::{
+    check_workload_request,
+    validate_workloads,
+};
 use axum::{
     body::Body,
-    http::{Method, Request, StatusCode, Uri},
+    http::{
+        Method,
+        Request,
+        StatusCode,
+        Uri,
+    },
 };
 use pnpr_config::Config;
 use std::net::SocketAddr;

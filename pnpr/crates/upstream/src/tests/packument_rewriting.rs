@@ -1,6 +1,12 @@
 use super::{
-    CanonicalPackageName, abbreviate_packument, extract_version_manifest, json, now,
-    rewrite_tarball_urls, rewrite_upstream_tarball_urls, tarball_basename,
+    CanonicalPackageName,
+    abbreviate_packument,
+    extract_version_manifest,
+    json,
+    now,
+    rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls,
+    tarball_basename,
 };
 
 #[test]

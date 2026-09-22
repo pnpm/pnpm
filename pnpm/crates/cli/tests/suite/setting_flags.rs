@@ -8,7 +8,10 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use pretty_assertions::assert_eq;
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 /// Every setting flag, the value it is given, and what `pnpm config get`
 /// reports back for it.

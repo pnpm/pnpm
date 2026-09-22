@@ -44,17 +44,32 @@
 //! wall-clock by the dedup factor and putting the resolve walk
 //! 3-5× behind pnpm on the `alotta-files` benchmark.
 
-pub use mirror_persistence::{MirrorPersistError, persist_meta_to_mirror};
+pub use mirror_persistence::{
+    MirrorPersistError,
+    persist_meta_to_mirror,
+};
 pub use options::{
-    MetadataCachePolicy, MetadataPickRequest, MetadataRequestContext, PackagePickPolicy,
-    PickPackageContext, PickPackageOptions,
+    MetadataCachePolicy,
+    MetadataPickRequest,
+    MetadataRequestContext,
+    PackagePickPolicy,
+    PickPackageContext,
+    PickPackageOptions,
 };
 
-pub(crate) use mirror_persistence::{SkippedTimeCheck, warn_missing_time_once};
+pub(crate) use mirror_persistence::{
+    SkippedTimeCheck,
+    warn_missing_time_once,
+};
 
 pub use metadata_cache::{
-    CachedPackument, InMemoryPackageMetaCache, PackageMetaCache, PackumentFetchLocker,
-    PickedManifestCache, shared_in_memory_cache, shared_packument_fetch_locker,
+    CachedPackument,
+    InMemoryPackageMetaCache,
+    PackageMetaCache,
+    PackumentFetchLocker,
+    PickedManifestCache,
+    shared_in_memory_cache,
+    shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
 
@@ -63,50 +78,99 @@ mod options;
 mod mirror_pick;
 
 mod mirror_persistence;
-use mirror_persistence::{get_file_mtime, metadata_cache_key, validate_package_name};
+use mirror_persistence::{
+    get_file_mtime,
+    metadata_cache_key,
+    validate_package_name,
+};
 
 mod release_age_upgrade;
 use release_age_upgrade::{
-    UpgradeOutcome, maybe_upgrade_abbreviated_meta_for_release_age, persist_upgraded_to_mirror,
+    UpgradeOutcome,
+    maybe_upgrade_abbreviated_meta_for_release_age,
+    persist_upgraded_to_mirror,
 };
 
 mod version_pick;
-use version_pick::{PickerOpts, pick_from_meta, pick_from_meta_fast, unverified_pick_is_safe};
+use version_pick::{
+    PickerOpts,
+    pick_from_meta,
+    pick_from_meta_fast,
+    unverified_pick_is_safe,
+};
 
 mod metadata_cache;
 
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
-use chrono::{DateTime, Utc};
+use chrono::{
+    DateTime,
+    Utc,
+};
 use dashmap::DashMap;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::{
     TrustPolicy,
-    version_policy::{PackageVersionPolicy, PolicyMatch},
+    version_policy::{
+        PackageVersionPolicy,
+        PolicyMatch,
+    },
 };
 use pnpm_network::MetadataCacheScope;
-use pnpm_registry::{Package, PackageVersion};
-use pnpm_resolving_resolver_base::{VersionSelectors, parse_packument_timestamp};
+use pnpm_registry::{
+    Package,
+    PackageVersion,
+};
+use pnpm_resolving_resolver_base::{
+    VersionSelectors,
+    parse_packument_timestamp,
+};
 use tokio::sync::Semaphore;
 
 use crate::{
-    FetchFullMetadataCachedOptions, FetchFullMetadataOptions, FetchFullMetadataOutcome,
-    FetchMetadataError, fetch_full_metadata, fetch_full_metadata_cached,
+    FetchFullMetadataCachedOptions,
+    FetchFullMetadataOptions,
+    FetchFullMetadataOutcome,
+    FetchMetadataError,
+    fetch_full_metadata,
+    fetch_full_metadata_cached,
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
-        get_pkg_mirror_path, load_meta, load_meta_async, save_meta_indexed, save_meta_ndjson,
+        ABBREVIATED_META_DIR,
+        FULL_FILTERED_META_DIR,
+        FULL_META_DIR,
+        clear_meta,
+        get_pkg_mirror_path,
+        load_meta,
+        load_meta_async,
+        save_meta_indexed,
+        save_meta_ndjson,
         scoped_meta_dir,
     },
     pick_package_from_meta::{
-        PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
-        RegistryPackageSpecType, dominant_lockfile_version, filter_pkg_metadata_versions,
-        pick_lowest_version_by_version_range, pick_package_from_meta,
-        pick_stable_cached_range_version, pick_version_by_version_range,
+        PickPackageFromMetaError,
+        PickPackageFromMetaOptions,
+        RegistryPackageSpec,
+        RegistryPackageSpecType,
+        dominant_lockfile_version,
+        filter_pkg_metadata_versions,
+        pick_lowest_version_by_version_range,
+        pick_package_from_meta,
+        pick_stable_cached_range_version,
+        pick_version_by_version_range,
     },
     registry_url::to_registry_url,
 };

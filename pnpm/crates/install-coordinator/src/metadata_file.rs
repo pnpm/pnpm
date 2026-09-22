@@ -1,14 +1,29 @@
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 #[cfg(unix)]
 use std::io::Read as _;
 use std::{
-    ffi::{OsStr, OsString},
-    fs, io,
-    path::{Component, Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(any(unix, windows))]
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 #[cfg(any(unix, windows))]
 static TEMPORARY_FILE_ID: AtomicU64 = AtomicU64::new(0);
@@ -122,7 +137,10 @@ fn read_from(
 fn read_file(parent: &PinnedDirectory, name: &OsStr) -> io::Result<FileState> {
     use std::os::{
         fd::AsRawFd as _,
-        unix::{ffi::OsStrExt as _, fs::PermissionsExt as _},
+        unix::{
+            ffi::OsStrExt as _,
+            fs::PermissionsExt as _,
+        },
     };
 
     let name = std::ffi::CString::new(name.as_bytes())?;
@@ -186,8 +204,13 @@ fn write_file(
     contents: &[u8],
     mode: u32,
 ) -> io::Result<()> {
-    use std::io::Write as _;
-    use std::os::{unix::ffi::OsStrExt as _, unix::fs::PermissionsExt as _};
+    use std::{
+        io::Write as _,
+        os::unix::{
+            ffi::OsStrExt as _,
+            fs::PermissionsExt as _,
+        },
+    };
 
     let destination = std::ffi::CString::new(name.as_bytes())?;
     let (temporary, mut file) = create_temporary_file(parent, name)?;
@@ -211,7 +234,10 @@ fn write_file(parent: &PinnedDirectory, name: &OsStr, contents: &[u8]) -> io::Re
 
 #[cfg(unix)]
 fn write_symlink(parent: &PinnedDirectory, name: &OsStr, target: &Path) -> io::Result<()> {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _};
+    use std::os::{
+        fd::AsRawFd as _,
+        unix::ffi::OsStrExt as _,
+    };
 
     let destination = std::ffi::CString::new(name.as_bytes())?;
     let target = std::ffi::CString::new(target.as_os_str().as_bytes())?;
@@ -264,7 +290,9 @@ fn windows_temporary_path(parent: &PinnedDirectory, name: &OsStr) -> PathBuf {
 fn replace_windows_path(source: &Path, destination: &Path) -> io::Result<()> {
     use std::os::windows::ffi::OsStrExt as _;
     use windows_sys::Win32::Storage::FileSystem::{
-        MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
+        MOVEFILE_REPLACE_EXISTING,
+        MOVEFILE_WRITE_THROUGH,
+        MoveFileExW,
     };
 
     let source = source
@@ -392,7 +420,10 @@ fn unlink_at(parent: &PinnedDirectory, name: &std::ffi::CStr) -> io::Result<()> 
 
 #[cfg(unix)]
 fn read_link_at(directory: &fs::File, name: &std::ffi::CStr) -> io::Result<PathBuf> {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStringExt as _};
+    use std::os::{
+        fd::AsRawFd as _,
+        unix::ffi::OsStringExt as _,
+    };
 
     let mut capacity = 256;
     loop {
@@ -424,7 +455,10 @@ fn read_link_at(directory: &fs::File, name: &std::ffi::CStr) -> io::Result<PathB
 
 #[cfg(unix)]
 fn file_from_descriptor(descriptor: libc::c_int) -> io::Result<fs::File> {
-    use std::os::fd::{FromRawFd as _, OwnedFd};
+    use std::os::fd::{
+        FromRawFd as _,
+        OwnedFd,
+    };
 
     if descriptor == -1 {
         Err(io::Error::last_os_error())

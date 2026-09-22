@@ -1,6 +1,17 @@
 use super::{
-    BasicAuth, Config, DEFAULT_REGISTRY_SCOPE, EnvVar, LoadWorkspaceYamlError, NoEnv, NpmrcAuth,
-    Path, RegistryCreds, TEST_CA_PEM, assert_eq, base64_encode, default_auth_token,
+    BasicAuth,
+    Config,
+    DEFAULT_REGISTRY_SCOPE,
+    EnvVar,
+    LoadWorkspaceYamlError,
+    NoEnv,
+    NpmrcAuth,
+    Path,
+    RegistryCreds,
+    TEST_CA_PEM,
+    assert_eq,
+    base64_encode,
+    default_auth_token,
     scoped_auth_token,
 };
 

@@ -1,7 +1,10 @@
 //! Translate a `workspace:` bare specifier into the npm-shaped form
 //! the [`crate::parse_bare_specifier()`] flow consumes.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_workspace_spec::WorkspaceSpec;
 

@@ -1,12 +1,32 @@
 use super::{
-    BuildInputs, ConcurrentVerification, FetchInputs, HostDetectionInputs, HostPlan,
-    InstallFrozenLockfile, InstallFrozenLockfileError, LinkInputs, MaterializationPlan,
-    SkipSetPlan, build_extra_env,
-    build_phase::{BuildPhaseInputs, run_build_phase},
-    detect_host, fetch_verified, load_custom_fetcher_session, needs_installability_check,
-    plan_engine_name, seed_skip_set, settle_engine_name,
+    BuildInputs,
+    ConcurrentVerification,
+    FetchInputs,
+    HostDetectionInputs,
+    HostPlan,
+    InstallFrozenLockfile,
+    InstallFrozenLockfileError,
+    LinkInputs,
+    MaterializationPlan,
+    SkipSetPlan,
+    build_extra_env,
+    build_phase::{
+        BuildPhaseInputs,
+        run_build_phase,
+    },
+    detect_host,
+    fetch_verified,
+    load_custom_fetcher_session,
+    needs_installability_check,
+    plan_engine_name,
+    seed_skip_set,
+    settle_engine_name,
 };
-use crate::{AllowBuildPolicy, CreateVirtualStoreOutput, SkippedSnapshots};
+use crate::{
+    AllowBuildPolicy,
+    CreateVirtualStoreOutput,
+    SkippedSnapshots,
+};
 use pnpm_lockfile::LockfileEntries;
 use pnpm_reporter::Reporter;
 use pnpm_tarball::SharedReportedProgressKeys;

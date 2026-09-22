@@ -1,20 +1,47 @@
 use super::{
-    CliArgs, CliCommand, KeyIssueReporting, PackageManagerToSync, PinRoots, PreCommandInput,
-    PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource, load_pre_command_config,
-    pre_command_plan_from_input, switch_target,
+    CliArgs,
+    CliCommand,
+    KeyIssueReporting,
+    PackageManagerToSync,
+    PinRoots,
+    PreCommandInput,
+    PreCommandPlan,
+    SwitchInput,
+    SwitchProcessState,
+    SwitchSource,
+    load_pre_command_config,
+    pre_command_plan_from_input,
+    switch_target,
 };
 use crate::{
     boolean_negations::with_boolean_negations,
-    cli_args::pre_command::input::{PinFlags, SwitchPaths, frozen_lockfile_flag},
+    cli_args::pre_command::input::{
+        PinFlags,
+        SwitchPaths,
+        frozen_lockfile_flag,
+    },
     config_overrides::ConfigOverrides,
 };
-use clap::{CommandFactory, FromArgMatches};
-use pnpm_config::{Config, PNPM_VERSION, PmOnFail};
-use pnpm_reporter::{Reporter, SilentReporter};
+use clap::{
+    CommandFactory,
+    FromArgMatches,
+};
+use pnpm_config::{
+    Config,
+    PNPM_VERSION,
+    PmOnFail,
+};
+use pnpm_reporter::{
+    Reporter,
+    SilentReporter,
+};
 use std::{
     ffi::OsString,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::TempDir;
 

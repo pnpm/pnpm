@@ -1,7 +1,20 @@
 use super::{
-    BASE64_URL_SAFE_NO_PAD, ClientId, CoreIdToken, CoreIdTokenVerifier, CoreJwsSigningAlgorithm,
-    CoreProviderMetadata, IssuerUrl, Nonce, OidcBinding, OidcProvider, OidcWorkload, Provider,
-    Result, Utc, Value, rejected,
+    BASE64_URL_SAFE_NO_PAD,
+    ClientId,
+    CoreIdToken,
+    CoreIdTokenVerifier,
+    CoreJwsSigningAlgorithm,
+    CoreProviderMetadata,
+    IssuerUrl,
+    Nonce,
+    OidcBinding,
+    OidcProvider,
+    OidcWorkload,
+    Provider,
+    Result,
+    Utc,
+    Value,
+    rejected,
 };
 use base64::Engine as _;
 

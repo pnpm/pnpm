@@ -1,6 +1,12 @@
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 
-use super::{FetchAttestationOptions, fetch_attestation_published_at};
+use super::{
+    FetchAttestationOptions,
+    fetch_attestation_published_at,
+};
 
 fn opts<'a>(
     registry: &'a str,

@@ -1,4 +1,10 @@
-use super::{HashMap, IndexSet, Path, PathBuf, ProjectGraph};
+use super::{
+    HashMap,
+    IndexSet,
+    Path,
+    PathBuf,
+    ProjectGraph,
+};
 use crate::parse_project_selector::DependencyTraversal;
 
 /// Accumulates the projects the selectors of one [`filter_graph`](crate::filter::filter_graph) run

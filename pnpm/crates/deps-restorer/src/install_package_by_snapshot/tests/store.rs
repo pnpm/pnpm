@@ -1,5 +1,8 @@
 use super::{
-    super::host_platform_selector, DUMMY_SHA512, leaked_offline_config, registry_metadata,
+    super::host_platform_selector,
+    DUMMY_SHA512,
+    leaked_offline_config,
+    registry_metadata,
 };
 use pnpm_lockfile::PackageKey;
 use pretty_assertions::assert_eq;
@@ -18,11 +21,19 @@ use pretty_assertions::assert_eq;
 /// which makes any fall-through to the download path error out.
 #[tokio::test]
 async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
-    use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
+    use pnpm_tarball::{
+        CacheValue,
+        CachedTarball,
+        MemCache,
+        package_mem_cache_key,
+    };
     use std::{
         collections::HashMap,
         path::PathBuf,
-        sync::{Arc, atomic::AtomicU8},
+        sync::{
+            Arc,
+            atomic::AtomicU8,
+        },
     };
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
@@ -113,11 +124,20 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
 #[tokio::test]
 async fn without_mem_cache_skips_coordination_and_downloads() {
     use crate::InstallPackageBySnapshotError;
-    use pnpm_tarball::{CacheValue, CachedTarball, MemCache, TarballError, package_mem_cache_key};
+    use pnpm_tarball::{
+        CacheValue,
+        CachedTarball,
+        MemCache,
+        TarballError,
+        package_mem_cache_key,
+    };
     use std::{
         collections::HashMap,
         path::PathBuf,
-        sync::{Arc, atomic::AtomicU8},
+        sync::{
+            Arc,
+            atomic::AtomicU8,
+        },
     };
 
     let store_tmp = tempfile::tempdir().expect("tempdir");

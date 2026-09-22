@@ -1,6 +1,17 @@
-use super::{is_enabled, read_packages, requests_build_std};
-use crate::cargo_deps::lockfile::{LockedCrate, LockedPackages, parse_lockfile};
-use sha2::{Digest, Sha256};
+use super::{
+    is_enabled,
+    read_packages,
+    requests_build_std,
+};
+use crate::cargo_deps::lockfile::{
+    LockedCrate,
+    LockedPackages,
+    parse_lockfile,
+};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use std::fs;
 use tempfile::TempDir;
 

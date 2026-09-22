@@ -1,6 +1,11 @@
 use super::{
     super::{
-        Config, DependencyGroup, Lockfile, PackageManifest, Path, StalenessReason,
+        Config,
+        DependencyGroup,
+        Lockfile,
+        PackageManifest,
+        Path,
+        StalenessReason,
         satisfies_package_manifest,
     },
     FreshnessCheckError,

@@ -1,16 +1,35 @@
 pub use writer::StoreIndexWriter;
 
 use crate::StoreDir;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use rusqlite::{Connection, OpenFlags};
-use serde::{Deserialize, Serialize};
+use rusqlite::{
+    Connection,
+    OpenFlags,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
 };
 use url::Url;

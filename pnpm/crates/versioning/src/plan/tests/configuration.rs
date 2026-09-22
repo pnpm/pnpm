@@ -1,6 +1,12 @@
 use super::{
-    AssembleReleasePlanOptions, Ledger, Path, VersioningSettings, assemble_release_plan,
-    check_versioning_invariants, epic, make_project,
+    AssembleReleasePlanOptions,
+    Ledger,
+    Path,
+    VersioningSettings,
+    assemble_release_plan,
+    check_versioning_invariants,
+    epic,
+    make_project,
 };
 
 #[test]

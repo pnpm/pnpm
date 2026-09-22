@@ -9,8 +9,14 @@
 //! pipeline.
 
 use crate::{
-    InstallabilityOptions, InstallabilityVerdict, PackageInstallabilityManifest, SkipReason,
-    WantedEngine, WantedPlatformRef, package_is_installable, platform_is_supported_with_inference,
+    InstallabilityOptions,
+    InstallabilityVerdict,
+    PackageInstallabilityManifest,
+    SkipReason,
+    WantedEngine,
+    WantedPlatformRef,
+    package_is_installable,
+    platform_is_supported_with_inference,
 };
 
 fn host_linux_x64() -> InstallabilityOptions<'static> {

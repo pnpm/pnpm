@@ -22,14 +22,26 @@
 //! shared with the other single-resolve callers; its module documents the
 //! two deviations from the install chain. See `pnpm/plans/NAPI.md`.
 
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 use napi_derive::napi;
-use pnpm_resolving_default_resolver::standalone::{StandaloneChainOptions, build_standalone_chain};
-use pnpm_resolving_resolver_base::{ResolveOptions, WantedDependency};
+use pnpm_resolving_default_resolver::standalone::{
+    StandaloneChainOptions,
+    build_standalone_chain,
+};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    WantedDependency,
+};
 
 use crate::{
-    config::{ConfigOverlay, resolve_config},
+    config::{
+        ConfigOverlay,
+        resolve_config,
+    },
     error::to_napi_error,
 };
 

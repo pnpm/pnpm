@@ -13,16 +13,28 @@
 
 use crate::_utils;
 
-use _utils::{importer, importer_version, read_lockfile, snapshot_entries};
+use _utils::{
+    importer,
+    importer_version,
+    read_lockfile,
+    snapshot_entries,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::PkgName;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::is_symlink_or_junction,
 };
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
@@ -86,7 +98,11 @@ fn workspace_links_above_root_resolve() {
 }
 
 fn assert_workspace_links_above_root_resolve(workspace_depth: &str, node_linker: &str) {
-    use _utils::{ManifestDeps, pacquet_in, write_project_manifest};
+    use _utils::{
+        ManifestDeps,
+        pacquet_in,
+        write_project_manifest,
+    };
 
     let fixture = CommandTempCwd::init();
     let workspace = fixture.workspace.join(workspace_depth);
@@ -862,7 +878,12 @@ fn install_does_not_scaffold_a_root_manifest_in_a_workspace() {
 #[test]
 #[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
 fn prefer_symlinked_executables_symlinks_workspace_bins() {
-    use _utils::{ManifestDeps, WorkspaceFixture, read_manifest, write_manifest_value};
+    use _utils::{
+        ManifestDeps,
+        WorkspaceFixture,
+        read_manifest,
+        write_manifest_value,
+    };
     let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml("preferSymlinkedExecutables: true\n");
     let consumer = fixture.project(

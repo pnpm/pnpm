@@ -7,23 +7,55 @@
 //! summary (or, with `--json`, the whole assembled info object) is shown.
 
 use super::deprecate::normalize_registry_url;
-use chrono::{DateTime, Utc};
+use chrono::{
+    DateTime,
+    Utc,
+};
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use owo_colors::{OwoColorize, Stream, Style};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+    Style,
+};
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_network::{
+    RetryOpts,
+    ThrottledClient,
+};
 use pnpm_resolving_npm_resolver::{
-    FetchFullMetadataOptions, FetchFullMetadataOutcome, PickPackageFromMetaOptions,
-    fetch_full_metadata, parse_bare_specifier, pick_package_from_meta, pick_registry_for_package,
+    FetchFullMetadataOptions,
+    FetchFullMetadataOutcome,
+    PickPackageFromMetaOptions,
+    fetch_full_metadata,
+    parse_bare_specifier,
+    pick_package_from_meta,
+    pick_registry_for_package,
     pick_version_by_version_range,
 };
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pnpm_workspace::try_read_project_manifest;
-use render::{render_fields, render_summary, to_pretty};
-use serde_json::{Map, Value};
-use std::{path::Path, sync::Arc};
+use render::{
+    render_fields,
+    render_summary,
+    to_pretty,
+};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 /// Errors from `pacquet view`. The codes are the `ERR_PNPM_*` codes pnpm
 /// defines for these failures.

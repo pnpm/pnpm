@@ -1,6 +1,13 @@
 use super::{
-    DateTime, HashSet, PackageMetaCache, PackageVersionPolicy, PackumentFetchLocker, Path,
-    TrustPolicy, Utc, VersionSelectors,
+    DateTime,
+    HashSet,
+    PackageMetaCache,
+    PackageVersionPolicy,
+    PackumentFetchLocker,
+    Path,
+    TrustPolicy,
+    Utc,
+    VersionSelectors,
 };
 
 /// Process-shared context every [`super::pick_package`] call reads from.

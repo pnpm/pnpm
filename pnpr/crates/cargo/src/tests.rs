@@ -1,12 +1,30 @@
 use super::{
-    CrateArchiveError, CrateDocument, CrateNameError, DependencyKind, IndexConfig, IndexEntry,
-    MAX_DESCRIPTION_LEN, PublishBodyError, PublishMetadata, SearchCrate, bounded_description,
-    crate_filename, download_url, parse_index, parse_publish_body,
-    publishing::validate_crate_archive_with_limit, render_index, sparse_index_path,
-    validate_crate_archive, validate_crate_name,
+    CrateArchiveError,
+    CrateDocument,
+    CrateNameError,
+    DependencyKind,
+    IndexConfig,
+    IndexEntry,
+    MAX_DESCRIPTION_LEN,
+    PublishBodyError,
+    PublishMetadata,
+    SearchCrate,
+    bounded_description,
+    crate_filename,
+    download_url,
+    parse_index,
+    parse_publish_body,
+    publishing::validate_crate_archive_with_limit,
+    render_index,
+    sparse_index_path,
+    validate_crate_archive,
+    validate_crate_name,
 };
 use serde_json::json;
-use std::{collections::BTreeMap, io::Write as _};
+use std::{
+    collections::BTreeMap,
+    io::Write as _,
+};
 
 pub(crate) fn crate_archive(root: &str, files: &[(&str, &str)]) -> Vec<u8> {
     let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());

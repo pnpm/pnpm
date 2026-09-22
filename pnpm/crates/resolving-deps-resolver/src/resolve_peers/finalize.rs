@@ -8,27 +8,52 @@ mod peer_scc;
 use peer_scc::PeerSccPass;
 
 mod graph_edges;
-use graph_edges::{PeerNameTarjan, insert_graph_node, transitive_peer_names};
+use graph_edges::{
+    PeerNameTarjan,
+    insert_graph_node,
+    transitive_peer_names,
+};
 
 mod final_paths;
 
 use crate::{
-    dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
+    dependencies_graph::{
+        DependenciesGraph,
+        DependenciesGraphNode,
+    },
     node_id::NodeId,
     resolve_peers::{
         context::{
-            SharedChain, link_node_id_as_dep_path, peer_id_pair, peer_segment_names, pkg_name,
+            SharedChain,
+            link_node_id_as_dep_path,
+            peer_id_pair,
+            peer_segment_names,
+            pkg_name,
             pkg_name_version,
         },
-        walker::{MissingPeerInfo, Walker},
+        walker::{
+            MissingPeerInfo,
+            Walker,
+        },
     },
     resolved_tree::ResolvedPackage,
 };
-use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
+use pnpm_deps_path::{
+    DepPath,
+    PeerId,
+    create_peer_dep_graph_hash,
+    link_path_to_peer_version,
+};
 use pnpm_resolving_resolver_base::ResolveResult;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     sync::Arc,
 };
 

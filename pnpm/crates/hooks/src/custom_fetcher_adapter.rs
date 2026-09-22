@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
-use crate::{CustomFetcher, HookError};
+use crate::{
+    CustomFetcher,
+    HookError,
+};
 
 /// Adapts a slice of [`CustomFetcher`] instances to a single "pick fetcher"
 /// call: iterate the custom fetchers in declared order, return the first

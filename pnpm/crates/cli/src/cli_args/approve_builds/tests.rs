@@ -1,4 +1,9 @@
-use super::{ApproveBuildsArgs, ApproveBuildsError, partition_params, sort_unique};
+use super::{
+    ApproveBuildsArgs,
+    ApproveBuildsError,
+    partition_params,
+    sort_unique,
+};
 use pnpm_reporter::SilentReporter;
 
 fn pending(names: &[&str]) -> Vec<String> {

@@ -1,25 +1,52 @@
 use super::{
-    CatalogCtx, LatestResolverChain, LatestRewriteCtx, UpdateError, latest_specifier,
-    seed_policy::{UpdatePlan, UpdateScope},
-    selectors::{ParsedSelector, insert_update_target, matcher_one, update_target_name},
+    CatalogCtx,
+    LatestResolverChain,
+    LatestRewriteCtx,
+    UpdateError,
+    latest_specifier,
+    seed_policy::{
+        UpdatePlan,
+        UpdateScope,
+    },
+    selectors::{
+        ParsedSelector,
+        insert_update_target,
+        matcher_one,
+        update_target_name,
+    },
     tag_version,
 };
 use crate::{
     manifest_spec_bumps::split_registry_alias,
     package_manifest_prefix,
-    runtime_specifier::{RUNTIME_PROTOCOL, node_runtime_version_spec},
+    runtime_specifier::{
+        RUNTIME_PROTOCOL,
+        node_runtime_version_spec,
+    },
 };
 use node_semver::Version;
 use pnpm_engine_runtime_node_resolver::{
-    normalize_node_runtime_version_specifier, parse_node_specifier,
+    normalize_node_runtime_version_specifier,
+    parse_node_specifier,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use pnpm_resolving_deps_resolver::real_package_name_of;
-use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style};
-use pnpm_resolving_resolver_base::{PreferredVersions, VersionSelectorType};
+use pnpm_resolving_npm_resolver::{
+    calc_version_range,
+    infer_range_spec_style,
+};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions,
+    VersionSelectorType,
+};
 
 /// What one matched direct dependency is rewritten against.
 pub(super) struct MatchedRewriteInputs<'a, 'ctx, 'borrow> {

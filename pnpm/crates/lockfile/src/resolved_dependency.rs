@@ -1,10 +1,25 @@
-use crate::{ParsePkgNameSuffixError, ParsePkgVerPeerError, PkgName, PkgNameVerPeer, PkgVerPeer};
-use derive_more::{Display, Error};
-use serde::{Deserialize, Serialize};
+use crate::{
+    ParsePkgNameSuffixError,
+    ParsePkgVerPeerError,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
     borrow::Cow,
     collections::HashMap,
-    fmt::{self, Display},
+    fmt::{
+        self,
+        Display,
+    },
     str::FromStr,
 };
 

@@ -18,26 +18,57 @@
 //! between the two. Users, which the local backend keeps in an htpasswd
 //! file, live in a `users` table here ([`super::USERS_TABLE_SQL`]).
 
-use super::token_store::{mint_token, unix_seconds};
+use super::token_store::{
+    mint_token,
+    unix_seconds,
+};
 mod schema;
 use schema::{
-    claim_user_counter_slot, init_schema, is_unique_violation, missing_count_row,
-    reconcile_user_counter_overcount, retry_database_conflicts,
+    claim_user_counter_slot,
+    init_schema,
+    is_unique_violation,
+    missing_count_row,
+    reconcile_user_counter_overcount,
+    retry_database_conflicts,
 };
 
 use super::{
-    DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
-    hash_bcrypt, sha256_hex, token_timestamp_from_sql, validate_username, verify_returning_user,
+    DEFAULT_BCRYPT_COST,
+    TokenBackend,
+    TokenRecord,
+    UpsertOutcome,
+    UserBackend,
+    fresh_secret,
+    hash_bcrypt,
+    sha256_hex,
+    token_timestamp_from_sql,
+    validate_username,
+    verify_returning_user,
     with_auth_timeout,
 };
 use async_trait::async_trait;
 use libsql::{
-    Builder, Connection, Database, Error as LibsqlError, Row, TransactionBehavior, params,
+    Builder,
+    Connection,
+    Database,
+    Error as LibsqlError,
+    Row,
+    TransactionBehavior,
+    params,
 };
-use pnpr_config::{LibsqlSettings, MaxUsers};
-use pnpr_error::{RegistryError, Result};
+use pnpr_config::{
+    LibsqlSettings,
+    MaxUsers,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::{
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
     time::Duration,
 };
 

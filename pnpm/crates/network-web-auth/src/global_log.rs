@@ -7,7 +7,12 @@
 //! capability on `Sys` because the sink is a runtime choice, not a system
 //! facility.
 
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 
 pub(crate) fn global_info<Reporter: self::Reporter>(message: String) {
     Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Info, message }));

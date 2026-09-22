@@ -9,14 +9,28 @@
 //! [`get_registered_projects`] (the read half).
 
 use crate::StoreDir;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_crypto_hash::create_short_hash;
-use pnpm_fs::{lexical_normalize, read_symlink_dir, remove_symlink_dir, symlink_dir};
+use pnpm_fs::{
+    lexical_normalize,
+    read_symlink_dir,
+    remove_symlink_dir,
+    symlink_dir,
+};
 use std::{
     fs,
-    io::{self, ErrorKind},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        ErrorKind,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Error type for [`register_project`].

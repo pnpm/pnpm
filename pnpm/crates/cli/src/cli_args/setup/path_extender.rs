@@ -8,9 +8,15 @@
 mod posix;
 mod windows;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Where the new directory is inserted into `PATH` (defaulting to `start`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

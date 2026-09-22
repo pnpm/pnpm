@@ -1,10 +1,17 @@
 use super::{
-    shared_workspace_lockfile_outside_workspace_warning, unapplied_package_configs_warning,
+    shared_workspace_lockfile_outside_workspace_warning,
+    unapplied_package_configs_warning,
     unmatched_registry_options_warning,
 };
 use indexmap::IndexMap;
-use pnpm_config::{Config, ProjectConfig};
-use pnpm_lockfile::{RegistryOptions, RegistryServerType};
+use pnpm_config::{
+    Config,
+    ProjectConfig,
+};
+use pnpm_lockfile::{
+    RegistryOptions,
+    RegistryServerType,
+};
 use pretty_assertions::assert_eq;
 
 fn config_with(registries: &[(&str, &str)], registry_options_by_url: &[&str]) -> Config {
@@ -85,10 +92,14 @@ fn redacts_credentials_in_the_warning() {
 
 mod workspace_key_issues {
     use super::super::{
-        non_camel_case_workspace_keys_warning, refused_workspace_keys_warning,
+        non_camel_case_workspace_keys_warning,
+        refused_workspace_keys_warning,
         report_workspace_key_issues,
     };
-    use pnpm_config::{UnrecognizedTaskSettings, WorkspaceKeyIssues};
+    use pnpm_config::{
+        UnrecognizedTaskSettings,
+        WorkspaceKeyIssues,
+    };
     use pretty_assertions::assert_eq;
 
     #[test]

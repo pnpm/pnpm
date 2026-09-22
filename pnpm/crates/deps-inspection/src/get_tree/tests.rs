@@ -2,7 +2,11 @@
 //! (deps/inspection/tree-builder/test/getTree.test.ts).
 
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{
+        BTreeSet,
+        HashMap,
+        HashSet,
+    },
     fmt::Write,
     path::Path,
 };
@@ -11,12 +15,25 @@ use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pretty_assertions::assert_eq;
 
-use super::{GetTreeOptions, MaterializationCache, MaxDepth, get_tree};
+use super::{
+    GetTreeOptions,
+    MaterializationCache,
+    MaxDepth,
+    get_tree,
+};
 use crate::{
-    DependencyNode, TreeNodeId,
-    graph::{BuildGraphOptions, DependencyGraph, build_dependency_graph},
+    DependencyNode,
+    TreeNodeId,
+    graph::{
+        BuildGraphOptions,
+        DependencyGraph,
+        build_dependency_graph,
+    },
     pkg_info::PkgInfoEnv,
-    search::{SearchMatch, Searcher},
+    search::{
+        SearchMatch,
+        Searcher,
+    },
 };
 
 const MOCK_INTEGRITY: &str = "sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==";

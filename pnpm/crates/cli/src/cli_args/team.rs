@@ -1,17 +1,37 @@
 use super::sanitize;
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_network::{
-    RedirectGuard, RetryOpts, ThrottledClient, encode_uri_component, redact_url_credentials,
+    RedirectGuard,
+    RetryOpts,
+    ThrottledClient,
+    encode_uri_component,
+    redact_url_credentials,
     send_with_retry,
 };
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use registry::{
-    TeamInfo, UserInfo, apply_auth_and_otp, auth_header_for_registry, build_http_client,
-    fetch_team_members, fetch_teams, normalize_registry_url, org_team_url,
-    registry_error_from_response, registry_for_scope, registry_operation_error, team_url,
+    TeamInfo,
+    UserInfo,
+    apply_auth_and_otp,
+    auth_header_for_registry,
+    build_http_client,
+    fetch_team_members,
+    fetch_teams,
+    normalize_registry_url,
+    org_team_url,
+    registry_error_from_response,
+    registry_for_scope,
+    registry_operation_error,
+    team_url,
     team_user_url,
 };
 use reqwest::Response;

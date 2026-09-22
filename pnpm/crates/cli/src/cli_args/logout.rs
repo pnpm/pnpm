@@ -4,13 +4,29 @@
 //! [`LogoutOptions`].
 
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic};
-use pnpm_auth_commands::logout::{Host as AuthHost, LogoutOptions, logout};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
+use pnpm_auth_commands::logout::{
+    Host as AuthHost,
+    LogoutOptions,
+    logout,
+};
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_network::{
+    RetryOpts,
+    ThrottledClient,
+};
 use pnpm_reporter::Reporter;
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::HashMap,
+    time::Duration,
+};
 
 /// Log out of an npm registry.
 #[derive(Debug, Args)]

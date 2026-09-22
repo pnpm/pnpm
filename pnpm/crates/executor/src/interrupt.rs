@@ -35,7 +35,12 @@ use std::{
     ptr,
     sync::{
         Once,
-        atomic::{AtomicI32, AtomicPtr, AtomicUsize, Ordering},
+        atomic::{
+            AtomicI32,
+            AtomicPtr,
+            AtomicUsize,
+            Ordering,
+        },
     },
 };
 
@@ -385,7 +390,10 @@ fn install_handler() {
 /// terminates pnpm.
 #[cfg(windows)]
 unsafe extern "system" fn relay_console_event(event: u32) -> windows_sys::core::BOOL {
-    use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT};
+    use windows_sys::Win32::System::Console::{
+        CTRL_BREAK_EVENT,
+        CTRL_C_EVENT,
+    };
 
     if !matches!(event, CTRL_C_EVENT | CTRL_BREAK_EVENT) {
         return 0;

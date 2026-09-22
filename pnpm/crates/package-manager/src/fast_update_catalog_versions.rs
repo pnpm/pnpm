@@ -1,9 +1,19 @@
 use crate::fast_update_overrides::{
-    FastOverride, RewriteContext, apply_rewrite_plan, build_replacement_plan,
+    FastOverride,
+    RewriteContext,
+    apply_rewrite_plan,
+    build_replacement_plan,
 };
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 use pnpm_catalogs_types::Catalogs;
-use pnpm_lockfile::{Lockfile, PkgName, ResolvedCatalogEntry};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+    ResolvedCatalogEntry,
+};
 use std::collections::BTreeMap;
 
 /// Move a catalog entry to a version the lockfile does not have, without

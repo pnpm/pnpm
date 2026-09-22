@@ -1,4 +1,8 @@
-use super::{TempDir, finder, noop_context};
+use super::{
+    TempDir,
+    finder,
+    noop_context,
+};
 use pnpm_hooks::PnpmfileHooks as _;
 
 #[tokio::test]

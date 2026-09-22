@@ -1,7 +1,13 @@
 use assert_cmd::prelude::*;
-use pnpm_store_dir::{StoreDir, StoreIndex};
+use pnpm_store_dir::{
+    StoreDir,
+    StoreIndex,
+};
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// Rewrite the store row for `is-odd@3.0.1` so its bundled manifest
 /// names another package — the state a lockfile pairing an integrity

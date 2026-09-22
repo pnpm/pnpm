@@ -16,8 +16,13 @@
 
 mod url_parse;
 use url_parse::{
-    correct_protocol, extract_auth, host_segments, is_github_shorthand, parse_git_url,
-    percent_decode, shortcut_segments,
+    correct_protocol,
+    extract_auth,
+    host_segments,
+    is_github_shorthand,
+    parse_git_url,
+    percent_decode,
+    shortcut_segments,
 };
 
 use pnpm_network::encode_uri_component;

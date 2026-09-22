@@ -1,7 +1,19 @@
 use super::{
-    Arc, DirectDep, HashMap, HashSet, ImporterPeerInput, NodeId, PeerCycleShape,
-    ResolvePeersOptions, ResolvedTree, order_test_shape, package, peer_cycle_fixture,
-    peer_cycle_graph_keys, resolve_peers, resolve_peers_workspace,
+    Arc,
+    DirectDep,
+    HashMap,
+    HashSet,
+    ImporterPeerInput,
+    NodeId,
+    PeerCycleShape,
+    ResolvePeersOptions,
+    ResolvedTree,
+    order_test_shape,
+    package,
+    peer_cycle_fixture,
+    peer_cycle_graph_keys,
+    resolve_peers,
+    resolve_peers_workspace,
 };
 
 /// End-to-end shape of a cycle package under canonical cycle-breaking:

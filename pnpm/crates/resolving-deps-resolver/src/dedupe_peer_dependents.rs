@@ -18,14 +18,23 @@
 //! equal size would otherwise collapse into whichever happened to be
 //! visited first, producing machine-dependent lockfiles.
 
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::collections::BTreeMap;
 
 use pnpm_deps_path::DepPath;
 
 use crate::{
-    dedupe_injected_deps::{DirectByImporter, prune_unreachable},
-    dep_path_compatibility::{is_compatible_and_has_more_deps, node_deps_count},
+    dedupe_injected_deps::{
+        DirectByImporter,
+        prune_unreachable,
+    },
+    dep_path_compatibility::{
+        is_compatible_and_has_more_deps,
+        node_deps_count,
+    },
     dependencies_graph::DependenciesGraph,
 };
 

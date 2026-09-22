@@ -1,9 +1,21 @@
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use pep508_rs::PackageName as PythonPackageName;
 use pnpr_error::RegistryError;
-use serde::{Deserialize, Serialize};
-use std::{fmt, str::FromStr};
-use strum::{EnumIter, IntoEnumIterator as _};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::{
+    fmt,
+    str::FromStr,
+};
+use strum::{
+    EnumIter,
+    IntoEnumIterator as _,
+};
 
 /// The protocol whose naming rules a registry surface follows.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, EnumIter)]

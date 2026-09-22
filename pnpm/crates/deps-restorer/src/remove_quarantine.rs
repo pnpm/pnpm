@@ -16,11 +16,17 @@
 
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(target_os = "macos")]
-use std::{ffi::OsStr, process::Command};
+use std::{
+    ffi::OsStr,
+    process::Command,
+};
 
 #[cfg(target_os = "macos")]
 const QUARANTINE_ATTR: &str = "com.apple.quarantine";

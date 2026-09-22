@@ -28,35 +28,65 @@
 
 pub mod oidc;
 
-pub use token_store::{TokenRecord, TokenStore};
+pub use token_store::{
+    TokenRecord,
+    TokenStore,
+};
 
 mod htpasswd;
 use htpasswd::{
-    hash_bcrypt, parse_htpasswd, serialize_htpasswd, verify_returning_user, write_atomic,
+    hash_bcrypt,
+    parse_htpasswd,
+    serialize_htpasswd,
+    verify_returning_user,
+    write_atomic,
 };
 
 mod token_store;
-use token_store::{fresh_secret, sha256_hex};
+use token_store::{
+    fresh_secret,
+    sha256_hex,
+};
 
 use async_trait::async_trait;
 #[cfg(feature = "backend-libsql")]
 use libsql_backend::LibsqlAuth;
-use pnpr_config::{AuthConfig, BackendConfig, MaxUsers};
-use pnpr_error::{RegistryError, Result};
+use pnpr_config::{
+    AuthConfig,
+    BackendConfig,
+    MaxUsers,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use rusqlite::Connection;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 #[cfg(feature = "backend-mysql")]
 use sqlx_backend::mysql::MysqlAuth;
 #[cfg(feature = "backend-postgres")]
 use sqlx_backend::postgres::PostgresAuth;
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicU64, Ordering},
+    path::{
+        Path,
+        PathBuf,
     },
-    time::{SystemTime, UNIX_EPOCH},
+    sync::{
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
+    },
+    time::{
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 #[cfg(feature = "backend-libsql")]

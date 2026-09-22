@@ -16,9 +16,15 @@ mod installation;
 
 mod reporting;
 
-use super::{InstallPackageBySnapshotError, host_platform_selector};
+use super::{
+    InstallPackageBySnapshotError,
+    host_platform_selector,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{LockfileResolution, PackageKey};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PackageKey,
+};
 
 /// A dummy but parseable sha512 integrity for the registry-resolution
 /// fixtures below. The download never runs in these tests (the mem
@@ -165,7 +171,10 @@ async fn run_snapshot_install_with_session(
 /// manifest of their own; the synthesized `bin` comes from the
 /// resolution, not the archive, so the payload is deliberately trivial.
 fn build_runtime_tarball_fixture() -> Vec<u8> {
-    use flate2::{Compression, write::GzEncoder};
+    use flate2::{
+        Compression,
+        write::GzEncoder,
+    };
     use std::io::Write;
 
     let script = b"#!/bin/sh\necho v22.0.0\n";

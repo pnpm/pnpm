@@ -1,9 +1,15 @@
 //! Classify every depPath in a lockfile as dev-only, prod-only, or
 //! both. Rust counterpart of `@pnpm/lockfile.detect-dep-types`.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
-use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgNameVerPeer,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DepType {

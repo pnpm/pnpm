@@ -7,19 +7,48 @@
 mod npm;
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use npm::sri_sha512;
 use pnpr::{
-    AccessList, AuthState, Config, Ecosystem, HostedConfig, MaxUsers, PackagePattern, PackageRules,
-    Registries, Registry, Teams, router_with_auth,
+    AccessList,
+    AuthState,
+    Config,
+    Ecosystem,
+    HostedConfig,
+    MaxUsers,
+    PackagePattern,
+    PackageRules,
+    Registries,
+    Registry,
+    Teams,
+    router_with_auth,
 };
-use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
+use serde_json::{
+    Value,
+    json,
+};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::PathBuf,
 };
 use tempfile::TempDir;
@@ -351,7 +380,11 @@ async fn a_batch_with_one_bad_entry_publishes_none_of_it() {
 /// it, so this case is only visible in the blobs the transaction lost.
 #[tokio::test]
 async fn a_package_that_loses_its_blob_is_reported_and_the_rest_stays() {
-    use object_store::{ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
+    use object_store::{
+        ObjectStoreExt,
+        memory::InMemory,
+        path::Path as ObjectPath,
+    };
     use pnpr::HostedStoreConfig;
     use std::sync::Arc;
 

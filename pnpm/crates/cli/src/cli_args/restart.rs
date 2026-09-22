@@ -1,4 +1,7 @@
-use super::{reporter::ReporterType, run::RunArgs};
+use super::{
+    reporter::ReporterType,
+    run::RunArgs,
+};
 use clap::Args;
 
 /// Restarts a package. Runs a package's "stop", "restart", and "start"

@@ -1,6 +1,9 @@
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// Create `dir/node_modules/<name>/package.json` so the directory
 /// looks like an installed package that `clean` must remove.
@@ -331,7 +334,12 @@ fn clean_does_not_remove_virtual_store_dir_outside_the_project_root() {
 /// module is Unix-only.
 #[cfg(unix)]
 mod scripts {
-    use super::{CommandTempCwd, Path, fs, seed_package};
+    use super::{
+        CommandTempCwd,
+        Path,
+        fs,
+        seed_package,
+    };
     use command_extra::CommandExtra;
 
     fn write_manifest(dir: &Path, scripts: &serde_json::Value) {

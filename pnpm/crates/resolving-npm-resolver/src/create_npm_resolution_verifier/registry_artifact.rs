@@ -1,8 +1,17 @@
 use super::{
-    LockfileResolution, NpmResolutionVerifier, PkgName, RegistryArtifactHistory,
-    ResolutionVerification, TARBALL_REVISION_MISMATCH_VIOLATION_CODE, current_history_violation,
-    current_revision_number, is_integrity_addressed_registry_tarball_url, lockfile_revision,
-    missing_artifact_violation, select_revision, tarball_url_violation,
+    LockfileResolution,
+    NpmResolutionVerifier,
+    PkgName,
+    RegistryArtifactHistory,
+    ResolutionVerification,
+    TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+    current_history_violation,
+    current_revision_number,
+    is_integrity_addressed_registry_tarball_url,
+    lockfile_revision,
+    missing_artifact_violation,
+    select_revision,
+    tarball_url_violation,
 };
 
 impl NpmResolutionVerifier {

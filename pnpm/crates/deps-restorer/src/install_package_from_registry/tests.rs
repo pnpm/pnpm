@@ -3,24 +3,52 @@
     reason = "struct-literal test fixtures; field types are evident from the literal and naming each would force ~20 imports"
 )]
 
-use super::{InstallPackageFromRegistry, InstallPackageFromRegistryError};
+use super::{
+    InstallPackageFromRegistry,
+    InstallPackageFromRegistryError,
+};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
-use pnpm_lockfile::{LockfileResolution, TarballResolution};
-use pnpm_network::{RetryOpts, ThrottledClient};
-use pnpm_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
+use pnpm_lockfile::{
+    LockfileResolution,
+    TarballResolution,
+};
+use pnpm_network::{
+    RetryOpts,
+    ThrottledClient,
+};
+use pnpm_reporter::{
+    LogEvent,
+    ProgressMessage,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
+    InMemoryPackageMetaCache,
+    NpmResolver,
+    shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
-use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
-use pnpm_store_dir::{SharedVerifiedFilesCache, StoreDir};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
+};
+use pnpm_store_dir::{
+    SharedVerifiedFilesCache,
+    StoreDir,
+};
 use pnpm_testing_utils::registry::TestRegistry;
 use pretty_assertions::assert_eq;
 use std::{
     collections::HashMap,
     path::Path,
-    sync::{Arc, Mutex, atomic::AtomicU8},
+    sync::{
+        Arc,
+        Mutex,
+        atomic::AtomicU8,
+    },
 };
 use tempfile::tempdir;
 

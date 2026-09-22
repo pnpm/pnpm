@@ -1,4 +1,7 @@
-use super::{is_any_version_range, is_valid_semver_range};
+use super::{
+    is_any_version_range,
+    is_valid_semver_range,
+};
 
 #[test]
 fn empty_and_blank_ranges_are_any_version() {

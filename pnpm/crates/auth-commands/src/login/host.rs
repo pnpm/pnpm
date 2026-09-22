@@ -1,13 +1,33 @@
-use std::{future::Future, io, path::Path};
+use std::{
+    future::Future,
+    io,
+    path::Path,
+};
 
 use pnpm_network_web_auth::{
-    Clock, EnterKeyListener, Host as WebAuthHost, OpenUrl, PromptError, PromptOtp, Sleep,
-    StdinIsTty, StdoutIsTty, WebAuthFetch, WebAuthFetchError, WebAuthFetchOptions,
+    Clock,
+    EnterKeyListener,
+    Host as WebAuthHost,
+    OpenUrl,
+    PromptError,
+    PromptOtp,
+    Sleep,
+    StdinIsTty,
+    StdoutIsTty,
+    WebAuthFetch,
+    WebAuthFetchError,
+    WebAuthFetchOptions,
     WebAuthFetchResponse,
 };
 
-use super::prompt::{PromptInput, PromptPassword};
-use crate::logout::{FsReadToString, FsWrite};
+use super::prompt::{
+    PromptInput,
+    PromptPassword,
+};
+use crate::logout::{
+    FsReadToString,
+    FsWrite,
+};
 
 /// Production provider for `pnpm login`. The credential prompts and
 /// `config.yaml` I/O are real; every OTP / web-authentication capability

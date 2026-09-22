@@ -16,9 +16,16 @@
 //! [`ok_202`], [`ok_token`], [`web_auth_body`] — carry no mutable state, so
 //! they stay ordinary `pub` items shared across every test.
 
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_network_web_auth::{
-    OtpChallenge, OtpError, OtpErrorBody, WebAuthFetchError, WebAuthFetchResponse,
+    OtpChallenge,
+    OtpError,
+    OtpErrorBody,
+    WebAuthFetchError,
+    WebAuthFetchResponse,
 };
 use serde_json::json;
 

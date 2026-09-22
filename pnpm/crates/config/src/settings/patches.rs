@@ -1,6 +1,14 @@
 use crate::{
-    BTreeMap, CalcPatchHashError, Config, IndexMap, PatchGroupRecord, PatchInput, Path,
-    ResolvePatchedDependenciesError, create_hex_hash_from_file, group_patched_dependencies,
+    BTreeMap,
+    CalcPatchHashError,
+    Config,
+    IndexMap,
+    PatchGroupRecord,
+    PatchInput,
+    Path,
+    ResolvePatchedDependenciesError,
+    create_hex_hash_from_file,
+    group_patched_dependencies,
     resolve_and_group,
 };
 

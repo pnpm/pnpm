@@ -1,19 +1,52 @@
 mod tarball;
-use tarball::{build_tarball, fixture_files};
+use tarball::{
+    build_tarball,
+    fixture_files,
+};
 
-use base64::{Engine, engine::general_purpose};
-use flate2::{Compression, write::GzEncoder};
-use node_semver::{Range, Version};
-use serde_json::{Map, Value, json};
-use sha2::{Digest, Sha256, Sha512};
+use base64::{
+    Engine,
+    engine::general_purpose,
+};
+use flate2::{
+    Compression,
+    write::GzEncoder,
+};
+use node_semver::{
+    Range,
+    Version,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
+use sha2::{
+    Digest,
+    Sha256,
+    Sha512,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
-    env, fs,
-    io::{self, Write},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    env,
+    fs,
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         LazyLock,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
 };
 use walkdir::WalkDir;

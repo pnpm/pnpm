@@ -1,5 +1,10 @@
 use super::{
-    DependencyGroup, PackageManifest, PackageManifestError, assert_eq, json, read_to_string,
+    DependencyGroup,
+    PackageManifest,
+    PackageManifestError,
+    assert_eq,
+    json,
+    read_to_string,
     tempdir,
 };
 

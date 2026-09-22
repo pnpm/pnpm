@@ -1,13 +1,31 @@
 //! Offline OCI blob reclamation. All writers sharing the store must be
 //! stopped, including other replicas, throughout the scan and deletion.
 
-use crate::{Config, Ecosystem, RegistryError, Result};
+use crate::{
+    Config,
+    Ecosystem,
+    RegistryError,
+    Result,
+};
 use futures_util::TryStreamExt;
-use pnpr_oci::{Descriptor, Digest, ImageDocument, Manifest, media_type};
+use pnpr_oci::{
+    Descriptor,
+    Digest,
+    ImageDocument,
+    Manifest,
+    media_type,
+};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::Storage;
-use rusqlite::{Connection, OptionalExtension, params};
-use std::{collections::HashSet, time::Duration};
+use rusqlite::{
+    Connection,
+    OptionalExtension,
+    params,
+};
+use std::{
+    collections::HashSet,
+    time::Duration,
+};
 
 /// Reclaim unreferenced OCI blobs in one hosted registry.
 ///

@@ -1,10 +1,19 @@
-use super::{InstallArgs, InstallDependencyOptions, NodeLinkerArg, PnprBenchmarkRegistryOverride};
+use super::{
+    InstallArgs,
+    InstallDependencyOptions,
+    NodeLinkerArg,
+    PnprBenchmarkRegistryOverride,
+};
 use crate::cli_args::install::pnpr_request::{
-    BenchmarkRegistryRewrite, rewrite_resolution_registry,
+    BenchmarkRegistryRewrite,
+    rewrite_resolution_registry,
 };
 use clap::Parser;
 use pnpm_config::NodeLinker;
-use pnpm_lockfile::{LockfileResolution, TarballResolution};
+use pnpm_lockfile::{
+    LockfileResolution,
+    TarballResolution,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
 
@@ -12,7 +21,11 @@ use pretty_assertions::assert_eq;
 /// resolution in `config/reader/src/index.ts`.
 #[test]
 fn dependency_options_to_dependency_groups() {
-    use DependencyGroup::{Dev, Optional, Prod};
+    use DependencyGroup::{
+        Dev,
+        Optional,
+        Prod,
+    };
     let create_list =
         |opts: InstallDependencyOptions| opts.dependency_groups(true).collect::<Vec<_>>();
 

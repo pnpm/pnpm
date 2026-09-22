@@ -1,7 +1,11 @@
 use std::env::temp_dir;
 
 use clap::Parser;
-use pnpm_registry_mock::{MockInstanceOptions, PreparedRegistryInfo, pick_unused_port};
+use pnpm_registry_mock::{
+    MockInstanceOptions,
+    PreparedRegistryInfo,
+    pick_unused_port,
+};
 use reqwest::Client;
 use tokio::time::Duration;
 

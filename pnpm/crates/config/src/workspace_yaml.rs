@@ -3,28 +3,82 @@ pub mod registries;
 pub use error::LoadWorkspaceYamlError;
 pub(crate) use sections::deserialize_tools;
 pub use sections::{
-    AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
-    DEFAULT_PYTHON_DOWNLOAD_URL, PackageExtension, PeerDependencyMeta, PeerDependencyRules,
-    PnpmfileSetting, PythonSettings, RemoteSideEffectsCacheSettings, SideEffectsCacheSetting,
-    SideEffectsCacheSettings, TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings,
+    AllowBuild,
+    AuditSettings,
+    CargoSettings,
+    DEFAULT_CARGO_INDEX_URL,
+    DEFAULT_PYPI_INDEX_URL,
+    DEFAULT_PYTHON_DOWNLOAD_URL,
+    PackageExtension,
+    PeerDependencyMeta,
+    PeerDependencyRules,
+    PnpmfileSetting,
+    PythonSettings,
+    RemoteSideEffectsCacheSettings,
+    SideEffectsCacheSetting,
+    SideEffectsCacheSettings,
+    TaskSettings,
+    Tool,
+    ToolSettings,
+    UpdateConfig,
+    UpdateSettings,
     decided_allow_builds,
 };
-pub use settings::{MacosBackupSettings, WorkspaceSettings};
+pub use settings::{
+    MacosBackupSettings,
+    WorkspaceSettings,
+};
 
 use crate::{
-    AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, InitType, LinkWorkspacePackages,
-    NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
+    AuditConfig,
+    AuditLevel,
+    CatalogMode,
+    Config,
+    HoistingLimits,
+    InitType,
+    LinkWorkspacePackages,
+    NodeLinker,
+    NodePackageMapType,
+    PackageImportMethod,
+    PmOnFail,
+    ResolutionMode,
+    RuntimeOnFail,
+    SaveWorkspaceProtocol,
+    ScriptsPrependNodePath,
+    TrustPolicy,
+    VerifyDepsBeforeRun,
     VirtualStoreType,
-    api::{EnvVar, GetCurrentDir, GetHomeDir, LinkProbe},
+    api::{
+        EnvVar,
+        GetCurrentDir,
+        GetHomeDir,
+        LinkProbe,
+    },
     config_types::is_config_file_key,
-    known_settings::{SCHEMA_DIRECTIVE_KEY, annotate_unknown_setting, is_known_setting_key},
-    naming_cases::{is_camel_case, to_camel_case, to_kebab_case},
-    proxy_keys::{ProxyKeys, ProxyValue},
-    refused_keys::{is_refused_by_a_project_manifest, where_refused_key_belongs},
+    known_settings::{
+        SCHEMA_DIRECTIVE_KEY,
+        annotate_unknown_setting,
+        is_known_setting_key,
+    },
+    naming_cases::{
+        is_camel_case,
+        to_camel_case,
+        to_kebab_case,
+    },
+    proxy_keys::{
+        ProxyKeys,
+        ProxyValue,
+    },
+    refused_keys::{
+        is_refused_by_a_project_manifest,
+        where_refused_key_belongs,
+    },
     resolve_child_concurrency,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use package_configs::PackageConfigsSetting;
@@ -35,12 +89,26 @@ use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_store_dir::StoreDir;
 use pnpm_workspace_state::ConfigDependency;
 use registries::RegistryEntry;
-use serde::{Deserialize, Deserializer, de::IgnoredAny};
+use serde::{
+    Deserialize,
+    Deserializer,
+    de::IgnoredAny,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+    },
     fs,
-    io::{self, ErrorKind},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        ErrorKind,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The keys of a project's `pnpm-workspace.yaml` that set nothing, bucketed
@@ -401,8 +469,13 @@ mod env;
 
 mod environment_values;
 use environment_values::{
-    has_env_placeholder, no_proxy_scalar, normalize_registry_url, substitute_json_string,
-    substitute_optional_inner_string, substitute_optional_string, substitute_optional_string_map,
+    has_env_placeholder,
+    no_proxy_scalar,
+    normalize_registry_url,
+    substitute_json_string,
+    substitute_optional_inner_string,
+    substitute_optional_string,
+    substitute_optional_string_map,
     substitute_registry_entries,
 };
 
@@ -417,4 +490,7 @@ mod settings;
 mod error;
 
 mod credentials;
-use credentials::{redact_registry_url, registry_url_has_userinfo};
+use credentials::{
+    redact_registry_url,
+    registry_url_has_userinfo,
+};

@@ -3,7 +3,10 @@ pub use _utils::*;
 use crate::_utils;
 use pnpm_testing_utils::fixtures::minimal_tarball;
 use pretty_assertions::assert_eq;
-use std::{collections::BTreeSet, fs};
+use std::{
+    collections::BTreeSet,
+    fs,
+};
 
 #[test]
 fn frozen_install_ignores_removed_workspace_projects() {

@@ -1,6 +1,10 @@
 //! The string ordering pnpm sorts packed paths by.
 
-use icu_collator::{Collator, CollatorBorrowed, options::CollatorOptions};
+use icu_collator::{
+    Collator,
+    CollatorBorrowed,
+    options::CollatorOptions,
+};
 use icu_locale_core::locale;
 
 /// A collator equivalent to JavaScript's `localeCompare(b, 'en')`, which

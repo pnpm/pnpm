@@ -1,22 +1,48 @@
 //! Tests for [`super::link_hoisted_modules`].
 
 use super::{
-    CasPathsByPkgId, LinkHoistedModulesError, LinkHoistedModulesOpts, link_hoisted_modules,
+    CasPathsByPkgId,
+    LinkHoistedModulesError,
+    LinkHoistedModulesOpts,
+    link_hoisted_modules,
 };
-use crate::{DepHierarchy, DependenciesGraph, DependenciesGraphNode};
+use crate::{
+    DepHierarchy,
+    DependenciesGraph,
+    DependenciesGraphNode,
+};
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::PackageImportMethod;
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution, PkgIdWithPatchHash};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+    PkgIdWithPatchHash,
+};
 use pnpm_modules_yaml::DepPath;
 use pnpm_reporter::{
-    LogEvent, PackageImportMethod as WireImportMethod, ProgressMessage, Reporter, SilentReporter,
+    LogEvent,
+    PackageImportMethod as WireImportMethod,
+    ProgressMessage,
+    Reporter,
+    SilentReporter,
 };
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+    },
     fs,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex, atomic::AtomicU8},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+        atomic::AtomicU8,
+    },
 };
 
 fn sample_resolution() -> LockfileResolution {

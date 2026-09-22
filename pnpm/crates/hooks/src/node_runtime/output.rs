@@ -1,4 +1,9 @@
-use super::{AsyncBufRead, AsyncBufReadExt, AsyncRead, BufReader};
+use super::{
+    AsyncBufRead,
+    AsyncBufReadExt,
+    AsyncRead,
+    BufReader,
+};
 use tokio::io::AsyncReadExt as _;
 
 /// How much trailing stderr to keep for the failure message when the hook

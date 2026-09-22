@@ -1,20 +1,46 @@
 //! `pnpm list` output renderers (tree / parseable / JSON), mirroring
 //! the TypeScript `@pnpm/deps.inspection.list` renderers byte for byte.
 
-pub(crate) use structured::{RenderParseableOptions, render_json, render_parseable};
+pub(crate) use structured::{
+    RenderParseableOptions,
+    render_json,
+    render_parseable,
+};
 
 use crate::cli_args::deps_tree::{
     DependencyNode,
     build::DependenciesHierarchy,
     render::{
-        ColorFn, LongPkgInfo, PeerVariants, TreeNode, TreeNodeGroup, blue, bold_styled,
-        cyan_bright, deduped_label, dim, gray, name_at_version, peer_hash_suffix, plain,
-        read_long_pkg_info, red, render_archy, yellow,
+        ColorFn,
+        LongPkgInfo,
+        PeerVariants,
+        TreeNode,
+        TreeNodeGroup,
+        blue,
+        bold_styled,
+        cyan_bright,
+        deduped_label,
+        dim,
+        gray,
+        name_at_version,
+        peer_hash_suffix,
+        plain,
+        read_long_pkg_info,
+        red,
+        render_archy,
+        yellow,
     },
 };
-use serde_json::{Map, Value, json};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
 };
 

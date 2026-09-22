@@ -1,4 +1,9 @@
-use super::{CanonicalPackageName, Ecosystem, RegistryConfigError, fmt};
+use super::{
+    CanonicalPackageName,
+    Ecosystem,
+    RegistryConfigError,
+    fmt,
+};
 
 /// A package-name pattern: one member of a concrete registry's declared
 /// namespace.
@@ -169,7 +174,13 @@ impl PackagePattern {
     /// coverage is sufficient for union coverage in this language.
     #[must_use]
     pub fn covers(&self, other: &PackagePattern) -> bool {
-        use PackagePattern::{All, AnyScoped, Exact, Namespace, Scope};
+        use PackagePattern::{
+            All,
+            AnyScoped,
+            Exact,
+            Namespace,
+            Scope,
+        };
         match self {
             All => true,
             AnyScoped => match other {

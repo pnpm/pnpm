@@ -1,7 +1,16 @@
 use super::{
-    Envelope, LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, Pipe,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalParent,
-    SkippedOptionalReason, Value, assert_eq,
+    Envelope,
+    LockfileVerificationLog,
+    LockfileVerificationMessage,
+    LogEvent,
+    LogLevel,
+    Pipe,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    SkippedOptionalParent,
+    SkippedOptionalReason,
+    Value,
+    assert_eq,
 };
 
 /// `resolution_failure` payload uses the second `package` variant:

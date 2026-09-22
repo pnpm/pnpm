@@ -1,12 +1,24 @@
-use super::super::{ImporterUpdateSeedPolicy, UpdateSeedPolicy};
+use super::super::{
+    ImporterUpdateSeedPolicy,
+    UpdateSeedPolicy,
+};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_resolving_deps_resolver::{ManifestHook, UpdateTargets};
-use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions};
+use pnpm_resolving_deps_resolver::{
+    ManifestHook,
+    UpdateTargets,
+};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions,
+    ResolveOptions,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     sync::Arc,
 };
 
@@ -215,7 +227,10 @@ impl ReuseSeedInputs<'_> {
 pub(in super::super) async fn lockfile_reuse_seed(
     inputs: ReuseSeedInputs<'_>,
 ) -> Option<Arc<Lockfile>> {
-    use crate::fast_update_catalogs::{FastCatalogUpdate, try_fast_update_catalogs};
+    use crate::fast_update_catalogs::{
+        FastCatalogUpdate,
+        try_fast_update_catalogs,
+    };
 
     let overrides_use_catalogs = overrides_use_catalogs(inputs.config);
     let (catalogs_match, fast_catalog_seed) =
@@ -275,7 +290,10 @@ pub(super) async fn reuse_or_rewrite_overrides(
     override_settings_match: bool,
     rewrite_manifest_hook: Option<&pnpm_resolving_deps_resolver::ManifestHook>,
 ) -> Option<Arc<Lockfile>> {
-    use crate::fast_update_overrides::{FastOverrideOptions, try_fast_update_overrides};
+    use crate::fast_update_overrides::{
+        FastOverrideOptions,
+        try_fast_update_overrides,
+    };
     if override_settings_match {
         return Some(match catalog_rewrite {
             Some(rewritten) => Arc::new(rewritten),

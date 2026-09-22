@@ -1,7 +1,20 @@
 use super::{
-    Arc, BTreeMap, DEFAULT_CONCURRENCY, FuturesUnordered, Lockfile, LockfileResolution, PkgName,
-    RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE, RenderedViolation, ResolutionPolicyViolation,
-    ResolutionVerification, ResolutionVerifier, Semaphore, StreamExt, VerifyCtx, VerifyError,
+    Arc,
+    BTreeMap,
+    DEFAULT_CONCURRENCY,
+    FuturesUnordered,
+    Lockfile,
+    LockfileResolution,
+    PkgName,
+    RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+    RenderedViolation,
+    ResolutionPolicyViolation,
+    ResolutionVerification,
+    ResolutionVerifier,
+    Semaphore,
+    StreamExt,
+    VerifyCtx,
+    VerifyError,
     is_registry_shaped_resolution,
 };
 

@@ -1,17 +1,35 @@
 use crate::{
-    CasPrefetch, CreateVirtualStoreStoreContext, CustomFetcherSession, SkippedSnapshots,
+    CasPrefetch,
+    CreateVirtualStoreStoreContext,
+    CustomFetcherSession,
+    SkippedSnapshots,
     VirtualStoreLayout,
 };
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    PackageMetadata,
+    ProjectSnapshot,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_network::ThrottledClient;
 use pnpm_store_dir::StoreIndexWriter;
-use pnpm_tarball::{MemCache, SharedReportedProgressKeys};
+use pnpm_tarball::{
+    MemCache,
+    SharedReportedProgressKeys,
+};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

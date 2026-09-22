@@ -29,21 +29,41 @@
 
 use crate::{
     replace::{
-        ReplaceWorkspaceProtocolError, replace_workspace_protocol,
+        ReplaceWorkspaceProtocolError,
+        replace_workspace_protocol,
         replace_workspace_protocol_peer_dependency,
     },
-    transform::{TransformError, transform},
+    transform::{
+        TransformError,
+        transform,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionError, CatalogResolutionResult, WantedDependency,
+    CatalogAnchor,
+    CatalogResolutionError,
+    CatalogResolutionResult,
+    WantedDependency,
     resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
-use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
-use serde_json::{Map, Value};
-use std::{fs, io, path::Path};
+use pnpm_resolving_jsr_specifier_parser::{
+    ParseJsrSpecifierError,
+    parse_jsr_specifier,
+};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 /// Lifecycle scripts removed from the published manifest's `scripts`
 /// map during obfuscation, so they don't re-run when the package is

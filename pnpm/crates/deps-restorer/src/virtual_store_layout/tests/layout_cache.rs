@@ -1,9 +1,27 @@
-use super::{DIGEST_A, DIGEST_B, depends_on, registry_metadata};
-use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
-use pretty_assertions::{assert_eq, assert_ne};
+use super::{
+    DIGEST_A,
+    DIGEST_B,
+    depends_on,
+    registry_metadata,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
+};
+use pretty_assertions::{
+    assert_eq,
+    assert_ne,
+};
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The cached suffix map decides where every package in the store

@@ -1,5 +1,11 @@
 use super::{
-    HELLO, ManifestDeps, PARENT, WorkspaceFixture, assert_eq, fs, importing_started_count,
+    HELLO,
+    ManifestDeps,
+    PARENT,
+    WorkspaceFixture,
+    assert_eq,
+    fs,
+    importing_started_count,
     reports_up_to_date,
 };
 

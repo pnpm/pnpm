@@ -1,7 +1,18 @@
 use super::{
-    DependencyGroup, LatestQuery, Mutex, PackageManifest, ResolveDependencyTreeOptions,
-    ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
-    assert_eq, fake_result, resolve_dependency_tree,
+    DependencyGroup,
+    LatestQuery,
+    Mutex,
+    PackageManifest,
+    ResolveDependencyTreeOptions,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
+    assert_eq,
+    fake_result,
+    resolve_dependency_tree,
 };
 
 #[tokio::test]

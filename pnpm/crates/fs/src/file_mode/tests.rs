@@ -1,4 +1,9 @@
-use super::{EXEC_MASK, EXEC_MODE, cas_path_is_executable, is_executable};
+use super::{
+    EXEC_MASK,
+    EXEC_MODE,
+    cas_path_is_executable,
+    is_executable,
+};
 use std::path::Path;
 
 #[test]
@@ -29,7 +34,10 @@ fn cas_path_is_executable_matches_trailing_suffix() {
 fn set_path_permissions_refuses_symlinks() {
     use std::{
         fs,
-        os::unix::fs::{PermissionsExt, symlink},
+        os::unix::fs::{
+            PermissionsExt,
+            symlink,
+        },
     };
     let temporary = tempfile::tempdir().unwrap();
     let target = temporary.path().join("target");
@@ -112,7 +120,10 @@ fn make_file_executable_fills_partial_bits_and_preserves_full() {
 #[test]
 fn restore_exec_bit_adds_bits_for_exec_suffix() {
     use super::restore_exec_bit_from_cas_suffix;
-    use std::{fs, os::unix::fs::PermissionsExt};
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+    };
 
     let tmp = tempfile::tempdir().expect("create tempdir");
     let cas_path = Path::new("files/1b/59d9-exec");
@@ -136,7 +147,10 @@ fn restore_exec_bit_adds_bits_for_exec_suffix() {
 #[test]
 fn restore_exec_bit_does_not_widen_non_exec_suffix() {
     use super::restore_exec_bit_from_cas_suffix;
-    use std::{fs, os::unix::fs::PermissionsExt};
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+    };
 
     let tmp = tempfile::tempdir().expect("create tempdir");
     let cas_path = Path::new("files/1b/59d9");

@@ -1,4 +1,7 @@
-use super::{Version, fmt};
+use super::{
+    Version,
+    fmt,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Bound<Value> {

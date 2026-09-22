@@ -1,6 +1,13 @@
 use super::{
-    CheckResult, CheckStatus, DoctorReport, can_write_to_dir, check_versions, last_line,
-    probe_link_capabilities, render_report, status_mark,
+    CheckResult,
+    CheckStatus,
+    DoctorReport,
+    can_write_to_dir,
+    check_versions,
+    last_line,
+    probe_link_capabilities,
+    render_report,
+    status_mark,
 };
 use pnpm_config::PNPM_VERSION;
 use pretty_assertions::assert_eq;

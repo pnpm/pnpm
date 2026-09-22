@@ -1,4 +1,10 @@
-use super::{BTreeMap, EnvVar, IndexMap, RegistryEntry, env_replace_lossy};
+use super::{
+    BTreeMap,
+    EnvVar,
+    IndexMap,
+    RegistryEntry,
+    env_replace_lossy,
+};
 
 /// Flatten a `noProxy` yaml scalar into the raw string form the `.npmrc`
 /// spelling of the key would carry. `true` becomes the literal token the

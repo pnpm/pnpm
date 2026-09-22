@@ -1,20 +1,43 @@
 use deno_task_shell::{
-    KillSignal, ShellPipeReader, ShellPipeWriter, ShellState, SignalKind, execute_with_pipes,
-    parser, parser::SequentialList, pipe,
+    KillSignal,
+    ShellPipeReader,
+    ShellPipeWriter,
+    ShellState,
+    SignalKind,
+    execute_with_pipes,
+    parser,
+    parser::SequentialList,
+    pipe,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_reporter::LifecycleStdio;
 use std::{
     collections::HashMap,
     ffi::OsString,
-    io::{self, Write},
-    path::{self, Path, PathBuf},
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        self,
+        Path,
+        PathBuf,
+    },
     thread,
 };
-use tokio::{runtime::Builder, task::LocalSet};
+use tokio::{
+    runtime::Builder,
+    task::LocalSet,
+};
 
-use crate::process_tracker::{EmulatedCancellation, ProcessTracker};
+use crate::process_tracker::{
+    EmulatedCancellation,
+    ProcessTracker,
+};
 
 /// Failure to run a script under the `shellEmulator` setting. A script
 /// that runs and exits non-zero is not an error here — the exit code is

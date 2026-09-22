@@ -4,8 +4,20 @@ mod live_graph;
 use live_graph::LiveGraph;
 
 use super::{
-    AuditGraph, BTreeMap, DepClass, Edge, EnvLockfile, HashMap, HashSet, Include, Lockfile,
-    MAX_PATHS_PER_FINDING, PackageKey, Rc, classify_graph, root_included,
+    AuditGraph,
+    BTreeMap,
+    DepClass,
+    Edge,
+    EnvLockfile,
+    HashMap,
+    HashSet,
+    Include,
+    Lockfile,
+    MAX_PATHS_PER_FINDING,
+    PackageKey,
+    Rc,
+    classify_graph,
+    root_included,
 };
 
 #[derive(Debug, Default)]

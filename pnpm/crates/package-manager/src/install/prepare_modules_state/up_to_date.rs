@@ -1,12 +1,36 @@
 use super::super::{
-    Arc, Config, Host, InstallError, Lockfile, LogEvent, LogLevel, Path, PnpmLog, Reporter,
-    ResolutionVerifier, Stage, StageLog, SummaryLog, SystemTime, build_workspace_state,
-    frozen_tree_intact, gvs_build_marker_present, has_newly_allowed_ignored_builds,
-    hoisted_workspace_packages_present, map_frozen_lockfile_error, modules_consistent_with,
-    moved_tree_is_reusable, recorded_allow_builds_differ, unapproved_recorded_ignored_builds,
-    update_workspace_state, verify_lockfile_eagerly,
+    Arc,
+    Config,
+    Host,
+    InstallError,
+    Lockfile,
+    LogEvent,
+    LogLevel,
+    Path,
+    PnpmLog,
+    Reporter,
+    ResolutionVerifier,
+    Stage,
+    StageLog,
+    SummaryLog,
+    SystemTime,
+    build_workspace_state,
+    frozen_tree_intact,
+    gvs_build_marker_present,
+    has_newly_allowed_ignored_builds,
+    hoisted_workspace_packages_present,
+    map_frozen_lockfile_error,
+    modules_consistent_with,
+    moved_tree_is_reusable,
+    recorded_allow_builds_differ,
+    unapproved_recorded_ignored_builds,
+    update_workspace_state,
+    verify_lockfile_eagerly,
 };
-use crate::optimistic_repeat_install::{filesystem_now_ms, materialized_shape_matches};
+use crate::optimistic_repeat_install::{
+    filesystem_now_ms,
+    materialized_shape_matches,
+};
 
 /// Whether any package in the lockfile resolves to a local directory.
 ///

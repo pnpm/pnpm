@@ -1,29 +1,74 @@
 pub(crate) use release::selected_projects;
 
 use crate::cli_args::{
-    change::{render_release_plan, to_engine_projects},
-    changelog::{self, confirmed_published_versions, unpublished_release_dirs},
-    recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
+    change::{
+        render_release_plan,
+        to_engine_projects,
+    },
+    changelog::{
+        self,
+        confirmed_published_versions,
+        unpublished_release_dirs,
+    },
+    recursive::{
+        AutoExcludeRoot,
+        discover_workspace_projects,
+        select_recursive_projects,
+    },
 };
-use bump::{Bump, inc, parse_bump, parse_current_version};
+use bump::{
+    Bump,
+    inc,
+    parse_bump,
+    parse_current_version,
+};
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use git::version_from_git;
-use miette::{Context, Diagnostic};
-use node_semver::{Identifier, Version};
+use miette::{
+    Context,
+    Diagnostic,
+};
+use node_semver::{
+    Identifier,
+    Version,
+};
 use pnpm_config::Config;
-use pnpm_executor::{RunPostinstallHooks, run_lifecycle_hook};
+use pnpm_executor::{
+    RunPostinstallHooks,
+    run_lifecycle_hook,
+};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_publish::{Host, RunCommand, is_git_repo, is_working_tree_clean};
+use pnpm_publish::{
+    Host,
+    RunCommand,
+    is_git_repo,
+    is_working_tree_clean,
+};
 use pnpm_versioning::{
-    AssembleReleasePlanOptions, apply_release_plan, assemble_release_plan, read_change_intents,
+    AssembleReleasePlanOptions,
+    apply_release_plan,
+    assemble_release_plan,
+    read_change_intents,
     read_ledger,
 };
 
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Bump the version of a package: `pnpm version <bump|semver>` applies an

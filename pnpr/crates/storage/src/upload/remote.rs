@@ -1,18 +1,43 @@
-use super::{BlobUpload, BlobUploadWriter, generate_upload_id, is_upload_id};
+use super::{
+    BlobUpload,
+    BlobUploadWriter,
+    generate_upload_id,
+    is_upload_id,
+};
 use crate::s3::send_parts;
 use futures_util::StreamExt;
-use object_store::{ObjectStore, ObjectStoreExt, PutMode, PutOptions, UpdateVersion, path::Path};
-use pnpr_error::{RegistryError, Result};
+use object_store::{
+    ObjectStore,
+    ObjectStoreExt,
+    PutMode,
+    PutOptions,
+    UpdateVersion,
+    path::Path,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::CanonicalPackageName;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::PathBuf,
     sync::Arc,
     time::Duration,
 };
 use tempfile::TempPath;
-use tokio::{fs, io::AsyncWriteExt, sync::Mutex};
+use tokio::{
+    fs,
+    io::AsyncWriteExt,
+    sync::Mutex,
+};
 
 const MAX_CHUNKS: usize = 10_000;
 

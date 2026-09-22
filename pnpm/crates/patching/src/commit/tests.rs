@@ -1,11 +1,28 @@
 use super::{
-    PatchCommitError, PatchCommitFs, PkgFilesForDiff, RealPatchCommitFs, diff_folders,
-    normalize_diff_output, prepare_pkg_files_for_diff, prepare_pkg_files_for_diff_with_fs,
-    remove_existing_temp_dir_with_fs, safe_package_file_path, temporary_filtered_dir,
+    PatchCommitError,
+    PatchCommitFs,
+    PkgFilesForDiff,
+    RealPatchCommitFs,
+    diff_folders,
+    normalize_diff_output,
+    prepare_pkg_files_for_diff,
+    prepare_pkg_files_for_diff_with_fs,
+    remove_existing_temp_dir_with_fs,
+    safe_package_file_path,
+    temporary_filtered_dir,
 };
-use diffy::patch_set::{FileOperation, ParseOptions, PatchSet};
+use diffy::patch_set::{
+    FileOperation,
+    ParseOptions,
+    PatchSet,
+};
 use pretty_assertions::assert_eq;
-use std::{cell::Cell, fs, io, path::Path};
+use std::{
+    cell::Cell,
+    fs,
+    io,
+    path::Path,
+};
 use tempfile::tempdir;
 
 #[cfg(unix)]

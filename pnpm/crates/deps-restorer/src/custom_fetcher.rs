@@ -1,21 +1,36 @@
 mod metadata;
 
 use crate::{
-    InstallPackageBySnapshotError, install_package_by_snapshot::local_file_tarball_install_url,
+    InstallPackageBySnapshotError,
+    install_package_by_snapshot::local_file_tarball_install_url,
 };
 use pnpm_hooks::{
-    CustomFetcher, FetcherCallback, FetcherMethod, custom_fetcher_adapter::CustomFetcherPicker,
+    CustomFetcher,
+    FetcherCallback,
+    FetcherMethod,
+    custom_fetcher_adapter::CustomFetcherPicker,
 };
 use pnpm_lockfile::LockfileResolution;
 use pnpm_reporter::Reporter;
-use pnpm_tarball::{FetchErrorDetails, FetchedTarball, IngestTarballToStore, TarballError};
+use pnpm_tarball::{
+    FetchErrorDetails,
+    FetchedTarball,
+    IngestTarballToStore,
+    TarballError,
+};
 use serde::Deserialize;
 use serde_json::Value;
 use ssri::Integrity;
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 pub(crate) enum CustomFetchOutcome {

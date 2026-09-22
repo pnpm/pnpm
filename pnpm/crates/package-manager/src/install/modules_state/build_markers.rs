@@ -1,4 +1,9 @@
-use super::super::{Config, HashSet, Lockfile, Path};
+use super::super::{
+    Config,
+    HashSet,
+    Lockfile,
+    Path,
+};
 
 /// Whether a GVS install can own slots whose interrupted build or patch
 /// application must be recovered from `.pnpm-needs-build`.

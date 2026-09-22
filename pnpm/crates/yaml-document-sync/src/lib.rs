@@ -13,7 +13,12 @@ mod source_keys;
 mod tests;
 
 use serde_json::Value;
-use serde_saphyr::granit_parser::{Scanner, StrInput, Token, TokenType};
+use serde_saphyr::granit_parser::{
+    Scanner,
+    StrInput,
+    Token,
+    TokenType,
+};
 use yamlpath::Document;
 
 /// Decode a manifest, coercing scalar mapping keys to JSON property names.

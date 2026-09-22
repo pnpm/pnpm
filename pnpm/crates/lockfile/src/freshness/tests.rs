@@ -1,5 +1,8 @@
 use super::{
-    LockfileSettingsCheck, PnpmfileChecksumCheck, StalenessReason, check_lockfile_settings,
+    LockfileSettingsCheck,
+    PnpmfileChecksumCheck,
+    StalenessReason,
+    check_lockfile_settings,
     satisfies_package_manifest,
 };
 use crate::Lockfile;

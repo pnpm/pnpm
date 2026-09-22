@@ -27,11 +27,21 @@ pub(crate) mod semver_range;
 
 pub(crate) use preferred_versions::dominant_lockfile_version;
 
-pub(crate) use release_age::{PublishedByView, apply_published_by_policy};
+pub(crate) use release_age::{
+    PublishedByView,
+    apply_published_by_policy,
+};
 
-pub use release_age::{filter_pkg_metadata_by_publish_date, filter_pkg_metadata_versions};
+pub use release_age::{
+    filter_pkg_metadata_by_publish_date,
+    filter_pkg_metadata_versions,
+};
 
-use semver_range::{max_satisfying, min_satisfying, semver_satisfies_loose};
+use semver_range::{
+    max_satisfying,
+    min_satisfying,
+    semver_satisfies_loose,
+};
 
 mod preferred_versions;
 use preferred_versions::prioritize_preferred_versions;
@@ -41,17 +51,37 @@ mod release_age;
 use std::{
     cell::OnceCell,
     collections::BTreeMap,
-    sync::{Arc, LazyLock},
+    sync::{
+        Arc,
+        LazyLock,
+    },
 };
 
 use dashmap::DashMap;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use node_semver::{Range, Version};
-use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
-use pnpm_registry::{DerivedPackuments, Package, PackageVersion, PackageVersions};
+use node_semver::{
+    Range,
+    Version,
+};
+use pnpm_config::version_policy::{
+    PackageVersionPolicy,
+    PolicyMatch,
+};
+use pnpm_registry::{
+    DerivedPackuments,
+    Package,
+    PackageVersion,
+    PackageVersions,
+};
 use pnpm_resolving_resolver_base::{
-    EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectors,
     parse_packument_timestamp,
 };
 

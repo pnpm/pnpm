@@ -1,6 +1,10 @@
 use crate::{
     WebAuthTimeoutError,
-    capabilities::{Clock, Sleep, WebAuthFetch},
+    capabilities::{
+        Clock,
+        Sleep,
+        WebAuthFetch,
+    },
 };
 
 #[cfg(test)]

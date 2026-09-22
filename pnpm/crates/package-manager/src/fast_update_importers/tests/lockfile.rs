@@ -1,6 +1,11 @@
 use super::{
-    WITH_ONLY_A_PEER_VARIANT, WITH_SHARED_OPTIONAL_CHILD, lockfile, manifest_from, parsed_lockfile,
-    try_fast_update_importers, with_a_direct_foo_at,
+    WITH_ONLY_A_PEER_VARIANT,
+    WITH_SHARED_OPTIONAL_CHILD,
+    lockfile,
+    manifest_from,
+    parsed_lockfile,
+    try_fast_update_importers,
+    with_a_direct_foo_at,
 };
 use serde_json::json;
 

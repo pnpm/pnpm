@@ -1,4 +1,7 @@
-use super::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};
+use super::{
+    DeclaredSpecifiers,
+    calc_specifier_for_workspace_dep,
+};
 use pnpm_config::SaveWorkspaceProtocol;
 use pnpm_registry::RangeSpecStyle;
 use pretty_assertions::assert_eq;

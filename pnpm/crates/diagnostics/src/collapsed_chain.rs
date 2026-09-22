@@ -12,9 +12,18 @@
 //! width, and colour decision miette would otherwise make.
 
 use miette::{
-    Diagnostic, LabeledSpan, MietteHandler, MietteHandlerOpts, ReportHandler, Severity, SourceCode,
+    Diagnostic,
+    LabeledSpan,
+    MietteHandler,
+    MietteHandlerOpts,
+    ReportHandler,
+    Severity,
+    SourceCode,
 };
-use std::{error::Error, fmt};
+use std::{
+    error::Error,
+    fmt,
+};
 
 /// Route [`miette::Report`] rendering through the collapsing handler.
 ///

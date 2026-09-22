@@ -1,7 +1,13 @@
 use super::relocated_state;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace_state::{ProjectEntry, WorkspaceState};
-use std::path::{Path, PathBuf};
+use pnpm_workspace_state::{
+    ProjectEntry,
+    WorkspaceState,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 fn state_recording(dirs: &[PathBuf], pnpmfiles: Vec<String>) -> WorkspaceState {
     WorkspaceState {

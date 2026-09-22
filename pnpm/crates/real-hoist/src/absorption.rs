@@ -1,6 +1,14 @@
 use super::{
-    HashMap, HoistCtx, HoisterResult, Rc, RcByPtr, VecDeque, is_preferred_ident, path_shadowed,
-    same_ident, same_locator,
+    HashMap,
+    HoistCtx,
+    HoisterResult,
+    Rc,
+    RcByPtr,
+    VecDeque,
+    is_preferred_ident,
+    path_shadowed,
+    same_ident,
+    same_locator,
 };
 
 /// Outcome of the per-child hoist decision at the root.

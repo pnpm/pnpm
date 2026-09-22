@@ -1,9 +1,16 @@
 use crate::{
-    CreateVirtualStoreError, DependenciesGraphToLockfileError, InstallPackageFromRegistryError,
-    LinkRootComponentMembersError, LinkVirtualStoreBinsError, SymlinkDirectDependenciesError,
+    CreateVirtualStoreError,
+    DependenciesGraphToLockfileError,
+    InstallPackageFromRegistryError,
+    LinkRootComponentMembersError,
+    LinkVirtualStoreBinsError,
+    SymlinkDirectDependenciesError,
     VersionPolicyError,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_cmd_shim::LinkBinsError;
 use pnpm_lockfile::SaveLockfileError;

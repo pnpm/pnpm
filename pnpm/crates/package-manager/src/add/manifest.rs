@@ -1,23 +1,52 @@
 use super::{
-    AddError, AddOptions, AddOwned, AddResolution, AddResolveInputs, resolve_added_dependency,
+    AddError,
+    AddOptions,
+    AddOwned,
+    AddResolution,
+    AddResolveInputs,
+    resolve_added_dependency,
     workspace_packages_for_add,
 };
 use crate::{
-    CatalogDecision, DIRECT_GROUPS, InstallError,
+    CatalogDecision,
+    DIRECT_GROUPS,
+    InstallError,
     catalog_cleanup::{
-        post_install_prune, write_workspace_catalogs, write_workspace_catalogs_selected,
+        post_install_prune,
+        write_workspace_catalogs,
+        write_workspace_catalogs_selected,
     },
-    emit_initial_package_manifest, package_manifest_prefix,
+    emit_initial_package_manifest,
+    package_manifest_prefix,
 };
-use futures_util::{StreamExt, stream::FuturesOrdered};
+use futures_util::{
+    StreamExt,
+    stream::FuturesOrdered,
+};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, SaveWorkspaceProtocol};
+use pnpm_config::{
+    Config,
+    SaveWorkspaceProtocol,
+};
 use pnpm_lockfile::Lockfile;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PackageManifestLog,
+    PackageManifestMessage,
+    Reporter,
+};
 use pnpm_resolving_resolver_base::PreferredVersions;
-use std::{collections::HashSet, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+    sync::Arc,
+};
 
 pub(super) async fn prepare_selected_add<Reporter: self::Reporter>(
     projects: &mut [pnpm_workspace::Project],

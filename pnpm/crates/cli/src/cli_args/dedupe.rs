@@ -6,30 +6,73 @@ use crate::{
     State,
     cli_args::{
         deps_tree::render::{
-            TreeNode, blue_bright_underline, gray, green, plain, red, render_archy,
+            TreeNode,
+            blue_bright_underline,
+            gray,
+            green,
+            plain,
+            red,
+            render_archy,
         },
         install::workspace_install_selection,
         pipelines::InstallFamilySelection,
     },
 };
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
-use pnpm_modules_yaml::{Host, read_modules_manifest};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgNameVerPeer,
+};
+use pnpm_modules_yaml::{
+    Host,
+    read_modules_manifest,
+};
 use pnpm_package_manager::{
-    ImporterDiffKey, InstallabilityHost, LockfileDiff, PolicyExcludes, ResolutionObserver,
-    ResolvedPackageHint, SnapshotDiff, diff_lockfiles, package_metadata_is_installable,
+    ImporterDiffKey,
+    InstallabilityHost,
+    LockfileDiff,
+    PolicyExcludes,
+    ResolutionObserver,
+    ResolvedPackageHint,
+    SnapshotDiff,
+    diff_lockfiles,
+    package_metadata_is_installable,
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{
-    DedupeCheckLog, LogEvent, LogLevel, PnpmErrorLog, ProgressLog, ProgressMessage, Reporter,
+    DedupeCheckLog,
+    LogEvent,
+    LogLevel,
+    PnpmErrorLog,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
 };
-use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
-use serde_json::{Map, Value, json};
+use pnpm_store_dir::{
+    SharedReadonlyStoreIndex,
+    StoreIndex,
+    store_index_key,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     marker::PhantomData,
     path::Path,
     sync::Arc,

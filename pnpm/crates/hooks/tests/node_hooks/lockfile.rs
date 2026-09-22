@@ -1,4 +1,9 @@
-use super::{Arc, Mutex, TempDir, write_custom_resolvers_pnpmfile};
+use super::{
+    Arc,
+    Mutex,
+    TempDir,
+    write_custom_resolvers_pnpmfile,
+};
 use pnpm_hooks::PnpmfileHooks as _;
 
 #[tokio::test]

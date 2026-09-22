@@ -1,6 +1,13 @@
 use super::{
-    HashMap, HoistOpts, Lockfile, ProjectSnapshot, assert_eq, build_hoist_ident_map, hoist,
-    lockfile_version, result_node,
+    HashMap,
+    HoistOpts,
+    Lockfile,
+    ProjectSnapshot,
+    assert_eq,
+    build_hoist_ident_map,
+    hoist,
+    lockfile_version,
+    result_node,
 };
 
 #[test]

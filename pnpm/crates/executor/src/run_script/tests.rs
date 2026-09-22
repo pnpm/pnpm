@@ -1,8 +1,20 @@
 use super::{
-    RunScript, ScriptOutput, build_command, parsed_by_windows_shell, posix_quote, run_script,
+    RunScript,
+    ScriptOutput,
+    build_command,
+    parsed_by_windows_shell,
+    posix_quote,
+    run_script,
 };
-use crate::{extend_path::ScriptsPrependNodePath, script_exit::ScriptExit};
-use std::{collections::HashMap, fs, path::Path};
+use crate::{
+    extend_path::ScriptsPrependNodePath,
+    script_exit::ScriptExit,
+};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 #[test]

@@ -1,4 +1,11 @@
-use super::{assemble_with_unpublished, assert_eq, make_intent, make_project, on_lane, release};
+use super::{
+    assemble_with_unpublished,
+    assert_eq,
+    make_intent,
+    make_project,
+    on_lane,
+    release,
+};
 
 #[test]
 fn a_first_release_on_a_lane_whose_manifest_is_already_an_unpublished_prerelease_is_verbatim() {

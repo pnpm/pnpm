@@ -1,7 +1,22 @@
 use super::{
-    Arc, BTreeMap, DepPath, DirectDep, HashMap, HashSet, NodeId, PeerCycleShape,
-    ResolvePeersOptions, ResolvedTree, graph_node, order_test_shape, package, peer_cycle_fixture,
-    peer_cycle_graph_keys, resolve_peers, tree_node, walker_for_tests,
+    Arc,
+    BTreeMap,
+    DepPath,
+    DirectDep,
+    HashMap,
+    HashSet,
+    NodeId,
+    PeerCycleShape,
+    ResolvePeersOptions,
+    ResolvedTree,
+    graph_node,
+    order_test_shape,
+    package,
+    peer_cycle_fixture,
+    peer_cycle_graph_keys,
+    resolve_peers,
+    tree_node,
+    walker_for_tests,
 };
 
 #[test]

@@ -1,7 +1,12 @@
 use super::{
-    JsonValue, LockfileResolution, RegistryArtifact, RegistryArtifactHistory,
-    ResolutionVerification, TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
-    TARBALL_URL_MISMATCH_VIOLATION_CODE, TarballRevision,
+    JsonValue,
+    LockfileResolution,
+    RegistryArtifact,
+    RegistryArtifactHistory,
+    ResolutionVerification,
+    TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+    TARBALL_URL_MISMATCH_VIOLATION_CODE,
+    TarballRevision,
     is_integrity_addressed_registry_tarball_url,
 };
 

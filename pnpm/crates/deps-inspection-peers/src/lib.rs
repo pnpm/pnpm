@@ -16,27 +16,52 @@
 //! the same verdict by different routes.
 
 pub use filter::filter_peer_issues;
-pub use render::{BadPeerIssue, MissingPeerIssue, render_peer_issues};
-
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    fmt,
-    path::{Path, PathBuf},
+pub use render::{
+    BadPeerIssue,
+    MissingPeerIssue,
+    render_peer_issues,
 };
 
-use node_semver::{Range, Version};
+use std::{
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    fmt,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
+
+use node_semver::{
+    Range,
+    Version,
+};
 use owo_colors::Stream;
 use serde::Serialize;
 
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionError, CatalogResolutionResult, WantedDependency,
+    CatalogAnchor,
+    CatalogResolutionError,
+    CatalogResolutionResult,
+    WantedDependency,
     resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::PeerDependencyRules;
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer,
-    ProjectSnapshot, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    Lockfile,
+    LockfileResolution,
+    PackageMetadata,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -484,7 +509,11 @@ fn satisfies(version: &str, range: &str) -> bool {
 mod tests;
 
 mod ranges;
-use ranges::{intersect_multiple_ranges, parse_range_to_intervals, preprocess_hyphen_ranges};
+use ranges::{
+    intersect_multiple_ranges,
+    parse_range_to_intervals,
+    preprocess_hyphen_ranges,
+};
 
 mod render;
 
@@ -494,6 +523,12 @@ use filter::merge_missing_peers;
 
 mod linked;
 use linked::{
-    CanonicalPathWithin, LinkedPackagePeers, canonical_path_within, check_linked_package_peers,
-    package_manifest_version, record_bad_peer, record_missing_peer, resolve_link_version,
+    CanonicalPathWithin,
+    LinkedPackagePeers,
+    canonical_path_within,
+    check_linked_package_peers,
+    package_manifest_version,
+    record_bad_peer,
+    record_missing_peer,
+    resolve_link_version,
 };

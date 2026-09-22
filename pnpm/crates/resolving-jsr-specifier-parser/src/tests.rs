@@ -1,6 +1,10 @@
 //! Tests for `parse_jsr_specifier`.
 
-use super::{JsrSpec, ParseJsrSpecifierError, parse_jsr_specifier};
+use super::{
+    JsrSpec,
+    ParseJsrSpecifierError,
+    parse_jsr_specifier,
+};
 
 #[test]
 fn skips_on_non_jsr_specifiers() {

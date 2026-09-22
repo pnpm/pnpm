@@ -1,9 +1,16 @@
-use super::{PlannedUpdate, render_target_value, update_target};
+use super::{
+    PlannedUpdate,
+    render_target_value,
+    update_target,
+};
 use std::{
     cmp::Reverse,
     collections::BTreeMap,
     ops::Range,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tokio::fs;
 

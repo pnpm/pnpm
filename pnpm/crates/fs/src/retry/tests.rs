@@ -1,10 +1,24 @@
 use super::{
-    ERROR_LOCK_VIOLATION, ERROR_SHARING_VIOLATION, RetryTiming, create_dir_all_with_retry,
-    create_dir_with_retry, is_transient_file_lock_error, metadata_with_retry,
-    remove_dir_all_with_retry, remove_dir_with_retry, rename_with_retry, retry_fs_operation,
-    retry_fs_operation_with_timing, symlink_metadata_with_retry,
+    ERROR_LOCK_VIOLATION,
+    ERROR_SHARING_VIOLATION,
+    RetryTiming,
+    create_dir_all_with_retry,
+    create_dir_with_retry,
+    is_transient_file_lock_error,
+    metadata_with_retry,
+    remove_dir_all_with_retry,
+    remove_dir_with_retry,
+    rename_with_retry,
+    retry_fs_operation,
+    retry_fs_operation_with_timing,
+    symlink_metadata_with_retry,
 };
-use std::{cell::Cell, fs, io, time::Duration};
+use std::{
+    cell::Cell,
+    fs,
+    io,
+    time::Duration,
+};
 use tempfile::tempdir;
 
 #[test]

@@ -1,15 +1,25 @@
 //! Unit tests for the peer-resolution context helpers.
 
 use super::{
-    ChainSuffixMemo, SharedChain, importer_relative_link_dep_path, peer_segment_names,
-    remap_link_node_id, satisfies_with_prereleases,
+    ChainSuffixMemo,
+    SharedChain,
+    importer_relative_link_dep_path,
+    peer_segment_names,
+    remap_link_node_id,
+    satisfies_with_prereleases,
 };
 use crate::{
     node_id::NodeId,
-    resolve_peers::{ResolvePeersOptions, test_support::linked_package},
+    resolve_peers::{
+        ResolvePeersOptions,
+        test_support::linked_package,
+    },
 };
 use pnpm_deps_path::DepPath;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 const PATCHED_WORKFLOWS_SDK: &str = concat!(
     "@medusajs/workflows-sdk@2.13.3",

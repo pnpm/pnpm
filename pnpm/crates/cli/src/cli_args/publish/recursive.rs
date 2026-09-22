@@ -9,32 +9,61 @@ use super::PublishArgs;
 use crate::cli_args::{
     changelog::published_name,
     recursive::{
-        AutoExcludeRoot, discover_workspace_projects, filtered_projects_dependencies,
+        AutoExcludeRoot,
+        discover_workspace_projects,
+        filtered_projects_dependencies,
         select_recursive_projects,
     },
     registry_client::build_registry_client,
 };
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_network::{RetryOpts, ThrottledClient};
-use pnpm_publish::{
-    Host, PublishNetwork, PublishSummary, batch_publish_packed_pkgs, find_registry_info,
-    resolve_otp_from_env, validate_batch_publish_options,
+use pnpm_network::{
+    RetryOpts,
+    ThrottledClient,
 };
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_publish::{
+    Host,
+    PublishNetwork,
+    PublishSummary,
+    batch_publish_packed_pkgs,
+    find_registry_info,
+    resolve_otp_from_env,
+    validate_batch_publish_options,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use pnpm_resolving_npm_resolver::{
-    FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
+    FetchFullMetadataOptions,
+    FetchFullMetadataOutcome,
+    fetch_full_metadata,
 };
 use pnpm_workspace_task_scheduler::{
-    ScheduleGraphAsyncOptions, TaskCompletion, graph_sequencer, schedule_graph_async,
+    ScheduleGraphAsyncOptions,
+    TaskCompletion,
+    graph_sequencer,
+    schedule_graph_async,
 };
 use serde_json::Value;
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
     time::Duration,
 };
 

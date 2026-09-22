@@ -1,15 +1,39 @@
 pub(super) use namespace::{
-    ecosystem_package_keys, org_collision_error, validate_org_namespace, validate_registry_key,
+    ecosystem_package_keys,
+    org_collision_error,
+    validate_org_namespace,
+    validate_registry_key,
     validate_registry_name,
 };
 
 mod namespace;
 
 use super::{
-    AccessList, AccessSpec, DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile,
-    IndexMap, PackageAccess, PackagePattern, PackageRule, PackageRules, Registries, Registry,
-    RegistryConfigError, RegistryError, RegistryFile, RegistryGroupFile, SystemEnv, Teams,
-    UpstreamConfig, UpstreamConfigFile, UpstreamFile, build_teams, registry_mock_rules,
+    AccessList,
+    AccessSpec,
+    DefaultRegistryFile,
+    Ecosystem,
+    EnvVar,
+    HostedConfig,
+    HostedFile,
+    IndexMap,
+    PackageAccess,
+    PackagePattern,
+    PackageRule,
+    PackageRules,
+    Registries,
+    Registry,
+    RegistryConfigError,
+    RegistryError,
+    RegistryFile,
+    RegistryGroupFile,
+    SystemEnv,
+    Teams,
+    UpstreamConfig,
+    UpstreamConfigFile,
+    UpstreamFile,
+    build_teams,
+    registry_mock_rules,
     resolve_upstream_config,
 };
 

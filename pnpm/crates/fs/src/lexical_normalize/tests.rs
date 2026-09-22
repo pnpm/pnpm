@@ -1,4 +1,7 @@
-use super::{lexical_normalize, lexical_normalize_posix};
+use super::{
+    lexical_normalize,
+    lexical_normalize_posix,
+};
 use std::path::Path;
 
 #[test]

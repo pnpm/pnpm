@@ -13,34 +13,88 @@ use std::{
     fmt,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{
+            AtomicBool,
+            AtomicUsize,
+            Ordering,
+        },
     },
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 use async_trait::async_trait;
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use futures_util::{StreamExt as _, stream::BoxStream};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use futures_util::{
+    StreamExt as _,
+    stream::BoxStream,
+};
 use object_store::{
-    CopyOptions, GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore,
-    ObjectStoreExt, PutMultipartOptions, PutOptions, PutPayload, PutResult, RenameOptions,
-    memory::InMemory, path::Path as ObjectPath,
+    CopyOptions,
+    GetOptions,
+    GetResult,
+    ListResult,
+    MultipartUpload,
+    ObjectMeta,
+    ObjectStore,
+    ObjectStoreExt,
+    PutMultipartOptions,
+    PutOptions,
+    PutPayload,
+    PutResult,
+    RenameOptions,
+    memory::InMemory,
+    path::Path as ObjectPath,
 };
 use pnpm_shared_artifact_protocol::{
-    ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
-    ArtifactManifest, ArtifactPayload, ArtifactSubject, ArtifactVariant, BuilderProfile,
-    CompatibilityConstraints, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE, OwnerScope,
-    PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest, ResolveArtifactsResponse,
-    ResolvedArtifact, SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
+    ARTIFACT_KIND,
+    ArtifactBlobRequest,
+    ArtifactBlobUpload,
+    ArtifactCandidate,
+    ArtifactFile,
+    ArtifactManifest,
+    ArtifactPayload,
+    ArtifactSubject,
+    ArtifactVariant,
+    BuilderProfile,
+    CompatibilityConstraints,
+    MAX_RESOLVE_RESPONSE_SIZE,
+    MAX_VARIANTS_PER_CANDIDATE,
+    OwnerScope,
+    PackageIdentity,
+    PublishArtifactRequest,
+    ResolveArtifactsRequest,
+    ResolveArtifactsResponse,
+    ResolvedArtifact,
+    SIGNATURE_ALGORITHM,
+    SignedArtifactEnvelope,
+    WORKSPACE_TASK_ARTIFACT_KIND,
 };
-use pnpr_config::{HostedStoreConfig, normalize_key_prefix};
+use pnpr_config::{
+    HostedStoreConfig,
+    normalize_key_prefix,
+};
 use pnpr_error::RegistryError;
-use sha2::{Digest as _, Sha512};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
 use tempfile::TempDir;
 
 use super::{
-    ArtifactUsage, CompilerCacheKey, ResolveBudget, SharedArtifactStore, artifact_operation_id,
-    is_variant_file, is_write_conflict, owner_key,
+    ArtifactUsage,
+    CompilerCacheKey,
+    ResolveBudget,
+    SharedArtifactStore,
+    artifact_operation_id,
+    is_variant_file,
+    is_write_conflict,
+    owner_key,
 };
 
 fn lookup(owner: &str) -> ResolveArtifactsRequest {

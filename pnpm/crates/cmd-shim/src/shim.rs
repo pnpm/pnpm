@@ -1,13 +1,29 @@
 pub use powershell::generate_pwsh_shim;
-pub use quoting::{cmd_escape, sh_single_quote};
-pub(crate) use relocatable::{is_relocatable_shim, is_within_root};
-pub use sh::{generate_sh_shim, is_sh_shim_hardened, is_shim_pointing_at};
+pub use quoting::{
+    cmd_escape,
+    sh_single_quote,
+};
+pub(crate) use relocatable::{
+    is_relocatable_shim,
+    is_within_root,
+};
+pub use sh::{
+    generate_sh_shim,
+    is_sh_shim_hardened,
+    is_shim_pointing_at,
+};
 
-use crate::{capabilities::FsReadHead, path_util::lexical_normalize};
+use crate::{
+    capabilities::FsReadHead,
+    path_util::lexical_normalize,
+};
 use std::{
     fmt::Write as _,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Detected runtime for a target script.

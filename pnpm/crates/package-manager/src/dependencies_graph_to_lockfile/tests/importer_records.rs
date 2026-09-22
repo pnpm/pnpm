@@ -1,22 +1,50 @@
 use super::{
-    super::{DependenciesGraphToLockfileError, GraphToLockfileOptions, ImporterLockfileInput},
-    EMPTY_CATALOGS, EMPTY_NAMED_REGISTRIES, EMPTY_REGISTRY_OPTIONS, GIT_TARBALL_URL,
-    dependencies_graph_to_lockfile, error_from_single_node_graph, git_hosted_node,
-    injected_link_fixture, make_link_node, make_node, make_node_with_optional,
-    previous_importers_with_link, single_importer_opts, write_manifest,
+    super::{
+        DependenciesGraphToLockfileError,
+        GraphToLockfileOptions,
+        ImporterLockfileInput,
+    },
+    EMPTY_CATALOGS,
+    EMPTY_NAMED_REGISTRIES,
+    EMPTY_REGISTRY_OPTIONS,
+    GIT_TARBALL_URL,
+    dependencies_graph_to_lockfile,
+    error_from_single_node_graph,
+    git_hosted_node,
+    injected_link_fixture,
+    make_link_node,
+    make_node,
+    make_node_with_optional,
+    previous_importers_with_link,
+    single_importer_opts,
+    write_manifest,
 };
 use pnpm_deps_path::DepPath;
 use pnpm_lockfile::{
-    GitResolution, ImporterDepVersion, LockfileResolution, PackageKey, PkgName, SnapshotDepRef,
+    GitResolution,
+    ImporterDepVersion,
+    LockfileResolution,
+    PackageKey,
+    PkgName,
+    SnapshotDepRef,
     VariationsResolution,
 };
 use pnpm_resolving_deps_resolver::{
-    DependenciesGraph, DependenciesGraphNode, PeerDep, UpdateReuseScope,
+    DependenciesGraph,
+    DependenciesGraphNode,
+    PeerDep,
+    UpdateReuseScope,
 };
-use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveResult,
+};
 use rustc_hash::FxHashSet as HashSet;
 use serde_json::json;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 #[test]
 fn fresh_install_records_importer_manifest_metadata() {

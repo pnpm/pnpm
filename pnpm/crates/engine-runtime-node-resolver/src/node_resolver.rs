@@ -7,38 +7,77 @@
 //! dependencies through it.
 
 use std::{
-    collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_crypto_shasums_file::{
-    FetchShasumsFileError, FetchVerifiedNodeShasumsError, ShasumsFileItem,
-    fetch_shasums_file_cached, fetch_shasums_file_cached_with_auth_headers,
+    FetchShasumsFileError,
+    FetchVerifiedNodeShasumsError,
+    ShasumsFileItem,
+    fetch_shasums_file_cached,
+    fetch_shasums_file_cached_with_auth_headers,
     fetch_verified_node_shasums_file_cached,
     fetch_verified_node_shasums_file_cached_with_auth_headers,
 };
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PlatformAssetResolution,
-    PlatformAssetTarget, VariationsResolution,
+    BinaryArchive,
+    BinaryResolution,
+    BinarySpec,
+    LockfileResolution,
+    PlatformAssetResolution,
+    PlatformAssetTarget,
+    VariationsResolution,
 };
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, WantedDependency,
+    LatestInfo,
+    LatestQuery,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 use ssri::Integrity;
 
 use crate::{
-    get_node_artifact_address::{GetNodeArtifactAddressOptions, get_node_artifact_address},
-    get_node_mirror::{
-        DEFAULT_NODE_MIRROR_BASE_URL, UNOFFICIAL_NODE_MIRROR_BASE_URL, get_node_mirror,
+    get_node_artifact_address::{
+        GetNodeArtifactAddressOptions,
+        get_node_artifact_address,
     },
-    parse_node_specifier::{NodeSpecifier, ParseNodeSpecifierError, parse_node_specifier},
-    resolve_node_version::{ResolveNodeVersionError, resolve_node_version_with_auth},
+    get_node_mirror::{
+        DEFAULT_NODE_MIRROR_BASE_URL,
+        UNOFFICIAL_NODE_MIRROR_BASE_URL,
+        get_node_mirror,
+    },
+    parse_node_specifier::{
+        NodeSpecifier,
+        ParseNodeSpecifierError,
+        parse_node_specifier,
+    },
+    resolve_node_version::{
+        ResolveNodeVersionError,
+        resolve_node_version_with_auth,
+    },
 };
 
 const RESOLVED_VIA: &str = "nodejs.org";
@@ -472,5 +511,8 @@ mod tests;
 
 mod assets;
 use assets::{
-    current_platform, node_bins_for_current_os, read_musl_assets, read_node_assets_from_mirror,
+    current_platform,
+    node_bins_for_current_os,
+    read_musl_assets,
+    read_node_assets_from_mirror,
 };

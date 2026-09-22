@@ -24,21 +24,45 @@
 //! rather than unpublishing around it.
 
 use super::{
-    AppState, AuthedCaller, Identity,
-    cargo::{CratePublication, authorize_crate_publish, verify_crate_archive},
-    oci::{OciPublication, authorize_publication},
-    publishing::{
-        StagedPublish, cleanup_tmp_slots, commit_publishes, publish_created_response,
-        report_unrecorded, stage_publish, validate_publish_doc,
+    AppState,
+    AuthedCaller,
+    Identity,
+    cargo::{
+        CratePublication,
+        authorize_crate_publish,
+        verify_crate_archive,
     },
-    pypi::{PypiPublication, authorize_upload, verify_upload},
+    oci::{
+        OciPublication,
+        authorize_publication,
+    },
+    publishing::{
+        StagedPublish,
+        cleanup_tmp_slots,
+        commit_publishes,
+        publish_created_response,
+        report_unrecorded,
+        stage_publish,
+        validate_publish_doc,
+    },
+    pypi::{
+        PypiPublication,
+        authorize_upload,
+        verify_upload,
+    },
 };
 use axum::{
     body::Bytes,
     extract::State,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use pnpr_cargo::PublishMetadata;
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;

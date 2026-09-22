@@ -1,10 +1,21 @@
-use super::{mock_wheel_downloads, pacquet_in, project, serve, wheel};
+use super::{
+    mock_wheel_downloads,
+    pacquet_in,
+    project,
+    serve,
+    wheel,
+};
 use assert_cmd::prelude::*;
 use std::{
     fs,
     sync::{
-        Arc, Condvar, Mutex,
-        atomic::{AtomicBool, Ordering},
+        Arc,
+        Condvar,
+        Mutex,
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
 };
 

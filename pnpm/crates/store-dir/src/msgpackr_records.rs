@@ -73,14 +73,27 @@
 //! object containing `Map` fields, so pnpm's reader round-trips the
 //! bytes correctly.
 
-pub use encoding::{EncodeError, encode_package_files_index};
+pub use encoding::{
+    EncodeError,
+    encode_package_files_index,
+};
 
-use crate::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff};
-use derive_more::{Display, Error};
+use crate::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    SideEffectsDiff,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use serde_json::Value;
 use smart_default::SmartDefault;
-use std::{collections::HashMap, rc::Rc};
+use std::{
+    collections::HashMap,
+    rc::Rc,
+};
 
 /// Extension type code msgpackr assigns to record-definition markers.
 /// ASCII 'r'. See msgpackr's README under "Records Extension".

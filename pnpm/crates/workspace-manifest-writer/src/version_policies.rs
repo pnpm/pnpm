@@ -1,6 +1,15 @@
 use super::{
-    IndexMap, Manifest, Path, UpdateWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME, edit, fs,
-    has_control_char, io, unsupported_inline_key, write_or_remove_manifest,
+    IndexMap,
+    Manifest,
+    Path,
+    UpdateWorkspaceManifestError,
+    WORKSPACE_MANIFEST_FILENAME,
+    edit,
+    fs,
+    has_control_char,
+    io,
+    unsupported_inline_key,
+    write_or_remove_manifest,
 };
 
 /// Write `name → specifier` entries into `dir`'s `pnpm-workspace.yaml`

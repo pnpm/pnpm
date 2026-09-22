@@ -1,12 +1,29 @@
 use super::{
-    ArtifactPayload, ArtifactProtocolError, BASE64, MAX_ENCODED_SIGNATURE_SIZE,
-    MAX_ENCODED_SIGNED_PAYLOAD_SIZE, MAX_SIGNED_PAYLOAD_SIZE, SIGNATURE_ALGORITHM, Sha256,
-    Signature, SignedArtifactEnvelope, SigningKey, VerifyingKey, hex, validate_scalar,
+    ArtifactPayload,
+    ArtifactProtocolError,
+    BASE64,
+    MAX_ENCODED_SIGNATURE_SIZE,
+    MAX_ENCODED_SIGNED_PAYLOAD_SIZE,
+    MAX_SIGNED_PAYLOAD_SIZE,
+    SIGNATURE_ALGORITHM,
+    Sha256,
+    Signature,
+    SignedArtifactEnvelope,
+    SigningKey,
+    VerifyingKey,
+    hex,
+    validate_scalar,
 };
 use base64::Engine as _;
 use p256::{
-    ecdsa::signature::{Signer as _, Verifier as _},
-    pkcs8::{DecodePrivateKey as _, DecodePublicKey as _},
+    ecdsa::signature::{
+        Signer as _,
+        Verifier as _,
+    },
+    pkcs8::{
+        DecodePrivateKey as _,
+        DecodePublicKey as _,
+    },
 };
 use sha2::Digest as _;
 

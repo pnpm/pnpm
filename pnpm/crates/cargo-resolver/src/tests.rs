@@ -1,9 +1,16 @@
 use super::{
-    git_dependency_sources, latest_version, missing_index_names, resolve_inputs, resolve_lockfile,
+    git_dependency_sources,
+    latest_version,
+    missing_index_names,
+    resolve_inputs,
+    resolve_lockfile,
 };
 use crate::registry::CRATES_IO_SOURCE;
 use cargo_lock::Lockfile;
-use std::{collections::BTreeMap, str::FromStr};
+use std::{
+    collections::BTreeMap,
+    str::FromStr,
+};
 
 const METADATA: &str = r#"{
   "packages": [{

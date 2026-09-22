@@ -5,7 +5,11 @@
 //! [`super::manifest_transforms`]; the resolver chain it walks is built
 //! by [`super::resolver_setup`].
 
-pub(super) use reuse::{ReuseSeedInputs, lockfile_reuse_seed, preferred_versions_seeds};
+pub(super) use reuse::{
+    ReuseSeedInputs,
+    lockfile_reuse_seed,
+    preferred_versions_seeds,
+};
 
 mod reuse;
 
@@ -14,14 +18,26 @@ use crate::VersionsOverrider;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::LogLevel;
 use pnpm_resolving_deps_resolver::{
-    DependencyOverrider, ResolveImporterError, ResolveImporterOptions,
+    DependencyOverrider,
+    ResolveImporterError,
+    ResolveImporterOptions,
 };
-use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions,
+    ResolveOptions,
+    Resolver,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     path::Path,
     sync::Arc,
 };

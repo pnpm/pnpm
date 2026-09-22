@@ -25,46 +25,93 @@ pub(crate) mod native_shim;
 pub(crate) mod runtime_env;
 
 pub(crate) use native_shim::{
-    ShimTarget, install_native_shim, is_legacy_context_aware_shim, migrate_legacy_shims,
-    native_shim_is_installed, native_shim_paths, native_shim_target, native_shims,
-    refresh_native_shims, remove_native_shim,
+    ShimTarget,
+    install_native_shim,
+    is_legacy_context_aware_shim,
+    migrate_legacy_shims,
+    native_shim_is_installed,
+    native_shim_paths,
+    native_shim_target,
+    native_shims,
+    refresh_native_shims,
+    remove_native_shim,
 };
 pub(crate) use runtime_env::materialize_runtime;
-pub(crate) use settings::{apply_settings_above_global_config, global_shims_setting};
+pub(crate) use settings::{
+    apply_settings_above_global_config,
+    global_shims_setting,
+};
 
 use crate::{
     cli_args::package_manager::wanted_package_manager,
     engine_pm::{
-        channel::{Channel, PackageManager},
+        channel::{
+            Channel,
+            PackageManager,
+        },
         provision::provision,
     },
 };
 use derive_more::Display;
-use identity::{local_bin_identity, provider_of_target};
+use identity::{
+    local_bin_identity,
+    provider_of_target,
+};
 
-use native_shim::{dispatch_legacy_shim, try_native_dispatch};
-use pnpm_cmd_shim::{Host as CmdShimHost, ScriptRuntime, search_script_runtime};
+use native_shim::{
+    dispatch_legacy_shim,
+    try_native_dispatch,
+};
+use pnpm_cmd_shim::{
+    Host as CmdShimHost,
+    ScriptRuntime,
+    search_script_runtime,
+};
 use pnpm_config::{
-    Config, GlobalShims, GlobalShimsSetting, Host, LoadWorkspaceYamlError, ShimPolicy,
-    WorkspaceSettings, default_config_dir, default_pnpm_home_dir, default_state_dir,
+    Config,
+    GlobalShims,
+    GlobalShimsSetting,
+    Host,
+    LoadWorkspaceYamlError,
+    ShimPolicy,
+    WorkspaceSettings,
+    default_config_dir,
+    default_pnpm_home_dir,
+    default_state_dir,
     resolve_configured_state_dir,
 };
-use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes};
+use pnpm_crypto_hash::{
+    create_hex_hash,
+    create_hex_hash_bytes,
+};
 use pnpm_engine_runtime_node_resolver::parse_node_specifier;
 use pnpm_package_manifest::is_runtime_alias;
 use pnpm_reporter::SilentReporter;
 
-use runtime_env::{PACKAGE_MANAGER_ENVS_DIR_NAME, trusted_runtime_config};
+use runtime_env::{
+    PACKAGE_MANAGER_ENVS_DIR_NAME,
+    trusted_runtime_config,
+};
 use serde_json::Value;
 
 use settings::{
-    is_automatic_runtime, manifest_package_manager_pin, manifest_runtime_pin,
-    package_manager_runs_promptless, trusted_package_manager_config, trusted_shim_settings,
+    is_automatic_runtime,
+    manifest_package_manager_pin,
+    manifest_runtime_pin,
+    package_manager_runs_promptless,
+    trusted_package_manager_config,
+    trusted_shim_settings,
     validate_candidate,
 };
 use std::{
-    ffi::{OsStr, OsString},
-    path::{Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 use trust::is_trusted;

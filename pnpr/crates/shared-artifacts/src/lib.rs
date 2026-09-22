@@ -1,16 +1,34 @@
-pub use compiler_cache::{CompilerCacheKey, MAX_COMPILER_CACHE_ENTRY_SIZE};
+pub use compiler_cache::{
+    CompilerCacheKey,
+    MAX_COMPILER_CACHE_ENTRY_SIZE,
+};
 
 mod publication_quota;
 use publication_quota::{
-    PublicationQuota, expire_stranded_publications, finish_outcome, publication_charge,
-    quota_write_retry_delay, register_publication, registered_now,
+    PublicationQuota,
+    expire_stranded_publications,
+    finish_outcome,
+    publication_charge,
+    quota_write_retry_delay,
+    register_publication,
+    registered_now,
 };
 
 mod artifact_identity;
 use artifact_identity::{
-    artifact_matches_candidate, artifact_operation_id, compatibility_slot, digest_segment,
-    entry_digest, entry_owner, is_blob_path, is_variant_file, object_name, owner_key,
-    scope_marker_path, scope_name, scopes_prefix,
+    artifact_matches_candidate,
+    artifact_operation_id,
+    compatibility_slot,
+    digest_segment,
+    entry_digest,
+    entry_owner,
+    is_blob_path,
+    is_variant_file,
+    object_name,
+    owner_key,
+    scope_marker_path,
+    scope_name,
+    scopes_prefix,
 };
 
 mod object_storage;
@@ -26,30 +44,81 @@ mod publication;
 mod compiler_cache;
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
-    fs::{File, OpenOptions, TryLockError},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashSet,
+    },
+    fs::{
+        File,
+        OpenOptions,
+        TryLockError,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 use bytes::Bytes;
-use futures_util::{StreamExt as _, stream::BoxStream};
+use futures_util::{
+    StreamExt as _,
+    stream::BoxStream,
+};
 use object_store::{
-    ObjectMeta, ObjectStore, ObjectStoreExt, PutMode, PutOptions, PutPayload, UpdateVersion,
-    local::LocalFileSystem, path::Path as ObjectPath,
+    ObjectMeta,
+    ObjectStore,
+    ObjectStoreExt,
+    PutMode,
+    PutOptions,
+    PutPayload,
+    UpdateVersion,
+    local::LocalFileSystem,
+    path::Path as ObjectPath,
 };
 use pnpm_shared_artifact_protocol::{
-    ArtifactBlobRequest, ArtifactCandidate, ArtifactPayload, ArtifactProtocolError,
-    ArtifactSubject, ArtifactVariant, CompatibilityConstraints, CompatibilityScopes,
-    MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
-    OwnerScope, PublishArtifactRequest, ResolveArtifactsRequest, ResolveArtifactsResponse,
-    ResolvedArtifact, SignedArtifactEnvelope, blob_id, compatibility_scopes, verify_blob,
+    ArtifactBlobRequest,
+    ArtifactCandidate,
+    ArtifactPayload,
+    ArtifactProtocolError,
+    ArtifactSubject,
+    ArtifactVariant,
+    CompatibilityConstraints,
+    CompatibilityScopes,
+    MAX_CANDIDATES,
+    MAX_FILE_SIZE,
+    MAX_RESOLVE_RESPONSE_SIZE,
+    MAX_VARIANTS_PER_CANDIDATE,
+    OwnerScope,
+    PublishArtifactRequest,
+    ResolveArtifactsRequest,
+    ResolveArtifactsResponse,
+    ResolvedArtifact,
+    SignedArtifactEnvelope,
+    blob_id,
+    compatibility_scopes,
+    verify_blob,
 };
-use pnpr_config::{HostedStoreConfig, build_s3_store, normalize_key_prefix};
-use pnpr_error::{RegistryError, Result};
+use pnpr_config::{
+    HostedStoreConfig,
+    build_s3_store,
+    normalize_key_prefix,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use sha2::Sha256;
-use tokio::time::{interval, sleep};
+use tokio::time::{
+    interval,
+    sleep,
+};
 
 const ARTIFACT_CACHE_DIR: &str = "shared-artifacts/v0";
 const ARTIFACT_OBJECT_PREFIX: &str = ".pnpr-artifacts/v0";

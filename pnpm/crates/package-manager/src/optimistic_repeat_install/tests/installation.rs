@@ -1,22 +1,43 @@
 use super::{
     super::{
-        Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
+        Decision,
+        OptimisticRepeatInstallCheck,
+        check_optimistic_repeat_install,
         deps_status::install_args_from_state,
         settings::current_settings,
-        timestamps::{FileMtime, modified_at_or_after},
+        timestamps::{
+            FileMtime,
+            modified_at_or_after,
+        },
     },
-    assert_deps_status_converges_after_collision, backdate_validated_files, check,
-    check_with_lockfile, content_check_decision, isolated_included, setup_content_check_project,
-    setup_fresh_install, setup_fresh_install_with_config, validate_existing_files,
-    write_empty_lockfile, write_registry_lockfile, write_state,
+    assert_deps_status_converges_after_collision,
+    backdate_validated_files,
+    check,
+    check_with_lockfile,
+    content_check_decision,
+    isolated_included,
+    setup_content_check_project,
+    setup_fresh_install,
+    setup_fresh_install_with_config,
+    validate_existing_files,
+    write_empty_lockfile,
+    write_registry_lockfile,
+    write_state,
 };
 use indexmap::IndexMap;
 use pnpm_config::Config;
 use pnpm_lockfile::MaybeLazyLockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace_state::{ProjectEntry, WorkspaceState, WorkspaceStateSettings};
-use std::{collections::BTreeMap, fs};
+use pnpm_workspace_state::{
+    ProjectEntry,
+    WorkspaceState,
+    WorkspaceStateSettings,
+};
+use std::{
+    collections::BTreeMap,
+    fs,
+};
 use tempfile::tempdir;
 
 /// Happy path: state is fresh, manifest hasn't been touched since

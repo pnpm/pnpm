@@ -1,6 +1,16 @@
 use super::{
-    HashMap, HashSet, LogEvent, LogLevel, Path, PnpmLog, Serialize, TaskCycle, TaskGraph, TaskKey,
-    TaskNode, graph_sequencer,
+    HashMap,
+    HashSet,
+    LogEvent,
+    LogLevel,
+    Path,
+    PnpmLog,
+    Serialize,
+    TaskCycle,
+    TaskGraph,
+    TaskKey,
+    TaskNode,
+    graph_sequencer,
 };
 
 pub struct SequenceTasksOptions<'a> {

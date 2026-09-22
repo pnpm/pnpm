@@ -1,6 +1,15 @@
-use super::{has_configured_ssh_command, non_interactive_git_env};
-use crate::{CommandOutput, RunCommand};
-use std::{io, path::Path};
+use super::{
+    has_configured_ssh_command,
+    non_interactive_git_env,
+};
+use crate::{
+    CommandOutput,
+    RunCommand,
+};
+use std::{
+    io,
+    path::Path,
+};
 
 #[test]
 fn disables_git_and_ssh_prompts() {

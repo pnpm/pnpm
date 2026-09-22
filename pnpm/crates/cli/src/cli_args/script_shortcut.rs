@@ -1,4 +1,7 @@
-use super::{reporter::ReporterType, run::RunArgs};
+use super::{
+    reporter::ReporterType,
+    run::RunArgs,
+};
 use clap::Args;
 
 /// The arguments of a command that stands for one named script —

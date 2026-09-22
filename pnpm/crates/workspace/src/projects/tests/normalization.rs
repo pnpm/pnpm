@@ -1,5 +1,13 @@
-use super::{find_project_names, make_project, make_yaml_project};
-use crate::{FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, find_workspace_projects};
+use super::{
+    find_project_names,
+    make_project,
+    make_yaml_project,
+};
+use crate::{
+    FindWorkspaceProjectsError,
+    FindWorkspaceProjectsOpts,
+    find_workspace_projects,
+};
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 

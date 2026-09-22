@@ -1,6 +1,21 @@
 use super::{
-    BTreeSet, Command, CommandCargoExt, CommandExtra, CommandTempCwd, DEP, HELLO, LEGEND, PKG,
-    Path, Value, canonical, fs, json, recursive_project_names, run_ok, setup_registry,
+    BTreeSet,
+    Command,
+    CommandCargoExt,
+    CommandExtra,
+    CommandTempCwd,
+    DEP,
+    HELLO,
+    LEGEND,
+    PKG,
+    Path,
+    Value,
+    canonical,
+    fs,
+    json,
+    recursive_project_names,
+    run_ok,
+    setup_registry,
     write_workspace,
 };
 

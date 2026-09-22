@@ -1,6 +1,13 @@
-use super::{RecordedFile, TaskCache, collect_output_files};
+use super::{
+    RecordedFile,
+    TaskCache,
+    collect_output_files,
+};
 #[cfg(unix)]
-use pnpm_crypto_hash::{create_hex_hash_bytes, create_hex_hash_from_file};
+use pnpm_crypto_hash::{
+    create_hex_hash_bytes,
+    create_hex_hash_from_file,
+};
 use pnpm_testing_utils::git_repo::GitRepoFixture;
 use std::fs;
 

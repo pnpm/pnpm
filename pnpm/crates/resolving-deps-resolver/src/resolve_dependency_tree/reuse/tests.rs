@@ -1,9 +1,15 @@
 mod higher_direct_dep_version {
     use rustc_hash::FxHashMap as HashMap;
 
-    use node_semver::{Range, Version};
+    use node_semver::{
+        Range,
+        Version,
+    };
 
-    use super::super::{DirectDepVersions, higher_direct_dep_version};
+    use super::super::{
+        DirectDepVersions,
+        higher_direct_dep_version,
+    };
 
     fn direct(name: &str, versions: &[&str]) -> DirectDepVersions {
         let parsed = versions
@@ -172,9 +178,17 @@ mod real_package_name_of {
 mod is_update_target {
     use pnpm_resolving_resolver_base::WantedDependency;
 
-    use crate::{UpdateTargets, VersionLine};
+    use crate::{
+        UpdateTargets,
+        VersionLine,
+    };
 
-    use super::super::{UpdateDepth, UpdateReuseScope, UpdateScope, is_update_target};
+    use super::super::{
+        UpdateDepth,
+        UpdateReuseScope,
+        UpdateScope,
+        is_update_target,
+    };
 
     fn wanted_with(alias: Option<&str>, bare_specifier: Option<&str>) -> WantedDependency {
         WantedDependency {

@@ -8,7 +8,10 @@
 
 use std::path::Path;
 
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 
 // Only asserted for pass-through / `sha512-` prefix, never recomputed.

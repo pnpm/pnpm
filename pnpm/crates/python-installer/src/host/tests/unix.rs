@@ -1,7 +1,13 @@
-use super::super::{inspect, install};
+use super::super::{
+    inspect,
+    install,
+};
 use base64::{
     Engine as _,
-    engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
+    engine::general_purpose::{
+        STANDARD,
+        URL_SAFE_NO_PAD,
+    },
 };
 use pnpm_config::PackageImportMethod;
 use std::{
@@ -9,7 +15,10 @@ use std::{
     fmt::Write as _,
     fs,
     os::unix::fs::PermissionsExt,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 fn unpacked_wheel(root: &Path, mismatched_wheel_hash: bool) -> BTreeMap<String, PathBuf> {

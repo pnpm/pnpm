@@ -1,4 +1,9 @@
-use super::{CWD, render, scope, scope_reporting_state};
+use super::{
+    CWD,
+    render,
+    scope,
+    scope_reporting_state,
+};
 
 #[test]
 fn reports_an_unnarrowed_workspace_scope() {

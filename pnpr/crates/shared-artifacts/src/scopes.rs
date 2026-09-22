@@ -1,8 +1,20 @@
 use super::{
-    BACKFILLED_SCOPE, BTreeSet, CompatibilityScopes, MAX_RESOLVE_RESPONSE_SIZE,
-    MAX_SCOPE_MARKER_BYTES, PreparedPublication, Result, ScopeMarker, SharedArtifactStore,
-    SignedArtifactEnvelope, SlotClaim, UNIVERSAL_SCOPE, compatibility_scopes, is_variant_file,
-    object_name, scope_marker_path,
+    BACKFILLED_SCOPE,
+    BTreeSet,
+    CompatibilityScopes,
+    MAX_RESOLVE_RESPONSE_SIZE,
+    MAX_SCOPE_MARKER_BYTES,
+    PreparedPublication,
+    Result,
+    ScopeMarker,
+    SharedArtifactStore,
+    SignedArtifactEnvelope,
+    SlotClaim,
+    UNIVERSAL_SCOPE,
+    compatibility_scopes,
+    is_variant_file,
+    object_name,
+    scope_marker_path,
 };
 use futures_util::StreamExt as _;
 

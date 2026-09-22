@@ -1,10 +1,22 @@
 use super::{
-    Config, Deserialize, EngineComponent, RetryOpts, SelfUpdateError, Signature, ThrottledClient,
-    VerifyingKey, classify_signature_failures, encode_package_name, redact_and_sanitize,
+    Config,
+    Deserialize,
+    EngineComponent,
+    RetryOpts,
+    SelfUpdateError,
+    Signature,
+    ThrottledClient,
+    VerifyingKey,
+    classify_signature_failures,
+    encode_package_name,
+    redact_and_sanitize,
     send_with_retry,
 };
 use base64::Engine as _;
-use p256::{ecdsa::signature::Verifier, pkcs8::DecodePublicKey};
+use p256::{
+    ecdsa::signature::Verifier,
+    pkcs8::DecodePublicKey,
+};
 
 /// npm's public registry signing keys, mirrored from
 /// <https://registry.npmjs.org/-/npm/v1/keys>. `expires` is `None` for a

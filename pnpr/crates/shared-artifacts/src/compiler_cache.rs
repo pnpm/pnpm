@@ -1,13 +1,27 @@
 use bytes::Bytes;
-use object_store::{ObjectStoreExt as _, PutPayload};
+use object_store::{
+    ObjectStoreExt as _,
+    PutPayload,
+};
 use pnpm_shared_artifact_protocol::OwnerScope;
-use pnpr_error::{RegistryError, Result};
-use sha2::{Digest as _, Sha512};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
 use std::time::Instant;
 
 use super::{
-    ACTIVE_PUBLICATION_EXPIRY, PUBLICATION_RENEWAL_INTERVAL, SharedArtifactStore,
-    artifact_operation_id, bad_request, digest_segment, owner_key,
+    ACTIVE_PUBLICATION_EXPIRY,
+    PUBLICATION_RENEWAL_INTERVAL,
+    SharedArtifactStore,
+    artifact_operation_id,
+    bad_request,
+    digest_segment,
+    owner_key,
 };
 
 pub const MAX_COMPILER_CACHE_ENTRY_SIZE: usize = 256 * 1024 * 1024;

@@ -10,27 +10,53 @@ mod behavior;
 
 mod artifact_binding;
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
-use chrono::{DateTime, Utc};
-use pnpm_config::{TrustPolicy, version_policy::create_package_version_policy};
+use chrono::{
+    DateTime,
+    Utc,
+};
+use pnpm_config::{
+    TrustPolicy,
+    version_policy::create_package_version_policy,
+};
 use pnpm_lockfile::{
-    LockfileResolution, PkgName, RegistryResolution, TarballResolution, TarballRevision,
+    LockfileResolution,
+    PkgName,
+    RegistryResolution,
+    TarballResolution,
+    TarballRevision,
 };
 use pnpm_network::{
-    AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient, UpstreamRouteHook,
+    AuthHeaders,
+    MetadataCacheScope,
+    RetryOpts,
+    ThrottledClient,
+    UpstreamRouteHook,
 };
 use pnpm_registry::Package;
-use pnpm_resolving_resolver_base::{ResolutionVerification, VerifyCtx};
+use pnpm_resolving_resolver_base::{
+    ResolutionVerification,
+    VerifyCtx,
+};
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use tempfile::TempDir;
 
 use super::{
-    CreateNpmResolutionVerifierOptions, create_npm_resolution_verifier, observed_dist_stats_sink,
+    CreateNpmResolutionVerifierOptions,
+    create_npm_resolution_verifier,
+    observed_dist_stats_sink,
 };
 use crate::{
-    mirror::{ABBREVIATED_META_DIR, get_pkg_mirror_path, load_meta},
+    mirror::{
+        ABBREVIATED_META_DIR,
+        get_pkg_mirror_path,
+        load_meta,
+    },
     persist_meta_to_mirror,
 };
 

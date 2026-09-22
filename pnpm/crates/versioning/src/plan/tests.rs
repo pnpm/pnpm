@@ -1,20 +1,42 @@
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 
 use super::{
-    AssembleReleasePlanOptions, DependencyField, DependencyUpdate, ManifestDependency,
-    PlannedRelease, ReleaseCause, ReleasePlan, VersioningInvariantCode, WorkspaceProject,
-    assemble_release_plan, check_versioning_invariants, materialize_workspace_range,
+    AssembleReleasePlanOptions,
+    DependencyField,
+    DependencyUpdate,
+    ManifestDependency,
+    PlannedRelease,
+    ReleaseCause,
+    ReleasePlan,
+    VersioningInvariantCode,
+    WorkspaceProject,
+    assemble_release_plan,
+    check_versioning_invariants,
+    materialize_workspace_range,
 };
 use crate::{
-    intents::{ChangeIntent, IntentBumpType},
-    ledger::{Ledger, LedgerEntry},
-    settings::{EpicSettings, ReleaseBumpType, VersioningSettings},
+    intents::{
+        ChangeIntent,
+        IntentBumpType,
+    },
+    ledger::{
+        Ledger,
+        LedgerEntry,
+    },
+    settings::{
+        EpicSettings,
+        ReleaseBumpType,
+        VersioningSettings,
+    },
 };
 
 fn make_project(name: &str, version: &str, deps: &[(&str, &str)]) -> WorkspaceProject {

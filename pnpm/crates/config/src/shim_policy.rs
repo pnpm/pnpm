@@ -1,4 +1,7 @@
-use super::{Deserialize, Serialize};
+use super::{
+    Deserialize,
+    Serialize,
+};
 
 /// The resolved per-package policy in `globalShims`.
 ///

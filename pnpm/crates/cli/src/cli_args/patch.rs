@@ -1,29 +1,64 @@
 use crate::{
     State,
-    cli_args::patch_state::{EditDirState, StateFileError, write_edit_dir_state},
+    cli_args::patch_state::{
+        EditDirState,
+        StateFileError,
+        write_edit_dir_state,
+    },
 };
 use clap::Args;
-use derive_more::{Display, Error};
-use dialoguer::{Confirm, Select};
-use miette::{Diagnostic, IntoDiagnostic, miette};
+use derive_more::{
+    Display,
+    Error,
+};
+use dialoguer::{
+    Confirm,
+    Select,
+};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+    miette,
+};
 use owo_colors::OwoColorize;
 use paths::{
-    apply_existing_patch_file, default_edit_dir, prepare_default_edit_dir,
-    reject_edit_dir_symlink_components_under, reject_non_empty_custom_edit_dir,
-    reject_non_empty_edit_dir, resolve_path,
+    apply_existing_patch_file,
+    default_edit_dir,
+    prepare_default_edit_dir,
+    reject_edit_dir_symlink_components_under,
+    reject_non_empty_custom_edit_dir,
+    reject_non_empty_edit_dir,
+    resolve_path,
 };
-use pnpm_fs::{is_subdir, lexical_normalize};
-use pnpm_lockfile::{LoadLockfileError, Lockfile};
+use pnpm_fs::{
+    is_subdir,
+    lexical_normalize,
+};
+use pnpm_lockfile::{
+    LoadLockfileError,
+    Lockfile,
+};
 use pnpm_package_manager::{
-    PatchCandidate, PatchCandidateSet, PatchTarget, PatchTargetError, WritePackageForPatch,
-    WritePackageForPatchError, default_patch_target, patch_candidates_from_lockfile,
+    PatchCandidate,
+    PatchCandidateSet,
+    PatchTarget,
+    PatchTargetError,
+    WritePackageForPatch,
+    WritePackageForPatchError,
+    default_patch_target,
+    patch_candidates_from_lockfile,
 };
 use pnpm_patching::PatchApplyError;
 use pnpm_reporter::Reporter;
 use std::{
-    fs, io,
+    fs,
+    io,
     io::IsTerminal,
-    path::{Component, Path, PathBuf},
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Args)]

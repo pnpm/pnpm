@@ -3,7 +3,10 @@
 //! before the lockfile is written.
 
 use crate::ConfigDepError;
-use pnpm_lockfile::{EnvLockfile, PackageKey};
+use pnpm_lockfile::{
+    EnvLockfile,
+    PackageKey,
+};
 use pnpm_package_name::is_valid_old_npm_package_name;
 use std::path::Path;
 

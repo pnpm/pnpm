@@ -1,4 +1,7 @@
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use ssri::Integrity;
 
 #[derive(Debug, Default, Clone, Eq, Serialize, Deserialize)]

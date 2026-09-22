@@ -1,10 +1,23 @@
-use std::sync::{Arc, Mutex};
-
-use pnpm_reporter::{
-    LogEvent, LogLevel, ProgressLog, ProgressMessage, StatsLog, StatsMessage, SummaryLog,
+use std::sync::{
+    Arc,
+    Mutex,
 };
 
-use super::{Destination, NativeRenderer, ReporterOptions};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    ProgressLog,
+    ProgressMessage,
+    StatsLog,
+    StatsMessage,
+    SummaryLog,
+};
+
+use super::{
+    Destination,
+    NativeRenderer,
+    ReporterOptions,
+};
 
 const DIR: &str = "/repo";
 

@@ -1,33 +1,70 @@
 mod fast_path;
-use fast_path::{UpToDateCheck, install_is_already_up_to_date};
+use fast_path::{
+    UpToDateCheck,
+    install_is_already_up_to_date,
+};
 
 mod dispatch;
-use dispatch::{Dispatched, Settled, dispatch};
+use dispatch::{
+    Dispatched,
+    Settled,
+    dispatch,
+};
 
 mod manifests;
-use manifests::{HookedManifests, manifest_freshness_inputs, resolve_pnpmfile_hook};
+use manifests::{
+    HookedManifests,
+    manifest_freshness_inputs,
+    resolve_pnpmfile_hook,
+};
 
 mod wanted;
-use wanted::{Lockfiles, settle_wanted_lockfile};
+use wanted::{
+    Lockfiles,
+    settle_wanted_lockfile,
+};
 
 mod lockfile_load;
-use lockfile_load::{Loaded, load_lockfiles};
+use lockfile_load::{
+    Loaded,
+    load_lockfiles,
+};
 
 mod workspace;
-use workspace::{InstallScope, InstallWorkspace, workspace_projects};
+use workspace::{
+    InstallScope,
+    InstallWorkspace,
+    workspace_projects,
+};
 
 mod execution;
 mod time_machine_capture;
 
 use super::{
-    Arc, DependencyGroup, InMemoryPackageMetaCache, IncludedDependencies, Install, InstallError,
-    InstallRunOptions, IsTerminal, Lockfile, Path, PathBuf, Reporter, UpdateSeedPolicy,
-    build_resolution_verifiers, lockfile_root_dir,
+    Arc,
+    DependencyGroup,
+    InMemoryPackageMetaCache,
+    IncludedDependencies,
+    Install,
+    InstallError,
+    InstallRunOptions,
+    IsTerminal,
+    Lockfile,
+    Path,
+    PathBuf,
+    Reporter,
+    UpdateSeedPolicy,
+    build_resolution_verifiers,
+    lockfile_root_dir,
 };
 use pnpm_config::Config;
 use pnpm_store_dir::VerifiedFileIntegrity;
 
-use crate::{PolicyExcludes, ProjectMutation, catalog_cleanup::post_install_prune};
+use crate::{
+    PolicyExcludes,
+    ProjectMutation,
+    catalog_cleanup::post_install_prune,
+};
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
 where

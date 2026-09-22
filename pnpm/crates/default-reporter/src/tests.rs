@@ -1,9 +1,22 @@
 use pnpm_reporter::{
-    FetchingProgressLog, FetchingProgressMessage, LogLevel, ProgressLog, ProgressMessage,
-    PromptAction, StatsLog, StatsMessage,
+    FetchingProgressLog,
+    FetchingProgressMessage,
+    LogLevel,
+    ProgressLog,
+    ProgressMessage,
+    PromptAction,
+    StatsLog,
+    StatsMessage,
 };
 
-use super::{LogEvent, Output, Sink, is_coalesceable, progress, set_progress};
+use super::{
+    LogEvent,
+    Output,
+    Sink,
+    is_coalesceable,
+    progress,
+    set_progress,
+};
 
 #[test]
 fn progress_and_in_progress_downloads_coalesce() {

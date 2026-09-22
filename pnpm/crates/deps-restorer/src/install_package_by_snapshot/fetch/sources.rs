@@ -1,18 +1,44 @@
 use super::{
     super::{
-        InstallPackageBySnapshot, InstallPackageBySnapshotError, PNPM_EXECPATH,
-        runtime::{archive_filter_for, fetch_binary_resolution_to_cas},
-        tarball_resolution::{local_file_tarball_install_url, tarball_url_and_integrity},
+        InstallPackageBySnapshot,
+        InstallPackageBySnapshotError,
+        PNPM_EXECPATH,
+        runtime::{
+            archive_filter_for,
+            fetch_binary_resolution_to_cas,
+        },
+        tarball_resolution::{
+            local_file_tarball_install_url,
+            tarball_url_and_integrity,
+        },
     },
-    CustomFetched, SnapshotFetch, TarballFetch, download_tarball,
+    CustomFetched,
+    SnapshotFetch,
+    TarballFetch,
+    download_tarball,
 };
-use crate::{build_modules::exec_scripts_prepend_node_path, custom_fetcher::CustomFetchOutcome};
-use pnpm_git_fetcher::{GitFetchOutput, GitFetcher, GitHostedTarballFetcher};
-use pnpm_lockfile::{BinaryResolution, LockfileResolution, PackageKey, PackageMetadata};
+use crate::{
+    build_modules::exec_scripts_prepend_node_path,
+    custom_fetcher::CustomFetchOutcome,
+};
+use pnpm_git_fetcher::{
+    GitFetchOutput,
+    GitFetcher,
+    GitHostedTarballFetcher,
+};
+use pnpm_lockfile::{
+    BinaryResolution,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::git_hosted_store_index_key;
 use pnpm_tarball::IngestTarballToStore;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 impl InstallPackageBySnapshot<'_> {
     pub(in super::super) async fn custom_fetch<Reporter: self::Reporter>(

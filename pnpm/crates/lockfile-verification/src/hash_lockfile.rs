@@ -19,7 +19,10 @@
 use std::io;
 
 use pnpm_lockfile::Lockfile;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 
 /// Sha256 hex digest of the lockfile content.
 ///

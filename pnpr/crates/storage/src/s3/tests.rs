@@ -1,7 +1,19 @@
-use super::{Body, ObjectStore, S3Store};
-use crate::{DocumentWrite, HostedRevisionRefWrite};
+use super::{
+    Body,
+    ObjectStore,
+    S3Store,
+};
+use crate::{
+    DocumentWrite,
+    HostedRevisionRefWrite,
+};
 use futures_util::TryStreamExt;
-use object_store::{ObjectStoreExt, PutPayload, memory::InMemory, path::Path as ObjectPath};
+use object_store::{
+    ObjectStoreExt,
+    PutPayload,
+    memory::InMemory,
+    path::Path as ObjectPath,
+};
 use pnpr_config::S3Settings;
 use pnpr_package_name::CanonicalPackageName;
 use std::sync::Arc;

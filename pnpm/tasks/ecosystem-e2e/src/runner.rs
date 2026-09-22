@@ -1,16 +1,45 @@
 use crate::{
-    cli_args::{Binary, Layout},
-    stacks::{PROJECT_DIR, Serve, Stack},
+    cli_args::{
+        Binary,
+        Layout,
+    },
+    stacks::{
+        PROJECT_DIR,
+        Serve,
+        Stack,
+    },
 };
 use std::{
     ffi::OsString,
-    fs::{self, File, OpenOptions},
-    io::{BufRead, BufReader, Write},
-    net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
+    fs::{
+        self,
+        File,
+        OpenOptions,
+    },
+    io::{
+        BufRead,
+        BufReader,
+        Write,
+    },
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        TcpListener,
+        TcpStream,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Stdio,
+    },
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// One grid cell: a stack installed by a binary under a layout.

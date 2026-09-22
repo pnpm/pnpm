@@ -1,7 +1,16 @@
 use clap::ValueEnum;
 use pnpm_config::ColorMode;
-use pnpm_default_reporter::{DefaultReporter, MaxLogLevel, SummaryScope};
-use pnpm_reporter::{LogEvent, NdjsonReporter, Reporter, SilentReporter};
+use pnpm_default_reporter::{
+    DefaultReporter,
+    MaxLogLevel,
+    SummaryScope,
+};
+use pnpm_reporter::{
+    LogEvent,
+    NdjsonReporter,
+    Reporter,
+    SilentReporter,
+};
 use std::path::Path;
 
 /// Output format for progress and log messages.

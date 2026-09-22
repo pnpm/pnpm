@@ -12,10 +12,19 @@
 use crate::error::DirectoryFetcherError;
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use std::{
-    collections::{HashMap, HashSet},
-    fs::{self, Metadata},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fs::{
+        self,
+        Metadata,
+    },
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(windows)]

@@ -1,6 +1,13 @@
 use super::{
-    CanonicalPackageName, DateTime, Integrity, MAX_TARBALL_REVISION, TarballRevision, Utc, Value,
-    integrity_addressed_registry_tarball_url, is_integrity_addressed_registry_tarball_url,
+    CanonicalPackageName,
+    DateTime,
+    Integrity,
+    MAX_TARBALL_REVISION,
+    TarballRevision,
+    Utc,
+    Value,
+    integrity_addressed_registry_tarball_url,
+    is_integrity_addressed_registry_tarball_url,
 };
 use chrono::Timelike;
 

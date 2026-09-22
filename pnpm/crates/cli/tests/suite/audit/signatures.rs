@@ -1,5 +1,11 @@
 use super::{
-    CommandTempCwd, Path, assert_failure, assert_success, fs, stderr, stdout,
+    CommandTempCwd,
+    Path,
+    assert_failure,
+    assert_success,
+    fs,
+    stderr,
+    stdout,
     write_minimal_manifest,
 };
 const SIGNATURE_KEYID: &str = "SHA256:test";
@@ -302,7 +308,10 @@ fn public_key_b64(key: &p256::ecdsa::SigningKey) -> String {
 
 fn sign_b64(key: &p256::ecdsa::SigningKey, message: &str) -> String {
     use base64::Engine as _;
-    use p256::ecdsa::{Signature, signature::Signer};
+    use p256::ecdsa::{
+        Signature,
+        signature::Signer,
+    };
     let signature: Signature = key.sign(message.as_bytes());
     base64::engine::general_purpose::STANDARD.encode(signature.to_der().as_bytes())
 }

@@ -1,9 +1,17 @@
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
 use std::time::Duration;
 
 use super::{
-    ABBREVIATED_META_CONTENT_TYPE, ACCEPT_ABBREVIATED_DOC, FetchFullMetadataOptions,
-    FetchFullMetadataOutcome, fetch_full_metadata, warn_if_request_is_slow,
+    ABBREVIATED_META_CONTENT_TYPE,
+    ACCEPT_ABBREVIATED_DOC,
+    FetchFullMetadataOptions,
+    FetchFullMetadataOutcome,
+    fetch_full_metadata,
+    warn_if_request_is_slow,
 };
 
 #[test]

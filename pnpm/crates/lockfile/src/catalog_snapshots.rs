@@ -7,7 +7,10 @@
 
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// `catalogName → { dependencyName → entry }`. A [`BTreeMap`] so the entries
 /// serialize in sorted key order, matching pnpm's lockfile key sort.

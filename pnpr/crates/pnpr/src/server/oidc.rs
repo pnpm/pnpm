@@ -1,8 +1,24 @@
-use super::{AppState, private_no_cache};
+use super::{
+    AppState,
+    private_no_cache,
+};
 use axum::{
-    extract::{Path, Query, State},
-    http::{HeaderMap, HeaderValue, StatusCode, header},
-    response::{IntoResponse, Redirect, Response},
+    extract::{
+        Path,
+        Query,
+        State,
+    },
+    http::{
+        HeaderMap,
+        HeaderValue,
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Redirect,
+        Response,
+    },
 };
 use pnpr_error::RegistryError;
 use serde::Deserialize;

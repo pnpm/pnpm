@@ -1,5 +1,8 @@
 use super::{
-    AddRequest, EcosystemPackageSpecifier, PackageSpecifierPlan, RegistryPackageSpecifier,
+    AddRequest,
+    EcosystemPackageSpecifier,
+    PackageSpecifierPlan,
+    RegistryPackageSpecifier,
 };
 
 /// The selectors a plan leaves for the npm add path, which is what every

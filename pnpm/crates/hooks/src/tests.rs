@@ -1,11 +1,23 @@
 use super::{
-    ChecksumFreeHooks, HookContext, HookError, PnpmfileHooks, PreResolutionHookContext,
-    PreResolutionHookLogger, ReadPackageResult, current_pnpmfile_checksum,
+    ChecksumFreeHooks,
+    HookContext,
+    HookError,
+    PnpmfileHooks,
+    PreResolutionHookContext,
+    PreResolutionHookLogger,
+    ReadPackageResult,
+    current_pnpmfile_checksum,
 };
 use async_trait::async_trait;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

@@ -11,7 +11,11 @@
 use pnpr_error::Result;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::Storage;
-use serde_json::{Map, Value, json};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

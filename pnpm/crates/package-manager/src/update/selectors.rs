@@ -1,8 +1,20 @@
 use super::UpdateError;
 use pnpm_matcher::create_matcher;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pnpm_resolving_deps_resolver::{UpdateTargets, VersionLine, real_package_name_of};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
+use pnpm_resolving_deps_resolver::{
+    UpdateTargets,
+    VersionLine,
+    real_package_name_of,
+};
 
 /// A CLI selector split into its name pattern and optional version part.
 pub(super) struct ParsedSelector {

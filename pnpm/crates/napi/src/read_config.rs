@@ -11,10 +11,18 @@
 use std::collections::HashMap;
 
 use napi_derive::napi;
-use pnpm_network::{AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, NoProxySetting, nerf_dart};
+use pnpm_network::{
+    AuthHeadersByScope,
+    DEFAULT_REGISTRY_SCOPE,
+    NoProxySetting,
+    nerf_dart,
+};
 
 use crate::{
-    config::{ConfigOverlay, resolve_config},
+    config::{
+        ConfigOverlay,
+        resolve_config,
+    },
     error::to_napi_error,
 };
 

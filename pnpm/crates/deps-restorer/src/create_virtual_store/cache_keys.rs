@@ -1,12 +1,20 @@
 use super::CreateVirtualStoreError;
 use crate::{
-    install_package_by_snapshot::{runtime_platform_selector, unverified_fetch_is_allowed},
+    install_package_by_snapshot::{
+        runtime_platform_selector,
+        unverified_fetch_is_allowed,
+    },
     store_index_key_for_resolution,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PlatformSelector,
-    SnapshotEntry, select_platform_variant,
+    LockfileEntries,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PlatformSelector,
+    SnapshotEntry,
+    select_platform_variant,
 };
 use pnpm_store_dir::store_index_key;
 use std::collections::HashMap;

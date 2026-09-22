@@ -1,5 +1,11 @@
-use super::{exec_git, make_bare_repo_with_prepare_script};
-use crate::{cache_checkout_bundles, checkout_cached_bundles};
+use super::{
+    exec_git,
+    make_bare_repo_with_prepare_script,
+};
+use crate::{
+    cache_checkout_bundles,
+    checkout_cached_bundles,
+};
 use std::fs;
 
 #[test]

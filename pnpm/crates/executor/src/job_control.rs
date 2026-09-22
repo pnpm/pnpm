@@ -54,12 +54,20 @@ impl JobGuard {
     /// Disable process-tree cleanup after a successful command.
     #[cfg(windows)]
     pub fn disarm(self) {
-        use core::mem::{size_of, zeroed};
-        use core::ptr;
-        use windows_sys::Win32::Foundation::CloseHandle;
-        use windows_sys::Win32::System::JobObjects::{
-            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-            SetInformationJobObject,
+        use core::{
+            mem::{
+                size_of,
+                zeroed,
+            },
+            ptr,
+        };
+        use windows_sys::Win32::{
+            Foundation::CloseHandle,
+            System::JobObjects::{
+                JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+                JobObjectExtendedLimitInformation,
+                SetInformationJobObject,
+            },
         };
 
         // Stop assigning children first so no spawn can reach the handle
@@ -95,15 +103,27 @@ impl JobGuard {
 #[cfg(windows)]
 #[must_use]
 pub fn arm_process_tree_cleanup() -> Option<JobGuard> {
-    use core::mem::{size_of, zeroed};
-    use core::ptr;
-    use windows_sys::Win32::Foundation::CloseHandle;
-    use windows_sys::Win32::System::JobObjects::{
-        AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-        SetInformationJobObject,
+    use core::{
+        mem::{
+            size_of,
+            zeroed,
+        },
+        ptr,
     };
-    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+    use windows_sys::Win32::{
+        Foundation::CloseHandle,
+        System::{
+            JobObjects::{
+                AssignProcessToJobObject,
+                CreateJobObjectW,
+                JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+                JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+                JobObjectExtendedLimitInformation,
+                SetInformationJobObject,
+            },
+            Threading::GetCurrentProcess,
+        },
+    };
 
     // SAFETY: these are standard Win32 Job Object calls. Every pointer
     // argument is either null or a stack local that outlives the call,
@@ -153,13 +173,23 @@ pub fn arm_process_tree_cleanup() -> Option<JobGuard> {
 /// in it instead.
 #[cfg(windows)]
 fn enclosing_job_releases_children() -> bool {
-    use core::mem::{size_of, zeroed};
-    use core::ptr;
-    use windows_sys::Win32::System::JobObjects::{
-        IsProcessInJob, JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-        JobObjectExtendedLimitInformation, QueryInformationJobObject,
+    use core::{
+        mem::{
+            size_of,
+            zeroed,
+        },
+        ptr,
     };
-    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+    use windows_sys::Win32::System::{
+        JobObjects::{
+            IsProcessInJob,
+            JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK,
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+            JobObjectExtendedLimitInformation,
+            QueryInformationJobObject,
+        },
+        Threading::GetCurrentProcess,
+    };
 
     // SAFETY: every pointer argument is null or a stack local that outlives
     // the call. A null job handle addresses the immediate job of the calling

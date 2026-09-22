@@ -1,9 +1,23 @@
-use clap::{Parser, builder::BoolishValueParser};
-use pnpr::{Config, ConfigSource, LogConfig, LogFormat, RegistryError, default_cache_dir, serve};
+use clap::{
+    Parser,
+    builder::BoolishValueParser,
+};
+use pnpr::{
+    Config,
+    ConfigSource,
+    LogConfig,
+    LogFormat,
+    RegistryError,
+    default_cache_dir,
+    serve,
+};
 use std::{
     io::IsTerminal,
     net::SocketAddr,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Duration,
 };
 use tracing_subscriber::EnvFilter;

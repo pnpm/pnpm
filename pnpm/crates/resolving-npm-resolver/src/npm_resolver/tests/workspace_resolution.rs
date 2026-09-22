@@ -1,7 +1,16 @@
 use super::{
-    LockfileResolution, ResolveFromWorkspaceError, ResolveOptions, RetryOpts, UpdateBehavior,
-    WantedDependency, assert_eq, build_resolver, build_workspace_packages,
-    build_workspace_packages_at, is_not_found_error, single_version_body,
+    LockfileResolution,
+    ResolveFromWorkspaceError,
+    ResolveOptions,
+    RetryOpts,
+    UpdateBehavior,
+    WantedDependency,
+    assert_eq,
+    build_resolver,
+    build_workspace_packages,
+    build_workspace_packages_at,
+    is_not_found_error,
+    single_version_body,
     workspace_resolve_options,
 };
 use pnpm_resolving_resolver_base::Resolver;

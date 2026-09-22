@@ -1,7 +1,19 @@
 use super::{
-    AlwaysFail, Arc, FailFor, LockfileVerificationMessage, LogEvent, Mutex, Path, Reporter,
-    ResolutionVerifier, SINGLE_PKG_LOCKFILE, SilentReporter, TempDir,
-    VerifyLockfileResolutionsOptions, parse, verify_lockfile_resolutions,
+    AlwaysFail,
+    Arc,
+    FailFor,
+    LockfileVerificationMessage,
+    LogEvent,
+    Mutex,
+    Path,
+    Reporter,
+    ResolutionVerifier,
+    SINGLE_PKG_LOCKFILE,
+    SilentReporter,
+    TempDir,
+    VerifyLockfileResolutionsOptions,
+    parse,
+    verify_lockfile_resolutions,
 };
 
 #[tokio::test]

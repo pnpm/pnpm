@@ -1,8 +1,21 @@
 use super::{
-    Arc, FetchAttestationOptions, FetchFullMetadataCachedOptions, NpmResolutionVerifier, OnceCell,
-    Package, Pipe, PkgName, PublishedAtTimeMap, fetch_attestation_published_at,
-    fetch_full_metadata_cached, load_local_meta_time, package_key, project_abbreviated_meta,
-    project_trust_meta, redact_url_credentials, render_fetch_metadata_error,
+    Arc,
+    FetchAttestationOptions,
+    FetchFullMetadataCachedOptions,
+    NpmResolutionVerifier,
+    OnceCell,
+    Package,
+    Pipe,
+    PkgName,
+    PublishedAtTimeMap,
+    fetch_attestation_published_at,
+    fetch_full_metadata_cached,
+    load_local_meta_time,
+    package_key,
+    project_abbreviated_meta,
+    project_trust_meta,
+    redact_url_credentials,
+    render_fetch_metadata_error,
 };
 
 impl NpmResolutionVerifier {

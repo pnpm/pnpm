@@ -1,16 +1,40 @@
 use super::{
-    super::{VirtualStoreLayout, global_virtual_store_version_dir},
-    alias, cyclic_slot_suffixes, make_config, package_metadata, registry_metadata,
+    super::{
+        VirtualStoreLayout,
+        global_virtual_store_version_dir,
+    },
+    alias,
+    cyclic_slot_suffixes,
+    make_config,
+    package_metadata,
+    registry_metadata,
     snapshot_with_link,
 };
 use pnpm_lockfile::{
-    DirectoryResolution, LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PkgName,
-    RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballResolution,
+    DirectoryResolution,
+    LockfileEntries,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    RegistryResolution,
+    SnapshotDepRef,
+    SnapshotEntry,
+    TarballResolution,
 };
-use pretty_assertions::{assert_eq, assert_ne};
+use pretty_assertions::{
+    assert_eq,
+    assert_ne,
+};
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[test]

@@ -3,12 +3,21 @@ use pipe_trait::Pipe;
 use pnpm_config::Config;
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, TarballUrlOptions, integrity_addressed_registry_tarball_url,
-    is_git_hosted_tarball_url, is_integrity_addressed_registry_tarball_url, npm_tarball_url,
+    LockfileResolution,
+    PackageKey,
+    TarballUrlOptions,
+    integrity_addressed_registry_tarball_url,
+    is_git_hosted_tarball_url,
+    is_integrity_addressed_registry_tarball_url,
+    npm_tarball_url,
     registry_server_type,
 };
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
-use std::{borrow::Cow, collections::HashMap, path::Path};
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    path::Path,
+};
 
 /// Resolve relative local archives against the lockfile directory for fetching.
 #[must_use]

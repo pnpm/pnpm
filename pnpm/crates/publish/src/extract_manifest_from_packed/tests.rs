@@ -1,8 +1,14 @@
 use super::{
-    ExtractManifestError, extract_manifest_from_packed, extract_publish_manifest_from_packed,
-    is_tarball_path, normalize_entry_path,
+    ExtractManifestError,
+    extract_manifest_from_packed,
+    extract_publish_manifest_from_packed,
+    is_tarball_path,
+    normalize_entry_path,
 };
-use flate2::{Compression, write::GzEncoder};
+use flate2::{
+    Compression,
+    write::GzEncoder,
+};
 use pretty_assertions::assert_eq;
 use std::io::Write;
 use tempfile::TempDir;

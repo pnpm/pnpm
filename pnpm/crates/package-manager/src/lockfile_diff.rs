@@ -7,9 +7,19 @@
 //! report what deduplication would rewrite. Mirrors pnpm's
 //! `calcDedupeCheckIssues`, which serves both commands the same way.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashMap,
+};
 
-use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotDepRef, SnapshotEntry};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+    ProjectSnapshot,
+    SnapshotDepRef,
+    SnapshotEntry,
+};
 
 /// What a real install would change, derived from two lockfiles.
 ///

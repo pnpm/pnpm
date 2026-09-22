@@ -6,11 +6,21 @@
 //! selection resolves through the prod-pruned graph so the dev edges it
 //! dropped are not pulled back in.
 
-use super::{filtered_projects_dependencies, graph_sequencer, sequence_graph};
-use pnpm_workspace_projects_graph::{ProjectGraph, ProjectGraphNode};
+use super::{
+    filtered_projects_dependencies,
+    graph_sequencer,
+    sequence_graph,
+};
+use pnpm_workspace_projects_graph::{
+    ProjectGraph,
+    ProjectGraphNode,
+};
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::PathBuf,
 };
 

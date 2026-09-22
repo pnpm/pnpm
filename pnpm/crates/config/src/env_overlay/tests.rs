@@ -1,7 +1,18 @@
-use super::{WorkspaceSettings, parse_json_or_string, parse_tri_array};
+use super::{
+    WorkspaceSettings,
+    parse_json_or_string,
+    parse_tri_array,
+};
 use crate::{
-    ColorMode, Config, NodeLinker, NodePackageMapType, SaveWorkspaceProtocol,
-    ScriptsPrependNodePath, TrustPolicy, VirtualStoreType, api::EnvVar,
+    ColorMode,
+    Config,
+    NodeLinker,
+    NodePackageMapType,
+    SaveWorkspaceProtocol,
+    ScriptsPrependNodePath,
+    TrustPolicy,
+    VirtualStoreType,
+    api::EnvVar,
 };
 use pretty_assertions::assert_eq;
 use std::path::Path;

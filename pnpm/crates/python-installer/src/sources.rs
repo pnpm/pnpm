@@ -8,15 +8,33 @@ use super::{
     build,
     environment::PythonPrepare,
     host,
-    manifest::{Manifest, Source},
+    manifest::{
+        Manifest,
+        Source,
+    },
     registry::Registry,
 };
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use pep440_rs::Version;
-use pep508_rs::{PackageName, Requirement, VersionOrUrl};
-use pnpm_python_resolver::{Candidate, LockedVcs};
+use pep508_rs::{
+    PackageName,
+    Requirement,
+    VersionOrUrl,
+};
+use pnpm_python_resolver::{
+    Candidate,
+    LockedVcs,
+};
 use pnpm_reporter::Reporter;
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
 pub(super) struct Sources<'a> {
     pub(super) prepare: &'a PythonPrepare<'a>,

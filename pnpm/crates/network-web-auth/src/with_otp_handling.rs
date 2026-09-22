@@ -1,17 +1,32 @@
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_reporter::Reporter;
 use serde_json::Value;
 
 use crate::{
     WebAuthTimeoutError,
     capabilities::{
-        Clock, EnterKeyListener, OpenUrl, PromptError, PromptOtp, Sleep, StdinIsTty, StdoutIsTty,
+        Clock,
+        EnterKeyListener,
+        OpenUrl,
+        PromptError,
+        PromptOtp,
+        Sleep,
+        StdinIsTty,
+        StdoutIsTty,
         WebAuthFetch,
     },
     format_auth_url_message::format_auth_url_message,
-    global_log::{global_info, global_warn},
+    global_log::{
+        global_info,
+        global_warn,
+    },
     poll_for_web_auth_token::{
-        WebAuthFetchOptions, WebAuthTokenPollParams, poll_for_web_auth_token,
+        WebAuthFetchOptions,
+        WebAuthTokenPollParams,
+        poll_for_web_auth_token,
     },
     prompt_browser_open::prompt_browser_open,
 };

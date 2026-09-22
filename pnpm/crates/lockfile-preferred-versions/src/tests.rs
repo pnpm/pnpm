@@ -1,9 +1,18 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{
+    collections::HashMap,
+    str::FromStr,
+};
 
-use pnpm_lockfile::{PackageKey, PkgName, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    PkgName,
+    SnapshotEntry,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_resolver_base::{
-    DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry,
+    DIRECT_DEP_SELECTOR_WEIGHT,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    VersionSelectorEntry,
     VersionSelectorType,
 };
 use pretty_assertions::assert_eq;

@@ -1,18 +1,38 @@
 use super::{
-    CatalogCtx, LatestResolverChain, LatestRewriteCtx, MatchedRewriteInputs, UpdateError,
-    WorkspaceLinkTarget, emit_latest_ignored, latest_specifier, record_matched_direct_update,
-    selectors::{ParsedSelector, expand_update_selectors, insert_update_target},
+    CatalogCtx,
+    LatestResolverChain,
+    LatestRewriteCtx,
+    MatchedRewriteInputs,
+    UpdateError,
+    WorkspaceLinkTarget,
+    emit_latest_ignored,
+    latest_specifier,
+    record_matched_direct_update,
+    selectors::{
+        ParsedSelector,
+        expand_update_selectors,
+        insert_update_target,
+    },
     workspace_specifier,
 };
-use crate::{ImporterUpdateSeedPolicy, UpdateSeedPolicy};
+use crate::{
+    ImporterUpdateSeedPolicy,
+    UpdateSeedPolicy,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_matcher::create_matcher;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
-use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets};
-use pnpm_resolving_resolver_base::{PreferredVersions, WorkspacePackages};
+use pnpm_resolving_deps_resolver::{
+    UpdateDepth,
+    UpdateTargets,
+};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions,
+    WorkspacePackages,
+};
 use std::collections::BTreeMap;
 
 pub(super) fn selected_seed_policy(

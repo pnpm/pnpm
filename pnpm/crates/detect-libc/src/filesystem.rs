@@ -1,5 +1,8 @@
 use crate::Implementation;
-use std::{fs::File, io::Read};
+use std::{
+    fs::File,
+    io::Read,
+};
 
 const LDD_PATH: &str = "/usr/bin/ldd";
 const MAX_LENGTH: usize = 2048;

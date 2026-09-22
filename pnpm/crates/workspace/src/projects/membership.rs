@@ -1,12 +1,26 @@
 //! Answer the workspace-membership question for a single directory.
 
 use super::{
-    FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, PROJECT_MANIFEST_BASENAMES, Path,
-    PathBuf, WorkspacePattern, compile_user_negations, dot_pruning_ignore_template,
-    manifest_walk_ignores, split_include_and_negation,
-    walk::{has_always_ignored_component, normalize_manifest_patterns, split_parent_prefix},
+    FindWorkspaceProjectsError,
+    FindWorkspaceProjectsOpts,
+    PROJECT_MANIFEST_BASENAMES,
+    Path,
+    PathBuf,
+    WorkspacePattern,
+    compile_user_negations,
+    dot_pruning_ignore_template,
+    manifest_walk_ignores,
+    split_include_and_negation,
+    walk::{
+        has_always_ignored_component,
+        normalize_manifest_patterns,
+        split_parent_prefix,
+    },
 };
-use wax::{Glob, Program as _};
+use wax::{
+    Glob,
+    Program as _,
+};
 
 /// A project that the workspace does not include stands on its own, so pnpm
 /// acts on that project alone instead of on the whole workspace: no shared

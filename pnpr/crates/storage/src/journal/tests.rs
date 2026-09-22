@@ -1,20 +1,46 @@
 #[cfg(unix)]
 use super::sync_dir;
 use super::{
-    ApplyProgress, DocumentMerge, HostedDocuments, JOURNAL_DIR, JournaledPublish,
-    JournaledRevisionRef, MANIFEST_FILE, Manifest, PackageId, SealedTxn, cleanup_lost_tmp_paths,
+    ApplyProgress,
+    DocumentMerge,
+    HostedDocuments,
+    JOURNAL_DIR,
+    JournaledPublish,
+    JournaledRevisionRef,
+    MANIFEST_FILE,
+    Manifest,
+    PackageId,
+    SealedTxn,
+    cleanup_lost_tmp_paths,
 };
-use crate::{BlobFinalize, HostedRevisionRefWrite, Storage, publish::merge_journaled_packument};
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use object_store::{ObjectStore, memory::InMemory};
+use crate::{
+    BlobFinalize,
+    HostedRevisionRefWrite,
+    Storage,
+    publish::merge_journaled_packument,
+};
+use base64::{
+    Engine as _,
+    engine::general_purpose::URL_SAFE_NO_PAD,
+};
+use object_store::{
+    ObjectStore,
+    memory::InMemory,
+};
 use pnpr_config::HostedStoreConfig;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
 use serde_json::json;
 use std::sync::{
     Arc,
-    atomic::{AtomicUsize, Ordering},
+    atomic::{
+        AtomicUsize,
+        Ordering,
+    },
 };
 use tempfile::tempdir;
 use tokio::fs;

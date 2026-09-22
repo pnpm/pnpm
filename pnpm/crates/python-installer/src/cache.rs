@@ -1,4 +1,8 @@
-use miette::{IntoDiagnostic, Result, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    bail,
+};
 use serde::de::DeserializeOwned;
 use std::path::Path;
 use tokio::io::AsyncReadExt;

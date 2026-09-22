@@ -1,5 +1,9 @@
 use super::{
-    Lockfile, StalenessReason, manifest_from_json, satisfies_package_manifest, text_block,
+    Lockfile,
+    StalenessReason,
+    manifest_from_json,
+    satisfies_package_manifest,
+    text_block,
 };
 
 /// A `publishDirectory` that differs from the manifest's

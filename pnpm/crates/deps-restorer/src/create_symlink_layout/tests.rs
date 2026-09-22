@@ -1,7 +1,20 @@
-use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, create_symlink_layout};
-use pnpm_lockfile::{PackageKey, PkgName, SnapshotDepRef};
+use crate::{
+    SkippedSnapshots,
+    SymlinkPackageError,
+    VirtualStoreLayout,
+    create_symlink_layout,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PkgName,
+    SnapshotDepRef,
+};
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{
+    collections::HashMap,
+    fs,
+    path::PathBuf,
+};
 use tempfile::tempdir;
 
 fn pkg_name(input: &str) -> PkgName {

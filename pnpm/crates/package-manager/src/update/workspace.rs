@@ -1,13 +1,26 @@
 use super::{
-    UpdateError, UpdateOptions,
-    selectors::{ParsedSelector, matcher_one},
+    UpdateError,
+    UpdateOptions,
+    selectors::{
+        ParsedSelector,
+        matcher_one,
+    },
 };
-use pnpm_config::{Config, SaveWorkspaceProtocol};
+use pnpm_config::{
+    Config,
+    SaveWorkspaceProtocol,
+};
 use pnpm_matcher::create_matcher;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
-use pnpm_resolving_npm_resolver::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};
-use pnpm_resolving_resolver_base::{WorkspacePackages, WorkspacePackagesByVersion};
+use pnpm_resolving_npm_resolver::{
+    DeclaredSpecifiers,
+    calc_specifier_for_workspace_dep,
+};
+use pnpm_resolving_resolver_base::{
+    WorkspacePackages,
+    WorkspacePackagesByVersion,
+};
 use pnpm_workspace_range_resolver::resolve_workspace_range;
 
 /// `--workspace` with nothing to link falls through to the ordinary

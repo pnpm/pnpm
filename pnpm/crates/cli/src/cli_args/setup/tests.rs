@@ -3,12 +3,21 @@
 //! shell config, so it is exercised on a real host rather than here.
 
 use super::{
-    ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, PNPM_VERSION,
-    PathExtenderReport, create_alias_scripts, remove_legacy_homedir_shims, render_setup_output,
+    ConfigFileChangeType,
+    ConfigReport,
+    LEGACY_HOME_DIR_SHIM_NAMES,
+    PNPM_VERSION,
+    PathExtenderReport,
+    create_alias_scripts,
+    remove_legacy_homedir_shims,
+    render_setup_output,
     standalone_manifest,
 };
 use pretty_assertions::assert_eq;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 fn report(change_type: ConfigFileChangeType, old: &str, new: &str) -> PathExtenderReport {
     PathExtenderReport {
@@ -141,7 +150,10 @@ fn alias_scripts_run_the_pnpm_beside_them() {
 /// wrappers have to reach.
 #[cfg(windows)]
 mod windows_alias_scripts {
-    use super::{Path, create_alias_scripts};
+    use super::{
+        Path,
+        create_alias_scripts,
+    };
 
     /// `cmd.exe` needs `System32` for its own startup, and `powershell.exe` lives
     /// a few levels deeper. Both are on the `PATH` handed to the child, since that

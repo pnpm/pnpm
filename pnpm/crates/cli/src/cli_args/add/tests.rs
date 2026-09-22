@@ -1,7 +1,16 @@
-use super::{AddArgs, AddDependencyOptions, AddError, apply_allow_build, workspace_selectors};
+use super::{
+    AddArgs,
+    AddDependencyOptions,
+    AddError,
+    apply_allow_build,
+    workspace_selectors,
+};
 use crate::{
     cargo_manifest::CargoDependencyKind,
-    cli_args::{CliArgs, cli_command::CliCommand},
+    cli_args::{
+        CliArgs,
+        cli_command::CliCommand,
+    },
 };
 use clap::Parser;
 use pnpm_config::Config;
@@ -118,7 +127,12 @@ fn add_tilde_and_save_prefix_resolve_last_one_wins() {
 
 #[test]
 fn dependency_options_to_dependency_groups() {
-    use DependencyGroup::{Dev, Optional, Peer, Prod};
+    use DependencyGroup::{
+        Dev,
+        Optional,
+        Peer,
+        Prod,
+    };
     let create_list = |opts: AddDependencyOptions| opts.dependency_groups().collect::<Vec<_>>();
 
     assert_eq!(

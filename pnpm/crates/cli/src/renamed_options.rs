@@ -12,7 +12,10 @@
 //! front.
 
 use crate::{
-    flag_relocation::{ArgTable, token_width},
+    flag_relocation::{
+        ArgTable,
+        token_width,
+    },
     parse_boundary,
 };
 use clap::Command;

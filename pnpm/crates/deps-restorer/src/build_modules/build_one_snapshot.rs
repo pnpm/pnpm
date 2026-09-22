@@ -2,19 +2,40 @@
 
 mod side_effects;
 use side_effects::{
-    FrozenStoreWrites, SideEffectsUpload, already_built, side_effects_cache_key,
+    FrozenStoreWrites,
+    SideEffectsUpload,
+    already_built,
+    side_effects_cache_key,
     upload_side_effects_cache,
 };
 
 use std::sync::atomic::Ordering;
 
 use super::{
-    AllowBuildPolicy, BuildModulesError, HashMap, LogEvent, LogLevel, NEEDS_BUILD_MARKER,
-    PackageKey, Path, PathBuf, PkgRoots, RebuildOptions, Reporter, RunPostinstallHooks,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
-    allow_build_key_from_ignored_build, apply_patch_to_dir, bin_dirs_in_all_parent_dirs,
-    discard_failed_global_virtual_store_slot, get_pkg_id_with_patch_hash,
-    parse_name_version_from_key, run_postinstall_hooks, slot_carries_overlay,
+    AllowBuildPolicy,
+    BuildModulesError,
+    HashMap,
+    LogEvent,
+    LogLevel,
+    NEEDS_BUILD_MARKER,
+    PackageKey,
+    Path,
+    PathBuf,
+    PkgRoots,
+    RebuildOptions,
+    Reporter,
+    RunPostinstallHooks,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    SkippedOptionalReason,
+    allow_build_key_from_ignored_build,
+    apply_patch_to_dir,
+    bin_dirs_in_all_parent_dirs,
+    discard_failed_global_virtual_store_slot,
+    get_pkg_id_with_patch_hash,
+    parse_name_version_from_key,
+    run_postinstall_hooks,
+    slot_carries_overlay,
 };
 
 /// Everything one snapshot's build reads: the lockfile shape it belongs to,

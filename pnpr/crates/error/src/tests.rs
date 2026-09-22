@@ -1,6 +1,10 @@
 use std::time::Duration;
 
-use axum::{body::to_bytes, http::StatusCode, response::IntoResponse};
+use axum::{
+    body::to_bytes,
+    http::StatusCode,
+    response::IntoResponse,
+};
 use tokio::net::TcpListener;
 
 use super::RegistryError;

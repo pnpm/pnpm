@@ -1,18 +1,44 @@
 use super::{
-    CreateVirtualStoreError, CreateVirtualStoreStoreContext, LinkPlan, RequiresBuildBySnapshot,
+    CreateVirtualStoreError,
+    CreateVirtualStoreStoreContext,
+    LinkPlan,
+    RequiresBuildBySnapshot,
     WantedEntries,
     cache_keys::SlotReuse,
-    cas_paths_key, requires_build_from_cas_paths,
-    slot_linking::{COLD_LINK_CHUNK, LinkSlotsParallel, link_cold_chunk},
+    cas_paths_key,
+    requires_build_from_cas_paths,
+    slot_linking::{
+        COLD_LINK_CHUNK,
+        LinkSlotsParallel,
+        link_cold_chunk,
+    },
 };
-use crate::{CasPathsByPkgId, InstallPackageBySnapshot, InstallPackageBySnapshotError};
-use futures_util::{StreamExt, stream::FuturesUnordered};
-use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, SnapshotEntry};
+use crate::{
+    CasPathsByPkgId,
+    InstallPackageBySnapshot,
+    InstallPackageBySnapshotError,
+};
+use futures_util::{
+    StreamExt,
+    stream::FuturesUnordered,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    SnapshotEntry,
+};
 use pnpm_reporter::Reporter;
 use pnpm_tarball::PrefetchResult;
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

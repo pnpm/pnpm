@@ -1,14 +1,27 @@
 use super::{
-    super::{host_platform_selector, runtime_platform_selector},
-    build_runtime_tarball_fixture, leaked_offline_config,
+    super::{
+        host_platform_selector,
+        runtime_platform_selector,
+    },
+    build_runtime_tarball_fixture,
+    leaked_offline_config,
 };
 use crate::install_package_by_snapshot::runtime::{
-    runtime_platform_of, synthesize_runtime_manifest_bytes,
+    runtime_platform_of,
+    synthesize_runtime_manifest_bytes,
 };
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PlatformSelector,
+    BinaryArchive,
+    BinaryResolution,
+    BinarySpec,
+    LockfileResolution,
+    PackageKey,
+    PlatformSelector,
 };
-use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
+use pnpm_package_is_installable::{
+    ArchitectureAxes,
+    SupportedArchitectures,
+};
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -201,7 +214,11 @@ fn synthesize_runtime_manifest_preserves_scoped_name() {
 /// `getBinName` with `dlx_read_manifest`.
 #[tokio::test]
 async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_index_row() {
-    use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
+    use pnpm_store_dir::{
+        SharedVerifiedFilesCache,
+        StoreIndex,
+        StoreIndexWriter,
+    };
     use pnpm_tarball::ArchiveStoreProjection;
     use std::sync::atomic::AtomicU8;
 

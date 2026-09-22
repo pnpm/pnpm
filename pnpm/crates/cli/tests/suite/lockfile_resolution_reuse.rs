@@ -10,10 +10,18 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::bump_mtime,
 };
-use std::{fs, net::TcpListener, path::Path, process::Command};
+use std::{
+    fs,
+    net::TcpListener,
+    path::Path,
+    process::Command,
+};
 
 const IS_POSITIVE_PATCH: &str = include_str!(
     "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch"

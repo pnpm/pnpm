@@ -1,16 +1,42 @@
 use super::{
-    dependencies_graph_to_lockfile, make_named_registry_node, make_node, make_node_with_optional,
-    make_resolve_result, single_importer_opts, write_manifest,
+    dependencies_graph_to_lockfile,
+    make_named_registry_node,
+    make_node,
+    make_node_with_optional,
+    make_resolve_result,
+    single_importer_opts,
+    write_manifest,
 };
 use pnpm_deps_path::DepPath;
-use pnpm_lockfile::{ImporterDepVersion, LockfileResolution, PackageKey, PkgName};
-use pnpm_resolving_deps_resolver::{
-    ChildEdge, DependenciesGraph, DependenciesGraphNode, DependenciesTreeNode, DirectDep, NodeId,
-    PeerDep, ResolvePeersOptions, ResolvedPackage, ResolvedTree, TreeChildren, resolve_peers,
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    LockfileResolution,
+    PackageKey,
+    PkgName,
 };
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use pnpm_resolving_deps_resolver::{
+    ChildEdge,
+    DependenciesGraph,
+    DependenciesGraphNode,
+    DependenciesTreeNode,
+    DirectDep,
+    NodeId,
+    PeerDep,
+    ResolvePeersOptions,
+    ResolvedPackage,
+    ResolvedTree,
+    TreeChildren,
+    resolve_peers,
+};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use serde_json::json;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 #[test]
 fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {

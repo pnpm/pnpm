@@ -1,11 +1,25 @@
 use super::{
-    super::{LockfileToHoistedDepGraphOptions, lockfile_to_hoisted_dep_graph},
-    dep_key, metadata_stub, pkg_name, resolved_dep, workspace_lockfile,
+    super::{
+        LockfileToHoistedDepGraphOptions,
+        lockfile_to_hoisted_dep_graph,
+    },
+    dep_key,
+    metadata_stub,
+    pkg_name,
+    resolved_dep,
+    workspace_lockfile,
 };
-use pnpm_lockfile::{Lockfile, ResolvedDependencyMap, SnapshotEntry};
+use pnpm_lockfile::{
+    Lockfile,
+    ResolvedDependencyMap,
+    SnapshotEntry,
+};
 use pnpm_modules_yaml::DepPath;
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 #[test]
 fn walker_multi_importer_emits_per_importer_direct_deps() {

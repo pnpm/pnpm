@@ -1,6 +1,9 @@
 //! Checks a package's wanted `engines` against the current runtime.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_semver_include_prerelease::IncludePrereleaseRange;

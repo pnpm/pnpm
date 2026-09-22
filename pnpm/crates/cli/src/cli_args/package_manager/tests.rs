@@ -1,4 +1,8 @@
-use super::{package_manager_to_sync, version_satisfies, wanted_package_manager};
+use super::{
+    package_manager_to_sync,
+    version_satisfies,
+    wanted_package_manager,
+};
 use pnpm_config::PNPM_VERSION;
 use std::path::Path;
 

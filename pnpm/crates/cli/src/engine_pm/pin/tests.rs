@@ -1,4 +1,8 @@
-use super::{declared_package_manager, describe_pin, record_package_manager_pin};
+use super::{
+    declared_package_manager,
+    describe_pin,
+    record_package_manager_pin,
+};
 use crate::engine_pm::channel::PackageManager;
 use serde_json::json;
 

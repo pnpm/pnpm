@@ -1,4 +1,7 @@
-use super::{ParsedKey, parse_key};
+use super::{
+    ParsedKey,
+    parse_key,
+};
 use pretty_assertions::assert_eq;
 
 #[test]

@@ -1,6 +1,13 @@
 use super::{
-    BTreeMap, Ipv4Addr, PnprClient, ResolveProject, ResolveProjectsOptions, TcpListener,
-    capture_one_request_with_response, deps, options,
+    BTreeMap,
+    Ipv4Addr,
+    PnprClient,
+    ResolveProject,
+    ResolveProjectsOptions,
+    TcpListener,
+    capture_one_request_with_response,
+    deps,
+    options,
 };
 
 #[tokio::test]

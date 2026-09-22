@@ -1,7 +1,16 @@
 use super::{
-    CommandExtra, CommandTempCwd, DependencyGroup, PackageManifest, Pipe, add_with_save_settings,
-    add_with_settings, assert_eq, bravo_dep_mature_up_to_1_0_1_minimum_release_age,
-    exec_pacquet_in_temp_cwd, prod_spec, set_minimum_release_age,
+    CommandExtra,
+    CommandTempCwd,
+    DependencyGroup,
+    PackageManifest,
+    Pipe,
+    add_with_save_settings,
+    add_with_settings,
+    assert_eq,
+    bravo_dep_mature_up_to_1_0_1_minimum_release_age,
+    exec_pacquet_in_temp_cwd,
+    prod_spec,
+    set_minimum_release_age,
 };
 use assert_cmd::assert::OutputAssertExt;
 

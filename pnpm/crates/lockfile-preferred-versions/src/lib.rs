@@ -9,11 +9,21 @@ pub use version_selector_type::get_version_selector_type;
 
 use std::collections::HashMap;
 
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_resolver_base::{
-    DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, PreferredVersions,
-    VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
+    DIRECT_DEP_SELECTOR_WEIGHT,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    PreferredVersions,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
 };
 use rayon::prelude::*;
 

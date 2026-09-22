@@ -1,9 +1,15 @@
-use super::{GitSource, GitSourceCache};
+use super::{
+    GitSource,
+    GitSourceCache,
+};
 use pnpm_fs::copy_dir_contents;
 use pnpm_testing_utils::git_repo::GitRepoFixture;
 use std::{
     fs,
-    sync::{Arc, Barrier},
+    sync::{
+        Arc,
+        Barrier,
+    },
     thread,
 };
 use tempfile::tempdir;
@@ -174,7 +180,10 @@ fn copies_preserve_symlinks_and_executable_files() {
 #[cfg(unix)]
 #[test]
 fn shallow_and_full_checkouts_of_one_commit_are_isolated() {
-    use crate::fetcher::tests::{parse_shim_log, write_git_shim};
+    use crate::fetcher::tests::{
+        parse_shim_log,
+        write_git_shim,
+    };
     use pnpm_testing_utils::env_guard::EnvGuard;
     let tmp = tempdir().unwrap();
     let shim = write_git_shim(&tmp.path().join("shim"));

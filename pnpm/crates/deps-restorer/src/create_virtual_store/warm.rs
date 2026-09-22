@@ -1,22 +1,52 @@
 use super::{
-    CreateVirtualStoreError, SnapshotWithCacheKey,
-    cache_keys::{SlotReuse, dir_clone_cacheable},
-    cas_paths_key, partition, removed_aliases_for,
-    slot_linking::{LinkSlotsParallel, SlotLink, emit_warm_snapshot_progress, link_slots_parallel},
+    CreateVirtualStoreError,
+    SnapshotWithCacheKey,
+    cache_keys::{
+        SlotReuse,
+        dir_clone_cacheable,
+    },
+    cas_paths_key,
+    partition,
+    removed_aliases_for,
+    slot_linking::{
+        LinkSlotsParallel,
+        SlotLink,
+        emit_warm_snapshot_progress,
+        link_slots_parallel,
+    },
 };
-use crate::{CasPathsByPkgId, InstallPackageBySnapshotError};
-use pnpm_git_fetcher::{GitFetcherError, resolve_package_build_permission};
-use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName};
+use crate::{
+    CasPathsByPkgId,
+    InstallPackageBySnapshotError,
+};
+use pnpm_git_fetcher::{
+    GitFetcherError,
+    resolve_package_build_permission,
+};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+};
 use pnpm_package_manifest::{
-    files_include_install_scripts, manifest_requires_build, parse_manifest,
+    files_include_install_scripts,
+    manifest_requires_build,
+    parse_manifest,
 };
 use pnpm_reporter::Reporter;
 use pnpm_tarball::PrefetchResult;
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

@@ -5,14 +5,24 @@ use crate::{
     node_id::NodeId,
     resolve_peers::{
         context::SharedChain,
-        test_support::{package, tree_node, walker_for_tests},
+        test_support::{
+            package,
+            tree_node,
+            walker_for_tests,
+        },
         walker::NodeOutput,
     },
     resolved_tree::ResolvedTree,
 };
 use pnpm_deps_path::DepPath;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, sync::Arc};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 #[test]
 fn materialized_nodes_referenced_by_peer_outputs_are_retained() {

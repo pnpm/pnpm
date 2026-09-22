@@ -1,11 +1,22 @@
 use crate::{
     Source,
-    lockfile::{LockedDirectory, LockedSdist, LockedVcs, LockedWheel},
+    lockfile::{
+        LockedDirectory,
+        LockedSdist,
+        LockedVcs,
+        LockedWheel,
+    },
     metadata::WheelMetadata,
 };
 use pep440_rs::Version;
-use pep508_rs::{PackageName, Requirement};
-use std::collections::{BTreeMap, BTreeSet};
+use pep508_rs::{
+    PackageName,
+    Requirement,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 /// Where one version of a distribution comes from: a file an index
 /// serves, a directory in this workspace, or a repository.

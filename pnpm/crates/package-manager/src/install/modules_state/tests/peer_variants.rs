@@ -1,10 +1,18 @@
-use super::{record_hoisted_locations, tree_intact};
+use super::{
+    record_hoisted_locations,
+    tree_intact,
+};
 use pnpm_config::NodeLinker;
 use pnpm_deps_restorer::hoisted_dep_graph::{
-    LockfileToHoistedDepGraphOptions, lockfile_to_hoisted_dep_graph,
+    LockfileToHoistedDepGraphOptions,
+    lockfile_to_hoisted_dep_graph,
 };
 use pnpm_lockfile::Lockfile;
-use pnpm_modules_yaml::{Host, Modules, write_modules_manifest};
+use pnpm_modules_yaml::{
+    Host,
+    Modules,
+    write_modules_manifest,
+};
 use std::fs;
 use tempfile::tempdir;
 use text_block_macros::text_block;

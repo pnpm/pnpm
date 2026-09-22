@@ -1,4 +1,11 @@
-use super::{AddMockedRegistry, CommandExtra, CommandTempCwd, dead_registry_url, fs, pacquet_at};
+use super::{
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    dead_registry_url,
+    fs,
+    pacquet_at,
+};
 use assert_cmd::assert::OutputAssertExt;
 
 #[test]

@@ -8,9 +8,15 @@
 //! [`ConfigOverrides::extract`]: crate::config_overrides::ConfigOverrides::extract
 //! [`expand_universal_shorthands`]: crate::shorthands::expand_universal_shorthands
 
-use crate::{cli_args::grammar, flag_relocation::ArgTable};
+use crate::{
+    cli_args::grammar,
+    flag_relocation::ArgTable,
+};
 use clap::Command;
-use std::{collections::HashSet, ffi::OsString};
+use std::{
+    collections::HashSet,
+    ffi::OsString,
+};
 
 /// Commands whose own arguments are unconditionally a foreign command line.
 ///

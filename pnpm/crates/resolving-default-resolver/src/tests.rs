@@ -1,11 +1,24 @@
-use pnpm_lockfile::{LockfileResolution, PkgNameVer, RegistryResolution};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgNameVer,
+    RegistryResolution,
+};
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
-    Resolver, WantedDependency,
+    LatestInfo,
+    LatestQuery,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 use ssri::Integrity;
 
-use crate::{DefaultResolver, SpecNotSupportedByAnyResolverError};
+use crate::{
+    DefaultResolver,
+    SpecNotSupportedByAnyResolverError,
+};
 
 fn fake_resolution() -> LockfileResolution {
     LockfileResolution::Registry(RegistryResolution {

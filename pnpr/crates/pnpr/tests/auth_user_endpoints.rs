@@ -5,17 +5,41 @@
 //! `npm whoami` / `npm profile get` / `npm logout` expect.
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{HeaderValue, Request, StatusCode, header},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        HeaderValue,
+        Request,
+        StatusCode,
+        header,
+    },
 };
 use pnpr::{
-    AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokenStore, TokensConfig,
-    UpsertOutcome, UserBackend, router, router_with_auth,
+    AuthConfig,
+    AuthState,
+    Config,
+    HtpasswdConfig,
+    MaxUsers,
+    TokenStore,
+    TokensConfig,
+    UpsertOutcome,
+    UserBackend,
+    router,
+    router_with_auth,
 };
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     fmt::Write as _,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::PathBuf,
     sync::Arc,
 };
@@ -374,7 +398,10 @@ async fn revoke_token_by_key_removes_the_token() {
 /// Used by [`revoke_token_by_key_removes_the_token`] to pick which of
 /// the two listed keys belongs to the token we want to revoke.
 async fn uses_token(app: &axum::Router, raw_token: &str, candidate_key: &str) -> bool {
-    use sha2::{Digest, Sha256};
+    use sha2::{
+        Digest,
+        Sha256,
+    };
     let mut hasher = Sha256::new();
     hasher.update(raw_token.as_bytes());
     let digest = hasher.finalize();

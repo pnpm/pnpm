@@ -1,9 +1,18 @@
 use super::{
-    assert_failure_contains, project, python, python_project, serve, serve_backends, wheel,
+    assert_failure_contains,
+    project,
+    python,
+    python_project,
+    serve,
+    serve_backends,
+    wheel,
 };
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn shared_workspace(root: &Path, index: &str) {
     project(root, index, &[]);

@@ -1,10 +1,23 @@
 use super::{
-    super::{apply_deploy_manifest_hook, apply_deploy_manifest_hook_to_arc},
-    first_hook_log, install_with_pnpmfile, install_with_pnpmfile_reporter,
+    super::{
+        apply_deploy_manifest_hook,
+        apply_deploy_manifest_hook_to_arc,
+    },
+    first_hook_log,
+    install_with_pnpmfile,
+    install_with_pnpmfile_reporter,
 };
-use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{
+    HookLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use pnpm_testing_utils::registry::TestRegistry;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 use tempfile::tempdir;
 
 #[test]

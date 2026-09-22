@@ -1,4 +1,7 @@
-use crate::{DocumentWrite, HostedRevisionRefWrite};
+use crate::{
+    DocumentWrite,
+    HostedRevisionRefWrite,
+};
 use async_trait::async_trait;
 use axum::body::Body;
 use object_store::UpdateVersion;
@@ -6,7 +9,10 @@ use pnpr_error::Result;
 use pnpr_package_name::CanonicalPackageName;
 use std::{
     fmt::Debug,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

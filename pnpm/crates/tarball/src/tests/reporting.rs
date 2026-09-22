@@ -1,8 +1,21 @@
 use super::{
-    ArchiveStoreProjection, AuthHeaders, FASTIFY_ERROR_INTEGRITY, FASTIFY_ERROR_TARBALL,
-    IngestTarballToStore, MemCache, SharedReportedProgressKeys, SharedVerifiedFilesCache,
-    StoreIndex, ThrottledClient, assert_eq, fast_fail_client, integrity,
-    seed_row_holding_another_package, store_index_key, tempdir_with_leaked_path, test_retry_opts,
+    ArchiveStoreProjection,
+    AuthHeaders,
+    FASTIFY_ERROR_INTEGRITY,
+    FASTIFY_ERROR_TARBALL,
+    IngestTarballToStore,
+    MemCache,
+    SharedReportedProgressKeys,
+    SharedVerifiedFilesCache,
+    StoreIndex,
+    ThrottledClient,
+    assert_eq,
+    fast_fail_client,
+    integrity,
+    seed_row_holding_another_package,
+    store_index_key,
+    tempdir_with_leaked_path,
+    test_retry_opts,
 };
 
 #[cfg(not(target_os = "windows"))]
@@ -171,7 +184,10 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
 async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     use std::sync::Mutex;
 
-    use pnpm_reporter::{LogEvent, ProgressMessage};
+    use pnpm_reporter::{
+        LogEvent,
+        ProgressMessage,
+    };
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
@@ -323,7 +339,10 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
 async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
     use std::sync::Mutex;
 
-    use pnpm_reporter::{LogEvent, ProgressMessage};
+    use pnpm_reporter::{
+        LogEvent,
+        ProgressMessage,
+    };
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 

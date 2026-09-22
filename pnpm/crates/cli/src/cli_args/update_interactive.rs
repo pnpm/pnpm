@@ -19,13 +19,21 @@ pub(crate) use global::select_global_package_groups;
 
 use crate::{
     checkbox_prompt::{
-        CheckboxAnswer, CheckboxChoice, CheckboxItem, CheckboxPrompt, CheckboxTheme,
+        CheckboxAnswer,
+        CheckboxChoice,
+        CheckboxItem,
+        CheckboxPrompt,
+        CheckboxTheme,
     },
     cli_args::{
         global::has_pnpm_cli_dependency,
         outdated::{
-            OutdatedPackage, OutdatedQuery, OutdatedRun, TargetVersion,
-            collect_outdated_for_importer, collect_outdated_for_importer_in_run,
+            OutdatedPackage,
+            OutdatedQuery,
+            OutdatedRun,
+            TargetVersion,
+            collect_outdated_for_importer,
+            collect_outdated_for_importer_in_run,
             ignored_dependencies_matcher,
         },
         pipelines::InstallFamilySelection,
@@ -33,15 +41,33 @@ use crate::{
     },
 };
 
-use miette::{IntoDiagnostic, miette};
-use owo_colors::{OwoColorize, Stream};
+use miette::{
+    IntoDiagnostic,
+    miette,
+};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+};
 use pnpm_config::Config;
 use pnpm_github_actions as github_actions;
 use pnpm_lockfile::Lockfile;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use std::{collections::HashSet, path::Path, sync::Arc};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
+use std::{
+    collections::HashSet,
+    path::Path,
+    sync::Arc,
+};
 
 struct InteractiveUpdateProject<'a> {
     manifest: &'a PackageManifest,

@@ -11,35 +11,73 @@
 //! `--reverse` runs the reverse graph, and `--parallel` starts every
 //! project concurrently.
 
-use super::{ExecArgs, ExecDirs, ExecError, prepare_command, spawn_in_dir};
+use super::{
+    ExecArgs,
+    ExecDirs,
+    ExecError,
+    prepare_command,
+    spawn_in_dir,
+};
 use crate::cli_args::{
     recursive::{
-        AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
-        filtered_projects_dependencies, find_resume_root, select_recursive_projects,
+        AutoExcludeRoot,
+        ExecutionStatus,
+        Status,
+        count_failures,
+        discover_workspace_projects,
+        filtered_projects_dependencies,
+        find_resume_root,
+        select_recursive_projects,
         write_recursive_summary,
     },
-    task_run_state::{TaskRunExecutionSettings, TaskRunStateContext, task_run_execution_settings},
+    task_run_state::{
+        TaskRunExecutionSettings,
+        TaskRunStateContext,
+        task_run_execution_settings,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_config::Config;
-use pnpm_executor::{ProcessTracker, ScriptOutput};
+use pnpm_executor::{
+    ProcessTracker,
+    ScriptOutput,
+};
 use pnpm_reporter::LogEvent;
 use pnpm_workspace_task_scheduler::{
-    ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion, TaskGraph, TaskKey, TaskNode,
-    is_serial_task_graph, resume_task_graph_from, reverse_task_graph, schedule_tasks,
+    ScheduleTasksOptions,
+    SequenceTasksOptions,
+    TaskCompletion,
+    TaskGraph,
+    TaskKey,
+    TaskNode,
+    is_serial_task_graph,
+    resume_task_graph_from,
+    reverse_task_graph,
+    schedule_tasks,
     sequence_tasks,
 };
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Mutex,
     time::Instant,
 };
 use tasks::{
-    ExecTaskContext, build_exec_task_graph, exec_concurrency, project_dep_path, project_output,
-    report_recursive_outcome, run_exec_task,
+    ExecTaskContext,
+    build_exec_task_graph,
+    exec_concurrency,
+    project_dep_path,
+    project_output,
+    report_recursive_outcome,
+    run_exec_task,
 };
 
 /// Errors surfaced by a recursive exec. Codes mirror pnpm's so log

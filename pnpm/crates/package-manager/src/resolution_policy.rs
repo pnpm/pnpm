@@ -3,17 +3,32 @@
 //! versions (`minimumReleaseAge` and `resolutionMode` included).
 
 use crate::retry_config::retry_opts_from_config;
-use chrono::{DateTime, Utc};
+use chrono::{
+    DateTime,
+    Utc,
+};
 use pnpm_config::{
-    Config, NeedsFullMetadataFor, ResolutionMode,
-    version_policy::{PackageVersionPolicy, VersionPolicyError, create_package_version_policy},
+    Config,
+    NeedsFullMetadataFor,
+    ResolutionMode,
+    version_policy::{
+        PackageVersionPolicy,
+        VersionPolicyError,
+        create_package_version_policy,
+    },
 };
 use pnpm_network::ThrottledClient;
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, MergeNamedRegistriesError, NamedRegistryResolver, NpmResolver,
-    PackumentFetchLocker, PickPackageContext, merge_named_registries,
-    shared_packument_fetch_locker, shared_picked_manifest_cache,
+    InMemoryPackageMetaCache,
+    MergeNamedRegistriesError,
+    NamedRegistryResolver,
+    NpmResolver,
+    PackumentFetchLocker,
+    PickPackageContext,
+    merge_named_registries,
+    shared_packument_fetch_locker,
+    shared_picked_manifest_cache,
 };
 use std::sync::Arc;
 

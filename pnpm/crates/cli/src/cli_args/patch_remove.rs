@@ -1,15 +1,26 @@
 use crate::State;
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use dialoguer::MultiSelect;
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use pnpm_fs::{is_subdir, lexical_normalize};
+use pnpm_fs::{
+    is_subdir,
+    lexical_normalize,
+};
 use pnpm_workspace_manifest_writer::UpdateWorkspaceManifestError;
 use std::{
     collections::HashSet,
-    fs, io,
-    path::{Component, Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Args)]

@@ -1,5 +1,8 @@
 use super::{
-    android_user_lock_root, open_secure_lock_file, secure_temp_lock_dir, secure_user_lock_dir,
+    android_user_lock_root,
+    open_secure_lock_file,
+    secure_temp_lock_dir,
+    secure_user_lock_dir,
 };
 
 #[test]
@@ -21,7 +24,10 @@ fn android_lock_root_uses_home_when_available() {
 #[cfg(unix)]
 #[test]
 fn creates_a_private_user_owned_lock_directory() {
-    use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+    use std::os::unix::fs::{
+        MetadataExt as _,
+        PermissionsExt as _,
+    };
 
     let name = format!("pnpm-secure-lock-test-{}", std::process::id());
     let directory = secure_temp_lock_dir(&name).unwrap();

@@ -2,8 +2,14 @@
 
 use super::Candidate;
 use pnpm_fs::lexical_normalize;
-use serde_json::{Value, json};
-use std::{io::IsTerminal, path::Path};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    io::IsTerminal,
+    path::Path,
+};
 
 /// Test-only escape hatch mirroring `PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS`:
 /// treats every project as trusted without prompting or recording.

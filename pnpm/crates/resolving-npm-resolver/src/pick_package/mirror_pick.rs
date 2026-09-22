@@ -1,8 +1,22 @@
 use super::{
-    Arc, Package, PackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions,
-    PickPackageResult, PickState, PolicyMatch, RegistryPackageSpec, RegistryPackageSpecType,
-    TrustPolicy, dominant_lockfile_version, get_file_mtime, load_meta_async, pick_from_meta,
-    pick_from_meta_fast, pick_stable_cached_range_version,
+    Arc,
+    Package,
+    PackageMetaCache,
+    PickPackageContext,
+    PickPackageError,
+    PickPackageOptions,
+    PickPackageResult,
+    PickState,
+    PolicyMatch,
+    RegistryPackageSpec,
+    RegistryPackageSpecType,
+    TrustPolicy,
+    dominant_lockfile_version,
+    get_file_mtime,
+    load_meta_async,
+    pick_from_meta,
+    pick_from_meta_fast,
+    pick_stable_cached_range_version,
 };
 
 impl PickState<'_> {

@@ -12,9 +12,23 @@
 //! as a low-priority auth-file fallback.
 
 use crate::{
-    AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, NodeLinker, NodePackageMapType,
-    PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol,
-    ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings,
+    AuditLevel,
+    CatalogMode,
+    ColorMode,
+    HoistingLimits,
+    InitType,
+    NodeLinker,
+    NodePackageMapType,
+    PackageImportMethod,
+    PmOnFail,
+    ResolutionMode,
+    RuntimeOnFail,
+    SaveWorkspaceProtocol,
+    ScriptsPrependNodePath,
+    TrustPolicy,
+    VerifyDepsBeforeRun,
+    VirtualStoreType,
+    WorkspaceSettings,
     api::EnvVar,
 };
 use serde::de::DeserializeOwned;

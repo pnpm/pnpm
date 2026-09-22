@@ -1,18 +1,40 @@
 use crate::{
     ConfigDepError,
-    manifest_lockfile::{package_metadata, read_dependency_map},
+    manifest_lockfile::{
+        package_metadata,
+        read_dependency_map,
+    },
     options::ConfigDepsInstallOptions,
     prune::prune_env_lockfile,
     resolve_optional_subdeps::resolution_has_integrity,
-    verify_env_lockfile::{verify_env_lockfile, write_verified_env_lockfile},
+    verify_env_lockfile::{
+        verify_env_lockfile,
+        write_verified_env_lockfile,
+    },
 };
 use pnpm_lockfile::{
-    EnvLockfile, LockfileResolution, PackageKey, PkgName, PkgVerPeer, RegistryResolution,
-    SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, TarballResolution,
+    EnvLockfile,
+    LockfileResolution,
+    PackageKey,
+    PkgName,
+    PkgVerPeer,
+    RegistryResolution,
+    SnapshotDepRef,
+    SnapshotEntry,
+    SpecifierAndResolution,
+    TarballResolution,
 };
-use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     path::PathBuf,
 };
 

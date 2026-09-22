@@ -15,20 +15,36 @@
 //! alias) because the resolver looks the auth header up by the
 //! resolved registry URL, not the alias name.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, UpdateBehavior, WantedDependency,
+    LatestInfo,
+    LatestQuery,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    WantedDependency,
 };
 
 use crate::{
     npm_resolver::{
-        PickFromRegistryOptions, RegistryPick, no_matching_version, pick_from_registry_with_guard,
-        swallowed_as_no_latest, validate_revision_selector,
+        PickFromRegistryOptions,
+        RegistryPick,
+        no_matching_version,
+        pick_from_registry_with_guard,
+        swallowed_as_no_latest,
+        validate_revision_selector,
     },
     parse_bare_specifier::{
-        NamedRegistryPackageSpec, parse_named_registry_specifier_to_registry_package_spec,
+        NamedRegistryPackageSpec,
+        parse_named_registry_specifier_to_registry_package_spec,
     },
     pick_package::PackageMetaCache,
     pick_package_from_meta::RegistryPackageSpec,

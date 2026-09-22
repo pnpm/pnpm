@@ -12,10 +12,25 @@
 
 pub mod media_type;
 
-pub use digest::{Digest, DigestError};
-pub use document::{ImageDocument, ManifestEntry, ReferrerMetadata, TagEntry};
-pub use error_body::{ErrorBody, ErrorCode};
-pub use manifest::{Descriptor, Manifest, ManifestError};
+pub use digest::{
+    Digest,
+    DigestError,
+};
+pub use document::{
+    ImageDocument,
+    ManifestEntry,
+    ReferrerMetadata,
+    TagEntry,
+};
+pub use error_body::{
+    ErrorBody,
+    ErrorCode,
+};
+pub use manifest::{
+    Descriptor,
+    Manifest,
+    ManifestError,
+};
 
 mod digest;
 mod document;

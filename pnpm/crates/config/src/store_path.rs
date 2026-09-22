@@ -51,8 +51,15 @@
 use crate::api::LinkProbe;
 use std::{
     fs,
-    path::{Component, Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
+    time::{
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 /// Resolve where to place the default pnpm store given the `SmartDefault`

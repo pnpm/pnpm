@@ -1,6 +1,10 @@
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Create or validate a process-shared lock directory in the current user's
@@ -50,11 +54,20 @@ fn android_user_lock_root(home: Option<std::ffi::OsString>) -> PathBuf {
 
 #[cfg(windows)]
 fn user_lock_root() -> io::Result<PathBuf> {
-    use std::{ffi::OsString, os::windows::ffi::OsStringExt as _, ptr, slice};
+    use std::{
+        ffi::OsString,
+        os::windows::ffi::OsStringExt as _,
+        ptr,
+        slice,
+    };
     use windows_sys::Win32::{
         Foundation::S_OK,
         System::Com::CoTaskMemFree,
-        UI::Shell::{FOLDERID_LocalAppData, KF_FLAG_DONT_VERIFY, SHGetKnownFolderPath},
+        UI::Shell::{
+            FOLDERID_LocalAppData,
+            KF_FLAG_DONT_VERIFY,
+            SHGetKnownFolderPath,
+        },
     };
 
     let mut path = ptr::null_mut();
@@ -114,7 +127,10 @@ pub fn open_secure_lock_file(path: &Path) -> io::Result<fs::File> {
 
 #[cfg(unix)]
 fn secure_unix_directory(directory: &Path) -> io::Result<()> {
-    use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+    use std::os::unix::fs::{
+        MetadataExt as _,
+        PermissionsExt as _,
+    };
 
     let metadata = fs::symlink_metadata(directory)?;
     // SAFETY: `geteuid` has no preconditions and does not mutate memory.

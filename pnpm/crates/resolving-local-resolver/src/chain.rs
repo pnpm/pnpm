@@ -12,14 +12,25 @@
 
 use crate::{
     local_resolver::{
-        LocalResolverContext, LocalResolverOptions, LocalResolverUpdate, resolve_from_local_path,
-        resolve_from_local_scheme, resolve_latest_from_local,
+        LocalResolverContext,
+        LocalResolverOptions,
+        LocalResolverUpdate,
+        resolve_from_local_path,
+        resolve_from_local_scheme,
+        resolve_latest_from_local,
     },
     parse_bare_specifier::WantedLocalDependency,
 };
 use pnpm_resolving_resolver_base::{
-    LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
-    Resolver, UpdateBehavior, WantedDependency,
+    LatestQuery,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    WantedDependency,
 };
 
 /// `Resolver` for the local-scheme branch (`link:` / `file:` /

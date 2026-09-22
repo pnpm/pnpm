@@ -12,14 +12,32 @@
 
 use crate::{
     HashEncoding,
-    dep_state::{DepsGraphNode, DepsStateCache, calc_dep_graph_hash},
-    hash_object, hash_object_without_sorting,
-    object_hasher::{digest_hex, serialize_str},
+    dep_state::{
+        DepsGraphNode,
+        DepsStateCache,
+        calc_dep_graph_hash,
+    },
+    hash_object,
+    hash_object_without_sorting,
+    object_hasher::{
+        digest_hex,
+        serialize_str,
+    },
 };
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Compute the hex digest that uniquely identifies one snapshot's

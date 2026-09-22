@@ -1,8 +1,15 @@
 use crate::PnprClient;
-use miette::{Result, WrapErr};
+use miette::{
+    Result,
+    WrapErr,
+};
 use std::{
     collections::HashMap,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{
+        Arc,
+        LazyLock,
+        Mutex,
+    },
 };
 
 /// Whether `pnpr_server` advertises resolution for `ecosystem`.

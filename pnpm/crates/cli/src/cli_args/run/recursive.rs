@@ -17,50 +17,119 @@
 //! is applied via [`AutoExcludeRoot::Enabled`].
 
 use super::{
-    RunArgs, RunContext, ScriptSelector, get_run_script_commands, render_project_commands,
-    run_stages, script_concurrency, throw_or_filter_hidden_scripts,
+    RunArgs,
+    RunContext,
+    ScriptSelector,
+    get_run_script_commands,
+    render_project_commands,
+    run_stages,
+    script_concurrency,
+    throw_or_filter_hidden_scripts,
 };
 use crate::cli_args::{
     recursive::{
-        AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
-        filtered_projects_dependencies, find_resume_root, select_recursive_projects,
+        AutoExcludeRoot,
+        ExecutionStatus,
+        Status,
+        count_failures,
+        discover_workspace_projects,
+        filtered_projects_dependencies,
+        find_resume_root,
+        select_recursive_projects,
         write_recursive_summary,
     },
-    task_run_state::{TaskRunExecutionSettings, TaskRunStateContext, task_run_execution_settings},
+    task_run_state::{
+        TaskRunExecutionSettings,
+        TaskRunStateContext,
+        task_run_execution_settings,
+    },
 };
-use derive_more::{Display, Error};
-use execution::{RunOutcome, RunSlots, TaskRunner};
+use derive_more::{
+    Display,
+    Error,
+};
+use execution::{
+    RunOutcome,
+    RunSlots,
+    TaskRunner,
+};
 use indexmap::IndexMap;
-use miette::{Diagnostic, IntoDiagnostic};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
-use pnpm_executor::{ProcessTracker, ScriptOutput};
+use pnpm_executor::{
+    ProcessTracker,
+    ScriptOutput,
+};
 use pnpm_package_manager::{
-    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    make_node_package_map_option,
+    make_node_require_option,
+    package_map_path_for_execution,
     pnp_path_for_execution,
 };
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, ScopeLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    ScopeLog,
+};
 use pnpm_workspace::GraphPkg;
 use pnpm_workspace_projects_graph::ProjectGraph;
 use pnpm_workspace_task_scheduler::{
-    BuildTaskGraphOptions, ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion, TaskGraph,
-    TaskKey, TaskNode, build_task_graph, is_serial_task_graph, render_task_graph_dry_run,
-    resume_task_graph_from, reverse_task_graph, schedule_tasks, sequence_tasks, task_graph_to_json,
+    BuildTaskGraphOptions,
+    ScheduleTasksOptions,
+    SequenceTasksOptions,
+    TaskCompletion,
+    TaskGraph,
+    TaskKey,
+    TaskNode,
+    build_task_graph,
+    is_serial_task_graph,
+    render_task_graph_dry_run,
+    resume_task_graph_from,
+    reverse_task_graph,
+    schedule_tasks,
+    sequence_tasks,
+    task_graph_to_json,
     task_summary_key,
 };
-use script_budget::{ScriptBudget, ScriptPermit, run_script_budget};
+use script_budget::{
+    ScriptBudget,
+    ScriptPermit,
+    run_script_budget,
+};
 use selection::{
-    RunReporting, build_run_task_graph, check_a_project_has_the_script,
-    filter_hidden_requested_scripts, print_run_dry_run, print_selected_project_commands,
-    report_run_outcome, resume_task_graph, run_concurrency, run_process_tracker,
+    RunReporting,
+    build_run_task_graph,
+    check_a_project_has_the_script,
+    filter_hidden_requested_scripts,
+    print_run_dry_run,
+    print_selected_project_commands,
+    report_run_outcome,
+    resume_task_graph,
+    run_concurrency,
+    run_process_tracker,
     run_state_settings,
 };
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     env,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
-        Condvar, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        Condvar,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Instant,
 };

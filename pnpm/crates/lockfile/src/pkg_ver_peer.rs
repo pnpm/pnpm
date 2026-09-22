@@ -1,7 +1,20 @@
-use derive_more::{Display, Error};
-use node_semver::{SemverError, Version};
-use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, fmt, str::FromStr};
+use derive_more::{
+    Display,
+    Error,
+};
+use node_semver::{
+    SemverError,
+    Version,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::{
+    borrow::Cow,
+    fmt,
+    str::FromStr,
+};
 
 /// Version slot of a [`PkgVerPeer`]: a semver, the raw path of an
 /// injected workspace `file:<path>` dep, or an opaque non-semver

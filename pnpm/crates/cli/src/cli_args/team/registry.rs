@@ -1,7 +1,17 @@
 use super::{
-    Config, Deserialize, IntoDiagnostic, RedirectGuard, Response, TeamContext, TeamError,
-    ThrottledClient, encode_uri_component, pick_registry_for_package, redact_url_credentials,
-    sanitize, send_with_retry,
+    Config,
+    Deserialize,
+    IntoDiagnostic,
+    RedirectGuard,
+    Response,
+    TeamContext,
+    TeamError,
+    ThrottledClient,
+    encode_uri_component,
+    pick_registry_for_package,
+    redact_url_credentials,
+    sanitize,
+    send_with_retry,
 };
 use futures_util::StreamExt as _;
 use miette::WrapErr;

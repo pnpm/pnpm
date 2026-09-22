@@ -1,13 +1,25 @@
 use std::path::Path;
 
-use pnpm_network::{DEFAULT_REGISTRY_SCOPE, NoProxySetting};
+use pnpm_network::{
+    DEFAULT_REGISTRY_SCOPE,
+    NoProxySetting,
+};
 use pretty_assertions::assert_eq;
 
 use super::{
-    BasicAuth, DeclaredRegistries, EnvVar, NpmrcAuth, RawCreds, RegistryCreds, base64_encode,
+    BasicAuth,
+    DeclaredRegistries,
+    EnvVar,
+    NpmrcAuth,
+    RawCreds,
+    RegistryCreds,
+    base64_encode,
     credentials::base64_decode,
 };
-use crate::{Config, workspace_yaml::LoadWorkspaceYamlError};
+use crate::{
+    Config,
+    workspace_yaml::LoadWorkspaceYamlError,
+};
 
 /// Generate a per-test unit struct implementing [`EnvVar`] from a
 /// `&[(&str, &str)]` literal — saves each cascade test from spelling

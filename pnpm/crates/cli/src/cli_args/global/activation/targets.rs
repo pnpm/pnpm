@@ -1,5 +1,16 @@
-use super::{BTreeMap, Context, FsWalkFiles, HashSet, IntoDiagnostic, PackageBinSource, PathBuf};
-use derive_more::{Display, Error};
+use super::{
+    BTreeMap,
+    Context,
+    FsWalkFiles,
+    HashSet,
+    IntoDiagnostic,
+    PackageBinSource,
+    PathBuf,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_cmd_shim::choose_bins;
 

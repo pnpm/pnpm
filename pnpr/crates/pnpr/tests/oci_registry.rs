@@ -39,14 +39,32 @@ mod striped_locks;
 use axum::{
     Router,
     body::Body,
-    http::{Request, StatusCode, header},
+    http::{
+        Request,
+        StatusCode,
+        header,
+    },
 };
-use common::{HostedSource, body_bytes, mixed_router_config, sha256_hex};
+use common::{
+    HostedSource,
+    body_bytes,
+    mixed_router_config,
+    sha256_hex,
+};
 use pnpr::{
-    AccessList, AuthState, Config, Ecosystem, PackagePattern, PackageRule, PackageRules,
+    AccessList,
+    AuthState,
+    Config,
+    Ecosystem,
+    PackagePattern,
+    PackageRule,
+    PackageRules,
     router_with_auth,
 };
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::path::PathBuf;
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -117,7 +135,10 @@ async fn token(app: &Router) -> String {
 
 /// `docker login` sends the token as the `Basic` password.
 fn basic(token: &str) -> String {
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD,
+    };
     format!("Basic {}", STANDARD.encode(format!("alice:{token}")))
 }
 

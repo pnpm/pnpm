@@ -1,11 +1,18 @@
 use super::{
-    GitFetcherError, cas_path_digest, join_checked, materialize_into, synthesize_files_index,
+    GitFetcherError,
+    cas_path_digest,
+    join_checked,
+    materialize_into,
+    synthesize_files_index,
 };
 use pnpm_store_dir::StoreDir;
 use std::{
     collections::HashMap,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::tempdir;
 
@@ -180,7 +187,10 @@ fn materialize_into_rejects_traversal() {
 #[cfg(unix)]
 #[test]
 fn materialize_into_restores_exec_bit_from_cas_suffix() {
-    use std::{fs, os::unix::fs::PermissionsExt};
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+    };
 
     let target = tempdir().unwrap();
     let cas_root = tempdir().unwrap();

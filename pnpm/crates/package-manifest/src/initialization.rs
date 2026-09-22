@@ -1,4 +1,10 @@
-use super::{PackageManifest, PackageManifestError, Path, Value, json};
+use super::{
+    PackageManifest,
+    PackageManifestError,
+    Path,
+    Value,
+    json,
+};
 
 /// What `pnpm init` records in the manifest it scaffolds, beyond the fields
 /// every scaffold carries.

@@ -1,12 +1,31 @@
 use super::{
-    CliArgs, CliCommand, Config, Context, DefaultReporter, Host, IntoDiagnostic, NdjsonReporter,
-    Path, PathBuf, ReporterType, SilentReporter, SummaryScope, apply_state_dir_override,
-    apply_store_dir_override, configure_color, default_pnpm_home_dir, now_millis, prepare_config,
+    CliArgs,
+    CliCommand,
+    Config,
+    Context,
+    DefaultReporter,
+    Host,
+    IntoDiagnostic,
+    NdjsonReporter,
+    Path,
+    PathBuf,
+    ReporterType,
+    SilentReporter,
+    SummaryScope,
+    apply_state_dir_override,
+    apply_store_dir_override,
+    configure_color,
+    default_pnpm_home_dir,
+    now_millis,
+    prepare_config,
     prints_json_errors,
 };
 use crate::{
     cli_args::config_warnings::warn_shared_workspace_lockfile_outside_workspace,
-    config_overrides::{ConfigOverrides, apply_registry_override},
+    config_overrides::{
+        ConfigOverrides,
+        apply_registry_override,
+    },
 };
 
 /// The directories a run is anchored at.

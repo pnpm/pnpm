@@ -1,7 +1,10 @@
 //! What looking through this machine's interpreters found for one
 //! project, and which of them an install falls back on.
 
-use super::{Interpreter, VersionRequest};
+use super::{
+    Interpreter,
+    VersionRequest,
+};
 use std::sync::Arc;
 
 /// What searching this machine's interpreters found for one project.

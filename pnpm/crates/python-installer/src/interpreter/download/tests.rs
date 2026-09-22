@@ -1,9 +1,20 @@
 use super::{
-    Bounds, Releases, ShasumsFileItem, Source, builds_in, exact_version, host_triple,
-    releases::read_cached_release_tags, within,
+    Bounds,
+    Releases,
+    ShasumsFileItem,
+    Source,
+    builds_in,
+    exact_version,
+    host_triple,
+    releases::read_cached_release_tags,
+    within,
 };
 use crate::interpreter::VersionRequest;
-use pnpm_config::{Config, Tool, ToolSettings};
+use pnpm_config::{
+    Config,
+    Tool,
+    ToolSettings,
+};
 use pnpm_network::ThrottledClient;
 
 /// A python-build-standalone `SHA256SUMS`, as the release writes it and

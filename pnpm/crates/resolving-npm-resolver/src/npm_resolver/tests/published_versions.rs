@@ -1,4 +1,10 @@
-use super::{PACKAGE_BODY, ResolveOptions, WantedDependency, assert_eq, build_resolver};
+use super::{
+    PACKAGE_BODY,
+    ResolveOptions,
+    WantedDependency,
+    assert_eq,
+    build_resolver,
+};
 use pnpm_resolving_resolver_base::Resolver;
 
 #[tokio::test]

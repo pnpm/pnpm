@@ -1,4 +1,7 @@
-use super::{WantedLockfileSatisfactionCheck, wanted_lockfile_satisfies_workspace};
+use super::{
+    WantedLockfileSatisfactionCheck,
+    wanted_lockfile_satisfies_workspace,
+};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;

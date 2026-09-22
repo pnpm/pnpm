@@ -8,12 +8,26 @@
 //! to box them *outermost*, never nested inside another error, or the
 //! downcast misses them.
 
-use std::fmt::{self, Write as _};
+use std::fmt::{
+    self,
+    Write as _,
+};
 
-use chrono::{Local, TimeDelta, Utc};
-use derive_more::{Display, Error};
+use chrono::{
+    Local,
+    TimeDelta,
+    Utc,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_network::{hide_auth_information, redact_and_sanitize, redact_and_sanitize_multiline};
+use pnpm_network::{
+    hide_auth_information,
+    redact_and_sanitize,
+    redact_and_sanitize_multiline,
+};
 use pnpm_registry::Package;
 
 /// `ERR_PNPM_NO_MATCHING_VERSION`: the registry served the package's

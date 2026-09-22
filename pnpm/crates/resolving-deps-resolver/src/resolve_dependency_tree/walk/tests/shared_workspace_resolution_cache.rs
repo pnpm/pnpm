@@ -1,17 +1,30 @@
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+};
 use pnpm_resolving_resolver_base::{
-    PkgResolutionId, ResolveOptions, ResolveResult, WantedDependency,
+    PkgResolutionId,
+    ResolveOptions,
+    ResolveResult,
+    WantedDependency,
 };
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
 use super::super::workspace_resolution::{
-    canonical_workspace_resolution, render_workspace_resolution,
+    canonical_workspace_resolution,
+    render_workspace_resolution,
 };
-use crate::resolve_dependency_tree::{TreeCtx, workspace_ctx::WantedKey};
+use crate::resolve_dependency_tree::{
+    TreeCtx,
+    workspace_ctx::WantedKey,
+};
 
 fn wanted(specifier: &str) -> WantedDependency {
     WantedDependency {

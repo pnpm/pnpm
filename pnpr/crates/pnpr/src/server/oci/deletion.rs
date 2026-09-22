@@ -1,12 +1,30 @@
-use super::{Digest, ErrorCode, ImageDocument, Request, error, no_content, registry_error};
+use super::{
+    Digest,
+    ErrorCode,
+    ImageDocument,
+    Request,
+    error,
+    no_content,
+    registry_error,
+};
 use crate::{
     oci_maintenance::referenced_document_blobs,
-    server::{Action, RegistrySource, authorize},
+    server::{
+        Action,
+        RegistrySource,
+        authorize,
+    },
 };
-use axum::{http::StatusCode, response::Response};
+use axum::{
+    http::StatusCode,
+    response::Response,
+};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
-use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentWrite};
+use pnpr_storage::{
+    DOCUMENT_WRITE_RETRIES,
+    DocumentWrite,
+};
 
 impl Request {
     pub(super) async fn delete_blob(&self, name: &str, digest: &Digest) -> Response {

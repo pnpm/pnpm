@@ -1,10 +1,20 @@
 use super::UpdateError;
-use crate::{CatalogDecision, CatalogModeDep, decide_catalog};
+use crate::{
+    CatalogDecision,
+    CatalogModeDep,
+    decide_catalog,
+};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{CatalogMode, Config};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_config::{
+    CatalogMode,
+    Config,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::Reporter;
 use std::path::PathBuf;
 

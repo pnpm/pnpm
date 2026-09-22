@@ -14,11 +14,21 @@
 
 use std::sync::Arc;
 
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64_STANDARD};
-use derive_more::{Display, Error};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64_STANDARD,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PlatformAssetResolution,
+    BinaryArchive,
+    BinaryResolution,
+    BinarySpec,
+    LockfileResolution,
+    PlatformAssetResolution,
     PlatformAssetTarget,
 };
 use pnpm_network::ThrottledClient;

@@ -1,5 +1,11 @@
 use super::super::{
-    Config, HashSet, IncludedDependencies, InstallError, Lockfile, Path, PathBuf,
+    Config,
+    HashSet,
+    IncludedDependencies,
+    InstallError,
+    Lockfile,
+    Path,
+    PathBuf,
     check_modules_settings_diff,
 };
 

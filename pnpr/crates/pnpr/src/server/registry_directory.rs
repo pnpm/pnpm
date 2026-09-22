@@ -1,14 +1,32 @@
 use axum::{
     Json,
     extract::State,
-    response::{IntoResponse as _, Response},
+    response::{
+        IntoResponse as _,
+        Response,
+    },
 };
 use pnpr_config::Config;
-use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
-use serde_json::{Value, json};
+use pnpr_registry::{
+    Ecosystem,
+    PackagePattern,
+    Registries,
+    Registry,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
-use super::{AppState, AuthedCaller, private_no_cache};
-use pnpr_policy::{Identity, PackageRules};
+use super::{
+    AppState,
+    AuthedCaller,
+    private_no_cache,
+};
+use pnpr_policy::{
+    Identity,
+    PackageRules,
+};
 
 pub(super) async fn serve(
     State(state): State<AppState>,

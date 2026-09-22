@@ -3,12 +3,26 @@ mod compatibility;
 mod frozen;
 
 use super::{
-    approve, assert_failure_contains, project, python, python_project, serve, serve_backends, wheel,
+    approve,
+    assert_failure_contains,
+    project,
+    python,
+    python_project,
+    serve,
+    serve_backends,
+    wheel,
 };
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
-use sha2::{Digest, Sha256};
-use std::{fs, path::Path, process::Command};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 use url::Url;
 
 #[tokio::test]

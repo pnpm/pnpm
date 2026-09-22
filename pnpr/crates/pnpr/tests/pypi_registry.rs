@@ -8,13 +8,39 @@ mod common;
 
 use axum::{
     body::Body,
-    http::{Request, StatusCode, header},
+    http::{
+        Request,
+        StatusCode,
+        header,
+    },
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
-use common::{HostedSource, PUBLIC_URL, body_bytes, find_file, mixed_router_config, sha256_hex};
-use pnpr::{AuthState, Config, Ecosystem, recover_publish_journal, router_with_auth};
-use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64_STANDARD,
+};
+use common::{
+    HostedSource,
+    PUBLIC_URL,
+    body_bytes,
+    find_file,
+    mixed_router_config,
+    sha256_hex,
+};
+use pnpr::{
+    AuthState,
+    Config,
+    Ecosystem,
+    recover_publish_journal,
+    router_with_auth,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
@@ -547,7 +573,11 @@ async fn anonymous_uploads_are_rejected_before_reading_the_body() {
 
 #[tokio::test]
 async fn conflicting_object_store_upload_does_not_publish_metadata_or_leave_staged_bytes() {
-    use object_store::{ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
+    use object_store::{
+        ObjectStoreExt,
+        memory::InMemory,
+        path::Path as ObjectPath,
+    };
     use pnpr::HostedStoreConfig;
     use std::sync::Arc;
 

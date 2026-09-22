@@ -1,7 +1,20 @@
 use super::{
-    Config, EnvVar, EnvVarOs, ExplicitPaths, GetCurrentDir, GetHomeDir, LinkProbe,
-    LoadWorkspaceYamlError, Path, PathBuf, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
-    collect_explicit_settings, fs, note_declared_registries, resolve_configured_state_dir,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    ExplicitPaths,
+    GetCurrentDir,
+    GetHomeDir,
+    LinkProbe,
+    LoadWorkspaceYamlError,
+    Path,
+    PathBuf,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    collect_explicit_settings,
+    fs,
+    note_declared_registries,
+    resolve_configured_state_dir,
 };
 
 impl Config {

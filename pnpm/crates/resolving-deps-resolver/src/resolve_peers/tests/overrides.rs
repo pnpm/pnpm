@@ -1,6 +1,16 @@
 use super::{
-    BTreeMap, DepPath, DirectDep, HashMap, HashSet, NodeId, ResolvePeersOptions, ResolvedTree,
-    package, resolve_peers, tree_node, walker_for_tests,
+    BTreeMap,
+    DepPath,
+    DirectDep,
+    HashMap,
+    HashSet,
+    NodeId,
+    ResolvePeersOptions,
+    ResolvedTree,
+    package,
+    resolve_peers,
+    tree_node,
+    walker_for_tests,
 };
 
 #[test]

@@ -1,20 +1,46 @@
 use std::future::Future;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_network::{ThrottledClient, encode_uri_component, redact_and_sanitize};
+use pnpm_network::{
+    ThrottledClient,
+    encode_uri_component,
+    redact_and_sanitize,
+};
 use pnpm_network_web_auth::{
-    Clock, EnterKeyListener, OpenUrl, OtpChallenge, OtpError, PromptError, PromptOtp, Sleep,
-    StdinIsTty, StdoutIsTty, SyntheticOtpError, WebAuthFetch, WebAuthFetchOptions,
+    Clock,
+    EnterKeyListener,
+    OpenUrl,
+    OtpChallenge,
+    OtpError,
+    PromptError,
+    PromptOtp,
+    Sleep,
+    StdinIsTty,
+    StdoutIsTty,
+    SyntheticOtpError,
+    WebAuthFetch,
+    WebAuthFetchOptions,
     with_otp_handling,
 };
 use pnpm_reporter::Reporter;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 use super::{
     error::LoginError,
     global_info,
-    prompt::{Masking, PromptInput, PromptPassword, prompt_line},
+    prompt::{
+        Masking,
+        PromptInput,
+        PromptPassword,
+        prompt_line,
+    },
     registry_join,
 };
 

@@ -12,8 +12,16 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_deps_inspection_peers::peer_issues_for_lockfile;
 use pnpm_lockfile::Lockfile;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, PeerDependencyIssuesLog};
-use std::{collections::HashSet, path::Path};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    PeerDependencyIssuesLog,
+};
+use std::{
+    collections::HashSet,
+    path::Path,
+};
 
 use crate::InstallError;
 

@@ -1,15 +1,24 @@
 use super::{
     super::{
-        Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install_ignoring,
+        Decision,
+        OptimisticRepeatInstallCheck,
+        check_optimistic_repeat_install_ignoring,
         settings::current_settings,
     },
-    backdate_validated_files, check, isolated_included, write_empty_lockfile, write_state,
+    backdate_validated_files,
+    check,
+    isolated_included,
+    write_empty_lockfile,
+    write_state,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::MaybeLazyLockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::ProjectEntry;
-use std::{collections::BTreeMap, fs};
+use std::{
+    collections::BTreeMap,
+    fs,
+};
 use tempfile::tempdir;
 
 /// Drift in `patchedDependencies` invalidates the cached state.

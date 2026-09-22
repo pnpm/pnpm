@@ -13,13 +13,26 @@
 //! [`FsReadFile`] (bounded by the largest single file), one `readFileSync`
 //! per entry.
 
-use crate::{capabilities::FsReadFile, collation::en_collator, manifest_entry::is_manifest_entry};
-use flate2::{Compression, write::GzEncoder};
+use crate::{
+    capabilities::FsReadFile,
+    collation::en_collator,
+    manifest_entry::is_manifest_entry,
+};
+use flate2::{
+    Compression,
+    write::GzEncoder,
+};
 use indexmap::IndexMap;
 use std::{
     collections::HashSet,
-    io::{self, Write},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Fixed modification time stamped on every tar entry: 1985-10-26

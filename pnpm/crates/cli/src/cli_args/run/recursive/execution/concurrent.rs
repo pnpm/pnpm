@@ -1,12 +1,25 @@
 use super::{
-    Instant, Mutex, ProcessTracker, ProjectExecution, ProjectScripts, RunContext, ScriptRunState,
-    TaskCompletion, apply_script_result, reenters_running_script, run_stages,
-    runnable_project_script, start_script,
+    Instant,
+    Mutex,
+    ProcessTracker,
+    ProjectExecution,
+    ProjectScripts,
+    RunContext,
+    ScriptRunState,
+    TaskCompletion,
+    apply_script_result,
+    reenters_running_script,
+    run_stages,
+    runnable_project_script,
+    start_script,
 };
 use indexmap::IndexMap;
 use miette::IntoDiagnostic;
 use pnpm_executor::ScriptExit;
-use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, schedule_graph};
+use pnpm_workspace_task_scheduler::{
+    ScheduleGraphOptions,
+    schedule_graph,
+};
 
 /// Dispatch the task's scripts over the shared scheduler, then fold what
 /// each one settled as into the task's single [`ProjectExecution`].

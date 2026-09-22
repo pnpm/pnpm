@@ -1,6 +1,13 @@
 use super::{
-    BTreeSet, DirEntry, Entry, ErrorKind, FindWorkspaceProjectsError, PROJECT_MANIFEST_BASENAMES,
-    Path, PathBuf, fs,
+    BTreeSet,
+    DirEntry,
+    Entry,
+    ErrorKind,
+    FindWorkspaceProjectsError,
+    PROJECT_MANIFEST_BASENAMES,
+    Path,
+    PathBuf,
+    fs,
 };
 use wax::Program as _;
 

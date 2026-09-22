@@ -3,7 +3,10 @@
 //! Structural cases assert the parsed shape; the format-sensitive cases
 //! assert byte-for-byte.
 
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::PathBuf,
+};
 
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
@@ -11,7 +14,9 @@ use pnpm_package_manifest::PackageManifest;
 use tempfile::TempDir;
 
 use crate::{
-    UpdateWorkspaceManifestOptions, WORKSPACE_MANIFEST_FILENAME, update_workspace_manifest,
+    UpdateWorkspaceManifestOptions,
+    WORKSPACE_MANIFEST_FILENAME,
+    update_workspace_manifest,
 };
 
 fn catalogs(entries: &[(&str, &[(&str, &str)])]) -> Catalogs {
@@ -243,7 +248,12 @@ fn run_update_field(
 /// assert the parsed shape; these assert the format-preserving text the
 /// pacquet writer produces for the same inputs.
 mod remove_unused_catalogs {
-    use super::{PackageManifest, catalogs, project, run_cleanup};
+    use super::{
+        PackageManifest,
+        catalogs,
+        project,
+        run_cleanup,
+    };
 
     /// TS: `remove the default catalog if it is empty`.
     #[test]
@@ -409,7 +419,10 @@ mod remove_unused_catalogs {
 mod minimum_release_age_exclude_prune {
     use crate::ResolvedPackageVersions;
 
-    use super::{UpdateWorkspaceManifestOptions, run_with};
+    use super::{
+        UpdateWorkspaceManifestOptions,
+        run_with,
+    };
 
     fn resolved(entries: &[(&str, &[&str])]) -> ResolvedPackageVersions {
         entries
@@ -536,7 +549,10 @@ mod minimum_release_age_exclude_prune {
 mod trust_policy_exclude_prune {
     use crate::ResolvedPackageVersions;
 
-    use super::{UpdateWorkspaceManifestOptions, run_with};
+    use super::{
+        UpdateWorkspaceManifestOptions,
+        run_with,
+    };
 
     fn resolved(entries: &[(&str, &[&str])]) -> ResolvedPackageVersions {
         entries

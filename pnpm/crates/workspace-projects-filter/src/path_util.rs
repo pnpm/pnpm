@@ -1,5 +1,8 @@
 use pnpm_workspace_projects_graph::lexical_normalize;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Join `rel` onto `prefix` and lexically normalize the result,
 /// collapsing `.` and resolving `..` without touching the filesystem.

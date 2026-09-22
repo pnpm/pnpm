@@ -1,36 +1,81 @@
 mod platform;
 use platform::{
-    ArtifactPlatform, artifact_platform, digest_integrity, package_version, patch_hash,
+    ArtifactPlatform,
+    artifact_platform,
+    digest_integrity,
+    package_version,
+    patch_hash,
 };
 
 mod persisted;
 use persisted::{
-    decoded_trusted_keys, insert_side_effects_map, quarantine_remote_side_effects, store_holds,
-    stored_remote_side_effects_are_verified, stored_remote_side_effects_blobs_are_valid,
+    decoded_trusted_keys,
+    insert_side_effects_map,
+    quarantine_remote_side_effects,
+    store_holds,
+    stored_remote_side_effects_are_verified,
+    stored_remote_side_effects_blobs_are_valid,
     take_persisted_remote_side_effects,
 };
 
 mod remote;
-use remote::{RemoteCacheSetup, fetch_remote_artifacts, remote_cache_setup};
+use remote::{
+    RemoteCacheSetup,
+    fetch_remote_artifacts,
+    remote_cache_setup,
+};
 
 mod planning;
-use planning::{CandidatePlan, plan_candidate_groups, plan_eligible_roots};
+use planning::{
+    CandidatePlan,
+    plan_candidate_groups,
+    plan_eligible_roots,
+};
 
 use crate::{
-    AllowBuildPolicy, RemoteSideEffectsQuarantineBySnapshot, RequiresBuildBySnapshot,
-    SideEffectsBySnapshot, SideEffectsMapsBySnapshot, StoreIndexKeysBySnapshot,
+    AllowBuildPolicy,
+    RemoteSideEffectsQuarantineBySnapshot,
+    RequiresBuildBySnapshot,
+    SideEffectsBySnapshot,
+    SideEffectsMapsBySnapshot,
+    StoreIndexKeysBySnapshot,
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
-use pnpm_pnpr_client::{
-    ARTIFACT_KIND, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
-    ArtifactPayload, ArtifactSubject, BuilderProfile, CompatibilityConstraints, OwnerScope,
-    PackageIdentity, PnprClient, PublishArtifactRequest, SignedArtifactEnvelope,
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
 };
-use pnpm_store_dir::{CafsFileInfo, StoreIndexWriter};
+use pnpm_pnpr_client::{
+    ARTIFACT_KIND,
+    ArtifactBlobUpload,
+    ArtifactCandidate,
+    ArtifactFile,
+    ArtifactManifest,
+    ArtifactPayload,
+    ArtifactSubject,
+    BuilderProfile,
+    CompatibilityConstraints,
+    OwnerScope,
+    PackageIdentity,
+    PnprClient,
+    PublishArtifactRequest,
+    SignedArtifactEnvelope,
+};
+use pnpm_store_dir::{
+    CafsFileInfo,
+    StoreIndexWriter,
+};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     path::PathBuf,
     sync::Arc,
 };

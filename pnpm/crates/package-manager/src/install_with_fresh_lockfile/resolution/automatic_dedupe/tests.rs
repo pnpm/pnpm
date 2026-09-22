@@ -1,11 +1,20 @@
-use super::{extend_preference_seeds, targets};
+use super::{
+    extend_preference_seeds,
+    targets,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_resolving_deps_resolver::UpdateTargets;
 use pnpm_resolving_resolver_base::{
-    PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
+    PreferredVersions,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
 };
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 #[test]
 fn automatic_dedupe_preserves_shared_seeds_and_stronger_importer_preferences() {

@@ -1,8 +1,14 @@
-use semver::{Version, VersionReq};
+use semver::{
+    Version,
+    VersionReq,
+};
 use serde::Deserialize;
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fmt,
 };
 

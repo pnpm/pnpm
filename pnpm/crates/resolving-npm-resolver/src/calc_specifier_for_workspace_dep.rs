@@ -15,7 +15,10 @@
 //! `workspace:` themselves.
 
 use pnpm_config::SaveWorkspaceProtocol;
-use pnpm_registry::{RangeSpecGranularity, RangeSpecStyle};
+use pnpm_registry::{
+    RangeSpecGranularity,
+    RangeSpecStyle,
+};
 
 use crate::infer_range_spec_style::infer_range_spec_style;
 

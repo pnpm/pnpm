@@ -1,4 +1,9 @@
-use super::{PartialSpec, correct_url, parse_bare_specifier, parse_git_params};
+use super::{
+    PartialSpec,
+    correct_url,
+    parse_bare_specifier,
+    parse_git_params,
+};
 
 #[test]
 fn rejects_non_git_url() {

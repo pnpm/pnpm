@@ -8,7 +8,11 @@
 //! read, so the repair starts from as much of the broken file as the
 //! types allow.
 
-use crate::{Lockfile, LockfileResolution, SnapshotEntry};
+use crate::{
+    Lockfile,
+    LockfileResolution,
+    SnapshotEntry,
+};
 
 pub(super) fn prepare_value_for_fix(value: &mut serde_json::Value) {
     let Some(root) = value.as_object_mut() else { return };

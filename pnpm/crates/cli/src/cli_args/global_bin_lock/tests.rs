@@ -1,5 +1,12 @@
-use super::{acquire_global_bin_lock, try_acquire_global_bin_lock};
-use std::{sync::mpsc, thread, time::Duration};
+use super::{
+    acquire_global_bin_lock,
+    try_acquire_global_bin_lock,
+};
+use std::{
+    sync::mpsc,
+    thread,
+    time::Duration,
+};
 
 #[test]
 fn serializes_global_bin_writers() {

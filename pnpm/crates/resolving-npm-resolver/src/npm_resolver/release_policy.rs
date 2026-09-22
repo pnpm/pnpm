@@ -6,8 +6,15 @@
 //! version was chosen, or point a user at a version pnpm would then refuse.
 
 use super::{
-    DateTime, LockfileResolution, MINIMUM_RELEASE_AGE_VIOLATION_CODE, Package,
-    PackageVersionPolicy, PkgName, ResolutionPolicyViolation, Utc, parse_packument_timestamp,
+    DateTime,
+    LockfileResolution,
+    MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+    Package,
+    PackageVersionPolicy,
+    PkgName,
+    ResolutionPolicyViolation,
+    Utc,
+    parse_packument_timestamp,
 };
 
 /// The raw `dist-tags.latest` when the active `minimumReleaseAge`

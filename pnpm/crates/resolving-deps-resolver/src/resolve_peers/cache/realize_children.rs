@@ -1,7 +1,22 @@
 use super::{
-    Arc, BTreeMap, ChildEdge, DeferredChildContext, DeferredChildResolution, DependenciesTreeNode,
-    EdgeRealization, HashSet, LazyProviders, NodeId, NodeOutput, ParentRefs, PeersCacheItem,
-    SharedChain, TreeChildren, UndoRealize, Walker, should_retain_materialized_node,
+    Arc,
+    BTreeMap,
+    ChildEdge,
+    DeferredChildContext,
+    DeferredChildResolution,
+    DependenciesTreeNode,
+    EdgeRealization,
+    HashSet,
+    LazyProviders,
+    NodeId,
+    NodeOutput,
+    ParentRefs,
+    PeersCacheItem,
+    SharedChain,
+    TreeChildren,
+    UndoRealize,
+    Walker,
+    should_retain_materialized_node,
 };
 
 impl Walker<'_> {

@@ -1,7 +1,17 @@
-use super::{Args, RegistryError, redacted_report};
-use clap::{CommandFactory as _, Parser as _};
+use super::{
+    Args,
+    RegistryError,
+    redacted_report,
+};
+use clap::{
+    CommandFactory as _,
+    Parser as _,
+};
 use pnpm_testing_utils::env_guard::EnvGuard;
-use std::{ffi::OsStr, net::SocketAddr};
+use std::{
+    ffi::OsStr,
+    net::SocketAddr,
+};
 
 const ENV_VARS: [&str; 11] = [
     "PNPR_CONFIG",

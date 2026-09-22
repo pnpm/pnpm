@@ -1,9 +1,24 @@
 use super::{
-    ABBREVIATED_META_DIR, ACCEPT_ABBREVIATED, AuthHeaders, FULL_FILTERED_META_DIR, FULL_META_DIR,
-    FetchFullMetadataCachedOptions, FetchMetadataError, Matcher, PACKAGE_BODY, TempDir,
-    ThrottledClient, assert_cache_loss_after_304_recovers, fast_retry_opts,
-    fetch_full_metadata_cached, get_pkg_mirror_path, load_meta, load_meta_headers, no_retry_opts,
-    remove_raced_mirror, write_stale_mirror,
+    ABBREVIATED_META_DIR,
+    ACCEPT_ABBREVIATED,
+    AuthHeaders,
+    FULL_FILTERED_META_DIR,
+    FULL_META_DIR,
+    FetchFullMetadataCachedOptions,
+    FetchMetadataError,
+    Matcher,
+    PACKAGE_BODY,
+    TempDir,
+    ThrottledClient,
+    assert_cache_loss_after_304_recovers,
+    fast_retry_opts,
+    fetch_full_metadata_cached,
+    get_pkg_mirror_path,
+    load_meta,
+    load_meta_headers,
+    no_retry_opts,
+    remove_raced_mirror,
+    write_stale_mirror,
 };
 
 #[tokio::test]
@@ -705,7 +720,10 @@ async fn no_cache_dir_skips_mirror_io() {
 #[cfg(unix)]
 #[tokio::test]
 async fn read_only_cache_dir_does_not_fail_the_call() {
-    use std::{fs, os::unix::fs::PermissionsExt};
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+    };
 
     let mut server = mockito::Server::new_async().await;
     let mock = server

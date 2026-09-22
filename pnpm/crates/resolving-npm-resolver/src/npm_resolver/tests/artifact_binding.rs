@@ -1,7 +1,15 @@
 use super::{
-    LockfileResolution, MalformedRevisionHistoryError, ResolveOptions, TarballRevision,
-    WantedDependency, assert_eq, build_resolver, json, revision_history_package_body,
-    revision_package_body, shasum_only_package_body,
+    LockfileResolution,
+    MalformedRevisionHistoryError,
+    ResolveOptions,
+    TarballRevision,
+    WantedDependency,
+    assert_eq,
+    build_resolver,
+    json,
+    revision_history_package_body,
+    revision_package_body,
+    shasum_only_package_body,
 };
 use pnpm_resolving_resolver_base::Resolver;
 

@@ -1,11 +1,23 @@
 use super::{
-    registry::{Registry, Resolution},
+    registry::{
+        Registry,
+        Resolution,
+    },
     targets::Environment,
 };
-use miette::{Result, bail};
+use miette::{
+    Result,
+    bail,
+};
 use pep440_rs::Version;
-use pep508_rs::{PackageName, Requirement};
-use pnpm_python_resolver::{Solved, Step};
+use pep508_rs::{
+    PackageName,
+    Requirement,
+};
+use pnpm_python_resolver::{
+    Solved,
+    Step,
+};
 use pnpm_reporter::Reporter as InstallReporter;
 use std::collections::BTreeMap;
 

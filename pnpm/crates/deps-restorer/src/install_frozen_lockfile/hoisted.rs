@@ -1,19 +1,46 @@
 //! The hoisted node-linker: a flat `node_modules` instead of a virtual store.
 
 pub use hoist_plan::{
-    HoistPlan, HoistedWorkspacePackages, collect_public_hoist_targets, compute_hoist_plan,
-    find_own_runtime_node_major, find_runtime_node_major, parse_major_from_version,
+    HoistPlan,
+    HoistedWorkspacePackages,
+    collect_public_hoist_targets,
+    compute_hoist_plan,
+    find_own_runtime_node_major,
+    find_runtime_node_major,
+    parse_major_from_version,
     workspace_packages_for_hoist,
 };
 
 mod hoist_plan;
 
 use super::{
-    AtomicU8, BTreeMap, BTreeSet, Config, DependencyGroup, Diagnostic, Display, Error, HashMap,
-    HoistedDepGraphError, IncludedDependencies, LinkHoistedModulesError, LinkHoistedModulesOpts,
-    Lockfile, LockfileToHoistedDepGraphOptions, NodeLinker, OsStr, PackageKey, Path, PathBuf,
-    Reporter, SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
-    SymlinkPackageError, link_hoisted_modules, lockfile_to_hoisted_dep_graph,
+    AtomicU8,
+    BTreeMap,
+    BTreeSet,
+    Config,
+    DependencyGroup,
+    Diagnostic,
+    Display,
+    Error,
+    HashMap,
+    HoistedDepGraphError,
+    IncludedDependencies,
+    LinkHoistedModulesError,
+    LinkHoistedModulesOpts,
+    Lockfile,
+    LockfileToHoistedDepGraphOptions,
+    NodeLinker,
+    OsStr,
+    PackageKey,
+    Path,
+    PathBuf,
+    Reporter,
+    SkippedSnapshots,
+    SymlinkDirectDependencies,
+    SymlinkDirectDependenciesError,
+    SymlinkPackageError,
+    link_hoisted_modules,
+    lockfile_to_hoisted_dep_graph,
 };
 
 /// Internal handoff between the hoisted-linker walker/linker pass

@@ -1,6 +1,9 @@
 use pnpm_config::Config;
 use pnpm_executor::ScriptEnvironment;
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 
 pub(crate) fn script_environment<'a>(
     config: &'a Config,

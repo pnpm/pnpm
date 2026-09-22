@@ -13,20 +13,41 @@
 //! The verifier list is built from the install's config fields just
 //! before the lockfile-resolution gate runs over it.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::{
-    Config, TrustPolicy,
-    version_policy::{PackageVersionPolicy, VersionPolicyError, create_package_version_policy},
+    Config,
+    TrustPolicy,
+    version_policy::{
+        PackageVersionPolicy,
+        VersionPolicyError,
+        create_package_version_policy,
+    },
 };
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_resolving_npm_resolver::{
-    CreateNpmResolutionVerifierOptions, MergeNamedRegistriesError, ObservedDistStats,
-    PackageMetaCache, create_npm_resolution_verifier, merge_named_registries,
+    CreateNpmResolutionVerifierOptions,
+    MergeNamedRegistriesError,
+    ObservedDistStats,
+    PackageMetaCache,
+    create_npm_resolution_verifier,
+    merge_named_registries,
 };
-use pnpm_resolving_resolver_base::{PlannedCanonicalFetches, ResolutionVerifier};
+use pnpm_resolving_resolver_base::{
+    PlannedCanonicalFetches,
+    ResolutionVerifier,
+};
 
 use crate::retry_config::retry_opts_from_config;
 

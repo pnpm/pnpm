@@ -1,10 +1,25 @@
-use super::{Manifest, Workspace};
-use miette::{Result, bail};
-use pep508_rs::{ExtraName, PackageName};
+use super::{
+    Manifest,
+    Workspace,
+};
+use miette::{
+    Result,
+    bail,
+};
+use pep508_rs::{
+    ExtraName,
+    PackageName,
+};
 use pnpm_python_resolver::parse_requirement;
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

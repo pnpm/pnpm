@@ -3,30 +3,79 @@
 //! Owns the retry policy, integrity verification, and the progress
 //! events the reporter renders during a fetch.
 
-pub(crate) use body::{BodyProgress, slow_download_warning};
+pub(crate) use body::{
+    BodyProgress,
+    slow_download_warning,
+};
 pub(crate) use fetch::fetch_and_extract_once;
 pub use progress::download_priority;
-pub(crate) use progress::{emit_progress_fetched, emit_progress_found_in_store};
+pub(crate) use progress::{
+    emit_progress_fetched,
+    emit_progress_found_in_store,
+};
 
 use super::{
-    Arc, Duration, GZIP_MAGIC, HashMap, IgnoreEntryFilter, Instant, NetworkError, Path, PathBuf,
-    STREAM_EXTRACT_COMPRESSED_THRESHOLD, STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD,
-    SharedReportedProgressKeys, TarballError, VerifyChecksumError, allocate_tarball_buffer,
-    body_chunk_channel, extract_gzipped_tarball, local_file_tarball_path, non_gzip_body_error,
-    open_local_tarball, post_download_semaphore, read_local_tarball_buffer,
-    stream_extract_gzipped_channel, streaming_extract_semaphore,
+    Arc,
+    Duration,
+    GZIP_MAGIC,
+    HashMap,
+    IgnoreEntryFilter,
+    Instant,
+    NetworkError,
+    Path,
+    PathBuf,
+    STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+    STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD,
+    SharedReportedProgressKeys,
+    TarballError,
+    VerifyChecksumError,
+    allocate_tarball_buffer,
+    body_chunk_channel,
+    extract_gzipped_tarball,
+    local_file_tarball_path,
+    non_gzip_body_error,
+    open_local_tarball,
+    post_download_semaphore,
+    read_local_tarball_buffer,
+    stream_extract_gzipped_channel,
+    streaming_extract_semaphore,
 };
-use crate::{extract::BodyChunkSender, extraction_task::spawn_extraction};
-use futures_util::{Stream, StreamExt};
+use crate::{
+    extract::BodyChunkSender,
+    extraction_task::spawn_extraction,
+};
+use futures_util::{
+    Stream,
+    StreamExt,
+};
 use pnpm_network::{
-    AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient, redact_url_for_display,
+    AuthHeaders,
+    MAX_THROUGHPUT_PRIORITY,
+    RetryOpts,
+    ThrottledClient,
+    redact_url_for_display,
 };
 use pnpm_reporter::{
-    FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
-    Reporter, RequestRetryError,
+    FetchingProgressLog,
+    FetchingProgressMessage,
+    LogEvent,
+    LogLevel,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
+    RequestRetryError,
 };
-use pnpm_store_dir::{PackageFilesIndex, StoreDir, store_index_key};
-use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
+use pnpm_store_dir::{
+    PackageFilesIndex,
+    StoreDir,
+    store_index_key,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+    IntegrityChecker,
+    IntegrityOpts,
+};
 use tokio::sync::SemaphorePermit;
 
 /// Controls how archive files are projected into pnpm's content-addressable store.
@@ -480,8 +529,13 @@ pub(crate) fn store_index_cache_key(
 
 mod body;
 use body::{
-    BodyHasher, BufferBody, Buffered, advertises_large_body, buffer_body,
-    extract_body_while_downloading, starts_with_gzip_magic,
+    BodyHasher,
+    BufferBody,
+    Buffered,
+    advertises_large_body,
+    buffer_body,
+    extract_body_while_downloading,
+    starts_with_gzip_magic,
 };
 
 mod fetch;

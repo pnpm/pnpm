@@ -1,11 +1,24 @@
-use super::{install_pnpm, is_installed_globally, refresh_global_shims, version_lt};
+use super::{
+    install_pnpm,
+    is_installed_globally,
+    refresh_global_shims,
+    version_lt,
+};
 use crate::{
     cli_args::self_update::project_pin::{
-        package_manager_pin_specifier, update_version_constraint,
+        package_manager_pin_specifier,
+        update_version_constraint,
     },
-    shim_dispatch::{ShimTarget, native_shim::install_native_shim_from, native_shim_target},
+    shim_dispatch::{
+        ShimTarget,
+        native_shim::install_native_shim_from,
+        native_shim_target,
+    },
 };
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[test]
 fn version_constraint_preserves_pinning_style() {

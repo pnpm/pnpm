@@ -13,15 +13,43 @@
 
 mod releases;
 
-use super::{InterpreterCommand, VersionRequest, command::interpreter_in};
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
-use pnpm_config::{Config, DEFAULT_PYTHON_DOWNLOAD_URL, RuntimeOnFail, Tool};
-use pnpm_crypto_shasums_file::{ShasumsFileItem, fetch_moving_shasums_file_cached};
-use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use super::{
+    InterpreterCommand,
+    VersionRequest,
+    command::interpreter_in,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
+use pnpm_config::{
+    Config,
+    DEFAULT_PYTHON_DOWNLOAD_URL,
+    RuntimeOnFail,
+    Tool,
+};
+use pnpm_crypto_shasums_file::{
+    ShasumsFileItem,
+    fetch_moving_shasums_file_cached,
+};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use std::{
     io::Write as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Duration,
 };
 

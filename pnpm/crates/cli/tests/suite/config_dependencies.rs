@@ -4,16 +4,29 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_config::WorkspaceSettings;
 use pnpm_lockfile::EnvLockfile;
-use pnpm_modules_yaml::{Host, NodeLinker, read_modules_manifest};
+use pnpm_modules_yaml::{
+    Host,
+    NodeLinker,
+    read_modules_manifest,
+};
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
-    fs::{bump_mtime, is_symlink_or_junction},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    fs::{
+        bump_mtime,
+        is_symlink_or_junction,
+    },
 };
 use pnpm_workspace_state::ConfigDependency;
 use std::{
     fs,
     path::Path,
-    process::{Command, Stdio},
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
 fn pacquet_at(workspace: &Path) -> Command {

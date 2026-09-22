@@ -1,4 +1,8 @@
-use super::{Config, DependencyGroup, Lockfile};
+use super::{
+    Config,
+    DependencyGroup,
+    Lockfile,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 
 /// Assert the wanted lockfile equals the current one: with no current

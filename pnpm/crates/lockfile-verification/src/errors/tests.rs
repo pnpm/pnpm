@@ -1,4 +1,8 @@
-use super::{MAX_VIOLATIONS_TO_PRINT, RenderedViolation, VerifyError};
+use super::{
+    MAX_VIOLATIONS_TO_PRINT,
+    RenderedViolation,
+    VerifyError,
+};
 
 fn rendered(name: &str, version: &str, code: &'static str, reason: &str) -> RenderedViolation {
     RenderedViolation {

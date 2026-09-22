@@ -9,7 +9,10 @@
 use crate::Project;
 use indexmap::IndexMap;
 use pnpm_package_manifest::DependencyGroup;
-use pnpm_workspace_projects_graph::{BaseProject, GraphProject};
+use pnpm_workspace_projects_graph::{
+    BaseProject,
+    GraphProject,
+};
 use std::path::Path;
 
 /// Borrowed view of a [`Project`] that `create_projects_graph` accepts.

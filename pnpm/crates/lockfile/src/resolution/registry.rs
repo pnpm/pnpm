@@ -1,5 +1,11 @@
 use super::{
-    BTreeMap, Cow, Deserialize, HashMap, Integrity, Serialize, integrity_addressed_tarball_path,
+    BTreeMap,
+    Cow,
+    Deserialize,
+    HashMap,
+    Integrity,
+    Serialize,
+    integrity_addressed_tarball_path,
 };
 
 /// The software serving a registry, declared through the `registries`

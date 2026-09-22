@@ -1,8 +1,15 @@
-use chrono::{DateTime, Utc};
+use chrono::{
+    DateTime,
+    Utc,
+};
 use pnpm_config::version_policy::create_package_version_policy;
 use pnpm_registry::Package;
 
-use super::{TrustCheckOptions, TrustViolation, fail_if_trust_downgraded};
+use super::{
+    TrustCheckOptions,
+    TrustViolation,
+    fail_if_trust_downgraded,
+};
 
 #[derive(Clone, Copy)]
 enum Evidence {
@@ -386,7 +393,11 @@ mod ignore_missing_time_field {
     use pnpm_registry::Package;
 
     use super::{
-        Evidence, TrustCheckOptions, TrustViolation, fail_if_trust_downgraded, make_package,
+        Evidence,
+        TrustCheckOptions,
+        TrustViolation,
+        fail_if_trust_downgraded,
+        make_package,
     };
 
     /// A downgrade candidate (provenance → nothing) whose `time` map is
@@ -468,8 +479,14 @@ mod ignore_missing_time_field {
 mod get_trust_evidence {
     use pnpm_registry::PackageVersion;
 
-    use super::{Evidence, version_json};
-    use crate::trust_checks::{TrustEvidence, get_trust_evidence};
+    use super::{
+        Evidence,
+        version_json,
+    };
+    use crate::trust_checks::{
+        TrustEvidence,
+        get_trust_evidence,
+    };
 
     fn parse(version: serde_json::Value) -> PackageVersion {
         serde_json::from_value(version).expect("deserialize fixture PackageVersion")

@@ -7,7 +7,10 @@ use std::{
     fs,
     path::Path,
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 fn make_detached_node_script(marker_path: &Path, parent_exit_code: i32) -> String {
@@ -35,7 +38,11 @@ fn make_connected_detached_node_script(ready_path: &Path, port: u16) -> String {
 
 #[cfg(target_os = "windows")]
 fn assert_connection_closes(mut connection: std::net::TcpStream) {
-    use std::io::{ErrorKind, Read, Write};
+    use std::io::{
+        ErrorKind,
+        Read,
+        Write,
+    };
 
     // A socket accepted from a non-blocking listener inherits that mode on
     // Windows, which makes the read below return `WouldBlock` at once and

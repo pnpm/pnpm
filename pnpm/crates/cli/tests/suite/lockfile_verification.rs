@@ -16,8 +16,14 @@ pub use _utils::*;
 use crate::_utils;
 
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// A project whose only dependency every policy rejects. The mocked
 /// registry's packument times are real-world (years old), so a

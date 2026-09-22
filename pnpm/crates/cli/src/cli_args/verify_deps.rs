@@ -5,16 +5,31 @@
 //! `runDepsStatusCheck` in `exec/commands`.
 
 use super::reporter::ReporterType;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use dialoguer::Confirm;
-use miette::{Diagnostic, IntoDiagnostic};
-use pnpm_config::{Config, VerifyDepsBeforeRun};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
+use pnpm_config::{
+    Config,
+    VerifyDepsBeforeRun,
+};
 use pnpm_default_reporter::colors::Colors;
-use pnpm_package_manager::{RunDepsStatus, check_deps_status_before_run_at};
+use pnpm_package_manager::{
+    RunDepsStatus,
+    check_deps_status_before_run_at,
+};
 use std::{
     io::IsTerminal,
     path::Path,
-    process::{Command, exit},
+    process::{
+        Command,
+        exit,
+    },
 };
 
 #[derive(Debug, Display, Error, Diagnostic)]

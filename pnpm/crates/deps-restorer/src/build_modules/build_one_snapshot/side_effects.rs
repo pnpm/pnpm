@@ -1,9 +1,18 @@
 use super::{
     super::{
-        BuildModulesError, HashMap, PackageKey, Path, PathBuf, Reporter, materialize_side_effects,
+        BuildModulesError,
+        HashMap,
+        PackageKey,
+        Path,
+        PathBuf,
+        Reporter,
+        materialize_side_effects,
         store_index_key_for_resolution,
     },
-    BuildCandidate, BuildOneSnapshot, global_slot_carries_overlay, report_broken_slot,
+    BuildCandidate,
+    BuildOneSnapshot,
+    global_slot_carries_overlay,
+    report_broken_slot,
 };
 use std::sync::atomic::Ordering;
 

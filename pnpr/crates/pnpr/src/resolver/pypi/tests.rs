@@ -1,4 +1,9 @@
-use super::{MAX_TOTAL_BYTES, index_url, metadata_from_wheel, within_budget};
+use super::{
+    MAX_TOTAL_BYTES,
+    index_url,
+    metadata_from_wheel,
+    within_budget,
+};
 use std::io::Write as _;
 
 fn wheel_with(entries: &[(&str, &str)]) -> Vec<u8> {

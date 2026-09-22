@@ -1,13 +1,30 @@
 //! The pre-run dependency-status check behind `verifyDepsBeforeRun`.
 
 use super::{
-    Config, Host, Lockfile, LockfileConflictCheckFailure, ManifestStat, NodeLinker,
-    OptimisticRepeatInstallCheck, WorkspaceState, catalogs_cache_matches,
-    current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
-    filesystem_now_ms, first_lockfile_requiring_conflict_safe_install,
-    first_project_missing_modules_dir, first_setting_drift, modified_manifests_match_lockfile,
-    patches_modified_since, pnpmfiles_drift, project_structure_matches,
-    relocation::{prove_move, rekeyed_validation_now, relocated_state},
+    Config,
+    Host,
+    Lockfile,
+    LockfileConflictCheckFailure,
+    ManifestStat,
+    NodeLinker,
+    OptimisticRepeatInstallCheck,
+    WorkspaceState,
+    catalogs_cache_matches,
+    current_lockfile_file_has_content,
+    current_lockfile_unusable_with_non_empty_wanted,
+    filesystem_now_ms,
+    first_lockfile_requiring_conflict_safe_install,
+    first_project_missing_modules_dir,
+    first_setting_drift,
+    modified_manifests_match_lockfile,
+    patches_modified_since,
+    pnpmfiles_drift,
+    project_structure_matches,
+    relocation::{
+        prove_move,
+        rekeyed_validation_now,
+        relocated_state,
+    },
     update_workspace_state,
 };
 

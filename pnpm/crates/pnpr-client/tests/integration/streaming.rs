@@ -1,6 +1,13 @@
 use super::{
-    PnprClient, PnprClientError, TestRegistry, deps, options, register_token, registry_upstream,
-    start_pnpr, start_pnpr_with_upstreams,
+    PnprClient,
+    PnprClientError,
+    TestRegistry,
+    deps,
+    options,
+    register_token,
+    registry_upstream,
+    start_pnpr,
+    start_pnpr_with_upstreams,
 };
 
 /// End-to-end: the test registry gates `@pnpm.e2e/needs-auth` behind

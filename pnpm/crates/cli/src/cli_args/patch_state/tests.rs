@@ -1,12 +1,20 @@
 #[cfg(unix)]
 use super::edit_dir_key;
 use super::{
-    EditDirState, StateFileError, read_edit_dir_state, write_edit_dir_state,
+    EditDirState,
+    StateFileError,
+    read_edit_dir_state,
+    write_edit_dir_state,
     write_state_file_atomically,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{env, fs, path::Path, sync::Mutex};
+use std::{
+    env,
+    fs,
+    path::Path,
+    sync::Mutex,
+};
 use tempfile::tempdir;
 
 static CWD_LOCK: Mutex<()> = Mutex::new(());

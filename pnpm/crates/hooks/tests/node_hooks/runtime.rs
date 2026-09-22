@@ -1,4 +1,7 @@
-use super::{Arc, TempDir};
+use super::{
+    Arc,
+    TempDir,
+};
 use pnpm_hooks::PnpmfileHooks as _;
 
 #[tokio::test]

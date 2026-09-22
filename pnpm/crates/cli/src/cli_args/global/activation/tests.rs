@@ -1,42 +1,82 @@
 use super::{
     super::{
-        GlobalPackageBinSnapshot, cleanup_replaced_global_installs, plan_replaced_global_bins,
-        restore_virtual_shims, snapshot_global_package,
+        GlobalPackageBinSnapshot,
+        cleanup_replaced_global_installs,
+        plan_replaced_global_bins,
+        restore_virtual_shims,
+        snapshot_global_package,
     },
-    ActivationBinSets, FsArtifactProbe, FsRename, FsSwapHashLink, SavedBinSlot,
-    activate_global_install_with_extra_bin_names, hash_linked_packages, replace_global_bin_slots,
+    ActivationBinSets,
+    FsArtifactProbe,
+    FsRename,
+    FsSwapHashLink,
+    SavedBinSlot,
+    activate_global_install_with_extra_bin_names,
+    hash_linked_packages,
+    replace_global_bin_slots,
     restore_bin_slots,
 };
 use crate::{
     cli_args::{
         global::{
             activation::slots::{
-                BinSlotKind, directory_symlink_slots, needs_directory_symlink_removal,
+                BinSlotKind,
+                directory_symlink_slots,
+                needs_directory_symlink_removal,
             },
             remove::{
-                GlobalInstallCleanup, GlobalRemovalTransaction, remove_global_install_entries,
+                GlobalInstallCleanup,
+                GlobalRemovalTransaction,
+                remove_global_install_entries,
             },
         },
-        shim::{record_virtual_shim_state, virtual_shim_owner},
+        shim::{
+            record_virtual_shim_state,
+            virtual_shim_owner,
+        },
     },
-    shim_dispatch::{ShimTarget, install_native_shim},
+    shim_dispatch::{
+        ShimTarget,
+        install_native_shim,
+    },
 };
 use miette::IntoDiagnostic;
 use pnpm_cmd_shim::{
-    FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable,
-    FsWalkFiles, FsWrite, Host, PackageBinSource, link_bins_of_packages_with_excludes,
+    FsCreateDirAll,
+    FsEnsureExecutableBits,
+    FsReadHead,
+    FsReadToString,
+    FsSetExecutable,
+    FsWalkFiles,
+    FsWrite,
+    Host,
+    PackageBinSource,
+    link_bins_of_packages_with_excludes,
 };
 use pnpm_config::GlobalShims;
-use pnpm_fs::{force_symlink_dir, read_symlink_dir, remove_symlink_dir};
+use pnpm_fs::{
+    force_symlink_dir,
+    read_symlink_dir,
+    remove_symlink_dir,
+};
 use pnpm_global::GlobalPackageInfo;
 use serde_json::json;
 use std::{
     collections::HashSet,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
-        Arc, Mutex, MutexGuard,
-        atomic::{AtomicUsize, Ordering},
+        Arc,
+        Mutex,
+        MutexGuard,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
 };
 use tempfile::TempDir;

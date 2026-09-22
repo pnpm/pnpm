@@ -62,55 +62,108 @@ pub(crate) mod manifest_agreement;
 pub(crate) mod settings;
 pub(crate) mod timestamps;
 pub(crate) use conflict_markers::{
-    LockfileConflictCheckFailure, first_lockfile_requiring_conflict_safe_install,
+    LockfileConflictCheckFailure,
+    first_lockfile_requiring_conflict_safe_install,
 };
 pub(crate) use current_lockfile::materialized_shape_matches;
-pub use deps_status::{RunDepsStatus, check_deps_status_before_run};
+pub use deps_status::{
+    RunDepsStatus,
+    check_deps_status_before_run,
+};
 pub(crate) use local_file_deps::{
-    has_local_file_dep_requiring_install, has_local_file_override, has_local_file_package_extension,
+    has_local_file_dep_requiring_install,
+    has_local_file_override,
+    has_local_file_package_extension,
 };
 pub(crate) use manifest_agreement::{
-    ManifestStat, modified_manifests_match_lockfile, stat_manifests, unstatted_manifests,
+    ManifestStat,
+    modified_manifests_match_lockfile,
+    stat_manifests,
+    unstatted_manifests,
 };
 pub(crate) use relocation::recorded_elsewhere;
 pub(crate) use settings::{
-    catalogs_cache_matches, current_settings_with_catalogs, first_setting_drift,
-    recorded_supported_architectures_match, settings_match,
+    catalogs_cache_matches,
+    current_settings_with_catalogs,
+    first_setting_drift,
+    recorded_supported_architectures_match,
+    settings_match,
 };
 pub(crate) use timestamps::{
-    FileMtime, file_mtime, file_mtime_from_metadata, filesystem_now_ms, lockfile_modified_since,
-    manifest_drift_reference_ms, modified_at_or_after, mtime_ms, refreshed_validation_baseline_ms,
-    validation_baseline_ms, wanted_lockfile_mtime,
+    FileMtime,
+    file_mtime,
+    file_mtime_from_metadata,
+    filesystem_now_ms,
+    lockfile_modified_since,
+    manifest_drift_reference_ms,
+    modified_at_or_after,
+    mtime_ms,
+    refreshed_validation_baseline_ms,
+    validation_baseline_ms,
+    wanted_lockfile_mtime,
 };
 
 mod current_lockfile;
 mod relocation;
 mod settle;
 use settle::{
-    current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
-    early_repeat_verdict, first_project_missing_modules_dir, modules_dirs_present,
-    project_structure_matches, settle_repeat_install,
+    current_lockfile_file_has_content,
+    current_lockfile_unusable_with_non_empty_wanted,
+    early_repeat_verdict,
+    first_project_missing_modules_dir,
+    modules_dirs_present,
+    project_structure_matches,
+    settle_repeat_install,
 };
 
 use std::{
     fs,
-    io::{ErrorKind, Read},
-    path::{Path, PathBuf},
+    io::{
+        ErrorKind,
+        Read,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     time::SystemTime,
 };
 
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    WantedDependency,
+    resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, LinkWorkspacePackages, NodeLinker, TrustPolicy};
-use pnpm_lockfile::{ImporterDepVersion, Lockfile, MaybeLazyLockfile, ProjectSnapshot};
-use pnpm_modules_yaml::{Host, IncludedDependencies};
+use pnpm_config::{
+    Config,
+    LinkWorkspacePackages,
+    NodeLinker,
+    TrustPolicy,
+};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    Lockfile,
+    MaybeLazyLockfile,
+    ProjectSnapshot,
+};
+use pnpm_modules_yaml::{
+    Host,
+    IncludedDependencies,
+};
 use pnpm_package_is_installable::SupportedArchitectures;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_workspace_state::{
-    NodeLinker as WorkspaceStateNodeLinker, TrustPolicy as WorkspaceStateTrustPolicy,
-    WorkspaceState, WorkspaceStateSettings, load_workspace_state, update_workspace_state,
+    NodeLinker as WorkspaceStateNodeLinker,
+    TrustPolicy as WorkspaceStateTrustPolicy,
+    WorkspaceState,
+    WorkspaceStateSettings,
+    load_workspace_state,
+    update_workspace_state,
 };
 
 /// Outcome of [`check_optimistic_repeat_install`].

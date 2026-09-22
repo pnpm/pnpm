@@ -1,8 +1,15 @@
 pub use workspace::{
-    CatalogMode, LinkWorkspacePackages, PackageImportMethod, ResolutionMode, SaveWorkspaceProtocol,
+    CatalogMode,
+    LinkWorkspacePackages,
+    PackageImportMethod,
+    ResolutionMode,
+    SaveWorkspaceProtocol,
 };
 
-use super::{Deserialize, Serialize};
+use super::{
+    Deserialize,
+    Serialize,
+};
 
 /// Controls ANSI color rendering in CLI output.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -279,7 +286,10 @@ impl<'de> serde::Deserialize<'de> for VerifyDepsBeforeRun {
     where
         De: serde::Deserializer<'de>,
     {
-        use serde::de::{self, Visitor};
+        use serde::de::{
+            self,
+            Visitor,
+        };
         use std::fmt;
 
         struct V;
@@ -369,7 +379,10 @@ impl<'de> serde::Deserialize<'de> for ScriptsPrependNodePath {
     where
         De: serde::Deserializer<'de>,
     {
-        use serde::de::{self, Visitor};
+        use serde::de::{
+            self,
+            Visitor,
+        };
         use std::fmt;
 
         struct V;

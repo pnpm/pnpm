@@ -1,10 +1,21 @@
-use crate::_utils::{with_colors, without_colors};
+use crate::_utils::{
+    with_colors,
+    without_colors,
+};
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 use console::strip_ansi_codes;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use serde_json::{Value, json};
-use std::{collections::BTreeSet, fs, path::Path, process::Command};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    collections::BTreeSet,
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn write_workspace(workspace: &Path, manifests: &[(&str, Value)]) {
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")

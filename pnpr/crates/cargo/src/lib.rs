@@ -13,19 +13,39 @@
 //! publish runs before accepting bytes.
 
 pub use publishing::{
-    CrateArchiveError, PublishBodyError, PublishDependency, PublishMetadata, PublishMetadataError,
-    parse_publish_body, validate_crate_archive,
+    CrateArchiveError,
+    PublishBodyError,
+    PublishDependency,
+    PublishMetadata,
+    PublishMetadataError,
+    parse_publish_body,
+    validate_crate_archive,
 };
 
-pub use pnpr_package_name::{CrateNameError, MAX_CRATE_NAME_LEN};
+pub use pnpr_package_name::{
+    CrateNameError,
+    MAX_CRATE_NAME_LEN,
+};
 
 mod publishing;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use pnpr_package_name::canonicalize_crate_name;
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
-use std::{collections::BTreeMap, io::Read};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    collections::BTreeMap,
+    io::Read,
+};
 
 /// The URL segment under a registry endpoint where the sparse index lives:
 /// `/~<name>/index/config.json`, `/~<name>/index/se/rd/serde`.

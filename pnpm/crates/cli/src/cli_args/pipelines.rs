@@ -1,19 +1,46 @@
-pub(crate) use configuration::{apply_install_cli_config, derive_config_root};
+pub(crate) use configuration::{
+    apply_install_cli_config,
+    derive_config_root,
+};
 pub(crate) use install::InstallPipeline;
-pub(crate) use maintenance::{DedupePipeline, PrunePipeline};
-pub(crate) use mutation::{AddPipeline, DeployPipeline, RemovePipeline, UpdatePipeline};
-pub(crate) use selection::{WorkspaceScope, select_workspace_projects};
+pub(crate) use maintenance::{
+    DedupePipeline,
+    PrunePipeline,
+};
+pub(crate) use mutation::{
+    AddPipeline,
+    DeployPipeline,
+    RemovePipeline,
+    UpdatePipeline,
+};
+pub(crate) use selection::{
+    WorkspaceScope,
+    select_workspace_projects,
+};
 
-use selection::{InstallFamily, select_install_family, select_install_family_plan};
+use selection::{
+    InstallFamily,
+    select_install_family,
+    select_install_family_plan,
+};
 
 use super::{
     add::AddArgs,
-    dedupe::{self, DedupeArgs},
+    dedupe::{
+        self,
+        DedupeArgs,
+    },
     deploy::DeployArgs,
-    install::{InstallArgs, resolve_bool_override},
+    install::{
+        InstallArgs,
+        resolve_bool_override,
+    },
     package_manager::read_manifest_json,
     prune::PruneArgs,
-    recursive::{discover_workspace_projects, filtered_projects_dependencies},
+    recursive::{
+        discover_workspace_projects,
+        filtered_projects_dependencies,
+    },
     remove::RemoveArgs,
     update::UpdateArgs,
     update_changeset::UpdateChangesetContext,
@@ -21,13 +48,21 @@ use super::{
 use crate::{
     State,
     cli_args::{
-        config_warnings::{warn_unapplied_package_configs, warn_unmatched_registry_options},
+        config_warnings::{
+            warn_unapplied_package_configs,
+            warn_unmatched_registry_options,
+        },
         legacy_pnpm_field::warn_ignored_pnpm_manifest_fields,
         override_version_references::warn_deprecated_override_version_references,
-        reporter::{ReporterType, reporter_emit},
+        reporter::{
+            ReporterType,
+            reporter_emit,
+        },
         yarn_workspaces_field::warn_unsupported_workspaces_field,
     },
-    config_deps, ecosystem_add, ecosystem_install,
+    config_deps,
+    ecosystem_add,
+    ecosystem_install,
     package_specifier::EcosystemPackageSpecifier,
     state::check_root_project_engine,
 };
@@ -37,17 +72,32 @@ use install::init_shared_state;
 
 use miette::Context;
 
-use pnpm_config::{Config, Host};
+use pnpm_config::{
+    Config,
+    Host,
+};
 use pnpm_network::ThrottledClient;
-use pnpm_package_manager::{PathNode, graph_sequencer};
+use pnpm_package_manager::{
+    PathNode,
+    graph_sequencer,
+};
 use pnpm_reporter::Reporter;
 use pnpm_workspace_task_scheduler::{
-    ScheduleGraphAsyncOptions, TaskCompletion, schedule_graph_async,
+    ScheduleGraphAsyncOptions,
+    TaskCompletion,
+    schedule_graph_async,
 };
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     future::Future,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

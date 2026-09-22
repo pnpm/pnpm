@@ -29,22 +29,57 @@
 pub use classic_login::ClassicLoginOpError;
 pub use error::LoginError;
 pub use host::Host;
-pub use prompt::{PromptInput, PromptPassword};
-
-use std::{io, path::Path};
-
-use pnpm_config::{is_json_auth_scope, validate_json_auth_registry};
-use pnpm_network::{ThrottledClient, redact_and_sanitize};
-use pnpm_network_web_auth::{
-    Clock, EnterKeyListener, OpenUrl, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch,
-    WebAuthFetchOptions, WebAuthRetryOptions,
+pub use prompt::{
+    PromptInput,
+    PromptPassword,
 };
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use pnpm_workspace_manifest_writer::{ManifestEdit, edit_manifest_field};
+
+use std::{
+    io,
+    path::Path,
+};
+
+use pnpm_config::{
+    is_json_auth_scope,
+    validate_json_auth_registry,
+};
+use pnpm_network::{
+    ThrottledClient,
+    redact_and_sanitize,
+};
+use pnpm_network_web_auth::{
+    Clock,
+    EnterKeyListener,
+    OpenUrl,
+    PromptOtp,
+    Sleep,
+    StdinIsTty,
+    StdoutIsTty,
+    WebAuthFetch,
+    WebAuthFetchOptions,
+    WebAuthRetryOptions,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
+use pnpm_workspace_manifest_writer::{
+    ManifestEdit,
+    edit_manifest_field,
+};
 
 use crate::{
-    config_yaml::{self, GLOBAL_CONFIG_YAML_FILENAME},
-    logout::{DEFAULT_REGISTRY, FsReadToString, FsWrite},
+    config_yaml::{
+        self,
+        GLOBAL_CONFIG_YAML_FILENAME,
+    },
+    logout::{
+        DEFAULT_REGISTRY,
+        FsReadToString,
+        FsWrite,
+    },
     registry_url::normalize_registry_url,
 };
 
@@ -55,7 +90,10 @@ mod prompt;
 mod web_login;
 
 use classic_login::classic_login;
-use web_login::{WebLoginFlowError, web_login};
+use web_login::{
+    WebLoginFlowError,
+    web_login,
+};
 
 /// Inputs to [`login`]. The retry / timeout knobs come from pnpm's
 /// `fetchRetries` / `fetchTimeout` config and drive the web-auth poll.

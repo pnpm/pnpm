@@ -16,45 +16,116 @@
 //! page requested under a non-normalized spelling redirects to the normalized
 //! URL, as pypi.org does.
 
-pub(super) use publication::{PypiPublication, authorize_upload, verify_upload};
+pub(super) use publication::{
+    PypiPublication,
+    authorize_upload,
+    verify_upload,
+};
 
 mod publication;
 use publication::post_upload;
 
 use super::{
-    Action, AppState, AuthedCaller, HostedGate, RegistrySource, TargetRegistry, authorize,
-    documents::{read_hosted_document, stage_hosted_artifact, store_hosted_artifact},
-    ecosystem::{
-        UpstreamDocument, addressed_registry, caller_scoped, hosted_sources,
-        is_fetchable_artifact_url, load_upstream_document, mount_bases, registry_endpoint,
-        serve_hosted_blob, serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
+    Action,
+    AppState,
+    AuthedCaller,
+    HostedGate,
+    RegistrySource,
+    TargetRegistry,
+    authorize,
+    documents::{
+        read_hosted_document,
+        stage_hosted_artifact,
+        store_hosted_artifact,
     },
-    hosted_gate, not_found, private_no_cache,
-    publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
+    ecosystem::{
+        UpstreamDocument,
+        addressed_registry,
+        caller_scoped,
+        hosted_sources,
+        is_fetchable_artifact_url,
+        load_upstream_document,
+        mount_bases,
+        registry_endpoint,
+        serve_hosted_blob,
+        serve_upstream_artifact,
+        sha256_hex,
+        sha256_integrity,
+        upstream_for,
+    },
+    hosted_gate,
+    not_found,
+    private_no_cache,
+    publishing::{
+        PublishTarget,
+        StagedPublish,
+        resolve_publish_target_for,
+    },
     resolve_ecosystem_source,
 };
 use axum::{
     Router,
-    body::{Body, Bytes},
-    extract::{Path, Request, State},
-    http::{HeaderMap, StatusCode, header},
-    response::{IntoResponse, Response},
-    routing::{get, post},
+    body::{
+        Body,
+        Bytes,
+    },
+    extract::{
+        Path,
+        Request,
+        State,
+    },
+    http::{
+        HeaderMap,
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
+    routing::{
+        get,
+        post,
+    },
 };
 use pnpr_error::RegistryError;
-use pnpr_package_name::{CanonicalPackageName, is_safe_path_segment};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    is_safe_path_segment,
+};
 use pnpr_policy::Identity;
 use pnpr_pypi::{
-    DistributionKind, FILES_PATH, HTML_CONTENT_TYPE, JSON_CONTENT_TYPE, ProjectDocument,
-    ProjectFile, SIMPLE_PATH, UPLOAD_PATH, Upload, Yanked, multipart, normalize_version,
-    parse_distribution_filename, parse_upload, render_project_list_html, render_project_list_json,
-    wants_json, wants_versioned_html,
+    DistributionKind,
+    FILES_PATH,
+    HTML_CONTENT_TYPE,
+    JSON_CONTENT_TYPE,
+    ProjectDocument,
+    ProjectFile,
+    SIMPLE_PATH,
+    UPLOAD_PATH,
+    Upload,
+    Yanked,
+    multipart,
+    normalize_version,
+    parse_distribution_filename,
+    parse_upload,
+    render_project_list_html,
+    render_project_list_json,
+    wants_json,
+    wants_versioned_html,
 };
 use pnpr_registry::Ecosystem;
 use pnpr_storage::publish::now_iso;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::value::RawValue;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashMap,
+};
 
 const ECOSYSTEM: Ecosystem = Ecosystem::Pypi;
 /// The largest Simple API page accepted from an upstream.

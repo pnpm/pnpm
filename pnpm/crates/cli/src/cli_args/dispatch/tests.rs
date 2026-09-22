@@ -1,4 +1,7 @@
-use crate::cli_args::{dispatch::routing::json_error_message, pack::PACK_ERROR_CONTEXT};
+use crate::cli_args::{
+    dispatch::routing::json_error_message,
+    pack::PACK_ERROR_CONTEXT,
+};
 use miette::Diagnostic;
 
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]

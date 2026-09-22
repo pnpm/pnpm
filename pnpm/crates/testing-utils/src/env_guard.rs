@@ -22,8 +22,15 @@
 
 use std::{
     env,
-    ffi::{OsStr, OsString},
-    sync::{LazyLock, Mutex, MutexGuard},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    sync::{
+        LazyLock,
+        Mutex,
+        MutexGuard,
+    },
 };
 
 /// Serialization mutex for env-mutating tests. A single `Mutex<()>` —

@@ -1,4 +1,9 @@
-use std::{fs, io, path::Path, time::SystemTime};
+use std::{
+    fs,
+    io,
+    path::Path,
+    time::SystemTime,
+};
 
 /// Capability trait: read a file's contents into a [`String`].
 ///

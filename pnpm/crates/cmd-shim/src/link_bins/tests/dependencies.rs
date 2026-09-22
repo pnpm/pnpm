@@ -1,6 +1,15 @@
 use super::{
-    Arc, Host, LinkBinsOptions, PackageBinSource, create_dir_all, is_shim_pointing_at, json,
-    link_bins_of_packages, read_to_string, tempdir, write_file,
+    Arc,
+    Host,
+    LinkBinsOptions,
+    PackageBinSource,
+    create_dir_all,
+    is_shim_pointing_at,
+    json,
+    link_bins_of_packages,
+    read_to_string,
+    tempdir,
+    write_file,
 };
 
 #[test]

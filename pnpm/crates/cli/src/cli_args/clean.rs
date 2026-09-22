@@ -1,9 +1,22 @@
-use super::{dispatch::RunCtx, recursive::discover_workspace_projects};
-use miette::{Context, IntoDiagnostic};
+use super::{
+    dispatch::RunCtx,
+    recursive::discover_workspace_projects,
+};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
-use pnpm_fs::{is_subdir, relative_path, remove_dirent};
+use pnpm_fs::{
+    is_subdir,
+    relative_path,
+    remove_dirent,
+};
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// `pnpm clean` / `pnpm purge`: safely remove the `node_modules`
 /// directories of the current project (or every project in the workspace)

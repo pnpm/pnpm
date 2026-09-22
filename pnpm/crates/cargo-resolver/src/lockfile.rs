@@ -1,15 +1,52 @@
 use crate::{
-    features::{indexed_version, locked_dependencies},
-    metadata::{locked_metadata_dependencies, root_dependencies},
-    model::{CargoMetadata, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion},
+    features::{
+        indexed_version,
+        locked_dependencies,
+    },
+    metadata::{
+        locked_metadata_dependencies,
+        root_dependencies,
+    },
+    model::{
+        CargoMetadata,
+        FeatureSelection,
+        PackageKey,
+        RegistryDependency,
+        RegistryVersion,
+    },
     packages::selected_package,
-    registry::{CRATES_IO_SOURCE, Registry, is_crates_io_source},
+    registry::{
+        CRATES_IO_SOURCE,
+        Registry,
+        is_crates_io_source,
+    },
 };
-use cargo_lock::{Checksum, Dependency, Lockfile, Metadata, Name, Package, Patch, ResolveVersion};
-use miette::{IntoDiagnostic, Result, WrapErr};
-use semver::{Version, VersionReq};
+use cargo_lock::{
+    Checksum,
+    Dependency,
+    Lockfile,
+    Metadata,
+    Name,
+    Package,
+    Patch,
+    ResolveVersion,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
+use semver::{
+    Version,
+    VersionReq,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque, btree_map::Entry},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        VecDeque,
+        btree_map::Entry,
+    },
     str::FromStr,
 };
 

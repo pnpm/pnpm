@@ -6,14 +6,36 @@
 //! runtimes, named-registry, workspace) implement [`Resolver`]; the
 //! default-resolver dispatcher composes them into a chain.
 
-use std::{collections::BTreeMap, future::Future, path::PathBuf, pin::Pin, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    future::Future,
+    path::PathBuf,
+    pin::Pin,
+    sync::Arc,
+};
 
-use chrono::{DateTime, Utc};
-use derive_more::{Display, From};
-use pnpm_config::{SaveWorkspaceProtocol, TrustPolicy, version_policy::PackageVersionPolicy};
-use pnpm_lockfile::{LockfileResolution, PkgNameVer};
+use chrono::{
+    DateTime,
+    Utc,
+};
+use derive_more::{
+    Display,
+    From,
+};
+use pnpm_config::{
+    SaveWorkspaceProtocol,
+    TrustPolicy,
+    version_policy::PackageVersionPolicy,
+};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgNameVer,
+};
 use pnpm_registry::RangeSpecStyle;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 use crate::verifier::ResolutionPolicyViolation;
 

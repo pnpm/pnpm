@@ -1,5 +1,9 @@
 use std::{
-    fs::{self, File, FileTimes},
+    fs::{
+        self,
+        File,
+        FileTimes,
+    },
     io,
     path::Path,
 };

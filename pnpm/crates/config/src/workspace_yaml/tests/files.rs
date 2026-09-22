@@ -1,6 +1,15 @@
 use super::{
-    ColorMode, Config, GlobalShimsSetting, NodeLinker, Path, SideEffectsCacheSetting, StoreDir,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
+    ColorMode,
+    Config,
+    GlobalShimsSetting,
+    NodeLinker,
+    Path,
+    SideEffectsCacheSetting,
+    StoreDir,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    assert_eq,
+    fs,
 };
 use pnpm_testing_utils::env_guard::EnvGuard;
 use std::env;

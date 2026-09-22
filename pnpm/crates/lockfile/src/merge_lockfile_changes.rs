@@ -9,14 +9,31 @@
 //! consumes the merge writes its own back.
 
 use crate::{
-    EnvImporterSnapshot, EnvLockfile, Lockfile, LockfileExtra, LockfileVersion, PackageKey,
-    PackageMetadata, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
-    SnapshotDepRef, SnapshotEntry, SpecifierAndResolution,
+    EnvImporterSnapshot,
+    EnvLockfile,
+    Lockfile,
+    LockfileExtra,
+    LockfileVersion,
+    PackageKey,
+    PackageMetadata,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
+    SpecifierAndResolution,
 };
 use node_semver::Version;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{
+    Serialize,
+    de::DeserializeOwned,
+};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     hash::Hash,
 };
 

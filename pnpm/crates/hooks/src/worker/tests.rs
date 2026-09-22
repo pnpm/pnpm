@@ -3,10 +3,16 @@ use std::sync::Arc;
 use tempfile::TempDir;
 use tokio::{
     task::JoinSet,
-    time::{Duration, timeout},
+    time::{
+        Duration,
+        timeout,
+    },
 };
 
-use super::{MAX_IN_FLIGHT_REQUESTS, NodeWorker};
+use super::{
+    MAX_IN_FLIGHT_REQUESTS,
+    NodeWorker,
+};
 
 #[tokio::test]
 async fn cancelled_request_removes_its_pending_entry() {

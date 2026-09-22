@@ -3,24 +3,49 @@
 
 pub mod oidc;
 
-pub use logging::{LogConfig, LogFormat, LogLevel};
+pub use logging::{
+    LogConfig,
+    LogFormat,
+    LogLevel,
+};
 
 pub use backend_config::{
-    AuthConfig, BackendConfig, HtpasswdConfig, LibsqlSettings, MaxUsers, SqlBackendSettings,
+    AuthConfig,
+    BackendConfig,
+    HtpasswdConfig,
+    LibsqlSettings,
+    MaxUsers,
+    SqlBackendSettings,
     TokensConfig,
 };
 
-pub use access::{AccessSpec, PackageAccess, Teams};
+pub use access::{
+    AccessSpec,
+    PackageAccess,
+    Teams,
+};
 
-pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
+pub use s3::{
+    HostedStoreConfig,
+    S3Settings,
+    build_s3_store,
+    normalize_key_prefix,
+};
 
-pub use self::upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy};
+pub use self::upstream::{
+    RedactedHeaders,
+    UpstreamConfig,
+    UpstreamRequestPolicy,
+};
 
 mod logging;
 use logging::build_log_config;
 
 mod backend_config;
-use backend_config::{build_auth_config, build_backend_config};
+use backend_config::{
+    build_auth_config,
+    build_backend_config,
+};
 
 mod loading;
 
@@ -30,16 +55,37 @@ mod presets;
 
 mod config_file;
 use config_file::{
-    ArtifactsFeatureFile, AuthFile, BackendFile, ConfigFile, CorsFile, DefaultRegistryFile,
-    FeatureFile, HostedFile, LogEntryFile, OsvFile, PipelineFeatureFile, RegistryFile,
-    RegistryGroupFile, RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
-    parse_config_file, reject_removed_blocks,
+    ArtifactsFeatureFile,
+    AuthFile,
+    BackendFile,
+    ConfigFile,
+    CorsFile,
+    DefaultRegistryFile,
+    FeatureFile,
+    HostedFile,
+    LogEntryFile,
+    OsvFile,
+    PipelineFeatureFile,
+    RegistryFile,
+    RegistryGroupFile,
+    RoutesFile,
+    SqlBackendFile,
+    StorageAccessFile,
+    UpstreamFile,
+    parse_config_file,
+    reject_removed_blocks,
 };
 
 mod registry_graph;
 use registry_graph::{
-    ResolvedFileRegistries, org_collision_error, registry_err, registry_mock_graph,
-    resolve_file_registries, validate_org_namespace, validate_registry_key, validate_registry_name,
+    ResolvedFileRegistries,
+    org_collision_error,
+    registry_err,
+    registry_mock_graph,
+    resolve_file_registries,
+    validate_org_namespace,
+    validate_registry_key,
+    validate_registry_name,
 };
 
 mod access;
@@ -50,25 +96,53 @@ mod s3;
 mod upstream;
 
 use self::upstream::{
-    Interval, UpstreamAuthFile, UpstreamConfigFile, parse_interval, resolve_upstream_config,
+    Interval,
+    UpstreamAuthFile,
+    UpstreamConfigFile,
+    parse_interval,
+    resolve_upstream_config,
 };
 
 use indexmap::IndexMap;
 use object_store::{
     ObjectStore,
-    aws::{AmazonS3Builder, AmazonS3ConfigKey},
+    aws::{
+        AmazonS3Builder,
+        AmazonS3ConfigKey,
+    },
 };
-use pnpm_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
-use pnpr_error::{RegistryError, redact_url_credentials};
-use pnpr_policy::{AccessList, AccessToken, PackageRule, PackageRules};
-use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError};
+use pnpm_env_replace::{
+    EnvVar,
+    SystemEnv,
+    env_replace_lossy,
+};
+use pnpr_error::{
+    RegistryError,
+    redact_url_credentials,
+};
+use pnpr_policy::{
+    AccessList,
+    AccessToken,
+    PackageRule,
+    PackageRules,
+};
+use pnpr_registry::{
+    Ecosystem,
+    PackagePattern,
+    Registries,
+    Registry,
+    RegistryConfigError,
+};
 use reqwest::header::HeaderMap;
 use serde::Deserialize;
 use std::{
     collections::BTreeSet,
     fmt,
     net::SocketAddr,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::Duration,
 };

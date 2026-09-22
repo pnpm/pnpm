@@ -1,9 +1,19 @@
 use super::{
-    super::wire::{error_frame, ndjson_single_frame, pypi_done_frame},
-    IndexReader, PypiResolveRequest, Resolver, resolve,
+    super::wire::{
+        error_frame,
+        ndjson_single_frame,
+        pypi_done_frame,
+    },
+    IndexReader,
+    PypiResolveRequest,
+    Resolver,
+    resolve,
 };
 use axum::response::Response;
-use pnpm_python_resolver::{Inputs, Lockfile};
+use pnpm_python_resolver::{
+    Inputs,
+    Lockfile,
+};
 
 pub(super) async fn resolve_request(
     runtime: &Resolver,

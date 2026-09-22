@@ -1,11 +1,19 @@
 use super::{
-    StaleConvergenceOverride, find_stale_convergence_overrides, stale_convergence_override_warning,
+    StaleConvergenceOverride,
+    find_stale_convergence_overrides,
+    stale_convergence_override_warning,
 };
 use node_semver::Version;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config_parse_overrides::{VersionOverride, parse_overrides};
+use pnpm_config_parse_overrides::{
+    VersionOverride,
+    parse_overrides,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     sync::Arc,
     time::Duration,
 };

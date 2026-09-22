@@ -16,12 +16,26 @@
 //! testable; everything else runs on real `std::fs` and is covered by
 //! `tempfile` fixtures.
 
-pub use capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsReadFile, Host};
+pub use capabilities::{
+    FsAtomicWrite,
+    FsCreateDirAll,
+    FsFileLen,
+    FsReadFile,
+    Host,
+};
 pub use contents::sort_paths_en_locale;
 pub use options::{
-    PackManifestOptions, PackOptions, PackOutputLocks, PackOutputOptions, PackScripts,
+    PackManifestOptions,
+    PackOptions,
+    PackOutputLocks,
+    PackOutputOptions,
+    PackScripts,
 };
-pub use output::{format_pack_output, pack_output_path, to_pack_result_json};
+pub use output::{
+    format_pack_output,
+    pack_output_path,
+    to_pack_result_json,
+};
 
 mod capabilities;
 mod collation;
@@ -32,30 +46,61 @@ mod tarball;
 #[cfg(test)]
 mod tests;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use manifest_entry::is_manifest_entry;
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_cmd_shim::get_bins_from_package_manifest;
 use pnpm_config::NodeLinker;
 use pnpm_executor::{
-    LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook,
+    LifecycleScriptError,
+    RunPostinstallHooks,
+    ScriptsPrependNodePath,
+    run_lifecycle_hook,
 };
 use pnpm_exportable_manifest::{
-    CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
+    CreateExportableManifestError,
+    CreateExportableManifestOptions,
+    create_exportable_manifest,
     read_readme_file,
 };
 use pnpm_fs::lexical_normalize;
-use pnpm_fs_packlist::{PacklistError, PacklistOptions, packlist_with_options};
-use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks};
-use pnpm_package_manifest::{PackageManifestError, is_truthy, safe_read_package_json_from_dir};
+use pnpm_fs_packlist::{
+    PacklistError,
+    PacklistOptions,
+    packlist_with_options,
+};
+use pnpm_hooks::{
+    HookContext,
+    LogFn,
+    PnpmfileHooks,
+};
+use pnpm_package_manifest::{
+    PackageManifestError,
+    is_truthy,
+    safe_read_package_json_from_dir,
+};
 use pnpm_package_name::is_valid_old_npm_package_name;
-use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{
+    HookLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use serde_json::Value;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -477,13 +522,20 @@ fn node_linker_str(node_linker: NodeLinker) -> &'static str {
 mod output;
 
 use output::{
-    normalize_tarball_name, packed_tarball_path, realpath_missing, resolve_dest_dir,
-    resolve_output, strip_build_metadata,
+    normalize_tarball_name,
+    packed_tarball_path,
+    realpath_missing,
+    resolve_dest_dir,
+    resolve_output,
+    strip_build_metadata,
 };
 
 mod contents;
 use contents::{
-    build_files_map, executable_sources, inject_workspace_license, packed_contents_with_injected,
+    build_files_map,
+    executable_sources,
+    inject_workspace_license,
+    packed_contents_with_injected,
     unpacked_size,
 };
 

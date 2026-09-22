@@ -1,4 +1,10 @@
-use super::{Config, NoEnv, NpmrcAuth, TEST_CA_PEM, assert_eq};
+use super::{
+    Config,
+    NoEnv,
+    NpmrcAuth,
+    TEST_CA_PEM,
+    assert_eq,
+};
 
 #[test]
 fn cafile_trailing_garbage_is_preserved_for_downstream_parser() {

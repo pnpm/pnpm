@@ -2,7 +2,11 @@ use std::cell::Cell;
 
 use tempfile::TempDir;
 
-use super::{Map, Value, VerdictCache};
+use super::{
+    Map,
+    Value,
+    VerdictCache,
+};
 
 fn open() -> (TempDir, VerdictCache) {
     let dir = TempDir::new().expect("tempdir");

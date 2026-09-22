@@ -25,7 +25,10 @@
 
 mod hoist_state;
 use hoist_state::{
-    ImporterHoistDependencies, ImporterHoistPolicy, ImporterHoistProgress, ImporterHoistSelection,
+    ImporterHoistDependencies,
+    ImporterHoistPolicy,
+    ImporterHoistProgress,
+    ImporterHoistSelection,
 };
 mod hoist_rounds;
 
@@ -42,34 +45,72 @@ use crate::{
     DirectDep,
     dependencies_graph::MissingPeer,
     hoist_peers::{
-        DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
-        get_hoistable_optional_peers_with_locked_versions, hoist_peers,
+        DependencyOverrider,
+        HoistPeersOptions,
+        MissingPeerInfo,
+        WorkspaceRootDep,
+        get_hoistable_optional_peers_with_locked_versions,
+        hoist_peers,
     },
     parent_pkg_aliases::ParentPkgAliases,
     resolve_dependency_tree::{
-        ResolveDependencyTreeError, TreeCtx, WantedSpec, WorkspaceTreeCtx, extend_tree,
-        importer_direct_wanted_specs, record_changed_direct_deps, unwrap_package_name,
+        ResolveDependencyTreeError,
+        TreeCtx,
+        WantedSpec,
+        WorkspaceTreeCtx,
+        extend_tree,
+        importer_direct_wanted_specs,
+        record_changed_direct_deps,
+        unwrap_package_name,
     },
     resolve_peers::{
-        HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery, ResolvePeersOptions,
-        ResolvePeersResult, apply_hoist_missing_scope, index_missing_names, resolve_peers,
+        HoistMissingScope,
+        PeerDiscoveryResult,
+        PeerHoistDiscovery,
+        ResolvePeersOptions,
+        ResolvePeersResult,
+        apply_hoist_missing_scope,
+        index_missing_names,
+        resolve_peers,
     },
     resolved_tree::ResolvedTree,
 };
-use chrono::{DateTime, Utc};
-use derive_more::{Display, Error};
+use chrono::{
+    DateTime,
+    Utc,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::PkgName;
 use pnpm_package_manifest::{
-    DependencyGroup, PackageManifest, PackageManifestError, safe_read_package_json_from_dir,
+    DependencyGroup,
+    PackageManifest,
+    PackageManifestError,
+    safe_read_package_json_from_dir,
 };
 use pnpm_patching::PatchGroupRecord;
-use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions,
+    ResolveOptions,
+    Resolver,
+};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     io,
     path::Path,
     sync::Arc,

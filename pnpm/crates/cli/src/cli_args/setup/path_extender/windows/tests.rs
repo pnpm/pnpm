@@ -4,8 +4,13 @@
 //! Windows host and are exercised by `pacquet setup` end to end there.
 
 use super::{
-    AddDirToEnvPathOpts, AddingPosition, EnvVariableChange, PathExtenderError,
-    add_dir_to_windows_env_path_inner, first_number, get_env_value_from_registry,
+    AddDirToEnvPathOpts,
+    AddingPosition,
+    EnvVariableChange,
+    PathExtenderError,
+    add_dir_to_windows_env_path_inner,
+    first_number,
+    get_env_value_from_registry,
     run_capture_chcp_with,
 };
 use pretty_assertions::assert_eq;

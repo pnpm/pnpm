@@ -1,17 +1,32 @@
 use super::{
     super::{
-        InstallPackageBySnapshotError, host_platform_selector, tarball_url_and_integrity,
+        InstallPackageBySnapshotError,
+        host_platform_selector,
+        tarball_url_and_integrity,
         unverified_fetch_is_allowed,
     },
-    DUMMY_SHA512, custom_resolution_metadata, leaked_offline_config, registry_metadata,
-    run_snapshot_install_with_session, scripted_session,
+    DUMMY_SHA512,
+    custom_resolution_metadata,
+    leaked_offline_config,
+    registry_metadata,
+    run_snapshot_install_with_session,
+    scripted_session,
 };
 use crate::install_package_by_snapshot::runtime::render_variant_targets;
 use pnpm_config::Config;
-use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_graph_hasher::{
+    host_arch,
+    host_libc,
+    host_platform,
+};
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PlatformAssetResolution, PlatformAssetTarget,
-    RegistryResolution, TarballResolution, TarballRevision,
+    LockfileResolution,
+    PackageKey,
+    PlatformAssetResolution,
+    PlatformAssetTarget,
+    RegistryResolution,
+    TarballResolution,
+    TarballRevision,
 };
 use pretty_assertions::assert_eq;
 
@@ -159,8 +174,16 @@ fn render_variant_targets_formats_each_triple_with_optional_libc() {
 #[tokio::test]
 async fn cold_batch_falls_back_when_prefetch_failed() {
     use crate::InstallPackageBySnapshotError;
-    use pnpm_tarball::{CacheValue, MemCache, TarballError, package_mem_cache_key};
-    use std::sync::{Arc, atomic::AtomicU8};
+    use pnpm_tarball::{
+        CacheValue,
+        MemCache,
+        TarballError,
+        package_mem_cache_key,
+    };
+    use std::sync::{
+        Arc,
+        atomic::AtomicU8,
+    };
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
@@ -246,8 +269,17 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
 /// original URL was never seeded).
 #[tokio::test]
 async fn custom_fetcher_delegate_rewrites_the_resolution() {
-    use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
-    use std::{collections::HashMap, path::PathBuf, sync::Arc};
+    use pnpm_tarball::{
+        CacheValue,
+        CachedTarball,
+        MemCache,
+        package_mem_cache_key,
+    };
+    use std::{
+        collections::HashMap,
+        path::PathBuf,
+        sync::Arc,
+    };
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
@@ -300,8 +332,17 @@ async fn custom_fetcher_delegate_rewrites_the_resolution() {
 /// `fetch` ran (`can_fetch = false` must short-circuit it).
 #[tokio::test]
 async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
-    use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
-    use std::{collections::HashMap, path::PathBuf, sync::Arc};
+    use pnpm_tarball::{
+        CacheValue,
+        CachedTarball,
+        MemCache,
+        package_mem_cache_key,
+    };
+    use std::{
+        collections::HashMap,
+        path::PathBuf,
+        sync::Arc,
+    };
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
@@ -431,8 +472,17 @@ async fn custom_fetcher_custom_typed_delegate_is_rejected() {
 /// the custom `type` tag exactly as the lockfile spells it.
 #[tokio::test]
 async fn custom_typed_resolution_installs_via_delegating_fetcher() {
-    use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
-    use std::{collections::HashMap, path::PathBuf, sync::Arc};
+    use pnpm_tarball::{
+        CacheValue,
+        CachedTarball,
+        MemCache,
+        package_mem_cache_key,
+    };
+    use std::{
+        collections::HashMap,
+        path::PathBuf,
+        sync::Arc,
+    };
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
@@ -576,8 +626,16 @@ async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn git_subdirectory_install_reuses_raw_archive_cache() {
-    use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
-    use std::{collections::HashMap, sync::Arc};
+    use pnpm_tarball::{
+        CacheValue,
+        CachedTarball,
+        MemCache,
+        package_mem_cache_key,
+    };
+    use std::{
+        collections::HashMap,
+        sync::Arc,
+    };
     let dir = tempfile::tempdir().unwrap();
     let url =
         "https://codeload.github.com/example/repo/tar.gz/0123456789abcdef0123456789abcdef01234567";

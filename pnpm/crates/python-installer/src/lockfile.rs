@@ -3,16 +3,32 @@
 //! resolves, else a local resolution.
 
 use super::{
-    Inputs, Lockfile, Registry,
+    Inputs,
+    Lockfile,
+    Registry,
     environment::{
-        LockfileInputs, LockfileReplay, PythonPrepare, accept_server_lockfile, read_existing_lock,
+        LockfileInputs,
+        LockfileReplay,
+        PythonPrepare,
+        accept_server_lockfile,
+        read_existing_lock,
         resolve_via_pnpr,
     },
-    projects, resolver, workspace,
+    projects,
+    resolver,
+    workspace,
 };
 use miette::Result;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use std::{path::Path, sync::Arc};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 impl PythonPrepare<'_> {
     /// The lockfile on disk when this install may replay it: one that

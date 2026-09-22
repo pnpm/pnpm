@@ -1,4 +1,8 @@
-use crate::cli_args::access::{AccessArgs, escaped_package_name, normalize_registry_url};
+use crate::cli_args::access::{
+    AccessArgs,
+    escaped_package_name,
+    normalize_registry_url,
+};
 use pnpm_config::Config;
 
 #[tokio::test]

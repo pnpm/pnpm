@@ -1,8 +1,16 @@
-pub(crate) use integrity::{frozen_tree_intact, hoisted_workspace_packages_present};
+pub(crate) use integrity::{
+    frozen_tree_intact,
+    hoisted_workspace_packages_present,
+};
 
-pub(super) use build_markers::{gvs_build_marker_present, gvs_build_markers_may_require_recovery};
+pub(super) use build_markers::{
+    gvs_build_marker_present,
+    gvs_build_markers_may_require_recovery,
+};
 pub(super) use merge_metadata::{
-    current_contains_dep_path, merge_filtered_modules_metadata, merge_pending_builds,
+    current_contains_dep_path,
+    merge_filtered_modules_metadata,
+    merge_pending_builds,
 };
 
 mod build_markers;
@@ -12,8 +20,21 @@ mod merge_metadata;
 mod integrity;
 
 use super::{
-    BTreeMap, Config, HoistedDependencies, Host, IncludedDependencies, InstallError, LayoutVersion,
-    Lockfile, Modules, ModulesNodeLinker, NodeLinker, PNPM_VERSION, PackageManifest, Path, PathBuf,
+    BTreeMap,
+    Config,
+    HoistedDependencies,
+    Host,
+    IncludedDependencies,
+    InstallError,
+    LayoutVersion,
+    Lockfile,
+    Modules,
+    ModulesNodeLinker,
+    NodeLinker,
+    PNPM_VERSION,
+    PackageManifest,
+    Path,
+    PathBuf,
     write_modules_manifest,
 };
 use pnpm_cmd_shim::bin_dir_is_relocatable;

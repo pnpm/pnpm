@@ -1,7 +1,24 @@
 use super::{
-    HashMap, HoistOpts, HoisterResult, Lockfile, ProjectSnapshot, Rc, ResolvedDependencyMap,
-    SnapshotDepRef, SnapshotEntry, VecDeque, assert_eq, dep_key, empty_lockfile, hoist,
-    is_preferred_ident, lockfile_version, pkg_name, resolved_dep, result_node, ver_peer,
+    HashMap,
+    HoistOpts,
+    HoisterResult,
+    Lockfile,
+    ProjectSnapshot,
+    Rc,
+    ResolvedDependencyMap,
+    SnapshotDepRef,
+    SnapshotEntry,
+    VecDeque,
+    assert_eq,
+    dep_key,
+    empty_lockfile,
+    hoist,
+    is_preferred_ident,
+    lockfile_version,
+    pkg_name,
+    resolved_dep,
+    result_node,
+    ver_peer,
 };
 
 #[test]

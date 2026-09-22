@@ -1,7 +1,21 @@
 use super::{
-    DepKind, PackageDiff, PackageManifestMessage, ReporterState, SUMMARY_ORDER, SummaryScope,
-    SummaryState, Value, added_diff, diff_key, is_strictly_newer, manifest_dep_versions,
-    normalized_prefix, record_missing, relative, remove_optional_from_prod, removed_diff,
+    DepKind,
+    PackageDiff,
+    PackageManifestMessage,
+    ReporterState,
+    SUMMARY_ORDER,
+    SummaryScope,
+    SummaryState,
+    Value,
+    added_diff,
+    diff_key,
+    is_strictly_newer,
+    manifest_dep_versions,
+    normalized_prefix,
+    record_missing,
+    relative,
+    remove_optional_from_prod,
+    removed_diff,
 };
 use std::fmt::Write as _;
 

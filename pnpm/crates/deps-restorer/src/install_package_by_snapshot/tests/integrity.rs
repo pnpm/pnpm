@@ -1,6 +1,13 @@
-use super::super::{InstallPackageBySnapshotError, tarball_url_and_integrity};
+use super::super::{
+    InstallPackageBySnapshotError,
+    tarball_url_and_integrity,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{LockfileResolution, PackageKey, TarballResolution};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PackageKey,
+    TarballResolution,
+};
 
 /// The bytes of a plain remote tarball are whatever the server hands
 /// back, so a lockfile that pins no hash for one cannot be fetched

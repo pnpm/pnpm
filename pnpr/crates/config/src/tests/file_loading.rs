@@ -1,6 +1,15 @@
 use super::{
-    Config, DEFAULT_CONFIG_YAML, Ecosystem, LogFormat, LogLevel, Path, RegistryError,
-    config_file_in, listen, parse_interval, write_yaml,
+    Config,
+    DEFAULT_CONFIG_YAML,
+    Ecosystem,
+    LogFormat,
+    LogLevel,
+    Path,
+    RegistryError,
+    config_file_in,
+    listen,
+    parse_interval,
+    write_yaml,
 };
 
 #[test]
@@ -49,7 +58,10 @@ storage: ${PNPR_UNSET_VAR_FOR_TEST}./store
 
 #[test]
 fn from_default_yaml_parses_bundled_file() {
-    use pnpr_registry::{ConcreteKind, Resolved};
+    use pnpr_registry::{
+        ConcreteKind,
+        Resolved,
+    };
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
     assert!(config.routing.upstreams.contains_key("npmjs"));
     assert_eq!(config.routing.upstreams["npmjs"].url, "https://registry.npmjs.org/");

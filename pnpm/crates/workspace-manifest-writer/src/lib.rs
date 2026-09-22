@@ -14,27 +14,43 @@
 //! *updates* a single value, never reorders existing content.
 
 pub use build_settings::{
-    LEGACY_BUILD_SETTINGS, UNDECIDED_ALLOW_BUILD, scaffold_allow_builds, set_allow_builds,
+    LEGACY_BUILD_SETTINGS,
+    UNDECIDED_ALLOW_BUILD,
+    scaffold_allow_builds,
+    set_allow_builds,
     set_allow_builds_clearing_legacy,
 };
 pub use pnpm_config::version_policy::ResolvedPackageVersions;
 pub use version_policies::{
-    remove_overrides, set_audit_ignore_ghsas, set_config_dependencies,
-    set_minimum_release_age_excludes, set_overrides, set_patched_dependencies,
+    remove_overrides,
+    set_audit_ignore_ghsas,
+    set_config_dependencies,
+    set_minimum_release_age_excludes,
+    set_overrides,
+    set_patched_dependencies,
 };
 
 use std::{
     fs,
-    io::{self, Write as _},
+    io::{
+        self,
+        Write as _,
+    },
     path::Path,
 };
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::parse_pkg_and_parent_selector;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 
 mod edit;
 mod flow;

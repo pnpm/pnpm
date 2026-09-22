@@ -10,11 +10,20 @@ mod add;
 mod status;
 
 use crate::cli_args::dlx::clean_expired_dlx_cache;
-use clap::{Args, Subcommand};
-use miette::{Context, IntoDiagnostic};
+use clap::{
+    Args,
+    Subcommand,
+};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_reporter::Reporter;
-use std::{path::Path, time::SystemTime};
+use std::{
+    path::Path,
+    time::SystemTime,
+};
 
 #[derive(Debug, Subcommand)]
 pub enum StoreCommand {

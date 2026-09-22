@@ -1,16 +1,33 @@
-use super::{gvs_layout_cache, gvs_version_segment, local_directory_scope};
-use crate::{AllowBuildPolicy, install_frozen_lockfile::find_own_runtime_node_major};
+use super::{
+    gvs_layout_cache,
+    gvs_version_segment,
+    local_directory_scope,
+};
+use crate::{
+    AllowBuildPolicy,
+    install_frozen_lockfile::find_own_runtime_node_major,
+};
 use indexmap::IndexMap;
 use pnpm_deps_path::get_pkg_id_with_patch_hash;
 use pnpm_graph_hasher::{
-    DepsGraphNode, DepsStateCache, calc_graph_node_hash, engine_name,
+    DepsGraphNode,
+    DepsStateCache,
+    calc_graph_node_hash,
+    engine_name,
     format_global_virtual_store_path,
 };
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, SnapshotEntry,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgIdWithPatchHash,
+    SnapshotEntry,
 };
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
 };
 

@@ -1,4 +1,9 @@
-use crate::{ParsePkgNameSuffixError, ParsePkgVerPeerError, PkgNameSuffix, PkgVerPeer};
+use crate::{
+    ParsePkgNameSuffixError,
+    ParsePkgVerPeerError,
+    PkgNameSuffix,
+    PkgVerPeer,
+};
 use pnpm_crypto_hash::shorten_virtual_store_name;
 
 /// Syntax: `{name}@{version}({peers})`

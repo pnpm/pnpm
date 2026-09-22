@@ -8,7 +8,11 @@
 //! are ignored, and the map round-trips as `key=value` lines.
 
 use indexmap::IndexMap;
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 /// Read `path` into an ordered key→value map. A missing file is an empty map;
 /// any other read error propagates.

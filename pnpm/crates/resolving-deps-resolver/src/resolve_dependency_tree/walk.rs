@@ -10,11 +10,18 @@ pub(super) use warm_children::warm_children_resolutions;
 
 pub(crate) use child_seeds::parent_ids_contain_sequence;
 
-pub(super) use level_walk::{level_aliases, level_versions};
+pub(super) use level_walk::{
+    level_aliases,
+    level_versions,
+};
 
 pub(super) use locked_versions::node_alias;
 
-pub(super) use edge_resolution::{closes_cycle, node_id_for, resolve_node_seed};
+pub(super) use edge_resolution::{
+    closes_cycle,
+    node_id_for,
+    resolve_node_seed,
+};
 
 mod warm_children;
 
@@ -23,16 +30,28 @@ use workspace_resolution::resolve_wanted_cached;
 
 mod child_seeds;
 use child_seeds::{
-    catalogs_for_children, overlay_lookup_names, resolve_catalog_child_specs,
-    resolves_children_through_catalogs, seed_node_children,
+    catalogs_for_children,
+    overlay_lookup_names,
+    resolve_catalog_child_specs,
+    resolves_children_through_catalogs,
+    seed_node_children,
 };
 
 mod level_walk;
-use level_walk::{assign_level_owners, pkgs_info_from_ids, seeded_dep, settle_level, settle_seeds};
+use level_walk::{
+    assign_level_owners,
+    pkgs_info_from_ids,
+    seeded_dep,
+    settle_level,
+    settle_seeds,
+};
 
 mod locked_versions;
 use locked_versions::{
-    ensure_same_registry_revision, overlay_version_view, pin_locked_version, pin_patched_revision,
+    ensure_same_registry_revision,
+    overlay_version_view,
+    pin_locked_version,
+    pin_patched_revision,
 };
 
 mod edge_resolution;
@@ -41,46 +60,103 @@ use async_recursion::async_recursion;
 use futures_util::future;
 use pipe_trait::Pipe;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, SnapshotEntry, TarballRevision};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgNameVerPeer,
+    SnapshotEntry,
+    TarballRevision,
+};
 use pnpm_resolving_resolver_base::{
-    CurrentPkg, GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay,
-    RegistryResponseError, ResolveError, ResolveOptions, Resolver, UpdateBehavior,
+    CurrentPkg,
+    GitResolveError,
+    NoMatchingVersionError,
+    PreferredVersionsOverlay,
+    RegistryResponseError,
+    ResolveError,
+    ResolveOptions,
+    Resolver,
+    UpdateBehavior,
     WantedDependency,
 };
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use serde_json::Value;
-use std::{borrow::Cow, collections::BTreeMap, path::Path, sync::Arc};
+use std::{
+    borrow::Cow,
+    collections::BTreeMap,
+    path::Path,
+    sync::Arc,
+};
 
 use crate::{
-    lockfile_reuse::{current_pkg_from_lockfile, prior_child_key},
+    lockfile_reuse::{
+        current_pkg_from_lockfile,
+        prior_child_key,
+    },
     node_id::NodeId,
-    parent_pkg_aliases::{ParentPkgAliases, peer_shadowed_dependencies},
-    resolved_tree::{DirectDep, ResolvedPackage},
+    parent_pkg_aliases::{
+        ParentPkgAliases,
+        peer_shadowed_dependencies,
+    },
+    resolved_tree::{
+        DirectDep,
+        ResolvedPackage,
+    },
 };
 
 use super::{
-    CatalogAnchor, ResolveDependencyTreeError, SkippedOptionalDependency,
+    CatalogAnchor,
+    ResolveDependencyTreeError,
+    SkippedOptionalDependency,
     SkippedOptionalDependencyParent,
-    catalogs::{catalog_anchor, resolve_catalog_specifier},
+    catalogs::{
+        catalog_anchor,
+        resolve_catalog_specifier,
+    },
     lock_recoverable,
     manifest::{
-        build_pkg_id_with_patch_hash, emit_deprecation_if_needed, extract_children,
-        extract_peer_dependencies, is_exotic_resolved_via, pkg_is_leaf,
+        build_pkg_id_with_patch_hash,
+        emit_deprecation_if_needed,
+        extract_children,
+        extract_peer_dependencies,
+        is_exotic_resolved_via,
+        pkg_is_leaf,
     },
     reuse::{
-        ReuseSource, higher_direct_dep_version, is_update_target,
-        node_depends_on_changed_direct_dep, real_package_name_of, resolve_reused_node,
-        try_reuse_node, update_unpins_edge, wanted_lockfile_contains_satisfying_entry,
+        ReuseSource,
+        higher_direct_dep_version,
+        is_update_target,
+        node_depends_on_changed_direct_dep,
+        real_package_name_of,
+        resolve_reused_node,
+        try_reuse_node,
+        update_unpins_edge,
+        wanted_lockfile_contains_satisfying_entry,
     },
     tree_ctx::{
-        TreeCtx, declaring_manifest_dir, opts_relative_to_declaring_manifest,
+        TreeCtx,
+        declaring_manifest_dir,
+        opts_relative_to_declaring_manifest,
         project_relative_cache_scope,
     },
     workspace_ctx::{
-        ChildSpec, ChildrenOwnerClaim, RecordedChildrenContext, SharedWorkspaceWantedKey,
-        WantedKey, WorkspaceFinalWantedKey, claim_children_owner, claim_children_warmup,
-        insert_tree_node, is_current_children_owner, lazy_children, make_non_owner_nodes_lazy,
-        record_children, recorded_children_match, register_peer_dep_names,
+        ChildSpec,
+        ChildrenOwnerClaim,
+        RecordedChildrenContext,
+        SharedWorkspaceWantedKey,
+        WantedKey,
+        WorkspaceFinalWantedKey,
+        claim_children_owner,
+        claim_children_warmup,
+        insert_tree_node,
+        is_current_children_owner,
+        lazy_children,
+        make_non_owner_nodes_lazy,
+        record_children,
+        recorded_children_match,
+        register_peer_dep_names,
         remember_node_parent_ids,
     },
 };

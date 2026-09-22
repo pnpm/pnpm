@@ -1,5 +1,11 @@
 use super::{
-    ConcreteKind, Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
+    ConcreteKind,
+    Ecosystem,
+    PackagePattern,
+    Registries,
+    Registry,
+    RegistryConfigError,
+    Resolved,
 };
 
 fn pattern(raw: &str) -> PackagePattern {

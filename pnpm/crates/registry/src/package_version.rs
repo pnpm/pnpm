@@ -1,10 +1,21 @@
 use std::collections::HashMap;
 
 use pipe_trait::Pipe;
-use pnpm_network::{AuthHeaders, ThrottledClient};
-use serde::{Deserialize, Serialize};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
-use crate::{NetworkError, PackageTag, RegistryError, package_distribution::PackageDistribution};
+use crate::{
+    NetworkError,
+    PackageTag,
+    RegistryError,
+    package_distribution::PackageDistribution,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -113,7 +124,11 @@ fn deserialize_dependency_map<'de, Deser>(
 where
     Deser: serde::Deserializer<'de>,
 {
-    use serde::de::{self, MapAccess, Visitor};
+    use serde::de::{
+        self,
+        MapAccess,
+        Visitor,
+    };
     use std::fmt;
 
     struct DependencyMapVisitor;
@@ -158,7 +173,10 @@ pub(crate) fn deserialize_deprecated_field<'de, Deser>(
 where
     Deser: serde::Deserializer<'de>,
 {
-    use serde::de::{self, Visitor};
+    use serde::de::{
+        self,
+        Visitor,
+    };
     use std::fmt;
 
     struct DeprecatedVisitor;

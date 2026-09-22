@@ -11,22 +11,46 @@
 
 use std::{
     future::Future,
-    io::{self, IsTerminal},
+    io::{
+        self,
+        IsTerminal,
+    },
     pin::Pin,
     sync::{
-        Arc, LazyLock,
-        atomic::{AtomicBool, Ordering},
+        Arc,
+        LazyLock,
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
-    task::{Context, Poll},
+    task::{
+        Context,
+        Poll,
+    },
     thread,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
-use crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use pnpm_network::{LimitedBody, read_limited_body};
+use crossterm::event::{
+    self,
+    Event,
+    KeyCode,
+    KeyEventKind,
+};
+use pnpm_network::{
+    LimitedBody,
+    read_limited_body,
+};
 
 use crate::poll_for_web_auth_token::{
-    WebAuthFetchOptions, WebAuthFetchResponse, body_may_carry_token,
+    WebAuthFetchOptions,
+    WebAuthFetchResponse,
+    body_may_carry_token,
 };
 
 /// Read the current wall-clock time as Unix-epoch milliseconds.

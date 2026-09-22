@@ -1,15 +1,31 @@
 use super::{
-    InstallWithFreshLockfileResult, errors::InstallWithFreshLockfileError,
+    InstallWithFreshLockfileResult,
+    errors::InstallWithFreshLockfileError,
     seed_policy::UpdateSeedPolicy,
 };
-use crate::{HoistedDependencies, SkippedSnapshots};
+use crate::{
+    HoistedDependencies,
+    SkippedSnapshots,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    Reporter,
+    Stage,
+    StageLog,
+};
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
     path::Path,
     sync::Arc,
 };

@@ -5,7 +5,10 @@
 //! as a column-aligned table under a header row.
 
 use crate::cli_args::{
-    outdated::{OutdatedPackage, colorize_target},
+    outdated::{
+        OutdatedPackage,
+        colorize_target,
+    },
     sanitize::sanitize_inline,
 };
 use console::measure_text_width;

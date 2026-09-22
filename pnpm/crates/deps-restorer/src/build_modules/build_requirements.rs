@@ -1,9 +1,18 @@
 use super::slots::PkgRoots;
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
-use pnpm_package_manifest::{
-    file_path_requires_build, manifest_requires_build, parse_manifest, pkg_requires_build,
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
 };
-use pnpm_patching::{ExtendedPatchInfo, preview_patch};
+use pnpm_package_manifest::{
+    file_path_requires_build,
+    manifest_requires_build,
+    parse_manifest,
+    pkg_requires_build,
+};
+use pnpm_patching::{
+    ExtendedPatchInfo,
+    preview_patch,
+};
 use std::collections::HashMap;
 
 /// Whether each configured patch adds build work its package's published

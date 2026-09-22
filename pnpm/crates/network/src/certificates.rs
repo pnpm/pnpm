@@ -1,4 +1,11 @@
-use super::{Certificate, Identity, LazyLock, RegistryTls, TlsConfig, TlsError};
+use super::{
+    Certificate,
+    Identity,
+    LazyLock,
+    RegistryTls,
+    TlsConfig,
+    TlsError,
+};
 
 /// Which trust anchors a client built by
 /// [`ThrottledClient::for_installs`](crate::ThrottledClient::for_installs) verifies registry certificates

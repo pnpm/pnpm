@@ -1,10 +1,20 @@
 use super::{
-    super::{Decision, current_pnpmfiles, settings::current_settings},
-    backdate_validated_files, check, isolated_included, setup_fresh_install,
+    super::{
+        Decision,
+        current_pnpmfiles,
+        settings::current_settings,
+    },
+    backdate_validated_files,
+    check,
+    isolated_included,
+    setup_fresh_install,
     write_state_with_pnpmfiles,
 };
 use pnpm_workspace_state::ProjectEntry;
-use std::{collections::BTreeMap, fs};
+use std::{
+    collections::BTreeMap,
+    fs,
+};
 
 #[test]
 fn returns_skipped_when_a_pnpmfile_is_modified() {

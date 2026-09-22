@@ -1,16 +1,25 @@
 use std::{
     collections::HashMap,
     sync::Mutex,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 use pnpm_config::Config as PacquetConfig;
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::hash_lockfile;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 
 use pnpr_policy::Identity;
-use pnpr_route::{Footprint, RouteContext};
+use pnpr_route::{
+    Footprint,
+    RouteContext,
+};
 
 use super::protocol::ResolveRequest;
 

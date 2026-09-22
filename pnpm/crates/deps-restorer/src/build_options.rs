@@ -1,10 +1,23 @@
 use pnpm_config::PackageImportMethod;
 use pnpm_executor::ScriptsPrependNodePath;
-use pnpm_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    ProjectSnapshot,
+    SnapshotEntry,
+};
 use std::{
-    collections::{BTreeSet, HashMap},
-    path::{Path, PathBuf},
-    sync::{Mutex, atomic::AtomicBool},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Mutex,
+        atomic::AtomicBool,
+    },
 };
 
 #[derive(Clone, Copy)]

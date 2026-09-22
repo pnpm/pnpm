@@ -1,4 +1,7 @@
-pub use pnpm_text_sanitize::{sanitize, sanitize_inline};
+pub use pnpm_text_sanitize::{
+    sanitize,
+    sanitize_inline,
+};
 
 use pnpm_network::LimitedBody;
 

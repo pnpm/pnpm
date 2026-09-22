@@ -7,7 +7,10 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{
     fs,
     net::TcpListener,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 

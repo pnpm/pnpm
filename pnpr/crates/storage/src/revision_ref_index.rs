@@ -1,5 +1,10 @@
 use super::{
-    Deserialize, HashSet, MAX_HOSTED_REVISION_REFS, RegistryError, Result, Serialize,
+    Deserialize,
+    HashSet,
+    MAX_HOSTED_REVISION_REFS,
+    RegistryError,
+    Result,
+    Serialize,
     integrity_addressed_tarball_integrity,
 };
 

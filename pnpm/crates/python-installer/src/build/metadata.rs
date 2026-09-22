@@ -1,15 +1,35 @@
 use super::{
-    BuildEnvironment, BuiltWheel, PythonPrepare, backend, host, interpreter, unapproved,
+    BuildEnvironment,
+    BuiltWheel,
+    PythonPrepare,
+    backend,
+    host,
+    interpreter,
+    unapproved,
     validation::identify_identity,
 };
 use crate::{
-    environment::Shared, interpreter::Interpreters, manifest::Manifest, targets::Environments,
+    environment::Shared,
+    interpreter::Interpreters,
+    manifest::Manifest,
+    targets::Environments,
     workspace::members::Membership,
 };
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

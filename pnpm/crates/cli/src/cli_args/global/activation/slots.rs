@@ -1,6 +1,18 @@
 use super::{
-    ArtifactCleanupError, BTreeMap, Context, FsRename, GlobalActivationError, HashSet,
-    IntoDiagnostic, Path, PathBuf, fs, io, read_symlink_dir, remove_bin, remove_symlink_dir,
+    ArtifactCleanupError,
+    BTreeMap,
+    Context,
+    FsRename,
+    GlobalActivationError,
+    HashSet,
+    IntoDiagnostic,
+    Path,
+    PathBuf,
+    fs,
+    io,
+    read_symlink_dir,
+    remove_bin,
+    remove_symlink_dir,
 };
 
 #[derive(Debug)]
@@ -299,7 +311,10 @@ fn backup_symlink(original: &Path, backup: &Path, _kind: BinSlotKind) -> io::Res
 
 #[cfg(windows)]
 fn backup_symlink(original: &Path, backup: &Path, kind: BinSlotKind) -> io::Result<()> {
-    use std::os::windows::fs::{symlink_dir, symlink_file};
+    use std::os::windows::fs::{
+        symlink_dir,
+        symlink_file,
+    };
     let target = fs::read_link(original)?;
     match kind {
         BinSlotKind::FileSymlink => symlink_file(target, backup),

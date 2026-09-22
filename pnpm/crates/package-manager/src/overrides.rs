@@ -17,18 +17,37 @@
 pub(crate) use selectors::parse_declared_range;
 
 mod selectors;
-use selectors::{matches_target, semver_satisfies, sort_by_specificity};
+use selectors::{
+    matches_target,
+    semver_satisfies,
+    sort_by_specificity,
+};
 
-use node_semver::{Range, Version};
-use pnpm_config_parse_overrides::{PackageSelector, VersionOverride};
+use node_semver::{
+    Range,
+    Version,
+};
+use pnpm_config_parse_overrides::{
+    PackageSelector,
+    VersionOverride,
+};
 use pnpm_local_spec::LocalSpec;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_resolver_base::is_valid_peer_range;
 use serde_json::Value;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 /// In-memory hook that applies the parsed `pnpm.overrides` set to a

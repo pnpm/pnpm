@@ -1,6 +1,9 @@
 use super::with_boolean_negations;
 use crate::cli_args::CliArgs;
-use clap::{CommandFactory, FromArgMatches};
+use clap::{
+    CommandFactory,
+    FromArgMatches,
+};
 
 /// Resolve a boolean flag on the `install` subcommand after parsing
 /// `argv` through the negation-augmented command, exercising the same

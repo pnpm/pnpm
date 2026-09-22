@@ -1,14 +1,21 @@
 use super::{
-    PEER_HEAVY_DEPTH, PEER_HEAVY_INTEGRITY, PEER_HEAVY_PROVIDER, PEER_HEAVY_VERSION,
+    PEER_HEAVY_DEPTH,
+    PEER_HEAVY_INTEGRITY,
+    PEER_HEAVY_PROVIDER,
+    PEER_HEAVY_VERSION,
     PEER_HEAVY_WIDTH,
 };
 use crate::{
-    cli_args::BenchmarkScenario, fixtures::PACKAGE_JSON,
+    cli_args::BenchmarkScenario,
+    fixtures::PACKAGE_JSON,
     workspace_manifest::MinimalWorkspaceManifest,
 };
 use serde_json::Value;
 use std::{
-    fs::{self, File},
+    fs::{
+        self,
+        File,
+    },
     io::Write,
     path::Path,
 };

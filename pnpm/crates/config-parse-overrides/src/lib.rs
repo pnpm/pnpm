@@ -11,11 +11,17 @@
 //! [`Catalogs`] map when the caller has no catalogs configured — any
 //! `catalog:` value will then fall through to the missing-entry branch.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    WantedDependency,
+    resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;

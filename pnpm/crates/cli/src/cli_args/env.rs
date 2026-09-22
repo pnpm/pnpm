@@ -1,16 +1,31 @@
 //! `pacquet env` — the deprecated Node.js-only front end to
 //! [`super::runtime`], kept because pnpm still ships it.
 
-use super::{add::AddRequest, global::handle_global_add, registry_client::build_registry_client};
+use super::{
+    add::AddRequest,
+    global::handle_global_add,
+    registry_client::build_registry_client,
+};
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_config::{Config, Tool};
+use pnpm_config::{
+    Config,
+    Tool,
+};
 use pnpm_engine_runtime_node_resolver::{
-    get_node_mirror, parse_node_specifier, resolve_node_versions_with_auth,
+    get_node_mirror,
+    parse_node_specifier,
+    resolve_node_versions_with_auth,
 };
 use pnpm_registry::RangeSpecStyle;
-use pnpm_reporter::{Reporter, emit_global_warning};
+use pnpm_reporter::{
+    Reporter,
+    emit_global_warning,
+};
 use std::path::Path;
 
 /// Manage Node.js versions.

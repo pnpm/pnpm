@@ -1,12 +1,24 @@
-use super::{InstallPlan, InstallTask, PreparedInstall};
-use miette::{IntoDiagnostic, Result, bail};
+use super::{
+    InstallPlan,
+    InstallTask,
+    PreparedInstall,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    bail,
+};
 use std::{
     fs,
     future::poll_fn,
     path::PathBuf,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU8, Ordering},
+        atomic::{
+            AtomicBool,
+            AtomicU8,
+            Ordering,
+        },
     },
     task::Poll,
     time::Duration,

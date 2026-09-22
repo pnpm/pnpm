@@ -1,13 +1,31 @@
-use pnpm_network::{ThrottledClient, redact_and_sanitize};
+use pnpm_network::{
+    ThrottledClient,
+    redact_and_sanitize,
+};
 use pnpm_network_web_auth::{
-    AuthUrlMessage, Clock, EnterKeyListener, OpenUrl, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch,
-    WebAuthFetchOptions, WebAuthTimeoutError, WebAuthTokenPollParams, format_auth_url_message,
-    poll_for_web_auth_token, prompt_browser_open,
+    AuthUrlMessage,
+    Clock,
+    EnterKeyListener,
+    OpenUrl,
+    Sleep,
+    StdinIsTty,
+    StdoutIsTty,
+    WebAuthFetch,
+    WebAuthFetchOptions,
+    WebAuthTimeoutError,
+    WebAuthTokenPollParams,
+    format_auth_url_message,
+    poll_for_web_auth_token,
+    prompt_browser_open,
 };
 use pnpm_reporter::Reporter;
 use serde_json::Value;
 
-use super::{error::LoginError, global_info, registry_join};
+use super::{
+    error::LoginError,
+    global_info,
+    registry_join,
+};
 
 /// Drive the registry's web-based login: probe `-/v1/login`, then poll the
 /// returned `doneUrl` for the granted token while offering to open the login

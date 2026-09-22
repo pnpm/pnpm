@@ -1,6 +1,17 @@
 use super::{
-    DependencyGroup, HashMap, Mutex, RecordingResolver, Utc, WorkspaceImporter, assert_eq,
-    fake_manifest, fake_result, importer_opts, recorded_time, resolve_workspace, workspace_opts,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    RecordingResolver,
+    Utc,
+    WorkspaceImporter,
+    assert_eq,
+    fake_manifest,
+    fake_result,
+    importer_opts,
+    recorded_time,
+    resolve_workspace,
+    workspace_opts,
 };
 use chrono::TimeZone;
 

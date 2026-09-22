@@ -1,5 +1,8 @@
 use super::{
-    ParsePropertyPathError, Segment, get_object_value_by_property_path, parse_property_path,
+    ParsePropertyPathError,
+    Segment,
+    get_object_value_by_property_path,
+    parse_property_path,
 };
 use serde_json::json;
 

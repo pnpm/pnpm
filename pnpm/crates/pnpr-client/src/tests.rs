@@ -1,14 +1,36 @@
 use super::{
-    PnprClient, PnprClientError, ResolveOutcome, ResolveProject, ResolveProjectsOptions,
-    ResolvedPackage, VerifyError, build_verify_error,
-    resolve::{Frame, PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION, parse_frame},
+    PnprClient,
+    PnprClientError,
+    ResolveOutcome,
+    ResolveProject,
+    ResolveProjectsOptions,
+    ResolvedPackage,
+    VerifyError,
+    build_verify_error,
+    resolve::{
+        Frame,
+        PROJECT_TRANSFORMS_HEADER,
+        PROJECT_TRANSFORMS_VERSION,
+        parse_frame,
+    },
 };
 use indexmap::IndexMap;
-use pnpm_config::{PackageExtension, ResolutionMode, TrustPolicy};
+use pnpm_config::{
+    PackageExtension,
+    ResolutionMode,
+    TrustPolicy,
+};
 use pnpm_graph_hasher::hash_object_nullable_with_prefix;
 use pnpm_lockfile::TarballRevision;
-use serde_json::{Value, json};
-use std::{collections::BTreeMap, future::pending, time::Duration};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    collections::BTreeMap,
+    future::pending,
+    time::Duration,
+};
 use tokio::net::TcpListener;
 
 #[tokio::test]

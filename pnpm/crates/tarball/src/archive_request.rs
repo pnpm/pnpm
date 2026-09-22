@@ -1,6 +1,21 @@
-use crate::{HttpStatusError, NetworkError, TarballError, auth_header_for_package_download};
-use pnpm_network::{AuthHeaders, ThrottledClient, ThrottledClientGuard};
-use pnpm_reporter::{FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, Reporter};
+use crate::{
+    HttpStatusError,
+    NetworkError,
+    TarballError,
+    auth_header_for_package_download,
+};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+    ThrottledClientGuard,
+};
+use pnpm_reporter::{
+    FetchingProgressLog,
+    FetchingProgressMessage,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 
 /// Authorize and start one archive request. The returned permit must remain
 /// alive until the caller finishes consuming the body.

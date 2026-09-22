@@ -1,5 +1,9 @@
 use super::Config;
-use serde_json::{Map, Number, Value};
+use serde_json::{
+    Map,
+    Number,
+    Value,
+};
 
 pub(super) fn deploy_workspace_manifest(config: &Config) -> Map<String, Value> {
     Map::from_iter([

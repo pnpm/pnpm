@@ -28,9 +28,15 @@
 //! (`pnpm <script>`) keep their argv untouched, as does everything after
 //! a `--` terminator.
 
-use clap::{Arg, Command};
+use clap::{
+    Arg,
+    Command,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     ffi::OsString,
 };
 

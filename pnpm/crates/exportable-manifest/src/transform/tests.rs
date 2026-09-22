@@ -1,5 +1,11 @@
-use super::{TransformError, transform};
-use serde_json::{Value, json};
+use super::{
+    TransformError,
+    transform,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
 fn run(mut manifest: Value) -> Result<Value, TransformError> {
     let object = manifest.as_object_mut().unwrap();

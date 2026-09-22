@@ -4,18 +4,43 @@
 //! A package the store has no row for is skipped: there is nothing to
 //! compare it against.
 
-use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
-use pnpm_deps_restorer::{safe_join_modules_dir, store_index_key_for_resolution};
+use pnpm_deps_restorer::{
+    safe_join_modules_dir,
+    store_index_key_for_resolution,
+};
 use pnpm_lockfile::Lockfile;
-use pnpm_modules_yaml::{Host, Modules, read_modules_manifest};
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pnpm_store_dir::{StoreIndex, StoreIndexError, package_dir_matches_index};
+use pnpm_modules_yaml::{
+    Host,
+    Modules,
+    read_modules_manifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
+use pnpm_store_dir::{
+    StoreIndex,
+    StoreIndexError,
+    package_dir_matches_index,
+};
 use rayon::prelude::*;
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// pnpm renders this as a title plus the list, so the message carries the

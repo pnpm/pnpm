@@ -1,19 +1,46 @@
 use super::{
-    HoistedPackageMapOptions, PackageMapOptions, absolute_package_url,
-    dependencies_graph_to_package_map, link_target_id, lockfile_to_package_map,
-    make_node_package_map_option, make_node_require_option, to_relative_url,
+    HoistedPackageMapOptions,
+    PackageMapOptions,
+    absolute_package_url,
+    dependencies_graph_to_package_map,
+    link_target_id,
+    lockfile_to_package_map,
+    make_node_package_map_option,
+    make_node_require_option,
+    to_relative_url,
 };
-use crate::{DependenciesGraphNode, LockfileToDepGraphResult, VirtualStoreLayout};
+use crate::{
+    DependenciesGraphNode,
+    LockfileToDepGraphResult,
+    VirtualStoreLayout,
+};
 use pnpm_lockfile::{
-    ComVer, Lockfile, LockfileResolution, LockfileVersion, PackageKey, PkgIdWithPatchHash, PkgName,
-    ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    ComVer,
+    Lockfile,
+    LockfileResolution,
+    LockfileVersion,
+    PackageKey,
+    PkgIdWithPatchHash,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
     TarballResolution,
 };
 use pnpm_modules_yaml::DepPath;
 use pnpm_package_manifest::PackageManifest;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[test]

@@ -1,11 +1,34 @@
 use super::{
-    Arc, AtomicUsize, CappedDnsResolver, Duration, ForInstallsError, NetworkSettings,
-    NoProxyMatcher, NoProxySetting, NonZeroUsize, Ordering, PerRegistryTls, ProxyConfig,
-    ProxyError, RecordingResolver, Semaphore, TEST_CA_PEM, TEST_CLIENT_PKCS1_CERT,
-    TEST_CLIENT_PKCS1_KEY, ThrottledClient, TlsConfig, Url, list, parse_proxy_url, strip_userinfo,
+    Arc,
+    AtomicUsize,
+    CappedDnsResolver,
+    Duration,
+    ForInstallsError,
+    NetworkSettings,
+    NoProxyMatcher,
+    NoProxySetting,
+    NonZeroUsize,
+    Ordering,
+    PerRegistryTls,
+    ProxyConfig,
+    ProxyError,
+    RecordingResolver,
+    Semaphore,
+    TEST_CA_PEM,
+    TEST_CLIENT_PKCS1_CERT,
+    TEST_CLIENT_PKCS1_KEY,
+    ThrottledClient,
+    TlsConfig,
+    Url,
+    list,
+    parse_proxy_url,
+    strip_userinfo,
 };
 use reqwest::dns::Resolve as _;
-use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+use tokio::io::{
+    AsyncReadExt as _,
+    AsyncWriteExt as _,
+};
 
 #[tokio::test]
 async fn capped_dns_resolver_limits_concurrency() {

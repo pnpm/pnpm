@@ -29,8 +29,14 @@
 
 use crate::PackageExtender;
 use indexmap::IndexMap;
-use pnpm_config::{PackageExtension, PeerDependencyMeta};
-use std::{collections::BTreeMap, sync::LazyLock};
+use pnpm_config::{
+    PackageExtension,
+    PeerDependencyMeta,
+};
+use std::{
+    collections::BTreeMap,
+    sync::LazyLock,
+};
 
 // `pnpm_compat_package_extensions.json` holds pnpm-specific entries not in
 // `@yarnpkg/extensions`. It must stay identical to the TypeScript CLI's

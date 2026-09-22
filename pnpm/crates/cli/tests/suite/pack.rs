@@ -8,9 +8,16 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use serde_json::json;
-use std::{fmt::Write, fs, path::Path};
+use std::{
+    fmt::Write,
+    fs,
+    path::Path,
+};
 
 #[test]
 fn pack_uses_embed_readme_and_manifest_obfuscation_settings() {

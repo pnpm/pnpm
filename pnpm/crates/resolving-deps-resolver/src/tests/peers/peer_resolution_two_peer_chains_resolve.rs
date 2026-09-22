@@ -1,7 +1,17 @@
 use super::{
-    DepPath, DependencyGroup, HashMap, Mutex, ResolveDependencyTreeOptions, ResolveOptions,
-    ResolvePeersOptions, StubResolver, assert_eq, fake_manifest, fake_result,
-    resolve_dependency_tree, resolve_peers,
+    DepPath,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    ResolveDependencyTreeOptions,
+    ResolveOptions,
+    ResolvePeersOptions,
+    StubResolver,
+    assert_eq,
+    fake_manifest,
+    fake_result,
+    resolve_dependency_tree,
+    resolve_peers,
 };
 
 /// Two parallel peer chains in one importer — each peer resolves
@@ -283,7 +293,10 @@ async fn revisit_with_peer_only_child_keeps_per_occurrence_node_id() {
 /// slice.
 #[tokio::test]
 async fn external_link_peer_remaps_to_node_modules_when_exclude_links_on() {
-    use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+    use pnpm_lockfile::{
+        DirectoryResolution,
+        LockfileResolution,
+    };
     use pnpm_resolving_resolver_base::PkgResolutionId;
 
     let link_id = "link:/abs/external";

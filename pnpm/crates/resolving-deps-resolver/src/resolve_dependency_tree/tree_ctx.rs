@@ -3,22 +3,39 @@
 //! pick, the project-relative cache scope, and the `file:` specifier
 //! resolved against its declaring manifest's directory.
 
-use chrono::{DateTime, Utc};
+use chrono::{
+    DateTime,
+    Utc,
+};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_patching::PatchGroupRecord;
 use pnpm_resolving_resolver_base::{
-    LinkWorkspacePackages, ResolveOptions, VersionSelectorType, WantedDependency,
+    LinkWorkspacePackages,
+    ResolveOptions,
+    VersionSelectorType,
+    WantedDependency,
 };
 use std::{
     borrow::Cow,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
-use crate::resolved_tree::{DirectDep, ResolvedTree};
+use crate::resolved_tree::{
+    DirectDep,
+    ResolvedTree,
+};
 
-use super::{ManifestHook, UpdateReuseScope, reuse::UpdateScope, workspace_ctx::WorkspaceTreeCtx};
+use super::{
+    ManifestHook,
+    UpdateReuseScope,
+    reuse::UpdateScope,
+    workspace_ctx::WorkspaceTreeCtx,
+};
 
 /// Whether a wanted dep's resolution is computed relative to the
 /// consuming importer's directory rather than being

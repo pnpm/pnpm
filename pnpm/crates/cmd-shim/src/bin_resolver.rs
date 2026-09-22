@@ -1,7 +1,10 @@
 use crate::capabilities::FsWalkFiles;
 use pnpm_fs::is_subdir;
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// One bin entry resolved from a package's `package.json`.
 ///

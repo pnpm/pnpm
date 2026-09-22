@@ -1,6 +1,13 @@
-use derive_more::{Display, Error, From};
+use derive_more::{
+    Display,
+    Error,
+    From,
+};
 use miette::Diagnostic;
-use std::{io, path::PathBuf};
+use std::{
+    io,
+    path::PathBuf,
+};
 
 #[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]

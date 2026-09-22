@@ -1,4 +1,7 @@
-use super::{ImporterAnchor, importer_rel_dir};
+use super::{
+    ImporterAnchor,
+    importer_rel_dir,
+};
 use pretty_assertions::assert_eq;
 use std::path::Path;
 

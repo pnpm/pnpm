@@ -9,7 +9,10 @@ use async_trait::async_trait;
 use derive_more::Display;
 use serde_json::Value;
 use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{
+    mpsc,
+    oneshot,
+};
 
 /// The `loadPnpmfile(path)` helper both Node entry points prepend to the script
 /// they generate.

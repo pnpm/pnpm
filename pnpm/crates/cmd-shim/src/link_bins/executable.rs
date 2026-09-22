@@ -2,7 +2,14 @@
 use super::is_shim_pointing_at;
 #[cfg(windows)]
 use super::shim_writer::with_extension_appended;
-use super::{FsEnsureExecutableBits, FsReadToString, LinkBinsError, Path, io, remove_stale_bin};
+use super::{
+    FsEnsureExecutableBits,
+    FsReadToString,
+    LinkBinsError,
+    Path,
+    io,
+    remove_stale_bin,
+};
 use crate::shim::is_within_root;
 
 /// Make the underlying script executable: apply a minimum mode of

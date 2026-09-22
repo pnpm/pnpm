@@ -1,9 +1,27 @@
 use super::{
-    Command, CommandExtra, CommandTempCwd, DependencyGroup, HERMETIC_STORE_YAML, Lockfile,
-    PackageManifest, Pipe, PkgName, TempDir, add_in, assert_eq, linking_settings, prod_spec,
-    saved_spec, workspace_with_lib, write_json, write_workspace_with_local_fixtures,
+    Command,
+    CommandExtra,
+    CommandTempCwd,
+    DependencyGroup,
+    HERMETIC_STORE_YAML,
+    Lockfile,
+    PackageManifest,
+    Pipe,
+    PkgName,
+    TempDir,
+    add_in,
+    assert_eq,
+    linking_settings,
+    prod_spec,
+    saved_spec,
+    workspace_with_lib,
+    write_json,
+    write_workspace_with_local_fixtures,
 };
-use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+use assert_cmd::{
+    assert::OutputAssertExt,
+    cargo::CommandCargoExt,
+};
 
 #[test]
 fn add_to_multi_pattern_workspace_root_requires_workspace_root_flag() {

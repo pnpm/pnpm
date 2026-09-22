@@ -1,7 +1,22 @@
 use super::{
-    Arc, BlobFinalize, Body, CanonicalPackageName, DocumentWrite, HostedBackend,
-    HostedDocumentForUpdate, HostedDocumentVersion, HostedRevisionRefWrite, ObjectPath,
-    ObjectStoreExt, Path, PathBuf, Result, S3Store, StreamExt, async_trait, fs,
+    Arc,
+    BlobFinalize,
+    Body,
+    CanonicalPackageName,
+    DocumentWrite,
+    HostedBackend,
+    HostedDocumentForUpdate,
+    HostedDocumentVersion,
+    HostedRevisionRefWrite,
+    ObjectPath,
+    ObjectStoreExt,
+    Path,
+    PathBuf,
+    Result,
+    S3Store,
+    StreamExt,
+    async_trait,
+    fs,
 };
 
 /// The S3-compatible object-store backend. Document writes are

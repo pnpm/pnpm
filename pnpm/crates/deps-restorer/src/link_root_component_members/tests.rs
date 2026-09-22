@@ -1,12 +1,29 @@
-use super::{HOISTING_LIMITS_WORKSPACES, injected_member_key, link_root_component_members};
-use crate::{SkippedSnapshots, VirtualStoreLayout};
+use super::{
+    HOISTING_LIMITS_WORKSPACES,
+    injected_member_key,
+    link_root_component_members,
+};
+use crate::{
+    SkippedSnapshots,
+    VirtualStoreLayout,
+};
 use pnpm_lockfile::{
-    ImporterDepVersion, PackageKey, PkgName, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    ImporterDepVersion,
+    PackageKey,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_testing_utils::fs::is_symlink_or_junction;
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 /// Bit stamps `installConfig.hoistingLimits: "workspaces"` on the

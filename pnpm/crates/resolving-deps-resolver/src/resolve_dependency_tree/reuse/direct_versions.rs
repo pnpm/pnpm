@@ -1,6 +1,17 @@
 use super::{
-    Arc, BTreeMap, DirectDepVersions, HashSet, PkgName, PkgNameVerPeer, ProjectSnapshot,
-    ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry, TreeCtx, WantedSpec, lock_recoverable,
+    Arc,
+    BTreeMap,
+    DirectDepVersions,
+    HashSet,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    SnapshotDepRef,
+    SnapshotEntry,
+    TreeCtx,
+    WantedSpec,
+    lock_recoverable,
 };
 
 /// Record the importer direct deps whose manifest specifier differs from

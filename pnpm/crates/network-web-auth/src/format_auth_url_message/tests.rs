@@ -1,7 +1,13 @@
-use pnpm_reporter::{LogEvent, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+};
 use pretty_assertions::assert_eq;
 
-use super::{AuthUrlMessage, format_auth_url_message};
+use super::{
+    AuthUrlMessage,
+    format_auth_url_message,
+};
 use crate::generate_qr_code::generate_qr_code;
 
 /// Fails the test on any log message: the QR-code happy path renders the

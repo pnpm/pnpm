@@ -1,14 +1,28 @@
 use std::{
-    cell::{Cell, RefCell},
+    cell::{
+        Cell,
+        RefCell,
+    },
     rc::Rc,
 };
 
 use pnpm_network_web_auth::{
-    OtpError, OtpErrorBody, OtpSession, SyntheticOtpError, WebAuthFetchOptions, WithOtpError,
+    OtpError,
+    OtpErrorBody,
+    OtpSession,
+    SyntheticOtpError,
+    WebAuthFetchOptions,
+    WithOtpError,
     with_otp_handling,
 };
 use pnpm_network_web_auth_testing::{
-    FakeOtpError, InputResponse, SleepBehavior, ok_202, ok_token, ok_truncated, web_auth_body,
+    FakeOtpError,
+    InputResponse,
+    SleepBehavior,
+    ok_202,
+    ok_token,
+    ok_truncated,
+    web_auth_body,
     web_auth_fake,
 };
 use pretty_assertions::assert_eq;

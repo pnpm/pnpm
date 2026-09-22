@@ -3,12 +3,19 @@ pub use absolute::force_absolute_symlink_dir;
 use std::{
     borrow::Cow,
     error::Error,
-    fmt, fs, io,
-    path::{Path, PathBuf},
+    fmt,
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use crate::retry::{
-    is_transient_file_lock_error, remove_dir_all_with_retry, rename_with_retry,
+    is_transient_file_lock_error,
+    remove_dir_all_with_retry,
+    rename_with_retry,
     retry_transient_file_locks,
 };
 
@@ -338,11 +345,20 @@ fn existing_symlink_up_to_date(wanted: &Path, link: &Path, existing_link_string:
 #[cfg(windows)]
 mod windows {
     use std::{
-        fs, io,
-        path::{Path, PathBuf},
+        fs,
+        io,
+        path::{
+            Path,
+            PathBuf,
+        },
         sync::{
-            Mutex, PoisonError,
-            atomic::{AtomicU8, AtomicU64, Ordering},
+            Mutex,
+            PoisonError,
+            atomic::{
+                AtomicU8,
+                AtomicU64,
+                Ordering,
+            },
         },
     };
 
@@ -595,4 +611,7 @@ mod tests;
 
 mod absolute;
 mod replace;
-use replace::{TriedOnce, replace_unreadable_occupant};
+use replace::{
+    TriedOnce,
+    replace_unreadable_occupant,
+};

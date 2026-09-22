@@ -14,7 +14,10 @@ pub use pnpm_config::BUILTIN_REGISTRIES_BY_PREFIX;
 
 use std::collections::HashMap;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use reqwest::Url;
 

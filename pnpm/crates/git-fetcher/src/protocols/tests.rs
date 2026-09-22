@@ -1,5 +1,12 @@
-use super::{protocol_enabled, read_git_boolean, submodule_protocols};
-use std::{collections::HashMap, ffi::OsStr};
+use super::{
+    protocol_enabled,
+    read_git_boolean,
+    submodule_protocols,
+};
+use std::{
+    collections::HashMap,
+    ffi::OsStr,
+};
 
 #[test]
 fn inherited_protocol_allowlists_are_only_narrowed() {

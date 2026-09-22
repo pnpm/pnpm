@@ -16,7 +16,10 @@
 //! their `\r`, replacement lines take the patch's LF, and a file
 //! without a final newline keeps that shape through the round trip.
 
-use diffy::{Line, Patch};
+use diffy::{
+    Line,
+    Patch,
+};
 
 /// How far either side of its recorded position a hunk is retried
 /// before the patch is rejected.

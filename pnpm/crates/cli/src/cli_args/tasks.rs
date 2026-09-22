@@ -1,11 +1,29 @@
-use super::concurrency_group::{GroupStatus, inspect_group, render_group};
-use clap::{Args, Subcommand, error::ErrorKind as ClapErrorKind};
-use miette::{Context, IntoDiagnostic};
+use super::concurrency_group::{
+    GroupStatus,
+    inspect_group,
+    render_group,
+};
+use clap::{
+    Args,
+    Subcommand,
+    error::ErrorKind as ClapErrorKind,
+};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use std::{
     fs,
-    io::{self, ErrorKind},
-    path::{Component, Path, PathBuf},
+    io::{
+        self,
+        ErrorKind,
+    },
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Subcommand)]

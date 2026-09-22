@@ -5,14 +5,34 @@
 mod npm;
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use npm::{publish_doc, sha1_hex};
-use pnpr::{Config, MaxUsers, router};
-use serde_json::{Value, json};
+use npm::{
+    publish_doc,
+    sha1_hex,
+};
+use pnpr::{
+    Config,
+    MaxUsers,
+    router,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::PathBuf,
 };
 use tempfile::TempDir;
@@ -430,7 +450,12 @@ async fn a_bogus_stage_id_is_not_found_or_rejected() {
 /// listed would offer an approval that cannot happen again.
 #[tokio::test]
 async fn an_approval_that_reports_a_conflict_still_consumes_the_stage() {
-    use object_store::{ObjectStore, ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
+    use object_store::{
+        ObjectStore,
+        ObjectStoreExt,
+        memory::InMemory,
+        path::Path as ObjectPath,
+    };
     use pnpr::HostedStoreConfig;
     use std::sync::Arc;
 

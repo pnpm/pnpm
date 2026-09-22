@@ -1,22 +1,43 @@
 use super::{
-    ImportersPlan, ManifestDependencies, importer_dependency, importer_dependency_mut,
+    ImportersPlan,
+    ManifestDependencies,
+    importer_dependency,
+    importer_dependency_mut,
     importer_group,
     locked_versions::{
-        LockedPick, LockedSnapshots, is_linked_from_a_survivor,
+        LockedPick,
+        LockedSnapshots,
+        is_linked_from_a_survivor,
         locked_version_resolution_would_pick,
     },
-    move_dependency, remove_dependencies_absent_from,
+    move_dependency,
+    remove_dependencies_absent_from,
 };
 use crate::{
-    dependencies_graph_to_lockfile::manifest_publish_config, fast_update_lockfile::GraphEdits,
+    dependencies_graph_to_lockfile::manifest_publish_config,
+    fast_update_lockfile::GraphEdits,
     fast_update_settings::is_directory_dependency,
 };
-use node_semver::{Range, Version};
-use pnpm_lockfile::{
-    ImporterDepVersion, Lockfile, PackageKey, PkgName, ProjectSnapshot, ResolvedDependencySpec,
+use node_semver::{
+    Range,
+    Version,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use std::collections::{BTreeMap, HashMap};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    Lockfile,
+    PackageKey,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencySpec,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 /// The lockfile halves an importer edge is replayed against.
 #[derive(Clone, Copy)]

@@ -1,13 +1,23 @@
 use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicUsize, Ordering},
+    Arc,
+    Mutex,
+    atomic::{
+        AtomicUsize,
+        Ordering,
+    },
 };
 
 use async_trait::async_trait;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 use super::CustomFetcherPicker;
-use crate::{CustomFetcher, HookError};
+use crate::{
+    CustomFetcher,
+    HookError,
+};
 
 struct ScriptedFetcher {
     can_fetch: bool,

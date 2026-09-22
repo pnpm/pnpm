@@ -1,10 +1,18 @@
 use super::{
-    RecursionLimit, parse_depth,
+    RecursionLimit,
+    parse_depth,
     render::{
-        ProjectHierarchy, RenderParseableOptions, RenderTreeOptions, render_parseable, render_tree,
+        ProjectHierarchy,
+        RenderParseableOptions,
+        RenderTreeOptions,
+        render_parseable,
+        render_tree,
     },
 };
-use crate::cli_args::deps_tree::{DependencyNode, build::DependenciesHierarchy};
+use crate::cli_args::deps_tree::{
+    DependencyNode,
+    build::DependenciesHierarchy,
+};
 use pretty_assertions::assert_eq;
 use text_block_macros::text_block;
 

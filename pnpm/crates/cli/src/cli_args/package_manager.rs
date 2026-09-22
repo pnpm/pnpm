@@ -1,14 +1,24 @@
 use miette::IntoDiagnostic;
-use pnpm_config::{PNPM_VERSION, PmOnFail};
+use pnpm_config::{
+    PNPM_VERSION,
+    PmOnFail,
+};
 use pnpm_package_manifest::{
     package_manager_spec::{
-        dev_engines_package_managers, is_version_request, split_spec, version_without_build,
+        dev_engines_package_managers,
+        is_version_request,
+        split_spec,
+        version_without_build,
     },
     parse_manifest,
 };
 use pnpm_semver_include_prerelease::IncludePrereleaseRange;
 use serde_json::Value;
-use std::{fs, io::ErrorKind, path::Path};
+use std::{
+    fs,
+    io::ErrorKind,
+    path::Path,
+};
 
 pub(crate) const PACKAGE_MANAGER_SWITCH_ENV_VARS: [&str; 4] = [
     "npm_config_manage_package_manager_versions",

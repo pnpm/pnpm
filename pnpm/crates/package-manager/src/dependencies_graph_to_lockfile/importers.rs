@@ -1,14 +1,30 @@
 use super::{
-    DependenciesGraphToLockfileError, GraphToLockfileOptions, ImporterLockfileFlags,
+    DependenciesGraphToLockfileError,
+    GraphToLockfileOptions,
+    ImporterLockfileFlags,
     ImporterLockfileInput,
 };
 use pnpm_lockfile::{
-    ImporterDepVersion, LockfileResolution, ParseImporterDepVersionError, PkgName, PkgNameVerPeer,
-    PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, VersionPart,
+    ImporterDepVersion,
+    LockfileResolution,
+    ParseImporterDepVersionError,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    VersionPart,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_deps_resolver::{
-    DepPath, DependenciesGraph, DependenciesGraphNode, UpdateReuseScope,
+    DepPath,
+    DependenciesGraph,
+    DependenciesGraphNode,
+    UpdateReuseScope,
 };
 use pnpm_resolving_resolver_base::ResolveResult;
 use rayon::prelude::*;

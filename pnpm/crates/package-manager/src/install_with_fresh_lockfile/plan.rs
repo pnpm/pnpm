@@ -1,12 +1,28 @@
-use super::{FreshInputs, errors::InstallWithFreshLockfileError};
-use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
+use super::{
+    FreshInputs,
+    errors::InstallWithFreshLockfileError,
+};
+use crate::{
+    AllowBuildPolicy,
+    SkippedSnapshots,
+    VirtualStoreLayout,
+};
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::Reporter;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    HashSet,
+};
 
 /// Which importers a selected install materializes, and the lockfile
 /// closed over them.

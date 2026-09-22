@@ -4,10 +4,16 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{command_env::CommandTestExt, git_repo::GitRepoFixture};
+use pnpm_testing_utils::{
+    command_env::CommandTestExt,
+    git_repo::GitRepoFixture,
+};
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 

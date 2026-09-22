@@ -1,7 +1,20 @@
 use super::{
-    BTreeMap, Deserialize, HashSet, IndexMap, Lockfile, PnprClient, PnprClientError,
-    ResolveOptions, ResolveOutcome, ResolveProjectsOptions, ResolvedPackage, Stats,
-    TarballRevision, WireViolation, build_verify_error, hash_object_nullable_with_prefix,
+    BTreeMap,
+    Deserialize,
+    HashSet,
+    IndexMap,
+    Lockfile,
+    PnprClient,
+    PnprClientError,
+    ResolveOptions,
+    ResolveOutcome,
+    ResolveProjectsOptions,
+    ResolvedPackage,
+    Stats,
+    TarballRevision,
+    WireViolation,
+    build_verify_error,
+    hash_object_nullable_with_prefix,
 };
 use futures_util::StreamExt as _;
 

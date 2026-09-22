@@ -1,4 +1,9 @@
-use super::{Config, Lockfile, NodeLinker, Path};
+use super::{
+    Config,
+    Lockfile,
+    NodeLinker,
+    Path,
+};
 use pnpm_lockfile::PackageKey;
 use std::collections::BTreeMap;
 

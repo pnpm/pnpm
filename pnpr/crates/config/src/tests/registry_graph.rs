@@ -1,6 +1,14 @@
 use super::{
-    Config, Ecosystem, FeatureOverrides, Identity, Path, PathBuf, RegistryError,
-    hosted_rules_config, listen, user,
+    Config,
+    Ecosystem,
+    FeatureOverrides,
+    Identity,
+    Path,
+    PathBuf,
+    RegistryError,
+    hosted_rules_config,
+    listen,
+    user,
 };
 
 #[test]
@@ -22,7 +30,10 @@ registries:
 
 #[test]
 fn static_constructor_serves_everything_from_one_hosted() {
-    use pnpr_registry::{ConcreteKind, Resolved};
+    use pnpr_registry::{
+        ConcreteKind,
+        Resolved,
+    };
     let config = Config::static_serve(listen(), PathBuf::from("/tmp"));
     assert!(config.routing.upstreams.is_empty());
     // Everything routes to the single local hosted registry, which serves the
