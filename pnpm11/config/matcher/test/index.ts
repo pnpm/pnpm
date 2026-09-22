@@ -130,4 +130,10 @@ test('createMatcherWithIndex()', () => {
     expect(match('web-app')).toBe(0)
     expect(match('eb')).toBe(-1)
   }
+  {
+    const match = createMatcher(['?'])
+    expect(match('😀')).toBe(true)
+    expect(match('😀😀')).toBe(false)
+  }
 })
+
