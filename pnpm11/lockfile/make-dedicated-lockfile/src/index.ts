@@ -44,12 +44,10 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
   await writeProjectManifest(withWorkspaceDependencies(manifest, publishManifest as ProjectManifest))
 
   const modulesDir = path.join(projectDir, 'node_modules')
-  const tmp = path.join(projectDir, 'tmp_node_modules')
-  const tempModulesDir = path.join(projectDir, 'node_modules/.tmp')
+  const tempModulesDir = path.join(projectDir, '.tmp_node_modules')
   let modulesRenamed = false
   try {
-    await renameOverwrite(modulesDir, tmp)
-    await renameOverwrite(tmp, tempModulesDir)
+    await renameOverwrite(modulesDir, tempModulesDir)
     modulesRenamed = true
   } catch (err: any) { // eslint-disable-line
     if (err['code'] !== 'ENOENT') throw err
@@ -68,8 +66,9 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
     })
   } finally {
     if (modulesRenamed) {
-      await renameOverwrite(tempModulesDir, tmp)
-      await renameOverwrite(tmp, modulesDir)
+      try {
+        await renameOverwrite(tempModulesDir, modulesDir)
+      } catch {}
     }
     await writeProjectManifest(manifest)
   }
