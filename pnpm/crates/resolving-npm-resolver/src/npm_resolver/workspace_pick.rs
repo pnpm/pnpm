@@ -156,7 +156,7 @@ pub(super) fn try_workspace_fallback(
 
 /// Registry pick succeeded; check whether a workspace package
 /// shadows it: exact `name@version` match wins; otherwise a higher
-/// workspace version wins; otherwise `preferWorkspacePackages` wins.
+/// or equal workspace version precedence wins; otherwise `preferWorkspacePackages` wins.
 pub(super) fn try_workspace_shadow(
     workspace_packages: &WorkspacePackages,
     spec: &RegistryPackageSpec,
@@ -184,7 +184,7 @@ pub(super) fn try_workspace_shadow(
 
     let local_version = pick_matching_local_version_or_null(matching_name, spec)?;
     let local_parsed = Version::parse(&local_version).ok()?;
-    let prefer = opts.project.prefer_workspace_packages || local_parsed > picked.version;
+    let prefer = opts.project.prefer_workspace_packages || local_parsed >= picked.version;
     if !prefer {
         return None;
     }
