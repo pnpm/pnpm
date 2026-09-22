@@ -92,3 +92,25 @@ pub(crate) fn patched_range_for_style(patched: &str, style: RangeSpecStyle) -> S
 pub(crate) fn caret_range_for_patched(patched: &str) -> String {
     patched_range_for_style(patched, RangeSpecStyle::Major)
 }
+
+pub(crate) fn is_range_subset(sub: &str, dom: &str) -> bool {
+    let Ok(dom_range) = dom.trim().parse::<Range>() else { return false };
+    let sub = sub.trim();
+    if sub.is_empty() {
+        return false;
+    }
+    sub.split("||")
+        .all(|sub_part| {
+            let Ok(sub_range) = sub_part.trim().parse::<Range>() else { return false };
+            dom_range.allows_all(&sub_range)
+        })
+}
+
+pub(crate) fn min_version_from_range(range_str: &str) -> Option<Version> {
+    range_str
+        .trim()
+        .parse::<Range>()
+        .ok()
+        .and_then(|r| r.min_version())
+        .or_else(|| range_str.trim().parse::<Version>().ok())
+}

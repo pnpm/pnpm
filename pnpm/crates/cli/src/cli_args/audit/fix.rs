@@ -1,7 +1,9 @@
 //! Applying fixes: overrides, ignores, and dependency updates.
 
+pub(super) mod overrides;
 pub(super) mod update;
 
+pub(crate) use overrides::create_overrides;
 pub(crate) use update::{
     AuditFixObserver, VulnerabilityGuard, fix_with_update, format_fix_with_update_output,
 };
@@ -11,9 +13,9 @@ use super::{
     DependencyGroup, Deserialize, HashMap, HashSet, IntoDiagnostic, Lockfile, MultiSelect,
     PackageVersionGuard, Range, RangeSpecStyle, Reporter, ResolutionObserver, State, Update, Utc,
     Version, blue, caret_range_for_patched, color_severity, encode_package_name, green,
-    normalize_ghsa_id, normalize_registry, parse_packument_timestamp, patched_range_for_style, red,
-    redact_url_userinfo, retry_opts_from_config, satisfies_including_prerelease, send_with_retry,
-    severity_name, severity_number,
+    normalize_ghsa_id, normalize_registry, parse_packument_timestamp, red, redact_url_userinfo,
+    retry_opts_from_config, satisfies_including_prerelease, send_with_retry, severity_name,
+    severity_number,
 };
 use update::advisory_choices;
 
@@ -79,23 +81,6 @@ pub(crate) fn prune_ignored_ghsas(
         }
     }
     PruneIgnoredGhsasResult { pruned, retained }
-}
-
-/// Build the `name@vulnerable_versions → patched-range` override map from the
-/// fixable advisories (those with an inferred patched range), saving each
-/// minimum patched version in the style of `range_spec_style`. Keyed by a
-/// `BTreeMap` so the output is sorted, mirroring pnpm's `sortDirectKeys`.
-pub(crate) fn create_overrides(
-    advisories: &BTreeMap<String, AuditAdvisory>,
-    range_spec_style: RangeSpecStyle,
-) -> BTreeMap<String, String> {
-    let mut overrides = BTreeMap::new();
-    for advisory in advisories.values() {
-        let Some(patched) = advisory.patched_versions.as_deref() else { continue };
-        let key = format!("{}@{}", advisory.module_name, advisory.vulnerable_versions);
-        overrides.insert(key, patched_range_for_style(patched, range_spec_style));
-    }
-    overrides
 }
 
 /// Write the override-method fixes to `pnpm-workspace.yaml` and return the

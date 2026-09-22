@@ -2,7 +2,7 @@ use super::{
     BTreeMap, Config, ConfigAuditLevel, HashMap, HashSet, InstalledPackages, PackumentPublishInfo,
     Range, RangeSpecStyle, age_cutoff, caret_range_for_patched, classify_for_update,
     create_overrides, deprecate, filter_advisories_for_fix, fix_advisory,
-    format_fix_with_update_output, minimum_release_age_excludes, publish_times,
+    format_fix_with_update_output, is_range_subset, minimum_release_age_excludes, publish_times,
     report_fixed_remaining, report_of,
 };
 
@@ -12,6 +12,18 @@ fn caret_range_for_patched_uses_minimum_with_caret() {
     assert_eq!(caret_range_for_patched(">=1.2.3"), "^1.2.3");
     // A non-inferred range is passed through unchanged.
     assert_eq!(caret_range_for_patched("not-a-range"), "not-a-range");
+}
+
+#[test]
+fn is_range_subset_determines_subset_relationship() {
+    assert!(is_range_subset("<7.0.36", "<8.4.31"));
+    assert!(!is_range_subset("<8.4.31", "<7.0.36"));
+    assert!(is_range_subset("<=0.18.0", "<1.15.0"));
+    assert!(!is_range_subset("<1.15.0", "<=0.18.0"));
+    assert!(is_range_subset("<1.0.0", "<1.0.0"));
+    assert!(!is_range_subset("<1.0.0", ">=2.0.0 <2.1.0"));
+    assert!(is_range_subset("<1.0.0 || >=2.0.0 <2.1.0", "<3.0.0"));
+    assert!(!is_range_subset("<4.0.0", "<1.0.0 || >=2.0.0 <2.1.0"));
 }
 
 #[test]
@@ -40,6 +52,114 @@ fn create_overrides_sorts_and_skips_unfixable() {
             ("abc@<1.5.0".to_string(), "^1.5.0".to_string()),
             ("zoo@<2.0.0".to_string(), "^2.0.0".to_string()),
         ],
+    );
+}
+
+#[test]
+fn create_overrides_prunes_subset_ranges_for_same_package() {
+    let advisories = BTreeMap::from([
+        (
+            "1".to_string(),
+            fix_advisory(
+                1,
+                "postcss",
+                "<7.0.36",
+                Some(">=7.0.36"),
+                ConfigAuditLevel::High,
+                "GHSA-1",
+            ),
+        ),
+        (
+            "2".to_string(),
+            fix_advisory(
+                2,
+                "postcss",
+                "<8.4.31",
+                Some(">=8.4.31"),
+                ConfigAuditLevel::High,
+                "GHSA-2",
+            ),
+        ),
+    ]);
+
+    let overrides = create_overrides(&advisories, RangeSpecStyle::Major);
+
+    assert_eq!(
+        overrides.into_iter().collect::<Vec<_>>(),
+        vec![("postcss@<8.4.31".to_string(), "^8.4.31".to_string())],
+    );
+}
+
+#[test]
+fn create_overrides_keeps_disjoint_ranges_for_same_package() {
+    let advisories = BTreeMap::from([
+        (
+            "1".to_string(),
+            fix_advisory(1, "foo", "<1.0.0", Some(">=1.0.0"), ConfigAuditLevel::High, "GHSA-1"),
+        ),
+        (
+            "2".to_string(),
+            fix_advisory(
+                2,
+                "foo",
+                ">=2.0.0 <2.1.0",
+                Some(">=2.1.0"),
+                ConfigAuditLevel::High,
+                "GHSA-2",
+            ),
+        ),
+    ]);
+
+    let overrides = create_overrides(&advisories, RangeSpecStyle::Major);
+
+    assert_eq!(
+        overrides.into_iter().collect::<Vec<_>>(),
+        vec![
+            ("foo@<1.0.0".to_string(), "^1.0.0".to_string()),
+            ("foo@>=2.0.0 <2.1.0".to_string(), "^2.1.0".to_string()),
+        ],
+    );
+}
+
+#[test]
+fn create_overrides_prefers_higher_patched_for_equivalent_ranges() {
+    let advisories = BTreeMap::from([
+        (
+            "1".to_string(),
+            fix_advisory(1, "foo", "<1.0.0", Some(">=1.0.0"), ConfigAuditLevel::High, "GHSA-1"),
+        ),
+        (
+            "2".to_string(),
+            fix_advisory(2, "foo", "<1.0.0", Some(">=1.0.2"), ConfigAuditLevel::High, "GHSA-2"),
+        ),
+    ]);
+
+    let overrides = create_overrides(&advisories, RangeSpecStyle::Major);
+
+    assert_eq!(
+        overrides.into_iter().collect::<Vec<_>>(),
+        vec![("foo@<1.0.0".to_string(), "^1.0.2".to_string())],
+    );
+}
+
+#[test]
+fn create_overrides_deduplicates_identical_ranges() {
+    let advisories = BTreeMap::from([
+        (
+            "1".to_string(),
+            fix_advisory(1, "foo", "<1.0.0", Some(">=1.0.0"), ConfigAuditLevel::High, "GHSA-1"),
+        ),
+        (
+            "2".to_string(),
+            fix_advisory(2, "foo", "<1.0.0", Some(">=1.0.0"), ConfigAuditLevel::High, "GHSA-2"),
+        ),
+    ]);
+
+    let overrides = create_overrides(&advisories, RangeSpecStyle::Major);
+
+    assert_eq!(
+        overrides.into_iter().collect::<Vec<_>>(),
+        vec![("foo@<1.0.0".to_string(), "^1.0.0".to_string())],
     );
 }
 
