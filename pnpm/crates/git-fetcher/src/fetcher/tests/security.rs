@@ -1,7 +1,8 @@
 use super::{
-    GitFetcherError, GitManifestQuery, PreparePackageError, fs, make_bare_repo, read_git_manifest,
-    tempdir,
+    GitFetcherError, GitManifestQuery, PreparePackageError, fs, make_bare_repo, prepare_git_cmd,
+    read_git_manifest, tempdir,
 };
+use std::{collections::HashSet, path::Path};
 
 /// A `path` that climbs out of the checkout must not reach
 /// `safe_read_package_json_from_dir`, which would read an arbitrary
@@ -30,5 +31,25 @@ async fn read_git_manifest_rejects_a_sub_directory_escape() {
             matches!(err, GitFetcherError::Prepare(PreparePackageError::InvalidPath { .. })),
             "{escape:?} produced {err:?}",
         );
+    }
+}
+
+#[test]
+fn prepare_git_cmd_removes_repository_location_overrides() {
+    let cmd = prepare_git_cmd(Path::new("git"), &["status"], None).unwrap();
+    let env_removals: HashSet<_> = cmd
+        .get_envs()
+        .filter_map(|(k, v)| if v.is_none() { k.to_str() } else { None })
+        .collect();
+
+    for var in [
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    ] {
+        assert!(env_removals.contains(var), "expected prepare_git_cmd to remove {var}");
     }
 }
