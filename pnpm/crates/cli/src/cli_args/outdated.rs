@@ -184,30 +184,27 @@ impl OutdatedArgs {
 
         let config = state.config;
         let manifest = &state.manifest;
-        let root = config.workspace_dir.as_deref().unwrap_or_else(|| project_dir(manifest));
-        let importer_id = state.active_importer_id();
         let lockfile = loaded_lockfile(&state)?;
         let package_patterns = self.package_patterns();
         let filters =
             OutdatedFilters::validated(&self, config, &package_patterns, [manifest], false)?;
-        let check_packages = self.checks_packages(manifest, &package_patterns);
-        if check_packages && lockfile.is_none() {
+        if self.checks_packages(manifest, &package_patterns) && lockfile.is_none() {
             return Err(no_lockfile_error(project_dir(manifest)));
         }
-        let query = filters.query(self.target_version());
-        let mut outdated = if check_packages {
+        let mut outdated = if self.checks_packages(manifest, &package_patterns) {
             collect_outdated_for_importer(
                 manifest,
                 lockfile,
-                &importer_id,
+                &state.active_importer_id(),
                 config,
                 &state.http_client,
-                &query,
+                &filters.query(self.target_version()),
             )
             .await?
         } else {
             Vec::new()
         };
+        let root = config.workspace_dir.as_deref().unwrap_or_else(|| project_dir(manifest));
         outdated.extend(
             self.outdated_actions::<Reporter>(
                 config,
@@ -315,23 +312,25 @@ impl OutdatedArgs {
             project_dir(&state.manifest),
             AutoExcludeRoot::Disabled,
         )?;
-        let package_patterns = self.package_patterns();
-        let manifests =
-            selection.selected.values().map(|node| &node.package.project.manifest);
-        let filters =
-            OutdatedFilters::validated(&self, config, &package_patterns, manifests, true)?;
+        let filters = OutdatedFilters::validated(
+            &self,
+            config,
+            &self.package_patterns(),
+            selection.selected.values().map(|node| &node.package.project.manifest),
+            true,
+        )?;
         let query = filters.query(self.target_version());
-
-        // Every project reads the one shared lockfile, or its own.
-        let shared_lockfile =
-            if config.shares_one_lockfile() { loaded_lockfile(&state)? } else { None };
         let project_inputs = recursive_project_inputs(config, &selection)?;
         let run = OutdatedRun::new(config, Arc::clone(&state.http_client), &query)?;
         let mut outdated = workspace_outdated(
             &ProjectOutdatedInputs {
                 config,
                 lockfile_root: state.lockfile_dir(),
-                shared_lockfile,
+                shared_lockfile: if config.shares_one_lockfile() {
+                    loaded_lockfile(&state)?
+                } else {
+                    None
+                },
                 query: &query,
                 run: &run,
             },
