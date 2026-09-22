@@ -20,7 +20,7 @@ test('make-dedicated-lockfile creates a dedicated lockfile', async () => {
   const lockfile = await readWantedLockfile(projectDir, { ignoreIncompatible: false })
   // The next assertion started failing from pnpm v10.6.3
   // expect(Object.keys(lockfile?.importers ?? {})).toStrictEqual(['.', 'example'])
-  expect(lockfile?.importers['.' as ProjectId]?.dependencies?.['is-positive']).toBe('link:../is-positive')
+  expect(lockfile?.importers?.['.' as ProjectId]?.dependencies?.['is-positive']).toBe('link:../is-positive')
   expect(Object.keys(lockfile?.packages ?? {}).sort()).toStrictEqual([
     'lodash@1.0.0',
     'ramda@0.26.0',
@@ -36,11 +36,11 @@ test('a workspace dependency stays linked instead of being fetched from the regi
   expect(result.exitCode).toBe(0)
 
   const lockfile = await readWantedLockfile(projectDir, { ignoreIncompatible: false })
-  expect(lockfile?.importers['.' as ProjectId]?.dependencies).toStrictEqual({
+  expect(lockfile?.importers?.['.' as ProjectId]?.dependencies).toStrictEqual({
     '@dedicated-lockfile-test/lib': 'link:../shared',
     'is-positive': '1.0.0',
   })
-  expect(lockfile?.importers['.' as ProjectId]?.specifiers).toStrictEqual({
+  expect(lockfile?.importers?.['.' as ProjectId]?.specifiers).toStrictEqual({
     '@dedicated-lockfile-test/lib': 'workspace:^',
     'is-positive': '1.0.0',
   })
@@ -58,7 +58,7 @@ test('a workspace dependency linked through linkWorkspacePackages stays linked',
   expect(result.exitCode).toBe(0)
 
   const lockfile = await readWantedLockfile(projectDir, { ignoreIncompatible: false })
-  expect(lockfile?.importers['.' as ProjectId]?.dependencies).toStrictEqual({
+  expect(lockfile?.importers?.['.' as ProjectId]?.dependencies).toStrictEqual({
     '@dedicated-lockfile-test/range-lib': 'link:../shared',
     'is-positive': '1.0.0',
   })
@@ -75,7 +75,7 @@ test('a workspace peer dependency stays linked', async () => {
   expect(result.exitCode).toBe(0)
 
   const lockfile = await readWantedLockfile(projectDir, { ignoreIncompatible: false })
-  expect(lockfile?.importers['.' as ProjectId]?.dependencies).toStrictEqual({
+  expect(lockfile?.importers?.['.' as ProjectId]?.dependencies).toStrictEqual({
     '@dedicated-lockfile-test/peer-lib': 'link:../shared',
     'is-positive': '1.0.0',
   })
