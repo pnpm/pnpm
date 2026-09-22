@@ -827,6 +827,35 @@ fn empty_overrides_clears_prior_non_empty_assignment() {
     assert!(config.overrides.is_none(), "explicit empty must clear earlier non-empty");
 }
 
+/// The `"//"` key npm and Yarn treat as a comment is not an override
+/// selector, so it never reaches the resolver.
+#[test]
+fn overrides_comment_key_is_ignored() {
+    let yaml = "overrides:\n  '//': pinned until upstream ships a fix\n  foo: '1.2.3'\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    let applied = config.overrides.expect("overrides applied");
+    let selectors: Vec<_> = applied
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(selectors, vec!["foo"]);
+}
+
+/// An `overrides` map holding only the comment collapses to `None`,
+/// like an empty map.
+#[test]
+fn overrides_with_only_the_comment_key_collapse_to_none() {
+    let yaml = "overrides:\n  '//': nothing pinned yet\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.overrides.is_none());
+}
+
 /// Absent `overrides` leaves the config field at `None`.
 #[test]
 fn omitting_overrides_keeps_default() {

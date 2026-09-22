@@ -207,3 +207,17 @@ fn modules_dir_resolves_against_the_project_and_carries_the_virtual_store() {
     assert_eq!(config.modules_dir, project_dir.join("modules"));
     assert_eq!(config.virtual_store_dir, project_dir.join("modules").join(".pnpm"));
 }
+
+#[test]
+fn drops_the_overrides_comment_key() {
+    let workspace = tempfile::tempdir().unwrap();
+    let project_config = ProjectConfig {
+        overrides: Some(IndexMap::from([
+            ("//".to_string(), "pinned for project a".to_string()),
+            ("ms".to_string(), "2.0.0".to_string()),
+        ])),
+        ..ProjectConfig::default()
+    };
+    let config = config_with(&workspace.path().join("apps/a"), project_config);
+    assert_eq!(config.overrides, Some(IndexMap::from([("ms".to_string(), "2.0.0".to_string())])),);
+}

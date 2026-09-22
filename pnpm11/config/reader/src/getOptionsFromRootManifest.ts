@@ -20,7 +20,7 @@ import {
   type VirtualStoreType,
 } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
-import { map as mapValues } from 'ramda'
+import { map as mapValues, omit } from 'ramda'
 
 import { quoteAndJoin } from './quoteAndJoin.js'
 
@@ -83,6 +83,7 @@ export function getOptionsFromPnpmSettings (
   }
   if (settings.overrides) {
     assertValidOverrides(settings.overrides)
+    settings.overrides = omitOverridesComment(settings.overrides)
     if (Object.keys(settings.overrides).length === 0) {
       delete settings.overrides
     } else {
@@ -572,6 +573,11 @@ function isGetOptionsFromPnpmSettingsOptions (
   value: ProjectManifest | GetOptionsFromPnpmSettingsOptions | undefined
 ): value is GetOptionsFromPnpmSettingsOptions {
   return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value || 'trustedSource' in value)
+}
+
+/** Drops the `"//"` comment key that npm and Yarn ignore in overrides. */
+export function omitOverridesComment (overrides: Record<string, string>): Record<string, string> {
+  return omit(['//'], overrides)
 }
 
 function assertValidOverrides (overrides: unknown): asserts overrides is Record<string, string> {

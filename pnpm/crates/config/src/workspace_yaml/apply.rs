@@ -1,8 +1,8 @@
 use super::{
     Config, Path, PnpmfileSetting, ProxyKeys, ProxyValue, SideEffectsCacheSetting, StoreDir,
-    UpdateConfig, WorkspaceSettings, decided_allow_builds, no_proxy_scalar, normalize_registry_url,
-    overlay, overlay_some, overlay_tools, registries, resolve, resolve_child_concurrency,
-    warn_deprecated_pairing,
+    UpdateConfig, WorkspaceSettings, decided_allow_builds, declared_overrides, no_proxy_scalar,
+    normalize_registry_url, overlay, overlay_some, overlay_tools, registries, resolve,
+    resolve_child_concurrency, warn_deprecated_pairing,
 };
 
 impl WorkspaceSettings {
@@ -322,7 +322,7 @@ impl WorkspaceSettings {
         // once the cascade knows the workspace root, whose manifest
         // carries the direct dependencies they point at.
         if let Some(v) = self.overrides.take() {
-            config.overrides = (!v.is_empty()).then_some(v);
+            config.overrides = declared_overrides(v);
         }
         if let Some(v) = self.package_extensions.take() {
             config.package_extensions = (!v.is_empty()).then_some(v);

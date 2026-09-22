@@ -59,6 +59,23 @@ describe('record', () => {
     expect(createProjectConfigRecord({ packageConfigs })).toStrictEqual(packageConfigs)
   })
 
+  it('ignores the "//" comment key in overrides', () => {
+    expect(createProjectConfigRecord({
+      packageConfigs: {
+        'project-1': {
+          overrides: {
+            '//': 'pinned for project-1',
+            foo: '1.0.0',
+          },
+        },
+      },
+    })).toStrictEqual({
+      'project-1': {
+        overrides: { foo: '1.0.0' },
+      },
+    })
+  })
+
   it('explicitly sets hoistPattern to undefined when hoist is false', () => {
     expect(createProjectConfigRecord({
       packageConfigs: {

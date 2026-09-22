@@ -2,6 +2,7 @@ import { PnpmError } from '@pnpm/error'
 import { omit } from 'ramda'
 
 import { type Config, PROJECT_CONFIG_FIELDS, type ProjectConfig, type ProjectConfigRecord } from './Config.js'
+import { omitOverridesComment } from './getOptionsFromRootManifest.js'
 
 export type CreateProjectConfigRecordOptions = Pick<Config, 'packageConfigs'>
 
@@ -80,7 +81,10 @@ function createProjectConfigFromRaw (config: unknown): ProjectConfig {
     }
   }
 
-  const result: ProjectConfig = config
+  let result: ProjectConfig = config
+  if (result.overrides != null) {
+    result = { ...result, overrides: omitOverridesComment(result.overrides) }
+  }
   if (result.hoist === false) {
     return { ...result, hoistPattern: undefined }
   }

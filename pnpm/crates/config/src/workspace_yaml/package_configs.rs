@@ -87,7 +87,7 @@ impl ProjectConfig {
             }
         }
         if let Some(overrides) = self.overrides {
-            config.overrides = (!overrides.is_empty()).then_some(overrides);
+            config.overrides = super::declared_overrides(overrides);
         }
         if let Some(save_exact) = self.save_exact {
             config.save_exact = save_exact;

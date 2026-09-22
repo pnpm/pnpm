@@ -260,6 +260,25 @@ test('getOptionsFromPnpmSettings() rejects array overrides values', () => {
   }))
 })
 
+test('getOptionsFromPnpmSettings() ignores the "//" comment key in overrides', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    overrides: {
+      '//': 'pinned until upstream ships a fix',
+      foo: '1.0.0',
+    },
+  })
+  expect(options.overrides).toStrictEqual({ foo: '1.0.0' })
+})
+
+test('getOptionsFromPnpmSettings() drops overrides that hold only the "//" comment key', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    overrides: {
+      '//': 'nothing pinned yet',
+    },
+  })
+  expect(options.overrides).toBeUndefined()
+})
+
 test('getOptionsFromPnpmSettings() rejects non-object overrides values', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     overrides: [] as unknown as Record<string, string>,

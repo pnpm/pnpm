@@ -126,6 +126,13 @@ fn overlay_some<Setting>(target: &mut Option<Setting>, value: Option<Setting>) {
     }
 }
 
+/// The overrides a config file declares, without the `"//"` comment key
+/// npm and Yarn ignore. `None` once no override is left.
+fn declared_overrides(mut overrides: IndexMap<String, String>) -> Option<IndexMap<String, String>> {
+    overrides.shift_remove("//");
+    (!overrides.is_empty()).then_some(overrides)
+}
+
 /// The dropped keys of a global `config.yaml`, in the four buckets its
 /// warnings report.
 #[derive(Default)]
