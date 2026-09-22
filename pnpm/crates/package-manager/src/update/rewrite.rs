@@ -18,7 +18,7 @@ use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_deps_resolver::real_package_name_of;
-use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style};
+use pnpm_resolving_npm_resolver::calc_version_range;
 use pnpm_resolving_resolver_base::{PreferredVersions, VersionSelectorType};
 
 /// What one matched direct dependency is rewritten against.
@@ -232,12 +232,7 @@ pub(super) fn requested_version_rewrite(
     let Some((prefix, declared_range)) = split_registry_alias(previous) else {
         return requested.to_string();
     };
-    let range = calc_version_range(
-        &version,
-        infer_range_spec_style(declared_range),
-        infer_range_spec_style(requested),
-        default_style,
-    );
+    let range = calc_version_range(&version, Some(declared_range), Some(requested), default_style);
     format!("{prefix}{range}")
 }
 /// The declaration a `<name>@<requested>` selector writes over the `runtime:`
@@ -326,12 +321,7 @@ pub(super) async fn tag_rewrite(
                         name,
                         &version.to_string(),
                     );
-                    Some(calc_version_range(
-                        &version,
-                        infer_range_spec_style(previous),
-                        None,
-                        range_spec_style,
-                    ))
+                    Some(calc_version_range(&version, Some(previous), Some(tag), range_spec_style))
                 }
                 None => requested,
             }

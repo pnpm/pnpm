@@ -12,20 +12,7 @@ use pnpm_registry::RangeSpecStyle;
 /// then the bare specifier, then the default.
 #[must_use]
 pub fn infer_range_spec_style(spec: &str) -> Option<RangeSpecStyle> {
-    if spec.starts_with("catalog:") {
-        return None;
-    }
-    // Strip a protocol prefix up to the first ':' (`npm:`, `jsr:`,
-    // `workspace:`, ...), then an alias up to and including the last '@'
-    // (`foo@...`, `@scope/foo@...`), leaving the bare range.
-    let spec = match spec.find(':') {
-        Some(index) => &spec[index + 1..],
-        None => spec,
-    };
-    let spec = match spec.rfind('@') {
-        Some(index) => &spec[index + 1..],
-        None => spec,
-    };
+    let spec = range_of_specifier(spec)?;
     if spec == "*" {
         return Some(RangeSpecStyle::None);
     }
@@ -43,6 +30,26 @@ pub fn infer_range_spec_style(spec: &str) -> Option<RangeSpecStyle> {
         Some(Operator::Eq) | None if comparator.has_major => Some(RangeSpecStyle::Major),
         Some(Operator::Eq) | None => None,
     }
+}
+
+/// The range a specifier declares once its protocol prefix (`npm:`, `jsr:`,
+/// `workspace:`, ...) and alias (`foo@`, `@scope/foo@`) are stripped.
+/// `None` for a `catalog:` reference, which pins nothing of its own: the
+/// pinning is defined by the catalog entry it points to, so a catalog name
+/// that happens to look like a version (`catalog:express4-21`) must not be
+/// read as one.
+pub(crate) fn range_of_specifier(spec: &str) -> Option<&str> {
+    if spec.starts_with("catalog:") {
+        return None;
+    }
+    let spec = match spec.find(':') {
+        Some(index) => &spec[index + 1..],
+        None => spec,
+    };
+    Some(match spec.rfind('@') {
+        Some(index) => &spec[index + 1..],
+        None => spec,
+    })
 }
 
 /// The one comparator a range holds, or `None` when it holds several

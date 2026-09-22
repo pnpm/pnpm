@@ -553,6 +553,23 @@ fn update_tag_selector_resolves_the_named_tag() {
     drop((root, anchor));
 }
 
+/// Regression test for <https://github.com/pnpm/pnpm/issues/6714>.
+#[test]
+fn update_tag_selector_replaces_a_range_whose_shape_no_save_prefix_describes() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "<= 1.2.5" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    anchor.set_dist_tag(FOO, "1.1.0", "stable");
+    pacquet(&workspace, ["update", &format!("{FOO}@stable")]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("^1.1.0"));
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{FOO}@1.1.0")), "{packages:?}");
+
+    drop((root, anchor));
+}
+
 /// A manifest that already tracks a dist tag keeps tracking one, so the
 /// selector's tag replaces it rather than being resolved into a range.
 #[test]

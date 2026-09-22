@@ -2,7 +2,6 @@ use node_semver::Version;
 use pnpm_registry::{PackageVersion, RangeSpecStyle};
 
 use super::{calc_prefixed_specifier, calc_specifier, calc_version_range};
-use crate::infer_range_spec_style;
 
 fn picked(version: &str) -> PackageVersion {
     serde_json::from_value(serde_json::json!({
@@ -116,11 +115,11 @@ fn calc_version_range_preserves_an_existing_prerelease_range_style() {
         ("~3.0.0-rc.8", "~3.0.0-rc.11"),
         ("3.0.0-rc.8", "3.0.0-rc.11"),
         ("=3.0.0-rc.8", "=3.0.0-rc.11"),
-        (">=3.0.0-rc.8", "3.0.0-rc.11"),
+        (">=3.0.0-rc.8", ">=3.0.0-rc.8"),
         ("2 || 3", "3.0.0-rc.11"),
     ] {
         assert_eq!(
-            calc_version_range(&version, infer_range_spec_style(prev), None, RangeSpecStyle::Major),
+            calc_version_range(&version, Some(prev), None, RangeSpecStyle::Major),
             expected,
             "range for previous specifier {prev}",
         );
@@ -128,16 +127,62 @@ fn calc_version_range_preserves_an_existing_prerelease_range_style() {
     assert_eq!(calc_version_range(&version, None, None, RangeSpecStyle::Major), "3.0.0-rc.11");
 }
 
+/// Regression test for <https://github.com/pnpm/pnpm/issues/6714>.
+#[test]
+fn calc_version_range_keeps_the_shape_of_the_existing_range() {
+    for (prev, version, expected) in [
+        ("<= 1.2.5", "1.2.0", "<= 1.2.5"),
+        ("<= 1.2.5", "100.1.0", "^100.1.0"),
+        (">=1.0.0 <1.3.0", "1.2.0", ">=1.0.0 <1.3.0"),
+        (">=1.0.0 <1.3.0", "100.1.0", "^100.1.0"),
+        ("~5 <5.4.54 || ~5.4.55", "5.4.53", "~5 <5.4.54 || ~5.4.55"),
+        ("=1.1.0", "1.1.0", "=1.1.0"),
+        ("=1.1.0", "100.1.0", "=100.1.0"),
+        ("~1.1.0", "1.1.0", "~1.1.0"),
+        ("~1.1.0", "100.1.0", "~100.1.0"),
+        ("^3.0.0-rc.0", "3.0.0-rc.1", "^3.0.0-rc.1"),
+        ("1.1.0", "1.1.0", "1.1.0"),
+        ("1.1.0", "100.1.0", "100.1.0"),
+        ("*", "100.1.0", "^100.1.0"),
+        ("npm:bar@<= 1.2.5", "1.2.0", "<= 1.2.5"),
+        ("latest", "100.1.0", "^100.1.0"),
+    ] {
+        let version = Version::parse(version).expect("parse version");
+        assert_eq!(
+            calc_version_range(&version, Some(prev), Some(prev), RangeSpecStyle::Major),
+            expected,
+            "range for previous specifier {prev} at {version}",
+        );
+    }
+}
+
+#[test]
+fn a_request_that_names_a_specifier_replaces_a_kept_range() {
+    let version = Version::parse("1.2.0").expect("parse version");
+    for (requested, expected) in [
+        ("1.2.0", "1.2.0"),
+        ("^1.2.0", "^1.2.0"),
+        (">=1.1.0 <1.3.0", "^1.2.0"),
+        ("latest", "^1.2.0"),
+    ] {
+        assert_eq!(
+            calc_version_range(&version, Some("<= 1.2.5"), Some(requested), RangeSpecStyle::Major),
+            expected,
+            "range for request {requested}",
+        );
+    }
+}
+
 #[test]
 fn calc_version_range_ignores_the_requested_specifier_style_for_a_prerelease() {
     let prerelease = Version::parse("3.0.0-rc.11").expect("parse prerelease version");
-    let spec_style = infer_range_spec_style("~3.0.0-rc.8");
+    let requested = Some("~3.0.0-rc.8");
     assert_eq!(
-        calc_version_range(&prerelease, None, spec_style, RangeSpecStyle::Major),
+        calc_version_range(&prerelease, None, requested, RangeSpecStyle::Major),
         "3.0.0-rc.11",
     );
     let release = Version::parse("3.1.0").expect("parse release version");
-    assert_eq!(calc_version_range(&release, None, spec_style, RangeSpecStyle::Major), "~3.1.0");
+    assert_eq!(calc_version_range(&release, None, requested, RangeSpecStyle::Major), "~3.1.0");
 }
 
 #[test]
