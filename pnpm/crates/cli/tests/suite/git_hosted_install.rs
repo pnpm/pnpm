@@ -177,8 +177,10 @@ fn install_from_a_git_repo_with_submodules() {
         .success();
 
     assert_eq!(
-        fs::read_to_string(workspace.join("node_modules/with-submodule/native/answer.js")).unwrap(),
-        "module.exports = 42\n",
+        fs::read_to_string(workspace.join("node_modules/with-submodule/native/answer.js"))
+            .unwrap()
+            .trim(),
+        "module.exports = 42",
     );
 
     drop((root, npmrc_info));
@@ -196,7 +198,6 @@ fn lockfile_only_from_a_git_repo_with_submodules_does_not_fetch_submodules() {
     let (_module, module_commit) = simple_repo(root.path(), "submodule-target", "1.0.0");
     let (repository, _initial_commit) = simple_repo(root.path(), "with-broken-submodule", "1.0.0");
     let work = root.path().join("with-broken-submodule-src");
-    // Write .gitmodules pointing to an unreachable URL, and record gitlink in index without cloning
     repository.write_file(
         ".gitmodules",
         "[submodule \"native\"]\npath = native\nurl = file:///nonexistent/submodule.git\n",
@@ -209,7 +210,6 @@ fn lockfile_only_from_a_git_repo_with_submodules_does_not_fetch_submodules() {
     let commit = repository.commit("add broken submodule");
     write_dependencies(&workspace, &[("with-broken-submodule", &repository.git_url_at(&commit))]);
 
-    // --lockfile-only should succeed because it only needs the manifest and does not fetch submodules
     pacquet
         .with_args(["install", "--lockfile-only"])
         .assert()
