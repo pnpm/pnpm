@@ -231,7 +231,9 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
         .default_headers(default_headers)
         .connect_timeout(settings.fetch_timeout)
         .read_timeout(settings.fetch_timeout)
-        .pool_idle_timeout(Duration::from_secs(4));
+        .pool_idle_timeout(Duration::from_secs(4))
+        .pool_max_idle_per_host(super::DEFAULT_MAX_SOCKETS)
+        .tcp_keepalive(Some(Duration::from_secs(15)));
     configure_dns(builder)
 }
 

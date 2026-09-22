@@ -23,11 +23,7 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     } else {
         http_client.acquire_for_url_with_priority(package_url, priority).await
     };
-    let mut request = client.get(package_url);
-    if let Some(value) = auth_header_for_package_download(auth_headers, package_url, package_id) {
-        request = request.header("authorization", value);
-    }
-    let sent = request.send().await;
+    let sent = send_archive_request(&client, package_url, package_id, auth_headers).await;
     // Failed connects are attempts too; the reporter's counter starts at one.
     let size = sent
         .as_ref()
@@ -67,4 +63,52 @@ async fn check_archive_status(
         }));
     }
     Ok(response)
+}
+
+async fn send_archive_request(
+    client: &ThrottledClientGuard<'_>,
+    package_url: &str,
+    package_id: &str,
+    auth_headers: &AuthHeaders,
+) -> Result<reqwest::Response, reqwest::Error> {
+    let mut attempt = 0;
+    loop {
+        let request = build_archive_request(client, package_url, package_id, auth_headers);
+        let error = match request.send().await {
+            Ok(response) => return Ok(response),
+            Err(error) => error,
+        };
+        let delay = retry_backoff_for_error(&error, attempt).ok_or(error)?;
+        attempt += 1;
+        if !delay.is_zero() {
+            tokio::time::sleep(delay).await;
+        }
+    }
+}
+
+fn build_archive_request(
+    client: &ThrottledClientGuard<'_>,
+    package_url: &str,
+    package_id: &str,
+    auth_headers: &AuthHeaders,
+) -> reqwest::RequestBuilder {
+    let mut request = client.get(package_url);
+    if let Some(value) = auth_header_for_package_download(auth_headers, package_url, package_id) {
+        request = request.header("authorization", value);
+    }
+    request
+}
+
+fn retry_backoff_for_error(error: &reqwest::Error, attempt: usize) -> Option<std::time::Duration> {
+    const MAX_QUICK_RETRIES: usize = 2;
+    if attempt >= MAX_QUICK_RETRIES {
+        return None;
+    }
+    if error.is_connect() {
+        Some(std::time::Duration::from_millis(50))
+    } else if error.is_request() {
+        Some(std::time::Duration::ZERO)
+    } else {
+        None
+    }
 }

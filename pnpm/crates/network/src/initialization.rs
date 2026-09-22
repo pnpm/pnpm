@@ -1,9 +1,9 @@
 use super::{
     Arc, Client, ClientBuildInputs, ClientPair, DEFAULT_FETCH_MIN_SPEED_KI_BPS,
-    DEFAULT_FETCH_WARN_TIMEOUT_MS, Duration, ForInstallsError, NetworkSettings, NoProxyMatcher,
-    PerRegistryTls, PrioritySemaphore, ProxyConfig, RedirectGuard, ThrottledClient, TlsConfig,
-    build_client_with_root_fallback, configured_proxy, default_network_concurrency, ignore_warning,
-    load_node_extra_ca_certs, merge_tls, tls,
+    DEFAULT_FETCH_WARN_TIMEOUT_MS, Duration, ForInstallsError, HostSocketLimit, NetworkSettings,
+    NoProxyMatcher, PerRegistryTls, PrioritySemaphore, ProxyConfig, ProxyRouting, RedirectGuard,
+    ThrottledClient, TlsConfig, build_client_with_root_fallback, configured_proxy,
+    default_network_concurrency, ignore_warning, load_node_extra_ca_certs, merge_tls, tls,
 };
 
 impl ThrottledClient {
@@ -154,17 +154,20 @@ impl ThrottledClient {
         if settings.network_concurrency == 0 {
             return Err(ForInstallsError::ZeroNetworkConcurrency);
         }
-        // See the empty-value contract on `ProxyConfig`.
-        let https = configured_proxy(proxy.https_proxy.as_deref())?;
-        let http = configured_proxy(proxy.http_proxy.as_deref())?;
-        let no_proxy = Arc::new(NoProxyMatcher::from(proxy.no_proxy.as_ref()));
+        let proxy_routing = resolve_proxy_routing(proxy)?;
         // Read once here, not inside `build_client`: `for_installs`
         // builds one client per per-registry override, so loading the
         // bundle per call would re-read and re-parse it N times.
         let extra_ca_certs = load_node_extra_ca_certs();
 
-        let inputs =
-            ClientBuildInputs { settings, https, http, no_proxy, extra_ca_certs, redirect_guard };
+        let inputs = ClientBuildInputs {
+            settings,
+            https: proxy_routing.https.clone(),
+            http: proxy_routing.http.clone(),
+            no_proxy: Arc::clone(&proxy_routing.no_proxy),
+            extra_ca_certs,
+            redirect_guard,
+        };
         let build_client = |effective_tls: &TlsConfig, forbid_redirects: bool| {
             build_client_with_root_fallback(&inputs, effective_tls, forbid_redirects)
         };
@@ -186,7 +189,7 @@ impl ThrottledClient {
             })
         })?;
 
-        Ok(Self::from_client_pairs(default_clients, per_registry, settings))
+        Ok(Self::from_client_pairs(default_clients, per_registry, proxy_routing, settings))
     }
 
     /// Assemble the client around its built pairs and the settings every
@@ -194,13 +197,15 @@ impl ThrottledClient {
     pub(super) fn from_client_pairs(
         default_clients: ClientPair,
         per_registry: tls::PerRegistryMap<ClientPair>,
+        proxy_routing: ProxyRouting,
         settings: &NetworkSettings,
     ) -> Self {
         ThrottledClient {
             semaphore: PrioritySemaphore::new(settings.network_concurrency),
             default_clients,
             per_registry,
-            host_socket_limit: None,
+            host_socket_limit: HostSocketLimit::new(None),
+            proxy_routing,
             fetch_warn_timeout: settings.fetch_warn_timeout,
             fetch_min_speed_ki_bps: settings.fetch_min_speed_ki_bps,
             warning_handler: std::sync::RwLock::new(ignore_warning),
@@ -221,10 +226,19 @@ impl ThrottledClient {
                 no_redirects: client_without_redirects,
             },
             per_registry: tls::PerRegistryMap::default(),
-            host_socket_limit: None,
+            host_socket_limit: HostSocketLimit::new(None),
+            proxy_routing: ProxyRouting::default(),
             fetch_warn_timeout: Duration::from_millis(DEFAULT_FETCH_WARN_TIMEOUT_MS),
             fetch_min_speed_ki_bps: DEFAULT_FETCH_MIN_SPEED_KI_BPS,
             warning_handler: std::sync::RwLock::new(ignore_warning),
         }
     }
+}
+
+fn resolve_proxy_routing(proxy: &ProxyConfig) -> Result<ProxyRouting, ForInstallsError> {
+    Ok(ProxyRouting {
+        https: configured_proxy(proxy.https_proxy.as_deref())?,
+        http: configured_proxy(proxy.http_proxy.as_deref())?,
+        no_proxy: Arc::new(NoProxyMatcher::from(proxy.no_proxy.as_ref())),
+    })
 }

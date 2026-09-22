@@ -98,6 +98,10 @@ pub const DEFAULT_FETCH_WARN_TIMEOUT_MS: u64 = 10_000;
 /// `fetchMinSpeedKiBps` default of `50`.
 pub const DEFAULT_FETCH_MIN_SPEED_KI_BPS: u64 = 50;
 
+/// Default socket limit per host/origin when `maxSockets` is not explicitly configured
+/// (used for proxied connections, matching undici / pnpm v11).
+pub const DEFAULT_MAX_SOCKETS: usize = 50;
+
 /// Tunable network knobs threaded into the install client: the
 /// `networkConcurrency`, `fetchTimeout`, `fetchWarnTimeoutMs`,
 /// `fetchMinSpeedKiBps`, and `userAgent` settings.
@@ -173,10 +177,11 @@ pub struct ThrottledClient {
     /// in which case `acquire_for_url` short-circuits to the default
     /// client without paying the routing cost.
     per_registry: tls::PerRegistryMap<ClientPair>,
-    /// Per-origin socket cap (the `maxSockets` setting). `None` (the
-    /// default) leaves the per-origin socket count bounded only by
-    /// `semaphore`; see [`HostSocketLimit`].
-    host_socket_limit: Option<HostSocketLimit>,
+    /// Per-origin socket cap (the `maxSockets` setting) and proxy socket
+    /// cap.
+    host_socket_limit: HostSocketLimit,
+    /// Effective proxy routing configuration used to determine socket origin.
+    proxy_routing: ProxyRouting,
     fetch_warn_timeout: Duration,
     fetch_min_speed_ki_bps: u64,
     warning_handler: std::sync::RwLock<fn(&str)>,
@@ -197,33 +202,71 @@ impl ClientPair {
 /// Per-origin concurrent-connection cap, mirroring undici's `connections`
 /// option (the `maxSockets` setting pnpm applies per registry origin).
 ///
-/// Each distinct `scheme://host[:port]` origin gets its own [`Semaphore`] of
-/// `max` permits, minted on first request to that origin. Acquired *before*
-/// the global [`ThrottledClient::semaphore`] so a request waiting on a
-/// saturated origin does not hold a global concurrency slot — that would let a
-/// burst to one origin hoard every global permit and starve other origins.
+/// When an explicit `maxSockets` limit is configured, every origin
+/// (direct or proxied) is capped at that limit. When uncapped (`None`,
+/// the default), direct origins remain uncapped (bounded only by the
+/// global concurrency semaphore), while proxied requests share a cap of
+/// [`DEFAULT_MAX_SOCKETS`] on the proxy origin to avoid exhausting
+/// proxy connection backlogs or tripping proxy rate limits.
+///
+/// Each distinct origin gets its own [`Semaphore`], minted on first
+/// request to that origin. Acquired *before* the global
+/// [`ThrottledClient::semaphore`] so a request waiting on a saturated
+/// origin does not hold a global concurrency slot.
 #[derive(Debug)]
 struct HostSocketLimit {
-    max: NonZeroUsize,
+    explicit_max: Option<NonZeroUsize>,
     per_origin: Mutex<HashMap<String, Arc<Semaphore>>>,
 }
 
 impl HostSocketLimit {
-    /// Acquire an owned permit for `url`'s origin, or `None` when `url` has no
-    /// parseable `scheme://host` (in which case the request falls back to the
-    /// global concurrency bound alone).
-    async fn acquire(&self, url: &str) -> Option<OwnedSemaphorePermit> {
-        let origin = origin_of(url)?;
-        // Lock only long enough to look up (or mint) the origin's semaphore and
-        // clone its `Arc` — never held across the `.await` below.
+    fn new(explicit_max: Option<NonZeroUsize>) -> Self {
+        Self { explicit_max, per_origin: Mutex::new(HashMap::new()) }
+    }
+
+    /// Acquire an owned permit for `origin`, or `None` when uncapped.
+    async fn acquire(&self, origin: &str, is_proxied: bool) -> Option<OwnedSemaphorePermit> {
+        let limit_num = if let Some(max) = self.explicit_max {
+            max.get()
+        } else if is_proxied {
+            DEFAULT_MAX_SOCKETS
+        } else {
+            return None;
+        };
         let semaphore = {
             let mut map = self.per_origin.lock().expect("host-socket-limit mutex poisoned");
             Arc::clone(
-                map.entry(origin)
-                    .or_insert_with(|| Arc::new(Semaphore::new(self.max.get()))),
+                map.entry(origin.to_string())
+                    .or_insert_with(|| Arc::new(Semaphore::new(limit_num))),
             )
         };
         Some(semaphore.acquire_owned().await.expect("host-socket semaphore is never closed"))
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub(crate) struct ProxyRouting {
+    pub(crate) https: Option<reqwest::Url>,
+    pub(crate) http: Option<reqwest::Url>,
+    pub(crate) no_proxy: Arc<NoProxyMatcher>,
+}
+
+impl ProxyRouting {
+    pub(crate) fn effective_socket_origin(&self, target_url: &str) -> Option<(String, bool)> {
+        let parsed = reqwest::Url::parse(target_url).ok()?;
+        if !self.no_proxy.matches_url(&parsed) {
+            if parsed.scheme() == "https"
+                && let Some(proxy) = &self.https
+            {
+                return origin_of_url(proxy).map(|orig| (orig, true));
+            }
+            if parsed.scheme() == "http"
+                && let Some(proxy) = &self.http
+            {
+                return origin_of_url(proxy).map(|orig| (orig, true));
+            }
+        }
+        origin_of_url(&parsed).map(|orig| (orig, false))
     }
 }
 
@@ -233,12 +276,11 @@ impl HostSocketLimit {
 /// the same origin key and a `:443` / `:80` variation cannot fragment the
 /// per-origin socket cap; a non-default port (`https://host:8443`) stays
 /// distinct — matching undici's per-origin keying.
-fn origin_of(url: &str) -> Option<String> {
-    let parsed = reqwest::Url::parse(url).ok()?;
-    let host = parsed.host_str()?;
-    Some(match parsed.port() {
-        Some(port) => format!("{}://{host}:{port}", parsed.scheme()),
-        None => format!("{}://{host}", parsed.scheme()),
+pub(crate) fn origin_of_url(url: &reqwest::Url) -> Option<String> {
+    let host = url.host_str()?;
+    Some(match url.port() {
+        Some(port) => format!("{}://{host}:{port}", url.scheme()),
+        None => format!("{}://{host}", url.scheme()),
     })
 }
 
@@ -408,9 +450,7 @@ impl ThrottledClient {
     /// sites; the client's other constructors leave it uncapped.
     #[must_use]
     pub fn with_max_sockets_per_host(mut self, max_sockets: Option<usize>) -> Self {
-        self.host_socket_limit = max_sockets
-            .and_then(NonZeroUsize::new)
-            .map(|max| HostSocketLimit { max, per_origin: Mutex::new(HashMap::new()) });
+        self.host_socket_limit.explicit_max = max_sockets.and_then(NonZeroUsize::new);
         self
     }
 
