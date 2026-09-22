@@ -1,7 +1,7 @@
 use super::{
-    Config, DependencyGroup, HashMap, IntoDiagnostic, Lockfile, OutdatedPackage, OutdatedQuery,
-    OutdatedRun, PackageManifest, PathBuf, State, collect_outdated_for_importer_in_run,
-    create_matcher,
+    Arc, Config, DependencyGroup, HashMap, IntoDiagnostic, Lockfile, OutdatedPackage,
+    OutdatedQuery, OutdatedRun, PackageManifest, PathBuf, State,
+    collect_outdated_for_importer_in_run, create_matcher,
 };
 
 pub(super) struct OutdatedInWorkspace {
@@ -118,6 +118,28 @@ pub(super) fn no_lockfile_error(dir: &std::path::Path) -> miette::Report {
 }
 
 /// The inputs every project's outdated query shares.
+pub(super) async fn recursive_workspace_outdated(
+    state: &State,
+    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+    query: &OutdatedQuery<'_>,
+) -> miette::Result<Vec<OutdatedInWorkspace>> {
+    let config = state.config;
+    let shared_lockfile = if config.shares_one_lockfile() { loaded_lockfile(state)? } else { None };
+    let project_inputs = recursive_project_inputs(config, selection)?;
+    let run = OutdatedRun::new(config, Arc::clone(&state.http_client), query)?;
+    workspace_outdated(
+        &ProjectOutdatedInputs {
+            config,
+            lockfile_root: state.lockfile_dir(),
+            shared_lockfile,
+            query,
+            run: &run,
+        },
+        &project_inputs,
+    )
+    .await
+}
+
 pub(super) struct ProjectOutdatedInputs<'a> {
     pub(super) config: &'a Config,
     /// The directory the importer ids name projects relative to, which

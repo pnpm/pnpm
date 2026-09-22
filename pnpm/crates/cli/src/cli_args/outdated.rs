@@ -62,9 +62,8 @@ use render::{
 };
 use std::{borrow::Cow, collections::HashMap, io::Write, path::PathBuf, sync::Arc};
 use workspace::{
-    DependentProject, OutdatedInWorkspace, ProjectOutdatedInputs, global_states,
-    isolated_global_config, loaded_lockfile, no_lockfile_error, project_dir,
-    recursive_project_inputs, validate_package_patterns, workspace_outdated,
+    DependentProject, OutdatedInWorkspace, global_states, isolated_global_config, loaded_lockfile,
+    no_lockfile_error, project_dir, recursive_workspace_outdated, validate_package_patterns,
 };
 
 /// Output format for `pacquet outdated`.
@@ -319,25 +318,9 @@ impl OutdatedArgs {
             selection.selected.values().map(|node| &node.package.project.manifest),
             true,
         )?;
-        let query = filters.query(self.target_version());
-        let project_inputs = recursive_project_inputs(config, &selection)?;
-        let run = OutdatedRun::new(config, Arc::clone(&state.http_client), &query)?;
-        let mut outdated = workspace_outdated(
-            &ProjectOutdatedInputs {
-                config,
-                lockfile_root: state.lockfile_dir(),
-                shared_lockfile: if config.shares_one_lockfile() {
-                    loaded_lockfile(&state)?
-                } else {
-                    None
-                },
-                query: &query,
-                run: &run,
-            },
-            &project_inputs,
-        )
-        .await?;
-
+        let mut outdated =
+            recursive_workspace_outdated(&state, &selection, &filters.query(self.target_version()))
+                .await?;
         outdated.extend(
             self.workspace_outdated_actions::<Reporter>(config, &workspace_root, &filters.include)
                 .await?,
