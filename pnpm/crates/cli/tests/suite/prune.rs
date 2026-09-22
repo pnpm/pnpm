@@ -1,17 +1,22 @@
-use crate::_utils::{has_link, importer_has_group_dependency, read_lockfile};
+use crate::_utils::{has_link, importer_has_group_dependency, pacquet_in, read_lockfile};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, io::Write};
+use std::fs;
 
 const PROD: &str = "@pnpm.e2e/pkg-with-1-dep";
 const FILTERED: &str = "@pnpm.e2e/hello-world-js-bin";
 
 #[test]
 fn prune_writes_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -44,8 +49,13 @@ fn prune_writes_lockfile() {
 
 #[test]
 fn prune_from_workspace_member_writes_the_workspace_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(workspace.join("package.json"), r#"{ "name": "workspace-root" }"#)
         .expect("write root package.json");
@@ -65,11 +75,7 @@ fn prune_from_workspace_member_writes_the_workspace_lockfile() {
         .assert()
         .success();
 
-    assert!(
-        workspace
-            .join("pnpm-lock.yaml")
-            .is_file()
-    );
+    assert!(workspace.join("pnpm-lock.yaml").is_file());
     assert!(!member.join("pnpm-lock.yaml").exists());
 
     drop((root, mock_instance));
@@ -86,8 +92,13 @@ fn assert_prune_filter_reaches_node_modules_only(
     filtered_group: &str,
     unlinked: &str,
 ) {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -130,7 +141,7 @@ fn prune_with_prod_only_unlinks_dev_deps() {
 
 #[test]
 fn prune_with_prod_only_and_no_lockfile_unlinks_dev_deps() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
@@ -143,40 +154,24 @@ fn prune_with_prod_only_and_no_lockfile_unlinks_dev_deps() {
         .to_string(),
     )
     .expect("write package.json");
-    writeln!(
-        fs::OpenOptions::new()
-            .append(true)
-            .open(workspace.join(".npmrc"))
-            .expect("open .npmrc"),
-        "lockfile=false"
-    )
-    .expect("append .npmrc");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "lockfile: false\n")
+        .expect("write pnpm-workspace.yaml");
 
-    pacquet
+    pacquet_in(&workspace)
         .with_arg("install")
         .assert()
         .success();
-    assert!(
-        !workspace
-            .join("pnpm-lock.yaml")
-            .exists(),
-        "install must not write a lockfile"
-    );
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "install must not write a lockfile");
     assert!(has_link(&workspace, PROD));
     assert!(has_link(&workspace, FILTERED));
 
-    pacquet
+    pacquet_in(&workspace)
         .with_args(["prune", "--prod"])
         .assert()
         .success();
     assert!(has_link(&workspace, PROD));
     assert!(!has_link(&workspace, FILTERED));
-    assert!(
-        !workspace
-            .join("pnpm-lock.yaml")
-            .exists(),
-        "prune must not write a lockfile"
-    );
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "prune must not write a lockfile");
 
     drop((root, mock_instance));
 }

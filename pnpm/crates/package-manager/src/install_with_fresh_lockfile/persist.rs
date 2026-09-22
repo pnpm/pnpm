@@ -56,12 +56,9 @@ pub(super) async fn persist_fresh_lockfile(
     save_lockfile: bool,
     after_all_resolved: (Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>, Option<pnpm_hooks::LogFn>),
 ) -> Result<PersistedLockfile, InstallWithFreshLockfileError> {
-    if !config.lockfile {
-        return Ok(PersistedLockfile { lockfile: None, can_record_lockfile_verification: false });
-    }
-    if !save_lockfile {
-        // Nothing was persisted, so there is no `pnpm-lock.yaml` whose
-        // verification a later install could key off.
+    if !config.lockfile || !save_lockfile {
+        // Nothing was persisted to the wanted lockfile on disk, so there is no
+        // `pnpm-lock.yaml` whose verification a later install could key off.
         return Ok(PersistedLockfile {
             lockfile: Some(built_lockfile),
             can_record_lockfile_verification: false,
