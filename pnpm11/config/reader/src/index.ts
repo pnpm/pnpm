@@ -1293,7 +1293,7 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
     if (enginesRuntime == null) continue
     const runtimes: EngineDependency[] = Array.isArray(enginesRuntime) ? enginesRuntime : [enginesRuntime]
     const nodeRuntime = runtimes.find((r) => r.name === 'node')
-    if (nodeRuntime?.version == null) continue
+    if (typeof nodeRuntime?.version !== 'string') continue
     const version = nodeRuntime.version.trim()
     if (!semver.validRange(version)) continue
     if (nodeRuntime.onFail !== 'download') {
