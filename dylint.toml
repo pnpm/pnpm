@@ -8,7 +8,7 @@
 # or via the `just dylint` recipe.
 [workspace.metadata.dylint]
 libraries = [
-    { git = "https://github.com/KSXGitHub/perfectionist", rev = "fba7de2e475558969909e6ffaceb9b626a813b6b" },
+    { git = "https://github.com/KSXGitHub/perfectionist", rev = "c780eb9a15dc8501076abd9d6554005ef589dfdb" },
 ]
 
 # Project-local DSL / test macros that perfectionist's exactly-once
@@ -131,6 +131,7 @@ exempt_tests = false
 ["perfectionist::overly_long_file"]
 max_lines = 400
 exempt_tests = true
+exclude_imports = true
 
 ["perfectionist::too_many_struct_fields"]
 max_fields = 8
