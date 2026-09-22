@@ -165,7 +165,7 @@ impl<Db> SqlAuth<Db> {
     }
 }
 
-trait AuthSqlBackend: Send + Sync {
+trait AuthSqlBackend: Sync {
     async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>>;
     async fn user_count(&self) -> Result<u64>;
     async fn reconcile_user_counter_overcount(&self) -> Result<bool>;
