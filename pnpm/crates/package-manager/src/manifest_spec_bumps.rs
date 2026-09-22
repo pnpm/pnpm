@@ -16,7 +16,7 @@ use pnpm_lockfile::{
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_registry::RangeSpecStyle;
-use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style};
+use pnpm_resolving_npm_resolver::calc_version_range;
 use pnpm_resolving_resolver_base::VersionSelectorType;
 use std::{
     borrow::Cow,
@@ -378,8 +378,7 @@ fn bumped_range(
     {
         return None;
     }
-    let range =
-        calc_version_range(resolved, infer_range_spec_style(declared_range), None, default_style);
+    let range = calc_version_range(resolved, Some(declared_range), None, default_style);
     let bumped = format!("{prefix}{range}");
     (bumped != declared).then_some(bumped)
 }

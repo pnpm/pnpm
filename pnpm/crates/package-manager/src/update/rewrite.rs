@@ -234,7 +234,7 @@ pub(super) fn requested_version_rewrite(
     };
     let range = calc_version_range(
         &version,
-        infer_range_spec_style(declared_range),
+        Some(declared_range),
         infer_range_spec_style(requested),
         default_style,
     );
@@ -326,12 +326,7 @@ pub(super) async fn tag_rewrite(
                         name,
                         &version.to_string(),
                     );
-                    Some(calc_version_range(
-                        &version,
-                        infer_range_spec_style(previous),
-                        None,
-                        range_spec_style,
-                    ))
+                    Some(calc_version_range(&version, Some(previous), None, range_spec_style))
                 }
                 None => requested,
             }

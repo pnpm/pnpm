@@ -171,10 +171,9 @@ pub(super) fn saved_registry_range(
     spec: &str,
     range_spec_style: RangeSpecStyle,
 ) -> String {
-    let prev_pin = prev_specifier
-        .filter(|prev| is_registry_style_specifier(prev, package_name, registry))
-        .and_then(infer_range_spec_style);
-    calc_version_range(version, prev_pin, infer_range_spec_style(spec), range_spec_style)
+    let prev_specifier =
+        prev_specifier.filter(|prev| is_registry_style_specifier(prev, package_name, registry));
+    calc_version_range(version, prev_specifier, infer_range_spec_style(spec), range_spec_style)
 }
 /// The registry `package_name` resolves against under the configured scopes.
 pub(super) fn package_registry(config: &Config, package_name: &str) -> String {

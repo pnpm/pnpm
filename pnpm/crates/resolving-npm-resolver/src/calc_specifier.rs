@@ -9,10 +9,10 @@
 use node_semver::{Range, Version};
 use pnpm_registry::{PackageVersion, RangeSpecStyle};
 
-use crate::infer_range_spec_style::infer_range_spec_style;
+use crate::infer_range_spec_style::{infer_range_spec_style, range_of_specifier};
 
 /// The manifest range that pins `version` for a dependency whose existing
-/// manifest entry, if it already had one, pins `prev_style`, and whose
+/// manifest entry, if it already had one, read `prev_specifier`, and whose
 /// requested specifier pins `spec_style`.
 ///
 /// The existing entry's style wins over the requested specifier's, which
@@ -21,14 +21,31 @@ use crate::infer_range_spec_style::infer_range_spec_style;
 /// is otherwise pinned exactly — neither the requested specifier nor
 /// `default_style` widens a prerelease the manifest did not already widen.
 ///
+/// An existing range in a shape no style describes (`<= 3.0.0`, `>=1 <2`,
+/// `1 || 2`) is kept as written when it still admits `version` and the
+/// request pins no style of its own, so an update moves the version without
+/// trading the range's bounds for `default_style` (pnpm/pnpm#6714). A
+/// request that does pin a style (`pnpm add foo@1.2.3`) names the range it
+/// wants instead.
+///
 /// Mirrors the TypeScript `calcVersionRange`.
 #[must_use]
 pub fn calc_version_range(
     version: &Version,
-    prev_style: Option<RangeSpecStyle>,
+    prev_specifier: Option<&str>,
     spec_style: Option<RangeSpecStyle>,
     default_style: RangeSpecStyle,
 ) -> String {
+    let prev_style = prev_specifier.and_then(infer_range_spec_style);
+    if prev_style.is_none()
+        && spec_style.is_none()
+        && let Some(prev_range) = prev_specifier.and_then(range_of_specifier)
+        && prev_range
+            .parse::<Range>()
+            .is_ok_and(|range| range.satisfies(version))
+    {
+        return prev_range.to_string();
+    }
     if !version.pre_release.is_empty() {
         return match prev_style {
             Some(style) => format!("{}{version}", style.range_prefix()),
@@ -60,7 +77,7 @@ pub fn calc_specifier(
 ) -> String {
     let range = calc_version_range(
         &picked.version,
-        prev_specifier.and_then(infer_range_spec_style),
+        prev_specifier,
         infer_range_spec_style(bare_specifier),
         default_pin,
     );
@@ -93,7 +110,7 @@ pub fn calc_prefixed_specifier(
 ) -> String {
     let range = calc_version_range(
         &picked.version,
-        prev_specifier.and_then(infer_range_spec_style),
+        prev_specifier,
         infer_range_spec_style(bare_specifier),
         default_pin,
     );

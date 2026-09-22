@@ -537,6 +537,33 @@ fn update_latest_preserves_exact() {
     drop((root, anchor));
 }
 
+/// A range in a shape no save prefix describes keeps its bounds: an update
+/// inside it leaves the entry as written, and only `--latest`, which
+/// reaches past it by design, falls back to the default prefix.
+/// Regression test for <https://github.com/pnpm/pnpm/issues/6714>.
+#[test]
+fn update_keeps_a_range_whose_shape_no_save_prefix_describes() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "<= 1.2.5" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+foo@1.2.0"));
+
+    pacquet(&workspace, ["update"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("<= 1.2.5"));
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(importer_specifier(&lockfile, ".", FOO), "<= 1.2.5");
+    assert_eq!(importer_version(&lockfile, ".", FOO), "1.2.0");
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("^100.1.0"));
+
+    drop((root, anchor));
+}
+
 /// `--latest` treats a `=` pin (`=100.0.0`) as an exact pin instead of
 /// widening it to the default caret range, and keeps the explicit `=`
 /// operator when writing the new version back. Regression test for

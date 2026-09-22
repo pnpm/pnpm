@@ -52,10 +52,14 @@ fn keeps_the_declared_range_operator() {
     assert_eq!(bump("1.0.0", "1.2.0").as_deref(), Some("1.2.0"));
 }
 
+/// A declaration in a shape no operator describes keeps its text while it
+/// still admits the version, and takes the default operator only once the
+/// version leaves it (pnpm/pnpm#6714).
 #[test]
-fn falls_back_to_the_default_operator_when_the_declaration_pins_none() {
-    assert_eq!(bump(">=1.0.0", "3.1.0").as_deref(), Some("^3.1.0"));
-    assert_eq!(bump("1 || 2", "1.2.0").as_deref(), Some("^1.2.0"));
+fn a_declaration_that_pins_no_operator_keeps_its_shape_while_it_admits_the_version() {
+    assert_eq!(bump(">=1.0.0", "3.1.0"), None);
+    assert_eq!(bump("1 || 2", "1.2.0"), None);
+    assert_eq!(bump(">=1.0.0 <2.0.0", "3.1.0").as_deref(), Some("^3.1.0"));
     assert_eq!(bump("*", "2.1.0").as_deref(), Some("^2.1.0"));
 }
 

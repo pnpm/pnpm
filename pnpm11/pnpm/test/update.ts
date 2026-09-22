@@ -1052,6 +1052,30 @@ test('update preserves an existing prerelease range operator', async function ()
   await execPnpm(['install', '--frozen-lockfile'])
 })
 
+test('update keeps a range whose shape no save prefix describes', async function () {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '<= 1.2.5',
+    },
+  })
+
+  await execPnpm(['install'])
+  project.storeHas('@pnpm.e2e/foo', '1.2.0')
+
+  await execPnpm(['update'])
+
+  expect((await readPackageJsonFromDir('.')).dependencies?.['@pnpm.e2e/foo']).toBe('<= 1.2.5')
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '<= 1.2.5',
+    version: '1.2.0',
+  })
+  await execPnpm(['install', '--frozen-lockfile'])
+
+  await execPnpm(['update', '--latest'])
+
+  expect((await readPackageJsonFromDir('.')).dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
+})
+
 test('update with tag @latest will downgrade prerelease', async function () {
   prepare()
 

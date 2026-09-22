@@ -1,7 +1,7 @@
 import type { RangeSpecGranularity, RangeSpecStyle } from '@pnpm/types'
 import semver from 'semver'
 
-import { inferRangeSpecStyle } from './inferRangeSpecStyle.js'
+import { getRangeOfSpecifier, inferRangeSpecStyle } from './inferRangeSpecStyle.js'
 
 export function rangeSpecGranularity (style: RangeSpecStyle): RangeSpecGranularity {
   return style === 'exact' ? 'patch' : style
@@ -31,6 +31,12 @@ export function getRangeSpecStyle (opts: { saveExact?: boolean, savePrefix?: str
  * wins over the configured default, so a re-add keeps the pinning style the
  * manifest already used. A newly added prerelease is pinned exactly, while an
  * updated prerelease keeps the existing entry's range style.
+ *
+ * An existing range in a shape no style describes (`<= 3.0.0`, `>=1 <2`,
+ * `1 || 2`) is kept as written when it still admits `version` and the request
+ * pins no style of its own, so an update moves the version without trading the
+ * range's bounds for the default prefix (pnpm/pnpm#6714). A request that does
+ * pin a style (`pnpm add foo@1.2.3`) names the range it wants instead.
  */
 export function calcVersionRange (
   version: string,
@@ -40,13 +46,18 @@ export function calcVersionRange (
     defaultRangeSpecStyle?: RangeSpecStyle
   }
 ): string {
+  const prevRangeSpecStyle = opts.prevSpecifier ? inferRangeSpecStyle(opts.prevSpecifier) : undefined
+  const bareRangeSpecStyle = opts.bareSpecifier ? inferRangeSpecStyle(opts.bareSpecifier) : undefined
+  if (prevRangeSpecStyle == null && bareRangeSpecStyle == null && opts.prevSpecifier) {
+    const prevRange = getRangeOfSpecifier(opts.prevSpecifier)
+    if (prevRange != null && semver.validRange(prevRange) != null && semver.satisfies(version, prevRange)) {
+      return prevRange
+    }
+  }
   if (semver.parse(version)?.prerelease.length) {
-    const prevRangeSpecStyle = opts.prevSpecifier ? inferRangeSpecStyle(opts.prevSpecifier) : undefined
     return prevRangeSpecStyle ? versionWithRangeSpecStyle(version, prevRangeSpecStyle) : version
   }
-  const rangeSpecStyle = (opts.prevSpecifier ? inferRangeSpecStyle(opts.prevSpecifier) : undefined) ??
-    (opts.bareSpecifier ? inferRangeSpecStyle(opts.bareSpecifier) : undefined) ??
-    opts.defaultRangeSpecStyle
+  const rangeSpecStyle = prevRangeSpecStyle ?? bareRangeSpecStyle ?? opts.defaultRangeSpecStyle
   return versionWithRangeSpecStyle(version, rangeSpecStyle ?? 'major')
 }
 
