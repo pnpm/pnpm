@@ -10,12 +10,20 @@ import semver from 'semver'
 
 import { type Diff, diffFlatRecords, isEqual } from './diffFlatRecords.js'
 import { dependencySpecifiersAreEqual } from './gitSpecifiersAreEquivalent.js'
+import { unresolvedOptionalDependencies } from './unresolvedOptionalDependencies.js'
 
 export function satisfiesPackageManifest (
   opts: {
     autoInstallPeers?: boolean
     excludeLinksFromLockfile?: boolean
     ignoredOptionalDependencies?: string[]
+    /**
+     * Treat an `optionalDependencies` entry the importer has no entry for as
+     * satisfied: the install that wrote the lockfile could not resolve it
+     * and skipped it. Only a frozen install may assume this; a resolving
+     * install retries the dependency instead.
+     */
+    allowUnresolvedOptionalDependencies?: boolean
   },
   importer: ProjectSnapshot | undefined,
   pkg: ProjectManifest
@@ -27,6 +35,11 @@ export function satisfiesPackageManifest (
         .filter(createMatcher(opts.ignoredOptionalDependencies))
       : []
   )
+  if (opts.allowUnresolvedOptionalDependencies) {
+    for (const depName of Object.keys(unresolvedOptionalDependencies(opts, importer, pkg))) {
+      ignoredOptionalDependencies.add(depName)
+    }
+  }
   let existingDeps = omitIgnoredDependencies(
     { ...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies },
     ignoredOptionalDependencies

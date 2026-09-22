@@ -186,6 +186,75 @@ fn skip_non_existing_optional_dependency() {
     drop((root, npmrc_info)); // cleanup
 }
 
+/// An optional dependency the install could not resolve is left out of
+/// the lockfile. A frozen install of that lockfile, explicit or the CI
+/// default, must skip it again and report it, instead of rejecting the
+/// lockfile as outdated
+/// ([pnpm/pnpm#3960](https://github.com/pnpm/pnpm/issues/3960)).
+#[test]
+fn frozen_install_skips_the_optional_dependency_the_lockfile_left_out() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "dependencies": { "is-positive": "1.0.0" },
+            "optionalDependencies": { "@pnpm.e2e/i-do-not-exist": "1000" },
+        }),
+    );
+    const SKIP_NOTICE: &str = "info: @pnpm.e2e/i-do-not-exist@1000 is an optional dependency that could not be resolved. Excluding it from installation.";
+
+    let assert = pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    assert!(
+        stdout.contains(SKIP_NOTICE),
+        "the resolving install must report the skip; got:\n{stdout}",
+    );
+    let lockfile_before =
+        fs::read_to_string(workspace.join(Lockfile::FILE_NAME)).expect("read pnpm-lock.yaml");
+
+    for frozen in [["install", "--frozen-lockfile"].as_slice(), ["install"].as_slice()] {
+        fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+        // The test environment pins `PNPM_CONFIG_CI=false`; the bare
+        // `install` relies on `CI=true` turning the frozen default on.
+        let mut command = pacquet_in(&workspace);
+        command
+            .env_remove("PNPM_CONFIG_CI")
+            .env("CI", "true")
+            .args(frozen);
+        let assert = command.assert().success();
+        let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+        assert!(
+            stdout.contains("Lockfile is up to date, resolution step is skipped"),
+            "{frozen:?} must install from the lockfile; got:\n{stdout}",
+        );
+        assert!(stdout.contains(SKIP_NOTICE), "{frozen:?} must report the skip; got:\n{stdout}");
+        assert!(
+            workspace.join("node_modules/is-positive/package.json").exists(),
+            "the resolvable dependency must be installed",
+        );
+        assert!(
+            is_absent(&workspace.join("node_modules/@pnpm.e2e/i-do-not-exist")),
+            "the unresolvable optional dependency must be skipped",
+        );
+        assert_eq!(
+            fs::read_to_string(workspace.join(Lockfile::FILE_NAME)).expect("read pnpm-lock.yaml"),
+            lockfile_before,
+            "a frozen install must not rewrite the lockfile",
+        );
+    }
+
+    drop((root, npmrc_info)); // cleanup
+}
+
 /// TS: `do not skip optional dependency that does not support the current
 /// pnpm version` (`optionalDependencies.ts:169`). `engines.pnpm` must not
 /// make an optional dependency uninstallable.

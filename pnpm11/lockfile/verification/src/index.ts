@@ -5,3 +5,4 @@ export { getWorkspacePackagesByDirectory } from './getWorkspacePackagesByDirecto
 export { linkedPackagesAreUpToDate } from './linkedPackagesAreUpToDate.js'
 export { localTarballDepsAreUpToDate } from './localTarballDepsAreUpToDate.js'
 export { satisfiesPackageManifest } from './satisfiesPackageManifest.js'
+export { unresolvedOptionalDependencies } from './unresolvedOptionalDependencies.js'

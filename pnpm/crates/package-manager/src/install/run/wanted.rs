@@ -119,6 +119,7 @@ pub(super) async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter 
                         ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
                         prune_stale_importers: scope.prune_stale_importers,
                         allow_missing_dependency_free_importers: true,
+                        allow_unresolved_optional_dependencies: false,
                     },
                 },
             })
@@ -169,6 +170,7 @@ pub(super) async fn synthesize_wanted(
                     ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
                     prune_stale_importers: scope.prune_stale_importers,
                     allow_missing_dependency_free_importers: true,
+                    allow_unresolved_optional_dependencies: false,
                 },
             },
         },

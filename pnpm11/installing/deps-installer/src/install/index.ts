@@ -20,6 +20,7 @@ import {
 import {
   ignoredScriptsLogger,
   packageManifestLogger,
+  skippedOptionalDependencyLogger,
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
@@ -74,7 +75,7 @@ import {
   resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, removePackageMap, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
-import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
+import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAreUpToDate, satisfiesPackageManifest, unresolvedOptionalDependencies } from '@pnpm/lockfile.verification'
 import { logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs, getSpecFromPackageManifest, guessDependencyType } from '@pnpm/pkg-manifest.utils'
@@ -1625,6 +1626,10 @@ Note that in CI environments, this setting is enabled by default.`,
         }
       )
     }
+    // Optional dependencies the install that wrote the lockfile could not
+    // resolve. A frozen install skips them again and reports each one the way
+    // the resolver does; a delegated install leaves the report to pacquet.
+    const skippedOptionalDependencies: Array<{ prefix: string, skipped: Record<string, string> }> = []
     if (!opts.ignorePackageManifest) {
       // `--frozen-lockfile` (the CI default) means "fail if pnpm-lock.yaml is
       // out of sync." Treat its absence as a sync failure even when the
@@ -1641,10 +1646,20 @@ Note that in CI environments, this setting is enabled by default.`,
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
+        allowUnresolvedOptionalDependencies: frozenLockfile,
       })
       for (const { id, manifest, rootDir } of Object.values(ctx.projects)) {
         const importer = ctx.wantedLockfile.importers[id]
         const { satisfies, detailedReason } = _satisfiesPackageManifest(importer, manifest)
+        if (satisfies && frozenLockfile && importer != null) {
+          skippedOptionalDependencies.push({
+            prefix: rootDir,
+            skipped: unresolvedOptionalDependencies({
+              excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+              ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
+            }, importer, manifest),
+          })
+        }
         if (!satisfies || (importer != null && !catalogResolutionsAreUpToDate(importer, ctx.wantedLockfile.catalogs))) {
           if (!ctx.existsWantedLockfile) {
             throw new PnpmError('NO_LOCKFILE',
@@ -1703,6 +1718,16 @@ Note that in CI environments, this setting is enabled by default.`,
           }
         }),
         ignoredBuilds: undefined,
+      }
+    }
+    for (const { prefix, skipped } of skippedOptionalDependencies) {
+      for (const [name, bareSpecifier] of Object.entries(skipped)) {
+        skippedOptionalDependencyLogger.debug({
+          package: { name, version: bareSpecifier, bareSpecifier },
+          parents: [],
+          prefix,
+          reason: 'resolution_failure',
+        })
       }
     }
     try {
