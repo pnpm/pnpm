@@ -118,13 +118,24 @@ fn regex_special_chars_are_literal() {
     assert!(matcher.matches("a.b"));
     assert!(!matcher.matches("axb"));
 
-    let matcher = create_matcher(&pats(["a?b"]));
-    assert!(matcher.matches("a?b"));
-    assert!(!matcher.matches("axb"));
-
     let matcher = create_matcher(&pats(["(foo)"]));
     assert!(matcher.matches("(foo)"));
     assert!(!matcher.matches("foo"));
+}
+
+#[test]
+fn question_mark_matches_single_character() {
+    let matcher = create_matcher(&pats(["a?b"]));
+    assert!(matcher.matches("axb"));
+    assert!(matcher.matches("a?b"));
+    assert!(matcher.matches("acb"));
+    assert!(!matcher.matches("ab"));
+    assert!(!matcher.matches("abbc"));
+
+    let matcher = create_matcher(&pats(["eslint-?"]));
+    assert!(matcher.matches("eslint-a"));
+    assert!(matcher.matches("eslint-1"));
+    assert!(!matcher.matches("eslint-ab"));
 }
 
 #[test]
@@ -166,8 +177,10 @@ fn wildcard_matcher_preserves_literal_star_semantics() {
         ("*ab*bc", "abbc", true),
         ("!foo", "bar", false),
         ("!foo", "!foo", true),
-        ("a?b", "acb", false),
+        ("a?b", "acb", true),
         ("a?b", "a?b", true),
+        ("a?b", "ab", false),
+        ("a?b", "abbc", false),
         ("[ab]", "a", false),
         ("[ab]", "[ab]", true),
         ("a*b", "a/path/b", true),
