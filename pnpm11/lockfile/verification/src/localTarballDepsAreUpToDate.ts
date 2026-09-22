@@ -33,11 +33,13 @@ export interface LocalTarballIntegrityMismatch {
 
 export async function findPackageTarballIntegrityMismatch (
   ctx: Pick<LocalTarballDepsUpToDateContext, 'fileIntegrityCache' | 'lockfileDir'>,
-  snapshot: PackageSnapshot
+  snapshot: PackageSnapshot,
+  depPath?: string
 ): Promise<LocalTarballIntegrityMismatch | null> {
   const resolution = snapshot.resolution as TarballResolution
-  if (!resolution.tarball?.startsWith('file:') || typeof resolution.integrity !== 'string') return null
-  const filePath = path.resolve(ctx.lockfileDir, resolution.tarball.slice('file:'.length))
+  const tarball = resolution.tarball ?? (depPath != null ? dp.parse(depPath).nonSemverVersion : undefined)
+  if (!tarball?.startsWith('file:') || typeof resolution.integrity !== 'string') return null
+  const filePath = path.resolve(ctx.lockfileDir, tarball.slice('file:'.length))
   const found = await readLocalTarballIntegrity(ctx.fileIntegrityCache, filePath)
   return found === resolution.integrity ? null : { expected: resolution.integrity, found, path: filePath }
 }

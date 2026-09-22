@@ -1754,7 +1754,7 @@ Note that in CI environments, this setting is enabled by default.`,
         const mismatch = await findPackageTarballIntegrityMismatch({
           fileIntegrityCache,
           lockfileDir: opts.lockfileDir,
-        }, snapshot)
+        }, snapshot, depPath)
         if (mismatch == null) return
         throw new TarballIntegrityError({
           algorithm: mismatch.expected.split('-', 1)[0] ?? 'sha512',

@@ -6,7 +6,7 @@ import { pipeline } from 'node:stream/promises'
 import { beforeEach, describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
-import type { LockfileObject } from '@pnpm/lockfile.types'
+import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import { allProjectsAreUpToDate, findPackageTarballIntegrityMismatch } from '@pnpm/lockfile.verification'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
@@ -632,6 +632,26 @@ describe('local tgz file dependency', () => {
     await writeFile('local-tarball.tar', 'second')
     expect(await findPackageTarballIntegrityMismatch(ctx, snapshot)).toEqual(first)
     expect(ctx.fileIntegrityCache.size).toBe(1)
+  })
+
+  test('findPackageTarballIntegrityMismatch(): recovers tarball path from depPath when resolution.tarball is omitted', async () => {
+    const lockfileDir = process.cwd()
+    await writeFile('local-tarball.tar', 'content')
+    const ctx = { fileIntegrityCache: new Map<string, Promise<string>>(), lockfileDir }
+    const snapshot: PackageSnapshot = {
+      resolution: {
+        integrity: 'sha512-expected',
+      },
+    }
+    const mismatch = await findPackageTarballIntegrityMismatch(
+      ctx,
+      snapshot,
+      'local-tarball@file:local-tarball.tar'
+    )
+    expect(mismatch).toMatchObject({
+      expected: 'sha512-expected',
+      path: path.join(lockfileDir, 'local-tarball.tar'),
+    })
   })
 })
 
