@@ -1100,10 +1100,6 @@ fn global_update_renders_both_changed_groups_with_one_completion_summary() {
     drop((root, npmrc_info));
 }
 
-/// Install `@pnpm.e2e/multi-version-a@1.0.0` into `pnpm_home`, then point the
-/// group's recorded spec at the immature 2.1.0. The update has to resolve and
-/// materialize 2.1.0, so both of its resolution passes meet the strict
-/// `minimumReleaseAge` gate for the same version.
 #[cfg(unix)]
 fn prepare_immature_global_update(workspace: &Path, pnpm_home: &Path) {
     use assert_cmd::assert::OutputAssertExt;
@@ -1131,10 +1127,6 @@ fn prepare_immature_global_update(workspace: &Path, pnpm_home: &Path) {
     }
 }
 
-/// `update -g` resolves a group twice: a lockfile-only pass decides whether
-/// the group changed, then the install materializes the result. Both passes
-/// reach the strict `minimumReleaseAge` prompt, so approving the first has to
-/// cover the second.
 #[cfg(unix)]
 #[test]
 fn global_update_approves_an_immature_version_once_across_its_resolution_passes() {
@@ -1168,8 +1160,6 @@ fn global_update_approves_an_immature_version_once_across_its_resolution_passes(
     drop((root, npmrc_info));
 }
 
-/// The approval still gates the update: saying no on the pass that asks aborts
-/// before anything is materialized.
 #[cfg(unix)]
 #[test]
 fn global_update_aborts_when_the_immature_version_is_not_approved() {
@@ -1183,7 +1173,7 @@ fn global_update_aborts_when_the_immature_version_is_not_approved() {
         run_global_prompt(&workspace, &pnpm_home, &["update", "-g", "--reporter=append-only"], "n");
     let stdout = String::from_utf8(output.stdout).expect("terminal output is UTF-8");
     eprintln!("{stdout}");
-    assert!(!output.status.success(), "{stdout}");
+    assert_eq!(output.status.code(), Some(1), "{stdout}");
     assert!(stdout.contains("ERR_PNPM_MINIMUM_RELEASE_AGE_DENIED"), "{stdout}");
 
     let listed = global_command(&workspace, &pnpm_home)
@@ -1199,8 +1189,6 @@ fn global_update_aborts_when_the_immature_version_is_not_approved() {
     drop((root, npmrc_info));
 }
 
-/// The approval still gates the update. A run with no terminal cannot approve,
-/// so the immature pick aborts before the update materializes.
 #[cfg(unix)]
 #[test]
 fn global_update_requires_approval_for_the_immature_version() {
@@ -1216,7 +1204,7 @@ fn global_update_requires_approval_for_the_immature_version() {
         .expect("run global update");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(!output.status.success(), "{stdout}\n{stderr}");
+    assert_eq!(output.status.code(), Some(1), "{stdout}\n{stderr}");
     assert!(stderr.contains("ERR_PNPM_NO_MATURE_MATCHING_VERSION"), "{stdout}\n{stderr}");
 
     let listed = global_command(&workspace, &pnpm_home)

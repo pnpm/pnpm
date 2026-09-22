@@ -128,7 +128,7 @@ async function updateGlobalPackageGroup (
     return false
   }
 
-  const { ignoredBuilds } = await installGroup(groupOpts, installDir, depSpecs)
+  const { ignoredBuilds, resolutionPolicyViolations } = await installGroup(groupOpts, installDir, depSpecs)
 
   await promptApproveGlobalBuilds({
     globalPkgDir: globalDir,
@@ -181,7 +181,7 @@ async function updateGlobalPackageGroup (
     activatedBins,
     protectedBins: ownership.protectedBins,
   })
-  await opts.updateResolutionPolicyManifest?.(comparison.resolutionPolicyViolations, globalDir)
+  await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
   return true
 }
 

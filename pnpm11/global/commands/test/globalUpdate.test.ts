@@ -755,15 +755,19 @@ test('global update approves a version only a later resolution pass reports', as
   })
   const handleResolutionPolicyViolations = jest.fn<(violations: unknown[]) => Promise<void>>().mockResolvedValue(undefined)
 
+  const updateResolutionPolicyManifest = jest.fn<(violations: unknown[], dir: string) => Promise<void>>().mockResolvedValue(undefined)
+
   await handleGlobalUpdate({
     bin: '/global/bin',
     globalPkgDir: '/global/v11',
     handleResolutionPolicyViolations,
+    updateResolutionPolicyManifest,
   } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
 
   expect(handleResolutionPolicyViolations).toHaveBeenCalledTimes(2)
   expect(handleResolutionPolicyViolations).toHaveBeenNthCalledWith(1, [first])
   expect(handleResolutionPolicyViolations).toHaveBeenNthCalledWith(2, [later])
+  expect(updateResolutionPolicyManifest).toHaveBeenCalledWith([first, later], '/global/v11')
 })
 
 test('global update aborts without installing when the immature version is not approved', async () => {

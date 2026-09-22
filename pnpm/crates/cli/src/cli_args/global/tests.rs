@@ -582,10 +582,6 @@ fn create_local_package(root: &Path, directory_name: &str, manifest: &str) -> Pa
     package_dir
 }
 
-/// A group's own manifest records the `minimumReleaseAgeExclude` entries a
-/// strict approval added, and `update -g` resolves the group more than once.
-/// Each pass after the first builds its config here, so the recorded approval
-/// has to reach it or the user is asked for the same version twice.
 #[test]
 fn a_group_config_carries_the_persisted_minimum_release_age_excludes() {
     let dir = TempDir::new().expect("temp dir");
