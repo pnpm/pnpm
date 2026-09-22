@@ -309,7 +309,7 @@ catalog:
   boxen: npm:@zkochan/boxen@5.1.2
   c8: ^12.0.0
   camelcase: ^9.0.0
-  camelcase-keys: ^10.0.2
+  camelcase-keys: ^10.0.3
   can-link: ^3.0.0
   can-write-to-dir: ^2.0.0
   chalk: ^6.0.0
@@ -458,7 +458,7 @@ catalog:
   string-width: ^8.2.2
   strip-bom: ^5.0.0
   strip-comments-strings: 1.2.0
-  symlink-dir: ^10.0.2
+  symlink-dir: ^10.0.3
   tar: ^7.5.22
   tar-stream: ^3.2.1
   # tempy >=3.1.0 uses temp-dir 3.x which has an async fs.realpath() in its
