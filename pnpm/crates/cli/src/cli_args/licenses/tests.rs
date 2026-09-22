@@ -9,6 +9,47 @@ use serde_json::json;
 use tempfile::TempDir;
 
 #[test]
+fn project_runtime_from_json5_selects_the_license_store_slot() {
+    let dir = TempDir::new().unwrap();
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\nimporters: {}\nsnapshots:\n  native@1.0.0: {}\n",
+    )
+    .unwrap();
+    let key = "native@1.0.0".parse().unwrap();
+    let mut config = Config {
+        enable_global_virtual_store: true,
+        global_virtual_store_dir: dir.path().join("store/links"),
+        node_version: Some("18.0.0".to_owned()),
+        ..Config::default()
+    };
+    config.allow_builds.insert("native".to_owned(), true);
+    let expected =
+        super::lockfile_layout(&config, dir.path(), dir.path(), &lockfile).unwrap().slot_dir(&key);
+    config.node_version = Some("20.0.0".to_owned());
+    let other =
+        super::lockfile_layout(&config, dir.path(), dir.path(), &lockfile).unwrap().slot_dir(&key);
+    dbg!(&expected, &other);
+    assert_ne!(expected, other);
+    config.node_version = None;
+    std::fs::write(
+        dir.path().join("package.json5"),
+        "{devEngines: {runtime: {name: 'node', version: '18.0.0'}}}",
+    )
+    .unwrap();
+    let actual =
+        super::lockfile_layout(&config, dir.path(), dir.path(), &lockfile).unwrap().slot_dir(&key);
+    assert_eq!(actual, expected);
+    std::fs::write(
+        dir.path().join("package.json"),
+        r#"{"devEngines":{"runtime":{"name":"node","version":"20.0.0"}}}"#,
+    )
+    .unwrap();
+    let preferred =
+        super::lockfile_layout(&config, dir.path(), dir.path(), &lockfile).unwrap().slot_dir(&key);
+    assert_eq!(preferred, other);
+}
+
+#[test]
 fn test_include_logic() {
     let opts =
         LicensesDependencyOptions { prod: false, dev: false, no_optional: false, optional: false };

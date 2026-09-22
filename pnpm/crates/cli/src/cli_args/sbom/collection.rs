@@ -2,7 +2,7 @@ use super::{
     DepType, HashMap, HashSet, ImporterComponents, IncludeFilter, Lockfile, PackageKey, Path,
     PathBuf, SbomComponentType, SbomResult, SnapshotEntry, State, WalkStores, build_purl,
     component_walk_context, confined_importer_dir, extract_author, extract_bugs_url,
-    extract_repository, required_sbom_lockfile, safe_read_package_json_from_dir,
+    extract_repository, required_sbom_lockfile, safe_read_project_manifest_from_dir,
     walk_importer_components,
 };
 
@@ -212,7 +212,7 @@ fn initial_importer_ids(lockfile: &Lockfile, filter_importer_ids: Option<&[&str]
 /// An importer id is a raw lockfile key, so it is confined to the
 /// workspace before it turns into an on-disk path: neither a crafted
 /// `../foo` / absolute key nor a symlinked importer dir may read a
-/// `package.json` outside the workspace.
+/// project manifest outside the workspace.
 fn read_root_manifest(
     state: &State,
     lockfile_dir: &Path,
@@ -226,13 +226,13 @@ fn read_root_manifest(
         }
     };
     let Some(&[single_id]) = filter_importer_ids else {
-        return safe_read_package_json_from_dir(lockfile_dir)
+        return safe_read_project_manifest_from_dir(lockfile_dir)
             .ok()
             .flatten()
             .unwrap_or_else(|| fallback("."));
     };
     confined_importer_dir(lockfile_dir, single_id)
-        .and_then(|dir| safe_read_package_json_from_dir(&dir).ok().flatten())
+        .and_then(|dir| safe_read_project_manifest_from_dir(&dir).ok().flatten())
         .unwrap_or_else(|| fallback(single_id))
 }
 

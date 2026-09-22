@@ -4,6 +4,65 @@ use super::{
 };
 
 #[test]
+fn sbom_reads_json5_workspace_root_and_linked_metadata_from_a_member() {
+    let tmp = copy_fixture("workspace-sbom-populated");
+    fs::remove_file(tmp.path().join("package.json")).unwrap();
+    fs::write(
+        tmp.path().join("package.json5"),
+        "{name: 'json5-root', version: '4.0.0', license: 'MIT'}",
+    )
+    .unwrap();
+    let shared = tmp.path().join("shared-lib");
+    fs::remove_file(shared.join("package.json")).unwrap();
+    fs::write(
+        shared.join("package.json5"),
+        "{name: 'shared-lib', version: '0.1.0', license: 'ISC', dependencies: {'is-odd': '3.0.1'}}",
+    )
+    .unwrap();
+    let parsed = run_sbom_json(&tmp.path().join("app-a"), "cyclonedx", &[]);
+    dbg!(&parsed);
+    assert_eq!(parsed["metadata"]["component"]["name"], "json5-root");
+    assert_eq!(parsed["metadata"]["component"]["version"], "4.0.0");
+    let linked = parsed["components"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|component| component["name"] == "shared-lib")
+        .unwrap();
+    assert_eq!(linked["purl"], "pkg:npm/shared-lib@0.1.0");
+    assert_eq!(linked["licenses"][0]["license"]["id"], "ISC");
+    let filtered = run_sbom_json(tmp.path(), "cyclonedx", &["--filter", "shared-lib"]);
+    dbg!(&filtered);
+    assert_eq!(filtered["metadata"]["component"]["name"], "shared-lib");
+    assert_eq!(filtered["metadata"]["component"]["version"], "0.1.0");
+}
+
+#[test]
+fn sbom_excludes_peer_dependencies_declared_in_json5_importers() {
+    let tmp = copy_fixture("with-peer-workspace");
+    let project = tmp.path().join("packages/pkg-a");
+    fs::remove_file(project.join("package.json")).unwrap();
+    fs::write(
+        project.join("package.json5"),
+        "{name: 'pkg-a', version: '1.0.0', peerDependencies: {'is-odd': '3.0.1'}}",
+    )
+    .unwrap();
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--exclude-peers"]);
+    dbg!(&parsed);
+    let components = parsed["components"].as_array().unwrap();
+    assert!(
+        components
+            .iter()
+            .any(|component| component["name"] == "is-positive")
+    );
+    assert!(
+        !components
+            .iter()
+            .any(|component| component["name"] == "is-odd")
+    );
+}
+
+#[test]
 fn split_and_filtered_sbom_read_per_project_workspace_lockfiles() {
     let tmp = copy_fixture("simple-sbom");
     let lockfile = fs::read(tmp.path().join("pnpm-lock.yaml")).expect("read fixture lockfile");
