@@ -24,8 +24,7 @@ export interface ExtendPathOptions {
  * Builds the `PATH` of a script running in `wd`: the bin directory of `wd`
  * and the `node_modules/.bin` of every package above it, the `node-gyp`
  * wrappers, the extra bin directories, and then `originalPath` without the
- * entries already listed before it. A script that runs `pnpm run` would
- * otherwise inherit a `PATH` that gains another copy of them at every level.
+ * entries already listed before it.
  */
 export function extendPath (wd: string, originalPath: string | undefined, opts: ExtendPathOptions): string {
   const pathArr = [...opts.extraBinPaths ?? []]

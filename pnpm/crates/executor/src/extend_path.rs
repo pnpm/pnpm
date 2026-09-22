@@ -39,9 +39,7 @@ pub enum ScriptsPrependNodePath {
 /// 5. `dirname(node_execpath)` when `scripts_prepend_node_path` is
 ///    [`Always`](ScriptsPrependNodePath::Always),
 /// 6. `original_path` (typically the inherited system PATH), minus the
-///    entries already listed above. A script that runs `pnpm run` would
-///    otherwise inherit a PATH that gains another copy of them at every
-///    level.
+///    entries already listed above.
 #[must_use]
 pub fn extend_path(
     wd: &Path,
