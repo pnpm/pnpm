@@ -197,7 +197,7 @@ pub(super) async fn synthesize_lockfile_from_current(
     if !scope.lockfile_is_absent || scope.frozen_lockfile || !scope.prefer_frozen_lockfile {
         return None;
     }
-    check_lockfile_freshness(current, &scope.freshness).await.ok().map(|()| current.clone())
+    check_lockfile_freshness(current, &scope.freshness).await.ok().map(|_| current.clone())
 }
 
 /// Whether the fast update may run for this install. It cannot preserve

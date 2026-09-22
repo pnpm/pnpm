@@ -135,13 +135,7 @@ importers:
         ),
         "expected is-positive reported as added, got {error:?}",
     );
-    check(&manifest, true).expect("a frozen install skips the optional again");
-
-    let importer = lockfile.importers.get(".").expect("root importer");
-    let skipped = super::unresolved_optional_dependencies(
-        &importer_check(fixture, &manifest, (&ignored_optional_matcher, true)),
-        importer,
-    );
+    let skipped = check(&manifest, true).expect("a frozen install skips the optional again");
     assert_eq!(skipped, vec![("is-positive".to_string(), "^30000.0.0".to_string())]);
 
     fs::write(

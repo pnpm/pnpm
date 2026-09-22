@@ -189,6 +189,15 @@ fn skip_non_existing_optional_dependency() {
 /// Regression test for [pnpm/pnpm#3960](https://github.com/pnpm/pnpm/issues/3960).
 #[test]
 fn frozen_install_skips_the_optional_dependency_the_lockfile_left_out() {
+    frozen_install_with_unresolved_optional_dependency(true);
+}
+
+#[test]
+fn frozen_install_skips_the_only_dependency_when_it_is_unresolved_and_optional() {
+    frozen_install_with_unresolved_optional_dependency(false);
+}
+
+fn frozen_install_with_unresolved_optional_dependency(has_required_dependency: bool) {
     let CommandTempCwd {
         pacquet,
         root,
@@ -199,7 +208,11 @@ fn frozen_install_skips_the_optional_dependency_the_lockfile_left_out() {
     write_manifest(
         &workspace,
         &serde_json::json!({
-            "dependencies": { "is-positive": "1.0.0" },
+            "dependencies": if has_required_dependency {
+                serde_json::json!({ "is-positive": "1.0.0" })
+            } else {
+                serde_json::json!({})
+            },
             "optionalDependencies": { "@pnpm.e2e/i-do-not-exist": "1000" },
         }),
     );
@@ -218,7 +231,9 @@ fn frozen_install_skips_the_optional_dependency_the_lockfile_left_out() {
         fs::read_to_string(workspace.join(Lockfile::FILE_NAME)).expect("read pnpm-lock.yaml");
 
     for frozen in [["install", "--frozen-lockfile"].as_slice(), ["install"].as_slice()] {
-        fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+        if workspace.join("node_modules").exists() {
+            fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+        }
         // The test environment pins `PNPM_CONFIG_CI=false`; the bare
         // `install` relies on `CI=true` turning the frozen default on.
         let mut command = pacquet_in(&workspace);
@@ -228,15 +243,24 @@ fn frozen_install_skips_the_optional_dependency_the_lockfile_left_out() {
             .args(frozen);
         let assert = command.assert().success();
         let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
-        assert!(
-            stdout.contains("Lockfile is up to date, resolution step is skipped"),
-            "{frozen:?} must install from the lockfile; got:\n{stdout}",
-        );
+        if has_required_dependency {
+            assert!(
+                stdout.contains("Lockfile is up to date, resolution step is skipped"),
+                "{frozen:?} must install from the lockfile; got:\n{stdout}",
+            );
+        } else {
+            assert!(
+                stdout.contains("Already up to date"),
+                "{frozen:?} must report up to date; got:\n{stdout}",
+            );
+        }
         assert!(stdout.contains(SKIP_NOTICE), "{frozen:?} must report the skip; got:\n{stdout}");
-        assert!(
-            workspace.join("node_modules/is-positive/package.json").exists(),
-            "the resolvable dependency must be installed",
-        );
+        if has_required_dependency {
+            assert!(
+                workspace.join("node_modules/is-positive/package.json").exists(),
+                "the resolvable dependency must be installed",
+            );
+        }
         assert!(
             is_absent(&workspace.join("node_modules/@pnpm.e2e/i-do-not-exist")),
             "the unresolvable optional dependency must be skipped",

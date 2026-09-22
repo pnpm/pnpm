@@ -36,7 +36,7 @@ pub(crate) struct OptionalDependencyExclusions<'a> {
 
 pub(crate) fn check_importer_satisfies(
     check: &ImporterSatisfactionCheck<'_>,
-) -> Result<(), FreshnessCheckError> {
+) -> Result<Vec<(String, String)>, FreshnessCheckError> {
     let importer = check.lockfile.importers
         .get(check.importer_id)
         .ok_or_else(|| FreshnessCheckError::NoImporter {
@@ -72,7 +72,8 @@ pub(crate) fn check_importer_satisfies(
     // optionalDependencies AND matched") rather than pure pattern
     // matching. `devDependencies` is untouched on purpose; the group
     // gate inside `satisfies_package_manifest` enforces that.
-    let ignored_set = excluded_optional_dependency_names(check, manifest_for_freshness, importer);
+    let (ignored_set, unresolved) =
+        excluded_optional_dependency_names(check, manifest_for_freshness, importer);
     let is_ignored_optional: &dyn Fn(&str) -> bool = &|name: &str| ignored_set.contains(name);
 
     satisfies_package_manifest(
@@ -92,7 +93,9 @@ pub(crate) fn check_importer_satisfies(
             other => other,
         };
         FreshnessCheckError::Stale(reason)
-    })
+    })?;
+
+    Ok(unresolved)
 }
 /// The optional dependencies the comparison leaves out: the configured
 /// `ignoredOptionalDependencies`, plus the unresolved ones when the check
@@ -101,38 +104,19 @@ fn excluded_optional_dependency_names(
     check: &ImporterSatisfactionCheck<'_>,
     manifest: &PackageManifest,
     importer: &pnpm_lockfile::ProjectSnapshot,
-) -> std::collections::HashSet<String> {
+) -> (std::collections::HashSet<String>, Vec<(String, String)>) {
     let exclusions = check.optional_exclusions;
     let mut names = ignored_optional_dependency_names(manifest, exclusions.ignored);
+    let mut unresolved = Vec::new();
     if exclusions.allow_unresolved {
-        names.extend(
+        for (name, specifier) in
             unresolved_optional_dependencies_of(manifest, importer, exclusions.ignored)
-                .map(|(name, _)| name.to_string()),
-        );
+        {
+            names.insert(name.to_string());
+            unresolved.push((name.to_string(), specifier.to_string()));
+        }
     }
-    names
-}
-
-/// The checked project's `optionalDependencies` entries `importer` has no
-/// entry for, as `(alias, specifier)` pairs. The install that wrote the
-/// lockfile could not resolve them and skipped them. Configured
-/// `ignoredOptionalDependencies` and, under `excludeLinksFromLockfile`,
-/// `link:` dependencies are absent by design and are not returned.
-pub(super) fn unresolved_optional_dependencies(
-    check: &ImporterSatisfactionCheck<'_>,
-    importer: &pnpm_lockfile::ProjectSnapshot,
-) -> Vec<(String, String)> {
-    let manifest = normalized_freshness_manifest(
-        check.manifest,
-        check.config,
-        check.workspace_packages,
-        importer,
-        check.parsed_overrides,
-        check.lockfile_dir,
-    );
-    unresolved_optional_dependencies_of(&manifest, importer, check.optional_exclusions.ignored)
-        .map(|(name, specifier)| (name.to_string(), specifier.to_string()))
-        .collect()
+    (names, unresolved)
 }
 
 fn unresolved_optional_dependencies_of<'m>(

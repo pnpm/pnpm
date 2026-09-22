@@ -1698,7 +1698,8 @@ Note that in CI environments, this setting is enabled by default.`,
         ignoredBuilds: undefined,
       }
     }
-    if (isEmptyLockfile(ctx.wantedLockfile)) {
+    if (isEmptyLockfile(ctx.wantedLockfile) &&
+      !skippedOptionalDependencies.some(({ skipped }) => Object.keys(skipped).length > 0)) {
       if (Object.values(ctx.projects).some((project) => pkgHasDependencies(project.manifest))) {
         throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
       }

@@ -4,7 +4,6 @@ pub(crate) use manifest::{
     ImporterSatisfactionCheck, OptionalDependencyExclusions, check_importer_satisfies,
 };
 
-use manifest::unresolved_optional_dependencies;
 use rayon::prelude::*;
 
 use super::{
@@ -259,7 +258,7 @@ pub(super) fn removed_importer_id<'a>(
 pub(super) async fn check_lockfile_freshness(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
-) -> Result<(), FreshnessCheckError> {
+) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
     let parsed_overrides_opt = parse_config_overrides(inputs.config, inputs.catalogs)?;
     let pnpmfile_checksum = pnpm_hooks::current_pnpmfile_checksum(
         inputs.pnpmfile_hook,
@@ -278,7 +277,7 @@ pub(super) async fn check_lockfile_freshness(
     )?;
 
     if inputs.scope.ignore_manifest_check {
-        return Ok(());
+        return Ok(Vec::new());
     }
 
     // An importer whose project is gone leaves the recorded graph wider
@@ -301,40 +300,73 @@ fn check_importer_freshness(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
-) -> Result<(), FreshnessCheckError> {
+) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
     let ignored_optional_matcher = ignored_optional_matcher(inputs.config);
     // Each importer's check reads only shared references, so a
     // workspace-scale importer list fans out across the rayon pool; the
     // serial fold keeps the first error in importer order, like the
     // loop it replaces.
-    let results: Vec<Result<(), FreshnessCheckError>> = inputs.manifests
+    let results: Vec<Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError>> = inputs
+        .manifests
         .par_iter()
         .map(|(importer_id, manifest)| {
-            if inputs.scope.allow_missing_dependency_free_importers
-                && !lockfile.importers.contains_key(importer_id)
-                && !manifest_has_effective_dependencies(manifest, &ignored_optional_matcher)
-            {
-                return Ok(());
-            }
-            check_importer_satisfies(&ImporterSatisfactionCheck {
+            check_single_importer(
                 lockfile,
-                lockfile_dir: inputs.lockfile_dir,
-                manifest,
-                importer_id,
-                config: inputs.config,
-                workspace_packages: inputs.workspace_packages,
-                optional_exclusions: OptionalDependencyExclusions {
-                    ignored: &ignored_optional_matcher,
-                    allow_unresolved: inputs.scope.allow_unresolved_optional_dependencies,
-                },
+                inputs,
                 parsed_overrides,
-            })
+                &ignored_optional_matcher,
+                importer_id,
+                manifest,
+            )
         })
         .collect();
+    let mut all_skipped = Vec::new();
     for result in results {
-        result?;
+        all_skipped.extend(result?);
     }
-    Ok(())
+    Ok(all_skipped)
+}
+
+fn check_single_importer(
+    lockfile: &Lockfile,
+    inputs: &LockfileFreshnessInputs<'_, '_>,
+    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
+    ignored_optional_matcher: &pnpm_matcher::Matcher,
+    importer_id: &str,
+    manifest: &PackageManifest,
+) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
+    if inputs.scope.allow_missing_dependency_free_importers
+        && !lockfile.importers.contains_key(importer_id)
+        && !manifest_has_effective_dependencies(manifest, ignored_optional_matcher)
+    {
+        return Ok(Vec::new());
+    }
+    let skipped = check_importer_satisfies(&ImporterSatisfactionCheck {
+        lockfile,
+        lockfile_dir: inputs.lockfile_dir,
+        manifest,
+        importer_id,
+        config: inputs.config,
+        workspace_packages: inputs.workspace_packages,
+        optional_exclusions: OptionalDependencyExclusions {
+            ignored: ignored_optional_matcher,
+            allow_unresolved: inputs.scope.allow_unresolved_optional_dependencies,
+        },
+        parsed_overrides,
+    })?;
+    let prefix = manifest
+        .path()
+        .parent()
+        .map(|project_dir| project_dir.display().to_string())
+        .unwrap_or_default();
+    Ok(skipped
+        .into_iter()
+        .map(|(alias, specifier)| UnresolvedOptionalDependency {
+            prefix: prefix.clone(),
+            alias,
+            specifier,
+        })
+        .collect())
 }
 
 fn ignored_optional_matcher(config: &Config) -> pnpm_matcher::Matcher {
@@ -349,51 +381,6 @@ pub(super) struct UnresolvedOptionalDependency {
     pub(super) prefix: String,
     pub(super) alias: String,
     pub(super) specifier: String,
-}
-
-/// Every project's `optionalDependencies` entries the lockfile has no
-/// importer entry for. Meaningful once [`check_lockfile_freshness`] has
-/// accepted the lockfile under `allow_unresolved_optional_dependencies`.
-pub(super) fn unresolved_optional_dependencies_by_project(
-    lockfile: &Lockfile,
-    inputs: &LockfileFreshnessInputs<'_, '_>,
-) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
-    let parsed_overrides = parse_config_overrides(inputs.config, inputs.catalogs)?;
-    let ignored_optional_matcher = ignored_optional_matcher(inputs.config);
-    let mut skipped = Vec::new();
-    for (importer_id, manifest) in inputs.manifests {
-        let Some(importer) = lockfile.importers.get(importer_id) else {
-            continue;
-        };
-        let prefix = manifest
-            .path()
-            .parent()
-            .map(|project_dir| project_dir.display().to_string())
-            .unwrap_or_default();
-        let check = ImporterSatisfactionCheck {
-            lockfile,
-            lockfile_dir: inputs.lockfile_dir,
-            manifest,
-            importer_id,
-            config: inputs.config,
-            workspace_packages: inputs.workspace_packages,
-            optional_exclusions: OptionalDependencyExclusions {
-                ignored: &ignored_optional_matcher,
-                allow_unresolved: true,
-            },
-            parsed_overrides: parsed_overrides.as_deref(),
-        };
-        skipped.extend(
-            unresolved_optional_dependencies(&check, importer)
-                .into_iter()
-                .map(|(alias, specifier)| UnresolvedOptionalDependency {
-                    prefix: prefix.clone(),
-                    alias,
-                    specifier,
-                }),
-        );
-    }
-    Ok(skipped)
 }
 
 /// Parse `pnpm.overrides` from the config. Values can use the

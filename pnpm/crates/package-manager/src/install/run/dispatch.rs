@@ -3,9 +3,7 @@ use super::{
         Arc, ContextLog, FreshnessCheckError, FreshnessScope, InstallError, InstallRunOptions,
         Lockfile, LogEvent, LogLevel, PackageManifest, Path, PathBuf, PrepareModulesStateInputs,
         PreparedModulesState, Reporter, Stage, StageLog, SummaryLog, check_lockfile_freshness,
-        lockfile_freshness::{
-            LockfileFreshnessInputs, unresolved_optional_dependencies_by_project,
-        },
+        lockfile_freshness::{LockfileFreshnessInputs, UnresolvedOptionalDependency},
         map_frozen_lockfile_error, prepare_modules_state, verify_lockfile_eagerly,
     },
     InstallOwned, InstallView, RunMode, Verification,
@@ -313,8 +311,9 @@ pub(super) async fn decide_frozen_path<Reporter: self::Reporter>(
             },
             ..dispatch.freshness
         };
-        check_lockfile_freshness(lockfile, &freshness).await.map_err(InstallError::from)?;
-        report_unresolved_optional_dependencies::<Reporter>(lockfile, &freshness)?;
+        let skipped =
+            check_lockfile_freshness(lockfile, &freshness).await.map_err(InstallError::from)?;
+        report_unresolved_optional_dependencies::<Reporter>(&skipped);
         return Ok(true);
     }
     // The wanted lockfile was only usable because its Git conflict markers
@@ -339,27 +338,22 @@ pub(super) async fn decide_frozen_path<Reporter: self::Reporter>(
 /// the way the resolver reports one it cannot resolve, so the default
 /// reporter prints the same notice on both paths.
 fn report_unresolved_optional_dependencies<Reporter: self::Reporter>(
-    lockfile: &Lockfile,
-    freshness: &LockfileFreshnessInputs<'_, '_>,
-) -> Result<(), InstallError> {
-    if freshness.scope.ignore_manifest_check {
-        return Ok(());
-    }
-    for skipped in unresolved_optional_dependencies_by_project(lockfile, freshness)? {
+    skipped: &[UnresolvedOptionalDependency],
+) {
+    for item in skipped {
         Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
             level: LogLevel::Debug,
             details: None,
             package: SkippedOptionalPackage::ResolutionFailure {
-                name: Some(skipped.alias),
-                version: Some(skipped.specifier.clone()),
-                bare_specifier: skipped.specifier,
+                name: Some(item.alias.clone()),
+                version: Some(item.specifier.clone()),
+                bare_specifier: item.specifier.clone(),
             },
             parents: Some(Vec::new()),
-            prefix: skipped.prefix,
+            prefix: item.prefix.clone(),
             reason: SkippedOptionalReason::ResolutionFailure,
         }));
     }
-    Ok(())
 }
 /// Consult the freshness gate for an auto-frozen install. A `Stale` /
 /// `NoImporter` outcome routes to the fresh-resolve path; a malformed
@@ -375,7 +369,7 @@ pub(super) async fn auto_frozen_path(
         // hook's verdict blocks the frozen install. A lockfile synthesized
         // from the current snapshot skips the check (it only gates on a
         // non-empty wanted lockfile). A throwing hook aborts the install.
-        Ok(()) => {
+        Ok(_) => {
             // An unchecksummed `readPackage` hook can change dependency
             // manifests without changing the regular freshness inputs.
             if !dispatch.freshness.config.ignore_pnpmfile {

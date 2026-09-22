@@ -4,12 +4,17 @@ import type { ProjectManifest } from '@pnpm/types'
 import { pickBy } from 'ramda'
 
 /**
- * The `optionalDependencies` of `pkg` that `importer` has no entry for.
- * The install that wrote the lockfile could not resolve them and skipped
- * them, so a frozen install skips them again instead of reporting them as
- * added. Configured `ignoredOptionalDependencies` and, under
- * `excludeLinksFromLockfile`, `link:` dependencies are absent by design and
- * are not returned.
+ * Returns a map of package names to requested specifiers for any direct
+ * `optionalDependencies` of `pkg` that `importer.specifiers` does not contain.
+ *
+ * Called during frozen-lockfile verification to identify dependencies that
+ * could not be resolved when the lockfile was written so they can be skipped
+ * rather than reported as added.
+ *
+ * Returns an empty record if `pkg.optionalDependencies` is absent or empty.
+ * Dependencies matching configured `ignoredOptionalDependencies` or starting
+ * with `link:` when `excludeLinksFromLockfile` is enabled are omitted from
+ * the result.
  */
 export function unresolvedOptionalDependencies (
   opts: {
