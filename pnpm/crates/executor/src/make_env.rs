@@ -3,6 +3,7 @@ use serde_json::Value;
 use std::{
     collections::HashMap,
     env,
+    ffi::{OsStr, OsString},
     path::{Path, PathBuf},
 };
 
@@ -242,7 +243,7 @@ pub(crate) fn path_value(env: &HashMap<String, String>) -> Option<String> {
 /// `parent_env`'s PATH (not the process-global env) so [`build_env`]
 /// stays deterministic given its inputs — matching the docstring
 /// contract.
-fn find_node_in_path(path: Option<&str>) -> Option<PathBuf> {
+fn find_node_in_path(path: Option<&OsStr>) -> Option<PathBuf> {
     let path = path?;
     let node_name = if cfg!(windows) { "node.exe" } else { "node" };
     env::split_paths(path)
@@ -310,14 +311,16 @@ fn stamp_executables(
     pkg_root: &Path,
 ) {
     let parent_path = path_value(env);
-    let node_execpath = opts.node_execpath
-        .map(Path::to_path_buf)
-        .or_else(|| find_node_in_path(parent_path.as_deref()));
-    if let Some(node) = node_execpath {
-        let node_str = node.to_string_lossy().into_owned();
-        env.insert("npm_node_execpath".into(), node_str.clone());
-        env.insert("NODE".into(), node_str);
-    }
+    env.extend(
+        package_manager_env(
+            opts.init_cwd,
+            opts.node_execpath,
+            opts.npm_execpath,
+            parent_path.as_deref().map(OsStr::new),
+        )
+        .into_iter()
+        .map(|(key, value)| (key, value.to_string_lossy().into_owned())),
+    );
 
     env.insert(
         "npm_package_json".into(),
@@ -327,15 +330,34 @@ fn stamp_executables(
             .into_owned(),
     );
 
-    let npm_execpath = opts.npm_execpath
-        .map(Path::to_path_buf)
-        .or_else(|| env::current_exe().ok());
-    if let Some(path) = npm_execpath {
-        env.insert("npm_execpath".into(), path.to_string_lossy().into_owned());
-    }
     if let Some(path) = opts.node_gyp_path {
         env.insert("npm_config_node_gyp".into(), path.to_string_lossy().into_owned());
     }
+}
+
+/// Environment identifying the invoking package manager and working directory.
+#[must_use]
+pub fn package_manager_env(
+    init_cwd: &Path,
+    node_execpath: Option<&Path>,
+    npm_execpath: Option<&Path>,
+    path: Option<&OsStr>,
+) -> HashMap<String, OsString> {
+    let mut env = HashMap::new();
+    env.insert("INIT_CWD".into(), init_cwd.as_os_str().to_os_string());
+    let node_execpath = node_execpath.map(Path::to_path_buf).or_else(|| find_node_in_path(path));
+    if let Some(node) = node_execpath {
+        let node_path = node.into_os_string();
+        env.insert("npm_node_execpath".into(), node_path.clone());
+        env.insert("NODE".into(), node_path);
+    }
+    let npm_execpath = npm_execpath
+        .map(Path::to_path_buf)
+        .or_else(|| env::current_exe().ok());
+    if let Some(path) = npm_execpath {
+        env.insert("npm_execpath".into(), path.into_os_string());
+    }
+    env
 }
 
 /// Whether one manifest field reaches the environment. The top level keeps

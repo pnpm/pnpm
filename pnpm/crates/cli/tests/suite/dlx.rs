@@ -3,6 +3,98 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 
+#[test]
+fn dlx_sets_package_manager_environment() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let expected_execpath =
+        std::fs::canonicalize(pacquet.get_program()).expect("resolve pnpm binary");
+    let expected_cwd = std::fs::canonicalize(&workspace).expect("resolve working directory");
+    for name in ["npm_execpath", "npm_node_execpath", "NODE", "INIT_CWD"] {
+        pacquet.env_remove(name);
+    }
+    let output = pacquet
+        .args([
+            "dlx",
+            "--package=@foo/touch-file-one-bin",
+            "node",
+            "-e",
+            "console.log(JSON.stringify(Object.fromEntries(['npm_execpath', 'npm_node_execpath', 'NODE', 'INIT_CWD'].map(key => [key, process.env[key]]))))",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let env: serde_json::Value = serde_json::from_slice(&output).expect("parse child environment");
+    let execpath = env["npm_execpath"].as_str().expect("package manager executable path");
+    assert_eq!(std::fs::canonicalize(execpath).expect("resolve child execpath"), expected_execpath);
+    let init_cwd = env["INIT_CWD"].as_str().expect("initial working directory");
+    assert_eq!(std::fs::canonicalize(init_cwd).expect("resolve child cwd"), expected_cwd);
+    assert_eq!(env["npm_node_execpath"], env["NODE"]);
+    let node_path = env["npm_node_execpath"].as_str().expect("node executable path");
+    assert!(std::path::Path::new(node_path).is_absolute(), "node executable path: {node_path}");
+    drop(root);
+}
+
+#[test]
+fn dlx_clears_inherited_node_environment_without_node_on_path() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let node = which::which("node").expect("find node");
+    let empty_path = workspace.join("empty-path");
+    std::fs::create_dir(&empty_path).expect("create empty PATH directory");
+    let fixture = workspace.join("fixture");
+    std::fs::create_dir(&fixture).expect("create package fixture");
+    std::fs::write(fixture.join("package.json"), r#"{"name":"env-fixture","version":"1.0.0"}"#)
+        .expect("write package manifest");
+    let output = pacquet
+        .env("PATH", &empty_path)
+        .env("NODE", "/stale/node")
+        .env("npm_node_execpath", "/stale/node")
+        .arg("dlx").arg(format!("--package=file:{}", fixture.display())).arg(node)
+        .args(["-e", "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))"])
+        .assert().success().get_output().stdout.clone();
+    let env: serde_json::Value = serde_json::from_slice(&output).expect("parse child environment");
+    assert_eq!(env, serde_json::json!({}));
+    drop(root);
+}
+
+#[test]
+fn dlx_does_not_resolve_node_from_dlx_bin() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let expected_node = which::which("node").expect("find real node");
+    let fixture = workspace.join("node-bin-pkg");
+    let fixture_bin = fixture.join("bin");
+    std::fs::create_dir_all(&fixture_bin).expect("create package bin dir");
+    std::fs::write(
+        fixture.join("package.json"),
+        r#"{"name":"fake-node-pkg","version":"1.0.0","bin":{"node":"bin/fake.js"}}"#,
+    )
+    .expect("write manifest");
+    std::fs::write(fixture_bin.join("fake.js"), "console.log('fake')").expect("write bin");
+    let output = pacquet
+        .args([
+            "dlx",
+            &format!("--package=file:{}", fixture.display()),
+            expected_node.to_str().unwrap(),
+            "-e",
+            "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let env: serde_json::Value = serde_json::from_slice(&output).expect("parse child environment");
+    assert_eq!(env["NODE"], env["npm_node_execpath"]);
+    let node_path = env["NODE"].as_str().expect("node executable path");
+    assert_eq!(
+        std::fs::canonicalize(node_path).unwrap(),
+        std::fs::canonicalize(&expected_node).unwrap(),
+    );
+    drop(root);
+}
+
 /// `pacquet dlx` with no command is an error, mirroring pnpm's dlx, which
 /// prints help and exits non-zero when given neither a command nor a
 /// `--package`.

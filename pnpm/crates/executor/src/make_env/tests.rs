@@ -427,3 +427,24 @@ fn escape_newlines_json_encodes_multi_line_only() {
     assert_eq!(escape_newlines("a\nb"), r#""a\nb""#);
     assert_eq!(escape_newlines(r#"has "quotes""#), r#"has "quotes""#);
 }
+
+#[cfg(unix)]
+#[test]
+fn package_manager_environment_preserves_native_node_paths() {
+    use std::{ffi::OsStr, os::unix::ffi::OsStrExt, process::Command};
+
+    let node = b"/node-\xff/node";
+    let env = super::package_manager_env(
+        Path::new("/"),
+        Some(Path::new(OsStr::from_bytes(node))),
+        None,
+        None,
+    );
+    let output = Command::new("/bin/sh")
+        .args(["-c", r#"printf '%s\n' "$NODE" "$npm_node_execpath""#])
+        .envs(env)
+        .output()
+        .expect("spawn shell");
+    assert!(output.status.success());
+    assert_eq!(output.stdout, [node.as_slice(), b"\n", node.as_slice(), b"\n"].concat());
+}

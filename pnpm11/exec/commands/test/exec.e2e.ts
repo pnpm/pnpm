@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -14,6 +15,28 @@ import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 const testOnPosixOnly = process.platform === 'win32' ? test.skip : test
+
+test.each([undefined, '/parent/package-manager'])('pnpm exec sets package-manager environment variables (inherited: %s)', async (inherited) => {
+  prepare({})
+  const { stdout } = await execa(process.execPath, [pnpmBin, '--reporter=silent', 'exec', 'node', '-e',
+    'console.log(JSON.stringify({ npm_execpath: process.env.npm_execpath, INIT_CWD: process.env.INIT_CWD, npm_node_execpath: process.env.npm_node_execpath, NODE: process.env.NODE }))',
+  ], {
+    env: {
+      npm_execpath: inherited,
+      INIT_CWD: inherited,
+      npm_node_execpath: inherited,
+      NODE: undefined,
+    },
+  })
+
+  assert(typeof stdout === 'string')
+  expect(JSON.parse(stdout)).toStrictEqual({
+    npm_execpath: pnpmBin,
+    INIT_CWD: process.cwd(),
+    npm_node_execpath: process.execPath,
+    NODE: process.execPath,
+  })
+})
 
 test('pnpm recursive exec', async () => {
   await using server1 = await createTestIpcServer()

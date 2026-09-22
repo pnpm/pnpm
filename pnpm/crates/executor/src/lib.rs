@@ -10,7 +10,9 @@ pub use lifecycle::{
     run_project_lifecycle_scripts, run_project_lifecycle_scripts_after_preinstall,
     run_project_lifecycle_stages, run_root_preinstall_hook,
 };
-pub use make_env::{EnvBuild, EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env};
+pub use make_env::{
+    EnvBuild, EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env, package_manager_env,
+};
 pub use process_tracker::{ProcessTracker, SpawnedChild, spawn_child};
 pub use run_script::{RunScript, RunScriptError, ScriptOutput, run_script};
 pub use script_exit::ScriptExit;

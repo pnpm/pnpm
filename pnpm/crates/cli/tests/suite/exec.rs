@@ -145,6 +145,174 @@ fn wait_for_file(path: &Path) -> bool {
     path.exists()
 }
 
+#[test]
+fn exec_sets_package_manager_environment() {
+    for inherited in [None, Some("/parent/package-manager")] {
+        let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let expected_execpath =
+            fs::canonicalize(pacquet.get_program()).expect("resolve pnpm binary");
+        let expected_cwd = fs::canonicalize(&workspace).expect("resolve working directory");
+        for name in ["npm_execpath", "npm_node_execpath", "NODE", "INIT_CWD"] {
+            match inherited {
+                Some(value) => {
+                    pacquet.env(name, value);
+                }
+                None => {
+                    pacquet.env_remove(name);
+                }
+            }
+        }
+        let output = pacquet
+            .args(["exec", "node", "-e", "console.log(JSON.stringify(Object.fromEntries(['npm_execpath', 'npm_node_execpath', 'NODE', 'INIT_CWD'].map(key => [key, process.env[key]]))))"])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let env: serde_json::Value =
+            serde_json::from_slice(&output).expect("parse child environment");
+        let execpath = env["npm_execpath"].as_str().expect("package manager executable path");
+        assert_eq!(fs::canonicalize(execpath).expect("resolve child execpath"), expected_execpath);
+        let init_cwd = env["INIT_CWD"].as_str().expect("initial working directory");
+        assert_eq!(fs::canonicalize(init_cwd).expect("resolve child cwd"), expected_cwd);
+        assert_eq!(env["npm_node_execpath"], env["NODE"]);
+        let node_path = env["npm_node_execpath"].as_str().expect("node executable path");
+        assert!(Path::new(node_path).is_absolute(), "node executable path: {node_path}");
+        drop(root);
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn exec_sets_node_environment_with_non_utf8_path() {
+    use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+
+    let CommandTempCwd { mut pacquet, root, .. } = CommandTempCwd::init();
+    let mut path = OsString::from_vec(b"/non-utf8-\xff:".to_vec());
+    path.push(std::env::var_os("PATH").expect("PATH"));
+    let output = pacquet
+        .env("PATH", path)
+        .args(["exec", "node", "-e", "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))"])
+        .assert().success().get_output().stdout.clone();
+    let env: serde_json::Value = serde_json::from_slice(&output).expect("parse child environment");
+    let node_path = env["NODE"].as_str().expect("node executable path");
+    assert_eq!(env["NODE"], env["npm_node_execpath"]);
+    let expected_node = which::which("node").expect("find node");
+    assert_eq!(fs::canonicalize(node_path).unwrap(), fs::canonicalize(expected_node).unwrap());
+    drop(root);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn exec_preserves_non_utf8_node_paths() {
+    use std::{
+        ffi::OsString,
+        os::unix::{ffi::OsStringExt, fs::symlink},
+    };
+
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let bin_dir = workspace.join(OsString::from_vec(b"node-\xff".to_vec()));
+    fs::create_dir(&bin_dir).expect("create Node directory");
+    symlink(which::which("node").expect("find node"), bin_dir.join("node"))
+        .expect("link Node executable");
+    let mut path = bin_dir.into_os_string();
+    path.push(":");
+    path.push(std::env::var_os("PATH").expect("PATH"));
+    pacquet
+        .env("PATH", path)
+        .args(["exec", "/bin/sh", "-c", r#""$NODE" -p 42; "$npm_node_execpath" -p 42"#])
+        .assert()
+        .success()
+        .stdout("42\n42\n");
+    drop(root);
+}
+
+#[test]
+fn exec_clears_inherited_node_environment_without_node_on_path() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let node = which::which("node").expect("find node");
+    let empty_path = workspace.join("empty-path");
+    fs::create_dir(&empty_path).expect("create empty PATH directory");
+    let output = pacquet
+        .env("PATH", &empty_path)
+        .env("NODE", "/stale/node")
+        .env("npm_node_execpath", "/stale/node")
+        .arg("exec").arg(node)
+        .args(["-e", "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))"])
+        .assert().success().get_output().stdout.clone();
+    let env: serde_json::Value = serde_json::from_slice(&output).expect("parse child environment");
+    assert_eq!(env, serde_json::json!({}));
+    drop(root);
+}
+
+#[test]
+fn exec_preserves_configured_node_environment() {
+    for node_override in ["/configured/node", ""] {
+        let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+        fs::write(workspace.join("package.json"), "{}").expect("write manifest");
+        let hook = format!(
+            "module.exports = {{ hooks: {{ updateConfig(config) {{ config.extraEnv = {{ ...config.extraEnv, NODE: '{node_override}' }}; return config }} }} }}",
+        );
+        fs::write(workspace.join(".pnpmfile.cjs"), hook).expect("write pnpmfile");
+        let output = pacquet
+            .args(["exec", "node", "-e", "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))"])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let env: serde_json::Value =
+            serde_json::from_slice(&output).expect("parse child environment");
+        assert_eq!(env["NODE"], env["npm_node_execpath"]);
+        if node_override.is_empty() {
+            let node_path = env["NODE"].as_str().expect("node executable path");
+            assert!(Path::new(node_path).is_absolute(), "node executable path: {node_path}");
+        } else {
+            assert_eq!(env["NODE"], node_override);
+        }
+        drop(root);
+    }
+}
+
+#[test]
+fn exec_does_not_resolve_node_from_project_bin() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").expect("write manifest");
+    let bin_dir = workspace.join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create .bin directory");
+    let fake_node = bin_dir.join(if cfg!(windows) { "node.exe" } else { "node" });
+    fs::write(
+        &fake_node,
+        if cfg!(windows) { "@echo off\r\necho fake" } else { "#!/bin/sh\necho fake\n" },
+    )
+    .expect("write fake node");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&fake_node, fs::Permissions::from_mode(0o755))
+            .expect("chmod fake node");
+    }
+    let expected_node = which::which("node").expect("find real node");
+    let output = pacquet
+        .args([
+            "exec",
+            expected_node.to_str().unwrap(),
+            "-e",
+            "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let env: serde_json::Value = serde_json::from_slice(&output).expect("parse child environment");
+    assert_eq!(env["NODE"], env["npm_node_execpath"]);
+    let node_path = env["NODE"].as_str().expect("node executable path");
+    assert_eq!(fs::canonicalize(node_path).unwrap(), fs::canonicalize(&expected_node).unwrap());
+    assert_ne!(fs::canonicalize(node_path).unwrap(), fs::canonicalize(&fake_node).unwrap());
+    drop(root);
+}
+
 /// `pacquet exec <command>` resolves the command against the project's
 /// `node_modules/.bin` directory and runs it. Mirrors pnpm's exec, which
 /// prepends `./node_modules/.bin` to PATH before spawning.
