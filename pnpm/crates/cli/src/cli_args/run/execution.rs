@@ -455,10 +455,14 @@ pub(in super::super) fn run_stage(
     let modules_bin_dir = ctx.dir
         .join(project_modules_dir_name(ctx))
         .join(".bin");
+    let mut extra_bin_paths = pnpm_python_installer::execution_paths(ctx.config, ctx.dir);
+    extra_bin_paths
+        .to_mut()
+        .extend(ctx.config.extra_bin_paths.iter().cloned());
     let status = run_script(&RunScript {
         environment: super::script_environment(ctx.config, ctx.init_cwd, ctx.extra_env),
         execution: pnpm_executor::ScriptExecutionOptions {
-            extra_bin_paths: &pnpm_python_installer::execution_paths(ctx.config, ctx.dir),
+            extra_bin_paths: &extra_bin_paths,
             node_gyp_bin: None,
             prepend_node_path: exec_scripts_prepend_node_path(ctx.config.scripts_prepend_node_path),
             shell: ctx.config.script_shell.as_deref().map(Path::new),
