@@ -91,3 +91,20 @@ test('pnpm ci fails when package.json conflicts with lockfile', () => {
   const result = execPnpmSync(['ci'])
   expect(result.status).not.toBe(0)
 })
+
+test('pnpm ci --ignore-scripts does not run lifecycle scripts when clean script is present', () => {
+  prepare({
+    name: 'test-ci-ignore-scripts',
+    version: '1.0.0',
+    scripts: {
+      clean: 'node -e "process.exit(1)"',
+      install: 'node -e "process.exit(2)"',
+    },
+  })
+
+  execPnpmSync(['install', '--lockfile-only'])
+
+  const result = execPnpmSync(['ci', '--ignore-scripts'])
+  expect(result.status).toBe(0)
+})
+
