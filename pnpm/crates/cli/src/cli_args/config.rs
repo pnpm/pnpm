@@ -19,8 +19,9 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_config::{
-    Config, DEFAULT_JSR_REGISTRY, GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME,
-    config_types, naming_cases, property_path, property_path::Segment, protected_settings,
+    Config, DEFAULT_JSR_REGISTRY, GLOBAL_CONFIG_YAML_FILENAME, MacosBackupSettings,
+    WORKSPACE_MANIFEST_FILENAME, config_types, naming_cases, property_path, property_path::Segment,
+    protected_settings,
 };
 use pnpm_workspace_manifest_writer::update_manifest_field;
 use serde_json::{Map, Value};
@@ -160,12 +161,12 @@ pub enum ConfigError {
     )]
     SetUnsupportedYamlConfigKey { key: String },
 
-    #[display("Cannot set structured config key {key:?} to a non-object value")]
+    #[display("Invalid value for structured config key {key:?}: {reason}")]
     #[diagnostic(
         code(ERR_PNPM_CONFIG_SET_STRUCTURED_VALUE),
         help("Use --json with an object value")
     )]
-    SetStructuredValue { key: String },
+    SetStructuredValue { key: String, reason: String },
 
     #[display("Invalid property path: {_0}")]
     #[diagnostic(code(ERR_PNPM_CONFIG_INVALID_PROPERTY_PATH))]
@@ -296,8 +297,12 @@ fn config_set(
             }
             key = validate_workspace_key(&key)?;
             let cast = cast_field(value, &naming_cases::to_kebab_case(&key));
-            if key == "macosBackup" && !cast.is_null() && !cast.is_object() {
-                return Err(ConfigError::SetStructuredValue { key }.into());
+            if key == "macosBackup" && !cast.is_null() {
+                serde_json::from_value::<MacosBackupSettings>(cast.clone())
+                    .map_err(|error| ConfigError::SetStructuredValue {
+                        key: key.clone(),
+                        reason: error.to_string(),
+                    })?;
             }
             update_manifest_field(&config_path, &key, &cast).map_err(miette::Report::new)?;
         }
