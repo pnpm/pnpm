@@ -114,6 +114,7 @@ tasks:
     concurrencyGroup: cargo
   pre-push:rust:
     concurrencyGroup: cargo
+    priority: 10
   ready:rust:
     concurrencyGroup: cargo
   test:rust:
