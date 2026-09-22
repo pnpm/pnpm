@@ -67,6 +67,21 @@ test('a workspace dependency linked through linkWorkspacePackages stays linked',
   await expect(installDedicatedCopy(tmp)).resolves.toStrictEqual(['@dedicated-lockfile-test', 'is-positive'])
 })
 
+test('a workspace peer dependency stays linked', async () => {
+  const tmp = f.prepare('workspace-peer')
+  await installWorkspace(tmp)
+  const projectDir = path.join(tmp, 'packages/app')
+  const result = await execa('node', [makeDedicatedLockfileBin], { cwd: projectDir, all: true })
+  expect(result.exitCode).toBe(0)
+
+  const lockfile = await readWantedLockfile(projectDir, { ignoreIncompatible: false })
+  expect(lockfile?.importers['.' as ProjectId]?.dependencies).toStrictEqual({
+    '@dedicated-lockfile-test/peer-lib': 'link:../shared',
+    'is-positive': '1.0.0',
+  })
+  expect(JSON.parse(fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8')).peerDependencies['@dedicated-lockfile-test/peer-lib']).toBe('workspace:^')
+})
+
 async function installWorkspace (workspaceDir: string): Promise<void> {
   await execa('node', [
     pnpmBin,
