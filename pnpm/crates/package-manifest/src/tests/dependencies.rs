@@ -753,7 +753,6 @@ fn save_drops_a_dependency_field_the_removal_emptied() {
 "#,
     );
 
-    // The field pnpm dropped is not preserved by a later save either.
     manifest.add_dependency("baz", "1.0.0", DependencyGroup::Dev).unwrap();
     manifest.save().unwrap();
     assert!(!read_to_string(&path).unwrap().contains(r#""dependencies""#));
