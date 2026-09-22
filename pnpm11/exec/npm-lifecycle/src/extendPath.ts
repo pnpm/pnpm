@@ -23,7 +23,8 @@ export interface ExtendPathOptions {
 /**
  * Builds the `PATH` of a script running in `wd`: the bin directory of `wd`
  * and the `node_modules/.bin` of every package above it, the `node-gyp`
- * wrappers, the extra bin directories, and then `originalPath`.
+ * wrappers, the extra bin directories, and then `originalPath` without the
+ * entries already listed before it.
  */
 export function extendPath (wd: string, originalPath: string | undefined, opts: ExtendPathOptions): string {
   const pathArr = [...opts.extraBinPaths ?? []]
@@ -45,8 +46,12 @@ export function extendPath (wd: string, originalPath: string | undefined, opts: 
     pathArr.push(path.dirname(process.execPath))
   }
 
-  if (originalPath) pathArr.push(originalPath)
-  return pathArr.join(process.platform === 'win32' ? ';' : ':')
+  const delimiter = process.platform === 'win32' ? ';' : ':'
+  if (originalPath) {
+    const added = new Set(pathArr)
+    pathArr.push(...originalPath.split(delimiter).filter(entry => !added.has(entry)))
+  }
+  return pathArr.join(delimiter)
 }
 
 let hasWarnedAboutNodePath = false
