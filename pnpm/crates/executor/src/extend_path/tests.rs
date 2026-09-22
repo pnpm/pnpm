@@ -260,3 +260,64 @@ fn wd_bin_dir_replaces_only_the_wds_own_bin() {
         ],
     );
 }
+
+fn join_segments(parts: &[&str]) -> OsString {
+    OsString::from(parts.join(&SEP.to_string()))
+}
+
+#[test]
+fn nested_script_does_not_add_the_parent_scripts_entries_again() {
+    let wd = std::path::absolute(Path::new("/proj")).expect("absolute project root");
+    let node_gyp = PathBuf::from("node_gyp");
+    let extra = vec![PathBuf::from("extra")];
+    let original = join_segments(&["user", "user", "system"]);
+    let extend = |original: &OsString| {
+        extend_path(
+            &wd,
+            None,
+            Some(original),
+            Some(&node_gyp),
+            &extra,
+            ScriptsPrependNodePath::Never,
+            None,
+        )
+    };
+    let outer = extend(&original);
+    assert_eq!(extend(&outer), outer);
+    assert_eq!(
+        segments(&outer),
+        vec![
+            wd.join("node_modules")
+                .join(".bin")
+                .to_string_lossy()
+                .into_owned(),
+            "node_gyp".to_string(),
+            "extra".to_string(),
+            "user".to_string(),
+            "user".to_string(),
+            "system".to_string(),
+        ],
+    );
+}
+
+#[test]
+fn inherited_entry_that_pnpm_adds_keeps_the_position_pnpm_gives_it() {
+    let wd = std::path::absolute(Path::new("/proj")).expect("absolute project root");
+    let bin = wd
+        .join("node_modules")
+        .join(".bin")
+        .to_string_lossy()
+        .into_owned();
+    let node_gyp = PathBuf::from("node_gyp");
+    let original = join_segments(&["system", &bin]);
+    let path = extend_path(
+        &wd,
+        None,
+        Some(&original),
+        Some(&node_gyp),
+        &[],
+        ScriptsPrependNodePath::Never,
+        None,
+    );
+    assert_eq!(segments(&path), vec![bin, "node_gyp".to_string(), "system".to_string()]);
+}

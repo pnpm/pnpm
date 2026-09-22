@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     env,
     ffi::{OsStr, OsString},
     path::{self, Path, PathBuf},
@@ -37,7 +38,10 @@ pub enum ScriptsPrependNodePath {
 /// 4. `extra_bin_paths` (caller-supplied),
 /// 5. `dirname(node_execpath)` when `scripts_prepend_node_path` is
 ///    [`Always`](ScriptsPrependNodePath::Always),
-/// 6. `original_path` (typically the inherited system PATH).
+/// 6. `original_path` (typically the inherited system PATH), minus the
+///    entries already listed above. A script that runs `pnpm run` would
+///    otherwise inherit a PATH that gains another copy of them at every
+///    level.
 #[must_use]
 pub fn extend_path(
     wd: &Path,
@@ -80,14 +84,15 @@ pub fn extend_path(
     }
 
     // 6. originalPath at the end.
-    let mut joined: Vec<PathBuf> = path_arr;
     if let Some(orig) = original_path {
-        for p in env::split_paths(orig) {
-            joined.push(p);
-        }
+        let added: HashSet<OsString> = path_arr
+            .iter()
+            .map(|p| p.as_os_str().to_os_string())
+            .collect();
+        path_arr.extend(env::split_paths(orig).filter(|p| !added.contains(p.as_os_str())));
     }
 
-    join_paths_lossy(&joined)
+    join_paths_lossy(&path_arr)
 }
 
 /// Join `paths` with the platform PATH separator (`;` on Windows,

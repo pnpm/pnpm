@@ -52,3 +52,26 @@ test('wdBinDir replaces the working directory\'s own .bin, leaving the packages 
     'original',
   ])
 })
+
+test('a nested script does not add the entries of its parent script to PATH again', () => {
+  const wd = path.resolve('project')
+  const opts = { nodeGypBinDir: 'node_gyp', extraBinPaths: ['extra'] }
+  const original = ['user', 'user', 'system'].join(separator)
+  const outer = extendPath(wd, original, opts)
+  expect(extendPath(wd, outer, opts)).toBe(outer)
+  expect(outer.split(separator)).toStrictEqual([
+    path.join(wd, 'node_modules', '.bin'),
+    'node_gyp',
+    'extra',
+    'user',
+    'user',
+    'system',
+  ])
+})
+
+test('an inherited PATH entry that pnpm adds keeps the position pnpm gives it', () => {
+  const wd = path.resolve('project')
+  const bin = path.join(wd, 'node_modules', '.bin')
+  const p = extendPath(wd, ['system', bin].join(separator), { nodeGypBinDir: 'node_gyp' })
+  expect(p.split(separator)).toStrictEqual([bin, 'node_gyp', 'system'])
+})
