@@ -66,9 +66,7 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
     })
   } finally {
     if (modulesRenamed) {
-      try {
-        await renameOverwrite(tempModulesDir, modulesDir)
-      } catch {}
+      await renameOverwrite(tempModulesDir, modulesDir)
     }
     await writeProjectManifest(manifest)
   }
