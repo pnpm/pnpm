@@ -1,13 +1,8 @@
-//! Literal-star matching and ordered include/ignore pattern lists.
+//! Glob matching and ordered include/ignore pattern lists.
 //!
-//! The pattern syntax is intentionally tiny: `*` is the only wildcard
-//! (matching any sequence of characters, including empty), every other
-//! character is matched literally. Pattern lists also interpret a leading
-//! `!` as an ignore rule; [`WildcardMatcher`] treats it literally.
-//!
-//! The glob matcher is hand-rolled rather than backed by a regex engine:
-//! the only wildcard is `*`, so a literal "starts with", "ends with", and
-//! "contains in order" walk is enough.
+//! The pattern syntax supports `*` (matching any sequence of characters,
+//! including empty) and `?` (matching any single character). Pattern lists
+//! also interpret a leading `!` as an ignore rule; [`WildcardMatcher`] treats it literally.
 
 use std::sync::Arc;
 
@@ -198,15 +193,9 @@ fn compile_many(patterns: &[String]) -> MatcherImpl {
     }
 }
 
-/// A compiled glob pattern. The only wildcard is `*` (matches any
-/// sequence including empty); every other character is literal. The
-/// match is anchored — pattern must consume the whole input.
-
+/// A compiled glob pattern supporting `*` and `?` wildcards.
 #[derive(Clone)]
 pub struct WildcardMatcher {
-    /// Segments between `*`s. For pattern `a*b*c` this is
-    /// `["a", "b", "c"]`. For `*` alone it is `["", ""]`. For pure
-    /// literal `foo` it is `["foo"]` and `had_wildcard` is false.
     segments: Arc<[String]>,
     had_wildcard: bool,
 }
@@ -227,31 +216,111 @@ impl WildcardMatcher {
     #[must_use]
     pub fn matches(&self, input: &str) -> bool {
         if !self.had_wildcard {
-            return self.segments[0] == input;
+            return segment_matches_exact(&self.segments[0], input);
         }
         let first = &self.segments[0];
         let last = &self.segments[self.segments.len() - 1];
-        let Some(rest) = input.strip_prefix(first.as_str()) else { return false };
-        if first.len() + last.len() > input.len() {
-            return false;
-        }
-        let Some(middle) = rest.strip_suffix(last.as_str()) else { return false };
-        // The prefix-strip already advanced past `first`; the
-        // suffix-strip already accounted for `last`. Walk the
-        // middle segments greedily.
+        let Some(rest) = strip_segment_prefix(input, first.as_str()) else { return false };
+        let Some(middle) = strip_segment_suffix(rest, last.as_str()) else { return false };
         contains_in_order(middle, &self.segments[1..self.segments.len() - 1])
     }
 }
 
+fn segment_matches_exact(segment: &str, target: &str) -> bool {
+    if !segment.contains('?') {
+        return segment == target;
+    }
+    let mut s_chars = segment.chars();
+    let mut t_chars = target.chars();
+    loop {
+        match (s_chars.next(), t_chars.next()) {
+            (Some('?'), Some(_)) => {}
+            (Some(sc), Some(tc)) if sc == tc => {}
+            (None, None) => return true,
+            _ => return false,
+        }
+    }
+}
+
+fn strip_segment_prefix<'a>(input: &'a str, segment: &str) -> Option<&'a str> {
+    if !segment.contains('?') {
+        return input.strip_prefix(segment);
+    }
+    let seg_chars = segment.chars().count();
+    let mut char_count = 0;
+    let mut split_idx = input.len();
+    for (idx, _) in input.char_indices() {
+        if char_count == seg_chars {
+            split_idx = idx;
+            break;
+        }
+        char_count += 1;
+    }
+    if char_count < seg_chars {
+        if char_count + 1 == seg_chars {
+            split_idx = input.len();
+        } else {
+            return None;
+        }
+    }
+    let prefix = &input[..split_idx];
+    segment_matches_exact(segment, prefix).then(|| &input[split_idx..])
+}
+
+fn strip_segment_suffix<'a>(input: &'a str, segment: &str) -> Option<&'a str> {
+    if !segment.contains('?') {
+        return input.strip_suffix(segment);
+    }
+    let seg_chars = segment.chars().count();
+    let input_chars = input.chars().count();
+    if input_chars < seg_chars {
+        return None;
+    }
+    let skip = input_chars - seg_chars;
+    let split_idx = input
+        .char_indices()
+        .nth(skip)
+        .map_or(input.len(), |(idx, _)| idx);
+    let suffix = &input[split_idx..];
+    segment_matches_exact(segment, suffix).then(|| &input[..split_idx])
+}
+
+fn find_segment(input: &str, segment: &str) -> Option<(usize, usize)> {
+    if !segment.contains('?') {
+        return input
+            .find(segment)
+            .map(|idx| (idx, segment.len()));
+    }
+    let seg_chars = segment.chars().count();
+    for (start_idx, _) in input.char_indices() {
+        let rest = &input[start_idx..];
+        let mut char_count = 0;
+        let mut end_offset = rest.len();
+        for (idx, _) in rest.char_indices() {
+            if char_count == seg_chars {
+                end_offset = idx;
+                break;
+            }
+            char_count += 1;
+        }
+        if char_count == seg_chars || (char_count + 1 == seg_chars && end_offset == rest.len()) {
+            let candidate = &rest[..end_offset];
+            if segment_matches_exact(segment, candidate) {
+                return Some((start_idx, end_offset));
+            }
+        }
+    }
+    None
+}
+
 /// Whether `segments` all occur in `input`, in order and without overlap.
-/// An empty segment is two adjacent wildcards and constrains nothing.
 fn contains_in_order(mut input: &str, segments: &[String]) -> bool {
     for segment in segments {
         if segment.is_empty() {
             continue;
         }
-        let Some(index) = input.find(segment.as_str()) else { return false };
-        input = &input[index + segment.len()..];
+        let Some((idx, len)) = find_segment(input, segment.as_str()) else { return false };
+        input = &input[idx + len..];
     }
     true
 }

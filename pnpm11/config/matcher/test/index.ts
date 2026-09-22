@@ -47,6 +47,19 @@ test('matcher()', () => {
     expect(match('eslint-plugin-foo')).toBe(false)
     expect(match('eslint-plugin-bar')).toBe(true)
   }
+  {
+    const match = createMatcher(['?eb*'])
+    expect(match('web')).toBe(true)
+    expect(match('web-app')).toBe(true)
+    expect(match('eb')).toBe(false)
+  }
+  {
+    const match = createMatcher(['app-?'])
+    expect(match('app-1')).toBe(true)
+    expect(match('app-a')).toBe(true)
+    expect(match('app-12')).toBe(false)
+    expect(match('app-')).toBe(false)
+  }
 })
 
 test('createMatcherWithIndex()', () => {
@@ -110,5 +123,11 @@ test('createMatcherWithIndex()', () => {
     expect(match('foo')).toBe(-1)
     expect(match('bar')).toBe(-1)
     expect(match('baz')).toBe(-1)
+  }
+  {
+    const match = createMatcherWithIndex(['?eb*'])
+    expect(match('web')).toBe(0)
+    expect(match('web-app')).toBe(0)
+    expect(match('eb')).toBe(-1)
   }
 })
