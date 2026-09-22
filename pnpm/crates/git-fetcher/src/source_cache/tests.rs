@@ -139,7 +139,12 @@ fn working_copies_preserve_git_context_without_sharing_mutations() {
     fs::write(first.path().join(".git/HEAD"), "changed").unwrap();
     for original in [source.path(), second.path()] {
         assert_eq!(fs::read_to_string(original.join("value")).unwrap(), "original");
-        assert_eq!(fs::read_to_string(original.join(".git/HEAD")).unwrap().trim(), commit);
+        assert_eq!(
+            fs::read_to_string(original.join(".git/HEAD"))
+                .unwrap()
+                .trim(),
+            commit
+        );
     }
 }
 
@@ -222,20 +227,18 @@ fn checkouts_by_different_git_executables_are_isolated() {
         GitCommandLog::new(&root.path().join("first")),
         GitCommandLog::new(&root.path().join("second")),
     ];
-    let sources = logs
-        .each_ref()
-        .map(|log| {
-            cache
-                .get(&GitSource {
-                    cache: &cache,
-                    path: None,
-                    repo: &url,
-                    commit: &commit,
-                    shallow_hosts: &[],
-                    git_bin: Some(&log.bin),
-                })
-                .unwrap()
-        });
+    let sources = logs.each_ref().map(|log| {
+        cache
+            .get(&GitSource {
+                cache: &cache,
+                path: None,
+                repo: &url,
+                commit: &commit,
+                shallow_hosts: &[],
+                git_bin: Some(&log.bin),
+            })
+            .unwrap()
+    });
     assert!(!Arc::ptr_eq(&sources[0], &sources[1]), "different git executables shared a source");
     for log in &logs {
         assert_eq!(log.acquisitions().len(), 1);

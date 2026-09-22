@@ -157,8 +157,16 @@ async fn fetcher_imports_package_into_cas() {
     .unwrap();
 
     assert!(!received.built, "package without scripts should not be 'built'");
-    assert!(received.cas_paths.contains_key("package.json"));
-    assert!(received.cas_paths.contains_key("index.js"));
+    assert!(
+        received
+            .cas_paths
+            .contains_key("package.json")
+    );
+    assert!(
+        received
+            .cas_paths
+            .contains_key("index.js")
+    );
     let cas_path = &received.cas_paths["package.json"];
     assert!(cas_path.exists(), "CAS entry must exist on disk");
 }
@@ -348,12 +356,25 @@ async fn fetcher_runs_prepare_script_when_allowed() {
 
     assert!(received.built, "manifest with prepare script must report should_be_built=true");
     assert!(
-        received.cas_paths.contains_key("PREPARED.marker"),
+        received
+            .cas_paths
+            .contains_key("PREPARED.marker"),
         "prepare script must have written PREPARED.marker into the prepared tree: keys = {:?}",
-        received.cas_paths.keys().collect::<Vec<_>>(),
+        received
+            .cas_paths
+            .keys()
+            .collect::<Vec<_>>(),
     );
-    assert!(received.cas_paths.contains_key("package.json"));
-    assert!(received.cas_paths.contains_key("index.js"));
+    assert!(
+        received
+            .cas_paths
+            .contains_key("package.json")
+    );
+    assert!(
+        received
+            .cas_paths
+            .contains_key("index.js")
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -492,9 +513,14 @@ async fn fetcher_runs_prepare_when_allow_build_returns_true() {
         "allow_build returning true must report should_be_built=true (manifest declared prepare)",
     );
     assert!(
-        received.cas_paths.contains_key("BUILD_RAN.marker"),
+        received
+            .cas_paths
+            .contains_key("BUILD_RAN.marker"),
         "allow_build returning true must let the prepare script run: keys = {:?}",
-        received.cas_paths.keys().collect::<Vec<_>>(),
+        received
+            .cas_paths
+            .keys()
+            .collect::<Vec<_>>(),
     );
 }
 
@@ -685,11 +711,9 @@ async fn fetcher_clones_when_host_not_in_shallow_list() {
     // path argument, but pin the leading argv slots. The `--` keeps a
     // `-`-leading repo out of git's option parser.
     assert!(
-        invocations
-            .iter()
-            .any(|args| {
-                args.len() >= 4 && args[0] == "clone" && args[1] == "--" && args[2] == repo_url
-            }),
+        invocations.iter().any(|args| {
+            args.len() >= 4 && args[0] == "clone" && args[1] == "--" && args[2] == repo_url
+        }),
         "non-shallow path must call `git clone -- <url> <dir>`; got {invocations:?}",
     );
     // The shallow argv must be absent — guards the gate's polarity.

@@ -48,8 +48,9 @@ fn restore_bundle(bundle: &Path, dest: &Path) -> Result<(), GitFetcherError> {
     git(&["bundle", "verify", &bundle.to_string_lossy()], dest)?;
     let refs = git(&["bundle", "unbundle", &bundle.to_string_lossy()], dest)?;
     for line in refs.lines() {
-        let (hash, reference) =
-            line.split_once(' ').ok_or_else(|| invalid("invalid bundle ref"))?;
+        let (hash, reference) = line
+            .split_once(' ')
+            .ok_or_else(|| invalid("invalid bundle ref"))?;
         if !reference.starts_with("refs/heads/") && !reference.starts_with("refs/tags/") {
             continue;
         }
@@ -101,7 +102,9 @@ fn submodules(checkout: &Path) -> Result<Vec<(PathBuf, String)>, GitFetcherError
 }
 
 fn committed_submodule(checkout: &Path, entry: &str) -> Result<(PathBuf, String), GitFetcherError> {
-    let (_, path) = entry.split_once('\n').ok_or_else(|| invalid("invalid submodule path"))?;
+    let (_, path) = entry
+        .split_once('\n')
+        .ok_or_else(|| invalid("invalid submodule path"))?;
     let path = PathBuf::from(path);
     if path.as_os_str().is_empty()
         || path

@@ -1,4 +1,5 @@
 import assert from 'node:assert'
+import fs from 'node:fs'
 import path from 'node:path'
 import { URL } from 'node:url'
 import util from 'node:util'
@@ -8,7 +9,7 @@ import { preparePackage } from '@pnpm/exec.prepare-package'
 import type { GitFetcher } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
-import { nonInteractiveGitEnv } from '@pnpm/network.git-utils'
+import { nonInteractiveGitEnv, nonInteractiveGitSubmoduleEnv } from '@pnpm/network.git-utils'
 import { createGitHostedPkgId } from '@pnpm/resolving.git-resolver'
 import { gitHostedStoreIndexKey, type StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
@@ -48,6 +49,12 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
     const receivedCommit = await execGit(['rev-parse', 'HEAD'], { cwd: tempLocation })
     if (receivedCommit.trim() !== resolution.commit) {
       throw new PnpmError('GIT_CHECKOUT_FAILED', `received commit ${receivedCommit.trim()} does not match expected value ${resolution.commit}`)
+    }
+    if (await hasGitSubmodules(tempLocation)) {
+      await execGit(['submodule', 'update', '--init', '--recursive', '--checkout'], {
+        cwd: tempLocation,
+        env: await nonInteractiveGitSubmoduleEnv({ cwd: tempLocation }),
+      })
     }
     let pkgDir: string
     let requiresPrepare: boolean
@@ -200,4 +207,14 @@ async function execGit (args: string[], opts?: { cwd?: string, env?: NodeJS.Proc
   const fullArgs = prefixGitArgs().concat(args || [])
   const { stdout } = await execa('git', fullArgs, opts)
   return stdout as string
+}
+
+async function hasGitSubmodules (location: string): Promise<boolean> {
+  try {
+    return (await fs.promises.stat(path.join(location, '.gitmodules'))).isFile()
+  } catch (err: unknown) {
+    assert(util.types.isNativeError(err))
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw err
+  }
 }

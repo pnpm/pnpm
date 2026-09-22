@@ -135,7 +135,9 @@ impl GitFetcher<'_> {
         Ok(GitFetchOutput { cas_paths, built: prepared.should_be_built })
     }
     fn copy_source(&self, temp_location: &Path) -> Result<(), GitFetcherError> {
-        let source = self.source.cache
+        let source = self
+            .source
+            .cache
             .get(&self.source)
             .map_err(|err| {
                 name_fetch_failure(
@@ -214,9 +216,7 @@ fn name_fetch_failure(repo: &str, package: &str, err: GitFetcherError) -> GitFet
         other => other,
     };
     let GitFetcherError::GitExec {
-        operation: "init" | "remote" | "clone" | "fetch",
-        stderr,
-        ..
+        operation: "init" | "remote" | "clone" | "fetch", stderr, ..
     } = cause
     else {
         return err;
@@ -252,12 +252,16 @@ fn ssh_repo_host(repo: &str) -> Option<&str> {
         .or_else(|| repo.strip_prefix("git+ssh://"))
     {
         let authority = rest.split('/').next().unwrap_or(rest);
-        let host = authority.rsplit_once('@').map_or(authority, |(_user, host)| host);
+        let host = authority
+            .rsplit_once('@')
+            .map_or(authority, |(_user, host)| host);
         // A bracketed IPv6 literal is full of colons, so the port has to be
         // looked for after the closing bracket rather than at the first colon.
         let host = match host.split_once(']') {
             Some((address, _port)) if host.starts_with('[') => &host[..=address.len()],
-            _ => host.split_once(':').map_or(host, |(host, _port)| host),
+            _ => host
+                .split_once(':')
+                .map_or(host, |(host, _port)| host),
         };
         return (!host.is_empty()).then_some(host);
     }
@@ -306,13 +310,7 @@ pub struct CheckoutOptions<'a> {
 /// [`read_git_manifest`], which need the same working tree for
 /// different reasons.
 pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError> {
-    let &CheckoutOptions {
-        repo,
-        commit,
-        git_shallow_hosts,
-        git_bin,
-        dest,
-    } = opts;
+    let &CheckoutOptions { repo, commit, git_shallow_hosts, git_bin, dest } = opts;
     if !is_valid_commit_hash(commit) {
         return Err(GitFetcherError::InvalidCommit {
             commit: commit.to_string(),
@@ -346,11 +344,15 @@ pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError
     Ok(())
 }
 
-/// Initialize recursive submodules at their committed gitlinks. Only the
-/// Cargo-supported transports may run, including after Git URL rewrites.
+/// Initialize recursive submodules at their committed gitlinks. Only supported
+/// transports may run, including after Git URL rewrites.
 pub fn checkout_submodules(dest: &Path) -> Result<(), GitFetcherError> {
+    checkout_submodules_with(Path::new("git"), dest)
+}
+
+pub(crate) fn checkout_submodules_with(git_bin: &Path, dest: &Path) -> Result<(), GitFetcherError> {
     exec_git_with(
-        Path::new("git"),
+        git_bin,
         &["submodule", "update", "--init", "--recursive", "--checkout"],
         Some(dest),
     )?;
@@ -388,7 +390,8 @@ pub async fn read_git_manifest(
     query: GitManifestQuery<'_>,
 ) -> Result<Option<Value>, GitFetcherError> {
     tokio::task::block_in_place(|| {
-        let source = query.source_cache
+        let source = query
+            .source_cache
             .get(&GitSource {
                 cache: query.source_cache,
                 path: query.path,
@@ -403,13 +406,17 @@ pub async fn read_git_manifest(
         // must not reach `safe_read_package_json_from_dir`, which would
         // happily read an arbitrary `package.json` off the host and
         // stamp its name onto this dep.
-        let pkg_dir = safe_join_path(source.path(), query.path).map_err(GitFetcherError::Prepare)?;
+        let pkg_dir =
+            safe_join_path(source.path(), query.path).map_err(GitFetcherError::Prepare)?;
         safe_read_package_json_from_dir(&pkg_dir).map_err(GitFetcherError::ReadManifest)
     })
 }
 
 fn is_valid_commit_hash(commit: &str) -> bool {
-    commit.len() == 40 && commit.bytes().all(|b| b.is_ascii_hexdigit())
+    commit.len() == 40
+        && commit
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit())
 }
 
 /// True iff `repo` is safe to pass to git as a repository positional.
@@ -506,15 +513,13 @@ pub(crate) fn exec_git_with(
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
     }
-    let output = cmd
-        .output()
-        .map_err(|err| {
-            if err.kind() == std::io::ErrorKind::NotFound {
-                GitFetcherError::GitNotFound
-            } else {
-                GitFetcherError::Io(err)
-            }
-        })?;
+    let output = cmd.output().map_err(|err| {
+        if err.kind() == std::io::ErrorKind::NotFound {
+            GitFetcherError::GitNotFound
+        } else {
+            GitFetcherError::Io(err)
+        }
+    })?;
     if !output.status.success() {
         let operation = static_operation_label(args);
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();

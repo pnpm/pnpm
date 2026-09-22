@@ -265,15 +265,13 @@ pub(crate) fn parse_shim_log(log_path: &Path) -> Vec<Vec<String>> {
 /// would let a reordered regression slip through.
 #[cfg(unix)]
 fn position_of(invocations: &[Vec<String>], argv: &[&str]) -> Option<usize> {
-    invocations
-        .iter()
-        .position(|args| {
-            args.len() == argv.len()
-                && args
-                    .iter()
-                    .zip(argv)
-                    .all(|(a, b)| a == b)
-        })
+    invocations.iter().position(|args| {
+        args.len() == argv.len()
+            && args
+                .iter()
+                .zip(argv)
+                .all(|(a, b)| a == b)
+    })
 }
 
 /// A `git` shim that fails every invocation, so the transport-failure branch

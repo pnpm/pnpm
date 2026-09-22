@@ -1,8 +1,10 @@
 use crate::{
-    CheckoutOptions, GitFetcherError, GitSource, checkout_commit, fetcher::should_use_shallow,
+    CheckoutOptions, GitFetcherError, GitSource, checkout_commit,
+    fetcher::{checkout_submodules_with, should_use_shallow},
 };
 use std::{
     collections::HashMap,
+    fs,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, OnceLock},
 };
@@ -33,7 +35,10 @@ struct SourceKey {
 impl GitSourceCache {
     pub(crate) fn get(&self, source: &GitSource<'_>) -> SourceResult {
         let cell = {
-            let mut sources = self.sources.lock().expect("git source cache lock poisoned");
+            let mut sources = self
+                .sources
+                .lock()
+                .expect("git source cache lock poisoned");
             Arc::clone(
                 sources
                     .entry(SourceKey::new(source))
@@ -41,7 +46,9 @@ impl GitSourceCache {
             )
         };
         cell.get_or_init(|| {
-            let checkout = tempfile::tempdir().map_err(GitFetcherError::Io).map_err(Arc::new)?;
+            let checkout = tempfile::tempdir()
+                .map_err(GitFetcherError::Io)
+                .map_err(Arc::new)?;
             checkout_commit(&CheckoutOptions {
                 repo: source.repo,
                 commit: source.commit,
@@ -50,6 +57,15 @@ impl GitSourceCache {
                 dest: checkout.path(),
             })
             .map_err(Arc::new)?;
+            if has_submodules(checkout.path()).map_err(Arc::new)? {
+                checkout_submodules_with(
+                    source
+                        .git_bin
+                        .unwrap_or_else(|| Path::new("git")),
+                    checkout.path(),
+                )
+                .map_err(Arc::new)?;
+            }
             Ok(Arc::new(checkout))
         })
         .clone()
@@ -64,6 +80,14 @@ impl SourceKey {
             shallow: should_use_shallow(source.repo, source.shallow_hosts),
             git_bin: source.git_bin.map(Path::to_path_buf),
         }
+    }
+}
+
+fn has_submodules(checkout: &Path) -> Result<bool, GitFetcherError> {
+    match fs::metadata(checkout.join(".gitmodules")) {
+        Ok(metadata) => Ok(metadata.is_file()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(err) => Err(GitFetcherError::Io(err)),
     }
 }
 

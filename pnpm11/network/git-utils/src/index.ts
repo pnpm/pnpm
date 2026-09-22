@@ -132,6 +132,51 @@ export async function nonInteractiveGitEnv (opts: GitCwdOptions = {}): Promise<N
 }
 
 /**
+ * The environment for a noninteractive submodule checkout. Git executes the
+ * submodule URL from repository metadata, so only the supported transports
+ * that the caller's configuration permits are enabled.
+ */
+export async function nonInteractiveGitSubmoduleEnv (opts: GitCwdOptions = {}): Promise<NodeJS.ProcessEnv> {
+  const gitEnv = await nonInteractiveGitEnv(opts)
+  const protocolPolicies = await readGitProtocolPolicies(opts)
+  gitEnv.GIT_ALLOW_PROTOCOL = supportedGitProtocols
+    .filter((protocol) => isGitProtocolEnabled(protocol, protocolPolicies))
+    .filter((protocol) => gitEnv.GIT_ALLOW_PROTOCOL == null || gitEnv.GIT_ALLOW_PROTOCOL.split(':').includes(protocol))
+    .join(':')
+  return gitEnv
+}
+
+const supportedGitProtocols = ['file', 'git', 'http', 'https', 'ssh']
+
+async function readGitProtocolPolicies (opts: GitCwdOptions): Promise<Record<string, string>> {
+  try {
+    const { stdout } = await execa('git', ['config', '--null', '--get-regexp', '^protocol\\.'], { cwd: opts.cwd })
+    return Object.fromEntries(
+      String(stdout)
+        .split('\0')
+        .flatMap((entry): Array<[string, string]> => {
+          const separator = entry.indexOf('\n')
+          return separator === -1 ? [] : [[entry.slice(0, separator), entry.slice(separator + 1)]]
+        })
+        .filter(([key]) => key.endsWith('.allow'))
+    )
+  } catch (err: unknown) {
+    if (isMissingGitConfig(err)) return {}
+    throw err
+  }
+}
+
+function isMissingGitConfig (err: unknown): boolean {
+  return typeof err === 'object' && err != null && 'exitCode' in err && err.exitCode === 1
+}
+
+function isGitProtocolEnabled (protocol: string, policies: Record<string, string>): boolean {
+  const defaultPolicy = protocol === 'file' ? 'user' : 'always'
+  const policy = policies[`protocol.${protocol}.allow`] ?? policies['protocol.allow'] ?? defaultPolicy
+  return policy.toLowerCase() === 'always'
+}
+
+/**
  * Whether git configuration selects the ssh command through `core.sshCommand`.
  * A missing git reads as not configured; the invocation that follows fails on
  * the missing executable with its own error.

@@ -49,8 +49,16 @@ async fn fetcher_handles_repo_without_package_json() {
     .unwrap();
 
     assert!(!received.built, "no manifest → not built");
-    assert!(received.cas_paths.contains_key("README.md"));
-    assert!(received.cas_paths.contains_key("index.js"));
+    assert!(
+        received
+            .cas_paths
+            .contains_key("README.md")
+    );
+    assert!(
+        received
+            .cas_paths
+            .contains_key("index.js")
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -164,7 +172,11 @@ async fn fetcher_allows_untrusted_manifest_identity_by_dep_path() {
     .unwrap();
 
     assert!(received.built);
-    assert!(received.cas_paths.contains_key("BUILD_RAN.marker"));
+    assert!(
+        received
+            .cas_paths
+            .contains_key("BUILD_RAN.marker")
+    );
 }
 
 /// A `Git` resolution's package name lives only in the working tree —
@@ -187,8 +199,18 @@ async fn read_git_manifest_reads_the_name_from_the_checkout() {
     .expect("checkout should be readable");
 
     let manifest = dbg!(manifest).expect("repo root has a package.json");
-    assert_eq!(manifest.get("name").and_then(Value::as_str), Some("pkg"));
-    assert_eq!(manifest.get("version").and_then(Value::as_str), Some("1.0.0"));
+    assert_eq!(
+        manifest
+            .get("name")
+            .and_then(Value::as_str),
+        Some("pkg")
+    );
+    assert_eq!(
+        manifest
+            .get("version")
+            .and_then(Value::as_str),
+        Some("1.0.0")
+    );
 }
 
 /// `#path:/packages/foo` keeps its leading slash, which is rooted at
@@ -211,7 +233,12 @@ async fn read_git_manifest_reads_a_repo_rooted_sub_directory() {
     .expect("checkout should be readable");
 
     let manifest = dbg!(manifest).expect("sub-directory has a package.json");
-    assert_eq!(manifest.get("name").and_then(Value::as_str), Some("@scope/foo"));
+    assert_eq!(
+        manifest
+            .get("name")
+            .and_then(Value::as_str),
+        Some("@scope/foo")
+    );
 }
 
 /// Degrades to `None` rather than failing the resolve, matching the

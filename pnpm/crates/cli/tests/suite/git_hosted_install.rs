@@ -64,7 +64,9 @@ fn simple_repo(root: &Path, name: &str, version: &str) -> (GitRepoFixture, Strin
 /// cache all come from the config files the harness already wrote into
 /// the workspace, so nothing else has to be re-threaded.
 fn pnpm_at(workspace: &Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
 }
 
 /// Write `project/package.json` with `dependencies` set to `deps`.
@@ -79,6 +81,14 @@ fn write_dependencies(project: &Path, deps: &[(&str, &str)]) {
     );
 }
 
+fn add_submodule(repository: &Path, url: &str, path: &str) {
+    Command::new("git")
+        .current_dir(repository)
+        .args(["-c", "protocol.file.allow=always", "submodule", "add", "--", url, path])
+        .assert()
+        .success();
+}
+
 /// The lone `packages:` entry whose key names `name`, as a
 /// `(package_key, metadata)` pair.
 fn sole_package<'a>(
@@ -86,7 +96,8 @@ fn sole_package<'a>(
     name: &str,
 ) -> (String, &'a pnpm_lockfile::PackageMetadata) {
     let prefix = format!("{name}@");
-    let mut matches = lockfile.packages
+    let mut matches = lockfile
+        .packages
         .as_ref()
         .expect("lockfile has packages")
         .iter()
@@ -101,7 +112,10 @@ fn sole_package<'a>(
 
 /// The `type: git` resolution of the lone `packages:` entry for `name`.
 fn git_resolution<'a>(lockfile: &'a Lockfile, name: &str) -> &'a pnpm_lockfile::GitResolution {
-    match &sole_package(lockfile, name).1.resolution {
+    match &sole_package(lockfile, name)
+        .1
+        .resolution
+    {
         LockfileResolution::Git(git) => git,
         other => panic!("expected a git resolution for {name}, got {other:?}"),
     }
@@ -114,13 +128,8 @@ fn git_resolution<'a>(lockfile: &'a Lockfile, name: &str) -> &'a pnpm_lockfile::
 /// (`LockfileResolution::Git`) without needing an SSH agent.
 #[test]
 fn install_from_a_git_repo() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let (repo, commit) = simple_repo(root.path(), "is-negative", "1.0.0");
     write_dependencies(&workspace, &[("is-negative", &repo.git_url_at(&commit))]);
 
@@ -129,7 +138,11 @@ fn install_from_a_git_repo() {
         .assert()
         .success();
 
-    assert!(workspace.join("node_modules/is-negative/package.json").exists());
+    assert!(
+        workspace
+            .join("node_modules/is-negative/package.json")
+            .exists()
+    );
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
     let resolution = git_resolution(&lockfile, "is-negative");
     assert_eq!(resolution.commit, commit);
@@ -143,6 +156,34 @@ fn install_from_a_git_repo() {
     drop((root, npmrc_info));
 }
 
+#[test]
+fn install_from_a_git_repo_with_submodules() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let module = GitRepoFixture::init(root.path(), "native");
+    module.write_file("answer.js", "module.exports = 42\n");
+    let _module_commit = module.commit("init");
+    let (repository, _initial_commit) = simple_repo(root.path(), "with-submodule", "1.0.0");
+    add_submodule(&root.path().join("with-submodule-src"), &module.file_url(), "native");
+    let commit = repository.commit("add submodule");
+    write_dependencies(&workspace, &[("with-submodule", &repository.git_url_at(&commit))]);
+
+    pacquet
+        .env("GIT_CONFIG_COUNT", "1")
+        .env("GIT_CONFIG_KEY_0", "protocol.file.allow")
+        .env("GIT_CONFIG_VALUE_0", "always")
+        .with_args(["install"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        fs::read_to_string(workspace.join("node_modules/with-submodule/native/answer.js")).unwrap(),
+        "module.exports = 42\n",
+    );
+
+    drop((root, npmrc_info));
+}
+
 /// No pnpm version computes an integrity for a git checkout, yet
 /// lockfiles in the wild record one. Installing must not choke on it, and
 /// must not write it back — nothing verifies a git checkout against a
@@ -151,13 +192,8 @@ fn install_from_a_git_repo() {
 fn install_from_a_git_repo_whose_lockfile_records_an_integrity() {
     const INTEGRITY: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";
 
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let (repo, commit) = simple_repo(root.path(), "is-negative", "1.0.0");
     write_dependencies(&workspace, &[("is-negative", &repo.git_url_at(&commit))]);
 
@@ -177,7 +213,11 @@ fn install_from_a_git_repo_whose_lockfile_records_an_integrity() {
         .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
-    assert!(workspace.join("node_modules/is-negative/package.json").exists());
+    assert!(
+        workspace
+            .join("node_modules/is-negative/package.json")
+            .exists()
+    );
     let lockfile = read_lockfile(&lockfile_path);
     assert_eq!(git_resolution(&lockfile, "is-negative").integrity, None, "read back as a hash");
 
@@ -214,13 +254,8 @@ fn install_from_a_git_repo_whose_lockfile_records_an_integrity() {
 /// names rather than the alias.
 #[test]
 fn install_from_a_git_repo_with_a_different_name_via_named_installation() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let (repo, commit) = say_hi_repo(root.path());
     let spec = repo.git_url_at(&commit);
 
@@ -243,11 +278,19 @@ fn install_from_a_git_repo_with_a_different_name_via_named_installation() {
     let added = ndjson_records(&output)
         .into_iter()
         .filter_map(|record| {
-            (record.get("name").and_then(Value::as_str) == Some("pnpm:root"))
-                .then(|| record.get("added").cloned())
-                .flatten()
+            (record
+                .get("name")
+                .and_then(Value::as_str)
+                == Some("pnpm:root"))
+            .then(|| record.get("added").cloned())
+            .flatten()
         })
-        .find(|added| added.get("name").and_then(Value::as_str) == Some("say-hi"))
+        .find(|added| {
+            added
+                .get("name")
+                .and_then(Value::as_str)
+                == Some("say-hi")
+        })
         .expect("a pnpm:root `added` record for say-hi");
     assert_eq!(added["realName"], "hi");
     assert_eq!(added["version"], "1.0.0");
@@ -274,13 +317,8 @@ fn install_from_a_git_repo_with_a_different_name_via_named_installation() {
 /// different routes.
 #[test]
 fn install_from_a_git_repo_with_a_different_name() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let (repo, commit) = say_hi_repo(root.path());
     let spec = repo.git_url_at(&commit);
     write_dependencies(&workspace, &[("say-hi", &spec)]);
@@ -293,7 +331,13 @@ fn install_from_a_git_repo_with_a_different_name() {
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
     assert_eq!(importer_specifier(&lockfile, ".", "say-hi"), spec);
     assert_eq!(importer_version(&lockfile, ".", "say-hi"), format!("hi@{spec}"));
-    assert_eq!(sole_package(&lockfile, "hi").1.version.as_deref(), Some("1.0.0"));
+    assert_eq!(
+        sole_package(&lockfile, "hi")
+            .1
+            .version
+            .as_deref(),
+        Some("1.0.0")
+    );
 
     let linked = workspace.join("node_modules/say-hi/package.json");
     let manifest: Value =
@@ -311,13 +355,8 @@ fn install_from_a_git_repo_with_a_different_name() {
 /// entry for the first tag would mean the old commit is still installed.
 #[test]
 fn re_adding_a_git_repo_with_a_different_tag() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "is-negative");
     repo.write_file("package.json", r#"{"name":"is-negative","version":"1.0.0"}"#);
     let first_commit = repo.commit("1.0.0");
@@ -374,13 +413,8 @@ fn re_adding_a_git_repo_with_a_different_tag() {
 /// repo and a commit.
 #[test]
 fn install_from_subdirectories_of_a_git_repo() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "test-git-subfolder-fetch");
     repo.write_file("package.json", r#"{"name":"monorepo-root","version":"0.0.0"}"#);
     for name in ["simple-react-app", "simple-express-server"] {
@@ -434,13 +468,8 @@ fn install_from_subdirectories_of_a_git_repo() {
 /// read as "everything after the hash is the committish".
 #[test]
 fn no_hash_character_for_subdirectory_install() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "only-allow");
     repo.write_file("package.json", r#"{"name":"only-allow","version":"1.2.1","main":"index.js"}"#);
     repo.write_file("index.js", "module.exports = true\n");
@@ -471,13 +500,8 @@ fn no_hash_character_for_subdirectory_install() {
 // depending on a public service.
 #[test]
 fn add_from_a_git_url_without_an_alias() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let (repo, commit) = simple_repo(root.path(), "is-negative", "1.0.0");
     let spec = repo.git_url_at(&commit);
 
@@ -496,13 +520,8 @@ fn add_from_a_git_url_without_an_alias() {
 
 #[test]
 fn aliasless_git_add_rejects_an_invalid_manifest_name_without_mutating_the_project() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "invalid-package-name");
     repo.write_file("package.json", r#"{"name":"../invalid","version":"1.0.0","main":"index.js"}"#);
     repo.write_file("index.js", "module.exports = true\n");
@@ -532,13 +551,8 @@ fn aliasless_git_add_rejects_an_invalid_manifest_name_without_mutating_the_proje
 // (`fromRepo.ts:323`).
 #[test]
 fn adding_an_unrelated_dependency_reuses_the_locked_git_commit() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "moving-git-dep");
     repo.write_file(
         "package.json",
@@ -575,16 +589,11 @@ fn registry_dependency_can_alias_a_git_dependency_that_provides_a_peer() {
     let fixture = CommandTempCwd::init();
     let (repo, commit) = say_hi_repo(fixture.root.path());
     let spec = repo.git_url_at(&commit);
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = fixture.add_mocked_registry_with_substitutions(&[(
-        "github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd",
-        &spec,
-    )]);
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = fixture
+        .add_mocked_registry_with_substitutions(&[(
+            "github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd",
+            &spec,
+        )]);
     append_workspace_yaml_key(&workspace, "blockExoticSubdeps", false);
 
     pacquet
@@ -593,14 +602,23 @@ fn registry_dependency_can_alias_a_git_dependency_that_provides_a_peer() {
         .success();
 
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
-    let parent: pnpm_lockfile::PkgNameVerPeer =
-        "@pnpm.e2e/has-aliased-git-dependency@1.0.0".parse().expect("parse parent key");
-    let snapshot = &lockfile.snapshots.as_ref().expect("lockfile has snapshots")[&parent];
+    let parent: pnpm_lockfile::PkgNameVerPeer = "@pnpm.e2e/has-aliased-git-dependency@1.0.0"
+        .parse()
+        .expect("parse parent key");
+    let snapshot = &lockfile
+        .snapshots
+        .as_ref()
+        .expect("lockfile has snapshots")[&parent];
     assert_eq!(
-        snapshot.dependencies
+        snapshot
+            .dependencies
             .as_ref()
             .expect("parent has dependencies")
-            .get(&"say-hi".parse().expect("parse dependency name"))
+            .get(
+                &"say-hi"
+                    .parse()
+                    .expect("parse dependency name")
+            )
             .expect("say-hi dependency")
             .to_string(),
         format!("hi@{spec}"),
@@ -623,13 +641,8 @@ fn registry_dependency_can_alias_a_git_dependency_that_provides_a_peer() {
 /// (<https://github.com/pnpm/pnpm/issues/13351>).
 #[test]
 fn an_aliased_git_root_dependency_provides_another_importers_peer() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "scoped-peer");
     repo.write_file("package.json", r#"{"name":"@scoped/peer","version":"1.0.0"}"#);
     let commit = repo.commit("init");
@@ -697,13 +710,8 @@ fn updating_a_registry_package_that_has_a_git_dependency() {
     let fixture = CommandTempCwd::init();
     let (repo, commit) = simple_repo(fixture.root.path(), "is-positive", "1.0.0");
     let spec = repo.git_url_at(&commit);
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = fixture.add_mocked_registry_with_substitutions(&[("kevva/is-positive", &spec)]);
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        fixture.add_mocked_registry_with_substitutions(&[("kevva/is-positive", &spec)]);
     append_workspace_yaml_key(&workspace, "blockExoticSubdeps", false);
 
     pacquet
@@ -729,13 +737,7 @@ fn updating_a_registry_package_that_has_a_git_dependency() {
 fn a_git_dependency_is_indexed_under_the_bare_resolution_id() {
     let fixture = CommandTempCwd::init();
     let (repo, commit) = say_hi_repo(fixture.root.path());
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = fixture.add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = fixture.add_mocked_registry();
     write_dependencies(&workspace, &[("hi", &repo.git_url_at(&commit))]);
 
     pacquet
@@ -790,13 +792,8 @@ fn allow_builds(workspace: &Path, keys: &[&str]) {
 /// its `files` field is what decides the installed file set.
 #[test]
 fn files_field_of_a_git_dependency_does_not_match_at_depth() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "packs-its-own-src");
     repo.write_file(
         "package.json",
@@ -874,7 +871,9 @@ fs.appendFileSync(path.join(root, '.git/config'), '\n# contaminated\n');
     for pass in &INSTALL_PASSES {
         pass.clear_previous_install(&workspace, &npmrc_info.store_dir);
         let mut command = pnpm_at(&workspace);
-        command.env("PATH", &wrapper_path).args(pass.args());
+        command
+            .env("PATH", &wrapper_path)
+            .args(pass.args());
         command.assert().success();
         total_acquisitions += pass.expected_acquisitions;
         let acquisitions = log.acquisitions();
@@ -902,9 +901,8 @@ fn aliasless_subdirectory_adds_share_one_source_while_resolving() {
         );
     }
     let commit = repo.commit("initial");
-    let specs = ["sdk", "contract"].map(|name| {
-        format!("{}&path:/packages/{name}", repo.git_url_at(&commit))
-    });
+    let specs = ["sdk", "contract"]
+        .map(|name| format!("{}&path:/packages/{name}", repo.git_url_at(&commit)));
     let log = GitCommandLog::new(root.path());
     let mut command = pnpm_at(&workspace);
     command
@@ -919,7 +917,14 @@ fn aliasless_subdirectory_adds_share_one_source_while_resolving() {
     let dependencies = read_manifest(&workspace)["dependencies"].clone();
     for name in ["sdk", "contract"] {
         assert!(dependencies.get(name).is_some(), "{name} missing from {dependencies}");
-        assert_eq!(read_manifest(&workspace.join("node_modules").join(name))["name"], name);
+        assert_eq!(
+            read_manifest(
+                &workspace
+                    .join("node_modules")
+                    .join(name)
+            )["name"],
+            name
+        );
     }
 
     drop((root, npmrc_info));
@@ -974,7 +979,9 @@ fn prepend_to_path(dir: &Path) -> std::ffi::OsString {
 #[cfg(unix)]
 fn assert_packages_prepared_from_their_own_checkout(workspace: &Path, commit: &str) {
     for name in ["sdk", "contract"] {
-        let package = workspace.join("node_modules").join(name);
+        let package = workspace
+            .join("node_modules")
+            .join(name);
         assert_eq!(read_manifest(&package)["name"], name);
         assert_eq!(fs::read_to_string(package.join("index.js")).unwrap(), name);
         let result: Value =

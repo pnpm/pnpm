@@ -24,7 +24,11 @@ fn helper_transports_are_rejected_even_when_git_configuration_allows_them() {
     exec_git(&["config", "protocol.ext.allow", "always"], Some(&work)).unwrap();
     let error = checkout_submodules(&work).unwrap_err();
     eprintln!("Unsafe submodule transport must fail: {error:?}");
-    assert!(error.to_string().contains("transport 'ext' not allowed"));
+    assert!(
+        error
+            .to_string()
+            .contains("transport 'ext' not allowed")
+    );
     assert!(!work.join("marker").exists());
 }
 

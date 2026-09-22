@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { getCurrentBranch, isGitRepo, isHeadDetached, isWorkingTreeClean, nonInteractiveGitEnv } from '@pnpm/network.git-utils'
+import { getCurrentBranch, isGitRepo, isHeadDetached, isWorkingTreeClean, nonInteractiveGitEnv, nonInteractiveGitSubmoduleEnv } from '@pnpm/network.git-utils'
 import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
 
@@ -123,6 +123,26 @@ test('nonInteractiveGitEnv reads the git configuration in effect in the given di
   })
 })
 
+test('nonInteractiveGitSubmoduleEnv disables the file transport by default', async () => {
+  await withIsolatedGitConfig(async () => {
+    await expect(nonInteractiveGitSubmoduleEnv()).resolves.toMatchObject({
+      GIT_ALLOW_PROTOCOL: 'git:http:https:ssh',
+    })
+  })
+})
+
+test('nonInteractiveGitSubmoduleEnv honors configured protocol permissions', async () => {
+  await withIsolatedGitConfig(async () => {
+    await execa('git', ['init'])
+    await execa('git', ['config', 'protocol.file.allow', 'always'])
+    await execa('git', ['config', 'protocol.https.allow', 'never'])
+
+    await expect(nonInteractiveGitSubmoduleEnv()).resolves.toMatchObject({
+      GIT_ALLOW_PROTOCOL: 'file:git:http:ssh',
+    })
+  })
+})
+
 /**
  * Runs `fn` in a fresh directory where only the git configuration written by
  * the test is in effect, with the ssh selection variables unset.
@@ -130,10 +150,11 @@ test('nonInteractiveGitEnv reads the git configuration in effect in the given di
 async function withIsolatedGitConfig (fn: () => Promise<void>): Promise<void> {
   const tempDir = temporaryDirectory()
   process.chdir(tempDir)
-  const names = ['GIT_SSH', 'GIT_SSH_COMMAND', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM']
+  const names = ['GIT_ALLOW_PROTOCOL', 'GIT_SSH', 'GIT_SSH_COMMAND', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM']
   const original = Object.fromEntries(names.map((name) => [name, process.env[name]]))
   delete process.env.GIT_SSH
   delete process.env.GIT_SSH_COMMAND
+  delete process.env.GIT_ALLOW_PROTOCOL
   process.env.GIT_CONFIG_GLOBAL = path.join(tempDir, 'empty-gitconfig')
   process.env.GIT_CONFIG_NOSYSTEM = '1'
   fs.writeFileSync(process.env.GIT_CONFIG_GLOBAL, '')
