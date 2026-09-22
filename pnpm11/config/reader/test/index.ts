@@ -4588,6 +4588,36 @@ test('return a warning when the .npmrc has an env variable that does not exist',
   expect(warnings).toEqual(expect.arrayContaining(expected))
 })
 
+test('return a warning when a trusted .npmrc auth variable is empty', async () => {
+  prepare()
+
+  fs.writeFileSync('.npmrc', '//registry.example/:_authToken=${EMPTY_TOKEN}', 'utf8')
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    env: { ...process.env, EMPTY_TOKEN: '', PNPM_CONFIG_NPMRC_AUTH_FILE: path.resolve('.npmrc') },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(warnings).toEqual(expect.arrayContaining([
+    expect.stringContaining('Failed to replace env in config: ${EMPTY_TOKEN}'),
+  ]))
+
+  const resolved = await getConfig({
+    cliOptions: {},
+    env: { ...process.env, EMPTY_TOKEN: 'set-token', PNPM_CONFIG_NPMRC_AUTH_FILE: path.resolve('.npmrc') },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(resolved.warnings).not.toEqual(expect.arrayContaining([
+    expect.stringContaining('Failed to replace env in config: ${EMPTY_TOKEN}'),
+  ]))
+})
+
 test('return a warning if a package.json has workspaces field but there is no pnpm-workspaces.yaml file', async () => {
   const prefix = f.find('pkg-using-workspaces')
   const { warnings } = await getConfig({

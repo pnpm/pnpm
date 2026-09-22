@@ -776,3 +776,18 @@ fn from_ini_expands_auth_env_placeholder_without_warning() {
         "token must be expanded when the file is trusted via PNPM_CONFIG_NPMRC_AUTH_FILE",
     );
 }
+
+#[test]
+fn from_ini_warns_on_empty_auth_env_placeholder() {
+    static_env!(Env, &[("MY_TOKEN", "")]);
+
+    let auth =
+        NpmrcAuth::from_ini::<Env>("//registry.npmjs.org/:_authToken=${MY_TOKEN}\n", Path::new(""));
+
+    assert!(
+        auth.warnings
+            .iter()
+            .any(|warning| { warning.contains("Failed to replace env in config: ${MY_TOKEN}") })
+    );
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("")));
+}
