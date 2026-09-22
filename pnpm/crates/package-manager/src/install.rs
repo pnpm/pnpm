@@ -46,8 +46,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, NodeLinker, PNPM_VERSION};
 use pnpm_executor::{
     DEV_PREINSTALL_ALREADY_RAN_ENV, ROOT_PREINSTALL_ALREADY_RAN_ENV, RunPostinstallHooks,
-    ScriptsPrependNodePath as ExecScriptsPrependNodePath, run_project_lifecycle_scripts,
-    run_project_lifecycle_scripts_after_preinstall,
+    run_project_lifecycle_scripts, run_project_lifecycle_scripts_after_preinstall,
 };
 use pnpm_lockfile::{
     LazyLockfile, Lockfile, LockfileEntries, MaybeLazyLockfile, PnpmfileChecksumCheck,
