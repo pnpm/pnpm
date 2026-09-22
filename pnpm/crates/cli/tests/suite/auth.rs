@@ -463,3 +463,97 @@ fn trusted_auth_env_warning_reaches_stderr() {
     }
     unauthorized.assert();
 }
+
+#[test]
+fn unauthenticated_install_with_lockfile_reuses_package_from_store() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let registry_url = registry.url();
+    let authority = registry_url.strip_prefix("http://").expect("mock registry is HTTP");
+    let package = "private-pkg";
+    write_project_config(
+        root.path(),
+        &workspace,
+        &registry_url,
+        &format!("//{authority}/:_authToken=secret-token\n"),
+    );
+
+    let tarball = minimal_tarball(package, "1.0.0");
+    let integrity = sha512_integrity(&tarball);
+    let tarball_path = "/private-pkg-1.0.0.tgz";
+    let packument_path = format!("/{}", package.replace('/', "%2F"));
+    let packument = serde_json::json!({
+        "name": package,
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": package,
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": integrity,
+                    "tarball": format!("{registry_url}{tarball_path}"),
+                },
+            },
+        },
+    });
+
+    let metadata = registry
+        .mock("GET", packument_path.as_str())
+        .match_header("authorization", "Bearer secret-token")
+        .with_status(200)
+        .with_header("content-type", "application/vnd.npm.install-v1+json")
+        .with_body(packument.to_string())
+        .expect_at_least(1)
+        .create();
+    let tarballs = registry
+        .mock("GET", tarball_path)
+        .match_header("authorization", "Bearer secret-token")
+        .with_status(200)
+        .with_body(tarball)
+        .expect(1)
+        .create();
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { (package): "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    install_command(&workspace, root.path())
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        workspace
+            .join("node_modules")
+            .join(package)
+            .exists(),
+    );
+    metadata.assert();
+    tarballs.assert();
+
+    let workspace2 = root.path().join("workspace2");
+    fs::create_dir_all(&workspace2).unwrap();
+    fs::copy(workspace.join("pnpm-lock.yaml"), workspace2.join("pnpm-lock.yaml")).unwrap();
+    fs::copy(workspace.join("package.json"), workspace2.join("package.json")).unwrap();
+    write_project_config(root.path(), &workspace2, &registry_url, "");
+
+    let unauthorized_mock = registry
+        .mock("GET", packument_path.as_str())
+        .with_status(404)
+        .expect(0)
+        .create();
+
+    install_command(&workspace2, root.path())
+        .with_args(["install", "--no-frozen-lockfile"])
+        .assert()
+        .success();
+
+    assert!(
+        workspace2
+            .join("node_modules")
+            .join(package)
+            .exists(),
+    );
+    unauthorized_mock.assert();
+}

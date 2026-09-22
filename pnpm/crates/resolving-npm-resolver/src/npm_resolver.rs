@@ -15,14 +15,6 @@
 //! package map; the path-relative forms (`workspace:./foo`,
 //! `workspace:../bar`) return `Ok(None)` so the local-resolver in the
 //! chain claims them.
-//!
-//! Not yet implemented:
-//!
-//! - **`peek_manifest_from_store` fast path.** Short-circuiting a
-//!   registry fetch when the lockfile-pinned tarball is already in the
-//!   store. Pacquet today goes through the picker unconditionally;
-//!   adding the fast path is a separate item.
-
 pub(crate) use resolution_result::{RegistryResolutionSource, ResolvedSpecifier};
 
 pub(crate) use package_revision::validate_revision_selector;
@@ -48,9 +40,12 @@ mod guarded_pick;
 
 mod workspace_pick;
 use workspace_pick::{
-    prefer_workspace_pick, saved_specifier_options, wanted_spec, workspace_fallback_for,
-    workspace_packages_active, workspace_shadow_pick,
+    resolve_workspace_protocol, wanted_spec, workspace_fallback_for, workspace_packages_active,
+    workspace_shadow_pick,
 };
+
+mod store_peek;
+use store_peek::fast_path_pick;
 
 use std::{borrow::Cow, collections::HashMap, path::PathBuf, sync::Arc};
 
@@ -72,6 +67,7 @@ use pnpm_resolving_resolver_base::{
     ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
     WorkspacePackages, parse_packument_timestamp,
 };
+use pnpm_store_dir::SharedReadonlyStoreIndex;
 use ssri::{Algorithm, Integrity};
 
 use crate::{
@@ -129,6 +125,7 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     pub metadata: RegistryMetadataClient<Cache>,
     pub format: RegistryMetadataFormat,
     pub cache_policy: crate::MetadataCachePolicy,
+    pub store_index: Option<SharedReadonlyStoreIndex>,
 }
 
 pub struct RegistryMetadataClient<Cache: PackageMetaCache> {
@@ -200,7 +197,13 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         if let Some(bare) = wanted_dependency.bare_specifier.as_deref()
             && bare.starts_with("workspace:")
         {
-            return self.resolve_workspace_protocol(wanted_dependency, opts, bare, default_tag);
+            return resolve_workspace_protocol(
+                &self.registries,
+                wanted_dependency,
+                opts,
+                bare,
+                default_tag,
+            );
         }
 
         // `jsr:` resolves through the `@jsr` registry under the
@@ -221,25 +224,22 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         opts: &ResolveOptions,
         default_tag: &str,
     ) -> Result<Option<ResolveResult>, ResolveError> {
-        // Pick registry from `(alias, bare_specifier)` so an npm-alias
-        // entry like `"foo": "npm:@scope/bar@^1"` routes through
-        // `registries[@scope]` instead of the alias's own scope.
-        let registry = pick_registry_for_package(
-            &self.registries,
-            wanted_dependency.alias.as_deref().unwrap_or_default(),
-            wanted_dependency.bare_specifier.as_deref(),
-        );
-
-        let Some(spec) = wanted_spec(wanted_dependency, default_tag, &registry) else {
+        let Some((registry, spec)) = self.prepare_registry_spec(wanted_dependency, default_tag)?
+        else {
             return Ok(None);
         };
-        validate_revision_selector(&spec)?;
 
         let optional = wanted_dependency.optional.unwrap_or(false);
         let workspace_packages_active = workspace_packages_active(opts, &spec);
 
-        if let Some(result) =
-            prefer_workspace_pick(workspace_packages_active, &spec, wanted_dependency, opts)
+        if let Some(result) = fast_path_pick(
+            self.store_index.as_ref(),
+            wanted_dependency,
+            opts,
+            &spec,
+            workspace_packages_active,
+        )
+        .await?
         {
             return Ok(Some(result));
         }
@@ -266,6 +266,23 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             &picked,
             workspace_packages_active,
         )
+    }
+
+    fn prepare_registry_spec(
+        &self,
+        wanted_dependency: &WantedDependency,
+        default_tag: &str,
+    ) -> Result<Option<(String, RegistryPackageSpec)>, ResolveError> {
+        let registry = pick_registry_for_package(
+            &self.registries,
+            wanted_dependency.alias.as_deref().unwrap_or_default(),
+            wanted_dependency.bare_specifier.as_deref(),
+        );
+        let Some(spec) = wanted_spec(wanted_dependency, default_tag, &registry) else {
+            return Ok(None);
+        };
+        validate_revision_selector(&spec)?;
+        Ok(Some((registry, spec)))
     }
 
     fn finish_registry_pick(
@@ -316,36 +333,6 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             },
         )
         .map(Some)
-    }
-
-    /// `workspace:` resolves against the workspace alone; `workspace:.` is
-    /// the project itself and belongs to no resolver.
-    fn resolve_workspace_protocol(
-        &self,
-        wanted_dependency: &WantedDependency,
-        opts: &ResolveOptions,
-        bare: &str,
-        default_tag: &str,
-    ) -> Result<Option<ResolveResult>, ResolveError> {
-        if bare.starts_with("workspace:.") {
-            return Ok(None);
-        }
-        let registry = pick_registry_for_package(
-            &self.registries,
-            wanted_dependency.alias.as_deref().unwrap_or_default(),
-            wanted_dependency.bare_specifier.as_deref(),
-        );
-        let ws_opts = ResolveFromWorkspaceOptions {
-            project_dir: opts.project.project_dir.as_path(),
-            lockfile_dir: opts.project.lockfile_dir.as_path(),
-            registry: &registry,
-            default_tag,
-            workspace_packages: opts.project.workspace_packages.as_deref(),
-            inject_workspace_packages: opts.project.inject_workspace_packages,
-            saved_specifier: saved_specifier_options(opts),
-        };
-        try_resolve_from_workspace(wanted_dependency, &ws_opts)
-            .map_err(|err| Box::new(err) as ResolveError)
     }
 
     /// JSR counterpart to the npm path: runs the JSR-specifier parser,

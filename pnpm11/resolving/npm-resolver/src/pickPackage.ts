@@ -515,9 +515,8 @@ export async function pickPackage (
       return await persistFreshMeta(refetched)
     } catch (err: any) { // eslint-disable-line
       err.spec = spec
-      const meta = await loadMetaCondensed() // TODO: add test for this usecase
+      const meta = await loadMetaCondensed()
       if (meta == null) throw err
-      logger.error(err, err)
       logger.debug({ message: `Using cached meta from ${pkgMirror}` })
       return {
         meta,

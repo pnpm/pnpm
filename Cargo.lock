@@ -6124,6 +6124,7 @@ dependencies = [
  "pnpm-resolving-jsr-specifier-parser",
  "pnpm-resolving-local-resolver",
  "pnpm-resolving-resolver-base",
+ "pnpm-store-dir",
  "pnpm-workspace-range-resolver",
  "pnpm-workspace-spec",
  "pretty_assertions",

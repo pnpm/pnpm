@@ -103,6 +103,7 @@ fn build_resolver(registry: &str) -> (NpmResolver<InMemoryPackageMetaCache>, Tem
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
     };
     (resolver, cache_dir)
 }

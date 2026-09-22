@@ -121,6 +121,7 @@ fn build_resolver_with_registries(
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
     };
     (resolver, cache_dir)
 }
