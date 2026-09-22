@@ -22,6 +22,7 @@ const ABBREVIATED_VERSION_FIELDS = [
   'bundledDependencies',
   'hasInstallScript',
   '_npmUser',
+  'license',
 ] as const
 
 // Memoized by input identity: several layers condense the same parsed

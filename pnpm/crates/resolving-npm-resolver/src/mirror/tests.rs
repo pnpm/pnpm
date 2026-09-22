@@ -7,7 +7,7 @@ use tempfile::TempDir;
 use pnpm_network::MetadataCacheScope;
 
 use super::{
-    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, decode_registry_name,
+    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta, decode_registry_name,
     encode_pkg_name, get_pkg_mirror_path, get_registry_name, load_meta, load_meta_headers,
     load_meta_with_hold_cap, save_meta_indexed, scoped_meta_dir,
 };
@@ -653,4 +653,34 @@ fn save_meta_overwrites_existing_mirror() {
 
     let headers = load_meta_headers(&mirror).expect("read headers");
     assert_eq!(headers.etag.as_deref(), Some(r#"W/"new""#));
+}
+
+#[test]
+fn clear_meta_preserves_license_field() {
+    let body = serde_json::json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "license": "MIT",
+                "scripts": { "test": "exit 0" },
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/acme-1.0.0.tgz"
+                }
+            }
+        }
+    });
+    let pkg: Package = serde_json::from_value(body).expect("deserialize Package");
+    let cleared = clear_meta(&pkg).expect("clear_meta");
+    let (_, fragment) = cleared.versions
+        .fragments()
+        .find(|(v, _)| *v == "1.0.0")
+        .expect("version 1.0.0");
+    let json: serde_json::Value = serde_json::from_str(&fragment).expect("parse fragment");
+    assert_eq!(json.get("license").and_then(serde_json::Value::as_str), Some("MIT"));
+    assert!(json.get("scripts").is_none());
 }

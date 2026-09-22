@@ -597,4 +597,5 @@ const VERSION_KEYS: &[&str] = &[
     "bundledDependencies",
     "hasInstallScript",
     "_npmUser",
+    "license",
 ];

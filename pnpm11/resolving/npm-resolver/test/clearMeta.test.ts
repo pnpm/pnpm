@@ -6,6 +6,7 @@ import { clearMeta, retainsFullMeta } from '../src/clearMeta.js'
 test('clearMeta keeps the install-relevant field set and drops the rest', () => {
   const condensed = clearMeta(fullMeta())
   expect(condensed.versions['1.0.0'].libc).toEqual(['glibc'])
+  expect(condensed.versions['1.0.0'].license).toBe('MIT')
   expect(condensed.versions['1.0.0'].dist.tarball).toBe('https://registry.npmjs.org/foo/-/foo-1.0.0.tgz')
   expect(condensed.time).toEqual({ '1.0.0': '2020-01-01T00:00:00.000Z' })
   expect(condensed.modified).toBe('2020-01-01T00:00:00.000Z')
@@ -46,6 +47,7 @@ function fullMeta (): PackageMeta {
       '1.0.0': {
         name: 'foo',
         version: '1.0.0',
+        license: 'MIT',
         libc: ['glibc'],
         scripts: { postinstall: 'node scripts/build.js' },
         description: 'dropped',
