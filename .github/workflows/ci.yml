@@ -5,8 +5,7 @@ on:
   # fires both a `push` and a `pull_request` event for the same commit, and
   # both runs report the `TS CI / Success` context to that commit. Branch
   # protection then sees two results for the required check, so a cancellation
-  # or flake on the push side (e.g. two pushes racing on the test.yml
-  # concurrency group) blocks the PR even when the pull_request run passed.
+  # or flake on the push side blocks the PR even when the pull_request run passed.
   # Restricting push to `main` means PRs carry `TS CI / Success` only via
   # their `pull_request` run (and the merge queue via `merge_group`); `main`
   # is validated pre-merge by `merge_group` and re-checked post-merge here.
@@ -18,6 +17,10 @@ on:
 
 permissions:
   contents: read # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -40,7 +43,7 @@ jobs:
         id: force
         run: echo "ts=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: github.event_name != 'merge_group'
+        if: github.event_name != 'merge_group' && github.event_name != 'pull_request'
         with:
           persist-credentials: false
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -96,10 +99,11 @@ jobs:
       uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
       with:
         install: false
-    - name: Test release publication scripts
+    - name: Test CI and release publication scripts
       run: |
         .github/scripts/npm-package-publication-state.test.sh
         .github/scripts/npm-staged-publication.test.sh
+        node --test .github/scripts/ts-test-scope.test.mjs
     - name: Compile and lint TypeScript
       run: pn pipeline ts-check --include-workspace-root --full --no-cache
     - name: Package compiled artifacts

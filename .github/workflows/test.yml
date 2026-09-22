@@ -34,10 +34,6 @@ permissions:
 jobs:
   test:
     name: Node ${{ inputs.node_major }} / chunk ${{ inputs.test_chunk }}/${{ inputs.test_chunk_total }}
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.platform }}-${{ inputs.node }}-${{ inputs.test_chunk }}-${{ inputs.test_chunk_total }}
-      cancel-in-progress: true
-
     runs-on: ${{ inputs.platform }}
 
     steps:
@@ -128,33 +124,9 @@ jobs:
       id: test-scope
       shell: bash
       env:
-        REF_NAME: ${{ github.ref_name }}
-      run: |
-        if [[ "$REF_NAME" == "main" || "$REF_NAME" == "chore/update-lockfile" || "$REF_NAME" == release/* ]]; then
-          {
-            echo "script=ci:test-all"
-            echo "scope=all"
-            echo "full_tests=true"
-            echo "benchmark=tests.all"
-          } >> "$GITHUB_OUTPUT"
-        else
-          git remote set-branches --add origin main && git fetch origin main --depth=1
-          if [ -n "$(git diff --name-only origin/main HEAD -- pnpm-workspace.yaml)" ]; then
-            {
-              echo "script=ci:test-all"
-              echo "scope=all — pnpm-workspace.yaml modified"
-              echo "full_tests=true"
-              echo "benchmark=tests.all"
-            } >> "$GITHUB_OUTPUT"
-          else
-            {
-              echo "script=ci:test-branch"
-              echo "scope=affected packages"
-              echo "full_tests=false"
-              echo "benchmark=tests.affected"
-            } >> "$GITHUB_OUTPUT"
-          fi
-        fi
+        EVENT_NAME: ${{ github.event_name }}
+        PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      run: node .github/scripts/ts-test-scope.mjs
     - name: Validate test chunk inputs
       shell: bash
       env:

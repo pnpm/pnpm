@@ -31,6 +31,7 @@ jobs:
     outputs:
       rust: ${{ steps.manual.outputs.rust || steps.filter.outputs.rust }}
       changesets: ${{ steps.filter.outputs.changesets }}
+      docs: ${{ steps.filter.outputs.docs }}
     steps:
       # Force the full Rust suite on manual runs and in the merge queue.
       # The merge queue tests the merged commit, so path filtering it away
@@ -42,7 +43,7 @@ jobs:
         run: echo "rust=true" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group' && github.event_name != 'pull_request'
         with:
           persist-credentials: false
 
@@ -50,8 +51,16 @@ jobs:
         if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
         id: filter
         with:
+          predicate-quantifier: some-with-excludes
           filters: |
+            docs:
+              - 'pnpm/{AGENTS,CONTRIBUTING,CODE_STYLE_GUIDE}.md'
+              - 'pnpr/{AGENTS,CONTRIBUTING}.md'
+              - 'pnpm/plans/*.md'
             rust:
+              - '!pnpm/{AGENTS,CONTRIBUTING,CODE_STYLE_GUIDE}.md'
+              - '!pnpr/{AGENTS,CONTRIBUTING}.md'
+              - '!pnpm/plans/*.md'
               - 'pnpm/**'
               - 'pnpr/**'
               - 'Cargo.toml'
@@ -67,6 +76,10 @@ jobs:
               - '.typos.toml'
               - 'justfile'
               - '.cargo/**'
+              - '.config/nextest.toml'
+              - 'fixtures/**'
+              - 'pnpm11/installing/deps-installer/test/fixtures/patch-pkg/**'
+              - 'pnpm11/deps/compliance/commands/test/sbom/fixtures/**'
               - '.github/actions/rustup/**'
               - '.github/actions/binstall/**'
               - '.github/actions/install-crates/**'
@@ -404,7 +417,7 @@ jobs:
   typos:
     name: Rust CI / Spell Check
     needs: changes
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.docs == 'true') }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
