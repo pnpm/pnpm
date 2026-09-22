@@ -132,6 +132,16 @@ fn leaves_comment_free_serialization_unchanged() {
 }
 
 #[test]
+fn blank_output_lines_do_not_displace_anchored_comments() {
+    let original = "{\n// package name\nname: 'demo'\n}";
+    let serialized = "{\n\n  \"name\": \"demo\"\n}";
+    let restored = restore_comments(original, serialized);
+    eprintln!("RESTORED:\n{restored}");
+    assert_eq!(restored, "{\n\n// package name\n  \"name\": \"demo\"\n}");
+    assert_eq!(json5::from_str::<Value>(&restored).unwrap(), json!({"name": "demo"}));
+}
+
+#[test]
 fn anchors_standalone_comments_after_each_line_ending() {
     for separator in ["\n", "\r\n", "\r", "\u{2028}", "\u{2029}"] {
         let source = ["{", "// package name", "name: 'demo'", "}"].join(separator);

@@ -1,4 +1,6 @@
-use crate::{DependencyGroup, PackageManifest, safe_read_project_manifest_from_dir};
+use crate::{
+    DependencyGroup, PackageManifest, PackageManifestError, safe_read_project_manifest_from_dir,
+};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::fs;
@@ -148,5 +150,51 @@ fn json_manifest_still_rejects_json5_syntax() {
                 .contains(&path.display().to_string()),
         );
         assert_eq!(fs::read_to_string(path).unwrap(), source);
+    }
+}
+
+#[test]
+fn json5_save_recreates_a_removed_manifest_with_updated_values() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json5");
+    fs::write(&path, "{name: 'fixture', version: '1.0.0'}").unwrap();
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    fs::remove_file(&path).unwrap();
+    manifest.value_mut()["version"] = json!("2.0.0");
+    manifest.save().unwrap();
+    let reread = PackageManifest::from_path(path).unwrap();
+    dbg!(reread.value());
+    assert_eq!(reread.value(), manifest.value());
+    assert_eq!(reread.value()["version"], "2.0.0");
+}
+
+#[test]
+fn json5_save_reports_read_errors_without_overwriting_the_source() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json5");
+    fs::write(&path, "{name: 'fixture'}").unwrap();
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    let invalid_utf8 = [0xff];
+    fs::write(&path, invalid_utf8).unwrap();
+    manifest.value_mut()["version"] = json!("2.0.0");
+    let error = manifest.save().unwrap_err();
+    dbg!(&error);
+    assert!(matches!(error, PackageManifestError::Read { path: error_path, source }
+        if error_path == path && source.kind() == std::io::ErrorKind::InvalidData));
+    assert_eq!(fs::read(path).unwrap(), invalid_utf8);
+}
+
+#[test]
+fn unreadable_preferred_manifest_does_not_fall_back_to_another_format() {
+    for preferred in ["package.json", "package.json5"] {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join(preferred);
+        fs::write(&path, [0xff]).unwrap();
+        fs::write(dir.path().join("package.yaml"), "name: fallback\n").unwrap();
+        let error = safe_read_project_manifest_from_dir(dir.path()).unwrap_err();
+        dbg!(&error);
+        assert!(matches!(error, PackageManifestError::Read { path: error_path, source }
+            if error_path == path && source.kind() == std::io::ErrorKind::InvalidData));
+        assert_eq!(fs::read(path).unwrap(), [0xff]);
     }
 }
