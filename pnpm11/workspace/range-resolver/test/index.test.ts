@@ -33,6 +33,8 @@ describe('resolveWorkspaceRange', () => {
   test('resolves wildcards to a non-semver version when no semver version is present', () => {
     expect(resolveWorkspaceRange('*', ['1'])).toBe('1')
     expect(resolveWorkspaceRange('^', ['1.0'])).toBe('1.0')
+    expect(resolveWorkspaceRange('~', ['1'])).toBe('1')
+    expect(resolveWorkspaceRange('', ['1'])).toBe('1')
     expect(resolveWorkspaceRange('*', ['1', '2'])).toBe('2')
     expect(resolveWorkspaceRange('*', ['1', '1.0.0'])).toBe('1.0.0')
     expect(resolveWorkspaceRange('*', ['\u{10000}', '\u{E000}'])).toBe('\u{E000}')

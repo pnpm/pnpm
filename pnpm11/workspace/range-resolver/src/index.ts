@@ -11,7 +11,7 @@ export function resolveWorkspaceRange (range: string, versions: string[]): strin
   if (range === '*' || range === '^' || range === '~' || range === '') {
     return semver.maxSatisfying(versions, '*', {
       includePrerelease: true,
-    }) ?? ([...versions].sort().at(-1) ?? null)
+    }) ?? versions.reduce<string | null>((max, version) => max == null || version > max ? version : max, null)
   }
   return semver.maxSatisfying(versions, range, {
     loose: true,
