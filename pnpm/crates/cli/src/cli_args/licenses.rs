@@ -33,6 +33,7 @@ use pnpm_package_manifest::{
     safe_read_project_manifest_from_dir,
 };
 use pnpm_resolving_git_resolver::HostedGit;
+use pnpm_workspace::importer_id_from_root_dir;
 use serde::Serialize;
 use std::{
     cmp::Ordering,
@@ -160,7 +161,7 @@ impl LicensesArgs {
             return Ok(());
         };
 
-        let importer_ids = licensed_importer_ids(&lockfile, config, dir, lockfile_dir, recursive)?;
+        let importer_ids = licensed_importer_ids(config, dir, lockfile_dir, recursive)?;
 
         let include = self.dependency_options.include(config.optional);
         let belongs_to = collect_dependencies(
@@ -257,19 +258,15 @@ fn check_licenses_subcommand(subcommand: Option<&str>) -> Result<(), LicensesErr
 }
 
 /// The importers whose dependencies are listed: the `--filter` selection
-/// under `--recursive`, every importer otherwise.
+/// under `--recursive`, the project in `dir` otherwise.
 fn licensed_importer_ids(
-    lockfile: &Lockfile,
     config: &Config,
     dir: &std::path::Path,
     lockfile_dir: &std::path::Path,
     recursive: bool,
 ) -> miette::Result<Vec<String>> {
     if !recursive {
-        return Ok(lockfile.importers
-            .keys()
-            .cloned()
-            .collect());
+        return Ok(vec![importer_id_from_root_dir(lockfile_dir, dir)]);
     }
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
     let (projects, _) = discover_workspace_projects(workspace_root, config)?;
