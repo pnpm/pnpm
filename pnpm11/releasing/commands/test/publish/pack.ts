@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { beforeAll, describe, expect, test } from '@jest/globals'
+import { beforeAll, describe, expect, jest, test } from '@jest/globals'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { pack } from '@pnpm/releasing.commands'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
@@ -749,6 +749,38 @@ const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
 
   const jsStat = fs.statSync(path.resolve('package/index.js'))
   expect(modeIsExecutable(jsStat.mode)).toBeFalsy()
+})
+
+test('pack: propagates unexpected filesystem errors when inspecting source file permissions', async () => {
+  prepare({
+    name: 'test-exec-error',
+    version: '1.0.0',
+    files: ['scripts/run.sh'],
+  })
+
+  fs.mkdirSync('scripts', { recursive: true })
+  fs.writeFileSync('scripts/run.sh', '#!/bin/sh\necho hi\n')
+
+  const originalStatSync = fs.statSync
+  const statSyncSpy = jest.spyOn(fs, 'statSync').mockImplementation(((file: fs.PathLike, options?: Parameters<typeof originalStatSync>[1]) => {
+    if (String(file).includes('run.sh')) {
+      const err = new Error('Permission denied') as NodeJS.ErrnoException
+      err.code = 'EACCES'
+      throw err
+    }
+    return originalStatSync(file, options as never)
+  }) as never)
+
+  try {
+    await expect(pack.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: process.cwd(),
+      extraBinPaths: [],
+    })).rejects.toThrow('Permission denied')
+  } finally {
+    statSyncSpy.mockRestore()
+  }
 })
 
 test('pack: should embed readme', async () => {
