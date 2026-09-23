@@ -4,7 +4,7 @@ use super::{
     DeployArgs, DeployPipeline, EnvArgs, EnvSubcommand, FetchArgs, ImportArgs, InstallArgs,
     InstallPipeline, LinkArgs, NdjsonReporter, Path, PruneArgs, PrunePipeline, RebuildArgs,
     ReporterType, RunCtx, RuntimeArgs, SilentReporter, UnlinkArgs, apply_install_cli_config,
-    apply_update_config, derive_config_root, global, resolve_bool_override,
+    apply_update_config, derive_config_root, global, resolve_bool_override, warn_about_config_root,
 };
 use std::sync::atomic::Ordering;
 
@@ -138,11 +138,13 @@ pub(in super::super) fn import<'a>(
     ctx: &RunCtx<'a>,
     args: ImportArgs,
 ) -> miette::Result<CommandFuture<'a>> {
+    let dir = ctx.locations.dir;
     let command_state = ctx.prepared_state(false);
     let effective_reporter = ctx.effective_reporter;
     Ok(Box::pin(async move {
         let command_state = command_state.await?;
         let reporter = effective_reporter.load(Ordering::Relaxed).into();
+        warn_about_config_root(command_state.config, dir, reporter)?;
         match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
                 args.run::<DefaultReporter>(command_state).await

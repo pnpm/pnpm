@@ -3,7 +3,8 @@
 //! first install, so a repository migrated from Yarn or npm links its
 //! projects instead of silently installing as a single one. An existing
 //! `pnpm-workspace.yaml` always wins, and `--ignore-workspace` keeps the
-//! project standalone.
+//! project standalone. `import` writes no `pnpm-workspace.yaml`: it warns
+//! about the field instead.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -21,6 +22,8 @@ use std::{
 /// label included.
 const CREATED: &str =
     r#"[WARN] Created "pnpm-workspace.yaml" from the "workspaces" field in package.json."#;
+
+const UNSUPPORTED: &str = r#"[WARN] The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead."#;
 
 const DIFFERS: &str = r#"[WARN] The "workspaces" field in package.json differs from "packages" in pnpm-workspace.yaml. pnpm uses pnpm-workspace.yaml."#;
 
@@ -152,6 +155,39 @@ fn a_repeat_install_taking_the_up_to_date_path_stays_quiet() {
 }
 
 #[test]
+fn an_import_warns_about_the_workspaces_field_and_creates_no_workspace_yaml() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
+    );
+    write_package_lock(&workspace);
+
+    let output = run(pacquet, root.path(), &["import"]);
+
+    assert_success(&output);
+    assert_contains(&stderr(&output), UNSUPPORTED);
+    assert!(!workspace.join("pnpm-workspace.yaml").exists());
+}
+
+#[test]
+fn an_import_inside_a_matching_pnpm_workspace_stays_quiet() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
+    );
+    write_package_lock(&workspace);
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let output = run(pacquet, root.path(), &["import"]);
+
+    assert_success(&output);
+    assert_quiet(&output);
+}
+
+#[test]
 fn a_workspaces_field_inside_a_pnpm_workspace_stays_quiet() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_manifest(
@@ -214,10 +250,7 @@ fn an_array_without_usable_patterns_keeps_the_unsupported_field_warning() {
     let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
 
     assert_success(&output);
-    assert_contains(
-        &stderr(&output),
-        r#"[WARN] The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead."#,
-    );
+    assert_contains(&stderr(&output), UNSUPPORTED);
     assert!(
         !workspace.join("pnpm-workspace.yaml").exists(),
         "no usable pattern must not create pnpm-workspace.yaml",
@@ -286,6 +319,14 @@ fn an_object_form_workspaces_field_stays_quiet() {
 
 fn write_manifest(workspace: &Path, contents: &str) {
     fs::write(workspace.join("package.json"), contents).expect("write package.json");
+}
+
+fn write_package_lock(workspace: &Path) {
+    fs::write(
+        workspace.join("package-lock.json"),
+        r#"{"name":"converted","version":"1.0.0","lockfileVersion":3,"packages":{"":{"name":"converted","version":"1.0.0","workspaces":["packages/*"]}}}"#,
+    )
+    .expect("write package-lock.json");
 }
 
 fn pacquet_in(workspace: &Path) -> Command {
