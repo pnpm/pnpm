@@ -34,7 +34,9 @@ export function createPackageImporterAsync (
     const willBeBuilt = !isBuilt && opts.requiresBuild
     const pkgImportMethod = willBeBuilt
       ? 'clone-or-copy'
-      : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
+      : (packageImportMethod && packageImportMethod !== 'auto'
+        ? packageImportMethod
+        : (opts.filesResponse.packageImportMethod ?? packageImportMethod))
     const impPkg = cachedImporterCreator(pkgImportMethod)
     const importMethod = await impPkg(to, {
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
@@ -65,7 +67,9 @@ function createPackageImporter (
     const willBeBuilt = !isBuilt && opts.requiresBuild
     const pkgImportMethod = willBeBuilt
       ? 'clone-or-copy'
-      : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
+      : (packageImportMethod && packageImportMethod !== 'auto'
+        ? packageImportMethod
+        : (opts.filesResponse.packageImportMethod ?? packageImportMethod))
     const impPkg = cachedImporterCreator(pkgImportMethod)
     const importMethod = impPkg(to, {
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,

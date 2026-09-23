@@ -226,3 +226,76 @@ fn deployed_files_field_does_not_match_at_depth() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn deploy_respects_package_import_method() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    write_project(
+        &workspace,
+        "app",
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "@pnpm.e2e/foo": "100.0.0" },
+        }),
+    );
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = pacquet_cmd(&workspace)
+        .with_args([
+            "--filter",
+            "app",
+            "deploy",
+            "--prod",
+            "--package-import-method=copy",
+            "deploy-copy",
+        ])
+        .output()
+        .expect("spawn pacquet deploy copy");
+    assert!(output.status.success(), "deploy with copy must succeed");
+
+    let output_hardlink = pacquet_cmd(&workspace)
+        .with_args([
+            "--filter",
+            "app",
+            "deploy",
+            "--prod",
+            "--package-import-method=hardlink",
+            "deploy-hardlink",
+        ])
+        .output()
+        .expect("spawn pacquet deploy hardlink");
+    assert!(output_hardlink.status.success(), "deploy with hardlink must succeed");
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let copy_index_js = workspace.join("deploy-copy/index.js");
+        assert_eq!(fs::metadata(copy_index_js).unwrap().nlink(), 1);
+
+        let hardlink_index_js = workspace.join("deploy-hardlink/index.js");
+        assert!(fs::metadata(hardlink_index_js).unwrap().nlink() >= 2);
+
+        let copy_dep_json = workspace.join("deploy-copy/node_modules/@pnpm.e2e/foo/package.json");
+        assert_eq!(fs::metadata(copy_dep_json).unwrap().nlink(), 1);
+
+        let hardlink_dep_json =
+            workspace.join("deploy-hardlink/node_modules/@pnpm.e2e/foo/package.json");
+        assert!(fs::metadata(hardlink_dep_json).unwrap().nlink() >= 2);
+    }
+
+    drop((root, mock_instance));
+}

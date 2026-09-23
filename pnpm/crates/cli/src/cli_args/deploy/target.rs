@@ -219,10 +219,11 @@ fn is_unsafe_deploy_link(metadata: &fs::Metadata) -> bool {
     }
 }
 
-pub(super) fn copy_project<ReporterT: Reporter>(
+pub(super) fn copy_project(
     src: &Path,
     dest: &Path,
     include_only_package_files: bool,
+    package_import_method: PackageImportMethod,
 ) -> miette::Result<()> {
     let output = DirectoryFetcher {
         directory: src.to_path_buf(),
@@ -233,10 +234,14 @@ pub(super) fn copy_project<ReporterT: Reporter>(
     .run()
     .map_err(miette::Report::new)
     .wrap_err("fetch project files")?;
+    let import_method = match package_import_method {
+        PackageImportMethod::Auto => PackageImportMethod::CloneOrCopy,
+        method => method,
+    };
     let logged_methods = AtomicU8::new(0);
-    import_indexed_dir::<ReporterT>(
+    import_indexed_dir::<pnpm_reporter::SilentReporter>(
         &logged_methods,
-        PackageImportMethod::CloneOrCopy,
+        import_method,
         dest,
         &output.files_map,
         ImportIndexedDirOpts { force: true, ..ImportIndexedDirOpts::default() },

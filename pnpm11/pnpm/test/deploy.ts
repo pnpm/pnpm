@@ -8,7 +8,7 @@ import { loadJsonFileSync } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from './utils/index.js'
+import { execPnpm, execPnpmSync } from './utils/index.js'
 
 // Covers https://github.com/pnpm/pnpm/issues/9550
 // This test is currently disabled because of https://github.com/pnpm/pnpm/issues/9596
@@ -431,3 +431,35 @@ test('deploy does not run prepare scripts of the deployed project', async () => 
   await execPnpm(['--filter=app', 'deploy', '--legacy', 'deploy-legacy'])
   expect(fs.readFileSync('packages/app/ran-stages.txt', 'utf8')).toBe('preinstall\ninstall\npostinstall\n')
 })
+
+test('deploy respects --package-import-method from CLI', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '0.0.0', private: true } },
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/foo': '100.0.0' },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+  })
+
+  await execPnpm(['install'])
+
+  const copyResult = execPnpmSync(['--filter=app', 'deploy', '--prod', '--package-import-method=copy', 'deploy-copy'])
+  expect(copyResult.stdout.toString()).toContain('Packages are copied from the content-addressable store to the virtual store.')
+  const copyDepFile = path.resolve('deploy-copy/node_modules/@pnpm.e2e/foo/package.json')
+  expect(fs.statSync(copyDepFile).nlink).toBe(1)
+
+  const hardlinkResult = execPnpmSync(['--filter=app', 'deploy', '--prod', '--package-import-method=hardlink', 'deploy-hardlink'])
+  expect(hardlinkResult.stdout.toString()).toContain('Packages are hard linked from the content-addressable store to the virtual store.')
+  const hardlinkDepFile = path.resolve('deploy-hardlink/node_modules/@pnpm.e2e/foo/package.json')
+  expect(fs.statSync(hardlinkDepFile).nlink).toBeGreaterThanOrEqual(2)
+})
+
+

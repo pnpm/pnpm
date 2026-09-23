@@ -251,10 +251,11 @@ impl DeployArgs {
             deploy_dir,
             self.install_args.materialization.force,
         )?;
-        copy_project::<ReporterT>(
+        copy_project(
             &selected.project.root_dir,
             deploy_dir,
             !config.deploy_all_files,
+            config.package_import_method,
         )?;
 
         Ok(())
