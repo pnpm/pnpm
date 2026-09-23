@@ -34,6 +34,7 @@ fn make_workspace() -> TempDir {
 
 fn project_dirs(root: &Path, patterns: &[&str]) -> Vec<String> {
     let opts = FindWorkspaceProjectsOpts {
+        preferred_manifest_format: None,
         patterns: Some(
             patterns
                 .iter()
@@ -81,6 +82,7 @@ fn agrees_with_the_workspace_walk() {
     for patterns in pattern_sets {
         let selected = project_dirs(tmp.path(), patterns);
         let opts = FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
             patterns: Some(
                 patterns
                     .iter()

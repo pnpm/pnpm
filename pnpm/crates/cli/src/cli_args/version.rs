@@ -277,7 +277,8 @@ impl VersionArgs {
         config: &Config,
         init_cwd: &Path,
     ) -> miette::Result<Option<VersionChange>> {
-        let manifest_path = pnpm_workspace::project_manifest_path(pkg_dir);
+        let manifest_path =
+            pnpm_workspace::project_manifest_path(pkg_dir, Some(config.preferred_manifest_format));
         let mut manifest = PackageManifest::from_path(manifest_path.clone())
             .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;
 

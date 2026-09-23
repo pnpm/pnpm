@@ -1,4 +1,7 @@
-use super::{Arc, Catalogs, HashMap, NodeLinker, Path, PathBuf, PnpmfileHooks, lexical_normalize};
+use super::{
+    Arc, Catalogs, HashMap, ManifestFormat, NodeLinker, Path, PathBuf, PnpmfileHooks,
+    lexical_normalize,
+};
 
 /// Inputs for [`crate::api`]. The CLI maps the resolved [`pnpm_config::Config`]
 /// and command-line flags onto this struct.
@@ -39,6 +42,10 @@ pub struct PackManifestOptions {
     /// Node linker mode; `bundledDependencies` only work under
     /// [`NodeLinker::Hoisted`].
     pub node_linker: NodeLinker,
+    /// `preferredManifestFormat` — which manifest of the packed project to
+    /// read when several coexist. The packed tarball still carries exactly
+    /// one normalized `package/package.json`; this only selects the source.
+    pub preferred_format: Option<ManifestFormat>,
     /// Keep `packageManager` and publish-lifecycle scripts in the packed
     /// manifest.
     pub skip_obfuscation: bool,

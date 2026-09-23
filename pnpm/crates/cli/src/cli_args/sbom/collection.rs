@@ -226,13 +226,13 @@ fn read_root_manifest(
         }
     };
     let Some(&[single_id]) = filter_importer_ids else {
-        return safe_read_project_manifest_from_dir(lockfile_dir)
+        return safe_read_project_manifest_from_dir(lockfile_dir, None)
             .ok()
             .flatten()
             .unwrap_or_else(|| fallback("."));
     };
     confined_importer_dir(lockfile_dir, single_id)
-        .and_then(|dir| safe_read_project_manifest_from_dir(&dir).ok().flatten())
+        .and_then(|dir| safe_read_project_manifest_from_dir(&dir, None).ok().flatten())
         .unwrap_or_else(|| fallback(single_id))
 }
 

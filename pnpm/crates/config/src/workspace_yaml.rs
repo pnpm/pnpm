@@ -13,8 +13,8 @@ pub use settings::{MacosBackupSettings, WorkspaceSettings};
 
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, InitType, LinkWorkspacePackages,
-    NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
+    ManifestFormat, NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode,
+    RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
     VirtualStoreType,
     api::{EnvVar, GetCurrentDir, GetHomeDir, LinkProbe},
     config_types::is_config_file_key,
@@ -212,6 +212,7 @@ macro_rules! identically_named_settings {
             skip_manifest_obfuscation, sort, use_beta_cli,
             hoist, shamefully_hoist,
             node_linker, node_experimental_package_map, node_package_map_type,
+            preferred_manifest_format,
             symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,
             peers_suffix_max_length,

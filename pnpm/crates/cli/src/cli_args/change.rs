@@ -430,6 +430,7 @@ pub fn to_engine_projects(projects: &[Project]) -> Vec<WorkspaceProject> {
             }
             WorkspaceProject {
                 root_dir: project.root_dir.clone(),
+                manifest_path: project.manifest_path.clone(),
                 name: manifest
                     .get("name")
                     .and_then(|name| name.as_str())

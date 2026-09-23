@@ -18,7 +18,10 @@ use pnpm_package_manifest::{InitAuthor, InitOptions, PackageManifest};
 pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<CommandFuture<'a>> {
     let config: &Config = (ctx.loaders.config)()?;
     let es_module = args.effective_init_type(config) == InitType::Module;
-    let manifest_path = pnpm_workspace::project_manifest_path(ctx.locations.cli_dir);
+    let manifest_path = pnpm_workspace::project_manifest_path(
+        ctx.locations.cli_dir,
+        Some(config.preferred_manifest_format),
+    );
     if manifest_path.exists() {
         let filename = manifest_path
             .file_name()

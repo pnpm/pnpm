@@ -38,6 +38,7 @@ fn create_config(
         progress: true,
         update_notifier: true,
         color: Default::default(),
+        preferred_manifest_format: Default::default(),
         embed_readme: false,
         ignore_workspace_root_check: false,
         optional: true,

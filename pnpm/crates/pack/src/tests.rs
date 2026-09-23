@@ -33,6 +33,7 @@ fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
             extra_env: HashMap::new(),
         },
         manifest: crate::PackManifestOptions {
+            preferred_format: None,
             catalogs: BTreeMap::new(),
             catalogs_dir: None,
             embed_readme: false,
@@ -646,6 +647,7 @@ fn workspace_license_is_injected_into_a_sub_package() {
             extra_env: HashMap::new(),
         },
         manifest: crate::PackManifestOptions {
+            preferred_format: None,
             catalogs: BTreeMap::new(),
             catalogs_dir: None,
             embed_readme: false,
@@ -707,6 +709,7 @@ fn symlinked_workspace_license_is_not_injected() {
             extra_env: HashMap::new(),
         },
         manifest: crate::PackManifestOptions {
+            preferred_format: None,
             catalogs: BTreeMap::new(),
             catalogs_dir: None,
             embed_readme: false,
@@ -758,6 +761,7 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
             extra_env: HashMap::new(),
         },
         manifest: crate::PackManifestOptions {
+            preferred_format: None,
             catalogs: BTreeMap::new(),
             catalogs_dir: None,
             embed_readme: false,

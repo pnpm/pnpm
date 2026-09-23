@@ -100,7 +100,7 @@ impl BugsArgs {
 }
 
 fn get_bugs_url_from_current_project(dir: &Path) -> miette::Result<String> {
-    let manifest = safe_read_project_manifest_from_dir(dir)
+    let manifest = safe_read_project_manifest_from_dir(dir, None)
         .wrap_err("read project manifest")?
         .ok_or_else(|| {
             let display_path = dir.display();

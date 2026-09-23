@@ -226,6 +226,7 @@ fn project_with_dependencies(root: &std::path::Path, name: &str, dependencies: &
     )
     .expect("write package.json");
     Project {
+        manifest_path: root_dir.join("package.json"),
         root_dir,
         manifest: PackageManifest::from_path(package_json).expect("read package.json"),
         dependency_manifest: None,

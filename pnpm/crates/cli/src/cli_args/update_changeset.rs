@@ -112,6 +112,7 @@ impl UpdateDepSpecs {
 
 pub(super) struct UpdateChangesetContext {
     workspace_dir: PathBuf,
+    preferred_manifest_format: Option<pnpm_config::ManifestFormat>,
     root_dirs: Vec<PathBuf>,
     dep_specs_before: BTreeMap<PathBuf, Option<UpdateDepSpecs>>,
     catalogs_before: Catalogs,
@@ -119,6 +120,7 @@ pub(super) struct UpdateChangesetContext {
 
 impl UpdateChangesetContext {
     pub(super) fn capture(config: &Config, manifest_path: &Path) -> miette::Result<Self> {
+        let preferred_manifest_format = Some(config.preferred_manifest_format);
         let project_dir = manifest_path.parent().expect("manifest path always has a parent dir");
         let workspace_dir = config.workspace_dir
             .as_deref()
@@ -137,7 +139,7 @@ impl UpdateChangesetContext {
         let dep_specs_before = root_dirs
             .iter()
             .map(|root_dir| {
-                let manifest = safe_read_project_manifest_only(root_dir)
+                let manifest = safe_read_project_manifest_only(root_dir, preferred_manifest_format)
                     .map_err(UpdateChangesetError::ReadProject)?;
                 let specs = manifest
                     .as_ref()
@@ -150,7 +152,13 @@ impl UpdateChangesetContext {
         let workspace_manifest =
             read_workspace_manifest(&workspace_dir).map_err(UpdateChangesetError::ReadWorkspace)?;
         let catalogs_before = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())?;
-        Ok(Self { workspace_dir, root_dirs, dep_specs_before, catalogs_before })
+        Ok(Self {
+            workspace_dir,
+            preferred_manifest_format,
+            root_dirs,
+            dep_specs_before,
+            catalogs_before,
+        })
     }
 
     pub(super) fn generate<Output: Reporter>(self) -> miette::Result<()> {
@@ -214,7 +222,8 @@ impl UpdateChangesetContext {
         changed_catalog_entries: &BTreeMap<String, BTreeSet<String>>,
     ) -> Result<Option<(String, IntentBumpType)>, UpdateChangesetError> {
         let Some(manifest) =
-            safe_read_project_manifest_only(root_dir).map_err(UpdateChangesetError::ReadProject)?
+            safe_read_project_manifest_only(root_dir, self.preferred_manifest_format)
+                .map_err(UpdateChangesetError::ReadProject)?
         else {
             return Ok(None);
         };

@@ -21,7 +21,7 @@ pub(super) fn build_workspace_projects_override(
                 let dependency_manifest = project.dependency_manifest
                     .as_ref()
                     .map(|value| PackageManifest::from_value(manifest_path.clone(), value.clone()));
-                pnpm_workspace::Project { root_dir, manifest, dependency_manifest }
+                pnpm_workspace::Project { root_dir, manifest_path, manifest, dependency_manifest }
             })
             .collect(),
     )

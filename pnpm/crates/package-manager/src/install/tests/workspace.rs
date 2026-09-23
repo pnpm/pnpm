@@ -844,6 +844,7 @@ fn workspace_packages_map_prefers_the_dependency_manifest() {
         }),
     );
     let projects = [pnpm_workspace::Project {
+        manifest_path: root_dir.join("package.json"),
         root_dir,
         manifest: importer_view,
         dependency_manifest: Some(dependency_view),

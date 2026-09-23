@@ -89,7 +89,8 @@ impl LinkArgs {
 
         let mut new_overrides = IndexMap::<String, String>::new();
         for path_str in &self.package_paths {
-            let (target_dir, package_name) = link_target(&manifest_dir, path_str)?;
+            let (target_dir, package_name) =
+                link_target(&manifest_dir, path_str, Some(config.preferred_manifest_format))?;
 
             if !already_declared(&manifest, &package_name) {
                 manifest
@@ -166,11 +167,16 @@ async fn install_linked<Reporter: self::Reporter + 'static>(state: &State) -> mi
 }
 
 /// The linked package's directory, and the name it is declared under.
-fn link_target(manifest_dir: &Path, path_str: &str) -> miette::Result<(PathBuf, String)> {
+fn link_target(
+    manifest_dir: &Path,
+    path_str: &str,
+    preferred_manifest_format: Option<pnpm_config::ManifestFormat>,
+) -> miette::Result<(PathBuf, String)> {
     let target_path = PathBuf::from(path_str);
     let target_dir =
         if target_path.is_absolute() { target_path } else { manifest_dir.join(&target_path) };
-    let target_manifest_path = pnpm_workspace::project_manifest_path(&target_dir);
+    let target_manifest_path =
+        pnpm_workspace::project_manifest_path(&target_dir, preferred_manifest_format);
     let dir_display = target_dir.display();
     let target_manifest = PackageManifest::from_path(target_manifest_path)
         .map_err(|error| match error {

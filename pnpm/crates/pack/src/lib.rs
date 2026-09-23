@@ -49,7 +49,8 @@ use pnpm_fs::lexical_normalize;
 use pnpm_fs_packlist::{PacklistError, PacklistOptions, packlist_with_options};
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks};
 use pnpm_package_manifest::{
-    PackageManifestError, is_truthy, project_manifest_path, safe_read_project_manifest_from_dir,
+    ManifestFormat, PackageManifestError, is_truthy, project_manifest_path,
+    safe_read_project_manifest_from_dir,
 };
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
@@ -240,7 +241,7 @@ struct PackSource {
 async fn prepare_source<Reporter: self::Reporter>(
     opts: &PackOptions,
 ) -> Result<PackSource, PackError> {
-    let entry_manifest = read_manifest(&opts.dir)?;
+    let entry_manifest = read_manifest(&opts.dir, opts.manifest.preferred_format)?;
     prevent_bundled_dependencies_without_hoisted(opts.manifest.node_linker, &entry_manifest)?;
 
     if !opts.scripts.ignore {
@@ -260,7 +261,7 @@ async fn prepare_source<Reporter: self::Reporter>(
 
     // Re-read the manifest from `dir`: a `prepack` / `prepare` script
     // may have rewritten it.
-    let manifest = read_manifest(&dir)?;
+    let manifest = read_manifest(&dir, opts.manifest.preferred_format)?;
     prevent_bundled_dependencies_without_hoisted(opts.manifest.node_linker, &manifest)?;
 
     let name = packed_identity(&manifest)?;
@@ -290,7 +291,10 @@ fn packed_files_map(
     .map_err(PackError::Packlist)?;
     let mut files_map = build_files_map(&source.dir, &files);
     files_map.retain(|name, _| !is_manifest_entry(name));
-    files_map.insert("package/package.json".to_string(), project_manifest_path(&source.dir));
+    files_map.insert(
+        "package/package.json".to_string(),
+        project_manifest_path(&source.dir, opts.manifest.preferred_format),
+    );
     inject_workspace_license(opts, &source.dir, &mut files_map);
     // A composed entry supersedes any same-named on-disk file (e.g. a stale
     // committed CHANGELOG.md), so drop it from the file map before packing.
@@ -430,8 +434,8 @@ fn with_registry_readme(mut manifest: Value, dir: &Path) -> Result<Value, PackEr
 }
 
 /// Read the raw manifest under `dir`, erroring when it is absent.
-fn read_manifest(dir: &Path) -> Result<Value, PackError> {
-    match safe_read_project_manifest_from_dir(dir) {
+fn read_manifest(dir: &Path, preferred: Option<ManifestFormat>) -> Result<Value, PackError> {
+    match safe_read_project_manifest_from_dir(dir, preferred) {
         Ok(Some(manifest)) => Ok(manifest),
         Ok(None) => Err(PackError::ManifestNotFound { dir: dir.display().to_string() }),
         Err(source) => Err(PackError::ReadManifest(source)),

@@ -21,6 +21,10 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct WorkspaceProject {
     pub root_dir: PathBuf,
+    /// The manifest file this project was read from — carried from
+    /// discovery so the release stamps the file the workspace actually
+    /// uses, rather than re-deriving precedence and risking a different one.
+    pub manifest_path: PathBuf,
     pub name: Option<String>,
     pub version: Option<String>,
     /// The entries of the manifest's production dependency fields
@@ -73,6 +77,8 @@ pub struct PlannedRelease {
     /// Workspace-relative project directory — the engine's unit of identity.
     pub dir: String,
     pub root_dir: PathBuf,
+    /// The manifest file to stamp the new version into.
+    pub manifest_path: PathBuf,
     /// The intent files this release consumes for this package: the pending
     /// ones, plus — when the release graduates the package off a lane — the
     /// ones the ledger recorded against the lane's prerelease versions.
@@ -284,6 +290,7 @@ struct Participant<'a> {
     name: &'a str,
     dir: String,
     root_dir: &'a Path,
+    manifest_path: &'a Path,
     current_version: &'a str,
     internal_deps: Vec<InternalDep<'a>>,
 }

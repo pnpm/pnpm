@@ -107,6 +107,9 @@ fn pack_options(options: PackOptions) -> pnpm_pack::PackOptions {
             catalogs_dir: None,
             embed_readme: options.embed_readme.unwrap_or(false),
             node_linker: NodeLinker::default(),
+            // The embedder hands over an already-resolved manifest value, so
+            // there is no directory to choose a format in.
+            preferred_format: None,
             skip_obfuscation: false,
             // Bit drives its own `readPackage` hook through the napi bridge and
             // loads no `beforePacking` pnpmfiles, so the hook loop is a no-op.

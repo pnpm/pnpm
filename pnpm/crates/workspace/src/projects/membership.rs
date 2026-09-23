@@ -31,7 +31,7 @@ pub fn belongs_to_workspace(
     is_workspace_project_dir(
         workspace_dir,
         dir,
-        &FindWorkspaceProjectsOpts { patterns: Some(patterns) },
+        &FindWorkspaceProjectsOpts { patterns: Some(patterns), preferred_manifest_format: None },
     )
 }
 

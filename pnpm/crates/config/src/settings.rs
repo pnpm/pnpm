@@ -1,9 +1,9 @@
 use super::{
     AuditConfig, AuditLevel, BTreeMap, BTreeSet, CargoSettings, CatalogMode, ColorMode,
     ConfigDependency, Ecosystem, EnvVar, GlobalShims, HashMap, HoistingLimits, Host, IndexMap,
-    InitType, LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PackageImportMethod,
-    PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig, PythonSettings,
-    RegistryOptions, RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail,
+    InitType, LinkWorkspacePackages, LogLevel, ManifestFormat, NodeLinker, NodePackageMapType,
+    PackageImportMethod, PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig,
+    PythonSettings, RegistryOptions, RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail,
     SaveWorkspaceProtocol, ScriptsPrependNodePath, SmartDefault, StoreDir, Tool, ToolSettings,
     TrustPolicy, VerifyDepsBeforeRun, WorkspaceKeyIssues, default_cache_dir,
     default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
@@ -295,6 +295,18 @@ pub struct Config {
     /// materializes only the standard map for isolated installs; loose
     /// and hoisted maps require layout-aware writers.
     pub node_package_map_type: NodePackageMapType,
+
+    /// `preferredManifestFormat` — which manifest format wins in a project
+    /// directory that holds more than one (say both `package.json` and
+    /// `package.json5`), for reads and for the writes that follow them.
+    ///
+    /// Defaults to [`ManifestFormat::Json`], which reproduces the historical
+    /// `package.json` > `package.json5` > `package.yaml` precedence. A
+    /// preference only reorders that chain: a directory without the preferred
+    /// format still resolves through the rest, so setting one never hides a
+    /// project. It governs the manifests a workspace owns, never those of its
+    /// dependencies.
+    pub preferred_manifest_format: ManifestFormat,
 
     /// When symlink is set to false, pnpm creates a virtual store directory without any symlinks.
     /// It is a useful setting together with node-linker=pnp.

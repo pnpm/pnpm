@@ -24,6 +24,7 @@ pub use crate::{
     npmrc_auth::{BasicAuth, RegistryCreds, is_json_auth_scope, validate_json_auth_registry},
 };
 pub use pnpm_matcher as matcher;
+pub use pnpm_package_manifest::ManifestFormat;
 pub use setting_types::{
     AuditConfig, AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType,
     LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail,

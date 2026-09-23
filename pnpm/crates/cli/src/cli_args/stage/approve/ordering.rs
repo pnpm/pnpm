@@ -71,6 +71,7 @@ async fn staged_project(
     let manifest = manifest_for_graph(manifest);
     Ok(Project {
         manifest: PackageManifest::from_value(root_dir.join("package.json"), manifest),
+        manifest_path: root_dir.join("package.json"),
         root_dir,
         dependency_manifest: None,
     })

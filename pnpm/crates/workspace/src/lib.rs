@@ -16,6 +16,7 @@ pub use inventory::{FindWorkspaceInventoryError, WorkspaceInventory, find_worksp
 pub use manifest::{
     InvalidWorkspaceManifestError, ReadWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME,
     WorkspaceManifest, read_workspace_manifest, workspace_package_patterns,
+    workspace_preferred_manifest_format,
 };
 pub use project_manifest::{
     ReadProjectManifestError, ReadProjectManifestOnlyError, project_manifest_path,

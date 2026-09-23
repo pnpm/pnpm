@@ -104,7 +104,7 @@ fn importer_peer_names(inputs: &ImporterComponents<'_>, importer_id: &str) -> Ha
         return HashSet::new();
     }
     confined_importer_dir(inputs.lockfile_dir, importer_id)
-        .and_then(|dir| safe_read_project_manifest_from_dir(&dir).ok().flatten())
+        .and_then(|dir| safe_read_project_manifest_from_dir(&dir, None).ok().flatten())
         .map(|manifest| peer_names_from_manifest(&manifest))
         .unwrap_or_default()
 }
@@ -129,7 +129,7 @@ fn collect_linked_workspace_component(
     let Some(ws_dir) = confined_importer_dir(inputs.lockfile_dir, &target_id) else {
         return false;
     };
-    let Ok(Some(ws_manifest)) = safe_read_project_manifest_from_dir(&ws_dir) else {
+    let Ok(Some(ws_manifest)) = safe_read_project_manifest_from_dir(&ws_dir, None) else {
         return false;
     };
     let ws_name = ws_manifest

@@ -6,7 +6,9 @@ pub(super) fn complete_scripts(context: &CompletionContext<'_>) -> miette::Resul
         return Ok(Vec::new());
     }
     let directory = context.resolve_project_directory()?;
-    let Some(manifest) = safe_read_project_manifest_only(&directory)? else {
+    // Completion deliberately does not load the config layers, so the
+    // preference is unavailable here and default precedence applies.
+    let Some(manifest) = safe_read_project_manifest_only(&directory, None)? else {
         return Ok(Vec::new());
     };
     let mut scripts: Vec<_> = manifest

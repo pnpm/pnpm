@@ -62,6 +62,7 @@ fn make_workspace(pkgs: &[FixturePkg<'_>]) -> Workspace {
             )
             .expect("write package.json");
             WorkspaceProject {
+                manifest_path: pnpm_package_manifest::project_manifest_path(&root_dir, None),
                 root_dir,
                 name: Some((*name).to_string()),
                 version: Some((*version).to_string()),
@@ -191,6 +192,7 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
     // the intent is garbage-collected.
     let graduated_projects = [WorkspaceProject {
         root_dir: workspace.projects[0].root_dir.clone(),
+        manifest_path: workspace.projects[0].root_dir.clone().join("package.json"),
         name: Some("cli".to_string()),
         version: Some("2.1.0-alpha.0".to_string()),
         prod_dependencies: Vec::new(),
@@ -320,6 +322,7 @@ fn registry_storage_collects_an_intent_and_its_section_once_confirmed() {
     // confirmed published, so its intent and parked section are collected.
     let released = [WorkspaceProject {
         root_dir: workspace.projects[0].root_dir.clone(),
+        manifest_path: workspace.projects[0].root_dir.clone().join("package.json"),
         name: Some("lib".to_string()),
         version: Some("1.1.0".to_string()),
         prod_dependencies: Vec::new(),
@@ -394,12 +397,14 @@ fn registry_storage_collects_a_dependency_only_release_section_when_confirmed() 
     let released = [
         WorkspaceProject {
             root_dir: workspace.projects[0].root_dir.clone(),
+            manifest_path: workspace.projects[0].root_dir.clone().join("package.json"),
             name: Some("lib".to_string()),
             version: Some("1.1.0".to_string()),
             prod_dependencies: Vec::new(),
         },
         WorkspaceProject {
             root_dir: workspace.projects[1].root_dir.clone(),
+            manifest_path: workspace.projects[1].root_dir.clone().join("package.json"),
             name: Some("cli".to_string()),
             version: Some("2.0.1".to_string()),
             prod_dependencies: vec![ManifestDependency {
@@ -465,6 +470,7 @@ fn registry_storage_keeps_an_intent_whose_release_is_not_confirmed() {
 
     let released = [WorkspaceProject {
         root_dir: workspace.projects[0].root_dir.clone(),
+        manifest_path: workspace.projects[0].root_dir.clone().join("package.json"),
         name: Some("lib".to_string()),
         version: Some("1.1.0".to_string()),
         prod_dependencies: Vec::new(),
@@ -510,8 +516,8 @@ fn prepend_keeps_the_title_above_the_new_section_even_without_a_trailing_newline
 
 #[test]
 fn apply_updates_the_selected_json5_manifest_without_creating_json() {
-    let workspace = make_workspace(&[("lib", "1.0.0", &[])]);
-    let root_dir = &workspace.projects[0].root_dir;
+    let mut workspace = make_workspace(&[("lib", "1.0.0", &[])]);
+    let root_dir = workspace.projects[0].root_dir.clone();
     fs::remove_file(root_dir.join("package.json")).expect("remove the fixture JSON manifest");
     let manifest_path = root_dir.join("package.json5");
     fs::write(
@@ -521,6 +527,10 @@ fn apply_updates_the_selected_json5_manifest_without_creating_json() {
     .expect("write the JSON5 manifest");
     let yaml = "name: alternate\nversion: 9.0.0\n";
     fs::write(root_dir.join("package.yaml"), yaml).expect("write the alternate YAML manifest");
+    // The fixture swaps the manifest files after the projects were built;
+    // discovery resolves the path once the files exist, so mirror that here.
+    workspace.projects[0].manifest_path =
+        pnpm_package_manifest::project_manifest_path(&root_dir, None);
     let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Patch)]);
     write_change_intent(workspace.dir.path(), &releases, "Fixed a bug.").expect("intent writes");
     let intents = read_change_intents(workspace.dir.path()).expect("intents read");
@@ -567,6 +577,7 @@ fn apply_bumps_package_yaml_manifest() {
         .expect("write package.yaml");
     let projects = vec![WorkspaceProject {
         root_dir: root_dir.clone(),
+        manifest_path: pnpm_package_manifest::project_manifest_path(&root_dir, None),
         name: Some("lib".to_string()),
         version: Some("1.0.0".to_string()),
         prod_dependencies: Vec::new(),

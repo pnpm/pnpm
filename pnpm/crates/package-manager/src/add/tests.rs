@@ -253,6 +253,7 @@ fn empty_project(root: &std::path::Path, name: &str) -> Project {
     let package_json = root_dir.join("package.json");
     std::fs::write(&package_json, json!({ "name": name }).to_string()).expect("write package.json");
     Project {
+        manifest_path: root_dir.join("package.json"),
         root_dir,
         manifest: PackageManifest::from_path(package_json).expect("read package.json"),
         dependency_manifest: None,
@@ -264,7 +265,12 @@ fn project_with_foo(root: &std::path::Path, name: &str, specifier: &str) -> Proj
     let mut manifest = project.manifest;
     manifest.add_dependency("foo", specifier, DependencyGroup::Prod).expect("add foo dependency");
     manifest.save().expect("save package.json");
-    Project { root_dir: project.root_dir, manifest, dependency_manifest: None }
+    Project {
+        manifest_path: project.manifest_path,
+        root_dir: project.root_dir,
+        manifest,
+        dependency_manifest: None,
+    }
 }
 
 fn dependency_specifier<'a>(manifest: &'a PackageManifest, name: &str) -> Option<&'a str> {

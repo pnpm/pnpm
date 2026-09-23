@@ -19,7 +19,8 @@ pub use membership::{belongs_to_workspace, is_workspace_project_dir, needs_packa
 use crate::{
     directory_patterns::{negated_directory_pattern, normalize_directory_pattern},
     project_manifest::{
-        PROJECT_MANIFEST_BASENAMES, ReadProjectManifestError, read_exact_project_manifest,
+        ManifestFormat, PROJECT_MANIFEST_BASENAMES, ReadProjectManifestError,
+        manifest_format_order, read_exact_project_manifest,
     },
 };
 use derive_more::{Display, Error};
@@ -48,6 +49,11 @@ use wax::{
 pub struct Project {
     pub root_dir: PathBuf,
     pub manifest: PackageManifest,
+    /// The manifest file `manifest` was read from, and the file a caller
+    /// writing the project back should write to. Discovery resolves format
+    /// precedence once, here, so no consumer has to re-derive it and reach a
+    /// different answer than the read did.
+    pub manifest_path: PathBuf,
     /// Manifest to expose when this project is resolved as a *dependency* of
     /// another importer (an injected workspace instance), instead of
     /// `manifest`. `None` — the common case, including every project the
@@ -66,6 +72,11 @@ pub struct FindWorkspaceProjectsOpts {
     /// real workspace manifest should pass
     /// [`crate::workspace_package_patterns`] instead.
     pub patterns: Option<Vec<String>>,
+
+    /// `preferredManifestFormat` — which format wins in a directory holding
+    /// more than one. `None` keeps the default `package.json` >
+    /// `package.json5` > `package.yaml` precedence.
+    pub preferred_manifest_format: Option<ManifestFormat>,
 }
 
 /// Error type of the public entry points.
@@ -151,7 +162,11 @@ pub fn find_workspace_projects_no_check(
         }
     }
 
-    read_projects(group_manifests_by_root(manifest_paths, workspace_root))
+    read_projects(group_manifests_by_root(
+        manifest_paths,
+        workspace_root,
+        opts.preferred_manifest_format,
+    ))
 }
 
 /// wax's `not` takes a single pattern; combine the ignores with
@@ -327,12 +342,27 @@ fn merge_pattern_manifests(
 fn group_manifests_by_root(
     manifest_paths: BTreeSet<PathBuf>,
     workspace_root: &Path,
+    preferred: Option<ManifestFormat>,
 ) -> Vec<(PathBuf, Vec<PathBuf>)> {
+    let precedence = manifest_format_order(preferred);
+    let rank = |path: &Path| {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .and_then(ManifestFormat::from_basename)
+            .and_then(|format| {
+                precedence
+                    .iter()
+                    .position(|candidate| *candidate == format)
+            })
+            .unwrap_or(precedence.len())
+    };
     let mut sorted: Vec<PathBuf> = manifest_paths.into_iter().collect();
     sorted.sort_by(|left, right| {
         let dir_left = left.parent().unwrap_or_else(|| Path::new(""));
         let dir_right = right.parent().unwrap_or_else(|| Path::new(""));
-        dir_left.cmp(dir_right)
+        dir_left
+            .cmp(dir_right)
+            .then_with(|| rank(left).cmp(&rank(right)))
     });
     let mut root_groups: Vec<(PathBuf, Vec<PathBuf>)> = Vec::new();
     for manifest_path in sorted {
@@ -471,7 +501,7 @@ fn read_first_project_manifest(
             ))) => continue,
             Err(err) => return Err(FindWorkspaceProjectsError::ReadManifest(err)),
         };
-        return Ok(Some(Project { root_dir, manifest, dependency_manifest: None }));
+        return Ok(Some(Project { root_dir, manifest, manifest_path, dependency_manifest: None }));
     }
     Ok(None)
 }

@@ -175,8 +175,11 @@ fn select_workspace_projects_with_cycles(
     )?;
 
     let active_dir = manifest_path.parent().expect("manifest path always has a parent dir");
-    let active_manifest_is_standin =
-        configuration::active_manifest_is_standin(active_dir, &projects)?;
+    let active_manifest_is_standin = configuration::active_manifest_is_standin(
+        active_dir,
+        &projects,
+        Some(cfg.preferred_manifest_format),
+    )?;
     let install_dirs = install_dirs(&resolved.selected_dirs, &projects, &workspace_root);
 
     Ok(Some(NarrowedWorkspace {

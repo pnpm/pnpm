@@ -190,7 +190,12 @@ fn index_projects_keeps_the_first_project_per_case_variant_root() {
 fn workspace_project(name: &str, root_dir: PathBuf) -> Project {
     let manifest =
         PackageManifest::from_value(root_dir.join("package.json"), json!({ "name": name }));
-    Project { root_dir, manifest, dependency_manifest: None }
+    Project {
+        manifest_path: root_dir.join("package.json"),
+        root_dir,
+        manifest,
+        dependency_manifest: None,
+    }
 }
 
 /// The two projects must have distinct roots that share one comparison key.
@@ -304,6 +309,7 @@ fn deploy_normalizes_registry_specifiers_and_preserves_snapshot_references() {
         let selected = SelectedProject {
             project: Project {
                 root_dir: tmp.path().to_path_buf(),
+                manifest_path: tmp.path().join("package.json"),
                 manifest: PackageManifest::from_value(
                     tmp.path().join("package.json"),
                     json!({ "name": "app", field: references }),

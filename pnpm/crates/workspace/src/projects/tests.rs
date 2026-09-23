@@ -1,5 +1,5 @@
 use super::{
-    FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, SpecializedPattern,
+    FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, ManifestFormat, SpecializedPattern,
     find_workspace_projects, specialized_pattern,
 };
 use pretty_assertions::assert_eq;
@@ -26,6 +26,7 @@ fn find_project_names(root: &Path, patterns: &[&str]) -> Vec<String> {
     find_workspace_projects(
         root,
         &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
             patterns: Some(
                 patterns
                     .iter()
@@ -100,7 +101,10 @@ fn expands_packages_glob() {
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
+        &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
+            patterns: Some(vec!["packages/*".to_string()]),
+        },
     )
     .unwrap();
 
@@ -254,7 +258,10 @@ fn expands_packages_glob_to_package_yaml() {
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
+        &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
+            patterns: Some(vec!["packages/*".to_string()]),
+        },
     )
     .unwrap();
 
@@ -327,7 +334,10 @@ fn package_json_wins_when_both_manifest_files_exist() {
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
+        &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
+            patterns: Some(vec!["packages/*".to_string()]),
+        },
     )
     .unwrap();
 
@@ -356,7 +366,10 @@ fn always_includes_workspace_root() {
     // surfaces it (https://github.com/pnpm/pnpm/issues/1986).
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["apps/*".to_string()]) },
+        &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
+            patterns: Some(vec!["apps/*".to_string()]),
+        },
     )
     .unwrap();
 
@@ -384,7 +397,10 @@ fn filters_node_modules() {
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["**".to_string()]) },
+        &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
+            patterns: Some(vec!["**".to_string()]),
+        },
     )
     .unwrap();
 
@@ -419,6 +435,7 @@ fn dedupes_overlapping_patterns() {
     let projects = find_workspace_projects(
         tmp.path(),
         &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
             patterns: Some(vec!["packages/*".to_string(), "**".to_string()]),
         },
     )
@@ -445,8 +462,11 @@ fn default_patterns_when_packages_omitted() {
     make_project(tmp.path(), ".", "root");
     make_project(tmp.path(), "apps/web", "web");
 
-    let projects =
-        find_workspace_projects(tmp.path(), &FindWorkspaceProjectsOpts { patterns: None }).unwrap();
+    let projects = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts { preferred_manifest_format: None, patterns: None },
+    )
+    .unwrap();
 
     let names: Vec<String> = projects
         .iter()
@@ -474,6 +494,7 @@ fn negation_pattern_excludes_matching_projects() {
     let projects = find_workspace_projects(
         tmp.path(),
         &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
             patterns: Some(vec!["**".to_string(), "!libs/**".to_string()]),
         },
     )
@@ -512,6 +533,7 @@ fn negation_pattern_with_leading_slash_is_noop() {
     let projects = find_workspace_projects(
         tmp.path(),
         &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
             patterns: Some(vec!["**".to_string(), "!/libs/**".to_string()]),
         },
     )
@@ -549,7 +571,7 @@ fn empty_patterns_array_enumerates_root_only() {
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(Vec::new()) },
+        &FindWorkspaceProjectsOpts { preferred_manifest_format: None, patterns: Some(Vec::new()) },
     )
     .unwrap();
 
@@ -580,6 +602,7 @@ fn missing_pattern_directory_matches_nothing() {
     let projects = find_workspace_projects(
         tmp.path(),
         &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
             patterns: Some(vec!["packages/*".to_string(), "apps/**".to_string()]),
         },
     )
@@ -615,7 +638,10 @@ fn non_notfound_walk_failure_still_errors() {
 
     let result = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
+        &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
+            patterns: Some(vec!["packages/*".to_string()]),
+        },
     );
 
     // `expect_err` would need `Project: Debug`, which it deliberately is not.
@@ -640,7 +666,10 @@ fn non_notfound_walk_failure_still_errors_on_the_generic_path() {
     // the filesystem through their own enumeration.
     let result = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*/lib".to_string()]) },
+        &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
+            patterns: Some(vec!["packages/*/lib".to_string()]),
+        },
     );
 
     let Err(FindWorkspaceProjectsError::Walk { source, .. }) = result else {
@@ -664,6 +693,7 @@ fn discovers_projects_declared_above_the_workspace_root() {
     let projects = find_workspace_projects(
         &tmp.path().join("workspace"),
         &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
             patterns: Some(vec![
                 "app".to_string(),
                 "../shared".to_string(),
@@ -709,6 +739,7 @@ fn negation_pattern_excludes_a_project_above_the_workspace_root() {
     let projects = find_workspace_projects(
         &tmp.path().join("workspace"),
         &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
             patterns: Some(vec!["../shared/*".to_string(), "!../shared/drop".to_string()]),
         },
     )
@@ -756,6 +787,7 @@ fn pattern_climbing_past_the_filesystem_root_matches_nothing() {
     let projects = find_workspace_projects(
         &workspace_root,
         &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
             patterns: Some(vec![format!("{overflow}*"), format!("{overflow}shared")]),
         },
     )
@@ -794,7 +826,10 @@ fn discovers_a_project_whose_manifest_starts_with_a_utf8_bom() {
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
+        &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
+            patterns: Some(vec!["packages/*".to_string()]),
+        },
     )
     .unwrap();
 
@@ -870,7 +905,10 @@ fn a_malformed_manifest_fails_discovery_deterministically() {
 
     let result = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
+        &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
+            patterns: Some(vec!["packages/*".to_string()]),
+        },
     );
 
     // `expect_err` would need `Project: Debug`, which it deliberately is not.
@@ -904,6 +942,7 @@ fn an_invalid_glob_pattern_fails_before_any_walk() {
     let result = find_workspace_projects(
         tmp.path(),
         &FindWorkspaceProjectsOpts {
+            preferred_manifest_format: None,
             patterns: Some(vec!["packages/*/lib".to_string(), "nodes/[invalid".to_string()]),
         },
     );
@@ -913,4 +952,86 @@ fn an_invalid_glob_pattern_fails_before_any_walk() {
         panic!("an invalid glob must fail discovery before any walk");
     };
     assert_eq!(pattern, "nodes/[invalid");
+}
+
+/// Discovery must resolve the format once and hand the answer on, so a
+/// directory holding several manifests yields one project whose
+/// `manifest_path` is the file its `manifest` came from.
+#[test]
+fn discovery_honors_the_preferred_manifest_format() {
+    let tmp = TempDir::new().unwrap();
+    let dir = tmp.path().join("pkg");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("package.json"), r#"{"name": "from-json", "version": "0.0.1"}"#).unwrap();
+    fs::write(dir.join("package.json5"), "{ name: 'from-json5', version: '0.0.1' }").unwrap();
+
+    let projects = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["**".to_string()]),
+            preferred_manifest_format: Some(ManifestFormat::Json5),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(projects.len(), 1, "one directory is one project regardless of how many manifests");
+    let project = &projects[0];
+    assert_eq!(project.manifest.value()["name"], "from-json5");
+    assert_eq!(
+        project.manifest_path,
+        dir.join("package.json5"),
+        "the recorded path must be the file the manifest was read from"
+    );
+}
+
+#[test]
+fn discovery_defaults_to_package_json() {
+    let tmp = TempDir::new().unwrap();
+    let dir = tmp.path().join("pkg");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("package.json"), r#"{"name": "from-json", "version": "0.0.1"}"#).unwrap();
+    fs::write(dir.join("package.json5"), "{ name: 'from-json5', version: '0.0.1' }").unwrap();
+
+    let projects = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["**".to_string()]),
+            preferred_manifest_format: None,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(projects.len(), 1);
+    assert_eq!(projects[0].manifest.value()["name"], "from-json");
+    assert_eq!(projects[0].manifest_path, dir.join("package.json"));
+}
+
+/// A preference only reorders the chain, so a project that lacks the
+/// preferred format is still found through the remaining ones.
+#[test]
+fn preferred_format_does_not_hide_projects_lacking_it() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), "only-json", "only-json");
+    make_yaml_project(tmp.path(), "only-yaml", "only-yaml");
+
+    let projects = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["**".to_string()]),
+            preferred_manifest_format: Some(ManifestFormat::Json5),
+        },
+    )
+    .unwrap();
+
+    let mut names: Vec<_> = projects
+        .iter()
+        .map(|project| {
+            project.manifest.value()["name"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        })
+        .collect();
+    names.sort();
+    assert_eq!(names, vec!["only-json", "only-yaml"]);
 }

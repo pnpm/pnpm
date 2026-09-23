@@ -242,6 +242,7 @@ pub(super) fn workspace_packages_for_add(config: &Config) -> Option<WorkspacePac
         workspace_dir,
         &pnpm_workspace::FindWorkspaceProjectsOpts {
             patterns: Some(pnpm_workspace::workspace_package_patterns(&manifest)),
+            preferred_manifest_format: Some(config.preferred_manifest_format),
         },
     )
     .ok()?;

@@ -126,7 +126,7 @@ fn nearest_manifest_name(start_dir: &Path) -> Result<String, ViewError> {
 /// object, or carries no usable name, is as invalid as one that fails to
 /// parse.
 fn manifest_name(dir: &Path) -> Result<Option<String>, ViewError> {
-    let manifest = safe_read_project_manifest_from_dir(dir)
+    let manifest = safe_read_project_manifest_from_dir(dir, None)
         .map_err(|err| ViewError::InvalidPackageJson {
             message: format!(
                 r#"Failed to read or parse project manifest in "{dir}": {err}"#,

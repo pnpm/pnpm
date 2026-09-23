@@ -602,6 +602,7 @@ fn project_with_foo_specifier(root: &std::path::Path, name: &str, specifier: &st
     )
     .expect("write package.json");
     Project {
+        manifest_path: root_dir.join("package.json"),
         root_dir,
         manifest: PackageManifest::from_path(package_json).expect("read package.json"),
         dependency_manifest: None,
@@ -621,6 +622,7 @@ fn project_without_foo(root: &std::path::Path, name: &str) -> Project {
     let package_json = root_dir.join("package.json");
     std::fs::write(&package_json, json!({ "name": name }).to_string()).expect("write package.json");
     Project {
+        manifest_path: root_dir.join("package.json"),
         root_dir,
         manifest: PackageManifest::from_path(package_json).expect("read package.json"),
         dependency_manifest: None,

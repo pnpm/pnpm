@@ -205,6 +205,9 @@ fn load_cleanup_projects(
     };
     let opts = FindWorkspaceProjectsOpts {
         patterns: Some(workspace_package_patterns(&workspace_manifest)),
+        preferred_manifest_format: pnpm_workspace::workspace_preferred_manifest_format(
+            &workspace_manifest,
+        ),
     };
     find_workspace_projects(workspace_dir, &opts)
         .map_err(WriteWorkspaceCatalogsError::FindWorkspaceProjects)

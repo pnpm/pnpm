@@ -96,8 +96,11 @@ pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
 /// `package.json`, `package.json5`, and `package.yaml`, the same way the
 /// install pipeline does, so a pin recorded from the pre-command checks is
 /// the one the install reads.
-pub(crate) fn read_root_manifest(root_dir: &Path) -> Option<Value> {
-    pnpm_workspace::try_read_project_manifest(root_dir)
+pub(crate) fn read_root_manifest(
+    root_dir: &Path,
+    preferred_manifest_format: Option<pnpm_config::ManifestFormat>,
+) -> Option<Value> {
+    pnpm_workspace::try_read_project_manifest(root_dir, preferred_manifest_format)
         .ok()
         .flatten()
         .map(|(_, manifest)| manifest.value().clone())

@@ -44,6 +44,7 @@ pub fn check_deps_status_before_run_at(
         manifest_dir,
         workspace_dir_opt.is_some(),
         config.shares_one_lockfile(),
+        Some(config.preferred_manifest_format),
     ) {
         GateManifest::Found(manifest) => manifest,
         GateManifest::NoManifest => return None,
@@ -143,8 +144,9 @@ pub(super) fn read_gate_manifest(
     manifest_dir: &Path,
     in_workspace: bool,
     shares_one_lockfile: bool,
+    preferred_manifest_format: Option<pnpm_config::ManifestFormat>,
 ) -> GateManifest {
-    match pnpm_workspace::read_project_manifest_only(manifest_dir) {
+    match pnpm_workspace::read_project_manifest_only(manifest_dir, preferred_manifest_format) {
         Ok(manifest) => GateManifest::Found(Box::new(manifest)),
         Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
             if !in_workspace || !shares_one_lockfile =>

@@ -92,7 +92,8 @@ pub enum RepoError {
 }
 
 fn get_repo_url_from_current_project(dir: &std::path::Path) -> miette::Result<String> {
-    let manifest = safe_read_project_manifest_from_dir(dir)?.ok_or(RepoError::NoRepoUrlLocal)?;
+    let manifest =
+        safe_read_project_manifest_from_dir(dir, None)?.ok_or(RepoError::NoRepoUrlLocal)?;
     let repository = manifest.get("repository");
     pick_repo_url(repository).ok_or_else(|| RepoError::NoRepoUrlLocal.into())
 }

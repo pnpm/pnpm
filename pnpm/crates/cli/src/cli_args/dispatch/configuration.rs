@@ -43,7 +43,9 @@ impl RunAnchors {
         } else {
             std::env::current_dir().and_then(dunce::canonicalize).unwrap_or_else(|_| dir.clone())
         };
-        let manifest_path = pnpm_workspace::project_manifest_path(&dir);
+        // Anchors are resolved before the config layers load, so the
+        // preference is not known yet; default precedence applies here.
+        let manifest_path = pnpm_workspace::project_manifest_path(&dir, None);
         let global_config = default_pnpm_home_dir::<Host>().unwrap_or_else(|| dir.clone());
         Ok(RunAnchors { dir, cli_dir, manifest_path, global_config })
     }

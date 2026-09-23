@@ -271,12 +271,17 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
     Ok(ran_any)
 }
 
+/// `pkg_root` is an installed dependency, not a workspace project, so the
+/// default format precedence applies: `preferredManifestFormat` governs the
+/// manifests a workspace owns, never the ones it consumes.
 fn read_lifecycle_manifest(
     pkg_root: &Path,
 ) -> Result<Option<serde_json::Value>, LifecycleScriptError> {
-    safe_read_project_manifest_from_dir(pkg_root)
+    safe_read_project_manifest_from_dir(pkg_root, None)
         .map_err(|source| LifecycleScriptError::ReadManifest {
-            path: pnpm_package_manifest::project_manifest_path(pkg_root).display().to_string(),
+            path: pnpm_package_manifest::project_manifest_path(pkg_root, None)
+                .display()
+                .to_string(),
             source,
         })
 }

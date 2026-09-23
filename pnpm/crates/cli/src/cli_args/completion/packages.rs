@@ -10,7 +10,12 @@ pub(super) fn complete_packages(context: &CompletionContext<'_>) -> miette::Resu
     let manifest = read_workspace_manifest(&workspace_dir)?;
     let projects = find_workspace_projects(
         &workspace_dir,
-        &FindWorkspaceProjectsOpts { patterns: manifest.as_ref().map(workspace_package_patterns) },
+        &FindWorkspaceProjectsOpts {
+            patterns: manifest.as_ref().map(workspace_package_patterns),
+            preferred_manifest_format: manifest
+                .as_ref()
+                .and_then(pnpm_workspace::workspace_preferred_manifest_format),
+        },
     )?;
     let mut names: Vec<_> = projects
         .iter()

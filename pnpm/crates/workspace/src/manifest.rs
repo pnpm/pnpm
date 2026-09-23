@@ -12,6 +12,7 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_catalogs_types::{Catalog, Catalogs};
+use pnpm_package_manifest::ManifestFormat;
 use serde::Deserialize;
 use std::{
     fs,
@@ -56,6 +57,14 @@ pub struct WorkspaceManifest {
     /// the explicit form over the top-level [`Self::catalog`] field.
     #[serde(default)]
     pub catalogs: Option<Catalogs>,
+
+    /// `preferredManifestFormat` — which format wins in a project directory
+    /// holding more than one manifest. Enumeration needs it to pick the same
+    /// file the rest of the run will, so it is read here as well as into
+    /// `pnpm_config::WorkspaceSettings`; both parse the same file, so the two
+    /// readers cannot disagree.
+    #[serde(default)]
+    pub preferred_manifest_format: Option<ManifestFormat>,
 }
 
 /// Raised when `pnpm-workspace.yaml` parses as YAML but fails a shape
@@ -92,6 +101,13 @@ pub enum ReadWorkspaceManifestError {
     },
     #[diagnostic(transparent)]
     Invalid(#[error(source)] InvalidWorkspaceManifestError),
+}
+
+/// Resolve `pnpm-workspace.yaml` `preferredManifestFormat:` into the
+/// enumeration options' preference.
+#[must_use]
+pub fn workspace_preferred_manifest_format(manifest: &WorkspaceManifest) -> Option<ManifestFormat> {
+    manifest.preferred_manifest_format
 }
 
 /// Resolve `pnpm-workspace.yaml` `packages:` into the workspace package

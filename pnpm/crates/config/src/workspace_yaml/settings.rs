@@ -2,7 +2,7 @@ use super::{
     AllowBuild, AuditConfig, AuditLevel, AuditSettings, BTreeMap, BTreeSet, CargoSettings,
     CatalogMode, ConfigDependency, Deserialize, Deserializer, DroppedKeys, ErrorKind,
     GLOBAL_CONFIG_YAML_FILENAME, HashMap, HoistingLimits, IgnoredAny, IndexMap, InitType,
-    LinkWorkspacePackages, LoadWorkspaceYamlError, NodeLinker, NodePackageMapType,
+    LinkWorkspacePackages, LoadWorkspaceYamlError, ManifestFormat, NodeLinker, NodePackageMapType,
     PackageConfigsSetting, PackageExtension, PackageImportMethod, Path, PathBuf,
     PeerDependencyRules, Pipe, PmOnFail, PnpmfileSetting, PythonSettings, RegistryEntry,
     RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail, SCHEMA_DIRECTIVE_KEY,
@@ -168,6 +168,10 @@ pub struct WorkspaceSettings {
     pub node_experimental_package_map: Option<bool>,
     #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub node_package_map_type: Option<NodePackageMapType>,
+    /// `preferredManifestFormat` from `pnpm-workspace.yaml`. See
+    /// [`Config::preferred_manifest_format`](crate::settings::Config::preferred_manifest_format).
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
+    pub preferred_manifest_format: Option<ManifestFormat>,
     pub symlink: Option<bool>,
     pub virtual_store_dir: Option<String>,
     /// `virtualStoreType` from `pnpm-workspace.yaml`. See

@@ -255,16 +255,19 @@ impl PublishArgs {
         config: &Config,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
     ) -> miette::Result<PackedDirectory> {
-        let manifest = pnpm_package_manifest::safe_read_project_manifest_from_dir(project_dir)
-            .into_diagnostic()
-            .wrap_err("read project manifest")?
-            .ok_or_else(|| {
-                let dir = project_dir.display();
-                miette::miette!(
-                    code = "ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND",
-                    "No package.json found in {dir}",
-                )
-            })?;
+        let manifest = pnpm_package_manifest::safe_read_project_manifest_from_dir(
+            project_dir,
+            Some(config.preferred_manifest_format),
+        )
+        .into_diagnostic()
+        .wrap_err("read project manifest")?
+        .ok_or_else(|| {
+            let dir = project_dir.display();
+            miette::miette!(
+                code = "ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND",
+                "No package.json found in {dir}",
+            )
+        })?;
 
         if !self.should_ignore_scripts(config) {
             run_publish_scripts::<Reporter>(
@@ -343,6 +346,7 @@ impl PublishArgs {
                 extra_env: config.extra_env.clone(),
             },
             manifest: pnpm_pack::PackManifestOptions {
+                preferred_format: Some(config.preferred_manifest_format),
                 catalogs: crate::cli_args::catalogs::configured_catalogs(config)?,
                 catalogs_dir: config.workspace_dir.clone(),
                 embed_readme: resolve_bool_override(

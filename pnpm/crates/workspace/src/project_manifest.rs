@@ -1,7 +1,7 @@
 //! Read a project's package manifest.
 
-pub(crate) use pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES;
-pub use pnpm_package_manifest::project_manifest_path;
+pub use pnpm_package_manifest::{ManifestFormat, project_manifest_path};
+pub(crate) use pnpm_package_manifest::{PROJECT_MANIFEST_BASENAMES, manifest_format_order};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -33,13 +33,15 @@ pub enum ReadProjectManifestOnlyError {
     Read(#[error(source)] ReadProjectManifestError),
 }
 
-/// Read the manifest under `project_dir`.
+/// Read the manifest under `project_dir`, `preferred` format first.
 ///
 /// Returns the manifest plus the basename that was loaded.
 pub fn try_read_project_manifest(
     project_dir: &Path,
+    preferred: Option<ManifestFormat>,
 ) -> Result<Option<(&'static str, PackageManifest)>, ReadProjectManifestOnlyError> {
-    for &basename in PROJECT_MANIFEST_BASENAMES {
+    for format in manifest_format_order(preferred) {
+        let basename = format.basename();
         let manifest_path = project_dir.join(basename);
         if manifest_path.is_file() {
             let manifest = read_exact_project_manifest(&manifest_path)
@@ -53,8 +55,9 @@ pub fn try_read_project_manifest(
 /// Strict version: error when no manifest is found.
 pub fn read_project_manifest_only(
     project_dir: &Path,
+    preferred: Option<ManifestFormat>,
 ) -> Result<PackageManifest, ReadProjectManifestOnlyError> {
-    match try_read_project_manifest(project_dir)? {
+    match try_read_project_manifest(project_dir, preferred)? {
         Some((_, manifest)) => Ok(manifest),
         None => Err(ReadProjectManifestOnlyError::NoImporterManifestFound {
             project_dir: project_dir.to_path_buf(),
@@ -66,8 +69,9 @@ pub fn read_project_manifest_only(
 /// erroring when the manifest is missing.
 pub fn safe_read_project_manifest_only(
     project_dir: &Path,
+    preferred: Option<ManifestFormat>,
 ) -> Result<Option<PackageManifest>, ReadProjectManifestOnlyError> {
-    Ok(try_read_project_manifest(project_dir)?.map(|(_, m)| m))
+    Ok(try_read_project_manifest(project_dir, preferred)?.map(|(_, m)| m))
 }
 
 /// The `name` the project at `project_dir` declares, if any.
@@ -76,8 +80,13 @@ pub fn safe_read_project_manifest_only(
 /// callers want a key to address the project by, not a reason the read
 /// failed, and every one of them has a defined answer for a project
 /// that has no name.
+///
+/// Default precedence, never `preferredManifestFormat`: one caller is config
+/// layout derivation, which runs before settings are resolved, so honoring the
+/// setting here would mean reading config to decide how to read config. A name
+/// that disagrees between two coexisting manifests is malformed either way.
 pub fn read_project_name(project_dir: &Path) -> Option<String> {
-    safe_read_project_manifest_only(project_dir)
+    safe_read_project_manifest_only(project_dir, None)
         .ok()??
         .value()
         .get("name")?

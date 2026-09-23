@@ -217,6 +217,7 @@ impl PackArgs {
                 extra_env: config.extra_env.clone(),
             },
             manifest: pnpm_pack::PackManifestOptions {
+                preferred_format: Some(config.preferred_manifest_format),
                 catalogs,
                 catalogs_dir: config.workspace_dir.clone(),
                 embed_readme: config.embed_readme,

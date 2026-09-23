@@ -210,6 +210,7 @@ pub(super) fn planned_releases(
                 name: participant.name.to_string(),
                 dir: dir.clone(),
                 root_dir: participant.root_dir.to_path_buf(),
+                manifest_path: participant.manifest_path.to_path_buf(),
                 intents: changelog_intents(ctx, intents, dir),
                 dependency_updates: pkg_state.dependency_updates
                     .iter()

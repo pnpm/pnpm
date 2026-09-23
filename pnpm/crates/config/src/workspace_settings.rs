@@ -125,8 +125,13 @@ impl Config {
         // global config.yaml is stripped of the key, and no `PNPM_CONFIG_*`
         // var carries a map), so the `$dep-name` values it may hold are
         // resolved here, against the workspace root's manifest.
+        let preferred_manifest_format = Some(self.preferred_manifest_format);
         if let Some(overrides) = self.overrides.as_mut() {
-            crate::override_version_references::resolve_version_references(overrides, base_dir)?;
+            crate::override_version_references::resolve_version_references(
+                overrides,
+                base_dir,
+                preferred_manifest_format,
+            )?;
         }
         Ok(())
     }

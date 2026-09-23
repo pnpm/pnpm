@@ -416,6 +416,7 @@ pub(super) fn deployed_workspace_projects(
     (!legacy).then(|| {
         vec![Project {
             root_dir: deploy_dir.to_path_buf(),
+            manifest_path: state.manifest.path().to_path_buf(),
             manifest: state.manifest.clone(),
             dependency_manifest: None,
         }]
