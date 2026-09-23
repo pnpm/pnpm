@@ -58,6 +58,22 @@ test('readPackage hook run fails when returned peerDependencies is an array', as
   ).rejects.toEqual(new BadReadPackageHookError(pnpmfilePath, 'readPackage hook returned package manifest object\'s property \'peerDependencies\' must be an object.'))
 })
 
+test('readPackage hook run fails when it sets a dependency range to undefined', async () => {
+  const pnpmfilePath = path.join(import.meta.dirname, '__fixtures__/readPackageUndefinedRange.js')
+  const { pnpmfileModule: pnpmfile } = (await requirePnpmfile(pnpmfilePath, import.meta.dirname))!
+  return expect(
+    pnpmfile!.hooks!.readPackage!({ name: 'foo', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } }, defaultHookContext)
+  ).rejects.toEqual(new BadReadPackageHookError(pnpmfilePath, 'readPackage hook returned an invalid range for \'is-positive\' in the \'dependencies\' of foo@1.0.0. Expected a string, got undefined. To remove the dependency, delete the property.'))
+})
+
+test('readPackage hook run fails when it sets a peer dependency range to a number', async () => {
+  const pnpmfilePath = path.join(import.meta.dirname, '__fixtures__/readPackageNumberPeerRange.js')
+  const { pnpmfileModule: pnpmfile } = (await requirePnpmfile(pnpmfilePath, import.meta.dirname))!
+  return expect(
+    pnpmfile!.hooks!.readPackage!({ name: 'foo' }, defaultHookContext)
+  ).rejects.toEqual(new BadReadPackageHookError(pnpmfilePath, 'readPackage hook returned an invalid range for \'is-positive\' in the \'peerDependencies\' of foo. Expected a string, got number. To remove the dependency, delete the property.'))
+})
+
 test('filterLog hook combines with the global hook', async () => {
   const globalPnpmfile = path.join(import.meta.dirname, '__fixtures__/globalFilterLog.js')
   const pnpmfile = path.join(import.meta.dirname, '__fixtures__/filterLog.js')
