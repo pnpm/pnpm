@@ -219,4 +219,26 @@ esac`)
       fs.rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  test('prioritizes path block over later block mentioning pnpm', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-posix-test-'))
+    try {
+      const configFile = path.join(dir, '.zshrc')
+      const oldEnvBlock = wrapSettings('pnpm', 'export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH')
+      const aliasBlock = wrapSettings('pnpm', '# PNPM aliases\nalias p=pnpm')
+      const initial = `${oldEnvBlock}\n\nexport OTHER=1\n\n${aliasBlock}\n`
+      fs.writeFileSync(configFile, initial)
+
+      const newEnvBlock = wrapSettings('pnpm', 'export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH')
+      const result = await updateShellConfig(configFile, newEnvBlock, opts(true))
+
+      expect(result.changeType).toBe('modified')
+      expect(result.oldSettings).toBe('export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH')
+
+      const written = fs.readFileSync(configFile, 'utf8')
+      expect(written).toBe(`${newEnvBlock}\n\nexport OTHER=1\n\n${aliasBlock}\n`)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })

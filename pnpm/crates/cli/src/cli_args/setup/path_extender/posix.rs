@@ -342,12 +342,20 @@ fn select_section(
     if sections.len() <= 1 {
         return sections.pop();
     }
-    let section_upper = section.to_uppercase();
-    let idx = sections
+    if let Some(idx) = sections
         .iter()
-        .rposition(|(_, inner)| inner.contains("PATH") || inner.contains(&section_upper));
-    idx.map(|i| sections.remove(i))
-        .or_else(|| sections.pop())
+        .rposition(|(_, inner)| inner.contains("PATH"))
+    {
+        return Some(sections.remove(idx));
+    }
+    let home_var = format!("{}_HOME", section.to_uppercase());
+    if let Some(idx) = sections
+        .iter()
+        .rposition(|(_, inner)| inner.contains(&home_var))
+    {
+        return Some(sections.remove(idx));
+    }
+    sections.pop()
 }
 
 /// Find a `# <section>` ... `# <section> end` section and return its full byte range
