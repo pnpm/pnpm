@@ -40,7 +40,6 @@ pub struct EnvArgs {
 const DEPRECATION_WARNING: &str =
     r#""pnpm env use" is deprecated. Use "pnpm runtime set node <version> -g" instead."#;
 
-/// Emitted before `env remove` does anything else, matching where pnpm warns.
 const REMOVE_DEPRECATION_WARNING: &str =
     r#""pnpm env remove" is deprecated. Use "pnpm remove -g node" instead."#;
 
