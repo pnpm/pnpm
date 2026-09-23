@@ -211,7 +211,7 @@ fn patch_commit_prepare_pkg_files_for_diff_falls_back_on_raw_cross_device_errno(
     fs::remove_dir_all(path).unwrap();
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 #[test]
 fn patch_commit_prepare_pkg_files_for_diff_preserves_symlinks_on_copy_fallback() {
     let edit_dir = tempdir().expect("edit dir");
@@ -221,7 +221,14 @@ fn patch_commit_prepare_pkg_files_for_diff_preserves_symlinks_on_copy_fallback()
     )
     .unwrap();
     fs::write(edit_dir.path().join("index.js"), "target content\n").unwrap();
+    #[cfg(unix)]
     std::os::unix::fs::symlink("index.js", edit_dir.path().join("link.js")).unwrap();
+    #[cfg(windows)]
+    match std::os::windows::fs::symlink_file("index.js", edit_dir.path().join("link.js")) {
+        Ok(()) => {}
+        Err(err) if err.kind() == io::ErrorKind::PermissionDenied => return,
+        Err(err) => panic!("failed to create test symlink: {err}"),
+    }
 
     let prepared = prepare_pkg_files_for_diff_with_fs(edit_dir.path(), &HardLinkErrorFs)
         .expect("prepare files with copy fallback");

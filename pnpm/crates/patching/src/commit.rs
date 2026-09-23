@@ -264,10 +264,7 @@ fn recreate_symlink(source: &Path, target: &Path) -> io::Result<()> {
 }
 
 fn temporary_filtered_dir(src: &Path) -> PathBuf {
-    let name = src
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("patch");
+    let name = src.file_name().map_or_else(|| "patch".into(), |n| n.to_string_lossy());
     let parent = src.parent().unwrap_or_else(|| Path::new("."));
     parent.join(format!("{name}_tmp_{}", std::process::id()))
 }

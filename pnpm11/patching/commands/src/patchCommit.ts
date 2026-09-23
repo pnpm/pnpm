@@ -302,8 +302,8 @@ function removeTrailingAndLeadingSlash (p: string): string {
  * If all files should be included, return the original source directory without creating any links.
  * This is required in order for the diff to not include files that are not part of the package.
  */
-async function preparePkgFilesForDiff (src: string): Promise<string> {
-  const files = Array.from(new Set((await packlist(src)).map((f) => path.join(f))))
+export async function preparePkgFilesForDiff (src: string, packageFiles?: string[]): Promise<string> {
+  const files = packageFiles ?? Array.from(new Set((await packlist(src)).map((f) => path.join(f))))
   // If there are no extra files in the source directories, then there is no reason
   // to copy.
   if (await areAllFilesInPkg(files, src)) {
