@@ -155,6 +155,37 @@ fn skips_a_managed_directory_configured_with_different_casing() {
     );
 }
 
+#[cfg(any(windows, target_os = "macos"))]
+#[test]
+fn workspace_inside_a_managed_directory_configured_with_different_casing_keeps_its_projects() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), "state/checkout", "root");
+    make_project(tmp.path(), "state/checkout/pkg", "pkg");
+
+    assert_eq!(
+        find_sorted_names(
+            &tmp.path().join("state/checkout"),
+            &["pkg"],
+            vec![tmp.path().join("STATE")]
+        ),
+        ["pkg", "root"],
+    );
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn keeps_a_directory_that_differs_from_a_managed_one_only_in_case() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "store/tool", "tool");
+    make_project(tmp.path(), "Store/pkg", "pkg");
+
+    assert_eq!(
+        find_sorted_names(tmp.path(), &["**"], vec![PathBuf::from("store")]),
+        ["pkg", "root"],
+    );
+}
+
 #[test]
 fn a_managed_directory_is_never_a_workspace_project_dir() {
     let tmp = TempDir::new().unwrap();

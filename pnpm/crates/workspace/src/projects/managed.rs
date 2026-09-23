@@ -3,13 +3,12 @@
 //! [`FindWorkspaceProjectsOpts::ignored_directories`](super::FindWorkspaceProjectsOpts::ignored_directories).
 
 use super::{Path, PathBuf};
+use std::path::Component;
 
 /// Whether `path` sits under one of the directories returned by
 /// [`resolve_ignored_directories`]. `path` is normalized lexically first:
 /// a walk anchored at a root spelled with `.` or `..` components yields
-/// paths that name a managed directory without sharing its spelling. On
-/// Windows and macOS, whose filesystems are case-insensitive by default,
-/// components are compared ignoring case.
+/// paths that name a managed directory without sharing its spelling.
 pub(super) fn is_under_ignored_directory(path: &Path, ignored_directories: &[PathBuf]) -> bool {
     if ignored_directories.is_empty() {
         return false;
@@ -18,27 +17,35 @@ pub(super) fn is_under_ignored_directory(path: &Path, ignored_directories: &[Pat
     ignored_directories.iter().any(|dir| starts_with_directory(&path, dir))
 }
 
-#[cfg(not(any(windows, target_os = "macos")))]
+/// [`Path::starts_with`], extended to a prefix that differs from
+/// `directory` only in letter case when the filesystem resolves both
+/// spellings to the same directory, as the default volumes on Windows and
+/// macOS do.
 fn starts_with_directory(path: &Path, directory: &Path) -> bool {
-    path.starts_with(directory)
-}
-
-#[cfg(any(windows, target_os = "macos"))]
-fn starts_with_directory(path: &Path, directory: &Path) -> bool {
-    let fold = |component: std::path::Component<'_>| {
-        component
-            .as_os_str()
-            .to_string_lossy()
-            .to_lowercase()
-    };
+    if path.starts_with(directory) {
+        return true;
+    }
     let mut path_components = path.components();
-    directory
+    let folded_prefix_matches = directory
         .components()
         .all(|expected| {
-            path_components
-                .next()
-                .is_some_and(|actual| fold(actual) == fold(expected))
-        })
+            path_components.next().is_some_and(|actual| eq_ignoring_case(actual, expected))
+        });
+    folded_prefix_matches && {
+        let prefix: PathBuf = path
+            .components()
+            .take(directory.components().count())
+            .collect();
+        same_file::is_same_file(prefix, directory).unwrap_or(false)
+    }
+}
+
+fn eq_ignoring_case(left: Component<'_>, right: Component<'_>) -> bool {
+    let (left, right) = (left.as_os_str(), right.as_os_str());
+    if left.is_ascii() && right.is_ascii() {
+        return left.eq_ignore_ascii_case(right);
+    }
+    left.to_string_lossy().to_lowercase() == right.to_string_lossy().to_lowercase()
 }
 
 /// Resolve managed directories against the workspace root into lexically
@@ -54,7 +61,7 @@ pub(super) fn resolve_ignored_directories(
     ignored_directories
         .iter()
         .map(|dir| pnpm_fs::lexical_normalize(&workspace_root.join(dir)))
-        .filter(|dir| !workspace_root.starts_with(dir))
+        .filter(|dir| !starts_with_directory(&workspace_root, dir))
         .collect()
 }
 

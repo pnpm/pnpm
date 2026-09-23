@@ -6329,6 +6329,7 @@ dependencies = [
  "pnpm-workspace-projects-graph",
  "pretty_assertions",
  "rayon",
+ "same-file",
  "serde",
  "serde-saphyr",
  "tempfile",
