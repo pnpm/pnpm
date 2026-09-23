@@ -910,3 +910,60 @@ fn import_from_shared_npm_shrinkwrap_json_of_monorepo() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn import_deduplicates_compatible_locked_versions_from_package_lock_json() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    npmrc_info.set_dist_tag(DEP_OF_PKG_WITH_1_DEP, "101.0.0", "latest");
+
+    const MANIFEST: &str = r#"{
+  "name": "import-dedupe-compatible",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/dep-of-pkg-with-1-dep": "*",
+    "@pnpm.e2e/pkg-with-1-dep": "100.0.0"
+  }
+}"#;
+
+    const LOCKFILE: &str = r#"{
+  "name": "import-dedupe-compatible",
+  "version": "1.0.0",
+  "lockfileVersion": 1,
+  "dependencies": {
+    "@pnpm.e2e/dep-of-pkg-with-1-dep": {
+      "version": "100.0.0"
+    },
+    "@pnpm.e2e/pkg-with-1-dep": {
+      "version": "100.0.0",
+      "dependencies": {
+        "@pnpm.e2e/dep-of-pkg-with-1-dep": {
+          "version": "100.1.0"
+        }
+      }
+    }
+  }
+}"#;
+
+    write_file(&workspace, "package.json", MANIFEST);
+    write_file(&workspace, "package-lock.json", LOCKFILE);
+
+    pacquet
+        .with_arg("import")
+        .assert()
+        .success();
+
+    assert_pins(
+        &workspace,
+        &["@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0", "@pnpm.e2e/pkg-with-1-dep@100.0.0"],
+        &["@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0", "@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0"],
+    );
+    assert!(!workspace.join("node_modules").exists(), "import must not create node_modules");
+
+    drop((root, npmrc_info));
+}
