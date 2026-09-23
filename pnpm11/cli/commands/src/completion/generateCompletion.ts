@@ -42,12 +42,25 @@ function preserveBashCompletionCandidates (output: string): string {
     .replace('2>/dev/null)) || return $?\n    IFS="$si"', () => `2>/dev/null) || return $?
     COMPREPLY=()
     if [ -n "$completions" ]; then
+      local word="\${COMP_LINE:0:COMP_POINT}" replaced_prefix="" i
+      word="\${word##*[[:space:]]}"
+      for ((i = \${#word} - 1; i >= 0; i--)); do
+        if [[ "$COMP_WORDBREAKS" == *"\${word:i:1}"* ]]; then
+          replaced_prefix="\${word:0:i+1}"
+          break
+        fi
+      done
       while IFS= read -r completion; do
-        printf -v completion '%q' "$completion"
+        printf -v completion '%q' "\${completion#"$replaced_prefix"}"
         COMPREPLY+=("$completion")
       done <<< "$completions"
     fi
     IFS="$si"`)
+    .replace(`
+
+    if type __ltrim_colon_completions &>/dev/null; then
+      __ltrim_colon_completions "\${words[cword]}"
+    fi`, '')
 }
 
 function registerShortAlias (output: string, shell: SupportedShell): string {

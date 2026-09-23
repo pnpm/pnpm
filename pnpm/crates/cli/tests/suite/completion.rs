@@ -701,6 +701,43 @@ printf '%s\n' "$@"
     assert_eq!(actual, expected);
 }
 
+#[cfg(unix)]
+#[test]
+fn completion_bash_completes_words_split_at_word_breaks() {
+    let project = project_with_scripts(&["build", "test:e2e", "test:unit"]);
+    let script = stdout(
+        pacquet()
+            .args(["completion", "bash"])
+            .output()
+            .unwrap(),
+    );
+    let cases: [(&str, &str, &[&str]); 3] = [
+        ("(pnpm run test : u)", "pnpm run test:u", &["unit"]),
+        ("(pnpm run test :)", "pnpm run test:", &["e2e", "unit"]),
+        ("(pnpm install --reporter = app)", "pnpm install --reporter=app", &["append-only"]),
+    ];
+    for (words, line, expected) in cases {
+        let script = format!(
+            r#"{script}
+COMP_WORDS={words}
+COMP_CWORD=$((${{#COMP_WORDS[@]}} - 1))
+COMP_LINE='{line}'
+COMP_POINT=${{#COMP_LINE}}
+_pnpm_completion
+printf '%s\n' "${{COMPREPLY[@]}}"
+"#
+        );
+        let output = Command::new("bash")
+            .current_dir(project.path())
+            .env("PATH", prepend_binary_dir_to_path())
+            .args(["--noprofile", "--norc", "-c", &script])
+            .output()
+            .unwrap();
+        let reply = stdout(output);
+        assert_eq!(reply.lines().collect::<Vec<_>>(), expected, "{line}");
+    }
+}
+
 #[test]
 fn completion_server_accepts_attached_hyphen_prefixed_directories() {
     let project = TempDir::new().unwrap();

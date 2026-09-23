@@ -95,4 +95,24 @@ printf '%s\\n' "$@"
       fs.rmSync(directory, { recursive: true, force: true })
     }
   })
+
+  test.each([
+    ['(pnpm run test : u)', 'pnpm run test:u', ['test:unit'], ['unit']],
+    ['(pnpm run test :)', 'pnpm run test:', ['test:e2e', 'test:unit'], ['e2e', 'unit']],
+    ['(pnpm run test:test : u)', 'pnpm run test:test:u', ['test:test:unit'], ['unit']],
+    ['(pnpm install --reporter = app)', 'pnpm install --reporter=app', ['--reporter=append-only'], ['append-only']],
+  ])('bash completion replaces only the part of %s after the last word break', async (words, line, candidates, expected) => {
+    const { log, handler } = createHandler()
+    await handler({}, ['bash'])
+    const script = `${log.mock.calls[0][0]}
+pnpm () { printf '%s\\n' ${candidates.join(' ')}; }
+COMP_WORDS=${words}
+COMP_CWORD=$((\${#COMP_WORDS[@]} - 1))
+COMP_LINE='${line}'
+COMP_POINT=\${#COMP_LINE}
+_pnpm_completion
+printf '%s\\n' "\${COMPREPLY[@]}"
+`
+    expect(execFileSync('bash', ['--noprofile', '--norc', '-c', script], { encoding: 'utf8' })).toBe(`${expected.join('\n')}\n`)
+  })
 }
