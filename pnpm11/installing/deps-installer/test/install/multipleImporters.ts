@@ -653,6 +653,48 @@ test('headless install is used with an up-to-date lockfile when package referenc
   projects['project-2'].has('is-negative')
 })
 
+test('workspace protocol resolves package with semver build metadata', async () => {
+  const pkg1 = {
+    name: 'project-1',
+    version: '1.0.0',
+
+    dependencies: {
+      'project-2': 'workspace:0.5.6-next.3+f60facc',
+    },
+  }
+  const pkg2 = {
+    name: 'project-2',
+    version: '0.5.6-next.3+f60facc',
+  }
+  const projects = preparePackages([pkg1, pkg2])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: pkg1,
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: pkg2,
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  await mutateModules(importers, testDefaults({ allProjects }))
+
+  projects['project-1'].has('project-2')
+})
+
 test('headless install is used when packages are not linked from the workspace (unless workspace ranges are used)', async () => {
   const foo = {
     name: '@pnpm.e2e/foo',

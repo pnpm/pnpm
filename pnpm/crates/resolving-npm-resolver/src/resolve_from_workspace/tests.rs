@@ -42,9 +42,19 @@ fn build_packages() -> WorkspacePackages {
         },
     );
 
+    let mut meta: WorkspacePackagesByVersion = BTreeMap::new();
+    meta.insert(
+        "0.5.6-next.3+f60facc".to_string(),
+        WorkspacePackage {
+            root_dir: Path::new("/repo/packages/meta").to_path_buf(),
+            manifest: json!({ "name": "meta", "version": "0.5.6-next.3+f60facc" }),
+        },
+    );
+
     let mut packages: WorkspacePackages = BTreeMap::new();
     packages.insert("foo".to_string(), foo);
     packages.insert("bar".to_string(), bar);
+    packages.insert("meta".to_string(), meta);
     packages
 }
 
@@ -149,6 +159,25 @@ fn workspace_exact_version_picks_that_entry() {
 }
 
 #[test]
+fn workspace_build_metadata_resolution() {
+    let packages = build_packages();
+    let opts = opts(&packages);
+    for specifier in [
+        "workspace:0.5.6-next.3+f60facc",
+        "workspace:0.5.6-next.3",
+        "workspace:^0.5.6-next.3+f60facc",
+        "workspace:^0.5.6-next.3",
+        "workspace:~0.5.6-next.3+f60facc",
+        "workspace:*",
+    ] {
+        let result = try_resolve_from_workspace(&wanted("meta", specifier), &opts)
+            .expect("ok")
+            .unwrap_or_else(|| panic!("expected Some for {specifier}"));
+        assert_eq!(result.id.as_str(), "link:../meta", "specifier: {specifier}");
+    }
+}
+
+#[test]
 fn aliased_workspace_form_routes_through_package_name() {
     let packages = build_packages();
     let opts = opts(&packages);
@@ -176,6 +205,36 @@ fn no_matching_version_surfaces_pnpm_error_code() {
     let opts = opts(&packages);
     let err = try_resolve_from_workspace(&wanted("foo", "workspace:^99.0.0"), &opts).unwrap_err();
     assert!(matches!(err, ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace { .. }));
+}
+
+#[test]
+fn no_matching_version_available_versions_deterministic_ordering() {
+    let mut entries: WorkspacePackagesByVersion = BTreeMap::new();
+    entries.insert(
+        "1.0.0+B".to_string(),
+        WorkspacePackage {
+            root_dir: Path::new("/repo/packages/b").to_path_buf(),
+            manifest: json!({ "name": "cased", "version": "1.0.0+B" }),
+        },
+    );
+    entries.insert(
+        "1.0.0+a".to_string(),
+        WorkspacePackage {
+            root_dir: Path::new("/repo/packages/a").to_path_buf(),
+            manifest: json!({ "name": "cased", "version": "1.0.0+a" }),
+        },
+    );
+    let mut packages: WorkspacePackages = BTreeMap::new();
+    packages.insert("cased".to_string(), entries);
+
+    let opts = opts(&packages);
+    let err = try_resolve_from_workspace(&wanted("cased", "workspace:^2.0.0"), &opts).unwrap_err();
+    match err {
+        ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace { available, .. } => {
+            assert_eq!(available, ". Available versions: 1.0.0+a, 1.0.0+B");
+        }
+        other => panic!("expected NoMatchingVersionInsideWorkspace, got {other:?}"),
+    }
 }
 
 #[test]
