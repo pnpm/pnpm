@@ -30,8 +30,6 @@ fn json_error_message_unwraps_pack_context() {
     assert_eq!(json_error_message(&error), "canonical publish failure");
 }
 
-/// The loader records the `place_store` argument of every call, and marks
-/// a config loaded without placing the store the way `Config::current` does.
 fn load_calls(store_use: super::configuration::StoreUse, config_dependencies: bool) -> Vec<bool> {
     use pnpm_workspace_state::ConfigDependency;
 
