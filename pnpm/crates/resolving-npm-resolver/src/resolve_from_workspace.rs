@@ -375,7 +375,9 @@ fn rcompare_versions(left: &str, right: &str) -> std::cmp::Ordering {
         (Ok(left_parsed), Ok(right_parsed)) => right_parsed
             .cmp(&left_parsed)
             .then_with(|| right.cmp(left)),
-        _ => right.cmp(left),
+        (Ok(_), Err(_)) => std::cmp::Ordering::Less,
+        (Err(_), Ok(_)) => std::cmp::Ordering::Greater,
+        (Err(_), Err(_)) => right.cmp(left),
     }
 }
 
