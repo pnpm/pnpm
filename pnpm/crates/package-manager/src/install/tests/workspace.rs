@@ -859,3 +859,59 @@ fn workspace_packages_map_prefers_the_dependency_manifest() {
         Some(&serde_json::json!({ "sibling": "workspace:*" })),
     );
 }
+
+#[cfg(unix)]
+fn setup_symlinked_workspace(dir: &std::path::Path, outside: &std::path::Path) {
+    let target_dir = outside.join("target-pkg");
+    fs::create_dir_all(&target_dir).unwrap();
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({
+            "name": "target-pkg",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    fs::write(
+        dir.join("package.json"),
+        serde_json::json!({ "name": "root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .unwrap();
+    fs::write(dir.join("pnpm-workspace.yaml"), "packages:\n  - 'packages/*'\n").unwrap();
+    let packages_dir = dir.join("packages");
+    fs::create_dir_all(&packages_dir).unwrap();
+    pnpm_fs::symlink_dir(&target_dir, &packages_dir.join("linked-pkg")).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn load_workspace_projects_discovers_symlinked_packages() {
+    let dir = tempdir().unwrap();
+    let outside = tempdir().unwrap();
+    setup_symlinked_workspace(dir.path(), outside.path());
+
+    let manifest = pnpm_workspace::read_workspace_manifest(dir.path())
+        .expect("read workspace manifest")
+        .expect("workspace manifest present");
+
+    let projects = load_workspace_projects(dir.path(), Some(&manifest))
+        .expect("load workspace projects")
+        .expect("workspace projects");
+
+    let names: Vec<&str> = projects
+        .iter()
+        .filter_map(|project| {
+            project.manifest
+                .value()
+                .get("name")
+                .and_then(|value| value.as_str())
+        })
+        .collect();
+
+    assert_eq!(names, vec!["root", "target-pkg"]);
+}
