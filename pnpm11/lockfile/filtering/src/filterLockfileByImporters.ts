@@ -2,7 +2,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { LockfileMissingDependencyError } from '@pnpm/error'
 import {
   getPeerSatisfactionEdgesToSkip,
-  omitUnretainedPeerSatisfactionEdges,
+  pruneDanglingPeerSatisfactionEdges,
 } from '@pnpm/lockfile.peer-edges'
 import type {
   LockfileObject,
@@ -48,7 +48,7 @@ export function filterLockfileByImporters (
         failOnMissingDependencies: opts.failOnMissingDependencies,
       }
     )
-    packages = omitUnretainedPeerSatisfactionEdges(packages, peerSatisfactionEdges)
+    packages = pruneDanglingPeerSatisfactionEdges(packages, peerSatisfactionEdges)
   }
 
   return {

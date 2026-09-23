@@ -214,7 +214,7 @@ fn retain_reachable_snapshots(
             snapshot.optional_dependencies = None;
         }
     }
-    peer_edges.drop_unretained(snapshots);
+    peer_edges.prune_dangling(snapshots);
     if snapshots.is_empty() {
         lockfile.snapshots = None;
     }

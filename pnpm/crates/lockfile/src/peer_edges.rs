@@ -139,7 +139,7 @@ impl PeerSatisfactionEdges {
     /// whose target `snapshots` does not hold. An entry whose target is kept
     /// through another path stays, because that package is installed and the
     /// dependent must link it.
-    pub fn drop_unretained(&self, snapshots: &mut HashMap<PackageKey, SnapshotEntry>) {
+    pub fn prune_dangling(&self, snapshots: &mut HashMap<PackageKey, SnapshotEntry>) {
         let dropped = self.aliases_by_snapshot
             .iter()
             .filter_map(|(key, aliases)| {

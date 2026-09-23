@@ -6,8 +6,8 @@ import { PnpmError } from '@pnpm/error'
 import {
   getPeerSatisfactionEdgesToSkip,
   isPeerSatisfactionEdge,
-  omitUnretainedPeerSatisfactionEdges,
   type PeerSatisfactionEdges,
+  pruneDanglingPeerSatisfactionEdges,
 } from '@pnpm/lockfile.peer-edges'
 import type {
   DirectoryResolution,
@@ -308,7 +308,7 @@ function filterDeployPackageSnapshots (
     if (include.optionalDependencies) enqueue(snapshot.optionalDependencies, depPath)
   }
 
-  return omitUnretainedPeerSatisfactionEdges(Object.fromEntries(
+  return pruneDanglingPeerSatisfactionEdges(Object.fromEntries(
     Array.from(reachable, (depPath) => {
       const snapshot = packages[depPath]
       // A retained snapshot's optional edges point at packages this filter just dropped.

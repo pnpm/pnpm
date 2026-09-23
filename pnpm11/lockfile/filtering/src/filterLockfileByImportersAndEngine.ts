@@ -9,8 +9,8 @@ import { LockfileMissingDependencyError } from '@pnpm/error'
 import {
   getPeerSatisfactionEdgesToSkip,
   isPeerSatisfactionEdge,
-  omitUnretainedPeerSatisfactionEdges,
   type PeerSatisfactionEdges,
+  pruneDanglingPeerSatisfactionEdges,
 } from '@pnpm/lockfile.peer-edges'
 import type {
   LockfileObject,
@@ -173,7 +173,7 @@ function pickPkgsWithAllDeps (
   reportInstallability(ctx, opts)
   pickSkippedDeps(ctx, depEdges, opts)
   return {
-    packages: omitUnretainedPeerSatisfactionEdges(ctx.pickedPackages, opts.peerSatisfactionEdges),
+    packages: pruneDanglingPeerSatisfactionEdges(ctx.pickedPackages, opts.peerSatisfactionEdges),
     requiredDepPaths: ctx.requiredDepPaths,
   }
 }

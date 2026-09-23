@@ -320,14 +320,14 @@ fn followed_entries_leave_out_the_peer_satisfaction_edges() {
 }
 
 #[test]
-fn drop_unretained_removes_only_edges_to_dropped_targets() {
+fn prune_dangling_removes_only_edges_to_dropped_targets() {
     let lockfile = abc_lockfile(&prod_abc_dev_peers("."));
     let edges = PeerSatisfactionEdges::of_lockfile(&lockfile, PeerEdgeOptions::default());
     let abc = key(ABC);
     let original = lockfile.snapshots.unwrap();
 
     let mut kept = original.clone();
-    edges.drop_unretained(&mut kept);
+    edges.prune_dangling(&mut kept);
     assert_eq!(kept, original);
 
     let mut pruned: HashMap<_, _> = original
@@ -335,7 +335,7 @@ fn drop_unretained_removes_only_edges_to_dropped_targets() {
         .filter(|(key, _)| key.to_string() != "peer-c@1.0.0")
         .map(|(key, snapshot)| (key.clone(), snapshot.clone()))
         .collect();
-    edges.drop_unretained(&mut pruned);
+    edges.prune_dangling(&mut pruned);
     let abc_snapshot = &pruned[&abc];
     assert_eq!(abc_snapshot.optional_dependencies, None);
     assert!(

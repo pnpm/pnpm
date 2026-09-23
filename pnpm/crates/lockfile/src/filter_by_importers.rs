@@ -108,7 +108,7 @@ impl Lockfile {
             .collect();
         if let Some(snapshots) = filtered.snapshots.as_mut() {
             snapshots.retain(|key, _| reachable.contains(key));
-            peer_edges.drop_unretained(snapshots);
+            peer_edges.prune_dangling(snapshots);
         }
         if let Some(packages) = filtered.packages.as_mut() {
             packages.retain(|key, _| reachable_metadata.contains(key));

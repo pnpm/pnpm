@@ -126,7 +126,7 @@ fn retained_snapshots(
         .filter(|(key, _)| reachable.contains(*key))
         .map(|(key, snapshot)| (key.clone(), snapshot.clone()))
         .collect();
-    edges.skipped_peer_edges.drop_unretained(&mut snapshots);
+    edges.skipped_peer_edges.prune_dangling(&mut snapshots);
     Some(snapshots)
 }
 

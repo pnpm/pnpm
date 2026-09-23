@@ -2,7 +2,7 @@ import { describe, expect, test } from '@jest/globals'
 import {
   getPeerSatisfactionEdges,
   getPeerSatisfactionEdgesToSkip,
-  omitUnretainedPeerSatisfactionEdges,
+  pruneDanglingPeerSatisfactionEdges,
 } from '@pnpm/lockfile.peer-edges'
 import type { LockfileObject, PackageSnapshot, PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.types'
 import type { DepPath, ProjectId } from '@pnpm/types'
@@ -171,7 +171,7 @@ describe('getPeerSatisfactionEdges', () => {
 
   test('does not share a walk between targets whose non-listing importers differ', () => {
     // The importers that do not list x are 1, 2 and 3, and those that do not
-    // list y are 1 and 23. Undelimited, both sets would join to "123".
+    // list y are 1 and 23. Without a separator, both sets would join to "123".
     const importers: Record<string, Partial<ProjectSnapshot>> = {}
     for (let index = 0; index < 24; index++) {
       importers[`project-${String(index).padStart(2, '0')}`] = {
@@ -232,7 +232,7 @@ describe('getPeerSatisfactionEdgesToSkip', () => {
   })
 })
 
-describe('omitUnretainedPeerSatisfactionEdges', () => {
+describe('pruneDanglingPeerSatisfactionEdges', () => {
   test('drops an edge whose target is not retained, without mutating the input', () => {
     const snapshot: PackageSnapshot = {
       resolution: RESOLUTION,
@@ -242,7 +242,7 @@ describe('omitUnretainedPeerSatisfactionEdges', () => {
     }
     const packages = { ['abc@1.0.0(peer-c@1.0.0)' as DepPath]: snapshot }
     const edges = new Map([['abc@1.0.0(peer-c@1.0.0)' as DepPath, new Set(['peer-c'])]])
-    const result = omitUnretainedPeerSatisfactionEdges(packages, edges)
+    const result = pruneDanglingPeerSatisfactionEdges(packages, edges)
     expect(result['abc@1.0.0(peer-c@1.0.0)' as DepPath].optionalDependencies).toBeUndefined()
     expect(snapshot.optionalDependencies).toStrictEqual({ 'peer-c': '1.0.0' })
     expect(packages['abc@1.0.0(peer-c@1.0.0)' as DepPath]).toBe(snapshot)
@@ -257,6 +257,6 @@ describe('omitUnretainedPeerSatisfactionEdges', () => {
       ['peer-c@1.0.0' as DepPath]: leaf(),
     }
     const edges = new Map([['abc@1.0.0(peer-c@1.0.0)' as DepPath, new Set(['peer-c'])]])
-    expect(omitUnretainedPeerSatisfactionEdges(packages, edges)).toBe(packages)
+    expect(pruneDanglingPeerSatisfactionEdges(packages, edges)).toBe(packages)
   })
 })

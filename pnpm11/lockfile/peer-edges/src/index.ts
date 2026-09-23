@@ -87,7 +87,7 @@ export function isPeerSatisfactionEdge (
  * whose target the map keeps through another path stays: that target is
  * installed, so it is linked. The snapshots are copied, never mutated.
  */
-export function omitUnretainedPeerSatisfactionEdges (
+export function pruneDanglingPeerSatisfactionEdges (
   packages: PackageSnapshots,
   edges: PeerSatisfactionEdges | undefined
 ): PackageSnapshots {
@@ -96,8 +96,8 @@ export function omitUnretainedPeerSatisfactionEdges (
   for (const [parent, aliases] of edges) {
     const snapshot = packages[parent]
     if (snapshot == null) continue
-    const dependencies = omitUnretainedTargets(snapshot.dependencies, aliases, packages)
-    const optionalDependencies = omitUnretainedTargets(snapshot.optionalDependencies, aliases, packages)
+    const dependencies = omitDroppedTargets(snapshot.dependencies, aliases, packages)
+    const optionalDependencies = omitDroppedTargets(snapshot.optionalDependencies, aliases, packages)
     if (dependencies === snapshot.dependencies && optionalDependencies === snapshot.optionalDependencies) continue
     const copy: PackageSnapshot = { ...snapshot }
     setOrDelete(copy, 'dependencies', dependencies)
@@ -108,7 +108,7 @@ export function omitUnretainedPeerSatisfactionEdges (
   return result ?? packages
 }
 
-function omitUnretainedTargets (
+function omitDroppedTargets (
   deps: ResolvedDependencies | undefined,
   aliases: ReadonlySet<string>,
   packages: PackageSnapshots
