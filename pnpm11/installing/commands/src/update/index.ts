@@ -411,7 +411,7 @@ async function interactiveUpdate (
     },
   }))
 
-  return update(updatePkgNames, { ...opts, interactive: false }, rebuildHandler) as Promise<undefined>
+  return update(updatePkgNames, { ...opts, interactive: false, interactiveUpdate: true }, rebuildHandler) as Promise<undefined>
 }
 
 /**

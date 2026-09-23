@@ -114,6 +114,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   latest?: boolean
   pending?: boolean
   workspace?: boolean
+  interactiveUpdate?: boolean
   allowNew?: boolean
   ignoredPackages?: Set<string>
   /**
@@ -308,6 +309,7 @@ export async function recursive (
           include: includeDirect,
           workspacePackages,
           userNamedDeps,
+          fromInteractiveUpdate: opts.interactiveUpdate,
         })
       }
       switch (mutation) {
@@ -451,6 +453,7 @@ export async function recursive (
             include: includeDirect,
             workspacePackages,
             userNamedDeps,
+            fromInteractiveUpdate: opts.interactiveUpdate,
           })
         }
 

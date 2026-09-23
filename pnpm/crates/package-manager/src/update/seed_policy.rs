@@ -64,6 +64,29 @@ impl UpdatePlan {
 }
 /// The seed policy this update runs under, or `None` when nothing it names is
 /// updatable and the command is a no-op.
+fn apply_workspace_and_filter_direct(
+    scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
+    workspace: (Option<&WorkspacePackages>, Vec<WorkspaceLinkTarget>),
+) -> (bool, Vec<(String, DependencyGroup, String)>) {
+    let (workspace_packages, workspace_targets) = workspace;
+    if let Some(workspace_packages) = workspace_packages.filter(|_| !workspace_targets.is_empty()) {
+        apply_workspace_targets(scope, plan, workspace_targets, workspace_packages);
+        let remaining = scope.direct
+            .iter()
+            .filter(|(name, _, _)| {
+                !plan.rewrites
+                    .iter()
+                    .any(|(rw, _, _)| rw == name)
+            })
+            .cloned()
+            .collect();
+        (true, remaining)
+    } else {
+        (false, scope.direct.to_vec())
+    }
+}
+
 pub(super) async fn select_seed_policy<Reporter: self::Reporter>(
     scope: &UpdateScope<'_>,
     plan: &mut UpdatePlan,
@@ -72,11 +95,13 @@ pub(super) async fn select_seed_policy<Reporter: self::Reporter>(
     catalog_ctx: &mut Option<CatalogCtx>,
     workspace: (Option<&WorkspacePackages>, Vec<WorkspaceLinkTarget>),
 ) -> Result<Option<UpdateSeedPolicy>, UpdateError> {
-    let (workspace_packages, workspace_targets) = workspace;
-    if let Some(workspace_packages) = workspace_packages.filter(|_| !workspace_targets.is_empty()) {
-        return Ok(Some(workspace_seed_policy(scope, plan, workspace_targets, workspace_packages)));
-    }
+    let (has_workspace_targets, remaining_direct) =
+        apply_workspace_and_filter_direct(scope, plan, workspace);
+
     if scope.selectors.is_empty() {
+        if has_workspace_targets {
+            return Ok(Some(plan.drop_only(scope.max_depth())));
+        }
         return all_direct_seed_policy::<Reporter>(
             scope,
             plan,
@@ -87,19 +112,32 @@ pub(super) async fn select_seed_policy<Reporter: self::Reporter>(
         .await
         .map(Some);
     }
-    if scope.use_name_matcher() {
-        return Ok(Some(name_matched_seed_policy(scope, plan)));
+
+    let remaining_scope = UpdateScope { direct: &remaining_direct, ..*scope };
+    if remaining_scope.use_name_matcher() {
+        return Ok(Some(name_matched_seed_policy(&remaining_scope, plan)));
     }
-    selector_seed_policy::<Reporter>(scope, plan, rewrite_ctx, latest_chain, catalog_ctx).await
+    let res = selector_seed_policy::<Reporter>(
+        &remaining_scope,
+        plan,
+        rewrite_ctx,
+        latest_chain,
+        catalog_ctx,
+    )
+    .await?;
+    if res.is_none() && has_workspace_targets {
+        return Ok(Some(plan.drop_only(scope.max_depth())));
+    }
+    Ok(res)
 }
 /// `--workspace`: every matched dependency is relinked to the workspace
 /// project that provides it.
-pub(super) fn workspace_seed_policy(
+pub(super) fn apply_workspace_targets(
     scope: &UpdateScope<'_>,
     plan: &mut UpdatePlan,
     workspace_targets: Vec<WorkspaceLinkTarget>,
     workspace_packages: &WorkspacePackages,
-) -> UpdateSeedPolicy {
+) {
     for target in workspace_targets {
         let specifier = workspace_specifier(
             &target,
@@ -110,7 +148,6 @@ pub(super) fn workspace_seed_policy(
         plan.drop_targets.insert(target.name.clone(), None);
         plan.rewrites.push((target.name, target.group, specifier));
     }
-    plan.drop_only(scope.max_depth())
 }
 /// No selector: every included direct dependency updates.
 pub(super) async fn all_direct_seed_policy<Reporter: self::Reporter>(

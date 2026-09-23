@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
@@ -513,3 +514,79 @@ test('interactively update should ignore dependencies from the ignoreDependencie
     expect(lockfile.packages['is-positive@2.0.0']).toBeTruthy()
   }
 })
+
+test('interactive recursive workspace update allows updating external dependencies', async () => {
+  preparePackages([
+    {
+      name: 'project1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project2',
+      version: '1.0.0',
+      dependencies: {
+        project1: 'workspace:*',
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+  const storeDir = path.resolve('store')
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(
+    process.cwd(),
+    []
+  )
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    allProjects,
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    storeDir,
+    workspaceDir: process.cwd(),
+  })
+
+  await writeFile(
+    path.resolve('project2/package.json'),
+    JSON.stringify({
+      name: 'project2',
+      version: '1.0.0',
+      dependencies: {
+        project1: 'workspace:*',
+        'is-negative': '^1.0.0',
+      },
+    }, null, 2)
+  )
+
+  mockCheckbox.mockResolvedValue(['is-negative'])
+
+  const updatedProjects = await filterProjectsBySelectorObjectsFromDir(
+    process.cwd(),
+    []
+  )
+
+  await update.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    allProjects: updatedProjects.allProjects,
+    dir: process.cwd(),
+    interactive: true,
+    linkWorkspacePackages: true,
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph: updatedProjects.selectedProjectsGraph,
+    storeDir,
+    workspace: true,
+    workspaceDir: process.cwd(),
+  })
+
+  const lockfile = readYamlFileSync<LockfileObject>('pnpm-lock.yaml')
+  expect(lockfile.packages).toHaveProperty(['is-negative@1.0.1'])
+})
+

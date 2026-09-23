@@ -32,7 +32,12 @@ fn test_update(
             config: Box::leak(Box::new(config)),
             lockfile: crate::CommandLockfile::loaded(None, None),
             lockfile_only: false,
-            selection: crate::UpdateSelection { packages, depth: 0, workspace_packages: None },
+            selection: crate::UpdateSelection {
+                packages,
+                depth: 0,
+                workspace_packages: None,
+                interactive: false,
+            },
             version: crate::UpdateVersionOptions {
                 latest,
                 patches: false,
