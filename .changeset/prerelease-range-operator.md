@@ -1,5 +1,4 @@
 ---
-"@pnpm/pkg-manifest.utils": patch
 "@pnpm/resolving.npm-resolver": patch
 "pnpm": patch
 "pacquet": patch
