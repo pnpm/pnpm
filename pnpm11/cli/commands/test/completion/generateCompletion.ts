@@ -105,7 +105,7 @@ printf '%s\\n' "$@"
     const { log, handler } = createHandler()
     await handler({}, ['bash'])
     const script = `${log.mock.calls[0][0]}
-pnpm () { printf '%s\\n' ${candidates.join(' ')}; }
+pnpm () { printf '%s\\n' "$CANDIDATES"; }
 COMP_WORDS=${words}
 COMP_CWORD=$((\${#COMP_WORDS[@]} - 1))
 COMP_LINE='${line}'
@@ -113,6 +113,6 @@ COMP_POINT=\${#COMP_LINE}
 _pnpm_completion
 printf '%s\\n' "\${COMPREPLY[@]}"
 `
-    expect(execFileSync('bash', ['--noprofile', '--norc', '-c', script], { encoding: 'utf8' })).toBe(`${expected.join('\n')}\n`)
+    expect(execFileSync('bash', ['--noprofile', '--norc', '-c', script], { encoding: 'utf8', env: { ...process.env, CANDIDATES: candidates.join('\n') } })).toBe(`${expected.join('\n')}\n`)
   })
 }

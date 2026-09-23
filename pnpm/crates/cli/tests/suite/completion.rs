@@ -705,7 +705,7 @@ printf '%s\n' "$@"
 #[test]
 fn completion_bash_completes_words_split_at_word_breaks() {
     let project = project_with_scripts(&["build", "test:e2e", "test:unit"]);
-    let script = stdout(
+    let completion_script = stdout(
         pacquet()
             .args(["completion", "bash"])
             .output()
@@ -717,8 +717,8 @@ fn completion_bash_completes_words_split_at_word_breaks() {
         ("(pnpm install --reporter = app)", "pnpm install --reporter=app", &["append-only"]),
     ];
     for (words, line, expected) in cases {
-        let script = format!(
-            r#"{script}
+        let bash_script = format!(
+            r#"{completion_script}
 COMP_WORDS={words}
 COMP_CWORD=$((${{#COMP_WORDS[@]}} - 1))
 COMP_LINE='{line}'
@@ -730,7 +730,7 @@ printf '%s\n' "${{COMPREPLY[@]}}"
         let output = Command::new("bash")
             .current_dir(project.path())
             .env("PATH", prepend_binary_dir_to_path())
-            .args(["--noprofile", "--norc", "-c", &script])
+            .args(["--noprofile", "--norc", "-c", &bash_script])
             .output()
             .unwrap();
         let reply = stdout(output);
