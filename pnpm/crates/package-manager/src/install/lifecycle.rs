@@ -14,6 +14,7 @@ use super::{
 };
 
 use pnpm_executor::LifecycleScriptError;
+use pnpm_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
 use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, TaskCompletion, schedule_graph};
 use std::sync::Mutex;
 
@@ -119,6 +120,7 @@ pub(super) fn run_root_hook(
 
 /// Run `stages` for the project at `project_dir`, with the workspace root
 /// as `INIT_CWD` and the project's own bin dir and `NODE_PATH` in scope.
+/// Returns `true` when any script was present and executed.
 fn run_project_stages(
     config: &Config,
     workspace_root: &Path,
@@ -194,14 +196,30 @@ impl ProjectScriptRunner<'_> {
         } else {
             stages
         };
-        self.run_without_bin_linking::<Reporter>(project_dir, stages)
+        if !self.run_without_bin_linking::<Reporter>(project_dir, stages)? {
+            return Ok(());
+        }
+        // Injected copies are hardlinks of the files that existed when they
+        // were materialized, so the output of a build script reaches them
+        // only when they are re-synced.
+        sync_injected_deps(&SyncInjectedDeps {
+            pkg_name: manifest
+                .value()
+                .get("name")
+                .and_then(serde_json::Value::as_str),
+            pkg_root_dir: project_dir,
+            workspace_dir: Some(self.workspace_root),
+            manifest_before_scripts: Some(manifest.value()),
+            ignored_directories: self.config.managed_directories(),
+        })
+        .map_err(InstallError::SyncInjectedDeps)
     }
 
     pub(super) fn run_without_bin_linking<Reporter: self::Reporter>(
         &self,
         project_dir: &Path,
         stages: &[&str],
-    ) -> Result<(), InstallError> {
+    ) -> Result<bool, InstallError> {
         run_project_stages(
             self.config,
             self.workspace_root,
@@ -209,7 +227,6 @@ impl ProjectScriptRunner<'_> {
             self.extra_env.clone(),
             |opts| run_project_lifecycle_stages::<Reporter>(opts, stages),
         )
-        .map(drop)
         .map_err(InstallError::ProjectLifecycleScript)
     }
 }

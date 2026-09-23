@@ -442,3 +442,115 @@ fn injected_workspace_dependency_updated_re_resolves() {
 
     drop((root, mock_instance));
 }
+
+/// Workspace whose `project-1` builds `dist/index.js` from its own
+/// `prepare` script, and whose `project-2` gets `project-1` injected.
+fn write_workspace_with_prepare(workspace: &std::path::Path, node_linker: &str) {
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "packages:\n  - 'project-*'\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\nnodeLinker: {node_linker}\n",
+        ),
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    fs::create_dir_all(workspace.join("project-1")).expect("mkdir project-1");
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "scripts": { "prepare": "node build.cjs" },
+        })
+        .to_string(),
+    )
+    .expect("write project-1/package.json");
+    fs::write(
+        workspace.join("project-1/build.cjs"),
+        "const fs = require('fs')\nfs.mkdirSync(__dirname + '/dist', { recursive: true })\nfs.writeFileSync(__dirname + '/dist/index.js', 'built')\n",
+    )
+    .expect("write project-1/build.cjs");
+
+    fs::create_dir_all(workspace.join("project-2")).expect("mkdir project-2");
+    fs::write(
+        workspace.join("project-2/package.json"),
+        serde_json::json!({
+            "name": "project-2",
+            "version": "1.0.0",
+            "dependencies": { "project-1": "workspace:1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write project-2/package.json");
+}
+
+fn assert_injected_copy_is_built(workspace: &std::path::Path, copy: &std::path::Path) {
+    let source = fs::canonicalize(workspace.join("project-1")).expect("canonicalize project-1");
+    assert_ne!(
+        fs::canonicalize(copy).expect("canonicalize the injected copy"),
+        source,
+        "project-1 should be injected at {copy:?}, not linked to its source",
+    );
+    assert_eq!(
+        fs::read_to_string(copy.join("dist/index.js"))
+            .unwrap_or_else(|error| panic!("read the build output in {copy:?}: {error}")),
+        "built",
+    );
+}
+
+#[test]
+fn injected_copy_gets_the_output_of_the_prepare_script_run_by_install() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_prepare(&workspace, "isolated");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let copy = workspace.join("project-2/node_modules/project-1");
+    assert_injected_copy_is_built(&workspace, &copy);
+
+    for dir in ["node_modules", "project-1/dist", "project-2/node_modules"] {
+        fs::remove_dir_all(workspace.join(dir)).expect("clean the install");
+    }
+    crate::_utils::pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_injected_copy_is_built(&workspace, &copy);
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn injected_copy_gets_the_output_of_the_prepare_script_with_the_hoisted_linker() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_prepare(&workspace, "hoisted");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_injected_copy_is_built(&workspace, &workspace.join("node_modules/project-1"));
+
+    drop((root, mock_instance));
+}
