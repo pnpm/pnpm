@@ -18,8 +18,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// pnpm renders this as a title plus the list, so the message carries the
-/// dep paths one per line.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("Packages in the store have been mutated\nThese packages are modified:\n{}", modified.join("\n"))]
 #[diagnostic(code(ERR_PNPM_MODIFIED_DEPENDENCY))]
