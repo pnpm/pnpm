@@ -141,10 +141,13 @@ fn installed_packages(
 
 /// The bin names installed by a group (deduplicated).
 ///
-/// A group whose `node_modules` is wholly absent owns no bins. When
-/// `node_modules` exists, every declared dependency manifest must be
-/// readable and valid: returning a partial set would make destructive
-/// callers mistake unknown ownership for an unowned bin.
+/// A group whose `node_modules` is wholly absent owns no bins, and neither
+/// does a declared dependency whose directory under `node_modules` is absent,
+/// a link left dangling by a pruned store included: no bin can resolve
+/// through a directory that is not there. Every dependency directory that
+/// does exist must hold a readable, valid manifest: returning a partial set
+/// would make destructive callers mistake unknown ownership for an unowned
+/// bin.
 pub fn get_installed_bin_names(
     info: &GlobalPackageInfo,
 ) -> Result<Vec<String>, PackageManifestError> {
@@ -158,19 +161,15 @@ where
     Sys: FsReadFile + FsWalkFiles + FsReadDir,
 {
     let modules_dir = info.install_dir.join("node_modules");
-    // Probing through the capability rather than `std::fs` keeps a fake that
-    // models a readable tree on the per-manifest paths below. Dropping the
-    // entries releases the borrow of `modules_dir` that the error arm moves.
-    match Sys::read_dir(&modules_dir).map(|_| ()) {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => {
-            return Err(PackageManifestError::Read { path: modules_dir, source: error });
-        }
+    if !dir_exists::<Sys>(&modules_dir)? {
+        return Ok(Vec::new());
     }
     let mut bins = BTreeSet::new();
     for (alias, _) in &info.dependencies {
         let dep_dir = modules_dir.join(alias);
+        if !dir_exists::<Sys>(&dep_dir)? {
+            continue;
+        }
         let manifest_path = dep_dir.join("package.json");
         let bytes = Sys::read_file(&manifest_path)
             .map_err(|source| PackageManifestError::Read { path: manifest_path.clone(), source })?;
@@ -181,6 +180,18 @@ where
         }
     }
     Ok(bins.into_iter().collect())
+}
+
+/// Whether `dir` is there to be listed. Only `NotFound` reads as absent;
+/// every other error surfaces, so unreadable ownership is never mistaken
+/// for unowned. Probing through the capability rather than `std::fs` keeps
+/// a fake that models a readable tree on the per-manifest paths.
+fn dir_exists<Sys: FsReadDir>(dir: &Path) -> Result<bool, PackageManifestError> {
+    match Sys::read_dir(dir).map(|_| ()) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(source) => Err(PackageManifestError::Read { path: dir.to_path_buf(), source }),
+    }
 }
 
 /// Read the directly-installed packages of an install directory as

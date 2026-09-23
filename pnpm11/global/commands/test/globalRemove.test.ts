@@ -205,6 +205,57 @@ test('global remove stops protecting a bin of a survivor whose node_modules is g
   }
 })
 
+// A survivor whose package directory is a link into a store that no longer
+// holds it is unusable in the same way as one without node_modules, so it
+// cannot claim the shared bin either.
+test('global remove stops protecting a bin of a survivor whose package link dangles', async () => {
+  const globalDir = createTemporaryRoot('global-remove-dangling-survivor-')
+  const globalBinDir = path.join(globalDir, 'bin')
+  fs.mkdirSync(globalBinDir, { recursive: true })
+  const target = createGlobalGroup({
+    globalDir,
+    hash: 'target-hash',
+    alias: 'target',
+    dependencyManifest: {
+      name: 'target',
+      version: '1.0.0',
+      bin: { shared: 'bin/shared.js' },
+    },
+  })
+  const survivor = createGlobalGroup({
+    globalDir,
+    hash: 'survivor-hash',
+    alias: 'survivor',
+    dependencyManifest: {
+      name: 'survivor',
+      version: '1.0.0',
+      bin: { shared: 'bin/shared.js' },
+    },
+  })
+  const survivorDepDir = path.dirname(survivor.dependencyManifestPath)
+  fs.rmSync(survivorDepDir, { recursive: true })
+  fs.symlinkSync(
+    path.join(globalDir, 'store/links/pruned/node_modules/survivor'),
+    survivorDepDir,
+    process.platform === 'win32' ? 'junction' : 'dir'
+  )
+  const sharedSlot = path.join(globalBinDir, 'shared')
+  fs.writeFileSync(sharedSlot, 'shared shim\n')
+
+  try {
+    await handleGlobalRemove({ globalPkgDir: globalDir, bin: globalBinDir }, ['target'])
+
+    expect(removeBin).toHaveBeenCalledTimes(1)
+    expect(removeBin).toHaveBeenCalledWith(sharedSlot)
+    expect(fs.existsSync(target.hashLink)).toBe(false)
+    expect(fs.existsSync(target.installDir)).toBe(false)
+    expect(fs.existsSync(survivor.hashLink)).toBe(true)
+    expect(fs.readFileSync(survivor.marker, 'utf8')).toBe('survivor install\n')
+  } finally {
+    fs.rmSync(globalDir, { recursive: true, force: true })
+  }
+})
+
 test('global remove checks surviving ownership before deleting a target', async () => {
   const globalDir = createTemporaryRoot('global-remove-survivor-preflight-')
   const globalBinDir = path.join(globalDir, 'bin')

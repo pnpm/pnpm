@@ -377,8 +377,9 @@ fn ownership_snapshot_preserves_manifest_diagnostic_codes() {
         snapshot_global_package(info.clone()).expect("a group without node_modules owns no bins");
     assert!(empty.bin_names.is_empty());
 
-    // A group with a present-but-incomplete tree still fails closed.
-    std::fs::create_dir_all(root.path().join("node_modules")).expect("create modules directory");
+    // A dependency directory without its manifest still fails closed.
+    std::fs::create_dir_all(root.path().join("node_modules/dependency"))
+        .expect("create dependency directory");
 
     let missing = snapshot_global_package(info.clone())
         .err()
