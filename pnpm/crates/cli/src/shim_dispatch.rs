@@ -6,10 +6,10 @@
 //! running the CLI: the `globalShims` record decides which providing
 //! packages are eligible, and the managed runtimes are enabled by default.
 //! For a runtime pin, the dispatcher reads the project's
-//! `devEngines.runtime` / `engines.runtime`, materializes the release in
-//! pnpm's global virtual store, and executes it directly — never through
-//! the project's `node_modules/.bin`. A publisher-signature-verified
-//! stable Node release runs without prompting.
+//! `devEngines.runtime` / `engines.runtime` or `.nvmrc`, materializes the
+//! release in pnpm's global virtual store, and executes it directly —
+//! never through the project's `node_modules/.bin`. A
+//! publisher-signature-verified stable Node release runs without prompting.
 //!
 //! Everything else eligible — ordinary package bins, unsigned runtime
 //! channels — is a trust decision, gated twice. First, the
@@ -58,9 +58,8 @@ use runtime_env::{PACKAGE_MANAGER_ENVS_DIR_NAME, trusted_runtime_config};
 use serde_json::Value;
 
 use settings::{
-    is_automatic_runtime, manifest_package_manager_pin, manifest_runtime_pin,
-    package_manager_runs_promptless, trusted_package_manager_config, trusted_shim_settings,
-    validate_candidate,
+    is_automatic_runtime, manifest_package_manager_pin, package_manager_runs_promptless,
+    runtime_pin, trusted_package_manager_config, trusted_shim_settings, validate_candidate,
 };
 use std::{
     ffi::{OsStr, OsString},
@@ -276,15 +275,10 @@ enum Candidate {
     /// The project has `node_modules/.bin/<name>` — an installed
     /// dependency (including a materialized runtime) providing the bin.
     LocalBin { project_dir: PathBuf, bin: PathBuf, identity: String },
-    /// The project pins the runtime `<name>` in `devEngines.runtime` /
-    /// `engines.runtime` but has not materialized it; the pinned version
-    /// is fetched into the store on demand.
-    RuntimePin {
-        project_dir: PathBuf,
-        version_spec: String,
-        manifest_hash: String,
-        identity: String,
-    },
+    /// The project pins the runtime `<name>` in `devEngines.runtime`,
+    /// `engines.runtime`, or `.nvmrc`, but has not materialized it; the
+    /// pinned version is fetched into the store on demand.
+    RuntimePin { project_dir: PathBuf, version_spec: String, source_hash: String, identity: String },
     /// The project pins its package manager in `packageManager` /
     /// `devEngines.packageManager`. Like a runtime pin, the version is
     /// provisioned on demand rather than expected on the host.
@@ -318,7 +312,7 @@ impl Candidate {
 /// Walk up from `cwd` to the nearest directory providing `name`, the bin
 /// that was invoked, on behalf of `package`.
 ///
-/// Runtime shims only consider manifest pins and never inspect `.bin`;
+/// Runtime shims only consider project runtime pins and never inspect `.bin`;
 /// a package manager's pin outranks an installed copy of itself, because
 /// the pin is the project's own statement of what installs it; ordinary
 /// package bins resolve through `node_modules/.bin`. Directories inside
@@ -344,11 +338,11 @@ fn candidate_in(
     runtime: bool,
     package_manager: Option<PackageManager>,
 ) -> Option<Candidate> {
-    if runtime && let Some((version_spec, manifest_hash)) = manifest_runtime_pin(dir, name) {
+    if runtime && let Some((version_spec, source_hash)) = runtime_pin(dir, name) {
         return Some(Candidate::RuntimePin {
             project_dir: dir.to_path_buf(),
             version_spec,
-            manifest_hash,
+            source_hash,
             identity: String::new(),
         });
     }

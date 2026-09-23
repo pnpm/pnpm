@@ -8,8 +8,9 @@ use super::{
         MAX_HASHED_BIN_SIZE, local_bin_identity, package_dir_of_target, provider_of_target,
         read_shim_target_from_content, small_file_hash,
     },
-    is_automatic_runtime, local_bin_path, local_bin_unchanged, manifest_runtime_pin,
+    is_automatic_runtime, local_bin_path, local_bin_unchanged,
     runtime_env::hardened_install_config,
+    runtime_pin,
     trust::{append_trust_decision, read_trust_decision},
     try_dispatch,
 };
@@ -127,15 +128,9 @@ fn runtime_pin_prefers_dev_engines_and_supports_arrays() {
         .to_string(),
     )
     .unwrap();
-    assert_eq!(
-        manifest_runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(),
-        Some("22.11.0"),
-    );
-    assert_eq!(
-        manifest_runtime_pin(root.path(), "deno").map(|pin| pin.0).as_deref(),
-        Some("2.0.0"),
-    );
-    assert_eq!(manifest_runtime_pin(root.path(), "bun"), None);
+    assert_eq!(runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(), Some("22.11.0"));
+    assert_eq!(runtime_pin(root.path(), "deno").map(|pin| pin.0).as_deref(), Some("2.0.0"));
+    assert_eq!(runtime_pin(root.path(), "bun"), None);
 }
 
 #[test]
@@ -149,10 +144,97 @@ fn runtime_pin_falls_back_to_engines() {
         .to_string(),
     )
     .unwrap();
-    assert_eq!(
-        manifest_runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(),
-        Some("20.1.0"),
-    );
+    assert_eq!(runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(), Some("20.1.0"));
+}
+
+#[test]
+fn runtime_pin_falls_back_to_nvmrc() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(
+        root.path().join(".nvmrc"),
+        "# Node.js version\ncache = shared\n  v22.11.0 # current LTS\nmirror=nodejs\n",
+    )
+    .unwrap();
+    assert_eq!(runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(), Some("22.11.0"));
+    assert_eq!(runtime_pin(root.path(), "deno"), None);
+}
+
+#[test]
+fn runtime_pin_prefers_the_manifest_over_nvmrc() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(
+        root.path().join("package.json"),
+        serde_json::json!({
+            "devEngines": { "runtime": { "name": "node", "version": "22.0.0" } },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(root.path().join(".nvmrc"), "20.0.0\n").unwrap();
+    assert_eq!(runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(), Some("22.0.0"));
+}
+
+#[test]
+fn nvmrc_aliases_are_runtime_selectors() {
+    let root = tempfile::tempdir().unwrap();
+    for (nvm_version, runtime_selector) in [
+        ("node", "latest"),
+        ("stable", "latest"),
+        ("lts/*", "lts"),
+        ("lts/Iron", "Iron"),
+        ("v20", "20"),
+    ] {
+        fs::write(root.path().join(".nvmrc"), nvm_version).unwrap();
+        assert_eq!(
+            runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(),
+            Some(runtime_selector),
+        );
+    }
+}
+
+#[test]
+fn nvm_only_selectors_are_not_runtime_pins() {
+    let root = tempfile::tempdir().unwrap();
+    for contents in
+        ["system", "default", "iojs", "iojs-v1.0.0", "unstable", "lts/-1", "iron", "v", "20foo"]
+    {
+        fs::write(root.path().join(".nvmrc"), contents).unwrap();
+        assert_eq!(runtime_pin(root.path(), "node"), None, "contents: {contents:?}");
+    }
+}
+
+#[test]
+fn unpinned_nvmrc_defers_to_an_ancestor_pin() {
+    let root = tempfile::tempdir().unwrap();
+    let nested = root.path().join("packages").join("app");
+    fs::create_dir_all(&nested).unwrap();
+    fs::write(
+        root.path().join("package.json"),
+        serde_json::json!({
+            "devEngines": { "runtime": { "name": "node", "version": "22.0.0" } },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(nested.join(".nvmrc"), "system\n").unwrap();
+
+    let candidate = find_candidate(&nested, "node", "node").unwrap();
+    let Candidate::RuntimePin { project_dir, version_spec, .. } = candidate else {
+        panic!("expected a runtime pin candidate");
+    };
+    assert_eq!(project_dir, root.path());
+    assert_eq!(version_spec, "22.0.0");
+}
+
+#[test]
+fn malformed_nvmrc_is_not_a_runtime_pin() {
+    let root = tempfile::tempdir().unwrap();
+    for contents in
+        ["", "20\n22\n", "cache=one\ncache=two\n20\n", "node=20\n", "20,evil-package\n", "lts/\n"]
+    {
+        fs::write(root.path().join(".nvmrc"), contents).unwrap();
+        assert_eq!(runtime_pin(root.path(), "node"), None, "contents: {contents:?}");
+    }
 }
 
 #[test]
@@ -175,6 +257,30 @@ fn runtime_pin_candidate_found_walking_up() {
         panic!("expected a runtime pin candidate");
     };
     assert_eq!(project_dir, project);
+    assert_eq!(version_spec, "22.0.0");
+}
+
+#[test]
+fn nearest_nvmrc_runtime_pin_candidate_wins() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    let nested = project.join("packages/app");
+    fs::create_dir_all(&nested).unwrap();
+    fs::write(
+        project.join("package.json"),
+        serde_json::json!({
+            "devEngines": { "runtime": { "name": "node", "version": "20.0.0" } },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(nested.join(".nvmrc"), "22.0.0\n").unwrap();
+
+    let candidate = find_candidate(&nested, "node", "node").unwrap();
+    let Candidate::RuntimePin { project_dir, version_spec, .. } = candidate else {
+        panic!("expected a runtime pin candidate");
+    };
+    assert_eq!(project_dir, nested);
     assert_eq!(version_spec, "22.0.0");
 }
 
