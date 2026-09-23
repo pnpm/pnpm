@@ -54,3 +54,48 @@ fn use_without_global_is_refused_after_the_deprecation_warning() {
     assert!(output.stderr.contains("ERR_PNPM_NOT_IMPLEMENTED_YET"), "{}", output.stderr);
     assert!(output.stdout.contains(r#""pnpm env use" is deprecated"#), "{}", output.stdout);
 }
+
+#[test]
+fn remove_without_global_is_refused_after_the_deprecation_warning() {
+    let output = run_env(&["env", "remove", "24"]);
+    assert!(!output.succeeded);
+    assert!(output.stderr.contains("ERR_PNPM_NOT_IMPLEMENTED_YET"), "{}", output.stderr);
+    assert!(output.stdout.contains(r#""pnpm env remove" is deprecated"#), "{}", output.stdout);
+}
+
+#[test]
+fn rm_without_global_is_refused_after_the_deprecation_warning() {
+    let output = run_env(&["env", "rm", "24"]);
+    assert!(!output.succeeded);
+    assert!(output.stderr.contains("ERR_PNPM_NOT_IMPLEMENTED_YET"), "{}", output.stderr);
+    assert!(output.stdout.contains(r#""pnpm env remove" is deprecated"#), "{}", output.stdout);
+}
+
+#[cfg(unix)]
+#[test]
+fn remove_cleans_up_dangling_node_link() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm_home");
+    let global_bin = pnpm_home.join("bin");
+    std::fs::create_dir_all(&global_bin).unwrap();
+
+    let dangling_target = pnpm_home.join("nodejs/18.12.1/bin/node");
+    let bin_node = global_bin.join("node");
+    std::os::unix::fs::symlink(&dangling_target, &bin_node).unwrap();
+    assert!(bin_node.is_symlink());
+    assert!(!bin_node.exists());
+
+    let existing_path = std::env::var("PATH").unwrap_or_default();
+    let path = format!("{}:{existing_path}", global_bin.display());
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("PATH", path)
+        .with_args(["--global", "env", "rm", "18.12"])
+        .output()
+        .expect("run pacquet env rm");
+
+    assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
+    assert!(!bin_node.is_symlink());
+    assert!(!bin_node.exists());
+}

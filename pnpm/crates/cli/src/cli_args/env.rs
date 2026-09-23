@@ -1,17 +1,24 @@
 //! `pacquet env` — the deprecated Node.js-only front end to
 //! [`super::runtime`], kept because pnpm still ships it.
 
-use super::{add::AddRequest, global::handle_global_add, registry_client::build_registry_client};
+use super::{
+    add::AddRequest,
+    global::{global_dirs, handle_global_add, handle_global_remove},
+    registry_client::build_registry_client,
+};
+use crate::shim_dispatch::remove_native_shim;
 use clap::Args;
 use derive_more::{Display, Error};
-use miette::Diagnostic;
+use miette::{Diagnostic, IntoDiagnostic};
+use pnpm_cmd_shim::remove_bin as remove_cmd_shim;
 use pnpm_config::{Config, Tool};
 use pnpm_engine_runtime_node_resolver::{
     get_node_mirror, parse_node_specifier, resolve_node_versions_with_auth,
 };
+use pnpm_global::find_global_package;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{Reporter, emit_global_warning};
-use std::path::Path;
+use std::{fs, path::Path};
 
 /// Manage Node.js versions.
 #[derive(Debug, Args)]
@@ -25,7 +32,7 @@ pub struct EnvArgs {
     #[clap(long, hide = true)]
     pub remote: bool,
 
-    /// Subcommand (`use`, `list`) and its arguments.
+    /// Subcommand (`use`, `list`, `remove`) and its arguments.
     pub params: Vec<String>,
 }
 
@@ -33,18 +40,25 @@ pub struct EnvArgs {
 const DEPRECATION_WARNING: &str =
     r#""pnpm env use" is deprecated. Use "pnpm runtime set node <version> -g" instead."#;
 
+/// Emitted before `env remove` does anything else, matching where pnpm warns.
+const REMOVE_DEPRECATION_WARNING: &str =
+    r#""pnpm env remove" is deprecated. Use "pnpm remove -g node" instead."#;
+
 /// Errors raised by `pacquet env`.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum EnvError {
     #[display("Please specify the subcommand")]
-    #[diagnostic(code(ERR_PNPM_ENV_NO_SUBCOMMAND), help("Supported subcommands are: use, list"))]
+    #[diagnostic(
+        code(ERR_PNPM_ENV_NO_SUBCOMMAND),
+        help("Supported subcommands are: use, list, remove")
+    )]
     NoSubcommand,
 
     #[display("This subcommand is not known")]
     #[diagnostic(
         code(ERR_PNPM_ENV_UNKNOWN_SUBCOMMAND),
-        help("Supported subcommands are: use, list")
+        help("Supported subcommands are: use, list, remove")
     )]
     UnknownSubcommand,
 
@@ -63,20 +77,29 @@ pub enum EnvError {
     #[diagnostic(code(ERR_PNPM_NOT_IMPLEMENTED_YET))]
     LocalUseUnsupported,
 
-    #[display(r#""pnpm env use --global <version>" requires a Node.js version to be specified"#)]
+    #[display(
+        r#""pnpm env remove <version>" can only be used with the "--global" option currently"#
+    )]
+    #[diagnostic(code(ERR_PNPM_NOT_IMPLEMENTED_YET))]
+    LocalRemoveUnsupported,
+
+    #[display(
+        r#""pnpm env {subcommand} --global <version>" requires a Node.js version to be specified"#
+    )]
     #[diagnostic(code(ERR_PNPM_MISSING_NODE_VERSION))]
-    MissingNodeVersion,
+    MissingNodeVersion { subcommand: &'static str },
 }
 
 /// What [`EnvArgs`] resolved its parameters to.
 ///
-/// The two subcommands need different resources — the global config and
+/// The subcommands need different resources — the global config and
 /// the install pipeline versus a registry client — so parsing is split
 /// from running and the dispatcher picks the path.
 #[derive(Debug)]
 pub enum EnvSubcommand {
     Use { package_name: String },
     List { version_spec: Option<String> },
+    Remove { version: String },
 }
 
 impl EnvArgs {
@@ -102,8 +125,20 @@ impl EnvArgs {
                     .get(1)
                     .map(|version| version.trim())
                     .filter(|version| !version.is_empty())
-                    .ok_or(EnvError::MissingNodeVersion)?;
+                    .ok_or(EnvError::MissingNodeVersion { subcommand: "use" })?;
                 Ok(EnvSubcommand::Use { package_name: format!("node@runtime:{version}") })
+            }
+            "remove" | "rm" | "uninstall" | "un" => {
+                emit_global_warning::<Reporter>(REMOVE_DEPRECATION_WARNING);
+                if !self.global {
+                    return Err(EnvError::LocalRemoveUnsupported);
+                }
+                let version = self.params
+                    .get(1)
+                    .map(|version| version.trim())
+                    .filter(|version| !version.is_empty())
+                    .ok_or(EnvError::MissingNodeVersion { subcommand: "remove" })?;
+                Ok(EnvSubcommand::Remove { version: version.to_string() })
             }
             "list" | "ls" => Ok(EnvSubcommand::List {
                 version_spec: self.params
@@ -165,6 +200,152 @@ impl EnvArgs {
         versions.reverse();
         Ok(versions.join("\n"))
     }
+
+    /// Removes the global Node.js runtime, ensuring all bin shims and
+    /// symlinks in the global bin and home directories are cleaned up so no
+    /// dangling link is left behind.
+    pub async fn run_remove<Reporter: self::Reporter + 'static>(
+        version: String,
+        config: &'static Config,
+        _dir: &Path,
+    ) -> miette::Result<()> {
+        let (global_pkg_dir, global_bin_dir) = global_dirs(config)?;
+        let mut removed_something = false;
+
+        let has_global_node =
+            find_global_package(&global_pkg_dir, "node").into_diagnostic()?.is_some();
+        if has_global_node {
+            handle_global_remove::<Reporter>(config, &["node".to_string()])?;
+            removed_something = true;
+        }
+
+        let mut removed_names = std::collections::HashSet::new();
+        removed_names.insert(version.clone());
+
+        let pnpm_home = global_pkg_dir
+            .parent()
+            .and_then(Path::parent)
+            .or_else(|| global_bin_dir.parent());
+        if cleanup_pnpm_home(pnpm_home, &version, &mut removed_names) {
+            removed_something = true;
+        }
+
+        if cleanup_bin_links(&global_bin_dir, &removed_names) {
+            removed_something = true;
+        }
+
+        if !removed_something {
+            return Err(super::global::GlobalError::PkgNotFound {
+                param: format!("node (version {version})"),
+            }
+            .into());
+        }
+
+        Ok(())
+    }
+}
+
+fn matches_node_version(name: &str, version: &str) -> bool {
+    name == version || name.starts_with(&format!("{version}.")) || name.starts_with(version)
+}
+
+fn cleanup_legacy_nodejs_dir(
+    nodejs_dir: &Path,
+    version: &str,
+    removed_names: &mut std::collections::HashSet<String>,
+) -> bool {
+    let Ok(entries) = fs::read_dir(nodejs_dir) else {
+        return false;
+    };
+    let mut removed = false;
+    for entry in entries.flatten() {
+        let name = entry
+            .file_name()
+            .to_string_lossy()
+            .into_owned();
+        if !matches_node_version(&name, version) {
+            continue;
+        }
+        if fs::remove_dir_all(entry.path()).is_ok() {
+            removed_names.insert(name);
+            removed = true;
+        }
+    }
+    removed
+}
+
+fn cleanup_nodejs_current(
+    pnpm_home: &Path,
+    removed_names: &std::collections::HashSet<String>,
+) -> bool {
+    let nodejs_current = pnpm_home.join("nodejs_current");
+    if !nodejs_current.is_symlink() {
+        return false;
+    }
+    let is_dangling = !nodejs_current.exists();
+    let points_to_removed = fs::read_link(&nodejs_current)
+        .is_ok_and(|target| {
+            let target_str = target.to_string_lossy();
+            removed_names
+                .iter()
+                .any(|name| target_str.contains(name))
+        });
+    if is_dangling || points_to_removed {
+        return fs::remove_file(&nodejs_current).is_ok();
+    }
+    false
+}
+
+fn cleanup_single_bin_link(
+    global_bin_dir: &Path,
+    bin_name: &str,
+    removed_names: &std::collections::HashSet<String>,
+) -> bool {
+    let bin_path = global_bin_dir.join(bin_name);
+    if !bin_path.is_symlink() {
+        return false;
+    }
+    let is_dangling = !bin_path.exists();
+    let points_to_removed = fs::read_link(&bin_path)
+        .is_ok_and(|target| {
+            let target_str = target.to_string_lossy();
+            removed_names
+                .iter()
+                .any(|name| target_str.contains(name) || target_str.contains("nodejs"))
+        });
+    if is_dangling || points_to_removed {
+        let _ = remove_cmd_shim(&bin_path);
+        let _ = remove_native_shim(global_bin_dir, bin_name);
+        let _ = fs::remove_file(&bin_path);
+        return true;
+    }
+    false
+}
+
+fn cleanup_bin_links(
+    global_bin_dir: &Path,
+    removed_names: &std::collections::HashSet<String>,
+) -> bool {
+    let mut removed = false;
+    for bin_name in ["node", "npm", "npx"] {
+        if cleanup_single_bin_link(global_bin_dir, bin_name, removed_names) {
+            removed = true;
+        }
+    }
+    removed
+}
+
+fn cleanup_pnpm_home(
+    pnpm_home: Option<&Path>,
+    version: &str,
+    removed_names: &mut std::collections::HashSet<String>,
+) -> bool {
+    let Some(pnpm_home) = pnpm_home else {
+        return false;
+    };
+    let dir_removed = cleanup_legacy_nodejs_dir(&pnpm_home.join("nodejs"), version, removed_names);
+    let link_removed = cleanup_nodejs_current(pnpm_home, removed_names);
+    dir_removed || link_removed
 }
 
 #[cfg(test)]

@@ -68,7 +68,36 @@ fn use_requires_a_version() {
     let error = args(true, &["use", "  "])
         .subcommand::<SilentReporter>(&config_with_global_bin())
         .unwrap_err();
-    assert!(matches!(error, EnvError::MissingNodeVersion), "{error:?}");
+    assert!(matches!(error, EnvError::MissingNodeVersion { .. }), "{error:?}");
+}
+
+#[test]
+fn remove_is_global_only() {
+    let error = args(false, &["remove", "24"])
+        .subcommand::<SilentReporter>(&config_with_global_bin())
+        .unwrap_err();
+    assert!(matches!(error, EnvError::LocalRemoveUnsupported), "{error:?}");
+}
+
+#[test]
+fn remove_requires_a_version() {
+    let error = args(true, &["remove", "  "])
+        .subcommand::<SilentReporter>(&config_with_global_bin())
+        .unwrap_err();
+    assert!(matches!(error, EnvError::MissingNodeVersion { .. }), "{error:?}");
+}
+
+#[test]
+fn remove_subcommand_and_aliases() {
+    for subcommand_name in ["remove", "rm", "uninstall", "un"] {
+        let subcommand = args(true, &[subcommand_name, "20"])
+            .subcommand::<SilentReporter>(&config_with_global_bin())
+            .unwrap();
+        let EnvSubcommand::Remove { version } = subcommand else {
+            panic!("expected a `remove` subcommand for {subcommand_name}");
+        };
+        assert_eq!(version, "20", "{subcommand_name}");
+    }
 }
 
 #[test]
