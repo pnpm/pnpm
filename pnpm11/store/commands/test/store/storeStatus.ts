@@ -140,3 +140,34 @@ storeDir: "${relativeStoreDir}"
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['status'])
 })
+
+test('store status does not falsely report package with postinstall script as modified', async () => {
+  prepare()
+  const tmp = temporaryDirectory()
+  const cacheDir = path.join(tmp, 'cache')
+  const storeDir = path.join(tmp, 'store')
+
+  await execa('node', [
+    pnpmBin,
+    'add',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    '--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example',
+    `--store-dir=${storeDir}`,
+    `--registry=${REGISTRY}`,
+    '--verify-store-integrity',
+  ], execaOpts)
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+
+  await store.handler({
+    cacheDir,
+    dir: process.cwd(),
+    pnpmHomeDir: '',
+    configByUri: {},
+    registriesByScope: { default: REGISTRY },
+    storeDir,
+    dlxCacheMaxAge: 0,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['status'])
+})
+

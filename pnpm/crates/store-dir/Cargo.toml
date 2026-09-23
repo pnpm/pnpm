@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpm-package-name = { workspace = true }
+pnpm-package-manifest = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
 pnpm-deps-path = { workspace = true }
 pnpm-fs = { workspace = true }

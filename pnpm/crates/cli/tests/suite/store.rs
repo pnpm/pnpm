@@ -240,6 +240,30 @@ fn store_status_reports_a_package_edited_after_it_was_linked_out() {
 }
 
 #[test]
+fn store_status_does_not_falsely_report_package_with_postinstall_script_as_modified() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    pacquet
+        .arg("add")
+        .arg("@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0")
+        .arg("--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example")
+        .assert()
+        .success();
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .args(["store", "status"])
+        .output()
+        .expect("run pacquet store status");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(output.status.success(), "store status must succeed for built packages: {stderr}");
+    assert!(stderr.contains("Packages in the store are untouched"), "stderr={stderr}");
+}
+
+#[test]
 fn store_add_fetches_a_package_without_touching_the_project() {
     let CommandTempCwd {
         pacquet,
