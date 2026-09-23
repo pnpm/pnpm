@@ -96,7 +96,7 @@ pub(crate) fn caret_range_for_patched(patched: &str) -> String {
 pub(crate) fn is_range_subset(sub: &str, dom: &str) -> bool {
     let Ok(dom_range) = dom.trim().parse::<Range>() else { return false };
     let sub = sub.trim();
-    if sub.is_empty() {
+    if sub.is_empty() || !sub_prereleases_admitted_by_dom(sub, dom) {
         return false;
     }
     sub.split("||")
@@ -104,6 +104,38 @@ pub(crate) fn is_range_subset(sub: &str, dom: &str) -> bool {
             let Ok(sub_range) = sub_part.trim().parse::<Range>() else { return false };
             dom_range.allows_all(&sub_range)
         })
+}
+
+fn sub_prereleases_admitted_by_dom(sub: &str, dom: &str) -> bool {
+    for comparator in extract_comparators(sub) {
+        let (_, version_str) = comparator_operator_and_version(comparator);
+        let Ok(version) = version_str.parse::<Version>() else { continue };
+        if version.is_prerelease()
+            && !has_matching_prerelease_tuple(dom, version.major, version.minor, version.patch)
+        {
+            return false;
+        }
+    }
+    true
+}
+
+fn has_matching_prerelease_tuple(dom: &str, major: u64, minor: u64, patch: u64) -> bool {
+    extract_comparators(dom)
+        .any(|comparator| {
+            let (_, version_str) = comparator_operator_and_version(comparator);
+            version_str
+                .parse::<Version>()
+                .is_ok_and(|version| {
+                    version.is_prerelease()
+                        && version.major == major
+                        && version.minor == minor
+                        && version.patch == patch
+                })
+        })
+}
+
+fn extract_comparators(range_str: &str) -> impl Iterator<Item = &str> {
+    range_str.split("||").flat_map(str::split_whitespace)
 }
 
 pub(crate) fn min_version_from_range(range_str: &str) -> Option<Version> {
