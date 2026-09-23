@@ -62,4 +62,6 @@ fn resolves_a_range_identical_to_a_non_semver_version() {
     assert_eq!(resolve_workspace_range("1", &owned(&["1"])).as_deref(), Some("1"));
     assert_eq!(resolve_workspace_range("1.0", &owned(&["1.0", "2"])).as_deref(), Some("1.0"));
     assert_eq!(resolve_workspace_range("2", &owned(&["1"])), None);
+    assert_eq!(resolve_workspace_range("^1", &owned(&["1"])), None);
+    assert_eq!(resolve_workspace_range("^1.0.0", &owned(&["1.0"])), None);
 }

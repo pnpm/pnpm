@@ -73,6 +73,9 @@ fn a_non_semver_version_that_is_not_a_range_keeps_the_protocol() {
         "npm:other@1",
         "github:owner/repo || 1.2.3",
         "file:../other || 1.2.3",
+        "01",
+        "1.01",
+        "900719925474100",
     ] {
         assert_eq!(
             workspace_save_specifier_without_protocol(version),

@@ -1225,7 +1225,7 @@ function calcSpecifierForWorkspaceDep ({
     if (parsedVersion != null) {
       return calcSpecifier({ wantedDependency, spec, version, defaultRangeSpecStyle })
     }
-    if (isPartialVersion(version)) {
+    if (isPartialVersion(version) && semver.validRange(version) != null) {
       return (!wantedDependency.alias || spec.name === wantedDependency.alias) ? version : `npm:${spec.name}@${version}`
     }
   }
@@ -1260,9 +1260,12 @@ function calcSpecifierForWorkspaceDep ({
  */
 function isPartialVersion (version: string): boolean {
   const parts = version.split('.')
-  return parts.length <= 3 && parts.every((part) =>
-    part === 'x' || part === 'X' || part === '*' || (part !== '' && [...part].every((char) => char >= '0' && char <= '9'))
-  )
+  return parts.length <= 3 && parts.every(isPartialVersionComponent)
+}
+
+function isPartialVersionComponent (part: string): boolean {
+  return ['x', 'X', '*', '0'].includes(part) ||
+    (part !== '' && !part.startsWith('0') && [...part].every((char) => char >= '0' && char <= '9'))
 }
 
 function resolveLocalPackageDir (localPackage: WorkspacePackage): string {

@@ -3459,7 +3459,7 @@ test.each([
   expect(resolveResult!.normalizedBareSpecifier).toBe(localVersions.at(-1))
 })
 
-test.each(['github:owner/repo', 'file:../other', 'npm:other@1', 'github:owner/repo || 1.2.3', 'file:../other || 1.2.3'])('preferWorkspacePackages: the workspace version %s is saved with the workspace protocol', async (version) => {
+test.each(['github:owner/repo', 'file:../other', 'npm:other@1', 'github:owner/repo || 1.2.3', 'file:../other || 1.2.3', '01', '1.01'])('preferWorkspacePackages: the workspace version %s is saved with the workspace protocol', async (version) => {
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
