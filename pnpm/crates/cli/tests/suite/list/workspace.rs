@@ -511,6 +511,98 @@ fn list_only_projects_follows_projects_with_dedicated_lockfiles() {
     assert_eq!(output, dedicated_lockfiles_tree(&workspace));
 }
 
+#[test]
+fn list_only_projects_stops_at_a_cycle_between_projects_with_dedicated_lockfiles() {
+    let (_root, workspace, _registry) = setup_registry();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "version": "1.0.0", "dependencies": { "@scope/a": "workspace:*" } })
+            .to_string(),
+    )
+    .expect("write root package.json");
+    let mut yaml =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
+    yaml.push_str("packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write workspace yaml");
+    for (dir_name, dependency) in [("a", "@scope/b"), ("b", "@scope/a")] {
+        let dir = workspace.join("packages").join(dir_name);
+        fs::create_dir_all(&dir).expect("create package dir");
+        let manifest = json!({
+            "name": format!("@scope/{dir_name}"),
+            "version": "1.0.0",
+            "dependencies": { dependency: "workspace:*" },
+        });
+        fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
+    }
+    run_ok(&workspace, &["install"]);
+
+    let output =
+        run_ok(&workspace, &["--filter", ".", "list", "--depth", "Infinity", "--only-projects"]);
+    let dir = canonical(&workspace);
+    assert_eq!(
+        output,
+        format!(
+            "{LEGEND}\n\n\
+             root@1.0.0 {dir}\n\
+             \u{2502}\n\
+             \u{2502}   dependencies:\n\
+             \u{2514}\u{2500}\u{252c} @scope/a@link:packages/a\n\
+             \x20\x20\u{2514}\u{2500}\u{252c} @scope/b@link:packages/b\n\
+             \x20\x20\x20\x20\u{2514}\u{2500}\u{2500} @scope/a@link:packages/a\n\
+             \n\
+             3 packages\n"
+        ),
+    );
+}
+
+#[test]
+fn list_only_projects_matches_each_alias_of_a_project_with_a_dedicated_lockfile() {
+    let (_root, workspace, _registry) = setup_registry();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": {
+                "alias-one": "workspace:@scope/c@*",
+                "alias-two": "workspace:@scope/c@*",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+    let mut yaml =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
+    yaml.push_str("packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write workspace yaml");
+    let dir = workspace.join("packages/c");
+    fs::create_dir_all(&dir).expect("create package dir");
+    fs::write(
+        dir.join("package.json"),
+        json!({ "name": "@scope/c", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+    run_ok(&workspace, &["install"]);
+
+    let output = run_ok(
+        &workspace,
+        &["--filter", ".", "list", "alias-two", "--depth", "Infinity", "--only-projects"],
+    );
+    let dir = canonical(&workspace);
+    assert_eq!(
+        output,
+        format!(
+            "{LEGEND}\n\n\
+             root@1.0.0 {dir}\n\
+             \u{2502}\n\
+             \u{2502}   dependencies:\n\
+             \u{2514}\u{2500}\u{2500} alias-two@link:packages/c\n\
+             \n\
+             1 package\n"
+        ),
+    );
+}
+
 /// `root` depends on `@scope/a`, which depends on `@scope/b`, which
 /// depends on `@scope/c` and on a registry package.
 fn write_nested_projects_workspace(workspace: &Path, extra_settings: &str) {

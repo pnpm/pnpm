@@ -115,7 +115,7 @@ export function buildDependencyGraph (
  * this includes a project's `link:` dependency on a directory outside the
  * lockfile: with a dedicated lockfile per project, every other workspace
  * project is such a directory. `buildDependenciesTree` keeps those only when
- * the directory has a lockfile of its own.
+ * the directory is a workspace project.
  */
 export function isProjectEdge (parentId: TreeNodeId, edge: DependencyEdge): boolean {
   if (edge.target != null) return edge.target.nodeId.type === 'importer'

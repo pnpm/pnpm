@@ -32,7 +32,7 @@ impl GraphEdge {
     /// lockfile, this includes a project's `link:` dependency on a directory
     /// outside the lockfile: with a dedicated lockfile per project, every
     /// other workspace project is such a directory. `pnpm list` keeps those
-    /// only when the directory has a lockfile of its own.
+    /// only when the directory is a workspace project.
     #[must_use]
     pub fn leads_to_project(&self, parent: &TreeNodeId) -> bool {
         match &self.target {

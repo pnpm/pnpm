@@ -65,13 +65,11 @@ export async function buildDependenciesTree (
 interface LinkedProjectsWalk {
   /** The linked projects whose trees enclose the current one. */
   ancestors: Set<string>
-  /** Linked projects already expanded in the output, by path and depth. */
-  expanded: Map<string, ExpandedLinkedProject>
-}
-
-interface ExpandedLinkedProject {
-  kept: boolean
-  count: number
+  /**
+   * The number of dependencies under each linked project already expanded in
+   * the output, by path and depth.
+   */
+  expanded: Map<string, number>
 }
 
 async function buildProjectsTrees (
@@ -222,7 +220,7 @@ async function expandLinkedProjectNodes (
     let expandedNode: DependencyNode | undefined = node
     if (node.dependencies != null) {
       // eslint-disable-next-line no-await-in-loop
-      expandedNode = { ...node, dependencies: await expandLinkedProjectNodes(node.dependencies, level + 1, ctx) }
+      expandedNode = keepSearched({ ...node, dependencies: await expandLinkedProjectNodes(node.dependencies, level + 1, ctx) }, ctx)
     } else if (!node.circular && ctx.importers[getLockfileImporterId(ctx.lockfileDir, node.path)] == null) {
       // eslint-disable-next-line no-await-in-loop
       expandedNode = await expandLinkedProject(node, level, ctx)
@@ -242,10 +240,11 @@ async function expandLinkedProject (
   if (level >= ctx.depth) return keepSearched(node, ctx)
   const depth = ctx.depth - level - 1
   const key = `${node.path}@${depth}`
-  const previous = ctx.walk.expanded.get(key)
-  if (previous != null) {
-    if (!previous.kept) return undefined
-    return previous.count > 0 ? { ...node, deduped: true, dedupedDependenciesCount: previous.count } : node
+  const previousCount = ctx.walk.expanded.get(key)
+  if (previousCount != null) {
+    return previousCount > 0
+      ? { ...node, deduped: true, dedupedDependenciesCount: previousCount }
+      : keepSearched(node, ctx)
   }
   const linkedTrees = await buildProjectsTrees([node.path], {
     ...ctx.treeOpts,
@@ -254,11 +253,10 @@ async function expandLinkedProject (
   }, ctx.walk)
   const linkedTree = linkedTrees[node.path]
   const dependencies = DEPENDENCIES_FIELDS.flatMap((field) => linkedTree[field] ?? [])
-  const expanded = keepSearched(dependencies.length > 0
+  ctx.walk.expanded.set(key, countNodes(dependencies))
+  return keepSearched(dependencies.length > 0
     ? { ...node, dependencies: rewriteLinkVersions(dependencies, ctx.rewriteLinkVersionDir) }
     : node, ctx)
-  ctx.walk.expanded.set(key, { kept: expanded != null, count: countNodes(dependencies) })
-  return expanded
 }
 
 function countNodes (nodes: DependencyNode[]): number {

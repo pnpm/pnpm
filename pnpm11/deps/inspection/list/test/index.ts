@@ -906,6 +906,44 @@ ${boldHighlighted(`root@1.0.0 ${fixture}`)}
 └── @scope/b${VERSION_CLR('@link:packages/b')} [deduped]`)
 })
 
+test('--only-projects stops at a cycle between projects with dedicated lockfiles', async () => {
+  const fixture = f.find('workspace-with-cyclic-dedicated-lockfiles')
+  const output = await list([fixture], {
+    depth: Infinity,
+    lockfileDir: fixture,
+    onlyProjects: true,
+    virtualStoreDirMaxLength: 120,
+    workspaceProjectDirs: [fixture, ...['a', 'b'].map((name) => path.join(fixture, 'packages', name))],
+  })
+
+  expect(output).toBe(`${LEGEND}
+
+${boldHighlighted(`root@1.0.0 ${fixture}`)}
+│
+│   ${DEPENDENCIES}
+└─┬ @scope/a${VERSION_CLR('@link:packages/a')}
+  └─┬ @scope/b${VERSION_CLR('@link:packages/b')}
+    └── @scope/a${VERSION_CLR('@link:packages/a')}`)
+})
+
+test('--only-projects matches each alias of a project with a dedicated lockfile', async () => {
+  const fixture = f.find('workspace-with-aliased-dedicated-lockfiles')
+  const output = await listForPackages(['alias-two'], [fixture], {
+    depth: Infinity,
+    lockfileDir: fixture,
+    onlyProjects: true,
+    virtualStoreDirMaxLength: 120,
+    workspaceProjectDirs: [fixture, path.join(fixture, 'packages/c')],
+  })
+
+  expect(output).toBe(`${LEGEND}
+
+${boldHighlighted(`root@1.0.0 ${fixture}`)}
+│
+│   ${DEPENDENCIES}
+└── ${highlighted(`alias-two${VERSION_CLR('@link:packages/c')}`)}`)
+})
+
 function dedicatedLockfilesWorkspaceProjectDirs (fixture: string): string[] {
   return [fixture, ...['a', 'b', 'c'].map((name) => path.join(fixture, 'packages', name))]
 }

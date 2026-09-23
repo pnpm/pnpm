@@ -24,9 +24,10 @@ type BoxedResult<'a, Output> = Pin<Box<dyn Future<Output = miette::Result<Output
 /// The state every linked-project walk of one `list` run shares.
 pub(super) struct SharedLinkedProjects {
     workspace_project_dirs: HashSet<PathBuf>,
-    /// Linked projects already expanded in the output, by directory and
-    /// depth, so that a repeated one is marked deduped instead of walked.
-    expanded: Mutex<HashMap<(PathBuf, MaxDepth), ExpandedLinkedProject>>,
+    /// The number of dependencies under each linked project already
+    /// expanded in the output, by directory and depth, so that a repeated
+    /// one is marked deduped instead of walked.
+    expanded: Mutex<HashMap<(PathBuf, MaxDepth), u64>>,
 }
 
 impl SharedLinkedProjects {
@@ -42,7 +43,7 @@ impl SharedLinkedProjects {
         Ok(SharedLinkedProjects { workspace_project_dirs, expanded: Mutex::default() })
     }
 
-    fn previously_expanded(&self, key: &(PathBuf, MaxDepth)) -> Option<ExpandedLinkedProject> {
+    fn previously_expanded(&self, key: &(PathBuf, MaxDepth)) -> Option<u64> {
         self.expanded
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -50,30 +51,11 @@ impl SharedLinkedProjects {
             .copied()
     }
 
-    fn record_expanded(&self, key: (PathBuf, MaxDepth), expanded: ExpandedLinkedProject) {
+    fn record_expanded(&self, key: (PathBuf, MaxDepth), count: u64) {
         self.expanded
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .insert(key, expanded);
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct ExpandedLinkedProject {
-    kept: bool,
-    count: u64,
-}
-
-impl ExpandedLinkedProject {
-    fn dedupe(self, mut node: DependencyNode) -> Option<DependencyNode> {
-        if !self.kept {
-            return None;
-        }
-        if self.count > 0 {
-            node.status.deduped = true;
-            node.status.deduped_dependencies_count = Some(self.count);
-        }
-        Some(node)
+            .insert(key, count);
     }
 }
 
@@ -164,7 +146,7 @@ impl ListArgs {
                 if !node.dependencies.is_empty() {
                     node.dependencies =
                         self.expand_linked_project_nodes(walk, node.dependencies, level + 1).await?;
-                    expanded.push(node);
+                    expanded.extend(keep_searched(node, walk));
                     continue;
                 }
                 let path = PathBuf::from(&node.package.path);
@@ -200,8 +182,13 @@ impl ListArgs {
             return Ok(keep_searched(node, walk));
         };
         let key = (project_dir.to_path_buf(), depth);
-        if let Some(previous) = walk.shared.previously_expanded(&key) {
-            return Ok(previous.dedupe(node));
+        if let Some(count) = walk.shared.previously_expanded(&key) {
+            if count > 0 {
+                node.status.deduped = true;
+                node.status.deduped_dependencies_count = Some(count);
+                return Ok(Some(node));
+            }
+            return Ok(keep_searched(node, walk));
         }
         let request = TreeRequest {
             params: walk.params,
@@ -212,10 +199,8 @@ impl ListArgs {
         node.dependencies =
             self.load_linked_project_dependencies(walk.config, project_dir, &request).await?;
         rewrite_link_versions(&mut node.dependencies, walk.rewrite_link_version_dir);
-        let count = count_nodes(&node.dependencies);
-        let expanded = keep_searched(node, walk);
-        walk.shared.record_expanded(key, ExpandedLinkedProject { kept: expanded.is_some(), count });
-        Ok(expanded)
+        walk.shared.record_expanded(key, count_nodes(&node.dependencies));
+        Ok(keep_searched(node, walk))
     }
 
     async fn load_linked_project_dependencies(
