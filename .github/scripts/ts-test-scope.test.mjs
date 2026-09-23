@@ -34,9 +34,8 @@ test('PR scope stays pinned when main advances; global changes and missing bases
     commit(checkout, '.changeset/fix-example.md', 'Release note')
     assert.equal(scope().full_tests, 'false', 'TS code plus release notes remain affected')
     commit(checkout, 'pnpm/crates/example/src/lib.rs', 'rust')
-    commit(checkout, 'Cargo.lock', 'rust lockfile')
-    assert.equal(scope().full_tests, 'false', 'TS code plus Rust sources remain affected')
-    for (const file of ['package.json', 'pnpm-lock.yaml', '.pnpmfile.cjs', 'pnpm-workspace.yaml', '__patches__/dependency.patch', '.github/scripts/new-helper.mjs', '.changeset/config.json']) {
+    assert.equal(scope().full_tests, 'false', 'TS code plus pacquet sources remain affected')
+    for (const file of ['package.json', 'pnpm-lock.yaml', '.pnpmfile.cjs', 'pnpm-workspace.yaml', '__patches__/dependency.patch', '.github/scripts/new-helper.mjs', '.changeset/config.json', 'pnpr/crates/example/src/lib.rs', 'pnpr/.fixtures/packages/example/package.json', 'Cargo.lock']) {
       commit(checkout, file, 'global input')
       assert.equal(scope().full_tests, 'true', file)
       git(checkout, 'reset', '--hard', 'HEAD^')
