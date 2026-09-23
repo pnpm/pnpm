@@ -2849,7 +2849,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         opts: opts.scriptsOpts,
         projectDependencies: opts.projectDependencies,
         projectWithPreinstallRan: opts.rootProjectPreinstallRan ? opts.lockfileDir : undefined,
-        stages: opts.include?.devDependencies !== false ? PROJECT_LIFECYCLE_STAGES : PROJECT_INSTALL_STAGES,
+        stages: (opts.deploy || opts.include?.devDependencies === false)
+          ? PROJECT_INSTALL_STAGES
+          : PROJECT_LIFECYCLE_STAGES,
       })
     }
   } else {

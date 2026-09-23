@@ -179,6 +179,7 @@ impl DeployArgs {
 
         let install = {
             let mut base_install = state.install(dependency_groups);
+            base_install.execution.mutation = pnpm_package_manager::ProjectMutation::Deploy;
             base_install.lockfile_policy.frozen = frozen_lockfile;
             base_install.lockfile_policy.prefer_frozen = frozen_lockfile
                 .then_some(true)

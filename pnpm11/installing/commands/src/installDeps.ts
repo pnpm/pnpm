@@ -147,6 +147,7 @@ export type InstallDepsOptions = Pick<Config,
     remain?: string[]
   }
   allowNew?: boolean
+  deploy?: boolean
   /** See {@link RecursiveOptions.excludeWorkspaceRootProject}. */
   excludeWorkspaceRootProject?: boolean
   forceFullResolution?: boolean
@@ -256,7 +257,7 @@ export async function installDeps (
     })
     ? declaredPacquetConfigDepName
     : undefined
-  const runPacquet = pacquetConfigDepName != null
+  const runPacquet = pacquetConfigDepName != null && !opts.deploy
     ? makeRunPacquet({
       lockfileDir: opts.lockfileDir ?? opts.dir,
       packageName: pacquetConfigDepName,

@@ -394,3 +394,40 @@ test('deployed peer dependencies can install with a fresh lockfile', async () =>
     })
   }
 })
+
+test('deploy does not run prepare scripts of the deployed project', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '0.0.0', private: true } },
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/foo': '100.0.0' },
+        scripts: {
+          preinstall: 'node -e "require(\'fs\').appendFileSync(\'ran-stages.txt\', \'preinstall\\n\')"',
+          install: 'node -e "require(\'fs\').appendFileSync(\'ran-stages.txt\', \'install\\n\')"',
+          postinstall: 'node -e "require(\'fs\').appendFileSync(\'ran-stages.txt\', \'postinstall\\n\')"',
+          prepublish: 'node -e "process.exit(1)"',
+          preprepare: 'node -e "process.exit(1)"',
+          prepare: 'node -e "process.exit(1)"',
+          postprepare: 'node -e "process.exit(1)"',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+  })
+
+  await execPnpm(['install', '--ignore-scripts'])
+  await execPnpm(['--filter=app', 'deploy', '--prod', 'deploy-prod'])
+  expect(fs.readFileSync('deploy-prod/ran-stages.txt', 'utf8')).toBe('preinstall\ninstall\npostinstall\n')
+
+  await execPnpm(['--filter=app', 'deploy', 'deploy-dev'])
+  expect(fs.readFileSync('deploy-dev/ran-stages.txt', 'utf8')).toBe('preinstall\ninstall\npostinstall\n')
+
+  await execPnpm(['--filter=app', 'deploy', '--legacy', 'deploy-legacy'])
+  expect(fs.readFileSync('packages/app/ran-stages.txt', 'utf8')).toBe('preinstall\ninstall\npostinstall\n')
+})

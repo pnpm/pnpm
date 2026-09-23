@@ -14,7 +14,7 @@ pub(in crate::install) fn project_script_stages(
 ) -> &'static [&'static str] {
     match mutation {
         ProjectMutation::UninstallSome => &PROJECT_POST_UNINSTALL_STAGES,
-        ProjectMutation::InstallSome => &PROJECT_INSTALL_STAGES,
+        ProjectMutation::InstallSome | ProjectMutation::Deploy => &PROJECT_INSTALL_STAGES,
         ProjectMutation::InstallWorkspace
         | ProjectMutation::InstallSelected
         | ProjectMutation::NoInstall => {

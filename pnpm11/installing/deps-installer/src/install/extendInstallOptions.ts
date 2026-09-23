@@ -25,6 +25,7 @@ export interface StrictInstallOptions extends RegistryContext {
   catalogs: Catalogs
   catalogMode: 'strict' | 'prefer' | 'manual'
   catalogPrune: boolean
+  deploy?: boolean
   minimumReleaseAgeExcludePrune: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
@@ -308,6 +309,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     confirmModulesPurge: !(opts.autoConfirmAllPrompts || opts.force),
     depth: 0,
     dedupeInjectedDeps: true,
+    deploy: opts.deploy ?? false,
     enableGlobalVirtualStore: false,
     enablePnp: false,
     engineStrict: false,

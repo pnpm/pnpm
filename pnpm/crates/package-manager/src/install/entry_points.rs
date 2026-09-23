@@ -210,8 +210,9 @@ where
     /// workspace, so nothing is written to it (pnpm's
     /// `saveLockfile: false`).
     pub async fn run_legacy_deploy<Reporter: self::Reporter + 'static>(
-        self,
+        mut self,
     ) -> Result<(), InstallError> {
+        self.execution.mutation = ProjectMutation::Deploy;
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             root_manifest_as_workspace_root: true,
             save_lockfile: false,
