@@ -1,4 +1,3 @@
-use super::link::DEPENDENCY_FIELDS;
 use clap::Args;
 use miette::Context;
 use pnpm_config::Config;
@@ -31,7 +30,8 @@ impl UnlinkArgs {
     /// Revert what `pnpm link` wrote: strip the matching `link:` overrides
     /// from `config` (in memory) and from `pnpm-workspace.yaml`, and drop the
     /// `link:` dependencies that point at the same directories from the
-    /// project's `package.json`. Returns whether the caller should reinstall.
+    /// manifests `project_manifest_paths` returns. Returns whether the caller
+    /// should reinstall.
     ///
     /// Mirrors pnpm: when no overrides are configured it prints "Nothing to
     /// unlink" and returns `false` so the caller stops; otherwise it removes
@@ -41,6 +41,7 @@ impl UnlinkArgs {
         &self,
         config: &mut Config,
         manifest_path: &Path,
+        project_manifest_paths: impl FnOnce(&Config) -> miette::Result<Vec<PathBuf>>,
     ) -> miette::Result<bool> {
         let Some(overrides) = config.overrides.as_mut() else {
             println!("Nothing to unlink");
@@ -80,7 +81,9 @@ impl UnlinkArgs {
                 .iter()
                 .map(|(name, specifier)| (name.as_str(), link_target_dir(root_dir, specifier)))
                 .collect();
-            remove_linked_dependencies(manifest_path, &linked_dirs)?;
+            for project_manifest_path in project_manifest_paths(config)? {
+                remove_linked_dependencies(&project_manifest_path, &linked_dirs)?;
+            }
         }
 
         Ok(true)
@@ -93,9 +96,9 @@ fn link_target_dir(base_dir: &Path, specifier: &str) -> PathBuf {
 }
 
 /// Drop the dependencies `pnpm link` added to `package.json` for the removed
-/// overrides. Only a `link:` dependency that points at the same directory as
-/// its override is dropped, so a `link:` dependency declared to another
-/// directory is kept.
+/// overrides. `pnpm link` only writes `dependencies`, and only a `link:`
+/// dependency that points at the same directory as its override is dropped,
+/// so a `link:` dependency declared to another directory is kept.
 fn remove_linked_dependencies(
     manifest_path: &Path,
     linked_dirs: &[(&str, PathBuf)],
@@ -108,28 +111,26 @@ fn remove_linked_dependencies(
     let manifest_dir = manifest_path
         .parent()
         .ok_or_else(|| miette::miette!("manifest path has no parent directory"))?;
+    let Some(deps) = manifest
+        .value_mut()
+        .get_mut("dependencies")
+        .and_then(Value::as_object_mut)
+    else {
+        return Ok(());
+    };
 
     let mut changed = false;
-    for field in DEPENDENCY_FIELDS {
-        let Some(deps) = manifest
-            .value_mut()
-            .get_mut(field)
-            .and_then(Value::as_object_mut)
-        else {
-            continue;
-        };
-        for (name, linked_dir) in linked_dirs {
-            let points_at_linked_dir = deps
-                .get(*name)
-                .and_then(Value::as_str)
-                .is_some_and(|specifier| {
-                    specifier.starts_with("link:")
-                        && link_target_dir(manifest_dir, specifier) == *linked_dir
-                });
-            if points_at_linked_dir {
-                deps.remove(*name);
-                changed = true;
-            }
+    for (name, linked_dir) in linked_dirs {
+        let points_at_linked_dir = deps
+            .get(*name)
+            .and_then(Value::as_str)
+            .is_some_and(|specifier| {
+                specifier.starts_with("link:")
+                    && link_target_dir(manifest_dir, specifier) == *linked_dir
+            });
+        if points_at_linked_dir {
+            deps.remove(*name);
+            changed = true;
         }
     }
 

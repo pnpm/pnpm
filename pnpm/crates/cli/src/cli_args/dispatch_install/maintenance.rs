@@ -6,6 +6,8 @@ use super::{
     ReporterType, RunCtx, RuntimeArgs, SilentReporter, UnlinkArgs, apply_install_cli_config,
     apply_update_config, derive_config_root, global, resolve_bool_override, warn_about_config_root,
 };
+use crate::cli_args::pipelines::select_workspace_projects;
+use pnpm_workspace::project_manifest_path;
 use std::sync::atomic::Ordering;
 
 pub(in super::super) fn deploy<'a>(
@@ -186,9 +188,21 @@ pub(in super::super) fn unlink<'a>(
     Ok(Box::pin(async move {
         let recursive_sort = cfg.sort;
         args.apply_cli_config(cfg);
-        // Revert the matching links; stop early when there is nothing to
-        // unlink.
-        if !args.remove_links(cfg, manifest_path)? {
+        let project_manifest_paths = |cfg: &Config| {
+            let selection =
+                select_workspace_projects(cfg, dir, manifest_path, recursive_sort, false)?;
+            let mut paths = vec![manifest_path.to_path_buf()];
+            if let Some(selection) = selection {
+                paths.extend(
+                    selection.selected_dirs
+                        .iter()
+                        .map(|dir| project_manifest_path(dir))
+                        .filter(|path| path != manifest_path),
+                );
+            }
+            Ok(paths)
+        };
+        if !args.remove_links(cfg, manifest_path, project_manifest_paths)? {
             return Ok(());
         }
         // Reinstall through the install-family pipeline, exactly as pnpm's

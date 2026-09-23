@@ -3,7 +3,7 @@ import path from 'node:path'
 import { UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, tryReadProjectManifest } from '@pnpm/cli.utils'
 import { writeSettings } from '@pnpm/config.writer'
-import { DEPENDENCIES_FIELDS, type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { isEmpty } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -74,9 +74,10 @@ export async function handler (
 
 /**
  * Removes the dependencies that `pnpm link` added to the root project manifest
- * for the given `link:` overrides. A dependency is removed only when it is a
- * `link:` to the same directory as the override, so a `link:` dependency the
- * user declared to another directory is kept.
+ * for the given `link:` overrides, on disk and in the workspace projects the
+ * install reads. `pnpm link` only writes `dependencies`, and a dependency is
+ * removed only when it is a `link:` to the same directory as the override, so
+ * a `link:` dependency the user declared elsewhere is kept.
  */
 async function removeLinkedDependencies (
   opts: install.InstallCommandOptions,
@@ -84,24 +85,34 @@ async function removeLinkedDependencies (
 ): Promise<ProjectManifest | undefined> {
   const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.rootProjectManifestDir, opts)
   if (manifest == null) return undefined
-  const resolveLinkTarget = (specifier: string) => path.resolve(opts.rootProjectManifestDir, specifier.slice('link:'.length))
-  let changed = false
-  for (const depField of DEPENDENCIES_FIELDS) {
-    const deps = manifest[depField]
-    if (deps == null) continue
-    for (const [name, overrideSpecifier] of Object.entries(removedLinks)) {
-      const specifier = deps[name]
-      if (specifier?.startsWith('link:') && resolveLinkTarget(specifier) === resolveLinkTarget(overrideSpecifier)) {
-        delete deps[name]
-        changed = true
-        if (isEmpty(deps)) {
-          delete manifest[depField]
-        }
-      }
-    }
+  const rootDir = path.resolve(opts.rootProjectManifestDir)
+  const loadedRootManifests = [
+    ...(opts.allProjects ?? []).filter(({ rootDir: dir }) => path.resolve(dir) === rootDir),
+    ...Object.values(opts.selectedProjectsGraph ?? {}).map(({ package: project }) => project).filter(({ rootDir: dir }) => path.resolve(dir) === rootDir),
+  ].map(({ manifest }) => manifest)
+  for (const loadedManifest of loadedRootManifests) {
+    dropLinkedDependencies(loadedManifest, removedLinks, rootDir)
   }
-  if (changed) {
+  if (dropLinkedDependencies(manifest, removedLinks, rootDir) && !opts.dryRun) {
     await writeProjectManifest(manifest)
   }
   return manifest
+}
+
+function dropLinkedDependencies (manifest: ProjectManifest, removedLinks: Record<string, string>, manifestDir: string): boolean {
+  const deps = manifest.dependencies
+  if (deps == null) return false
+  const resolveLinkTarget = (specifier: string) => path.resolve(manifestDir, specifier.slice('link:'.length))
+  let changed = false
+  for (const [name, overrideSpecifier] of Object.entries(removedLinks)) {
+    const specifier = deps[name]
+    if (specifier?.startsWith('link:') && resolveLinkTarget(specifier) === resolveLinkTarget(overrideSpecifier)) {
+      delete deps[name]
+      changed = true
+    }
+  }
+  if (changed && isEmpty(deps)) {
+    delete manifest.dependencies
+  }
+  return changed
 }

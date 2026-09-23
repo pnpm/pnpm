@@ -2,9 +2,11 @@ import fs from 'node:fs'
 
 import { expect, test } from '@jest/globals'
 import { link, unlink } from '@pnpm/installing.commands'
-import { prepare } from '@pnpm/prepare'
+import { prepare, prepareEmpty } from '@pnpm/prepare'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { loadJsonFileSync } from 'load-json-file'
 import { writePackageSync } from 'write-package'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -72,5 +74,46 @@ test('unlink keeps a link: dependency that points to another directory than the 
     name: 'project',
     version: '1.0.0',
     dependencies: { 'linked-foo': 'link:../linked-bar' },
+  })
+})
+
+test('recursive unlink removes the dependency that link added to the workspace root', async () => {
+  prepareEmpty()
+  writePackageSync('linked-foo', { name: 'linked-foo', version: '1.0.0' })
+  fs.mkdirSync('workspace')
+  process.chdir('workspace')
+  writePackageSync('.', { name: 'root', version: '1.0.0' })
+  writePackageSync('packages/app', { name: 'app', version: '1.0.0' })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+  const workspaceOpts = { ...commandOpts(), workspaceDir: process.cwd() }
+
+  await link.handler(workspaceOpts, ['../linked-foo'])
+  expect(fs.existsSync('node_modules/linked-foo')).toBe(true)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await unlink.handler({
+    ...workspaceOpts,
+    overrides: { 'linked-foo': 'link:../linked-foo' },
+    allProjects,
+    allProjectsGraph,
+    recursive: true,
+    selectedProjectsGraph,
+  }, [])
+
+  expect(loadJsonFileSync('package.json')).toStrictEqual({ name: 'root', version: '1.0.0' })
+  expect(fs.existsSync('node_modules/linked-foo')).toBe(false)
+})
+
+test('unlink --dry-run does not change package.json', async () => {
+  prepareLinkTargets()
+
+  await link.handler(commandOpts(), ['../linked-foo'])
+
+  await unlink.handler({ ...commandOpts({ 'linked-foo': 'link:../linked-foo' }), dryRun: true }, [])
+
+  expect(loadJsonFileSync('package.json')).toStrictEqual({
+    name: 'project',
+    version: '1.0.0',
+    dependencies: { 'linked-foo': 'link:../linked-foo' },
   })
 })

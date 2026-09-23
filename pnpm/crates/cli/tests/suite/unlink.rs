@@ -533,3 +533,32 @@ fn unlink_keeps_link_dependency_to_another_directory() {
 
     drop((root, mock_instance));
 }
+
+/// `pnpm link` run in a workspace member adds the `link:` dependency to that
+/// member, so `pnpm -r unlink` at the workspace root removes it there.
+#[test]
+fn recursive_unlink_reverts_the_dependency_link_added_to_a_member() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, &serde_json::json!({ "name": "root", "private": true }));
+    add_overrides(&workspace, "packages:\n  - 'packages/*'\n");
+    let member = workspace.join("packages").join("app");
+    fs::create_dir_all(&member).expect("create member dir");
+    write_manifest(&member, &serde_json::json!({ "name": "app", "version": "1.0.0" }));
+    write_local_package(&workspace, "linked-foo", "linked-foo");
+
+    run_pnpm(&member, &["link", "../../linked-foo"]);
+    assert!(member.join("node_modules/linked-foo").exists(), "link must install linked-foo");
+
+    run_pnpm(&workspace, &["-r", "unlink"]);
+
+    assert_eq!(read_manifest(&member), serde_json::json!({ "name": "app", "version": "1.0.0" }));
+    assert!(
+        fs::symlink_metadata(member.join("node_modules/linked-foo")).is_err(),
+        "the linked-foo symlink must be removed from the member",
+    );
+
+    drop((root, mock_instance));
+}
