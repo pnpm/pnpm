@@ -289,14 +289,34 @@ pub(super) fn is_literal_pattern(pattern: &str) -> bool {
 }
 
 fn is_ignorable_walk_error(error: &std::io::Error) -> bool {
-    error.kind() == ErrorKind::NotFound
-        || is_symlink_loop(error)
-        || error.to_string().starts_with("symbolic link cycle detected")
+    error.kind() == ErrorKind::NotFound || is_symlink_loop(error)
 }
 
 fn is_symlink_loop(error: &std::io::Error) -> bool {
-    let message = error.to_string();
-    message.contains("Too many levels of symbolic links")
-        || message.contains("symbolic link cycle")
-        || format!("{error:?}").contains("FilesystemLoop")
+    is_raw_loop_error(error) || is_filesystem_loop_kind(error.kind()) || is_wax_link_cycle(error)
+}
+
+fn is_filesystem_loop_kind(kind: ErrorKind) -> bool {
+    // `ErrorKind::FilesystemLoop` is unstable in the standard library (rust-lang/rust#86442).
+    // Matching its debug representation recognizes the standard library enum variant structurally.
+    format!("{kind:?}") == "FilesystemLoop"
+}
+
+fn is_wax_link_cycle(error: &std::io::Error) -> bool {
+    if let Some(walk_err) =
+        error.get_ref().and_then(|err| err.downcast_ref::<wax::walk::WalkError>())
+    {
+        return walk_err.to_string().contains("symbolic link cycle");
+    }
+    false
+}
+
+#[cfg(unix)]
+fn is_raw_loop_error(error: &std::io::Error) -> bool {
+    error.raw_os_error() == Some(libc::ELOOP)
+}
+
+#[cfg(not(unix))]
+fn is_raw_loop_error(_error: &std::io::Error) -> bool {
+    false
 }
