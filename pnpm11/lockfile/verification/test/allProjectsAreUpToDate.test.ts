@@ -1,5 +1,6 @@
 import { createWriteStream } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
 
@@ -1085,3 +1086,40 @@ test('allProjectsAreUpToDate(): returns false if the lockfile is broken, the res
     lockfileDir: '',
   })).toBeFalsy()
 })
+
+test('allProjectsAreUpToDate(): works with packages linked through the workspace protocol using home-relative path', async () => {
+  const homePkgDir = path.resolve(os.homedir(), 'pkg')
+  const relativeFromLockfile = path.relative(process.cwd(), homePkgDir)
+  expect(await allProjectsAreUpToDate([
+    {
+      id: 'bar' as ProjectId,
+      manifest: {
+        dependencies: {
+          foo: 'workspace:~/pkg',
+        },
+      },
+      rootDir: 'bar' as ProjectRootDir,
+    },
+  ], {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        ['bar' as ProjectId]: {
+          dependencies: {
+            foo: `link:${relativeFromLockfile}`,
+          },
+          specifiers: {
+            foo: 'workspace:~/pkg',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    workspacePackages: new Map(),
+    lockfileDir: process.cwd(),
+  })).toBeTruthy()
+})
+

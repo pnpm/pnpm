@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub(super) fn spec_satisfies_snapshot_dep(
     workspace_root: &Path,
@@ -27,6 +27,19 @@ pub(super) fn spec_satisfies_snapshot_dep(
     npm_or_registry_spec_satisfies(dep_name, spec, lockfile_dep)
 }
 
+fn resolve_local_spec_path(base_dir: &Path, raw_path: &str) -> PathBuf {
+    let clean = raw_path.strip_prefix("./").unwrap_or(raw_path);
+    if let Some(rest) = clean
+        .strip_prefix("~/")
+        .or_else(|| clean.strip_prefix(r"~\"))
+    {
+        let home = home::home_dir().unwrap_or_default();
+        pnpm_fs::lexical_normalize(&home.join(rest))
+    } else {
+        pnpm_fs::lexical_normalize(&base_dir.join(clean))
+    }
+}
+
 fn file_or_link_spec_satisfies(
     lockfile_dir: &Path,
     local_dep_dir: &Path,
@@ -38,15 +51,15 @@ fn file_or_link_spec_satisfies(
             return Some(false);
         };
         return Some(
-            pnpm_fs::lexical_normalize(&local_dep_dir.join(target))
-                == pnpm_fs::lexical_normalize(&lockfile_dir.join(lockfile_target)),
+            resolve_local_spec_path(local_dep_dir, target)
+                == resolve_local_spec_path(lockfile_dir, lockfile_target),
         );
     }
     let path = spec.strip_prefix("file:")?;
     if let Some(target) = lockfile_dep.as_link_target() {
         return Some(
-            pnpm_fs::lexical_normalize(&local_dep_dir.join(path))
-                == pnpm_fs::lexical_normalize(&lockfile_dir.join(target)),
+            resolve_local_spec_path(local_dep_dir, path)
+                == resolve_local_spec_path(lockfile_dir, target),
         );
     }
     let Some(ver_peer) = lockfile_dep.ver_peer() else {
@@ -54,8 +67,8 @@ fn file_or_link_spec_satisfies(
     };
     match ver_peer.version() {
         pnpm_lockfile::VersionPart::File(recorded) => Some(
-            pnpm_fs::lexical_normalize(&local_dep_dir.join(path))
-                == pnpm_fs::lexical_normalize(&lockfile_dir.join(recorded)),
+            resolve_local_spec_path(local_dep_dir, path)
+                == resolve_local_spec_path(lockfile_dir, recorded),
         ),
         pnpm_lockfile::VersionPart::NonSemver(raw) => Some(raw == spec || raw == path),
         _ => Some(false),
@@ -69,17 +82,16 @@ fn workspace_path_spec_satisfies(
     workspace_spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
-    let clean_spec = workspace_spec.strip_prefix("./").unwrap_or(workspace_spec);
-    let resolved_spec = pnpm_fs::lexical_normalize(&local_dep_dir.join(clean_spec));
+    let resolved_spec = resolve_local_spec_path(local_dep_dir, workspace_spec);
     if let Some(target) = lockfile_dep.as_link_target() {
-        return pnpm_fs::lexical_normalize(&lockfile_dir.join(target)) == resolved_spec;
+        return resolve_local_spec_path(lockfile_dir, target) == resolved_spec;
     }
     let Some(ver_peer) = lockfile_dep.ver_peer() else {
         return false;
     };
     match ver_peer.version() {
         pnpm_lockfile::VersionPart::File(recorded) => {
-            pnpm_fs::lexical_normalize(&lockfile_dir.join(recorded)) == resolved_spec
+            resolve_local_spec_path(lockfile_dir, recorded) == resolved_spec
         }
         pnpm_lockfile::VersionPart::NonSemver(raw) => raw == spec || raw == workspace_spec,
         _ => false,
@@ -87,14 +99,7 @@ fn workspace_path_spec_satisfies(
 }
 
 fn is_workspace_path(workspace_spec: &str) -> bool {
-    let is_windows_drive = {
-        let mut chars = workspace_spec.chars();
-        chars.next().is_some_and(|first| first.is_ascii_alphabetic()) && chars.next() == Some(':')
-    };
-    workspace_spec.starts_with('.')
-        || workspace_spec.starts_with('/')
-        || workspace_spec.starts_with("~/")
-        || is_windows_drive
+    pnpm_local_spec::is_filespec(workspace_spec)
 }
 
 fn workspace_spec_satisfies(
@@ -275,3 +280,6 @@ fn extract_semver(ver_peer: &pnpm_lockfile::PkgVerPeer) -> Option<&node_semver::
     }
     ver_peer.registry_qualified().map(|(_, version)| version)
 }
+
+#[cfg(test)]
+mod tests;

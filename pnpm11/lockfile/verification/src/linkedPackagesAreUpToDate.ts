@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { refToRelative, removeSuffix } from '@pnpm/deps.path'
@@ -69,7 +70,7 @@ export async function linkedPackagesAreUpToDate (
             (
               currentSpec.startsWith('link:') ||
               currentSpec.startsWith('file:') ||
-              currentSpec.startsWith('workspace:.')
+              (currentSpec.startsWith('workspace:') && isWorkspacePath(currentSpec.slice(10)))
             )
           ) {
             return true
@@ -143,7 +144,7 @@ async function isLocalFileDepUpdated (
       if (currentSpec.startsWith('link:')) {
         return (
           lockfileDep.startsWith('link:') &&
-          path.resolve(localDepDir, currentSpec.slice(5)) === path.resolve(lockfileDir, lockfileDep.slice(5))
+          resolveSpecPath(localDepDir, currentSpec.slice(5)) === resolveSpecPath(lockfileDir, lockfileDep.slice(5))
         )
       }
       if (currentSpec.startsWith('file:')) {
@@ -152,7 +153,7 @@ async function isLocalFileDepUpdated (
           ? cleanLockfileDep.slice(5)
           : null
         if (lockfilePath == null) return false
-        return path.resolve(localDepDir, currentSpec.slice(5)) === path.resolve(lockfileDir, lockfilePath)
+        return resolveSpecPath(localDepDir, currentSpec.slice(5)) === resolveSpecPath(lockfileDir, lockfilePath)
       }
       if (currentSpec.startsWith('workspace:')) {
         const target = currentSpec.slice(10)
@@ -162,8 +163,7 @@ async function isLocalFileDepUpdated (
             ? cleanLockfileDep.slice(5)
             : null
           if (lockfilePath == null) return false
-          const cleanTarget = target.startsWith('./') ? target.slice(2) : target
-          return path.resolve(localDepDir, cleanTarget) === path.resolve(lockfileDir, lockfilePath)
+          return resolveSpecPath(localDepDir, target) === resolveSpecPath(lockfileDir, lockfilePath)
         }
         const range = getVersionRange(currentSpec)
         const cleanLockfileDep = removeSuffix(lockfileDep)
@@ -247,8 +247,23 @@ function isSubdirectory (parentDir: string, childPath: string): boolean {
   )
 }
 
+function resolveSpecPath (baseDir: string, rawPath: string): string {
+  const clean = rawPath.startsWith('./') ? rawPath.slice(2) : rawPath
+  if (clean.startsWith('~/') || clean.startsWith('~\\')) {
+    return path.resolve(os.homedir(), clean.slice(2))
+  }
+  return path.resolve(baseDir, clean)
+}
+
 function isWorkspacePath (spec: string): boolean {
-  return spec.startsWith('.') || spec.startsWith('/') || spec.startsWith('~/') || /^[a-z]:/i.test(spec)
+  return (
+    spec.startsWith('.') ||
+    spec.startsWith('/') ||
+    spec.startsWith('\\') ||
+    spec.startsWith('~/') ||
+    spec.startsWith('~\\') ||
+    /^[a-z]:/i.test(spec)
+  )
 }
 
 function getTargetPkgName (spec: string, defaultName: string): string {

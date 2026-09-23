@@ -96,14 +96,7 @@ fn workspace_dep_matches(
 }
 
 fn is_workspace_path(ws_spec: &str) -> bool {
-    let is_windows_drive = {
-        let mut chars = ws_spec.chars();
-        chars.next().is_some_and(|first| first.is_ascii_alphabetic()) && chars.next() == Some(':')
-    };
-    ws_spec.starts_with('.')
-        || ws_spec.starts_with('/')
-        || ws_spec.starts_with("~/")
-        || is_windows_drive
+    pnpm_local_spec::is_filespec(ws_spec)
 }
 
 fn ws_spec_matches_workspace(
