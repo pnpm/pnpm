@@ -443,9 +443,6 @@ fn read_manifest(workspace: &Path) -> serde_json::Value {
     serde_json::from_str(&text).expect("parse package.json")
 }
 
-/// `pnpm link <dir>` adds a `link:` dependency to `package.json` when the
-/// package is not declared yet; `pnpm unlink <pkg>` removes it again along
-/// with the override, the symlink, and the lockfile entry.
 #[test]
 fn unlink_named_reverts_the_dependency_link_added() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -482,7 +479,6 @@ fn unlink_named_reverts_the_dependency_link_added() {
     drop((root, mock_instance));
 }
 
-/// A bare `pnpm unlink` reverts every link `pnpm link` made.
 #[test]
 fn unlink_without_args_reverts_every_dependency_link_added() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -509,8 +505,6 @@ fn unlink_without_args_reverts_every_dependency_link_added() {
     drop((root, mock_instance));
 }
 
-/// A `link:` dependency declared to another directory than the override
-/// stays in `package.json`.
 #[test]
 fn unlink_keeps_link_dependency_to_another_directory() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
