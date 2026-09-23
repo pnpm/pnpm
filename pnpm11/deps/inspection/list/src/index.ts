@@ -75,6 +75,7 @@ export async function searchForPackages (
     checkWantedLockfileOnly?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
+    workspaceProjectDirs?: string[]
     registriesByScope?: RegistriesByScope
     registriesByPrefix?: Record<string, string>
     modulesDir?: string
@@ -92,6 +93,7 @@ export async function searchForPackages (
       lockfileDir: opts.lockfileDir,
       checkWantedLockfileOnly: opts.checkWantedLockfileOnly,
       onlyProjects: opts.onlyProjects,
+      workspaceProjectDirs: opts.workspaceProjectDirs,
       registriesByScope: opts.registriesByScope,
       registriesByPrefix: opts.registriesByPrefix,
       search,
@@ -124,6 +126,7 @@ export async function listForPackages (
     long?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
+    workspaceProjectDirs?: string[]
     reportAs?: 'parseable' | 'tree' | 'json'
     registriesByScope?: RegistriesByScope
     registriesByPrefix?: Record<string, string>
@@ -157,6 +160,7 @@ export interface ListOptions {
   long?: boolean
   include?: { [dependenciesField in DependenciesField]: boolean }
   onlyProjects?: boolean
+  workspaceProjectDirs?: string[]
   reportAs?: 'parseable' | 'tree' | 'json'
   registriesByScope?: RegistriesByScope
   registriesByPrefix?: Record<string, string>
@@ -205,6 +209,7 @@ export async function getPackagesForListing (
           lockfileDir: maybeOpts?.lockfileDir,
           checkWantedLockfileOnly: maybeOpts?.checkWantedLockfileOnly,
           onlyProjects: maybeOpts?.onlyProjects,
+          workspaceProjectDirs: maybeOpts?.workspaceProjectDirs,
           registriesByScope: opts.registriesByScope,
           registriesByPrefix: opts.registriesByPrefix,
           modulesDir: opts.modulesDir,

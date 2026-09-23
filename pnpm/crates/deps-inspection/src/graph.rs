@@ -27,6 +27,23 @@ pub struct GraphEdge {
     pub target: Option<TreeNodeId>,
 }
 
+impl GraphEdge {
+    /// Whether the edge may lead to a project. Besides the importers of the
+    /// lockfile, this includes a project's `link:` dependency on a directory
+    /// outside the lockfile: with a dedicated lockfile per project, every
+    /// other workspace project is such a directory. `pnpm list` keeps those
+    /// only when the directory is a workspace project.
+    #[must_use]
+    pub fn leads_to_project(&self, parent: &TreeNodeId) -> bool {
+        match &self.target {
+            Some(target) => matches!(target, TreeNodeId::Importer(_)),
+            None => {
+                matches!(parent, TreeNodeId::Importer(_)) && self.link_target.is_some()
+            }
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct GraphNode {
     pub edges: Vec<GraphEdge>,
@@ -136,16 +153,19 @@ fn importer_edges(
                 Some(importer_id),
                 opts.lockfile,
             );
-            if opts.only_projects && !matches!(target, Some(TreeNodeId::Importer(_))) {
-                continue;
-            }
-            edges.push(GraphEdge {
+            let edge = GraphEdge {
                 alias: alias.to_string(),
                 ref_display: spec.version.to_string(),
                 dep_path,
                 link_target,
                 target,
-            });
+            };
+            if opts.only_projects
+                && !edge.leads_to_project(&TreeNodeId::Importer(importer_id.to_string()))
+            {
+                continue;
+            }
+            edges.push(edge);
         }
     }
     edges

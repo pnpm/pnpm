@@ -1,7 +1,5 @@
 use super::{ListArgs, RecursionLimit, ReportAs, render};
-use crate::cli_args::recursive::{
-    AutoExcludeRoot, RecursiveSelection, discover_workspace_projects, select_recursive_projects,
-};
+use crate::cli_args::recursive::{AutoExcludeRoot, RecursiveSelection, select_recursive_projects};
 use pnpm_config::Config;
 use pnpm_workspace_projects_graph::BaseProject;
 use std::path::{Path, PathBuf};
@@ -13,7 +11,7 @@ impl ListArgs {
         dir: &Path,
     ) -> miette::Result<String> {
         let workspace_root = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-        let (projects, _) = discover_workspace_projects(&workspace_root, config)?;
+        let projects = self.discover_listed_projects(&workspace_root, config)?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
 
@@ -88,7 +86,7 @@ impl ListArgs {
 /// `config` re-anchored on one project of a workspace whose projects keep
 /// their own lockfiles, so the listing reads the modules directory that
 /// project installed into rather than the workspace-wide one.
-fn dedicated_project_config(
+pub(super) fn dedicated_project_config(
     config: &Config,
     project_dir: &Path,
     project_name: Option<&str>,

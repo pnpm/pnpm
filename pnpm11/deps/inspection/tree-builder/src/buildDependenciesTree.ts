@@ -35,22 +35,51 @@ export interface DependenciesTree {
   unsavedDependencies?: DependencyNode[]
 }
 
+export interface BuildDependenciesTreeOptions {
+  depth: number
+  excludePeerDependencies?: boolean
+  include?: { [dependenciesField in DependenciesField]: boolean }
+  registriesByScope?: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
+  onlyProjects?: boolean
+  /**
+   * The workspace projects that `onlyProjects` follows through their own
+   * lockfiles when the lockfile being read has no importer for them.
+   */
+  workspaceProjectDirs?: string[]
+  search?: Finder
+  showDedupedSearchMatches?: boolean
+  lockfileDir: string
+  checkWantedLockfileOnly?: boolean
+  modulesDir?: string
+  virtualStoreDirMaxLength: number
+}
+
 export async function buildDependenciesTree (
   projectPaths: string[] | undefined,
-  maybeOpts: {
-    depth: number
-    excludePeerDependencies?: boolean
-    include?: { [dependenciesField in DependenciesField]: boolean }
-    registriesByScope?: RegistriesByScope
-    registriesByPrefix?: Record<string, string>
-    onlyProjects?: boolean
-    search?: Finder
-    showDedupedSearchMatches?: boolean
-    lockfileDir: string
-    checkWantedLockfileOnly?: boolean
-    modulesDir?: string
-    virtualStoreDirMaxLength: number
-  }
+  maybeOpts: BuildDependenciesTreeOptions
+): Promise<{ [projectDir: string]: DependenciesTree }> {
+  return buildProjectsTrees(projectPaths, maybeOpts, {
+    ancestors: new Set(),
+    expanded: new Map(),
+    workspaceProjectDirs: new Set(maybeOpts.workspaceProjectDirs),
+  })
+}
+
+interface LinkedProjectsWalk {
+  ancestors: Set<string>
+  /**
+   * A linked project met again at the same depth is marked deduped instead of
+   * walked again.
+   */
+  expanded: Map<string, number>
+  workspaceProjectDirs: ReadonlySet<string>
+}
+
+async function buildProjectsTrees (
+  projectPaths: string[] | undefined,
+  maybeOpts: BuildDependenciesTreeOptions,
+  linkedWalk: LinkedProjectsWalk
 ): Promise<{ [projectDir: string]: DependenciesTree }> {
   if (!maybeOpts?.lockfileDir) {
     throw new TypeError('opts.lockfileDir is required')
@@ -137,11 +166,117 @@ export async function buildDependenciesTree (
       await getHierarchy(projectPath),
     ] as [string, DependenciesTree]
   }))
+  storeIndex?.close()
   for (const [projectPath, dependenciesHierarchy] of pairs) {
     result[projectPath] = dependenciesHierarchy
   }
-  storeIndex?.close()
+  if (opts.onlyProjects) {
+    // Sequential, so that the first occurrence of a linked project is the
+    // one expanded, as with the deduplication of a shared lockfile.
+    for (const [projectPath, dependenciesHierarchy] of pairs) {
+      // eslint-disable-next-line no-await-in-loop
+      await expandLinkedProjects(dependenciesHierarchy, {
+        importers: lockfileToUse.importers,
+        lockfileDir: opts.lockfileDir,
+        depth: opts.depth,
+        treeOpts: maybeOpts,
+        walk: { ...linkedWalk, ancestors: new Set([...linkedWalk.ancestors, projectPath]) },
+        rewriteLinkVersionDir: projectPath,
+      })
+    }
+  }
   return result
+}
+
+interface LinkedProjectsContext {
+  importers: Record<string, ProjectSnapshot>
+  lockfileDir: string
+  depth: number
+  treeOpts: BuildDependenciesTreeOptions
+  walk: LinkedProjectsWalk
+  rewriteLinkVersionDir: string
+}
+
+/**
+ * Attaches the project dependencies of every linked workspace project that
+ * the lockfile has no importer for. With `sharedWorkspaceLockfile: false`,
+ * the lockfile that the tree was built from knows nothing about the
+ * dependencies of the other workspace projects.
+ */
+async function expandLinkedProjects (tree: DependenciesTree, ctx: LinkedProjectsContext): Promise<void> {
+  for (const field of DEPENDENCIES_FIELDS) {
+    if (tree[field] != null) {
+      // eslint-disable-next-line no-await-in-loop
+      tree[field] = await expandLinkedProjectNodes(tree[field], 0, ctx)
+    }
+  }
+}
+
+async function expandLinkedProjectNodes (
+  nodes: DependencyNode[],
+  level: number,
+  ctx: LinkedProjectsContext
+): Promise<DependencyNode[]> {
+  const expanded: DependencyNode[] = []
+  for (const node of nodes) {
+    let expandedNode: DependencyNode | undefined = node
+    if (node.dependencies != null) {
+      // eslint-disable-next-line no-await-in-loop
+      expandedNode = keepSearched({ ...node, dependencies: await expandLinkedProjectNodes(node.dependencies, level + 1, ctx) }, ctx)
+    } else if (!node.circular && ctx.importers[getLockfileImporterId(ctx.lockfileDir, node.path)] == null) {
+      // eslint-disable-next-line no-await-in-loop
+      expandedNode = await expandLinkedProject(node, level, ctx)
+    }
+    if (expandedNode != null) expanded.push(expandedNode)
+  }
+  return expanded
+}
+
+async function expandLinkedProject (
+  node: DependencyNode,
+  level: number,
+  ctx: LinkedProjectsContext
+): Promise<DependencyNode | undefined> {
+  if (!ctx.walk.workspaceProjectDirs.has(node.path)) return undefined
+  if (ctx.walk.ancestors.has(node.path)) return keepSearched({ ...node, circular: true }, ctx)
+  if (level >= ctx.depth) return keepSearched(node, ctx)
+  const depth = ctx.depth - level - 1
+  const key = `${node.path}@${depth}`
+  const previousCount = ctx.walk.expanded.get(key)
+  if (previousCount != null) {
+    return previousCount > 0
+      ? { ...node, deduped: true, dedupedDependenciesCount: previousCount }
+      : keepSearched(node, ctx)
+  }
+  const linkedTrees = await buildProjectsTrees([node.path], {
+    ...ctx.treeOpts,
+    lockfileDir: node.path,
+    depth,
+  }, ctx.walk)
+  const linkedTree = linkedTrees[node.path]
+  const dependencies = DEPENDENCIES_FIELDS.flatMap((field) => linkedTree[field] ?? [])
+  ctx.walk.expanded.set(key, countNodes(dependencies))
+  return keepSearched(dependencies.length > 0
+    ? { ...node, dependencies: rewriteLinkVersions(dependencies, ctx.rewriteLinkVersionDir) }
+    : node, ctx)
+}
+
+function countNodes (nodes: DependencyNode[]): number {
+  return nodes.reduce((count, node) => count + 1 + countNodes(node.dependencies ?? []), 0)
+}
+
+function keepSearched (node: DependencyNode, ctx: LinkedProjectsContext): DependencyNode | undefined {
+  return ctx.treeOpts.search == null || node.searched || node.dependencies?.length ? node : undefined
+}
+
+function rewriteLinkVersions (nodes: DependencyNode[], rewriteLinkVersionDir: string): DependencyNode[] {
+  return nodes.map((node) => ({
+    ...node,
+    version: node.version.startsWith('link:')
+      ? `link:${normalizePath(path.relative(rewriteLinkVersionDir, node.path))}`
+      : node.version,
+    ...(node.dependencies && { dependencies: rewriteLinkVersions(node.dependencies, rewriteLinkVersionDir) }),
+  }))
 }
 
 interface HierarchyContext extends BaseTreeOpts {

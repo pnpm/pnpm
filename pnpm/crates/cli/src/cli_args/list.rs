@@ -2,6 +2,7 @@
 
 pub(crate) mod render;
 
+mod linked_projects;
 mod recursive;
 
 use crate::cli_args::{
@@ -18,12 +19,17 @@ use crate::cli_args::{
     install::resolve_bool_override,
 };
 use clap::Args;
+use linked_projects::SharedLinkedProjects;
 use miette::IntoDiagnostic;
 use pnpm_config::Config;
 use pnpm_global::{ListReportAs, find_global_install_dirs, list_global_packages};
 use pnpm_modules_yaml::IncludedDependencies;
 use render::{ProjectHierarchy, RenderParseableOptions, RenderTreeOptions};
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+    sync::{Arc, OnceLock},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum RecursionLimit {
@@ -73,6 +79,10 @@ pub struct ListArgs {
     pub dependencies: TreeDependencyArgs,
     #[clap(flatten)]
     pub graph: ListGraphArgs,
+    /// Discovered once per command: a recursive listing with dedicated
+    /// lockfiles expands the linked projects of every selected project.
+    #[clap(skip)]
+    workspace_project_dirs: OnceLock<Arc<HashSet<PathBuf>>>,
 }
 
 #[derive(Debug, Clone, clap::Args)]
@@ -272,7 +282,8 @@ impl ListArgs {
             .filter(|_| self.graph.depth != RecursionLimit::ProjectsOnly)
         {
             Some(env) => {
-                self.build_hierarchies(config, &state, env, project_dirs, lockfile_dir, params)
+                let request = TreeRequest::new(params, self.graph.depth.max_depth());
+                self.build_hierarchies(config, &state, env, project_dirs, lockfile_dir, &request)
                     .await?
             }
             // Without a materialized `node_modules` there is no tree to
@@ -334,8 +345,9 @@ impl ListArgs {
         env: &pnpm_deps_inspection::pkg_info::PkgInfoEnv<'_>,
         project_dirs: &[PathBuf],
         lockfile_dir: &Path,
-        params: &[String],
+        request: &TreeRequest<'_>,
     ) -> miette::Result<Vec<(PathBuf, DependenciesHierarchy)>> {
+        let params = request.params;
         let include = self.include(config.optional);
         let root_ids = importer_root_ids(env.current_lockfile, lockfile_dir, project_dirs);
         let graph = build_dependency_graph(
@@ -347,14 +359,14 @@ impl ListArgs {
             },
         );
         let searcher = self.build_searcher(config, env, &graph, lockfile_dir, params).await?;
-        build_dependencies_tree(
+        let mut hierarchies = build_dependencies_tree(
             state,
             env,
             &graph,
             project_dirs,
             &BuildTreeOptions {
                 lockfile_dir,
-                depth: self.graph.depth.max_depth(),
+                depth: request.depth,
                 include,
                 exclude_peer_dependencies: self.exclude_peers,
                 only_projects: self.graph.only_projects,
@@ -362,7 +374,12 @@ impl ListArgs {
                 show_deduped_search_matches: searcher.is_some(),
                 modules_dir_opt: Some(config.modules_dir.as_path()),
             },
-        )
+        )?;
+        if self.graph.only_projects {
+            self.expand_linked_projects(config, env, lockfile_dir, request, &mut hierarchies)
+                .await?;
+        }
+        Ok(hierarchies)
     }
 
     /// The searcher the tree walk filters through. `None` when the
@@ -386,6 +403,26 @@ impl ListArgs {
             searcher.set_finder_results(results);
         }
         Ok(Some(searcher))
+    }
+}
+
+struct TreeRequest<'a> {
+    params: &'a [String],
+    depth: MaxDepth,
+    /// Linked projects whose trees enclose this walk, to stop at cycles
+    /// between projects with dedicated lockfiles.
+    linked_project_ancestors: HashSet<PathBuf>,
+    linked_projects: Option<Arc<SharedLinkedProjects>>,
+}
+
+impl<'a> TreeRequest<'a> {
+    fn new(params: &'a [String], depth: MaxDepth) -> Self {
+        TreeRequest {
+            params,
+            depth,
+            linked_project_ancestors: HashSet::new(),
+            linked_projects: None,
+        }
     }
 }
 

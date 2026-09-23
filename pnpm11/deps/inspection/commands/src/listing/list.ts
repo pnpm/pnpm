@@ -160,9 +160,17 @@ export async function handler (
       reportAs: determineReportAs(opts),
     })
   }
+  const workspaceProjectDirs = opts.allProjects?.map(({ rootDir }) => rootDir)
   if (opts.recursive && (opts.selectedProjectsGraph != null)) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-    return listRecursive(pkgs, params, { ...opts, depth, include, checkWantedLockfileOnly: opts.lockfileOnly, onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects })
+    return listRecursive(pkgs, params, {
+      ...opts,
+      depth,
+      include,
+      checkWantedLockfileOnly: opts.lockfileOnly,
+      onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
+      workspaceProjectDirs,
+    })
   }
   return render([opts.dir], params, {
     ...opts,
@@ -171,6 +179,7 @@ export async function handler (
     lockfileDir: opts.lockfileDir ?? opts.dir,
     checkWantedLockfileOnly: opts.lockfileOnly,
     onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
+    workspaceProjectDirs,
   })
 }
 
@@ -206,6 +215,7 @@ interface RenderOptions {
   long?: boolean
   json?: boolean
   onlyProjects?: boolean
+  workspaceProjectDirs?: string[]
   parseable?: boolean
   modulesDir?: string
   virtualStoreDirMaxLength: number
@@ -224,6 +234,7 @@ function getListOptions (opts: RenderOptions) {
     checkWantedLockfileOnly: opts.checkWantedLockfileOnly,
     long: opts.long,
     onlyProjects: opts.onlyProjects,
+    workspaceProjectDirs: opts.workspaceProjectDirs,
     reportAs: determineReportAs(opts),
     showExtraneous: false,
     showSummary: true,

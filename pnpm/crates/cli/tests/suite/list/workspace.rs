@@ -449,6 +449,165 @@ fn ls_filter_not_exist_json_prints_an_empty_array() {
 #[test]
 fn list_only_projects_shows_only_projects() {
     let (_root, workspace, _registry) = setup_registry();
+    write_nested_projects_workspace(&workspace, "");
+    run_ok(&workspace, &["install"]);
+
+    let output =
+        run_ok(&workspace, &["--filter", ".", "list", "--depth", "999", "--only-projects"]);
+    assert_eq!(output, nested_projects_tree(&workspace));
+}
+
+/// With a dedicated lockfile per project, the projects linked from the
+/// listed one are walked through their own lockfiles.
+#[test]
+fn list_only_projects_follows_projects_with_dedicated_lockfiles() {
+    let (_root, workspace, _registry) = setup_registry();
+    write_nested_projects_workspace(&workspace, "sharedWorkspaceLockfile: false\n");
+    // A linked directory with a lockfile of its own that is not a workspace
+    // project stays out of the tree, and the second `@scope/b` is not walked
+    // again.
+    let external = workspace
+        .parent()
+        .expect("workspace parent")
+        .join("external");
+    fs::create_dir_all(&external).expect("create external dir");
+    fs::write(external.join("package.json"), json!({ "name": "external" }).to_string())
+        .expect("write external package.json");
+    fs::write(external.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n")
+        .expect("write external lockfile");
+    let mut manifest: Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
+    manifest["dependencies"]["external"] = json!("link:../external");
+    manifest["dependencies"]["@scope/b"] = json!("workspace:*");
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+    run_ok(&workspace, &["install"]);
+    // A workspace project without a lockfile is listed without dependencies.
+    let project_c = workspace.join("packages/c");
+    fs::remove_file(project_c.join("pnpm-lock.yaml")).expect("remove the lockfile of @scope/c");
+    fs::remove_dir_all(project_c.join("node_modules")).expect("remove the modules of @scope/c");
+
+    let output =
+        run_ok(&workspace, &["--filter", ".", "list", "--depth", "Infinity", "--only-projects"]);
+    assert_eq!(output, dedicated_lockfiles_tree(&workspace));
+
+    let output = run_ok(&workspace, &["--filter", ".", "list", "--depth", "1", "--only-projects"]);
+    let dir = canonical(&workspace);
+    assert_eq!(
+        output,
+        format!(
+            "{LEGEND}\n\n\
+             root@1.0.0 {dir}\n\
+             \u{2502}\n\
+             \u{2502}   dependencies:\n\
+             \u{251c}\u{2500}\u{252c} @scope/a@link:packages/a\n\
+             \u{2502} \u{2514}\u{2500}\u{2500} @scope/b@link:packages/b\n\
+             \u{2514}\u{2500}\u{252c} @scope/b@link:packages/b\n\
+             \x20\x20\u{2514}\u{2500}\u{2500} @scope/c@link:packages/c\n\
+             \n\
+             4 packages\n"
+        ),
+    );
+
+    let output = run_ok(
+        &workspace,
+        &["--filter", ".", "list", "@scope/c", "--depth", "Infinity", "--only-projects"],
+    );
+    assert_eq!(output, dedicated_lockfiles_tree(&workspace));
+}
+
+#[test]
+fn list_only_projects_stops_at_a_cycle_between_projects_with_dedicated_lockfiles() {
+    let (_root, workspace, _registry) = setup_registry();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "version": "1.0.0", "dependencies": { "@scope/a": "workspace:*" } })
+            .to_string(),
+    )
+    .expect("write root package.json");
+    let mut yaml =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
+    yaml.push_str("packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write workspace yaml");
+    for (dir_name, dependency) in [("a", "@scope/b"), ("b", "@scope/a")] {
+        let dir = workspace.join("packages").join(dir_name);
+        fs::create_dir_all(&dir).expect("create package dir");
+        let manifest = json!({
+            "name": format!("@scope/{dir_name}"),
+            "version": "1.0.0",
+            "dependencies": { dependency: "workspace:*" },
+        });
+        fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
+    }
+    run_ok(&workspace, &["install"]);
+
+    let output =
+        run_ok(&workspace, &["--filter", ".", "list", "--depth", "Infinity", "--only-projects"]);
+    let dir = canonical(&workspace);
+    assert_eq!(
+        output,
+        format!(
+            "{LEGEND}\n\n\
+             root@1.0.0 {dir}\n\
+             \u{2502}\n\
+             \u{2502}   dependencies:\n\
+             \u{2514}\u{2500}\u{252c} @scope/a@link:packages/a\n\
+             \x20\x20\u{2514}\u{2500}\u{252c} @scope/b@link:packages/b\n\
+             \x20\x20\x20\x20\u{2514}\u{2500}\u{2500} @scope/a@link:packages/a\n\
+             \n\
+             3 packages\n"
+        ),
+    );
+}
+
+#[test]
+fn list_only_projects_matches_each_alias_of_a_project_with_a_dedicated_lockfile() {
+    let (_root, workspace, _registry) = setup_registry();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": {
+                "alias-one": "workspace:@scope/c@*",
+                "alias-two": "workspace:@scope/c@*",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+    let mut yaml =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
+    yaml.push_str("packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write workspace yaml");
+    let dir = workspace.join("packages/c");
+    fs::create_dir_all(&dir).expect("create package dir");
+    fs::write(
+        dir.join("package.json"),
+        json!({ "name": "@scope/c", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+    run_ok(&workspace, &["install"]);
+
+    let output = run_ok(
+        &workspace,
+        &["--filter", ".", "list", "alias-two", "--depth", "Infinity", "--only-projects"],
+    );
+    let dir = canonical(&workspace);
+    assert_eq!(
+        output,
+        format!(
+            "{LEGEND}\n\n\
+             root@1.0.0 {dir}\n\
+             \u{2502}\n\
+             \u{2502}   dependencies:\n\
+             \u{2514}\u{2500}\u{2500} alias-two@link:packages/c\n\
+             \n\
+             1 package\n"
+        ),
+    );
+}
+
+fn write_nested_projects_workspace(workspace: &Path, extra_settings: &str) {
     fs::write(
         workspace.join("package.json"),
         json!({
@@ -462,6 +621,7 @@ fn list_only_projects_shows_only_projects() {
     let mut yaml =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
     yaml.push_str("packages:\n  - packages/*\n");
+    yaml.push_str(extra_settings);
     fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write workspace yaml");
 
     let packages = [
@@ -480,23 +640,35 @@ fn list_only_projects_shows_only_projects() {
         fs::create_dir_all(&dir).expect("create package dir");
         fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
     }
-    run_ok(&workspace, &["install"]);
+}
 
-    let output =
-        run_ok(&workspace, &["--filter", ".", "list", "--depth", "999", "--only-projects"]);
-    let dir = canonical(&workspace);
-    assert_eq!(
-        output,
-        format!(
-            "{LEGEND}\n\n\
-             root@1.0.0 {dir}\n\
-             \u{2502}\n\
-             \u{2502}   dependencies:\n\
-             \u{2514}\u{2500}\u{252c} @scope/a@link:packages/a\n\
-             \x20\x20\u{2514}\u{2500}\u{252c} @scope/b@link:packages/b\n\
-             \x20\x20\x20\x20\u{2514}\u{2500}\u{2500} @scope/c@link:packages/c\n\
-             \n\
-             3 packages\n"
-        ),
-    );
+fn nested_projects_tree(workspace: &Path) -> String {
+    let dir = canonical(workspace);
+    format!(
+        "{LEGEND}\n\n\
+         root@1.0.0 {dir}\n\
+         \u{2502}\n\
+         \u{2502}   dependencies:\n\
+         \u{2514}\u{2500}\u{252c} @scope/a@link:packages/a\n\
+         \x20\x20\u{2514}\u{2500}\u{252c} @scope/b@link:packages/b\n\
+         \x20\x20\x20\x20\u{2514}\u{2500}\u{2500} @scope/c@link:packages/c\n\
+         \n\
+         3 packages\n",
+    )
+}
+
+fn dedicated_lockfiles_tree(workspace: &Path) -> String {
+    let dir = canonical(workspace);
+    format!(
+        "{LEGEND}\n\n\
+         root@1.0.0 {dir}\n\
+         \u{2502}\n\
+         \u{2502}   dependencies:\n\
+         \u{251c}\u{2500}\u{252c} @scope/a@link:packages/a\n\
+         \u{2502} \u{2514}\u{2500}\u{252c} @scope/b@link:packages/b\n\
+         \u{2502}   \u{2514}\u{2500}\u{2500} @scope/c@link:packages/c\n\
+         \u{2514}\u{2500}\u{2500} @scope/b@link:packages/b [deduped]\n\
+         \n\
+         4 packages\n",
+    )
 }

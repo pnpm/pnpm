@@ -840,6 +840,115 @@ ${boldHighlighted(`root@1.0.0 ${fixture}`)}
     └── @scope/c${VERSION_CLR('@link:packages/c')}`)
 })
 
+test('--only-projects shows the projects of a workspace with dedicated lockfiles', async () => {
+  const fixture = f.find('workspace-with-nested-workspace-deps-and-dedicated-lockfiles')
+  const output = await list([fixture], {
+    depth: Infinity,
+    lockfileDir: fixture,
+    onlyProjects: true,
+    virtualStoreDirMaxLength: 120,
+    workspaceProjectDirs: dedicatedLockfilesWorkspaceProjectDirs(fixture),
+  })
+
+  // The linked "external" directory has a lockfile but is not a workspace
+  // project, so it is not printed. The second "@scope/b" is not walked again.
+  // "@scope/c" has no lockfile yet, so it is printed without dependencies.
+
+  expect(output).toBe(`${LEGEND}
+
+${boldHighlighted(`root@1.0.0 ${fixture}`)}
+│
+│   ${DEPENDENCIES}
+├─┬ @scope/a${VERSION_CLR('@link:packages/a')}
+│ └─┬ @scope/b${VERSION_CLR('@link:packages/b')}
+│   └── @scope/c${VERSION_CLR('@link:packages/c')}
+└── @scope/b${VERSION_CLR('@link:packages/b')} [deduped]`)
+})
+
+test('--only-projects respects the depth in a workspace with dedicated lockfiles', async () => {
+  const fixture = f.find('workspace-with-nested-workspace-deps-and-dedicated-lockfiles')
+  const output = await list([fixture], {
+    depth: 1,
+    lockfileDir: fixture,
+    onlyProjects: true,
+    virtualStoreDirMaxLength: 120,
+    workspaceProjectDirs: dedicatedLockfilesWorkspaceProjectDirs(fixture),
+  })
+
+  expect(output).toBe(`${LEGEND}
+
+${boldHighlighted(`root@1.0.0 ${fixture}`)}
+│
+│   ${DEPENDENCIES}
+├─┬ @scope/a${VERSION_CLR('@link:packages/a')}
+│ └── @scope/b${VERSION_CLR('@link:packages/b')}
+└─┬ @scope/b${VERSION_CLR('@link:packages/b')}
+  └── @scope/c${VERSION_CLR('@link:packages/c')}`)
+})
+
+test('--only-projects finds a searched project behind projects with dedicated lockfiles', async () => {
+  const fixture = f.find('workspace-with-nested-workspace-deps-and-dedicated-lockfiles')
+  const output = await listForPackages(['@scope/c'], [fixture], {
+    depth: Infinity,
+    lockfileDir: fixture,
+    onlyProjects: true,
+    virtualStoreDirMaxLength: 120,
+    workspaceProjectDirs: dedicatedLockfilesWorkspaceProjectDirs(fixture),
+  })
+
+  expect(output).toBe(`${LEGEND}
+
+${boldHighlighted(`root@1.0.0 ${fixture}`)}
+│
+│   ${DEPENDENCIES}
+├─┬ @scope/a${VERSION_CLR('@link:packages/a')}
+│ └─┬ @scope/b${VERSION_CLR('@link:packages/b')}
+│   └── ${highlighted(`@scope/c${VERSION_CLR('@link:packages/c')}`)}
+└── @scope/b${VERSION_CLR('@link:packages/b')} [deduped]`)
+})
+
+test('--only-projects stops at a cycle between projects with dedicated lockfiles', async () => {
+  const fixture = f.find('workspace-with-cyclic-dedicated-lockfiles')
+  const output = await list([fixture], {
+    depth: Infinity,
+    lockfileDir: fixture,
+    onlyProjects: true,
+    virtualStoreDirMaxLength: 120,
+    workspaceProjectDirs: [fixture, ...['a', 'b'].map((name) => path.join(fixture, 'packages', name))],
+  })
+
+  expect(output).toBe(`${LEGEND}
+
+${boldHighlighted(`root@1.0.0 ${fixture}`)}
+│
+│   ${DEPENDENCIES}
+└─┬ @scope/a${VERSION_CLR('@link:packages/a')}
+  └─┬ @scope/b${VERSION_CLR('@link:packages/b')}
+    └── @scope/a${VERSION_CLR('@link:packages/a')}`)
+})
+
+test('--only-projects matches each alias of a project with a dedicated lockfile', async () => {
+  const fixture = f.find('workspace-with-aliased-dedicated-lockfiles')
+  const output = await listForPackages(['alias-two'], [fixture], {
+    depth: Infinity,
+    lockfileDir: fixture,
+    onlyProjects: true,
+    virtualStoreDirMaxLength: 120,
+    workspaceProjectDirs: [fixture, path.join(fixture, 'packages/c')],
+  })
+
+  expect(output).toBe(`${LEGEND}
+
+${boldHighlighted(`root@1.0.0 ${fixture}`)}
+│
+│   ${DEPENDENCIES}
+└── ${highlighted(`alias-two${VERSION_CLR('@link:packages/c')}`)}`)
+})
+
+function dedicatedLockfilesWorkspaceProjectDirs (fixture: string): string[] {
+  return [fixture, ...['a', 'b', 'c'].map((name) => path.join(fixture, 'packages', name))]
+}
+
 test('renderTree displays npm: protocol for aliased packages', async () => {
   const testPath = '/test/path'
   const output = await renderTree(
