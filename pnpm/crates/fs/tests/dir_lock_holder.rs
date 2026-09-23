@@ -3,6 +3,7 @@
 
 use pnpm_fs::DirLock;
 use std::{
+    fs,
     io::{BufRead as _, BufReader},
     path::Path,
     process::{Child, Command, Stdio},
@@ -48,7 +49,10 @@ fn a_lock_left_by_a_killed_process_is_taken_over_at_once() {
     holder.wait().expect("reap the holder");
     assert!(path.is_dir(), "the killed holder left its lock directory behind");
 
-    let taken = DirLock::acquire(path.clone(), Duration::ZERO, NEVER_ABANDONED)
+    // Windows frees a killed process's file locks asynchronously, so the
+    // waiter is given a moment; the takeover is still prompt next to
+    // `NEVER_ABANDONED`.
+    let taken = DirLock::acquire(path.clone(), Duration::from_secs(5), NEVER_ABANDONED)
         .expect("acquire")
         .expect("a killed holder's lock is taken over at once");
     assert!(taken.is_owner().expect("inspect owner"));
@@ -71,6 +75,13 @@ fn a_lock_held_by_a_running_process_is_not_taken_over() {
     let status = holder.wait().expect("reap the holder");
     assert!(status.success(), "the holder released the lock itself: {status}");
     assert!(!path.exists(), "the holder removed its lock directory");
+    assert!(
+        fs::read_dir(root.path())
+            .expect("list the lock's parent")
+            .next()
+            .is_none(),
+        "nothing of the released lock remains",
+    );
     DirLock::acquire(path, Duration::ZERO, NEVER_ABANDONED)
         .expect("acquire")
         .expect("the released lock is free");

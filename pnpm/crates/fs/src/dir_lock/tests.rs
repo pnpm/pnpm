@@ -34,6 +34,7 @@ fn acquire_creates_the_lock_and_drop_releases_it() {
 
     drop(lock);
     assert!(!path.exists(), "the lock directory is removed on drop");
+    assert!(!super::held_path(&path).exists(), "the held file is removed on drop");
 }
 
 #[test]
@@ -115,7 +116,8 @@ fn waiters_take_over_a_dead_holders_lock_one_at_a_time() {
 }
 
 /// A claimer that died right after creating the directory is told apart
-/// from one still recording itself only by the directory's age.
+/// from one still recording itself only by the directory's age, so a
+/// fresh unrecorded directory is left alone.
 #[test]
 fn an_unrecorded_directory_is_left_to_its_claimer_while_fresh() {
     let root = tempdir().expect("create tempdir");
@@ -185,7 +187,39 @@ fn a_live_holder_keeps_the_held_file_locked() {
 
     drop(held);
     assert!(!path.exists());
-    probe.try_lock().expect("the file lock is released with the directory");
+    assert!(!super::held_path(&path).exists(), "the held file goes with the directory");
+}
+
+/// A release removes the held file, so a waiter that opened it before
+/// the release locks a file the path no longer names. The waiter must
+/// notice and lock the current one, or a later waiter would lock a
+/// different file and take the directory over from under it.
+#[test]
+fn a_waiter_relocks_the_held_file_a_release_replaced() {
+    let root = tempdir().expect("create tempdir");
+    let path = root.path().join("engine.lock");
+    let holder = DirLock::acquire(path.clone(), Duration::ZERO, NEVER_ABANDONED)
+        .expect("acquire")
+        .expect("uncontended lock is taken");
+
+    let waiter = {
+        let path = path.clone();
+        thread::spawn(move || {
+            DirLock::acquire(path, Duration::from_secs(5), NEVER_ABANDONED)
+                .expect("acquire")
+                .expect("the waiter gets the lock once it is released")
+        })
+    };
+    sleep(Duration::from_millis(200));
+    drop(holder);
+    let taken = waiter.join().expect("waiter thread");
+
+    assert!(taken.is_owner().expect("inspect owner"));
+    let probe = fs::File::open(super::held_path(&path)).expect("open the current held file");
+    assert!(
+        matches!(probe.try_lock(), Err(std::fs::TryLockError::WouldBlock)),
+        "the waiter holds the lock on the held file now at the path",
+    );
 }
 
 fn plant_dead_holders_lock(path: &Path) {

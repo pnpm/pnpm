@@ -5201,6 +5201,7 @@ dependencies = [
  "miette 7.6.0",
  "pathdiff",
  "reflink-copy",
+ "same-file",
  "sha2",
  "tempfile",
  "tracing",
