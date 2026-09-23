@@ -175,6 +175,7 @@ export type InstallDepsOptions = Pick<Config,
   recursive?: boolean
   dedupe?: boolean
   workspace?: boolean
+  interactiveUpdate?: boolean
   includeOnlyPackageFiles?: boolean
   pruneLockfileImporters?: boolean
   rebuildHandler?: CommandHandler
@@ -418,6 +419,7 @@ export async function installDeps (
       include: includeDirect,
       workspacePackages,
       userNamedDeps,
+      fromInteractiveUpdate: opts.interactiveUpdate,
     })
   }
   if (params?.length) {

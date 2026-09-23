@@ -409,6 +409,7 @@ export type InstallCommandOptions = Pick<Config,
   resolutionOnly?: boolean
   saveLockfile?: boolean
   workspace?: boolean
+  interactiveUpdate?: boolean
   includeOnlyPackageFiles?: boolean
   confirmModulesPurge?: boolean
   pnpmfile: string[]

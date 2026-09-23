@@ -650,7 +650,7 @@ const MULTI_C: &str = "@pnpm.e2e/multi-version-c";
 /// A single-project workspace against a mocked registry of its own,
 /// driven through the same `UpdateArgs` the CLI dispatches.
 struct UpdateFixture {
-    _dir: TempDir,
+    dir: TempDir,
     project: PathBuf,
     cache_dir: PathBuf,
     config: &'static Config,
@@ -663,7 +663,7 @@ impl UpdateFixture {
     }
 
     fn with_config(customize: impl FnOnce(&mut Config)) -> Self {
-        let dir = tempfile::tempdir().expect("create temporary workspace");
+        let dir = tempfile::tempdir().expect("create temporary package root");
         let registry = TestRegistry::start_with_own_storage(dir.path());
         let project = dir.path().join("project");
         fs::create_dir_all(&project).expect("create the project dir");
@@ -677,7 +677,25 @@ impl UpdateFixture {
         config.enable_global_virtual_store = false;
         customize(&mut config);
         let config = Config::leak(config);
-        Self { _dir: dir, project, cache_dir, config, registry }
+        Self { dir, project, cache_dir, config, registry }
+    }
+
+    fn with_workspace() -> Self {
+        let dir = tempfile::tempdir().expect("create temporary workspace");
+        let registry = TestRegistry::start_with_own_storage(dir.path());
+        let project = dir.path().join("project");
+        fs::create_dir_all(&project).expect("create the project dir");
+        let cache_dir = dir.path().join("cache");
+        let mut config = Config::new();
+        config.workspace_dir = Some(dir.path().to_path_buf());
+        config.registry = registry.url().to_string();
+        config.store_dir = dir.path().join("store").into();
+        config.cache_dir = cache_dir.clone();
+        config.modules_dir = project.join("node_modules");
+        config.virtual_store_dir = project.join("node_modules/.pnpm");
+        config.enable_global_virtual_store = false;
+        let config = Config::leak(config);
+        Self { dir, project, cache_dir, config, registry }
     }
 
     fn write_manifest(&self, dependencies: &Value) {
@@ -687,14 +705,17 @@ impl UpdateFixture {
             .expect("write package.json");
     }
 
-    /// Move a dist tag, and drop the packument the last run cached so the
-    /// next one resolves against the move — the same pairing as
-    /// `AddMockedRegistry::set_dist_tag`.
-    fn set_dist_tag(&self, package: &str, version: &str, tag: &str) {
-        self.registry.set_dist_tag(package, version, tag);
+    /// Drop the local registry cache so an update run sees any tags changed
+    /// after the previous install.
+    fn drop_registry_cache(&self) {
         if self.cache_dir.exists() {
             fs::remove_dir_all(&self.cache_dir).expect("drop the cached registry metadata");
         }
+    }
+
+    fn set_dist_tag(&self, package: &str, version: &str, tag: &str) {
+        self.registry.set_dist_tag(package, version, tag);
+        self.drop_registry_cache();
     }
 
     async fn update(&self, args: &[&str]) {
@@ -719,8 +740,12 @@ impl UpdateFixture {
 
     /// The `packages:` keys of the lockfile the last run wrote.
     fn lockfile_packages(&self) -> Vec<String> {
-        let text = fs::read_to_string(self.project.join("pnpm-lock.yaml"))
-            .expect("read the wanted lockfile");
+        let lockfile_path = if self.config.workspace_dir.is_some() {
+            self.dir.path().join("pnpm-lock.yaml")
+        } else {
+            self.project.join("pnpm-lock.yaml")
+        };
+        let text = fs::read_to_string(lockfile_path).expect("read the wanted lockfile");
         let lockfile: Lockfile = serde_saphyr::from_str(&text).expect("parse the wanted lockfile");
         let mut keys = lockfile.packages
             .into_iter()
@@ -807,6 +832,29 @@ async fn interactively_update_skips_ignored_dependencies() {
     assert_eq!(
         fixture.lockfile_packages(),
         [format!("{MULTI_A}@1.0.0"), format!("{MULTI_B}@2.0.0"), format!("{MULTI_C}@3.1.10")],
+    );
+}
+
+#[tokio::test]
+async fn interactively_update_with_workspace_flag_allows_external_dependencies() {
+    let fixture = UpdateFixture::with_workspace();
+    fs::write(fixture.dir.path().join("pnpm-workspace.yaml"), "packages:\n  - 'project'\n")
+        .expect("write pnpm-workspace.yaml");
+
+    fixture.set_dist_tag(MULTI_A, "2.1.0", "latest");
+    fixture.set_dist_tag(MULTI_C, "4.0.0", "latest");
+
+    fixture.write_manifest(&json!({ MULTI_A: "1.0.0", MULTI_B: "2.0.0", MULTI_C: "3.0.0" }));
+    fixture.update(&["update"]).await;
+    fixture.write_manifest(&json!({ MULTI_A: "^1.0.0", MULTI_B: "^2.0.0", MULTI_C: "^3.0.0" }));
+
+    let scripted = scripted_prompts();
+    scripted.answer_next(&[MULTI_A]);
+    fixture.update(&["update", "--interactive", "--workspace"]).await;
+
+    assert_eq!(
+        fixture.lockfile_packages(),
+        [format!("{MULTI_A}@1.0.1"), format!("{MULTI_B}@2.0.0"), format!("{MULTI_C}@3.0.0")],
     );
 }
 

@@ -35,10 +35,14 @@ export function toWorkspaceSpecs (
     include: IncludedDependencies
     workspacePackages: WorkspacePackages
     userNamedDeps: boolean
+    fromInteractiveUpdate?: boolean
   }
 ): string[] {
   if (selectors.length > 0) {
-    return createWorkspaceSpecs(selectors, opts.workspacePackages, { skipPackagesOutsideWorkspace: !opts.userNamedDeps })
+    return createWorkspaceSpecs(selectors, opts.workspacePackages, {
+      skipPackagesOutsideWorkspace: !opts.userNamedDeps,
+      preserveNonWorkspaceSpecs: opts.fromInteractiveUpdate,
+    })
   }
   if (opts.userNamedDeps) return []
   return updateToWorkspacePackagesFromManifest(opts.manifest, opts.include, opts.workspacePackages)
@@ -50,20 +54,27 @@ export function toWorkspaceSpecs (
  *
  * A selector naming a package the workspace doesn't have is an error, since
  * `--workspace` was asked to link something that isn't there. Pass
- * `skipPackagesOutsideWorkspace` when the selectors weren't named by the user
- * (they were derived from the manifest), where a registry dependency is
- * expected and simply keeps its specifier.
+ * `preserveNonWorkspaceSpecs` for interactive selection so external dependencies
+ * keep their specifiers, or `skipPackagesOutsideWorkspace` when selectors were
+ * derived from the manifest.
  */
 export function createWorkspaceSpecs (
   specs: string[],
   workspacePackages: WorkspacePackages,
-  opts?: { skipPackagesOutsideWorkspace?: boolean }
+  opts?: {
+    skipPackagesOutsideWorkspace?: boolean
+    preserveNonWorkspaceSpecs?: boolean
+  }
 ): string[] {
   const workspaceSpecs: string[] = []
   for (const spec of specs) {
     const parsed = parseWantedDependency(spec)
     if (!parsed.alias) throw new PnpmError('NO_PKG_NAME_IN_SPEC', `Cannot update/install from workspace through "${spec}"`)
     if (!workspacePackages.has(parsed.alias)) {
+      if (opts?.preserveNonWorkspaceSpecs) {
+        workspaceSpecs.push(spec)
+        continue
+      }
       if (opts?.skipPackagesOutsideWorkspace) continue
       throw new PnpmError('WORKSPACE_PACKAGE_NOT_FOUND', `"${parsed.alias}" not found in the workspace`)
     }

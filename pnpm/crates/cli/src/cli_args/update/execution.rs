@@ -223,6 +223,7 @@ impl UpdateArgs {
                     packages,
                     depth: self.selection.depth.unwrap_or(usize::MAX),
                     workspace_packages: inputs.workspace_packages.as_ref(),
+                    interactive: self.selection.interactive,
                 },
                 version: pnpm_package_manager::UpdateVersionOptions {
                     latest: self.selection.latest,

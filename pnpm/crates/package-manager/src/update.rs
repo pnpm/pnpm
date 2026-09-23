@@ -309,6 +309,8 @@ pub struct UpdateSelection<'a> {
     /// are re-pointed at the workspace copies through the `workspace:`
     /// protocol instead of the registry. `None` is a plain update.
     pub workspace_packages: Option<&'a WorkspacePackages>,
+    /// `--interactive`: whether the update was invoked interactively.
+    pub interactive: bool,
 }
 
 #[derive(Clone, Copy)]

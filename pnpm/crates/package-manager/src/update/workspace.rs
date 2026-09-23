@@ -20,12 +20,21 @@ pub(super) fn workspace_targets(
     direct: &[(String, DependencyGroup, String)],
 ) -> Result<Vec<WorkspaceLinkTarget>, UpdateError> {
     Ok(update.selection.workspace_packages
-        .map(|packages| workspace_link_targets(selectors, direct, packages, update.config))
+        .map(|packages| {
+            workspace_link_targets(
+                selectors,
+                direct,
+                packages,
+                update.config,
+                update.selection.interactive,
+            )
+        })
         .transpose()?
         .unwrap_or_default())
 }
 /// One direct dependency `--workspace` re-points at the workspace copy
 /// of the same name.
+#[derive(Debug)]
 pub(super) struct WorkspaceLinkTarget {
     pub(super) name: String,
     pub(super) group: DependencyGroup,
@@ -48,6 +57,7 @@ pub(super) fn workspace_link_targets(
     direct: &[(String, DependencyGroup, String)],
     workspace_packages: &WorkspacePackages,
     config: &Config,
+    interactive: bool,
 ) -> Result<Vec<WorkspaceLinkTarget>, UpdateError> {
     if selectors.is_empty() {
         return Ok(all_workspace_link_targets(direct, workspace_packages, config));
@@ -69,6 +79,9 @@ pub(super) fn workspace_link_targets(
             continue;
         }
         if !workspace_packages.contains_key(name) {
+            if interactive {
+                continue;
+            }
             return Err(UpdateError::WorkspacePackageNotFound(name.clone()));
         }
         let wanted = claims
@@ -156,3 +169,6 @@ pub(super) fn pick_workspace_version(
             .collect::<Vec<_>>(),
     )
 }
+
+#[cfg(test)]
+mod tests;
