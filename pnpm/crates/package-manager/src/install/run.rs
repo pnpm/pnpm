@@ -29,7 +29,11 @@ use super::{
 use pnpm_config::Config;
 use pnpm_store_dir::VerifiedFileIntegrity;
 
-use crate::{PolicyExcludes, ProjectMutation, catalog_cleanup::post_install_prune};
+use crate::{
+    PolicyExcludes, ProjectMutation,
+    catalog_cleanup::{post_install_prune, write_workspace_catalogs},
+};
+use pnpm_catalogs_types::Catalogs;
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
 where
@@ -75,10 +79,12 @@ where
             })
             .transpose()?;
         let prune_excludes = self.prunes_workspace_excludes(&options);
+        let prune_catalogs = self.prunes_workspace_catalogs(&options);
         let result = Box::pin(self.run_inner_and_cleanup::<Reporter>(
             options,
             branch_lockfiles_to_clean,
             prune_excludes,
+            prune_catalogs,
             &mut time_machine_exclusions,
         ))
         .await;
@@ -92,19 +98,33 @@ where
         options: InstallRunOptions<'a, '_>,
         branch_lockfiles_to_clean: Option<PathBuf>,
         prune_excludes: bool,
+        prune_catalogs: bool,
         time_machine_exclusions: &mut super::TimeMachineExclusions,
     ) -> Result<(), InstallError> {
         let (config, manifest) = (self.context.config, self.context.manifest);
         let outcome =
             Box::pin(self.run_inner_impl::<Reporter>(options, time_machine_exclusions)).await?;
+        // The workspace manifest's directory rides the settled outcome; an
+        // already-up-to-date run derives it from the manifest instead.
+        let workspace_manifest_dir = match &outcome {
+            InstallRunOutcome::LockfileSettled { workspace_manifest_dir } => {
+                Some(workspace_manifest_dir.as_path())
+            }
+            InstallRunOutcome::AlreadyUpToDate => None,
+        };
         if let Some(lockfile_dir) = branch_lockfiles_to_clean {
             Lockfile::clean_git_branch_lockfiles(&lockfile_dir)
                 .map_err(InstallError::CleanGitBranchLockfiles)?;
         }
-        if prune_excludes
-            && let InstallRunOutcome::LockfileSettled { workspace_manifest_dir } = outcome
-        {
-            post_install_prune(config, Some(&workspace_manifest_dir), manifest)
+        if prune_excludes && let Some(workspace_manifest_dir) = workspace_manifest_dir {
+            post_install_prune(config, Some(workspace_manifest_dir), manifest)
+                .map_err(InstallError::WriteWorkspaceManifest)?;
+        }
+        if prune_catalogs {
+            // Nothing was added on this path, so the write is the pure
+            // `catalogPrune` sweep: drop the entries no workspace project
+            // references anymore.
+            write_workspace_catalogs(config, workspace_manifest_dir, &Catalogs::new(), manifest)
                 .map_err(InstallError::WriteWorkspaceManifest)?;
         }
         Ok(())
@@ -127,6 +147,21 @@ where
             && !self.execution.dry_run
             && (self.context.config.minimum_release_age_exclude_prune
                 || self.context.config.trust_policy_exclude_prune)
+    }
+
+    /// Whether this run owes the `catalogPrune` sweep. pnpm v11's
+    /// workspace install ran `updateWorkspaceManifest` with
+    /// `catalogPrune` whenever the run could persist, so a plain
+    /// `install` dropped unused catalog entries even though it edits no
+    /// manifest itself; the whole-workspace commands (`install`,
+    /// `dedupe`, `prune`, `deploy`) share this one pipeline to do it. A
+    /// dry run and `dedupe --check` leave every file untouched, so they
+    /// skip the sweep.
+    fn prunes_workspace_catalogs(&self, options: &InstallRunOptions<'_, '_>) -> bool {
+        self.context.config.catalog_prune
+            && matches!(self.execution.mutation, ProjectMutation::InstallWorkspace)
+            && !options.lockfile_check
+            && !self.execution.dry_run
     }
 
     /// Separate what every phase reads from what one of them consumes.

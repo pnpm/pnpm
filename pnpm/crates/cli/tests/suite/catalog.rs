@@ -468,6 +468,42 @@ fn install_reruns_when_catalog_entry_changes() {
     drop((root, anchor));
 }
 
+/// With `catalogPrune: true`, even a plain `pnpm install` — which
+/// persists no manifest edits of its own — still sweeps the catalog
+/// entries no importer references, matching pnpm v11's recursive install
+/// (#15273).
+#[test]
+fn install_prunes_unused_entries_from_the_workspace_catalog() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    append_workspace_yaml(
+        &workspace,
+        &format!(
+            "catalogPrune: true
+catalog:
+  '{FOO}': 1.0.0
+  '@pnpm.e2e/bar': 100.0.0
+"
+        ),
+    );
+
+    run_ok(&workspace, &["install", "--no-frozen-lockfile"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(&format!("'{FOO}': 1.0.0")),
+        "the referenced catalog entry must survive:
+{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/bar"),
+        "the unreferenced catalog entry must be removed by a plain install:
+{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
 /// With `catalogPrune: true`, a manifest-persisting command (`pnpm add`
 /// here) drops the catalog entries no importer references while keeping
 /// the referenced ones.
