@@ -15,7 +15,6 @@ export function taskWeight ({ id, size }, durations) {
   return durations.files[id] ?? durations.fallbackSeconds
 }
 
-// Greedy longest-first packing: each task goes to the lightest chunk so far.
 export function selectChunk (tasks, { chunk, chunks }) {
   const groups = Array.from({ length: chunks }, () => ({ tasks: [], weight: 0 }))
   for (const task of [...tasks].sort(compareTasksByWeight)) {
