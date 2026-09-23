@@ -874,19 +874,25 @@ pub struct Config {
     /// The `frozenStore` / `--frozen-store` setting (default `false`).
     pub frozen_store: bool,
 
-    /// pnpm's `--force`. Install every package the lockfile names, even
-    /// ones whose `cpu` / `os` / `libc` / `engines` don't match the host
-    /// — the per-snapshot installability check is bypassed entirely, so
-    /// optional dependencies for foreign platforms are materialized
-    /// instead of skipped, mirroring pnpm's `!opts.force &&
-    /// packageIsInstallable(...)` gate in its dep-graph builders.
-    ///
-    /// It also re-materializes every slot, changed or not.
+    /// pnpm's `--force`. Refetch every package and re-materialize every
+    /// slot, changed or not, and lift [`engine_strict`](Self::engine_strict)
+    /// so an `engines` mismatch on a required package warns instead of
+    /// failing. Optional dependencies whose `cpu` / `os` / `libc` don't
+    /// match the host stay skipped unless
+    /// [`force_ignores_platform`](Self::force_ignores_platform) is set.
     ///
     /// CLI-only (merged from `--force` on `pnpm install` / `pnpm add` /
     /// `pnpm deploy` at the dispatch, like `ignoreScripts`); not a
     /// `pnpm-workspace.yaml` / `.npmrc` setting.
     pub force: bool,
+
+    /// `forceIgnoresPlatform`. When `true`, [`force`](Self::force) also
+    /// bypasses the per-snapshot installability check, so optional
+    /// dependencies for foreign platforms are materialized instead of
+    /// skipped. Default `false`. pnpm v11 defaults it to `true`, the
+    /// behaviour its `--force` always had; see
+    /// [`Config::installs_incompatible_packages`].
+    pub force_ignores_platform: bool,
 
     /// Whether to consult the side-effects cache
     /// (`PackageFilesIndex.sideEffects`) when importing a package
@@ -1749,6 +1755,21 @@ pub struct Config {
 }
 
 impl Config {
+    /// Whether this install materializes every snapshot the lockfile
+    /// names, `cpu` / `os` / `libc` / `engines` notwithstanding: `--force`
+    /// under [`force_ignores_platform`](Self::force_ignores_platform).
+    /// Every installability gate reads this rather than `force` alone.
+    pub fn installs_incompatible_packages(&self) -> bool {
+        self.force && self.force_ignores_platform
+    }
+
+    /// [`engine_strict`](Self::engine_strict) as an install applies it.
+    /// `--force` lifts it, as npm's does: an `engines` mismatch on a
+    /// required package warns instead of failing the install.
+    pub fn effective_engine_strict(&self) -> bool {
+        self.engine_strict && !self.force
+    }
+
     /// Where the builds of one tool are downloaded from, as
     /// `tools.<name>.mirror` names it, without the trailing slash a
     /// caller joins onto.

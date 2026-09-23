@@ -26,6 +26,12 @@ export interface MakeRunPacquetOpts {
    */
   virtualStoreDirMaxLength: number
   /**
+   * Effective pnpm config value, forwarded through `PNPM_CONFIG_*` so a
+   * delegated `--force` install applies pnpm's default for the setting
+   * rather than pacquet's.
+   */
+  forceIgnoresPlatform: boolean
+  /**
    * Which `configDependencies` entry installed pacquet: either the
    * original unscoped `pacquet` or the official scoped
    * `@pnpm/pacquet` mirror. Drives the directory we look in under
@@ -239,7 +245,10 @@ export const ROOT_PREINSTALL_ALREADY_RAN_ENV = 'PNPM_INTERNAL_ROOT_PREINSTALL_AL
 export function makePacquetEnv (opts: MakeRunPacquetOpts, callOpts?: RunPacquetCallOpts): NodeJS.ProcessEnv {
   const env = { ...process.env }
   for (const key of Object.keys(env)) {
-    if (key.toLowerCase() === 'pnpm_config_virtual_store_dir_max_length') {
+    if (
+      key.toLowerCase() === 'pnpm_config_virtual_store_dir_max_length' ||
+      key.toLowerCase() === 'pnpm_config_force_ignores_platform'
+    ) {
       delete env[key]
     }
     // Case-insensitively, like the key above: Windows treats env names
@@ -253,6 +262,7 @@ export function makePacquetEnv (opts: MakeRunPacquetOpts, callOpts?: RunPacquetC
     }
   }
   env.PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH = String(opts.virtualStoreDirMaxLength)
+  env.PNPM_CONFIG_FORCE_IGNORES_PLATFORM = String(opts.forceIgnoresPlatform)
   if (callOpts?.resolve === true) {
     env[DEV_PREINSTALL_ALREADY_RAN_ENV] = 'true'
   }

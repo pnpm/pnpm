@@ -192,6 +192,18 @@ test('initVersion is read from the PNPM_CONFIG_INIT_VERSION environment variable
   expect(config.initVersion).toBe('2.0.0')
 })
 
+test('forceIgnoresPlatform defaults to true', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.forceIgnoresPlatform).toBe(true)
+})
+
 test('maxSockets falls back to npm\'s default', async () => {
   const { config } = await getConfig({
     cliOptions: {},
@@ -5291,6 +5303,7 @@ describe('global config.yaml', () => {
       registrySupportsTimeField: true,
       sideEffectsCache: false,
       strictDepBuilds: true,
+      forceIgnoresPlatform: false,
       useStderr: true,
       verifyDepsBeforeRun: 'error',
       verifyStoreIntegrity: false,
@@ -5319,6 +5332,7 @@ describe('global config.yaml', () => {
     expect(config.registrySupportsTimeField).toBe(true)
     expect(config.sideEffectsCache).toBe(false)
     expect(config.strictDepBuilds).toBe(true)
+    expect(config.forceIgnoresPlatform).toBe(false)
     expect(config.useStderr).toBe(true)
     expect(config.verifyDepsBeforeRun).toBe('error')
     expect(config.verifyStoreIntegrity).toBe(false)

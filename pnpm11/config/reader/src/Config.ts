@@ -146,6 +146,7 @@ export interface Config extends OptionsFromRootManifest {
   shellEmulator?: boolean
   scriptsPrependNodePath?: boolean | 'warn-only'
   force?: boolean
+  forceIgnoresPlatform?: boolean
   depth?: number
   engineStrict?: boolean
   nodeVersion?: string

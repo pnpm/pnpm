@@ -25,6 +25,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'cert'
 | 'engineStrict'
 | 'force'
+| 'forceIgnoresPlatform'
 | 'frozenStore'
 | 'nodeDownloadMirrors'
 | 'nodeVersion'
@@ -137,6 +138,7 @@ export async function createNewStoreController (
       cafsLocker: opts.cafsLocker,
       engineStrict: opts.engineStrict,
       force: opts.force,
+      forceIgnoresPlatform: opts.forceIgnoresPlatform,
       nodeVersion: opts.nodeVersion,
       pnpmVersion: packageManager.version,
       ignoreFile: opts.ignoreFile,

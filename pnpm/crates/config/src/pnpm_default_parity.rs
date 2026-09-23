@@ -80,8 +80,14 @@ const NOT_PORTED: &[&str] = &[];
 /// is exactly what the rest of this module exists to prevent. Add a row
 /// only for a staged rollout whose end state is convergence, and delete
 /// it once both stacks agree.
-fn divergent_rows(_cfg: &Config) -> Vec<(&'static str, Scalar, &'static str)> {
-    Vec::new()
+fn divergent_rows(cfg: &Config) -> Vec<(&'static str, Scalar, &'static str)> {
+    vec![(
+        "force-ignores-platform",
+        Scalar::Bool(cfg.force_ignores_platform),
+        "pnpm v11 keeps the behaviour its `--force` always had, installing \
+         optional dependencies of every platform; pnpm v12 matches npm 7+ \
+         and keeps the platform filter under `--force`",
+    )]
 }
 
 /// `(pnpm key, pacquet default rendered as a [`Scalar`])` for every

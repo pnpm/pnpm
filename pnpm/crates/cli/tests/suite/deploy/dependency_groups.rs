@@ -291,9 +291,11 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
 
 /// The invocation pnpm's release tooling (`bundle-deps.ts`) forwards: every
 /// option ahead of the `deploy` subcommand, `--config.*` overrides for
-/// settings the workspace yaml doesn't enable, and `--force`.
+/// settings the workspace yaml doesn't enable, and `--force` under
+/// `forceIgnoresPlatform` so optional dependencies of every platform are
+/// materialized into the deploy dir.
 #[test]
-fn release_style_deploy_accepts_pre_subcommand_flags() {
+fn release_style_deploy_accepts_pre_subcommand_flags_and_forces_foreign_platform_optionals() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -354,6 +356,7 @@ fn release_style_deploy_accepts_pre_subcommand_flags() {
         .with_args([
             "--config.inject-workspace-packages=true",
             "--config.node-linker=hoisted",
+            "--config.force-ignores-platform=true",
             "--ignore-scripts",
             "--force",
             "--filter=app",
@@ -370,8 +373,8 @@ fn release_style_deploy_accepts_pre_subcommand_flags() {
         "--force must overwrite the non-empty target directory",
     );
     assert!(
-        !deploy_dir.join(incompatible).exists(),
-        "--force must not install optional dependencies that do not match the platform",
+        deploy_dir.join(incompatible).exists(),
+        "--force under forceIgnoresPlatform must install optional dependencies regardless of platform",
     );
     assert!(
         !deploy_dir.join("node_modules/dev-only").exists(),

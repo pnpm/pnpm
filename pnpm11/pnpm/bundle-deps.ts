@@ -24,7 +24,8 @@ import { execSync } from 'node:child_process'
 // Note that most pnpm dependencies are baked into the large pnpm.mjs file by
 // esbuild. This script handles other dependencies the pnpm bundle config
 // declares as "external" and resolved at runtime — node-gyp, v8-compile-cache,
-// and @reflink/reflink (all platform variants, installed via --force).
+// and @reflink/reflink (all platform variants, installed via --force under
+// forceIgnoresPlatform).
 //
 // Strategy
 // --------
@@ -90,8 +91,10 @@ function createDistNodeModules () {
     '--config.inject-workspace-packages=true',
     '--config.node-linker=hoisted',
     '--ignore-scripts',
-    // --force installs all optional dependencies regardless of platform, so that
-    // all @reflink/reflink-* platform packages end up in dist/node_modules.
+    // --force under forceIgnoresPlatform installs all optional dependencies
+    // regardless of platform, so that all @reflink/reflink-* platform packages
+    // end up in dist/node_modules.
+    '--config.force-ignores-platform=true',
     '--force',
     '--filter=pnpm',
     '--prod',

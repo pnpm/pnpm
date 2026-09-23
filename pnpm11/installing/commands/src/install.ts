@@ -329,6 +329,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'enableGlobalVirtualStore'
 | 'engineStrict'
 | 'excludeLinksFromLockfile'
+| 'forceIgnoresPlatform'
 | 'frozenLockfile'
 | 'global'
 | 'globalPnpmfile'

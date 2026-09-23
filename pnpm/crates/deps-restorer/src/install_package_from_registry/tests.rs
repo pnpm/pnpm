@@ -97,6 +97,7 @@ fn create_config(
         optimistic_repeat_install: false,
         skip_runtimes: false,
         engine_strict: false,
+        force_ignores_platform: false,
         node_version: None,
         runtime_on_fail: None,
         node_download_mirrors: Default::default(),

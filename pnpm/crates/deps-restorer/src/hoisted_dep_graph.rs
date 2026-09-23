@@ -172,14 +172,18 @@ pub struct LockfileToHoistedDepGraphOptions<'a> {
     /// hoisted-specific typing is a set of raw `String`s (rather than
     /// `DepPath`s), so the wrapper here is `BTreeSet<String>`.
     pub skipped: BTreeSet<String>,
+    /// When true, no package is reused from the previous install:
+    /// every node is re-materialized whether or not its recorded
+    /// location still holds it.
+    pub force: bool,
     /// When true, suppress the installability check and emit every
     /// dep into the graph regardless of cpu / os / libc / engines.
-    /// Used by the `prev_graph` walk (Slice 4d) where the previous
-    /// lockfile is replayed wholesale to compute orphans — that walk
-    /// passes `force: true` with an empty skip set so
-    /// the diff catches packages that previously installed but
-    /// would now be filtered.
-    pub force: bool,
+    /// Set for `--force` under `forceIgnoresPlatform`, and by the
+    /// `prev_graph` walk where the previous lockfile is replayed
+    /// wholesale to compute orphans — that walk starts from an empty
+    /// skip set so the diff catches packages that previously
+    /// installed but would now be filtered.
+    pub include_incompatible_packages: bool,
 
     /// `hoistedLocations` recorded by the previous install's
     /// `.modules.yaml`. A package the walker places at a directory
@@ -211,6 +215,7 @@ impl Default for LockfileToHoistedDepGraphOptions<'_> {
 
             skipped: BTreeSet::new(),
             force: false,
+            include_incompatible_packages: false,
 
             // Match the hoister's default-on behavior so a
             // `..Default::default()`-style construction at the call
@@ -299,6 +304,7 @@ pub fn lockfile_to_hoisted_dep_graph(
         {
             let prev_opts = LockfileToHoistedDepGraphOptions {
                 force: true,
+                include_incompatible_packages: true,
                 skipped: BTreeSet::new(),
                 ..opts.clone()
             };

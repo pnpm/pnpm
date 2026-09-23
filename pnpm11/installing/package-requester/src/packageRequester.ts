@@ -1,7 +1,7 @@
 import { createReadStream, promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { packageIsInstallable } from '@pnpm/config.package-is-installable'
+import { installabilityUnderForce, packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { depPathToFilename } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
@@ -76,6 +76,7 @@ export function createPackageRequester (
   opts: {
     engineStrict?: boolean
     force?: boolean
+    forceIgnoresPlatform?: boolean
     nodeVersion?: string
     pnpmVersion?: string
     resolve: ResolveFunction
@@ -130,6 +131,7 @@ export function createPackageRequester (
     nodeVersion: opts.nodeVersion,
     pnpmVersion: opts.pnpmVersion,
     force: opts.force,
+    forceIgnoresPlatform: opts.forceIgnoresPlatform,
     fetchPackageToStore,
     requestsQueue,
     resolve: opts.resolve,
@@ -152,6 +154,7 @@ async function resolveAndFetch (
   ctx: {
     engineStrict?: boolean
     force?: boolean
+    forceIgnoresPlatform?: boolean
     nodeVersion?: string
     pnpmVersion?: string
     requestsQueue: { add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T> }
@@ -254,16 +257,20 @@ async function resolveAndFetch (
     }
   }
 
+  const { engineStrict, includeIncompatiblePackages } = installabilityUnderForce(ctx)
   let isInstallable: boolean | null | undefined = (
-    manifest == null
-      ? undefined
-      : packageIsInstallable(id, manifest, {
-        engineStrict: !ctx.force && ctx.engineStrict,
-        lockfileDir: options.lockfileDir,
-        nodeVersion: ctx.nodeVersion,
-        optional: wantedDependency.optional === true,
-        supportedArchitectures: options.supportedArchitectures,
-      })
+    includeIncompatiblePackages ||
+    (
+      manifest == null
+        ? undefined
+        : packageIsInstallable(id, manifest, {
+          engineStrict,
+          lockfileDir: options.lockfileDir,
+          nodeVersion: ctx.nodeVersion,
+          optional: wantedDependency.optional === true,
+          supportedArchitectures: options.supportedArchitectures,
+        })
+    )
   )
   const fetcherForResolution = resolution.type === 'variations'
     ? undefined
@@ -357,7 +364,7 @@ async function resolveAndFetch (
   // Check installability now that we have the manifest (for git/tarball packages without registry metadata)
   if (isInstallable === undefined && manifest != null) {
     isInstallable = packageIsInstallable(id, manifest, {
-      engineStrict: !ctx.force && ctx.engineStrict,
+      engineStrict,
       lockfileDir: options.lockfileDir,
       nodeVersion: ctx.nodeVersion,
       optional: wantedDependency.optional === true,

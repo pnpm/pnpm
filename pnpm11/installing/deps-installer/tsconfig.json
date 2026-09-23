@@ -61,6 +61,9 @@
       "path": "../../config/normalize-registries"
     },
     {
+      "path": "../../config/package-is-installable"
+    },
+    {
       "path": "../../config/parse-overrides"
     },
     {

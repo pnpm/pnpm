@@ -26,6 +26,7 @@ export interface CreatePackageStoreOptions {
   cafsLocker?: CafsLocker
   engineStrict?: boolean
   force?: boolean
+  forceIgnoresPlatform?: boolean
   nodeVersion?: string
   importPackage?: ImportIndexedPackageAsync
   pnpmVersion?: string
@@ -66,6 +67,7 @@ export function createPackageStore (
   })
   const packageRequester = createPackageRequester({
     force: initOpts.force,
+    forceIgnoresPlatform: initOpts.forceIgnoresPlatform,
     engineStrict: initOpts.engineStrict,
     nodeVersion: initOpts.nodeVersion,
     pnpmVersion: initOpts.pnpmVersion,

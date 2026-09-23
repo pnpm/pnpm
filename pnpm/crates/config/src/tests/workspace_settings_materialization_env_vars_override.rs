@@ -293,6 +293,15 @@ pub fn virtual_store_dir_max_length_from_workspace_yaml() {
 }
 
 #[test]
+pub fn force_ignores_platform_from_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "forceIgnoresPlatform: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.force_ignores_platform);
+}
+
+#[test]
 pub fn engine_strict_node_version_and_max_sockets_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
     fs::write(

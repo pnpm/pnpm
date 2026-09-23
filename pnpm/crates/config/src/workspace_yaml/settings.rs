@@ -473,6 +473,12 @@ pub struct WorkspaceSettings {
     /// See [`Config::engine_strict`](crate::settings::Config::engine_strict). Default `false`.
     pub engine_strict: Option<bool>,
 
+    /// `forceIgnoresPlatform` from `pnpm-workspace.yaml` / global
+    /// `config.yaml`. See
+    /// [`Config::force_ignores_platform`](crate::settings::Config::force_ignores_platform).
+    /// Default `false`.
+    pub force_ignores_platform: Option<bool>,
+
     /// `nodeVersion` from `pnpm-workspace.yaml` / global `config.yaml`.
     /// See [`Config::node_version`](crate::settings::Config::node_version). Default unset (auto-detect).
     pub node_version: Option<String>,

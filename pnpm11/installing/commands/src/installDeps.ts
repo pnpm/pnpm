@@ -83,6 +83,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'virtualStoreOnly'
 | 'engineStrict'
 | 'excludeLinksFromLockfile'
+| 'forceIgnoresPlatform'
 | 'global'
 | 'globalPnpmfile'
 | 'ignoreCurrentSpecifiers'
@@ -263,6 +264,7 @@ export async function installDeps (
       argv: { original: opts.argv.original, remain: opts.argv.remain ?? [] },
       isInstallCommand: opts.isInstallCommand === true,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      forceIgnoresPlatform: opts.forceIgnoresPlatform !== false,
     })
     : undefined
   const includeDirect = opts.includeDirect ?? {

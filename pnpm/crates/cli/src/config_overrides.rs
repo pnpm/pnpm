@@ -73,6 +73,7 @@ pub struct ConfigOverrides {
     dangerously_allow_all_builds: Option<bool>,
     deploy_all_files: Option<bool>,
     engine_strict: Option<bool>,
+    force_ignores_platform: Option<bool>,
     force_legacy_deploy: Option<bool>,
     frozen_store: Option<bool>,
     global_dir: Option<String>,
@@ -260,6 +261,7 @@ impl ConfigOverrides {
                 self.dangerously_allow_all_builds = parse_bool(value);
             }
             "engine-strict" => self.engine_strict = parse_bool(value),
+            "force-ignores-platform" => self.force_ignores_platform = parse_bool(value),
             "frozen-store" => self.frozen_store = parse_bool(value),
             "hoist" => self.hoist = parse_bool(value),
             "ignore-pnpmfile" => self.ignore_pnpmfile = parse_bool(value),
