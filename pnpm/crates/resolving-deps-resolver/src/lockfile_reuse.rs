@@ -37,12 +37,16 @@ pub(crate) fn current_pkg_from_lockfile(
         .as_ref()
         .and_then(|snaps| snaps.get(key));
     attach_snapshot_dependencies(&mut manifest_val, snapshot);
+    let published_at = lockfile.time
+        .as_ref()
+        .and_then(|time| time.get(&metadata_key.to_string()))
+        .cloned();
     Some(CurrentPkg {
         id: PkgResolutionId::from(metadata_key.to_string()),
         name: Some(name),
         version,
         resolution,
-        published_at: None,
+        published_at,
         manifest: Some(Arc::new(manifest_val)),
     })
 }

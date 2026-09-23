@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { expect, jest, test } from '@jest/globals'
 import { ABBREVIATED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
 import gfs from '@pnpm/fs.graceful-fs'
+import { logger } from '@pnpm/logger'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import { EXISTING_VERSION_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
 import { temporaryDirectory } from 'tempy'
@@ -635,4 +636,31 @@ test('pickPackage propagates a cache-loss fallback error', async () => {
   expect(fetchCalls[1]).toMatchObject({ cacheBypass: true })
   expect(fetchCalls[1].etag).toBeUndefined()
   expect(fetchCalls[1].modified).toBeUndefined()
+})
+
+test('pickPackage falls back to cached metadata without logging an error when fetch fails', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, '"stale"'))
+
+  const errorSpy = jest.spyOn(logger, 'error')
+  const ctx = {
+    fetch: async () => {
+      throw new Error('Network error or 404')
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  const result = await pickPackage(ctx, spec, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+  })
+
+  expect(result.pickedPackage?.version).toBe('1.0.0')
+  expect(errorSpy).not.toHaveBeenCalled()
+  errorSpy.mockRestore()
 })

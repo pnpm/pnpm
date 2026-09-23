@@ -1,11 +1,11 @@
 use super::{
-    LockfileResolution, NoMatchingVersionError, Package, PackageVersion, PickedFromRegistry,
-    RegistryPackageSpec, RegistryPackageSpecType, RegistryPick, ResolveError,
+    HashMap, LockfileResolution, NoMatchingVersionError, Package, PackageVersion,
+    PickedFromRegistry, RegistryPackageSpec, RegistryPackageSpecType, RegistryPick, ResolveError,
     ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, ResolveOptions, ResolveResult,
     SavedSpecifierOptions, TrustPolicy, UpdateBehavior, Version, WantedDependency,
     WorkspacePackages, is_not_found_error, latest_allowed_by_policy, parse_bare_specifier,
-    pick_matching_local_version_or_null, redact_and_sanitize, resolve_from_local_package,
-    try_resolve_from_workspace_packages,
+    pick_matching_local_version_or_null, pick_registry_for_package, redact_and_sanitize,
+    resolve_from_local_package, try_resolve_from_workspace, try_resolve_from_workspace_packages,
 };
 
 /// Retry a failed registry pick against the workspace. `prefer_workspace_error`
@@ -290,4 +290,34 @@ pub(super) fn workspace_fallback_for(
             )
         }
     }
+}
+
+/// `workspace:` resolves against the workspace alone; `workspace:.` is
+/// the project itself and belongs to no resolver.
+pub(super) fn resolve_workspace_protocol(
+    registries: &HashMap<String, String>,
+    wanted_dependency: &WantedDependency,
+    opts: &ResolveOptions,
+    bare: &str,
+    default_tag: &str,
+) -> Result<Option<ResolveResult>, ResolveError> {
+    if bare.starts_with("workspace:.") {
+        return Ok(None);
+    }
+    let registry = pick_registry_for_package(
+        registries,
+        wanted_dependency.alias.as_deref().unwrap_or_default(),
+        wanted_dependency.bare_specifier.as_deref(),
+    );
+    let ws_opts = ResolveFromWorkspaceOptions {
+        project_dir: opts.project.project_dir.as_path(),
+        lockfile_dir: opts.project.lockfile_dir.as_path(),
+        registry: &registry,
+        default_tag,
+        workspace_packages: opts.project.workspace_packages.as_deref(),
+        inject_workspace_packages: opts.project.inject_workspace_packages,
+        saved_specifier: saved_specifier_options(opts),
+    };
+    try_resolve_from_workspace(wanted_dependency, &ws_opts)
+        .map_err(|err| Box::new(err) as ResolveError)
 }

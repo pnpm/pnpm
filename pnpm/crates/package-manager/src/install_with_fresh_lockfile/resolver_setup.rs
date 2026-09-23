@@ -279,6 +279,7 @@ impl ResolverChainInputs<'_> {
                 prefer_offline: self.config.prefer_offline,
                 ignore_missing_time_field: self.config.minimum_release_age_ignore_missing_time,
             },
+            store_index: self.store.index.cloned(),
         })
     }
 
