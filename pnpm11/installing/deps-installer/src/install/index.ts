@@ -53,6 +53,7 @@ import {
 } from '@pnpm/installing.deps-resolver'
 import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
 import { type Modules, readModulesManifest, writeModulesManifest } from '@pnpm/installing.modules-yaml'
+import { filterLockfileByImportersAndEngine } from '@pnpm/lockfile.filtering'
 import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,
@@ -79,7 +80,7 @@ import {
   resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, removePackageMap, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
-import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAreUpToDate, satisfiesPackageManifest, unresolvedOptionalDependencies } from '@pnpm/lockfile.verification'
+import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAreUpToDate, findPackageTarballIntegrityMismatch, satisfiesPackageManifest, unresolvedOptionalDependencies } from '@pnpm/lockfile.verification'
 import { logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs, getSpecFromPackageManifest, guessDependencyType } from '@pnpm/pkg-manifest.utils'
@@ -107,7 +108,7 @@ import {
   type ProjectRootDir,
   type ReadPackageHook,
 } from '@pnpm/types'
-import { verifiedFileIntegritySince, verifiedFileIntegritySnapshot } from '@pnpm/worker'
+import { TarballIntegrityError, verifiedFileIntegritySince, verifiedFileIntegritySnapshot } from '@pnpm/worker'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
@@ -724,13 +725,16 @@ export async function mutateModules (
     install: Promise<InnerInstallResult>,
     verification: Promise<void> | undefined
   ): Promise<InnerInstallResult> {
-    if (verification == null) return install
-    // Handle the install's eventual rejection up front so a fail-fast
-    // verification throw below doesn't leave the still-running install
-    // unhandled.
-    install.catch(() => {})
+    if (verification != null) {
+      // Handle the install's eventual rejection up front so a fail-fast
+      // verification throw below doesn't leave the still-running install
+      // unhandled.
+      install.catch(() => {})
+    }
     try {
-      await verification
+      if (verification != null) {
+        await verification
+      }
       return await install
     } catch (err) {
       detachReporter()
@@ -1724,6 +1728,44 @@ Note that in CI environments, this setting is enabled by default.`,
           reason: 'resolution_failure',
         })
       }
+    }
+    if (frozenLockfile && !opts.lockfileOnly) {
+      const fileIntegrityCache = new Map<string, Promise<string>>()
+      const importerIds = opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted'
+        ? Object.keys(ctx.wantedLockfile.importers) as ProjectId[]
+        : projects.map(({ rootDir }) => ctx.projects[rootDir].id)
+      const skipped = new Set<string>()
+      const { lockfile } = filterLockfileByImportersAndEngine(ctx.wantedLockfile, importerIds, {
+        include: opts.include,
+        currentEngine: {
+          nodeVersion: opts.nodeVersion,
+          pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+        },
+        engineStrict: opts.engineStrict,
+        failOnMissingDependencies: false,
+        includeIncompatiblePackages: opts.force === true,
+        lockfileDir: opts.lockfileDir,
+        skipped,
+        skipRuntimes: opts.skipRuntimes,
+        supportedArchitectures: opts.supportedArchitectures,
+      })
+      const limitVerification = pLimit(16)
+      await Promise.all(Object.entries(lockfile.packages ?? {}).map(([depPath, snapshot]) => limitVerification(async () => {
+        if (skipped.has(depPath)) return
+        const mismatch = await findPackageTarballIntegrityMismatch({
+          fileIntegrityCache,
+          lockfileDir: opts.lockfileDir,
+        }, snapshot, depPath)
+        if (mismatch == null) return
+        const algorithm = mismatch.expected.includes('-') ? mismatch.expected.split('-', 1)[0] : 'sha512'
+        throw new TarballIntegrityError({
+          algorithm,
+          expected: mismatch.expected,
+          found: mismatch.found,
+          sri: mismatch.expected,
+          url: mismatch.path,
+        })
+      })))
     }
     if (opts.lockfileOnly) {
       // The lockfile will only be changed if the workspace will have new projects with no dependencies.

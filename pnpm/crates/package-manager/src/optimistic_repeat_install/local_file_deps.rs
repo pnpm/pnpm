@@ -5,11 +5,11 @@ use super::{
     IncludedDependencies, Lockfile, OptimisticRepeatInstallCheck, Path, PathBuf, WantedDependency,
     resolve_from_catalog,
 };
-use pnpm_lockfile::{LockfileResolution, PkgName};
+use pnpm_lockfile::{LockfileResolution, PkgName, is_local_tarball_path};
 use pnpm_resolving_local_resolver::local_tarball_path;
 use pnpm_workspace::importer_id_from_root_dir;
-use ssri::{Integrity, IntegrityChecker};
-use std::{borrow::Cow, fs, io::Read};
+use ssri::Integrity;
+use std::{borrow::Cow, collections::HashSet};
 
 struct LocalTarballDependency {
     project_dir: PathBuf,
@@ -17,6 +17,63 @@ struct LocalTarballDependency {
     group: DependencyGroup,
     path: Option<PathBuf>,
     must_be_local: bool,
+}
+
+pub(crate) struct FrozenLocalTarballCheck<'a> {
+    pub(crate) workspace_root: &'a Path,
+    pub(crate) importer_ids: &'a HashSet<String>,
+    pub(crate) included: IncludedDependencies,
+    pub(crate) lockfile: &'a Lockfile,
+    pub(crate) skipped: &'a pnpm_deps_restorer::SkippedSnapshots,
+}
+
+impl FrozenLocalTarballCheck<'_> {
+    fn package_keys(&self) -> HashSet<pnpm_lockfile::PackageKey> {
+        crate::collect_reachable(
+            self.lockfile,
+            self.workspace_root,
+            self.importer_ids,
+            self.included,
+            |key| self.skipped.contains(key),
+        )
+        .snapshot_keys
+    }
+}
+
+pub(crate) fn frozen_local_tarballs_to_verify(
+    check: &FrozenLocalTarballCheck<'_>,
+) -> Vec<(PathBuf, ssri::Integrity)> {
+    let mut verified = HashSet::new();
+    let mut targets = Vec::new();
+    for key in check.package_keys() {
+        let Some(metadata) = check.lockfile.packages
+            .as_ref()
+            .and_then(|packages| packages.get(&key.without_peer()))
+        else {
+            continue;
+        };
+        let LockfileResolution::Tarball(resolution) = &metadata.resolution else { continue };
+        if !is_local_tarball_path(&resolution.tarball) {
+            continue;
+        }
+        let url = crate::local_file_tarball_install_url(
+            Cow::Borrowed(&resolution.tarball),
+            check.workspace_root,
+        );
+        let Some(recorded_path) = pnpm_tarball::local_file_tarball_path(&url) else {
+            continue;
+        };
+        let Some(integrity) = resolution.integrity
+            .as_ref()
+            .filter(|value| !value.hashes.is_empty())
+        else {
+            continue;
+        };
+        if verified.insert((recorded_path.clone(), integrity.to_string())) {
+            targets.push((recorded_path, integrity.clone()));
+        }
+    }
+    targets
 }
 
 /// Whether any project declares a mutable local directory dependency or a
@@ -264,20 +321,7 @@ fn recorded_tarball<'l>(
 }
 
 fn file_matches_integrity(path: &Path, integrity: &Integrity) -> bool {
-    let Ok(mut file) = fs::File::open(path) else { return false };
-    let Ok(metadata) = file.metadata() else { return false };
-    if !metadata.is_file() {
-        return false;
-    }
-    let mut checker = IntegrityChecker::new(integrity.clone());
-    let mut buffer = vec![0_u8; 64 * 1024].into_boxed_slice();
-    loop {
-        match file.read(&mut buffer) {
-            Ok(0) => return checker.result().is_ok(),
-            Ok(read) => checker.input(&buffer[..read]),
-            Err(_) => return false,
-        }
-    }
+    pnpm_tarball::verify_local_file_integrity(path, integrity).is_ok()
 }
 
 /// Whether a `catalog:` spec dereferences (through the workspace
@@ -379,9 +423,7 @@ pub(crate) fn is_local_file_spec(spec: &str) -> bool {
     if spec.contains([':', '#']) {
         return false;
     }
-    ends_with_ignore_ascii_case(spec, ".tgz")
-        || ends_with_ignore_ascii_case(spec, ".tar.gz")
-        || ends_with_ignore_ascii_case(spec, ".tar")
+    is_local_tarball_path(spec)
 }
 
 fn is_unambiguous_local_file_spec(spec: &str) -> bool {
@@ -396,12 +438,6 @@ fn is_unambiguous_local_file_spec(spec: &str) -> bool {
         return true;
     }
     false
-}
-
-fn ends_with_ignore_ascii_case(spec: &str, suffix: &str) -> bool {
-    let spec = spec.as_bytes();
-    let suffix = suffix.as_bytes();
-    spec.len() >= suffix.len() && spec[spec.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
 }
 
 /// `c:/...`, `c:\...`, or drive-relative `c:foo` — a Windows drive

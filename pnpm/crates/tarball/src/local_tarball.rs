@@ -11,17 +11,29 @@ use super::{
 };
 use crate::extraction_task::spawn_extraction;
 use pnpm_package_manifest::parse_manifest_bytes;
-use ssri::Integrity;
+use ssri::{Integrity, IntegrityChecker};
 use tar::Archive;
 
 pub(crate) async fn open_local_tarball(
     path: &Path,
 ) -> Result<(tokio::fs::File, u64), TarballError> {
-    let metadata = tokio::fs::metadata(path).await
-        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
-    reject_non_file_local_tarball(path, &metadata)?;
-    let file = tokio::fs::File::open(path).await
-        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    let mut options = tokio::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    options.custom_flags(libc::O_NONBLOCK);
+    let file = match options.open(path).await {
+        Ok(file) => file,
+        Err(source) => {
+            if path.is_dir() {
+                return Err(read_local_tarball_error(
+                    path,
+                    io::ErrorKind::InvalidInput,
+                    "local tarball path is not a regular file",
+                ));
+            }
+            return Err(TarballError::ReadLocalTarball { path: path.to_path_buf(), source });
+        }
+    };
     let metadata = file
         .metadata()
         .await
@@ -104,7 +116,9 @@ pub(crate) fn read_local_tarball_error(
     }
 }
 
-pub(crate) fn local_file_tarball_path(package_url: &str) -> Option<PathBuf> {
+/// Decode a local archive URL without probing the filesystem. Network paths are excluded.
+#[must_use]
+pub fn local_file_tarball_path(package_url: &str) -> Option<PathBuf> {
     let path = package_url.strip_prefix("file:")?;
     if is_unc_like_file_payload(path) {
         return None;
@@ -350,4 +364,66 @@ fn finish_bundled_manifest(
             source,
         })?;
     Ok((normalize_bundled_manifest(&parsed), true))
+}
+
+/// Verifies a local tarball on disk matches the expected integrity.
+pub fn verify_local_file_integrity(path: &Path, integrity: &Integrity) -> Result<(), TarballError> {
+    let mut file = open_local_file_sync(path)?;
+    stream_check_integrity(path, &mut file, integrity)
+}
+
+fn open_local_file_sync(path: &Path) -> Result<std::fs::File, TarballError> {
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.custom_flags(libc::O_NONBLOCK);
+    }
+    let file = match options.open(path) {
+        Ok(file) => file,
+        Err(source) => {
+            if path.is_dir() {
+                return Err(read_local_tarball_error(
+                    path,
+                    io::ErrorKind::InvalidInput,
+                    "local tarball path is not a regular file",
+                ));
+            }
+            return Err(TarballError::ReadLocalTarball { path: path.to_path_buf(), source });
+        }
+    };
+    let metadata = file
+        .metadata()
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    reject_non_file_local_tarball(path, &metadata)?;
+    Ok(file)
+}
+
+fn stream_check_integrity(
+    path: &Path,
+    file: &mut std::fs::File,
+    integrity: &Integrity,
+) -> Result<(), TarballError> {
+    let mut checker = IntegrityChecker::new(integrity.clone());
+    let mut buffer = vec![0_u8; 64 * 1024].into_boxed_slice();
+    loop {
+        match file.read(&mut buffer) {
+            Ok(0) => {
+                return checker
+                    .result()
+                    .map(|_| ())
+                    .map_err(|error| {
+                        TarballError::Checksum(crate::VerifyChecksumError {
+                            url: format!("file:{}", path.display()),
+                            error,
+                        })
+                    });
+            }
+            Ok(read) => checker.input(&buffer[..read]),
+            Err(source) => {
+                return Err(TarballError::ReadLocalTarball { path: path.to_path_buf(), source });
+            }
+        }
+    }
 }

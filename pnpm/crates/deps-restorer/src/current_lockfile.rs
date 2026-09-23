@@ -14,8 +14,9 @@
 //! those slots were already on disk and skip work that should
 //! actually run.
 
+pub use reachability::{ReachableLockfileGraph, collect_reachable};
+
 mod reachability;
-use reachability::collect_reachable;
 
 use std::{
     collections::{HashMap, HashSet},

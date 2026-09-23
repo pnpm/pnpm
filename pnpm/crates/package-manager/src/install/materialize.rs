@@ -1,10 +1,12 @@
+pub(super) use scope::initial_materialization_ids;
+
 mod frozen;
 mod scope;
 use scope::{
     allow_builds_changed_since, anchored_project_manifests, announce_headless_install,
-    frozen_project_anchor_ids, importer_manifests_by_id, initial_materialization_ids,
-    lockfile_specifier_manifests_by_id, previously_skipped, prior_unbuilt_builds,
-    record_fresh_lockfile_verified, settle_frozen_verification,
+    frozen_project_anchor_ids, importer_manifests_by_id, lockfile_specifier_manifests_by_id,
+    previously_skipped, prior_unbuilt_builds, record_fresh_lockfile_verified,
+    settle_frozen_verification,
 };
 
 use super::{
