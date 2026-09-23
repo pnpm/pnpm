@@ -255,18 +255,15 @@ async function resolveAndFetch (
   }
 
   let isInstallable: boolean | null | undefined = (
-    ctx.force === true ||
-    (
-      manifest == null
-        ? undefined
-        : packageIsInstallable(id, manifest, {
-          engineStrict: ctx.engineStrict,
-          lockfileDir: options.lockfileDir,
-          nodeVersion: ctx.nodeVersion,
-          optional: wantedDependency.optional === true,
-          supportedArchitectures: options.supportedArchitectures,
-        })
-    )
+    manifest == null
+      ? (ctx.force ? true : undefined)
+      : packageIsInstallable(id, manifest, {
+        engineStrict: !ctx.force && ctx.engineStrict,
+        lockfileDir: options.lockfileDir,
+        nodeVersion: ctx.nodeVersion,
+        optional: wantedDependency.optional === true,
+        supportedArchitectures: options.supportedArchitectures,
+      })
   )
   const fetcherForResolution = resolution.type === 'variations'
     ? undefined
@@ -359,8 +356,8 @@ async function resolveAndFetch (
   }
   // Check installability now that we have the manifest (for git/tarball packages without registry metadata)
   if (isInstallable === undefined && manifest != null) {
-    isInstallable = ctx.force === true || packageIsInstallable(id, manifest, {
-      engineStrict: ctx.engineStrict,
+    isInstallable = packageIsInstallable(id, manifest, {
+      engineStrict: !ctx.force && ctx.engineStrict,
       lockfileDir: options.lockfileDir,
       nodeVersion: ctx.nodeVersion,
       optional: wantedDependency.optional === true,

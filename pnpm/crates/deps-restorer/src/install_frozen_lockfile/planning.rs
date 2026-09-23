@@ -320,17 +320,16 @@ pub(super) fn seed_skip_set(
 /// with constrained metadata but no snapshots would pay for a
 /// `node --version` it has nothing to check.
 pub(super) fn needs_installability_check(
-    config: &pnpm_config::Config,
+    _config: &pnpm_config::Config,
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
 ) -> bool {
-    !config.force
-        && match (snapshots, packages) {
-            (Some(snaps), Some(pkgs)) if !snaps.is_empty() => {
-                any_installability_constraint(snaps, pkgs)
-            }
-            _ => false,
+    match (snapshots, packages) {
+        (Some(snaps), Some(pkgs)) if !snaps.is_empty() => {
+            any_installability_constraint(snaps, pkgs)
         }
+        _ => false,
+    }
 }
 pub(super) struct HostDetectionInputs<'a> {
     pub(super) config: &'a pnpm_config::Config,
@@ -365,7 +364,7 @@ pub(super) async fn detect_host(
     if !config.enable_global_virtual_store {
         return early_host_detection.unwrap_or_else(|| {
             crate::materialization_plan::HostDetection::spawn(
-                config.engine_strict,
+                config.engine_strict && !config.force,
                 node_version,
                 supported_architectures.cloned(),
             )
@@ -376,7 +375,7 @@ pub(super) async fn detect_host(
         None => {
             crate::materialization_plan::detect_installability_host(
                 true,
-                config.engine_strict,
+                config.engine_strict && !config.force,
                 node_version,
                 supported_architectures,
             )

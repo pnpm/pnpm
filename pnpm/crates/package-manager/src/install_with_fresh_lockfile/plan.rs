@@ -314,22 +314,19 @@ pub(super) async fn installability_host(
     host: (Option<String>, Option<&pnpm_package_is_installable::SupportedArchitectures>),
 ) -> Option<pnpm_deps_restorer::InstallabilityHost> {
     let (node_version, supported_architectures) = host;
-    let needed = !config.force
-        && lockfile.packages
-            .as_ref()
-            .is_some_and(|packages| {
-                lockfile.snapshots
-                    .as_ref()
-                    .is_some_and(|snapshots| {
-                        crate::any_installability_constraint(snapshots, packages)
-                    })
-            });
+    let needed = lockfile.packages
+        .as_ref()
+        .is_some_and(|packages| {
+            lockfile.snapshots
+                .as_ref()
+                .is_some_and(|snapshots| crate::any_installability_constraint(snapshots, packages))
+        });
     match (early_host_detection, needed) {
         (Some(detection), true) => detection.resolve().await,
         (_, needed) => {
             pnpm_deps_restorer::materialization_plan::detect_installability_host(
                 needed,
-                config.engine_strict,
+                config.engine_strict && !config.force,
                 node_version,
                 supported_architectures,
             )

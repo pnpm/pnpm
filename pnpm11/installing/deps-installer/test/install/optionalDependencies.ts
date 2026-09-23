@@ -370,7 +370,7 @@ test('do not skip optional dependency that does not support the current pnpm ver
   expect(reportedTimes).toBe(0)
 })
 
-test('don\'t skip optional dependency that does not support the current OS when forcing', async () => {
+test('skip optional dependency that does not support the current OS even when forcing', async () => {
   const project = prepareEmpty()
 
   await install({
@@ -379,8 +379,8 @@ test('don\'t skip optional dependency that does not support the current OS when 
     },
   }, testDefaults({}, {}, {}, { force: true }))
 
-  project.has('@pnpm.e2e/not-compatible-with-any-os')
-  project.storeHas('@pnpm.e2e/not-compatible-with-any-os', '1.0.0')
+  project.hasNot('@pnpm.e2e/not-compatible-with-any-os')
+  project.storeHasNot('@pnpm.e2e/not-compatible-with-any-os', '1.0.0')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/2636
@@ -497,7 +497,7 @@ test('optional subdependency is skipped', async () => {
   expect(Object.keys(lockfile.packages)).toHaveLength(3)
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
 
-  // forced headless install should install non-compatible optional deps
+  // forced headless install should not install non-compatible optional deps
 
   // TODO: move next case to @pnpm/installing.deps-restorer tests
   await mutateModulesInSingleProject({
@@ -506,11 +506,11 @@ test('optional subdependency is skipped', async () => {
     rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ force: true, frozenLockfile: true }))
 
-  expect(fs.existsSync('node_modules/.pnpm/@pnpm.e2e+not-compatible-with-any-os@1.0.0')).toBeTruthy()
+  expect(fs.existsSync('node_modules/.pnpm/@pnpm.e2e+not-compatible-with-any-os@1.0.0')).toBeFalsy()
 
   {
     const modulesInfo = readYamlFileSync<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
-    expect(modulesInfo.skipped).toStrictEqual([])
+    expect(modulesInfo.skipped).toStrictEqual(['@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
   }
 })
 

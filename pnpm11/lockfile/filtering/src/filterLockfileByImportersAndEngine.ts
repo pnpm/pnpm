@@ -199,7 +199,7 @@ function classifyDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickPkgs
     if (!incompatible.has(depPath)) {
       ctx.evaluated.push(depPath)
       // TODO: depPath is not the package ID. Should be fixed
-      incompatible.set(depPath, !opts.includeIncompatiblePackages && checkPackageInstallability(
+      incompatible.set(depPath, checkPackageInstallability(
         pkgSnapshot.id ?? depPath,
         toInstallabilityManifest(depPath, pkgSnapshot),
         {
@@ -232,8 +232,8 @@ function classifyDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickPkgs
 function reportInstallability (ctx: PickPkgsContext, opts: PickPkgsOptions): void {
   for (const depPath of ctx.evaluated) {
     const pkgSnapshot = ctx.lockfile.packages![depPath]
+    const isOptional = !ctx.installed.has(depPath) || !ctx.requiredDepPaths.has(depPath)
     const installable =
-      opts.includeIncompatiblePackages ||
       packageIsInstallable(
         pkgSnapshot.id ?? depPath,
         toInstallabilityManifest(depPath, pkgSnapshot),
@@ -242,10 +242,10 @@ function reportInstallability (ctx: PickPkgsContext, opts: PickPkgsOptions): voi
           // best-effort: the dependency is installed so its dependent is not
           // left broken, but an incompatibility inside it does not fail the
           // install. Only a package no optional path reaches is fatal here.
-          engineStrict: opts.engineStrict && pkgSnapshot.optional !== true,
+          engineStrict: !opts.includeIncompatiblePackages && opts.engineStrict && pkgSnapshot.optional !== true,
           lockfileDir: opts.lockfileDir,
           nodeVersion: opts.currentEngine.nodeVersion,
-          optional: !ctx.installed.has(depPath) || !ctx.requiredDepPaths.has(depPath),
+          optional: isOptional,
           supportedArchitectures: opts.supportedArchitectures,
         }
       ) !== false

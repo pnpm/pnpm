@@ -122,7 +122,8 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
         needs_early_host_detection(install.context.config, mode.resolve_only, wanted.lockfile)
             .then(|| {
                 pnpm_deps_restorer::materialization_plan::HostDetection::spawn(
-                    install.context.config.engine_strict,
+                    install.context.config.engine_strict
+                        && !install.context.config.force,
                     mode.effective_node_version.clone(),
                     owned.projects.supported_architectures.clone(),
                 )
@@ -231,12 +232,11 @@ pub(super) fn load_wanted_lockfile<'a, Reporter: self::Reporter>(
 /// new graph gains constraints the old lockfile lacked detects the host at
 /// its own site.
 pub(super) fn needs_early_host_detection(
-    config: &Config,
+    _config: &Config,
     resolve_only: bool,
     lockfile: Option<&Lockfile>,
 ) -> bool {
-    !config.force
-        && !resolve_only
+    !resolve_only
         && lockfile.is_some_and(|lockfile| match (&lockfile.snapshots, &lockfile.packages) {
             (Some(snapshots), Some(packages)) if !snapshots.is_empty() => {
                 pnpm_deps_restorer::any_installability_constraint(snapshots, packages)

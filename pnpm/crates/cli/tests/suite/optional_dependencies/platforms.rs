@@ -37,10 +37,10 @@ fn skip_optional_dependency_that_does_not_support_the_current_node_version() {
     drop((root, npmrc_info)); // cleanup
 }
 
-/// TS: `don't skip optional dependency that does not support the
-/// current OS when forcing` (`optionalDependencies.ts:199`).
+/// TS: `skip optional dependency that does not support the current OS even
+/// when forcing` (`optionalDependencies.ts:373`).
 #[test]
-fn do_not_skip_unsupported_os_optional_dependency_when_forcing() {
+fn skip_unsupported_os_optional_dependency_when_forcing() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -61,20 +61,23 @@ fn do_not_skip_unsupported_os_optional_dependency_when_forcing() {
         .success();
 
     assert!(
-        workspace.join("node_modules/@pnpm.e2e/not-compatible-with-any-os/package.json").exists(),
-        "--force must install the platform-incompatible optional dependency",
+        !workspace.join("node_modules/@pnpm.e2e/not-compatible-with-any-os").exists(),
+        "--force must not install the platform-incompatible optional dependency",
     );
-    assert_eq!(read_skipped(&workspace), Vec::<String>::new());
+    assert_eq!(
+        read_skipped(&workspace),
+        ["@pnpm.e2e/dep-of-optional-pkg@1.0.0", "@pnpm.e2e/not-compatible-with-any-os@1.0.0"],
+    );
 
     drop((root, npmrc_info)); // cleanup
 }
 
 /// The forced-headless tail of TS `optional subdependency is skipped`
-/// (`optionalDependencies.ts:283`): `install --force --frozen-lockfile`
-/// must materialize the platform-incompatible optional and clear
+/// (`optionalDependencies.ts:503`): `install --force --frozen-lockfile`
+/// must skip the platform-incompatible optional and retain
 /// `.modules.yaml.skipped`.
 #[test]
-pub(super) fn forced_frozen_install_materializes_incompatible_optionals() {
+pub(super) fn forced_frozen_install_skips_incompatible_optionals() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -95,10 +98,10 @@ pub(super) fn forced_frozen_install_materializes_incompatible_optionals() {
         .success();
 
     assert!(
-        workspace.join("node_modules/.pnpm/@pnpm.e2e+not-compatible-with-any-os@1.0.0").exists(),
-        "the forced headless install must materialize the incompatible optional",
+        !workspace.join("node_modules/.pnpm/@pnpm.e2e+not-compatible-with-any-os@1.0.0").exists(),
+        "the forced headless install must skip the incompatible optional",
     );
-    assert_eq!(read_skipped(&workspace), Vec::<String>::new());
+    assert_eq!(read_skipped(&workspace), ["@pnpm.e2e/not-compatible-with-any-os@1.0.0"]);
 
     drop((root, npmrc_info)); // cleanup
 }
