@@ -1,3 +1,4 @@
+pub(super) mod directory_deps;
 pub(super) mod manifest;
 pub(super) use manifest::manifest_has_effective_dependencies;
 pub(crate) use manifest::{
