@@ -236,7 +236,7 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
         optionalOnly.has(edge.depPath))
     }
     if (allReachableVulnerabilitiesSaturated(paths, reachable, depTypes, optionalOnly)) return
-    const children = snapshotChildren(lockfile, edge.depPath, pkgSnapshot, includeOptDeps)
+    const children = snapshotChildren(lockfile, { depPath: edge.depPath, snapshot: pkgSnapshot }, includeOptDeps)
     inTrail.add(edge.depPath)
     stack.push({ depPath: edge.depPath, trail, children, next: 0 })
   }
@@ -325,7 +325,7 @@ function createReachableVulnerabilitiesGetter (
         if (version && vulnerableNames.has(resolvedName)) {
           own.add(vulnerabilityKey(resolvedName, version, edge.depPath))
         }
-        children = snapshotChildren(lockfile, edge.depPath, pkgSnapshot, includeOptDeps)
+        children = snapshotChildren(lockfile, { depPath: edge.depPath, snapshot: pkgSnapshot }, includeOptDeps)
       }
       partial.set(edge.depPath, own)
       work.push({ edge, own, children, next: 0 })
@@ -484,29 +484,27 @@ function appendNamedDepPaths (target: Array<{ name: string, depPath: DepPath }>,
 // lockfile doesn't record whether `resolvePeersFromWorkspaceRoot` was on.
 function snapshotChildren (
   lockfile: LockfileObject,
-  depPath: DepPath,
-  pkgSnapshot: PackageSnapshot,
+  parent: { depPath: DepPath, snapshot: PackageSnapshot },
   includeOptDeps: boolean
 ): Array<{ name: string, depPath: DepPath }> {
   const children: Array<{ name: string, depPath: DepPath }> = []
-  const parent = { depPath, snapshot: pkgSnapshot }
-  appendDependencyEdges(children, lockfile, parent, pkgSnapshot.dependencies ?? {})
+  const skipped = parent.snapshot.peerDependencies == null ? undefined : getPeerSatisfactionEdges(lockfile).get(parent.depPath)
+  appendDependencyEdges(children, parent.snapshot.dependencies ?? {}, skipped)
   if (includeOptDeps) {
-    appendDependencyEdges(children, lockfile, parent, pkgSnapshot.optionalDependencies ?? {})
+    appendDependencyEdges(children, parent.snapshot.optionalDependencies ?? {}, skipped)
   }
   return children
 }
 
 function appendDependencyEdges (
   target: Array<{ name: string, depPath: DepPath }>,
-  lockfile: LockfileObject,
-  parent: { depPath: DepPath, snapshot: PackageSnapshot },
-  deps: ResolvedDependencies
+  deps: ResolvedDependencies,
+  skipped: Set<string> | undefined
 ): void {
   for (const [alias, ref] of Object.entries(deps)) {
+    if (skipped?.has(alias)) continue
     const depPath = dp.refToRelative(ref, alias)
     if (depPath == null) continue
-    if (isPeerAlias(parent.snapshot, alias) && getPeerSatisfactionEdges(lockfile).get(parent.depPath)?.has(alias)) continue
     target.push({ name: alias, depPath })
   }
 }
@@ -523,8 +521,8 @@ function getPeerSatisfactionEdges (lockfile: LockfileObject): Map<DepPath, Set<s
 }
 
 function collectPeerSatisfactionEdges (lockfile: LockfileObject): Map<DepPath, Set<string>> {
-  const importers = Object.entries(lockfile.importers) as Array<[ProjectId, ProjectSnapshot]>
-  const directDepPaths = new Map(importers.map(([importerId, importer]) => [importerId, new Set(importerDirectDepPaths(importer))]))
+  const importers = Object.values(lockfile.importers)
+  const directDepPaths = importers.map((importer) => new Set(importerDirectDepPaths(importer)))
   // The walk depends only on which importers list the target, so targets
   // with the same listing share one walk.
   const reachedByListing = new Map<string, Set<DepPath>>()
@@ -532,12 +530,12 @@ function collectPeerSatisfactionEdges (lockfile: LockfileObject): Map<DepPath, S
   const reachedWithoutListing = (target: DepPath): Set<DepPath> => {
     let reached = reachedByTarget.get(target)
     if (reached != null) return reached
-    const notListing = importers.filter(([importerId]) => !directDepPaths.get(importerId)!.has(target))
-    const listingKey = notListing.map(([importerId]) => importerId).join('\0')
+    const notListing = directDepPaths.flatMap((direct, index) => direct.has(target) ? [] : [index])
+    const listingKey = notListing.join(',')
     reached = reachedByListing.get(listingKey)
     if (reached == null) {
       reached = new Set()
-      walkAllEdges(lockfile, notListing.flatMap(([, importer]) => importerDirectDepPaths(importer)), reached)
+      walkAllEdges(lockfile, notListing.flatMap((index) => importerDirectDepPaths(importers[index])), reached)
       reachedByListing.set(listingKey, reached)
     }
     reachedByTarget.set(target, reached)
@@ -683,7 +681,7 @@ function walkReachable (lockfile: LockfileObject, depPaths: DepPath[], seen: Set
     seen.add(depPath)
     const snapshot = packages[depPath]
     if (!snapshot) continue
-    for (const child of snapshotChildren(lockfile, depPath, snapshot, includeOptionalEdges)) stack.push(child.depPath)
+    for (const child of snapshotChildren(lockfile, { depPath, snapshot }, includeOptionalEdges)) stack.push(child.depPath)
   }
 }
 
