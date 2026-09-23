@@ -1,8 +1,9 @@
 use super::{
-    ERROR_LOCK_VIOLATION, ERROR_SHARING_VIOLATION, PERMISSION_DENIED_RETRY_BUDGET, RetryTiming,
-    create_dir_all_with_retry, create_dir_with_retry, is_transient_file_lock_error,
-    metadata_with_retry, remove_dir_all_with_retry, remove_dir_with_retry, rename_with_retry,
-    retry_fs_operation, retry_fs_operation_with_timing, symlink_metadata_with_retry,
+    ERROR_LOCK_VIOLATION, ERROR_SHARING_VIOLATION, PERMISSION_DENIED_RETRY_BUDGET,
+    REMOVAL_PERMISSION_DENIED_RETRY_BUDGET, RetryTiming, create_dir_all_with_retry,
+    create_dir_with_retry, is_transient_file_lock_error, metadata_with_retry,
+    remove_dir_all_with_retry, remove_dir_with_retry, rename_with_retry, retry_fs_operation,
+    retry_fs_operation_with_timing, symlink_metadata_with_retry,
 };
 use std::{cell::Cell, fs, io, time::Duration};
 use tempfile::tempdir;
@@ -246,20 +247,20 @@ fn explicit_locks_keep_the_full_budget() {
 }
 
 #[test]
-fn a_full_permission_denied_budget_waits_out_permission_errors() {
+fn permission_errors_stop_at_the_given_permission_denied_budget() {
     let elapsed = Cell::new(Duration::ZERO);
     let result: io::Result<()> = retry_fs_operation_with_timing(
         || Err(io::Error::from(io::ErrorKind::PermissionDenied)),
         |_| true,
         RetryTiming {
             budget: Duration::from_mins(1),
-            permission_denied_budget: Duration::from_mins(1),
+            permission_denied_budget: REMOVAL_PERMISSION_DENIED_RETRY_BUDGET,
             elapsed: || elapsed.get(),
             sleep: |delay| elapsed.set(elapsed.get() + delay),
         },
     );
     assert_eq!(result.unwrap_err().kind(), io::ErrorKind::PermissionDenied);
-    assert_eq!(elapsed.get(), Duration::from_mins(1));
+    assert_eq!(elapsed.get(), REMOVAL_PERMISSION_DENIED_RETRY_BUDGET);
 }
 
 #[test]

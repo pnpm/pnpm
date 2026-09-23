@@ -16,11 +16,10 @@ use std::{fs, io, path::Path};
 /// they need the `RemoveDirectoryW` that [`crate::remove_symlink_dir`]
 /// issues.
 ///
-/// On Windows, a directory tree or file removal retries transient file
-/// locks for up to a minute, access denied included, so a file that an
-/// editor, indexer, or running program holds open below `path` delays the
-/// removal instead of failing it. `retry_transient_removal_locks` explains
-/// why access denied is waited out here.
+/// On Windows, a directory tree or file removal waits out a file that an
+/// editor or indexer holds open below `path` for up to a minute, and a
+/// program running from below `path` for a few seconds, instead of failing
+/// at once. `retry_transient_removal_locks` holds the budgets.
 pub fn remove_dirent(path: &Path) -> io::Result<()> {
     let metadata = fs::symlink_metadata(path)?;
     if metadata.is_dir() {

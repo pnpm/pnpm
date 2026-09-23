@@ -45,8 +45,14 @@ fn assert_removal_recovers(
     let attempts: Vec<_> = receiver.try_iter().collect();
     eprintln!("removal result: {result:?}; real filesystem attempts: {attempts:?}");
     result.expect("the removal must recover once the holder lets go");
-    assert_eq!(attempts.first(), Some(&Err(Some(expected_error))));
-    assert_eq!(attempts.last(), Some(&Ok(())));
+    let (success, failures) = attempts.split_last().expect("the removal must have been attempted");
+    assert_eq!(success, &Ok(()));
+    assert!(!failures.is_empty(), "the held entry must fail at least one attempt");
+    assert!(failures.iter().all(Result::is_err), "only the last attempt may succeed");
+    assert!(
+        failures.contains(&Err(Some(expected_error))),
+        "a failed attempt must report os error {expected_error}",
+    );
     let metadata = fs::symlink_metadata(target);
     assert!(
         matches!(&metadata, Err(error) if error.kind() == io::ErrorKind::NotFound),
@@ -97,6 +103,8 @@ fn directory_removal_recovers_after_transient_lock() {
 /// that with the access denied that a restrictive ACL also gives. The
 /// program keeps running until the removal has failed for longer than the
 /// one second that other retried operations give access denied.
+/// Other failures, such as a scanner briefly holding the fresh copy, may
+/// come first.
 #[test]
 fn directory_removal_waits_out_a_running_executable() {
     let root = tempdir().unwrap();
@@ -108,7 +116,8 @@ fn directory_removal_waits_out_a_running_executable() {
         .expect("SystemRoot is set on Windows")
         .join(r"System32\cmd.exe");
     fs::copy(cmd, &executable).unwrap();
-    // The copy of cmd.exe reads commands from its stdin and runs until it is killed.
+    // The copy of cmd.exe reads commands from its stdin and runs until it is
+    // killed or its stdin closes.
     let mut program = Command::new(&executable)
         .args(["/d", "/q"])
         .stdin(Stdio::piped())

@@ -7,6 +7,12 @@ use std::time::{Duration, Instant};
 const RETRY_BUDGET: Duration = Duration::from_mins(1);
 #[cfg(any(windows, test))]
 const PERMISSION_DENIED_RETRY_BUDGET: Duration = Duration::from_secs(1);
+/// How long a removal waits out access denied. Windows also reports access
+/// denied for an executable that a running process has loaded, so this
+/// covers a program under `node_modules` that is shutting down, while a
+/// restrictive ACL still fails the removal within seconds.
+#[cfg(any(windows, test))]
+const REMOVAL_PERMISSION_DENIED_RETRY_BUDGET: Duration = Duration::from_secs(5);
 #[cfg(any(windows, test))]
 const RETRY_BACKOFF_CAP: Duration = Duration::from_millis(100);
 
@@ -99,20 +105,17 @@ pub(crate) fn retry_transient_file_locks<Value>(
 }
 
 /// Run a removal with the retry policy of [`rename_with_retry`], except that
-/// permission errors keep the full one-minute budget.
-///
-/// Windows refuses to delete an executable that a running process has
-/// loaded, and it reports that with the same `ERROR_ACCESS_DENIED` as a
-/// restrictive ACL. A language server or linter that an editor extension
-/// starts from `node_modules` keeps its binary loaded for as long as it
-/// runs, so a removal must wait it out as long as it waits out a sharing
-/// violation.
+/// permission errors get [`REMOVAL_PERMISSION_DENIED_RETRY_BUDGET`].
 pub(crate) fn retry_transient_removal_locks<Value>(
     operation: impl FnMut() -> io::Result<Value>,
 ) -> io::Result<Value> {
     #[cfg(windows)]
     {
-        retry_fs_operation_within(operation, is_transient_file_lock_error, RETRY_BUDGET)
+        retry_fs_operation_within(
+            operation,
+            is_transient_file_lock_error,
+            REMOVAL_PERMISSION_DENIED_RETRY_BUDGET,
+        )
     }
     #[cfg(not(windows))]
     {
