@@ -14,7 +14,7 @@ import {
 } from '@pnpm/lockfile.fs'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { StoreIndex } from '@pnpm/store.index'
-import { DEPENDENCIES_FIELDS, type DependenciesField, type Finder, type RegistriesByScope } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type DependenciesField, type Finder, type ProjectId, type RegistriesByScope } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import pLimit from 'p-limit'
 import { pathAbsolute } from 'path-absolute'
@@ -35,22 +35,32 @@ export interface DependenciesTree {
   unsavedDependencies?: DependencyNode[]
 }
 
+export interface BuildDependenciesTreeOptions {
+  depth: number
+  excludePeerDependencies?: boolean
+  include?: { [dependenciesField in DependenciesField]: boolean }
+  registriesByScope?: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
+  onlyProjects?: boolean
+  search?: Finder
+  showDedupedSearchMatches?: boolean
+  lockfileDir: string
+  checkWantedLockfileOnly?: boolean
+  modulesDir?: string
+  virtualStoreDirMaxLength: number
+}
+
 export async function buildDependenciesTree (
   projectPaths: string[] | undefined,
-  maybeOpts: {
-    depth: number
-    excludePeerDependencies?: boolean
-    include?: { [dependenciesField in DependenciesField]: boolean }
-    registriesByScope?: RegistriesByScope
-    registriesByPrefix?: Record<string, string>
-    onlyProjects?: boolean
-    search?: Finder
-    showDedupedSearchMatches?: boolean
-    lockfileDir: string
-    checkWantedLockfileOnly?: boolean
-    modulesDir?: string
-    virtualStoreDirMaxLength: number
-  }
+  maybeOpts: BuildDependenciesTreeOptions
+): Promise<{ [projectDir: string]: DependenciesTree }> {
+  return buildProjectsTrees(projectPaths, maybeOpts, new Set())
+}
+
+async function buildProjectsTrees (
+  projectPaths: string[] | undefined,
+  maybeOpts: BuildDependenciesTreeOptions,
+  linkedProjectAncestors: Set<string>
 ): Promise<{ [projectDir: string]: DependenciesTree }> {
   if (!maybeOpts?.lockfileDir) {
     throw new TypeError('opts.lockfileDir is required')
@@ -137,11 +147,94 @@ export async function buildDependenciesTree (
       await getHierarchy(projectPath),
     ] as [string, DependenciesTree]
   }))
+  storeIndex?.close()
   for (const [projectPath, dependenciesHierarchy] of pairs) {
     result[projectPath] = dependenciesHierarchy
   }
-  storeIndex?.close()
+  if (opts.onlyProjects) {
+    await Promise.all(pairs.map(([projectPath, dependenciesHierarchy]) =>
+      expandLinkedProjects(dependenciesHierarchy, {
+        importers: lockfileToUse.importers,
+        lockfileDir: opts.lockfileDir,
+        depth: opts.depth,
+        treeOpts: maybeOpts,
+        ancestors: new Set([...linkedProjectAncestors, projectPath]),
+        rewriteLinkVersionDir: projectPath,
+      })
+    ))
+  }
   return result
+}
+
+interface LinkedProjectsContext {
+  importers: Record<string, ProjectSnapshot>
+  lockfileDir: string
+  depth: number
+  treeOpts: BuildDependenciesTreeOptions
+  ancestors: Set<string>
+  rewriteLinkVersionDir: string
+}
+
+/**
+ * Attaches the project dependencies of every linked project that has a
+ * lockfile of its own. With `sharedWorkspaceLockfile: false`, the lockfile
+ * that the tree was built from knows nothing about the dependencies of the
+ * other workspace projects.
+ */
+async function expandLinkedProjects (tree: DependenciesTree, ctx: LinkedProjectsContext): Promise<void> {
+  await Promise.all(DEPENDENCIES_FIELDS.map(async (field) => {
+    if (tree[field] != null) {
+      tree[field] = await expandLinkedProjectNodes(tree[field], 0, ctx)
+    }
+  }))
+}
+
+async function expandLinkedProjectNodes (
+  nodes: DependencyNode[],
+  level: number,
+  ctx: LinkedProjectsContext
+): Promise<DependencyNode[]> {
+  const expanded = await Promise.all(nodes.map(async (node): Promise<DependencyNode | undefined> => {
+    if (node.dependencies != null) {
+      return { ...node, dependencies: await expandLinkedProjectNodes(node.dependencies, level + 1, ctx) }
+    }
+    if (node.circular || ctx.importers[getLockfileImporterId(ctx.lockfileDir, node.path)] != null) {
+      return node
+    }
+    return expandLinkedProject(node, level, ctx)
+  }))
+  return expanded.filter((node) => node != null)
+}
+
+async function expandLinkedProject (
+  node: DependencyNode,
+  level: number,
+  ctx: LinkedProjectsContext
+): Promise<DependencyNode | undefined> {
+  const linkedLockfile = await readWantedLockfile(node.path, { ignoreIncompatible: false })
+  if (linkedLockfile?.importers['.' as ProjectId] == null) return undefined
+  if (ctx.ancestors.has(node.path)) return { ...node, circular: true }
+  if (level >= ctx.depth) return node
+  const linkedTrees = await buildProjectsTrees([node.path], {
+    ...ctx.treeOpts,
+    lockfileDir: node.path,
+    depth: ctx.depth - level - 1,
+  }, ctx.ancestors)
+  const linkedTree = linkedTrees[node.path]
+  const dependencies = DEPENDENCIES_FIELDS.flatMap((field) => linkedTree[field] ?? [])
+  return dependencies.length > 0
+    ? { ...node, dependencies: rewriteLinkVersions(dependencies, ctx.rewriteLinkVersionDir) }
+    : node
+}
+
+function rewriteLinkVersions (nodes: DependencyNode[], rewriteLinkVersionDir: string): DependencyNode[] {
+  return nodes.map((node) => ({
+    ...node,
+    version: node.version.startsWith('link:')
+      ? `link:${normalizePath(path.relative(rewriteLinkVersionDir, node.path))}`
+      : node.version,
+    ...(node.dependencies && { dependencies: rewriteLinkVersions(node.dependencies, rewriteLinkVersionDir) }),
+  }))
 }
 
 interface HierarchyContext extends BaseTreeOpts {

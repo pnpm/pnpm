@@ -134,7 +134,7 @@ fn materialize_children(
 
     let mut result = MaterializationResult::default();
     for edge in sorted_edges {
-        if opts.only_projects && !matches!(edge.target, Some(TreeNodeId::Importer(_))) {
+        if opts.only_projects && !edge.leads_to_project(parent_id) {
             continue;
         }
         materialize_edge(MaterializeEdge {

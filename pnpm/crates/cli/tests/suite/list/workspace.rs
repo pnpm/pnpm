@@ -449,6 +449,46 @@ fn ls_filter_not_exist_json_prints_an_empty_array() {
 #[test]
 fn list_only_projects_shows_only_projects() {
     let (_root, workspace, _registry) = setup_registry();
+    write_nested_projects_workspace(&workspace, "");
+    run_ok(&workspace, &["install"]);
+
+    let output =
+        run_ok(&workspace, &["--filter", ".", "list", "--depth", "999", "--only-projects"]);
+    assert_eq!(output, nested_projects_tree(&workspace));
+}
+
+/// With a dedicated lockfile per project, the projects linked from the
+/// listed one are walked through their own lockfiles.
+#[test]
+fn list_only_projects_follows_projects_with_dedicated_lockfiles() {
+    let (_root, workspace, _registry) = setup_registry();
+    write_nested_projects_workspace(&workspace, "sharedWorkspaceLockfile: false\n");
+    run_ok(&workspace, &["install"]);
+
+    let output =
+        run_ok(&workspace, &["--filter", ".", "list", "--depth", "Infinity", "--only-projects"]);
+    assert_eq!(output, nested_projects_tree(&workspace));
+
+    let output = run_ok(&workspace, &["--filter", ".", "list", "--depth", "1", "--only-projects"]);
+    let dir = canonical(&workspace);
+    assert_eq!(
+        output,
+        format!(
+            "{LEGEND}\n\n\
+             root@1.0.0 {dir}\n\
+             \u{2502}\n\
+             \u{2502}   dependencies:\n\
+             \u{2514}\u{2500}\u{252c} @scope/a@link:packages/a\n\
+             \x20\x20\u{2514}\u{2500}\u{2500} @scope/b@link:packages/b\n\
+             \n\
+             2 packages\n"
+        ),
+    );
+}
+
+/// `root` depends on `@scope/a`, which depends on `@scope/b`, which
+/// depends on `@scope/c` and on a registry package.
+fn write_nested_projects_workspace(workspace: &Path, extra_settings: &str) {
     fs::write(
         workspace.join("package.json"),
         json!({
@@ -462,6 +502,7 @@ fn list_only_projects_shows_only_projects() {
     let mut yaml =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
     yaml.push_str("packages:\n  - packages/*\n");
+    yaml.push_str(extra_settings);
     fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write workspace yaml");
 
     let packages = [
@@ -480,23 +521,19 @@ fn list_only_projects_shows_only_projects() {
         fs::create_dir_all(&dir).expect("create package dir");
         fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
     }
-    run_ok(&workspace, &["install"]);
+}
 
-    let output =
-        run_ok(&workspace, &["--filter", ".", "list", "--depth", "999", "--only-projects"]);
-    let dir = canonical(&workspace);
-    assert_eq!(
-        output,
-        format!(
-            "{LEGEND}\n\n\
-             root@1.0.0 {dir}\n\
-             \u{2502}\n\
-             \u{2502}   dependencies:\n\
-             \u{2514}\u{2500}\u{252c} @scope/a@link:packages/a\n\
-             \x20\x20\u{2514}\u{2500}\u{252c} @scope/b@link:packages/b\n\
-             \x20\x20\x20\x20\u{2514}\u{2500}\u{2500} @scope/c@link:packages/c\n\
-             \n\
-             3 packages\n"
-        ),
-    );
+fn nested_projects_tree(workspace: &Path) -> String {
+    let dir = canonical(workspace);
+    format!(
+        "{LEGEND}\n\n\
+         root@1.0.0 {dir}\n\
+         \u{2502}\n\
+         \u{2502}   dependencies:\n\
+         \u{2514}\u{2500}\u{252c} @scope/a@link:packages/a\n\
+         \x20\x20\u{2514}\u{2500}\u{252c} @scope/b@link:packages/b\n\
+         \x20\x20\x20\x20\u{2514}\u{2500}\u{2500} @scope/c@link:packages/c\n\
+         \n\
+         3 packages\n",
+    )
 }

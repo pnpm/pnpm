@@ -6,7 +6,7 @@ import type { StoreIndex } from '@pnpm/store.index'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { Finder, RegistriesByScope } from '@pnpm/types'
 
-import type { DependencyGraph } from './buildDependencyGraph.js'
+import { type DependencyGraph, isProjectEdge } from './buildDependencyGraph.js'
 import type { DependencyNode } from './DependencyNode.js'
 import { getPkgInfo } from './getPkgInfo.js'
 import { peersSuffixHashFromDepPath } from './peersSuffixHash.js'
@@ -162,7 +162,7 @@ function materializeChildren (
   const sortedEdges = [...graphNode.edges].sort((a, b) => lexCompare(a.alias, b.alias))
 
   for (const edge of sortedEdges) {
-    if (ctx.onlyProjects && edge.target?.nodeId.type !== 'importer') {
+    if (ctx.onlyProjects && !isProjectEdge(parentId, edge)) {
       continue
     }
 
