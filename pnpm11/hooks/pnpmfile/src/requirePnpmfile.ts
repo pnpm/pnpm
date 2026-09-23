@@ -72,7 +72,7 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
         pkg.optionalDependencies = pkg.optionalDependencies ?? {}
         pkg.peerDependencies = pkg.peerDependencies ?? {}
         const newPkg = await readPackage(pkg, ...args)
-        if (!newPkg) {
+        if (!newPkg || typeof newPkg !== 'object' || Array.isArray(newPkg)) {
           throw new BadReadPackageHookError(pnpmFilePath, 'readPackage hook did not return a package manifest object.')
         }
         const dependencies = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const

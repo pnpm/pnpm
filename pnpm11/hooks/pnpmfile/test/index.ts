@@ -26,6 +26,15 @@ test('readPackage hook run fails when returns undefined', async () => {
   ).rejects.toEqual(new BadReadPackageHookError(pnpmfilePath, 'readPackage hook did not return a package manifest object.'))
 })
 
+test('readPackage hook run fails when it returns a non-object value', async () => {
+  const pnpmfilePath = path.join(import.meta.dirname, '__fixtures__/readPackageReturnsString.js')
+  const { pnpmfileModule: pnpmfile } = (await requirePnpmfile(pnpmfilePath, import.meta.dirname))!
+
+  return expect(
+    pnpmfile!.hooks!.readPackage!({}, defaultHookContext)
+  ).rejects.toEqual(new BadReadPackageHookError(pnpmfilePath, 'readPackage hook did not return a package manifest object.'))
+})
+
 test('readPackage hook run fails when returned dependencies is not an object', async () => {
   const pnpmfilePath = path.join(import.meta.dirname, '__fixtures__/readPackageNoObject.js')
   const { pnpmfileModule: pnpmfile } = (await requirePnpmfile(pnpmfilePath, import.meta.dirname))!
