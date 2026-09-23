@@ -12,21 +12,21 @@
 pub(crate) mod install_pnpm;
 pub(crate) mod verify_engine;
 
+mod global_bin;
+
 use crate::config_deps::{self, EnginePolicyViolation};
 use clap::Args;
 use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_cmd_shim::{Host as CmdShimHost, LinkBinsOptions, link_bins_of_packages_with_excludes};
+use global_bin::link_into_global_bin;
+use miette::{Context, Diagnostic};
 use pnpm_config::{Config, PNPM_VERSION, standalone_install_command};
-use pnpm_fs::force_symlink_dir;
-use pnpm_global::{create_global_cache_key, get_hash_link, read_installed_packages};
 use pnpm_lockfile::EnvLockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, infer_range_spec_style};
-use project_pin::{read_project_pinned_pnpm_version, update_project_pin};
+use project_pin::{project_pin_refusal, read_project_pinned_pnpm_version, update_project_pin};
 use serde_json::Value;
-use std::{collections::HashSet, io::IsTerminal, path::Path};
+use std::{io::IsTerminal, path::Path};
 
 /// Migration guidance printed once when `self-update` crosses a major
 /// boundary. Add an entry per future major that ships breaking changes
@@ -218,43 +218,74 @@ async fn handler<Reporter: self::Reporter + 'static>(
     let is_implicit_latest = params.is_none();
     let bare_specifier = params.unwrap_or("latest");
 
-    let resolved = Box::pin(config_deps::resolve_engine_version(config, "pnpm", bare_specifier))
-        .await?
-        .ok_or_else(|| SelfUpdateError::CannotResolvePnpm {
-            specifier: bare_specifier.to_string(),
-        })?;
-    let target_version = resolved.version;
-    // Before the pin below is written, not just before the install: the pin is
-    // shared, so a release this wrapper survives can still break a teammate's.
-    install_pnpm::assert_release_is_installable(&target_version)?;
+    let target_version = Box::pin(resolve_target_version(config, bare_specifier)).await?;
 
-    if let Some(violation) = resolved.policy_violation {
-        enforce_resolution_policy(config, &target_version, &violation)?;
-    }
-
-    let manifest_value = super::package_manager::read_manifest_json(&dir.join("package.json"))?;
-    let wanted = manifest_value.as_ref().and_then(super::package_manager::wanted_package_manager);
+    let wanted = super::package_manager::read_manifest_json(&dir.join("package.json"))?
+        .as_ref()
+        .and_then(super::package_manager::wanted_package_manager);
 
     if let Some(hint) = crossed_major_hint(config, dir, wanted.as_ref(), &target_version) {
         warn::<Reporter>(&prefix, hint);
     }
 
-    // Project-pin branch: the project pins pnpm, so update the pin in
-    // place instead of touching the global install.
-    if let Some(pm) = &wanted
-        && pm.name == "pnpm"
+    let pinned_pnpm = wanted
+        .as_ref()
+        .filter(|pm| pm.name == "pnpm");
+    if let Some(pm) = pinned_pnpm
+        && let Some(refusal) =
+            project_pin_refusal(config, dir, pm, &target_version, is_implicit_latest)
     {
-        return Box::pin(update_project_pin(config, dir, pm, &target_version, is_implicit_latest))
-            .await;
+        return Ok(Some(refusal));
     }
 
-    if let Some(message) =
-        global_switch_declined(config, &target_version, bare_specifier, is_implicit_latest)?
-    {
-        return Ok(Some(message));
-    }
+    // The global install moves forward even when the project pins pnpm, or
+    // the machine never holds a pnpm that reaches the pin (pnpm/pnpm#14747).
+    // The pin is written last so a failed switch leaves the project as it was.
+    let global_message = match global_switch_declined(
+        config,
+        &target_version,
+        bare_specifier,
+        is_implicit_latest,
+    )? {
+        Some(declined) => Some(declined),
+        None => {
+            switch_global_pnpm::<Reporter>(config, &target_version, &prefix, bare_specifier).await?
+        }
+    };
 
-    switch_global_pnpm::<Reporter>(config, &target_version, &prefix, bare_specifier).await
+    let project_pin_message = match pinned_pnpm {
+        Some(pm) => Some(Box::pin(update_project_pin(config, dir, pm, &target_version)).await?),
+        None => None,
+    };
+    Ok(join_messages(project_pin_message, global_message))
+}
+
+/// The version `bare_specifier` resolves to on the trusted bootstrap
+/// registry, once it has cleared the installability and release-policy
+/// gates. Both gates run before the project pin is written, not just before
+/// the install: the pin is shared, so a release this wrapper survives can
+/// still break a teammate's.
+async fn resolve_target_version(
+    config: &'static Config,
+    bare_specifier: &str,
+) -> miette::Result<String> {
+    let resolved = Box::pin(config_deps::resolve_engine_version(config, "pnpm", bare_specifier))
+        .await?
+        .ok_or_else(|| SelfUpdateError::CannotResolvePnpm {
+            specifier: bare_specifier.to_string(),
+        })?;
+    install_pnpm::assert_release_is_installable(&resolved.version)?;
+    if let Some(violation) = resolved.policy_violation {
+        enforce_resolution_policy(config, &resolved.version, &violation)?;
+    }
+    Ok(resolved.version)
+}
+
+fn join_messages(first: Option<String>, second: Option<String>) -> Option<String> {
+    match (first, second) {
+        (Some(first), Some(second)) => Some(format!("{first}\n{second}")),
+        (first, second) => first.or(second),
+    }
 }
 
 /// Resolve the target engine's integrities into the env lockfile and verify
@@ -354,75 +385,6 @@ fn global_switch_declined(
         )));
     }
     Ok(None)
-}
-
-/// Link the installed engine's bins into the global bin directory and
-/// record its cache-keyed hash symlink (so `pnpm ls -g` and `store prune`
-/// see it).
-fn link_into_global_bin(
-    config: &Config,
-    installed: &install_pnpm::InstallPnpmResult,
-    version: &str,
-) -> miette::Result<()> {
-    let global_bin = config.global_bin.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
-    let global_pkg_dir = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
-    let _global_bin_lock = super::global_bin_lock::acquire_global_bin_lock(&global_bin)?;
-
-    refresh_global_shims(&global_bin, installed, version)?;
-
-    let pkgs = read_installed_packages(&installed.install_dir);
-    link_bins_of_packages_with_excludes::<CmdShimHost>(
-        &pkgs,
-        &global_bin,
-        &HashSet::new(),
-        &LinkBinsOptions::default(),
-    )
-    .map_err(miette::Report::new)
-    .wrap_err("link the updated pnpm bins")?;
-
-    let aliases = vec![installed.package_name.to_string()];
-    let cache_hash = create_global_cache_key(&aliases, &registries_for_cache_key(config));
-    let hash_link = get_hash_link(&global_pkg_dir, &cache_hash);
-    force_symlink_dir(&installed.install_dir, &hash_link)
-        .into_diagnostic()
-        .wrap_err("link the global pnpm install directory")?;
-    Ok(())
-}
-
-fn refresh_global_shims(
-    global_bin: &Path,
-    installed: &install_pnpm::InstallPnpmResult,
-    version: &str,
-) -> miette::Result<()> {
-    // Named native shims first shipped in pnpm 12.3. An older engine
-    // cannot interpret their sidecars, so leave the working shim engine
-    // in place when downgrading.
-    if !node_semver::Version::parse(version)
-        .is_ok_and(|version| (version.major, version.minor) >= (12, 3))
-    {
-        return Ok(());
-    }
-    let executable =
-        install_pnpm::pnpm_executable_path(&installed.install_dir, installed.package_name);
-    crate::shim_dispatch::refresh_native_shims(&executable, global_bin)
-        .into_diagnostic()
-        .wrap_err("refresh the global shims")
-}
-
-/// Build the registry map (`{ default, ...scoped }`) hashed into the
-/// global cache key, from the trusted package-manager bootstrap registries
-/// — never the repo-controlled project registries, so a project `.npmrc`
-/// can't change the hash-symlink name (which would create duplicate global
-/// `pnpm` groups that `find_global_package` resolves non-deterministically).
-fn registries_for_cache_key(config: &Config) -> Vec<(String, String)> {
-    let bootstrap = &config.package_manager_bootstrap;
-    let mut registries = vec![("default".to_string(), bootstrap.registry.clone())];
-    registries.extend(
-        bootstrap.registries
-            .iter()
-            .map(|(key, value)| (key.clone(), value.clone())),
-    );
-    registries
 }
 
 /// Whether the global packages directory already holds the engine that a

@@ -1,24 +1,34 @@
 //! `pacquet self-update` — dispatch-level coverage.
 //!
-//! Exercises the dispatch wiring that routes `self-update` through the
-//! `config_self_update` closure, which drops the release-age and trust
-//! policies a repo-controlled `pnpm-workspace.yaml` would otherwise set.
-//! The resolver can't be covered here because
-//! the mock registry doesn't serve `pnpm` / `@pnpm/exe` (see `tests/with.rs`
-//! for the same limitation), so the command is expected to fail at the
-//! resolve step — by which point the closure has already run.
+//! `self-update` routes through the `config_self_update` closure, which
+//! drops the release-age and trust policies a repo-controlled
+//! `pnpm-workspace.yaml` would otherwise set.
 //!
-//! The global pnpm install is isolated by pointing `PNPM_HOME` at a temp
-//! dir, so even if a future edit changes the version to a resolvable one,
-//! `link_into_global_bin` writes into the temp dir instead of clobbering the
-//! caller's real pnpm. The `999.999.999` version is the belt to that
-//! suspenders: it doesn't resolve, so the link step never runs at all.
-
-use std::fs;
+//! No test here reaches an activated binary in the global bin directory:
+//! the mocked registry's pnpm clears neither half of the engine-identity
+//! gate — it ships no platform binaries, and its tarball carries no npm
+//! registry signature.
+//!
+//! Every test points `PNPM_HOME` at a temp dir, so the install and link
+//! steps write there instead of clobbering the caller's real pnpm.
 
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
-use tempfile::tempdir;
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use std::{
+    fs,
+    path::PathBuf,
+    process::{Command, Output},
+};
+use tempfile::{TempDir, tempdir};
+
+/// A pnpm the mocked registry can serve as `latest`, far enough ahead that
+/// it stays newer than the running version through every release.
+const NEWER_PNPM: &str = "99.0.0";
+
+/// A pnpm the mocked registry can serve as `latest` that is older than the
+/// running version, so an implicit-`latest` run declines the global switch
+/// and the project pin is the only thing it writes.
+const OLDER_PNPM: &str = "1.0.0";
 
 #[test]
 fn self_update_loads_config_and_reaches_the_resolver() {
@@ -55,4 +65,133 @@ fn self_update_loads_config_and_reaches_the_resolver() {
 
     drop(root);
     drop(global_home);
+}
+
+#[test]
+fn self_update_switches_the_global_pnpm_when_the_project_pin_is_already_current() {
+    let mut project = PinnedProject::pinned_to(NEWER_PNPM, NEWER_PNPM);
+
+    let output = project.self_update();
+
+    assert_reached_the_global_switch(&output);
+}
+
+#[test]
+fn self_update_leaves_the_project_pin_alone_when_the_global_switch_fails() {
+    let mut project = PinnedProject::pinned_to("1.2.3", NEWER_PNPM);
+
+    let output = project.self_update();
+
+    assert_reached_the_global_switch(&output);
+    assert!(
+        !output.status.success(),
+        "the global switch cannot finish against the fixture registry",
+    );
+    assert_eq!(project.manifest_text(), r#"{"packageManager":"pnpm@1.2.3"}"#);
+}
+
+#[test]
+fn self_update_rewrites_the_project_pin_and_reports_the_declined_global_switch() {
+    let mut project = PinnedProject::pinned_to("0.1.0", OLDER_PNPM);
+
+    let output = project.self_update();
+
+    assert_pin_updated_and_global_switch_declined(&output);
+    assert_eq!(project.manifest_text(), format!(r#"{{"packageManager":"pnpm@{OLDER_PNPM}"}}"#));
+}
+
+#[test]
+fn self_update_rewrites_a_dev_engines_pin_and_reports_the_declined_global_switch() {
+    let mut project = PinnedProject::pinned_through_dev_engines("0.1.0", OLDER_PNPM);
+
+    let output = project.self_update();
+
+    assert_pin_updated_and_global_switch_declined(&output);
+    let manifest = project.manifest_text();
+    assert!(
+        manifest.contains(&format!(r#""version":"{OLDER_PNPM}""#)),
+        "the devEngines pin was not rewritten: {manifest}",
+    );
+}
+
+/// A project that pins pnpm, wired to a mocked registry serving
+/// `registry_latest` as pnpm's `latest` and to a throwaway `PNPM_HOME`.
+struct PinnedProject {
+    pacquet: Command,
+    workspace: PathBuf,
+    // Held so the temp trees outlive the command that writes into them.
+    _root: TempDir,
+    _global_home: TempDir,
+    _npmrc_info: AddMockedRegistry,
+}
+
+impl PinnedProject {
+    fn pinned_to(version: &str, registry_latest: &str) -> Self {
+        Self::with_manifest(&format!(r#"{{"packageManager":"pnpm@{version}"}}"#), registry_latest)
+    }
+
+    fn pinned_through_dev_engines(version: &str, registry_latest: &str) -> Self {
+        Self::with_manifest(
+            &format!(
+                r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{version}"}}}}}}"#,
+            ),
+            registry_latest,
+        )
+    }
+
+    fn with_manifest(manifest: &str, registry_latest: &str) -> Self {
+        let CommandTempCwd {
+            mut pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(registry_latest);
+        let global_home = tempdir().expect("global home tempdir");
+        pacquet.env("PNPM_HOME", global_home.path());
+        // Point the trusted package-manager bootstrap registry at the mock
+        // too: the project registry never drives an engine download.
+        pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+        PinnedProject {
+            pacquet,
+            workspace,
+            _root: root,
+            _global_home: global_home,
+            _npmrc_info: npmrc_info,
+        }
+    }
+
+    fn self_update(&mut self) -> Output {
+        self.pacquet
+            .arg("self-update")
+            .output()
+            .expect("run pacquet self-update")
+    }
+
+    fn manifest_text(&self) -> String {
+        fs::read_to_string(self.workspace.join("package.json")).expect("read package.json")
+    }
+}
+
+fn assert_reached_the_global_switch(output: &Output) {
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stdout.contains("Switching pnpm from v") && stdout.contains(NEWER_PNPM),
+        "self-update stopped at the project pin; stdout={stdout}, stderr={stderr}",
+    );
+}
+
+fn assert_pin_updated_and_global_switch_declined(output: &Output) {
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stdout={stdout}, stderr={stderr}");
+    assert!(
+        stdout.contains(&format!("The current project has been updated to use pnpm v{OLDER_PNPM}"))
+            && stdout.contains(&format!(
+                r#"is newer than the "latest" version on the registry (v{OLDER_PNPM})"#,
+            )),
+        "both the pin update and the declined global switch must be reported; stdout={stdout}, stderr={stderr}",
+    );
 }
