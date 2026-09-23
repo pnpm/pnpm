@@ -107,7 +107,7 @@ pub(crate) fn pre_command_plan_for_version_flag(
             global: false,
             skip_pm_handling: false,
             check_runtimes: false,
-            reporter: ReporterFlags::default(),
+            reporter: SwitchInput::reporter_flags_from_version_argv(argv),
             // Printing the version must work in a project whose
             // `pnpm-workspace.yaml` is broken, like the runtime checks above.
             key_issues: KeyIssueReporting::WarnOnly,

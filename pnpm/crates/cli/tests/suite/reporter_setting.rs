@@ -136,6 +136,31 @@ fn workspace_reporter_silences_pre_command_pin_warnings() {
 }
 
 #[test]
+fn version_flag_honors_the_reporter_setting_and_the_cli_override() {
+    let fixture = script_fixture("reporter: silent\n");
+    fs::write(
+        fixture.workspace.join("package.json"),
+        serde_json::json!({
+            "devEngines": {
+                "packageManager": { "name": "pnpm", "version": "0.0.1", "onFail": "warn" },
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let assertion = pnpm(&fixture.workspace)
+        .with_arg("--version")
+        .assert()
+        .success()
+        .stderr("");
+    assert!(!assertion.get_output().stdout.is_empty());
+
+    let printed =
+        printed_output(pnpm(&fixture.workspace).with_args(["--reporter=default", "--version"]));
+    assert!(printed.contains("configured to use 0.0.1 of pnpm"), "output: {printed}");
+}
+
+#[test]
 fn workspace_reporter_silences_fresh_and_repeat_installs() {
     let fixture = CommandTempCwd::init().add_mocked_registry();
     let workspace = &fixture.workspace;
