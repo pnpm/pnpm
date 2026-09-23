@@ -84,8 +84,6 @@ fn file_removal_recovers_after_transient_lock() {
     assert_removal_recovers_after_lock(&file, &file);
 }
 
-/// The shape of pnpm/pnpm#15081: `pnpm clean` removes `node_modules/.pnpm`
-/// while an editor holds one of the package files open.
 #[test]
 fn directory_removal_recovers_after_transient_lock() {
     let root = tempdir().unwrap();
