@@ -242,6 +242,7 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
     //   `--lockfile-only` (and `--dry-run`, which sets it) imply
     //   `ignoreScripts`.
     // - A rebuild, which resolves and links nothing.
+    // - An install that excludes `devDependencies`, such as `--prod`.
     // - `ignore_manifest_check`, which covers `pacquet fetch` (pnpm's
     //   `ignorePackageManifest`, installing from the lockfile alone)
     //   and the TypeScript CLI delegating a frozen materialization,
