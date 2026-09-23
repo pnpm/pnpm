@@ -74,6 +74,14 @@ test('readPackage hook run fails when it sets a peer dependency range to a numbe
   ).rejects.toEqual(new BadReadPackageHookError(pnpmfilePath, 'readPackage hook returned an invalid range for \'is-positive\' in the \'peerDependencies\' of foo. Expected a string, got number. To remove the dependency, delete the property.'))
 })
 
+test('readPackage hook run names a package whose name is not a string', async () => {
+  const pnpmfilePath = path.join(import.meta.dirname, '__fixtures__/readPackageNumberPeerRange.js')
+  const { pnpmfileModule: pnpmfile } = (await requirePnpmfile(pnpmfilePath, import.meta.dirname))!
+  return expect(
+    pnpmfile!.hooks!.readPackage!({ name: Symbol('foo') }, defaultHookContext)
+  ).rejects.toEqual(new BadReadPackageHookError(pnpmfilePath, 'readPackage hook returned an invalid range for \'is-positive\' in the \'peerDependencies\' of Symbol(foo). Expected a string, got number. To remove the dependency, delete the property.'))
+})
+
 test('filterLog hook combines with the global hook', async () => {
   const globalPnpmfile = path.join(import.meta.dirname, '__fixtures__/globalFilterLog.js')
   const pnpmfile = path.join(import.meta.dirname, '__fixtures__/filterLog.js')
