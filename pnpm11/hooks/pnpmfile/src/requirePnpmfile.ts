@@ -107,9 +107,8 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
 }
 
 function describePackage (pkg: PackageManifest): string {
-  if (!pkg.name) return 'an unnamed package'
-  const name = String(pkg.name)
-  return pkg.version ? `${name}@${String(pkg.version)}` : name
+  if (typeof pkg.name !== 'string' || !pkg.name) return 'an unnamed package'
+  return typeof pkg.version === 'string' && pkg.version ? `${pkg.name}@${pkg.version}` : pkg.name
 }
 
 /**
