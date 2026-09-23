@@ -705,8 +705,6 @@ impl UpdateFixture {
             .expect("write package.json");
     }
 
-    /// Drop the local registry cache so an update run sees any tags changed
-    /// after the previous install.
     fn drop_registry_cache(&self) {
         if self.cache_dir.exists() {
             fs::remove_dir_all(&self.cache_dir).expect("drop the cached registry metadata");
@@ -838,24 +836,43 @@ async fn interactively_update_skips_ignored_dependencies() {
 #[tokio::test]
 async fn interactively_update_with_workspace_flag_allows_external_dependencies() {
     let fixture = UpdateFixture::with_workspace();
-    fs::write(fixture.dir.path().join("pnpm-workspace.yaml"), "packages:\n  - 'project'\n")
-        .expect("write pnpm-workspace.yaml");
+    let pkg_b = fixture.dir.path().join("pkg-b");
+    fs::create_dir_all(&pkg_b).expect("create pkg-b dir");
+    fs::write(
+        pkg_b.join("package.json"),
+        json!({ "name": "pkg-b", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write pkg-b package.json");
+    fs::write(
+        fixture.dir.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - 'project'\n  - 'pkg-b'\n",
+    )
+    .expect("write pnpm-workspace.yaml");
 
     fixture.set_dist_tag(MULTI_A, "2.1.0", "latest");
     fixture.set_dist_tag(MULTI_C, "4.0.0", "latest");
 
-    fixture.write_manifest(&json!({ MULTI_A: "1.0.0", MULTI_B: "2.0.0", MULTI_C: "3.0.0" }));
+    fixture.write_manifest(&json!({ MULTI_A: "1.0.0", MULTI_B: "2.0.0" }));
     fixture.update(&["update"]).await;
-    fixture.write_manifest(&json!({ MULTI_A: "^1.0.0", MULTI_B: "^2.0.0", MULTI_C: "^3.0.0" }));
+
+    fixture.write_manifest(
+        &json!({ MULTI_A: "^1.0.0", MULTI_B: "^2.0.0", "pkg-b": "workspace:*" }),
+    );
 
     let scripted = scripted_prompts();
-    scripted.answer_next(&[MULTI_A]);
+    scripted.answer_next(&[MULTI_A, "pkg-b"]);
     fixture.update(&["update", "--interactive", "--workspace"]).await;
 
     assert_eq!(
         fixture.lockfile_packages(),
-        [format!("{MULTI_A}@1.0.1"), format!("{MULTI_B}@2.0.0"), format!("{MULTI_C}@3.0.0")],
+        [format!("{MULTI_A}@1.0.1"), format!("{MULTI_B}@2.0.0")],
     );
+    let project_manifest: Value = serde_json::from_str(
+        &fs::read_to_string(fixture.project.join("package.json"))
+            .expect("read updated package.json"),
+    )
+    .expect("parse updated package.json");
+    assert_eq!(project_manifest["dependencies"]["pkg-b"], "workspace:*");
 }
 
 /// Ports `global interactive update leaves without an error when the

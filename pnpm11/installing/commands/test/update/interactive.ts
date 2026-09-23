@@ -1,4 +1,4 @@
-import fs from 'node:fs'
+import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
@@ -552,8 +552,7 @@ test('interactive recursive workspace update allows updating external dependenci
     workspaceDir: process.cwd(),
   })
 
-  // Change range in project2 so is-negative is outdated within range
-  fs.writeFileSync(
+  await writeFile(
     path.resolve('project2/package.json'),
     JSON.stringify({
       name: 'project2',
