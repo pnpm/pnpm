@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-With `nodeLinker: hoisted`, `pnpm install` now removes the commands of a package it removes from `node_modules/.bin`. A nested copy that was deduped into the root `node_modules` used to leave behind a command pointing at a missing package [#7568](https://github.com/pnpm/pnpm/issues/7568).
+With `nodeLinker: hoisted`, `pnpm install` now removes the commands of the packages it removes from `node_modules/.bin`, such as a nested copy deduped into the root `node_modules` [#7568](https://github.com/pnpm/pnpm/issues/7568).
