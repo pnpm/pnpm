@@ -1,4 +1,3 @@
-
 use super::{SelfUpdateError, install_pnpm};
 use miette::{Context, IntoDiagnostic};
 use pnpm_cmd_shim::{Host as CmdShimHost, LinkBinsOptions, link_bins_of_packages_with_excludes};
