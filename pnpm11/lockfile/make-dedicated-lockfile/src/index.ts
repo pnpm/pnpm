@@ -53,6 +53,7 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
     if (err['code'] !== 'ENOENT') throw err
   }
 
+  let installError: unknown
   try {
     await pnpmExec([
       'install',
@@ -64,11 +65,23 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
     ], {
       cwd: projectDir,
     })
-  } finally {
-    if (modulesRenamed) {
+  } catch (err) {
+    installError = err
+  }
+  let restoreError: unknown
+  if (modulesRenamed) {
+    try {
       await renameOverwrite(tempModulesDir, modulesDir)
+    } catch (err) {
+      restoreError = err
     }
-    await writeProjectManifest(manifest)
+  }
+  await writeProjectManifest(manifest)
+  if (installError != null) {
+    throw installError
+  }
+  if (restoreError != null) {
+    throw restoreError
   }
 }
 
