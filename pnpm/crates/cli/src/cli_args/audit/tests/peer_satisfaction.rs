@@ -410,3 +410,97 @@ snapshots:
     assert_eq!(prod_only.request["needs-peer-a"], vec!["1.0.0"]);
     assert_eq!(prod_only.request["peer-a"], vec!["1.0.0"]);
 }
+
+#[test]
+fn lockfile_to_audit_request_keeps_peer_another_importer_reaches_without_listing() {
+    let lockfile = parse_lockfile(
+        "
+lockfileVersion: '9.0'
+
+importers:
+
+  pkg-a:
+    dependencies:
+      needs-ts:
+        specifier: '^1.0.0'
+        version: '1.0.0(typescript@5.4.5)'
+    devDependencies:
+      typescript:
+        specifier: 5.4.5
+        version: 5.4.5
+
+  pkg-b:
+    dependencies:
+      needs-ts:
+        specifier: '^1.0.0'
+        version: '1.0.0(typescript@5.4.5)'
+
+packages:
+
+  needs-ts@1.0.0:
+    resolution: {integrity: sha512-JYtls3hqi15fcx5GaSNL7SCTJ2MNmjrkHXg4FSpOA/grxK8KwyZ5bubHsCq8FXCkua6xhuaaBit+3b7+VZRfcA==}
+    peerDependencies:
+      typescript: ^5.0.0
+
+  typescript@5.4.5:
+    resolution: {integrity: sha512-JYtls3hqi15fcx5GaSNL7SCTJ2MNmjrkHXg4FSpOA/grxK8KwyZ5bubHsCq8FXCkua6xhuaaBit+3b7+VZRfcA==}
+
+snapshots:
+
+  needs-ts@1.0.0(typescript@5.4.5):
+    dependencies:
+      typescript: 5.4.5
+
+  typescript@5.4.5: {}
+",
+    );
+
+    let prod_only = lockfile_to_audit_request(&lockfile, None, prod_only());
+    assert_eq!(prod_only.request["needs-ts"], vec!["1.0.0"]);
+    assert_eq!(prod_only.request["typescript"], vec!["5.4.5"]);
+}
+
+#[test]
+fn lockfile_to_audit_request_excludes_peer_satisfied_by_workspace_root_dev_dependency() {
+    let lockfile = parse_lockfile(
+        "
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    devDependencies:
+      typescript:
+        specifier: 5.4.5
+        version: 5.4.5
+
+  pkg-b:
+    dependencies:
+      needs-ts:
+        specifier: '^1.0.0'
+        version: '1.0.0(typescript@5.4.5)'
+
+packages:
+
+  needs-ts@1.0.0:
+    resolution: {integrity: sha512-JYtls3hqi15fcx5GaSNL7SCTJ2MNmjrkHXg4FSpOA/grxK8KwyZ5bubHsCq8FXCkua6xhuaaBit+3b7+VZRfcA==}
+    peerDependencies:
+      typescript: ^5.0.0
+
+  typescript@5.4.5:
+    resolution: {integrity: sha512-JYtls3hqi15fcx5GaSNL7SCTJ2MNmjrkHXg4FSpOA/grxK8KwyZ5bubHsCq8FXCkua6xhuaaBit+3b7+VZRfcA==}
+
+snapshots:
+
+  needs-ts@1.0.0(typescript@5.4.5):
+    dependencies:
+      typescript: 5.4.5
+
+  typescript@5.4.5: {}
+",
+    );
+
+    let prod_only = lockfile_to_audit_request(&lockfile, None, prod_only());
+    assert_eq!(prod_only.request["needs-ts"], vec!["1.0.0"]);
+    assert!(!prod_only.request.contains_key("typescript"));
+}

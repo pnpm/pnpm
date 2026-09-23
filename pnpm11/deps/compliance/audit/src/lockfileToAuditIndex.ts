@@ -471,18 +471,16 @@ function appendNamedDepPaths (target: Array<{ name: string, depPath: DepPath }>,
   }
 }
 
-// A snapshot's children for graph-walking purposes: its dependencies, plus
-// optionalDependencies when includeOptDeps, minus its peer-satisfaction edges.
-//
 // An entry whose alias is one of the package's own peerDependencies is the
-// concrete package peer resolution picked for that peer. When that package is
-// a direct dependency of an importer that reaches this snapshot, the entry only
-// satisfies the peer with the importer's own dependency, and whether that
-// dependency is present is decided by the importer's dependency field:
-// following the entry would make a peer satisfied by a devDependency reachable
-// under `--prod`. Any other peer entry is followed: the peer was auto-installed
-// (`autoInstallPeers`) or resolved from an ancestor package, and following it
-// can only over-report.
+// concrete package peer resolution picked for that peer. When every importer
+// that reaches the snapshot lists that package as a direct dependency (or the
+// workspace root does, since peers resolve from the root's dependencies), the
+// entry only satisfies the peer, and each importer's dependency field decides
+// whether the package is there: following the entry would make a peer
+// satisfied by a devDependency reachable under `--prod`. The entry is followed
+// as soon as one importer reaches the snapshot without listing the package:
+// for that importer the peer was auto-installed (`autoInstallPeers`) or
+// resolved from an ancestor package, and the entry is what provides it.
 function snapshotChildren (
   lockfile: LockfileObject,
   depPath: DepPath,
@@ -523,36 +521,30 @@ function getPeerSatisfactionEdges (lockfile: LockfileObject): Map<DepPath, Set<s
   return edges
 }
 
-// The peer aliases of each snapshot that snapshotChildren leaves out.
 function collectPeerSatisfactionEdges (lockfile: LockfileObject): Map<DepPath, Set<string>> {
-  const importersListing = new Map<DepPath, ProjectId[]>()
-  for (const [importerId, importer] of Object.entries(lockfile.importers) as Array<[ProjectId, ProjectSnapshot]>) {
-    for (const depPath of importerDirectDepPaths(importer)) {
-      let listing = importersListing.get(depPath)
-      if (listing == null) {
-        listing = []
-        importersListing.set(depPath, listing)
-      }
-      listing.push(importerId)
-    }
-  }
-  const reachByImporter = new Map<ProjectId, Set<DepPath>>()
-  const reaches = (importerId: ProjectId, depPath: DepPath): boolean => {
-    let reached = reachByImporter.get(importerId)
+  const importers = Object.entries(lockfile.importers) as Array<[ProjectId, ProjectSnapshot]>
+  const directDepPaths = new Map(importers.map(([importerId, importer]) => [importerId, new Set(importerDirectDepPaths(importer))]))
+  const rootDirectDepPaths = directDepPaths.get('.' as ProjectId)
+  const reachedByTarget = new Map<DepPath, Set<DepPath>>()
+  const reachedWithoutListing = (target: DepPath): Set<DepPath> => {
+    let reached = reachedByTarget.get(target)
     if (reached == null) {
       reached = new Set()
-      walkAllEdges(lockfile, importerDirectDepPaths(lockfile.importers[importerId]), reached)
-      reachByImporter.set(importerId, reached)
+      const roots = importers
+        .filter(([importerId]) => !directDepPaths.get(importerId)!.has(target))
+        .flatMap(([, importer]) => importerDirectDepPaths(importer))
+      walkAllEdges(lockfile, roots, reached)
+      reachedByTarget.set(target, reached)
     }
-    return reached.has(depPath)
+    return reached
   }
   const edges = new Map<DepPath, Set<string>>()
   for (const [parent, snapshot] of Object.entries(lockfile.packages ?? {}) as Array<[DepPath, PackageSnapshot]>) {
     for (const [alias, ref] of [...Object.entries(snapshot.dependencies ?? {}), ...Object.entries(snapshot.optionalDependencies ?? {})]) {
       if (!isPeerAlias(snapshot, alias)) continue
       const target = dp.refToRelative(ref, alias)
-      const listing = target == null ? undefined : importersListing.get(target)
-      if (!listing?.some((importerId) => reaches(importerId, parent))) continue
+      if (target == null) continue
+      if (!rootDirectDepPaths?.has(target) && reachedWithoutListing(target).has(parent)) continue
       let aliases = edges.get(parent)
       if (aliases == null) {
         aliases = new Set()
