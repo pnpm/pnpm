@@ -161,6 +161,34 @@ fn version_flag_honors_the_reporter_setting_and_the_cli_override() {
 }
 
 #[test]
+fn error_loglevel_hides_pre_command_pin_warnings() {
+    let mut leaked = Vec::new();
+    for (workspace_yaml, cli_args) in [
+        ("", &["--loglevel=error", "--version"][..]),
+        ("loglevel: error\n", &["--version"][..]),
+        ("loglevel: error\n", &["run", "test"][..]),
+    ] {
+        let fixture = script_fixture(workspace_yaml);
+        fs::write(
+            fixture.workspace.join("package.json"),
+            serde_json::json!({
+                "scripts": { "test": r#"node -e "console.log('script-output')""# },
+                "devEngines": {
+                    "packageManager": { "name": "pnpm", "version": "0.0.1", "onFail": "warn" },
+                },
+            })
+            .to_string(),
+        )
+        .expect("write package.json");
+        let printed = printed_output(pnpm(&fixture.workspace).with_args(cli_args));
+        if printed.contains("configured to use 0.0.1 of pnpm") {
+            leaked.push(format!("{workspace_yaml:?} {cli_args:?}"));
+        }
+    }
+    assert!(leaked.is_empty(), "pin warning printed for: {leaked:#?}");
+}
+
+#[test]
 fn workspace_reporter_silences_fresh_and_repeat_installs() {
     let fixture = CommandTempCwd::init().add_mocked_registry();
     let workspace = &fixture.workspace;

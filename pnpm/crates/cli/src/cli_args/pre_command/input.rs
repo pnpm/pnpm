@@ -1,7 +1,7 @@
 use super::{
     ArgTable, CliArgs, CliCommand, ColorMode, Config, ConfigLocation, ConfigSubcommand,
     InstallArgs, LockfileDirArg, LogEvent, OsStr, OsString, PACKAGE_MANAGER_SWITCH_ENV_VARS, Path,
-    PathBuf, ReporterFlags, reporter_emit, resolve_bool_override,
+    PathBuf, ReporterFlags, resolve_bool_override,
 };
 
 mod reporter_flags;
@@ -17,7 +17,7 @@ pub(super) struct PreCommandInput {
 
 impl PreCommandInput {
     pub(super) fn emit(&self, config: &Config) -> fn(&LogEvent) {
-        reporter_emit(self.reporter.resolve_with(config))
+        self.reporter.configure_with(config)
     }
 }
 

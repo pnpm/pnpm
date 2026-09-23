@@ -77,6 +77,14 @@ impl ReporterFlags {
     pub(crate) fn resolve_with(self, config: &pnpm_config::Config) -> ReporterType {
         self.resolve(config.loglevel, config.reporter)
     }
+
+    /// Resolve the reporter and seed the default reporter's log-level ceiling
+    /// from the flags over `config`, for warnings emitted before the command
+    /// dispatch configures the reporter.
+    pub(crate) fn configure_with(self, config: &pnpm_config::Config) -> fn(&LogEvent) {
+        configure_max_log_level(self.loglevel.or_else(|| config.loglevel.map(Into::into)));
+        reporter_emit(self.resolve_with(config))
+    }
 }
 
 /// Accepted values of pnpm's universal `--loglevel` option.

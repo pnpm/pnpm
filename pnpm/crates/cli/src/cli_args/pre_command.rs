@@ -21,7 +21,7 @@ use super::{
         package_manager_to_sync, read_root_manifest, should_persist_package_manager_lockfile,
         version_satisfies, wanted_package_manager,
     },
-    reporter::{ReporterFlags, reporter_emit},
+    reporter::ReporterFlags,
     sanitize::sanitize_inline,
     self_update::install_pnpm::{assert_release_is_installable, pnpm_package_to_install},
     with::{PackageManagerCheck, spawn_pnpm},
