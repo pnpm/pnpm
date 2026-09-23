@@ -17,19 +17,19 @@ use super::{
 /// the token in a build log.
 const INVALID_EXPANSION: &str = "invalid environment-expanded value";
 
-/// Read the settings of a `pnpm-workspace.yaml` / `config.yaml`.
+/// Read the settings of a `pnpm-workspace.yaml` / `config.yaml`, resolving a
+/// setting written as `${VAR}` or `${VAR:-fallback}`.
 ///
-/// A setting written as `${VAR}` or `${VAR:-fallback}` reaches serde as that
-/// text, which only a string-valued setting can hold, so a document that does
-/// not parse as written is read once more with [`expand_typed_placeholders`]
-/// applied. That function decides which placeholders it resolves and which it
-/// leaves for the trusted / untrusted substitution that follows.
-///
-/// A document that parses as written takes neither the second read nor any
-/// expansion, so what a file means today it goes on meaning.
+/// Which placeholders resolve is [`expand_typed_placeholders`]'s to say; the
+/// rest are left for the trusted / untrusted substitution that follows. A
+/// document that parses as written resolves none of them and is returned
+/// exactly as it was read, so what a file means today it goes on meaning.
 pub(crate) fn parse_settings<Sys: EnvVar>(
     text: &str,
 ) -> Result<WorkspaceSettings, Box<serde_saphyr::Error>> {
+    // A placeholder reaches serde as its own text, which only a string-valued
+    // setting can hold, so a document carrying one for any other setting has
+    // to be read a second time with the placeholders already gone.
     let as_written = match serde_saphyr::from_str::<WorkspaceSettings>(text) {
         Ok(settings) => return Ok(settings),
         Err(error) => error,
@@ -55,11 +55,11 @@ pub(crate) fn parse_settings<Sys: EnvVar>(
     Err(Box::new(as_written))
 }
 
-/// Read a parsed document back through the yaml reader, so every scalar is
-/// resolved against the setting it lands in rather than against the type it
-/// was parsed as. The `22` a resolved `${NODE_VERSION:-22}` spells is text
-/// where the setting takes text and a number where it takes a number,
-/// exactly as a `22` written in the file is.
+/// Read a parsed document as the settings it describes.
+///
+/// It goes back through the yaml reader rather than deserializing the parsed
+/// form directly, because that form has already typed every scalar, while the
+/// reader resolves each one against the setting it lands in.
 fn read_document(document: &serde_json::Value) -> Option<WorkspaceSettings> {
     serde_saphyr::to_string(document)
         .ok()?

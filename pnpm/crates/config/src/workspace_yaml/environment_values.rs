@@ -39,18 +39,15 @@ const REQUEST_DESTINATION_KEYS: &[&str] = &[
     "registry",
 ];
 
-/// Resolve the `${VAR}` / `${VAR:-fallback}` placeholders a setting that is
-/// not a string cannot carry as text, reporting whether any were resolved.
-///
-/// `nodeLinker: ${PNPM_NODE_LINKER:-isolated}` names a variant and
-/// `ignoreScripts: ${CI:-false}` a boolean, but serde sees the literal
-/// placeholder in both, so a document holding one has to be read again with
-/// the placeholders already gone.
+/// Resolve the `${VAR}` / `${VAR:-fallback}` placeholders of a parsed
+/// document, reporting whether any were resolved.
 ///
 /// Only an expansion that is a bare token — ASCII letters, digits, `-`, `_`,
 /// and `.` — replaces the text it came from. A variant name, a boolean, and
 /// a number each are one; a URL, a path, an unresolved placeholder, and an
-/// empty expansion are not. Those are left as written for
+/// empty expansion are not, so an expansion can reach neither a request
+/// destination beyond [`REQUEST_DESTINATION_KEYS`] nor a second resolution.
+/// What is left stays as written for
 /// [`WorkspaceSettings::substitute_env_trusted`](super::WorkspaceSettings::substitute_env_trusted)
 /// and its untrusted counterpart, which resolve them once the settings are
 /// typed and know which layer the file came from.
@@ -75,9 +72,7 @@ pub(super) enum Expansion {
     /// The value the placeholder names.
     Resolved,
     /// Nothing, leaving the document the file describes apart from the
-    /// settings an expansion decides. A read of that answers whether a failed
-    /// read of the resolved document stumbled over an expansion or over
-    /// something the file says outright.
+    /// settings an expansion decides.
     Dropped,
 }
 
@@ -114,9 +109,10 @@ fn expanded_token<Sys: EnvVar>(text: &str) -> Option<String> {
     (unresolved.is_empty() && is_bare_token(&expanded)).then_some(expanded)
 }
 
-/// Read an expansion as the yaml scalar the file would have carried had the
-/// value been written out, so `${CI:-false}` reaches a boolean setting as a
-/// boolean rather than as the text of one.
+/// Carry an expansion as the value its text spells, so that writing the
+/// document back out writes it as a plain scalar. Carried as a string it
+/// would be written quoted, which is a claim the file never made and which
+/// only the settings that take text could then accept.
 fn scalar_value(token: String) -> serde_json::Value {
     match serde_saphyr::from_str::<serde_json::Value>(&token) {
         Ok(value) => value,
