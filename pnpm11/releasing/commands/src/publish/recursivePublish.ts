@@ -58,6 +58,7 @@ Partial<Pick<Config,
 | 'versioning'
 >> &
 Partial<Pick<ConfigContext,
+| 'allProjects'
 | 'selectedProjectsGraph'
 | 'allProjectsGraph'
 | 'prodAllProjectsGraph'

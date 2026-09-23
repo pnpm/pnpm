@@ -790,3 +790,34 @@ fn recursive_publish_filter_uses_workspace_root_npmrc_registry() {
     put.assert();
     drop(root);
 }
+
+#[test]
+fn recursive_publish_resolves_workspace_protocol_without_node_modules() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", json!({ "name": "project-1", "version": "1.0.0" })),
+            (
+                "project-2",
+                json!({
+                    "name": "project-2",
+                    "version": "1.0.0",
+                    "dependencies": {
+                        "project-1": "workspace:^",
+                    },
+                }),
+            ),
+        ],
+    );
+
+    clear_ci(pacquet)
+        .with_arg("-r")
+        .with_arg("publish")
+        .with_arg("--dry-run")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+
+    drop(root);
+}

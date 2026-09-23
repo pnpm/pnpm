@@ -1,4 +1,7 @@
-use super::{Arc, Catalogs, HashMap, NodeLinker, Path, PathBuf, PnpmfileHooks, lexical_normalize};
+use super::{
+    Arc, Catalogs, HashMap, NodeLinker, Path, PathBuf, PnpmfileHooks, WorkspacePackageManifest,
+    lexical_normalize,
+};
 
 /// Inputs for [`crate::api`]. The CLI maps the resolved [`pnpm_config::Config`]
 /// and command-line flags onto this struct.
@@ -51,6 +54,8 @@ pub struct PackManifestOptions {
     /// share one worker per pnpmfile across every packed project instead
     /// of re-spawning it per project.
     pub before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
+    /// Workspace packages lookup used when a dependency is not installed in `node_modules`.
+    pub workspace_packages: Option<Arc<HashMap<String, WorkspacePackageManifest>>>,
 }
 
 pub struct PackOutputOptions {

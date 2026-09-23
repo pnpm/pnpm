@@ -22,6 +22,7 @@ pub use options::{
     PackManifestOptions, PackOptions, PackOutputLocks, PackOutputOptions, PackScripts,
 };
 pub use output::{format_pack_output, pack_output_path, to_pack_result_json};
+pub use pnpm_exportable_manifest::WorkspacePackageManifest;
 
 mod capabilities;
 mod collation;
@@ -509,6 +510,7 @@ impl PackManifestOptions {
                 modules_dir: Some(&modules_dir),
                 skip_manifest_obfuscation: self.skip_obfuscation,
                 embed_readme: self.embed_readme,
+                workspace_packages: self.workspace_packages.as_deref(),
             },
         )
         .map_err(PackError::CreateManifest)?;

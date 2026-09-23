@@ -12,7 +12,7 @@ import { PnpmError } from '@pnpm/error'
 import { packlist } from '@pnpm/fs.packlist'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
 import { logger } from '@pnpm/logger'
-import { createExportableManifest, type ExportedManifest, readReadmeFile } from '@pnpm/releasing.exportable-manifest'
+import { createExportableManifest, type ExportedManifest, readReadmeFile, type WorkspacePackageLookup } from '@pnpm/releasing.exportable-manifest'
 import { changelogStorage, readPendingChangelog, renderChangelog } from '@pnpm/releasing.versioning'
 import type { DependencyManifest, Project, ProjectManifest, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 import { filteredProjectsDependencies } from '@pnpm/workspace.projects-sorter'
@@ -136,6 +136,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
 | 'localAddress'
 >> & Partial<Pick<ConfigContext,
 | 'hooks'
+| 'allProjects'
 | 'selectedProjectsGraph'
 | 'allProjectsGraph'
 | 'prodAllProjectsGraph'
@@ -378,6 +379,14 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   if (!manifest.version) {
     throw new PnpmError('PACKAGE_VERSION_NOT_FOUND', `Package version is not defined in the ${manifestFileName}.`)
   }
+  let workspacePackages: WorkspacePackageLookup | undefined = opts.allProjects ??
+    (opts.selectedProjectsGraph ? Object.values(opts.selectedProjectsGraph).map((p) => p.package) : undefined) ??
+    (opts.allProjectsGraph ? Object.values(opts.allProjectsGraph).map((p) => p.package) : undefined)
+  if (!workspacePackages && opts.workspaceDir) {
+    const { filterProjectsBySelectorObjectsFromDir } = await import('@pnpm/workspace.projects-filter')
+    const result = await filterProjectsBySelectorObjectsFromDir(opts.workspaceDir, [])
+    workspacePackages = result.allProjects
+  }
   const publishManifest = await createPublishManifest({
     projectDir: dir,
     modulesDir: path.join(opts.dir, 'node_modules'),
@@ -386,6 +395,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     catalogs: opts.catalogs ?? {},
     hooks: opts.hooks,
     skipManifestObfuscation: opts.skipManifestObfuscation,
+    workspacePackages,
   })
   // Strip semver build metadata (the `+<build>` segment) from the published version so that
   // the tarball, the manifest packed inside it, and the metadata sent to the registry all agree.
@@ -657,14 +667,16 @@ async function createPublishManifest (opts: {
   catalogs: Catalogs
   hooks?: Hooks
   skipManifestObfuscation?: boolean
+  workspacePackages?: WorkspacePackageLookup
 }): Promise<ExportedManifest> {
-  const { projectDir, embedReadme, modulesDir, manifest, catalogs, hooks, skipManifestObfuscation } = opts
+  const { projectDir, embedReadme, modulesDir, manifest, catalogs, hooks, skipManifestObfuscation, workspacePackages } = opts
   return createExportableManifest(projectDir, manifest, {
     catalogs,
     hooks,
     embedReadme,
     modulesDir,
     skipManifestObfuscation,
+    workspacePackages,
   })
 }
 

@@ -12,8 +12,8 @@ use tempfile::TempDir;
 
 use super::{
     CannotResolveWorkspaceProtocolError, CreateExportableManifestOptions,
-    ReplaceWorkspaceProtocolError, create_exportable_manifest, replace_workspace_protocol,
-    replace_workspace_protocol_peer_dependency,
+    ReplaceWorkspaceProtocolError, WorkspacePackageManifest, create_exportable_manifest,
+    replace_workspace_protocol, replace_workspace_protocol_peer_dependency,
 };
 
 /// Materialize the install tree the workspace-protocol rewrite case
@@ -49,11 +49,11 @@ fn write_dep(dir: &Path, name: &str, version: &str) {
 }
 
 fn rewrite(dep_name: &str, dep_spec: &str, dir: &Path) -> String {
-    replace_workspace_protocol(dep_name, dep_spec, dir, None).expect("replace succeeds")
+    replace_workspace_protocol(dep_name, dep_spec, dir, None, None).expect("replace succeeds")
 }
 
 fn rewrite_peer(dep_name: &str, dep_spec: &str, dir: &Path) -> String {
-    replace_workspace_protocol_peer_dependency(dep_name, dep_spec, dir, None)
+    replace_workspace_protocol_peer_dependency(dep_name, dep_spec, dir, None, None)
         .expect("replace succeeds")
 }
 
@@ -118,7 +118,7 @@ fn missing_dependency_surfaces_cannot_resolve_error() {
     let dir = fixture.path();
     fs::create_dir_all(dir.join("node_modules")).unwrap();
 
-    let err = replace_workspace_protocol("ghost", "workspace:*", dir, None).unwrap_err();
+    let err = replace_workspace_protocol("ghost", "workspace:*", dir, None, None).unwrap_err();
     assert!(matches!(
         err,
         ReplaceWorkspaceProtocolError::CannotResolve(CannotResolveWorkspaceProtocolError {
@@ -133,8 +133,8 @@ fn missing_dependency_surfaces_cannot_resolve_error_for_peer() {
     let dir = fixture.path();
     fs::create_dir_all(dir.join("node_modules")).unwrap();
 
-    let err =
-        replace_workspace_protocol_peer_dependency("ghost", "workspace:^", dir, None).unwrap_err();
+    let err = replace_workspace_protocol_peer_dependency("ghost", "workspace:^", dir, None, None)
+        .unwrap_err();
     assert!(matches!(
         err,
         ReplaceWorkspaceProtocolError::CannotResolve(CannotResolveWorkspaceProtocolError {
@@ -184,6 +184,7 @@ fn published_dependencies_keep_declaration_order() {
             modules_dir: None,
             skip_manifest_obfuscation: false,
             embed_readme: false,
+            workspace_packages: None,
         },
     )
     .expect("manifest is exportable");
@@ -201,4 +202,52 @@ fn published_dependencies_keep_declaration_order() {
             (&"foo".to_string(), &Value::from("4.5.6")),
         ],
     );
+}
+
+#[test]
+fn resolves_workspace_protocol_from_workspace_packages_when_node_modules_is_absent() {
+    let dir = TempDir::new().unwrap();
+    let mut ws_pkgs = std::collections::HashMap::new();
+    ws_pkgs.insert(
+        "dep-a".to_string(),
+        WorkspacePackageManifest { name: "dep-a".to_string(), version: "1.2.3".to_string() },
+    );
+    ws_pkgs.insert(
+        "dep-b".to_string(),
+        WorkspacePackageManifest { name: "dep-b".to_string(), version: "2.3.4".to_string() },
+    );
+
+    let res = replace_workspace_protocol("dep-a", "workspace:^", dir.path(), None, Some(&ws_pkgs))
+        .expect("resolves from workspace_packages");
+    assert_eq!(res, "^1.2.3");
+
+    let res = replace_workspace_protocol(
+        "my-alias",
+        "workspace:dep-b@~",
+        dir.path(),
+        None,
+        Some(&ws_pkgs),
+    )
+    .expect("resolves aliased dep from workspace_packages");
+    assert_eq!(res, "npm:dep-b@~2.3.4");
+
+    let res = replace_workspace_protocol_peer_dependency(
+        "dep-a",
+        "workspace:>=1.0.0",
+        dir.path(),
+        None,
+        Some(&ws_pkgs),
+    )
+    .expect("resolves peer dep");
+    assert_eq!(res, ">=1.0.0");
+
+    let res = replace_workspace_protocol_peer_dependency(
+        "dep-a",
+        "workspace:^",
+        dir.path(),
+        None,
+        Some(&ws_pkgs),
+    )
+    .expect("resolves peer dep with sentinel");
+    assert_eq!(res, "^1.2.3");
 }

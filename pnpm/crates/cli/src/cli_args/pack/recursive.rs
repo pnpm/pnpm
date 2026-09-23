@@ -1,8 +1,9 @@
 use super::{
     Arc, AutoExcludeRoot, Catalogs, Config, HashMap, Mutex, PackArgs, PackError, PackOutputLocks,
-    PackResultJson, Path, PathBuf, PnpmfileHooks, Reporter, absolute_against, configured_catalogs,
-    discover_workspace_projects, filtered_projects_dependencies, format_pack_output,
-    graph_sequencer, pack_output_path, select_recursive_projects,
+    PackResultJson, Path, PathBuf, PnpmfileHooks, Reporter, WorkspacePackageManifest,
+    absolute_against, configured_catalogs, discover_workspace_projects,
+    filtered_projects_dependencies, format_pack_output, graph_sequencer, pack_output_path,
+    select_recursive_projects,
 };
 
 /// The shared inputs of every project's pack in a recursive run, and the
@@ -13,6 +14,7 @@ pub(super) struct RecursivePack<'a, 'graph> {
         &'a pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'graph>>,
     pub(super) catalogs: Catalogs,
     pub(super) before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
+    pub(super) workspace_packages: Option<Arc<HashMap<String, WorkspacePackageManifest>>>,
     pub(super) output: PackOutput,
     pub(super) results: PackResults,
 }
@@ -154,6 +156,21 @@ fn render_recursive_pack(
     Ok(format_pack_output(packed, json, false))
 }
 
+fn prepare_project_dependencies(
+    project_dependencies: &mut indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
+    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+    config: &Config,
+    hooks: &[Arc<dyn PnpmfileHooks>],
+    out: Option<&str>,
+    destination: Option<&str>,
+) -> Vec<PathBuf> {
+    let order = dependency_order(project_dependencies);
+    if !output_can_change_while_packing(config, graph, hooks) || output_is_literal(out) {
+        serialize_shared_outputs(project_dependencies, graph, &order, out, destination);
+    }
+    order
+}
+
 impl PackArgs {
     pub(super) async fn run_recursive<Reporter: self::Reporter>(
         &self,
@@ -167,6 +184,9 @@ impl PackArgs {
         // eligibility check still applies below).
         let (projects, _) =
             discover_workspace_projects(config.workspace_dir.as_deref().unwrap_or(dir), config)?;
+        let workspace_packages = Arc::new(
+            crate::cli_args::workspace_packages::build_workspace_package_manifest_map(&projects),
+        );
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let graph = &selection.selected;
@@ -182,24 +202,21 @@ impl PackArgs {
         // to the CLI dir), so every tarball lands in one place regardless
         // of each project's own root.
         let (out, pack_destination) = self.resolve_recursive_destination(dir);
-        let dependency_order = dependency_order(&project_dependencies);
-        if !output_can_change_while_packing(config, graph, &before_packing_hooks)
-            || output_is_literal(out.as_deref())
-        {
-            serialize_shared_outputs(
-                &mut project_dependencies,
-                graph,
-                &dependency_order,
-                out.as_deref(),
-                pack_destination.as_deref(),
-            );
-        }
+        let dependency_order = prepare_project_dependencies(
+            &mut project_dependencies,
+            graph,
+            config,
+            &before_packing_hooks,
+            out.as_deref(),
+            pack_destination.as_deref(),
+        );
 
         let pack = RecursivePack {
             config,
             graph,
             catalogs: configured_catalogs(config)?,
             before_packing_hooks,
+            workspace_packages: Some(workspace_packages),
             output: PackOutput {
                 out,
                 destination: pack_destination,
@@ -208,9 +225,7 @@ impl PackArgs {
             results: PackResults::new(dependency_order),
         };
         pack.execute::<Reporter>(self, &project_dependencies).await;
-        let packed = pack.finish()?;
-
-        render_recursive_pack(&packed, dir, self.json)
+        render_recursive_pack(&pack.finish()?, dir, self.json)
     }
 
     fn validate_recursive_destination(&self) -> miette::Result<()> {
