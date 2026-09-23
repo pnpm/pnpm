@@ -655,6 +655,33 @@ describe('local tgz file dependency', () => {
     })
   })
 
+  test('findPackageTarballIntegrityMismatch(): accepts valid non-sha512 SRI (e.g. sha1) and detects changes', async () => {
+    const lockfileDir = process.cwd()
+    await writeFile('local-tarball.tar', 'hello world')
+    const ctx = { fileIntegrityCache: new Map<string, Promise<string>>(), lockfileDir }
+    const sha1Expected = 'sha1-Kq5sNclPz7QV2+lfQIuc6R7oRu0='
+    const snapshot: PackageSnapshot = {
+      resolution: {
+        integrity: sha1Expected,
+        tarball: 'file:local-tarball.tar',
+      },
+    }
+    await expect(findPackageTarballIntegrityMismatch(ctx, snapshot)).resolves.toBeNull()
+
+    const changedSnapshot: PackageSnapshot = {
+      resolution: {
+        integrity: 'sha1-AAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+        tarball: 'file:local-tarball.tar',
+      },
+    }
+    const mismatch = await findPackageTarballIntegrityMismatch(ctx, changedSnapshot)
+    expect(mismatch).toMatchObject({
+      expected: 'sha1-AAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+      found: sha1Expected,
+      path: path.join(lockfileDir, 'local-tarball.tar'),
+    })
+  })
+
   test('resolveLocalTarballPath(): rejects UNC and invalid paths, resolves relative paths', () => {
     const lockfileDir = '/workspace/root'
     expect(resolveLocalTarballPath(lockfileDir, 'file://server/share/pkg.tgz')).toBeUndefined()

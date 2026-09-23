@@ -2,7 +2,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import util from 'node:util'
 
-import { getTarballIntegrity } from '@pnpm/crypto.hash'
+import { getTarballIntegrity, matchIntegrity } from '@pnpm/crypto.hash'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import type {
@@ -85,13 +85,16 @@ export async function findPackageTarballIntegrityMismatch (
   const filePath = resolveLocalTarballPath(ctx.lockfileDir, tarball)
   if (filePath == null) return null
   const found = await readLocalTarballIntegrity(ctx.fileIntegrityCache, filePath)
-  return found === resolution.integrity ? null : { expected: resolution.integrity, found, path: filePath }
+  const result = matchIntegrity(found, resolution.integrity)
+  return result.matches ? null : { expected: resolution.integrity, found: result.found, path: filePath }
 }
 
 function readLocalTarballIntegrity (fileIntegrityCache: Map<string, Promise<string>>, filePath: string): Promise<string> {
   let integrity = fileIntegrityCache.get(filePath)
   if (integrity == null) {
-    integrity = getTarballIntegrity(filePath).catch((error: unknown) => {
+    integrity = getTarballIntegrity(filePath, {
+      algorithms: ['sha512', 'sha384', 'sha256', 'sha1'],
+    }).catch((error: unknown) => {
       fileIntegrityCache.delete(filePath)
       const message = util.types.isNativeError(error) ? error.message : String(error)
       throw new PnpmError(
@@ -178,7 +181,7 @@ export async function localTarballDepsAreUpToDate (
     if (typeof expected !== 'string' || !expected.trim()) {
       return false
     }
-    return expected === fileIntegrity
+    return matchIntegrity(fileIntegrity, expected).matches
   }))
   return results.every(Boolean)
 }

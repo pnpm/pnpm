@@ -36,7 +36,11 @@ async function readNormalizedFile (file: string): Promise<string> {
   return content.split('\r\n').join('\n')
 }
 
-export async function getTarballIntegrity (filename: string): Promise<string> {
+export interface TarballIntegrityOptions {
+  algorithms?: string[]
+}
+
+export async function getTarballIntegrity (filename: string, opts?: TarballIntegrityOptions): Promise<string> {
   const handle = await fs.promises.open(
     filename,
     fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK ?? 0)
@@ -46,8 +50,32 @@ export async function getTarballIntegrity (filename: string): Promise<string> {
     if (!stats.isFile()) {
       throw new Error('expected a file')
     }
-    return (await ssri.fromStream(handle.createReadStream({ autoClose: false }))).toString()
+    const algorithms = opts?.algorithms ?? ['sha512']
+    return (await ssri.fromStream(handle.createReadStream({ autoClose: false }), { algorithms })).toString()
   } finally {
     await handle.close()
+  }
+}
+
+export interface TarballIntegrityMatchResult {
+  matches: boolean
+  found: string
+}
+
+export function matchIntegrity (actual: string, expected: string): TarballIntegrityMatchResult {
+  const actualParsed = ssri.parse(actual)
+  const expectedParsed = ssri.parse(expected)
+  if (!actualParsed || !expectedParsed) {
+    return { matches: false, found: actual }
+  }
+  const match = actualParsed.match(expected)
+  if (match) {
+    return { matches: true, found: match.toString() }
+  }
+  const algo = Object.keys(expectedParsed)[0]
+  const foundForAlgo = actualParsed[algo]?.[0]?.toString()
+  return {
+    matches: false,
+    found: foundForAlgo ?? actualParsed.toString(),
   }
 }
