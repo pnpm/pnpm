@@ -148,9 +148,21 @@ impl StoreUse {
         }
     }
 
-    /// Whether the command, run with `config`, needs the store placed on
-    /// the project's volume.
-    pub(super) fn needs_store_placed(self, config: &Config) -> bool {
+    /// Load the command's config through `load`, whose argument says
+    /// whether to place the store. A config loaded without placing it is
+    /// loaded again with it placed when the command turns out to need it.
+    pub(super) fn load<Error>(
+        self,
+        mut load: impl FnMut(bool) -> Result<Config, Error>,
+    ) -> Result<Config, Error> {
+        let config = load(self == StoreUse::Opens)?;
+        if config.skip_store_dir_resolution && self.needs_store_placed(&config) {
+            return load(true);
+        }
+        Ok(config)
+    }
+
+    fn needs_store_placed(self, config: &Config) -> bool {
         match self {
             StoreUse::Opens => true,
             StoreUse::ConfigDependencies => config.config_dependencies

@@ -30,21 +30,41 @@ fn json_error_message_unwraps_pack_context() {
     assert_eq!(json_error_message(&error), "canonical publish failure");
 }
 
-#[test]
-fn script_commands_place_the_store_only_for_config_dependencies() {
-    use super::configuration::StoreUse;
-    use pnpm_config::Config;
+/// The loader records the `place_store` argument of every call, and marks
+/// a config loaded without placing the store the way `Config::current` does.
+fn load_calls(store_use: super::configuration::StoreUse, config_dependencies: bool) -> Vec<bool> {
     use pnpm_workspace_state::ConfigDependency;
 
-    let mut config = Config::default();
-    assert!(StoreUse::Opens.needs_store_placed(&config));
-    assert!(!StoreUse::Never.needs_store_placed(&config));
-    assert!(!StoreUse::ConfigDependencies.needs_store_placed(&config));
+    let mut calls = Vec::new();
+    store_use
+        .load(|place_store| {
+            calls.push(place_store);
+            let config_dependencies = config_dependencies.then(|| {
+                [(
+                    "plugin".to_string(),
+                    ConfigDependency::VersionWithIntegrity("1.0.0+sha512-x".into()),
+                )]
+                .into()
+            });
+            let config = pnpm_config::Config {
+                skip_store_dir_resolution: !place_store,
+                config_dependencies,
+                ..Default::default()
+            };
+            Ok::<_, std::convert::Infallible>(config)
+        })
+        .expect("the loader is infallible");
+    calls
+}
 
-    config.config_dependencies = Some(
-        [("plugin".to_string(), ConfigDependency::VersionWithIntegrity("1.0.0+sha512-x".into()))]
-            .into(),
-    );
-    assert!(StoreUse::ConfigDependencies.needs_store_placed(&config));
-    assert!(!StoreUse::Never.needs_store_placed(&config));
+#[test]
+fn store_use_decides_where_the_config_load_places_the_store() {
+    use super::configuration::StoreUse;
+
+    assert_eq!(load_calls(StoreUse::Opens, false), [true]);
+    assert_eq!(load_calls(StoreUse::Opens, true), [true]);
+    assert_eq!(load_calls(StoreUse::Never, false), [false]);
+    assert_eq!(load_calls(StoreUse::Never, true), [false]);
+    assert_eq!(load_calls(StoreUse::ConfigDependencies, false), [false]);
+    assert_eq!(load_calls(StoreUse::ConfigDependencies, true), [false, true]);
 }

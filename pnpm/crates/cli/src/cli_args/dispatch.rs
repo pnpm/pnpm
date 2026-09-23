@@ -271,10 +271,7 @@ impl CliArgs {
         anchors: &RunAnchors,
     ) -> miette::Result<&'static mut Config> {
         let ConfigTarget { anchor, is_global, store_use } = *target;
-        let mut cfg = self.load_config_at(anchor, store_use == StoreUse::Opens)?;
-        if cfg.skip_store_dir_resolution && store_use.needs_store_placed(&cfg) {
-            cfg = self.load_config_at(anchor, true)?;
-        }
+        let cfg = store_use.load(|place_store| self.load_config_at(anchor, place_store))?;
         self.finalize_run_config(cfg, anchor, is_global, config_overrides, setup, anchors)
     }
 
