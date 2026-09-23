@@ -607,8 +607,6 @@ fn list_only_projects_matches_each_alias_of_a_project_with_a_dedicated_lockfile(
     );
 }
 
-/// `root` depends on `@scope/a`, which depends on `@scope/b`, which
-/// depends on `@scope/c` and on a registry package.
 fn write_nested_projects_workspace(workspace: &Path, extra_settings: &str) {
     fs::write(
         workspace.join("package.json"),
