@@ -162,6 +162,29 @@ test('env remove does not call pnpm remove when installed node version does not 
   fs.rmSync(tempDir, { recursive: true, force: true })
 })
 
+test('env remove ignores packages whose manifest does not declare node', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
+  const pnpmHomeDir = path.join(tempDir, 'home')
+  const installDir = path.join(pnpmHomeDir, 'global', 'v11', 'install-other')
+  fs.mkdirSync(path.join(installDir, 'node_modules', 'node'), { recursive: true })
+  fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies: { other: '1.0.0' } }))
+  fs.writeFileSync(path.join(installDir, 'node_modules', 'node', 'package.json'), JSON.stringify({ name: 'node', version: '18.12.0' }))
+  fs.symlinkSync(installDir, path.join(pnpmHomeDir, 'global', 'v11', 'hash-other'))
+
+  await expect(
+    env.handler({
+      bin: '/usr/local/bin',
+      global: true,
+      pnpmHomeDir,
+      configByUri: {},
+    }, ['remove', '18'])
+  ).rejects.toEqual(new PnpmError('ENV_NO_NODE_DIRECTORY', "Couldn't find Node.js version matching 18"))
+
+  expect(mockRunPnpmCli).not.toHaveBeenCalled()
+
+  fs.rmSync(tempDir, { recursive: true, force: true })
+})
+
 test('env remove does not delete legacy directories that only share a prefix without boundary', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
   const pnpmHomeDir = path.join(tempDir, 'home')

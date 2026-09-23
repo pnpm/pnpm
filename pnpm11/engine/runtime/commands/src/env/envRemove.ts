@@ -31,6 +31,19 @@ async function getGlobalNodeInstalledVersion (globalPkgDir?: string, pnpmHomeDir
         const linkPath = path.join(globalDir, entry.name)
         try {
           const installDir = await fs.promises.realpath(linkPath)
+          let declaresNode = true
+          try {
+            const groupPkg = JSON.parse(await fs.promises.readFile(path.join(installDir, 'package.json'), 'utf8'))
+            declaresNode = Boolean(
+              groupPkg.dependencies?.node ??
+              (groupPkg.engines?.runtime?.name === 'node' || groupPkg.engines?.runtime === 'node')
+            )
+          } catch (err) {
+            if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+              throw err
+            }
+          }
+          if (!declaresNode) return null
           const nodePkgJson = path.join(installDir, 'node_modules', 'node', 'package.json')
           const pkg = JSON.parse(await fs.promises.readFile(nodePkgJson, 'utf8'))
           return (pkg.version as string | undefined) ?? null
@@ -45,18 +58,24 @@ async function getGlobalNodeInstalledVersion (globalPkgDir?: string, pnpmHomeDir
   return versions.find(Boolean) ?? null
 }
 
+async function isDanglingSymlink (filePath: string): Promise<boolean> {
+  try {
+    await fs.promises.stat(filePath)
+    return false
+  } catch (err) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return true
+    }
+    throw err
+  }
+}
+
 async function isCandidateShimRemoved (binFile: string, ext: string, removedNames: Set<string>): Promise<boolean> {
   try {
     const stat = await fs.promises.lstat(binFile)
     if (stat.isSymbolicLink()) {
       const target = await fs.promises.readlink(binFile)
-      let exists = true
-      try {
-        await fs.promises.stat(binFile)
-      } catch {
-        exists = false
-      }
-      const isDangling = !exists
+      const isDangling = await isDanglingSymlink(binFile)
       const targetSegments = target.split(/[\\/]/)
       return isDangling || Array.from(removedNames).some((name) => targetSegments.includes(name))
     }
@@ -130,13 +149,7 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
       const stat = await fs.promises.lstat(nodeCurrentLink)
       if (stat.isSymbolicLink()) {
         const target = await fs.promises.readlink(nodeCurrentLink)
-        let exists = true
-        try {
-          await fs.promises.stat(nodeCurrentLink)
-        } catch {
-          exists = false
-        }
-        const isDangling = !exists
+        const isDangling = await isDanglingSymlink(nodeCurrentLink)
         const targetSegments = target.split(/[\\/]/)
         const pointsToRemoved = Array.from(removedNames).some((name) => targetSegments.includes(name))
         if (isDangling || pointsToRemoved) {
