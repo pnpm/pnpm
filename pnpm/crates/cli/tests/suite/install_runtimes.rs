@@ -279,6 +279,36 @@ fn update_moves_a_channel_qualified_devengines_runtime_range() {
     );
 }
 
+/// pnpm/pnpm#14817: the registry mock knows no package named "node", so the
+/// install fails if the npm resolver claims the union instead of leaving it
+/// to the runtime resolver.
+#[test]
+fn installs_node_runtime_for_a_devengines_range_union() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let _mocks = mock_node_releases(&mut server, &["24.1.0"], None);
+    let workspace = prepare_workspace(
+        &root,
+        format!("nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()).as_str(),
+    );
+    fs::write(workspace.join(".npmrc"), format!("registry={}/npm/\n", server.url())).unwrap();
+    write_devengines_manifest(&workspace, "rc/^23.0.0 || ^24.0.0", Some("download"));
+
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(
+        lockfile.contains("specifier: runtime:rc/^23.0.0 || ^24.0.0")
+            && lockfile.contains("version: runtime:24.1.0")
+            && lockfile.contains("node@runtime:24.1.0"),
+        "the runtime resolver resolved the union: {lockfile}",
+    );
+    assert!(workspace.join("node_modules/node/package.json").exists());
+}
+
 #[test]
 fn installs_node_runtime_declared_by_a_dependency_engine() {
     let root = tempfile::tempdir().unwrap();

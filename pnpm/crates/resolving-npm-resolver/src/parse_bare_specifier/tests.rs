@@ -239,6 +239,35 @@ fn workspace_protocol_specifier_declines() {
     assert!(parse_bare_specifier("workspace:*", Some("foo"), DEFAULT_TAG, REGISTRY).is_none());
 }
 
+/// pnpm/pnpm#14817: a lenient range parse drops the protocol-prefixed
+/// comparator set of a union and keeps the rest, which let the npm resolver
+/// claim a `runtime:` union for the registry package of the same name.
+#[test]
+fn protocol_prefixed_range_union_declines() {
+    for specifier in [
+        "runtime:^22.18.0 || ^24.0.0",
+        "runtime:^22||^24",
+        "runtime:>=22.18.0 <25",
+        "runtime:rc/^23.0.0 || ^24.0.0",
+        "gh:^1.0.0 || ^2.0.0",
+        "jsr:^1.0.0 || ^2.0.0",
+        "foo/bar#semver:^1.0.0 || ^2.0.0",
+    ] {
+        let spec = parse_bare_specifier(specifier, Some("node"), DEFAULT_TAG, REGISTRY);
+        assert!(spec.is_none(), "expected None for {specifier:?}, got {spec:?}");
+    }
+}
+
+/// Merged peer ranges are joined with `||`, so a protocol in a later member
+/// must not hide the npm members before it.
+#[test]
+fn range_union_with_a_later_protocol_member_keeps_its_npm_members() {
+    assert!(
+        parse_bare_specifier("^1.0.0 || workspace:^2.0.0", Some("foo"), DEFAULT_TAG, REGISTRY)
+            .is_some(),
+    );
+}
+
 #[test]
 fn npm_prefix_without_alias_uses_bare_as_name_and_falls_back_to_default_tag() {
     // The parser doesn't validate the name; downstream consumers
