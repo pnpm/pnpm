@@ -285,7 +285,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                         &self.lockfiles.verification.resolution_verifiers,
                         self.lockfiles.verification.derived_lockfile_path.as_deref(),
                         &self.install.context.config.cache_dir,
-                        self.resolution.inputs.update_seed_policy.reresolved_update_targets(
+                        self.resolution.inputs.update_seed_policy.replaced_update_targets(
                             loaded_lockfile,
                             self.workspace.requested_importer_ids,
                         ),

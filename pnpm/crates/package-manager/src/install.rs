@@ -54,7 +54,7 @@ use pnpm_lockfile::{
     StalenessReason, VersionPart, satisfies_package_manifest,
 };
 use pnpm_lockfile_verification::{
-    ReresolvedEntries, VerifyLockfileResolutionsOptions, record_lockfile_verified,
+    ReplacedEntries, VerifyLockfileResolutionsOptions, record_lockfile_verified,
     verify_lockfile_resolutions,
 };
 use pnpm_modules_yaml::{
@@ -151,7 +151,7 @@ async fn verify_lockfile_eagerly<Reporter: pnpm_reporter::Reporter>(
             concurrency: None,
             lockfile_path,
             cache_dir: Some(cache_dir),
-            reresolved: None,
+            replaced: None,
         },
     )
     .await
@@ -173,8 +173,8 @@ pub struct LockfileVerificationGate(
     tokio::task::JoinHandle<Result<(), pnpm_lockfile_verification::VerifyError>>,
 );
 
-/// Owned form of [`ReresolvedEntries`], for the spawned gate.
-pub(crate) type IsReresolved = Arc<dyn Fn(&PkgName, &str) -> bool + Send + Sync>;
+/// Owned form of [`ReplacedEntries`], for the spawned gate.
+pub(crate) type IsReplaced = Arc<dyn Fn(&PkgName, &str) -> bool + Send + Sync>;
 
 pub(crate) fn untracked_read_package_hook_may_have_changed(
     recorded: Option<bool>,
@@ -191,7 +191,7 @@ impl LockfileVerificationGate {
         verifiers: &[Arc<dyn ResolutionVerifier>],
         lockfile_path: Option<&Path>,
         cache_dir: &Path,
-        reresolved: Option<IsReresolved>,
+        replaced: Option<IsReplaced>,
     ) -> Option<Self> {
         if verifiers.is_empty() {
             return None;
@@ -208,7 +208,7 @@ impl LockfileVerificationGate {
                     concurrency: None,
                     lockfile_path: lockfile_path.as_deref(),
                     cache_dir: Some(&cache_dir),
-                    reresolved: reresolved.as_deref().map(ReresolvedEntries),
+                    replaced: replaced.as_deref().map(ReplacedEntries),
                 },
             )
             .await

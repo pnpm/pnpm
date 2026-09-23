@@ -390,7 +390,7 @@ test('re-resolved entries skip the policy verifiers', async () => {
     reason: 'version not present in registry manifest',
   }))
 
-  const error = await verifyLockfileResolutions(lockfile, [rejecting], { isReresolved: isA100 }).catch((err: unknown) => err)
+  const error = await verifyLockfileResolutions(lockfile, [rejecting], { isReplaced: isA100 }).catch((err: unknown) => err)
 
   expect(error).toMatchObject({ message: expect.stringContaining('b@1.0.0 version not present') })
   expect(error).not.toMatchObject({ message: expect.stringContaining('a@1.0.0') })
@@ -411,7 +411,7 @@ test('does not write a cache record when re-resolved entries were skipped', asyn
       reason: 'failed',
     }), exampleSlot(60))
 
-    await verifyLockfileResolutions(lockfile, [rejecting], { cacheDir, lockfilePath, isReresolved: isA100 })
+    await verifyLockfileResolutions(lockfile, [rejecting], { cacheDir, lockfilePath, isReplaced: isA100 })
 
     await expect(
       verifyLockfileResolutions(lockfile, [rejecting], { cacheDir, lockfilePath })

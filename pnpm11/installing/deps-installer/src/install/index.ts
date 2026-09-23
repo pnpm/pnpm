@@ -604,7 +604,7 @@ export async function mutateModules (
     verifyLockfilePromise = verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
       cacheDir: opts.cacheDir,
       lockfilePath: wantedLockfilePath,
-      isReresolved: matchUpdateTargetsReresolvedEverywhere(projects, ctx, opts.depth),
+      isReplaced: matchUpdateTargetsReplacedEverywhere(projects, ctx, opts.depth),
     })
     // Keep the rejection from going unhandled in the window before
     // `settleInstall` awaits the verdict — a preResolution hook or the
@@ -3013,7 +3013,7 @@ function allMutationsAreInstalls (projects: MutatedProject[]): boolean {
  * `--depth` limit, a lockfile importer the update does not cover, or a
  * project that is not updating by package name.
  */
-function matchUpdateTargetsReresolvedEverywhere (
+function matchUpdateTargetsReplacedEverywhere (
   projects: MutatedProject[],
   ctx: Pick<PnpmContext, 'projects' | 'wantedLockfile'>,
   depth: number

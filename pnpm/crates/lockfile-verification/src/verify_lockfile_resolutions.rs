@@ -58,8 +58,8 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
     /// disables the cache (every call rehashes + reruns the gate).
     pub cache_dir: Option<&'a Path>,
     /// Entries the install re-resolves instead of reusing. See
-    /// [`ReresolvedEntries`].
-    pub reresolved: Option<ReresolvedEntries<'a>>,
+    /// [`ReplacedEntries`].
+    pub replaced: Option<ReplacedEntries<'a>>,
 }
 
 /// Matches the lockfile entries, by name and version, that the install
@@ -70,11 +70,11 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
 /// cover them. A run that skips an entry does not record the lockfile as
 /// verified.
 #[derive(Clone, Copy)]
-pub struct ReresolvedEntries<'a>(pub &'a (dyn Fn(&PkgName, &str) -> bool + Send + Sync));
+pub struct ReplacedEntries<'a>(pub &'a (dyn Fn(&PkgName, &str) -> bool + Send + Sync));
 
-impl std::fmt::Debug for ReresolvedEntries<'_> {
+impl std::fmt::Debug for ReplacedEntries<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("ReresolvedEntries(..)")
+        f.write_str("ReplacedEntries(..)")
     }
 }
 
@@ -188,9 +188,9 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         return Ok(());
     }
     let mut cache_inputs = cache_inputs;
-    if let Some(ReresolvedEntries(is_reresolved)) = opts.reresolved {
+    if let Some(ReplacedEntries(is_replaced)) = opts.replaced {
         let entries = candidates.len();
-        candidates.retain(|candidate| !is_reresolved(&candidate.name, &candidate.version));
+        candidates.retain(|candidate| !is_replaced(&candidate.name, &candidate.version));
         if candidates.len() < entries {
             cache_inputs = None;
         }

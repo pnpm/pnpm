@@ -84,7 +84,7 @@ export interface VerifyLockfileResolutionsOptions {
    * shape and alias checks still cover them. A run that skips an entry
    * does not record the lockfile as verified.
    */
-  isReresolved?: (name: string, version: string) => boolean
+  isReplaced?: (name: string, version: string) => boolean
 }
 
 /**
@@ -184,9 +184,9 @@ export async function verifyLockfileResolutions (
     throw buildVerificationError(shapeViolations)
   }
   if (verifiers.length === 0) return
-  if (options?.isReresolved != null) {
+  if (options?.isReplaced != null) {
     for (const [key, { name, version }] of candidates) {
-      if (options.isReresolved(name, version)) {
+      if (options.isReplaced(name, version)) {
         candidates.delete(key)
         cache = undefined
       }

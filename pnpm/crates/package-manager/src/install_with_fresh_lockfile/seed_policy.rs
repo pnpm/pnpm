@@ -114,11 +114,11 @@ impl UpdateSeedPolicy {
     /// reused. `None` when a locked version of a target may survive: a
     /// `--depth` limit, an importer outside `requested_importer_ids`, or an
     /// importer that is not updating by package name.
-    pub(crate) fn reresolved_update_targets(
+    pub(crate) fn replaced_update_targets(
         &self,
         lockfile: &Lockfile,
         requested_importer_ids: Option<&HashSet<String>>,
-    ) -> Option<crate::IsReresolved> {
+    ) -> Option<crate::IsReplaced> {
         if self.max_depth() != UpdateDepth::UNLIMITED {
             return None;
         }

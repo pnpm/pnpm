@@ -1,6 +1,6 @@
 use super::{
     AlwaysFail, Arc, AtomicUsize, FailFor, FetchFails, LockfileResolution, LogEvent, Mutex,
-    Ordering, PkgName, Reporter, ReresolvedEntries, ResolutionVerification, ResolutionVerifier,
+    Ordering, PkgName, ReplacedEntries, Reporter, ResolutionVerification, ResolutionVerifier,
     SINGLE_PKG_LOCKFILE, SilentReporter, TWO_PKG_LOCKFILE, TempDir, VerifyCtx, VerifyError,
     VerifyFuture, VerifyLockfileResolutionsOptions, collect_resolution_policy_violations, parse,
     verify_lockfile_resolutions,
@@ -452,7 +452,7 @@ fn is_acme_1_0_0(name: &PkgName, version: &str) -> bool {
 }
 
 #[tokio::test]
-async fn reresolved_entries_skip_the_policy_verifiers() {
+async fn replaced_entries_skip_the_policy_verifiers() {
     let lockfile = parse(TWO_PKG_LOCKFILE);
     let verifier = FailFor::new(
         "MINIMUM_RELEASE_AGE_VIOLATION",
@@ -463,7 +463,7 @@ async fn reresolved_entries_skip_the_policy_verifiers() {
         &lockfile,
         &[verifier as Arc<dyn ResolutionVerifier>],
         &VerifyLockfileResolutionsOptions {
-            reresolved: Some(ReresolvedEntries(&is_acme_1_0_0)),
+            replaced: Some(ReplacedEntries(&is_acme_1_0_0)),
             ..Default::default()
         },
     )
@@ -478,7 +478,7 @@ async fn reresolved_entries_skip_the_policy_verifiers() {
 }
 
 #[tokio::test]
-async fn a_run_that_skips_reresolved_entries_is_not_cached() {
+async fn a_run_that_skips_replaced_entries_is_not_cached() {
     let dir = TempDir::new().expect("tempdir");
     let lockfile_path = dir.path().join("pnpm-lock.yaml");
     std::fs::write(&lockfile_path, TWO_PKG_LOCKFILE).expect("write lockfile");
@@ -493,7 +493,7 @@ async fn a_run_that_skips_reresolved_entries_is_not_cached() {
         &VerifyLockfileResolutionsOptions {
             lockfile_path: Some(&lockfile_path),
             cache_dir: Some(&cache_dir),
-            reresolved: Some(ReresolvedEntries(&is_acme_1_0_0)),
+            replaced: Some(ReplacedEntries(&is_acme_1_0_0)),
             ..Default::default()
         },
     )
