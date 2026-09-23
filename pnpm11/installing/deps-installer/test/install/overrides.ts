@@ -13,7 +13,7 @@ import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { readYamlFileSync } from 'read-yaml-file'
 
-import { testDefaults } from '../utils/index.js'
+import { readMetadataMirror, testDefaults } from '../utils/index.js'
 
 // The mocked registry is shared by every suite in this package, and a
 // `latest` tag this suite moves stays moved. `@pnpm/resolving.npm-resolver`
@@ -659,6 +659,28 @@ test('overrides with local file, link and bare path specs', async () => {
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-b'))).toBe(path.resolve('node_modules/.pnpm/pkg@file+overrides+pkg/node_modules/pkg'))
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-c'))).toBe(path.resolve('overrides/pkg'))
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-d'))).toBe(path.resolve('overrides/pkg'))
+})
+
+test('an override to a local directory is not written to the metadata cache', async () => {
+  const project = prepareEmpty()
+  fs.mkdirSync('local-dep')
+  fs.writeFileSync('local-dep/package.json', JSON.stringify({ name: 'local-dep', version: '1.0.0' }))
+
+  const opts = testDefaults({
+    overrides: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': 'file:./local-dep',
+    },
+  })
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
+
+  expect(project.readLockfile().snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies).toStrictEqual({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': 'local-dep@file:local-dep',
+  })
+  const { raw, meta } = await readMetadataMirror(opts.cacheDir, '@pnpm.e2e/pkg-with-1-dep')
+  expect(raw).not.toContain('local-dep')
+  expect(meta.versions['100.0.0'].dependencies).toStrictEqual({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0',
+  })
 })
 
 test('overrides remove dependencies', async () => {
