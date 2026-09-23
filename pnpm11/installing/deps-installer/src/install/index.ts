@@ -3739,6 +3739,7 @@ async function mutateModulesViaPnpr (
     stats: result.stats,
     ignoredBuilds: result.ignoredBuilds,
     resolutionPolicyViolations: result.resolutionPolicyViolations,
+    projectLifecycleScriptsError: result.projectLifecycleScriptsError,
   }
 }
 
@@ -3916,7 +3917,6 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
     // https://github.com/pnpm/pnpm/issues/12230.
     const headlessOpts = {
       ...opts,
-      deferProjectLifecycleScriptsError: false,
       dir: rootDir as string,
       lockfileDir,
       engineStrict: opts.engineStrict ?? false,
@@ -3951,7 +3951,7 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
       skipped: new Set<DepPath>(),
       wantedLockfile: lockfile,
     }
-    const { ignoredBuilds, stats } = await materializeOrDelegate(
+    const { ignoredBuilds, stats, projectLifecycleScriptsError } = await materializeOrDelegate(
       { ...opts, rootProjectPreinstallRan },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       () => headlessInstall(headlessOpts as any)
@@ -3961,6 +3961,7 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
       updatedCatalogs: undefined,
       updatedManifest: manifest,
       ignoredBuilds,
+      projectLifecycleScriptsError,
       // Pacquet doesn't surface a structured stats return; default to
       // zeros so the pnpr server's non-optional `stats` slot is filled.
       // The reporter still renders accurate counts from pacquet's
