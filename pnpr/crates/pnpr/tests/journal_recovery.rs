@@ -3,9 +3,7 @@
 //! an unsealed one is rolled back, and the journal directory carries
 //! no residue after a successful publish.
 
-#[path = "common/npm.rs"]
-#[expect(dead_code, reason = "this suite needs part of the shared npm fixtures")]
-mod npm;
+use crate::npm;
 
 use axum::{
     body::{Body, to_bytes},

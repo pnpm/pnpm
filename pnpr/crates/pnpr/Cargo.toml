@@ -10,6 +10,9 @@ repository = "https://github.com/pnpm/pnpm"
 keywords = ["npm", "registry", "pnpm", "verdaccio"]
 categories = ["development-tools", "web-programming::http-server"]
 readme = "README.md"
+# One integration-test binary (tests/suite.rs). Each file under tests/ links
+# the full server, so seventeen of them cost seventeen links.
+autotests = false
 
 [lib]
 path = "src/lib.rs"
@@ -17,6 +20,10 @@ path = "src/lib.rs"
 [[bin]]
 name = "pnpr"
 path = "src/main.rs"
+
+[[test]]
+name = "suite"
+path = "tests/suite.rs"
 
 [features]
 default = ["backend-libsql"]

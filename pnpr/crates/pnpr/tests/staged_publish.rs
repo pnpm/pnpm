@@ -1,8 +1,7 @@
 //! Integration tests for the `-/stage` endpoints — the server half of
 //! `pnpm stage`. Static-mode (no upstream) to keep the tests hermetic.
 
-#[path = "common/npm.rs"]
-mod npm;
+use crate::npm;
 
 use axum::{
     body::{Body, to_bytes},
