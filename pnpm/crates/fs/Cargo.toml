@@ -16,6 +16,7 @@ test = []
 [dependencies]
 derive_more = { workspace = true }
 dunce = { workspace = true }
+getrandom = { workspace = true }
 miette = { workspace = true }
 pathdiff = { workspace = true }
 pnpm-crypto-hash = { workspace = true }

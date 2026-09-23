@@ -251,10 +251,25 @@ fn held_file_id(mut file: &File) -> io::Result<String> {
     file.seek(SeekFrom::Start(0))?;
     file.read_to_string(&mut id)?;
     if id.is_empty() {
-        id = mint_token();
+        id = mint_held_file_id()?;
         file.write_all(id.as_bytes())?;
     }
     Ok(id)
+}
+
+/// An identity no held file on any host shares. It decides whether a
+/// waiter's file lock speaks for a directory's holder, so it comes from
+/// the operating system's randomness rather than from the clock and
+/// the pid, which two hosts can agree on.
+fn mint_held_file_id() -> io::Result<String> {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut bytes = [0_u8; 16];
+    getrandom::fill(&mut bytes).map_err(io::Error::other)?;
+    Ok(bytes
+        .iter()
+        .flat_map(|byte| [HEX[usize::from(byte >> 4)], HEX[usize::from(byte & 0xf)]])
+        .map(char::from)
+        .collect())
 }
 
 /// What one attempt at creating the lock directory settled.

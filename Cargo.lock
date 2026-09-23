@@ -5196,6 +5196,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "dunce",
+ "getrandom 0.4.3",
  "junction 2.0.0",
  "libc",
  "miette 7.6.0",
