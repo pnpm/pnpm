@@ -209,10 +209,7 @@ fn selected_prune_importer_ids(context: &ExcludedGroupPrune<'_>) -> Option<HashS
                     current,
                     context.workspace_root,
                     requested,
-                    crate::GroupSelection {
-                        included: context.included,
-                        peer_edges: context.config.peer_edge_options(),
-                    },
+                    &crate::GroupSelection::following_every_edge(context.included),
                     &crate::SkippedSnapshots::new(),
                 )
                 .importer_ids

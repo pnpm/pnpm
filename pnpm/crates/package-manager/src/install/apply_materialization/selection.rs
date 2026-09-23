@@ -28,7 +28,7 @@ pub(super) fn select_materialized_state<'a>(
                 wanted,
                 inputs.workspace_root,
                 requested,
-                inputs.groups,
+                &inputs.groups,
                 inputs.install_skipped,
             )
             .lockfile
@@ -67,7 +67,7 @@ pub(super) fn project_anchor_importers(
                     wanted,
                     inputs.workspace_root,
                     requested,
-                    inputs.groups,
+                    &crate::GroupSelection::following_every_edge(inputs.groups.included),
                     inputs.install_skipped,
                 )
                 .importer_ids
@@ -83,7 +83,7 @@ pub(super) fn materialized_current_lockfile(
     if matches!(inputs.node_linker, NodeLinker::Hoisted)
         || (inputs.projects.requested_ids.is_none() && inputs.projects.ignore_manifest_check)
     {
-        crate::filter_lockfile_for_current(wanted, inputs.groups, inputs.install_skipped)
+        crate::filter_lockfile_for_current(wanted, &inputs.groups, inputs.install_skipped)
     } else {
         crate::merge_filtered_current_lockfile(
             (inputs.projects.requested_ids.is_some() && !inputs.is_inconsistent)
@@ -91,7 +91,7 @@ pub(super) fn materialized_current_lockfile(
                 .flatten(),
             wanted,
             inputs.projects.requested_ids.unwrap_or(inputs.projects.real_ids),
-            inputs.groups,
+            &inputs.groups,
             inputs.install_skipped,
             inputs.workspace_root,
         )

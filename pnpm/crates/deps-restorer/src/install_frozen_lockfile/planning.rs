@@ -63,12 +63,8 @@ impl<'a> FrozenInputs<'a> {
         }
     }
 
-    /// [`Self::included`] with the peer-edge classification the config asks for.
-    pub(super) fn groups(&self) -> crate::GroupSelection {
-        crate::GroupSelection {
-            included: self.included(),
-            peer_edges: self.drivers.config.peer_edge_options(),
-        }
+    pub(super) fn groups(&self) -> &'a crate::GroupSelection {
+        self.projects.groups
     }
 
     // Declared projects may live outside the lockfile directory, unlike untrusted importer keys.

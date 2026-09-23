@@ -12,11 +12,7 @@ pub(crate) fn assert_wanted_lockfile_equals_current(
     included: IncludedDependencies,
 ) -> Result<(), &'static str> {
     assert_current_lockfile_records(wanted, config, |current| {
-        materialized_shape_matches(
-            wanted,
-            current,
-            crate::GroupSelection { included, peer_edges: config.peer_edge_options() },
-        )
+        materialized_shape_matches(wanted, current, included, config.peer_edge_options())
     })
 }
 
@@ -85,7 +81,8 @@ pub(crate) fn assert_loaded_current_lockfile_records(
 pub(crate) fn materialized_shape_matches(
     wanted: &Lockfile,
     current: &Lockfile,
-    groups: crate::GroupSelection,
+    included: IncludedDependencies,
+    peer_edges: pnpm_lockfile::PeerEdgeOptions,
 ) -> bool {
     if wanted == current {
         return true;
@@ -93,5 +90,10 @@ pub(crate) fn materialized_shape_matches(
     // A transient skip (a failed optional fetch) prunes the current lockfile
     // further, and its set is not known here. Such a tree simply falls
     // through to materialization, which retries the fetch anyway.
-    current == &crate::filter_lockfile_for_current(wanted, groups, &crate::SkippedSnapshots::new())
+    current
+        == &crate::filter_lockfile_for_current(
+            wanted,
+            &crate::GroupSelection::classify(wanted, included, peer_edges),
+            &crate::SkippedSnapshots::new(),
+        )
 }

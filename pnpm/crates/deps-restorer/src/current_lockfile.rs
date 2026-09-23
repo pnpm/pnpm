@@ -14,11 +14,9 @@
 //! those slots were already on disk and skip work that should
 //! actually run.
 
-pub use reachability::{ReachableLockfileGraph, collect_reachable};
+pub use reachability::{GroupSelection, ReachableLockfileGraph, collect_reachable};
 
 mod reachability;
-
-use reachability::{WalkedEdges, walk_reachable};
 
 use std::{
     collections::{HashMap, HashSet},
@@ -27,30 +25,10 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_lockfile::{
-    Lockfile, PackageKey, PeerEdgeOptions, Prefix, ProjectSnapshot, ResolvedDependencyMap,
-};
+use pnpm_lockfile::{Lockfile, PackageKey, Prefix, ProjectSnapshot, ResolvedDependencyMap};
 use pnpm_modules_yaml::IncludedDependencies;
 
 use crate::SkippedSnapshots;
-
-/// The dependency groups a lockfile walk includes, and how it classifies the
-/// optional-peer edges it skips while it leaves a group out (see
-/// [`pnpm_lockfile::PeerSatisfactionEdges`]).
-#[derive(Debug, Clone, Copy)]
-pub struct GroupSelection {
-    pub included: IncludedDependencies,
-    pub peer_edges: PeerEdgeOptions,
-}
-
-impl GroupSelection {
-    /// Every group. A walk over it follows every edge, so it needs no peer
-    /// classification.
-    #[must_use]
-    pub fn all() -> Self {
-        GroupSelection { included: all_dependencies(), peer_edges: PeerEdgeOptions::default() }
-    }
-}
 
 pub struct MaterializationClosure {
     pub lockfile: Lockfile,
@@ -76,19 +54,19 @@ pub fn materialization_closure(
     lockfile: &Lockfile,
     workspace_root: &Path,
     initial_importer_ids: &HashSet<String>,
-    groups: GroupSelection,
+    groups: &GroupSelection,
     skipped: &SkippedSnapshots,
 ) -> MaterializationClosure {
-    let edges = WalkedEdges::of(lockfile, groups);
-    let reachable = walk_reachable(lockfile, workspace_root, initial_importer_ids, &edges, |key| {
-        skipped.contains(key)
-    });
+    let reachable =
+        collect_reachable(lockfile, workspace_root, initial_importer_ids, groups, |key| {
+            skipped.contains(key)
+        });
     // Package metadata survives an installability skip and a failed fetch but
     // not an optional exclusion, so it needs its own reachability walk —
     // unless those two subsets are empty, in which case the second walk would
     // retrace the first over the whole graph.
     let metadata_walk = (!skipped.optional_exclusions_are_the_only_skips()).then(|| {
-        walk_reachable(lockfile, workspace_root, initial_importer_ids, &edges, |key| {
+        collect_reachable(lockfile, workspace_root, initial_importer_ids, groups, |key| {
             skipped.contains_optional_excluded(key)
         })
     });
@@ -106,7 +84,7 @@ pub fn materialization_closure(
             (id.clone(), filter_importer(importer, groups.included, &reachable.snapshot_keys))
         })
         .collect();
-    let snapshots = retained_snapshots(lockfile, &reachable.snapshot_keys, &edges);
+    let snapshots = retained_snapshots(lockfile, &reachable.snapshot_keys, groups);
     let packages = reachable_package_metadata(lockfile, &reachable_metadata);
 
     MaterializationClosure {
@@ -118,7 +96,7 @@ pub fn materialization_closure(
 fn retained_snapshots(
     lockfile: &Lockfile,
     reachable: &HashSet<PackageKey>,
-    edges: &WalkedEdges,
+    groups: &GroupSelection,
 ) -> Option<HashMap<PackageKey, pnpm_lockfile::SnapshotEntry>> {
     let mut snapshots = lockfile.snapshots
         .as_ref()?
@@ -126,7 +104,7 @@ fn retained_snapshots(
         .filter(|(key, _)| reachable.contains(*key))
         .map(|(key, snapshot)| (key.clone(), snapshot.clone()))
         .collect();
-    edges.skipped_peer_edges.prune_dangling(&mut snapshots);
+    groups.skipped_peer_edges.prune_dangling(&mut snapshots);
     Some(snapshots)
 }
 
@@ -208,7 +186,7 @@ pub fn merge_filtered_current_lockfile(
     previous_current: Option<&Lockfile>,
     wanted: &Lockfile,
     requested_importer_ids: &HashSet<String>,
-    groups: GroupSelection,
+    groups: &GroupSelection,
     skipped: &SkippedSnapshots,
     workspace_root: &Path,
 ) -> Lockfile {
@@ -259,7 +237,7 @@ fn retained_closure(
         &retained_source,
         workspace_root,
         &retained_importer_ids,
-        GroupSelection::all(),
+        &GroupSelection::all(),
         &SkippedSnapshots::new(),
     )
     .lockfile
@@ -290,7 +268,7 @@ fn full_closure(lockfile: &Lockfile, workspace_root: &Path) -> Lockfile {
         lockfile,
         workspace_root,
         &importer_ids,
-        GroupSelection::all(),
+        &GroupSelection::all(),
         &SkippedSnapshots::new(),
     )
     .lockfile
@@ -339,7 +317,7 @@ pub fn extend_skipped_with_dependency_closure(
     lockfile: &Lockfile,
     workspace_root: &Path,
     importer_ids: &HashSet<String>,
-    groups: GroupSelection,
+    groups: &GroupSelection,
 ) {
     if skipped
         .iter_installability()
@@ -348,9 +326,8 @@ pub fn extend_skipped_with_dependency_closure(
     {
         return;
     }
-    let edges = WalkedEdges::of(lockfile, groups);
-    let full = walk_reachable(lockfile, workspace_root, importer_ids, &edges, |_| false);
-    let kept = walk_reachable(lockfile, workspace_root, importer_ids, &edges, |key| {
+    let full = collect_reachable(lockfile, workspace_root, importer_ids, groups, |_| false);
+    let kept = collect_reachable(lockfile, workspace_root, importer_ids, groups, |key| {
         skipped.contains_installability(key)
     });
     for key in full.snapshot_keys {
@@ -358,10 +335,6 @@ pub fn extend_skipped_with_dependency_closure(
             skipped.insert_installability(key);
         }
     }
-}
-
-fn all_dependencies() -> IncludedDependencies {
-    IncludedDependencies { dependencies: true, dev_dependencies: true, optional_dependencies: true }
 }
 
 fn overlay_package_maps<Value: Clone>(
@@ -415,7 +388,7 @@ fn lockfile_with_graph(
 #[must_use]
 pub fn filter_lockfile_for_current(
     lockfile: &Lockfile,
-    groups: GroupSelection,
+    groups: &GroupSelection,
     skipped: &SkippedSnapshots,
 ) -> Lockfile {
     let all_importer_ids = lockfile.importers

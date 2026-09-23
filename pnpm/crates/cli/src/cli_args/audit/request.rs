@@ -27,7 +27,12 @@ pub(crate) struct Include {
 impl Include {
     /// A walk over only some groups leaves out the peer-satisfaction edges.
     pub(crate) fn excludes_a_group(self) -> bool {
-        !(self.dependencies && self.dev_dependencies && self.optional_dependencies)
+        pnpm_modules_yaml::IncludedDependencies {
+            dependencies: self.dependencies,
+            dev_dependencies: self.dev_dependencies,
+            optional_dependencies: self.optional_dependencies,
+        }
+        .excludes_a_group()
     }
 }
 
@@ -59,11 +64,10 @@ pub(crate) struct AuditGraph<'a> {
 }
 
 impl<'a> AuditGraph<'a> {
-    /// `root` is the index in `importers` whose direct dependencies count as
-    /// listed by every importer.
+    /// See [`PeerEdgeGraph::listed_by_every_importer`].
     pub(crate) fn new(
         importers: Vec<GraphImporter>,
-        root: Option<usize>,
+        listed_by_every_importer: HashSet<PackageKey>,
         snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
         packages: &HashMap<PackageKey, PackageMetadata>,
     ) -> Self {
@@ -77,7 +81,7 @@ impl<'a> AuditGraph<'a> {
                         .collect()
                 })
                 .collect(),
-            root,
+            listed_by_every_importer,
             snapshots,
             packages,
         });

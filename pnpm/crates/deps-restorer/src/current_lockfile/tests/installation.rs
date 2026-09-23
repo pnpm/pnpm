@@ -30,7 +30,7 @@ fn transitive_under_skipped_snapshot_is_pruned() {
     let mut skipped = SkippedSnapshots::new();
     skipped.add_optional_excluded(key("parent", "1.0.0"));
 
-    let filtered = super::super::filter_lockfile_for_current(&lockfile, include_all(), &skipped);
+    let filtered = super::super::filter_lockfile_for_current(&lockfile, &include_all(), &skipped);
 
     let snaps = filtered.snapshots.as_ref().unwrap();
     assert!(!snaps.contains_key(&key("parent", "1.0.0")));
@@ -61,7 +61,7 @@ fn snapshot_reachable_via_kept_path_survives() {
     let mut skipped = SkippedSnapshots::new();
     skipped.add_optional_excluded(key("opt-parent", "1.0.0"));
 
-    let filtered = super::super::filter_lockfile_for_current(&lockfile, include_all(), &skipped);
+    let filtered = super::super::filter_lockfile_for_current(&lockfile, &include_all(), &skipped);
 
     let snaps = filtered.snapshots.as_ref().unwrap();
     assert!(snaps.contains_key(&key("kept-parent", "1.0.0")));
@@ -109,7 +109,7 @@ fn installability_skipped_entries_are_preserved() {
     skipped.insert_installability(key("drop", "1.0.0"));
     skipped.insert_installability(key("child", "1.0.0"));
 
-    let filtered = super::super::filter_lockfile_for_current(&lockfile, include_all(), &skipped);
+    let filtered = super::super::filter_lockfile_for_current(&lockfile, &include_all(), &skipped);
 
     assert_eq!(filtered, lockfile);
 }
@@ -136,7 +136,7 @@ fn fetch_failed_snapshot_is_pruned() {
     let mut skipped = SkippedSnapshots::new();
     skipped.add_fetch_failed(key("drop", "1.0.0"));
 
-    let filtered = super::super::filter_lockfile_for_current(&lockfile, include_all(), &skipped);
+    let filtered = super::super::filter_lockfile_for_current(&lockfile, &include_all(), &skipped);
 
     let snaps = filtered.snapshots.as_ref().unwrap();
     assert!(snaps.contains_key(&key("keep", "1.0.0")));
@@ -168,7 +168,7 @@ fn empty_skipped_and_full_include_is_identity_for_reachables() {
 
     let filtered = super::super::filter_lockfile_for_current(
         &lockfile,
-        include_all(),
+        &include_all(),
         &SkippedSnapshots::new(),
     );
 
@@ -203,7 +203,7 @@ fn orphan_snapshots_are_pruned() {
 
     let filtered = super::super::filter_lockfile_for_current(
         &lockfile,
-        include_all(),
+        &include_all(),
         &SkippedSnapshots::new(),
     );
 
@@ -258,7 +258,7 @@ fn materialization_closure_excludes_transitive_optional_shared_snapshot_when_dis
         &lockfile,
         Path::new("/workspace"),
         &HashSet::from([selected_id.clone()]),
-        super::groups(included),
+        &super::groups(included),
         &SkippedSnapshots::new(),
     );
 
@@ -291,7 +291,7 @@ fn skip_closure_extends_installability_roots() {
         &lockfile,
         Path::new("/workspace"),
         &HashSet::from([importer_id]),
-        include_all(),
+        &include_all(),
     );
 
     assert!(
@@ -330,7 +330,7 @@ fn skip_closure_ignores_transient_roots() {
         &lockfile,
         Path::new("/workspace"),
         &HashSet::from([importer_id]),
-        include_all(),
+        &include_all(),
     );
 
     assert_eq!(
@@ -368,7 +368,7 @@ fn skipped_runtimes_leave_no_dangling_importer_references() {
     let mut skipped = SkippedSnapshots::new();
     skipped.add_optional_excluded(runtime_key.clone());
 
-    let filtered = super::super::filter_lockfile_for_current(&lockfile, include_all(), &skipped);
+    let filtered = super::super::filter_lockfile_for_current(&lockfile, &include_all(), &skipped);
 
     assert!(
         !filtered.snapshots
@@ -393,7 +393,7 @@ fn skipped_runtimes_leave_no_dangling_importer_references() {
     assert_eq!(
         super::super::filter_lockfile_for_current(
             &lockfile,
-            include_all(),
+            &include_all(),
             &SkippedSnapshots::new()
         ),
         lockfile,

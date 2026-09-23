@@ -8,7 +8,7 @@ use crate::{Lockfile, PackageKey, PackageMetadata, PkgName, SnapshotDepRef, Snap
 /// provide a peer.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct PeerEdgeOptions {
-    /// `resolvePeersFromWorkspaceRoot`: a direct dependency of the root
+    /// `resolvePeersFromWorkspaceRoot`: a `devDependencies` entry of the root
     /// importer counts as listed by every importer.
     pub resolve_peers_from_workspace_root: bool,
 }
@@ -17,9 +17,11 @@ pub struct PeerEdgeOptions {
 pub struct PeerEdgeGraph<'a> {
     /// The snapshot keys each importer depends on directly, in any group.
     pub importers: Vec<HashSet<PackageKey>>,
-    /// The index in `importers` whose direct dependencies count as listed
-    /// by every importer.
-    pub root: Option<usize>,
+    /// The snapshot keys every importer counts as listing: the root
+    /// importer's `devDependencies` under `resolvePeersFromWorkspaceRoot`.
+    /// A root production dependency is not among them, because a walk that
+    /// leaves the root out would then drop a peer nothing else provides.
+    pub listed_by_every_importer: HashSet<PackageKey>,
     pub snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
     pub packages: &'a HashMap<PackageKey, PackageMetadata>,
 }
@@ -31,7 +33,8 @@ pub struct PeerEdgeGraph<'a> {
 /// follows that entry like a real dependency. An entry `P -> T` under alias
 /// `a` only satisfies a peer when `a` is an optional peer of `P` and every
 /// importer that reaches `P` lists `T` as a direct dependency (or, with
-/// `resolvePeersFromWorkspaceRoot`, the root importer lists it). Each of those
+/// `resolvePeersFromWorkspaceRoot`, the root importer lists it as a
+/// devDependency). Each of those
 /// importers then decides through its own dependency field whether `T` is
 /// installed, so a walk that leaves out that field must not reach `T` through
 /// `P`.
@@ -53,18 +56,19 @@ impl PeerSatisfactionEdges {
         else {
             return Self::default();
         };
-        let mut importer_ids = lockfile.importers.keys().collect::<Vec<_>>();
-        importer_ids.sort();
-        let root = options.resolve_peers_from_workspace_root.then(|| {
-            importer_ids
-                .iter()
-                .position(|id| id.as_str() == Lockfile::ROOT_IMPORTER_KEY)
-        });
-        let importers = importer_ids
-            .iter()
-            .map(|id| direct_keys(&lockfile.importers[*id]))
+        let listed_by_every_importer = lockfile
+            .root_project()
+            .filter(|_| options.resolve_peers_from_workspace_root)
+            .and_then(|root| root.dev_dependencies.as_ref())
+            .into_iter()
+            .flatten()
+            .filter_map(|(alias, spec)| spec.version.resolved_key(alias))
             .collect();
-        Self::of_graph(&PeerEdgeGraph { importers, root: root.flatten(), snapshots, packages })
+        let importers = lockfile.importers
+            .values()
+            .map(direct_keys)
+            .collect();
+        Self::of_graph(&PeerEdgeGraph { importers, listed_by_every_importer, snapshots, packages })
     }
 
     /// Classify every edge of `graph`.
@@ -213,9 +217,7 @@ fn is_optional_peer(package: &PackageMetadata, alias: &PkgName) -> bool {
 /// The sorted indices of the importers that list `target`. Targets with the
 /// same listing share one reachability walk.
 fn importers_listing(graph: &PeerEdgeGraph<'_>, target: &PackageKey) -> Vec<usize> {
-    let root_lists = graph.root
-        .and_then(|root| graph.importers.get(root))
-        .is_some_and(|keys| keys.contains(target));
+    let root_lists = graph.listed_by_every_importer.contains(target);
     graph.importers
         .iter()
         .enumerate()

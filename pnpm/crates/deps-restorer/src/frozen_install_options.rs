@@ -94,6 +94,9 @@ pub struct FrozenProjectInputs<'a> {
     /// [`workspace_root`]: Self::workspace_root
     pub requester: &'a str,
     pub dependency_groups: &'a [DependencyGroup],
+    /// [`Self::dependency_groups`] with the peer-satisfaction edges the
+    /// caller classified on the wanted lockfile.
+    pub groups: &'a crate::GroupSelection,
     pub manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
     pub package_map_manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
 }

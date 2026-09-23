@@ -145,32 +145,35 @@ impl<'a> AuditGraph<'a> {
         let snapshots = lockfile.snapshots.as_ref().unwrap_or(empty);
         let empty_pkgs = empty_packages();
         let packages = lockfile.packages.as_ref().unwrap_or(empty_pkgs);
-        let (ids, importers): (Vec<_>, Vec<_>) = lockfile.importers
+        let importers = lockfile.importers
             .iter()
-            .map(|(id, importer)| {
-                (
-                    id,
-                    GraphImporter {
-                        path_segment: id.replace('/', "__"),
-                        roots: importer_roots(importer),
-                    },
-                )
+            .map(|(id, importer)| GraphImporter {
+                path_segment: id.replace('/', "__"),
+                roots: importer_roots(importer),
             })
-            .unzip();
-        let root = peer_edges.resolve_peers_from_workspace_root
-            .then(|| {
-                ids.iter()
-                    .position(|id| id.as_str() == Lockfile::ROOT_IMPORTER_KEY)
-            })
-            .flatten();
-        Self::new(importers, root, snapshots, packages)
+            .collect();
+        let root_dev_dependencies = lockfile
+            .root_project()
+            .filter(|_| peer_edges.resolve_peers_from_workspace_root)
+            .map(importer_roots)
+            .into_iter()
+            .flatten()
+            .filter(|(kind, _)| *kind == DepKind::Dev)
+            .map(|(_, edge)| edge.key)
+            .collect();
+        Self::new(importers, root_dev_dependencies, snapshots, packages)
     }
 
     pub(super) fn env(env_lockfile: &'a EnvLockfile) -> Self {
         let importer = env_lockfile.importers.get(EnvLockfile::ROOT_IMPORTER_KEY);
         let mut importers = Vec::new();
         let Some(importer) = importer else {
-            return Self::new(importers, None, &env_lockfile.snapshots, &env_lockfile.packages);
+            return Self::new(
+                importers,
+                HashSet::new(),
+                &env_lockfile.snapshots,
+                &env_lockfile.packages,
+            );
         };
         let config_roots = env_roots(&importer.config_dependencies);
         if !config_roots.is_empty() {
@@ -195,7 +198,7 @@ impl<'a> AuditGraph<'a> {
             }
         }
 
-        Self::new(importers, None, &env_lockfile.snapshots, &env_lockfile.packages)
+        Self::new(importers, HashSet::new(), &env_lockfile.snapshots, &env_lockfile.packages)
     }
 
     /// The snapshots `key` depends on in a walk over `include`: its

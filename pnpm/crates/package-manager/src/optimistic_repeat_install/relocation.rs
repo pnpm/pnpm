@@ -199,10 +199,8 @@ fn validated_moved_lockfile<'a>(
         super::materialized_shape_matches(
             wanted,
             current,
-            crate::GroupSelection {
-                included: modules.included,
-                peer_edges: config.peer_edge_options(),
-            },
+            modules.included,
+            config.peer_edge_options(),
         )
     })?;
     if let Some(current) = current.as_ref()

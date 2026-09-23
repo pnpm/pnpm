@@ -22,7 +22,7 @@ struct LocalTarballDependency {
 pub(crate) struct FrozenLocalTarballCheck<'a> {
     pub(crate) workspace_root: &'a Path,
     pub(crate) importer_ids: &'a HashSet<String>,
-    pub(crate) groups: crate::GroupSelection,
+    pub(crate) groups: &'a crate::GroupSelection,
     pub(crate) lockfile: &'a Lockfile,
     pub(crate) skipped: &'a pnpm_deps_restorer::SkippedSnapshots,
 }

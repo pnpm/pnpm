@@ -474,7 +474,7 @@ fn a_moved_production_install_passes_the_run_gate() {
     let wanted = Lockfile::load_wanted_from_dir(dir.path()).unwrap().unwrap();
     let current = crate::filter_lockfile_for_current(
         &wanted,
-        crate::GroupSelection { included, peer_edges: pnpm_lockfile::PeerEdgeOptions::default() },
+        &crate::GroupSelection::following_every_edge(included),
         &crate::SkippedSnapshots::new(),
     );
     current

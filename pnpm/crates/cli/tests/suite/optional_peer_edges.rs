@@ -54,19 +54,23 @@ fn json(output: &Output) -> Value {
     serde_json::from_slice(&output.stdout).expect("parse the JSON output")
 }
 
-/// The virtual-store slot of `abc-optional-peers` under `workspace`.
-fn abc_slot(workspace: &Path) -> PathBuf {
-    let virtual_store = workspace.join("node_modules/.pnpm");
-    fs::read_dir(&virtual_store)
-        .expect("read the virtual store")
-        .map(|entry| entry.expect("read a virtual store entry").path())
-        .find(|path| {
-            path.file_name()
-                .is_some_and(|name| {
-                    name.to_string_lossy().starts_with("@pnpm.e2e+abc-optional-peers@1.0.0")
-                })
-        })
-        .expect("abc-optional-peers has a slot")
+/// The virtual-store slot the `modules_dir` link to the scoped package `name`
+/// points into. The slot's name is not predictable: a short
+/// `virtualStoreDirMaxLength`, the Windows default, hashes it.
+fn slot_of(modules_dir: &Path, name: &str) -> PathBuf {
+    let package_dir = fs::canonicalize(modules_dir.join(name))
+        .unwrap_or_else(|error| panic!("resolve the {name} link: {error}"));
+    package_dir
+        .ancestors()
+        .nth(3)
+        .expect("a package inside a slot has a slot")
+        .to_path_buf()
+}
+
+/// The virtual-store slot of the `abc-optional-peers` that `importer` depends
+/// on directly.
+fn abc_slot(importer: &Path) -> PathBuf {
+    slot_of(&importer.join("node_modules"), ABC)
 }
 
 /// Whether the slot links `name` at all, a dangling link included.
@@ -183,7 +187,9 @@ fn a_prod_install_keeps_an_optional_peer_a_production_package_depends_on() {
 
     pnpm(&fixture, &["install", "--prod", "--frozen-lockfile"]);
 
-    let slot = abc_slot(&fixture.workspace);
+    let parent =
+        slot_of(&fixture.workspace.join("node_modules"), "@pnpm.e2e/abc-optional-peers-parent");
+    let slot = slot_of(&parent.join("node_modules"), ABC);
     assert!(
         slot.join("node_modules")
             .join(PEER_C)
@@ -225,7 +231,7 @@ fn a_prod_install_drops_an_optional_peer_the_workspace_root_provides() {
     pnpm(&fixture, &["install", "--prod", "--frozen-lockfile"]);
 
     assert!(!has_slot(&fixture.workspace, PEER_C, "1.0.0"));
-    assert!(!links(&abc_slot(&fixture.workspace), PEER_C));
+    assert!(!links(&abc_slot(&fixture.workspace.join("packages/app")), PEER_C));
 }
 
 #[test]
@@ -237,7 +243,7 @@ fn a_prod_install_keeps_a_root_provided_optional_peer_without_resolve_peers_from
 
     assert!(has_slot(&fixture.workspace, PEER_C, "1.0.0"));
     assert!(
-        abc_slot(&fixture.workspace)
+        abc_slot(&fixture.workspace.join("packages/app"))
             .join("node_modules")
             .join(PEER_C)
             .exists(),
@@ -268,12 +274,12 @@ fn fetch_prod_leaves_out_an_optional_peer_only_a_dev_dependency_provides() {
 }
 
 fn deploy_workspace(
-    root_dev: &[(&'static str, &'static str)],
+    root: ManifestDeps<'_>,
     app_dev: &[(&'static str, &'static str)],
 ) -> WorkspaceFixture {
     let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml("injectWorkspacePackages: true\n");
-    fixture.write_root_manifest("root", ManifestDeps { dev: root_dev, ..ManifestDeps::default() });
+    fixture.write_root_manifest("root", root);
     fixture.project(
         "app",
         "app",
@@ -313,13 +319,16 @@ fn assert_deploy_leaves_out_the_optional_peer(fixture: &WorkspaceFixture) {
 
 #[test]
 fn deploy_prod_leaves_out_an_optional_peer_the_project_dev_dependencies_provide() {
-    let fixture = deploy_workspace(&[], &[(PEER_C, "1.0.0")]);
+    let fixture = deploy_workspace(ManifestDeps::default(), &[(PEER_C, "1.0.0")]);
     assert_deploy_leaves_out_the_optional_peer(&fixture);
 }
 
 #[test]
 fn deploy_prod_leaves_out_an_optional_peer_the_workspace_root_provides() {
-    let fixture = deploy_workspace(&[(PEER_C, "1.0.0")], &[]);
+    let fixture = deploy_workspace(
+        ManifestDeps { dev: &[(PEER_C, "1.0.0")], ..ManifestDeps::default() },
+        &[],
+    );
     assert_deploy_leaves_out_the_optional_peer(&fixture);
 }
 
@@ -459,4 +468,65 @@ fn sbom_prod_leaves_out_an_optional_peer_only_a_dev_dependency_provides() {
             .iter()
             .any(|reference| reference.contains("peer-c")),
     );
+}
+
+/// A root production dependency is installed whenever the root is, so it does
+/// not make the peer edge a dev-only one: the deploy still ships it.
+#[test]
+fn deploy_prod_ships_an_optional_peer_the_workspace_root_lists_as_a_production_dependency() {
+    let fixture = deploy_workspace(
+        ManifestDeps { prod: &[(PEER_C, "1.0.0")], ..ManifestDeps::default() },
+        &[],
+    );
+
+    pnpm(&fixture, &["--filter", "app", "deploy", "--prod", "deploy"]);
+
+    let deploy_dir = fixture.workspace.join("deploy");
+    assert!(has_slot(&deploy_dir, PEER_C, "1.0.0"), "the deploy must ship the optional peer");
+    assert!(
+        abc_slot(&deploy_dir)
+            .join("node_modules")
+            .join(PEER_C)
+            .exists(),
+    );
+}
+
+#[test]
+fn a_resolving_prod_install_leaves_out_an_optional_peer_only_a_dev_dependency_provides() {
+    let fixture = WorkspaceFixture::new();
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps { prod: PROD_ABC, dev: DEV_PEERS, ..ManifestDeps::default() },
+    );
+
+    pnpm(&fixture, &["install", "--prod"]);
+
+    let workspace = &fixture.workspace;
+    let slot = abc_slot(workspace);
+    assert!(!has_slot(workspace, PEER_C, "1.0.0"), "the optional peer must not be installed");
+    assert!(!links(&slot, PEER_C), "abc-optional-peers must not link the optional peer");
+    assert!(has_slot(workspace, PEER_A, "1.0.0"), "the required peer must be installed");
+    assert!(links(&slot, PEER_A));
+    assert_eq!(current_abc_aliases(workspace), [PEER_A]);
+}
+
+/// The mirror image of `--prod`: a devDependency's optional peer that only a
+/// production dependency provides is left out of a `--dev` install.
+#[test]
+fn a_dev_install_leaves_out_an_optional_peer_only_a_production_dependency_provides() {
+    let fixture = WorkspaceFixture::new();
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps { prod: DEV_PEERS, dev: PROD_ABC, ..ManifestDeps::default() },
+    );
+    fixture.run(["install", "--lockfile-only"]);
+
+    pnpm(&fixture, &["install", "--dev", "--frozen-lockfile"]);
+
+    let workspace = &fixture.workspace;
+    let slot = abc_slot(workspace);
+    assert!(!has_slot(workspace, PEER_C, "1.0.0"), "the optional peer must not be installed");
+    assert!(!links(&slot, PEER_C));
+    assert!(has_slot(workspace, PEER_A, "1.0.0"), "the required peer must be installed");
+    assert!(links(&slot, PEER_A));
 }

@@ -84,7 +84,7 @@ fn record_dep_type(dep_types: &mut HashMap<PackageKey, DepType>, key: &PackageKe
 
 pub(super) fn collect_components(
     state: &State,
-    include: &IncludeFilter,
+    include: IncludeFilter,
     sbom_type: SbomComponentType,
     exclude_peers: bool,
     lockfile_only: bool,

@@ -109,6 +109,9 @@ pub(super) struct Materialized {
     /// leaves `fresh_lockfile` `None`.
     pub(super) peer_issue_importer_ids: HashSet<String>,
     pub(super) fresh_lockfile: Option<Lockfile>,
+    /// The frozen path's peer classification of the wanted lockfile, which
+    /// the current lockfile is filtered with. `None` on the fresh path.
+    pub(super) groups: Option<crate::GroupSelection>,
 }
 
 pub(super) struct MaterializationOutput {
@@ -135,6 +138,9 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
 struct FrozenScope<'a> {
     closure: crate::MaterializationClosure,
     project_manifests: Vec<(PathBuf, &'a PackageManifest)>,
+    /// The peer classification of the wanted lockfile, shared by every walk
+    /// of this install.
+    groups: crate::GroupSelection,
 }
 
 impl FrozenScope<'_> {
@@ -335,6 +341,7 @@ fn fresh_materialization_output(
             install_skipped: fresh_result.skipped,
             peer_issue_importer_ids: fresh_result.peer_issue_importer_ids,
             fresh_lockfile: fresh_result.wanted_lockfile,
+            groups: None,
         },
         store_index_teardown: fresh_result.store_index_teardown,
     }
@@ -356,7 +363,7 @@ impl<'a> MaterializationWorkspace<'a> {
             lockfile,
             self.workspace_root,
             &initial_materialization_ids(lockfile, importer_ids, node_linker),
-            groups,
+            &groups,
             &empty_skipped,
         );
         let project_anchor_ids = frozen_project_anchor_ids(
@@ -372,12 +379,16 @@ impl<'a> MaterializationWorkspace<'a> {
                 &project_anchor_ids,
             ),
             closure,
+            groups,
         }
     }
 }
 
 impl MaterializationOutput {
-    fn from_frozen(frozen_result: pnpm_deps_restorer::InstallFrozenLockfileOutput) -> Self {
+    fn from_frozen(
+        frozen_result: pnpm_deps_restorer::InstallFrozenLockfileOutput,
+        groups: crate::GroupSelection,
+    ) -> Self {
         MaterializationOutput {
             materialized: Materialized {
                 hoisted: frozen_result.hoisted,
@@ -387,6 +398,7 @@ impl MaterializationOutput {
                 install_skipped: frozen_result.skipped,
                 peer_issue_importer_ids: HashSet::new(),
                 fresh_lockfile: None,
+                groups: Some(groups),
             },
             store_index_teardown: frozen_result.store_index_teardown,
         }

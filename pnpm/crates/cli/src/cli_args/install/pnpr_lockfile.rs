@@ -373,16 +373,17 @@ fn selected_prefetch_lockfile(
             local.lockfile,
             local.lockfile_dir,
             initial_importer_ids,
-            pnpm_package_manager::GroupSelection {
-                included: IncludedDependencies {
+            &pnpm_package_manager::GroupSelection::classify(
+                local.lockfile,
+                IncludedDependencies {
                     dependencies: link.dependency_groups.contains(&DependencyGroup::Prod),
                     dev_dependencies: link.dependency_groups.contains(&DependencyGroup::Dev),
                     optional_dependencies: link.dependency_groups.contains(
                         &DependencyGroup::Optional,
                     ),
                 },
-                peer_edges: config.peer_edge_options(),
-            },
+                config.peer_edge_options(),
+            ),
             &SkippedSnapshots::new(),
         )
         .lockfile

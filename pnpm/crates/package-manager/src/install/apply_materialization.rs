@@ -56,15 +56,34 @@ fn select_apply_state<'a>(inputs: &'a ApplyMaterializationInputs<'_, '_>) -> Mat
         projects: inputs.projects.importers,
 
         workspace_root: &inputs.projects.workspace_root,
-        groups: crate::GroupSelection {
-            included: inputs.projects.included,
-            peer_edges: inputs.completion.config.peer_edge_options(),
-        },
+        groups: applied_groups(inputs),
         install_skipped: &inputs.materialized.install_skipped,
         node_linker: inputs.projects.node_linker,
 
         is_inconsistent: inputs.prior.is_inconsistent,
     })
+}
+
+/// The frozen path's classification, or one of the lockfile the fresh path
+/// resolved.
+fn applied_groups(inputs: &ApplyMaterializationInputs<'_, '_>) -> crate::GroupSelection {
+    if let Some(groups) = &inputs.materialized.groups {
+        return groups.clone();
+    }
+    let included = inputs.projects.included;
+    inputs.materialized.fresh_lockfile
+        .as_ref()
+        .or(inputs.resolution.loaded)
+        .map_or_else(
+            || crate::GroupSelection::following_every_edge(included),
+            |lockfile| {
+                crate::GroupSelection::classify(
+                    lockfile,
+                    included,
+                    inputs.completion.config.peer_edge_options(),
+                )
+            },
+        )
 }
 
 async fn link_apply_projects<Reporter: self::Reporter + 'static>(

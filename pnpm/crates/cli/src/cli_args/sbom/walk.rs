@@ -32,7 +32,7 @@ impl<'a> TransitiveEdges<'a> {
     /// The edges that classify a package's dependency type, which never
     /// include a peer-satisfaction edge.
     pub(super) fn classifying(
-        include: &IncludeFilter,
+        include: IncludeFilter,
         peer_edges: &'a PeerSatisfactionEdges,
     ) -> Self {
         TransitiveEdges {
@@ -43,7 +43,7 @@ impl<'a> TransitiveEdges<'a> {
 
     /// The edges the component walk follows, which include the
     /// peer-satisfaction edges when `include` has every group.
-    pub(super) fn walking(include: &IncludeFilter, peer_edges: &'a PeerSatisfactionEdges) -> Self {
+    pub(super) fn walking(include: IncludeFilter, peer_edges: &'a PeerSatisfactionEdges) -> Self {
         TransitiveEdges {
             include_optional: include.optional_dependencies,
             skipped_peer_edges: include.excludes_a_group().then_some(peer_edges),
@@ -98,7 +98,7 @@ struct ImporterWalk<'a> {
 pub(super) struct ImporterComponents<'a> {
     pub(super) lockfile: &'a pnpm_lockfile::Lockfile,
     pub(super) lockfile_dir: &'a Path,
-    pub(super) include: &'a IncludeFilter,
+    pub(super) include: IncludeFilter,
     pub(super) exclude_peers: bool,
     pub(super) root_purl: &'a str,
     pub(super) ctx: &'a WalkContext<'a>,
@@ -402,10 +402,10 @@ fn importer_dependency_names(
     (dev_dep_names, prod_dep_names)
 }
 
-fn included_importer_dependencies<'a>(
-    include: &IncludeFilter,
-    importer: &'a pnpm_lockfile::ProjectSnapshot,
-) -> [Option<&'a pnpm_lockfile::ResolvedDependencyMap>; 3] {
+fn included_importer_dependencies(
+    include: IncludeFilter,
+    importer: &pnpm_lockfile::ProjectSnapshot,
+) -> [Option<&pnpm_lockfile::ResolvedDependencyMap>; 3] {
     [
         include.dependencies.then_some(importer.dependencies.as_ref()).flatten(),
         include.dev_dependencies.then_some(importer.dev_dependencies.as_ref()).flatten(),

@@ -108,7 +108,7 @@ fn include_all() -> crate::GroupSelection {
 }
 
 fn groups(included: IncludedDependencies) -> crate::GroupSelection {
-    crate::GroupSelection { included, peer_edges: pnpm_lockfile::PeerEdgeOptions::default() }
+    crate::GroupSelection::following_every_edge(included)
 }
 
 fn lockfile_with_top_level(marker: &str, minor: u16) -> Lockfile {

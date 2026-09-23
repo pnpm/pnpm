@@ -164,6 +164,22 @@ fn a_peer_the_workspace_root_lists_counts_only_with_the_root_rule() {
     assert_eq!(classified(&lockfile, ROOT_RULE), [format!("{ABC} > peer-c")]);
 }
 
+/// Only a root devDependency counts for every importer: a root production
+/// dependency stays installed when the project is installed on its own.
+#[test]
+fn a_peer_the_workspace_root_lists_as_a_production_dependency_is_followed() {
+    let importers = [
+        importer(".", &[("dependencies", &[("peer-c", "1.0.0")])]),
+        importer(
+            "packages/app",
+            &[("dependencies", &[("abc", "1.0.0(peer-a@1.0.0)(peer-c@1.0.0)")])],
+        ),
+    ]
+    .concat();
+    let lockfile = abc_lockfile(&importers);
+    assert_eq!(classified(&lockfile, ROOT_RULE), Vec::<String>::new());
+}
+
 /// Classification reads the lockfile's maps by exact key, so aliases named
 /// like object members get no special treatment, and a
 /// `peerDependenciesMeta` entry alone does not make an alias a peer.

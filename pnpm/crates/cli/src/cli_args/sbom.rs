@@ -126,17 +126,7 @@ pub struct SbomDependencyArgs {
     pub exclude_peers: bool,
 }
 
-struct IncludeFilter {
-    dependencies: bool,
-    dev_dependencies: bool,
-    optional_dependencies: bool,
-}
-
-impl IncludeFilter {
-    fn excludes_a_group(&self) -> bool {
-        !(self.dependencies && self.dev_dependencies && self.optional_dependencies)
-    }
-}
+use pnpm_modules_yaml::IncludedDependencies as IncludeFilter;
 
 impl SbomArgs {
     fn include_filter(&self, include_optional: bool) -> IncludeFilter {
@@ -246,7 +236,7 @@ impl SbomArgs {
         if self.splits_output(&importer_ids) {
             return self.write_split_sboms(
                 &state,
-                &include,
+                include,
                 &authors,
                 &importer_ids,
                 virtual_store_dirs.as_deref(),
@@ -261,7 +251,7 @@ impl SbomArgs {
             });
         let result = collect_components(
             &state,
-            &include,
+            include,
             self.document.sbom_type,
             self.dependencies.exclude_peers,
             self.lockfile_only,
@@ -359,7 +349,7 @@ impl SbomArgs {
     fn write_split_sboms(
         &self,
         state: &State,
-        include: &IncludeFilter,
+        include: IncludeFilter,
         authors: &[String],
         importer_ids: &[String],
         virtual_store_dirs: Option<&[PathBuf]>,

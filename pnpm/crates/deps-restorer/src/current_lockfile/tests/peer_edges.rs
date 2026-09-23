@@ -1,4 +1,3 @@
-use super::groups;
 use crate::{GroupSelection, SkippedSnapshots};
 use pnpm_lockfile::{Lockfile, PackageKey, PeerEdgeOptions};
 use pnpm_modules_yaml::IncludedDependencies;
@@ -62,12 +61,14 @@ fn lockfile() -> Lockfile {
         .expect("lockfile is not empty")
 }
 
-fn prod() -> GroupSelection {
-    groups(IncludedDependencies {
-        dependencies: true,
-        dev_dependencies: false,
-        optional_dependencies: true,
-    })
+const PROD: IncludedDependencies = IncludedDependencies {
+    dependencies: true,
+    dev_dependencies: false,
+    optional_dependencies: true,
+};
+
+fn prod(lockfile: &Lockfile) -> GroupSelection {
+    GroupSelection::classify(lockfile, PROD, PeerEdgeOptions::default())
 }
 
 fn snapshot_keys(lockfile: &Lockfile) -> Vec<String> {
@@ -94,11 +95,12 @@ fn abc_aliases(lockfile: &Lockfile) -> Vec<String> {
 
 #[test]
 fn a_prod_closure_drops_an_optional_peer_only_a_dev_dependency_provides() {
+    let lockfile = lockfile();
     let closure = super::super::materialization_closure(
-        &lockfile(),
+        &lockfile,
         Path::new(""),
         &HashSet::from([Lockfile::ROOT_IMPORTER_KEY.to_string()]),
-        prod(),
+        &prod(&lockfile),
         &SkippedSnapshots::new(),
     );
 
@@ -122,10 +124,11 @@ fn the_root_rule_decides_whether_a_root_dev_dependency_provides_the_peer() {
             &lockfile,
             Path::new(""),
             &app,
-            GroupSelection {
-                peer_edges: PeerEdgeOptions { resolve_peers_from_workspace_root },
-                ..prod()
-            },
+            &GroupSelection::classify(
+                &lockfile,
+                PROD,
+                PeerEdgeOptions { resolve_peers_from_workspace_root },
+            ),
             &SkippedSnapshots::new(),
         )
         .lockfile
@@ -137,15 +140,26 @@ fn the_root_rule_decides_whether_a_root_dev_dependency_provides_the_peer() {
 
 #[test]
 fn the_current_lockfile_of_a_prod_install_does_not_record_the_dropped_peer_edge() {
+    let lockfile = lockfile();
+    let groups = prod(&lockfile);
     let current =
-        super::super::filter_lockfile_for_current(&lockfile(), prod(), &SkippedSnapshots::new());
+        super::super::filter_lockfile_for_current(&lockfile, &groups, &SkippedSnapshots::new());
 
     assert_eq!(snapshot_keys(&current), [ABC, "peer-a@1.0.0"]);
     assert_eq!(abc_aliases(&current), ["peer-a"]);
     assert_eq!(
-        super::super::filter_lockfile_for_current(&current, prod(), &SkippedSnapshots::new()),
+        super::super::filter_lockfile_for_current(
+            &current,
+            &prod(&current),
+            &SkippedSnapshots::new(),
+        ),
         current,
         "filtering the current lockfile again must change nothing",
+    );
+    assert_eq!(
+        super::super::filter_lockfile_for_current(&current, &groups, &SkippedSnapshots::new()),
+        current,
+        "the source lockfile's classification must hold for its filtered copy",
     );
 }
 
@@ -156,7 +170,7 @@ fn a_closure_over_every_group_keeps_every_peer_edge() {
         &lockfile,
         Path::new(""),
         &HashSet::from([Lockfile::ROOT_IMPORTER_KEY.to_string()]),
-        GroupSelection::all(),
+        &GroupSelection::all(),
         &SkippedSnapshots::new(),
     );
 
@@ -173,14 +187,11 @@ fn a_big_lockfile_loses_no_edge_whose_target_the_filter_keeps() {
             .expect("the big lockfile is not empty");
     let without_dev = super::super::filter_lockfile_for_current(
         &lockfile,
-        GroupSelection {
-            included: IncludedDependencies {
-                dependencies: true,
-                dev_dependencies: false,
-                optional_dependencies: true,
-            },
-            peer_edges: PeerEdgeOptions { resolve_peers_from_workspace_root: true },
-        },
+        &GroupSelection::classify(
+            &lockfile,
+            PROD,
+            PeerEdgeOptions { resolve_peers_from_workspace_root: true },
+        ),
         &SkippedSnapshots::new(),
     );
     let source = lockfile.snapshots.as_ref().unwrap();

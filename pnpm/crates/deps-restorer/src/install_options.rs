@@ -151,5 +151,5 @@ pub struct SkipSetClosure<'a> {
     pub lockfile: &'a Lockfile,
     pub root: &'a Path,
     pub importer_ids: &'a HashSet<String>,
-    pub groups: crate::GroupSelection,
+    pub groups: &'a crate::GroupSelection,
 }

@@ -21,9 +21,11 @@ export type PeerSatisfactionEdges = ReadonlyMap<DepPath, ReadonlySet<string>>
 
 export interface PeerSatisfactionEdgesOptions {
   /**
-   * Count the direct dependencies of the workspace root importer as listed by
-   * every importer, as peer resolution does when this setting is on. Defaults
-   * to `false`, which follows more edges.
+   * Count the devDependencies of the workspace root importer as listed by
+   * every importer, as peer resolution does when this setting is on. A root
+   * production dependency does not count: the root is usually outside a
+   * filtered or deployed walk, so it would not provide the peer there.
+   * Defaults to `false`, which follows more edges.
    */
   resolvePeersFromWorkspaceRoot?: boolean
 }
@@ -151,7 +153,7 @@ function collectPeerSatisfactionEdges (lockfile: LockfileObject, resolvePeersFro
   const importers = Object.values(lockfile.importers)
   const directDepPathsByImporter = importers.map((importer) => new Set(importerDirectDepPaths(importer)))
   const rootImporter = resolvePeersFromWorkspaceRoot ? lockfile.importers['.' as ProjectId] : undefined
-  const rootDirectDepPaths = rootImporter == null ? undefined : new Set(importerDirectDepPaths(rootImporter))
+  const rootDevDepPaths = rootImporter == null ? undefined : new Set(resolvedDepsToDepPaths(rootImporter.devDependencies))
   // The walk depends only on which importers do not list the target, so
   // targets with the same set of non-listing importers share one walk.
   const reachedByNonListing = new Map<string, Set<DepPath>>()
@@ -159,7 +161,7 @@ function collectPeerSatisfactionEdges (lockfile: LockfileObject, resolvePeersFro
   const reachedWithoutListing = (target: DepPath): Set<DepPath> => {
     let reached = reachedByTarget.get(target)
     if (reached != null) return reached
-    const nonListing = rootDirectDepPaths?.has(target)
+    const nonListing = rootDevDepPaths?.has(target)
       ? []
       : directDepPathsByImporter.flatMap((direct, index) => direct.has(target) ? [] : [index])
     const key = nonListing.join(',')

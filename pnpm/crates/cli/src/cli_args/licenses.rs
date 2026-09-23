@@ -90,18 +90,7 @@ pub struct LicensesDependencyOptions {
     optional: bool,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Include {
-    dependencies: bool,
-    dev_dependencies: bool,
-    optional_dependencies: bool,
-}
-
-impl Include {
-    fn excludes_a_group(self) -> bool {
-        !(self.dependencies && self.dev_dependencies && self.optional_dependencies)
-    }
-}
+use pnpm_modules_yaml::IncludedDependencies as Include;
 
 impl LicensesDependencyOptions {
     fn include(&self, include_optional: bool) -> Include {

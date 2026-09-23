@@ -114,6 +114,24 @@ describe('getPeerSatisfactionEdges', () => {
     expect(getPeerSatisfactionEdges(workspaceLockfile).size).toBe(0)
   })
 
+  test('does not count a production dependency of the workspace root as listing the peer', () => {
+    for (const field of ['dependencies', 'optionalDependencies'] as const) {
+      const edges = getPeerSatisfactionEdges(lockfile({
+        '.': {
+          [field]: { 'peer-c': '1.0.0' },
+        },
+        'project-1': {
+          dependencies: { abc: '1.0.0(peer-a@1.0.0)(peer-c@1.0.0)' },
+        },
+      }, {
+        [PKG]: OPTIONAL_PEERS_PKG,
+        'peer-a@1.0.0': leaf(),
+        'peer-c@1.0.0': leaf(),
+      }), { resolvePeersFromWorkspaceRoot: true })
+      expect(edges.size).toBe(0)
+    }
+  })
+
   test('does not treat an alias marked optional in peerDependenciesMeta but absent from peerDependencies as a peer', () => {
     const edges = getPeerSatisfactionEdges(lockfile({
       '.': {
