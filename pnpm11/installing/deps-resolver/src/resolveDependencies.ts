@@ -2252,6 +2252,16 @@ async function resolveDependency (
         // even if no real manifest exists in the filesystem.
         throw new PnpmError('MISSING_PACKAGE_JSON', `Can't install ${wantedDependency.bareSpecifier}: Missing package.json file`)
       }
+      if (pkgResponse.body.manifest.peerDependencies != null) {
+        for (const name in pkgResponse.body.manifest.peerDependencies) {
+          ctx.allPeerDepNames.add(name)
+        }
+      }
+      if (pkgResponse.body.manifest.peerDependenciesMeta != null) {
+        for (const name in pkgResponse.body.manifest.peerDependenciesMeta) {
+          ctx.allPeerDepNames.add(name)
+        }
+      }
       return {
         alias: wantedDependency.alias ?? pkgResponse.body.alias ?? pkgResponse.body.manifest.name ?? path.basename(pkgResponse.body.resolution.directory),
         dev: wantedDependency.dev,

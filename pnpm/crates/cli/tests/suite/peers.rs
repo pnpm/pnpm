@@ -454,6 +454,67 @@ fn peers_check_names_the_project_of_each_issue() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn workspace_root_satisfies_a_linked_workspace_packages_peer() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nstrictPeerDependencies: true\n",
+    )
+    .expect("write workspace manifest");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/foo": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write root manifest");
+    let lib = workspace.join("packages/lib");
+    fs::create_dir_all(&lib).expect("create the linked project");
+    fs::write(
+        lib.join("package.json"),
+        serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "peerDependencies": { "@pnpm.e2e/foo": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write the linked manifest");
+    let app = workspace.join("packages/app");
+    fs::create_dir_all(&app).expect("create the consuming project");
+    fs::write(
+        app.join("package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "lib": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .expect("write the consuming manifest");
+
+    let output = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run pnpm install");
+    assert!(output.status.success(), "install must succeed: {output:?}");
+    let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+    assert!(!stderr.contains("ERR_PNPM_PEER_DEP_ISSUES"), "stderr:\n{stderr}");
+
+    drop((root, mock_instance));
+}
+
 /// The walk stops at each `link:` edge. A linked workspace package's own
 /// linked dependencies are its obligation, and it is an importer of the same
 /// lockfile, so its own report covers them. Following the edge instead would

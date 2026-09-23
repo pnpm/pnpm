@@ -2105,3 +2105,129 @@ test('a peer cycle between an own direct dependency and a hoisted peer provider 
   expect(dependenciesByProjectId['.'].get('main')).toBe('main@1.0.0(plugin@1.0.0)')
   expect(dependenciesByProjectId['.'].get('plugin')).toBe('plugin@1.0.0(main@1.0.0)')
 })
+
+test('linked workspace package with unmet peer dependencies', async () => {
+  const { peerDependencyIssuesByProjects } = await resolvePeers({
+    allPeerDepNames: new Set(['foo']),
+    dependenciesTree: new Map([
+      ['>foo@1.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: {
+          id: 'foo@1.0.0' as PkgResolutionId,
+          name: 'foo',
+          version: '1.0.0',
+          pkgIdWithPatchHash: 'foo@1.0.0' as PkgIdWithPatchHash,
+          depPath: 'foo@1.0.0' as DepPath,
+          peerDependencies: {},
+        },
+        depth: 0,
+      }],
+    ]),
+    projects: [
+      {
+        directNodeIdsByAlias: new Map([
+          ['foo', '>foo@1.0.0>' as NodeId],
+        ]),
+        id: 'packages/app',
+        rootDir: '/workspace/packages/app' as ProjectRootDir,
+        topParents: [],
+        linkedDependencies: [
+          {
+            alias: 'lib',
+            name: 'lib',
+            version: '1.0.0',
+            dev: false,
+            optional: false,
+            isLinkedDependency: true,
+            resolution: {
+              directory: '/workspace/packages/lib',
+              type: 'directory',
+            },
+            pkgId: 'link:packages/lib' as PkgResolutionId,
+            pkg: {
+              name: 'lib',
+              version: '1.0.0',
+              peerDependencies: {
+                foo: '^2.0.0',
+              },
+            },
+          },
+        ],
+      },
+    ],
+    virtualStoreDir: '',
+    lockfileDir: '/workspace',
+    virtualStoreDirMaxLength: 120,
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(['packages/app', 'packages/lib']),
+    resolvedImporters: {},
+  })
+  expect(peerDependencyIssuesByProjects['packages/app']).toBeDefined()
+  expect(peerDependencyIssuesByProjects['packages/app'].bad).toHaveProperty('foo')
+  expect(peerDependencyIssuesByProjects['packages/app'].bad.foo[0]).toMatchObject({
+    foundVersion: '1.0.0',
+    wantedRange: '^2.0.0',
+    parents: [{ name: 'lib', version: '1.0.0' }],
+  })
+})
+
+test('linked workspace package with satisfied peer dependencies from dependent', async () => {
+  const { peerDependencyIssuesByProjects } = await resolvePeers({
+    allPeerDepNames: new Set(['foo']),
+    dependenciesTree: new Map([
+      ['>foo@2.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: {
+          id: 'foo@2.0.0' as PkgResolutionId,
+          name: 'foo',
+          version: '2.0.0',
+          pkgIdWithPatchHash: 'foo@2.0.0' as PkgIdWithPatchHash,
+          depPath: 'foo@2.0.0' as DepPath,
+          peerDependencies: {},
+        },
+        depth: 0,
+      }],
+    ]),
+    projects: [
+      {
+        directNodeIdsByAlias: new Map([
+          ['foo', '>foo@2.0.0>' as NodeId],
+        ]),
+        id: 'packages/app',
+        rootDir: '/workspace/packages/app' as ProjectRootDir,
+        topParents: [],
+        linkedDependencies: [
+          {
+            alias: 'lib',
+            name: 'lib',
+            version: '1.0.0',
+            dev: false,
+            optional: false,
+            isLinkedDependency: true,
+            resolution: {
+              directory: '/workspace/packages/lib',
+              type: 'directory',
+            },
+            pkgId: 'link:packages/lib' as PkgResolutionId,
+            pkg: {
+              name: 'lib',
+              version: '1.0.0',
+              peerDependencies: {
+                foo: '^2.0.0',
+              },
+            },
+          },
+        ],
+      },
+    ],
+    virtualStoreDir: '',
+    lockfileDir: '/workspace',
+    virtualStoreDirMaxLength: 120,
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(['packages/app', 'packages/lib']),
+    resolvedImporters: {},
+  })
+  expect(peerDependencyIssuesByProjects['packages/app']).toBeUndefined()
+})

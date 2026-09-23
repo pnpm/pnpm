@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { createMatcher } from '@pnpm/config.matcher'
@@ -67,6 +68,7 @@ function checkPeerDependenciesFromLockfile (
     }
 
     walkStep(step, packages, [], projectIssues)
+    checkLinkedDependenciesPeers(importerId, lockfile, lockfileDir, projectIssues)
 
     const merged = mergePeers(projectIssues.missing)
     projectIssues.conflicts = merged.conflicts
@@ -250,5 +252,127 @@ function safeIntersect (ranges: string[]): string | null {
     return intersect(...ranges)
   } catch {
     return null
+  }
+}
+
+function checkLinkedDependenciesPeers (
+  importerId: string,
+  lockfile: LockfileObject,
+  lockfileDir: string,
+  issues: PeerDependencyIssues
+): void {
+  const importer = lockfile.importers[importerId as ProjectId]
+  if (!importer) return
+  const importerDir = path.resolve(lockfileDir, importerId)
+
+  const depGroups = [
+    importer.dependencies,
+    importer.devDependencies,
+    importer.optionalDependencies,
+  ]
+
+  let canonicalLockfileDir: string
+  try {
+    canonicalLockfileDir = fs.realpathSync(lockfileDir)
+  } catch {
+    canonicalLockfileDir = path.resolve(lockfileDir)
+  }
+
+  for (const group of depGroups) {
+    if (!group) continue
+    for (const [alias, ref] of Object.entries(group as Record<string, string>)) {
+      if (!ref.startsWith('link:')) continue
+      const linkTarget = ref.slice(5)
+      const targetDir = path.resolve(importerDir, linkTarget)
+
+      let canonicalTargetDir: string
+      try {
+        canonicalTargetDir = fs.realpathSync(targetDir)
+      } catch {
+        continue
+      }
+      if (
+        canonicalTargetDir !== canonicalLockfileDir &&
+        !canonicalTargetDir.startsWith(canonicalLockfileDir + path.sep)
+      ) {
+        continue
+      }
+
+      let manifest: {
+        version?: string
+        peerDependencies?: Record<string, string>
+        peerDependenciesMeta?: Record<string, { optional?: boolean }>
+      }
+      try {
+        manifest = JSON.parse(fs.readFileSync(path.join(canonicalTargetDir, 'package.json'), 'utf8'))
+      } catch {
+        continue
+      }
+      if (!manifest.peerDependencies) continue
+
+      const linkedVersion = manifest.version ?? '0.0.0'
+      const currentParents: ParentPackages = [{ name: alias, version: linkedVersion }]
+
+      const linkedImporterId = getLockfileImporterId(canonicalLockfileDir, canonicalTargetDir)
+      const linkedImporter = lockfile.importers[linkedImporterId as ProjectId]
+      const rootImporter = lockfile.importers['.' as ProjectId]
+
+      for (const [peerName, rawPeerRange] of Object.entries(manifest.peerDependencies)) {
+        const peerRange = getPeerVersionRange(rawPeerRange)
+        const isOptional = manifest.peerDependenciesMeta?.[peerName]?.optional === true
+
+        // 1. Check consuming importer
+        let foundRef = importer.dependencies?.[peerName] ?? importer.devDependencies?.[peerName] ?? importer.optionalDependencies?.[peerName]
+        let foundBaseDir = importerDir
+
+        // 2. Check linked importer
+        if (!foundRef && linkedImporter) {
+          foundRef = linkedImporter.dependencies?.[peerName] ?? linkedImporter.devDependencies?.[peerName] ?? linkedImporter.optionalDependencies?.[peerName]
+          foundBaseDir = canonicalTargetDir
+        }
+
+        // 3. Check root importer
+        if (!foundRef && rootImporter && importerId !== '.') {
+          foundRef = rootImporter.dependencies?.[peerName] ?? rootImporter.devDependencies?.[peerName] ?? rootImporter.optionalDependencies?.[peerName]
+          foundBaseDir = lockfileDir
+        }
+
+        if (!foundRef) {
+          if (!isOptional) {
+            if (!issues.missing[peerName]) issues.missing[peerName] = []
+            issues.missing[peerName].push({
+              parents: currentParents,
+              optional: isOptional,
+              wantedRange: peerRange,
+            })
+          }
+          continue
+        }
+
+        let foundVersion: string | undefined
+        if (foundRef.startsWith('link:')) {
+          try {
+            const linkedDepDir = path.resolve(foundBaseDir, foundRef.slice(5))
+            const linkedDepManifest = JSON.parse(fs.readFileSync(path.join(linkedDepDir, 'package.json'), 'utf8'))
+            foundVersion = linkedDepManifest.version
+          } catch {
+            foundVersion = undefined
+          }
+        } else {
+          foundVersion = extractVersion(foundRef, peerName, lockfile.packages ?? {})
+        }
+
+        if (foundVersion && !satisfies(foundVersion, peerRange)) {
+          if (!issues.bad[peerName]) issues.bad[peerName] = []
+          issues.bad[peerName].push({
+            parents: currentParents,
+            optional: isOptional,
+            wantedRange: peerRange,
+            foundVersion,
+            resolvedFrom: [],
+          })
+        }
+      }
+    }
   }
 }

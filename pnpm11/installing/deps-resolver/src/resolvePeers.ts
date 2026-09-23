@@ -28,6 +28,7 @@ import type {
   ChildrenMap,
   DependenciesTree,
   DependenciesTreeNode,
+  LinkedDependency,
   PeerDependencies,
   ResolvedPackage,
 } from './resolveDependencies.js'
@@ -83,6 +84,7 @@ export interface ProjectToResolve {
   topParents: Array<{ name: string, version: string, alias?: string }>
   rootDir: ProjectRootDir // is only needed for logging
   id: string
+  linkedDependencies?: LinkedDependency[]
 }
 
 export type DependenciesByProjectId = Record<string, Map<string, DepPath>>
@@ -130,7 +132,8 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   const finishingList: FinishingResolutionPromise[] = []
   const peersCache = new Map<PkgIdWithPatchHash, PeersCacheItem[]>()
   const purePkgs = new Set<PkgIdWithPatchHash>()
-  for (const { directNodeIdsByAlias, hoistedPeerProviderNodeIds, declaredDirectDependencies, explicitlyRequestedDirectDependencies, topParents, rootDir, id } of opts.projects) {
+  const projectsByRootDir = new Map(opts.projects.map((p) => [p.rootDir, p]))
+  for (const { directNodeIdsByAlias, hoistedPeerProviderNodeIds, declaredDirectDependencies, explicitlyRequestedDirectDependencies, topParents, rootDir, id, linkedDependencies } of opts.projects) {
     const currentProviderSources: CurrentProviderSource[] = [{
       directNodeIdsByAlias,
       declaredDirectDependencies: declaredDirectDependencies ?? new Set(),
@@ -222,6 +225,75 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       const { finishing } = await resolvePeersOfChildren(prunedProviderChildren, pkgsByName, projectPeersContext)
       if (finishing) {
         finishingList.push(finishing)
+      }
+    }
+    if (linkedDependencies) {
+      for (const linkedDependency of linkedDependencies) {
+        if (!linkedDependency.pkg.peerDependencies) continue
+        const parents = [{
+          name: linkedDependency.alias,
+          version: linkedDependency.version,
+        }]
+        const linkedProject = projectsByRootDir.get(linkedDependency.resolution.directory as ProjectRootDir)
+        for (const [peerName, peerRange] of Object.entries(linkedDependency.pkg.peerDependencies)) {
+          const peerVersionRange = getPeerVersionRange(peerRange)
+          const isOptional = linkedDependency.pkg.peerDependenciesMeta?.[peerName]?.optional === true
+          const resolved = pkgsByName[peerName]
+          if (!resolved) {
+            let fallbackSatisfied = false
+            if (linkedProject) {
+              const linkedPeerNodeId = linkedProject.directNodeIdsByAlias.get(peerName)
+              if (linkedPeerNodeId) {
+                const linkedNode = opts.dependenciesTree.get(linkedPeerNodeId)
+                if (linkedNode && semverUtils.satisfiesWithPrereleases(linkedNode.resolvedPackage.version, peerVersionRange, true)) {
+                  fallbackSatisfied = true
+                }
+              }
+            }
+            if (!fallbackSatisfied) {
+              const fallbackVersion = linkedDependency.pkg.dependencies?.[peerName] ?? linkedDependency.pkg.devDependencies?.[peerName]
+              if (fallbackVersion && semverUtils.satisfiesWithPrereleases(fallbackVersion, peerVersionRange, true)) {
+                fallbackSatisfied = true
+              }
+            }
+            if (!fallbackSatisfied) {
+              const rootProject = opts.projects.find((p) => p.id === '.')
+              if (rootProject && id !== '.') {
+                const rootNodeId = rootProject.directNodeIdsByAlias.get(peerName)
+                if (rootNodeId) {
+                  const rootNode = opts.dependenciesTree.get(rootNodeId)
+                  if (rootNode && semverUtils.satisfiesWithPrereleases(rootNode.resolvedPackage.version, peerVersionRange, true)) {
+                    fallbackSatisfied = true
+                  }
+                }
+              }
+            }
+            if (!fallbackSatisfied && !isOptional) {
+              if (!peerDependencyIssues.missing[peerName]) {
+                peerDependencyIssues.missing[peerName] = []
+              }
+              peerDependencyIssues.missing[peerName].push({
+                parents,
+                optional: isOptional,
+                wantedRange: peerVersionRange,
+              })
+            }
+            continue
+          }
+
+          if (!semverUtils.satisfiesWithPrereleases(resolved.version, peerVersionRange, true)) {
+            if (!peerDependencyIssues.bad[peerName]) {
+              peerDependencyIssues.bad[peerName] = []
+            }
+            peerDependencyIssues.bad[peerName].push({
+              foundVersion: resolved.version,
+              resolvedFrom: [],
+              parents,
+              optional: isOptional,
+              wantedRange: peerVersionRange,
+            })
+          }
+        }
       }
     }
     if (Object.keys(peerDependencyIssues.bad).length > 0 || Object.keys(peerDependencyIssues.missing).length > 0) {
