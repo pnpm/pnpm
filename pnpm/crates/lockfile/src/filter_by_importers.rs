@@ -21,7 +21,8 @@ use derive_more::{Display, Error};
 use pnpm_diagnostics::miette::{self, Diagnostic};
 
 use crate::{
-    Lockfile, PackageKey, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap, SnapshotEntry,
+    Lockfile, PackageKey, PeerEdgeOptions, PeerSatisfactionEdges, PkgNameVerPeer, ProjectSnapshot,
+    ResolvedDependencyMap,
 };
 
 /// Dependency groups a filter keeps — the same three flags the modules
@@ -32,6 +33,13 @@ pub struct IncludedDependencies {
     pub dependencies: bool,
     pub dev_dependencies: bool,
     pub optional_dependencies: bool,
+}
+
+impl IncludedDependencies {
+    #[must_use]
+    pub fn excludes_a_group(self) -> bool {
+        !(self.dependencies && self.dev_dependencies && self.optional_dependencies)
+    }
 }
 
 impl Default for IncludedDependencies {
@@ -58,6 +66,9 @@ pub struct FilterByImportersOptions {
     /// error. `false` drops the reference and keeps walking, which is what
     /// a caller inspecting a possibly-stale lockfile wants.
     pub fail_on_missing_dependencies: bool,
+    /// How the walk classifies the peer-satisfaction edges it skips while
+    /// `include` leaves a group out.
+    pub peer_edges: PeerEdgeOptions,
 }
 
 /// A dependency reference the lockfile resolves to nothing.
@@ -74,6 +85,11 @@ impl Lockfile {
         importer_ids: Vec<String>,
         options: &FilterByImportersOptions,
     ) -> Result<Lockfile, LockfileMissingDependencyError> {
+        let peer_edges = if options.include.excludes_a_group() {
+            PeerSatisfactionEdges::of_lockfile(self, options.peer_edges)
+        } else {
+            PeerSatisfactionEdges::default()
+        };
         let mut filtered = self.clone();
         // The walk starts at the *filtered* importers, so the seeds are
         // collected in the same pass that narrows them: a group `include`
@@ -85,13 +101,14 @@ impl Lockfile {
             seeds.extend(importer_keys(importer));
         }
 
-        let reachable = collect_reachable(&filtered, seeds, options)?;
+        let reachable = collect_reachable(&filtered, seeds, options, &peer_edges)?;
         let reachable_metadata: HashSet<_> = reachable
             .iter()
             .map(PkgNameVerPeer::without_peer)
             .collect();
         if let Some(snapshots) = filtered.snapshots.as_mut() {
             snapshots.retain(|key, _| reachable.contains(key));
+            peer_edges.drop_unretained(snapshots);
         }
         if let Some(packages) = filtered.packages.as_mut() {
             packages.retain(|key, _| reachable_metadata.contains(key));
@@ -142,6 +159,7 @@ fn collect_reachable(
     lockfile: &Lockfile,
     mut queue: VecDeque<PackageKey>,
     options: &FilterByImportersOptions,
+    peer_edges: &PeerSatisfactionEdges,
 ) -> Result<HashSet<PackageKey>, LockfileMissingDependencyError> {
     let empty = HashMap::new();
     let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty);
@@ -161,25 +179,14 @@ fn collect_reachable(
             }
             continue;
         };
+        queue.extend(
+            peer_edges
+                .followed_entries(&key, snapshot, options.include.optional_dependencies)
+                .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias)),
+        );
         reachable.insert(key);
-        queue.extend(snapshot_keys(snapshot, options.include.optional_dependencies));
     }
     Ok(reachable)
-}
-
-/// The keys a snapshot's own dependency edges resolve to.
-fn snapshot_keys(
-    snapshot: &SnapshotEntry,
-    include_optional: bool,
-) -> impl Iterator<Item = PackageKey> + '_ {
-    [
-        snapshot.dependencies.as_ref(),
-        include_optional.then_some(snapshot.optional_dependencies.as_ref()).flatten(),
-    ]
-    .into_iter()
-    .flatten()
-    .flatten()
-    .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
 }
 
 #[cfg(test)]

@@ -272,7 +272,7 @@ async fn prefetch_local_lockfile(
     if link.lockfile.only || !local.prefetch_allowed {
         return None;
     }
-    let selected_prefetch_lockfile = selected_prefetch_lockfile(link, local);
+    let selected_prefetch_lockfile = selected_prefetch_lockfile(link, local, state.config);
     let prefetcher = TarballPrefetcher::new(
         state.config,
         &state.http_client,
@@ -359,6 +359,7 @@ fn local_verify_options(
 fn selected_prefetch_lockfile(
     link: &PnprLink<'_>,
     local: &LocalLockfileInstall<'_>,
+    config: &pnpm_config::Config,
 ) -> Option<Lockfile> {
     local.selection_importer_ids.map(|(_, selected_importer_ids)| {
         let hoisted_importer_ids = matches!(link.node_linker, NodeLinker::Hoisted).then(|| {
@@ -372,10 +373,15 @@ fn selected_prefetch_lockfile(
             local.lockfile,
             local.lockfile_dir,
             initial_importer_ids,
-            IncludedDependencies {
-                dependencies: link.dependency_groups.contains(&DependencyGroup::Prod),
-                dev_dependencies: link.dependency_groups.contains(&DependencyGroup::Dev),
-                optional_dependencies: link.dependency_groups.contains(&DependencyGroup::Optional),
+            pnpm_package_manager::GroupSelection {
+                included: IncludedDependencies {
+                    dependencies: link.dependency_groups.contains(&DependencyGroup::Prod),
+                    dev_dependencies: link.dependency_groups.contains(&DependencyGroup::Dev),
+                    optional_dependencies: link.dependency_groups.contains(
+                        &DependencyGroup::Optional,
+                    ),
+                },
+                peer_edges: config.peer_edge_options(),
             },
             &SkippedSnapshots::new(),
         )

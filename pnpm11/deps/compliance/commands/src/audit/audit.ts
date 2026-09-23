@@ -209,6 +209,7 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
 | 'dev'
 | 'overrides'
 | 'optional'
+| 'resolvePeersFromWorkspaceRoot'
 | 'configByUri'
 | 'virtualStoreDirMaxLength'
 | 'workspaceDir'
@@ -252,6 +253,7 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
       envLockfile,
       include,
       registry: opts.registriesByScope.default,
+      resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
       retry: networkOptions.retry,
       timeout: networkOptions.fetchTimeout,
     })

@@ -41,6 +41,7 @@
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.peer-edges": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/pkg-manifest.reader": "workspace:*",

@@ -270,12 +270,7 @@ impl ListArgs {
             Some(config.modules_dir.as_path()),
             self.graph.lockfile_only,
         )?;
-        let env = state.env(
-            lockfile_dir,
-            config.virtual_store_dir_max_length as usize,
-            &config.resolved_registries(),
-            config.registry_options_by_url.clone(),
-        );
+        let env = state.env_for_config(lockfile_dir, config);
 
         let hierarchies = match env
             .as_ref()
@@ -356,6 +351,7 @@ impl ListArgs {
                 lockfile: env.current_lockfile,
                 include,
                 only_projects: self.graph.only_projects,
+                peer_edges: config.peer_edge_options(),
             },
         );
         let searcher = self.build_searcher(config, env, &graph, lockfile_dir, params).await?;

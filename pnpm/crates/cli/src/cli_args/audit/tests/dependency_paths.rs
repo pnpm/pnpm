@@ -4,6 +4,7 @@ use super::{
     fixture_lockfile, lockfile_to_audit_request, parse_lockfile, path_info, prod_without_optional,
     snapshot, vulnerable_names,
 };
+use pnpm_lockfile::PeerEdgeOptions;
 use std::fmt::Write as _;
 
 #[test]
@@ -365,7 +366,12 @@ snapshots:
         &lockfile,
         None,
         &vulnerable_names(&["shared-pkg"]),
-        Include { dependencies: true, dev_dependencies: false, optional_dependencies: true },
+        Include {
+            dependencies: true,
+            dev_dependencies: false,
+            optional_dependencies: true,
+            peer_edges: PeerEdgeOptions::default(),
+        },
     );
     assert!(path_info(&prod_only, "shared-pkg", "1.0.0").optional);
 }

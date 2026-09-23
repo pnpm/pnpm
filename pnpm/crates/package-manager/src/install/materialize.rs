@@ -345,7 +345,7 @@ impl<'a> MaterializationWorkspace<'a> {
         &self,
         lockfile: &Lockfile,
         node_linker: super::NodeLinker,
-        included: IncludedDependencies,
+        groups: crate::GroupSelection,
         ignore_manifest_check: bool,
     ) -> FrozenScope<'a> {
         let empty_skipped = crate::SkippedSnapshots::new();
@@ -356,7 +356,7 @@ impl<'a> MaterializationWorkspace<'a> {
             lockfile,
             self.workspace_root,
             &initial_materialization_ids(lockfile, importer_ids, node_linker),
-            included,
+            groups,
             &empty_skipped,
         );
         let project_anchor_ids = frozen_project_anchor_ids(

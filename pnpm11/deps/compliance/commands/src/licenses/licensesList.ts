@@ -25,6 +25,7 @@ export type LicensesCommandOptions = {
 | 'registriesByPrefix'
 | 'optional'
 | 'production'
+| 'resolvePeersFromWorkspaceRoot'
 | 'storeDir'
 | 'virtualStoreDir'
 | 'modulesDir'
@@ -80,6 +81,7 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
     wantedLockfile: lockfile,
     manifest,
     includedImporterIds,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     supportedArchitectures: opts.supportedArchitectures,
   })
 

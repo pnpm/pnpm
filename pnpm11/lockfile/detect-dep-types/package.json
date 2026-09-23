@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@pnpm/deps.path": "workspace:*",
+    "@pnpm/lockfile.peer-edges": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/types": "workspace:*"
   },

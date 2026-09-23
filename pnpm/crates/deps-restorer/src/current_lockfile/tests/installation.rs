@@ -258,7 +258,7 @@ fn materialization_closure_excludes_transitive_optional_shared_snapshot_when_dis
         &lockfile,
         Path::new("/workspace"),
         &HashSet::from([selected_id.clone()]),
-        included,
+        super::groups(included),
         &SkippedSnapshots::new(),
     );
 

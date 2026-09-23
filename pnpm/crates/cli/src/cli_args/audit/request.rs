@@ -1,12 +1,9 @@
 //! Turning a lockfile into the dependency graph the registry audits.
 
-mod peer_edges;
-use peer_edges::peer_satisfaction_edges;
-
 use super::{
     BTreeMap, EnvLockfile, HashMap, HashSet, ImporterDepVersion, Lockfile, PackageKey,
-    PackageMetadata, PkgName, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry,
-    SpecifierAndResolution, package_version,
+    PackageMetadata, PeerEdgeGraph, PeerEdgeOptions, PeerSatisfactionEdges, PkgName,
+    ResolvedDependencyMap, SnapshotEntry, SpecifierAndResolution, package_version,
 };
 
 #[derive(Debug, Default)]
@@ -23,6 +20,15 @@ pub(crate) struct Include {
     pub(crate) dependencies: bool,
     pub(crate) dev_dependencies: bool,
     pub(crate) optional_dependencies: bool,
+    /// How the graph decides which importers provide a peer.
+    pub(crate) peer_edges: PeerEdgeOptions,
+}
+
+impl Include {
+    /// A walk over only some groups leaves out the peer-satisfaction edges.
+    pub(crate) fn excludes_a_group(self) -> bool {
+        !(self.dependencies && self.dev_dependencies && self.optional_dependencies)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,17 +53,34 @@ pub(crate) struct GraphImporter {
 pub(crate) struct AuditGraph<'a> {
     pub(crate) importers: Vec<GraphImporter>,
     pub(crate) snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
-    /// Each snapshot's peer-satisfaction edges, which no walk follows.
-    pub(crate) peer_satisfaction_edges: HashMap<PackageKey, HashSet<PkgName>>,
+    /// The peer-satisfaction edges a walk over only some groups leaves out,
+    /// and a dependency-type classification always does.
+    pub(crate) peer_satisfaction_edges: PeerSatisfactionEdges,
 }
 
 impl<'a> AuditGraph<'a> {
+    /// `root` is the index in `importers` whose direct dependencies count as
+    /// listed by every importer.
     pub(crate) fn new(
         importers: Vec<GraphImporter>,
+        root: Option<usize>,
         snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
         packages: &HashMap<PackageKey, PackageMetadata>,
     ) -> Self {
-        let peer_satisfaction_edges = peer_satisfaction_edges(&importers, snapshots, packages);
+        let peer_satisfaction_edges = PeerSatisfactionEdges::of_graph(&PeerEdgeGraph {
+            importers: importers
+                .iter()
+                .map(|importer| {
+                    importer.roots
+                        .iter()
+                        .map(|(_, edge)| edge.key.clone())
+                        .collect()
+                })
+                .collect(),
+            root,
+            snapshots,
+            packages,
+        });
         Self { importers, snapshots, peer_satisfaction_edges }
     }
 }
@@ -109,23 +132,6 @@ pub(crate) fn env_roots(deps: &BTreeMap<String, SpecifierAndResolution>) -> Vec<
         .collect()
 }
 
-/// Appends `deps`' edges, except the ones named in `skipped`.
-pub(crate) fn append_snapshot_edges(
-    children: &mut Vec<Edge>,
-    deps: Option<&HashMap<PkgName, SnapshotDepRef>>,
-    skipped: Option<&HashSet<PkgName>>,
-) {
-    let Some(deps) = deps else { return };
-    for (name, dep_ref) in deps {
-        if skipped.is_some_and(|skipped| skipped.contains(name)) {
-            continue;
-        }
-        if let Some(key) = dep_ref.resolve(name) {
-            children.push(Edge { key });
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct DepClass {
     pub(crate) dev_only: bool,
@@ -136,16 +142,8 @@ pub(crate) fn classify_graph(
     graph: &AuditGraph<'_>,
     include: Include,
 ) -> HashMap<PackageKey, DepClass> {
-    let dev_include = Include {
-        dependencies: false,
-        dev_dependencies: include.dev_dependencies,
-        optional_dependencies: false,
-    };
-    let non_dev_include = Include {
-        dependencies: include.dependencies,
-        dev_dependencies: false,
-        optional_dependencies: include.optional_dependencies,
-    };
+    let dev_include = Include { dependencies: false, optional_dependencies: false, ..include };
+    let non_dev_include = Include { dev_dependencies: false, ..include };
     let dev_reachable = walk_reachable(graph, dev_include, include.optional_dependencies);
     let non_dev_reachable = walk_reachable(graph, non_dev_include, include.optional_dependencies);
     let optional_only = collect_optional_only_keys(graph, include);
@@ -192,7 +190,10 @@ pub(crate) fn walk_reachable(
         }
         stack.extend(
             graph
-                .children(&key, include_optional_edges)
+                .children(
+                    &key,
+                    Include { optional_dependencies: include_optional_edges, ..include },
+                )
                 .into_iter()
                 .map(|edge| edge.key),
         );
@@ -228,7 +229,7 @@ pub(crate) fn lockfile_to_audit_request(
     include: Include,
 ) -> AuditIndexRequest {
     let mut request = AuditRequestBuilder::default();
-    let main = AuditGraph::main(lockfile);
+    let main = AuditGraph::main(lockfile, include.peer_edges);
     request.register_graph(&main, include);
     if let Some(env_lockfile) = env_lockfile {
         let env = AuditGraph::env(env_lockfile);
@@ -270,7 +271,7 @@ impl AuditRequestBuilder {
             self.register_occurrence(&key, class);
             stack.extend(
                 graph
-                    .children(&key, include.optional_dependencies)
+                    .children(&key, include)
                     .into_iter()
                     .map(|edge| edge.key),
             );

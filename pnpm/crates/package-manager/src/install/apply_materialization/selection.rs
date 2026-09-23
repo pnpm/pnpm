@@ -7,7 +7,7 @@ pub(super) struct SelectMaterializedStateInputs<'a> {
     pub(crate) lockfiles: crate::install::state_options::SelectedLockfiles<'a>,
     pub(crate) projects: crate::install::state_options::SelectedImporters<'a>,
     pub(super) workspace_root: &'a Path,
-    pub(super) included: IncludedDependencies,
+    pub(super) groups: crate::GroupSelection,
     pub(super) install_skipped: &'a crate::SkippedSnapshots,
     pub(super) node_linker: NodeLinker,
     pub(super) is_inconsistent: bool,
@@ -28,7 +28,7 @@ pub(super) fn select_materialized_state<'a>(
                 wanted,
                 inputs.workspace_root,
                 requested,
-                inputs.included,
+                inputs.groups,
                 inputs.install_skipped,
             )
             .lockfile
@@ -67,7 +67,7 @@ pub(super) fn project_anchor_importers(
                     wanted,
                     inputs.workspace_root,
                     requested,
-                    inputs.included,
+                    inputs.groups,
                     inputs.install_skipped,
                 )
                 .importer_ids
@@ -83,7 +83,7 @@ pub(super) fn materialized_current_lockfile(
     if matches!(inputs.node_linker, NodeLinker::Hoisted)
         || (inputs.projects.requested_ids.is_none() && inputs.projects.ignore_manifest_check)
     {
-        crate::filter_lockfile_for_current(wanted, inputs.included, inputs.install_skipped)
+        crate::filter_lockfile_for_current(wanted, inputs.groups, inputs.install_skipped)
     } else {
         crate::merge_filtered_current_lockfile(
             (inputs.projects.requested_ids.is_some() && !inputs.is_inconsistent)
@@ -91,7 +91,7 @@ pub(super) fn materialized_current_lockfile(
                 .flatten(),
             wanted,
             inputs.projects.requested_ids.unwrap_or(inputs.projects.real_ids),
-            inputs.included,
+            inputs.groups,
             inputs.install_skipped,
             inputs.workspace_root,
         )

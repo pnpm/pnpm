@@ -6,6 +6,13 @@ use super::{
 };
 
 impl<'a> MaterializationInputs<'a, '_> {
+    fn groups(&self) -> crate::GroupSelection {
+        crate::GroupSelection {
+            included: self.modules.included,
+            peer_edges: self.install.context.config.peer_edge_options(),
+        }
+    }
+
     fn frozen_lockfiles<'b>(
         &'b self,
         scope: &'b FrozenScope<'a>,
@@ -101,7 +108,7 @@ impl<'a> MaterializationInputs<'a, '_> {
         let scope = self.workspace.frozen_scope(
             lockfile,
             self.install.execution.node_linker,
-            self.modules.included,
+            self.groups(),
             self.install.lockfile_policy.ignore_manifest_check,
         );
         let supported_lockfile_major = matches!(scope.lockfile().lockfile_version.major, 9 | 12);

@@ -13,9 +13,9 @@ pub(crate) use report::{
     redact_url_userinfo, sanitize_response_body,
 };
 pub(crate) use request::{
-    AuditGraph, AuditIndexRequest, DepClass, DepKind, Edge, GraphImporter, Include,
-    append_snapshot_edges, classify_graph, empty_packages, empty_snapshots, env_roots,
-    importer_roots, lockfile_to_audit_request, root_included,
+    AuditGraph, AuditIndexRequest, DepClass, DepKind, Edge, GraphImporter, Include, classify_graph,
+    empty_packages, empty_snapshots, env_roots, importer_roots, lockfile_to_audit_request,
+    root_included,
 };
 pub(crate) use version_ranges::{
     caret_range_for_patched, infer_patched_versions, is_range_subset, min_version_from_range,
@@ -41,9 +41,9 @@ use owo_colors::{OwoColorize, Stream};
 
 use pnpm_config::{AuditLevel as ConfigAuditLevel, Config};
 use pnpm_lockfile::{
-    EnvLockfile, ImporterDepVersion, Lockfile, PackageKey, PackageMetadata, PkgName,
-    ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry, SpecifierAndResolution,
-    pick_registry_for_package,
+    EnvLockfile, ImporterDepVersion, Lockfile, PackageKey, PackageMetadata, PeerEdgeGraph,
+    PeerEdgeOptions, PeerSatisfactionEdges, PkgName, ResolvedDependencyMap, SnapshotEntry,
+    SpecifierAndResolution, pick_registry_for_package,
 };
 use pnpm_network::{RetryOpts, encode_package_name, send_with_retry};
 use pnpm_package_manager::{ResolutionObserver, ResolvedPackageHint, Update};
@@ -173,18 +173,23 @@ pub struct AuditDependencyOptions {
 }
 
 impl AuditDependencyOptions {
-    fn include(&self, include_optional: bool) -> Include {
+    fn include(&self, config: &Config) -> Include {
         let mut dependencies = true;
         let mut dev_dependencies = true;
         let mut optional_dependencies =
-            resolve_bool_override(self.optional, self.no_optional, include_optional);
+            resolve_bool_override(self.optional, self.no_optional, config.optional);
         if self.prod {
             dev_dependencies = false;
         } else if self.dev {
             dependencies = false;
             optional_dependencies = false;
         }
-        Include { dependencies, dev_dependencies, optional_dependencies }
+        Include {
+            dependencies,
+            dev_dependencies,
+            optional_dependencies,
+            peer_edges: config.peer_edge_options(),
+        }
     }
 }
 
@@ -203,7 +208,7 @@ impl AuditArgs {
             return self.run_subcommand(subcommand, state).await;
         }
 
-        let include = self.dependency_options.include(state.config.optional);
+        let include = self.dependency_options.include(state.config);
         let audit_level = self.advisories.effective_level(state.config.audit_level);
         let fix_method = self.resolve_fix_method()?;
 
@@ -346,7 +351,7 @@ impl AuditArgs {
     /// [`AuditOutcome::Vulnerable`]) when any signature is missing or invalid.
     /// Ports pnpm's `auditSignatures`.
     async fn run_signatures(&self, state: State) -> miette::Result<AuditOutcome> {
-        let include = self.dependency_options.include(state.config.optional);
+        let include = self.dependency_options.include(state.config);
         let lockfile_dir = state.lockfile_dir().to_path_buf();
 
         let packages = signature_packages(&state, include, &lockfile_dir)?;

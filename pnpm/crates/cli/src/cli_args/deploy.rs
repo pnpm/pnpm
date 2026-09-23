@@ -14,16 +14,17 @@ use lockfile::{
 };
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use peers::{
-    bind_singleton_peers, omit_peers_of_excluded_dependencies, prune_deploy_lockfile_graph,
+    bind_singleton_peers, deploy_peer_edges, omit_peers_of_excluded_dependencies,
+    prune_deploy_lockfile_graph,
 };
 use pnpm_config::{Config, NodeLinker, PackageImportMethod};
 use pnpm_directory_fetcher::DirectoryFetcher;
 use pnpm_fs::{lexical_normalize, remove_dirent};
 use pnpm_lockfile::{
     DirectoryResolution, ImporterDepVersion, LazyLockfile, Lockfile, LockfileResolution,
-    PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, TarballResolution, VersionPart,
-    WantedLockfileSelection,
+    PackageKey, PackageMetadata, PeerSatisfactionEdges, PkgName, PkgNameVerPeer, ProjectSnapshot,
+    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    TarballResolution, VersionPart, WantedLockfileSelection,
 };
 use pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
 use pnpm_package_manager::{

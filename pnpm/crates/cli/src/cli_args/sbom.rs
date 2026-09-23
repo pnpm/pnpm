@@ -26,8 +26,8 @@ use metadata::{
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    LazyLockfile, Lockfile, LockfileResolution, PackageKey, PackageMetadata, PkgName,
-    PkgNameVerPeer, SnapshotEntry,
+    LazyLockfile, Lockfile, LockfileResolution, PackageKey, PackageMetadata, PeerSatisfactionEdges,
+    PkgName, PkgNameVerPeer, SnapshotEntry,
 };
 use pnpm_package_is_installable::{
     InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
@@ -47,7 +47,8 @@ use std::{
     path::{Path, PathBuf},
 };
 use walk::{
-    ImporterComponents, WalkContext, WalkStores, component_walk_context, walk_importer_components,
+    ImporterComponents, TransitiveEdges, WalkContext, WalkStores, component_walk_context,
+    walk_importer_components,
 };
 use workspace::{
     merged_dedicated_lockfile_state, required_sbom_lockfile, select_importer_ids,
@@ -129,6 +130,12 @@ struct IncludeFilter {
     dependencies: bool,
     dev_dependencies: bool,
     optional_dependencies: bool,
+}
+
+impl IncludeFilter {
+    fn excludes_a_group(&self) -> bool {
+        !(self.dependencies && self.dev_dependencies && self.optional_dependencies)
+    }
 }
 
 impl SbomArgs {

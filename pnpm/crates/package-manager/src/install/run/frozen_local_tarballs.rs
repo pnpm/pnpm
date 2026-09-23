@@ -48,7 +48,7 @@ async fn compute_frozen_skip_set(
                 lockfile,
                 root: &workspace.dirs.workspace_root,
                 importer_ids,
-                included: settled.mode.included,
+                groups: included_groups(settled),
             },
             entries: pnpm_lockfile::LockfileEntries {
                 packages: lockfile.packages.as_ref(),
@@ -87,7 +87,7 @@ pub(super) async fn verify_frozen_tarballs(settled: Settled<'_, '_>) -> Result<(
         &crate::optimistic_repeat_install::FrozenLocalTarballCheck {
             workspace_root: &settled.projects.workspace.dirs.workspace_root,
             importer_ids: &importer_ids,
-            included: settled.mode.included,
+            groups: included_groups(&settled),
             lockfile,
             skipped: &skipped,
         },
@@ -108,4 +108,11 @@ pub(super) async fn verify_frozen_tarballs(settled: Settled<'_, '_>) -> Result<(
     }
 
     Ok(())
+}
+
+fn included_groups(settled: &Settled<'_, '_>) -> crate::GroupSelection {
+    crate::GroupSelection {
+        included: settled.mode.included,
+        peer_edges: settled.install.context.config.peer_edge_options(),
+    }
 }

@@ -118,6 +118,7 @@ export interface Project {
 
 export interface HeadlessOptions extends RegistryContext {
   projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
+  resolvePeersFromWorkspaceRoot?: boolean
   allowBuilds?: Record<string, boolean | string>
   autoInstallPeers?: boolean
   childConcurrency?: number
@@ -317,6 +318,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const filterOpts = {
     include: opts.include,
     registriesByScope: opts.registriesByScope,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     skipped,
     skipRuntimes: opts.skipRuntimes,
     currentEngine: opts.currentEngine,
@@ -341,6 +343,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           pruneStore: opts.pruneStore,
           pruneVirtualStore: opts.pruneVirtualStore,
           publicHoistedModulesDir: (opts.publicHoistPattern == null) ? undefined : publicHoistedModulesDir,
+          resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
           skipped,
           storeController: opts.storeController,
           virtualStoreDir,

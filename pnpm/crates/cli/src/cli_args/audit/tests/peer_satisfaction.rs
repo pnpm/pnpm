@@ -5,10 +5,15 @@ use super::{
     Include, all_dependencies, build_audit_path_index, lockfile_to_audit_request, parse_lockfile,
     path_info, vulnerable_names,
 };
-use pnpm_lockfile::Lockfile;
+use pnpm_lockfile::{Lockfile, PeerEdgeOptions};
 
 fn prod_only() -> Include {
-    Include { dependencies: true, dev_dependencies: false, optional_dependencies: true }
+    Include {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: true,
+        peer_edges: PeerEdgeOptions::default(),
+    }
 }
 
 fn optional_peer_satisfied_by_dev_dependency() -> Lockfile {
@@ -66,7 +71,7 @@ fn lockfile_to_audit_request_excludes_optional_peer_satisfied_by_excluded_dev_de
 }
 
 #[test]
-fn lockfile_to_audit_request_excludes_required_peer_satisfied_by_excluded_dev_dependency() {
+fn lockfile_to_audit_request_keeps_required_peer_satisfied_by_excluded_dev_dependency() {
     let lockfile = parse_lockfile(
         "
 lockfileVersion: '9.0'
@@ -105,11 +110,11 @@ snapshots:
 
     let prod_only = lockfile_to_audit_request(&lockfile, None, prod_only());
     assert_eq!(prod_only.request["needs-react"], vec!["1.0.0"]);
-    assert!(!prod_only.request.contains_key("react"));
+    assert_eq!(prod_only.request["react"], vec!["18.0.0"]);
 }
 
 #[test]
-fn lockfile_to_audit_request_excludes_required_peer_satisfied_by_excluded_prod_dependency() {
+fn lockfile_to_audit_request_keeps_required_peer_satisfied_by_excluded_prod_dependency() {
     let lockfile = parse_lockfile(
         "
 lockfileVersion: '9.0'
@@ -153,10 +158,15 @@ snapshots:
     let dev_only = lockfile_to_audit_request(
         &lockfile,
         None,
-        Include { dependencies: false, dev_dependencies: true, optional_dependencies: false },
+        Include {
+            dependencies: false,
+            dev_dependencies: true,
+            optional_dependencies: false,
+            peer_edges: PeerEdgeOptions::default(),
+        },
     );
     assert_eq!(dev_only.request["needs-ui-lib"], vec!["1.0.0"]);
-    assert!(!dev_only.request.contains_key("ui-lib"));
+    assert_eq!(dev_only.request["ui-lib"], vec!["2.0.0"]);
 }
 
 #[test]
@@ -171,7 +181,7 @@ fn build_audit_path_index_classifies_peer_satisfied_by_dev_dependency_as_dev_not
     );
 
     let info = path_info(&index, "valibot", "1.2.0");
-    assert_eq!(info.paths, vec![".>valibot"]);
+    assert_eq!(info.paths, vec![".>hookform>valibot", ".>valibot"]);
     assert!(info.dev);
     assert!(!info.optional);
 }
@@ -224,7 +234,12 @@ snapshots:
     let dev_only = lockfile_to_audit_request(
         &lockfile,
         None,
-        Include { dependencies: false, dev_dependencies: true, optional_dependencies: false },
+        Include {
+            dependencies: false,
+            dev_dependencies: true,
+            optional_dependencies: false,
+            peer_edges: PeerEdgeOptions::default(),
+        },
     );
     assert_eq!(dev_only.request["dev-tool"], vec!["1.0.0"]);
     assert!(!dev_only.request.contains_key("helper-lib"));
@@ -497,4 +512,70 @@ snapshots:
     let prod_only = lockfile_to_audit_request(&lockfile, None, prod_only());
     assert_eq!(prod_only.request["needs-ts"], vec!["1.0.0"]);
     assert_eq!(prod_only.request["typescript"], vec!["5.4.5"]);
+}
+
+fn optional_peer_only_the_workspace_root_lists() -> Lockfile {
+    parse_lockfile(
+        "
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    devDependencies:
+      valibot:
+        specifier: '^1.2.0'
+        version: '1.2.0'
+
+  pkg-b:
+    dependencies:
+      hookform:
+        specifier: '^1.0.0'
+        version: '1.0.0(valibot@1.2.0)'
+
+packages:
+
+  hookform@1.0.0:
+    resolution: {integrity: sha512-JYtls3hqi15fcx5GaSNL7SCTJ2MNmjrkHXg4FSpOA/grxK8KwyZ5bubHsCq8FXCkua6xhuaaBit+3b7+VZRfcA==}
+    peerDependencies:
+      valibot: ^1.0.0
+    peerDependenciesMeta:
+      valibot:
+        optional: true
+
+  valibot@1.2.0:
+    resolution: {integrity: sha512-JYtls3hqi15fcx5GaSNL7SCTJ2MNmjrkHXg4FSpOA/grxK8KwyZ5bubHsCq8FXCkua6xhuaaBit+3b7+VZRfcA==}
+
+snapshots:
+
+  hookform@1.0.0(valibot@1.2.0):
+    optionalDependencies:
+      valibot: 1.2.0
+
+  valibot@1.2.0: {}
+",
+    )
+}
+
+#[test]
+fn lockfile_to_audit_request_drops_optional_peer_the_workspace_root_provides_with_the_root_rule() {
+    let lockfile = optional_peer_only_the_workspace_root_lists();
+    let root_rule = Include {
+        peer_edges: PeerEdgeOptions { resolve_peers_from_workspace_root: true },
+        ..prod_only()
+    };
+
+    let prod_only = lockfile_to_audit_request(&lockfile, None, root_rule);
+    assert_eq!(prod_only.request["hookform"], vec!["1.0.0"]);
+    assert!(!prod_only.request.contains_key("valibot"));
+}
+
+#[test]
+fn lockfile_to_audit_request_keeps_optional_peer_the_workspace_root_provides_without_the_root_rule()
+{
+    let lockfile = optional_peer_only_the_workspace_root_lists();
+
+    let prod_only = lockfile_to_audit_request(&lockfile, None, prod_only());
+    assert_eq!(prod_only.request["hookform"], vec!["1.0.0"]);
+    assert_eq!(prod_only.request["valibot"], vec!["1.2.0"]);
 }

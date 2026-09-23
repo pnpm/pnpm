@@ -187,7 +187,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                 host.engine_name,
                 host_node.as_ref(),
             );
-            let included = inputs.included();
+            let groups = inputs.groups();
 
             let skipped = crate::materialization_plan::compute_skip_set::<Reporter>(
                 crate::materialization_plan::SkipSetInputs {
@@ -198,7 +198,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                             .keys()
                             .cloned()
                             .collect(),
-                        included,
+                        groups,
                     },
                     entries: inputs.entries(),
                     requester: inputs.projects.requester,
@@ -209,7 +209,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                     // The frozen path always installs the groups it was
                     // given, so `--no-optional` needs no further
                     // qualification here.
-                    exclude_optional: !included.optional_dependencies,
+                    exclude_optional: !groups.included.optional_dependencies,
                     skip_runtimes: inputs.platform.skip_runtimes,
                 },
             )

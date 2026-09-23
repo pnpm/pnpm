@@ -7,9 +7,13 @@ export function lockfileToPackages (
   lockfile: LockfileObject,
   opts: {
     include?: { [dependenciesField in DependenciesField]: boolean }
+    resolvePeersFromWorkspaceRoot?: boolean
   }
 ): Map<string, Set<string>> {
-  const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, Object.keys(lockfile.importers) as ProjectId[], { include: opts?.include })
+  const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, Object.keys(lockfile.importers) as ProjectId[], {
+    include: opts.include,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
+  })
   const packages = new Map<string, Set<string>>()
   for (const importerWalker of importerWalkers) {
     addPackages(packages, importerWalker.step)

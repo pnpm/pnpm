@@ -95,6 +95,43 @@ function createMockProject (packages: Record<string, { version: string, manifest
 }
 
 describe('buildDependentsTree', () => {
+  test('a devDependency that only satisfies an optional peer has no dependents in a production tree', async () => {
+    const { lockfileDir, currentPackages, importers, cleanup } = createMockProject({
+      abc: { version: '1.0.0', manifest: {}, deps: ['peer-a', 'peer-c'] },
+      'peer-a': { version: '1.0.0', manifest: {} },
+      'peer-c': { version: '1.0.0', manifest: {} },
+    })
+    try {
+      Object.assign(currentPackages['abc@1.0.0' as DepPath], {
+        peerDependencies: { 'peer-a': '^1.0.0', 'peer-c': '^1.0.0' },
+        peerDependenciesMeta: { 'peer-c': { optional: true } },
+      })
+      importers['.' as ProjectId] = {
+        dependencies: { abc: '1.0.0' },
+        devDependencies: { 'peer-a': '1.0.0', 'peer-c': '1.0.0' },
+        specifiers: {},
+      }
+      const whyTree = async (pkg: string, include?: { dependencies: boolean, devDependencies: boolean, optionalDependencies: boolean }) => buildDependentsTree([pkg], [lockfileDir], {
+        lockfileDir,
+        include,
+        importerInfoMap: new Map([['.', { name: 'my-project', version: '0.0.0' }]]),
+        lockfile: {
+          lockfileVersion: '9.0',
+          importers,
+          packages: currentPackages,
+        },
+      })
+      const prodOnly = { dependencies: true, devDependencies: false, optionalDependencies: true }
+
+      expect(await whyTree('peer-c', prodOnly)).toHaveLength(0)
+      // A required peer stays even when only a devDependency provides it.
+      expect((await whyTree('peer-a', prodOnly))[0].dependents.map(({ name }) => name)).toStrictEqual(['abc'])
+      expect((await whyTree('peer-c'))[0].dependents.map(({ name }) => name)).toContain('abc')
+    } finally {
+      cleanup()
+    }
+  })
+
   describe('nameFormatter', () => {
     test('populates displayName on matched root and intermediate nodes', async () => {
       const { lockfileDir, currentPackages, importers, cleanup } = createMockProject({

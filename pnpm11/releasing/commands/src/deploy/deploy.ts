@@ -85,7 +85,7 @@ export function help (): string {
 
 export type DeployOptions =
   & Omit<install.InstallCommandOptions, 'useLockfile'>
-  & Pick<Config, 'allowBuilds' | 'forceLegacyDeploy'>
+  & Pick<Config, 'allowBuilds' | 'forceLegacyDeploy' | 'resolvePeersFromWorkspaceRoot'>
 
 export async function handler (opts: DeployOptions, params: string[]): Promise<void> {
   if (!opts.workspaceDir) {
@@ -389,6 +389,7 @@ async function deployFromSharedLockfile (
     patchedDependencies: opts.patchedDependencies,
     selectedProjectManifest: selectedProject.manifest,
     projectId,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     rootProjectManifestDir,
     allowBuilds: opts.allowBuilds,
   })

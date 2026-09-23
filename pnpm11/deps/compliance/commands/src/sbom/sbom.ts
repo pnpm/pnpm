@@ -49,6 +49,7 @@ export type SbomCommandOptions = {
   | 'registriesByPrefix'
   | 'optional'
   | 'production'
+  | 'resolvePeersFromWorkspaceRoot'
   | 'storeDir'
   | 'supportedArchitectures'
   | 'virtualStoreDir'
@@ -523,6 +524,7 @@ async function generateSbomForProject (
     registriesByPrefix: opts.registriesByPrefix,
     lockfileDir,
     includedImporterIds,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     supportedArchitectures: opts.supportedArchitectures,
     lockfileOnly: opts.lockfileOnly,
     storeDir: ctx.storeDir,

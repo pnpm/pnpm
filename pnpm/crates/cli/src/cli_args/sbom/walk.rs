@@ -1,8 +1,8 @@
 use super::{
     DepType, HashMap, HashSet, IncludeFilter, IndexMap, InstallabilityOptions, PackageKey,
-    PackageMetadata, Path, PathBuf, PkgName, PkgNameVerPeer, SbomComponent, SbomRelationship,
-    SnapshotEntry, State, build_purl, confined_importer_dir, extract_author, extract_bugs_url,
-    extract_homepage, extract_repository, integrity_string, normalize_link_path,
+    PackageMetadata, Path, PathBuf, PeerSatisfactionEdges, PkgName, PkgNameVerPeer, SbomComponent,
+    SbomRelationship, SnapshotEntry, State, build_purl, confined_importer_dir, extract_author,
+    extract_bugs_url, extract_homepage, extract_repository, integrity_string, normalize_link_path,
     peer_names_from_manifest, platform_incompatible_optional, read_pkg_metadata_from_store,
     safe_read_project_manifest_from_dir, tarball_url_for_component,
 };
@@ -14,8 +14,61 @@ pub(super) struct WalkContext<'a> {
     pub(super) default_registry: &'a str,
     pub(super) virtual_store_dirs: &'a [PathBuf],
     pub(super) virtual_store_dir_max_length: usize,
-    pub(super) include_optional_transitive: bool,
+    pub(super) transitive: TransitiveEdges<'a>,
     pub(super) installability: InstallabilityOptions<'a>,
+}
+
+/// The snapshot entries a walk follows past the importers' direct
+/// dependencies.
+#[derive(Clone, Copy)]
+pub(super) struct TransitiveEdges<'a> {
+    pub(super) include_optional: bool,
+    /// The peer-satisfaction edges to leave out, when the walk excludes a
+    /// dependency group.
+    pub(super) skipped_peer_edges: Option<&'a PeerSatisfactionEdges>,
+}
+
+impl<'a> TransitiveEdges<'a> {
+    /// The edges that classify a package's dependency type, which never
+    /// include a peer-satisfaction edge.
+    pub(super) fn classifying(
+        include: &IncludeFilter,
+        peer_edges: &'a PeerSatisfactionEdges,
+    ) -> Self {
+        TransitiveEdges {
+            include_optional: include.optional_dependencies,
+            skipped_peer_edges: Some(peer_edges),
+        }
+    }
+
+    /// The edges the component walk follows, which include the
+    /// peer-satisfaction edges when `include` has every group.
+    pub(super) fn walking(include: &IncludeFilter, peer_edges: &'a PeerSatisfactionEdges) -> Self {
+        TransitiveEdges {
+            include_optional: include.optional_dependencies,
+            skipped_peer_edges: include.excludes_a_group().then_some(peer_edges),
+        }
+    }
+
+    /// The snapshots `snapshot`, stored under `key`, leads to.
+    pub(super) fn children(
+        self,
+        key: &'a PkgNameVerPeer,
+        snapshot: &'a SnapshotEntry,
+    ) -> impl Iterator<Item = PkgNameVerPeer> + 'a {
+        let optional_iter = self.include_optional
+            .then(|| snapshot.optional_dependencies.iter().flatten())
+            .into_iter()
+            .flatten();
+        snapshot.dependencies
+            .iter()
+            .flatten()
+            .chain(optional_iter)
+            .filter(move |(alias, _)| {
+                !self.skipped_peer_edges.is_some_and(|skipped| skipped.contains(key, alias))
+            })
+            .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
+    }
 }
 
 /// The collections the importer walk fills.
@@ -226,7 +279,11 @@ fn walk_snapshot(
         let Some(snapshot) = ctx.snapshots.and_then(|snapshots| snapshots.get(&key)) else {
             continue;
         };
-        queue.extend(snapshot_children(snapshot, ctx).map(|child| (child, purl.clone())));
+        queue.extend(
+            ctx.transitive
+                .children(&key, snapshot)
+                .map(|child| (child, purl.clone())),
+        );
     }
 }
 
@@ -280,23 +337,6 @@ fn snapshot_component(
     }
 }
 
-/// The snapshots one package depends on, including its optional ones
-/// when the run describes those too.
-fn snapshot_children<'a>(
-    snapshot: &'a SnapshotEntry,
-    ctx: &WalkContext<'_>,
-) -> impl Iterator<Item = PkgNameVerPeer> + 'a {
-    let optional_iter = ctx.include_optional_transitive
-        .then(|| snapshot.optional_dependencies.iter().flatten())
-        .into_iter()
-        .flatten();
-    snapshot.dependencies
-        .iter()
-        .flatten()
-        .chain(optional_iter)
-        .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
-}
-
 pub(super) fn walk_importer_components(inputs: &ImporterComponents<'_>, stores: &mut WalkStores) {
     let mut walk = ImporterWalk {
         components_map: &mut stores.components_map,
@@ -321,7 +361,7 @@ pub(super) fn component_walk_context<'a>(
     lockfile: &'a pnpm_lockfile::Lockfile,
     dep_types: &'a HashMap<pnpm_lockfile::PackageKey, DepType>,
     virtual_store_dirs: &'a [PathBuf],
-    include_optional_transitive: bool,
+    transitive: TransitiveEdges<'a>,
 ) -> WalkContext<'a> {
     WalkContext {
         snapshots: lockfile.snapshots.as_ref(),
@@ -330,7 +370,7 @@ pub(super) fn component_walk_context<'a>(
         default_registry: &state.config.registry,
         virtual_store_dirs,
         virtual_store_dir_max_length: state.config.virtual_store_dir_max_length as usize,
-        include_optional_transitive,
+        transitive,
         installability: InstallabilityOptions {
             supported_architectures: state.config.supported_architectures.as_ref(),
             current_os: pnpm_detect_libc::host_platform(),

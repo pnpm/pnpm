@@ -287,6 +287,13 @@ impl FreshInputs<'_> {
             .any(|group| !self.projects.dependency_groups.contains(group))
     }
 
+    fn groups(&self) -> crate::GroupSelection {
+        crate::GroupSelection {
+            included: self.included(),
+            peer_edges: self.drivers.config.peer_edge_options(),
+        }
+    }
+
     fn included(&self) -> IncludedDependencies {
         IncludedDependencies {
             dependencies: self.projects.dependency_groups.contains(&DependencyGroup::Prod),

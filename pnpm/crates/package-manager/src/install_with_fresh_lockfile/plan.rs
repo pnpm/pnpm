@@ -37,7 +37,7 @@ impl MaterializationScope {
                     built,
                     install.projects.lockfile_dir,
                     importer_ids,
-                    install.included(),
+                    install.groups(),
                     &SkippedSnapshots::new(),
                 )
             });
@@ -62,7 +62,7 @@ impl MaterializationScope {
                     built,
                     install.projects.lockfile_dir,
                     importer_ids,
-                    install.included(),
+                    install.groups(),
                     skipped,
                 )
             });
@@ -203,7 +203,10 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
                 lockfile: lockfiles.built,
                 root: install.projects.lockfile_dir,
                 importer_ids: &closure_importer_ids,
-                included: scope.included,
+                groups: crate::GroupSelection {
+                    included: scope.included,
+                    peer_edges: install.drivers.config.peer_edge_options(),
+                },
             },
             entries: pnpm_lockfile::LockfileEntries {
                 snapshots: lockfiles.initial.snapshots.as_ref(),

@@ -56,6 +56,7 @@ export type StrictBuildOptions = {
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
   projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
+  resolvePeersFromWorkspaceRoot?: boolean
   strictStorePkgContentCheck: boolean
   fetchFullMetadata?: boolean
   supportedArchitectures?: SupportedArchitectures

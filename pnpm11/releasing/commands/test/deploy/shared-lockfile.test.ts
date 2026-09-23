@@ -1191,3 +1191,68 @@ test('deploy with a shared lockfile should keep files created by lifecycle scrip
 
   expect(fs.existsSync('deploy/node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })
+
+test.each([
+  ['the deployed project', false],
+  ['the workspace root', true],
+])('deploy --prod leaves out an optional peer that a devDependency of %s satisfies', async (_, peerFromRoot) => {
+  const peers = { '@pnpm.e2e/peer-a': '1.0.0', '@pnpm.e2e/peer-c': '1.0.0' }
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+        devDependencies: peerFromRoot ? peers : {},
+      },
+    },
+    {
+      name: 'app',
+      version: '0.0.0',
+      private: true,
+      dependencies: { '@pnpm.e2e/abc-optional-peers': '1.0.0' },
+      devDependencies: peerFromRoot ? {} : peers,
+    },
+  ])
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'app' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    production: true,
+    dev: false,
+    resolvePeersFromWorkspaceRoot: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const virtualStore = fs.readdirSync('deploy/node_modules/.pnpm')
+  expect(virtualStore.filter((name) => name.startsWith('@pnpm.e2e+peer-c@'))).toHaveLength(0)
+  const abcDir = virtualStore.find((name) => name.startsWith('@pnpm.e2e+abc-optional-peers@'))
+  expect(abcDir).toBeDefined()
+  // A required peer is shipped even when only a devDependency provides it.
+  expect(fs.readdirSync(`deploy/node_modules/.pnpm/${abcDir}/node_modules/@pnpm.e2e`).sort()).toStrictEqual(['abc-optional-peers', 'peer-a'])
+  const deployLockfile = assertProject(path.resolve('deploy')).readLockfile()
+  expect(Object.keys(deployLockfile.snapshots).filter((depPath) => depPath.startsWith('@pnpm.e2e/peer-c@'))).toHaveLength(0)
+})

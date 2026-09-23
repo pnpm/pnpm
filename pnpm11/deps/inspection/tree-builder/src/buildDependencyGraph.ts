@@ -1,4 +1,5 @@
 import type { PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.fs'
+import { isPeerSatisfactionEdge, type PeerSatisfactionEdges } from '@pnpm/lockfile.peer-edges'
 
 import { getTreeNodeChildId } from './getTreeNodeChildId.js'
 import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId.js'
@@ -34,6 +35,8 @@ export function buildDependencyGraph (
     }
     lockfileDir: string
     onlyProjects?: boolean
+    /** Edges left out of the graph, from `getPeerSatisfactionEdgesToSkip`. */
+    peerSatisfactionEdges?: PeerSatisfactionEdges
   }
 ): DependencyGraph {
   const graph: DependencyGraph = { nodes: new Map() }
@@ -83,6 +86,7 @@ export function buildDependencyGraph (
           ? rawRef
           : (rawRef as { version?: string } | null)?.version
         if (ref == null) continue
+        if (nodeId.type === 'package' && isPeerSatisfactionEdge(opts.peerSatisfactionEdges, nodeId.depPath, alias)) continue
         const targetNodeId = getTreeNodeChildId({
           parentId: nodeId,
           dep: { alias, ref },

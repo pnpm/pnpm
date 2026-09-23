@@ -90,6 +90,7 @@ export type ListCommandOptions = Pick<Config,
 | 'optional'
 | 'production'
 | 'modulesDir'
+| 'resolvePeersFromWorkspaceRoot'
 | 'virtualStoreDirMaxLength'
 > & Pick<ConfigContext,
 | 'allProjects'
@@ -218,6 +219,7 @@ interface RenderOptions {
   workspaceProjectDirs?: string[]
   parseable?: boolean
   modulesDir?: string
+  resolvePeersFromWorkspaceRoot?: boolean
   virtualStoreDirMaxLength: number
   finders?: Record<string, Finder>
   findBy?: string[]
@@ -239,6 +241,7 @@ function getListOptions (opts: RenderOptions) {
     showExtraneous: false,
     showSummary: true,
     modulesDir: opts.modulesDir,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     finders,
   }

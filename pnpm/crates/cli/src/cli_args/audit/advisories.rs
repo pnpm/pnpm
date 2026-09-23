@@ -1,11 +1,11 @@
 use super::{
     AuditError, AuditGraph, AuditReport, AuditVulnerabilityCounts, BTreeMap, Config,
     ConfigAuditLevel, DepKind, Duration, Edge, EnvLockfile, GraphImporter, HashMap, HashSet,
-    Include, Lockfile, PackageKey, PackumentPublishInfo, Range, RawBulkAdvisory, RetryOpts,
-    append_snapshot_edges, bulk_response_to_audit_report, empty_packages, empty_snapshots,
-    env_roots, fetch_publish_times, importer_roots, lockfile_to_audit_request, normalize_ghsa_id,
-    normalize_registry, pick_registry_for_package, redact_url_userinfo, sanitize_response_body,
-    send_with_retry,
+    Include, Lockfile, PackageKey, PackumentPublishInfo, PeerEdgeOptions, PeerSatisfactionEdges,
+    Range, RawBulkAdvisory, RetryOpts, bulk_response_to_audit_report, empty_packages,
+    empty_snapshots, env_roots, fetch_publish_times, importer_roots, lockfile_to_audit_request,
+    normalize_ghsa_id, normalize_registry, pick_registry_for_package, redact_url_userinfo,
+    sanitize_response_body, send_with_retry,
 };
 
 pub(super) async fn audit(
@@ -140,26 +140,37 @@ pub(super) async fn correct_inferred_patched_versions(
 }
 
 impl<'a> AuditGraph<'a> {
-    pub(super) fn main(lockfile: &'a Lockfile) -> Self {
+    pub(super) fn main(lockfile: &'a Lockfile, peer_edges: PeerEdgeOptions) -> Self {
         let empty = empty_snapshots();
         let snapshots = lockfile.snapshots.as_ref().unwrap_or(empty);
         let empty_pkgs = empty_packages();
         let packages = lockfile.packages.as_ref().unwrap_or(empty_pkgs);
-        let importers = lockfile.importers
+        let (ids, importers): (Vec<_>, Vec<_>) = lockfile.importers
             .iter()
-            .map(|(id, importer)| GraphImporter {
-                path_segment: id.replace('/', "__"),
-                roots: importer_roots(importer),
+            .map(|(id, importer)| {
+                (
+                    id,
+                    GraphImporter {
+                        path_segment: id.replace('/', "__"),
+                        roots: importer_roots(importer),
+                    },
+                )
             })
-            .collect();
-        Self::new(importers, snapshots, packages)
+            .unzip();
+        let root = peer_edges.resolve_peers_from_workspace_root
+            .then(|| {
+                ids.iter()
+                    .position(|id| id.as_str() == Lockfile::ROOT_IMPORTER_KEY)
+            })
+            .flatten();
+        Self::new(importers, root, snapshots, packages)
     }
 
     pub(super) fn env(env_lockfile: &'a EnvLockfile) -> Self {
         let importer = env_lockfile.importers.get(EnvLockfile::ROOT_IMPORTER_KEY);
         let mut importers = Vec::new();
         let Some(importer) = importer else {
-            return Self::new(importers, &env_lockfile.snapshots, &env_lockfile.packages);
+            return Self::new(importers, None, &env_lockfile.snapshots, &env_lockfile.packages);
         };
         let config_roots = env_roots(&importer.config_dependencies);
         if !config_roots.is_empty() {
@@ -184,18 +195,22 @@ impl<'a> AuditGraph<'a> {
             }
         }
 
-        Self::new(importers, &env_lockfile.snapshots, &env_lockfile.packages)
+        Self::new(importers, None, &env_lockfile.snapshots, &env_lockfile.packages)
     }
 
-    pub(super) fn children(&self, key: &PackageKey, include_optional_edges: bool) -> Vec<Edge> {
+    /// The snapshots `key` depends on in a walk over `include`: its
+    /// optional dependencies only when `include` has them, and its
+    /// peer-satisfaction edges only when `include` has every group.
+    pub(super) fn children(&self, key: &PackageKey, include: Include) -> Vec<Edge> {
         let Some(snapshot) = self.snapshots.get(key) else { return Vec::new() };
-        let skipped = self.peer_satisfaction_edges.get(key);
-        let mut children = Vec::new();
-        append_snapshot_edges(&mut children, snapshot.dependencies.as_ref(), skipped);
-        if include_optional_edges {
-            append_snapshot_edges(&mut children, snapshot.optional_dependencies.as_ref(), skipped);
-        }
-        children
+        let no_peer_edges = PeerSatisfactionEdges::default();
+        let skipped =
+            if include.excludes_a_group() { &self.peer_satisfaction_edges } else { &no_peer_edges };
+        skipped
+            .followed_entries(key, snapshot, include.optional_dependencies)
+            .filter_map(|(name, dep_ref)| dep_ref.resolve(name))
+            .map(|key| Edge { key })
+            .collect()
     }
 }
 

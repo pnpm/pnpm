@@ -86,7 +86,8 @@ fn include_optional_false_clears_importer_section() {
         optional_dependencies: false,
     };
 
-    let filtered = super::super::filter_lockfile_for_current(&lockfile, include, &skipped);
+    let filtered =
+        super::super::filter_lockfile_for_current(&lockfile, super::groups(include), &skipped);
 
     assert!(
         filtered.importers
@@ -266,7 +267,7 @@ fn materialization_closure_keeps_importer_links_shallow_and_traverses_snapshot_l
         &lockfile,
         Path::new("/workspace"),
         &selected,
-        included,
+        super::groups(included),
         &SkippedSnapshots::new(),
     );
 

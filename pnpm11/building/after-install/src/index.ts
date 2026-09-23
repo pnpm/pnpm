@@ -331,6 +331,7 @@ async function _rebuild (
           devDependencies: opts.development,
           optionalDependencies: opts.optional,
         },
+        resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
       }
     ).step,
     nodesToBuildAndTransitive,

@@ -22,7 +22,9 @@ use std::{
 };
 
 use napi_derive::napi;
-use pnpm_lockfile::{FilterByImportersOptions, IncludedDependencies, Lockfile, PackageKey};
+use pnpm_lockfile::{
+    FilterByImportersOptions, IncludedDependencies, Lockfile, PackageKey, PeerEdgeOptions,
+};
 
 use crate::error::to_napi_error;
 
@@ -95,6 +97,10 @@ pub struct FilterLockfileOptions {
     /// drops the reference and keeps walking — what a caller inspecting a
     /// possibly-stale lockfile wants.
     pub fail_on_missing_dependencies: Option<bool>,
+    /// Whether a direct dependency of the root importer provides a peer to
+    /// every importer when the filter decides which optional-peer edges to
+    /// skip. Defaults to `false`.
+    pub resolve_peers_from_workspace_root: Option<bool>,
 }
 
 /// The lockfile as JSON, or `null` when the file is absent or empty.
@@ -156,6 +162,7 @@ pub fn filter_lockfile_by_importers(
         include_optional_dependencies: None,
         skipped: None,
         fail_on_missing_dependencies: None,
+        resolve_peers_from_workspace_root: None,
     });
     let skipped: HashSet<PackageKey> = options.skipped
         .unwrap_or_default()
@@ -178,6 +185,11 @@ pub fn filter_lockfile_by_importers(
                 fail_on_missing_dependencies: options
                     .fail_on_missing_dependencies
                     .unwrap_or(false),
+                peer_edges: PeerEdgeOptions {
+                    resolve_peers_from_workspace_root: options
+                        .resolve_peers_from_workspace_root
+                        .unwrap_or(false),
+                },
             },
         )
         .map_err(|error| to_napi_error(&error))?;

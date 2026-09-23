@@ -12,6 +12,7 @@ import {
   readWantedLockfile,
   type ResolvedDependencies,
 } from '@pnpm/lockfile.fs'
+import { getPeerSatisfactionEdgesToSkip } from '@pnpm/lockfile.peer-edges'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { StoreIndex } from '@pnpm/store.index'
 import { DEPENDENCIES_FIELDS, type DependenciesField, type Finder, type RegistriesByScope } from '@pnpm/types'
@@ -52,6 +53,7 @@ export interface BuildDependenciesTreeOptions {
   lockfileDir: string
   checkWantedLockfileOnly?: boolean
   modulesDir?: string
+  resolvePeersFromWorkspaceRoot?: boolean
   virtualStoreDirMaxLength: number
 }
 
@@ -145,9 +147,13 @@ async function buildProjectsTrees (
     include: opts.include,
     lockfileDir: opts.lockfileDir,
     onlyProjects: opts.onlyProjects,
+    peerSatisfactionEdges: getPeerSatisfactionEdgesToSkip(lockfileToUse, {
+      include: opts.include,
+      resolvePeersFromWorkspaceRoot: maybeOpts.resolvePeersFromWorkspaceRoot,
+    }),
   })
   const sharedMaterializationCache: MaterializationCache = new Map()
-  const sharedDepTypes = detectDepTypes(lockfileToUse)
+  const sharedDepTypes = detectDepTypes(lockfileToUse, maybeOpts)
 
   const ctx: HierarchyContext = {
     currentLockfile: lockfileToUse,

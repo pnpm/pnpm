@@ -24,7 +24,7 @@ pub(crate) fn build_audit_path_index(
     include: Include,
 ) -> AuditPathIndex {
     let mut paths = AuditPathIndex::default();
-    let main = AuditGraph::main(lockfile);
+    let main = AuditGraph::main(lockfile, include.peer_edges);
     walk_for_paths(&main, vulnerable_names, include, &mut paths);
     if let Some(env_lockfile) = env_lockfile {
         let env = AuditGraph::env(env_lockfile);
@@ -195,7 +195,7 @@ pub(crate) fn open_path_node(
     if !walk.live.contains(&key) {
         return;
     }
-    let children = walk.graph.children(&key, walk.include.optional_dependencies);
+    let children = walk.graph.children(&key, walk.include);
     if children.is_empty() {
         return;
     }

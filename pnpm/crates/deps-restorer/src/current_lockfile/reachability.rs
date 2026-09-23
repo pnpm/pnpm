@@ -1,4 +1,4 @@
-use pnpm_lockfile::{Lockfile, PackageKey};
+use pnpm_lockfile::{Lockfile, PackageKey, PeerSatisfactionEdges};
 use pnpm_modules_yaml::IncludedDependencies;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
@@ -9,12 +9,48 @@ pub struct ReachableLockfileGraph {
     pub importer_ids: HashSet<String>,
     pub snapshot_keys: HashSet<PackageKey>,
 }
+
+/// The edges a walk follows: the snapshot entries of the included groups,
+/// minus the peer-satisfaction edges while a group is left out.
+pub(super) struct WalkedEdges {
+    pub(super) included: IncludedDependencies,
+    pub(super) skipped_peer_edges: PeerSatisfactionEdges,
+}
+
+impl WalkedEdges {
+    pub(super) fn of(lockfile: &Lockfile, groups: super::GroupSelection) -> Self {
+        let included = groups.included;
+        let skipped_peer_edges = if groups.included.excludes_a_group() {
+            PeerSatisfactionEdges::of_lockfile(lockfile, groups.peer_edges)
+        } else {
+            PeerSatisfactionEdges::default()
+        };
+        WalkedEdges { included, skipped_peer_edges }
+    }
+}
+
+/// The importers and snapshots `initial_importer_ids` reach through the
+/// edges `groups` selects, never entering a key `should_skip` accepts.
 #[must_use]
 pub fn collect_reachable<ShouldSkip>(
     lockfile: &Lockfile,
     workspace_root: &Path,
     initial_importer_ids: &HashSet<String>,
-    included: IncludedDependencies,
+    groups: super::GroupSelection,
+    should_skip: ShouldSkip,
+) -> ReachableLockfileGraph
+where
+    ShouldSkip: Fn(&PackageKey) -> bool,
+{
+    let edges = WalkedEdges::of(lockfile, groups);
+    walk_reachable(lockfile, workspace_root, initial_importer_ids, &edges, should_skip)
+}
+
+pub(super) fn walk_reachable<ShouldSkip>(
+    lockfile: &Lockfile,
+    workspace_root: &Path,
+    initial_importer_ids: &HashSet<String>,
+    edges: &WalkedEdges,
     should_skip: ShouldSkip,
 ) -> ReachableLockfileGraph
 where
@@ -38,7 +74,7 @@ where
                 (pnpm_fs::lexical_normalize(&crate::importer_root_dir(workspace_root, &id)), id)
             })
             .collect(),
-        included,
+        edges,
         should_skip,
 
         importer_queue: initial_importer_ids
@@ -68,7 +104,7 @@ pub(super) struct ReachableWalk<'a, ShouldSkip> {
     lockfile: &'a Lockfile,
     workspace_root: &'a Path,
     known_importers: HashMap<std::path::PathBuf, String>,
-    included: IncludedDependencies,
+    edges: &'a WalkedEdges,
     should_skip: ShouldSkip,
     importer_queue: VecDeque<String>,
     snapshot_queue: VecDeque<PackageKey>,
@@ -82,7 +118,7 @@ impl<ShouldSkip: Fn(&PackageKey) -> bool> ReachableWalk<'_, ShouldSkip> {
             return;
         };
         self.reached.importer_ids.insert(importer_id.to_owned());
-        let included = self.included;
+        let included = self.edges.included;
         for map in [
             included.dependencies.then_some(importer.dependencies.as_ref()).flatten(),
             included.dev_dependencies.then_some(importer.dev_dependencies.as_ref()).flatten(),
@@ -111,21 +147,16 @@ impl<ShouldSkip: Fn(&PackageKey) -> bool> ReachableWalk<'_, ShouldSkip> {
         else {
             return;
         };
-        for map in [
-            snapshot.dependencies.as_ref(),
-            self.included.optional_dependencies
-                .then_some(snapshot.optional_dependencies.as_ref())
-                .flatten(),
-        ]
-        .into_iter()
-        .flatten()
-        {
-            for (alias, dep_ref) in map {
-                if let Some(target) = dep_ref.as_link_target() {
-                    self.enqueue_linked_importer(target);
-                } else if let Some(child) = dep_ref.resolve(alias) {
-                    self.enqueue_snapshot(child);
-                }
+        let entries = self.edges.skipped_peer_edges.followed_entries(
+            key,
+            snapshot,
+            self.edges.included.optional_dependencies,
+        );
+        for (alias, dep_ref) in entries {
+            if let Some(target) = dep_ref.as_link_target() {
+                self.enqueue_linked_importer(target);
+            } else if let Some(child) = dep_ref.resolve(alias) {
+                self.enqueue_snapshot(child);
             }
         }
     }

@@ -60,7 +60,11 @@ pub(super) fn frozen_tree_up_to_date<'a>(
     // has to be retaken; the TypeScript CLI has no gate at this level at
     // all and instead forces every directory dep through materialization
     // in `lockfileToDepGraph`.
-    if !materialized_shape_matches(wanted_lockfile, current, context.tree.included)
+    let groups = crate::GroupSelection {
+        included: context.tree.included,
+        peer_edges: config.peer_edge_options(),
+    };
+    if !materialized_shape_matches(wanted_lockfile, current, groups)
         || has_directory_snapshot(current)
     {
         return None;

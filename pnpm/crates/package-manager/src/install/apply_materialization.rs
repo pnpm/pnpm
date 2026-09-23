@@ -56,7 +56,10 @@ fn select_apply_state<'a>(inputs: &'a ApplyMaterializationInputs<'_, '_>) -> Mat
         projects: inputs.projects.importers,
 
         workspace_root: &inputs.projects.workspace_root,
-        included: inputs.projects.included,
+        groups: crate::GroupSelection {
+            included: inputs.projects.included,
+            peer_edges: inputs.completion.config.peer_edge_options(),
+        },
         install_skipped: &inputs.materialized.install_skipped,
         node_linker: inputs.projects.node_linker,
 

@@ -85,6 +85,7 @@ export async function findDependencyLicenses (opts: {
   registriesByPrefix?: Record<string, string>
   wantedLockfile: LockfileObject | null
   includedImporterIds?: ProjectId[]
+  resolvePeersFromWorkspaceRoot?: boolean
   supportedArchitectures?: SupportedArchitectures
 }): Promise<LicensePackage[]> {
   if (opts.wantedLockfile == null) {
@@ -94,7 +95,7 @@ export async function findDependencyLicenses (opts: {
     )
   }
 
-  const depTypes = detectDepTypes(opts.wantedLockfile)
+  const depTypes = detectDepTypes(opts.wantedLockfile, opts)
   const licenseNodeTree = await lockfileToLicenseNodeTree(opts.wantedLockfile, {
     dir: opts.lockfileDir,
     modulesDir: opts.modulesDir,
@@ -105,6 +106,7 @@ export async function findDependencyLicenses (opts: {
     registriesByScope: opts.registriesByScope,
     registriesByPrefix: opts.registriesByPrefix,
     includedImporterIds: opts.includedImporterIds,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     supportedArchitectures: opts.supportedArchitectures,
     depTypes,
   })

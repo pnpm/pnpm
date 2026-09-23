@@ -75,6 +75,7 @@ fn options(include: IncludedDependencies) -> FilterByImportersOptions {
         include,
         skipped: HashSet::new(),
         fail_on_missing_dependencies: false,
+        peer_edges: crate::PeerEdgeOptions::default(),
     }
 }
 
@@ -214,4 +215,94 @@ fn a_missing_dependency_is_reported_only_when_asked_for() {
         .filter_by_importers(vec!["packages/app".to_string()], &strict)
         .expect_err("the missing snapshot is reported");
     assert!(error.to_string().contains("prod-dep@1.0.0"), "{error}");
+}
+
+/// `abc` has an optional peer `peer-c` that only the importer's
+/// `devDependencies` provide, and a required peer `peer-a` that is also a
+/// devDependency.
+const OPTIONAL_PEER_LOCKFILE: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      abc:
+        specifier: 1.0.0
+        version: 1.0.0(peer-a@1.0.0)(peer-c@1.0.0)
+    devDependencies:
+      peer-a:
+        specifier: 1.0.0
+        version: 1.0.0
+      peer-c:
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages:
+
+  abc@1.0.0:
+    resolution: {integrity: sha512-abc}
+    peerDependencies:
+      peer-a: ^1.0.0
+      peer-c: ^1.0.0
+    peerDependenciesMeta:
+      peer-c:
+        optional: true
+
+  peer-a@1.0.0:
+    resolution: {integrity: sha512-a}
+
+  peer-c@1.0.0:
+    resolution: {integrity: sha512-c}
+
+snapshots:
+
+  abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0):
+    dependencies:
+      peer-a: 1.0.0
+      peer-c: 1.0.0
+
+  peer-a@1.0.0: {}
+
+  peer-c@1.0.0: {}
+";
+
+fn optional_peer_lockfile() -> Lockfile {
+    Lockfile::parse(OPTIONAL_PEER_LOCKFILE, Path::new("pnpm-lock.yaml"))
+        .expect("parse lockfile")
+        .expect("lockfile is not empty")
+}
+
+#[test]
+fn a_prod_filter_drops_an_optional_peer_only_devdependencies_provide() {
+    let prod_only = IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: true,
+    };
+    let filtered = optional_peer_lockfile()
+        .filter_by_importers(vec![".".to_string()], &options(prod_only))
+        .expect("filter lockfile");
+
+    assert_eq!(
+        snapshot_keys(&filtered),
+        vec!["abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)", "peer-a@1.0.0"],
+    );
+    let abc = &filtered.snapshots.as_ref().unwrap()[&key("abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)")];
+    let aliases = abc.dependencies
+        .as_ref()
+        .unwrap()
+        .keys()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    assert_eq!(aliases, vec!["peer-a"]);
+}
+
+#[test]
+fn a_filter_over_every_group_keeps_peer_edges() {
+    let lockfile = optional_peer_lockfile();
+    let filtered = lockfile
+        .filter_by_importers(vec![".".to_string()], &options(IncludedDependencies::default()))
+        .expect("filter lockfile");
+
+    assert_eq!(filtered.snapshots, lockfile.snapshots);
 }

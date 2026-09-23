@@ -125,7 +125,7 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
   if (lockfile == null) {
     throw new PnpmError('AUDIT_NO_LOCKFILE', `No ${WANTED_LOCKFILE} found after update: Cannot report fixed vulnerabilities`)
   }
-  const updatedPackages = lockfileToPackages(lockfile, { include: opts.include })
+  const updatedPackages = lockfileToPackages(lockfile, opts)
 
   const fixed: number[] = []
   const remaining: number[] = []
