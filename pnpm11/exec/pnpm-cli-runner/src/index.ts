@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { detectIfCurrentPkgIsExecutable } from '@pnpm/cli.meta'
 import { sync as execSync } from 'execa'
@@ -91,7 +92,8 @@ function readOwningPackage (resolvedScript: string): OwningPackage | undefined {
     let contents: string
     try {
       contents = fs.readFileSync(path.join(dir, 'package.json'), 'utf8')
-    } catch {
+    } catch (err: unknown) {
+      if (!isMissingFileError(err)) return undefined
       const parent = path.dirname(dir)
       if (parent === dir) return undefined
       dir = parent
@@ -119,6 +121,10 @@ function declaresBin ({ dir, manifest }: OwningPackage, resolvedScript: string):
   const { bin } = manifest
   const targets = typeof bin === 'string' ? [bin] : typeof bin === 'object' && bin !== null ? Object.values(bin) : []
   return targets.some((target) => typeof target === 'string' && realpathOrSelf(path.resolve(dir, target)) === resolvedScript)
+}
+
+function isMissingFileError (err: unknown): boolean {
+  return util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')
 }
 
 function realpathOrSelf (target: string): string {

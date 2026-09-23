@@ -97,10 +97,16 @@ test.each([
   expectReinvoked(entryScript)
 })
 
-test('an entry script under an unreadable manifest is re-run', () => {
-  const entryScript = installPackage({ pkgName: 'pnpm', binName: 'pnpm', scriptName: 'pnpm.mjs' })
-  const pkgDir = path.dirname(path.dirname(fs.realpathSync(entryScript)))
-  fs.writeFileSync(path.join(pkgDir, 'package.json'), '{ not json')
+test('an entry script whose manifest cannot be read is re-run, even when an enclosing package claims it', () => {
+  const root = makeTempDir()
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
+    name: 'not-pnpm',
+    bin: { pnpm: 'vendor/pnpm/pnpm.mjs' },
+  }))
+  const pkgDir = path.join(root, 'vendor', 'pnpm')
+  fs.mkdirSync(path.join(pkgDir, 'package.json'), { recursive: true })
+  const entryScript = path.join(pkgDir, 'pnpm.mjs')
+  fs.writeFileSync(entryScript, '')
   process.argv[1] = entryScript
 
   expectReinvoked(entryScript)
