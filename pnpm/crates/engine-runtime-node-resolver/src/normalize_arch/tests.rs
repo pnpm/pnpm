@@ -15,3 +15,10 @@ fn darwin_arm64_falls_back_to_x64_on_pre_node_16() {
     assert_eq!(get_normalized_arch("darwin", "arm64", Some("14.20.0")), "x64");
     assert_eq!(get_normalized_arch("darwin", "arm64", Some("16.17.0")), "arm64");
 }
+
+#[test]
+fn win32_arm64_falls_back_to_x64_on_pre_node_20() {
+    assert_eq!(get_normalized_arch("win32", "arm64", Some("18.20.0")), "x64");
+    assert_eq!(get_normalized_arch("win32", "arm64", Some("20.7.0")), "arm64");
+    assert_eq!(get_normalized_arch("win32", "arm64", None), "arm64");
+}
