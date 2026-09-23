@@ -189,3 +189,73 @@ fn prune_with_no_optional_unlinks_optional_deps() {
         FILTERED,
     );
 }
+
+fn append_order_script(stage: &str) -> String {
+    format!(r#"node -e "require('fs').appendFileSync('order.txt','{stage}\n')""#)
+}
+
+/// `prepare` needs a devDependency, like a `husky` git-hooks setup, so
+/// running it after `prune --prod` unlinked that dependency would fail
+/// the prune (pnpm/pnpm#4770).
+#[test]
+fn prune_with_prod_only_does_not_run_prepare_scripts() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let prepare =
+        format!(r#"node -e "require('is-negative')" && {}"#, append_order_script("prepare"));
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "prune-prod-skips-prepare",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+            "devDependencies": { "is-negative": "1.0.0" },
+            "scripts": {
+                "preinstall": append_order_script("preinstall"),
+                "install": append_order_script("install"),
+                "postinstall": append_order_script("postinstall"),
+                "preprepare": append_order_script("preprepare"),
+                "prepare": prepare,
+                "postprepare": append_order_script("postprepare"),
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let order_path = workspace.join("order.txt");
+    let read_stages = || {
+        fs::read_to_string(&order_path)
+            .expect("read order.txt")
+            .lines()
+            .map(str::to_string)
+            .collect::<Vec<_>>()
+    };
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(
+        read_stages(),
+        ["preinstall", "install", "postinstall", "preprepare", "prepare", "postprepare"],
+    );
+    fs::remove_file(&order_path).expect("remove order.txt");
+
+    pacquet_in(&workspace)
+        .with_args(["prune", "--prod"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        read_stages(),
+        ["preinstall", "install", "postinstall"],
+        "prepare lifecycle scripts must not run during prune --prod",
+    );
+    assert!(has_link(&workspace, "is-positive"));
+    assert!(!has_link(&workspace, "is-negative"));
+
+    drop((root, mock_instance));
+}
