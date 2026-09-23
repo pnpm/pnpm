@@ -186,9 +186,9 @@ pub(in super::super) fn unlink<'a>(
     Ok(Box::pin(async move {
         let recursive_sort = cfg.sort;
         args.apply_cli_config(cfg);
-        // Strip the matching `link:` overrides; stop early when there is
-        // nothing to unlink.
-        if !args.strip_link_overrides(cfg, manifest_path)? {
+        // Revert the matching links; stop early when there is nothing to
+        // unlink.
+        if !args.remove_links(cfg, manifest_path)? {
             return Ok(());
         }
         // Reinstall through the install-family pipeline, exactly as pnpm's

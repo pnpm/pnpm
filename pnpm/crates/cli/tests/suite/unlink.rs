@@ -418,3 +418,118 @@ fn filtered_unlink_with_dedicated_lockfiles_reinstalls_only_selected_project() {
 
     drop((root, mock_instance));
 }
+
+fn write_local_package(workspace: &Path, dir: &str, name: &str) {
+    let target = workspace.join(dir);
+    fs::create_dir_all(&target).expect("create local package dir");
+    fs::write(
+        target.join("package.json"),
+        serde_json::json!({ "name": name, "version": "1.0.0" }).to_string(),
+    )
+    .expect("write local package.json");
+}
+
+fn run_pnpm(workspace: &Path, args: &[&str]) {
+    let mut command = std::process::Command::cargo_bin("pnpm").expect("locate pacquet binary");
+    command.current_dir(workspace);
+    command
+        .with_args(args)
+        .assert()
+        .success();
+}
+
+fn read_manifest(workspace: &Path) -> serde_json::Value {
+    let text = fs::read_to_string(workspace.join("package.json")).expect("read package.json");
+    serde_json::from_str(&text).expect("parse package.json")
+}
+
+/// `pnpm link <dir>` adds a `link:` dependency to `package.json` when the
+/// package is not declared yet; `pnpm unlink <pkg>` removes it again along
+/// with the override, the symlink, and the lockfile entry.
+#[test]
+fn unlink_named_reverts_the_dependency_link_added() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, &serde_json::json!({ "name": "test-project", "version": "1.0.0" }));
+    write_local_package(&workspace, "linked-foo", "linked-foo");
+    write_local_package(&workspace, "linked-bar", "linked-bar");
+
+    run_pnpm(&workspace, &["link", "./linked-foo", "./linked-bar"]);
+    assert!(workspace.join("node_modules/linked-foo").exists(), "link must install linked-foo");
+
+    run_pnpm(&workspace, &["unlink", "linked-foo"]);
+
+    assert_eq!(
+        read_manifest(&workspace),
+        serde_json::json!({
+            "name": "test-project",
+            "version": "1.0.0",
+            "dependencies": { "linked-bar": "link:linked-bar" },
+        }),
+    );
+    let workspace_yaml = read_workspace_yaml(&workspace);
+    assert!(!workspace_yaml.contains("linked-foo"), "override must be removed: {workspace_yaml}");
+    assert!(
+        fs::symlink_metadata(workspace.join("node_modules/linked-foo")).is_err(),
+        "the linked-foo symlink must be removed",
+    );
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(!lockfile.contains("linked-foo"), "lockfile must drop linked-foo: {lockfile}");
+    assert!(lockfile.contains("linked-bar"), "lockfile must keep linked-bar: {lockfile}");
+
+    drop((root, mock_instance));
+}
+
+/// A bare `pnpm unlink` reverts every link `pnpm link` made.
+#[test]
+fn unlink_without_args_reverts_every_dependency_link_added() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, &serde_json::json!({ "name": "test-project", "version": "1.0.0" }));
+    write_local_package(&workspace, "linked-foo", "linked-foo");
+
+    run_pnpm(&workspace, &["link", "./linked-foo"]);
+    run_pnpm(&workspace, &["unlink"]);
+
+    assert_eq!(
+        read_manifest(&workspace),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }),
+    );
+    let workspace_yaml = read_workspace_yaml(&workspace);
+    assert!(!workspace_yaml.contains("link:"), "override must be removed: {workspace_yaml}");
+    assert!(
+        fs::symlink_metadata(workspace.join("node_modules/linked-foo")).is_err(),
+        "the linked-foo symlink must be removed",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A `link:` dependency declared to another directory than the override
+/// stays in `package.json`.
+#[test]
+fn unlink_keeps_link_dependency_to_another_directory() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_local_package(&workspace, "linked-foo", "linked-foo");
+    write_local_package(&workspace, "other-foo", "linked-foo");
+    let manifest = serde_json::json!({
+        "name": "test-project",
+        "version": "1.0.0",
+        "dependencies": { "linked-foo": "link:other-foo" },
+    });
+    write_manifest(&workspace, &manifest);
+    add_overrides(&workspace, "overrides:\n  linked-foo: link:linked-foo\n");
+
+    run_pnpm(&workspace, &["unlink", "linked-foo"]);
+
+    assert_eq!(read_manifest(&workspace), manifest);
+
+    drop((root, mock_instance));
+}

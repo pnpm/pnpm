@@ -35,7 +35,8 @@ pub enum LinkError {
     },
 }
 
-const DEPENDENCY_FIELDS: [&str; 3] = ["optionalDependencies", "dependencies", "devDependencies"];
+pub(crate) const DEPENDENCY_FIELDS: [&str; 3] =
+    ["optionalDependencies", "dependencies", "devDependencies"];
 
 fn is_filespec(input: &str) -> bool {
     let mut chars = input.chars();
