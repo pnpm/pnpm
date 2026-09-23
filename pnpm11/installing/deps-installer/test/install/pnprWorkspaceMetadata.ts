@@ -195,6 +195,22 @@ test('pnpr skips the root pnpm:devPreinstall when devDependencies are excluded',
   expect(fs.existsSync(marker)).toBe(false)
 })
 
+test('pnpr skips the root pnpm:devPreinstall in CI', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const marker = path.join(workspaceRoot, 'dev-preinstall-ran')
+  const manifest: ProjectManifest = {
+    name: 'app',
+    version: '1.0.0',
+    scripts: { 'pnpm:devPreinstall': `node -e "require('fs').writeFileSync('${marker.replace(/\\/g, '/')}', '')"` },
+  }
+
+  await install(manifest, createOptions(workspaceRoot, rootDir, { ci: true }))
+
+  expect(resolveViaPnprServer).toHaveBeenCalled()
+  expect(fs.existsSync(marker)).toBe(false)
+})
+
 test('pnpr returns the resolution policy violations the install command reacts to', async () => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir
