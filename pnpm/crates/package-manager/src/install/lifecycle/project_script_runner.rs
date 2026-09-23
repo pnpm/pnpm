@@ -63,7 +63,7 @@ pub(super) struct ProjectScriptRunner<'a> {
     workspace_root: &'a Path,
     normalized_workspace_root: PathBuf,
     /// The root project's `preinstall` ran before the install began, here
-    /// (see [`run_root_hook`]) or in the CLI that delegated the install,
+    /// (see [`super::run_root_hook`]) or in the CLI that delegated the install,
     /// so its run here starts at `install`.
     root_preinstall_ran: bool,
     extra_env: HashMap<String, String>,
