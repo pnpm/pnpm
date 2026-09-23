@@ -209,19 +209,28 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
     })
 }
 
-/// Read the text of the `.npmrc` in `dir`, returning `None` for anything
-/// from "file doesn't exist" to "not valid UTF-8" — same best-effort
-/// behaviour as pnpm. The caller decides which keys to honour.
-fn read_npmrc(dir: &std::path::Path) -> Option<String> {
-    fs::read_to_string(dir.join(".npmrc")).ok()
-}
-
-/// Read a `.npmrc` by explicit file path (as opposed to [`read_npmrc`],
-/// which joins `.npmrc` onto a directory). Used for the `npmrcAuthFile`
-/// override, which names the file directly. `None` on any read /
-/// UTF-8 failure, same best-effort behaviour as [`read_npmrc`].
-fn read_npmrc_file(path: &std::path::Path) -> Option<String> {
-    fs::read_to_string(path).ok()
+/// Read a `.npmrc` the way pnpm does: a missing file, or a directory in its
+/// place, reads as `Ok(None)`, and invalid UTF-8 is decoded lossily. Any
+/// other failure comes back as the warning to print, so the caller surfaces
+/// it rather than silently dropping every setting the file holds.
+fn read_npmrc_file<Sys: api::FsReadFile>(path: &Path) -> Result<Option<String>, String> {
+    match Sys::read_file(path) {
+        Ok(bytes) => match String::from_utf8(bytes) {
+            Ok(text) => Ok(Some(text)),
+            Err(error) => Ok(Some(String::from_utf8_lossy(error.as_bytes()).into_owned())),
+        },
+        Err(error)
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::IsADirectory,
+            ) =>
+        {
+            Ok(None)
+        }
+        // Windows reports reading a directory as `PermissionDenied`.
+        Err(_) if path.is_dir() => Ok(None),
+        Err(error) => Err(format!(r#"Issue while reading "{}". {error}"#, path.display())),
+    }
 }
 
 /// Read `pnpm_config_<lower>`, falling back to `PNPM_CONFIG_<UPPER>`,

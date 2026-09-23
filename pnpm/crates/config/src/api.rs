@@ -95,6 +95,11 @@ pub trait LinkProbe {
     fn can_link_between_dirs(from_dir: &Path, to_dir: &Path) -> bool;
 }
 
+/// Capability: read a whole file as bytes.
+pub(crate) trait FsReadFile {
+    fn read_file(path: &Path) -> io::Result<Vec<u8>>;
+}
+
 /// Production provider for the capability traits in this crate.
 /// Production code threads `Host` through generic call sites with an
 /// explicit turbofish:
@@ -142,5 +147,11 @@ impl GetCurrentDir for Host {
 impl LinkProbe for Host {
     fn can_link_between_dirs(from_dir: &Path, to_dir: &Path) -> bool {
         crate::store_path::host_can_link_between_dirs(from_dir, to_dir)
+    }
+}
+
+impl FsReadFile for Host {
+    fn read_file(path: &Path) -> io::Result<Vec<u8>> {
+        std::fs::read(path)
     }
 }
