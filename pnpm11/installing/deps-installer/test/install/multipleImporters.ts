@@ -2122,3 +2122,137 @@ test("a direct-dependency bump in one importer converges another importer's tran
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
   expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
 })
+
+test('adding an unrelated dependency does not re-resolve existing dependency to sibling version', async () => {
+  preparePackages([
+    { location: 'project-1', package: { name: 'project-1' } },
+    { location: 'project-2', package: { name: 'project-2' } },
+  ])
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const allProjects1 = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0' },
+      },
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+  ]
+  await mutateModules([
+    { mutation: 'install', rootDir: path.resolve('project-1') as ProjectRootDir },
+  ], testDefaults({ allProjects: allProjects1 }))
+
+  let lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  const allProjects2 = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0' },
+      },
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0' },
+      },
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  await mutateModules([
+    { mutation: 'install', rootDir: path.resolve('project-2') as ProjectRootDir },
+  ], testDefaults({ allProjects: allProjects2 }))
+
+  lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
+  expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.1.0')
+
+  const allProjects3 = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: {
+          '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0',
+          'is-positive': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0' },
+      },
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  await mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+  ], testDefaults({ allProjects: allProjects3 }))
+
+  lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
+  expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.1.0')
+})
+
+test('secondary dependency resolves to local project direct dependency version instead of higher version in sibling workspace (pnpm/pnpm#7191)', async () => {
+  preparePackages([
+    { location: 'project-1', package: { name: 'project-1' } },
+    { location: 'project-2', package: { name: 'project-2' } },
+  ])
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: {
+          '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+        },
+      },
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0' },
+      },
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+
+  await mutateModules([
+    { mutation: 'install', rootDir: path.resolve('project-1') as ProjectRootDir },
+    { mutation: 'install', rootDir: path.resolve('project-2') as ProjectRootDir },
+  ], testDefaults({ allProjects }))
+
+  const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
+  expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.1.0')
+  expect(lockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
+})
+

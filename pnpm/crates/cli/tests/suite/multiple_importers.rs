@@ -804,3 +804,151 @@ fn custom_virtual_store_directory_with_dedicated_lockfiles() {
     fixture.run(["install", "--frozen-lockfile"]);
     assert_recorded_virtual_store("frozen");
 }
+
+#[test]
+fn secondary_dependency_resolves_to_local_project_direct_dep_version_pnpm_7191() {
+    let fixture = WorkspaceFixture::new();
+    let _project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[(DEP, "100.0.0"), (PARENT, "100.0.0")], ..Default::default() },
+    );
+    let _project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[(DEP, "100.1.0")], ..Default::default() },
+    );
+
+    fixture.run(["install"]);
+
+    let wanted = fixture.wanted();
+    let p1 = wanted.importers.get("packages/project-1").expect("project-1 in lockfile");
+    let p2 = wanted.importers.get("packages/project-2").expect("project-2 in lockfile");
+    let dep_pkg_name = DEP.parse::<pnpm_lockfile::PkgName>().expect("parse package name");
+
+    assert_eq!(
+        p1.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.0.0",
+    );
+    assert_eq!(
+        p2.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.1.0",
+    );
+
+    let parent_snapshots = snapshot_entries(&wanted, PARENT);
+    assert_eq!(parent_snapshots.len(), 1);
+    let subdependency = parent_snapshots[0].1.dependencies
+        .as_ref()
+        .and_then(|dependencies| dependencies.get(&dep_pkg_name))
+        .expect("parent snapshot records the subdependency")
+        .to_string();
+    assert_eq!(
+        subdependency, "100.0.0",
+        "transitive dependency of pkg-with-1-dep under project-1 must reuse 100.0.0, NOT 100.1.0 from project-2",
+    );
+}
+
+#[test]
+fn adding_an_unrelated_dependency_does_not_reresolve_existing_dependency_to_sibling_version() {
+    let fixture = WorkspaceFixture::new();
+    let dep_pkg_name = DEP.parse::<pnpm_lockfile::PkgName>().expect("parse package name");
+
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+    );
+    fixture.run(["--filter", "project-1", "install"]);
+
+    let wanted = fixture.wanted();
+    let p1 = wanted.importers.get("packages/project-1").expect("project-1 in lockfile");
+    assert_eq!(
+        p1.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.0.0",
+    );
+
+    fs::write(
+        project_1.join("package.json"),
+        serde_json::to_string_pretty(&json!({
+            "name": "project-1",
+            "dependencies": { DEP: "^100.0.0" }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let _project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[(DEP, "100.1.0")], ..Default::default() },
+    );
+    fixture.run(["--filter", "project-2", "install"]);
+
+    let wanted = fixture.wanted();
+    let p1 = wanted.importers.get("packages/project-1").expect("project-1 in lockfile");
+    let p2 = wanted.importers.get("packages/project-2").expect("project-2 in lockfile");
+    assert_eq!(
+        p1.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.0.0",
+    );
+    assert_eq!(
+        p2.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.1.0",
+    );
+
+    fixture.run(["--filter", "project-1", "add", "is-positive@1.0.0"]);
+
+    let wanted = fixture.wanted();
+    let p1 = wanted.importers.get("packages/project-1").expect("project-1 in lockfile");
+    let p2 = wanted.importers.get("packages/project-2").expect("project-2 in lockfile");
+    assert_eq!(
+        p1.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.0.0",
+    );
+    assert_eq!(
+        p2.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.1.0",
+    );
+}

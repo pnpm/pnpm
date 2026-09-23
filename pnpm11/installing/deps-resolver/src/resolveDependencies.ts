@@ -31,6 +31,7 @@ import { parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
 import {
   DIRECT_DEP_SELECTOR_WEIGHT,
   type DirectoryResolution,
+  EXISTING_VERSION_SELECTOR_WEIGHT,
   type PkgResolutionId,
   type PreferredVersions,
   type Resolution,
@@ -345,6 +346,7 @@ export type UpdateMatchingFunction = (pkgName: string, version?: string) => bool
 
 interface ResolvedDependenciesOptions {
   currentDepth: number
+  directDepVersions?: Record<string, string[]>
   parentIds: PkgResolutionId[]
   parentPkg: ParentPkg
   parentPkgAliases: ParentPkgAliases
@@ -372,6 +374,7 @@ interface ResolvedDependenciesOptions {
 }
 
 interface PostponedResolutionOpts {
+  directDepVersions?: Record<string, string[]>
   preferredVersions: PreferredVersions
   parentPkgAliases: ParentPkgAliases
   publishedBy?: Date
@@ -485,6 +488,16 @@ export async function resolveRootDependencies (
           updateToLatest: false,
         })
         importerResolutionResult.pkgAddresses.push(...resolveDependenciesResult.pkgAddresses)
+        if (options.directDepVersions) {
+          for (const pkgAddress of resolveDependenciesResult.pkgAddresses) {
+            const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]
+            if (!resolvedPackage) continue
+            options.directDepVersions[resolvedPackage.name] ??= []
+            if (!options.directDepVersions[resolvedPackage.name].includes(resolvedPackage.version)) {
+              options.directDepVersions[resolvedPackage.name].push(resolvedPackage.version)
+            }
+          }
+        }
         Object.assign(importerResolutionResult,
           filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases)
         )
@@ -506,6 +519,16 @@ export async function resolveRootDependencies (
             updateToLatest: false,
           })
           pkgAddressesByImportersWithoutPeers[index].pkgAddresses.push(...resolveDependenciesResult.pkgAddresses)
+          if (options.directDepVersions) {
+            for (const pkgAddress of resolveDependenciesResult.pkgAddresses) {
+              const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]
+              if (!resolvedPackage) continue
+              options.directDepVersions[resolvedPackage.name] ??= []
+              if (!options.directDepVersions[resolvedPackage.name].includes(resolvedPackage.version)) {
+                options.directDepVersions[resolvedPackage.name].push(resolvedPackage.version)
+              }
+            }
+          }
           Object.assign(pkgAddressesByImportersWithoutPeers[index],
             filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases)
           )
@@ -647,6 +670,7 @@ async function resolveDependenciesOfImporters (
   const resolveResults = await Promise.all(
     importers.map(async (importer) => {
       const extendedWantedDeps = getDepsToResolve(importer.wantedDependencies, ctx.wantedLockfile, {
+        currentDepth: 0,
         preferredDependencies: importer.options.preferredDependencies,
         prefix: importer.options.prefix,
         proceed: importer.options.proceed || ctx.forceFullResolution,
@@ -694,6 +718,7 @@ async function resolveDependenciesOfImporters (
   const pkgAddressesByImportersWithoutPeers = await Promise.all(zipWith(async (importer, { pkgAddresses, postponedResolutionsQueue, postponedPeersResolutionQueue }) => {
     const newPreferredVersions = Object.create(importer.preferredVersions) as PreferredVersions
     const currentParentPkgAliases: Record<string, PkgAddress | true> = {}
+    const directDepVersions: Record<string, string[]> = Object.create(null)
     for (const pkgAddress of pkgAddresses) {
       if (currentParentPkgAliases[pkgAddress.alias] !== true) {
         currentParentPkgAliases[pkgAddress.alias] = pkgAddress
@@ -703,18 +728,26 @@ async function resolveDependenciesOfImporters (
       }
       const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]
       if (!resolvedPackage) continue // This will happen only with linked dependencies
+      directDepVersions[resolvedPackage.name] ??= []
+      if (!directDepVersions[resolvedPackage.name].includes(resolvedPackage.version)) {
+        directDepVersions[resolvedPackage.name].push(resolvedPackage.version)
+      }
       if (!Object.hasOwn(newPreferredVersions, resolvedPackage.name)) {
         newPreferredVersions[resolvedPackage.name] = { ...importer.preferredVersions[resolvedPackage.name] }
       }
-      if (!newPreferredVersions[resolvedPackage.name][resolvedPackage.version]) {
-        newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = {
-          selectorType: 'version',
-          weight: DIRECT_DEP_SELECTOR_WEIGHT,
-        }
+      const existingSelector = newPreferredVersions[resolvedPackage.name][resolvedPackage.version]
+      const existingWeight = typeof existingSelector === 'object' && existingSelector != null
+        ? existingSelector.weight
+        : typeof existingSelector === 'string' ? 1 : 0
+      newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = {
+        selectorType: 'version',
+        weight: existingWeight + DIRECT_DEP_SELECTOR_WEIGHT,
       }
     }
+    importer.options.directDepVersions = directDepVersions
     const newParentPkgAliases = { ...importer.parentPkgAliases, ...currentParentPkgAliases }
     const postponedResolutionOpts: PostponedResolutionOpts = {
+      directDepVersions,
       preferredVersions: newPreferredVersions,
       parentPkgAliases: newParentPkgAliases,
       publishedBy,
@@ -907,6 +940,8 @@ export async function resolveDependencies (
   options: ResolvedDependenciesOptions
 ): Promise<ResolvedDependenciesResult> {
   const extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
+    currentDepth: options.currentDepth,
+    directDepVersions: options.directDepVersions,
     preferredDependencies: options.preferredDependencies,
     lockedDependencies: options.lockedDependencies,
     preferredVersions,
@@ -955,8 +990,13 @@ export async function resolveDependencies (
     if (!Object.hasOwn(newPreferredVersions, resolvedPackage.name)) {
       newPreferredVersions[resolvedPackage.name] = { ...preferredVersions[resolvedPackage.name] }
     }
-    if (!newPreferredVersions[resolvedPackage.name][resolvedPackage.version]) {
-      newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
+    const existingSelector = newPreferredVersions[resolvedPackage.name][resolvedPackage.version]
+    const existingWeight = typeof existingSelector === 'object' && existingSelector != null
+      ? existingSelector.weight
+      : typeof existingSelector === 'string' ? 1 : 0
+    newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = {
+      selectorType: 'version',
+      weight: existingWeight + 1,
     }
   }
   const newParentPkgAliases = {
@@ -964,6 +1004,7 @@ export async function resolveDependencies (
     ...currentParentPkgAliases,
   }
   const postponedResolutionOpts: PostponedResolutionOpts = {
+    directDepVersions: options.directDepVersions,
     preferredVersions: newPreferredVersions,
     parentPkgAliases: newParentPkgAliases,
     publishedBy: options.publishedBy,
@@ -1547,14 +1588,11 @@ async function resolveChildren (
     updateToLatest?: boolean
   },
   {
+    directDepVersions,
     parentPkgAliases,
     preferredVersions,
     publishedBy,
-  }: {
-    parentPkgAliases: ParentPkgAliases
-    preferredVersions: PreferredVersions
-    publishedBy?: Date
-  }
+  }: PostponedResolutionOpts
 ): Promise<PeersResolutionResult> {
   if (!isCurrentChildrenResolution(ctx, parentPkg.pkgId, childrenResolutionId)) {
     setDependencyTreeNodeWithCurrentChildren(ctx, {
@@ -1590,6 +1628,7 @@ async function resolveChildren (
   } = await resolveDependencies(ctx, preferredVersions, wantedDependencies,
     {
       currentDepth: parentDepth + 1,
+      directDepVersions,
       parentPkg,
       parentPkgAliases,
       preferredDependencies: currentResolvedDependencies,
@@ -1652,6 +1691,8 @@ function getDepsToResolve (
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
   wantedLockfile: LockfileObject,
   options: RegistryContext & {
+    currentDepth?: number
+    directDepVersions?: Record<string, string[]>
     preferredDependencies?: ResolvedDependencies
     lockedDependencies?: ResolvedDependencies
     preferredVersions?: PreferredVersions
@@ -1689,9 +1730,9 @@ function getDepsToResolve (
         const pinned = pinnedRef.startsWith('file:')
           ? undefined
           : getPinnedNameVer(wantedLockfile, pinnedRef, wantedDependency.alias)
-        const higherDirectVersion = pinned == null
+        const higherDirectVersion = pinned == null || options.currentDepth === 0
           ? undefined
-          : findHigherDirectDepVersion(options.preferredVersions, pinned.name, pinned.version, wantedDependency.bareSpecifier)
+          : findHigherDirectDepVersion(options.preferredVersions, options.directDepVersions, pinned.name, pinned.version, wantedDependency.bareSpecifier)
         if (higherDirectVersion != null) {
           // `preferredVersion` (singular) overrides the
           // EXISTING_VERSION_SELECTOR_WEIGHT stability bias that would
@@ -1808,7 +1849,7 @@ function getLockedDependenciesOfPkg (ctx: ResolutionContext, pkg: PkgAddress): R
   }
 }
 
-function getPinnedNameVer (
+export function getPinnedNameVer (
   lockfile: LockfileObject,
   reference: string,
   alias: string
@@ -1823,25 +1864,41 @@ function getPinnedNameVer (
 // The highest version a direct dependency (the only deterministic,
 // resolved-first anchor) resolved to that is higher than the
 // lockfile-pinned `pinnedVersion` and still satisfies the edge's range, or
-// `undefined` when none exists. Direct-dependency versions are marked with
-// DIRECT_DEP_SELECTOR_WEIGHT in preferredVersions.
+// `undefined` when none exists.
 function findHigherDirectDepVersion (
   preferredVersions: PreferredVersions | undefined,
+  directDepVersions: Record<string, string[]> | undefined,
   pinnedName: string,
   pinnedVersion: string,
   bareSpecifier: string
 ): string | undefined {
-  if (preferredVersions == null) return undefined
   if (!semver.valid(pinnedVersion)) return undefined
   if (semver.validRange(bareSpecifier) === null) return undefined
+  if (directDepVersions && Object.hasOwn(directDepVersions, pinnedName)) {
+    let best: string | undefined
+    for (const candidate of directDepVersions[pinnedName] ?? []) {
+      if (
+        semver.valid(candidate) &&
+        semver.gt(candidate, pinnedVersion) &&
+        semver.satisfies(candidate, bareSpecifier, true) &&
+        (best == null || semver.gt(candidate, best))
+      ) {
+        best = candidate
+      }
+    }
+    return best
+  }
+  if (preferredVersions == null) return undefined
   const selectors = preferredVersions[pinnedName]
   if (selectors == null) return undefined
   let best: string | undefined
   for (const [candidate, selector] of Object.entries(selectors)) {
     if (
       typeof selector === 'object' &&
+      selector !== null &&
       selector.selectorType === 'version' &&
-      selector.weight === DIRECT_DEP_SELECTOR_WEIGHT &&
+      selector.weight >= DIRECT_DEP_SELECTOR_WEIGHT &&
+      selector.weight < EXISTING_VERSION_SELECTOR_WEIGHT &&
       semver.valid(candidate) &&
       semver.gt(candidate, pinnedVersion) &&
       semver.satisfies(candidate, bareSpecifier, true) &&
