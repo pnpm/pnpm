@@ -12,6 +12,7 @@ pub mod refused_keys;
 pub mod version_policy;
 pub use crate::{
     api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe},
+    ci_detection::is_ci,
     defaults::{
         BUILTIN_REGISTRIES_BY_PREFIX, DEFAULT_JSR_REGISTRY, GLOBAL_LAYOUT_VERSION, PNPM_VERSION,
         available_parallelism, default_cache_dir, default_config_dir, default_git_shallow_hosts,
@@ -50,6 +51,7 @@ pub use workspace_yaml::{
 };
 
 mod api;
+mod ci_detection;
 mod defaults;
 mod env_overlay;
 mod global_bin_check;

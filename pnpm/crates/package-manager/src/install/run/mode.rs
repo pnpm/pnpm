@@ -80,7 +80,7 @@ impl RunMode {
 
 /// A prompt only reaches a person on an interactive terminal outside CI.
 fn prompts_are_answerable() -> bool {
-    !is_ci::cached() && std::io::stdin().is_terminal()
+    !pnpm_config::is_ci() && std::io::stdin().is_terminal()
 }
 
 /// `--lockfile-only` with `lockfile: false` asks for a lockfile the run is

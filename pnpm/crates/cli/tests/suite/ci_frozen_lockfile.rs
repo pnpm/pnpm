@@ -19,6 +19,12 @@ fn pacquet_in_github_actions(workspace: &Path) -> Command {
     command
 }
 
+fn pacquet_in_aws_codebuild(workspace: &Path) -> Command {
+    let mut command = pacquet_without_ci(workspace);
+    command.env("CODEBUILD_BUILD_ARN", "arn:aws:codebuild:us-east-1:000000000000:build/project:1");
+    command
+}
+
 fn pacquet_without_ci(workspace: &Path) -> Command {
     let mut command = pacquet_in(workspace);
     command
@@ -61,7 +67,7 @@ fn assert_lockfile_was_updated(workspace: &Path) {
 
 #[test]
 fn ci_rejects_an_outdated_lockfile_by_default() {
-    for command_in_ci in [pacquet_in_ci, pacquet_in_github_actions] {
+    for command_in_ci in [pacquet_in_ci, pacquet_in_github_actions, pacquet_in_aws_codebuild] {
         let root = outdated_lockfile_project();
         let workspace = root.path();
         let lockfile_path = workspace.join("pnpm-lock.yaml");

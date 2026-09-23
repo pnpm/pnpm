@@ -1,49 +1,9 @@
 use super::{
     Config, EnvVar, EnvVarOs, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir, Host, HostNoHome,
     LinkProbe, NPM_DEFAULT_REGISTRY, NodeLinker, NodePackageMapType, OsString, PackageImportMethod,
-    Path, PathBuf, assert_eq, config_from_workspace_yaml, default_ci, default_state_dir,
-    default_store_dir, fs, io, load_with_project_and_user, repo_on_branch, safe_host_var, tempdir,
-    write_file,
+    Path, PathBuf, assert_eq, config_from_workspace_yaml, default_state_dir, default_store_dir, fs,
+    io, load_with_project_and_user, repo_on_branch, safe_host_var, tempdir, write_file,
 };
-
-#[test]
-fn ci_false_disables_github_actions_detection() {
-    struct GithubActionsWithCiFalse;
-
-    impl EnvVar for GithubActionsWithCiFalse {
-        fn var(name: &str) -> Option<String> {
-            match name {
-                "CI" => Some("false".to_string()),
-                "GITHUB_ACTIONS" => Some("true".to_string()),
-                _ => None,
-            }
-        }
-
-        fn vars() -> Vec<(String, String)> {
-            Vec::new()
-        }
-    }
-
-    assert!(!default_ci::<GithubActionsWithCiFalse>(|| true));
-}
-
-#[test]
-fn ci_detection_uses_injected_detector() {
-    struct InjectedCi;
-
-    impl EnvVar for InjectedCi {
-        fn var(_: &str) -> Option<String> {
-            None
-        }
-
-        fn vars() -> Vec<(String, String)> {
-            Vec::new()
-        }
-    }
-
-    assert!(default_ci::<InjectedCi>(|| true));
-    assert!(!default_ci::<InjectedCi>(|| false));
-}
 
 #[test]
 pub fn have_default_values() {
