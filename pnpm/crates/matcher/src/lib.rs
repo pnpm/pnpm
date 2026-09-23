@@ -285,6 +285,19 @@ fn strip_segment_suffix<'a>(input: &'a str, segment: &str) -> Option<&'a str> {
     segment_matches_exact(segment, suffix).then(|| &input[..split_idx])
 }
 
+/// Returns the byte length of the first `n` Unicode characters of `s`,
+/// or `None` if `s` has fewer than `n` characters.
+fn char_window_len(s: &str, n: usize) -> Option<usize> {
+    let mut char_count = 0;
+    for (idx, _) in s.char_indices() {
+        if char_count == n {
+            return Some(idx);
+        }
+        char_count += 1;
+    }
+    (char_count == n).then_some(s.len())
+}
+
 fn find_segment(input: &str, segment: &str) -> Option<(usize, usize)> {
     if !segment.contains('?') {
         return input
@@ -294,20 +307,12 @@ fn find_segment(input: &str, segment: &str) -> Option<(usize, usize)> {
     let seg_chars = segment.chars().count();
     for (start_idx, _) in input.char_indices() {
         let rest = &input[start_idx..];
-        let mut char_count = 0;
-        let mut end_offset = rest.len();
-        for (idx, _) in rest.char_indices() {
-            if char_count == seg_chars {
-                end_offset = idx;
-                break;
-            }
-            char_count += 1;
-        }
-        if char_count == seg_chars || (char_count + 1 == seg_chars && end_offset == rest.len()) {
-            let candidate = &rest[..end_offset];
-            if segment_matches_exact(segment, candidate) {
-                return Some((start_idx, end_offset));
-            }
+        let Some(end_offset) = char_window_len(rest, seg_chars) else {
+            continue;
+        };
+        let candidate = &rest[..end_offset];
+        if segment_matches_exact(segment, candidate) {
+            return Some((start_idx, end_offset));
         }
     }
     None
