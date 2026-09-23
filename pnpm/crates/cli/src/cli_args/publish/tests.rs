@@ -27,6 +27,7 @@ fn publish_flags() -> PublishFlags {
             access: None,
             provenance: false,
             otp: None,
+            publish_wait_timeout: None,
         },
         manifest: crate::cli_args::publish::PublishManifestArgs {
             embed_readme: false,
@@ -165,7 +166,8 @@ async fn publish_directory_errors_when_no_manifest_is_present() {
     let err = args
         .publish_directory::<SilentReporter>(dir.path(), &config, &opts, &network, &[], None)
         .await
-        .expect_err("an empty directory has no package.json");
+        .expect_err("an empty directory has no package.json")
+        .error;
 
     assert_eq!(
         err.code()

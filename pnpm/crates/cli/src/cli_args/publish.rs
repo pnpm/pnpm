@@ -10,6 +10,7 @@
 
 pub use arguments::{PublishGitArgs, PublishManifestArgs, PublishOutputArgs, PublishRegistryArgs};
 mod recursive;
+mod wait;
 
 mod arguments;
 
@@ -24,9 +25,9 @@ use pnpm_pack::{
     Host as PackHost, PackOptions, PackResult, WorkspacePackageManifest, api as pack_api,
 };
 use pnpm_publish::{
-    Access, Host, OidcHttpOptions, PackedPkg, PublishNetwork, PublishPackedPkgOptions,
-    PublishSummary, extract_publish_manifest_from_packed, is_tarball_path, publish_packed_pkg,
-    resolve_otp_from_env, run_git_checks,
+    Access, Host, OidcHttpOptions, PackedPkg, PublishFailure, PublishNetwork,
+    PublishPackedPkgOptions, PublishSummary, extract_publish_manifest_from_packed, is_tarball_path,
+    publish_packed_pkg, resolve_otp_from_env, run_git_checks,
 };
 use pnpm_reporter::Reporter;
 use serde_json::Value;
@@ -155,6 +156,9 @@ impl PublishArgs {
         stage: bool,
         before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<PublishedPackages> {
+        if stage {
+            self.publish_options(config, None, stage).validate()?;
+        }
         if self.flags.batch && !recursive {
             return Err(miette::miette!(
                 code = "ERR_PNPM_BATCH_PUBLISH_REQUIRES_RECURSIVE",
@@ -200,7 +204,8 @@ impl PublishArgs {
                     &before_packing_hooks,
                     None,
                 )
-                .await?
+                .await
+                .map_err(|failure| failure.error)?
             };
         Ok(PublishedPackages::Single(Box::new(summary)))
     }
@@ -229,7 +234,7 @@ impl PublishArgs {
             network,
         )
         .await
-        .map_err(miette::Report::new)
+        .map_err(|failure| miette::Report::new(failure.error))
     }
 
     /// Publish a project directory: run `prepublishOnly` / `prepublish`, pack
@@ -243,7 +248,7 @@ impl PublishArgs {
         network: &PublishNetwork<'_>,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
         workspace_packages: Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
-    ) -> miette::Result<PublishSummary> {
+    ) -> Result<PublishSummary, PublishFailure<miette::Report>> {
         let packed = self.pack_directory::<Reporter>(
             project_dir,
             config,
@@ -251,10 +256,18 @@ impl PublishArgs {
             workspace_packages,
         )
         .await?;
-        let summary =
-            publish_packed_pkg::<Host, Reporter>(&packed.packed_pkg(), opts, network).await?;
+        let summary = publish_packed_pkg::<Host, Reporter>(&packed.packed_pkg(), opts, network)
+            .await
+            .map_err(|failure| PublishFailure {
+                published: failure.published,
+                error: miette::Report::new(failure.error),
+            })?;
 
-        self.run_post_publish_scripts::<Reporter>(&packed, config)?;
+        self.run_post_publish_scripts::<Reporter>(&packed, config)
+            .map_err(|error| PublishFailure {
+                published: if opts.dry_run { Vec::new() } else { vec![summary.clone()] },
+                error,
+            })?;
         Ok(summary)
     }
 
@@ -391,9 +404,13 @@ impl PublishArgs {
         otp: Option<String>,
         stage: bool,
     ) -> PublishPackedPkgOptions {
+        let default_wait_timeout = if stage { 0 } else { config.publish_wait_timeout };
         PublishPackedPkgOptions {
             dry_run: self.flags.dry_run,
             stage,
+            wait_timeout: std::time::Duration::from_millis(
+                self.flags.registry.publish_wait_timeout.unwrap_or(default_wait_timeout),
+            ),
             registry: pnpm_publish::PublishRegistryOptions {
                 default: config.registry.clone(),
                 scoped: config.registries_by_scope.clone(),

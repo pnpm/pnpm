@@ -5837,6 +5837,8 @@ dependencies = [
  "derive_more",
  "dialoguer",
  "flate2",
+ "futures-util",
+ "httpdate",
  "miette 7.6.0",
  "mockito",
  "node-semver",

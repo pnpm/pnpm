@@ -695,3 +695,5 @@ fn workspace_npmrc_registry_is_effective_for_package_publish() {
     assert_success(&publish(&project_dir, &[]));
     mock.assert();
 }
+
+mod wait;

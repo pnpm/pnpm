@@ -52,6 +52,7 @@ const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
     "prefer-offline",
     "prefer-symlinked-executables",
     "progress",
+    "publish-wait-timeout",
     "block-exotic-subdeps",
     "registry-supports-time-field",
     "reporter",
