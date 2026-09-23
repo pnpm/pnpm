@@ -144,9 +144,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Diagnostics draft: Windows only.
+          # Diagnostics draft: Windows only. A builds once for both test
+          # steps; B is today's flow on 16 vCPUs.
           - os: blacksmith-8vcpu-windows-2025
-            os_label: windows
+            os_label: windows-shared-build
+            flow: shared
+          - os: blacksmith-16vcpu-windows-2025
+            os_label: windows-16vcpu
+            flow: standard
     runs-on: ${{ matrix.os }}
     # Backstop for hangs outside nextest's per-test terminate-after
     # (stuck cargo build, stuck tool download): warm-cache runs finish
@@ -270,7 +275,7 @@ jobs:
       # Diagnostics: build the pacquet tests with cargo --timings first, so the
       # nextest step below finds them built and the report shows where time goes.
       - name: Time the pacquet test build
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && matrix.flow != 'shared'
         continue-on-error: true
         shell: bash
         run: |
@@ -279,6 +284,7 @@ jobs:
           python .github/diagnostics/windows/timings.py "$RUNNER_TEMP/timing-pacquet.html" "pacquet tests, link.exe"
 
       - name: Test pacquet
+        if: matrix.flow != 'shared'
         shell: bash
         run: |
           # removing env vars is a temporary workaround for unit tests in pacquet relying on external environment
@@ -291,6 +297,23 @@ jobs:
             --output .bench/pacquet-tests-all.json \
             -- pnpm pipeline rust-test --include-workspace-root --full --no-cache
 
+      - name: Test pacquet and pnpr from one build
+        if: matrix.flow == 'shared'
+        shell: bash
+        run: |
+          unset PNPM_HOME XDG_DATA_HOME
+          start=$SECONDS
+          cargo test --no-run --timings --locked --workspace 2>&1 | grep -E "^error" | head -20 || true
+          echo "shared build: $((SECONDS - start)) s"
+          cp target/cargo-timings/cargo-timing.html "$RUNNER_TEMP/timing-shared.html"
+          python .github/diagnostics/windows/timings.py "$RUNNER_TEMP/timing-shared.html" "pacquet and pnpr tests, one build"
+          start=$SECONDS
+          node pnpm/scripts/run-rust-tests.mjs --workspace -E 'not (package(/^pnpr/) | package(pnpm-registry-mock))' 2>&1 | grep -E "Finished|Starting|Summary|FAIL \[|ABORT" || true
+          echo "pacquet tests from the shared build: $((SECONDS - start)) s"
+          start=$SECONDS
+          cargo nextest run --workspace -E 'package(/^pnpr/) | package(pnpm-registry-mock)' 2>&1 | grep -E "Finished|Starting|Summary|FAIL \[|ABORT" || true
+          echo "pnpr tests from the shared build: $((SECONDS - start)) s"
+
       - name: Test N-API boundary
         if: runner.os == 'Linux'
         run: |
@@ -300,7 +323,7 @@ jobs:
             node --test pnpm/npm/napi/test/*.test.mjs
 
       - name: Time the pnpr test build
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && matrix.flow != 'shared'
         continue-on-error: true
         shell: bash
         run: |
@@ -309,6 +332,7 @@ jobs:
           python .github/diagnostics/windows/timings.py "$RUNNER_TEMP/timing-pnpr.html" "pnpr tests after pacquet"
 
       - name: Test pnpr
+        if: matrix.flow != 'shared'
         shell: bash
         run: |
           # removing env vars is a temporary workaround for unit tests in pacquet relying on external environment
@@ -344,27 +368,6 @@ jobs:
           .github/diagnostics/macos/probe.sh scans "$DIAG_TESTS_START" tests
           .github/diagnostics/macos/probe.sh exec
           .github/diagnostics/macos/probe.sh subset
-
-      # Diagnostics: relink every pacquet test binary with rust-lld (the rustc
-      # runs repeat, only the linker differs), then rerun the crate whose test
-      # aborted with heap corruption under rust-lld.
-      - name: Relink with rust-lld
-        if: ${{ !cancelled() && runner.os == 'Windows' }}
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: |
-          sysroot="$(rustc --print sysroot)"
-          export PATH="$sysroot/lib/rustlib/x86_64-pc-windows-msvc/bin:$PATH"
-          export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=rust-lld.exe
-          cargo test --no-run --timings --locked --workspace --exclude pnpm-registry-mock --exclude pnpr --exclude pnpr-auth --exclude pnpr-cargo --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-oci --exclude pnpr-osv --exclude pnpr-package-name --exclude pnpr-pipeline-runs --exclude pnpr-policy --exclude pnpr-pypi --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream 2>&1 | grep -E "^(error|warning: unused)" | head -20 || true
-          cp target/cargo-timings/cargo-timing.html "$RUNNER_TEMP/timing-pacquet-lld.html"
-          python .github/diagnostics/windows/timings.py "$RUNNER_TEMP/timing-pacquet-lld.html" "pacquet tests, rust-lld relink"
-          unset PNPM_HOME XDG_DATA_HOME
-          for attempt in 1 2 3; do
-            echo "== npm-resolver tests with rust-lld, attempt $attempt"
-            node pnpm/scripts/run-rust-tests.mjs -p pnpm-resolving-npm-resolver --no-fail-fast 2>&1 | grep -E "ABORT|FAIL \[|SIGSEGV|0xc0|Summary" || true
-          done
 
       - name: Upload macOS diagnostics
         if: ${{ !cancelled() }}
