@@ -21,6 +21,7 @@ use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pnpm_resolving_deps_resolver::UpdateTargets;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     path::Path,
@@ -243,10 +244,39 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
         .await)
     }
 
+    fn preferred_versions_seeds(
+        &self,
+        importer_manifests: &BTreeMap<String, &PackageManifest>,
+        stale_override_targets: &UpdateTargets,
+    ) -> (
+        Arc<pnpm_resolving_resolver_base::PreferredVersions>,
+        BTreeMap<String, Arc<pnpm_resolving_resolver_base::PreferredVersions>>,
+    ) {
+        resolve::preferred_versions_seeds(
+            &self.owned.resolution.update_seed_policy,
+            self.wanted_lockfile(),
+            importer_manifests,
+            self.owned.resolution.preferred_versions_override.as_ref(),
+            stale_override_targets,
+        )
+    }
+
+    /// The override targets the resolution reopens. A reuse seed means the
+    /// lockfile rewrite already absorbed the overrides drift, leaving none.
+    fn stale_override_targets(&self, has_reuse_seed: bool) -> UpdateTargets {
+        if has_reuse_seed {
+            return UpdateTargets::default();
+        }
+        resolve::stale_override_targets(
+            self.wanted_lockfile(),
+            self.prep.transforms.resolved_overrides.as_ref(),
+        )
+    }
+
     fn workspace_walk(
         &self,
         lockfile_reuse_seed: Option<&Arc<Lockfile>>,
-        dedupe: pnpm_resolving_deps_resolver::UpdateTargets,
+        dedupe: UpdateTargets,
     ) -> resolve::WorkspaceWalk {
         resolve::WorkspaceWalk {
             hooks: crate::install_with_fresh_lockfile::resolution_inputs::WorkspaceLifecycleHooks {
@@ -341,17 +371,16 @@ pub(super) async fn run_prepared_resolve<'m, Reporter: self::Reporter + 'static>
     context: ResolutionContext<'_, Reporter>,
     importer_manifests: ManifestsView<'m>,
 ) -> Result<ResolvePass<'m>, InstallWithFreshLockfileError> {
-    let wanted_lockfile = context.wanted_lockfile();
-    let (preferred_versions_seed, preferred_versions_seeds_by_importer) =
-        resolve::preferred_versions_seeds(
-            &context.owned.resolution.update_seed_policy,
-            wanted_lockfile,
-            &importer_manifests,
-            context.owned.resolution.preferred_versions_override.as_ref(),
-        );
+    let (mut preferred_versions_seed, mut preferred_versions_seeds_by_importer) =
+        context.preferred_versions_seeds(&importer_manifests, &UpdateTargets::default());
     let shared_resolve_options = context.shared_options();
     let lockfile_reuse_seed =
         context.reuse_seed(&shared_resolve_options, &preferred_versions_seed).await?;
+    let stale_override_targets = context.stale_override_targets(lockfile_reuse_seed.is_some());
+    if !stale_override_targets.is_empty() {
+        (preferred_versions_seed, preferred_versions_seeds_by_importer) =
+            context.preferred_versions_seeds(&importer_manifests, &stale_override_targets);
+    }
     let phase_start = std::time::Instant::now();
     Reporter::emit(&LogEvent::Stage(StageLog {
         level: LogLevel::Debug,
@@ -363,6 +392,7 @@ pub(super) async fn run_prepared_resolve<'m, Reporter: self::Reporter + 'static>
         lockfile_reuse_seed.clone(),
         preferred_versions_seed,
         preferred_versions_seeds_by_importer,
+        stale_override_targets,
     )
     .await?;
     Ok(context.completed_pass(

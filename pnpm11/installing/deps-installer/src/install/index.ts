@@ -126,6 +126,7 @@ import {
   type InstallOptions,
   type ProcessedInstallOptions as StrictInstallOptions,
 } from './extendInstallOptions.js'
+import { getStaleOverrideTargets, omitPackagesNamed } from './getStaleOverrideTargets.js'
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { reportVerifiedFileIntegrity } from './reportVerifiedFileIntegrity.js'
@@ -1024,7 +1025,9 @@ export async function mutateModules (
       !upToDateLockfileMajorVersion ||
       opts.forceFullResolution ||
       forceResolutionFromHook
+    let staleOverrideTargets: Set<string> | undefined
     if (needsFullResolution) {
+      staleOverrideTargets = getStaleOverrideTargets(ctx.wantedLockfile.overrides, overridesMap)
       ctx.wantedLockfile.settings = { ...wantedLockfileSettings }
       ctx.wantedLockfile.overrides = overridesMap
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
@@ -1532,6 +1535,7 @@ export async function mutateModules (
       pruneVirtualStore,
       rootProjectPreinstallRan,
       scriptsOpts,
+      staleOverrideTargets,
       updateLockfileMinorVersion: true,
       patchedDependencies: patchGroups,
       verifyLockfile,
@@ -2234,6 +2238,7 @@ type InstallFunction = (
     makePartialCurrentLockfile: boolean
     needsFullResolution: boolean
     overrides?: Record<string, string>
+    staleOverrideTargets?: ReadonlySet<string>
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
     pruneVirtualStore: boolean
@@ -2326,7 +2331,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   // lands as a plain own key instead of invoking the prototype setter.
   const preferredVersions: PreferredVersions = Object.assign(
     Object.create(null),
-    getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, Object.values(ctx.projects).map(({ manifest }) => manifest), { dedupe: opts.dedupe })
+    getPreferredVersionsFromLockfileAndManifests(
+      omitPackagesNamed(ctx.wantedLockfile.packages, opts.staleOverrideTargets ?? new Set()),
+      Object.values(ctx.projects).map(({ manifest }) => manifest),
+      { dedupe: opts.dedupe }
+    )
   )
   for (const [pkgName, selectors] of Object.entries(opts.preferredVersions ?? {})) {
     preferredVersions[pkgName] = { ...preferredVersions[pkgName], ...selectors }
@@ -2399,6 +2408,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
       forceFullResolution,
+      staleOverrideTargets: opts.staleOverrideTargets,
       updateChecksums: opts.updateChecksums,
       ignoreScripts: opts.ignoreScripts,
       hooks: {

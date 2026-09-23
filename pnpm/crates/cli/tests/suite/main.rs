@@ -123,6 +123,7 @@ mod python;
 mod rebuild_recursive;
 mod relocated_install;
 mod remove;
+mod removed_overrides;
 mod repeat_install;
 mod repo;
 mod restart;

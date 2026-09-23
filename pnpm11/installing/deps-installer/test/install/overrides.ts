@@ -494,6 +494,51 @@ test('versions are replaced with versions specified through overrides option', a
   )
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/4587
+test('removing an override re-resolves the dependencies it pinned to a version the declared range still accepts', async () => {
+  const project = prepareEmpty()
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
+    ['@pnpm.e2e/pkg-with-1-dep@100.0.0', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'],
+    testDefaults({ overrides: { '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0' } })
+  )
+  expect(project.readLockfile().snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.1.0')
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ overrides: {} }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.overrides).toBeUndefined()
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
+  expect(lockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+})
+
+test('removing an override resolves the version it pinned as if the lockfile never held it', async () => {
+  const project = prepareEmpty()
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
+    ['@pnpm.e2e/pkg-with-1-dep@100.0.0'],
+    testDefaults({ overrides: { '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0' } })
+  )
+  expect(project.readLockfile().snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ overrides: {} }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.1.0')
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+})
+
 test('when adding a new dependency that is present in the overrides, use the spec from the override', async () => {
   prepareEmpty()
 

@@ -81,6 +81,20 @@ impl UpdateTargets {
         }
     }
 
+    /// Add every target of `other`, with [`Self::insert`]'s widening rule.
+    pub fn merge(&mut self, other: Self) {
+        for (name, lines) in other.0 {
+            match lines {
+                None => self.insert(name, None),
+                Some(lines) => {
+                    for line in lines {
+                        self.insert(name.clone(), Some(line));
+                    }
+                }
+            }
+        }
+    }
+
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
@@ -144,3 +158,6 @@ impl UpdateDepth {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
