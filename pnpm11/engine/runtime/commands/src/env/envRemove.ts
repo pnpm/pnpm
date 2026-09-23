@@ -12,20 +12,26 @@ function matchesNodeVersion (actualVersion: string, requestedVersion: string): b
   return actualVersion === requestedVersion || actualVersion.startsWith(`${requestedVersion}.`)
 }
 
-function manifestDeclaresNode (manifest: {
-  dependencies?: Record<string, string>
-  engines?: {
-    runtime?: string | { name?: string } | Array<string | { name?: string }>
-  }
-}): boolean {
-  if (manifest.dependencies?.node) return true
-  const runtime = manifest.engines?.runtime
-  if (typeof runtime === 'string') return runtime === 'node'
-  if (Array.isArray(runtime)) {
-    return runtime.some((entry) => (typeof entry === 'string' ? entry === 'node' : entry?.name === 'node'))
-  }
-  if (runtime && typeof runtime === 'object') {
-    return runtime.name === 'node'
+function isRecord (value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function manifestDeclaresNode (manifest: unknown): boolean {
+  if (!isRecord(manifest)) return false
+  if (isRecord(manifest.dependencies) && 'node' in manifest.dependencies) return true
+  if (isRecord(manifest.engines)) {
+    const runtime = manifest.engines.runtime
+    if (typeof runtime === 'string') return runtime === 'node'
+    if (Array.isArray(runtime)) {
+      return runtime.some((entry) => {
+        if (typeof entry === 'string') return entry === 'node'
+        if (isRecord(entry)) return entry.name === 'node'
+        return false
+      })
+    }
+    if (isRecord(runtime)) {
+      return runtime.name === 'node'
+    }
   }
   return false
 }
@@ -49,7 +55,7 @@ async function getGlobalNodeInstalledVersion (globalPkgDir?: string, pnpmHomeDir
         const linkPath = path.join(globalDir, entry.name)
         try {
           const installDir = await fs.promises.realpath(linkPath)
-          let groupPkg: Record<string, unknown>
+          let groupPkg: unknown
           try {
             groupPkg = JSON.parse(await fs.promises.readFile(path.join(installDir, 'package.json'), 'utf8'))
           } catch (err) {
