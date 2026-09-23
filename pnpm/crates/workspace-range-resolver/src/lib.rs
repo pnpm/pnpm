@@ -13,14 +13,25 @@ use node_semver::{Range, Version};
 /// prereleases are excluded unless the range itself carries a
 /// prerelease tag.
 ///
+/// Versions that are not valid semver, such as `1` or `1.0`, still match
+/// the sentinel tokens when no semver version is present, and match any
+/// other range only when it is identical to them.
+///
 /// Returns the matching raw version string (one of the entries in
 /// `versions`) or `None` when nothing satisfies.
 #[must_use]
 pub fn resolve_workspace_range(range: &str, versions: &[String]) -> Option<String> {
     if is_wildcard(range) {
-        return max_version_including_prerelease(versions);
+        return max_version_including_prerelease(versions)
+            .or_else(|| versions.iter().max().cloned());
     }
     max_satisfying(versions, range)
+        .or_else(|| {
+            versions
+                .iter()
+                .any(|version| version == range)
+                .then(|| range.to_string())
+        })
 }
 
 fn is_wildcard(range: &str) -> bool {
