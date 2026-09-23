@@ -77,7 +77,6 @@ fn every_ci_info_vendor_is_detected() {
     }
 }
 
-/// Each minimal environment that satisfies a `vendors.json` `env` entry.
 fn vendor_envs(spec: &Value) -> Vec<Vec<(String, String)>> {
     match spec {
         Value::String(name) => vec![vec![(name.clone(), "1".to_string())]],
