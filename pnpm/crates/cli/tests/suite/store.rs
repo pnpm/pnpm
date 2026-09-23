@@ -237,10 +237,7 @@ fn store_status_reports_a_package_edited_after_it_was_linked_out() {
     assert!(!output.status.success(), "store status must fail once a package is modified");
     assert!(stderr.contains("ERR_PNPM_MODIFIED_DEPENDENCY"), "stderr={stderr}");
     assert!(stderr.contains("is-odd@3.0.1"), "stderr={stderr}");
-    assert!(
-        !stderr.contains(r#"You can run "pnpm install --force" to refetch the modified packages"#),
-        "stderr={stderr}",
-    );
+    assert!(!stderr.contains("refetch"), "stderr={stderr}");
 }
 
 #[test]
