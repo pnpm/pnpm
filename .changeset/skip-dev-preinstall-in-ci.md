@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-Skip `pnpm:devPreinstall` lifecycle script when running in a CI environment.
+`pnpm install` no longer runs the `pnpm:devPreinstall` script in CI. Setting `ci` to `false` runs it again [#7350](https://github.com/pnpm/pnpm/issues/7350).

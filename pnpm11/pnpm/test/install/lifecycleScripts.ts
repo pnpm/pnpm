@@ -667,6 +667,31 @@ test('a recursive argumentless update runs the postinstall of every project', ()
 })
 
 /** A workspace whose root and `packages/*` members all stamp a file from `postinstall`, installed once with the stamps then cleared. */
+test('pnpm:devPreinstall runs on local install and is skipped when CI is defined', () => {
+  prepare({
+    scripts: {
+      'pnpm:devPreinstall': 'node -e "require(\'fs\').writeFileSync(\'ran-dev-preinstall.txt\',\'\')"',
+      preinstall: 'node -e "require(\'fs\').writeFileSync(\'ran-preinstall.txt\',\'\')"',
+    },
+  })
+
+  execPnpmSync(['install'], {
+    env: { CI: 'true' },
+    expectSuccess: true,
+  })
+  expect(fs.existsSync('ran-dev-preinstall.txt')).toBeFalsy()
+  expect(fs.existsSync('ran-preinstall.txt')).toBeTruthy()
+
+  fs.rmSync('ran-preinstall.txt', { force: true })
+
+  execPnpmSync(['install'], {
+    env: { CI: 'false' },
+    expectSuccess: true,
+  })
+  expect(fs.existsSync('ran-dev-preinstall.txt')).toBeTruthy()
+  expect(fs.existsSync('ran-preinstall.txt')).toBeTruthy()
+})
+
 function prepareInstalledWorkspace (members: string[]): void {
   preparePackages(members.map((name) => ({
     location: `packages/${name}`,
@@ -702,28 +727,3 @@ function clearPostinstallStamps (members: string[]): void {
     fs.rmSync(path.join(dir, 'ran-postinstall.txt'), { force: true })
   }
 }
-
-test('pnpm:devPreinstall runs on local install and is skipped when CI is defined', () => {
-  prepare({
-    scripts: {
-      'pnpm:devPreinstall': 'node -e "require(\'fs\').writeFileSync(\'ran-dev-preinstall.txt\',\'\')"',
-      preinstall: 'node -e "require(\'fs\').writeFileSync(\'ran-preinstall.txt\',\'\')"',
-    },
-  })
-
-  execPnpmSync(['install'], {
-    env: { CI: 'true' },
-    expectSuccess: true,
-  })
-  expect(fs.existsSync('ran-dev-preinstall.txt')).toBeFalsy()
-  expect(fs.existsSync('ran-preinstall.txt')).toBeTruthy()
-
-  fs.rmSync('ran-preinstall.txt', { force: true })
-
-  execPnpmSync(['install'], {
-    env: { CI: 'false' },
-    expectSuccess: true,
-  })
-  expect(fs.existsSync('ran-dev-preinstall.txt')).toBeTruthy()
-  expect(fs.existsSync('ran-preinstall.txt')).toBeTruthy()
-})
