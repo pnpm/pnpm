@@ -11,6 +11,7 @@ struct LocalDepContext<'a> {
     name: &'a str,
     rel_path: &'a str,
     dir: &'a Path,
+    lockfile_dir: &'a Path,
 }
 
 pub(crate) fn check_directory_dependencies_freshness(
@@ -110,6 +111,7 @@ fn check_single_dep_spec_directory_freshness(
             name: &dep_name_str,
             rel_path: &dir_res.directory,
             dir: &local_dep_dir,
+            lockfile_dir: check.lockfile_dir,
         };
         check_single_directory_dep_freshness(check, &dep, snapshot, pkg_meta)?;
     }
@@ -209,7 +211,7 @@ fn check_local_peer_deps_freshness(
                 .and_then(|n| deps.get(&n))
         });
         if let Some(lockfile_dep) = lockfile_dep
-            && !spec_satisfies_snapshot_dep(dep.dir, name, spec, lockfile_dep)
+            && !spec_satisfies_snapshot_dep(dep.lockfile_dir, name, spec, lockfile_dep)
         {
             return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
                 name: dep.name.to_string(),
@@ -289,7 +291,7 @@ fn check_manifest_specs_satisfy_snapshot(
                 path: dep.rel_path.to_string(),
             }));
         };
-        if !spec_satisfies_snapshot_dep(dep.dir, name, spec, lockfile_dep) {
+        if !spec_satisfies_snapshot_dep(dep.lockfile_dir, name, spec, lockfile_dep) {
             return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
                 name: dep.name.to_string(),
                 path: dep.rel_path.to_string(),

@@ -145,7 +145,16 @@ async function isLocalFileDepUpdated (
         const cleanLockfileDep = removeSuffix(lockfileDep)
         if (cleanLockfileDep.startsWith('link:') || cleanLockfileDep.startsWith('file:')) {
           const depPath = cleanLockfileDep.slice(5)
-          const targetDir = path.resolve(localDepDir, depPath)
+          if (path.isAbsolute(depPath)) {
+            return false
+          }
+          const targetDir = cleanLockfileDep.startsWith('link:')
+            ? path.resolve(lockfileDir, depPath)
+            : path.resolve(localDepDir, depPath)
+          const relToLockfile = path.relative(lockfileDir, targetDir)
+          if (relToLockfile.startsWith('..') || path.isAbsolute(relToLockfile)) {
+            return false
+          }
           const targetPkg = manifestsByDir?.[targetDir] ?? await safeReadPackageJsonFromDir(targetDir)
           const expectedName = getTargetPkgName(currentSpec, depName)
           if (!targetPkg || targetPkg.name !== expectedName) {
@@ -157,15 +166,42 @@ async function isLocalFileDepUpdated (
           }
           return true
         }
-        if (semver.valid(cleanLockfileDep) && !semver.satisfies(cleanLockfileDep, range, { loose: true })) {
+        const expectedName = getTargetPkgName(currentSpec, depName)
+        const actualName = getDepActualName(cleanLockfileDep, depName)
+        if (actualName !== expectedName) {
+          return false
+        }
+        const lockfileVersion = getDepVersion(cleanLockfileDep)
+        if (semver.valid(lockfileVersion) && !semver.satisfies(lockfileVersion, range, { loose: true })) {
           return false
         }
         return true
       }
       const cleanLockfileDep = removeSuffix(lockfileDeps[depName])
-      return semver.satisfies(cleanLockfileDep, getVersionRange(currentSpec), { loose: true })
+      const expectedName = getTargetPkgName(currentSpec, depName)
+      const actualName = getDepActualName(cleanLockfileDep, depName)
+      if (actualName !== expectedName) {
+        return false
+      }
+      const lockfileVersion = getDepVersion(cleanLockfileDep)
+      return semver.satisfies(lockfileVersion, getVersionRange(currentSpec), { loose: true })
     })
   })
+}
+
+function getDepActualName (lockfileDep: string, defaultName: string): string {
+  const atIndex = lockfileDep.lastIndexOf('@')
+  if (atIndex > 0) {
+    return lockfileDep.slice(0, atIndex)
+  }
+  return defaultName
+}
+
+function getDepVersion (lockfileDep: string): string {
+  const atIndex = lockfileDep.lastIndexOf('@')
+  const ver = atIndex > 0 ? lockfileDep.slice(atIndex + 1) : lockfileDep
+  const colonIndex = ver.indexOf(':')
+  return colonIndex >= 0 ? ver.slice(colonIndex + 1) : ver
 }
 
 function getTargetPkgName (spec: string, defaultName: string): string {
@@ -176,6 +212,13 @@ function getTargetPkgName (spec: string, defaultName: string): string {
     if (atIndex > 0) {
       return raw.slice(0, atIndex)
     }
+  } else if (spec.startsWith('npm:')) {
+    const raw = spec.slice(4)
+    const atIndex = raw.lastIndexOf('@')
+    if (atIndex > 0) {
+      return raw.slice(0, atIndex)
+    }
+    return raw
   }
   return defaultName
 }
