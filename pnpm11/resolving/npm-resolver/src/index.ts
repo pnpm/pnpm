@@ -690,6 +690,8 @@ async function resolveNpm (
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: false,
+          update: Boolean(opts.update),
+          updateRequested: Boolean(opts.updateRequested),
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
           calcSpecifier: opts.calcSpecifier,
           rangeSpecStyle: opts.rangeSpecStyle,
@@ -724,6 +726,7 @@ async function resolveNpm (
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
           update: false,
+          updateRequested: Boolean(opts.updateRequested),
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
           calcSpecifier: opts.calcSpecifier,
           rangeSpecStyle: opts.rangeSpecStyle,
@@ -751,6 +754,7 @@ async function resolveNpm (
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
           update: false,
+          updateRequested: Boolean(opts.updateRequested),
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
           calcSpecifier: opts.calcSpecifier,
           rangeSpecStyle: opts.rangeSpecStyle,
@@ -790,6 +794,8 @@ async function resolveNpm (
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
+          update: Boolean(opts.update),
+          updateRequested: Boolean(opts.updateRequested),
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
           calcSpecifier: opts.calcSpecifier,
           rangeSpecStyle: opts.rangeSpecStyle,
@@ -805,6 +811,8 @@ async function resolveNpm (
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
+          update: Boolean(opts.update),
+          updateRequested: Boolean(opts.updateRequested),
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
           calcSpecifier: opts.calcSpecifier,
           rangeSpecStyle: opts.rangeSpecStyle,
@@ -1295,7 +1303,11 @@ function calcSpecifierForWorkspaceDep ({
   if (parsedVersion == null ? isPartialVersion(version) : parsedVersion.prerelease.length) {
     return `${prefix}${version}`
   }
-  const rangeSpecStyle = (wantedDependency.prevSpecifier ? inferRangeSpecStyle(wantedDependency.prevSpecifier) : undefined) ?? defaultRangeSpecStyle
+  const prevRangeSpecStyle = wantedDependency.prevSpecifier ? inferRangeSpecStyle(wantedDependency.prevSpecifier) : undefined
+  const requestedRangeSpecStyle = wantedDependency.bareSpecifier ? inferRangeSpecStyle(wantedDependency.bareSpecifier) : undefined
+  const rangeSpecStyle = isUpdate
+    ? (prevRangeSpecStyle ?? requestedRangeSpecStyle ?? defaultRangeSpecStyle)
+    : (requestedRangeSpecStyle ?? prevRangeSpecStyle ?? defaultRangeSpecStyle)
   const range = versionWithRangeSpecStyle(version, rangeSpecStyle ?? 'major')
   return `${prefix}${range}`
 }

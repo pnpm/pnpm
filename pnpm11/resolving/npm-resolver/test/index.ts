@@ -3466,7 +3466,6 @@ test('resolve a tag from the registry when the workspace version is not valid se
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
-
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
@@ -3789,4 +3788,122 @@ test('peekManifestFromStore: bypassed when updateChecksums is true', async () =>
   getMockAgent().assertNoPendingInterceptors()
 })
 
+test('targeted explicit-version update preserves range operator for preferWorkspacePackages fallback', async () => {
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+  const workspacePackages = new Map([
+    ['is-positive', new Map([
+      ['1.0.0', {
+        rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+        manifest: {
+          name: 'is-positive',
+          version: '1.0.0',
+        },
+      }],
+    ])],
+  ])
 
+  const updateResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '1.0.0',
+    prevSpecifier: '^0.5.0',
+  }, {
+    calcSpecifier: true,
+    preferWorkspacePackages: true,
+    projectDir: '/home/istvan/src/foo',
+    update: 'compatible',
+    updateRequested: true,
+    workspacePackages,
+  })
+  expect(updateResult!.normalizedBareSpecifier).toBe('^1.0.0')
+
+  const addResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '1.0.0',
+    prevSpecifier: '^0.5.0',
+  }, {
+    calcSpecifier: true,
+    preferWorkspacePackages: true,
+    projectDir: '/home/istvan/src/foo',
+    workspacePackages,
+  })
+  expect(addResult!.normalizedBareSpecifier).toBe('1.0.0')
+})
+
+test('targeted explicit-version update preserves range operator for registry-matched workspace package', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+  const workspacePackages = new Map([
+    ['is-positive', new Map([
+      ['1.0.0', {
+        rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+        manifest: {
+          name: 'is-positive',
+          version: '1.0.0',
+        },
+      }],
+    ])],
+  ])
+
+  const updateResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '1.0.0',
+    prevSpecifier: '^0.5.0',
+  }, {
+    calcSpecifier: true,
+    projectDir: '/home/istvan/src/foo',
+    update: 'compatible',
+    updateRequested: true,
+    workspacePackages,
+  })
+  expect(updateResult!.normalizedBareSpecifier).toBe('^1.0.0')
+})
+
+test('targeted explicit-version update preserves range operator for registry-failure workspace fallback', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(404, {})
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+  const workspacePackages = new Map([
+    ['is-positive', new Map([
+      ['1.0.0', {
+        rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+        manifest: {
+          name: 'is-positive',
+          version: '1.0.0',
+        },
+      }],
+    ])],
+  ])
+
+  const updateResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '1.0.0',
+    prevSpecifier: '^0.5.0',
+  }, {
+    calcSpecifier: true,
+    projectDir: '/home/istvan/src/foo',
+    update: 'compatible',
+    updateRequested: true,
+    workspacePackages,
+  })
+  expect(updateResult!.normalizedBareSpecifier).toBe('^1.0.0')
+})

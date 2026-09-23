@@ -507,7 +507,6 @@ async fn calculated_specifier_keeps_the_operator_the_previous_specifier_declared
         .await
         .unwrap()
         .unwrap();
-    // An exact requested version is honored over the previous range operator (pnpm/pnpm#6040).
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("gh:2.1.0"));
 
     let wanted_latest = WantedDependency {
@@ -521,7 +520,6 @@ async fn calculated_specifier_keeps_the_operator_the_previous_specifier_declared
         .await
         .unwrap()
         .unwrap();
-    // A request without a range style (like latest) keeps the previous operator.
     assert_eq!(result_latest.normalized_bare_specifier.as_deref(), Some("gh:~2.1.0"));
 }
 

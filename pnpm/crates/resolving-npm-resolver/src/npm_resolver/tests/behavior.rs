@@ -39,7 +39,6 @@ async fn calculated_specifier_keeps_the_operator_the_previous_specifier_declared
         .await
         .unwrap()
         .unwrap();
-    // An exact requested version is honored over the previous range operator (pnpm/pnpm#6040).
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("1.1.0"));
 
     let wanted_latest = WantedDependency {
@@ -53,7 +52,6 @@ async fn calculated_specifier_keeps_the_operator_the_previous_specifier_declared
         .await
         .unwrap()
         .unwrap();
-    // A request without a range style (like latest) keeps the previous operator.
     assert_eq!(result_latest.normalized_bare_specifier.as_deref(), Some("~1.1.0"));
 }
 
@@ -124,7 +122,6 @@ async fn jsr_calculated_specifier_keeps_the_operator_the_previous_specifier_decl
         .await
         .unwrap()
         .unwrap();
-    // An exact requested version is honored over the previous range operator (pnpm/pnpm#6040).
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("jsr:1.1.0"));
 
     let wanted_latest = WantedDependency {
@@ -138,7 +135,6 @@ async fn jsr_calculated_specifier_keeps_the_operator_the_previous_specifier_decl
         .await
         .unwrap()
         .unwrap();
-    // A request without a range style (like latest) keeps the previous operator.
     assert_eq!(result_latest.normalized_bare_specifier.as_deref(), Some("jsr:~1.1.0"));
 }
 
