@@ -425,3 +425,185 @@ fn link_existing_dependency_writes_override_only() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn link_warns_about_peer_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    let target_dir = root.path().join("linked-with-peer-deps");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({
+            "name": "linked-with-peer-deps",
+            "version": "1.0.0",
+            "peerDependencies": {
+                "some-peer-dependency": "1.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write target package.json");
+
+    let output = pacquet
+        .with_args(["--reporter=ndjson", "link", "../linked-with-peer-deps"])
+        .output()
+        .expect("spawn pacquet link");
+    assert!(output.status.success(), "link should succeed: {output:?}");
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
+    let warn_events: Vec<serde_json::Value> = stderr
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|val| {
+            val.get("name").and_then(serde_json::Value::as_str) == Some("pnpm")
+                && val.get("level").and_then(serde_json::Value::as_str) == Some("warn")
+        })
+        .collect();
+
+    assert_eq!(
+        warn_events.len(),
+        1,
+        "expected exactly 1 warn event on pnpm channel, got:\n{stderr}",
+    );
+    let warn_event = &warn_events[0];
+    let message = warn_event
+        .get("message")
+        .and_then(serde_json::Value::as_str)
+        .expect("message string");
+    assert!(
+        message.contains("has the following peerDependencies specified in its package.json"),
+        "message must warn about peerDependencies:\n{message}",
+    );
+    assert!(
+        message.contains("The linked in dependency will not resolve the peer dependencies from the target node_modules."),
+        "message must explain the limitation:\n{message}",
+    );
+    assert!(
+        message.contains(r#"To resolve this, you may use the "file:" protocol to reference the local dependency."#),
+        "message must suggest file: protocol:\n{message}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn link_does_not_warn_when_peer_dependencies_empty() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    let target_dir = root.path().join("linked-with-empty-peer-deps");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({
+            "name": "linked-with-empty-peer-deps",
+            "version": "1.0.0",
+            "peerDependencies": {}
+        })
+        .to_string(),
+    )
+    .expect("write target package.json");
+
+    let output = pacquet
+        .with_arg("link")
+        .with_arg("../linked-with-empty-peer-deps")
+        .output()
+        .expect("spawn pacquet link");
+    assert!(output.status.success(), "link should succeed: {output:?}");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let combined = format!("{stdout}\n{stderr}");
+    assert!(
+        !combined.contains("has the following peerDependencies specified in its package.json"),
+        "output must not warn about empty peerDependencies:\n{combined}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[tokio::test]
+async fn link_sanitizes_control_characters_in_peer_deps_warning() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    let target_dir = root.path().join("linked-with-control-chars");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({
+            "name": "malicious-pkg",
+            "version": "1.0.0",
+            "peerDependencies": {
+                "react\x1b[0m\r\n": "^18.0.0\x1b[32m\r"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write target package.json");
+
+    let output = pacquet
+        .with_arg("link")
+        .with_arg("../linked-with-control-chars")
+        .output()
+        .expect("spawn pacquet link");
+    assert!(output.status.success(), "link should succeed: {output:?}");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let combined = format!("{stdout}\n{stderr}");
+
+    assert!(
+        combined.contains("The package malicious-pkg, which you have just pnpm linked"),
+        "sanitized package name must be in output:\n{combined}",
+    );
+    assert!(
+        combined.contains("react@^18.0.0"),
+        "sanitized peer dependency must be in output:\n{combined}",
+    );
+    assert!(
+        !combined.contains('\x1b'),
+        "output must not contain ANSI escape sequence:\n{combined}",
+    );
+    assert!(!combined.contains('\r'), "output must not contain carriage return:\n{combined}");
+
+    drop((root, mock_instance));
+}
