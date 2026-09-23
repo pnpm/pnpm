@@ -7,7 +7,7 @@
 //! pipeline runs this same command against a freshly published version before
 //! moving its dist-tags, so what gates a release is what ships to users.
 
-use crate::cli_args::ping::PingArgs;
+use crate::cli_args::{ping::PingArgs, shadowing_pnpm::find_shadowing_pnpm};
 use clap::Args;
 use pnpm_config::{Config, PNPM_VERSION};
 use serde::Serialize;
@@ -121,7 +121,7 @@ impl DoctorArgs {
     /// print alongside the outcome, leaving printing and the exit status to
     /// the caller.
     pub async fn run(&self, config: &Config) -> miette::Result<DoctorResult> {
-        let mut checks = vec![check_versions(), check_install_method()];
+        let mut checks = vec![check_versions(), check_install_method(config)];
         checks.push(check_global_bin_dir(config));
         checks.push(check_writable_dir("Cache directory", &config.cache_dir));
         checks.push(check_writable_dir("Store directory", config.store_dir.root()));
@@ -198,13 +198,30 @@ fn node_version() -> Option<String> {
     )
 }
 
-fn check_install_method() -> CheckResult {
+/// Report how the running pnpm is managed, and whether `pnpm` on `PATH` is
+/// the one `self-update` and `setup` install: a copy from another installer
+/// ahead of the global bin directory is why an update "does not take".
+fn check_install_method(config: &Config) -> CheckResult {
     let title = "Install method";
     if std::env::var_os("COREPACK_ROOT").is_some() {
         return CheckResult::warn(
             title,
             "pnpm, run by Corepack",
             r#"Corepack manages the pnpm version itself; "pnpm self-update" is unavailable under it."#,
+        );
+    }
+    if let Some(global_bin) = config.global_bin.as_deref()
+        && let Some(shadowing) =
+            find_shadowing_pnpm(global_bin, std::env::var_os("PATH").as_deref())
+    {
+        return CheckResult::warn(
+            title,
+            format!(
+                "\"pnpm\" on PATH is {}, not the pnpm in {}",
+                shadowing.executable.display(),
+                global_bin.display(),
+            ),
+            shadowing.warning(global_bin),
         );
     }
     CheckResult::pass(title, "pnpm")

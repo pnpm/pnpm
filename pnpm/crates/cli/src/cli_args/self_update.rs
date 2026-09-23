@@ -14,7 +14,10 @@ pub(crate) mod verify_engine;
 
 mod global_bin;
 
-use crate::config_deps::{self, EnginePolicyViolation};
+use crate::{
+    cli_args::shadowing_pnpm::find_shadowing_pnpm,
+    config_deps::{self, EnginePolicyViolation},
+};
 use clap::Args;
 use derive_more::{Display, Error};
 use global_bin::link_into_global_bin;
@@ -480,6 +483,7 @@ async fn switch_global_pnpm<Reporter: self::Reporter + 'static>(
     .await?;
 
     link_into_global_bin(config, &result, target_version)?;
+    warn_if_shadowed::<Reporter>(config.global_bin.as_deref(), prefix);
 
     if result.already_existed {
         return Ok(Some(format!(
@@ -488,6 +492,18 @@ async fn switch_global_pnpm<Reporter: self::Reporter + 'static>(
         )));
     }
     Ok(Some(format!("Successfully updated pnpm to v{target_version}")))
+}
+
+/// Say so when the pnpm just linked into `global_bin` is not the one `PATH`
+/// resolves, or "Successfully updated" is the last thing the person reads
+/// before `pnpm --version` prints the old version again.
+fn warn_if_shadowed<Reporter: self::Reporter>(global_bin: Option<&Path>, prefix: &str) {
+    if let Some(global_bin) = global_bin
+        && let Some(shadowing) =
+            find_shadowing_pnpm(global_bin, std::env::var_os("PATH").as_deref())
+    {
+        warn::<Reporter>(prefix, &shadowing.warning(global_bin));
+    }
 }
 
 mod project_pin;

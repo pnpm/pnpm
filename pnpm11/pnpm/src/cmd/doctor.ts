@@ -7,6 +7,7 @@ import util from 'node:util'
 import { getCurrentPackageName, isExecutedByCorepack, packageManager, resolvePnpmSelfCommand } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { types as allTypes } from '@pnpm/config.reader'
+import { findShadowingPnpm, renderShadowingPnpmWarning } from '@pnpm/engine.pm.commands'
 import chalk from 'chalk'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -97,7 +98,7 @@ export async function handler (opts: DoctorCommandOptions): Promise<{ output: st
 
   const checks: CheckResult[] = [
     checkVersions(),
-    checkInstallMethod(),
+    checkInstallMethod(opts),
     await checkGlobalBinDir(opts),
     await checkWritableDir('Cache directory', opts.cacheDir),
     ...(opts.storeDir ? [await checkWritableDir('Store directory', opts.storeDir)] : []),
@@ -122,7 +123,12 @@ function checkVersions (): CheckResult {
   }
 }
 
-function checkInstallMethod (): CheckResult {
+/**
+ * Report how the running pnpm is managed, and whether `pnpm` on PATH is the
+ * one `self-update` and `setup` install: a copy from another installer ahead
+ * of the global bin directory is why an update "does not take".
+ */
+function checkInstallMethod (opts: DoctorCommandOptions): CheckResult {
   const wrapper = getCurrentPackageName()
   if (isExecutedByCorepack()) {
     return {
@@ -130,6 +136,16 @@ function checkInstallMethod (): CheckResult {
       status: 'warn',
       detail: `${wrapper}, run by Corepack`,
       fix: 'Corepack manages the pnpm version itself; "pnpm self-update" is unavailable under it.',
+    }
+  }
+  const globalBin = opts.globalBinDir ?? path.join(opts.pnpmHomeDir, 'bin')
+  const shadowing = findShadowingPnpm(globalBin, readPathEnv(process.env))
+  if (shadowing != null) {
+    return {
+      title: 'Install method',
+      status: 'warn',
+      detail: `"pnpm" on PATH is ${shadowing.executable}, not the pnpm in ${globalBin}`,
+      fix: renderShadowingPnpmWarning(shadowing, globalBin),
     }
   }
   return { title: 'Install method', status: 'pass', detail: wrapper }

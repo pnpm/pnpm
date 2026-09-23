@@ -4106,6 +4106,9 @@ importers:
       symlink-dir:
         specifier: 'catalog:'
         version: 10.0.3
+      which:
+        specifier: 'catalog:'
+        version: '@pnpm/which@3.0.1'
       write-file-atomic:
         specifier: 'catalog:'
         version: 7.0.1
@@ -4137,6 +4140,9 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.8.0
+      '@types/which':
+        specifier: 'catalog:'
+        version: 3.0.4
       '@types/write-file-atomic':
         specifier: 'catalog:'
         version: 4.0.3

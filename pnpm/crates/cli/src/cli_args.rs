@@ -84,6 +84,7 @@ pub mod search;
 pub mod self_update;
 pub mod set_script;
 pub mod setup;
+pub(crate) mod shadowing_pnpm;
 pub mod shim;
 pub mod stage;
 pub mod star;
