@@ -550,7 +550,7 @@ fn injected_copy_gets_the_output_of_the_prepare_script_with_the_hoisted_linker()
         .with_arg("install")
         .assert()
         .success();
-    assert_injected_copy_is_built(&workspace, &workspace.join("node_modules/project-1"));
+    assert_injected_copy_is_built(&workspace, &workspace.join("project-2/node_modules/project-1"));
 
     drop((root, mock_instance));
 }
