@@ -377,6 +377,50 @@ test('does not write a cache record when verification rejects', async () => {
   }
 })
 
+const isA100 = (name: string, version: string): boolean => name === 'a' && version === '1.0.0'
+
+test('re-resolved entries skip the policy verifiers', async () => {
+  const lockfile = makeLockfile({
+    'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+    'b@1.0.0': { resolution: tarballResolution('sha512-b') },
+  })
+  const rejecting = wrap(async () => ({
+    ok: false,
+    code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+    reason: 'version not present in registry manifest',
+  }))
+
+  const error = await verifyLockfileResolutions(lockfile, [rejecting], { isReresolved: isA100 }).catch((err: unknown) => err)
+
+  expect(error).toMatchObject({ message: expect.stringContaining('b@1.0.0 version not present') })
+  expect(error).not.toMatchObject({ message: expect.stringContaining('a@1.0.0') })
+})
+
+test('does not write a cache record when re-resolved entries were skipped', async () => {
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-'))
+  try {
+    const cacheDir = path.join(tmpDir, 'cache')
+    const lockfilePath = path.join(tmpDir, 'pnpm-lock.yaml')
+    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
+    const lockfile = makeLockfile({
+      'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+    })
+    const rejecting = wrap(async () => ({
+      ok: false,
+      code: 'POLICY_X',
+      reason: 'failed',
+    }), exampleSlot(60))
+
+    await verifyLockfileResolutions(lockfile, [rejecting], { cacheDir, lockfilePath, isReresolved: isA100 })
+
+    await expect(
+      verifyLockfileResolutions(lockfile, [rejecting], { cacheDir, lockfilePath })
+    ).rejects.toThrow()
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
+})
+
 test('rejects a registry-style depPath backed by a git resolution, even with no verifiers', async () => {
   const lockfile = makeLockfile({
     'foo@1.0.0': { resolution: { type: 'git', repo: 'https://example.com/foo.git', commit: 'abc123' } },

@@ -1,8 +1,8 @@
 use super::{
     AlwaysFail, Arc, AtomicUsize, FailFor, FetchFails, LockfileResolution, LogEvent, Mutex,
-    Ordering, PkgName, Reporter, ResolutionVerification, ResolutionVerifier, SINGLE_PKG_LOCKFILE,
-    SilentReporter, TWO_PKG_LOCKFILE, TempDir, VerifyCtx, VerifyError, VerifyFuture,
-    VerifyLockfileResolutionsOptions, collect_resolution_policy_violations, parse,
+    Ordering, PkgName, Reporter, ReresolvedEntries, ResolutionVerification, ResolutionVerifier,
+    SINGLE_PKG_LOCKFILE, SilentReporter, TWO_PKG_LOCKFILE, TempDir, VerifyCtx, VerifyError,
+    VerifyFuture, VerifyLockfileResolutionsOptions, collect_resolution_policy_violations, parse,
     verify_lockfile_resolutions,
 };
 
@@ -445,4 +445,70 @@ snapshots:
     )
     .await
     .expect("valid scoped and unscoped aliases pass");
+}
+
+fn is_acme_1_0_0(name: &PkgName, version: &str) -> bool {
+    name.to_string() == "acme" && version == "1.0.0"
+}
+
+#[tokio::test]
+async fn reresolved_entries_skip_the_policy_verifiers() {
+    let lockfile = parse(TWO_PKG_LOCKFILE);
+    let verifier = FailFor::new(
+        "MINIMUM_RELEASE_AGE_VIOLATION",
+        "version not present in registry manifest",
+        vec!["acme", "bravo"],
+    );
+    let err = verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[verifier as Arc<dyn ResolutionVerifier>],
+        &VerifyLockfileResolutionsOptions {
+            reresolved: Some(ReresolvedEntries(&is_acme_1_0_0)),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect_err("the entry that is not re-resolved is still verified");
+    let VerifyError::MinimumReleaseAgeViolation { count, breakdown } = err else {
+        panic!("expected MinimumReleaseAgeViolation, got: {err:?}");
+    };
+    assert_eq!(count, 1);
+    assert!(breakdown.contains("bravo@2.0.0"), "got: {breakdown}");
+    assert!(!breakdown.contains("acme"), "got: {breakdown}");
+}
+
+#[tokio::test]
+async fn a_run_that_skips_reresolved_entries_is_not_cached() {
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile_path = dir.path().join("pnpm-lock.yaml");
+    std::fs::write(&lockfile_path, TWO_PKG_LOCKFILE).expect("write lockfile");
+    let lockfile = parse(TWO_PKG_LOCKFILE);
+    let cache_dir = dir.path().join("cache");
+    let verifier = FailFor::new("MINIMUM_RELEASE_AGE_VIOLATION", "n/a", vec!["acme"])
+        as Arc<dyn ResolutionVerifier>;
+
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        std::slice::from_ref(&verifier),
+        &VerifyLockfileResolutionsOptions {
+            lockfile_path: Some(&lockfile_path),
+            cache_dir: Some(&cache_dir),
+            reresolved: Some(ReresolvedEntries(&is_acme_1_0_0)),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("the only violating entry is re-resolved");
+
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        std::slice::from_ref(&verifier),
+        &VerifyLockfileResolutionsOptions {
+            lockfile_path: Some(&lockfile_path),
+            cache_dir: Some(&cache_dir),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect_err("a later run that reuses every entry verifies them again");
 }

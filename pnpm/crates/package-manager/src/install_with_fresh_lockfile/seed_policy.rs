@@ -1,5 +1,9 @@
+use pnpm_lockfile::{Lockfile, PkgName};
 use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets};
-use std::collections::BTreeMap;
+use std::{
+    collections::{BTreeMap, HashSet},
+    sync::Arc,
+};
 
 /// Which lockfile-pinned `(name, version)` pairs to *withhold* from the
 /// preferred-versions tie-break seed [`InstallWithFreshLockfile`](crate::InstallWithFreshLockfile) builds
@@ -103,6 +107,53 @@ impl UpdateSeedPolicy {
             | UpdateSeedPolicy::DropOnly { max_depth, .. }
             | UpdateSeedPolicy::ByImporter { max_depth, .. } => *max_depth,
         }
+    }
+
+    /// Matches the update targets whose pins every importer of `lockfile`
+    /// withholds at every depth, so none of their locked versions is
+    /// reused. `None` when a locked version of a target may survive: a
+    /// `--depth` limit, an importer outside `requested_importer_ids`, or an
+    /// importer that is not updating by package name.
+    pub(crate) fn reresolved_update_targets(
+        &self,
+        lockfile: &Lockfile,
+        requested_importer_ids: Option<&HashSet<String>>,
+    ) -> Option<crate::IsReresolved> {
+        if self.max_depth() != UpdateDepth::UNLIMITED {
+            return None;
+        }
+        if let Some(requested_importer_ids) = requested_importer_ids
+            && !lockfile.importers
+                .keys()
+                .all(|id| requested_importer_ids.contains(id))
+        {
+            return None;
+        }
+        let targets = match self {
+            UpdateSeedPolicy::DropOnly { targets, .. } => vec![targets.clone()],
+            UpdateSeedPolicy::ByImporter { policies, .. } => lockfile.importers
+                .keys()
+                .map(|importer_id| match policies.get(importer_id) {
+                    Some(ImporterUpdateSeedPolicy::DropOnly(targets)) => Some(targets.clone()),
+                    Some(ImporterUpdateSeedPolicy::DropAll) | None => None,
+                })
+                .collect::<Option<Vec<_>>>()?,
+            UpdateSeedPolicy::KeepAll
+            | UpdateSeedPolicy::KeepAllResolveAll
+            | UpdateSeedPolicy::FixLockfile
+            | UpdateSeedPolicy::RefreshRevisions
+            | UpdateSeedPolicy::DropAll { .. } => return None,
+        };
+        if targets.is_empty() {
+            return None;
+        }
+        Some(Arc::new(move |name: &PkgName, version: &str| {
+            let Ok(version) = node_semver::Version::parse(version) else { return false };
+            let name = name.to_string();
+            targets
+                .iter()
+                .all(|targets| targets.covers(&name, Some(&version)))
+        }))
     }
 }
 #[derive(Debug, Clone)]

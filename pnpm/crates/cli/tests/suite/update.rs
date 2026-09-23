@@ -827,6 +827,70 @@ fn update_no_save_is_refused_when_a_pick_is_immature() {
     drop((root, anchor));
 }
 
+const UNSERVED_DEP_VERSION: &str = "100.9.9";
+
+/// Rewrite the lockfile to pin [`DEP`] at a version the registry does not
+/// serve, the state an unpublished version leaves behind.
+fn lock_unserved_version_of_dep(workspace: &Path) {
+    let locked = lockfile_package_keys(workspace)
+        .into_iter()
+        .find_map(|key| {
+            key.strip_prefix(&format!("{DEP}@"))
+                .map(str::to_string)
+        })
+        .expect("the lockfile pins the dependency");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    fs::write(&lockfile_path, lockfile.replace(&locked, UNSERVED_DEP_VERSION))
+        .expect("write pnpm-lock.yaml");
+}
+
+/// Covers <https://github.com/pnpm/pnpm/issues/9953>: `update <pkg>` moves
+/// a dependency off a locked version the registry no longer serves. The
+/// lockfile verification gate skips the version the update replaces.
+#[test]
+fn update_moves_a_dependency_off_a_locked_version_the_registry_no_longer_serves() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    lock_unserved_version_of_dep(&workspace);
+    set_minimum_release_age(&workspace, 1);
+
+    pacquet(&workspace, ["update", DEP]).assert().success();
+
+    let packages = lockfile_package_keys(&workspace);
+    assert!(!packages.contains(&format!("{DEP}@{UNSERVED_DEP_VERSION}")), "{packages:?}");
+    assert!(
+        packages
+            .iter()
+            .any(|key| key.starts_with(&format!("{DEP}@"))),
+        "{packages:?}"
+    );
+
+    drop((root, anchor));
+}
+
+/// `update --depth 0` does not replace every locked version of its target,
+/// so the lockfile verification gate still checks them.
+#[test]
+fn update_with_depth_limit_verifies_the_locked_versions_of_its_targets() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    lock_unserved_version_of_dep(&workspace);
+    set_minimum_release_age(&workspace, 1);
+
+    let output = pacquet(&workspace, ["update", "--depth", "0", DEP]).assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
+
+    assert!(stderr.contains("ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION"), "{stderr}");
+    assert!(stderr.contains(&format!("{DEP}@{UNSERVED_DEP_VERSION}")), "{stderr}");
+
+    drop((root, anchor));
+}
+
 /// An invalid `minimumReleaseAgeExclude` must not preempt command
 /// validation: `update <name>@<spec> --latest` still fails with the
 /// versioned-selector rejection, matching the TypeScript CLI, which

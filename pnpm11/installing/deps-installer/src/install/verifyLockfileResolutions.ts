@@ -76,6 +76,15 @@ export interface VerifyLockfileResolutionsOptions {
   cacheDir?: string
   /** Absolute path of the lockfile being verified. Used by the cache's stat shortcut. */
   lockfilePath?: string
+  /**
+   * Entries the install re-resolves instead of reusing, such as the
+   * targets of `pnpm update <pkg>`. The resolver applies the policies to
+   * whatever it picks for them, so the verifiers skip their locked
+   * versions, which may no longer be served by the registry. The offline
+   * shape and alias checks still cover them. A run that skips an entry
+   * does not record the lockfile as verified.
+   */
+  isReresolved?: (name: string, version: string) => boolean
 }
 
 /**
@@ -116,7 +125,7 @@ export async function verifyLockfileResolutions (
   // cache directory and the lockfile's absolute path — that's the
   // production wiring; unit tests that skip them get the gate without
   // memoization and still exercise the same code path.
-  const cache = options?.cacheDir && options?.lockfilePath
+  let cache = options?.cacheDir && options?.lockfilePath
     ? { cacheDir: options.cacheDir, lockfilePath: options.lockfilePath }
     : undefined
 
@@ -175,6 +184,14 @@ export async function verifyLockfileResolutions (
     throw buildVerificationError(shapeViolations)
   }
   if (verifiers.length === 0) return
+  if (options?.isReresolved != null) {
+    for (const [key, { name, version }] of candidates) {
+      if (options.isReresolved(name, version)) {
+        candidates.delete(key)
+        cache = undefined
+      }
+    }
+  }
   if (candidates.size === 0) {
     if (cache) {
       recordVerification(cache.cacheDir, {

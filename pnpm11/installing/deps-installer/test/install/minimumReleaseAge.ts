@@ -3,6 +3,7 @@ import { addDependenciesToPackage, install } from '@pnpm/installing.deps-install
 import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { bravoDepMatureUpTo101MinimumReleaseAge } from '@pnpm/testing.registry-mock'
+import type { DepPath, ProjectManifest } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
 
@@ -164,6 +165,60 @@ test('pnpm update --latest updates to the newest mature version instead of the i
   const lockfile = project.readLockfile()
   expect(lockfile.snapshots).toHaveProperty(['@pnpm.e2e/bravo-dep@1.0.1'])
   expect(lockfile.snapshots).not.toHaveProperty(['@pnpm.e2e/bravo-dep@1.1.0'])
+})
+
+const UNSERVED_VERSION = '100.9.9'
+
+async function lockUnservedVersionOfDepOfPkgWith1Dep (): Promise<ProjectManifest> {
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults())
+  const lockfile = (await readWantedLockfile('.', { ignoreIncompatible: false }))!
+  const depName = '@pnpm.e2e/dep-of-pkg-with-1-dep'
+  const lockedDepPath = Object.keys(lockfile.packages!).find((depPath) => depPath.startsWith(`${depName}@`))! as DepPath
+  lockfile.packages![`${depName}@${UNSERVED_VERSION}` as DepPath] = lockfile.packages![lockedDepPath]
+  delete lockfile.packages![lockedDepPath]
+  lockfile.packages!['@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath].dependencies![depName] = UNSERVED_VERSION
+  await writeWantedLockfile('.', lockfile)
+  return manifest
+}
+
+test('pnpm update <pkg> moves a dependency off a locked version the registry no longer serves', async () => {
+  const project = prepareEmpty()
+  const manifest = await lockUnservedVersionOfDepOfPkgWith1Dep()
+
+  await install(manifest, testDefaults({
+    depth: Infinity,
+    update: true,
+    updateMatching: (pkgName: string) => pkgName === '@pnpm.e2e/dep-of-pkg-with-1-dep',
+    minimumReleaseAge: 1,
+  }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.snapshots).not.toHaveProperty([`@pnpm.e2e/dep-of-pkg-with-1-dep@${UNSERVED_VERSION}`])
+})
+
+test('pnpm update <pkg> still verifies the locked versions of the packages it does not update', async () => {
+  prepareEmpty()
+  const manifest = await lockUnservedVersionOfDepOfPkgWith1Dep()
+
+  await expect(install(manifest, testDefaults({
+    depth: Infinity,
+    update: true,
+    updateMatching: (pkgName: string) => pkgName === 'is-positive',
+    minimumReleaseAge: 1,
+  }))).rejects.toThrow(`@pnpm.e2e/dep-of-pkg-with-1-dep@${UNSERVED_VERSION} could not be checked against minimumReleaseAge`)
+})
+
+test('pnpm update <pkg> --depth 0 still verifies the locked versions of the dependencies it cannot reach', async () => {
+  prepareEmpty()
+  const manifest = await lockUnservedVersionOfDepOfPkgWith1Dep()
+
+  await expect(install(manifest, testDefaults({
+    depth: 0,
+    update: true,
+    updateMatching: (pkgName: string) => pkgName === '@pnpm.e2e/dep-of-pkg-with-1-dep',
+    minimumReleaseAge: 1,
+  }))).rejects.toThrow(`@pnpm.e2e/dep-of-pkg-with-1-dep@${UNSERVED_VERSION} could not be checked against minimumReleaseAge`)
 })
 
 test('pnpm add without a version pins the newest version that satisfies minimumReleaseAge', async () => {

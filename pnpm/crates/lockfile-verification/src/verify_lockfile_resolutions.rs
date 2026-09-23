@@ -57,6 +57,25 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
     /// (under the same or stricter policy). Omitting either field
     /// disables the cache (every call rehashes + reruns the gate).
     pub cache_dir: Option<&'a Path>,
+    /// Entries the install re-resolves instead of reusing. See
+    /// [`ReresolvedEntries`].
+    pub reresolved: Option<ReresolvedEntries<'a>>,
+}
+
+/// Matches the lockfile entries, by name and version, that the install
+/// re-resolves instead of reusing, such as the targets of
+/// `pnpm update <pkg>`. The resolver applies the policies to whatever it
+/// picks for them, so the verifiers skip their locked versions, which the
+/// registry may no longer serve. The offline shape and alias checks still
+/// cover them. A run that skips an entry does not record the lockfile as
+/// verified.
+#[derive(Clone, Copy)]
+pub struct ReresolvedEntries<'a>(pub &'a (dyn Fn(&PkgName, &str) -> bool + Send + Sync));
+
+impl std::fmt::Debug for ReresolvedEntries<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ReresolvedEntries(..)")
+    }
 }
 
 /// Whether a recorded verification already covers `lockfile` as it sits
@@ -161,12 +180,20 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         CacheOutcome::Miss(precomputed) => precomputed,
     };
 
-    let (candidates, shape_violations) = collect_candidates(lockfile);
+    let (mut candidates, shape_violations) = collect_candidates(lockfile);
     if !shape_violations.is_empty() {
         return Err(build_verification_error(shape_violations));
     }
     if verifiers.is_empty() {
         return Ok(());
+    }
+    let mut cache_inputs = cache_inputs;
+    if let Some(ReresolvedEntries(is_reresolved)) = opts.reresolved {
+        let entries = candidates.len();
+        candidates.retain(|candidate| !is_reresolved(&candidate.name, &candidate.version));
+        if candidates.len() < entries {
+            cache_inputs = None;
+        }
     }
     if candidates.is_empty() {
         // Persist the success so the next install can stat-only the
