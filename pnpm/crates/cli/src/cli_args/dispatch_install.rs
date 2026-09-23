@@ -27,6 +27,7 @@ use super::{
     pipelines::{
         AddPipeline, DedupePipeline, DeployPipeline, InstallPipeline, PrunePipeline,
         RemovePipeline, UpdatePipeline, apply_install_cli_config, derive_config_root,
+        warn_about_config_root,
     },
     prune::PruneArgs,
     rebuild::RebuildArgs,

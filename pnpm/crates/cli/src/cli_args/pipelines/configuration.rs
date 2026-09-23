@@ -4,7 +4,9 @@ use super::{
     warn_ignored_pnpm_manifest_fields, warn_unapplied_package_configs,
     warn_unmatched_registry_options,
 };
-use crate::cli_args::yarn_workspaces_field::create_workspace_yaml_from_yarn_workspaces;
+use crate::cli_args::yarn_workspaces_field::{
+    create_workspace_yaml_from_yarn_workspaces, warn_about_workspaces_field,
+};
 
 /// [`select_workspace_projects`](super::select_workspace_projects), optionally running the install's
 /// workspace-cycle search over the selection graph while it is still in
@@ -32,18 +34,44 @@ pub(crate) fn derive_config_root(
     dir_ref: &Path,
     reporter: ReporterType,
 ) -> miette::Result<PathBuf> {
-    let config_root = cfg.root_project_manifest_dir(dir_ref).to_path_buf();
-    let root_manifest = read_manifest_json(&config_root.join("package.json"))
-        .wrap_err("read package manager policy")?;
+    let (config_root, root_manifest) = read_config_root_manifest(cfg, dir_ref)?;
     // pnpm warns from config-reading, so the notice lands ahead of any
     // install output. This is the install family's earliest point that
     // knows the root manifest's directory.
     warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
     create_workspace_yaml_from_yarn_workspaces(cfg, dir_ref, root_manifest.as_ref())?;
+    warn_about_config_settings(cfg, reporter);
+    Ok(config_root)
+}
+
+/// The config warnings of [`derive_config_root`] for a command that writes
+/// a lockfile but never creates `pnpm-workspace.yaml`, such as `import`.
+pub(crate) fn warn_about_config_root(
+    cfg: &Config,
+    dir_ref: &Path,
+    reporter: ReporterType,
+) -> miette::Result<()> {
+    let (_, root_manifest) = read_config_root_manifest(cfg, dir_ref)?;
+    warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
+    warn_about_workspaces_field(cfg, root_manifest.as_ref());
+    warn_about_config_settings(cfg, reporter);
+    Ok(())
+}
+
+fn read_config_root_manifest(
+    cfg: &Config,
+    dir_ref: &Path,
+) -> miette::Result<(PathBuf, Option<serde_json::Value>)> {
+    let config_root = cfg.root_project_manifest_dir(dir_ref).to_path_buf();
+    let root_manifest = read_manifest_json(&config_root.join("package.json"))
+        .wrap_err("read package manager policy")?;
+    Ok((config_root, root_manifest))
+}
+
+fn warn_about_config_settings(cfg: &Config, reporter: ReporterType) {
     warn_deprecated_override_version_references(cfg, reporter_emit(reporter));
     warn_unmatched_registry_options(cfg);
     warn_unapplied_package_configs(cfg);
-    Ok(config_root)
 }
 
 pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {

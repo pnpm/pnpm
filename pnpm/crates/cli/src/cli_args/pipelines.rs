@@ -1,4 +1,6 @@
-pub(crate) use configuration::{apply_install_cli_config, derive_config_root};
+pub(crate) use configuration::{
+    apply_install_cli_config, derive_config_root, warn_about_config_root,
+};
 pub(crate) use install::InstallPipeline;
 pub(crate) use maintenance::{DedupePipeline, PrunePipeline};
 pub(crate) use mutation::{AddPipeline, DeployPipeline, RemovePipeline, UpdatePipeline};
