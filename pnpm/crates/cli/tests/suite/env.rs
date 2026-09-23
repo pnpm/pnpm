@@ -31,6 +31,14 @@ fn run_env(args: &[&str]) -> EnvOutput {
     outcome
 }
 
+fn prepend_to_path(dir: &std::path::Path) -> std::ffi::OsString {
+    let mut paths = vec![dir.to_path_buf()];
+    if let Some(existing) = std::env::var_os("PATH") {
+        paths.extend(std::env::split_paths(&existing));
+    }
+    std::env::join_paths(paths).expect("join PATH")
+}
+
 #[test]
 fn a_bare_env_asks_for_a_subcommand() {
     let output = run_env(&["env"]);
@@ -85,12 +93,9 @@ fn remove_cleans_up_dangling_node_link() {
     assert!(bin_node.is_symlink());
     assert!(!bin_node.exists());
 
-    let existing_path = std::env::var("PATH").unwrap_or_default();
-    let path = format!("{}:{existing_path}", global_bin.display());
-
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_env("PATH", path)
+        .with_env("PATH", prepend_to_path(&global_bin))
         .with_args(["--global", "env", "rm", "18.12"])
         .output()
         .expect("run pacquet env rm");
@@ -111,12 +116,9 @@ fn remove_multiple_versions() {
     std::fs::create_dir_all(nodejs_dir.join("14.0.0")).unwrap();
     std::fs::create_dir_all(nodejs_dir.join("16.2.3")).unwrap();
 
-    let existing_path = std::env::var("PATH").unwrap_or_default();
-    let path = format!("{}:{existing_path}", global_bin.display());
-
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_env("PATH", path)
+        .with_env("PATH", prepend_to_path(&global_bin))
         .with_args(["--global", "env", "rm", "14.0.0", "16.2.3"])
         .output()
         .expect("run pacquet env rm");
@@ -137,12 +139,9 @@ fn remove_does_not_delete_prefix_unrelated_versions() {
     std::fs::create_dir_all(nodejs_dir.join("20.8.0")).unwrap();
     std::fs::create_dir_all(nodejs_dir.join("22.0.0")).unwrap();
 
-    let existing_path = std::env::var("PATH").unwrap_or_default();
-    let path = format!("{}:{existing_path}", global_bin.display());
-
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_env("PATH", path)
+        .with_env("PATH", prepend_to_path(&global_bin))
         .with_args(["--global", "env", "rm", "2"])
         .output()
         .expect("run pacquet env rm");
@@ -166,12 +165,9 @@ fn remove_cleans_up_windows_cmd_shims_without_symlink() {
     std::fs::write(&cmd_shim, r#"@"%~dp0\..\nodejs\18.12.0\node.exe" %*"#).unwrap();
     std::fs::write(&ps1_shim, r#"& "$PSScriptRoot\..\nodejs\18.12.0\node.exe" @args"#).unwrap();
 
-    let existing_path = std::env::var("PATH").unwrap_or_default();
-    let path = format!("{}:{existing_path}", global_bin.display());
-
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_env("PATH", path)
+        .with_env("PATH", prepend_to_path(&global_bin))
         .with_args(["--global", "env", "rm", "18.12.0"])
         .output()
         .expect("run pacquet env rm");
@@ -194,12 +190,9 @@ fn remove_preserves_windows_cmd_shims_targeting_longer_version() {
     let cmd_shim = global_bin.join("node.cmd");
     std::fs::write(&cmd_shim, r#"@"%~dp0\..\nodejs\18.10.0\node.exe" %*"#).unwrap();
 
-    let existing_path = std::env::var("PATH").unwrap_or_default();
-    let path = format!("{}:{existing_path}", global_bin.display());
-
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_env("PATH", path)
+        .with_env("PATH", prepend_to_path(&global_bin))
         .with_args(["--global", "env", "rm", "18.1.0"])
         .output()
         .expect("run pacquet env rm");
@@ -242,17 +235,11 @@ fn remove_with_custom_global_dir_removes_configured_global_node() {
         .unwrap(),
     )
     .unwrap();
-    #[cfg(unix)]
-    std::os::unix::fs::symlink(&install_dir, custom_pkg_dir.join("hash-node")).unwrap();
-    #[cfg(windows)]
-    std::os::windows::fs::symlink_dir(&install_dir, custom_pkg_dir.join("hash-node")).unwrap();
-
-    let existing_path = std::env::var("PATH").unwrap_or_default();
-    let path = format!("{}:{existing_path}", global_bin.display());
+    pnpm_fs::symlink_dir(&install_dir, &custom_pkg_dir.join("hash-node")).unwrap();
 
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_env("PATH", path)
+        .with_env("PATH", prepend_to_path(&global_bin))
         .with_args([
             "--global",
             &format!("--global-dir={}", custom_global_dir.display()),

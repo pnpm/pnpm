@@ -133,8 +133,6 @@ impl EnvArgs {
         Ok(EnvSubcommand::Remove { versions })
     }
 
-    /// Classify the subcommand, applying the checks pnpm runs before it
-    /// dispatches.
     pub fn subcommand<Reporter: self::Reporter>(
         self,
         config: &Config,
