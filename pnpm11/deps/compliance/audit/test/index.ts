@@ -215,12 +215,6 @@ describe('audit', () => {
   })
 
   test('lockfileToAuditRequest() excludes a package only present because it satisfied a prod dependency\'s optional peer via an excluded devDependency', () => {
-    // https://github.com/pnpm/pnpm/issues/13605 — hookform (a prod dependency)
-    // declares an optional peer on valibot; valibot is only otherwise present
-    // as a devDependency. Peer resolution mixes all dependency types, so the
-    // lockfile bakes valibot into hookform's snapshot regardless of --prod.
-    // A real --prod-only resolve would never have seen valibot to satisfy the
-    // peer with, so `pnpm audit --prod` must not report it at all.
     const lockfile = {
       importers: {
         ['.' as ProjectId]: {
@@ -252,12 +246,6 @@ describe('audit', () => {
   })
 
   test('buildAuditPathIndex() classifies a peer-satisfied-by-devDependency package as dev, not optional', () => {
-    // Same shape as the lockfileToAuditRequest test above. Path building never
-    // follows the peer-satisfaction edge either — a peer-satisfaction edge
-    // isn't a real install path any more than it's real reachability — so
-    // valibot's only path is its own devDependency root, and it must be
-    // dev: true, optional: false: it's a real devDependency, not something
-    // reachable only through an optional edge.
     const lockfile = {
       importers: {
         ['.' as ProjectId]: {
@@ -287,8 +275,6 @@ describe('audit', () => {
   })
 
   test('lockfileToAuditRequest() excludes a package only present because it satisfied a devDependency\'s optional peer via an excluded prod dependency (--dev mirror)', () => {
-    // dev-tool (a devDependency) declares an optional peer on helper-lib,
-    // which is otherwise only a prod dependency.
     const lockfile = {
       importers: {
         ['.' as ProjectId]: {
@@ -309,8 +295,6 @@ describe('audit', () => {
       },
     }
 
-    // helper-lib is a genuine prod dependency (independent of the peer edge),
-    // so it must still be reported under the default/full include.
     const full = lockfileToAuditRequest(lockfile, {})
     expect(full.request).toEqual({ 'dev-tool': ['1.0.0'], 'helper-lib': ['1.0.0'] })
 
@@ -322,8 +306,6 @@ describe('audit', () => {
   })
 
   test('lockfileToAuditRequest() excludes a package only present because it satisfied a required (non-optional) peer via an excluded devDependency', () => {
-    // A required-peer satisfaction edge lands in `dependencies`, so it is
-    // followed regardless of include.optionalDependencies.
     const lockfile = {
       importers: {
         ['.' as ProjectId]: {
@@ -351,12 +333,6 @@ describe('audit', () => {
   })
 
   test('lockfileToAuditRequest() excludes a package only present because it satisfied a devDependency\'s required peer via an excluded prod dependency (--dev mirror)', () => {
-    // Required-peer mirror of the --dev optional-peer test above. Unlike an
-    // optional-peer edge (which lives in optionalDependencies and was always
-    // gated by include.optionalDependencies), a required-peer edge lives in
-    // `dependencies`, which the walker followed unconditionally regardless of
-    // `include` — so, unlike the optional case, this scenario does exercise
-    // the fix under --dev.
     const lockfile = {
       importers: {
         ['.' as ProjectId]: {
@@ -376,8 +352,6 @@ describe('audit', () => {
       },
     }
 
-    // ui-lib is a genuine prod dependency (independent of the peer edge), so
-    // it must still be reported under the default/full include.
     const full = lockfileToAuditRequest(lockfile, {})
     expect(full.request).toEqual({ 'needs-ui-lib': ['1.0.0'], 'ui-lib': ['2.0.0'] })
 

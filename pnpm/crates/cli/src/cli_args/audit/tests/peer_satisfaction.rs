@@ -11,8 +11,6 @@ fn prod_only() -> Include {
     Include { dependencies: true, dev_dependencies: false, optional_dependencies: true }
 }
 
-/// `hookform` (prod) declares an optional peer on `valibot`, which is only
-/// otherwise present as a devDependency.
 fn optional_peer_satisfied_by_dev_dependency() -> Lockfile {
     parse_lockfile(
         "
@@ -67,8 +65,6 @@ fn lockfile_to_audit_request_excludes_optional_peer_satisfied_by_excluded_dev_de
     assert!(!prod_only.request.contains_key("valibot"));
 }
 
-/// A required-peer satisfaction edge lands in `dependencies` rather than
-/// `optionalDependencies`, so it is followed regardless of the optional flag.
 #[test]
 fn lockfile_to_audit_request_excludes_required_peer_satisfied_by_excluded_dev_dependency() {
     let lockfile = parse_lockfile(
@@ -234,8 +230,6 @@ snapshots:
     assert!(!dev_only.request.contains_key("helper-lib"));
 }
 
-/// `needs-peer-a` (prod) has a required peer on `peer-a` that no importer
-/// declares, so `autoInstallPeers` installed it.
 fn auto_installed_peer() -> Lockfile {
     parse_lockfile(
         "
