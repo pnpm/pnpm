@@ -1362,3 +1362,100 @@ test('deploy: preserves internal symlinks in deployed package', async () => {
   expect(fs.readFileSync('dist/symlink-dir/nested.txt', 'utf8')).toBe('nested content')
 })
 
+test.each([
+  { mode: 'native', forceLegacyDeploy: false },
+  { mode: 'legacy', forceLegacyDeploy: true },
+])('$mode deploy copies the package manager pin of the workspace root', async ({ forceLegacyDeploy }) => {
+  const rootProjectManifest = {
+    name: 'root',
+    version: '1.0.0',
+    private: true,
+    packageManager: 'pnpm@10.18.0',
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '^10.18.0', onFail: 'download' as const },
+    },
+  }
+  preparePackages([
+    {
+      location: '.',
+      package: rootProjectManifest,
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+      },
+      devEngines: {
+        runtime: { name: 'node', version: '*' },
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    rootProjectManifest,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler({ ...opts, dev: true, production: true })
+  await deploy.handler({ ...opts, dev: false, forceLegacyDeploy, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const deployedManifest = loadJsonFileSync<Record<string, unknown>>(path.resolve('deploy/package.json'))
+  expect(deployedManifest.packageManager).toBe('pnpm@10.18.0')
+  expect(deployedManifest.devEngines).toStrictEqual({
+    packageManager: { name: 'pnpm', version: '^10.18.0', onFail: 'download' },
+    runtime: { name: 'node', version: '*' },
+  })
+})
+
+test('deploy keeps the package manager pin of the deployed project', async () => {
+  const rootProjectManifest = {
+    name: 'root',
+    version: '1.0.0',
+    private: true,
+    packageManager: 'pnpm@10.18.0',
+  }
+  preparePackages([
+    {
+      location: '.',
+      package: rootProjectManifest,
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      devEngines: {
+        packageManager: { name: 'pnpm', version: '^11.0.0' },
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    rootProjectManifest,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler({ ...opts, dev: true, production: true })
+  await deploy.handler({ ...opts, dev: false, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const deployedManifest = loadJsonFileSync<Record<string, unknown>>(path.resolve('deploy/package.json'))
+  expect(deployedManifest.packageManager).toBeUndefined()
+  expect(deployedManifest.devEngines).toStrictEqual({
+    packageManager: { name: 'pnpm', version: '^11.0.0' },
+  })
+})

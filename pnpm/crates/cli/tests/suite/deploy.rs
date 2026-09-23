@@ -993,6 +993,8 @@ fn deploy_does_not_run_prepare_scripts() {
 
 mod legacy;
 
+mod package_manager;
+
 mod peers;
 
 mod target;

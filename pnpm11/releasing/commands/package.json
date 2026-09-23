@@ -69,6 +69,7 @@
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
     "@pnpm/workspace.projects-graph": "workspace:*",
     "@pnpm/workspace.projects-sorter": "workspace:*",

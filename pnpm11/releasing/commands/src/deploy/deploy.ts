@@ -21,6 +21,7 @@ import { writeYamlFile } from 'write-yaml-file'
 
 import { createDeployFiles } from './createDeployFiles.js'
 import { deployHook } from './deployHook.js'
+import { inheritPackageManager, writeInheritedPackageManager } from './inheritPackageManager.js'
 
 const FORCE_LEGACY_DEPLOY = 'force-legacy-deploy' satisfies keyof typeof configTypes
 
@@ -153,6 +154,7 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     }
   }
 
+  await writeInheritedPackageManager(deployDir, opts.rootProjectManifest)
   const deployedProject = opts.allProjects?.find(({ rootDir }) => rootDir === selectedProject.rootDir)
   if (deployedProject) {
     deployedProject.modulesDir = path.relative(selectedProject.rootDir, path.join(deployDir, 'node_modules'))
@@ -392,7 +394,7 @@ async function deployFromSharedLockfile (
     lockfile,
     lockfileDir,
     patchedDependencies: opts.patchedDependencies,
-    selectedProjectManifest: selectedProject.manifest,
+    selectedProjectManifest: inheritPackageManager(selectedProject.manifest, opts.rootProjectManifest),
     projectId,
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     rootProjectManifestDir,
