@@ -13,7 +13,9 @@ use super::{
     NPM_REGISTRY_RESOLVED_VIA, release_policy::detect_min_release_age_violation,
     workspace_pick::prefer_workspace_pick,
 };
-use crate::pick_package_from_meta::RegistryPackageSpec;
+use crate::pick_package_from_meta::{
+    RegistryPackageSpec, RegistryPackageSpecType, semver_range::semver_satisfies_loose,
+};
 
 pub(crate) async fn fast_path_pick(
     store_index: Option<&SharedReadonlyStoreIndex>,
@@ -113,6 +115,9 @@ fn build_peek_result(
     if name != spec.name || !matches_current_pkg(current_pkg, name, version) {
         return Ok(None);
     }
+    if !version_satisfies_spec(version, spec) {
+        return Ok(None);
+    }
     let (Ok(pkg_name), Ok(semver_ver)) = (PkgName::parse(name), Version::parse(version)) else {
         return Ok(None);
     };
@@ -146,4 +151,14 @@ fn matches_current_pkg(current_pkg: &CurrentPkg, name: &str, version: &str) -> b
     format!("{name}@{version}") == current_pkg.id.as_str()
         || (current_pkg.name.as_deref() == Some(name)
             && current_pkg.version.as_deref() == Some(version))
+}
+
+fn version_satisfies_spec(version: &str, spec: &RegistryPackageSpec) -> bool {
+    match spec.spec_type {
+        RegistryPackageSpecType::Range => {
+            spec.fetch_spec == "*" || semver_satisfies_loose(version, &spec.fetch_spec)
+        }
+        RegistryPackageSpecType::Version => version == spec.fetch_spec,
+        RegistryPackageSpecType::Tag => true,
+    }
 }
