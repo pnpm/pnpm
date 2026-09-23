@@ -1,5 +1,5 @@
 use super::{AuditLevel, ColorMode, EnvVar, NodeLinker, assert_eq};
-use crate::workspace_yaml::settings::{MAX_RESOLVABLE_PLACEHOLDERS, parse_settings};
+use crate::workspace_yaml::settings::parse_settings;
 use std::fmt::Write as _;
 
 struct Env;
@@ -154,20 +154,22 @@ userAgent: ${PNPM_TEST_HOST}
     assert_eq!(settings.cache_dir.as_deref(), Some("cache"));
 }
 
-/// The second read decides one placeholder per read of the document, so a
-/// file may not name as many as it likes.
+/// Placeholders the document reads without are decided in groups, so a file
+/// may carry any number of them — in comments here — without exhausting what
+/// the second read is allowed to do, and the one setting that needs its own
+/// still resolves.
 #[test]
-fn a_document_naming_more_placeholders_than_the_bound_reads_as_written() {
-    let padding = (0..MAX_RESOLVABLE_PLACEHOLDERS).fold(String::new(), |mut padding, index| {
+fn placeholders_the_document_reads_without_do_not_crowd_out_the_one_that_counts() {
+    let padding = (0..500).fold(String::new(), |mut padding, index| {
         let _ = writeln!(padding, "# ${{PNPM_TEST_UNSET:-pad{index}}}");
         padding
     });
 
-    let error =
+    let settings =
         parse_settings::<Env>(&format!("nodeLinker: ${{PNPM_TEST_UNSET:-isolated}}\n{padding}"))
-            .unwrap_err();
+            .unwrap();
 
-    assert!(error.to_string().contains("${PNPM_TEST_UNSET:-isolated}"), "unexpected: {error}");
+    assert_eq!(settings.node_linker, Some(NodeLinker::Isolated));
 }
 
 /// The second read must not turn a quoted scalar into the value it spells,
@@ -194,4 +196,31 @@ nodeVersion: 20.10
     .unwrap();
 
     assert_eq!(settings.node_version.as_deref(), Some("20.10"));
+}
+
+/// An unfinished `${` is text, not the opening of a placeholder, so it must
+/// not swallow the next one along with it.
+#[test]
+fn an_unfinished_placeholder_does_not_hide_the_next_one() {
+    let settings = parse_settings::<Env>(
+        "# example ${UNFINISHED
+ignoreScripts: ${PNPM_TEST_UNSET:-false}
+",
+    )
+    .unwrap();
+
+    assert_eq!(settings.ignore_scripts, Some(false));
+}
+
+/// The first read stops at the placeholder, which is not the problem, so the
+/// setting the file cannot mean is the one to name — wherever it sits.
+#[test]
+fn an_error_after_a_resolved_placeholder_names_the_setting_at_fault() {
+    let error =
+        parse_settings::<Env>("nodeLinker: ${PNPM_TEST_UNSET:-isolated}\nhoist: notabool\n")
+            .unwrap_err();
+
+    let message = error.to_string();
+    assert!(message.contains("notabool"), "unexpected error: {message}");
+    assert!(message.contains("line 2"), "unexpected error: {message}");
 }

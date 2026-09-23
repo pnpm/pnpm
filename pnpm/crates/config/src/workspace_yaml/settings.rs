@@ -18,13 +18,15 @@ use super::{
 /// the token in a build log.
 const INVALID_EXPANSION: &str = "invalid environment-expanded value";
 
-/// How many placeholders a second read will work out the necessity of.
+/// How many times the second read may read the document.
 ///
-/// Deciding one costs a read of the document, and the file says how many
-/// there are, so without a bound a repository could set how long loading its
-/// own configuration takes. A file naming this many settings out of the
-/// environment is already far past what anyone writes by hand.
-pub(super) const MAX_RESOLVABLE_PLACEHOLDERS: usize = 32;
+/// Working out which placeholders are needed costs reads, and the file says
+/// how many placeholders there are, so without a bound a repository could set
+/// how long loading its own configuration takes. Placeholders are decided in
+/// groups, so this covers far more of them than it names: the ones a document
+/// reads without — in comments, and in every setting that takes free text —
+/// cost about one read per doubling of their number rather than one each.
+const MAX_DOCUMENT_READS: u32 = 64;
 
 /// Read the settings of a `pnpm-workspace.yaml` / `config.yaml`, resolving a
 /// setting written as `${VAR}` or `${VAR:-fallback}`.
@@ -47,44 +49,70 @@ pub(crate) fn parse_settings<Sys: EnvVar>(
         Err(error) => error,
     };
     let placeholders = resolvable_placeholders::<Sys>(text);
-    if placeholders.is_empty() || placeholders.len() > MAX_RESOLVABLE_PLACEHOLDERS {
+    if placeholders.is_empty() {
         return Err(Box::new(as_written));
     }
     let mut resolved = vec![true; placeholders.len()];
+    let mut reads = 1;
     if read_text(&resolve_placeholders(text, &placeholders, |index| resolved[index])).is_none() {
-        return Err(Box::new(classify(text, &placeholders, as_written)));
+        return Err(Box::new(classify(text, &placeholders)));
     }
     // Resolving a placeholder the document reads without would take a setting
     // out of the hands of the substitution that knows which layer the file
     // came from, so each one that turns out not to be needed is put back.
-    for index in 0..placeholders.len() {
-        resolved[index] = false;
-        if read_text(&resolve_placeholders(text, &placeholders, |index| resolved[index])).is_none()
-        {
-            resolved[index] = true;
-        }
+    if !decide(text, &placeholders, &mut resolved, 0..placeholders.len(), &mut reads) {
+        return Err(Box::new(as_written));
     }
     read_text(&resolve_placeholders(text, &placeholders, |index| resolved[index]))
         .ok_or_else(|| Box::new(as_written))
 }
 
+/// Work out which of `group` the document cannot be read without, leaving
+/// `resolved` false for the rest, and report whether it stayed inside
+/// [`MAX_DOCUMENT_READS`].
+///
+/// Resolving one placeholder says nothing about whether another is needed, so
+/// a group put back all at once answers for every placeholder in it: the
+/// document reads when none of them was needed, and otherwise the group is
+/// halved.
+fn decide(
+    text: &str,
+    placeholders: &[Placeholder],
+    resolved: &mut [bool],
+    group: std::ops::Range<usize>,
+    reads: &mut u32,
+) -> bool {
+    if *reads >= MAX_DOCUMENT_READS {
+        return false;
+    }
+    *reads += 1;
+    resolved[group.clone()].fill(false);
+    if read_text(&resolve_placeholders(text, placeholders, |index| resolved[index])).is_some() {
+        return true;
+    }
+    resolved[group.clone()].fill(true);
+    if group.len() == 1 {
+        return true;
+    }
+    let middle = group.start + group.len() / 2;
+    decide(text, placeholders, resolved, group.start..middle, reads)
+        && decide(text, placeholders, resolved, middle..group.end, reads)
+}
+
 /// The error a document that will not read even with its placeholders
 /// resolved reports.
 ///
-/// The document read without them answers which it is: it reads when a
+/// The document read without them answers which it is. It reads when a
 /// placeholder is what the reader stumbled over, and the message must not
 /// repeat what one resolved to. Otherwise the file says something it cannot
-/// mean on its own, and the first error is the one to report: it carries the
-/// line.
-fn classify(
-    text: &str,
-    placeholders: &[Placeholder],
-    as_written: serde_saphyr::Error,
-) -> serde_saphyr::Error {
-    if read_text(&drop_placeholders(text, placeholders)).is_some() {
-        return serde::de::Error::custom(INVALID_EXPANSION);
+/// mean on its own, and that read is the one that says what: the first read
+/// stops at the placeholder, which is not the problem and whose line would
+/// send a reader to the wrong setting.
+fn classify(text: &str, placeholders: &[Placeholder]) -> serde_saphyr::Error {
+    match serde_saphyr::from_str::<WorkspaceSettings>(&drop_placeholders(text, placeholders)) {
+        Ok(_) => serde::de::Error::custom(INVALID_EXPANSION),
+        Err(dropped) => dropped,
     }
-    as_written
 }
 
 fn read_text(text: &str) -> Option<WorkspaceSettings> {

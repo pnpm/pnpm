@@ -1,4 +1,4 @@
-use super::{BTreeMap, EnvVar, IndexMap, RegistryEntry, env_replace_lossy};
+use super::{BTreeMap, EnvVar, IndexMap, RegistryEntry, env_replace_lossy, placeholder_ranges};
 
 /// Flatten a `noProxy` yaml scalar into the raw string form the `.npmrc`
 /// spelling of the key would carry. `true` becomes the literal token the
@@ -84,26 +84,6 @@ pub(super) fn drop_placeholders(text: &str, placeholders: &[Placeholder]) -> Str
         })
         .collect();
     resolve_placeholders(text, &dropped, |_| true)
-}
-
-/// Every `${...}` of `text`, skipping the ones a backslash escapes, as
-/// [`env_replace_lossy`] reads them.
-fn placeholder_ranges(text: &str) -> Vec<std::ops::Range<usize>> {
-    let mut ranges = Vec::new();
-    let mut searched = 0;
-    while let Some(found) = text[searched..].find("${") {
-        let open = searched + found;
-        if open > 0 && text.as_bytes()[open - 1] == b'\\' {
-            searched = open + 2;
-            continue;
-        }
-        let Some(close) = text[open + 2..].find('}') else { break };
-        searched = open + 2 + close + 1;
-        if close > 0 {
-            ranges.push(open..searched);
-        }
-    }
-    ranges
 }
 
 fn is_bare_token(value: &str) -> bool {

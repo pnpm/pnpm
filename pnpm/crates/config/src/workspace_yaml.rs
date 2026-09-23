@@ -30,7 +30,7 @@ use indexmap::IndexMap;
 use miette::Diagnostic;
 use package_configs::PackageConfigsSetting;
 use pipe_trait::Pipe;
-use pnpm_env_replace::{SystemEnv, env_replace_lossy};
+use pnpm_env_replace::{SystemEnv, env_replace_lossy, placeholder_ranges};
 use pnpm_network::redact_and_sanitize;
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_store_dir::StoreDir;
