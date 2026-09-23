@@ -55,10 +55,15 @@ const UNREACHABLE_URL: &str = "http://0.0.0.0:1/unreachable.tgz";
 /// retry. One-second bounds are plenty for loopback and keep the
 /// failure mode deterministic.
 fn fast_fail_client() -> ThrottledClient {
+    fast_fail_client_with_connect_timeout(Duration::from_secs(1))
+}
+
+/// [`fast_fail_client`] with a connect bound of the caller's choosing.
+fn fast_fail_client_with_connect_timeout(connect_timeout: Duration) -> ThrottledClient {
     let build = |redirect| {
         reqwest::Client::builder()
             .no_proxy()
-            .connect_timeout(std::time::Duration::from_secs(1))
+            .connect_timeout(connect_timeout)
             .timeout(std::time::Duration::from_secs(1))
             .redirect(redirect)
             .build()

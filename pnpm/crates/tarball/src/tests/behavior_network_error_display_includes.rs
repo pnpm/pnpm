@@ -3,8 +3,8 @@ use super::{
     FASTIFY_ERROR_TARBALL, HashMap, HttpStatusError, IngestTarballToStore, Integrity, MemCache,
     NetworkError, PackageFilesIndex, RetryOpts, SharedVerifiedFilesCache, SilentReporter,
     StoreIndex, StoreIndexWriter, TarballError, ThrottledClient, UNREACHABLE_URL,
-    VerifyChecksumError, assert_eq, fast_fail_client, fast_retry_opts,
-    fetch_and_extract_with_retry, gzipped_tar, integrity, is_transient_error,
+    VerifyChecksumError, assert_eq, fast_fail_client, fast_fail_client_with_connect_timeout,
+    fast_retry_opts, fetch_and_extract_with_retry, gzipped_tar, integrity, is_transient_error,
     seed_row_holding_another_package, store_index_cache_key, store_index_key, tempdir,
     tempdir_with_leaked_path, test_retry_opts,
 };
@@ -17,12 +17,13 @@ use super::{
 /// which is what triggered the original "what's actually failing?"
 /// debugging round on this branch.
 ///
-/// Uses `127.0.0.1:1` and [`fast_fail_client`]'s 1 s bounds. A
-/// firewalled runner may time out instead of refusing the connection.
+/// Uses `127.0.0.1:1`, which Linux and macOS refuse at once. Windows
+/// and a firewalled runner report no refusal within the 100 ms connect
+/// bound, so they take the timeout branch instead of waiting it out.
 #[tokio::test]
 async fn network_error_display_includes_reqwest_inner_chain() {
     let url = "http://127.0.0.1:1/ssl-package.tgz";
-    let client = fast_fail_client();
+    let client = fast_fail_client_with_connect_timeout(Duration::from_millis(100));
     let err = client
         .acquire()
         .await
