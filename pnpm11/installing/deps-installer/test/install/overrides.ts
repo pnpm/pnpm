@@ -794,6 +794,8 @@ test('overrides with leading or trailing whitespace on selectors are trimmed and
   }, options)
 
   const lockfile = project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
   expect(lockfile.overrides).toStrictEqual({
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
   })
