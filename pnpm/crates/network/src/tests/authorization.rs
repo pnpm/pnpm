@@ -210,6 +210,22 @@ fn for_installs_ignores_ca_entries_that_carry_no_certificate() {
 }
 
 #[test]
+fn unreadable_ca_does_not_disable_default_trust_anchors() {
+    // When `ca` contains only malformed or unresolvable entries,
+    // default trust anchors must not be discarded with `tls_certs_only(empty)`.
+    let client = ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig {
+            ca: vec!["not a pem certificate".to_string(), String::new()],
+            ..TlsConfig::default()
+        },
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    );
+    assert!(client.is_ok(), "client with unreadable CA should build with default trust roots");
+}
+
+#[test]
 fn node_extra_ca_certs_is_loaded_and_failures_are_non_fatal() {
     // `EnvGuard` serializes env-mutating tests process-wide and restores
     // the prior value on drop — including on panic — so a failing

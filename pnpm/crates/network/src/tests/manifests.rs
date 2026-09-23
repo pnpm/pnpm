@@ -98,7 +98,7 @@ fn platform_verifier_detects_unreachable_trustd_under_sandbox() {
 
     assert!(crate::certificates::is_platform_verifier_available());
 
-    let Ok(exe) = std::env::current_exe() else { return };
+    let exe = std::env::current_exe().expect("current test executable path");
     let output = std::process::Command::new("sandbox-exec")
         .args([
             "-p",
@@ -109,14 +109,13 @@ fn platform_verifier_detects_unreachable_trustd_under_sandbox() {
         .arg("tests::manifests::platform_verifier_detects_unreachable_trustd_under_sandbox")
         .arg("--nocapture")
         .env("PNPM_TEST_DENIED_TRUSTD", "1")
-        .output();
+        .output()
+        .expect("sandbox-exec execution must succeed");
 
-    if let Ok(output) = output {
-        assert!(
-            output.status.success(),
-            "sandbox test failed: stdout={}, stderr={}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr),
-        );
-    }
+    assert!(
+        output.status.success(),
+        "sandbox test failed: stdout={}, stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
 }

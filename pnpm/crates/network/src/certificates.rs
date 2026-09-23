@@ -173,13 +173,24 @@ pub(super) fn merge_tls(top: &TlsConfig, override_: &RegistryTls) -> TlsConfig {
 /// [`ForInstallsError`](crate::ForInstallsError), the way Node throws from
 /// `tls.createSecureContext`. Unreadable `ca` material is dropped
 /// instead — see [`parse_ca_bundle`].
+pub(super) struct AppliedTls {
+    pub(super) builder: reqwest::ClientBuilder,
+    pub(super) has_custom_ca: bool,
+}
+
+/// Apply [`TlsConfig`] onto a [`reqwest::ClientBuilder`]: register each
+/// CA, install the client identity, set `danger_accept_invalid_certs`
+/// when `strict_ssl: false`, and pin the outbound interface. Returns
+/// the modified builder and whether any valid custom CA roots were loaded.
 pub(super) fn apply_tls(
     mut builder: reqwest::ClientBuilder,
     tls: &TlsConfig,
-) -> Result<reqwest::ClientBuilder, TlsError> {
+) -> Result<AppliedTls, TlsError> {
+    let mut has_custom_ca = false;
     for pem in &tls.ca {
         for cert in parse_ca_bundle(pem.as_bytes()) {
             builder = builder.add_root_certificate(cert);
+            has_custom_ca = true;
         }
     }
     let cert = drop_blank(tls.cert.as_deref());
@@ -213,7 +224,7 @@ pub(super) fn apply_tls(
     if let Some(addr) = tls.local_address {
         builder = builder.local_address(addr);
     }
-    Ok(builder)
+    Ok(AppliedTls { builder, has_custom_ca })
 }
 
 /// `None` for a PEM slot that is empty or all whitespace.

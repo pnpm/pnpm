@@ -1,8 +1,8 @@
 use super::{
-    Addrs, Arc, Client, DEFAULT_USER_AGENT, Duration, ForInstallsError, HeaderMap, HeaderValue,
-    LazyLock, Name, NetworkSettings, NoProxyMatcher, NonZeroUsize, Proxy, Resolve, Resolving,
-    Semaphore, TlsConfig, TrustRoots, USER_AGENT, apply_tls, bundled_root_certs, parse_proxy_url,
-    strip_userinfo,
+    Addrs, AppliedTls, Arc, Client, DEFAULT_USER_AGENT, Duration, ForInstallsError, HeaderMap,
+    HeaderValue, LazyLock, Name, NetworkSettings, NoProxyMatcher, NonZeroUsize, Proxy, Resolve,
+    Resolving, Semaphore, TlsConfig, TrustRoots, USER_AGENT, apply_tls, bundled_root_certs,
+    parse_proxy_url, strip_userinfo,
 };
 
 /// Shared builder with the install-time defaults
@@ -128,12 +128,12 @@ fn client_builder(
     for cert in &inputs.extra_ca_certs {
         builder = builder.add_root_certificate(cert.clone());
     }
-    builder = apply_tls(builder, effective_tls)?;
-    if !effective_tls.ca.is_empty() {
-        // An explicit `ca` / `cafile` defines the trusted CA set, matching Node's
-        // behavior where specifying a custom CA overrides the well-known/system CAs.
-        // Verifying with webpki directly also avoids relying on the platform verifier
-        // (such as macOS Security.framework / trustd).
+    let AppliedTls { mut builder, has_custom_ca } = apply_tls(builder, effective_tls)?;
+    if has_custom_ca {
+        // An explicit, readable `ca` / `cafile` defines the trusted CA set, matching
+        // Node's behavior where specifying a custom CA overrides the well-known/system
+        // CAs. Verifying with webpki directly also avoids relying on the platform
+        // verifier (such as macOS Security.framework / trustd).
         builder = builder.tls_certs_only(std::iter::empty());
     } else if cfg!(target_os = "android") || trust_roots == TrustRoots::Bundled {
         // Android's platform verifier requires a JVM, which the standalone CLI does not have.
