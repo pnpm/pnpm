@@ -153,12 +153,6 @@ function mockRegistryForUpdate (registry: string, version: string, metadata: obj
     .reply(200, tgzData)
 }
 
-/**
- * Put `version` in the global packages directory as the active install.
- * A project-pin test seeds the version it resolves so the run stops at the
- * "already up to date" branch instead of installing pnpm globally — the pin
- * is what those tests are about.
- */
 function seedGlobalPnpm (opts: ReturnType<typeof prepareOptions>, version: string): string {
   const installDir = path.join(opts.globalPkgDir, `pnpm-${version}`)
   const pkgDir = path.join(installDir, 'node_modules', 'pnpm')
