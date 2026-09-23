@@ -158,12 +158,12 @@ pub fn run_recursive(
         reporter,
         selection: &selection,
         workspace_root,
-        fallback_to_exec,
         script: RecursiveScript {
             emit,
             silent,
             script_name,
             all_packages_selected: graph.len() == projects.len(),
+            fallback_to_exec,
         },
     };
     run.run_and_report()
@@ -192,7 +192,6 @@ struct RecursiveRun<'a, 'project> {
     reporter: ReporterType,
     selection: &'a crate::cli_args::recursive::RecursiveSelection<'project>,
     workspace_root: &'a Path,
-    fallback_to_exec: bool,
     script: RecursiveScript<'a>,
 }
 
@@ -201,6 +200,9 @@ pub(crate) struct RecursiveScript<'a> {
     silent: bool,
     script_name: &'a str,
     all_packages_selected: bool,
+    /// Whether a name no selected project has a script for is handed to
+    /// `exec`, as the `pnpm <command>` shorthand does.
+    fallback_to_exec: bool,
 }
 
 /// What preparing a run leads to.
@@ -328,7 +330,10 @@ impl RecursiveRun<'_, '_> {
         // deliberate reference, like a call from another script.
         filter_hidden_requested_scripts(task_graph, self.script.script_name)?;
 
-        if self.fallback_to_exec && !self.args.if_present && !a_project_has_the_script(task_graph) {
+        if self.script.fallback_to_exec
+            && !self.args.if_present
+            && !a_project_has_the_script(task_graph)
+        {
             return Ok(false);
         }
         check_a_project_has_the_script(
