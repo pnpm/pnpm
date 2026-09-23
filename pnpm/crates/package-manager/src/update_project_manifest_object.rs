@@ -139,7 +139,10 @@ fn create_version_spec_from_resolved_version(
 ) -> Option<String> {
     let parsed = Version::parse(resolved_version).ok()?;
     if !parsed.pre_release.is_empty() {
-        return Some(resolved_version.to_string());
+        return match range_spec_style {
+            Some(style) => Some(format!("{}{resolved_version}", style.range_prefix())),
+            None => Some(resolved_version.to_string()),
+        };
     }
     let prefix = range_spec_style.unwrap_or(RangeSpecStyle::Major).range_prefix();
     Some(format!("{prefix}{resolved_version}"))

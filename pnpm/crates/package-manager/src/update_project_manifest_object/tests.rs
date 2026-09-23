@@ -111,13 +111,23 @@ fn peer_dependency_keeps_prerelease_resolved_version_without_prefix() {
     let (_dir, mut manifest) = manifest_from_json(&json!({}));
     apply(
         &mut manifest,
+        &[peer_spec("https://github.com/kevva/is-negative", Some("2.1.0-rc.1"), None)],
+    );
+    assert_eq!(manifest.value()["peerDependencies"], json!({ "foo": "2.1.0-rc.1" }));
+}
+
+#[test]
+fn peer_dependency_preserves_range_spec_style_for_prerelease() {
+    let (_dir, mut manifest) = manifest_from_json(&json!({}));
+    apply(
+        &mut manifest,
         &[peer_spec(
             "https://github.com/kevva/is-negative",
             Some("2.1.0-rc.1"),
             Some(RangeSpecStyle::Minor),
         )],
     );
-    assert_eq!(manifest.value()["peerDependencies"], json!({ "foo": "2.1.0-rc.1" }));
+    assert_eq!(manifest.value()["peerDependencies"], json!({ "foo": "~2.1.0-rc.1" }));
 }
 
 #[test]

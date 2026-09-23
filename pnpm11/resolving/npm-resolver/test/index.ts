@@ -2704,6 +2704,41 @@ test('workspace protocol: resolve from local package that has a pre-release vers
   expect(resolveResult!.manifest!.version).toBe('3.0.0-alpha.1.2.3')
 })
 
+test('workspace protocol: resolve preserves prerelease range operator from previous specifier', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: 'workspace:^3.0.0-alpha.1',
+    prevSpecifier: 'workspace:^3.0.0-alpha.1',
+  }, {
+    projectDir: '/home/istvan/src',
+    calcSpecifier: true,
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['3.0.0-alpha.2', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: {
+            name: 'is-positive',
+            version: '3.0.0-alpha.2',
+          },
+        }],
+      ])],
+    ]),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('workspace')
+  expect(resolveResult!.normalizedBareSpecifier).toBe('workspace:^3.0.0-alpha.2')
+})
+
 test("workspace protocol: don't resolve from local package that has a pre-release version that don't satisfy the range", async () => {
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })

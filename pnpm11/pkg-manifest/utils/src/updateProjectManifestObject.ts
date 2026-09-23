@@ -51,7 +51,9 @@ function getPeerSpecifier (spec: string, resolvedVersion?: string, rangeSpecStyl
 export function createVersionSpecFromResolvedVersion (resolvedVersion: string, rangeSpecStyle?: RangeSpecStyle): string | null {
   const parsed = semver.parse(resolvedVersion)
   if (!parsed) return null
-  if (parsed.prerelease.length) return resolvedVersion
+  if (parsed.prerelease.length) {
+    return rangeSpecStyle ? versionWithRangeSpecStyle(resolvedVersion, rangeSpecStyle) : resolvedVersion
+  }
 
   return versionWithRangeSpecStyle(resolvedVersion, rangeSpecStyle ?? 'major')
 }

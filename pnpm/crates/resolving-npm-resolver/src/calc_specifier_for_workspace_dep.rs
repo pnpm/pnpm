@@ -61,10 +61,14 @@ pub fn calc_specifier_for_workspace_dep(
         return rolling_specifier(&prefix, declared);
     };
 
-    // A prerelease is written exactly: a `^`/`~` range over it would not
-    // match the prerelease it was resolved from.
+    // A newly added prerelease is written exactly; an updated prerelease
+    // keeps the existing entry's range style.
     if is_prerelease(resolved_version) {
-        return format!("{prefix}{resolved_version}");
+        let pin = declared.prev.and_then(infer_range_spec_style);
+        return match pin {
+            Some(style) => format!("{prefix}{}{resolved_version}", style.range_prefix()),
+            None => format!("{prefix}{resolved_version}"),
+        };
     }
     let pin = declared.prev.and_then(infer_range_spec_style).unwrap_or(default_pin);
     format!("{prefix}{}{resolved_version}", pin.range_prefix())

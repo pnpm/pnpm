@@ -203,6 +203,8 @@ fn update_preserves_an_existing_prerelease_range_operator() {
         list_virtual_store(&workspace),
     );
     assert_eq!(dep_spec(&workspace, HAS_PRERELEASE).as_deref(), Some("^3.0.0-rc.1"));
+    pacquet(&workspace, ["update"]).assert().success();
+    assert_eq!(dep_spec(&workspace, HAS_PRERELEASE).as_deref(), Some("^3.0.0-rc.1"));
     pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
 
     drop((root, anchor));

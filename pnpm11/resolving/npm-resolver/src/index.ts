@@ -1233,7 +1233,8 @@ function calcSpecifierForWorkspaceDep ({
     return `${prefix}^`
   }
   if (semver.parse(version)?.prerelease.length) {
-    return `${prefix}${version}`
+    const prevRangeSpecStyle = wantedDependency.prevSpecifier ? inferRangeSpecStyle(wantedDependency.prevSpecifier) : undefined
+    return prevRangeSpecStyle ? `${prefix}${versionWithRangeSpecStyle(version, prevRangeSpecStyle)}` : `${prefix}${version}`
   }
   const rangeSpecStyle = (wantedDependency.prevSpecifier ? inferRangeSpecStyle(wantedDependency.prevSpecifier) : undefined) ?? defaultRangeSpecStyle
   const range = versionWithRangeSpecStyle(version, rangeSpecStyle ?? 'major')

@@ -134,6 +134,38 @@ fn pinned_writes_a_prerelease_exactly() {
     );
 }
 
+#[test]
+fn pinned_preserves_prerelease_range_operator_from_previous_specifier() {
+    assert_eq!(
+        calc_specifier_for_workspace_dep(
+            DeclaredSpecifiers {
+                prev: Some("workspace:^2.0.0-beta.0"),
+                bare: Some("workspace:^2.0.0-beta.0"),
+            },
+            Some("my-lib"),
+            "my-lib",
+            Some("2.0.0-beta.1"),
+            SaveWorkspaceProtocol::On,
+            RangeSpecStyle::Major,
+        ),
+        "workspace:^2.0.0-beta.1",
+    );
+    assert_eq!(
+        calc_specifier_for_workspace_dep(
+            DeclaredSpecifiers {
+                prev: Some("workspace:~2.0.0-beta.0"),
+                bare: Some("workspace:~2.0.0-beta.0"),
+            },
+            Some("my-lib"),
+            "my-lib",
+            Some("2.0.0-beta.1"),
+            SaveWorkspaceProtocol::On,
+            RangeSpecStyle::Minor,
+        ),
+        "workspace:~2.0.0-beta.1",
+    );
+}
+
 /// `Off` still renders a `workspace:` specifier — declining to use one
 /// at all is the caller's decision, not this function's.
 #[test]

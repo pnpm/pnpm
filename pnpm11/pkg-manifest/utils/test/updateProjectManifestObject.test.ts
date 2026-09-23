@@ -4,6 +4,9 @@ import { createVersionSpecFromResolvedVersion, filterDependenciesByType, guessDe
 test('createVersionSpecFromResolvedVersion() keeps the explicit equals operator of an exact pin', () => {
   expect(createVersionSpecFromResolvedVersion('3.5.2', 'exact')).toBe('=3.5.2')
   expect(createVersionSpecFromResolvedVersion('3.5.2', 'patch')).toBe('3.5.2')
+  expect(createVersionSpecFromResolvedVersion('1.0.0-beta.2', 'major')).toBe('^1.0.0-beta.2')
+  expect(createVersionSpecFromResolvedVersion('1.0.0-beta.2', 'minor')).toBe('~1.0.0-beta.2')
+  expect(createVersionSpecFromResolvedVersion('1.0.0-beta.2')).toBe('1.0.0-beta.2')
 })
 test('guessDependencyType()', () => {
   expect(
@@ -123,13 +126,12 @@ test('peer dependencies derive range from resolved version for jsr protocol', as
   })
 })
 
-test('peer dependencies keep prerelease resolved version without prefix', async () => {
+test('peer dependencies keep prerelease resolved version without prefix when no style is specified', async () => {
   const manifest = await updateProjectManifestObject('/project', {}, [
     {
       alias: 'foo',
       bareSpecifier: 'https://github.com/kevva/is-negative',
       resolvedVersion: '2.1.0-rc.1',
-      rangeSpecStyle: 'minor',
       peer: true,
       saveType: 'devDependencies',
     },
@@ -140,6 +142,38 @@ test('peer dependencies keep prerelease resolved version without prefix', async 
   })
   expect(manifest.peerDependencies).toStrictEqual({
     foo: '2.1.0-rc.1',
+  })
+})
+
+test('peer dependencies preserve range operator for prerelease resolved version', async () => {
+  const manifest = await updateProjectManifestObject('/project', {}, [
+    {
+      alias: 'foo',
+      bareSpecifier: 'https://github.com/kevva/is-negative',
+      resolvedVersion: '2.1.0-rc.1',
+      rangeSpecStyle: 'minor',
+      peer: true,
+      saveType: 'devDependencies',
+    },
+    {
+      alias: 'bar',
+      bareSpecifier: 'npm:bar@^1.0.0-beta.2',
+      resolvedVersion: '1.0.0-beta.2',
+      rangeSpecStyle: 'major',
+      peer: true,
+      saveType: 'dependencies',
+    },
+  ])
+
+  expect(manifest.devDependencies).toStrictEqual({
+    foo: 'https://github.com/kevva/is-negative',
+  })
+  expect(manifest.dependencies).toStrictEqual({
+    bar: 'npm:bar@^1.0.0-beta.2',
+  })
+  expect(manifest.peerDependencies).toStrictEqual({
+    foo: '~2.1.0-rc.1',
+    bar: 'npm:bar@^1.0.0-beta.2',
   })
 })
 
