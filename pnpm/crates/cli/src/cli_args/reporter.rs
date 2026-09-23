@@ -46,6 +46,39 @@ impl From<pnpm_config::ReporterType> for ReporterType {
     }
 }
 
+/// The `--reporter` and `--loglevel` flags as given on the command line,
+/// before the configuration they take precedence over is loaded.
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct ReporterFlags {
+    pub(crate) reporter: Option<ReporterType>,
+    pub(crate) loglevel: Option<LogLevelSetting>,
+}
+
+impl ReporterFlags {
+    /// The reporter the command should drive: `--loglevel silent` or configured
+    /// `loglevel: silent` forces the silent reporter over any `--reporter` choice.
+    /// Otherwise `--reporter` wins over the configured `reporter` setting,
+    /// mirroring the reporter selection in pnpm 11's `main.ts`.
+    pub(crate) fn resolve(
+        self,
+        config_loglevel: Option<pnpm_config::LogLevel>,
+        config_reporter: Option<pnpm_config::ReporterType>,
+    ) -> ReporterType {
+        if self.loglevel.or_else(|| config_loglevel.map(Into::into))
+            == Some(LogLevelSetting::Silent)
+        {
+            return ReporterType::Silent;
+        }
+        self.reporter
+            .or_else(|| config_reporter.map(Into::into))
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn resolve_with(self, config: &pnpm_config::Config) -> ReporterType {
+        self.resolve(config.loglevel, config.reporter)
+    }
+}
+
 /// Accepted values of pnpm's universal `--loglevel` option.
 ///
 /// `silent` selects the silent reporter outright (see

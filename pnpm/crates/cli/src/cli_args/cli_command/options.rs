@@ -1,8 +1,8 @@
 use super::{
-    CliArgs, CliCommand, CommandFactory, Diagnostic, Display, Error, ErrorKind, LogLevelSetting,
-    Pipe, ReporterType,
+    CliArgs, CliCommand, CommandFactory, Diagnostic, Display, Error, ErrorKind, Pipe, ReporterType,
 };
 
+use crate::cli_args::reporter::ReporterFlags;
 use std::path::{Path, PathBuf};
 
 /// Error type of [`CliArgs::apply_workspace_root`].
@@ -21,10 +21,14 @@ pub enum WorkspaceRootError {
 }
 
 impl CliArgs {
-    /// The reporter the command should drive: `--loglevel silent` or configured
-    /// `loglevel: silent` forces the silent reporter over any `--reporter` choice.
-    /// Otherwise `--reporter` wins over the configured `reporter` setting,
-    /// mirroring the reporter selection in pnpm 11's `main.ts`.
+    pub(crate) fn reporter_flags(&self) -> ReporterFlags {
+        ReporterFlags {
+            reporter: self.output.presentation.reporter,
+            loglevel: self.output.presentation.loglevel,
+        }
+    }
+
+    /// [`ReporterFlags::resolve`] before any configuration is loaded.
     pub(crate) fn effective_reporter(&self) -> ReporterType {
         self.effective_reporter_with_config(None, None)
     }
@@ -34,14 +38,7 @@ impl CliArgs {
         config_loglevel: Option<pnpm_config::LogLevel>,
         config_reporter: Option<pnpm_config::ReporterType>,
     ) -> ReporterType {
-        let loglevel =
-            self.output.presentation.loglevel.or_else(|| config_loglevel.map(Into::into));
-        if loglevel == Some(LogLevelSetting::Silent) {
-            return ReporterType::Silent;
-        }
-        self.output.presentation.reporter
-            .or_else(|| config_reporter.map(Into::into))
-            .unwrap_or_default()
+        self.reporter_flags().resolve(config_loglevel, config_reporter)
     }
 
     pub fn validate_command_scoped_global_options(&self) -> Result<(), clap::Error> {

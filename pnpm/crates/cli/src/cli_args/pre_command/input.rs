@@ -1,7 +1,7 @@
 use super::{
     ArgTable, CliArgs, CliCommand, ColorMode, Config, ConfigLocation, ConfigSubcommand,
     InstallArgs, LockfileDirArg, LogEvent, OsStr, OsString, PACKAGE_MANAGER_SWITCH_ENV_VARS, Path,
-    PathBuf, resolve_bool_override,
+    PathBuf, ReporterFlags, reporter_emit, resolve_bool_override,
 };
 
 pub(super) struct PreCommandInput {
@@ -9,8 +9,16 @@ pub(super) struct PreCommandInput {
     pub(super) global: bool,
     pub(super) skip_pm_handling: bool,
     pub(super) check_runtimes: bool,
-    pub(super) emit: fn(&LogEvent),
+    pub(super) reporter: ReporterFlags,
     pub(super) key_issues: KeyIssueReporting,
+}
+
+impl PreCommandInput {
+    /// The sink for the checks' warnings, honoring the `reporter` and
+    /// `loglevel` settings of the configuration the checks loaded.
+    pub(super) fn emit(&self, config: &Config) -> fn(&LogEvent) {
+        reporter_emit(self.reporter.resolve_with(config))
+    }
 }
 
 /// What to do about the problem keys of the project's `pnpm-workspace.yaml`

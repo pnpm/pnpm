@@ -5,12 +5,14 @@ use super::{
 };
 use crate::{
     boolean_negations::with_boolean_negations,
-    cli_args::pre_command::input::{PinFlags, SwitchPaths, frozen_lockfile_flag},
+    cli_args::{
+        pre_command::input::{PinFlags, SwitchPaths, frozen_lockfile_flag},
+        reporter::{ReporterFlags, ReporterType},
+    },
     config_overrides::ConfigOverrides,
 };
 use clap::{CommandFactory, FromArgMatches};
 use pnpm_config::{Config, PNPM_VERSION, PmOnFail};
-use pnpm_reporter::{Reporter, SilentReporter};
 use std::{
     ffi::OsString,
     fs,
@@ -649,7 +651,7 @@ fn pre_command_input(dir: &Path) -> PreCommandInput {
         global: false,
         skip_pm_handling: false,
         check_runtimes: true,
-        emit: SilentReporter::emit,
+        reporter: ReporterFlags { reporter: Some(ReporterType::Silent), loglevel: None },
         key_issues: KeyIssueReporting::Enforce,
     }
 }

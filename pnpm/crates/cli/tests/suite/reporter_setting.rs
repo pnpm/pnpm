@@ -1,10 +1,16 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+};
 use std::{fs, path::Path, process::Command};
 
 fn pnpm(workspace: &Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find pnpm").with_current_dir(workspace)
+    Command::cargo_bin("pnpm")
+        .expect("find pnpm")
+        .with_current_dir(workspace)
+        .without_ambient_pnpm_config()
 }
 
 fn script_fixture(workspace_yaml: &str) -> CommandTempCwd<()> {
@@ -81,6 +87,52 @@ fn global_config_reporter_applies() {
         .success()
         .stdout("script-output\n")
         .stderr("");
+}
+
+#[test]
+fn workspace_reporter_silences_pre_command_pin_warnings() {
+    let pins = [
+        (
+            serde_json::json!({
+                "packageManager": { "name": "pnpm", "version": "0.0.1", "onFail": "warn" },
+            }),
+            "configured to use 0.0.1 of pnpm",
+        ),
+        (
+            serde_json::json!({
+                "runtime": { "name": "node", "version": "99999.0.0", "onFail": "warn" },
+            }),
+            "99999.0.0",
+        ),
+    ];
+    for (dev_engines, warning) in pins {
+        let fixture = script_fixture("reporter: silent\n");
+        fs::write(
+            fixture.workspace.join("package.json"),
+            serde_json::json!({
+                "name": "reporter-test",
+                "version": "1.0.0",
+                "scripts": { "test": r#"node -e "console.log('script-output')""# },
+                "devEngines": dev_engines,
+            })
+            .to_string(),
+        )
+        .expect("write package.json");
+        pnpm(&fixture.workspace)
+            .with_env("PNPM_SHIM_BYPASS", "1")
+            .with_args(["run", "test"])
+            .assert()
+            .success()
+            .stdout("script-output\n")
+            .stderr("");
+
+        let printed = printed_output(
+            pnpm(&fixture.workspace)
+                .with_env("PNPM_SHIM_BYPASS", "1")
+                .with_args(["--reporter=default", "run", "test"]),
+        );
+        assert!(printed.contains(warning), "output: {printed}");
+    }
 }
 
 #[test]

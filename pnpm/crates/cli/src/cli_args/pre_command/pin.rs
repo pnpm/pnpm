@@ -61,10 +61,13 @@ fn resolve_package_manager_pin(
         return switch_or_sync(resolution, root_manifest, on_fail);
     }
     if input.global {
-        global_warn(input.emit, "Using --global skips the package manager check for this project");
+        global_warn(
+            input.emit(config),
+            "Using --global skips the package manager check for this project",
+        );
         return Ok(PinOutcome::Sync(None));
     }
-    check_package_manager(pm, on_fail, process_state, input.emit)?;
+    check_package_manager(pm, on_fail, process_state, input.emit(config))?;
     Ok(PinOutcome::Sync(env_lockfile_sync(
         config,
         root_manifest,
