@@ -1,8 +1,14 @@
 use super::{super::removed_child_aliases, name, snapshot};
-use crate::create_virtual_store::slot_linking::emit_warm_snapshot_progress;
+use crate::create_virtual_store::slot_linking::{
+    emit_warm_snapshot_progress, warm_progress_already_reported,
+};
 use pnpm_lockfile::PkgName;
 use pnpm_reporter::{LogEvent, ProgressMessage, Reporter};
-use std::sync::Mutex;
+use pnpm_tarball::{SharedReportedProgressKeys, pending_progress_key};
+use std::sync::{
+    Mutex,
+    atomic::{AtomicUsize, Ordering},
+};
 
 #[test]
 fn removed_child_aliases_reports_dropped_children_only() {
@@ -93,4 +99,39 @@ fn emits_only_resolved_when_progress_reported() {
         ),
         "already-reported warm snapshot must report only Resolved; got {captured:?}",
     );
+}
+/// Peer variants sharing one cache key can land in different parallel
+/// link groups. A key the dedupe observer marked pending must still be
+/// reported by exactly one of them.
+#[test]
+fn warm_progress_claims_a_pending_key_once_across_threads() {
+    let progress_reported = SharedReportedProgressKeys::default();
+    progress_reported.insert(pending_progress_key("cache-key"));
+
+    let unreported = AtomicUsize::new(0);
+    let claim = || {
+        if !warm_progress_already_reported(&progress_reported, "cache-key") {
+            unreported.fetch_add(1, Ordering::Relaxed);
+        }
+    };
+    std::thread::scope(|scope| {
+        for _ in 0..8 {
+            scope.spawn(claim);
+        }
+    });
+
+    assert_eq!(unreported.into_inner(), 1, "exactly one worker must report the pending key");
+}
+/// Without an observer's pending marker, every warm snapshot reports its
+/// store status and none claims the key.
+#[test]
+fn warm_progress_without_a_pending_marker_only_checks_the_key() {
+    let progress_reported = SharedReportedProgressKeys::default();
+
+    assert!(!warm_progress_already_reported(&progress_reported, "cache-key"));
+    assert!(!warm_progress_already_reported(&progress_reported, "cache-key"));
+    assert!(progress_reported.is_empty());
+
+    progress_reported.insert("cache-key".to_string());
+    assert!(warm_progress_already_reported(&progress_reported, "cache-key"));
 }

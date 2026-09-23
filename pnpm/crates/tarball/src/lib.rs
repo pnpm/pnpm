@@ -217,6 +217,13 @@ pub type ReportedProgressKeys = DashSet<String>;
 /// reporter.
 pub type SharedReportedProgressKeys = Arc<ReportedProgressKeys>;
 
+/// Namespaced marker for a resolution observer that may report this package
+/// after fetch and materialization paths have had the first chance to claim it.
+#[must_use]
+pub fn pending_progress_key(store_index_key: &str) -> String {
+    format!("\0observer:{store_index_key}")
+}
+
 /// A verified archive's CAFS files and bundled package metadata.
 #[derive(Debug, Clone)]
 pub struct FetchedTarball {

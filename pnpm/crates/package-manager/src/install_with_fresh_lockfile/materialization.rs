@@ -22,6 +22,7 @@ pub(super) struct MaterializationResources {
     early_host_detection: Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
     deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
     lockfile_verification_gate: Option<crate::LockfileVerificationGate>,
+    resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
 }
 pub(super) struct MaterializationStores {
     index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
@@ -92,6 +93,7 @@ pub(super) fn finish_resolved_install<'a, Reporter: self::Reporter + 'static>(
                 early_host_detection: owned.early_host_detection,
                 deps_requiring_build_sink: owned.resolution.deps_requiring_build_sink,
                 lockfile_verification_gate: owned.lockfile_verification_gate,
+                resolution_observer: setup.completion_observer,
             },
             shape: setup.shape,
             stores: setup.stores.into(),
@@ -118,6 +120,26 @@ pub(super) async fn warn_stale_overrides<Reporter: self::Reporter + 'static>(
         .await;
     }
 }
+
+fn on_disk_store<'a>(
+    store_index_writer: Arc<pnpm_store_dir::StoreIndexWriter>,
+    tarball_mem_cache: &'a Arc<MemCache>,
+    resolution_observer: Option<&'a dyn crate::ResolutionObserver>,
+    stores: &'a MaterializationStores,
+    dir_clone_cache: Option<&'a pnpm_deps_restorer::DirCloneCache<'a>>,
+    custom_fetcher_session: Option<&'a Arc<pnpm_deps_restorer::CustomFetcherSession>>,
+) -> crate::install_with_fresh_lockfile::on_disk::OnDiskStore<'a> {
+    crate::install_with_fresh_lockfile::on_disk::OnDiskStore {
+        tarball_mem_cache,
+        dir_clone_cache,
+        custom_fetcher_session,
+        store_index_ref: stores.index.as_ref(),
+        store_index_writer,
+        caches: &stores.caches,
+        resolution_observer,
+    }
+}
+
 impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
     async fn run(
         mut self,
@@ -154,6 +176,9 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
         self,
         built_lockfile: Lockfile,
     ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
+        if let Some(observer) = &self.resources.resolution_observer {
+            observer.flush_progress();
+        }
         finish_lockfile_only::<Reporter>(LockfileOnlyOptions {
             write:
                 crate::install_with_fresh_lockfile::resolution_inputs::LockfilePersistenceOptions {
@@ -249,7 +274,14 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
         plan: &mut FreshPlan<'_>,
         allow_build_policy: &AllowBuildPolicy,
     ) -> Result<OnDiskOutput, InstallWithFreshLockfileError> {
-        let store_index_writer = self.stores.take_writer();
+        let store = on_disk_store(
+            self.stores.take_writer(),
+            &self.resources.tarball_mem_cache,
+            self.resources.resolution_observer.as_deref(),
+            &self.stores,
+            plan.dir_clone_cache.as_ref(),
+            self.custom_fetcher_session.as_ref(),
+        );
         run_on_disk_phases::<Reporter>(
             OnDiskInputs {
                 install: self.install,
@@ -266,14 +298,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                     .deps_requiring_build_sink
                     .take(),
                 patched_dependencies: self.resolved.patches.record.as_deref(),
-                store: crate::install_with_fresh_lockfile::on_disk::OnDiskStore {
-                    tarball_mem_cache: &self.resources.tarball_mem_cache,
-                    dir_clone_cache: plan.dir_clone_cache.as_ref(),
-                    custom_fetcher_session: self.custom_fetcher_session.as_ref(),
-                    store_index_ref: self.stores.index.as_ref(),
-                    store_index_writer,
-                    caches: &self.stores.caches,
-                },
+                store,
                 runtime: crate::install_with_fresh_lockfile::on_disk::OnDiskRuntime {
                     host_node: plan.host_node.as_ref(),
                     engine_name: plan.engine_name.take(),

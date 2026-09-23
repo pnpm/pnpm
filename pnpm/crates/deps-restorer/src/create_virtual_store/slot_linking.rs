@@ -5,7 +5,7 @@ use super::{
 use crate::InstallPackageBySnapshotError;
 use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, SnapshotEntry};
 use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
-use pnpm_tarball::SharedReportedProgressKeys;
+use pnpm_tarball::{SharedReportedProgressKeys, pending_progress_key};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -235,9 +235,25 @@ pub(super) fn emit_group_warm_progress<Reporter: self::Reporter>(
             emit_warm_snapshot_progress::<Reporter>(
                 &slot.snapshot_key.pkg_id(),
                 requester,
-                progress_reported.contains(cache_key),
+                warm_progress_already_reported(progress_reported, cache_key),
             );
         }
+    }
+}
+/// Whether a warm snapshot's store status was already reported.
+///
+/// A key a resolution observer marked pending is claimed atomically, so
+/// peer variants linked by parallel groups report it once and the
+/// observer's deferred report skips it. Other keys are only checked:
+/// ordinary installs report each warm snapshot.
+pub(super) fn warm_progress_already_reported(
+    progress_reported: &SharedReportedProgressKeys,
+    cache_key: &str,
+) -> bool {
+    if progress_reported.contains(&pending_progress_key(cache_key)) {
+        !progress_reported.insert(cache_key.to_string())
+    } else {
+        progress_reported.contains(cache_key)
     }
 }
 pub(super) fn emit_warm_snapshot_progress<Reporter: self::Reporter>(

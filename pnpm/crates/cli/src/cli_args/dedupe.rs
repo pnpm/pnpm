@@ -27,12 +27,13 @@ use pnpm_reporter::{
     DedupeCheckLog, LogEvent, LogLevel, PnpmErrorLog, ProgressLog, ProgressMessage, Reporter,
 };
 use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
+use pnpm_tarball::{SharedReportedProgressKeys, pending_progress_key};
 use serde_json::{Map, Value, json};
 use std::{
     collections::{HashMap, HashSet},
     marker::PhantomData,
     path::Path,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 #[derive(Debug, Clone, Args)]
@@ -70,6 +71,8 @@ impl DedupeArgs {
         lockfile_path: &Path,
         selection: Option<&InstallFamilySelection>,
     ) -> miette::Result<()> {
+        let resolution_reporter =
+            Arc::new(DedupeResolutionReporter::<Reporter>::new(&state, lockfile_path)?);
         let install = {
             let mut base_install = state.install([
                 DependencyGroup::Prod,
@@ -83,12 +86,7 @@ impl DedupeArgs {
             base_install.execution.lockfile_only = self.lockfile_only || self.check;
             base_install.resolution.update_seed_policy =
                 pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll;
-            base_install.resolution.observer =
-                Some(Arc::new(DedupeResolutionReporter::<Reporter>::new(
-                    &state,
-                    lockfile_path,
-                    base_install.execution.lockfile_only,
-                )?));
+            base_install.resolution.observer = Some(Arc::clone(&resolution_reporter) as _);
             base_install.context.lockfile_path = Some(lockfile_path);
             base_install
         };
@@ -172,17 +170,13 @@ struct DedupeResolutionReporter<Reporter> {
     requester: String,
     store_index: Option<SharedReadonlyStoreIndex>,
     reusable_skipped_package_ids: HashSet<String>,
-    /// Whether `on_resolved` reports packages found in the store.
-    ///
-    /// Only lockfile-only runs, `--check` included, need it: a full run's
-    /// fetch and materialization phases report every store hit themselves,
-    /// so reporting here as well counts each reused package twice.
-    report_store_hits: bool,
+    progress_reported: SharedReportedProgressKeys,
+    pending_store_reuse: Mutex<Vec<(String, String)>>,
     reporter: PhantomData<fn() -> Reporter>,
 }
 
-impl<Reporter> DedupeResolutionReporter<Reporter> {
-    fn new(state: &State, lockfile_path: &Path, report_store_hits: bool) -> miette::Result<Self> {
+impl<Reporter: self::Reporter> DedupeResolutionReporter<Reporter> {
+    fn new(state: &State, lockfile_path: &Path) -> miette::Result<Self> {
         let config = state.config;
         let lockfile_packages = state.lockfile
             .get()
@@ -197,9 +191,29 @@ impl<Reporter> DedupeResolutionReporter<Reporter> {
                 .to_string(),
             store_index: StoreIndex::shared_for(&config.store_dir, config.frozen_store),
             reusable_skipped_package_ids,
-            report_store_hits,
+            progress_reported: SharedReportedProgressKeys::default(),
+            pending_store_reuse: Mutex::default(),
             reporter: PhantomData,
         })
+    }
+
+    fn report_pending_store_reuse(&self) {
+        let pending = std::mem::take(
+            &mut *self.pending_store_reuse
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
+        for (package_key, package_id) in pending {
+            if self.progress_reported.insert(package_key) {
+                Reporter::emit(&LogEvent::Progress(ProgressLog {
+                    level: LogLevel::Debug,
+                    message: ProgressMessage::FoundInStore {
+                        package_id,
+                        requester: self.requester.clone(),
+                    },
+                }));
+            }
+        }
     }
 }
 
@@ -212,9 +226,6 @@ impl<Reporter: self::Reporter> ResolutionObserver for DedupeResolutionReporter<R
                 requester: self.requester.clone(),
             },
         }));
-        if !self.report_store_hits {
-            return;
-        }
         let package_key = store_index_key(hint.integrity, hint.identity.id);
         let found_in_store = self.reusable_skipped_package_ids.contains(hint.identity.id)
             || self.store_index
@@ -227,14 +238,20 @@ impl<Reporter: self::Reporter> ResolutionObserver for DedupeResolutionReporter<R
                         .unwrap_or(false)
                 });
         if found_in_store {
-            Reporter::emit(&LogEvent::Progress(ProgressLog {
-                level: LogLevel::Debug,
-                message: ProgressMessage::FoundInStore {
-                    package_id: hint.identity.id.to_string(),
-                    requester: self.requester.clone(),
-                },
-            }));
+            self.progress_reported.insert(pending_progress_key(&package_key));
+            self.pending_store_reuse
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push((package_key, hint.identity.id.to_string()));
         }
+    }
+
+    fn progress_reported(&self) -> Option<SharedReportedProgressKeys> {
+        Some(SharedReportedProgressKeys::clone(&self.progress_reported))
+    }
+
+    fn flush_progress(&self) {
+        self.report_pending_store_reuse();
     }
 }
 
