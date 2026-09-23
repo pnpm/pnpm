@@ -204,8 +204,10 @@ fn remove_orphans(
     orphan_dirs
         .par_iter()
         .for_each(|dir| {
-            if let Some(modules_dir) = containing_modules_dir(dir) {
-                let _ = remove_dep_bins(modules_dir, dir);
+            if let Some(modules_dir) = containing_modules_dir(dir)
+                && let Err(error) = remove_dep_bins(modules_dir, dir)
+            {
+                tracing::warn!(?dir, %error, "failed to remove the bins of an orphan package");
             }
             let _ = try_remove_dir(dir);
         });
