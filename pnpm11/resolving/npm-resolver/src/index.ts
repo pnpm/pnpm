@@ -1039,9 +1039,19 @@ function calcSpecifier ({
   if (wantedDependency.prevSpecifier === wantedDependency.bareSpecifier && wantedDependency.prevSpecifier && versionSelectorType(wantedDependency.prevSpecifier)?.type === 'tag') {
     return wantedDependency.prevSpecifier
   }
-  const range = semver.valid(version) == null ? version : calcRange(version, wantedDependency, defaultRangeSpecStyle)
+  const range = isNonSemverRange(version) ? version : calcRange(version, wantedDependency, defaultRangeSpecStyle)
   if (!wantedDependency.alias || spec.name === wantedDependency.alias) return range
   return `npm:${spec.name}@${range}`
+}
+
+/**
+ * A workspace version such as `1` or `1.0` is saved as is, because a range
+ * built on it would not match it. A non-semver version that is not a range
+ * either, such as `github:owner/repo`, is never saved as is: the next install
+ * would read it as a different dependency source.
+ */
+function isNonSemverRange (version: string): boolean {
+  return semver.valid(version) == null && semver.validRange(version) != null
 }
 
 /** The manifest range `version` is saved as; see {@link calcVersionRange}. */
@@ -1238,8 +1248,7 @@ function calcSpecifierForWorkspaceDep ({
     }
     return `${prefix}^`
   }
-  const parsedVersion = semver.parse(version)
-  if (parsedVersion == null || parsedVersion.prerelease.length) {
+  if (isNonSemverRange(version) || semver.parse(version)?.prerelease.length) {
     return `${prefix}${version}`
   }
   const rangeSpecStyle = (wantedDependency.prevSpecifier ? inferRangeSpecStyle(wantedDependency.prevSpecifier) : undefined) ?? defaultRangeSpecStyle

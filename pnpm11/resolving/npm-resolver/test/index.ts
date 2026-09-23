@@ -3453,6 +3453,32 @@ test.each([
   expect(resolveResult!.normalizedBareSpecifier).toBe(localVersions.at(-1))
 })
 
+test.each(['github:owner/repo', 'file:../other', 'npm:other@1', 'latest'])('preferWorkspacePackages: the workspace version %s is not saved as a dependency source', async (version) => {
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+    saveWorkspaceProtocol: false,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'latest' }, {
+    calcSpecifier: true,
+    preferWorkspacePackages: true,
+    projectDir: '/home/istvan/src',
+    workspacePackages: new Map([
+      ['is-positive', new Map([[version, {
+        rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+        manifest: {
+          name: 'is-positive',
+          version,
+        },
+      }]])],
+    ]),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('workspace')
+  expect(resolveResult!.normalizedBareSpecifier).toBe(`^${version}`)
+})
+
 test('peekManifestFromStore: reuses store manifest and bypasses network when package is in store', async () => {
   const storeDir = temporaryDirectory()
   const storeIndex = new StoreIndex(storeDir)

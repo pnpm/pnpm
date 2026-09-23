@@ -61,10 +61,7 @@ pub fn calc_specifier_for_workspace_dep(
         return rolling_specifier(&prefix, declared);
     };
 
-    // A prerelease or a version that isn't valid semver is written
-    // exactly: a `^`/`~` range over it would not match the version it was
-    // resolved from.
-    if !is_release_version(resolved_version) {
+    if is_saved_exactly(resolved_version) {
         return format!("{prefix}{resolved_version}");
     }
     let pin = declared.prev.and_then(infer_range_spec_style).unwrap_or(default_pin);
@@ -93,10 +90,17 @@ fn rolling_specifier(prefix: &str, declared: DeclaredSpecifiers<'_>) -> String {
     format!("{prefix}{suffix}")
 }
 
-fn is_release_version(version: &str) -> bool {
-    version
-        .parse::<node_semver::Version>()
-        .is_ok_and(|parsed| parsed.pre_release.is_empty())
+/// A prerelease, or a non-semver version that parses as a range such as
+/// `1`, is written exactly: a `^`/`~` range over it would not match the
+/// version it was resolved from. A non-semver version that is not a range
+/// either, such as `github:owner/repo`, is never written as is, because
+/// `pnpm add` strips the protocol and the next install would read it as a
+/// different dependency source.
+fn is_saved_exactly(version: &str) -> bool {
+    match version.parse::<node_semver::Version>() {
+        Ok(parsed) => !parsed.pre_release.is_empty(),
+        Err(_) => version.parse::<node_semver::Range>().is_ok(),
+    }
 }
 
 #[cfg(test)]
