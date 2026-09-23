@@ -1,6 +1,3 @@
-//! Publishing a freshly installed pnpm engine as the machine's active one:
-//! its bins in the global bin directory, its shims refreshed, and its
-//! cache-keyed hash symlink recorded.
 
 use super::{SelfUpdateError, install_pnpm};
 use miette::{Context, IntoDiagnostic};
