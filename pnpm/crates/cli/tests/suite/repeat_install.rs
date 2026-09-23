@@ -827,10 +827,8 @@ fn repeat_hoisted_install_with_workspace_member_deps_is_up_to_date() {
     drop((root, mock_instance));
 }
 
-/// A repeat `--frozen-lockfile` install of an unchanged hoisted workspace
-/// whose member is named takes the frozen up-to-date short-circuit. Under
-/// the hoisted linker `hoistWorkspacePackages` writes no isolated-style
-/// hoist links, so the short-circuit must not require them.
+/// The hoisted linker writes no isolated-style `hoistWorkspacePackages`
+/// links, so the frozen up-to-date short-circuit must not require them.
 #[test]
 fn repeat_frozen_hoisted_install_with_named_workspace_member_is_up_to_date() {
     let CommandTempCwd {
