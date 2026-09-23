@@ -40,14 +40,21 @@ test('an install failure and a restore failure are reported together', async () 
   const projectDir = path.join(tmp, 'packages/published')
   fs.mkdirSync(path.join(projectDir, 'node_modules'), { recursive: true })
   fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'published', version: '1.0.0' }))
-  pnpmExec.mockRejectedValueOnce(new Error('install failed'))
+  const installError = new Error('install failed')
+  pnpmExec.mockRejectedValueOnce(installError)
   renameOverwrite
     .mockImplementationOnce(realRenameOverwrite)
     .mockRejectedValueOnce(restoreError)
 
-  await expect(makeDedicatedLockfile(tmp, projectDir)).rejects.toMatchObject({
+  const err = await makeDedicatedLockfile(tmp, projectDir).catch((err: unknown) => err)
+
+  expect(err).toMatchObject({
     code: 'ERR_PNPM_MAKE_DEDICATED_LOCKFILE_FAILED',
     message: expect.stringContaining('install failed\nEACCES: permission denied'),
     hint: `The original node_modules is still in ${path.join(projectDir, '.tmp_node_modules')}.`,
+    cause: {
+      errors: [installError, restoreError],
+      cause: installError,
+    },
   })
 })
