@@ -666,7 +666,6 @@ test('a recursive argumentless update runs the postinstall of every project', ()
   expect(projectsThatRanPostinstall(['a', 'b'])).toStrictEqual(['root', 'a', 'b'])
 })
 
-/** A workspace whose root and `packages/*` members all stamp a file from `postinstall`, installed once with the stamps then cleared. */
 test('pnpm:devPreinstall runs on local install and is skipped when CI is defined', () => {
   prepare({
     scripts: {
@@ -692,6 +691,7 @@ test('pnpm:devPreinstall runs on local install and is skipped when CI is defined
   expect(fs.existsSync('ran-preinstall.txt')).toBeTruthy()
 })
 
+/** A workspace whose root and `packages/*` members all stamp a file from `postinstall`, installed once with the stamps then cleared. */
 function prepareInstalledWorkspace (members: string[]): void {
   preparePackages(members.map((name) => ({
     location: `packages/${name}`,

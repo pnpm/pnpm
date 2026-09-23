@@ -777,8 +777,6 @@ mod dev_preinstall {
         drop((root, mock_instance));
     }
 
-    /// `pnpm:devPreinstall` is documented to run only on a local install
-    /// (<https://pnpm.io/scripts>) and must be skipped when running in CI.
     #[test]
     fn is_skipped_when_ci_is_defined() {
         let CommandTempCwd {
