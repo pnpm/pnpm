@@ -941,7 +941,7 @@ fn dedupe_warm_full_run_counts_each_reused_package_once() {
     let resolved = package_ids("resolved");
     let found_in_store = package_ids("found_in_store");
     assert!(!resolved.is_empty(), "the warm dedupe run must resolve packages");
-    assert!(!found_in_store.is_empty(), "the warm dedupe run must report reused packages",);
+    assert!(!found_in_store.is_empty(), "the warm dedupe run must report reused packages");
     let mut unique_reused = found_in_store.clone();
     unique_reused.sort();
     unique_reused.dedup();
