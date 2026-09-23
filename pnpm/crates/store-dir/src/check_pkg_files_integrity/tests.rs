@@ -904,3 +904,36 @@ fn unrelated_package_with_added_binding_gyp_is_reported_as_modified() {
     let index = index_with_one_file("index.js", b"original content\n");
     assert!(!package_dir_matches_index(&package, &index));
 }
+
+#[cfg(unix)]
+#[test]
+fn symlinked_file_in_built_package_is_reported_as_modified() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+
+    let external_blob = dir.path().join("external_blob");
+    fs::write(&external_blob, b"corrupted\n").unwrap();
+    std::os::unix::fs::symlink(&external_blob, package.join("index.js")).unwrap();
+
+    let mut index = index_with_one_file("index.js", b"original content\n");
+    index.requires_build = Some(true);
+    assert!(!package_dir_matches_index(&package, &index));
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinked_parent_dir_in_built_package_is_reported_as_modified() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+
+    let external_dir = dir.path().join("external_dir");
+    fs::create_dir_all(&external_dir).unwrap();
+    fs::write(external_dir.join("index.js"), b"corrupted\n").unwrap();
+    std::os::unix::fs::symlink(&external_dir, package.join("nested")).unwrap();
+
+    let mut index = index_with_one_file("nested/index.js", b"original content\n");
+    index.requires_build = Some(true);
+    assert!(!package_dir_matches_index(&package, &index));
+}

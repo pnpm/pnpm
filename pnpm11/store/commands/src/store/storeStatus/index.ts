@@ -45,15 +45,39 @@ function getSideEffectsDiffs (sideEffects: Map<string, SideEffectsDiff> | Record
 }
 
 function isIsolatedDir (targetDir: string, filePaths: string[]): boolean {
+  try {
+    const dirStat = fs.lstatSync(targetDir)
+    if (dirStat.isSymbolicLink()) {
+      return false
+    }
+  } catch {
+    return false
+  }
+
   for (const relPath of filePaths) {
-    const fullPath = path.join(targetDir, relPath)
-    try {
-      const stat = fs.statSync(fullPath)
-      if (stat.isFile() && stat.nlink > 1) {
+    const normalized = path.normalize(relPath)
+    if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
+      return false
+    }
+    const parts = normalized.split(/[/\\]+/).filter(Boolean)
+    let current = targetDir
+    for (let i = 0; i < parts.length; i++) {
+      current = path.join(current, parts[i])
+      try {
+        const stat = fs.lstatSync(current)
+        if (stat.isSymbolicLink()) {
+          return false
+        }
+        const isLeaf = i === parts.length - 1
+        if (isLeaf && stat.isFile() && stat.nlink > 1) {
+          return false
+        }
+      } catch (err: unknown) {
+        if ((err as { code?: string })?.code === 'ENOENT') {
+          break
+        }
         return false
       }
-    } catch {
-      // File may be missing or unreadable
     }
   }
   return true

@@ -605,6 +605,16 @@ fn check_file(path: &Path, checked_at: Option<u64>) -> Option<(bool, u64)> {
 /// unknown-algo behaviour. An I/O error mid-read also falls through to
 /// `false` so the caller re-fetches rather than deciding on a partial
 /// hash.
+pub(super) fn file_content_matches_digest(path: &Path, digest: &str, algo: &str) -> bool {
+    if algo != "sha512" {
+        return false;
+    }
+    let Ok(file) = fs::File::open(path) else {
+        return false;
+    };
+    hash_matches(file, digest)
+}
+
 pub(super) fn verify_file_integrity(path: &Path, digest: &str, algo: &str) -> bool {
     if algo != "sha512" {
         return false;

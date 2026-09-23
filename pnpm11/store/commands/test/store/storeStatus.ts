@@ -213,3 +213,46 @@ test('hardlinked built package with modified file is reported as modified', asyn
   expect(err?.code).toBe('ERR_PNPM_MODIFIED_DEPENDENCY')
 })
 
+test('symlinked package file in built package is reported as modified', async () => {
+  prepare()
+  const tmp = temporaryDirectory()
+  const cacheDir = path.join(tmp, 'cache')
+  const storeDir = path.join(tmp, 'store')
+
+  await execa('node', [
+    pnpmBin,
+    'add',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    '--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example',
+    `--store-dir=${storeDir}`,
+    `--registry=${REGISTRY}`,
+    '--verify-store-integrity',
+  ], execaOpts)
+
+  const pkgDir = 'node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example'
+  const targetFile = path.join(pkgDir, 'package.json')
+  const externalFile = path.join(process.cwd(), 'dummy-symlink-target')
+  fs.copyFileSync(targetFile, externalFile)
+  fs.unlinkSync(targetFile)
+  fs.symlinkSync(externalFile, targetFile)
+  fs.writeFileSync(externalFile, '{"name": "modified"}', 'utf8')
+
+  let err!: PnpmError & { modified: string[] }
+  try {
+    await store.handler({
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      configByUri: {},
+      registriesByScope: { default: REGISTRY },
+      storeDir,
+      dlxCacheMaxAge: 0,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, ['status'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err?.code).toBe('ERR_PNPM_MODIFIED_DEPENDENCY')
+})
+
+

@@ -1,12 +1,13 @@
 use std::{
     collections::HashMap,
     fs,
+    io::ErrorKind,
     path::{Path, PathBuf},
 };
 
 use crate::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff};
 
-use super::verify_file_integrity;
+use super::file_content_matches_digest;
 
 /// Whether the materialized package under `dir` still matches the store
 /// row it was expanded from.
@@ -67,7 +68,7 @@ fn files_match(dir: &Path, files: &HashMap<String, CafsFileInfo>, algo: &str) ->
         .iter()
         .all(|(path, file)| {
             join_inside(dir, path)
-                .is_some_and(|path| verify_file_integrity(&path, &file.digest, algo))
+                .is_some_and(|path| file_content_matches_digest(&path, &file.digest, algo))
         })
 }
 
@@ -82,32 +83,82 @@ fn index_requires_build(index: &PackageFilesIndex) -> bool {
 }
 
 fn is_isolated_dir(dir: &Path, files: &HashMap<String, CafsFileInfo>) -> bool {
-    !files
-        .keys()
-        .any(|path| join_inside(dir, path).is_some_and(|joined| is_hardlinked_file(&joined)))
+    let Ok(dir_metadata) = fs::symlink_metadata(dir) else {
+        return false;
+    };
+    if dir_metadata.is_symlink() {
+        return false;
+    }
+    files.keys().all(|rel_path| is_isolated_rel_path(dir, rel_path))
+}
+
+fn is_isolated_rel_path(dir: &Path, rel_path: &str) -> bool {
+    let Some(components) = relative_components(rel_path) else {
+        return false;
+    };
+    let mut current = dir.to_path_buf();
+    for (step_index, component) in components.iter().enumerate() {
+        current.push(component);
+        let is_leaf = step_index == components.len() - 1;
+        match check_path_component(&current, is_leaf) {
+            Ok(true) => {}
+            Ok(false) => break,
+            Err(()) => return false,
+        }
+    }
+    true
+}
+
+fn check_path_component(path: &Path, is_leaf: bool) -> Result<bool, ()> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(false),
+        Err(_) => return Err(()),
+    };
+    if metadata.is_symlink() {
+        return Err(());
+    }
+    if is_leaf && is_hardlinked_metadata(path, &metadata) {
+        return Err(());
+    }
+    Ok(true)
+}
+
+fn relative_components(relative: &str) -> Option<Vec<&std::ffi::OsStr>> {
+    let mut components = Vec::new();
+    for component in Path::new(relative).components() {
+        match component {
+            std::path::Component::Normal(segment) => components.push(segment),
+            _ => return None,
+        }
+    }
+    Some(components)
 }
 
 #[cfg(unix)]
-fn is_hardlinked_file(path: &Path) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    fs::metadata(path).is_ok_and(|metadata| metadata.nlink() > 1)
+fn is_hardlinked_metadata(_path: &Path, metadata: &fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt as _;
+    metadata.is_file() && metadata.nlink() > 1
 }
 
 #[cfg(windows)]
-fn is_hardlinked_file(path: &Path) -> bool {
+fn is_hardlinked_metadata(path: &Path, metadata: &fs::Metadata) -> bool {
     use std::{mem::MaybeUninit, os::windows::io::AsRawHandle as _};
     use windows_sys::Win32::Storage::FileSystem::{
         BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
     };
 
-    let Ok(file) = fs::File::open(path) else {
+    if !metadata.is_file() {
         return false;
+    }
+    let Ok(file) = fs::File::open(path) else {
+        return true;
     };
     let mut info = MaybeUninit::<BY_HANDLE_FILE_INFORMATION>::uninit();
     // SAFETY: `file` owns a valid handle and `info` points to writable storage
     // of the structure initialized by `GetFileInformationByHandle`.
     if unsafe { GetFileInformationByHandle(file.as_raw_handle().cast(), info.as_mut_ptr()) } == 0 {
-        return false;
+        return true;
     }
     // SAFETY: a successful `GetFileInformationByHandle` initializes `info`.
     let info = unsafe { info.assume_init() };
@@ -115,7 +166,7 @@ fn is_hardlinked_file(path: &Path) -> bool {
 }
 
 #[cfg(not(any(unix, windows)))]
-fn is_hardlinked_file(_path: &Path) -> bool {
+fn is_hardlinked_metadata(_path: &Path, _metadata: &fs::Metadata) -> bool {
     true
 }
 
