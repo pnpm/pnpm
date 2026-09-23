@@ -66,6 +66,12 @@ fn setup_installed() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
 
 fn setup_installed_workspace_project()
 -> (TempDir, std::path::PathBuf, std::path::PathBuf, AddMockedRegistry) {
+    setup_installed_workspace_project_with_yaml("")
+}
+
+fn setup_installed_workspace_project_with_yaml(
+    extra_yaml: &str,
+) -> (TempDir, std::path::PathBuf, std::path::PathBuf, AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
@@ -75,6 +81,7 @@ fn setup_installed_workspace_project()
         workspace_yaml.push('\n');
     }
     workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    workspace_yaml.push_str(extra_yaml);
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
     fs::write(
         workspace.join("package.json"),

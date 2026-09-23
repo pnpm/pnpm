@@ -26,8 +26,8 @@ use super::{
     pipeline::{PipelineArgs, PipelineInvocation, WatchInvocation, run_pipeline, run_watch},
     pipelines::{
         AddPipeline, DedupePipeline, DeployPipeline, InstallPipeline, PrunePipeline,
-        RemovePipeline, UpdatePipeline, apply_install_cli_config, derive_config_root,
-        warn_about_config_root,
+        RemovePipeline, UpdatePipeline, anchor_active_project, apply_install_cli_config,
+        derive_config_root, warn_about_config_root,
     },
     prune::PruneArgs,
     rebuild::RebuildArgs,

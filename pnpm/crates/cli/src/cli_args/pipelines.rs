@@ -322,7 +322,7 @@ fn init_dedicated_project_state(
     .wrap_err_with(|| format!("initialize the state for {}", project_dir.display()))
 }
 
-fn anchor_active_project(cfg: &mut Config, manifest_path: &Path) {
+pub(crate) fn anchor_active_project(cfg: &mut Config, manifest_path: &Path) {
     let manifest_dir = manifest_path
         .parent()
         .expect("manifest path always has a parent dir")
