@@ -247,7 +247,7 @@ fn walker_places_root_packages_in_the_configured_modules_dir() {
             lockfile_dir.join("vendor/a"),
             lockfile_dir.join("vendor/a/node_modules/b"),
             lockfile_dir.join("vendor/b"),
-        ]
+        ],
     );
     assert_eq!(result.hoisted_locations["a@1.0.0"], vec!["vendor/a".to_string()]);
 }
