@@ -384,10 +384,20 @@ fn hardened_runtime_install_pins_the_isolated_linker() {
     let install_config = hardened_install_config(
         config,
         &root.path().join("environment"),
-        root.path().join("store/links"),
+        Some(root.path().join("store/links")),
     );
 
     assert_eq!(install_config.node_linker, NodeLinker::Isolated);
+}
+
+#[test]
+fn a_private_runtime_install_stays_out_of_the_global_virtual_store() {
+    let root = tempfile::tempdir().unwrap();
+    let config = Config { enable_global_virtual_store: true, ..Config::default() };
+
+    let install_config = hardened_install_config(config, &root.path().join("private"), None);
+
+    assert!(!install_config.enable_global_virtual_store);
 }
 
 #[test]

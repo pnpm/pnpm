@@ -206,12 +206,22 @@ impl DlxArgs {
         let bin_name =
             if self.package.is_empty() { get_bin_name(&cached_dir)? } else { bin_command.clone() };
 
-        run_bin(
+        let status = run_bin(
             DlxProgram::Named(&bin_name),
             args,
             vec![cached_dir.join("node_modules").join(".bin")],
             &spawn,
-        )
+        )?;
+        exit_unless_success(status);
+        Ok(())
+    }
+}
+
+/// End pnpm the way a failed child did. `exit_like` runs no destructors,
+/// so a caller drops what has to be cleaned up before calling this.
+fn exit_unless_success(status: std::process::ExitStatus) {
+    if !status.success() {
+        pnpm_executor::exit_like(pnpm_executor::ScriptExit::Process(status));
     }
 }
 
@@ -322,7 +332,7 @@ fn run_bin(
     args: &[String],
     bin_dirs: Vec<PathBuf>,
     spawn: &DlxSpawn<'_>,
-) -> miette::Result<()> {
+) -> miette::Result<std::process::ExitStatus> {
     let mut prepend = bin_dirs;
     prepend.extend(spawn.extra_bin_paths.iter().cloned());
     let path = prepend_dirs_to_path(&prepend).map_err(DlxError::from)?;
@@ -365,13 +375,10 @@ fn run_bin(
     set_package_manager_env(&mut cmd, spawn.cwd, spawn.extra_env);
     cmd.env("npm_config_user_agent", spawn.user_agent);
 
-    let status = pnpm_executor::spawn_child(&mut cmd, None)
+    pnpm_executor::spawn_child(&mut cmd, None)
         .and_then(|mut child| child.wait())
-        .map_err(|source| DlxError::Spawn { command: program.command().to_string(), source })?;
-    if !status.success() {
-        pnpm_executor::exit_like(pnpm_executor::ScriptExit::Process(status));
-    }
-    Ok(())
+        .map_err(|source| DlxError::Spawn { command: program.command().to_string(), source })
+        .map_err(miette::Report::new)
 }
 
 /// Determine the bin to run from the first installed dependency.

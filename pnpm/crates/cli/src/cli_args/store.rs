@@ -9,7 +9,10 @@
 mod add;
 mod status;
 
-use crate::cli_args::dlx::clean_expired_dlx_cache;
+use crate::{
+    cli_args::dlx::clean_expired_dlx_cache,
+    engine_pm::install::remove_orphaned_private_engine_installs,
+};
 use clap::{Args, Subcommand};
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
@@ -52,6 +55,7 @@ impl StoreCommand {
             StoreCommand::Add(args) => add::run::<Reporter>(config, dir, &args.packages).await,
             StoreCommand::Prune => {
                 config.store_dir.prune().wrap_err("pruning store")?;
+                remove_orphaned_private_engine_installs(config)?;
                 clean_expired_dlx_cache(
                     &config.cache_dir,
                     config.dlx_cache_max_age,

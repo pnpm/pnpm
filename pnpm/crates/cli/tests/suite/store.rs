@@ -575,6 +575,29 @@ fn store_prune_removes_packages_left_unreferenced_by_remove() {
     );
 }
 
+/// Private engine installs live in pnpm's own engine store, which
+/// `pnpm store prune` otherwise never visits.
+#[test]
+fn store_prune_removes_the_private_engine_installs_no_process_holds() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+    let engine_store = pnpm_store_dir::StoreDir::new(pnpm_home.join("package-manager-store"));
+    let held = engine_store
+        .create_private_install("pnpm-9.3.0")
+        .expect("create a private install this process holds");
+    let orphan = engine_store.tmp().join("private/pnpm-9.3.0-orphan");
+    fs::create_dir_all(&orphan).expect("leave a private install behind");
+
+    pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_args(["store", "prune"])
+        .assert()
+        .success();
+
+    assert!(!orphan.exists(), "prune must remove the private install nobody holds");
+    assert!(held.dir().exists(), "prune must keep the private install in use");
+}
+
 /// The resolver chain claims every protocol pnpm supports, but only an
 /// archive can be put in the store. A local dependency is refused by name
 /// rather than failing further down as a resolution-shape mismatch.

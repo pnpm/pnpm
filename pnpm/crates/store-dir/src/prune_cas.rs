@@ -1,4 +1,7 @@
-use crate::{StoreDir, StoreIndex, StoreIndexError, decode_package_files_index};
+use crate::{
+    StoreDir, StoreIndex, StoreIndexError, decode_package_files_index,
+    private_install::PRIVATE_INSTALLS_DIR,
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::{
@@ -137,12 +140,54 @@ fn read_entries(path: &Path) -> Result<Vec<fs::DirEntry>, PruneCasError> {
         .map_err(|error| PruneCasError::ReadDir { path: path.to_path_buf(), error })
 }
 
+/// Remove the store's temporary files: everything under `tmp/` except
+/// the private installs a process still holds. A link in place of `tmp/`
+/// is unlinked, never followed.
 fn remove_tmp(store_dir: &StoreDir) -> Result<(), PruneCasError> {
-    let path = store_dir.tmp();
-    match fs::remove_dir_all(&path) {
+    let tmp = store_dir.tmp();
+    let entries = match tmp_entries(&tmp) {
+        Ok(Some(entries)) => entries,
+        Ok(None) => return Ok(()),
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(PruneCasError::RemoveTmp { path: tmp, error }),
+    };
+    for entry in entries {
+        let entry = entry.map_err(|error| PruneCasError::RemoveTmp { path: tmp.clone(), error })?;
+        let path = entry.path();
+        let is_dir = entry
+            .file_type()
+            .map_err(|error| PruneCasError::RemoveTmp { path: path.clone(), error })?
+            .is_dir();
+        // Only a real directory can hold private installs; a file or link
+        // by that name is litter like any other entry.
+        let result = if is_dir && entry.file_name() == PRIVATE_INSTALLS_DIR {
+            store_dir
+                .remove_orphaned_private_installs()
+                .map(|_| ())
+        } else {
+            pnpm_fs::remove_dirent(&path)
+        };
+        result.map_err(|error| PruneCasError::RemoveTmp { path, error })?;
+    }
+    match fs::remove_dir(&tmp) {
         Ok(()) => Ok(()),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(PruneCasError::RemoveTmp { path, error }),
+        Err(error)
+            if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::DirectoryNotEmpty) =>
+        {
+            Ok(())
+        }
+        Err(error) => Err(PruneCasError::RemoveTmp { path: tmp, error }),
+    }
+}
+
+/// The entries of `tmp`, or `None` once a link found in its place has
+/// been unlinked: the sweep removes what it finds, so it never follows
+/// one.
+fn tmp_entries(tmp: &Path) -> io::Result<Option<fs::ReadDir>> {
+    if fs::symlink_metadata(tmp)?.file_type().is_symlink() {
+        pnpm_fs::remove_dirent(tmp).map(|()| None)
+    } else {
+        fs::read_dir(tmp).map(Some)
     }
 }
 
