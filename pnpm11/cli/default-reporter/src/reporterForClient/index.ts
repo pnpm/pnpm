@@ -168,6 +168,7 @@ export function reporterForClient (
     }
     outputs.push(
       reportIgnoredBuilds(log$, {
+        appendOnly: opts.appendOnly,
         pnpmConfig: opts.pnpmConfig,
         approveBuildsInstructionText: opts.approveBuildsInstructionText,
       })

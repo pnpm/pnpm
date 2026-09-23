@@ -11,6 +11,7 @@ export function reportIgnoredBuilds (
     ignoredScripts: Rx.Observable<IgnoredScriptsLog>
   },
   opts: {
+    appendOnly?: boolean
     pnpmConfig?: ReporterPnpmConfig
     // This is used by Bit CLI
     approveBuildsInstructionText?: string
@@ -19,14 +20,17 @@ export function reportIgnoredBuilds (
   return log$.ignoredScripts.pipe(
     map((ignoredScripts) => {
       if (ignoredScripts.packageNames && ignoredScripts.packageNames.length > 0 && !opts.pnpmConfig?.strictDepBuilds) {
-        const msg = boxen(`Ignored build scripts: ${Array.from(ignoredScripts.packageNames).sort(lexCompare).join(', ')}.
-${opts.approveBuildsInstructionText ?? `Run "pnpm approve-builds${opts.pnpmConfig?.cliOptions?.global ? ' -g' : ''}" to pick which dependencies should be allowed to run scripts.`}`, {
-          title: 'Warning',
-          padding: 1,
-          margin: 0,
-          borderStyle: 'round',
-          borderColor: 'yellow',
-        })
+        const text = `Ignored build scripts: ${Array.from(ignoredScripts.packageNames).sort(lexCompare).join(', ')}.
+${opts.approveBuildsInstructionText ?? `Run "pnpm approve-builds${opts.pnpmConfig?.cliOptions?.global ? ' -g' : ''}" to pick which dependencies should be allowed to run scripts.`}`
+        const msg = opts.appendOnly
+          ? text
+          : boxen(text, {
+            title: 'Warning',
+            padding: 1,
+            margin: 0,
+            borderStyle: 'round',
+            borderColor: 'yellow',
+          })
         return Rx.of({ msg })
       }
       return Rx.NEVER
