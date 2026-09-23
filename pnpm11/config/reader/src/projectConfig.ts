@@ -21,12 +21,15 @@ export function createProjectModulesDirResolver (opts: ProjectModulesDirOptions)
 }
 
 /**
- * The modules directories that packageConfigs sets for individual projects.
+ * The modules directories that packageConfigs sets, keyed by project name.
  * Empty in shared-lockfile workspaces, which ignore packageConfigs.
  */
-export function listProjectModulesDirs (opts: ProjectModulesDirOptions): string[] {
-  if (opts.lockfileDir != null) return []
-  return Object.values(createProjectConfigRecord(opts) ?? {}).flatMap(({ modulesDir }) => modulesDir ?? [])
+export function getModulesDirsByProjectName (opts: ProjectModulesDirOptions): Record<string, string> {
+  if (opts.lockfileDir != null) return {}
+  return Object.fromEntries(
+    Object.entries(createProjectConfigRecord(opts) ?? {})
+      .flatMap(([projectName, { modulesDir }]) => modulesDir == null ? [] : [[projectName, modulesDir]])
+  )
 }
 
 export class ProjectConfigIsNotAnObjectError extends PnpmError {

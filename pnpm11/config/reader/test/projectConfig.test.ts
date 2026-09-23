@@ -8,7 +8,7 @@ import type {
   ProjectConfigRecord,
   ProjectConfigSet,
 } from '../src/Config.js'
-import { createProjectConfigRecord, createProjectModulesDirResolver, listProjectModulesDirs } from '../src/projectConfig.js'
+import { createProjectConfigRecord, createProjectModulesDirResolver, getModulesDirsByProjectName } from '../src/projectConfig.js'
 
 it('returns undefined for undefined', () => {
   expect(createProjectConfigRecord({})).toBeUndefined()
@@ -577,7 +577,7 @@ it('lists the modules directories that packageConfigs sets', () => {
     { match: ['one', 'two'], modulesDir: 'shared' },
     { match: ['three'], hoist: false },
   ]
-  expect(listProjectModulesDirs({ modulesDir: 'vendor', packageConfigs })).toStrictEqual(['shared', 'shared'])
-  expect(listProjectModulesDirs({ modulesDir: 'vendor', packageConfigs, lockfileDir: '/workspace' })).toStrictEqual([])
-  expect(listProjectModulesDirs({ modulesDir: 'vendor' })).toStrictEqual([])
+  expect(getModulesDirsByProjectName({ modulesDir: 'vendor', packageConfigs })).toStrictEqual({ one: 'shared', two: 'shared' })
+  expect(getModulesDirsByProjectName({ modulesDir: 'vendor', packageConfigs, lockfileDir: '/workspace' })).toStrictEqual({})
+  expect(getModulesDirsByProjectName({ modulesDir: 'vendor' })).toStrictEqual({})
 })

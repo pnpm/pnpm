@@ -27,10 +27,10 @@ export interface FindWorkspaceProjectsOpts {
   modulesDir?: string
 
   /**
-   * The `modulesDir` values that `packageConfigs` sets for individual
-   * projects, skipped the same way.
+   * The `modulesDir` that `packageConfigs` sets for a project, keyed by
+   * project name. It replaces `modulesDir` for that project.
    */
-  projectModulesDirs?: string[]
+  modulesDirsByProjectName?: Record<string, string>
 
   engineStrict?: boolean
   nodeVersion?: string
@@ -83,17 +83,16 @@ export function findWorkspaceProjectsSync (
   return projects
 }
 
-type FindWorkspaceProjectsNoCheckOpts = Pick<FindWorkspaceProjectsOpts, 'patterns' | 'modulesDir' | 'projectModulesDirs'>
+type FindWorkspaceProjectsNoCheckOpts = Pick<FindWorkspaceProjectsOpts, 'patterns' | 'modulesDir' | 'modulesDirsByProjectName'>
 
 export async function findWorkspaceProjectsNoCheck (workspaceRoot: string, opts?: FindWorkspaceProjectsNoCheckOpts): Promise<Project[]> {
   const plan = planDiscovery(workspaceRoot, opts)
   const find = async (ignore: string[]) => findPackages(workspaceRoot, { ignore, includeRoot: true, patterns: opts?.patterns })
   let projects = await find(plan.initialIgnore)
-  if (plan.projectModulesDirs.length > 0) {
+  if (plan.skipsProjectModulesDirs) {
     for (;;) {
-      // Each walk skips the modules directories of the projects the previous one found.
-      // eslint-disable-next-line no-await-in-loop
-      const grown = addProjectsOutsideModulesDirs(projects, await find(plan.ignoreFor(projects)), plan.projectModulesDirs)
+      // eslint-disable-next-line no-await-in-loop -- a walk's ignores come from the previous walk
+      const grown = addProjectsOutsideModulesDirs(projects, await find(plan.ignoreFor(projects)), plan.modulesDirOf)
       if (grown == null) break
       projects = grown
     }
@@ -105,9 +104,9 @@ export function findWorkspaceProjectsNoCheckSync (workspaceRoot: string, opts?: 
   const plan = planDiscovery(workspaceRoot, opts)
   const find = (ignore: string[]) => findPackagesSync(workspaceRoot, { ignore, includeRoot: true, patterns: opts?.patterns })
   let projects = find(plan.initialIgnore)
-  if (plan.projectModulesDirs.length > 0) {
+  if (plan.skipsProjectModulesDirs) {
     for (;;) {
-      const grown = addProjectsOutsideModulesDirs(projects, find(plan.ignoreFor(projects)), plan.projectModulesDirs)
+      const grown = addProjectsOutsideModulesDirs(projects, find(plan.ignoreFor(projects)), plan.modulesDirOf)
       if (grown == null) break
       projects = grown
     }
@@ -128,56 +127,71 @@ interface DiscoveryPlan {
   initialIgnore: string[]
   /** Skips the modules directories of the given projects only. */
   ignoreFor: (projects: Project[]) => string[]
-  /** Relative `modulesDir` values, created inside every project that uses them. */
-  projectModulesDirs: string[]
+  /** The relative modules directory created inside `project`, if any. */
+  modulesDirOf: (project: Project) => string | undefined
+  skipsProjectModulesDirs: boolean
 }
 
 function planDiscovery (workspaceRoot: string, opts: FindWorkspaceProjectsNoCheckOpts | undefined): DiscoveryPlan {
   const fixedIgnore = new Set(['**/node_modules/**', '**/bower_components/**'])
-  const projectModulesDirs = new Set<string>()
-  for (const modulesDir of [opts?.modulesDir, ...(opts?.projectModulesDirs ?? [])]) {
-    if (modulesDir == null) continue
+  const toProjectModulesDir = (modulesDir: string): string | undefined => {
     if (path.isAbsolute(modulesDir)) {
       // An absolute modulesDir is one directory, skipped when it is inside the workspace.
       const relativeToWorkspace = path.relative(workspaceRoot, modulesDir)
       if (isBelow(relativeToWorkspace)) fixedIgnore.add(`${convertPathToPattern(relativeToWorkspace)}/**`)
-      continue
+      return undefined
     }
     const relativeToProject = path.relative('.', modulesDir)
-    if (isBelow(relativeToProject) && relativeToProject !== 'node_modules') projectModulesDirs.add(relativeToProject)
+    return isBelow(relativeToProject) && relativeToProject !== 'node_modules' ? relativeToProject : undefined
   }
-  const modulesDirPatterns = Array.from(projectModulesDirs, convertPathToPattern)
+  const defaultModulesDir = opts?.modulesDir == null ? undefined : toProjectModulesDir(opts.modulesDir)
+  const modulesDirsByProjectName = new Map(
+    Object.entries(opts?.modulesDirsByProjectName ?? {}).map(([projectName, modulesDir]) => [projectName, toProjectModulesDir(modulesDir)])
+  )
+  const modulesDirOf = ({ manifest }: Project): string | undefined =>
+    manifest.name != null && modulesDirsByProjectName.has(manifest.name) ? modulesDirsByProjectName.get(manifest.name) : defaultModulesDir
+  const allModulesDirs = new Set([defaultModulesDir, ...modulesDirsByProjectName.values()].filter((dir) => dir != null))
   return {
-    initialIgnore: [...fixedIgnore, ...modulesDirPatterns.map((dir) => `**/${dir}/**`)],
+    initialIgnore: [...fixedIgnore, ...Array.from(allModulesDirs, (dir) => `**/${convertPathToPattern(dir)}/**`)],
     ignoreFor: (projects) => [
       ...fixedIgnore,
-      ...projects.flatMap(({ rootDir }) => {
-        const relativeRootDir = path.relative(workspaceRoot, rootDir)
+      ...projects.flatMap((project) => {
+        const modulesDir = modulesDirOf(project)
+        if (modulesDir == null) return []
+        const relativeRootDir = path.relative(workspaceRoot, project.rootDir)
         const prefix = relativeRootDir === '' ? '' : `${convertPathToPattern(relativeRootDir)}/`
-        return modulesDirPatterns.map((dir) => `${prefix}${dir}/**`)
+        return [`${prefix}${convertPathToPattern(modulesDir)}/**`]
       }),
     ],
-    projectModulesDirs: Array.from(projectModulesDirs),
+    modulesDirOf,
+    skipsProjectModulesDirs: allModulesDirs.size > 0,
   }
 }
 
 /**
- * `known` plus the projects in `found` that are not inside a modules
+ * `known` plus the projects in `found` that are not inside the modules
  * directory of a known or found project, or `undefined` when that adds
  * none. The result only ever grows, so repeating the walk terminates.
  */
-function addProjectsOutsideModulesDirs (known: Project[], found: Project[], projectModulesDirs: string[]): Project[] | undefined {
+function addProjectsOutsideModulesDirs (
+  known: Project[],
+  found: Project[],
+  modulesDirOf: (project: Project) => string | undefined
+): Project[] | undefined {
   const knownDirs = new Set(known.map(({ rootDir }) => rootDir))
-  const projectDirs = new Set([...knownDirs, ...found.map(({ rootDir }) => rootDir)])
-  const added = found.filter(({ rootDir }) => !knownDirs.has(rootDir) && !isInsideModulesDirOfProject(rootDir, projectDirs, projectModulesDirs))
+  const ownedModulesDirs = new Map<string, string>()
+  for (const project of [...known, ...found]) {
+    const modulesDir = modulesDirOf(project)
+    if (modulesDir != null) ownedModulesDirs.set(project.rootDir, path.join(project.rootDir, modulesDir))
+  }
+  const added = found.filter(({ rootDir }) => !knownDirs.has(rootDir) && !isInsideOwnedModulesDir(rootDir, ownedModulesDirs))
   return added.length === 0 ? undefined : [...known, ...added]
 }
 
-function isInsideModulesDirOfProject (dir: string, projectDirs: Set<string>, projectModulesDirs: string[]): boolean {
+function isInsideOwnedModulesDir (dir: string, ownedModulesDirs: Map<string, string>): boolean {
   for (let ancestor = path.dirname(dir); ; ancestor = path.dirname(ancestor)) {
-    if (projectDirs.has(ancestor) && projectModulesDirs.some((modulesDir) => dir.startsWith(`${path.join(ancestor, modulesDir)}${path.sep}`))) {
-      return true
-    }
+    const modulesDir = ownedModulesDirs.get(ancestor)
+    if (modulesDir != null && dir.startsWith(`${modulesDir}${path.sep}`)) return true
     if (path.dirname(ancestor) === ancestor) return false
   }
 }

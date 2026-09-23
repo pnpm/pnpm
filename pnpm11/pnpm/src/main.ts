@@ -11,7 +11,7 @@ import { stripVTControlCharacters as stripAnsi, types as utilTypes } from 'node:
 
 import { formatWarn } from '@pnpm/cli.default-reporter'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
-import { type Config, type ConfigContext, listProjectModulesDirs } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, getModulesDirsByProjectName } from '@pnpm/config.reader'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { getSystemRuntimeVersion } from '@pnpm/engine.runtime.system-version'
 import { PnpmError, redactAndSanitize } from '@pnpm/error'
@@ -304,7 +304,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       nodeVersion: config.nodeVersion,
       patterns: config.workspacePackagePatterns,
       modulesDir: config.modulesDir,
-      projectModulesDirs: listProjectModulesDirs(config),
+      modulesDirsByProjectName: getModulesDirsByProjectName(config),
       linkWorkspacePackages: !!config.linkWorkspacePackages,
       prefix: process.cwd(),
       workspaceDir: wsDir,

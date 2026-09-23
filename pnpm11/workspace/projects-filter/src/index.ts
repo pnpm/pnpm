@@ -68,7 +68,7 @@ export async function filterProjectsFromDir (
     nodeVersion?: string
     patterns?: string[]
     modulesDir?: string
-    projectModulesDirs?: string[]
+    modulesDirsByProjectName?: Record<string, string>
     supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<FilterProjectsFromDirResult> {
@@ -76,7 +76,7 @@ export async function filterProjectsFromDir (
     engineStrict: opts?.engineStrict,
     patterns: opts.patterns,
     modulesDir: opts.modulesDir,
-    projectModulesDirs: opts.projectModulesDirs,
+    modulesDirsByProjectName: opts.modulesDirsByProjectName,
     sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
     nodeVersion: opts.nodeVersion,
     supportedArchitectures: opts.supportedArchitectures,

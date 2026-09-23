@@ -92,8 +92,9 @@ test.each([
   [{ modulesDir: '.' }, ['app', 'dep', 'lib-dep', 'nested-dep', 'root', 'vendored-lib']],
   [{ modulesDir: path.join(customModulesDirFixture, 'packages/app/vendor') }, ['app', 'lib-dep', 'nested-dep', 'root', 'vendored-lib']],
   [{ modulesDir: path.resolve(customModulesDirFixture, '../vendor') }, ['app', 'dep', 'lib-dep', 'nested-dep', 'root', 'vendored-lib']],
-  [{ projectModulesDirs: ['deps/nested'] }, ['app', 'dep', 'lib-dep', 'root', 'vendored-lib']],
-  [{ modulesDir: 'vendor', projectModulesDirs: ['deps/nested'] }, ['app', 'root', 'vendored-lib']],
+  [{ modulesDirsByProjectName: { app: 'deps/nested' } }, ['app', 'dep', 'lib-dep', 'root', 'vendored-lib']],
+  [{ modulesDir: 'vendor', modulesDirsByProjectName: { app: 'deps/nested' } }, ['app', 'dep', 'root', 'vendored-lib']],
+  [{ modulesDirsByProjectName: { 'vendored-lib': 'vendor' } }, ['app', 'dep', 'nested-dep', 'root', 'vendored-lib']],
 ])('findWorkspaceProjectsNoCheck() skips the modules directories in %o', async (modulesDirOpts, expectedNames) => {
   const opts = { patterns: ['**'], ...modulesDirOpts }
 

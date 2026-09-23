@@ -70,7 +70,7 @@ export {
 } from './packageManagerRegistries.js'
 export { parseCAFileContents } from './parseCAFileContents.js'
 export type { Creds } from './parseCreds.js'
-export { createProjectModulesDirResolver, listProjectModulesDirs, type ProjectModulesDirOptions } from './projectConfig.js'
+export { createProjectModulesDirResolver, getModulesDirsByProjectName, type ProjectModulesDirOptions } from './projectConfig.js'
 export {
   createProjectConfigRecord,
   type CreateProjectConfigRecordOptions,
