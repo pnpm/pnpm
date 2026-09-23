@@ -6,6 +6,7 @@ use super::{
     peer_names_from_manifest, platform_incompatible_optional, read_pkg_metadata_from_store,
     safe_read_project_manifest_from_dir, tarball_url_for_component,
 };
+use std::sync::OnceLock;
 
 pub(super) struct WalkContext<'a> {
     pub(super) snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
@@ -56,17 +57,10 @@ impl<'a> TransitiveEdges<'a> {
         key: &'a PkgNameVerPeer,
         snapshot: &'a SnapshotEntry,
     ) -> impl Iterator<Item = PkgNameVerPeer> + 'a {
-        let optional_iter = self.include_optional
-            .then(|| snapshot.optional_dependencies.iter().flatten())
-            .into_iter()
-            .flatten();
-        snapshot.dependencies
-            .iter()
-            .flatten()
-            .chain(optional_iter)
-            .filter(move |(alias, _)| {
-                !self.skipped_peer_edges.is_some_and(|skipped| skipped.contains(key, alias))
-            })
+        static FOLLOW_EVERY_EDGE: OnceLock<PeerSatisfactionEdges> = OnceLock::new();
+        self.skipped_peer_edges
+            .unwrap_or_else(|| FOLLOW_EVERY_EDGE.get_or_init(PeerSatisfactionEdges::default))
+            .followed_entries(key, snapshot, self.include_optional)
             .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
     }
 }

@@ -614,7 +614,7 @@ export interface DependentsOptions {
    */
   manifestFields?: string[]
   /**
-   * Whether a direct dependency of the root importer provides a peer to
+   * Whether a `devDependencies` entry of the root importer provides a peer to
    * every importer when a walk that leaves out a group decides which
    * optional-peer edges to skip. Default `false`.
    */
@@ -759,7 +759,7 @@ export interface FilterLockfileOptions {
    */
   failOnMissingDependencies?: boolean
   /**
-   * Whether a direct dependency of the root importer provides a peer to
+   * Whether a `devDependencies` entry of the root importer provides a peer to
    * every importer when the filter decides which optional-peer edges to
    * skip. Default `false`.
    */

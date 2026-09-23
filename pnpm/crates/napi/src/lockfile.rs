@@ -97,7 +97,7 @@ pub struct FilterLockfileOptions {
     /// drops the reference and keeps walking — what a caller inspecting a
     /// possibly-stale lockfile wants.
     pub fail_on_missing_dependencies: Option<bool>,
-    /// Whether a direct dependency of the root importer provides a peer to
+    /// Whether a `devDependencies` entry of the root importer provides a peer to
     /// every importer when the filter decides which optional-peer edges to
     /// skip. Defaults to `false`.
     pub resolve_peers_from_workspace_root: Option<bool>,

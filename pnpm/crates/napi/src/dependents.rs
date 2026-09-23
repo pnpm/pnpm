@@ -79,7 +79,7 @@ pub struct DependentsOptions {
     /// tree, as `manifest`. Nodes whose manifest is missing (and every
     /// workspace-project node) carry none.
     pub manifest_fields: Option<Vec<String>>,
-    /// Whether a direct dependency of the root importer provides a peer to
+    /// Whether a `devDependencies` entry of the root importer provides a peer to
     /// every importer when a walk that leaves out a group decides which
     /// optional-peer edges to skip. Defaults to `false`.
     pub resolve_peers_from_workspace_root: Option<bool>,
