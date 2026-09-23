@@ -189,6 +189,52 @@ fn patch_commit_prepare_pkg_files_for_diff_falls_back_to_copy_on_hard_link_error
     fs::remove_dir_all(path).unwrap();
 }
 
+#[cfg(any(unix, windows))]
+#[test]
+fn patch_commit_prepare_pkg_files_for_diff_falls_back_on_raw_cross_device_errno() {
+    let edit_dir = tempdir().expect("edit dir");
+    fs::write(
+        edit_dir.path().join("package.json"),
+        r#"{"name":"pkg","version":"1.0.0","files":["index.js"]}"#,
+    )
+    .unwrap();
+    fs::write(edit_dir.path().join("index.js"), "included\n").unwrap();
+    fs::write(edit_dir.path().join("ignore.txt"), "excluded\n").unwrap();
+
+    let prepared = prepare_pkg_files_for_diff_with_fs(edit_dir.path(), &RawExdevHardLinkErrorFs)
+        .expect("prepare files with raw exdev fallback");
+    let PkgFilesForDiff::Temporary(path) = prepared else {
+        panic!("package files should be prepared in a temporary filtered dir");
+    };
+
+    assert_eq!(fs::read_to_string(path.join("index.js")).unwrap(), "included\n");
+    fs::remove_dir_all(path).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn patch_commit_prepare_pkg_files_for_diff_preserves_symlinks_on_copy_fallback() {
+    let edit_dir = tempdir().expect("edit dir");
+    fs::write(
+        edit_dir.path().join("package.json"),
+        r#"{"name":"pkg","version":"1.0.0","main":"link.js","files":["index.js"]}"#,
+    )
+    .unwrap();
+    fs::write(edit_dir.path().join("index.js"), "target content\n").unwrap();
+    std::os::unix::fs::symlink("index.js", edit_dir.path().join("link.js")).unwrap();
+
+    let prepared = prepare_pkg_files_for_diff_with_fs(edit_dir.path(), &HardLinkErrorFs)
+        .expect("prepare files with copy fallback");
+    let PkgFilesForDiff::Temporary(path) = prepared else {
+        panic!("package files should be prepared in a temporary filtered dir");
+    };
+
+    let link_meta = fs::symlink_metadata(path.join("link.js")).unwrap();
+    assert!(link_meta.file_type().is_symlink(), "link.js must remain a symlink");
+    assert_eq!(fs::read_link(path.join("link.js")).unwrap(), Path::new("index.js"));
+    fs::remove_dir_all(path).unwrap();
+}
+
 #[test]
 fn patch_commit_prepare_pkg_files_for_diff_reports_error_when_hard_link_and_copy_fail() {
     let edit_dir = tempdir().expect("edit dir");
@@ -548,11 +594,44 @@ impl PatchCommitFs for HardLinkErrorFs {
     }
 
     fn hard_link(&self, _source: &Path, _target: &Path) -> io::Result<()> {
-        Err(io::Error::new(io::ErrorKind::PermissionDenied, "blocked hard_link"))
+        Err(io::Error::new(io::ErrorKind::CrossesDevices, "cross-device hard_link"))
     }
 
     fn copy(&self, source: &Path, target: &Path) -> io::Result<u64> {
-        fs::copy(source, target)
+        RealPatchCommitFs.copy(source, target)
+    }
+
+    fn remove_dir_all(&self, path: &Path) -> io::Result<()> {
+        match fs::remove_dir_all(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error),
+        }
+    }
+}
+
+struct RawExdevHardLinkErrorFs;
+
+impl PatchCommitFs for RawExdevHardLinkErrorFs {
+    fn symlink_metadata(&self, path: &Path) -> io::Result<fs::Metadata> {
+        fs::symlink_metadata(path)
+    }
+
+    fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        fs::create_dir_all(path)
+    }
+
+    fn hard_link(&self, _source: &Path, _target: &Path) -> io::Result<()> {
+        #[cfg(unix)]
+        return Err(io::Error::from_raw_os_error(18));
+        #[cfg(windows)]
+        return Err(io::Error::from_raw_os_error(17));
+        #[cfg(not(any(unix, windows)))]
+        return Err(io::Error::new(io::ErrorKind::Other, "unsupported"));
+    }
+
+    fn copy(&self, source: &Path, target: &Path) -> io::Result<u64> {
+        RealPatchCommitFs.copy(source, target)
     }
 
     fn remove_dir_all(&self, path: &Path) -> io::Result<()> {

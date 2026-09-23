@@ -65,11 +65,7 @@ pub enum PatchCommitError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PATCH_COMMIT_UNSAFE_TEMP_DIR))]
     UnsafeTempDir { dir: PathBuf, reason: &'static str },
 
-    #[display(
-        "Failed to link package file from {} to {}: {source}",
-        source_path.display(),
-        target.display()
-    )]
+    #[display("Failed to link package file from {} to {}: {source}", source_path.display(), target.display())]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PATCH_COMMIT_LINK_FILE))]
     LinkFile {
         source_path: PathBuf,
@@ -138,19 +134,15 @@ fn prepare_pkg_files_for_diff_with_fs(
                     .copy(&source_path, &target)
                     .map_err(|source| PatchCommitError::LinkFile { source_path, target, source })?;
             }
-            Err(source) => {
-                return Err(PatchCommitError::LinkFile { source_path, target, source });
-            }
+            Err(source) => return Err(PatchCommitError::LinkFile { source_path, target, source }),
         }
     }
     Ok(PkgFilesForDiff::Temporary(temp_dir))
 }
 
 pub fn diff_folders(folder_a: &Path, folder_b: &Path) -> Result<String, PatchCommitError> {
-    let folder_a_slash = slash_path(folder_a);
-    let folder_b_slash = slash_path(folder_b);
-    let stdout = DiffTempFile::new("stdout")?;
-    let stderr = DiffTempFile::new("stderr")?;
+    let (folder_a_slash, folder_b_slash) = (slash_path(folder_a), slash_path(folder_b));
+    let (stdout, stderr) = (DiffTempFile::new("stdout")?, DiffTempFile::new("stderr")?);
     let status = git_diff_command()
         .arg(&folder_a_slash)
         .arg(&folder_b_slash)
@@ -248,7 +240,12 @@ impl PatchCommitFs for RealPatchCommitFs {
     }
 
     fn copy(&self, source: &Path, target: &Path) -> io::Result<u64> {
-        fs::copy(source, target)
+        let meta = self.symlink_metadata(source)?;
+        if meta.file_type().is_symlink() {
+            recreate_symlink(source, target).map(|()| 0)
+        } else {
+            fs::copy(source, target)
+        }
     }
 
     fn remove_dir_all(&self, path: &Path) -> io::Result<()> {
@@ -256,13 +253,23 @@ impl PatchCommitFs for RealPatchCommitFs {
     }
 }
 
+fn recreate_symlink(source: &Path, target: &Path) -> io::Result<()> {
+    let link_target = fs::read_link(source)?;
+    #[cfg(unix)]
+    return std::os::unix::fs::symlink(link_target, target);
+    #[cfg(windows)]
+    return std::os::windows::fs::symlink_file(link_target, target);
+    #[cfg(not(any(unix, windows)))]
+    return Err(io::Error::new(io::ErrorKind::Unsupported, "symlinks unsupported"));
+}
+
 fn temporary_filtered_dir(src: &Path) -> PathBuf {
     let name = src
         .file_name()
-        .map_or_else(|| String::from("patch"), |name| name.to_string_lossy().into_owned());
-    src.parent()
-        .unwrap_or_else(|| Path::new("."))
-        .join(format!("{name}_tmp_{}", std::process::id()))
+        .and_then(|n| n.to_str())
+        .unwrap_or("patch");
+    let parent = src.parent().unwrap_or_else(|| Path::new("."));
+    parent.join(format!("{name}_tmp_{}", std::process::id()))
 }
 
 fn slash_path(path: &Path) -> String {
@@ -270,24 +277,24 @@ fn slash_path(path: &Path) -> String {
 }
 
 fn safe_package_file_path(path: &str) -> Result<PathBuf, PatchCommitError> {
-    let path = path_from_forward_slash(path);
-    if path.is_absolute()
-        || path
+    let buf = path_from_forward_slash(path);
+    let escapes = buf.is_absolute()
+        || buf
             .components()
-            .any(|component| {
+            .any(|c| {
                 matches!(
-                    component,
+                    c,
                     std::path::Component::ParentDir
                         | std::path::Component::RootDir
                         | std::path::Component::Prefix(_),
                 )
-            })
-    {
+            });
+    if escapes {
         return Err(PatchCommitError::InvalidPackageFilePath {
-            path: path.to_string_lossy().into_owned(),
+            path: buf.to_string_lossy().into_owned(),
         });
     }
-    Ok(path)
+    Ok(buf)
 }
 
 fn path_from_forward_slash(path: &str) -> PathBuf {
@@ -295,15 +302,14 @@ fn path_from_forward_slash(path: &str) -> PathBuf {
 }
 
 fn is_unsupported_link_error(error: &io::Error) -> bool {
-    matches!(
+    if matches!(
         error.kind(),
         io::ErrorKind::CrossesDevices
             | io::ErrorKind::Unsupported
             | io::ErrorKind::PermissionDenied,
-    ) || is_cross_device_errno(error)
-}
-
-fn is_cross_device_errno(error: &io::Error) -> bool {
+    ) {
+        return true;
+    }
     #[cfg(unix)]
     return error.raw_os_error() == Some(18);
     #[cfg(windows)]
@@ -354,8 +360,6 @@ fn normalize_diff_path_line(line: &str, folder_a: &str, folder_b: &str) -> Strin
             out = out.replace(&format!("{prefix}/{trimmed}/"), &format!("{prefix}/"));
             out = out.replace(&format!("{prefix}{folder}/"), &format!("{prefix}/"));
         }
-    }
-    for folder in [folder_a, folder_b] {
         out = out.replace(&format!("{folder}/"), "");
     }
     out
@@ -376,14 +380,10 @@ fn remove_ds_store_diff_blocks(diff: &str) -> String {
 }
 
 fn push_non_ds_store_block(output: &mut String, block: &str) {
-    if block.is_empty() {
-        return;
-    }
     let header = block.lines().next().unwrap_or_default();
-    if is_ds_store_diff_header(header) {
-        return;
+    if !block.is_empty() && !is_ds_store_diff_header(header) {
+        output.push_str(block);
     }
-    output.push_str(block);
 }
 
 fn is_ds_store_diff_header(header: &str) -> bool {

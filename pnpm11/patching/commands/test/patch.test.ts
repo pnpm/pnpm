@@ -430,7 +430,7 @@ describe('patch and commit', () => {
     fs.appendFileSync(path.join(patchDir, 'index.js'), '// test failure', 'utf8')
 
     const linkSpy = jest.spyOn(fs.promises, 'link').mockRejectedValue(
-      Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+      Object.assign(new Error('EIO: i/o error'), { code: 'EIO' })
     )
 
     try {
@@ -442,7 +442,7 @@ describe('patch and commit', () => {
         frozenLockfile: false,
         fixLockfile: true,
         storeDir,
-      }, [patchDir])).rejects.toMatchObject({ code: 'EACCES' })
+      }, [patchDir])).rejects.toMatchObject({ code: 'EIO' })
 
       expect(linkSpy).toHaveBeenCalled()
     } finally {

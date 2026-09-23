@@ -321,7 +321,13 @@ async function preparePkgFilesForDiff (src: string): Promise<string> {
         await fs.promises.link(srcFile, destFile)
       } catch (err: unknown) {
         if (isUnsupportedLinkError(err)) {
-          await fs.promises.copyFile(srcFile, destFile)
+          const stat = await fs.promises.lstat(srcFile)
+          if (stat.isSymbolicLink()) {
+            const target = await fs.promises.readlink(srcFile)
+            await fs.promises.symlink(target, destFile)
+          } else {
+            await fs.promises.copyFile(srcFile, destFile)
+          }
         } else {
           throw err
         }
@@ -336,7 +342,7 @@ function isUnsupportedLinkError (err: unknown): boolean {
     util.types.isNativeError(err) &&
     'code' in err &&
     typeof err.code === 'string' &&
-    ['EXDEV', 'EPERM', 'ENOTSUP', 'EOPNOTSUPP'].includes(err.code)
+    ['EXDEV', 'EPERM', 'EACCES', 'ENOTSUP', 'EOPNOTSUPP'].includes(err.code)
   )
 }
 
