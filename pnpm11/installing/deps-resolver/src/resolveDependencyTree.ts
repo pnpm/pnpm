@@ -289,7 +289,9 @@ export async function resolveDependencyTree<T> (
     for (const directDep of directDependencies as PkgAddress[]) {
       const { alias, normalizedBareSpecifier, version, saveCatalogName } = directDep
 
-      if (saveCatalogName == null) {
+      // A dependency resolved through its `catalog:` reference already belongs to the catalog, and
+      // an update moves that entry through `updatedCatalogs`.
+      if (saveCatalogName == null || directDep.catalogLookup != null) {
         continue
       }
 

@@ -917,7 +917,12 @@ fn add_moves_a_catalog_locked_on_another_version() {
     run_ok(&workspace, &["add", "--lockfile-only", &format!("{FOO}@1.1.0")]);
 
     assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
-    assert_eq!(catalog_snapshot(&workspace, FOO), ("^1.0.0".to_string(), "1.1.0".to_string()));
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("^1.1.0".to_string(), "1.1.0".to_string()));
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(&format!("'{FOO}': ^1.1.0")),
+        "the catalog entry should move onto the added version:\n{workspace_yaml}",
+    );
 
     drop((root, anchor));
 }
@@ -975,7 +980,7 @@ fn add_moving_a_catalog_leaves_an_untargeted_project_alone() {
 
     run_ok(&workspace, &["--dir", "packages/a", "add", "--lockfile-only", &format!("{FOO}@1.1.0")]);
 
-    assert_eq!(catalog_snapshot(&workspace, FOO), ("^1.0.0".to_string(), "1.1.0".to_string()));
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("^1.1.0".to_string(), "1.1.0".to_string()));
     assert_eq!(importer_dep_version(&workspace, "packages/a", FOO), "1.1.0");
     assert_eq!(
         importer_dep_version(&workspace, "packages/b", FOO),
@@ -1034,7 +1039,7 @@ fn add_moves_a_catalog_with_a_per_project_lockfile() {
 
     run_ok(&workspace, &["--dir", "packages/a", "add", "--lockfile-only", &format!("{FOO}@1.1.0")]);
 
-    assert_eq!(catalog_snapshot(&project, FOO), ("^1.0.0".to_string(), "1.1.0".to_string()));
+    assert_eq!(catalog_snapshot(&project, FOO), ("^1.1.0".to_string(), "1.1.0".to_string()));
 
     drop((root, anchor));
 }

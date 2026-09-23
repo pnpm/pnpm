@@ -20,8 +20,10 @@ use pnpm_catalogs_resolver::{
 };
 use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use pnpm_config::CatalogMode;
+use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_local_resolver::is_local_filesystem_specifier;
+use pnpm_resolving_npm_resolver::calc_version_range;
 
 /// Wanted dependency outside the version range defined in catalog.
 ///
@@ -178,10 +180,12 @@ fn decide_catalog_entry(
     };
 
     if catalog_covers(&entry, dep.bare_specifier) {
+        let updated_entry = moved_catalog_entry(&entry, dep.bare_specifier)
+            .map(|specifier| CatalogEntry { catalog_name: catalog_name.to_string(), specifier });
         return Ok(CatalogDecisionOutcome {
             decision: CatalogDecision::Catalog {
                 manifest_specifier: catalog_specifier,
-                updated_entry: None,
+                updated_entry,
             },
             warning: None,
         });
@@ -242,6 +246,20 @@ fn is_project_relative_path(specifier: &str) -> bool {
 pub(crate) fn catalog_covers(entry: &str, wanted: &str) -> bool {
     entry == wanted
         || matches!((Range::parse(entry), Version::parse(wanted)), (Ok(entry), Ok(wanted)) if entry.satisfies(&wanted))
+}
+
+/// The catalog entry that pins `wanted` under the operator `entry` declares,
+/// or `None` when the entry stays as written: `wanted` is not a version, or
+/// the entry is a range no single operator describes, such as
+/// `>=1.2.0 <2.0.0`.
+///
+/// A covered version still moves the entry, so the version `add` or `update`
+/// asked for is the one the whole catalog resolves to from then on. The range
+/// is written the way `update` writes one it bumps to a resolved version.
+fn moved_catalog_entry(entry: &str, wanted: &str) -> Option<String> {
+    let version = Version::parse(wanted).ok()?;
+    let moved = calc_version_range(&version, Some(entry), None, RangeSpecStyle::Major);
+    (moved != entry).then_some(moved)
 }
 
 /// The catalog group a dependency belongs to: a previous `catalog:<name>`
