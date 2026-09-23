@@ -3,16 +3,16 @@ use super::{
     read_root_manifest_json, warn_deprecated_override_version_references,
     warn_ignored_pnpm_manifest_fields, warn_unsupported_workspaces_field,
 };
+use crate::cli_args::yarn_workspaces_field::converts_yarn_workspaces;
 
 fn report_up_to_date_install(
-    config_root: &std::path::Path,
+    root_manifest: Option<&serde_json::Value>,
     config: &pnpm_config::Config,
     up_to_date: &pnpm_package_manager::UpToDateWorkspace,
     emit: fn(&pnpm_reporter::LogEvent),
 ) {
-    let root_manifest = read_root_manifest_json(config_root);
-    warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
-    warn_unsupported_workspaces_field(root_manifest.as_ref(), config.workspace_dir.as_deref());
+    warn_ignored_pnpm_manifest_fields(root_manifest);
+    warn_unsupported_workspaces_field(root_manifest, config.workspace_dir.as_deref());
     warn_deprecated_override_version_references(config, emit);
     // The scope covers the same projects the full install path would
     // report; an up-to-date run says so too rather than going quiet
@@ -78,6 +78,10 @@ impl InstallArgs {
         {
             return false;
         }
+        let root_manifest = read_root_manifest_json(&config_root);
+        if converts_yarn_workspaces(config, root_manifest.as_ref()) {
+            return false;
+        }
         let manifest_path = dir.join("package.json");
         if !manifest_path.is_file() {
             return false;
@@ -98,7 +102,7 @@ impl InstallArgs {
         }) else {
             return false;
         };
-        report_up_to_date_install(&config_root, config, &up_to_date, emit);
+        report_up_to_date_install(root_manifest.as_ref(), config, &up_to_date, emit);
         true
     }
 

@@ -39,9 +39,42 @@ fn an_install_creates_a_workspace_yaml_from_the_workspaces_field() {
     assert_eq!(created, "packages:\n  - packages/*\n  - apps/web\n");
 }
 
-/// The install keeps the generated file and the converted repository no
-/// longer warns about the field: the generated `pnpm-workspace.yaml` now
-/// selects the projects, so the field is redundant rather than ignored.
+#[test]
+fn the_converting_install_links_the_declared_projects() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
+    );
+    fs::create_dir_all(workspace.join("packages/foo")).expect("create project dir");
+    fs::write(workspace.join("packages/foo/package.json"), r#"{"name":"foo","version":"1.0.0"}"#)
+        .expect("write project manifest");
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("lockfile written");
+    assert!(lockfile.contains("\n  packages/foo:"), "packages/foo is an importer:\n{lockfile}");
+}
+
+#[test]
+fn an_up_to_date_standalone_install_still_converts() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
+    );
+    let standalone = run(pacquet_in(&workspace), root.path(), &["install", "--ignore-workspace"]);
+    assert_success(&standalone);
+    assert!(!workspace.join("pnpm-workspace.yaml").exists());
+
+    let output = run(pacquet_in(&workspace), root.path(), &["install"]);
+
+    assert_success(&output);
+    assert_contains(&stderr(&output), CREATED);
+    assert!(workspace.join("pnpm-workspace.yaml").exists());
+}
+
 #[test]
 fn a_converted_repository_warns_once_then_stays_quiet() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
@@ -59,9 +92,6 @@ fn a_converted_repository_warns_once_then_stays_quiet() {
     assert_quiet(&second);
 }
 
-/// The second install of an unchanged project never reaches the full
-/// install path; the generated workspace manifest has to keep the
-/// up-to-date short-circuit quiet about the field as well.
 #[test]
 fn a_repeat_install_taking_the_up_to_date_path_stays_quiet() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
@@ -80,8 +110,6 @@ fn a_repeat_install_taking_the_up_to_date_path_stays_quiet() {
     assert_quiet(&second);
 }
 
-/// Inside a pnpm workspace the field is redundant rather than misleading:
-/// `pnpm-workspace.yaml` selects the projects, and the install links them.
 #[test]
 fn a_workspaces_field_inside_a_pnpm_workspace_stays_quiet() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -98,8 +126,6 @@ fn a_workspaces_field_inside_a_pnpm_workspace_stays_quiet() {
     assert_quiet(&output);
 }
 
-/// Existing-file precedence is the promise the converting install makes:
-/// the user's own manifest describes their workspace, not the field.
 #[test]
 fn an_existing_workspace_yaml_is_left_untouched() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -119,8 +145,6 @@ fn an_existing_workspace_yaml_is_left_untouched() {
     assert_eq!(kept, authored);
 }
 
-/// `--ignore-workspace` is the user saying "standalone project", so the
-/// install must not create the very manifest they asked it to ignore.
 #[test]
 fn an_ignored_workspace_creates_no_workspace_yaml() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -138,9 +162,6 @@ fn an_ignored_workspace_creates_no_workspace_yaml() {
     );
 }
 
-/// A `workspaces` array whose entries are not usable patterns still gets
-/// pnpm 11's warning: the field names projects pnpm cannot find, and the
-/// notice explains why none of them linked.
 #[test]
 fn an_array_without_usable_patterns_keeps_the_unsupported_field_warning() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -162,9 +183,6 @@ fn an_array_without_usable_patterns_keeps_the_unsupported_field_warning() {
     );
 }
 
-/// Patterns that are YAML syntax rather than plain strings survive the
-/// round trip: the generated manifest quotes them, so a later parse sees
-/// the same patterns the manifest declared.
 #[test]
 fn yaml_special_characters_in_patterns_are_quoted_in_the_generated_manifest() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -186,9 +204,6 @@ fn yaml_special_characters_in_patterns_are_quoted_in_the_generated_manifest() {
     );
 }
 
-/// A `pnpm-workspace.yaml` that is a symlink is a file the repository
-/// authored, however it resolves: the install neither follows it nor
-/// replaces it, so a dangling link cannot redirect the write elsewhere.
 #[cfg(unix)]
 #[test]
 fn a_symlinked_workspace_yaml_is_neither_followed_nor_replaced() {
@@ -214,8 +229,6 @@ fn symlink(link: &Path, target: &Path) -> std::io::Result<()> {
     std::os::unix::fs::symlink(target, link)
 }
 
-/// Yarn's object spelling is the documented limit of the check: pnpm 11
-/// does not warn about it either, and the two are kept aligned.
 #[test]
 fn an_object_form_workspaces_field_stays_quiet() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -234,8 +247,6 @@ fn write_manifest(workspace: &Path, contents: &str) {
     fs::write(workspace.join("package.json"), contents).expect("write package.json");
 }
 
-/// A fresh command per run: [`CommandTempCwd`] hands out one, and the
-/// repeat-install test needs a second.
 fn pacquet_in(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")

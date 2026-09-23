@@ -595,3 +595,22 @@ pub fn extra_bin_paths_follow_a_configured_modules_dir() {
         ],
     );
 }
+
+#[test]
+pub fn anchoring_to_a_created_workspace_matches_loading_inside_it() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[]);
+    let mut anchored = load_with_fake_env(project.path());
+
+    anchored.anchor_to_created_workspace(project.path().to_path_buf(), vec!["packages/*".into()]);
+
+    fs::write(project.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    let loaded = load_with_fake_env(project.path());
+    assert_eq!(anchored.workspace_dir, loaded.workspace_dir);
+    assert_eq!(anchored.workspace_package_patterns, loaded.workspace_package_patterns);
+    assert_eq!(anchored.extra_bin_paths, loaded.extra_bin_paths);
+    assert_eq!(anchored.modules_dir, loaded.modules_dir);
+    assert_eq!(anchored.virtual_store_dir, loaded.virtual_store_dir);
+}

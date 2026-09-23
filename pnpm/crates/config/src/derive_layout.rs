@@ -36,18 +36,7 @@ impl Config {
         // `extraBinPaths = [join(workspaceDir, modulesDir, '.bin')]`.
         // The root is a project like any other, so a `packageConfigs`
         // entry naming it moves those executables too.
-        self.extra_bin_paths = self.workspace_dir
-            .as_deref()
-            .map_or_else(Vec::new, |dir| {
-                let root_name = self
-                    .applies_package_configs()
-                    .then(|| pnpm_workspace::read_project_name(dir))
-                    .flatten();
-                vec![
-                    dir.join(self.modules_dir_name_for(dir, root_name.as_deref()))
-                        .join(".bin"),
-                ]
-            });
+        self.extra_bin_paths = self.workspace_root_bin_paths();
 
         // With `preferSymlinkedExecutables`, `.bin` entries are plain
         // symlinks with no shim to carry a `NODE_PATH` block, so the
@@ -178,5 +167,33 @@ impl Config {
         self.apply_shamefully_hoist_derivation();
         self.apply_virtual_store_only_derivation();
         Ok(())
+    }
+
+    /// Make `workspace_dir` the workspace root of a config that was loaded
+    /// outside any workspace, for a `pnpm-workspace.yaml` created after
+    /// loading. The layout that follows the workspace root follows it too.
+    pub fn anchor_to_created_workspace(
+        &mut self,
+        workspace_dir: std::path::PathBuf,
+        package_patterns: Vec<String>,
+    ) {
+        self.workspace_dir = Some(workspace_dir);
+        self.workspace_package_patterns = Some(package_patterns);
+        self.extra_bin_paths = self.workspace_root_bin_paths();
+    }
+
+    fn workspace_root_bin_paths(&self) -> Vec<std::path::PathBuf> {
+        self.workspace_dir
+            .as_deref()
+            .map_or_else(Vec::new, |dir| {
+                let root_name = self
+                    .applies_package_configs()
+                    .then(|| pnpm_workspace::read_project_name(dir))
+                    .flatten();
+                vec![
+                    dir.join(self.modules_dir_name_for(dir, root_name.as_deref()))
+                        .join(".bin"),
+                ]
+            })
     }
 }

@@ -25,7 +25,6 @@ use crate::{
         legacy_pnpm_field::warn_ignored_pnpm_manifest_fields,
         override_version_references::warn_deprecated_override_version_references,
         reporter::{ReporterType, reporter_emit},
-        yarn_workspaces_field::warn_unsupported_workspaces_field,
     },
     config_deps, ecosystem_add, ecosystem_install,
     package_specifier::EcosystemPackageSpecifier,

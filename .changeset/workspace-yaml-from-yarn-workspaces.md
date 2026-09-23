@@ -2,4 +2,4 @@
 "pacquet": minor
 ---
 
-Install now creates `pnpm-workspace.yaml` from the `workspaces` field in the root `package.json` when no workspace manifest exists, so a repository converted from Yarn or npm links its projects on the first install instead of warning about the unsupported field [pnpm/pnpm#2255](https://github.com/pnpm/pnpm/issues/2255). An existing `pnpm-workspace.yaml` always wins, and `--ignore-workspace` keeps the project standalone.
+`pnpm install` now creates `pnpm-workspace.yaml` from the `workspaces` field of the root `package.json` when the repository has no `pnpm-workspace.yaml`. The projects the field lists are linked on that same install. An existing `pnpm-workspace.yaml` is never changed, and `--ignore-workspace` creates no file [#2255](https://github.com/pnpm/pnpm/issues/2255).
