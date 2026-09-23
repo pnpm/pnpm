@@ -11,8 +11,7 @@ use pnpm_package_manifest::{
     files_include_install_scripts, manifest_requires_build, parse_manifest,
 };
 use pnpm_reporter::Reporter;
-use pnpm_tarball::PrefetchResult;
-use pnpm_tarball::pending_progress_key;
+use pnpm_tarball::{PrefetchResult, pending_progress_key};
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},

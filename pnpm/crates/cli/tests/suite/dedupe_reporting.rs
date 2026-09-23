@@ -1,8 +1,10 @@
 use crate::_utils::{assert_success, ndjson_records};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use pnpm_testing_utils::command_env::CommandTestExt;
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+};
 use serde_json::Value;
 use std::{
     collections::HashSet,
