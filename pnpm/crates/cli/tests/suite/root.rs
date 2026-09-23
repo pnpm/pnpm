@@ -35,26 +35,28 @@ fn root_prints_the_local_node_modules_dir() {
     drop(root);
 }
 
+/// Regression test for [pnpm/pnpm#9113](https://github.com/pnpm/pnpm/issues/9113):
+/// `root` prints the effective modules directory, so a configured
+/// `modulesDir` moves it, and a multi-component setting stays whole.
 #[test]
-fn root_ignores_a_custom_modules_dir() {
-    // pnpm's `root` hardcodes the `node_modules` leaf, so a configured
-    // modules-dir must NOT change its output. pacquet matches by anchoring on
-    // `--dir` and never reading `config.modules_dir` in this command.
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "modulesDir: custom_nm\n")
-        .expect("write pnpm-workspace.yaml");
+fn root_prints_a_custom_modules_dir() {
+    for modules_dir in ["custom_nm", "www/modules"] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        fs::write(workspace.join("pnpm-workspace.yaml"), format!("modulesDir: {modules_dir}\n"))
+            .expect("write pnpm-workspace.yaml");
 
-    let output = pacquet
-        .with_args(["root"])
-        .output()
-        .expect("run pacquet root");
-    dbg!(&output);
-    assert!(output.status.success(), "pacquet root should succeed");
+        let output = pacquet
+            .with_args(["root"])
+            .output()
+            .expect("run pacquet root");
+        dbg!(&output);
+        assert!(output.status.success(), "pacquet root should succeed");
 
-    let expected = format!("{}\n", canonicalize(&workspace).join("node_modules").display());
-    assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
+        let expected = format!("{}\n", canonicalize(&workspace).join(modules_dir).display());
+        assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
 
-    drop(root);
+        drop(root);
+    }
 }
 
 /// `pacquet root -g` prints the global packages directory

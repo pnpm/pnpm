@@ -30,7 +30,13 @@ impl RootArgs {
                 config.global_pkg_dir.clone().ok_or(GlobalError::MissingGlobalPackageDir)?;
             println!("{}", pkg_dir.display());
         } else {
-            println!("{}", dir.join("node_modules").display());
+            // Gated so an ordinary `pnpm root` reads no manifest, and so a
+            // project without one still answers.
+            let project_name = config
+                .applies_package_configs()
+                .then(|| pnpm_workspace::read_project_name(dir))
+                .flatten();
+            println!("{}", config.project_modules_dir(dir, project_name.as_deref()).display());
         }
         Ok(())
     }
