@@ -1,7 +1,8 @@
 use super::{
-    Config, HostNoHome, assert_eq, capture_warnings, fs, load_with_project_and_user, tempdir,
-    write_file,
+    Config, HostNoHome, Path, assert_eq, capture_warnings, fs, io, load_with_project_and_user,
+    tempdir, write_file,
 };
+use crate::{api::FsReadFile, auth_sources::npmrc_source, npmrc_auth::NpmrcAuth};
 
 /// The rescope warning names the file it read and every key it pinned,
 /// so a user can find and migrate the offending line.
@@ -62,34 +63,27 @@ pub fn rescoped_creds_are_reported_under_their_pinned_key() {
     assert!(!config.raw_auth_config.contains_key("_authToken"));
 }
 
-/// A `.npmrc` that exists but cannot be read is reported, since every
-/// setting it holds is missing from the resolved config.
 #[test]
-#[cfg(unix)]
-pub fn unreadable_npmrc_warns_naming_the_file() {
-    use std::os::unix::fs::PermissionsExt;
-    let project = tempdir().expect("project tempdir");
-    let npmrc = project.path().join(".npmrc");
-    write_file(&npmrc, "registry=https://example.com/\n");
-    fs::set_permissions(&npmrc, fs::Permissions::from_mode(0o000)).expect("chmod .npmrc");
-    if fs::read(&npmrc).is_ok() {
-        // Running as root: permissions do not stop the read.
-        return;
+pub fn unreadable_npmrc_becomes_a_source_carrying_its_warning() {
+    struct PermissionDenied;
+    impl FsReadFile for PermissionDenied {
+        fn read_file(_: &Path) -> io::Result<Vec<u8>> {
+            Err(io::ErrorKind::PermissionDenied.into())
+        }
     }
+    let path = Path::new("/project/.npmrc");
 
-    let config = Config::default().current::<HostNoHome>(project.path()).expect("load config");
+    let source = npmrc_source::<PermissionDenied>(path, |_| NpmrcAuth::default())
+        .expect("an unreadable file is still a source");
 
-    let warning = config.npmrc_warnings
-        .iter()
-        .find(|warning| warning.starts_with("Issue while reading"))
-        .expect("read failure warning");
+    assert_eq!(source.warnings.len(), 1);
     assert!(
-        warning.contains(&npmrc.display().to_string()),
-        "{warning:?} should name the unreadable file",
+        source.warnings[0].starts_with(&format!(r#"Issue while reading "{}". "#, path.display())),
+        "{:?} should name the unreadable file",
+        source.warnings[0],
     );
 }
 
-/// A missing `.npmrc` is the common case, not a failure.
 #[test]
 pub fn missing_npmrc_does_not_warn() {
     let auth = tempdir().expect("auth tempdir");
@@ -97,7 +91,6 @@ pub fn missing_npmrc_does_not_warn() {
     assert_eq!(config.npmrc_warnings, Vec::<String>::new());
 }
 
-/// Bytes that are not valid UTF-8 do not discard the rest of the file.
 #[test]
 pub fn npmrc_with_invalid_utf8_is_still_read() {
     let project = tempdir().expect("project tempdir");

@@ -213,8 +213,8 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
 /// place, reads as `Ok(None)`, and invalid UTF-8 is decoded lossily. Any
 /// other failure comes back as the warning to print, so the caller surfaces
 /// it rather than silently dropping every setting the file holds.
-fn read_npmrc_file(path: &Path) -> Result<Option<String>, String> {
-    match fs::read(path) {
+fn read_npmrc_file<Sys: api::FsReadFile>(path: &Path) -> Result<Option<String>, String> {
+    match Sys::read_file(path) {
         Ok(bytes) => Ok(Some(String::from_utf8_lossy(&bytes).into_owned())),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound || path.is_dir() => Ok(None),
         Err(error) => Err(format!(r#"Issue while reading "{}". {error}"#, path.display())),

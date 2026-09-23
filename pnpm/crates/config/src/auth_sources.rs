@@ -1,7 +1,7 @@
 use super::{
-    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, LinkProbe, LoadWorkspaceYamlError,
-    NpmrcAuth, Path, PathBuf, Pipe, WorkspaceSettings, read_npm_env, read_npmrc_file,
-    read_pnpm_env,
+    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
+    NpmrcAuth, Path, PathBuf, Pipe, WorkspaceSettings, api::FsReadFile, read_npm_env,
+    read_npmrc_file, read_pnpm_env,
 };
 
 /// The merged `.npmrc` view, and the same merge restricted to sources
@@ -33,7 +33,7 @@ where
             Sys::current_dir().is_ok_and(|cwd| cwd.join(user) == project_npmrc_path)
         }
     });
-    npmrc_source(&project_npmrc_path, |text| {
+    npmrc_source::<Host>(&project_npmrc_path, |text| {
         let mut auth = if project_is_trusted_auth_file {
             NpmrcAuth::from_ini::<Sys>(text, project_npmrc_dir)
         } else {
@@ -47,7 +47,7 @@ where
 fn auth_ini_source<Sys: EnvVar>(global_config_dir: Option<&Path>) -> Option<NpmrcAuth> {
     global_config_dir.and_then(|dir| {
         let path = dir.join("auth.ini");
-        npmrc_source(&path, |text| parse_trusted_source::<Sys>(text, dir, &path))
+        npmrc_source::<Host>(&path, |text| parse_trusted_source::<Sys>(text, dir, &path))
     })
 }
 
@@ -56,7 +56,7 @@ where
     Sys: EnvVar + GetHomeDir,
 {
     match user_npmrc_path {
-        Some(path) => npmrc_source(path, |text| {
+        Some(path) => npmrc_source::<Host>(path, |text| {
             // Relative `cafile`/`certfile` entries resolve against
             // the file's directory; for a bare filename (no parent)
             // that's the empty path — i.e. the process cwd — never
@@ -70,7 +70,7 @@ where
         None => Sys::home_dir()
             .and_then(|dir| {
                 let path = dir.join(".npmrc");
-                npmrc_source(&path, |text| parse_trusted_source::<Sys>(text, &dir, &path))
+                npmrc_source::<Host>(&path, |text| parse_trusted_source::<Sys>(text, &dir, &path))
             }),
     }
 }
@@ -78,8 +78,11 @@ where
 /// Parse the `.npmrc` at `path`. A file that exists but cannot be read
 /// becomes a source carrying only its warning, so the failure reaches the
 /// user instead of the file's settings silently going missing.
-fn npmrc_source(path: &Path, parse: impl FnOnce(&str) -> NpmrcAuth) -> Option<NpmrcAuth> {
-    match read_npmrc_file(path) {
+pub(super) fn npmrc_source<Sys: FsReadFile>(
+    path: &Path,
+    parse: impl FnOnce(&str) -> NpmrcAuth,
+) -> Option<NpmrcAuth> {
+    match read_npmrc_file::<Sys>(path) {
         Ok(text) => text.as_deref().map(parse),
         Err(warning) => Some(NpmrcAuth { warnings: vec![warning], ..NpmrcAuth::default() }),
     }
