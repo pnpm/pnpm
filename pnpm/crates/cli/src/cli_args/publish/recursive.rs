@@ -204,8 +204,6 @@ impl PublishArgs {
         Ok(published)
     }
 
-    /// A failed availability check leaves an empty summary, since no upload
-    /// was accepted.
     async fn select_candidates<Reporter: self::Reporter>(
         &self,
         graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
