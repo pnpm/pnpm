@@ -144,6 +144,62 @@ project-2@1.0.0 ${path.resolve('project-2')}
 1 package`)
 })
 
+test('recursive list --only-projects follows projects with dedicated lockfiles', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-2': 'workspace:*',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-3': 'workspace:*',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  const output = await list.handler({
+    ...DEFAULT_OPTS,
+    cliOptions: { depth: Infinity, 'only-projects': true },
+    dir: process.cwd(),
+    recursive: true,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [
+      { namePattern: 'project-1' },
+    ]),
+  }, [])
+
+  expect(stripAnsi(output as unknown as string)).toBe(`Legend: production dependency, optional only, dev only
+
+project-1@1.0.0 ${path.resolve('project-1')}
+│
+│   dependencies:
+└─┬ project-2@link:../project-2
+  └── project-3@link:../project-3
+
+2 packages`)
+})
+
 test('recursive list --filter', async () => {
   preparePackages([
     {
