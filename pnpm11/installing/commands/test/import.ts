@@ -291,3 +291,52 @@ test('import from package-lock.json v3', async () => {
   project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
   project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 })
+
+test('import deduplicates compatible locked versions from package-lock.json', async () => {
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  prepare({
+    name: 'import-dedupe-compatible',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0',
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+  const dir = process.cwd()
+  // package-lock.json has both 100.0.0 and 100.1.0 recorded across different dependents
+  await fs.writeFile(
+    path.join(dir, 'package-lock.json'),
+    JSON.stringify({
+      name: 'import-dedupe-compatible',
+      version: '1.0.0',
+      lockfileVersion: 1,
+      dependencies: {
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': {
+          version: '100.0.0',
+        },
+        '@pnpm.e2e/pkg-with-1-dep': {
+          version: '100.0.0',
+          dependencies: {
+            '@pnpm.e2e/dep-of-pkg-with-1-dep': {
+              version: '100.1.0',
+            },
+          },
+        },
+      },
+    })
+  )
+
+  await importCommand.handler({
+    ...DEFAULT_OPTS,
+    dir,
+  }, [])
+
+  const project = assertProject(dir)
+  const lockfile = project.readLockfile()
+
+  // Compatible ranges resolve to the highest satisfying locked version (100.1.0)
+  // and deduplicate across dependents.
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep@100.0.0'])
+})
