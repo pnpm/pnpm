@@ -2,14 +2,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterAll, expect, jest, test } from '@jest/globals'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { ABBREVIATED_META_DIR, WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { addDependenciesToPackage, type MutatedProject, mutateModules, mutateModulesInSingleProject, type ProjectOptions } from '@pnpm/installing.deps-installer'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { RequestPackageOptions, StoreController } from '@pnpm/store.controller-types'
-import { addDistTag } from '@pnpm/testing.registry-mock'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { readYamlFileSync } from 'read-yaml-file'
 
@@ -659,6 +659,29 @@ test('overrides with local file, link and bare path specs', async () => {
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-b'))).toBe(path.resolve('node_modules/.pnpm/pkg@file+overrides+pkg/node_modules/pkg'))
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-c'))).toBe(path.resolve('overrides/pkg'))
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-d'))).toBe(path.resolve('overrides/pkg'))
+})
+
+test('an override to a local directory is not written to the metadata cache', async () => {
+  const project = prepareEmpty()
+  fs.mkdirSync('local-dep')
+  fs.writeFileSync('local-dep/package.json', JSON.stringify({ name: 'local-dep', version: '1.0.0' }))
+
+  const opts = testDefaults({
+    overrides: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': 'file:./local-dep',
+    },
+  })
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
+
+  expect(project.readLockfile().snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies).toStrictEqual({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': 'local-dep@file:local-dep',
+  })
+  const mirror = fs.readFileSync(path.join(opts.cacheDir, `${ABBREVIATED_META_DIR}/http%3A+localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep.jsonl`), 'utf8')
+  expect(mirror).not.toContain('local-dep')
+  const meta = JSON.parse(mirror.slice(mirror.indexOf('\n') + 1))
+  expect(meta.versions['100.0.0'].dependencies).toStrictEqual({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0',
+  })
 })
 
 test('overrides remove dependencies', async () => {
