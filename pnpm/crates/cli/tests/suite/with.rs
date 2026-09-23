@@ -261,9 +261,6 @@ fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
 }
 
-/// Another process installing the engine holds the slot lock, and is
-/// waited on only briefly: the engine is then installed into a private
-/// directory and run from there, never entering the held slot.
 #[test]
 fn a_held_engine_lock_installs_the_engine_privately() {
     let CommandTempCwd {

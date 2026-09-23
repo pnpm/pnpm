@@ -1,7 +1,8 @@
 use super::{
-    Config, DlxProgram, DlxSpawn, PackageManager, Path, PathBuf, Reporter, is_runtime_alias,
-    is_version_request, materialize_runtime, provision, run_bin, split_spec,
+    Config, DlxProgram, DlxSpawn, PackageManager, Path, PathBuf, Reporter, exit_unless_success,
+    is_runtime_alias, is_version_request, materialize_runtime, provision, run_bin, split_spec,
 };
+use crate::engine_pm::provision::ProvisionedEngine;
 
 /// A tool pnpm provisions itself rather than installing from the
 /// registry.
@@ -110,7 +111,15 @@ pub(super) async fn run_runtime(
         .map(Path::to_path_buf)
         .into_iter()
         .collect();
-    run_bin(DlxProgram::Provisioned { command, executable: &runtime.bin }, args, bin_dirs, spawn)
+    let status = run_bin(
+        DlxProgram::Provisioned { command, executable: &runtime.bin },
+        args,
+        bin_dirs,
+        spawn,
+    )?;
+    drop(runtime);
+    exit_unless_success(status);
+    Ok(())
 }
 
 /// Provision `pm` and run `bin` — or the engine's own command, when the
@@ -130,10 +139,18 @@ pub(super) async fn run_package_manager<Reporter: self::Reporter + 'static>(
         Some(bin) => engine.command(bin),
         None => engine.program.clone(),
     };
-    run_bin(
+    let ProvisionedEngine {
+        bin_dirs,
+        _private_installs: private_installs,
+        ..
+    } = engine;
+    let status = run_bin(
         DlxProgram::Provisioned { command, executable: &executable },
         args,
-        engine.bin_dirs,
+        bin_dirs,
         spawn,
-    )
+    )?;
+    drop(private_installs);
+    exit_unless_success(status);
+    Ok(())
 }

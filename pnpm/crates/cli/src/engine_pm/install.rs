@@ -220,7 +220,7 @@ async fn install_engine_privately<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<InstalledEngine> {
     let private_install = config.store_dir
         .create_private_install(&format!("{}-{version}", pm.name()))
-        .into_diagnostic()
+        .map_err(miette::Report::new)
         .wrap_err("create the private package manager install directory")?;
     Box::pin(run_install::<Reporter>(
         config,
@@ -292,8 +292,8 @@ pub(crate) fn remove_orphaned_private_engine_installs(config: &Config) -> miette
         return Ok(());
     };
     StoreDir::new(package_manager_engine_store_root(global_pkg_dir))
-        .remove_orphaned_private_installs()
-        .into_diagnostic()
+        .prune_private_installs()
+        .map_err(miette::Report::new)
         .wrap_err("remove the private package manager installs left behind")?;
     Ok(())
 }

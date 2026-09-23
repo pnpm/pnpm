@@ -49,8 +49,6 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
         PackageManagerCheck::Enabled,
     )
     .wrap_err_with(|| format!("switch pnpm to v{version}"))?;
-    // `exit` runs no destructors, and a private install is removed by its
-    // handle's.
     drop(engine);
     if !status.success() {
         std::process::exit(status.code().unwrap_or(1));

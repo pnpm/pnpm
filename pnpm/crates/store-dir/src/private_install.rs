@@ -10,8 +10,15 @@
 //! by the OS lock the handle holds on the `in-use` file inside the
 //! directory: the OS releases that lock when the holding process ends,
 //! however it ends.
+//!
+//! A directory is marked in use only after it is created, so creation
+//! runs under the store's use lock and the sweep under its prune lock,
+//! the way every other store consumer and prune keep out of each
+//! other's way.
 
-use crate::StoreDir;
+use crate::{StoreDir, StoreLockError};
+use derive_more::{Display, Error};
+use miette::Diagnostic;
 use std::{
     fs::{self, File},
     io,
@@ -24,7 +31,31 @@ pub(crate) const PRIVATE_INSTALLS_DIR: &str = "private";
 /// The file inside a private install whose OS lock marks it in use.
 const IN_USE_FILE: &str = "in-use";
 
-/// A private install directory, in use by this process until dropped.
+#[derive(Debug, Display, Error, Diagnostic)]
+pub enum PrivateInstallError {
+    #[diagnostic(transparent)]
+    StoreLock(#[error(source)] StoreLockError),
+
+    #[display("Failed to create the private install at {path:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_PRIVATE_INSTALL_CREATE))]
+    Create {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
+    #[display("Failed to remove the private installs left behind under {path:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_PRIVATE_INSTALL_REMOVE))]
+    Remove {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+}
+
+/// A private install directory, in use by this process until dropped,
+/// which removes it. A caller that ends the process itself, through
+/// `exit`, drops the handle first: `exit` runs no destructors.
 #[derive(Debug)]
 pub struct PrivateInstall {
     dir: PathBuf,
@@ -55,19 +86,40 @@ impl StoreDir {
     /// single path component naming what is installed, for anyone
     /// reading the store), marked in use by this process until the
     /// returned handle is dropped.
-    pub fn create_private_install(&self, label: &str) -> io::Result<PrivateInstall> {
-        let dir = self
-            .private_installs_dir()
-            .join(crate::unique_dir_name(label));
-        fs::create_dir_all(&dir)?;
-        let in_use = pnpm_fs::open_secure_lock_file(&dir.join(IN_USE_FILE))?;
+    pub fn create_private_install(
+        &self,
+        label: &str,
+    ) -> Result<PrivateInstall, PrivateInstallError> {
+        let _store_lock = self.lock_for_use().map_err(PrivateInstallError::StoreLock)?;
+        let parent = self.private_installs_dir();
+        let dir = parent.join(crate::unique_dir_name(label));
+        // Exclusive creation: a directory that already exists belongs to
+        // another install, and two handles over one directory would each
+        // remove the other's copy.
+        fs::create_dir_all(&parent)
+            .and_then(|()| fs::create_dir(&dir))
+            .map_err(|error| PrivateInstallError::Create { path: dir.clone(), error })?;
+        let marker = dir.join(IN_USE_FILE);
+        let in_use = pnpm_fs::open_secure_lock_file(&marker)
+            .map_err(|error| PrivateInstallError::Create { path: marker, error })?;
         let in_use = in_use.lock().is_ok().then_some(in_use);
         Ok(PrivateInstall { dir, in_use })
     }
 
     /// Remove every private install under this store that no process
     /// holds any more, and report how many went.
-    pub fn remove_orphaned_private_installs(&self) -> io::Result<usize> {
+    pub fn prune_private_installs(&self) -> Result<usize, PrivateInstallError> {
+        let _store_lock = self.lock_for_prune().map_err(PrivateInstallError::StoreLock)?;
+        self.remove_orphaned_private_installs()
+            .map_err(|error| PrivateInstallError::Remove {
+                path: self.private_installs_dir(),
+                error,
+            })
+    }
+
+    /// [`Self::prune_private_installs`] for a caller that already holds
+    /// the store's prune lock.
+    pub(crate) fn remove_orphaned_private_installs(&self) -> io::Result<usize> {
         let dir = self.private_installs_dir();
         let entries = match fs::read_dir(&dir) {
             Ok(entries) => entries,
@@ -83,8 +135,8 @@ impl StoreDir {
             pnpm_fs::remove_dirent(&path)?;
             removed += 1;
         }
-        // Best-effort: the directory stays when a private install landed
-        // in it meanwhile.
+        // Best-effort: the directory stays when a private install is
+        // still held.
         let _ = fs::remove_dir(&dir);
         Ok(removed)
     }

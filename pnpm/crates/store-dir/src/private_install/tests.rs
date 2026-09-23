@@ -1,5 +1,13 @@
 use crate::StoreDir;
-use std::fs;
+use std::{
+    fs,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread,
+    time::Duration,
+};
 
 #[test]
 fn a_private_install_lives_under_the_store_tmp_until_dropped() {
@@ -58,8 +66,33 @@ fn prune_removes_the_private_installs_dir_once_it_is_empty() {
     let private_installs = store.tmp().join("private");
     fs::create_dir_all(private_installs.join("abandoned")).unwrap();
 
-    assert_eq!(store.remove_orphaned_private_installs().unwrap(), 1);
+    assert_eq!(store.prune_private_installs().unwrap(), 1);
     assert!(!private_installs.exists());
 
-    assert_eq!(store.remove_orphaned_private_installs().unwrap(), 0);
+    assert_eq!(store.prune_private_installs().unwrap(), 0);
+}
+
+/// A prune that ran between a directory's creation and its marker would
+/// take the directory for one left behind.
+#[test]
+fn creation_waits_for_a_running_prune() {
+    let root = tempfile::tempdir().unwrap();
+    let store = StoreDir::new(root.path().join("store"));
+    let prune_lock = store.lock_for_prune().unwrap();
+    let created = Arc::new(AtomicBool::new(false));
+    let creation = thread::spawn({
+        let created = Arc::clone(&created);
+        move || {
+            let private_install = store.create_private_install("node").unwrap();
+            created.store(true, Ordering::SeqCst);
+            private_install
+        }
+    });
+
+    thread::sleep(Duration::from_millis(300));
+    assert!(!created.load(Ordering::SeqCst), "creation must wait for the prune");
+
+    drop(prune_lock);
+    let private_install = creation.join().unwrap();
+    assert!(private_install.dir().exists());
 }

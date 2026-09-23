@@ -238,11 +238,8 @@ fn version_file_runtime_pin_downloads_node_on_demand(file_name: &str) {
     assert!(!root.path().join("cache/dlx").exists());
 }
 
-/// Another process installing the runtime holds the slot lock, and is
-/// waited on only briefly: the runtime is then installed into a private
-/// directory under the store and run from there, never entering the held
-/// slot. The dispatcher replaces itself with the runtime, so nothing
-/// removes that directory when the runtime exits; `pnpm store prune` does.
+/// The dispatcher replaces itself with the runtime, so the private
+/// install outlives the dispatch and only `pnpm store prune` removes it.
 #[cfg(unix)]
 #[test]
 fn a_held_runtime_lock_installs_the_runtime_privately() {

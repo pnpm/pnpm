@@ -9,6 +9,7 @@ use crate::{State, cli_args::add::add_package, slot_lock};
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{Config, Host, NodeLinker};
 use pnpm_crypto_hash::create_hex_hash;
+use pnpm_fs::DirLock;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::SilentReporter;
@@ -138,11 +139,7 @@ pub(crate) async fn materialize_runtime(
         return Ok(MaterializedRuntime::shared(bin));
     }
 
-    let lock_path = environments_dir.join(format!("{key}.lock"));
-    let Some(_lock) = slot_lock::acquire(lock_path.clone())
-        .into_diagnostic()
-        .wrap_err_with(|| format!("lock the managed runtime at {}", lock_path.display()))?
-    else {
+    let Some(_lock) = runtime_slot_lock(&environments_dir, &key) else {
         return install_runtime_privately(config, &name, &version_spec).await;
     };
     if let Some(bin) = managed_runtime_bin(&environment_dir, &name, &global_virtual_store_dir) {
@@ -161,6 +158,26 @@ pub(crate) async fn materialize_runtime(
     Ok(MaterializedRuntime::shared(bin))
 }
 
+/// Take the lock guarding the runtime's slot, or `None` when another
+/// process holds it: the runtime is then installed privately. A lock that
+/// cannot be established at all is treated the same, since the private
+/// install needs none.
+fn runtime_slot_lock(environments_dir: &Path, key: &str) -> Option<DirLock> {
+    let lock_path = environments_dir.join(format!("{key}.lock"));
+    match slot_lock::acquire(lock_path.clone()) {
+        Ok(lock) => lock,
+        Err(error) => {
+            tracing::warn!(
+                target: "pacquet::shim_dispatch",
+                path = %lock_path.display(),
+                %error,
+                "could not lock the managed runtime slot; installing it privately",
+            );
+            None
+        }
+    }
+}
+
 /// Install the runtime into a private directory of this process's own,
 /// self-contained rather than linked into the global virtual store, for
 /// when another process holds the slot lock.
@@ -171,7 +188,7 @@ async fn install_runtime_privately(
 ) -> miette::Result<MaterializedRuntime> {
     let private_install = config.store_dir
         .create_private_install(&name.replace('/', "+"))
-        .into_diagnostic()
+        .map_err(miette::Report::new)
         .wrap_err("create the private runtime install directory")?;
     let bin =
         Box::pin(install_runtime(config, private_install.dir(), None, name, version_spec)).await?;

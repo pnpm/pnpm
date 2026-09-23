@@ -575,10 +575,8 @@ fn store_prune_removes_packages_left_unreferenced_by_remove() {
     );
 }
 
-/// A pinned pnpm installed into a private directory, because its shared
-/// slot was held, is removed once it has run. One whose process was
-/// killed stays behind, in pnpm's own engine store rather than the store
-/// prune sweeps, until prune removes it too.
+/// Private engine installs live in pnpm's own engine store, which
+/// `pnpm store prune` otherwise never visits.
 #[test]
 fn store_prune_removes_the_private_engine_installs_no_process_holds() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
