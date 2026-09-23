@@ -27,13 +27,6 @@ export function getRangeSpecStyle (opts: { saveExact?: boolean, savePrefix?: str
  * as `bareSpecifier` and whose manifest entry, if it already had one, read
  * `prevSpecifier`.
  *
- * The requested specifier's range style wins over the existing entry's, which
- * wins over the configured default, so an explicit version or range requested
- * by the user is honored (pnpm/pnpm#6040), while a request naming no range
- * style (like `latest`) keeps the pinning style the manifest already used.
- * A newly added prerelease is pinned exactly, while an updated prerelease
- * keeps the existing entry's range style.
- *
  * An existing range in a shape no style describes (`<= 3.0.0`, `>=1 <2`,
  * `1 || 2`) is kept as written when it still admits `version` and the request
  * names no specifier of its own, so an update moves the version without

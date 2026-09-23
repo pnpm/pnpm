@@ -15,14 +15,6 @@ use crate::infer_range_spec_style::{infer_range_spec_style, range_of_specifier};
 /// manifest entry, if it already had one, read `prev_specifier`, and that
 /// the request, if it named one, asked for as `requested`.
 ///
-/// The requested specifier's style wins over the existing entry's, which
-/// wins over `default_style`, so an explicit version or range requested by
-/// the user is honored (pnpm/pnpm#6040), while a request naming no range
-/// style (like `latest`) keeps the pinning style the manifest already used.
-/// A prerelease keeps the existing entry's style and is otherwise pinned
-/// exactly — neither the requested specifier nor `default_style` widens a
-/// prerelease the manifest did not already widen.
-///
 /// An existing range in a shape no style describes (`<= 3.0.0`, `>=1 <2`,
 /// `1 || 2`) is kept as written when it still admits `version` and the
 /// request names no specifier of its own, so an update moves the version

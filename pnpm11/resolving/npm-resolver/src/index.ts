@@ -834,7 +834,7 @@ async function resolveNpm (
       spec,
       version: pickedPackage.version,
       defaultRangeSpecStyle: opts.rangeSpecStyle,
-      isUpdate: Boolean(opts.updateRequested),
+      isUpdate: Boolean(opts.update),
     })
   }
   const publishedAt = meta.time?.[pickedPackage.version]
@@ -878,7 +878,7 @@ async function resolveJsr (
         version: picked.manifest.version,
         revision: spec.revision,
         defaultRangeSpecStyle: opts.rangeSpecStyle,
-        isUpdate: Boolean(opts.updateRequested),
+        isUpdate: Boolean(opts.update),
       })
       : undefined,
     resolvedVia: 'jsr-registry',
@@ -969,7 +969,7 @@ async function resolveFromNamedRegistry (
         version: picked.manifest.version,
         revision: spec.revision,
         defaultRangeSpecStyle: opts.rangeSpecStyle,
-        isUpdate: Boolean(opts.updateRequested),
+        isUpdate: Boolean(opts.update),
       })
       : undefined,
     resolvedVia: 'named-registry',
@@ -1245,7 +1245,7 @@ function resolveFromLocalPackage (
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       version: localPackage.manifest.version,
       defaultRangeSpecStyle: opts.rangeSpecStyle,
-      isUpdate: opts.updateRequested,
+      isUpdate: Boolean(opts.update),
     })
   }
   return {
