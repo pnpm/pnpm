@@ -157,6 +157,7 @@ impl<'a> InstallWorkspace<'a> {
             owned.projects.workspace_projects_override.take(),
             dirs.workspace_dir.as_deref().unwrap_or(&dirs.workspace_root),
             workspace_manifest.as_ref(),
+            &install.context.config.managed_directories(),
         )?;
         report_discovered_scope::<Reporter>(
             install,
@@ -360,6 +361,7 @@ pub(super) fn discovered_workspace_projects(
     workspace_projects_override: Option<Vec<pnpm_workspace::Project>>,
     workspace_dir: &Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
+    ignored_directories: &[PathBuf],
 ) -> Result<Option<Vec<pnpm_workspace::Project>>, InstallError> {
     if has_selection {
         return Ok(None);
@@ -367,7 +369,7 @@ pub(super) fn discovered_workspace_projects(
     if let Some(projects) = workspace_projects_override {
         return Ok(Some(projects));
     }
-    load_workspace_projects(workspace_dir, workspace_manifest)
+    load_workspace_projects(workspace_dir, workspace_manifest, ignored_directories)
         .map_err(InstallError::FindWorkspaceProjects)
 }
 /// A full install (pnpm's `mutation: "install"`) is the workspace-wide one and

@@ -219,7 +219,10 @@ pub fn discover_workspace_projects(
     };
     let projects = find_workspace_projects(
         workspace_root,
-        &FindWorkspaceProjectsOpts { patterns: patterns.clone() },
+        &FindWorkspaceProjectsOpts {
+            patterns: patterns.clone(),
+            ignored_directories: config.managed_directories(),
+        },
     )
     .wrap_err("finding workspace projects")?;
     Ok((projects, patterns))

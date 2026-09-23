@@ -66,6 +66,13 @@ pub struct FindWorkspaceProjectsOpts {
     /// real workspace manifest should pass
     /// [`crate::workspace_package_patterns`] instead.
     pub patterns: Option<Vec<String>>,
+    /// pnpm-managed directories (store, cache, state, ...) that
+    /// discovery must never report projects from, even when a
+    /// `packages:` pattern would otherwise match them. Mirrors the
+    /// `ignored_directories` of [`crate::find_workspace_inventory`]:
+    /// entries may be absolute or relative to the workspace root, and
+    /// entries that do not exist simply never match anything.
+    pub ignored_directories: Vec<PathBuf>,
 }
 
 /// Error type of the public entry points.
@@ -132,6 +139,9 @@ pub fn find_workspace_projects_no_check(
 
     parse_check_walk_patterns(&include_patterns, workspace_root)?;
 
+    let ignored_directories =
+        resolve_ignored_directories(workspace_root, &opts.ignored_directories);
+
     // Each pattern's set folds into the shared merge as it completes,
     // so peak memory stays one merged set plus the in-flight patterns —
     // overlapping patterns don't multiply it. Set union commutes and
@@ -142,6 +152,7 @@ pub fn find_workspace_projects_no_check(
         workspace_root,
         dot_pruning_ignore_template: &dot_pruning_ignore_template,
         user_negations: &user_negations,
+        ignored_directories: &ignored_directories,
     })?;
 
     for basename in PROJECT_MANIFEST_BASENAMES {
@@ -272,6 +283,7 @@ struct MergePatterns<'a> {
     workspace_root: &'a Path,
     dot_pruning_ignore_template: &'a wax::Any<'a>,
     user_negations: &'a wax::Any<'a>,
+    ignored_directories: &'a [PathBuf],
 }
 
 /// Expand every include pattern and union what they match.
@@ -294,6 +306,7 @@ fn merge_pattern_manifests(
                 merge.workspace_root,
                 merge.dot_pruning_ignore_template,
                 merge.user_negations,
+                merge.ignored_directories,
             ) {
                 Ok(set) => {
                     merged
@@ -359,6 +372,7 @@ fn collect_pattern_manifests(
     workspace_root: &Path,
     dot_pruning_ignore_template: &wax::Any<'_>,
     user_negations: &wax::Any<'_>,
+    ignored_directories: &[PathBuf],
 ) -> Result<BTreeSet<PathBuf>, FindWorkspaceProjectsError> {
     let mut manifest_paths: BTreeSet<PathBuf> = BTreeSet::new();
     match specialized_pattern(&pattern.normalized) {
@@ -367,6 +381,7 @@ fn collect_pattern_manifests(
                 &workspace_root.join(parent),
                 workspace_root,
                 user_negations,
+                ignored_directories,
                 &mut manifest_paths,
             )?;
             return Ok(manifest_paths);
@@ -376,6 +391,7 @@ fn collect_pattern_manifests(
                 &workspace_root.join(directory),
                 workspace_root,
                 user_negations,
+                ignored_directories,
                 &mut manifest_paths,
             );
             return Ok(manifest_paths);
@@ -388,6 +404,7 @@ fn collect_pattern_manifests(
         workspace_root,
         dot_pruning_ignore_template,
         user_negations,
+        ignored_directories,
         &mut manifest_paths,
     )?;
 
@@ -399,6 +416,7 @@ fn collect_glob_manifests(
     workspace_root: &Path,
     dot_pruning_ignore_template: &wax::Any<'_>,
     user_negations: &wax::Any<'_>,
+    ignored_directories: &[PathBuf],
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) -> Result<(), FindWorkspaceProjectsError> {
     for normalized in normalize_manifest_patterns(&pattern.normalized) {
@@ -418,8 +436,13 @@ fn collect_glob_manifests(
             pattern: pattern.source.to_string(),
             message: err.to_string(),
         };
-        let ignores =
-            manifest_walk_ignores(normalized, dot_pruning_ignore_template).map_err(invalid_glob)?;
+        let ignores = manifest_walk_ignores(
+            normalized,
+            dot_pruning_ignore_template,
+            walk_root,
+            ignored_directories,
+        )
+        .map_err(invalid_glob)?;
         collect_walk_manifests(
             glob.walk_with_behavior(walk_root, LinkBehavior::ReadTarget)
                 .not(ignores)
@@ -427,6 +450,7 @@ fn collect_glob_manifests(
             walk_root,
             workspace_root,
             user_negations,
+            ignored_directories,
             manifest_paths,
         )?;
     }
@@ -436,19 +460,27 @@ fn collect_glob_manifests(
 fn manifest_walk_ignores<'a>(
     normalized: &str,
     dot_pruning_ignore_template: &wax::Any<'a>,
+    walk_root: &Path,
+    ignored_directories: &[PathBuf],
 ) -> Result<wax::Any<'a>, wax::BuildError> {
-    match positional_dot_ignores(normalized) {
-        None => Ok(dot_pruning_ignore_template.clone()),
-        Some(dot_ignores) => {
-            let patterns = IGNORE_PATTERNS
-                .iter()
-                .copied()
-                .chain(dot_ignores.iter().map(String::as_str))
-                .map(|pattern| Glob::new(pattern).map(Glob::into_owned))
-                .collect::<Result<Vec<_>, _>>()?;
-            wax::any(patterns)
-        }
+    let managed_ignores = managed_directory_ignores(walk_root, ignored_directories);
+    let dot_ignores = positional_dot_ignores(normalized);
+    if dot_ignores.is_none() && managed_ignores.is_empty() {
+        return Ok(dot_pruning_ignore_template.clone());
     }
+    let patterns = IGNORE_PATTERNS
+        .iter()
+        .copied()
+        .chain(
+            dot_ignores
+                .iter()
+                .flatten()
+                .map(String::as_str),
+        )
+        .chain(managed_ignores.iter().map(String::as_str))
+        .map(|pattern| Glob::new(pattern).map(Glob::into_owned))
+        .collect::<Result<Vec<_>, _>>()?;
+    wax::any(patterns)
 }
 
 /// Read `root_dir`'s project from the first readable candidate.
@@ -493,6 +525,9 @@ struct WorkspacePattern<'source> {
     source: &'source str,
     normalized: String,
 }
+
+mod managed;
+use managed::{managed_directory_ignores, resolve_ignored_directories};
 
 mod membership;
 

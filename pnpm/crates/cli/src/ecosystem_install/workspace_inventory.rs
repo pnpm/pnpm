@@ -34,17 +34,9 @@ pub(crate) struct EcosystemWorkspaceInventory {
 
 impl EcosystemWorkspaceInventory {
     pub(crate) fn new(workspace_root: PathBuf, config: &pnpm_config::Config) -> Self {
-        let managed_directories = vec![
-            config.store_dir.root().to_path_buf(),
-            config.cache_dir.clone(),
-            config.state_dir.clone(),
-            config.modules_dir.clone(),
-            config.virtual_store_dir.clone(),
-            config.global_virtual_store_dir.clone(),
-        ];
         Self {
             workspace_root,
-            managed_directories,
+            managed_directories: config.managed_directories(),
             package_patterns: config.workspace_package_patterns.clone().unwrap_or_default(),
             contents: OnceCell::new(),
         }

@@ -40,6 +40,7 @@ fn project_dirs(root: &Path, patterns: &[&str]) -> Vec<String> {
                 .map(|pattern| (*pattern).to_string())
                 .collect(),
         ),
+        ..Default::default()
     };
     let mut found: Vec<String> = super::super::find_workspace_projects(root, &opts)
         .unwrap()
@@ -87,6 +88,7 @@ fn agrees_with_the_workspace_walk() {
                     .map(|pattern| (*pattern).to_string())
                     .collect(),
             ),
+            ..Default::default()
         };
         for dir in PROJECT_DIRS {
             let absolute =

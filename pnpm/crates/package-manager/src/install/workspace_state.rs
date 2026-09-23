@@ -62,8 +62,10 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
     let (workspace_manifest, catalogs) =
         fast_path_workspace_context(check.config, workspace_dir_opt.as_deref())?;
+    let ignored_directories = check.config.managed_directories();
     let workspace_projects =
-        load_workspace_projects(&workspace_root, workspace_manifest.as_ref()).ok()?;
+        load_workspace_projects(&workspace_root, workspace_manifest.as_ref(), &ignored_directories)
+            .ok()?;
     let project_manifests =
         build_project_manifests_list(check.manifest, workspace_projects.as_deref());
     // The lockfile the install wrote sits at its `lockfileDir`, which

@@ -10,7 +10,10 @@ pub(super) fn complete_packages(context: &CompletionContext<'_>) -> miette::Resu
     let manifest = read_workspace_manifest(&workspace_dir)?;
     let projects = find_workspace_projects(
         &workspace_dir,
-        &FindWorkspaceProjectsOpts { patterns: manifest.as_ref().map(workspace_package_patterns) },
+        &FindWorkspaceProjectsOpts {
+            patterns: manifest.as_ref().map(workspace_package_patterns),
+            ..Default::default()
+        },
     )?;
     let mut names: Vec<_> = projects
         .iter()
