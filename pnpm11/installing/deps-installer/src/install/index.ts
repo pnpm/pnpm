@@ -213,6 +213,8 @@ export interface InstallResult {
   updatedCatalogs: Catalogs | undefined
   updatedManifest: ProjectManifest
   ignoredBuilds: IgnoredBuilds | undefined
+  /** Forwarded from {@link MutateModulesResult.projectLifecycleScriptsError}. */
+  projectLifecycleScriptsError?: unknown
   /** Forwarded from {@link MutateModulesResult.newLockfile}. */
   newLockfile?: LockfileObject
   /** Forwarded from {@link MutateModulesResult.resolutionPolicyViolations}. */
@@ -241,7 +243,7 @@ export async function install (
     })
   }
 
-  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModules(
+  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult, projectLifecycleScriptsError } = await mutateModules(
     [
       {
         mutation: 'install',
@@ -264,7 +266,7 @@ export async function install (
       }],
     }
   )
-  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult }
+  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult, projectLifecycleScriptsError }
 }
 
 interface ProjectToBeInstalled {
@@ -289,6 +291,8 @@ export interface MutateModulesInSingleProjectResult {
   updatedCatalogs: Catalogs | undefined
   updatedProject: UpdatedProject
   ignoredBuilds: IgnoredBuilds | undefined
+  /** Forwarded from {@link MutateModulesResult.projectLifecycleScriptsError}. */
+  projectLifecycleScriptsError?: unknown
   /** Forwarded from {@link MutateModulesResult.newLockfile}. */
   newLockfile?: LockfileObject
   /** Forwarded from {@link MutateModulesResult.resolutionPolicyViolations}. */
@@ -329,6 +333,7 @@ export async function mutateModulesInSingleProject (
     updatedCatalogs: result.updatedCatalogs,
     updatedProject: result.updatedProjects[0],
     ignoredBuilds: result.ignoredBuilds,
+    projectLifecycleScriptsError: result.projectLifecycleScriptsError,
     newLockfile: result.newLockfile,
     resolutionPolicyViolations: result.resolutionPolicyViolations,
     dryRunResult: result.dryRunResult,
@@ -361,6 +366,12 @@ export interface MutateModulesResult {
    * the resolve produced without writing, for the caller to diff.
    */
   dryRunResult?: DryRunInstallResult
+  /**
+   * The failure of the projects' own lifecycle scripts, set only when
+   * `deferProjectLifecycleScriptsError` is on. The lockfile is already
+   * written, so the caller writes the manifests and then throws it.
+   */
+  projectLifecycleScriptsError?: unknown
 }
 
 const pickCatalogSpecifier: CatalogResultMatcher<string | undefined> = {
@@ -666,6 +677,21 @@ export async function mutateModules (
 
   reportVerifiedFileIntegrity(verifiedFileIntegritySince(verifiedFileIntegrityBaseline))
 
+  if (result.projectLifecycleScriptsError != null) {
+    detachReporter()
+    return {
+      updatedCatalogs: result.updatedCatalogs,
+      updatedProjects: result.updatedProjects,
+      newLockfile: result.newLockfile,
+      stats: result.stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
+      depsRequiringBuild: result.depsRequiringBuild,
+      ignoredBuilds: result.ignoredBuilds,
+      resolutionPolicyViolations: result.resolutionPolicyViolations ?? [],
+      dryRunResult: result.dryRunResult,
+      projectLifecycleScriptsError: result.projectLifecycleScriptsError,
+    }
+  }
+
   // The branch lockfiles become disposable only once the merge has been
   // written for good. An install that never saves a lockfile did not merge
   // them, and a `--dry-run` / `lockfileCheck` run only reports what it would
@@ -753,6 +779,7 @@ export async function mutateModules (
     readonly ignoredBuilds: IgnoredBuilds | undefined
     readonly dryRunResult?: DryRunInstallResult
     readonly resolutionPolicyViolations?: ResolutionPolicyViolation[]
+    readonly projectLifecycleScriptsError?: unknown
   }
 
   // Reconcile the install with the lockfile verification that runs alongside
@@ -1591,6 +1618,7 @@ export async function mutateModules (
       ignoredBuilds: result.ignoredBuilds,
       resolutionPolicyViolations: result.resolutionPolicyViolations,
       dryRunResult: result.dryRunResult,
+      projectLifecycleScriptsError: result.projectLifecycleScriptsError,
     }
   }
 
@@ -2268,6 +2296,7 @@ interface InstallFunctionResult {
   ignoredBuilds?: IgnoredBuilds
   resolutionPolicyViolations: ResolutionPolicyViolation[]
   dryRunResult?: DryRunInstallResult
+  projectLifecycleScriptsError?: unknown
 }
 
 type InstallFunction = (
@@ -2579,6 +2608,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
 
   const depsStateCache: DepsStateCache = {}
+  let projectLifecycleScriptsError: unknown
   const lockfileOpts = {
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
@@ -2906,16 +2936,21 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       // from the lockfile, so they are held to the same gate as dependency
       // builds — also when no new dep paths made the buildModules branch run.
       await opts.verifyLockfile?.()
-      await runLifecycleHooksConcurrently({
-        childConcurrency: opts.childConcurrency,
-        importers: projectsToBeBuilt,
-        opts: opts.scriptsOpts,
-        projectDependencies: opts.projectDependencies,
-        projectWithPreinstallRan: opts.rootProjectPreinstallRan ? opts.lockfileDir : undefined,
-        stages: (opts.deploy || opts.include?.devDependencies === false)
-          ? PROJECT_INSTALL_STAGES
-          : PROJECT_LIFECYCLE_STAGES,
-      })
+      try {
+        await runLifecycleHooksConcurrently({
+          childConcurrency: opts.childConcurrency,
+          importers: projectsToBeBuilt,
+          opts: opts.scriptsOpts,
+          projectDependencies: opts.projectDependencies,
+          projectWithPreinstallRan: opts.rootProjectPreinstallRan ? opts.lockfileDir : undefined,
+          stages: (opts.deploy || opts.include?.devDependencies === false)
+            ? PROJECT_INSTALL_STAGES
+            : PROJECT_LIFECYCLE_STAGES,
+        })
+      } catch (err: unknown) {
+        if (!opts.deferProjectLifecycleScriptsError) throw err
+        projectLifecycleScriptsError = err
+      }
     }
   } else {
     if (opts.useLockfile && opts.saveLockfile && !isInstallationOnlyForLockfileCheck) {
@@ -2998,6 +3033,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     dryRunResult: (opts.dryRun && originalLockfileForCheck != null)
       ? { originalLockfile: originalLockfileForCheck, wantedLockfile: newLockfile }
       : undefined,
+    projectLifecycleScriptsError,
   }
 }
 

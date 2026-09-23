@@ -196,9 +196,13 @@ fn run_apply_scripts<Reporter: self::Reporter>(
         materialized_project_manifests: &state.project_manifests,
         materialized_current_lockfile: state.current_lockfile.as_ref(),
         root_preinstall_ran: inputs.scripts.root_preinstall_ran,
-    })?;
-
-    Ok(())
+    })
+    .map_err(|error| match error {
+        InstallError::ProjectLifecycleScript(error) => {
+            InstallError::InstalledProjectLifecycleScript(error)
+        }
+        error => error,
+    })
 }
 
 async fn apply<Reporter: self::Reporter + 'static>(

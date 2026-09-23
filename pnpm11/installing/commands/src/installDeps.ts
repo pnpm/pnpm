@@ -476,8 +476,9 @@ export async function installDeps (
     return dryRunResult
   }
 
-  const { updatedCatalogs, updatedManifest, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await install(manifest, {
+  const { updatedCatalogs, updatedManifest, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult, projectLifecycleScriptsError } = await install(manifest, {
     ...installOpts,
+    deferProjectLifecycleScriptsError: true,
     updatePackageManifest,
     updateMatching,
   })
@@ -508,6 +509,7 @@ export async function installDeps (
       await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, policyUpdates)
     }
   }
+  if (projectLifecycleScriptsError != null) throw projectLifecycleScriptsError
   await handleIgnoredBuilds(opts, ignoredBuilds)
 
   if (opts.linkWorkspacePackages && opts.workspaceDir) {

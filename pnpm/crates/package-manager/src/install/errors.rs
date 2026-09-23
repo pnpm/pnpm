@@ -135,6 +135,13 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     ProjectLifecycleScript(#[error(source)] LifecycleScriptError),
 
+    /// A [`Self::ProjectLifecycleScript`] failure from the stages that run
+    /// once the install has written the lockfile and linked
+    /// `node_modules`, which the calling command defers like
+    /// [`Self::IgnoredBuilds`] (see [`defer_post_install_errors`]).
+    #[diagnostic(transparent)]
+    InstalledProjectLifecycleScript(#[error(source)] LifecycleScriptError),
+
     #[diagnostic(transparent)]
     ProjectBinLink(#[error(source)] LinkBinsError),
 
@@ -397,22 +404,27 @@ pub enum InstallError {
     #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR))]
     ConfigConflictVirtualStoreOnlyWithNoModulesDir,
 }
-/// Hold back an [`InstallError::IgnoredBuilds`] verdict so the calling
+/// Hold back an [`InstallError::IgnoredBuilds`] or
+/// [`InstallError::InstalledProjectLifecycleScript`] verdict so the calling
 /// command can finish writing `package.json` and `pnpm-workspace.yaml`
-/// before it aborts: the install materialized the tree, and pnpm reports
-/// the blocked builds only after both writes (`handleIgnoredBuilds` in
-/// `installDeps`). The returned error is the caller's to raise once those
-/// writes are done.
+/// before it aborts: the install already wrote the lockfile and
+/// materialized the tree, so the manifests must record what it added.
+/// pnpm reports both after the writes too (`handleIgnoredBuilds` and the
+/// deferred `projectLifecycleScriptsError` in its install commands). The
+/// returned error is the caller's to raise once those writes are done.
 ///
 /// Every other error propagates straight away and leaves the manifests
 /// untouched, matching pnpm — which throws those from inside the install
 /// itself, before it reaches the writes.
-pub fn defer_ignored_builds(
+pub fn defer_post_install_errors(
     outcome: Result<(), InstallError>,
 ) -> Result<Option<InstallError>, InstallError> {
     match outcome {
         Ok(()) => Ok(None),
-        Err(error @ InstallError::IgnoredBuilds { .. }) => Ok(Some(error)),
+        Err(
+            error @ (InstallError::IgnoredBuilds { .. }
+            | InstallError::InstalledProjectLifecycleScript(_)),
+        ) => Ok(Some(error)),
         Err(error) => Err(error),
     }
 }

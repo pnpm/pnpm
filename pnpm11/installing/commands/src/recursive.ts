@@ -375,8 +375,10 @@ export async function recursive (
       newLockfile,
       resolutionPolicyViolations,
       dryRunResult,
+      projectLifecycleScriptsError,
     } = await mutateModules(mutatedImporters, {
       ...installOpts,
+      deferProjectLifecycleScriptsError: true,
       storeController: store.ctrl,
       resolutionVerifiers: store.resolutionVerifiers,
     })
@@ -400,6 +402,7 @@ export async function recursive (
       }))
       await Promise.all(promises)
     }
+    if (projectLifecycleScriptsError != null) throw projectLifecycleScriptsError
     await handleIgnoredBuilds(opts, ignoredBuilds)
     return { passed: true, updatedCatalogs, dryRunResult }
   }

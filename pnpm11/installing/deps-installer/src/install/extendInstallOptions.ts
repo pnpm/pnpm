@@ -271,6 +271,13 @@ export interface StrictInstallOptions extends RegistryContext {
    */
   omitSummaryLog: boolean
   /**
+   * If true, a failure of the projects' own lifecycle scripts that run after
+   * the lockfile is written does not reject `mutateModules`. The error is
+   * returned as `projectLifecycleScriptsError` for the caller to throw once
+   * it has written the updated manifests, so they agree with the lockfile.
+   */
+  deferProjectLifecycleScriptsError?: boolean
+  /**
    * A materialization pass runs straight after this one and links into the
    * same `node_modules`. It owns the reporter's `importing_done`, because the
    * default reporter completes a prefix's progress stream on the first one and

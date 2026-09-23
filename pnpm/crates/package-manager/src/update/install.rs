@@ -12,7 +12,7 @@ use super::{
 use crate::{
     Install, PolicyExcludes, UpdateSeedPolicy, WorkspaceInstallSelection,
     catalog_cleanup::{write_workspace_catalogs, write_workspace_catalogs_selected},
-    defer_ignored_builds,
+    defer_post_install_errors,
     manifest_spec_bumps::ManifestSpecBumps,
 };
 use pipe_trait::Pipe;
@@ -268,7 +268,7 @@ where
             None => install.run::<Reporter>().await,
         },
     }
-    .pipe(defer_ignored_builds)
+    .pipe(defer_post_install_errors)
     .map_err(UpdateError::Install)
 }
 /// Run the pnpmfile's `readPackage` hook over every selected project's
@@ -316,7 +316,7 @@ where
             None => install.run_selected::<Reporter>(selection).await,
         },
     }
-    .pipe(defer_ignored_builds)
+    .pipe(defer_post_install_errors)
     .map_err(UpdateError::Install)
 }
 

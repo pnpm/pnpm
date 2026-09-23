@@ -179,3 +179,43 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
     }
   )
 })
+
+test('filtered add saves the manifest when the workspace root postinstall fails', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        private: true,
+        scripts: {
+          postinstall: 'exit 1',
+        },
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await expect(add.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['is-positive@1.0.0'])).rejects.toThrow('postinstall')
+
+  const { default: manifest } = await import(path.resolve('project-1/package.json'))
+  expect(manifest.dependencies).toEqual({ 'is-positive': '1.0.0' })
+  expect(projects.root.readLockfile().importers['project-1' as ProjectId].dependencies).toEqual({
+    'is-positive': {
+      specifier: '1.0.0',
+      version: '1.0.0',
+    },
+  })
+})

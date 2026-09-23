@@ -5,7 +5,7 @@ use crate::{
         WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
-    defer_ignored_builds, emit_initial_package_manifest, included_direct_groups,
+    defer_post_install_errors, emit_initial_package_manifest, included_direct_groups,
     package_manifest_prefix, selected_project_indices,
 };
 use derive_more::{Display, Error};
@@ -79,7 +79,7 @@ impl Remove<'_> {
         let ignored_builds = remove_install(remove, owned, manifest)
             .run::<Reporter>()
             .await
-            .pipe(defer_ignored_builds)
+            .pipe(defer_post_install_errors)
             .map_err(RemoveError::Install)?;
 
         persist_manifest::<Reporter>(manifest)?;
@@ -128,7 +128,7 @@ impl Remove<'_> {
                 ..selected.selection()
             })
             .await
-            .pipe(defer_ignored_builds)
+            .pipe(defer_post_install_errors)
             .map_err(RemoveError::Install)?;
 
         finalize_selected_remove::<Reporter>(

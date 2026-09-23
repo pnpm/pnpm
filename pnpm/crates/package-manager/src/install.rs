@@ -2,7 +2,7 @@ pub(crate) mod state_options;
 
 pub use entry_points::apply_deploy_manifest_hook;
 pub(crate) use entry_points::apply_deploy_manifest_hook_to_arc;
-pub use errors::{InstallError, defer_ignored_builds};
+pub use errors::{InstallError, defer_post_install_errors};
 pub(crate) use lockfile_freshness::{
     CheckLockfileSettingsDriftOptions, FreshnessCheckError, FreshnessScope,
     ImporterSatisfactionCheck, OptionalDependencyExclusions, check_importer_satisfies,

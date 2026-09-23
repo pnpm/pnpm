@@ -233,3 +233,27 @@ fn add_in_a_member_does_not_run_prepare_scripts() {
 
     drop((root, anchor));
 }
+
+/// The root's `postinstall` runs after the lockfile is written, so a
+/// failing one still leaves the `add` recorded in the selected member's
+/// manifest, matching the lockfile, while the command exits non-zero.
+#[test]
+fn filtered_add_saves_the_manifest_when_the_root_postinstall_fails() {
+    let (root, workspace, anchor) = installed_workspace(&["a", "b"]);
+    let mut root_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
+    root_manifest["scripts"]["postinstall"] = serde_json::json!("exit 1");
+    fs::write(workspace.join("package.json"), root_manifest.to_string()).unwrap();
+
+    pacquet(&workspace, ["--filter", "a", "add", "@pnpm.e2e/foo@100.0.0"]).assert().failure();
+
+    let manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(workspace.join("packages/a/package.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(manifest["dependencies"]["@pnpm.e2e/foo"], "100.0.0");
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(lockfile.contains("'@pnpm.e2e/foo':"), "the lockfile records the added dependency");
+
+    drop((root, anchor));
+}

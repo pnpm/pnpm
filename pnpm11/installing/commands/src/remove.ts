@@ -266,7 +266,7 @@ export async function handler (
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField,
     },
-    removeOpts
+    { ...removeOpts, deferProjectLifecycleScriptsError: true }
   )
   await writeProjectManifest(mutationResult.updatedProject.manifest)
 
@@ -290,4 +290,5 @@ export async function handler (
     trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
     allProjects: updatedProjects,
   })
+  if (mutationResult.projectLifecycleScriptsError != null) throw mutationResult.projectLifecycleScriptsError
 }

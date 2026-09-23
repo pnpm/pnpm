@@ -21,7 +21,7 @@ use manifest::{
 use crate::{
     CatalogVersionMismatchError, CommandLockfile, InstallError, ResolvedPackages, SelectedProjects,
     catalog_cleanup::{WriteWorkspaceCatalogsError, post_install_prune},
-    defer_ignored_builds,
+    defer_post_install_errors,
     resolve_latest::LatestPicker,
     selected_project_indices,
 };
@@ -230,7 +230,7 @@ where
         )
         .run::<Reporter>()
         .await
-        .pipe(defer_ignored_builds)
+        .pipe(defer_post_install_errors)
         .map_err(AddError::Install)?;
 
         persist_manifest::<Reporter>(manifest)?;
@@ -273,7 +273,7 @@ where
             add_install(add, owned, manifest, seed).run_selected::<Reporter>(selected.selection()),
         )
         .await
-        .pipe(defer_ignored_builds)
+        .pipe(defer_post_install_errors)
         .map_err(AddError::Install)?;
 
         finish_selected_add::<Reporter>(
