@@ -17,6 +17,7 @@ function tarballGraph (
   additionalInfo: {
     bundledDependencies?: readonly string[] | boolean
     bundleDependencies?: readonly string[] | boolean
+    engines?: Record<string, string> | string[]
   } = {}
 ): DependenciesGraph {
   return {
@@ -139,4 +140,18 @@ test('a changed resolution takes the freshly served metadata', () => {
     registriesByScope: REGISTRIES,
   })
   expect(lockfile.packages![DEP_PATH].deprecated).toBeUndefined()
+})
+
+test.each([
+  [{ node: '>=18', npm: '*' }, { node: '>=18' }],
+  [{ npm: '*' }, undefined],
+  [['node >= 0.2.0'], undefined],
+] as const)('records engines %p as %p', (engines, expected) => {
+  const lockfile = updateLockfile({
+    dependenciesGraph: tarballGraph({ tarball: TARBALL_URL }, { engines: engines as Record<string, string> | string[] }),
+    lockfile: lockfileWith({ resolution: { tarball: TARBALL_URL } }),
+    prefix: '.',
+    registriesByScope: REGISTRIES,
+  })
+  expect(lockfile.packages![DEP_PATH].engines).toStrictEqual(expected)
 })

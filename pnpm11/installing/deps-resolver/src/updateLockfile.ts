@@ -151,7 +151,9 @@ function toLockfileDependency (
       result['peerDependenciesMeta'] = normalizedPeerDependenciesMeta
     }
   }
-  if (pkg.additionalInfo.engines != null) {
+  // The legacy array form, such as `["node >= 0.8"]`, is not checked for
+  // installability, so it is not recorded either.
+  if (pkg.additionalInfo.engines != null && !Array.isArray(pkg.additionalInfo.engines)) {
     for (const [engine, version] of Object.entries(pkg.additionalInfo.engines)) {
       if (version === '*') continue
       result.engines = result.engines ?? {} as any // eslint-disable-line @typescript-eslint/no-explicit-any

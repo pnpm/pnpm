@@ -316,3 +316,29 @@ async fn frozen_lockfile_rejects_old_format_migration() {
         "unexpected error: {error:?}",
     );
 }
+
+#[tokio::test]
+async fn array_engines_are_not_recorded() {
+    let harness = harness();
+    let root = TempDir::new().unwrap();
+    let resolver = FixtureResolver::new()
+        .package(serde_json::json!({
+            "name": "pnpm",
+            "version": "12.0.0",
+            "bin": "bin/pnpm.cjs",
+            "engines": ["node >= 0.8"],
+        }));
+    let env = resolve_package_manager_integrities(
+        pnpm_engine_packages("12.0.0"),
+        "^12.0.0",
+        "12.0.0",
+        &resolver,
+        &options(&harness, root.path(), false),
+        false,
+    )
+    .await
+    .unwrap();
+
+    let key: PackageKey = "pnpm@12.0.0".parse().unwrap();
+    assert_eq!(env.packages[&key].engines, None);
+}

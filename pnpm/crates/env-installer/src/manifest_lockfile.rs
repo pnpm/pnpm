@@ -45,26 +45,19 @@ pub(crate) fn read_dependency_map(manifest: Option<&Value>, key: &str) -> HashMa
     read_string_map(manifest, key).unwrap_or_default()
 }
 
+/// The legacy array form of `engines`, such as `["node >= 0.8"]`, is not
+/// checked for installability, so it is not recorded either.
 fn read_engines(manifest: Option<&Value>) -> Option<HashMap<String, String>> {
-    let entries: Vec<(String, String)> = match manifest?.get("engines")? {
-        Value::Object(map) => map
-            .iter()
-            .filter_map(|(name, value)| {
-                let range = value.as_str()?;
-                (range != "*").then(|| (name.clone(), range.to_string()))
-            })
-            .collect(),
-        Value::Array(items) => items
-            .iter()
-            .enumerate()
-            .filter_map(|(index, value)| {
-                let range = value.as_str()?;
-                (range != "*").then(|| (index.to_string(), range.to_string()))
-            })
-            .collect(),
-        _ => return None,
-    };
-    (!entries.is_empty()).then(|| entries.into_iter().collect())
+    let engines: HashMap<String, String> = manifest?
+        .get("engines")?
+        .as_object()?
+        .iter()
+        .filter_map(|(name, value)| {
+            let range = value.as_str()?;
+            (range != "*").then(|| (name.clone(), range.to_string()))
+        })
+        .collect();
+    (!engines.is_empty()).then_some(engines)
 }
 
 fn read_string_map(manifest: Option<&Value>, key: &str) -> Option<HashMap<String, String>> {
