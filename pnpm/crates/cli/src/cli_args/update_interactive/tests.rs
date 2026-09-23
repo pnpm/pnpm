@@ -836,32 +836,39 @@ async fn interactively_update_skips_ignored_dependencies() {
 #[tokio::test]
 async fn interactively_update_with_workspace_flag_allows_external_dependencies() {
     let fixture = UpdateFixture::with_workspace();
-    let pkg_b = fixture.dir.path().join("pkg-b");
-    fs::create_dir_all(&pkg_b).expect("create pkg-b dir");
+    let pkg_c = fixture.dir.path().join("pkg-c");
+    fs::create_dir_all(&pkg_c).expect("create pkg-c dir");
     fs::write(
-        pkg_b.join("package.json"),
-        json!({ "name": "pkg-b", "version": "1.0.0" }).to_string(),
+        pkg_c.join("package.json"),
+        json!({ "name": MULTI_C, "version": "3.1.10" }).to_string(),
     )
-    .expect("write pkg-b package.json");
+    .expect("write pkg-c package.json");
     fs::write(
         fixture.dir.path().join("pnpm-workspace.yaml"),
-        "packages:\n  - 'project'\n  - 'pkg-b'\n",
+        "packages:\n  - 'project'\n  - 'pkg-c'\n",
     )
     .expect("write pnpm-workspace.yaml");
 
     fixture.set_dist_tag(MULTI_A, "2.1.0", "latest");
     fixture.set_dist_tag(MULTI_C, "4.0.0", "latest");
 
-    fixture.write_manifest(&json!({ MULTI_A: "1.0.0", MULTI_B: "2.0.0" }));
+    fixture.write_manifest(&json!({ MULTI_A: "1.0.0", MULTI_B: "2.0.0", MULTI_C: "3.0.0" }));
     fixture.update(&["update"]).await;
-
-    fixture.write_manifest(
-        &json!({ MULTI_A: "^1.0.0", MULTI_B: "^2.0.0", "pkg-b": "workspace:*" }),
-    );
+    fixture.write_manifest(&json!({ MULTI_A: "^1.0.0", MULTI_B: "^2.0.0", MULTI_C: "^3.0.0" }));
 
     let scripted = scripted_prompts();
-    scripted.answer_next(&[MULTI_A, "pkg-b"]);
+    scripted.answer_next(&[MULTI_A, MULTI_C]);
     fixture.update(&["update", "--interactive", "--workspace"]).await;
+
+    let prompts = scripted.seen();
+    assert_eq!(prompts.len(), 1);
+    assert_eq!(
+        offered(&prompts[0]),
+        [
+            (MULTI_A.to_string(), "1.0.0".to_string(), "1.0.1".to_string()),
+            (MULTI_C.to_string(), "3.0.0".to_string(), "3.1.10".to_string()),
+        ],
+    );
 
     assert_eq!(
         fixture.lockfile_packages(),
@@ -872,7 +879,7 @@ async fn interactively_update_with_workspace_flag_allows_external_dependencies()
             .expect("read updated package.json"),
     )
     .expect("parse updated package.json");
-    assert_eq!(project_manifest["dependencies"]["pkg-b"], "workspace:*");
+    assert_eq!(project_manifest["dependencies"][MULTI_C], "workspace:^");
 }
 
 /// Ports `global interactive update leaves without an error when the
