@@ -166,7 +166,8 @@ mod build_workspace_state_tests;
 /// on the install path, so any test that lets the install reach the
 /// fetch site would fail — meaning a successful install with this
 /// fixture is *proof* that the per-snapshot skip path (issue [#433]
-/// section B) short-circuited the fetch entirely.
+/// section B) short-circuited the fetch entirely. The tarball URL fails
+/// the connect at once on every OS, with no name to resolve.
 ///
 /// [#433]: https://github.com/pnpm/pacquet/issues/433
 const PARTIAL_INSTALL_LOCKFILE: &str = text_block! {
@@ -179,7 +180,7 @@ const PARTIAL_INSTALL_LOCKFILE: &str = text_block! {
     "        version: 1.0.0"
     "packages:"
     "  placeholder@1.0.0:"
-    "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, tarball: 'http://invalid.local/placeholder.tgz'}"
+    "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, tarball: 'http://0.0.0.0:1/placeholder.tgz'}"
     "snapshots:"
     "  placeholder@1.0.0: {}"
 };
