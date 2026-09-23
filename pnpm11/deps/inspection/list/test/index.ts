@@ -852,6 +852,7 @@ test('--only-projects shows the projects of a workspace with dedicated lockfiles
 
   // The linked "external" directory has a lockfile but is not a workspace
   // project, so it is not printed. The second "@scope/b" is not walked again.
+  // "@scope/c" has no lockfile yet, so it is printed without dependencies.
 
   expect(output).toBe(`${LEGEND}
 
