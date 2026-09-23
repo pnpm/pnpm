@@ -16,7 +16,9 @@
 //! testable; everything else runs on real `std::fs` and is covered by
 //! `tempfile` fixtures.
 
-pub use capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsReadFile, Host};
+pub use capabilities::{
+    FsAtomicWrite, FsCreateDirAll, FsFileLen, FsIsExecutable, FsReadFile, Host,
+};
 pub use contents::sort_paths_en_locale;
 pub use options::{
     PackManifestOptions, PackOptions, PackOutputLocks, PackOutputOptions, PackScripts,
@@ -181,7 +183,7 @@ pub enum PackError {
 pub async fn api<Reporter, Sys>(opts: &PackOptions) -> Result<PackResult, PackError>
 where
     Reporter: self::Reporter,
-    Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite,
+    Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite + FsIsExecutable,
 {
     let source = prepare_source::<Reporter>(opts).await?;
     let (tarball_name, pack_destination) =
@@ -311,7 +313,7 @@ struct PackedTarball<'a> {
     manifest_json: &'a [u8],
 }
 
-async fn write_tarball<Sys: FsReadFile + FsAtomicWrite>(
+async fn write_tarball<Sys: FsReadFile + FsIsExecutable + FsAtomicWrite>(
     opts: &PackOutputOptions,
     source: &PackSource,
     packed: &PackedTarball<'_>,

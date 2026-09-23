@@ -1,5 +1,5 @@
 use super::{Host, PackError, PackOptions, PackResult, format_pack_output, to_pack_result_json};
-use crate::capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsReadFile};
+use crate::capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsIsExecutable, FsReadFile};
 use flate2::read::GzDecoder;
 use pnpm_config::NodeLinker;
 use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
@@ -59,7 +59,7 @@ fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
 fn api<Reporter, Sys>(opts: &PackOptions) -> Result<PackResult, PackError>
 where
     Reporter: pnpm_reporter::Reporter,
-    Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite,
+    Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite + FsIsExecutable,
 {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -860,10 +860,99 @@ fn tarball_write_failure_surfaces_as_write_error() {
             Err(io::Error::new(io::ErrorKind::PermissionDenied, "mocked"))
         }
     }
+    impl FsIsExecutable for DeniedWrite {
+        fn is_executable(path: &Path) -> io::Result<bool> {
+            Host::is_executable(path)
+        }
+    }
 
     let (_dir, opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
     let err = api::<SilentReporter, DeniedWrite>(&opts).unwrap_err();
     assert!(matches!(err, PackError::WriteTarball { .. }), "got {err:?}");
+}
+
+#[test]
+fn executable_inspection_failure_surfaces_as_write_error() {
+    struct DeniedExecInspection;
+    impl FsReadFile for DeniedExecInspection {
+        fn read_file(path: &Path) -> io::Result<Vec<u8>> {
+            std::fs::read(path)
+        }
+    }
+    impl FsFileLen for DeniedExecInspection {
+        fn file_len(path: &Path) -> io::Result<u64> {
+            std::fs::metadata(path).map(|metadata| metadata.len())
+        }
+    }
+    impl FsCreateDirAll for DeniedExecInspection {
+        fn create_dir_all(path: &Path) -> io::Result<()> {
+            std::fs::create_dir_all(path)
+        }
+    }
+    impl FsAtomicWrite for DeniedExecInspection {
+        fn atomic_write(
+            dest: &Path,
+            write_body: &mut dyn FnMut(&mut dyn std::io::Write) -> io::Result<()>,
+        ) -> io::Result<()> {
+            Host::atomic_write(dest, write_body)
+        }
+    }
+    impl FsIsExecutable for DeniedExecInspection {
+        fn is_executable(path: &Path) -> io::Result<bool> {
+            if path.ends_with("run.sh") {
+                Err(io::Error::new(io::ErrorKind::PermissionDenied, "simulated EACCES"))
+            } else {
+                Host::is_executable(path)
+            }
+        }
+    }
+
+    let (dir, opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "files": ["scripts/run.sh"],
+    }));
+    touch(dir.path(), "scripts/run.sh", "#!/bin/sh\necho hi\n");
+
+    let err = api::<SilentReporter, DeniedExecInspection>(&opts).unwrap_err();
+    assert!(
+        matches!(err, PackError::WriteTarball { ref source, .. } if source.kind() == io::ErrorKind::PermissionDenied),
+        "got {err:?}",
+    );
+}
+
+#[test]
+fn host_is_executable_returns_false_for_missing_file() {
+    let dir = tempdir().unwrap();
+    let missing = dir.path().join("does-not-exist");
+    assert!(!Host::is_executable(&missing).unwrap());
+}
+
+#[test]
+#[cfg(unix)]
+fn host_is_executable_propagates_non_not_found_error() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempdir().unwrap();
+    let unreadable_dir = dir.path().join("unreadable");
+    std::fs::create_dir(&unreadable_dir).unwrap();
+    let file = unreadable_dir.join("test.sh");
+    std::fs::write(&file, "#!/bin/sh\n").unwrap();
+
+    std::fs::set_permissions(&unreadable_dir, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    let probe = std::fs::metadata(&file);
+    let result = Host::is_executable(&file);
+
+    let _ = std::fs::set_permissions(&unreadable_dir, std::fs::Permissions::from_mode(0o755));
+
+    if probe.is_ok() {
+        return;
+    }
+    assert_eq!(probe.unwrap_err().kind(), io::ErrorKind::PermissionDenied);
+
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::PermissionDenied, "got {err:?}");
 }
 
 #[test]

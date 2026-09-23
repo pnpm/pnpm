@@ -13,7 +13,11 @@
 //! [`FsReadFile`] (bounded by the largest single file), one `readFileSync`
 //! per entry.
 
-use crate::{capabilities::FsReadFile, collation::en_collator, manifest_entry::is_manifest_entry};
+use crate::{
+    capabilities::{FsIsExecutable, FsReadFile},
+    collation::en_collator,
+    manifest_entry::is_manifest_entry,
+};
 use flate2::{Compression, write::GzEncoder};
 use indexmap::IndexMap;
 use std::{
@@ -40,7 +44,7 @@ const PACKED_MANIFEST_NAME: &str = "package/package.json";
 /// carry `manifest_json` instead of their on-disk bytes and are written
 /// under [`PACKED_MANIFEST_NAME`]; entries whose source path is in `bins`
 /// or whose source file on disk is executable are marked executable.
-pub fn build_tarball<Sys: FsReadFile>(
+pub fn build_tarball<Sys: FsReadFile + FsIsExecutable>(
     writer: &mut dyn Write,
     files_map: &IndexMap<String, PathBuf>,
     manifest_json: &[u8],
@@ -61,11 +65,11 @@ pub fn build_tarball<Sys: FsReadFile>(
     for entry in compression_ordered_entries(files_map, injected) {
         let file_data;
         let (data, mode) = match entry.source {
-            EntrySource::Manifest(path) => (manifest_json, bin_mode(&bin_set, path)?),
+            EntrySource::Manifest(path) => (manifest_json, bin_mode::<Sys>(&bin_set, path)?),
             EntrySource::Injected(data) => (data, REGULAR_MODE),
             EntrySource::File(path) => {
                 file_data = Sys::read_file(path)?;
-                (file_data.as_slice(), bin_mode(&bin_set, path)?)
+                (file_data.as_slice(), bin_mode::<Sys>(&bin_set, path)?)
             }
         };
         append_entry(&mut builder, entry.name, data, mode)?;
@@ -155,24 +159,10 @@ pub(super) fn extname(base: &str) -> &str {
     }
 }
 
-fn bin_mode(bin_set: &HashSet<&Path>, source: &Path) -> io::Result<u32> {
-    if bin_set.contains(source) {
-        return Ok(EXECUTABLE_MODE);
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        match std::fs::metadata(source) {
-            Ok(metadata) if pnpm_fs::file_mode::is_executable(metadata.permissions().mode()) => {
-                Ok(EXECUTABLE_MODE)
-            }
-            Ok(_) => Ok(REGULAR_MODE),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(REGULAR_MODE),
-            Err(error) => Err(error),
-        }
-    }
-    #[cfg(not(unix))]
-    {
+fn bin_mode<Sys: FsIsExecutable>(bin_set: &HashSet<&Path>, source: &Path) -> io::Result<u32> {
+    if bin_set.contains(source) || Sys::is_executable(source)? {
+        Ok(EXECUTABLE_MODE)
+    } else {
         Ok(REGULAR_MODE)
     }
 }
