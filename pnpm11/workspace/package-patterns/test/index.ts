@@ -30,6 +30,10 @@ test.each([
   // excludes nothing, because the paths are relative to the workspace root.
   [['**', '!/libs/**'], 'libs/lib-1', true],
   [['/libs/**'], 'libs/lib-1', false],
+  [['**/.dev/**', '!packages/**'], 'packages/.dev/tool', false],
+  [['packages/.dev/*', '!packages/*/tool'], 'packages/.dev/tool', false],
+  [['packages/.dev/*', '!packages/*/other'], 'packages/.dev/tool', true],
+  [['**', '!**/.dev/**'], 'packages/tool', true],
   [['**'], 'node_modules/is-positive', false],
   [[], 'packages/package-1', false],
 ])('%s selects %s: %s', (patterns, dir, expected) => {

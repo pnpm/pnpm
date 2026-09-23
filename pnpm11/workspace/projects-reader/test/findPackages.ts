@@ -113,3 +113,15 @@ test('finds symlinked packages', async () => {
   expect(syncPkgs[0].rootDir).toBe(path.join(ws, 'packages', 'linked-pkg'))
   expect(syncPkgs[0].rootDirRealPath).toBe(fs.realpathSync(targetDir))
 })
+
+test('wildcards in exclusion patterns match dot directories', async () => {
+  const ws = temporaryDirectory()
+  for (const [dir, name] of [['packages/.dev/tool', 'dev-tool'], ['packages/.dev/other', 'dev-other']]) {
+    fs.mkdirSync(path.join(ws, dir), { recursive: true })
+    fs.writeFileSync(path.join(ws, dir, 'package.json'), JSON.stringify({ name, version: '1.0.0' }))
+  }
+  const patterns = ['packages/.dev/*', '!packages/*/tool']
+
+  expect((await findPackages(ws, { patterns })).map(({ manifest }) => manifest.name)).toStrictEqual(['dev-other'])
+  expect(findPackagesSync(ws, { patterns }).map(({ manifest }) => manifest.name)).toStrictEqual(['dev-other'])
+})

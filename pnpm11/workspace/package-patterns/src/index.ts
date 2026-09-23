@@ -43,9 +43,25 @@ export function isWorkspaceProjectDir ({ workspaceDir, dir, patterns }: IsWorksp
   // Any manifest basename would do. The globs all end in the same
   // `package.{json,yaml,json5}` group, so they cannot tell one from another.
   const manifestPath = `${relativeDir}/package.json`
-  const { included, excluded } = splitPatterns(patterns ?? ['.', '**'])
+  const allPatterns = patterns ?? ['.', '**']
+  const { included } = splitPatterns(allPatterns)
   return micromatch.isMatch(manifestPath, normalizePatterns(included)) &&
-    !micromatch.isMatch(manifestPath, normalizePatterns(excluded))
+    !createManifestExclusionMatcher(allPatterns)(manifestPath)
+}
+
+/**
+ * Build the test for whether a negated `packages` pattern excludes a manifest,
+ * given as a path relative to the workspace root.
+ *
+ * A wildcard in an exclusion also matches directories whose names start with
+ * a dot, so `!packages/**` leaves out `packages/.dev/tool` even when an
+ * include pattern names `.dev` explicitly.
+ */
+export function createManifestExclusionMatcher (patterns: readonly string[]): (manifestPath: string) => boolean {
+  const { excluded } = splitPatterns(patterns)
+  if (excluded.length === 0) return () => false
+  const globs = normalizePatterns(excluded)
+  return (manifestPath) => micromatch.isMatch(manifestPath, globs, { dot: true })
 }
 
 function splitPatterns (patterns: readonly string[]): { included: string[], excluded: string[] } {
