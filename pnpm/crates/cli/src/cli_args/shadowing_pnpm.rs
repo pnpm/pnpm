@@ -116,7 +116,7 @@ fn origin_from_shim_script(executable: &Path) -> Option<InstallOrigin> {
     if script.contains("corepack") {
         return Some(InstallOrigin::Corepack);
     }
-    if script.contains("node_modules/pnpm/") || script.contains("node_modules\\pnpm\\") {
+    if script.contains("node_modules/pnpm/") || script.contains(r"node_modules\pnpm\") {
         return Some(InstallOrigin::NpmGlobal);
     }
     None
@@ -147,7 +147,7 @@ impl ShadowingPnpm {
             None => format!("move {global_bin} ahead of it in PATH"),
         };
         let fix = match self.origin.removal_command() {
-            Some(command) => format!("run \"{command}\" or {reorder}"),
+            Some(command) => format!(r#"run "{command}" or {reorder}"#),
             None => reorder,
         };
         if self.global_bin_on_path {
