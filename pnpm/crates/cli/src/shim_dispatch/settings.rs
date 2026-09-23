@@ -225,9 +225,13 @@ pub(super) fn is_automatic_runtime(name: &str, version_spec: &str) -> bool {
 }
 
 /// The version one directory pins for the runtime `name`. The pnpm-native
-/// manifest fields take precedence over `.nvmrc` in the same directory.
+/// manifest fields take precedence over the version-manager files, and
+/// `.node-version` over `.nvmrc`, in the same directory, the order fnm
+/// and n read them in.
 pub(super) fn runtime_pin(dir: &Path, name: &str) -> Option<(String, String)> {
-    manifest_runtime_pin(dir, name).or_else(|| nvmrc_runtime_pin(dir, name))
+    manifest_runtime_pin(dir, name)
+        .or_else(|| version_file_runtime_pin(dir, name, ".node-version"))
+        .or_else(|| version_file_runtime_pin(dir, name, ".nvmrc"))
 }
 
 /// The runtime pin in `package.json`, with `devEngines.runtime` before
@@ -248,56 +252,60 @@ fn manifest_runtime_pin(dir: &Path, name: &str) -> Option<(String, String)> {
     None
 }
 
-fn nvmrc_runtime_pin(dir: &Path, name: &str) -> Option<(String, String)> {
+/// The pin in a version-manager file. `.node-version` holds one version,
+/// optionally `v`-prefixed, with any line ending; `.nvmrc` extends that
+/// syntax with comments, `key=value` settings, and nvm aliases, so one
+/// parser reads both.
+fn version_file_runtime_pin(dir: &Path, name: &str, file_name: &str) -> Option<(String, String)> {
     if name != "node" {
         return None;
     }
-    let bytes = std::fs::read(dir.join(".nvmrc")).ok()?;
+    let bytes = std::fs::read(dir.join(file_name)).ok()?;
     let contents = std::str::from_utf8(&bytes).ok()?;
-    Some((parse_nvmrc(contents)?, create_hex_hash_bytes(&bytes)))
+    Some((parse_version_file(contents)?, create_hex_hash_bytes(&bytes)))
 }
 
-fn parse_nvmrc(contents: &str) -> Option<String> {
+fn parse_version_file(contents: &str) -> Option<String> {
     let mut version = None;
     let mut keys = HashSet::new();
     for line in contents.lines() {
-        match classify_nvmrc_line(line) {
-            NvmrcLine::Empty => {}
-            NvmrcLine::Setting(key) if key == "node" || !keys.insert(key) => return None,
-            NvmrcLine::Setting(_) => {}
+        match classify_version_file_line(line) {
+            VersionFileLine::Empty => {}
+            VersionFileLine::Setting(key) if key == "node" || !keys.insert(key) => return None,
+            VersionFileLine::Setting(_) => {}
             // Runtime materialization builds a package selector from this
             // value. It must remain one selector rather than extra packages.
-            NvmrcLine::Version(value)
+            VersionFileLine::Version(value)
                 if value.contains(',') || version.replace(value).is_some() =>
             {
                 return None;
             }
-            NvmrcLine::Version(_) => {}
+            VersionFileLine::Version(_) => {}
         }
     }
     version.and_then(normalize_nvm_version)
 }
 
-enum NvmrcLine<'a> {
+enum VersionFileLine<'a> {
     Empty,
     Setting(&'a str),
     Version(&'a str),
 }
 
-fn classify_nvmrc_line(line: &str) -> NvmrcLine<'_> {
+fn classify_version_file_line(line: &str) -> VersionFileLine<'_> {
     let line = line
         .split_once('#')
         .map_or(line, |(before_comment, _)| before_comment)
         .trim();
     if line.is_empty() {
-        return NvmrcLine::Empty;
+        return VersionFileLine::Empty;
     }
     if !line.starts_with('=')
         && let Some((key, _)) = line.split_once('=')
     {
-        return NvmrcLine::Setting(key.trim());
+        return VersionFileLine::Setting(key.trim());
     }
-    NvmrcLine::Version(line)
+    VersionFileLine::Version(line)
 }
 
 /// Translate an nvm selector into one pnpm's runtime resolver serves.

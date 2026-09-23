@@ -160,7 +160,29 @@ fn runtime_pin_falls_back_to_nvmrc() {
 }
 
 #[test]
-fn runtime_pin_prefers_the_manifest_over_nvmrc() {
+fn runtime_pin_falls_back_to_node_version_file() {
+    let root = tempfile::tempdir().unwrap();
+    for contents in ["v22.11.0\n", "22.11.0\r\n", "22.11.0"] {
+        fs::write(root.path().join(".node-version"), contents).unwrap();
+        assert_eq!(
+            runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(),
+            Some("22.11.0"),
+            "contents: {contents:?}",
+        );
+    }
+    assert_eq!(runtime_pin(root.path(), "deno"), None);
+}
+
+#[test]
+fn runtime_pin_prefers_node_version_file_over_nvmrc() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(root.path().join(".node-version"), "22.0.0\n").unwrap();
+    fs::write(root.path().join(".nvmrc"), "20.0.0\n").unwrap();
+    assert_eq!(runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(), Some("22.0.0"));
+}
+
+#[test]
+fn runtime_pin_prefers_the_manifest_over_version_files() {
     let root = tempfile::tempdir().unwrap();
     fs::write(
         root.path().join("package.json"),
@@ -170,6 +192,7 @@ fn runtime_pin_prefers_the_manifest_over_nvmrc() {
         .to_string(),
     )
     .unwrap();
+    fs::write(root.path().join(".node-version"), "20.0.0\n").unwrap();
     fs::write(root.path().join(".nvmrc"), "20.0.0\n").unwrap();
     assert_eq!(runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(), Some("22.0.0"));
 }
