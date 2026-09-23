@@ -405,7 +405,12 @@ test('deploy does not run prepare scripts of the deployed project', async () => 
         version: '1.0.0',
         dependencies: { '@pnpm.e2e/foo': '100.0.0' },
         scripts: {
+          preinstall: 'node -e "require(\'fs\').appendFileSync(\'ran-stages.txt\', \'preinstall\\n\')"',
+          install: 'node -e "require(\'fs\').appendFileSync(\'ran-stages.txt\', \'install\\n\')"',
+          postinstall: 'node -e "require(\'fs\').appendFileSync(\'ran-stages.txt\', \'postinstall\\n\')"',
+          preprepare: 'node -e "process.exit(1)"',
           prepare: 'node -e "process.exit(1)"',
+          postprepare: 'node -e "process.exit(1)"',
         },
       },
     },
@@ -417,8 +422,8 @@ test('deploy does not run prepare scripts of the deployed project', async () => 
 
   await execPnpm(['install', '--ignore-scripts'])
   await execPnpm(['--filter=app', 'deploy', '--prod', 'deploy-prod'])
-  expect(fs.existsSync('deploy-prod/package.json')).toBe(true)
+  expect(fs.readFileSync('deploy-prod/ran-stages.txt', 'utf8')).toBe('preinstall\ninstall\npostinstall\n')
 
   await execPnpm(['--filter=app', 'deploy', 'deploy-dev'])
-  expect(fs.existsSync('deploy-dev/package.json')).toBe(true)
+  expect(fs.readFileSync('deploy-dev/ran-stages.txt', 'utf8')).toBe('preinstall\ninstall\npostinstall\n')
 })

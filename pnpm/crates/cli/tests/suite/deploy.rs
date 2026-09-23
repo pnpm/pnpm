@@ -956,7 +956,12 @@ fn deploy_does_not_run_prepare_scripts() {
     let mut manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&app_pkg_json).unwrap()).unwrap();
     manifest["scripts"] = serde_json::json!({
-        "prepare": r#"node -e "process.exit(1)""#
+        "preinstall": r#"node -e "require('fs').appendFileSync('ran-stages.txt', 'preinstall\n')""#,
+        "install": r#"node -e "require('fs').appendFileSync('ran-stages.txt', 'install\n')""#,
+        "postinstall": r#"node -e "require('fs').appendFileSync('ran-stages.txt', 'postinstall\n')""#,
+        "preprepare": r#"node -e "process.exit(1)""#,
+        "prepare": r#"node -e "process.exit(1)""#,
+        "postprepare": r#"node -e "process.exit(1)""#,
     });
     fs::write(&app_pkg_json, manifest.to_string()).unwrap();
 
@@ -969,10 +974,18 @@ fn deploy_does_not_run_prepare_scripts() {
         .with_args(["--filter", "app", "deploy", "--prod", "deploy-prod"])
         .assert()
         .success();
+    assert_eq!(
+        fs::read_to_string(workspace.join("deploy-prod/ran-stages.txt")).unwrap(),
+        "preinstall\ninstall\npostinstall\n",
+    );
     pacquet_cmd(&workspace)
         .with_args(["--filter", "app", "deploy", "deploy-dev"])
         .assert()
         .success();
+    assert_eq!(
+        fs::read_to_string(workspace.join("deploy-dev/ran-stages.txt")).unwrap(),
+        "preinstall\ninstall\npostinstall\n",
+    );
 
     drop((root, mock_instance));
 }
