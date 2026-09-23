@@ -34,9 +34,7 @@ pub(crate) fn warn_about_workspaces_field(config: &Config, manifest: Option<&Val
     }
 }
 
-/// Whether a non-empty array-form `workspaces` field selects other
-/// projects than `pnpm-workspace.yaml` in `workspace_dir`. An empty array
-/// declares nothing, so it never differs.
+/// An empty array declares nothing, so it never differs.
 fn workspaces_field_differs(
     config: &Config,
     workspace_dir: &Path,
@@ -140,10 +138,12 @@ fn render_workspace_manifest(
     }
 }
 
-/// Anchor `cfg` to a `pnpm-workspace.yaml` that another writer published
-/// in `config_root` after the config loaded, and warn if the root
-/// manifest's `workspaces` field differs from it. Only a regular file is
-/// read: a symlink or any other entry is left alone and never followed.
+/// Anchor `cfg` to a `pnpm-workspace.yaml` another writer published in
+/// `config_root` after the config loaded. A symlink or any entry other
+/// than a regular file is left alone and never followed.
+///
+/// Settings other than `packages` apply only while the config loads, so
+/// a manifest declaring any is an error that asks for the command again.
 fn adopt_existing_workspace(
     cfg: &mut Config,
     config_root: &Path,
@@ -156,21 +156,44 @@ fn adopt_existing_workspace(
     let manifest = pnpm_workspace::read_workspace_manifest(config_root)
         .into_diagnostic()
         .wrap_err_with(|| format!("read {}", path.display()))?;
-    if let Some(manifest) = manifest {
-        cfg.anchor_to_created_workspace(
-            config_root.to_path_buf(),
-            pnpm_workspace::workspace_package_patterns(&manifest),
-        );
-        warn_about_workspaces_field(cfg, root_manifest);
+    let Some(manifest) = manifest else {
+        return Ok(());
+    };
+    if declares_settings(&path)? {
+        let path = path.display();
+        return Err(miette::miette!(
+            code = "ERR_PNPM_WORKSPACE_MANIFEST_APPEARED",
+            help = "Run the command again.",
+            "{path} was created while this command was running, and its settings could not be applied",
+        ));
     }
+    cfg.anchor_to_created_workspace(
+        config_root.to_path_buf(),
+        pnpm_workspace::workspace_package_patterns(&manifest),
+    );
+    warn_about_workspaces_field(cfg, root_manifest);
     Ok(())
 }
 
-/// Write `text` to `path` only if nothing is there, publishing it whole:
-/// the text goes to a sibling temp file that a no-replace rename then
-/// moves into place, so a concurrent reader sees no file or a complete
-/// one. Fails with `AlreadyExists` when `path` exists, and a failure
-/// removes only the temp file.
+/// Whether the workspace manifest at `path` has any top-level key besides
+/// `packages`.
+fn declares_settings(path: &Path) -> miette::Result<bool> {
+    let text = std::fs::read_to_string(path)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("read {}", path.display()))?;
+    if text.trim().is_empty() {
+        return Ok(false);
+    }
+    let document: Value = serde_saphyr::from_str(&text)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("parse {}", path.display()))?;
+    Ok(document
+        .as_object()
+        .is_some_and(|keys| keys.keys().any(|key| key != "packages")))
+}
+
+/// A concurrent reader sees no file at `path` or the complete `text`.
+/// Fails with `AlreadyExists` when `path` exists, which is never replaced.
 fn publish_new_workspace_manifest(path: &Path, text: &str) -> std::io::Result<()> {
     use std::io::Write as _;
     let dir = path.parent().unwrap_or_else(|| Path::new("."));
@@ -205,16 +228,15 @@ fn yarn_workspace_patterns(manifest: Option<&Value>) -> Vec<String> {
         .collect()
 }
 
-/// Whether two pattern lists select the same projects, ignoring order and
-/// repeats.
+/// Ignores order and repeats.
 fn same_patterns(left: &[String], right: &[String]) -> bool {
     let left: std::collections::BTreeSet<&String> = left.iter().collect();
     let right: std::collections::BTreeSet<&String> = right.iter().collect();
     left == right
 }
 
-/// Whether the manifest declares a non-empty array-form `workspaces`
-/// field, usable patterns or not.
+/// Counts a non-empty array even when none of its entries is a usable
+/// pattern.
 fn declares_yarn_workspaces(manifest: Option<&Value>) -> bool {
     workspaces_array(manifest).is_some_and(|entries| !entries.is_empty())
 }

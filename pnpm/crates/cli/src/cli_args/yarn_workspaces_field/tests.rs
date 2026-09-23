@@ -239,3 +239,28 @@ fn a_field_differs_from_the_workspace_unless_it_is_an_empty_array() {
     assert!(!differs(serde_json::json!([])), "an empty array declares nothing");
     assert!(!differs(serde_json::json!({"packages": ["tools/*"]})), "the object form is not read");
 }
+
+#[test]
+fn a_manifest_with_settings_published_after_the_config_loaded_is_an_error() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let mut config = pnpm_config::Config::default();
+    fs::write(
+        dir.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("publish manifest");
+    let root_manifest = serde_json::json!({"workspaces": ["packages/*"]});
+
+    let error =
+        create_workspace_yaml_from_yarn_workspaces(&mut config, dir.path(), Some(&root_manifest))
+            .expect_err("settings cannot apply after the config loaded");
+
+    assert_eq!(
+        error
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_WORKSPACE_MANIFEST_APPEARED"),
+    );
+    assert_eq!(config.workspace_dir, None);
+}
