@@ -494,9 +494,9 @@ async fn switch_global_pnpm<Reporter: self::Reporter + 'static>(
     Ok(Some(format!("Successfully updated pnpm to v{target_version}")))
 }
 
-/// Say so when the pnpm just linked into `global_bin` is not the one `PATH`
-/// resolves, or "Successfully updated" is the last thing the person reads
-/// before `pnpm --version` prints the old version again.
+/// Say so when the pnpm just linked into the global bin directory is not
+/// the one `PATH` resolves, or "Successfully updated" is the last thing the
+/// person reads before `pnpm --version` prints the old version again.
 fn warn_if_shadowed<Reporter: self::Reporter>(global_bin: Option<&Path>, prefix: &str) {
     if let Some(global_bin) = global_bin
         && let Some(shadowing) =
