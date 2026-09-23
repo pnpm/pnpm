@@ -204,7 +204,7 @@ fn prune_with_prod_only_does_not_run_prepare_scripts() {
 
     let prepare = format!(
         r#"node -e "require('is-negative')" && {}"#,
-        append_line_script("prepare", ORDER_FILE)
+        append_line_script("prepare", ORDER_FILE),
     );
     fs::write(
         workspace.join("package.json"),
