@@ -264,3 +264,34 @@ fn a_manifest_with_settings_published_after_the_config_loaded_is_an_error() {
     );
     assert_eq!(config.workspace_dir, None);
 }
+
+#[test]
+fn a_lockfile_dir_install_neither_creates_nor_adopts_a_manifest() {
+    let lockfile_root = tempfile::tempdir().expect("create temp dir");
+    let config = || pnpm_config::Config {
+        lockfile_dir: Some(lockfile_root.path().to_path_buf()),
+        ..pnpm_config::Config::default()
+    };
+    let root_manifest = serde_json::json!({"workspaces": ["packages/*"]});
+    let manifest_path = lockfile_root.path().join("pnpm-workspace.yaml");
+
+    let mut without_manifest = config();
+    create_workspace_yaml_from_yarn_workspaces(
+        &mut without_manifest,
+        lockfile_root.path(),
+        Some(&root_manifest),
+    )
+    .expect("nothing to convert");
+    assert!(!manifest_path.exists());
+
+    fs::write(&manifest_path, "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n")
+        .expect("write manifest");
+    let mut with_manifest = config();
+    create_workspace_yaml_from_yarn_workspaces(
+        &mut with_manifest,
+        lockfile_root.path(),
+        Some(&root_manifest),
+    )
+    .expect("a manifest the config search never reached is not an error");
+    assert_eq!(with_manifest.workspace_dir, None);
+}

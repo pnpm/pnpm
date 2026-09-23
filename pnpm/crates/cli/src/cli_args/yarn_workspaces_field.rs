@@ -58,6 +58,7 @@ fn workspaces_field_differs(
 pub(crate) fn converts_yarn_workspaces(config: &Config, root_manifest: Option<&Value>) -> bool {
     config.workspace_dir.is_none()
         && !config.ignore_workspace
+        && config.lockfile_dir.is_none()
         && !yarn_workspace_patterns(root_manifest).is_empty()
 }
 
@@ -68,19 +69,21 @@ pub(crate) fn converts_yarn_workspaces(config: &Config, root_manifest: Option<&V
 /// An existing `pnpm-workspace.yaml` is never replaced, whether it was
 /// there before the check or appeared while this one was being written;
 /// `cfg` then follows that file. Inside a workspace, without a usable
-/// pattern, or under `--ignore-workspace`, nothing is created and
-/// [`warn_about_workspaces_field`] applies instead.
+/// pattern, under `--ignore-workspace`, or with a `lockfileDir`, nothing is
+/// created and [`warn_about_workspaces_field`] applies instead.
 pub(crate) fn create_workspace_yaml_from_yarn_workspaces(
     cfg: &mut Config,
     config_root: &Path,
     root_manifest: Option<&Value>,
 ) -> miette::Result<()> {
-    let patterns = yarn_workspace_patterns(root_manifest);
-    if cfg.workspace_dir.is_some() || cfg.ignore_workspace || patterns.is_empty() {
+    if !converts_yarn_workspaces(cfg, root_manifest) {
         warn_about_workspaces_field(cfg, root_manifest);
         return Ok(());
     }
+    let patterns = yarn_workspace_patterns(root_manifest);
     let path = config_root.join(WORKSPACE_MANIFEST_FILENAME);
+    // Without a `lockfileDir`, `config_root` is where the config's
+    // workspace search started, so a manifest here appeared after it ran.
     if existing_workspace_manifest(&path)?.is_some() {
         return adopt_existing_workspace(cfg, config_root, root_manifest);
     }
@@ -153,13 +156,17 @@ fn adopt_existing_workspace(
     if !matches!(existing_workspace_manifest(&path)?, Some(ExistingManifest::File)) {
         return Ok(());
     }
-    let manifest = pnpm_workspace::read_workspace_manifest(config_root)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("read {}", path.display()))?;
-    let Some(manifest) = manifest else {
-        return Ok(());
+    let text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => {
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("read {}", path.display()));
+        }
     };
-    if declares_settings(&path)? {
+    let manifest = pnpm_workspace::parse_workspace_manifest(&path, &text).into_diagnostic()?;
+    if declares_settings(&path, &text)? {
         let path = path.display();
         return Err(miette::miette!(
             code = "ERR_PNPM_WORKSPACE_MANIFEST_APPEARED",
@@ -175,16 +182,13 @@ fn adopt_existing_workspace(
     Ok(())
 }
 
-/// Whether the workspace manifest at `path` has any top-level key besides
-/// `packages`.
-fn declares_settings(path: &Path) -> miette::Result<bool> {
-    let text = std::fs::read_to_string(path)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("read {}", path.display()))?;
+/// Whether the workspace manifest `text` has any top-level key besides
+/// `packages`. `path` only labels errors.
+fn declares_settings(path: &Path, text: &str) -> miette::Result<bool> {
     if text.trim().is_empty() {
         return Ok(false);
     }
-    let document: Value = serde_saphyr::from_str(&text)
+    let document: Value = serde_saphyr::from_str(text)
         .into_diagnostic()
         .wrap_err_with(|| format!("parse {}", path.display()))?;
     Ok(document

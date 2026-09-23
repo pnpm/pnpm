@@ -117,17 +117,25 @@ pub fn read_workspace_manifest(
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
         Err(source) => return Err(ReadWorkspaceManifestError::ReadFile { path, source }),
     };
+    parse_workspace_manifest(&path, &text).map(Some)
+}
 
+/// Parse and validate `text` as a `pnpm-workspace.yaml`. `path` only labels
+/// errors.
+pub fn parse_workspace_manifest(
+    path: &Path,
+    text: &str,
+) -> Result<WorkspaceManifest, ReadWorkspaceManifestError> {
     // An empty workspace manifest is valid and means "no settings, no
     // packages" — same as `{}`. `serde_saphyr` would otherwise reject
     // an empty document; short-circuit to the default value.
     if text.trim().is_empty() {
-        return Ok(Some(WorkspaceManifest::default()));
+        return Ok(WorkspaceManifest::default());
     }
 
-    let manifest: WorkspaceManifest = serde_saphyr::from_str(&text)
+    let manifest: WorkspaceManifest = serde_saphyr::from_str(text)
         .map_err(|source| ReadWorkspaceManifestError::ParseYaml {
-            path: path.clone(),
+            path: path.to_path_buf(),
             source: Box::new(source),
         })?;
 
@@ -145,7 +153,7 @@ pub fn read_workspace_manifest(
         }
     }
 
-    Ok(Some(manifest))
+    Ok(manifest)
 }
 
 #[cfg(test)]

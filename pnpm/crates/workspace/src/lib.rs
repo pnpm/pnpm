@@ -15,7 +15,8 @@ pub use importer_id::importer_id_from_root_dir;
 pub use inventory::{FindWorkspaceInventoryError, WorkspaceInventory, find_workspace_inventory};
 pub use manifest::{
     InvalidWorkspaceManifestError, ReadWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME,
-    WorkspaceManifest, read_workspace_manifest, workspace_package_patterns,
+    WorkspaceManifest, parse_workspace_manifest, read_workspace_manifest,
+    workspace_package_patterns,
 };
 pub use project_manifest::{
     ReadProjectManifestError, ReadProjectManifestOnlyError, project_manifest_path,
