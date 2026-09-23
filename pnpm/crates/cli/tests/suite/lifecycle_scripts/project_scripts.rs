@@ -59,9 +59,6 @@ fn runs_project_lifecycle_scripts_in_order() {
     drop((root, mock_instance));
 }
 
-/// `pacquet install --prod` excludes devDependencies, so the project's
-/// `prepare` lifecycle scripts (preprepare, prepare, postprepare) must
-/// not run (pnpm/pnpm#7068).
 #[test]
 fn install_prod_does_not_run_prepare_scripts() {
     let CommandTempCwd {
