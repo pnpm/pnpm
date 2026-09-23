@@ -1084,3 +1084,33 @@ test('publish --json: writes per-package summary to stdout', async () => {
 
   await checkPkgExists(pkgName, '0.0.0')
 })
+
+test('publish inherits registry from workspace root .npmrc (pnpm/pnpm#7182)', async () => {
+  const pkgName = `@pnpmtest/test-workspace-npmrc-publish-${Date.now()}`
+  preparePackages([
+    {
+      name: pkgName,
+      version: '1.0.0',
+    },
+  ])
+
+  fs.writeFileSync('.npmrc', `registry=http://localhost:${REGISTRY_MOCK_PORT}/\n//localhost:${REGISTRY_MOCK_PORT}/:_authToken=${getRegistryMockToken()}\n`)
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**'] })
+
+  process.chdir(pkgName)
+
+  fs.writeFileSync('.npmrc', 'engine-strict=true\nsave-exact=true\n')
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    registriesByScope: {
+      default: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+    },
+  }, [])
+
+  await checkPkgExists(pkgName, '1.0.0')
+})
+

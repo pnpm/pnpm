@@ -756,3 +756,39 @@ fn recursive_publish_json_prints_the_published_array() {
 
     drop(root);
 }
+
+/// pnpm/pnpm#7182: `pnpm --filter <pkg> publish` publishes to the registry
+/// configured in the workspace root .npmrc.
+#[test]
+fn recursive_publish_filter_uses_workspace_root_npmrc_registry() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[("project-1", public_pkg("project-1")), ("project-2", public_pkg("project-2"))],
+    );
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
+
+    let probe = server
+        .mock("GET", "/project-1")
+        .with_status(404)
+        .expect(1)
+        .create();
+    let put = server
+        .mock("PUT", "/project-1")
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    clear_ci(pacquet)
+        .with_arg("--filter=project-1")
+        .with_arg("publish")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+
+    probe.assert();
+    put.assert();
+    drop(root);
+}
