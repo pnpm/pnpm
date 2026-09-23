@@ -408,6 +408,7 @@ test('deploy does not run prepare scripts of the deployed project', async () => 
           preinstall: 'node -e "require(\'fs\').appendFileSync(\'ran-stages.txt\', \'preinstall\\n\')"',
           install: 'node -e "require(\'fs\').appendFileSync(\'ran-stages.txt\', \'install\\n\')"',
           postinstall: 'node -e "require(\'fs\').appendFileSync(\'ran-stages.txt\', \'postinstall\\n\')"',
+          prepublish: 'node -e "process.exit(1)"',
           preprepare: 'node -e "process.exit(1)"',
           prepare: 'node -e "process.exit(1)"',
           postprepare: 'node -e "process.exit(1)"',
@@ -426,4 +427,7 @@ test('deploy does not run prepare scripts of the deployed project', async () => 
 
   await execPnpm(['--filter=app', 'deploy', 'deploy-dev'])
   expect(fs.readFileSync('deploy-dev/ran-stages.txt', 'utf8')).toBe('preinstall\ninstall\npostinstall\n')
+
+  await execPnpm(['--filter=app', 'deploy', '--legacy', 'deploy-legacy'])
+  expect(fs.readFileSync('packages/app/ran-stages.txt', 'utf8')).toBe('preinstall\ninstall\npostinstall\n')
 })

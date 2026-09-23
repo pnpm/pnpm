@@ -160,6 +160,7 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
   await install.handler({
     ...opts,
     deploy: true,
+    configDependencies: undefined,
     confirmModulesPurge: false,
     // Deploy doesn't work with dedupePeerDependents=true currently as for deploy
     // we need to select a single project for install, while dedupePeerDependents

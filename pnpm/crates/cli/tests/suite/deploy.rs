@@ -959,6 +959,7 @@ fn deploy_does_not_run_prepare_scripts() {
         "preinstall": r#"node -e "require('fs').appendFileSync('ran-stages.txt', 'preinstall\n')""#,
         "install": r#"node -e "require('fs').appendFileSync('ran-stages.txt', 'install\n')""#,
         "postinstall": r#"node -e "require('fs').appendFileSync('ran-stages.txt', 'postinstall\n')""#,
+        "prepublish": r#"node -e "process.exit(1)""#,
         "preprepare": r#"node -e "process.exit(1)""#,
         "prepare": r#"node -e "process.exit(1)""#,
         "postprepare": r#"node -e "process.exit(1)""#,

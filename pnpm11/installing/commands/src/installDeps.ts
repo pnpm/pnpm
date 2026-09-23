@@ -257,7 +257,7 @@ export async function installDeps (
     })
     ? declaredPacquetConfigDepName
     : undefined
-  const runPacquet = pacquetConfigDepName != null
+  const runPacquet = pacquetConfigDepName != null && !opts.deploy
     ? makeRunPacquet({
       lockfileDir: opts.lockfileDir ?? opts.dir,
       packageName: pacquetConfigDepName,
