@@ -38,7 +38,12 @@ if command -v cargo >/dev/null 2>&1; then
 
     if command -v cargo-dylint >/dev/null 2>&1; then
         yellow '▸ RUSTFLAGS="-D warnings" cargo dylint --all -- --all-targets --workspace'
-        if ! RUSTFLAGS='-D warnings' cargo dylint --all -- --all-targets --workspace; then
+        # Git exports its repository-local variables (GIT_DIR, GIT_INDEX_FILE,
+        # ...) to hooks. When dylint builds a driver for a new toolchain it
+        # runs `git checkout` in its own clone of rust-clippy, and an inherited
+        # GIT_DIR makes that checkout read this repository instead and fail.
+        # shellcheck disable=SC2046
+        if ! (unset $(git rev-parse --local-env-vars) && RUSTFLAGS='-D warnings' cargo dylint --all -- --all-targets --workspace); then
             red '✗ cargo dylint reported lints — `just dylint-fix` applies the ones it can, then commit.'
             failed=1
         fi
