@@ -1,6 +1,8 @@
 use crate::{
     State,
-    cli_args::patch_state::{EditDirState, StateFileError, read_edit_dir_state},
+    cli_args::patch_state::{
+        EditDirState, StateFileError, read_all_edit_dir_states, read_edit_dir_state,
+    },
 };
 use clap::Args;
 use derive_more::{Display, Error};
@@ -21,6 +23,7 @@ use pnpm_package_manager::{
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use pnpm_reporter::Reporter;
 use pnpm_workspace_manifest_writer::UpdateWorkspaceManifestError;
+use resolution::{format_candidates, resolve_patch_dir};
 use serde_json::Value;
 use std::{
     fs, io,
@@ -30,7 +33,7 @@ use std::{
 
 #[derive(Debug, Args)]
 pub struct PatchCommitArgs {
-    /// Directory created by `pnpm patch`.
+    /// Directory created by `pnpm patch` or package name/specifier.
     pub patch_dir: PathBuf,
     /// The generated patch file will be saved to this directory.
     #[clap(long = "patches-dir", value_name = "dir")]
@@ -46,6 +49,13 @@ pub(crate) enum PatchCommitError {
         help("A valid patch directory should be created by `pnpm patch`")
     )]
     InvalidPatchDir { patch_dir: PathBuf },
+
+    #[display("Found multiple patch directories for `{query}`:\n{}", format_candidates(candidates))]
+    #[diagnostic(
+        code(ERR_PNPM_AMBIGUOUS_PATCH_TARGET),
+        help("Specify the exact patch directory or version")
+    )]
+    AmbiguousPatchTarget { query: String, candidates: Vec<PathBuf> },
 
     #[display("Missing package manifest field `{field}` in {}", path.display())]
     #[diagnostic(code(ERR_PNPM_PATCH_COMMIT_MISSING_MANIFEST_FIELD))]
@@ -131,11 +141,10 @@ impl PatchCommitArgs {
         dir: &Path,
         state: State,
     ) -> Result<Option<IndexMap<String, String>>, PatchCommitError> {
-        let patch_dir = resolve_path(dir, &self.patch_dir);
+        let resolved = resolve_patch_dir(dir, &state.config.modules_dir, &self.patch_dir)?;
+        let patch_dir = resolved.patch_dir;
+        let state_value = resolved.state_value;
         let (name, version) = patched_identity(&patch_dir)?;
-        let state_value = read_edit_dir_state(&state.config.modules_dir, &patch_dir)
-            .map_err(PatchCommitError::StateFile)?
-            .ok_or_else(|| PatchCommitError::InvalidPatchDir { patch_dir: patch_dir.clone() })?;
 
         let current_lockfile =
             Lockfile::load_current_from_virtual_store_dir(&state.config.virtual_store_dir)
@@ -336,3 +345,4 @@ fn resolve_path(dir: &Path, path: &Path) -> PathBuf {
 mod tests;
 
 mod paths;
+mod resolution;

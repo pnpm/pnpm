@@ -51,7 +51,7 @@ function modifyStateFile (modulesDir: string, modifyState: (state: State) => voi
   fs.writeFileSync(filePath, JSON.stringify(state, undefined, 2))
 }
 
-function readStateFile (modulesDir: string): State | undefined {
+export function readStateFile (modulesDir: string): State | undefined {
   let fileContent: string
   try {
     fileContent = fs.readFileSync(getStateFilePath(modulesDir), 'utf-8')
