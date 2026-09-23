@@ -95,13 +95,23 @@ fn is_hardlinked_file(path: &Path) -> bool {
 
 #[cfg(windows)]
 fn is_hardlinked_file(path: &Path) -> bool {
-    use std::os::windows::fs::MetadataExt;
-    fs::metadata(path)
-        .is_ok_and(|metadata| {
-            metadata
-                .number_of_links()
-                .is_some_and(|links| links > 1)
-        })
+    use std::{mem::MaybeUninit, os::windows::io::AsRawHandle as _};
+    use windows_sys::Win32::Storage::FileSystem::{
+        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
+    };
+
+    let Ok(file) = fs::File::open(path) else {
+        return false;
+    };
+    let mut info = MaybeUninit::<BY_HANDLE_FILE_INFORMATION>::uninit();
+    // SAFETY: `file` owns a valid handle and `info` points to writable storage
+    // of the structure initialized by `GetFileInformationByHandle`.
+    if unsafe { GetFileInformationByHandle(file.as_raw_handle().cast(), info.as_mut_ptr()) } == 0 {
+        return false;
+    }
+    // SAFETY: a successful `GetFileInformationByHandle` initializes `info`.
+    let info = unsafe { info.assume_init() };
+    info.nNumberOfLinks > 1
 }
 
 #[cfg(not(any(unix, windows)))]
