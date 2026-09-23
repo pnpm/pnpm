@@ -71,17 +71,22 @@ pub fn unreadable_npmrc_becomes_a_source_carrying_its_warning() {
             Err(io::ErrorKind::PermissionDenied.into())
         }
     }
-    let path = Path::new("/project/.npmrc");
+    let project = tempdir().expect("project tempdir");
+    let path = project.path().join(".npmrc");
+    write_file(&path, "registry=https://example.com/\n");
 
-    let source = npmrc_source::<PermissionDenied>(path, |_| NpmrcAuth::default())
+    let source = npmrc_source::<PermissionDenied>(&path, |_| NpmrcAuth::default())
         .expect("an unreadable file is still a source");
 
     assert_eq!(source.warnings.len(), 1);
+    let warning = source.warnings[0].clone();
     assert!(
-        source.warnings[0].starts_with(&format!(r#"Issue while reading "{}". "#, path.display())),
-        "{:?} should name the unreadable file",
-        source.warnings[0],
+        warning.starts_with(&format!(r#"Issue while reading "{}". "#, path.display())),
+        "{warning:?} should name the unreadable file",
     );
+    let mut config = Config::default();
+    source.apply_to::<HostNoHome>(&mut config);
+    assert_eq!(config.npmrc_warnings, vec![warning]);
 }
 
 #[test]

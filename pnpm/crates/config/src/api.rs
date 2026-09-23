@@ -95,9 +95,7 @@ pub trait LinkProbe {
     fn can_link_between_dirs(from_dir: &Path, to_dir: &Path) -> bool;
 }
 
-/// Capability: read a whole file as bytes. The `.npmrc` reads go through
-/// it so tests can drive the read-failure branch without platform-specific
-/// permission fixtures.
+/// Capability: read a whole file as bytes.
 pub(crate) trait FsReadFile {
     fn read_file(path: &Path) -> io::Result<Vec<u8>>;
 }
