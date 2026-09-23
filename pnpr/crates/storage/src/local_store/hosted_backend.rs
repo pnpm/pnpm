@@ -250,14 +250,12 @@ async fn blob_file(root: &Path, entry: &fs::DirEntry) -> Result<HostedBlobFile> 
     Ok(HostedBlobFile { path, modified: metadata.modified()?, size: metadata.len() })
 }
 
-/// Publishes an empty index marker the way `write_atomic` does, by renaming
-/// a temporary sibling over it, so a symlink planted at the marker path is
-/// replaced rather than followed. Only the flush differs: on Apple platforms
-/// `sync_all` is `F_FULLFSYNC`, which also flushes the drive cache and costs
-/// about 4 ms alone and 19 ms under load, once per package. A plain `fsync`
-/// hands the marker to the device, and the `F_FULLFSYNC` that publishes
-/// `.complete` afterwards flushes the drive cache for everything written
-/// before it.
+/// Publishes an empty index marker by rename, as `write_atomic` does, so a
+/// symlink planted at the marker path is replaced rather than followed. It
+/// does not `sync_all` the marker: on Apple platforms that is `F_FULLFSYNC`,
+/// which also flushes the drive cache at about 4 ms alone and 19 ms under
+/// load, once per package, and the `F_FULLFSYNC` that publishes `.complete`
+/// afterwards flushes the drive cache for every marker written before it.
 async fn write_index_marker(path: &Path) -> Result<()> {
     let (file, tmp) = create_tmp_file(path).await?;
     let published = match flush_to_device(file).await {
