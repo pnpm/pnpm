@@ -7,6 +7,12 @@ use std::time::{Duration, Instant};
 const RETRY_BUDGET: Duration = Duration::from_mins(1);
 #[cfg(any(windows, test))]
 const PERMISSION_DENIED_RETRY_BUDGET: Duration = Duration::from_secs(1);
+/// How long a removal waits out access denied. Windows also reports access
+/// denied for an executable that a running process has loaded, so this
+/// covers a program under `node_modules` that is shutting down, while a
+/// restrictive ACL still fails the removal within seconds.
+#[cfg(any(windows, test))]
+const REMOVAL_PERMISSION_DENIED_RETRY_BUDGET: Duration = Duration::from_secs(5);
 #[cfg(any(windows, test))]
 const RETRY_BACKOFF_CAP: Duration = Duration::from_millis(100);
 
@@ -98,10 +104,43 @@ pub(crate) fn retry_transient_file_locks<Value>(
     }
 }
 
+/// Run a removal with the retry policy of [`rename_with_retry`], except that
+/// permission errors get the longer removal budget on Windows.
+pub(crate) fn retry_transient_removal_locks<Value>(
+    operation: impl FnMut() -> io::Result<Value>,
+) -> io::Result<Value> {
+    #[cfg(windows)]
+    {
+        retry_fs_operation_within(
+            operation,
+            is_transient_file_lock_error,
+            REMOVAL_PERMISSION_DENIED_RETRY_BUDGET,
+        )
+    }
+    #[cfg(not(windows))]
+    {
+        let mut operation = operation;
+        operation()
+    }
+}
+
 #[cfg(any(windows, test))]
 fn retry_fs_operation<Func, Value, Classify>(
     operation: Func,
     is_transient: Classify,
+) -> io::Result<Value>
+where
+    Func: FnMut() -> io::Result<Value>,
+    Classify: Fn(&io::Error) -> bool,
+{
+    retry_fs_operation_within(operation, is_transient, PERMISSION_DENIED_RETRY_BUDGET)
+}
+
+#[cfg(any(windows, test))]
+fn retry_fs_operation_within<Func, Value, Classify>(
+    operation: Func,
+    is_transient: Classify,
+    permission_denied_budget: Duration,
 ) -> io::Result<Value>
 where
     Func: FnMut() -> io::Result<Value>,
@@ -113,6 +152,7 @@ where
         is_transient,
         RetryTiming {
             budget: RETRY_BUDGET,
+            permission_denied_budget,
             elapsed: || start.elapsed(),
             sleep: std::thread::sleep,
         },
@@ -122,6 +162,9 @@ where
 #[cfg(any(windows, test))]
 struct RetryTiming<Elapsed, Sleep> {
     budget: Duration,
+    /// The budget once any attempt fails with a permission error other than
+    /// a sharing or lock violation.
+    permission_denied_budget: Duration,
     elapsed: Elapsed,
     sleep: Sleep,
 }
@@ -148,7 +191,7 @@ where
         if error.kind() == io::ErrorKind::PermissionDenied
             && !matches!(error.raw_os_error(), Some(ERROR_SHARING_VIOLATION | ERROR_LOCK_VIOLATION))
         {
-            timing.budget = timing.budget.min(PERMISSION_DENIED_RETRY_BUDGET);
+            timing.budget = timing.budget.min(timing.permission_denied_budget);
         }
         if !is_transient(&error) || !wait_for_retry(&mut timing, backoff) {
             return Err(error);
