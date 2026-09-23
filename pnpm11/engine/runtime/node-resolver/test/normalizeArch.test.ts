@@ -18,7 +18,6 @@ test.each([
   expect(getNormalizedArch(platform, arch, nodeVersion)).toBe(normalizedArch)
 })
 
-// windows on arm
 test.each([
   ['win32', 'arm64', '18.20.0', 'x64'],
   ['win32', 'arm64', '20.7.0', 'arm64'],
