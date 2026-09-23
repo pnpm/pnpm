@@ -137,16 +137,17 @@ pub(super) fn metadata_registry<'a>(
         None => (sources.registry, true),
     }
 }
-/// `deprecated` is the only registry-mutable field of a published version; an
-/// unchanged resolution must not lose a recorded deprecation to a registry
-/// serving it inconsistently (pnpm/pnpm#13846).
+/// `deprecated` is the only registry-mutable field of a published version. An
+/// unchanged resolution keeps its recorded deprecation, so neither a registry
+/// serving it inconsistently (pnpm/pnpm#13846) nor a stale metadata cache
+/// (pnpm/pnpm#5772) can rewrite it.
 pub(super) fn carry_previous_deprecation(
     metadata: &mut PackageMetadata,
     key: &PackageKey,
     sources: &PackageMetadataSources<'_>,
 ) {
-    if metadata.deprecated.is_none()
-        && let Some(previous) = sources.previous_packages.and_then(|prev| prev.get(key))
+    if let Some(previous) = sources.previous_packages.and_then(|prev| prev.get(key))
+        && previous.deprecated.is_some()
         && previous.resolution == metadata.resolution
     {
         metadata.deprecated.clone_from(&previous.deprecated);
