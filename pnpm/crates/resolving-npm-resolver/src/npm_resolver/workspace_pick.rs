@@ -183,8 +183,8 @@ pub(super) fn try_workspace_shadow(
     }
 
     let local_version = pick_matching_local_version_or_null(matching_name, spec)?;
-    let local_parsed = Version::parse(&local_version).ok()?;
-    let prefer = opts.project.prefer_workspace_packages || local_parsed >= picked.version;
+    let prefer = opts.project.prefer_workspace_packages
+        || Version::parse(&local_version).is_ok_and(|local_parsed| local_parsed >= picked.version);
     if !prefer {
         return None;
     }

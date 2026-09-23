@@ -446,7 +446,8 @@ async fn registry_404_propagates_when_package_not_in_workspace() {
     );
 }
 
-async fn resolve_latest_tag_against_a_non_semver_workspace_version(
+async fn resolve_latest_tag_against_non_semver_workspace_versions(
+    workspace_versions: &[&str],
     prefer_workspace_packages: bool,
 ) -> (String, String) {
     let mut server = mockito::Server::new_async().await;
@@ -462,7 +463,7 @@ async fn resolve_latest_tag_against_a_non_semver_workspace_version(
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
-    let packages = build_workspace_packages("acme", &["1"]);
+    let packages = build_workspace_packages("acme", workspace_versions);
     let mut opts = workspace_resolve_options(packages);
     opts.project.prefer_workspace_packages = prefer_workspace_packages;
 
@@ -481,14 +482,24 @@ async fn resolve_latest_tag_against_a_non_semver_workspace_version(
 
 #[tokio::test]
 async fn tag_resolves_from_registry_when_workspace_version_is_not_semver() {
-    let (resolved_via, id) = resolve_latest_tag_against_a_non_semver_workspace_version(false).await;
+    let (resolved_via, id) =
+        resolve_latest_tag_against_non_semver_workspace_versions(&["1"], false).await;
     assert_eq!(resolved_via, "npm-registry");
     assert_eq!(id, "acme@1.1.0");
 }
 
 #[tokio::test]
 async fn prefer_workspace_packages_resolves_tag_to_a_non_semver_workspace_version() {
-    let (resolved_via, id) = resolve_latest_tag_against_a_non_semver_workspace_version(true).await;
+    let (resolved_via, id) =
+        resolve_latest_tag_against_non_semver_workspace_versions(&["1"], true).await;
+    assert_eq!(resolved_via, "workspace");
+    assert_eq!(id, "link:../acme");
+}
+
+#[tokio::test]
+async fn prefer_workspace_packages_resolves_tag_to_one_of_several_non_semver_workspace_versions() {
+    let (resolved_via, id) =
+        resolve_latest_tag_against_non_semver_workspace_versions(&["1", "2"], true).await;
     assert_eq!(resolved_via, "workspace");
     assert_eq!(id, "link:../acme");
 }

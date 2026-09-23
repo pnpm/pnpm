@@ -3361,7 +3361,14 @@ test.each(['workspace:*', 'workspace:^'])('workspace protocol: %s resolves to a 
   expect(resolveResult!.id).toBe('link:is-positive')
 })
 
-test('preferWorkspacePackages: a tag resolves to a workspace version that is not valid semver', async () => {
+test.each([
+  [['1']],
+  [['1', '2']],
+])('preferWorkspacePackages: a tag resolves to a workspace version that is not valid semver (local versions: %j)', async (localVersions) => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
@@ -3371,15 +3378,13 @@ test('preferWorkspacePackages: a tag resolves to a workspace version that is not
     preferWorkspacePackages: true,
     projectDir: '/home/istvan/src',
     workspacePackages: new Map([
-      ['is-positive', new Map([
-        ['1', {
-          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
-          manifest: {
-            name: 'is-positive',
-            version: '1',
-          },
-        }],
-      ])],
+      ['is-positive', new Map(localVersions.map((version) => [version, {
+        rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+        manifest: {
+          name: 'is-positive',
+          version,
+        },
+      }]))],
     ]),
   })
 
