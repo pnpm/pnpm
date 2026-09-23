@@ -2,7 +2,7 @@ import { createMatcher } from '@pnpm/config.matcher'
 import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import { peerDependencyIssuesLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
-import type { BadPeerDependencyIssue, PeerDependencyIssuesByProjects, PeerDependencyRules } from '@pnpm/types'
+import type { BadPeerDependencyIssue, PeerDependencyIssues, PeerDependencyIssuesByProjects, PeerDependencyRules } from '@pnpm/types'
 import { isEmpty } from 'ramda'
 import semver from 'semver'
 
@@ -42,14 +42,24 @@ export function filterPeerDependencyIssues (
   const { allowedVersionsMatchAll, allowedVersionsByParentPkgName } = parseAllowedVersions(rules?.allowedVersions ?? {})
   const newPeerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
   for (const [projectId, { bad, missing, conflicts, intersections }] of Object.entries(peerDependencyIssuesByProjects)) {
-    newPeerDependencyIssuesByProjects[projectId] = { bad: {}, missing: {}, conflicts, intersections }
+    const filteredMissing: PeerDependencyIssues['missing'] = {}
+    const filteredIntersections: PeerDependencyIssues['intersections'] = {}
     for (const [peerName, issues] of Object.entries(missing)) {
       if (
         ignoreMissingMatcher(peerName) || issues.every(({ optional }) => optional)
       ) {
         continue
       }
-      newPeerDependencyIssuesByProjects[projectId].missing[peerName] = issues
+      filteredMissing[peerName] = issues
+      if (intersections[peerName] != null) {
+        filteredIntersections[peerName] = intersections[peerName]
+      }
+    }
+    newPeerDependencyIssuesByProjects[projectId] = {
+      bad: {},
+      missing: filteredMissing,
+      conflicts: conflicts.filter((peerName) => filteredMissing[peerName] != null),
+      intersections: filteredIntersections,
     }
     for (const [peerName, issues] of Object.entries(bad)) {
       if (allowAnyMatcher(peerName)) continue

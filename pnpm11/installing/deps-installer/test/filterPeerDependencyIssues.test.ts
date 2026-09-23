@@ -43,10 +43,7 @@ test('filterPeerDependencyIssues() ignore missing', () => {
     '.': {
       bad: {},
       conflicts: [],
-      intersections: {
-        '@foo/bar': '^1.0.0',
-        aaa: '^1.0.0',
-      },
+      intersections: {},
       missing: {},
     },
   })
@@ -239,6 +236,42 @@ test('filterPeerDependencyIssues() ignores missing optional dependency issues', 
       conflicts: [],
       intersections: {},
       missing: {},
+    },
+  })
+})
+
+test('filterPeerDependencyIssues() drops the conflicts and intersections of ignored missing peers', () => {
+  const missingIssue = (wantedRange: string) => ({
+    parents: [{ name: 'xxx', version: '1.0.0' }],
+    optional: false,
+    wantedRange,
+  })
+  expect(filterPeerDependencyIssues({
+    '.': {
+      missing: {
+        aaa: [missingIssue('^1.0.0'), missingIssue('^2.0.0')],
+        bbb: [missingIssue('^1.0.0')],
+        ccc: [missingIssue('^1.0.0')],
+      },
+      bad: {},
+      conflicts: ['aaa'],
+      intersections: {
+        bbb: '^1.0.0',
+        ccc: '^1.0.0',
+      },
+    },
+  }, {
+    ignoreMissing: ['aaa', 'bbb'],
+  })).toStrictEqual({
+    '.': {
+      bad: {},
+      conflicts: [],
+      intersections: {
+        ccc: '^1.0.0',
+      },
+      missing: {
+        ccc: [missingIssue('^1.0.0')],
+      },
     },
   })
 })
