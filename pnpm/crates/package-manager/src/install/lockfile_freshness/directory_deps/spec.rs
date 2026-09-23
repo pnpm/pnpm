@@ -1,6 +1,7 @@
 use std::path::Path;
 
 pub(super) fn spec_satisfies_snapshot_dep(
+    workspace_root: &Path,
     lockfile_dir: &Path,
     local_dep_dir: &Path,
     dep_name: &str,
@@ -14,6 +15,7 @@ pub(super) fn spec_satisfies_snapshot_dep(
     }
     if let Some(workspace_spec) = spec.strip_prefix("workspace:") {
         return workspace_spec_satisfies(
+            workspace_root,
             lockfile_dir,
             local_dep_dir,
             dep_name,
@@ -83,6 +85,7 @@ fn workspace_path_spec_satisfies(
 }
 
 fn workspace_spec_satisfies(
+    workspace_root: &Path,
     lockfile_dir: &Path,
     local_dep_dir: &Path,
     dep_name: &str,
@@ -106,6 +109,7 @@ fn workspace_spec_satisfies(
     };
     if let Some(link) = lockfile_dep.as_link_target() {
         return linked_target_satisfies(
+            workspace_root,
             lockfile_dir,
             link,
             expected_name,
@@ -149,6 +153,7 @@ fn snapshot_dep_name_matches(
 }
 
 fn linked_target_satisfies(
+    workspace_root: &Path,
     lockfile_dir: &Path,
     link: &str,
     expected_name: &str,
@@ -160,7 +165,7 @@ fn linked_target_satisfies(
         return false;
     }
     let target_dir = lockfile_dir.join(link_path);
-    if !pnpm_fs::is_subdir(lockfile_dir, &target_dir) {
+    if !target_is_within_workspace(workspace_root, &target_dir) {
         return false;
     }
     let Ok(Some(pkg_json)) = pnpm_package_manifest::safe_read_package_json_from_dir(&target_dir)
@@ -183,15 +188,27 @@ fn linked_target_satisfies(
     range.satisfies(&version)
 }
 
+fn target_is_within_workspace(workspace_root: &Path, target_dir: &Path) -> bool {
+    if !pnpm_fs::is_subdir(workspace_root, target_dir) {
+        return false;
+    }
+    let Ok(canonical_root) = std::fs::canonicalize(workspace_root) else {
+        return false;
+    };
+    let Ok(canonical_target) = std::fs::canonicalize(target_dir) else {
+        return false;
+    };
+    pnpm_fs::is_subdir(&canonical_root, &canonical_target)
+}
+
 fn npm_or_registry_spec_satisfies(
     dep_name: &str,
     spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
     let (target_pkg, clean_spec) = parse_npm_spec(spec);
-    if let Some(target) = target_pkg
-        && !npm_alias_matches(dep_name, target, lockfile_dep)
-    {
+    let expected_name = target_pkg.unwrap_or(dep_name);
+    if !npm_alias_matches(dep_name, expected_name, lockfile_dep) {
         return false;
     }
     let Ok(range) = clean_spec.parse::<node_semver::Range>() else {
@@ -207,6 +224,9 @@ fn parse_npm_spec(spec: &str) -> (Option<&str>, &str) {
     let Some(stripped) = spec.strip_prefix("npm:") else {
         return (None, spec);
     };
+    if stripped.parse::<node_semver::Range>().is_ok() {
+        return (None, stripped);
+    }
     match stripped.rfind('@') {
         Some(idx) if idx > 0 => (Some(&stripped[..idx]), &stripped[idx + 1..]),
         _ => (Some(stripped), "*"),

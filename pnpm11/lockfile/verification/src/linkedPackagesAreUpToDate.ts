@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { refToRelative, removeSuffix } from '@pnpm/deps.path'
@@ -26,12 +27,14 @@ export async function linkedPackagesAreUpToDate (
     workspacePackages,
     lockfilePackages,
     lockfileDir,
+    workspaceDir,
   }: {
     linkWorkspacePackages: boolean
     manifestsByDir: Record<string, DependencyManifest>
     workspacePackages?: WorkspacePackages
     lockfilePackages?: PackageSnapshots
     lockfileDir: string
+    workspaceDir?: string
   },
   project: {
     dir: string
@@ -58,7 +61,7 @@ export async function linkedPackagesAreUpToDate (
             // entry in the packages section. Treat it as up-to-date.
             if (lockfileRef.startsWith('link:')) return true
             const depPath = refToRelative(lockfileRef, depName)
-            return depPath != null && isLocalFileDepUpdated(lockfileDir, lockfilePackages?.[depPath], manifestsByDir)
+            return depPath != null && isLocalFileDepUpdated(lockfileDir, lockfilePackages?.[depPath], manifestsByDir, workspaceDir)
           }
           const isLinked = lockfileRef.startsWith('link:')
           if (
@@ -101,10 +104,12 @@ export async function linkedPackagesAreUpToDate (
 async function isLocalFileDepUpdated (
   lockfileDir: string,
   pkgSnapshot: PackageSnapshot | undefined,
-  manifestsByDir?: Record<string, DependencyManifest>
+  manifestsByDir?: Record<string, DependencyManifest>,
+  workspaceDir?: string
 ): Promise<boolean> {
   if (!pkgSnapshot) return false
   if (!('directory' in (pkgSnapshot.resolution ?? {}))) return true
+  const workspaceRoot = workspaceDir ?? lockfileDir
   const localDepDir = path.join(lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
   const manifest = manifestsByDir?.[localDepDir] ?? await safeReadPackageJsonFromDir(localDepDir)
   if (!manifest) return false
@@ -170,8 +175,20 @@ async function isLocalFileDepUpdated (
           const targetDir = cleanLockfileDep.startsWith('link:')
             ? path.resolve(lockfileDir, depPath)
             : path.resolve(localDepDir, depPath)
-          const relToLockfile = path.relative(lockfileDir, targetDir)
-          if (relToLockfile.startsWith('..') || path.isAbsolute(relToLockfile)) {
+          const relToWorkspace = path.relative(workspaceRoot, targetDir)
+          if (relToWorkspace.startsWith('..') || path.isAbsolute(relToWorkspace)) {
+            return false
+          }
+          let realTargetDir: string
+          let realWorkspaceRoot: string
+          try {
+            realTargetDir = fs.realpathSync(targetDir)
+            realWorkspaceRoot = fs.realpathSync(workspaceRoot)
+          } catch {
+            return false
+          }
+          const relReal = path.relative(realWorkspaceRoot, realTargetDir)
+          if (relReal.startsWith('..') || path.isAbsolute(relReal)) {
             return false
           }
           const targetPkg = manifestsByDir?.[targetDir] ?? await safeReadPackageJsonFromDir(targetDir)
@@ -233,6 +250,9 @@ function getTargetPkgName (spec: string, defaultName: string): string {
     }
   } else if (spec.startsWith('npm:')) {
     const raw = spec.slice(4)
+    if (semver.validRange(raw)) {
+      return defaultName
+    }
     const atIndex = raw.lastIndexOf('@')
     if (atIndex > 0) {
       return raw.slice(0, atIndex)
@@ -252,10 +272,13 @@ function getVersionRange (spec: string): string {
     return raw
   }
   if (spec.startsWith('npm:')) {
-    spec = spec.slice(4)
-    const index = spec.indexOf('@', 1)
+    const raw = spec.slice(4)
+    if (semver.validRange(raw)) {
+      return raw
+    }
+    const index = raw.indexOf('@', 1)
     if (index === -1) return '*'
-    return spec.slice(index + 1) || '*'
+    return raw.slice(index + 1) || '*'
   }
   return spec
 }
