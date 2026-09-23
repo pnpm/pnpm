@@ -6215,6 +6215,7 @@ dependencies = [
  "pnpm-crypto-hash",
  "pnpm-deps-path",
  "pnpm-fs",
+ "pnpm-package-manifest",
  "pnpm-package-name",
  "pnpm-shared-artifact-protocol",
  "pretty_assertions",

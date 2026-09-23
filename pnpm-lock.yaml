@@ -9435,6 +9435,9 @@ importers:
 
   pnpm11/store/commands:
     dependencies:
+      '@pnpm/building.pkg-requires-build':
+        specifier: workspace:*
+        version: link:../../building/pkg-requires-build
       '@pnpm/cli.utils':
         specifier: workspace:*
         version: link:../../cli/utils

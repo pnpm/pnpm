@@ -16,6 +16,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../building/pkg-requires-build"
+    },
+    {
       "path": "../../cli/utils"
     },
     {
