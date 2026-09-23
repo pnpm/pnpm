@@ -478,12 +478,12 @@ pub(in super::super) fn run_stage(
     .map_err(miette::Report::new)?;
 
     if !status.success() {
-        if stage == "test" {
+        if let Some(signal) = status.signal_name() {
+            eprintln!("[ELIFECYCLE] Command failed with signal {signal}.");
+        } else if stage == "test" {
             eprintln!("[ELIFECYCLE] Test failed. See above for more details.");
         } else if let Some(code) = status.code() {
             eprintln!("[ELIFECYCLE] Command failed with exit code {code}.");
-        } else if let Some(signal) = status.signal_name() {
-            eprintln!("[ELIFECYCLE] Command failed with signal {signal}.");
         } else {
             eprintln!("[ELIFECYCLE] Command failed.");
         }

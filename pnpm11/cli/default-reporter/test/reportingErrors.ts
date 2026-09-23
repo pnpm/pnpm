@@ -233,7 +233,7 @@ test('prints command error without exit code', async () => {
 
 test('prints the signal that killed the command', async () => {
   const output$ = toOutput$({
-    context: { argv: ['run', 'lint'] },
+    context: { argv: ['test'] },
     streamParser: createStreamParser(),
   })
 
@@ -241,7 +241,7 @@ test('prints the signal that killed the command', async () => {
 
   const err: Exception = new Error('Command failed')
   err['signal'] = 'SIGKILL'
-  err['stage'] = 'lint'
+  err['stage'] = 'test'
   err['code'] = 'ELIFECYCLE'
   logger.error(err, err)
 

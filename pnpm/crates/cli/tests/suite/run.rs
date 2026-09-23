@@ -335,8 +335,6 @@ fn run_propagates_failing_script_exit_code() {
     drop(root);
 }
 
-/// A script killed by a signal has no exit code, so the lifecycle error
-/// names the signal.
 #[cfg(unix)]
 #[test]
 fn run_names_the_signal_that_killed_the_script() {
@@ -344,14 +342,14 @@ fn run_names_the_signal_that_killed_the_script() {
     let manifest = json!({
         "name": "test",
         "version": "0.0.0",
-        "scripts": { "die": "kill -9 $$" },
+        "scripts": { "test": "kill -9 $$" },
     })
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
     let output = pacquet
         .with_arg("run")
-        .with_arg("die")
+        .with_arg("test")
         .output()
         .expect("spawn pacquet run");
     let stderr = String::from_utf8_lossy(&output.stderr);

@@ -370,14 +370,14 @@ function reportLifecycleError (
     signal?: string
   }
 ): ErrorInfo {
+  if (msg.signal) {
+    return { title: `Command failed with signal ${msg.signal}.` }
+  }
   if (msg.stage === 'test') {
     return { title: 'Test failed. See above for more details.' }
   }
   if (typeof msg.errno === 'number') {
     return { title: `Command failed with exit code ${msg.errno}.` }
-  }
-  if (msg.signal) {
-    return { title: `Command failed with signal ${msg.signal}.` }
   }
   return { title: 'Command failed.' }
 }
