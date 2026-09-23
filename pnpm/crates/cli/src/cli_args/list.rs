@@ -28,7 +28,7 @@ use render::{ProjectHierarchy, RenderParseableOptions, RenderTreeOptions};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -79,6 +79,10 @@ pub struct ListArgs {
     pub dependencies: TreeDependencyArgs,
     #[clap(flatten)]
     pub graph: ListGraphArgs,
+    /// Discovered once per command: a recursive listing with dedicated
+    /// lockfiles expands the linked projects of every selected project.
+    #[clap(skip)]
+    workspace_project_dirs: OnceLock<Arc<HashSet<PathBuf>>>,
 }
 
 #[derive(Debug, Clone, clap::Args)]

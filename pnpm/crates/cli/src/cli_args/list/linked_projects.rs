@@ -22,23 +22,15 @@ use std::{
 type BoxedResult<'a, Output> = Pin<Box<dyn Future<Output = miette::Result<Output>> + Send + 'a>>;
 
 pub(super) struct SharedLinkedProjects {
-    workspace_project_dirs: HashSet<PathBuf>,
+    workspace_project_dirs: Arc<HashSet<PathBuf>>,
     /// A linked project met again at the same depth is marked deduped
     /// instead of walked again.
     expanded: Mutex<HashMap<(PathBuf, MaxDepth), u64>>,
 }
 
 impl SharedLinkedProjects {
-    fn load(config: &Config) -> miette::Result<Self> {
-        let workspace_project_dirs = match &config.workspace_dir {
-            Some(workspace_dir) => discover_workspace_projects(workspace_dir, config)?
-                .0
-                .into_iter()
-                .map(|project| project.root_dir)
-                .collect(),
-            None => HashSet::new(),
-        };
-        Ok(SharedLinkedProjects { workspace_project_dirs, expanded: Mutex::default() })
+    fn new(workspace_project_dirs: Arc<HashSet<PathBuf>>) -> Self {
+        SharedLinkedProjects { workspace_project_dirs, expanded: Mutex::default() }
     }
 
     fn previously_expanded(&self, key: &(PathBuf, MaxDepth)) -> Option<u64> {
@@ -103,7 +95,7 @@ impl ListArgs {
         Box::pin(async move {
             let shared = match &request.linked_projects {
                 Some(shared) => Arc::clone(shared),
-                None => Arc::new(SharedLinkedProjects::load(config)?),
+                None => Arc::new(SharedLinkedProjects::new(self.workspace_project_dirs(config)?)),
             };
             for (project_dir, hierarchy) in hierarchies {
                 let mut ancestors = request.linked_project_ancestors.clone();
@@ -129,6 +121,21 @@ impl ListArgs {
             }
             Ok(())
         })
+    }
+
+    fn workspace_project_dirs(&self, config: &Config) -> miette::Result<Arc<HashSet<PathBuf>>> {
+        if let Some(dirs) = self.workspace_project_dirs.get() {
+            return Ok(Arc::clone(dirs));
+        }
+        let dirs = match &config.workspace_dir {
+            Some(workspace_dir) => discover_workspace_projects(workspace_dir, config)?
+                .0
+                .into_iter()
+                .map(|project| project.root_dir)
+                .collect(),
+            None => HashSet::new(),
+        };
+        Ok(Arc::clone(self.workspace_project_dirs.get_or_init(|| Arc::new(dirs))))
     }
 
     fn expand_linked_project_nodes<'a>(

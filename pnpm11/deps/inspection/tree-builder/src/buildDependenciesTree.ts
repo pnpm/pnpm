@@ -59,7 +59,11 @@ export async function buildDependenciesTree (
   projectPaths: string[] | undefined,
   maybeOpts: BuildDependenciesTreeOptions
 ): Promise<{ [projectDir: string]: DependenciesTree }> {
-  return buildProjectsTrees(projectPaths, maybeOpts, { ancestors: new Set(), expanded: new Map() })
+  return buildProjectsTrees(projectPaths, maybeOpts, {
+    ancestors: new Set(),
+    expanded: new Map(),
+    workspaceProjectDirs: new Set(maybeOpts.workspaceProjectDirs),
+  })
 }
 
 interface LinkedProjectsWalk {
@@ -69,6 +73,7 @@ interface LinkedProjectsWalk {
    * walked again.
    */
   expanded: Map<string, number>
+  workspaceProjectDirs: ReadonlySet<string>
 }
 
 async function buildProjectsTrees (
@@ -175,7 +180,6 @@ async function buildProjectsTrees (
         lockfileDir: opts.lockfileDir,
         depth: opts.depth,
         treeOpts: maybeOpts,
-        workspaceProjectDirs: new Set(maybeOpts.workspaceProjectDirs),
         walk: { ...linkedWalk, ancestors: new Set([...linkedWalk.ancestors, projectPath]) },
         rewriteLinkVersionDir: projectPath,
       })
@@ -189,7 +193,6 @@ interface LinkedProjectsContext {
   lockfileDir: string
   depth: number
   treeOpts: BuildDependenciesTreeOptions
-  workspaceProjectDirs: Set<string>
   walk: LinkedProjectsWalk
   rewriteLinkVersionDir: string
 }
@@ -234,7 +237,7 @@ async function expandLinkedProject (
   level: number,
   ctx: LinkedProjectsContext
 ): Promise<DependencyNode | undefined> {
-  if (!ctx.workspaceProjectDirs.has(node.path)) return undefined
+  if (!ctx.walk.workspaceProjectDirs.has(node.path)) return undefined
   if (ctx.walk.ancestors.has(node.path)) return keepSearched({ ...node, circular: true }, ctx)
   if (level >= ctx.depth) return keepSearched(node, ctx)
   const depth = ctx.depth - level - 1
