@@ -105,7 +105,7 @@ pub(crate) fn retry_transient_file_locks<Value>(
 }
 
 /// Run a removal with the retry policy of [`rename_with_retry`], except that
-/// permission errors get [`REMOVAL_PERMISSION_DENIED_RETRY_BUDGET`].
+/// permission errors get `REMOVAL_PERMISSION_DENIED_RETRY_BUDGET` on Windows.
 pub(crate) fn retry_transient_removal_locks<Value>(
     operation: impl FnMut() -> io::Result<Value>,
 ) -> io::Result<Value> {
