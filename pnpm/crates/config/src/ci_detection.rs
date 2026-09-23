@@ -8,7 +8,7 @@ use std::sync::OnceLock;
 /// Variables whose non-empty value marks a CI environment: `ci-info`'s
 /// generic variables followed by the single-variable vendor checks from
 /// its `vendors.json`.
-const CI_ENV_VARS: &[&str] = &[
+pub const CI_ENV_VARS: &[&str] = &[
     "BUILD_ID",
     "BUILD_NUMBER",
     "CI",
