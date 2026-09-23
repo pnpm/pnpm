@@ -777,6 +777,67 @@ mod dev_preinstall {
         drop((root, mock_instance));
     }
 
+    /// `pnpm:devPreinstall` is documented to run only on a local install
+    /// (<https://pnpm.io/scripts>) and must be skipped when running in CI.
+    #[test]
+    fn is_skipped_when_ci_is_defined() {
+        let CommandTempCwd {
+            mut pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(workspace.join("package.json"), project_with_dev_preinstall().to_string())
+            .expect("write package.json");
+
+        pacquet.env_remove("PNPM_CONFIG_CI");
+        pacquet
+            .with_env("CI", "1")
+            .with_arg("install")
+            .assert()
+            .success();
+
+        let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+        let stages: Vec<&str> = order.lines().collect();
+        assert_eq!(stages, &EXPECTED_ORDER[1..], "only pnpm:devPreinstall should be skipped in CI");
+
+        drop((root, mock_instance));
+    }
+
+    #[test]
+    fn runs_when_config_ci_false_overrides_ci_environment() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(workspace.join("package.json"), project_with_dev_preinstall().to_string())
+            .expect("write package.json");
+
+        pacquet
+            .with_env("CI", "1")
+            .with_env("PNPM_CONFIG_CI", "false")
+            .with_arg("install")
+            .assert()
+            .success();
+
+        let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+        let stages: Vec<&str> = order.lines().collect();
+        assert_eq!(
+            stages, EXPECTED_ORDER,
+            "pnpm:devPreinstall should run when PNPM_CONFIG_CI=false is set",
+        );
+
+        drop((root, mock_instance));
+    }
+
     /// The bin a workspace package publishes may not exist until the
     /// root's `pnpm:devPreinstall` writes it — next.js generates a
     /// placeholder `next` bin that way. Running the hook after linking

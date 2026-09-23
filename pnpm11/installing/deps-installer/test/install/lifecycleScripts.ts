@@ -164,6 +164,26 @@ test('run install scripts in the current project', async () => {
   ])
 })
 
+test('pnpm:devPreinstall is skipped when running in CI', async () => {
+  await using server = await createTestIpcServer()
+  await using serverForDevPreinstall = await createTestIpcServer()
+  prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({
+    scripts: {
+      'pnpm:devPreinstall': `node -e "console.log('pnpm:devPreinstall-' + process.cwd())" | ${serverForDevPreinstall.generateSendStdinScript()}`,
+      install: `node -e "console.log('install-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      postinstall: `node -e "console.log('postinstall-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      preinstall: `node -e "console.log('preinstall-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      preprepare: `node -e "console.log('preprepare-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      postprepare: `node -e "console.log('postprepare-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+    },
+  }, [], testDefaults({ fastUnpack: false, ci: true }))
+  await install(manifest, testDefaults({ fastUnpack: false, ci: true }))
+
+  expect(server.getLines()).toStrictEqual([`preinstall-${process.cwd()}`, `install-${process.cwd()}`, `postinstall-${process.cwd()}`, `preprepare-${process.cwd()}`, `postprepare-${process.cwd()}`])
+  expect(serverForDevPreinstall.getLines()).toStrictEqual([])
+})
+
 test('prepare scripts are not run when devDependencies are excluded (e.g. install --prod)', async () => {
   await using server = await createTestIpcServer()
   prepareEmpty()

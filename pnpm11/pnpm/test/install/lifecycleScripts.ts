@@ -702,3 +702,30 @@ function clearPostinstallStamps (members: string[]): void {
     fs.rmSync(path.join(dir, 'ran-postinstall.txt'), { force: true })
   }
 }
+
+test('pnpm:devPreinstall runs on local install and is skipped when CI is defined', () => {
+  prepare({
+    scripts: {
+      'pnpm:devPreinstall': 'node -e "require(\'fs\').writeFileSync(\'ran-dev-preinstall.txt\',\'\')"',
+      preinstall: 'node -e "require(\'fs\').writeFileSync(\'ran-preinstall.txt\',\'\')"',
+    },
+  })
+
+  // When CI is set to 'true', pnpm:devPreinstall must be skipped while preinstall still runs
+  execPnpmSync(['install'], {
+    env: { CI: 'true' },
+    expectSuccess: true,
+  })
+  expect(fs.existsSync('ran-dev-preinstall.txt')).toBeFalsy()
+  expect(fs.existsSync('ran-preinstall.txt')).toBeTruthy()
+
+  fs.rmSync('ran-preinstall.txt', { force: true })
+
+  // When CI is not defined / false, pnpm:devPreinstall runs
+  execPnpmSync(['install'], {
+    env: { CI: 'false' },
+    expectSuccess: true,
+  })
+  expect(fs.existsSync('ran-dev-preinstall.txt')).toBeTruthy()
+  expect(fs.existsSync('ran-preinstall.txt')).toBeTruthy()
+})

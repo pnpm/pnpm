@@ -226,6 +226,7 @@ pub(super) fn run_root_hooks<Reporter: self::Reporter>(
         root_manifest.is_none_or(|manifest| matches!(manifest.script(stage, true), Ok(Some(_))))
     };
     if scope.scripts.include_dev
+        && !scope.config.ci
         && !scope.ignore_manifest_check
         && !dev_preinstall_already_ran()
         && root_defines(DEV_PREINSTALL_STAGE)

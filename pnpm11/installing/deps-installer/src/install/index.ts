@@ -2158,13 +2158,14 @@ function isCheckOnlyInstall (opts: { lockfileCheck?: unknown, dryRun?: boolean }
 }
 
 /**
- * `pnpm:devPreinstall` prepares a development checkout, so an install that
- * leaves out `devDependencies`, such as `pnpm install --prod`, skips it.
+ * `pnpm:devPreinstall` prepares a development checkout, so an install in CI
+ * and one that leaves out `devDependencies`, such as `pnpm install --prod`,
+ * skip it.
  */
 function installRunsDevPreinstall (
-  opts: { ignoreScripts?: boolean, ignorePackageManifest?: boolean, include?: IncludedDependencies }
+  opts: { ci?: boolean, ignoreScripts?: boolean, ignorePackageManifest?: boolean, include?: IncludedDependencies }
 ): boolean {
-  return !opts.ignoreScripts && !opts.ignorePackageManifest && opts.include?.devDependencies !== false
+  return !opts.ci && !opts.ignoreScripts && !opts.ignorePackageManifest && opts.include?.devDependencies !== false
 }
 
 /**
