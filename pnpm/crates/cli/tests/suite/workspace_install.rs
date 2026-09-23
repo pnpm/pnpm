@@ -1104,6 +1104,13 @@ fn shared_workspace_lockfile_false_symlinks_workspace_dependencies() {
         "pkg-a/node_modules/custom-pkg-b must be a symlink",
     );
 
+    let pkg_a_lockfile =
+        fs::read_to_string(pkg_a_dir.join("pnpm-lock.yaml")).expect("read pkg-a pnpm-lock.yaml");
+    assert!(pkg_a_lockfile.contains("version: link:../pkg-b"), "{pkg_a_lockfile}");
+    let root_lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read root pnpm-lock.yaml");
+    assert!(!root_lockfile.contains("packages/pkg-a"), "{root_lockfile}");
+
     fs::remove_dir_all(pkg_a_dir.join("node_modules")).expect("rm node_modules");
     pacquet_at(workspace)
         .with_arg("install")
