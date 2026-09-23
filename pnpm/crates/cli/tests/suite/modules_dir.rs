@@ -510,7 +510,7 @@ fn the_hoisted_linker_installs_into_a_custom_modules_dir() {
         assert_eq!(
             installed_version(&workspace.join("project-1/node_modules")),
             "1.0.0",
-            "{args:?}"
+            "{args:?}",
         );
         assert!(!workspace.join("node_modules/is-positive").exists(), "{args:?}");
         assert!(workspace.join("vendor/.pnpm/lock.yaml").is_file(), "{args:?}");
