@@ -1,11 +1,7 @@
 use crate::StoreDir;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use std::{
-    fs::File,
-    io,
-    path::{Path, PathBuf},
-};
+use std::{fs::File, io, path::PathBuf};
 
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum StoreLockError {
@@ -80,10 +76,12 @@ fn global_operation_lock_path() -> Result<PathBuf, StoreLockError> {
     operation_lock_directory().map(|directory| directory.join("all-stores.lock"))
 }
 
+const OPERATION_LOCK_DIRECTORY: &str = "pnpm-store-operation-locks";
+
 fn operation_lock_directory() -> Result<PathBuf, StoreLockError> {
-    pnpm_fs::secure_user_lock_dir("pnpm-store-operation-locks")
+    pnpm_fs::secure_user_lock_dir(OPERATION_LOCK_DIRECTORY)
         .map_err(|error| StoreLockError::Open {
-            path: PathBuf::from("pnpm-store-operation-locks"),
+            path: PathBuf::from(OPERATION_LOCK_DIRECTORY),
             error,
         })
 }
@@ -102,33 +100,11 @@ fn operation_lock_path(store_dir: &StoreDir) -> Result<PathBuf, StoreLockError> 
     };
     let root = pnpm_fs::realpath_missing(&normalized_root)
         .map_err(|error| StoreLockError::Resolve { path: store_dir.root().to_path_buf(), error })?;
-    let key = pnpm_crypto_hash::create_hex_hash_bytes(&native_path_bytes(&root));
-    let directory = operation_lock_directory()?;
-    Ok(directory.join(format!("{key}.lock")))
-}
-
-#[cfg(unix)]
-fn native_path_bytes(path: &Path) -> Vec<u8> {
-    use std::os::unix::ffi::OsStrExt as _;
-
-    path.as_os_str().as_bytes().to_vec()
-}
-
-#[cfg(windows)]
-fn native_path_bytes(path: &Path) -> Vec<u8> {
-    use std::os::windows::ffi::OsStrExt as _;
-
-    path.as_os_str()
-        .encode_wide()
-        .flat_map(u16::to_le_bytes)
-        .collect()
-}
-
-#[cfg(not(any(unix, windows)))]
-fn native_path_bytes(path: &Path) -> Vec<u8> {
-    path.as_os_str()
-        .as_encoded_bytes()
-        .to_vec()
+    pnpm_fs::secure_user_lock_file_path(OPERATION_LOCK_DIRECTORY, &root, "lock")
+        .map_err(|error| StoreLockError::Open {
+            path: PathBuf::from(OPERATION_LOCK_DIRECTORY),
+            error,
+        })
 }
 
 #[cfg(test)]

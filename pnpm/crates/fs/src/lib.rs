@@ -18,7 +18,9 @@ pub use retry::{
     remove_dir_all_with_retry, remove_dir_with_retry, remove_file_with_retry, rename_with_retry,
     symlink_metadata_with_retry,
 };
-pub use secure_temp_lock::{open_secure_lock_file, secure_temp_lock_dir, secure_user_lock_dir};
+pub use secure_temp_lock::{
+    open_secure_lock_file, secure_temp_lock_dir, secure_user_lock_dir, secure_user_lock_file_path,
+};
 pub use symlink_dir::*;
 pub use write_atomic::{write_atomic, write_atomic_private};
 

@@ -1,5 +1,12 @@
-use super::DirLock;
-use std::{fs, io, path::Path, thread, thread::sleep, time::Duration};
+use super::{DirLock, HeldFile, Liveness};
+use std::{
+    fs::{self, File, TryLockError},
+    io,
+    path::Path,
+    thread,
+    thread::sleep,
+    time::Duration,
+};
 use tempfile::tempdir;
 
 /// How long the tests age a lock before declaring it abandoned, and the
@@ -34,7 +41,6 @@ fn acquire_creates_the_lock_and_drop_releases_it() {
 
     drop(lock);
     assert!(!path.exists(), "the lock directory is removed on drop");
-    assert!(!super::held_path(&path).exists(), "the held file is removed on drop");
 }
 
 #[test]
@@ -139,7 +145,7 @@ fn a_directory_whose_held_file_is_locked_is_not_taken_over() {
     let root = tempdir().expect("create tempdir");
     let path = root.path().join("engine.lock");
     fs::create_dir(&path).expect("plant an aged lock");
-    let held = fs::File::create(super::held_path(&path)).expect("create the held file");
+    let held = open_held_file(&path);
     held.try_lock().expect("hold the file lock");
     sleep(AGE);
 
@@ -171,6 +177,27 @@ fn a_lock_without_a_held_marker_waits_for_the_age_threshold() {
     assert!(taken.is_owner().expect("inspect owner"));
 }
 
+/// A holder on another host proves its liveness through a held file of
+/// its own, which this host's file lock says nothing about. Such a
+/// directory is judged by age, not stolen from a running holder.
+#[test]
+fn a_lock_recorded_against_another_held_file_waits_for_the_age_threshold() {
+    let root = tempdir().expect("create tempdir");
+    let path = root.path().join("engine.lock");
+    fs::create_dir(&path).expect("plant another host's lock");
+    fs::write(path.join(super::HELD_MARKER), "another-host").expect("plant its held marker");
+    fs::write(path.join(super::OWNER_FILE), "1-2-3").expect("plant the owner record");
+
+    let contended =
+        DirLock::acquire(path.clone(), Duration::ZERO, NEVER_ABANDONED).expect("acquire");
+    assert!(contended.is_none(), "a lock proven elsewhere is not stolen while fresh");
+
+    sleep(AGE);
+    DirLock::acquire(path, Duration::ZERO, THRESHOLD)
+        .expect("acquire")
+        .expect("an aged lock proven elsewhere is taken over");
+}
+
 #[test]
 fn a_live_holder_keeps_the_held_file_locked() {
     let root = tempdir().expect("create tempdir");
@@ -179,52 +206,54 @@ fn a_live_holder_keeps_the_held_file_locked() {
     let held = DirLock::acquire(path.clone(), Duration::ZERO, NEVER_ABANDONED)
         .expect("acquire")
         .expect("uncontended lock is taken");
-    let probe = fs::File::open(super::held_path(&path)).expect("open the held file");
+    let probe = open_held_file(&path);
     assert!(
-        matches!(probe.try_lock(), Err(std::fs::TryLockError::WouldBlock)),
+        matches!(probe.try_lock(), Err(TryLockError::WouldBlock)),
         "the holder keeps the file lock",
     );
 
     drop(held);
     assert!(!path.exists());
-    assert!(!super::held_path(&path).exists(), "the held file goes with the directory");
+    probe.try_lock().expect("the file lock is released with the directory");
 }
 
-/// A release removes the held file, so a waiter that opened it before
-/// the release locks a file the path no longer names. The waiter must
-/// notice and lock the current one, or a later waiter would lock a
-/// different file and take the directory over from under it.
+/// The held file keeps one identity for every process that locks it, so
+/// a holder's record of it is recognized by every later waiter.
 #[test]
-fn a_waiter_relocks_the_held_file_a_release_replaced() {
+fn the_held_file_keeps_its_identity_across_locks() {
     let root = tempdir().expect("create tempdir");
     let path = root.path().join("engine.lock");
-    let holder = DirLock::acquire(path.clone(), Duration::ZERO, NEVER_ABANDONED)
-        .expect("acquire")
-        .expect("uncontended lock is taken");
 
-    let waiter = {
-        let path = path.clone();
-        thread::spawn(move || {
-            DirLock::acquire(path, Duration::from_secs(5), NEVER_ABANDONED)
-                .expect("acquire")
-                .expect("the waiter gets the lock once it is released")
-        })
-    };
-    sleep(Duration::from_millis(200));
-    drop(holder);
-    let taken = waiter.join().expect("waiter thread");
+    let first = held_file_id(&path);
+    let second = held_file_id(&path);
 
-    assert!(taken.is_owner().expect("inspect owner"));
-    let probe = fs::File::open(super::held_path(&path)).expect("open the current held file");
-    assert!(
-        matches!(probe.try_lock(), Err(std::fs::TryLockError::WouldBlock)),
-        "the waiter holds the lock on the held file now at the path",
-    );
+    assert!(!first.is_empty());
+    assert_eq!(first, second);
+}
+
+fn open_held_file(lock_path: &Path) -> File {
+    let held_path = super::held_path(lock_path).expect("resolve the held file");
+    pnpm_fs_open(&held_path)
+}
+
+fn pnpm_fs_open(path: &Path) -> File {
+    crate::open_secure_lock_file(path).expect("open the held file")
+}
+
+/// The identity this host's held file for `lock_path` records, as a
+/// holder would write it into its lock directory.
+fn held_file_id(lock_path: &Path) -> String {
+    let mut held = HeldFile::open(lock_path);
+    assert_eq!(held.lock(), Liveness::Proven, "the held file is free to lock");
+    held.id()
+        .expect("a locked held file has an identity")
+        .to_owned()
 }
 
 fn plant_dead_holders_lock(path: &Path) {
+    let held_id = held_file_id(path);
     fs::create_dir(path).expect("plant the lock directory");
-    fs::write(path.join(super::HELD_MARKER), "").expect("plant the held marker");
+    fs::write(path.join(super::HELD_MARKER), held_id).expect("plant the held marker");
     fs::write(path.join(super::OWNER_FILE), "1-2-3").expect("plant the owner record");
 }
 
@@ -257,7 +286,8 @@ fn claiming_a_directory_that_cannot_hold_the_record_fails() {
     // writing the record into it still fails.
     fs::create_dir_all(path.join("owner")).expect("block the owner record");
 
-    let error = super::claim(path.clone(), None).expect_err("an unrecordable lock is not taken");
+    let error = super::claim(path.clone(), HeldFile::open(&path))
+        .expect_err("an unrecordable lock is not taken");
 
     assert!(!path.exists(), "the lock directory is given back: {error}");
 }
