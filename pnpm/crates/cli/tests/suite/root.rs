@@ -35,9 +35,7 @@ fn root_prints_the_local_node_modules_dir() {
     drop(root);
 }
 
-/// Regression test for [pnpm/pnpm#9113](https://github.com/pnpm/pnpm/issues/9113):
-/// `root` prints the effective modules directory, so a configured
-/// `modulesDir` moves it, and a multi-component setting stays whole.
+/// Regression test for [pnpm/pnpm#9113](https://github.com/pnpm/pnpm/issues/9113).
 #[test]
 fn root_prints_a_custom_modules_dir() {
     for modules_dir in ["custom_nm", "www/modules"] {

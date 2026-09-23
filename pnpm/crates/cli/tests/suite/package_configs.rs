@@ -423,8 +423,6 @@ fn bin_reports_the_named_project_modules_dir() {
     assert_eq!(bin_dir(&fixture, &plain), canonical_bin_dir(&plain, "vendor"));
 }
 
-/// `root` reports the modules directory the install gave the project, the
-/// one its `packageConfigs` entry names.
 #[test]
 fn root_reports_the_named_project_modules_dir() {
     let fixture = dedicated_lockfile_workspace(
