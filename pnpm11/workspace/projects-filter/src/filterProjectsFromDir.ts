@@ -9,6 +9,7 @@ export async function filterProjectsBySelectorObjectsFromDir (
   projectSelectors: ProjectSelector[],
   opts?: {
     engineStrict?: boolean
+    modulesDir?: string
     linkWorkspacePackages?: boolean
     changedFilesIgnorePattern?: string[]
     supportedArchitectures?: SupportedArchitectures
@@ -17,6 +18,7 @@ export async function filterProjectsBySelectorObjectsFromDir (
   const workspaceManifest = await readWorkspaceManifest(workspaceDir)
   const allProjects = await findWorkspaceProjects(workspaceDir, {
     patterns: workspaceManifest == null ? undefined : workspaceManifest.packages ?? ['.'],
+    modulesDir: opts?.modulesDir,
     engineStrict: opts?.engineStrict,
     supportedArchitectures: opts?.supportedArchitectures ?? {
       os: ['current'],

@@ -296,6 +296,32 @@ test('throw an error when strict-dep-builds is true and there are ignored script
   })
 })
 
+test('a dependency in a project\'s custom modulesDir is not a workspace project', async () => {
+  preparePackages([
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0' },
+      },
+    },
+  ])
+  fs.writeFileSync('package.json', JSON.stringify({ name: 'root', private: true }))
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**'],
+    modulesDir: 'vendor',
+    strictDepBuilds: false,
+  })
+
+  execPnpmSync(['install'], { expectSuccess: true })
+  execPnpmSync(['install'], { expectSuccess: true })
+
+  const depDir = 'packages/app/vendor/@pnpm.e2e/pre-and-postinstall-scripts-example'
+  expect(fs.existsSync(path.join(depDir, 'package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(depDir, 'generated-by-postinstall.js'))).toBeFalsy()
+})
+
 test('allowBuilds false resolves a strict ignored-build failure on repeat install', async () => {
   const project = prepare({})
   writeYamlFileSync('pnpm-workspace.yaml', {

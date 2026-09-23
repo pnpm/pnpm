@@ -67,12 +67,14 @@ export async function filterProjectsFromDir (
     engineStrict?: boolean
     nodeVersion?: string
     patterns?: string[]
+    modulesDir?: string
     supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<FilterProjectsFromDirResult> {
   const allProjects = await findWorkspaceProjects(workspaceDir, {
     engineStrict: opts?.engineStrict,
     patterns: opts.patterns,
+    modulesDir: opts.modulesDir,
     sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
     nodeVersion: opts.nodeVersion,
     supportedArchitectures: opts.supportedArchitectures,

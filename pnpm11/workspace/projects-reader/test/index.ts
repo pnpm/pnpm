@@ -80,3 +80,20 @@ test('findWorkspaceProjectsSync() works synchronously', () => {
     [{ prefix: barPath, message: `The field "resolutions" was found in ${barPath}/package.json. This will not take effect. Configure dependency overrides in pnpm-workspace.yaml using the "overrides" field instead.` }],
   ])
 })
+
+test.each([
+  ['vendor', ['app', 'nested-dep', 'root']],
+  ['vendor/', ['app', 'nested-dep', 'root']],
+  ['deps/nested', ['app', 'dep', 'root']],
+  ['node_modules', ['app', 'dep', 'nested-dep', 'root']],
+  ['../vendor', ['app', 'dep', 'nested-dep', 'root']],
+  [path.resolve('/vendor'), ['app', 'dep', 'nested-dep', 'root']],
+  ['.', ['app', 'dep', 'nested-dep', 'root']],
+])('findWorkspaceProjectsNoCheck() skips the modulesDir %s inside every project', async (modulesDir, expectedNames) => {
+  const fixturePath = path.join(import.meta.dirname, '__fixtures__/custom-modules-dir')
+  const opts = { patterns: ['**'], modulesDir }
+
+  const names = (projects: Array<{ manifest: { name?: string } }>) => projects.map(({ manifest }) => manifest.name).sort()
+  expect(names(await findWorkspaceProjectsNoCheck(fixturePath, opts))).toStrictEqual(expectedNames)
+  expect(names(findWorkspaceProjectsNoCheckSync(fixturePath, opts))).toStrictEqual(expectedNames)
+})

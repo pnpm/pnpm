@@ -137,6 +137,7 @@ async function removeModulesDirContents (modulesDir: string): Promise<void> {
 async function getProjectDirs (
   opts: {
     dir: string
+    modulesDir?: string
     workspaceDir?: string
     workspacePackagePatterns?: string[]
   }
@@ -146,6 +147,7 @@ async function getProjectDirs (
   }
   const pkgs = await findWorkspaceProjectsNoCheck(opts.workspaceDir, {
     patterns: opts.workspacePackagePatterns,
+    modulesDir: opts.modulesDir,
   })
   return pkgs.map((pkg) => pkg.rootDir)
 }

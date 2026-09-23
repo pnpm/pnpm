@@ -1,7 +1,10 @@
+import path from 'node:path'
+
 import { packageIsInstallable } from '@pnpm/cli.utils'
 import { logger } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { Project, ProjectManifest, SupportedArchitectures } from '@pnpm/types'
+import { convertPathToPattern } from 'tinyglobby'
 
 import { findPackages, findPackagesSync } from './findPackages.js'
 
@@ -16,6 +19,12 @@ export interface FindWorkspaceProjectsOpts {
    * "packages" field.
    */
   patterns?: string[]
+
+  /**
+   * The configured `modulesDir`. An install creates it inside every project,
+   * so, like `node_modules`, it is never searched for projects.
+   */
+  modulesDir?: string
 
   engineStrict?: boolean
   nodeVersion?: string
@@ -68,12 +77,11 @@ export function findWorkspaceProjectsSync (
   return projects
 }
 
-export async function findWorkspaceProjectsNoCheck (workspaceRoot: string, opts?: { patterns?: string[] }): Promise<Project[]> {
+type FindWorkspaceProjectsNoCheckOpts = Pick<FindWorkspaceProjectsOpts, 'patterns' | 'modulesDir'>
+
+export async function findWorkspaceProjectsNoCheck (workspaceRoot: string, opts?: FindWorkspaceProjectsNoCheckOpts): Promise<Project[]> {
   const projects = await findPackages(workspaceRoot, {
-    ignore: [
-      '**/node_modules/**',
-      '**/bower_components/**',
-    ],
+    ignore: discoveryIgnorePatterns(opts?.modulesDir),
     includeRoot: true,
     patterns: opts?.patterns,
   })
@@ -81,17 +89,35 @@ export async function findWorkspaceProjectsNoCheck (workspaceRoot: string, opts?
   return projects
 }
 
-export function findWorkspaceProjectsNoCheckSync (workspaceRoot: string, opts?: { patterns?: string[] }): Project[] {
+export function findWorkspaceProjectsNoCheckSync (workspaceRoot: string, opts?: FindWorkspaceProjectsNoCheckOpts): Project[] {
   const projects = findPackagesSync(workspaceRoot, {
-    ignore: [
-      '**/node_modules/**',
-      '**/bower_components/**',
-    ],
+    ignore: discoveryIgnorePatterns(opts?.modulesDir),
     includeRoot: true,
     patterns: opts?.patterns,
   })
   projects.sort((project1: { rootDir: string }, project2: { rootDir: string }) => lexCompare(project1.rootDir, project2.rootDir))
   return projects
+}
+
+function discoveryIgnorePatterns (modulesDir: string | undefined): string[] {
+  const ignore = ['**/node_modules/**', '**/bower_components/**']
+  const projectModulesDir = modulesDir == null ? undefined : relativeProjectDir(modulesDir)
+  if (projectModulesDir != null && projectModulesDir !== 'node_modules') {
+    ignore.push(`**/${convertPathToPattern(projectModulesDir)}/**`)
+  }
+  return ignore
+}
+
+/**
+ * `dir` as a path below a project directory, or `undefined` when it does
+ * not name one: an absolute path, one that climbs out, or the project
+ * directory itself.
+ */
+function relativeProjectDir (dir: string): string | undefined {
+  if (path.isAbsolute(dir)) return undefined
+  const normalized = path.relative('.', dir)
+  if (normalized === '' || normalized === '..' || normalized.startsWith(`..${path.sep}`)) return undefined
+  return normalized
 }
 
 const uselessNonRootManifestFields: Array<keyof ProjectManifest> = ['resolutions']
