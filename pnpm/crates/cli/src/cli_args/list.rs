@@ -402,14 +402,12 @@ impl ListArgs {
     }
 }
 
-/// What to walk below each listed project.
 struct TreeRequest<'a> {
     params: &'a [String],
     depth: MaxDepth,
     /// Linked projects whose trees enclose this walk, to stop at cycles
     /// between projects with dedicated lockfiles.
     linked_project_ancestors: HashSet<PathBuf>,
-    /// Shared by the walks of every linked project, created by the first one.
     linked_projects: Option<Arc<SharedLinkedProjects>>,
 }
 

@@ -21,12 +21,10 @@ use std::{
 
 type BoxedResult<'a, Output> = Pin<Box<dyn Future<Output = miette::Result<Output>> + Send + 'a>>;
 
-/// The state every linked-project walk of one `list` run shares.
 pub(super) struct SharedLinkedProjects {
     workspace_project_dirs: HashSet<PathBuf>,
-    /// The number of dependencies under each linked project already
-    /// expanded in the output, by directory and depth, so that a repeated
-    /// one is marked deduped instead of walked.
+    /// A linked project met again at the same depth is marked deduped
+    /// instead of walked again.
     expanded: Mutex<HashMap<(PathBuf, MaxDepth), u64>>,
 }
 
@@ -59,7 +57,6 @@ impl SharedLinkedProjects {
     }
 }
 
-/// The lockfile a tree was built from.
 struct ReadLockfile<'a> {
     dir: &'a Path,
     importer_ids: HashSet<String>,
@@ -71,7 +68,6 @@ impl ReadLockfile<'_> {
     }
 }
 
-/// The walk of one listed project's linked projects.
 struct LinkedProjects<'a> {
     config: &'a Config,
     params: &'a [String],
@@ -85,9 +81,10 @@ struct LinkedProjects<'a> {
 
 impl ListArgs {
     /// Attach the project dependencies of every linked workspace project
-    /// that the lockfile has no importer for. With `sharedWorkspaceLockfile: false`, the
-    /// lockfile the tree was built from knows nothing about the
-    /// dependencies of the other workspace projects.
+    /// that the lockfile has no importer for. With
+    /// `sharedWorkspaceLockfile: false`, the lockfile the tree was built
+    /// from knows nothing about the dependencies of the other workspace
+    /// projects.
     pub(super) fn expand_linked_projects<'a>(
         &'a self,
         config: &'a Config,

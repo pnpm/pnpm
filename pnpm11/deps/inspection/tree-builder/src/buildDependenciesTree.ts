@@ -63,11 +63,10 @@ export async function buildDependenciesTree (
 }
 
 interface LinkedProjectsWalk {
-  /** The linked projects whose trees enclose the current one. */
   ancestors: Set<string>
   /**
-   * The number of dependencies under each linked project already expanded in
-   * the output, by path and depth.
+   * A linked project met again at the same depth is marked deduped instead of
+   * walked again.
    */
   expanded: Map<string, number>
 }
@@ -197,9 +196,9 @@ interface LinkedProjectsContext {
 
 /**
  * Attaches the project dependencies of every linked workspace project that
- * the lockfile has no importer for. With `sharedWorkspaceLockfile: false`, the lockfile
- * that the tree was built from knows nothing about the dependencies of the
- * other workspace projects.
+ * the lockfile has no importer for. With `sharedWorkspaceLockfile: false`,
+ * the lockfile that the tree was built from knows nothing about the
+ * dependencies of the other workspace projects.
  */
 async function expandLinkedProjects (tree: DependenciesTree, ctx: LinkedProjectsContext): Promise<void> {
   for (const field of DEPENDENCIES_FIELDS) {
