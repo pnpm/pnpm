@@ -131,10 +131,16 @@ fn prepare_pkg_files_for_diff_with_fs(
                 dir: parent.to_path_buf(),
                 source,
             })?;
-        if fs_ops.hard_link(&source_path, &target).is_err() {
-            fs_ops
-                .copy(&source_path, &target)
-                .map_err(|source| PatchCommitError::LinkFile { source_path, target, source })?;
+        match fs_ops.hard_link(&source_path, &target) {
+            Ok(()) => {}
+            Err(source) if is_unsupported_link_error(&source) => {
+                fs_ops
+                    .copy(&source_path, &target)
+                    .map_err(|source| PatchCommitError::LinkFile { source_path, target, source })?;
+            }
+            Err(source) => {
+                return Err(PatchCommitError::LinkFile { source_path, target, source });
+            }
         }
     }
     Ok(PkgFilesForDiff::Temporary(temp_dir))
@@ -286,6 +292,24 @@ fn safe_package_file_path(path: &str) -> Result<PathBuf, PatchCommitError> {
 
 fn path_from_forward_slash(path: &str) -> PathBuf {
     path.split('/').collect()
+}
+
+fn is_unsupported_link_error(error: &io::Error) -> bool {
+    matches!(
+        error.kind(),
+        io::ErrorKind::CrossesDevices
+            | io::ErrorKind::Unsupported
+            | io::ErrorKind::PermissionDenied,
+    ) || is_cross_device_errno(error)
+}
+
+fn is_cross_device_errno(error: &io::Error) -> bool {
+    #[cfg(unix)]
+    return error.raw_os_error() == Some(18);
+    #[cfg(windows)]
+    return error.raw_os_error() == Some(17);
+    #[cfg(not(any(unix, windows)))]
+    return false;
 }
 
 fn normalize_diff_output(diff: &str, folder_a: &str, folder_b: &str) -> String {

@@ -206,6 +206,25 @@ fn patch_commit_prepare_pkg_files_for_diff_reports_error_when_hard_link_and_copy
     assert!(matches!(err, PatchCommitError::LinkFile { .. }));
 }
 
+#[test]
+fn patch_commit_prepare_pkg_files_for_diff_rethrows_unexpected_link_errors_without_copy() {
+    let edit_dir = tempdir().expect("edit dir");
+    fs::write(
+        edit_dir.path().join("package.json"),
+        r#"{"name":"pkg","version":"1.0.0","files":["index.js"]}"#,
+    )
+    .unwrap();
+    fs::write(edit_dir.path().join("index.js"), "included\n").unwrap();
+    fs::write(edit_dir.path().join("ignore.txt"), "excluded\n").unwrap();
+
+    let fs_ops = UnexpectedLinkErrorFs { copied: Cell::new(false) };
+    let err = prepare_pkg_files_for_diff_with_fs(edit_dir.path(), &fs_ops)
+        .expect_err("unexpected link error should fail");
+
+    assert!(matches!(err, PatchCommitError::LinkFile { .. }));
+    assert!(!fs_ops.copied.get(), "copy must not be attempted on unexpected link error");
+}
+
 /// `safe_package_file_path` is patch-commit's defense-in-depth guard
 /// against a packlist entry that escapes the source dir. It is unit-tested
 /// directly because the packlist now filters escaping `main` / `bin`
@@ -594,5 +613,36 @@ impl PatchCommitFs for RemoveDirErrorFs {
 
     fn remove_dir_all(&self, _path: &Path) -> io::Result<()> {
         Err(io::Error::new(io::ErrorKind::PermissionDenied, "blocked remove_dir_all"))
+    }
+}
+
+struct UnexpectedLinkErrorFs {
+    copied: Cell<bool>,
+}
+
+impl PatchCommitFs for UnexpectedLinkErrorFs {
+    fn symlink_metadata(&self, path: &Path) -> io::Result<fs::Metadata> {
+        fs::symlink_metadata(path)
+    }
+
+    fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        fs::create_dir_all(path)
+    }
+
+    fn hard_link(&self, _source: &Path, _target: &Path) -> io::Result<()> {
+        Err(io::Error::new(io::ErrorKind::BrokenPipe, "unexpected link error"))
+    }
+
+    fn copy(&self, _source: &Path, _target: &Path) -> io::Result<u64> {
+        self.copied.set(true);
+        Ok(0)
+    }
+
+    fn remove_dir_all(&self, path: &Path) -> io::Result<()> {
+        match fs::remove_dir_all(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error),
+        }
     }
 }

@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
@@ -318,12 +319,25 @@ async function preparePkgFilesForDiff (src: string): Promise<string> {
       await fs.promises.mkdir(destDir, { recursive: true })
       try {
         await fs.promises.link(srcFile, destFile)
-      } catch {
-        await fs.promises.copyFile(srcFile, destFile)
+      } catch (err: unknown) {
+        if (isUnsupportedLinkError(err)) {
+          await fs.promises.copyFile(srcFile, destFile)
+        } else {
+          throw err
+        }
       }
     })
   )
   return dest
+}
+
+function isUnsupportedLinkError (err: unknown): boolean {
+  return (
+    util.types.isNativeError(err) &&
+    'code' in err &&
+    typeof err.code === 'string' &&
+    ['EXDEV', 'EPERM', 'ENOTSUP', 'EOPNOTSUPP'].includes(err.code)
+  )
 }
 
 async function areAllFilesInPkg (files: string[], basePath: string): Promise<boolean> {

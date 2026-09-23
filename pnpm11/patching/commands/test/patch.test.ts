@@ -421,6 +421,35 @@ describe('patch and commit', () => {
     }
   })
 
+  test('patch and commit rethrows unexpected hard link errors without falling back to copy', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    expect(fs.existsSync(patchDir)).toBe(true)
+    fs.writeFileSync(path.join(patchDir, 'ignore.txt'), '', 'utf8')
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test failure', 'utf8')
+
+    const linkSpy = jest.spyOn(fs.promises, 'link').mockRejectedValue(
+      Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+    )
+
+    try {
+      await expect(patchCommit.handler({
+        ...DEFAULT_OPTS,
+        cacheDir,
+        dir: process.cwd(),
+        rootProjectManifestDir: process.cwd(),
+        frozenLockfile: false,
+        fixLockfile: true,
+        storeDir,
+      }, [patchDir])).rejects.toMatchObject({ code: 'EACCES' })
+
+      expect(linkSpy).toHaveBeenCalled()
+    } finally {
+      linkSpy.mockRestore()
+    }
+  })
+
   test('patch and commit with a custom edit dir', async () => {
     const editDir = path.join(temporaryDirectory())
 
