@@ -460,7 +460,7 @@ export async function mutateModules (
       ...await makeProjectNodePathOption({ modulesDir: ctx.rootModulesDir, rootDir: opts.lockfileDir }, opts),
     },
   }
-  if (!opts.ignoreScripts && !opts.ignorePackageManifest && rootProjectManifest?.scripts?.[DEV_PREINSTALL]) {
+  if (installRunsDevPreinstall(opts) && rootProjectManifest?.scripts?.[DEV_PREINSTALL]) {
     await runLifecycleHook(DEV_PREINSTALL, rootProjectManifest, rootHookOpts)
   }
   // The root project's `preinstall` runs before any dependency is resolved
@@ -2158,6 +2158,16 @@ function isCheckOnlyInstall (opts: { lockfileCheck?: unknown, dryRun?: boolean }
 }
 
 /**
+ * `pnpm:devPreinstall` prepares a development checkout, so an install that
+ * leaves out `devDependencies`, such as `pnpm install --prod`, skips it.
+ */
+function installRunsDevPreinstall (
+  opts: { ignoreScripts?: boolean, ignorePackageManifest?: boolean, include?: IncludedDependencies }
+): boolean {
+  return !opts.ignoreScripts && !opts.ignorePackageManifest && opts.include?.devDependencies !== false
+}
+
+/**
  * Whether the root project's `preinstall` runs ahead of resolution: only when
  * the root would run its own lifecycle scripts after linking, so `pnpm add`
  * and `pnpm remove` keep their behavior. A check-only or lockfile-only
@@ -3715,7 +3725,7 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
       unsafePerm: opts.unsafePerm || false,
       userAgent: opts.userAgent,
     }
-    if (!opts.ignoreScripts && !opts.ignorePackageManifest && rootProjectManifest?.scripts?.[DEV_PREINSTALL]) {
+    if (installRunsDevPreinstall(opts) && rootProjectManifest?.scripts?.[DEV_PREINSTALL]) {
       await runLifecycleHook(DEV_PREINSTALL, rootProjectManifest, rootHookOpts)
     }
     if (rootProjectPreinstallRan && rootProjectManifest?.scripts?.preinstall) {

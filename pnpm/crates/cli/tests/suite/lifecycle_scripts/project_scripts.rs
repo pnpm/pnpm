@@ -517,7 +517,7 @@ fn latest_update_without_selectors_does_not_run_project_lifecycle_scripts() {
 /// `pnpm:devPreinstall` is the root project's chance to prepare state
 /// that resolution and linking then consume, so it runs on its own
 /// schedule: before every other stage, only for the root, and only
-/// when scripts are not suppressed.
+/// when scripts are not suppressed and `devDependencies` are installed.
 mod dev_preinstall {
     use super::{append_order_script, project_with_lifecycle_scripts};
     use assert_cmd::prelude::*;
@@ -655,6 +655,32 @@ mod dev_preinstall {
             !workspace.join("order.txt").exists(),
             "pnpm:devPreinstall must not run under --ignore-scripts",
         );
+
+        drop((root, mock_instance));
+    }
+
+    #[test]
+    fn is_skipped_by_prod() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(workspace.join("package.json"), project_with_dev_preinstall().to_string())
+            .expect("write package.json");
+
+        pacquet
+            .with_args(["install", "--prod"])
+            .assert()
+            .success();
+
+        let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+        let stages: Vec<&str> = order.lines().collect();
+        assert_eq!(stages, ["preinstall", "install", "postinstall"]);
 
         drop((root, mock_instance));
     }

@@ -215,6 +215,27 @@ test('prepare scripts are not run when installing with package arguments in hois
   ])
 })
 
+// https://github.com/pnpm/pnpm/issues/7065
+test('pnpm:devPreinstall does not run when devDependencies are not installed', async () => {
+  await using server = await createTestIpcServer()
+  prepareEmpty()
+  await install({
+    scripts: {
+      'pnpm:devPreinstall': `node -e "console.log('pnpm:devPreinstall')" | ${server.generateSendStdinScript()}`,
+      preinstall: `node -e "console.log('preinstall')" | ${server.generateSendStdinScript()}`,
+    },
+  }, testDefaults({
+    fastUnpack: false,
+    include: {
+      dependencies: true,
+      devDependencies: false,
+      optionalDependencies: true,
+    },
+  }))
+
+  expect(server.getLines()).toStrictEqual(['preinstall'])
+})
+
 test('run install scripts in the current project when its name is different than its directory', async () => {
   await using server = await createTestIpcServer()
   prepareEmpty()
