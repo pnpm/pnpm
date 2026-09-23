@@ -51,7 +51,7 @@ import {
   type CliOptions as SupportedArchitecturesCliOptions,
   overrideSupportedArchitecturesWithCLI,
 } from './overrideSupportedArchitecturesWithCLI.js'
-import { createProjectModulesDirResolver } from './projectConfig.js'
+import { createProjectModulesDirResolver, getModulesDirsByProjectName } from './projectConfig.js'
 import { quoteAndJoin } from './quoteAndJoin.js'
 import { transformGlobalDirKeys, transformPathKeys } from './transformPath.js'
 import { types } from './types.js'
@@ -846,6 +846,7 @@ export async function getConfig (opts: {
   } else {
     pnpmConfig.extraBinPaths = []
   }
+  pnpmConfig.modulesDirsByProjectName = getModulesDirsByProjectName(pnpmConfig)
 
   pnpmConfig.extraEnv = {
     pnpm_config_verify_deps_before_run: 'false',

@@ -75,6 +75,7 @@ const CONFIG_ONLY_SETTING_KEYS = [
   'ignoreCurrentSpecifiers',
   'maxSockets',
   'minimumReleaseAgeExcludePrune',
+  'modulesDirsByProjectName',
   'packageConfigs',
   'packageManagerNetworkConfig',
   'packageManagerRegistries',

@@ -80,3 +80,25 @@ test('findWorkspaceProjectsSync() works synchronously', () => {
     [{ prefix: barPath, message: `The field "resolutions" was found in ${barPath}/package.json. This will not take effect. Configure dependency overrides in pnpm-workspace.yaml using the "overrides" field instead.` }],
   ])
 })
+
+const customModulesDirFixture = path.join(import.meta.dirname, '__fixtures__/custom-modules-dir')
+
+test.each([
+  [{ modulesDir: 'vendor' }, ['app', 'nested-dep', 'root', 'vendored-lib']],
+  [{ modulesDir: 'vendor/' }, ['app', 'nested-dep', 'root', 'vendored-lib']],
+  [{ modulesDir: 'deps/nested' }, ['app', 'dep', 'lib-dep', 'root', 'vendored-lib']],
+  [{ modulesDir: 'node_modules' }, ['app', 'dep', 'lib-dep', 'nested-dep', 'root', 'vendored-lib']],
+  [{ modulesDir: '../vendor' }, ['app', 'dep', 'lib-dep', 'nested-dep', 'root', 'vendored-lib']],
+  [{ modulesDir: '.' }, ['app', 'dep', 'lib-dep', 'nested-dep', 'root', 'vendored-lib']],
+  [{ modulesDir: path.join(customModulesDirFixture, 'packages/app/vendor') }, ['app', 'lib-dep', 'nested-dep', 'root', 'vendored-lib']],
+  [{ modulesDir: path.resolve(customModulesDirFixture, '../vendor') }, ['app', 'dep', 'lib-dep', 'nested-dep', 'root', 'vendored-lib']],
+  [{ modulesDirsByProjectName: { app: 'deps/nested' } }, ['app', 'dep', 'lib-dep', 'root', 'vendored-lib']],
+  [{ modulesDir: 'vendor', modulesDirsByProjectName: { app: 'deps/nested' } }, ['app', 'dep', 'root', 'vendored-lib']],
+  [{ modulesDirsByProjectName: { 'vendored-lib': 'vendor' } }, ['app', 'dep', 'nested-dep', 'root', 'vendored-lib']],
+])('findWorkspaceProjectsNoCheck() skips the modules directories in %o', async (modulesDirOpts, expectedNames) => {
+  const opts = { patterns: ['**'], ...modulesDirOpts }
+
+  const names = (projects: Array<{ manifest: { name?: string } }>) => projects.map(({ manifest }) => manifest.name).sort()
+  expect(names(await findWorkspaceProjectsNoCheck(customModulesDirFixture, opts))).toStrictEqual(expectedNames)
+  expect(names(findWorkspaceProjectsNoCheckSync(customModulesDirFixture, opts))).toStrictEqual(expectedNames)
+})

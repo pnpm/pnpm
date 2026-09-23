@@ -303,6 +303,8 @@ export async function main (inputArgv: string[]): Promise<void> {
       engineStrict: config.engineStrict,
       nodeVersion: config.nodeVersion,
       patterns: config.workspacePackagePatterns,
+      modulesDir: config.modulesDir,
+      modulesDirsByProjectName: config.modulesDirsByProjectName,
       linkWorkspacePackages: !!config.linkWorkspacePackages,
       prefix: process.cwd(),
       workspaceDir: wsDir,

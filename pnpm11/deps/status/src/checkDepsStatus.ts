@@ -60,6 +60,8 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'linkWorkspacePackages'
 | 'lockfileDir'
 | 'mergeGitBranchLockfiles'
+| 'modulesDir'
+| 'modulesDirsByProjectName'
 | 'nodeLinker'
 | 'patchedDependencies'
 | 'peersSuffixMaxLength'
@@ -527,6 +529,8 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     if (workspaceManifest ?? workspaceDir) {
       const allProjects = await findWorkspaceProjectsNoCheck(rootProjectManifestDir, {
         patterns: workspaceManifest == null ? undefined : workspaceManifest.packages ?? ['.'],
+        modulesDir: opts.modulesDir,
+        modulesDirsByProjectName: opts.modulesDirsByProjectName,
       })
       return checkDepsStatus({
         ...opts,

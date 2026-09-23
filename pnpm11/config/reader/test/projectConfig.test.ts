@@ -8,7 +8,7 @@ import type {
   ProjectConfigRecord,
   ProjectConfigSet,
 } from '../src/Config.js'
-import { createProjectConfigRecord, createProjectModulesDirResolver } from '../src/projectConfig.js'
+import { createProjectConfigRecord, createProjectModulesDirResolver, getModulesDirsByProjectName } from '../src/projectConfig.js'
 
 it('returns undefined for undefined', () => {
   expect(createProjectConfigRecord({})).toBeUndefined()
@@ -570,4 +570,14 @@ it('ignores project configs for a shared lockfile', () => {
     packageConfigs: { one: { modulesDir: 'private' } },
   })
   expect(modulesDirFor('one')).toBe('vendor')
+})
+
+it('lists the modules directories that packageConfigs sets', () => {
+  const packageConfigs: ProjectConfigSet = [
+    { match: ['one', 'two'], modulesDir: 'shared' },
+    { match: ['three'], hoist: false },
+  ]
+  expect(getModulesDirsByProjectName({ modulesDir: 'vendor', packageConfigs })).toStrictEqual({ one: 'shared', two: 'shared' })
+  expect(getModulesDirsByProjectName({ modulesDir: 'vendor', packageConfigs, lockfileDir: '/workspace' })).toStrictEqual({})
+  expect(getModulesDirsByProjectName({ modulesDir: 'vendor' })).toStrictEqual({})
 })
