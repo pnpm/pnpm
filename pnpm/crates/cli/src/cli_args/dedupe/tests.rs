@@ -209,10 +209,6 @@ fn resolution_observer_suppresses_store_hits_for_full_runs() {
         .unwrap()
         .set(&store_index_key("sha512-test", "dep@2.0.0"), &PackageFilesIndex::default())
         .unwrap();
-    // A full dedupe run reports store reuse from the fetch and
-    // materialization phases; the observer must not emit the same
-    // `found_in_store` again or every reused package counts twice
-    // (pnpm/pnpm#15303).
     let observer = DedupeResolutionReporter::<RecordingReporter> {
         requester: "/project".to_string(),
         store_index: StoreIndex::shared_readonly_in(&store_dir),

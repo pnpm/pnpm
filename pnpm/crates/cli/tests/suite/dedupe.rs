@@ -883,10 +883,8 @@ fn dedupe_check_detects_config_dependency_changes_when_root_is_unselected() {
     drop((root, npmrc_info));
 }
 
-/// A warm full `pnpm dedupe` run must report each reused package exactly
-/// once: the resolve-time `found_in_store` emission is suppressed in full
-/// mode because the fetch/materialization phases report the same store
-/// hits (pnpm/pnpm#15303).
+/// A warm full `pnpm dedupe` run reports each reused package once
+/// (pnpm/pnpm#15303).
 #[test]
 fn dedupe_warm_full_run_counts_each_reused_package_once() {
     let CommandTempCwd {
@@ -942,20 +940,15 @@ fn dedupe_warm_full_run_counts_each_reused_package_once() {
     };
     let resolved = package_ids("resolved");
     let found_in_store = package_ids("found_in_store");
-    eprintln!("resolved: {resolved:?}");
-    eprintln!("found_in_store: {found_in_store:?}");
     assert!(!resolved.is_empty(), "the warm dedupe run must resolve packages");
-    assert!(
-        !found_in_store.is_empty(),
-        "the warm dedupe run must report reused packages",
-    );
+    assert!(!found_in_store.is_empty(), "the warm dedupe run must report reused packages",);
     let mut unique_reused = found_in_store.clone();
     unique_reused.sort();
     unique_reused.dedup();
     assert_eq!(
         found_in_store.len(),
         unique_reused.len(),
-        "each reused package must be reported exactly once",
+        "each reused package must be reported exactly once: {found_in_store:?}",
     );
     assert!(
         found_in_store.len() <= resolved.len(),

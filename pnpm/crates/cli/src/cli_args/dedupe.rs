@@ -83,17 +83,11 @@ impl DedupeArgs {
             base_install.execution.lockfile_only = self.lockfile_only || self.check;
             base_install.resolution.update_seed_policy =
                 pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll;
-            // Resolve-time store reporting is the only reuse signal for
-            // `--lockfile-only`/`--check` runs, which skip the fetch and
-            // materialization phases. A full dedupe reports the same store
-            // hits again from those phases, so the observer stays quiet
-            // there to avoid counting every reused package twice.
-            let report_store_hits = self.lockfile_only || self.check;
             base_install.resolution.observer =
                 Some(Arc::new(DedupeResolutionReporter::<Reporter>::new(
                     &state,
                     lockfile_path,
-                    report_store_hits,
+                    base_install.execution.lockfile_only,
                 )?));
             base_install.context.lockfile_path = Some(lockfile_path);
             base_install
@@ -180,11 +174,9 @@ struct DedupeResolutionReporter<Reporter> {
     reusable_skipped_package_ids: HashSet<String>,
     /// Whether `on_resolved` reports packages found in the store.
     ///
-    /// Enabled for `--lockfile-only`/`--check` runs, which skip the fetch
-    /// and materialization phases, so resolve-time reporting is the only
-    /// reuse signal. Disabled for full runs: those phases report the same
-    /// store hits (deduplicated against each other), and emitting here as
-    /// well would count every reused package twice (pnpm/pnpm#15303).
+    /// Only lockfile-only runs, `--check` included, need it: a full run's
+    /// fetch and materialization phases report every store hit themselves,
+    /// so reporting here as well counts each reused package twice.
     report_store_hits: bool,
     reporter: PhantomData<fn() -> Reporter>,
 }
