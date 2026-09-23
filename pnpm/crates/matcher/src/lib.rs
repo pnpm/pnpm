@@ -285,15 +285,15 @@ fn strip_segment_suffix<'a>(input: &'a str, segment: &str) -> Option<&'a str> {
     segment_matches_exact(segment, suffix).then(|| &input[..split_idx])
 }
 
-fn char_window_len(s: &str, n: usize) -> Option<usize> {
+fn char_window_len(slice: &str, count: usize) -> Option<usize> {
     let mut char_count = 0;
-    for (idx, _) in s.char_indices() {
-        if char_count == n {
+    for (idx, _) in slice.char_indices() {
+        if char_count == count {
             return Some(idx);
         }
         char_count += 1;
     }
-    (char_count == n).then_some(s.len())
+    (char_count == count).then_some(slice.len())
 }
 
 fn find_segment(input: &str, segment: &str) -> Option<(usize, usize)> {
