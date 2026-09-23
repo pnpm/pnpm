@@ -351,3 +351,86 @@ fn dependencies_meta_injected_per_dep_overrides_global_off() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn injected_workspace_dependency_updated_re_resolves() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, "packages:\n  - 'project-*'\nsharedWorkspaceLockfile: false\n")
+        .expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    fs::create_dir_all(workspace.join("project-1")).expect("mkdir project-1");
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write project-1/package.json");
+
+    fs::create_dir_all(workspace.join("project-2")).expect("mkdir project-2");
+    fs::write(
+        workspace.join("project-2/package.json"),
+        serde_json::json!({
+            "name": "project-2",
+            "version": "1.0.0",
+            "dependencies": { "project-1": "workspace:*" },
+            "dependenciesMeta": { "project-1": { "injected": true } },
+        })
+        .to_string(),
+    )
+    .expect("write project-2/package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    // Now update project-1 to add a dependency
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "dependencies": {
+                "is-positive": "1.0.0",
+                "is-negative": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write project-1/package.json");
+
+    std::process::Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("project-2/pnpm-lock.yaml"))
+        .expect("read project-2/pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("is-negative"),
+        "project-2 lockfile must contain is-negative after project-1 added it:\n{lockfile}",
+    );
+
+    drop((root, mock_instance));
+}

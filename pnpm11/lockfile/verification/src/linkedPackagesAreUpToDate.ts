@@ -52,13 +52,13 @@ export async function linkedPackagesAreUpToDate (
           const currentSpec = manifestDeps[depName]
           if (!currentSpec) return true
           const lockfileRef = lockfileDeps[depName]
-          if (refIsLocalDirectory(project.snapshot.specifiers[depName])) {
+          if (refIsLocalDirectory(project.snapshot.specifiers[depName]) || refIsLocalDirectory(lockfileRef)) {
             // When a file: specifier resolves to link: in the lockfile
             // (e.g. injected self-references), it's a local link with no
             // entry in the packages section. Treat it as up-to-date.
             if (lockfileRef.startsWith('link:')) return true
             const depPath = refToRelative(lockfileRef, depName)
-            return depPath != null && isLocalFileDepUpdated(lockfileDir, lockfilePackages?.[depPath])
+            return depPath != null && isLocalFileDepUpdated(lockfileDir, lockfilePackages?.[depPath], manifestsByDir)
           }
           const isLinked = lockfileRef.startsWith('link:')
           if (
@@ -98,10 +98,14 @@ export async function linkedPackagesAreUpToDate (
   )
 }
 
-async function isLocalFileDepUpdated (lockfileDir: string, pkgSnapshot: PackageSnapshot | undefined): Promise<boolean> {
-  if (!pkgSnapshot) return false
+async function isLocalFileDepUpdated (
+  lockfileDir: string,
+  pkgSnapshot: PackageSnapshot | undefined,
+  manifestsByDir?: Record<string, DependencyManifest>
+): Promise<boolean> {
+  if (!pkgSnapshot || !('directory' in (pkgSnapshot.resolution ?? {}))) return true
   const localDepDir = path.join(lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
-  const manifest = await safeReadPackageJsonFromDir(localDepDir)
+  const manifest = manifestsByDir?.[localDepDir] ?? await safeReadPackageJsonFromDir(localDepDir)
   if (!manifest) return false
   for (const depField of DEPENDENCIES_OR_PEER_FIELDS) {
     if (depField === 'devDependencies') continue

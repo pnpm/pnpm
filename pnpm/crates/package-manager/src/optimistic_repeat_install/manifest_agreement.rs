@@ -322,7 +322,8 @@ fn linked_dep_is_up_to_date(
     dep: &pnpm_lockfile::ResolvedDependencySpec,
     current_spec: &str,
 ) -> bool {
-    if ref_is_local_directory(&dep.specifier) {
+    if ref_is_local_directory(&dep.specifier) || matches!(dep.version, ImporterDepVersion::File(_))
+    {
         // A `file:` specifier that resolved to `link:` (e.g. an
         // injected self-reference) is a local link with no
         // `packages:` entry — up to date by construction.

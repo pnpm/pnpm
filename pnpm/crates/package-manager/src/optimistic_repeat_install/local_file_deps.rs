@@ -178,6 +178,9 @@ fn scan_field_tarballs(
         return true;
     };
     for (alias, spec) in deps {
+        if dependency_is_injected(manifest.value(), alias) {
+            return false;
+        }
         match local_tarball_candidate(scan, alias, spec) {
             LocalTarballCandidate::Skip => {}
             LocalTarballCandidate::Unresolvable => return false,
@@ -193,6 +196,16 @@ fn scan_field_tarballs(
         }
     }
     true
+}
+
+fn dependency_is_injected(manifest: &serde_json::Value, name: &str) -> bool {
+    manifest
+        .get("dependenciesMeta")
+        .and_then(serde_json::Value::as_object)
+        .and_then(|meta| meta.get(name))
+        .and_then(|entry| entry.get("injected"))
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
 }
 
 /// What one declared dependency contributes to the tarball scan.

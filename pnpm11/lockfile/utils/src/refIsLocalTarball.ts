@@ -9,7 +9,9 @@ const LOCAL_TARBALL_EXTENSIONS = [
 
 export function refIsLocalTarball (ref: string): boolean {
   if (!ref.startsWith('file:')) return false
-  const lower = ref.toLowerCase()
+  const parenIdx = ref.indexOf('(')
+  const cleanRef = parenIdx === -1 ? ref : ref.slice(0, parenIdx)
+  const lower = cleanRef.toLowerCase()
   return LOCAL_TARBALL_EXTENSIONS.some((ext) => lower.endsWith(ext))
 }
 
