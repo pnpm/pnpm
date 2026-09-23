@@ -157,3 +157,41 @@ test.each([
   expect(fs.existsSync('node_modules/.ignored')).toBe(false)
   expect(JSON.parse(fs.readFileSync(`${alien}/package.json`, 'utf8')).version).toBe('0.0.1-alien')
 })
+
+test('install --no-optional does not download optional dependencies', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+    },
+    optionalDependencies: {
+      '@pnpm.e2e/bravo': '1.0.0',
+    },
+  })
+
+  execPnpmSync(['install', '--no-optional'], {
+    env: { pnpm_config_silent: 'false' },
+    stdio: 'pipe',
+    expectSuccess: true,
+  })
+
+  const lockfile = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+  expect(lockfile).toContain('is-positive@1.0.0')
+  expect(lockfile).toContain('@pnpm.e2e/bravo@1.0.0')
+
+  expect(storeHolds('@pnpm.e2e/pkg-with-good-optional@1.0.0')).toBe(true)
+  expect(storeHolds('@pnpm.e2e/bravo@1.0.0')).toBe(false)
+  expect(storeHolds('@pnpm.e2e/bravo-dep@1.1.0')).toBe(false)
+  expect(storeHolds('is-positive@1.0.0')).toBe(false)
+
+  const freshStore = path.resolve('fresh-store')
+  execPnpmSync(['install', '--no-optional', '--frozen-lockfile'], {
+    env: { pnpm_config_silent: 'false' },
+    storeDir: freshStore,
+    stdio: 'pipe',
+    expectSuccess: true,
+  })
+
+  expect(execPnpmSync(['cat-index', '@pnpm.e2e/pkg-with-good-optional@1.0.0'], { storeDir: freshStore }).status).toBe(0)
+  expect(execPnpmSync(['cat-index', '@pnpm.e2e/bravo@1.0.0'], { storeDir: freshStore }).status).not.toBe(0)
+  expect(execPnpmSync(['cat-index', 'is-positive@1.0.0'], { storeDir: freshStore }).status).not.toBe(0)
+})

@@ -660,3 +660,99 @@ fn prod_install_downloads_no_dev_only_package() {
 fn prod_install_downloads_no_dev_only_package_with_the_hoisted_linker() {
     assert_prod_install_downloads_no_dev_only_package(&["--node-linker=hoisted"]);
 }
+
+fn assert_no_optional_install_downloads_no_optional_only_package(extra_install_args: &[&str]) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "project",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-good-optional": "1.0.0",
+            },
+            "optionalDependencies": {
+                DEV_DIRECT.0: DEV_DIRECT.1,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let mut args = vec!["install", "--no-optional"];
+    args.extend_from_slice(extra_install_args);
+    pacquet
+        .with_args(args)
+        .assert()
+        .success();
+
+    assert!(
+        store_holds(&workspace, ("@pnpm.e2e/pkg-with-good-optional", "1.0.0")),
+        "install --no-optional must download prod dependency",
+    );
+    assert!(
+        !store_holds(&workspace, DEV_DIRECT),
+        "install --no-optional downloaded {}@{}, which is in optionalDependencies",
+        DEV_DIRECT.0,
+        DEV_DIRECT.1,
+    );
+    assert!(
+        !store_holds(&workspace, ("is-positive", "1.0.0")),
+        "install --no-optional downloaded is-positive@1.0.0, which is an optional dependency of a prod dependency",
+    );
+
+    // Now test with an existing lockfile on a fresh store (frozen install / repeat install)
+    let CommandTempCwd {
+        pacquet: pacquet2,
+        root: root2,
+        workspace: workspace2,
+        npmrc_info: npmrc_info2,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance: mock_instance2, .. } = npmrc_info2;
+
+    fs::copy(workspace.join("package.json"), workspace2.join("package.json")).unwrap();
+    fs::copy(workspace.join("pnpm-lock.yaml"), workspace2.join("pnpm-lock.yaml")).unwrap();
+
+    let mut frozen_args = vec!["install", "--no-optional", "--frozen-lockfile"];
+    frozen_args.extend_from_slice(extra_install_args);
+    pacquet2
+        .with_args(frozen_args)
+        .assert()
+        .success();
+
+    assert!(
+        store_holds(&workspace2, ("@pnpm.e2e/pkg-with-good-optional", "1.0.0")),
+        "frozen install --no-optional must download prod dependency",
+    );
+    assert!(
+        !store_holds(&workspace2, DEV_DIRECT),
+        "frozen install --no-optional downloaded {}@{}, which is in optionalDependencies",
+        DEV_DIRECT.0,
+        DEV_DIRECT.1,
+    );
+    assert!(
+        !store_holds(&workspace2, ("is-positive", "1.0.0")),
+        "frozen install --no-optional downloaded is-positive@1.0.0, which is an optional dependency of a prod dependency",
+    );
+
+    drop((root, mock_instance, root2, mock_instance2));
+}
+
+#[test]
+fn no_optional_install_downloads_no_optional_only_package() {
+    assert_no_optional_install_downloads_no_optional_only_package(&[]);
+}
+
+#[test]
+fn no_optional_install_downloads_no_optional_only_package_with_the_hoisted_linker() {
+    assert_no_optional_install_downloads_no_optional_only_package(&["--node-linker=hoisted"]);
+}
