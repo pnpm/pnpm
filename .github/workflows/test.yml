@@ -60,8 +60,6 @@ jobs:
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
-    - name: Defender exclusions
-      uses: $/.github/actions/defender-exclusions
     - if: ${{ inputs.garnet }}
       uses: garnet-org/action@3d47f4a9004f7356c980a0e8d420ef5984750e3c # v2.2.0
       with:
