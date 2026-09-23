@@ -138,13 +138,45 @@ test('resolvePatchDir throws ambiguous error when multiple versions exist and ba
     code: 'ERR_PNPM_AMBIGUOUS_PATCH_TARGET',
   })
 
-  // But exact version resolves uniquely
   const resolved = await resolvePatchDir('is-positive@1.0.0', {
     dir,
     lockfileDir: dir,
     modulesDir,
   })
   expect(resolved.editDir).toBe(editDir1)
+})
+
+test('resolvePatchDir throws ambiguous error when one state entry has bare name and another has versioned specifier', async () => {
+  const dir = tempDir()
+  const modulesDir = path.join(dir, 'node_modules')
+  const editDir1 = path.join(modulesDir, '.pnpm_patches/is-positive@1.0.0')
+  const editDir2 = path.join(modulesDir, '.pnpm_patches/is-positive@2.0.0')
+
+  fs.mkdirSync(editDir1, { recursive: true })
+  fs.writeFileSync(path.join(editDir1, 'package.json'), JSON.stringify({ name: 'is-positive', version: '1.0.0' }))
+  writeEditDirState({
+    modulesDir,
+    editDir: editDir1,
+    patchedPkg: 'is-positive',
+    applyToAll: true,
+  })
+
+  fs.mkdirSync(editDir2, { recursive: true })
+  fs.writeFileSync(path.join(editDir2, 'package.json'), JSON.stringify({ name: 'is-positive', version: '2.0.0' }))
+  writeEditDirState({
+    modulesDir,
+    editDir: editDir2,
+    patchedPkg: 'is-positive@2.0.0',
+    applyToAll: false,
+  })
+
+  await expect(resolvePatchDir('is-positive', {
+    dir,
+    lockfileDir: dir,
+    modulesDir,
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_AMBIGUOUS_PATCH_TARGET',
+  })
 })
 
 test('resolvePatchDir throws invalid patch dir when no matches found', async () => {

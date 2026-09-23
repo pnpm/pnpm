@@ -19,9 +19,8 @@ pub(super) fn resolve_patch_dir(
         return Ok(resolved);
     }
 
-    if let Ok(all_states) = read_all_edit_dir_states(modules_dir)
-        && !all_states.is_empty()
-    {
+    let all_states = read_all_edit_dir_states(modules_dir).map_err(PatchCommitError::StateFile)?;
+    if !all_states.is_empty() {
         let query_str = user_param.to_string_lossy();
         let query = PatchQuery::new(&query_str);
         let buckets = collect_matches(all_states, modules_dir, &query);
@@ -43,6 +42,7 @@ fn resolve_direct_path(
         && let Some(state_value) =
             read_edit_dir_state(modules_dir, &direct_path).map_err(PatchCommitError::StateFile)?
     {
+        let _ = patched_identity(&direct_path)?;
         return Ok(Some(ResolvedPatchDir { patch_dir: direct_path, state_value }));
     }
     Ok(None)
@@ -52,10 +52,10 @@ fn fallback_direct_path(
     modules_dir: &Path,
     direct_path: PathBuf,
 ) -> Result<ResolvedPatchDir, PatchCommitError> {
-    let _ = patched_identity(&direct_path)?;
     let state_value = read_edit_dir_state(modules_dir, &direct_path)
         .map_err(PatchCommitError::StateFile)?
         .ok_or_else(|| PatchCommitError::InvalidPatchDir { patch_dir: direct_path.clone() })?;
+    let _ = patched_identity(&direct_path)?;
 
     Ok(ResolvedPatchDir { patch_dir: direct_path, state_value })
 }
@@ -87,7 +87,7 @@ impl<'a> PatchQuery<'a> {
         if self.is_exact_match(candidate_path, patches_dir, state_value, name, version) {
             return MatchKind::Exact;
         }
-        if self.is_name_match(name) {
+        if self.is_name_match(name, state_value) {
             return MatchKind::NameOnly;
         }
         MatchKind::None
@@ -101,7 +101,7 @@ impl<'a> PatchQuery<'a> {
         name: &str,
         version: &str,
     ) -> bool {
-        if state_value.patched_pkg == self.raw {
+        if self.parsed.bare_specifier.is_some() && state_value.patched_pkg == self.raw {
             return true;
         }
         if self.matches_specifier(name, version) {
@@ -135,11 +135,13 @@ impl<'a> PatchQuery<'a> {
         range.satisfies(&ver)
     }
 
-    fn is_name_match(&self, name: &str) -> bool {
-        if name == self.raw {
-            return true;
+    fn is_name_match(&self, name: &str, state_value: &EditDirState) -> bool {
+        if self.parsed.bare_specifier.is_some() {
+            return false;
         }
-        self.parsed.alias.as_deref() == Some(name) && self.parsed.bare_specifier.is_none()
+        name == self.raw
+            || state_value.patched_pkg == self.raw
+            || self.parsed.alias.as_deref() == Some(name)
     }
 }
 

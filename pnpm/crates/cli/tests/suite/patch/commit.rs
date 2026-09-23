@@ -211,13 +211,56 @@ fn patch_commit_errors_when_patch_dir_manifest_is_missing() {
     let (root, workspace, npmrc_info) = setup_installed();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
+    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
+    fs::remove_file(edit_dir.join("package.json")).expect("remove manifest");
+
+    let output = pacquet(
+        &workspace,
+        ["patch-commit", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+    )
+    .output()
+    .expect("run patch-commit");
+
+    assert!(!output.status.success(), "missing patch dir manifest should fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Failed to read package manifest"), "stderr: {stderr}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn patch_commit_unknown_target_fails_with_invalid_patch_dir() {
+    let (root, workspace, npmrc_info) = setup_installed();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
     let output = pacquet(&workspace, ["patch-commit", "missing-edit-dir", "--reporter=silent"])
         .output()
         .expect("run patch-commit");
 
     assert!(!output.status.success(), "missing patch dir should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Failed to read package manifest"), "stderr: {stderr}");
+    assert!(stderr.contains("ERR_PNPM_INVALID_PATCH_DIR"), "stderr: {stderr}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn patch_commit_corrupted_state_file_reports_state_error() {
+    let (root, workspace, npmrc_info) = setup_installed();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let state_file = workspace.join("node_modules/.pnpm_patches/state.json");
+    fs::create_dir_all(state_file.parent().unwrap()).unwrap();
+    fs::write(&state_file, "{ invalid json").unwrap();
+
+    let output = pacquet(&workspace, ["patch-commit", "is-positive", "--reporter=silent"])
+        .output()
+        .expect("run patch-commit");
+
+    assert!(!output.status.success(), "corrupted state file should fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_PATCH_STATE_PARSE"), "stderr: {stderr}");
 
     drop((root, mock_instance));
 }
@@ -437,6 +480,55 @@ fn patch_commit_ambiguous_package_name_fails_when_multiple_versions_patched() {
         stderr.contains("Found multiple patch directories for `is-positive`"),
         "stderr: {stderr}",
     );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn patch_commit_ambiguous_bare_name_and_versioned_state_entries_fails() {
+    let (root, workspace, npmrc_info) = setup_installed();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    let edit_dir1 = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
+    write_patch_edit(&edit_dir1, "patched version 1");
+
+    let edit_dir2 = workspace.join("node_modules/.pnpm_patches/is-positive@2.0.0");
+    fs::create_dir_all(&edit_dir2).expect("create edit_dir2");
+    fs::write(edit_dir2.join("package.json"), r#"{"name": "is-positive", "version": "2.0.0"}"#)
+        .expect("write edit_dir2 package.json");
+    fs::write(edit_dir2.join("index.js"), "// v2").expect("write edit_dir2 index.js");
+
+    let state_file = workspace.join("node_modules/.pnpm_patches/state.json");
+    let mut state: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&state_file).expect("read state.json"))
+            .expect("parse state.json");
+    state
+        .as_object_mut()
+        .unwrap()
+        .get_mut(edit_dir1.to_str().unwrap())
+        .unwrap()["patchedPkg"] = serde_json::json!("is-positive");
+    state
+        .as_object_mut()
+        .unwrap()
+        .insert(
+            edit_dir2.display().to_string(),
+            serde_json::json!({
+                "patchedPkg": "is-positive@2.0.0",
+                "applyToAll": false,
+                "packageKey": "is-positive@2.0.0",
+            }),
+        );
+    fs::write(&state_file, serde_json::to_string_pretty(&state).unwrap())
+        .expect("write state.json");
+
+    let output = pacquet(&workspace, ["patch-commit", "is-positive", "--reporter=silent"])
+        .output()
+        .expect("run patch-commit");
+
+    assert!(!output.status.success(), "ambiguous bare name should fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_AMBIGUOUS_PATCH_TARGET"), "stderr: {stderr}");
 
     drop((root, mock_instance));
 }

@@ -89,12 +89,9 @@ export async function resolvePatchDir (
     let isExact = false
     let isName = false
 
-    if (
-      stateValue.patchedPkg === userParam ||
-      candidateNameVer === userParam ||
-      path.basename(candidateEditDir) === userParam ||
-      relPatchesDir === normalizedUserParam
-    ) {
+    if (parsedDep.bareSpecifier && stateValue.patchedPkg === userParam) {
+      isExact = true
+    } else if (candidateNameVer === userParam || relPatchesDir === normalizedUserParam) {
       isExact = true
     } else if (parsedDep.alias && parsedDep.alias === manifestName) {
       if (parsedDep.bareSpecifier) {
@@ -108,7 +105,7 @@ export async function resolvePatchDir (
       }
     }
 
-    if (!isExact && manifestName === userParam) {
+    if (!isExact && (manifestName === userParam || stateValue.patchedPkg === userParam)) {
       isName = true
     }
 
