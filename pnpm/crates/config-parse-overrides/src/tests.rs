@@ -133,6 +133,44 @@ fn parse_pkg_and_parent_selector_lone_target() {
 }
 
 #[test]
+fn parse_pkg_and_parent_selector_trims_whitespace() {
+    assert_eq!(
+        parse_pkg_and_parent_selector("  minimist  ").unwrap(),
+        (None, sel("minimist", None)),
+    );
+    assert_eq!(
+        parse_pkg_and_parent_selector("  bar@1>foo@2  ").unwrap(),
+        (Some(sel("bar", Some("1"))), sel("foo", Some("2"))),
+    );
+}
+
+#[test]
+fn trims_leading_and_trailing_whitespace_on_selectors() {
+    let input = HashMap::from([
+        ("minimist ".to_string(), "1.2.6".to_string()),
+        ("  minimist@^1.2.6  ".to_string(), "1.2.6".to_string()),
+        ("  bar>foo  ".to_string(), "2".to_string()),
+        ("  bar@1>foo@2  ".to_string(), "2".to_string()),
+        ("  foo@  ".to_string(), "1.2.3".to_string()),
+    ]);
+    let out = sorted(parse_overrides(&input, &Catalogs::new()).unwrap());
+    let expected = sorted(vec![
+        vo("bar>foo", "2", Some(sel("bar", None)), sel("foo", None)),
+        vo("bar@1>foo@2", "2", Some(sel("bar", Some("1"))), sel("foo", Some("2"))),
+        VersionOverride {
+            selector: "foo@".to_string(),
+            parent_pkg: None,
+            target_pkg: sel("foo", Some("")),
+            new_bare_specifier: "1.2.3".to_string(),
+            converge: true,
+        },
+        vo("minimist", "1.2.6", None, sel("minimist", None)),
+        vo("minimist@^1.2.6", "1.2.6", None, sel("minimist", Some("^1.2.6"))),
+    ]);
+    assert_eq!(out, expected);
+}
+
+#[test]
 fn parse_pkg_and_parent_selector_parent_child() {
     assert_eq!(
         parse_pkg_and_parent_selector("bar@1>foo@2").unwrap(),
