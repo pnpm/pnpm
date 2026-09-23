@@ -211,11 +211,14 @@ fn linked_target_satisfies(
         return false;
     }
     let target_dir = lockfile_dir.join(link_path);
-    if !target_is_within_workspace(workspace_root, &target_dir) {
-        return false;
-    }
-    let Ok(Some(pkg_json)) = pnpm_package_manifest::safe_read_package_json_from_dir(&target_dir)
+    let Ok(canonical_manifest) = target_manifest_within_workspace(workspace_root, &target_dir)
     else {
+        return false;
+    };
+    let Ok(content) = std::fs::read_to_string(&canonical_manifest) else {
+        return false;
+    };
+    let Ok(pkg_json) = serde_json::from_str::<serde_json::Value>(&content) else {
         return false;
     };
     if pkg_json.get("name").and_then(serde_json::Value::as_str) != Some(expected_name) {
@@ -234,23 +237,24 @@ fn linked_target_satisfies(
     range.satisfies(&version)
 }
 
-fn target_is_within_workspace(workspace_root: &Path, target_dir: &Path) -> bool {
+fn target_manifest_within_workspace(
+    workspace_root: &Path,
+    target_dir: &Path,
+) -> Result<PathBuf, ()> {
     if !pnpm_fs::is_subdir(workspace_root, target_dir) {
-        return false;
+        return Err(());
     }
-    let Ok(canonical_root) = std::fs::canonicalize(workspace_root) else {
-        return false;
-    };
-    let Ok(canonical_target) = std::fs::canonicalize(target_dir) else {
-        return false;
-    };
+    let canonical_root = std::fs::canonicalize(workspace_root).map_err(|_| ())?;
+    let canonical_target = std::fs::canonicalize(target_dir).map_err(|_| ())?;
     if !pnpm_fs::is_subdir(&canonical_root, &canonical_target) {
-        return false;
+        return Err(());
     }
-    let Ok(canonical_manifest) = std::fs::canonicalize(target_dir.join("package.json")) else {
-        return false;
-    };
-    pnpm_fs::is_subdir(&canonical_root, &canonical_manifest)
+    let canonical_manifest =
+        std::fs::canonicalize(target_dir.join("package.json")).map_err(|_| ())?;
+    if !pnpm_fs::is_subdir(&canonical_root, &canonical_manifest) {
+        return Err(());
+    }
+    Ok(canonical_manifest)
 }
 
 fn npm_or_registry_spec_satisfies(

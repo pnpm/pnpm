@@ -115,19 +115,30 @@ fn workspace_range_validates_file_snapshot_target() {
 
     let symlink_pkg_dir = workspace_root.join("packages/symlink-pkg");
     std::fs::create_dir_all(&symlink_pkg_dir).unwrap();
+    std::fs::write(valid_pkg_dir.join("package.json"), r#"{"name":"pkg","version":"1.2.3"}"#)
+        .unwrap();
+    let symlink_manifest = symlink_pkg_dir.join("package.json");
     #[cfg(unix)]
-    std::os::unix::fs::symlink(
-        outside_pkg_dir.join("package.json"),
-        symlink_pkg_dir.join("package.json"),
-    )
-    .unwrap();
+    std::os::unix::fs::symlink(valid_pkg_dir.join("package.json"), &symlink_manifest).unwrap();
     #[cfg(windows)]
-    std::os::windows::fs::symlink_file(
-        outside_pkg_dir.join("package.json"),
-        symlink_pkg_dir.join("package.json"),
-    )
-    .unwrap();
+    std::os::windows::fs::symlink_file(valid_pkg_dir.join("package.json"), &symlink_manifest)
+        .unwrap();
     let symlink_dep: pnpm_lockfile::SnapshotDepRef = "file:packages/symlink-pkg".parse().unwrap();
+    assert!(spec_satisfies_snapshot_dep(
+        &workspace_root,
+        &lockfile_dir,
+        &local_dep_dir,
+        "pkg",
+        "workspace:^1.0.0",
+        &symlink_dep,
+    ));
+
+    std::fs::remove_file(&symlink_manifest).unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(outside_pkg_dir.join("package.json"), &symlink_manifest).unwrap();
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_file(outside_pkg_dir.join("package.json"), &symlink_manifest)
+        .unwrap();
     assert!(!spec_satisfies_snapshot_dep(
         &workspace_root,
         &lockfile_dir,
