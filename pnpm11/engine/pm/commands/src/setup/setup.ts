@@ -5,11 +5,6 @@ import path from 'node:path'
 import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { logger } from '@pnpm/logger'
-import {
-  addDirToEnvPath,
-  type ConfigReport,
-  type PathExtenderReport,
-} from '@pnpm/os.env.path-extender'
 import PATH from 'path-name'
 import { renderHelp } from 'render-help'
 
@@ -17,6 +12,11 @@ import {
   validateGHActionsEnvFileValues,
   writeGHActionsEnvFiles,
 } from './ghActionsEnv.js'
+import {
+  addDirToEnvPath,
+  type ConfigReport,
+  type PathExtenderReport,
+} from './pathExtender.js'
 
 export const rcOptionsTypes = (): Record<string, unknown> => ({})
 

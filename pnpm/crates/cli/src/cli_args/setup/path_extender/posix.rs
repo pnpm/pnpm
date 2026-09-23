@@ -291,32 +291,87 @@ fn write_config(path: &Path, content: &str) -> Result<(), PathExtenderError> {
 
 /// Locate the `# <section>` ... `# <section> end` block, returning the byte
 /// range of the whole block and the inner settings between the markers.
-/// Mirrors pnpm's greedy `# <section>\n([\s\S]*)\n# <section> end` match:
-/// the block opens at the first `# <section>\n` and closes at the last
-/// `\n# <section> end`.
+///
+fn complete_section(
+    content: &str,
+    start_offset: usize,
+    inner_start: usize,
+    line_start: usize,
+    line: &str,
+) -> (std::ops::Range<usize>, String) {
+    let inner_len = content[inner_start..line_start]
+        .trim_end_matches(['\r', '\n'])
+        .len();
+    let inner = content[inner_start..inner_start + inner_len].to_string();
+    let marker_len = line
+        .trim_end_matches(['\r', '\n'])
+        .len();
+    (start_offset..line_start + marker_len, inner)
+}
+
+fn parse_sections(content: &str, section: &str) -> Vec<(std::ops::Range<usize>, String)> {
+    let start_marker = format!("# {section}");
+    let end_marker = format!("# {section} end");
+    let mut sections = Vec::new();
+    let mut last_start = None;
+    let mut offset = 0;
+
+    for line in content.split_inclusive('\n') {
+        let line_start = offset;
+        offset += line.len();
+        let trimmed = line.trim_end_matches(['\r', '\n', ' ', '\t']);
+
+        if trimmed == start_marker {
+            last_start = Some((line_start, offset));
+        } else if trimmed == end_marker {
+            if let Some((start, inner)) = last_start.take() {
+                sections.push(complete_section(content, start, inner, line_start, line));
+            } else {
+                continue;
+            }
+        }
+    }
+
+    sections
+}
+
+fn select_section(
+    mut sections: Vec<(std::ops::Range<usize>, String)>,
+    section: &str,
+) -> Option<(std::ops::Range<usize>, String)> {
+    if sections.len() <= 1 {
+        return sections.pop();
+    }
+    let section_upper = section.to_uppercase();
+    let idx = sections
+        .iter()
+        .rposition(|(_, inner)| inner.contains("PATH") || inner.contains(&section_upper));
+    idx.map(|i| sections.remove(i))
+        .or_else(|| sections.pop())
+}
+
+/// Find a `# <section>` ... `# <section> end` section and return its full byte range
+/// along with the inner configuration text.
+///
+/// A valid section is bounded by an opening `# <section>` line and a closing
+/// `# <section> end` line with no intermediate `# <section>` or `# <section> end`
+/// markers. If multiple valid sections exist, any section referencing `PATH`
+/// or the uppercase section name takes precedence.
 fn find_section(content: &str, section: &str) -> Option<(std::ops::Range<usize>, String)> {
-    let start_pat = format!("# {section}\n");
-    let end_pat = format!("\n# {section} end");
-    let start = content.find(&start_pat)?;
-    let inner_start = start + start_pat.len();
-    let end = content.rfind(&end_pat)?;
-    if end < inner_start {
+    if content.is_empty() {
         return None;
     }
-    let inner = content[inner_start..end].to_string();
-    Some((start..end + end_pat.len(), inner))
+    let sections = parse_sections(content, section);
+    select_section(sections, section)
 }
 
 /// Replace the `# <section>` ... `# <section> end` block with `new_section`.
-/// Mirrors pnpm's greedy `# <section>[\s\S]*# <section> end` replacement.
 fn replace_section(content: &str, new_section: &str, section: &str) -> String {
-    let begin_pat = format!("# {section}");
-    let end_pat = format!("# {section} end");
-    let begin = content.find(&begin_pat).unwrap_or(0);
-    let end = content
-        .rfind(&end_pat)
-        .map_or(content.len(), |index| index + end_pat.len());
-    format!("{}{}{}", &content[..begin], new_section, &content[end..])
+    if let Some((range, _)) = find_section(content, section) {
+        format!("{}{}{}", &content[..range.start], new_section, &content[range.end..])
+    } else {
+        content.to_string()
+    }
 }
 
 fn home_dir() -> Result<PathBuf, PathExtenderError> {
