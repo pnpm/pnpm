@@ -207,31 +207,41 @@ fn load_at_expands_env_placeholders_in_typed_fields() {
 }
 
 #[test]
-fn env_expanding_deserializer_rejects_boolean_for_string_only_enum() {
-    serde_saphyr::from_str::<WorkspaceSettings>("nodeLinker: false\n")
-        .expect_err("a boolean is not a node linker");
+fn load_at_rejects_a_boolean_for_a_string_only_enum() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), "nodeLinker: false\n").unwrap();
+
+    WorkspaceSettings::load_at(dir.path()).expect_err("a boolean is not a node linker");
 }
 
 #[test]
-fn env_expanding_deserializer_preserves_quoted_string_types() {
-    serde_saphyr::from_str::<WorkspaceSettings>("linkWorkspacePackages: \"false\"\n")
-        .expect_err("a quoted false is not a boolean");
+fn load_at_preserves_quoted_string_types() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), "linkWorkspacePackages: \"false\"\n")
+        .unwrap();
+
+    WorkspaceSettings::load_at(dir.path()).expect_err("a quoted false is not a boolean");
 }
 
+/// A mistyped variable name puts whatever the environment holds under that
+/// name into the setting, and a build log must not be where it turns up.
 #[test]
-fn env_expanding_deserializer_redacts_invalid_expanded_value() {
+fn load_at_keeps_an_invalid_expansion_out_of_the_error() {
     const SECRET: &str = "secret-that-must-not-appear";
-    let _guard = EnvGuard::snapshot(["PNPM_TEST_14914_SECRET"]);
-    // SAFETY: EnvGuard serializes the test and restores this variable on drop.
-    unsafe {
-        env::set_var("PNPM_TEST_14914_SECRET", SECRET);
-    }
 
-    let error =
-        serde_saphyr::from_str::<WorkspaceSettings>("nodeLinker: ${PNPM_TEST_14914_SECRET}\n")
-            .expect_err("the secret is not a node linker")
-            .to_string();
+    let env = EnvGuard::snapshot(["PNPM_TEST_14914_SECRET"]);
+    env.set("PNPM_TEST_14914_SECRET", SECRET);
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "nodeLinker: ${PNPM_TEST_14914_SECRET}\n",
+    )
+    .unwrap();
 
-    assert!(error.contains("invalid environment-expanded value"));
-    assert!(!error.contains(SECRET));
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("the secret is not a node linker")
+        .to_string();
+
+    assert!(error.contains("invalid environment-expanded value"), "unexpected error: {error}");
+    assert!(!error.contains(SECRET), "the error names the expanded value");
 }

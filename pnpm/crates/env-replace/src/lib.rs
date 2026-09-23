@@ -107,6 +107,31 @@ pub fn env_replace_lossy<Sys: EnvVar>(text: &str) -> (String, Vec<String>) {
     (output, unresolved)
 }
 
+/// The `${...}` placeholders of `text`, as byte ranges, leaving out the ones
+/// a backslash escapes.
+///
+/// A caller that resolves placeholders itself, rather than taking the whole
+/// substituted string, reads them from here so it agrees with
+/// [`env_replace_lossy`] about what a placeholder is — an unfinished `${`
+/// among them, which is text rather than the opening of one.
+#[must_use]
+pub fn placeholder_ranges(text: &str) -> Vec<std::ops::Range<usize>> {
+    let bytes = text.as_bytes();
+    let mut ranges = Vec::new();
+    let mut index = 0;
+    while index < bytes.len() {
+        let Some(placeholder) = placeholder_at(bytes, index) else {
+            index += 1;
+            continue;
+        };
+        if placeholder.backslashes % 2 == 0 {
+            ranges.push(index..placeholder.end + 1);
+        }
+        index = placeholder.end + 1;
+    }
+    ranges
+}
+
 /// A `${...}` placeholder, and the backslashes written before it.
 struct Placeholder {
     /// Index of the closing `}`.
