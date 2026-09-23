@@ -353,7 +353,7 @@ test('bins of a nested package are removed when the package is deduped into the 
 
   await installProjects()
   expect(loadJsonFileSync<{ version: string }>('project-2/node_modules/@pnpm.e2e/hello-world-js-bin/package.json').version).toBe('0.0.0')
-  expect(fs.readdirSync('project-2/node_modules/.bin')).toContain('hello-world-js-bin')
+  expect(readBinEntries('project-2')).not.toHaveLength(0)
 
   project2Manifest = {
     ...project2Manifest,
@@ -364,9 +364,14 @@ test('bins of a nested package are removed when the package is deduped into the 
   await installProjects()
 
   expect(fs.existsSync('project-2/node_modules/@pnpm.e2e/hello-world-js-bin')).toBeFalsy()
-  expect(fs.readdirSync('project-2/node_modules/.bin')).not.toContain('hello-world-js-bin')
-  expect(fs.readdirSync('node_modules/.bin')).toContain('hello-world-js-bin')
+  expect(readBinEntries('project-2')).toStrictEqual([])
+  expect(readBinEntries('.')).not.toHaveLength(0)
 })
+
+function readBinEntries (projectDir: string): string[] {
+  return fs.readdirSync(path.join(projectDir, 'node_modules/.bin'))
+    .filter((entry) => entry.startsWith('hello-world-js-bin'))
+}
 
 test('peerDependencies should be installed when autoInstallPeers is set to true and nodeLinker is set to hoisted', async () => {
   prepareEmpty()
