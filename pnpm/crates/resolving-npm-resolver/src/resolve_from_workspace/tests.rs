@@ -149,6 +149,27 @@ fn workspace_exact_version_picks_that_entry() {
 }
 
 #[test]
+fn workspace_exact_version_matches_entry_with_build_metadata() {
+    let mut packages = build_packages();
+    packages
+        .get_mut("bar")
+        .unwrap()
+        .insert(
+            "0.2.0-next.3+f60facc".to_string(),
+            WorkspacePackage {
+                root_dir: Path::new("/repo/packages/bar-next").to_path_buf(),
+                manifest: json!({ "name": "bar", "version": "0.2.0-next.3+f60facc" }),
+            },
+        );
+    let opts = opts(&packages);
+    let result =
+        try_resolve_from_workspace(&wanted("bar", "workspace:0.2.0-next.3+f60facc"), &opts)
+            .expect("ok")
+            .expect("some");
+    assert_eq!(result.id.as_str(), "link:../bar-next");
+}
+
+#[test]
 fn aliased_workspace_form_routes_through_package_name() {
     let packages = build_packages();
     let opts = opts(&packages);

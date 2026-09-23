@@ -1,4 +1,4 @@
-import { parseBareSpecifier, type RegistryPackageSpec } from '@pnpm/resolving.npm-resolver'
+import { parseBareSpecifier, pickWorkspaceVersion, type RegistryPackageSpec } from '@pnpm/resolving.npm-resolver'
 import type { WorkspacePackages, WorkspacePackagesByVersion } from '@pnpm/resolving.resolver-base'
 import semver from 'semver'
 
@@ -27,7 +27,7 @@ function pickMatchingLocalVersionOrNull (
     case 'tag':
       return semver.maxSatisfying(localVersions, '*')
     case 'version':
-      return versions.has(spec.fetchSpec) ? spec.fetchSpec : null
+      return pickWorkspaceVersion(versions, spec.fetchSpec)
     case 'range':
       return semver.maxSatisfying(localVersions, spec.fetchSpec, true)
     default:

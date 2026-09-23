@@ -2703,6 +2703,61 @@ test('workspace protocol: resolve from local package that has a pre-release vers
   expect(resolveResult!.manifest!.version).toBe('3.0.0-alpha.1.2.3')
 })
 
+test('workspace protocol: resolve from local package whose version has build metadata', async () => {
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'workspace:3.0.0-next.3+f60facc' }, {
+    projectDir: '/home/istvan/src',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['3.0.0-next.3+f60facc', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: {
+            name: 'is-positive',
+            version: '3.0.0-next.3+f60facc',
+          },
+        }],
+      ])],
+    ]),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('workspace')
+  expect(resolveResult!.id).toBe('link:is-positive')
+  expect(resolveResult!.manifest!.version).toBe('3.0.0-next.3+f60facc')
+})
+
+test('resolve from local package whose version has build metadata when the registry does not have the package', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(404, {})
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '3.0.0-next.3+f60facc' }, {
+    projectDir: '/home/istvan/src',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['3.0.0-next.3+f60facc', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: {
+            name: 'is-positive',
+            version: '3.0.0-next.3+f60facc',
+          },
+        }],
+      ])],
+    ]),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('workspace')
+  expect(resolveResult!.id).toBe('link:is-positive')
+})
+
 test("workspace protocol: don't resolve from local package that has a pre-release version that don't satisfy the range", async () => {
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })

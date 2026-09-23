@@ -230,14 +230,29 @@ pub fn pick_matching_local_version_or_null(
             let raw: Vec<String> = versions.keys().cloned().collect();
             resolve_workspace_range("*", &raw)
         }
-        RegistryPackageSpecType::Version => {
-            versions.contains_key(&spec.fetch_spec).then(|| spec.fetch_spec.clone())
-        }
+        RegistryPackageSpecType::Version => pick_workspace_version(versions, &spec.fetch_spec),
         RegistryPackageSpecType::Range => {
             let raw: Vec<String> = versions.keys().cloned().collect();
             resolve_workspace_range(&spec.fetch_spec, &raw)
         }
     }
+}
+
+/// Find the workspace version equal to `version`. A requested version carries
+/// no build metadata, because the specifier parser normalizes it away, while a
+/// workspace package may declare some (e.g. `1.0.0+abc`). Semver ignores build
+/// metadata when comparing versions, so such a package still matches.
+fn pick_workspace_version(versions: &WorkspacePackagesByVersion, version: &str) -> Option<String> {
+    if versions.contains_key(version) {
+        return Some(version.to_string());
+    }
+    versions
+        .keys()
+        .find(|workspace_version| {
+            workspace_version.split_once('+').map_or(workspace_version.as_str(), |(base, _)| base)
+                == version
+        })
+        .cloned()
 }
 
 /// Build a `link:` / `file:` [`ResolveResult`] for a workspace package.

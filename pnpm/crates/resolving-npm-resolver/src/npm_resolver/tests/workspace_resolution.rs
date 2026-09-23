@@ -358,6 +358,34 @@ async fn workspace_fallback_resolves_specific_version_request() {
     assert_eq!(result.id.as_str(), "link:../acme-1.1.0");
 }
 
+#[tokio::test]
+async fn workspace_fallback_resolves_exact_version_with_build_metadata() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(404)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["0.5.6-next.3+f60facc"]);
+    let opts = workspace_resolve_options(packages);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("0.5.6-next.3+f60facc".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace fallback");
+    assert_eq!(result.resolved_via, "workspace");
+    assert_eq!(result.id.as_str(), "link:../acme");
+}
+
 /// Covers the `Ok(None)` fallback arm (200 + no matching version),
 /// distinct from the `Err` 404 arm.
 #[tokio::test]

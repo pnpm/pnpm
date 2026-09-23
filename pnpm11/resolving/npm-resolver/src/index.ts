@@ -1145,12 +1145,26 @@ function pickMatchingLocalVersionOrNull (
         includePrerelease: true,
       })
     case 'version':
-      return versions.has(spec.fetchSpec) ? spec.fetchSpec : null
+      return pickWorkspaceVersion(versions, spec.fetchSpec)
     case 'range':
       return resolveWorkspaceRange(spec.fetchSpec, Array.from(versions.keys()))
     default:
       return null
   }
+}
+
+/**
+ * Finds the workspace version equal to `version`. A requested version carries
+ * no build metadata, because the specifier parser normalizes it away, while a
+ * workspace package may declare some (e.g. `1.0.0+abc`). Semver ignores build
+ * metadata when comparing versions, so such a package still matches.
+ */
+export function pickWorkspaceVersion (versions: WorkspacePackagesByVersion, version: string): string | null {
+  if (versions.has(version)) return version
+  for (const workspaceVersion of versions.keys()) {
+    if (workspaceVersion.split('+', 1)[0] === version) return workspaceVersion
+  }
+  return null
 }
 
 function resolveFromLocalPackage (
