@@ -19,16 +19,23 @@ impl FsSetPermissions for Host {
     }
 }
 
-pub(super) fn ensure_executable_bits<Sys: FsSetPermissions>(path: &Path) -> io::Result<()> {
+pub(super) fn ensure_executable_bits<Sys: FsSetPermissions>(
+    path: &Path,
+    installed_modules_dir: Option<&Path>,
+) -> io::Result<()> {
     let target = fs::canonicalize(path)?;
-    if !target
+    let in_node_modules = target
         .ancestors()
         .skip(1)
         .any(|parent| {
             parent
                 .file_name()
                 .is_some_and(|name| name == "node_modules")
-        })
+        });
+    if !in_node_modules
+        && !installed_modules_dir
+            .and_then(|dir| fs::canonicalize(dir).ok())
+            .is_some_and(|dir| target.starts_with(dir))
     {
         return Ok(());
     }

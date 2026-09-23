@@ -1,9 +1,9 @@
 use super::{
     DirCreation, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable, FsWrite,
-    LinkBinsError, Path, PathBuf, ScriptRuntime, ShimTargetCache, chmod_tolerating_removal,
-    generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, io, is_node_bin_name,
-    is_sh_shim_hardened, is_shim_pointing_at, link_node_bin, link_symlinked_executable,
-    symlink_already_points_at, target_requires_shim,
+    LinkBinsError, LinkBinsOptions, Path, PathBuf, ScriptRuntime, ShimTargetCache,
+    chmod_tolerating_removal, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, io,
+    is_node_bin_name, is_sh_shim_hardened, is_shim_pointing_at, link_node_bin,
+    link_symlinked_executable, symlink_already_points_at, target_requires_shim,
 };
 
 /// Write the canonical bin shim for `target_path` at `shim_path`,
@@ -34,7 +34,7 @@ pub(super) struct ShimSpec<'a> {
     pub(super) probe_path: &'a Path,
     pub(super) shim_path: &'a Path,
     pub(super) node_path: &'a [String],
-    pub(super) prefer_symlinked_executables: bool,
+    pub(super) options: &'a LinkBinsOptions,
     pub(super) make_powershell_shim: bool,
     pub(super) relocatable_root: Option<&'a Path>,
     /// Whether this run created the bin directory. Read by
@@ -43,6 +43,10 @@ pub(super) struct ShimSpec<'a> {
 }
 
 impl ShimSpec<'_> {
+    fn installed_modules_dir(&self) -> Option<&Path> {
+        self.options.installed_modules_dir.as_deref()
+    }
+
     fn sh_body(&self, runtime: Option<&ScriptRuntime>) -> String {
         generate_sh_shim(
             self.target_path,
@@ -118,7 +122,7 @@ where
     // half returns `false` so bins keep their shims there, like pnpm.
     // Stays below the node-runtime special case, which links `node`
     // regardless of the setting.
-    if spec.prefer_symlinked_executables
+    if spec.options.prefer_symlinked_executables
         && cfg!(unix)
         && prepare_direct_target::<Sys>(&spec, cache)?
         && link_symlinked_executable::<Sys>(spec.target_path, spec.shim_path)?
@@ -143,7 +147,7 @@ where
     }
 
     chmod_tolerating_removal(spec.shim_path, Sys::set_executable)?;
-    cache.ensure_target_executable_once::<Sys>(spec.probe_path)
+    cache.ensure_target_executable_once::<Sys>(spec.probe_path, spec.installed_modules_dir())
 }
 
 fn prepare_direct_target<Sys>(
@@ -153,7 +157,7 @@ fn prepare_direct_target<Sys>(
 where
     Sys: FsReadHead + FsEnsureExecutableBits,
 {
-    cache.ensure_target_executable_once::<Sys>(spec.probe_path)?;
+    cache.ensure_target_executable_once::<Sys>(spec.probe_path, spec.installed_modules_dir())?;
     Ok(!target_requires_shim::<Sys>(spec.probe_path))
 }
 
@@ -207,7 +211,7 @@ where
 /// runtime is linked rather than shimmed, and
 /// `preferSymlinkedExecutables` links every bin on Unix.
 fn fresh_write_applies(spec: &ShimSpec<'_>) -> bool {
-    !(is_node_bin_name(spec.shim_path) || (spec.prefer_symlinked_executables && cfg!(unix)))
+    !(is_node_bin_name(spec.shim_path) || (spec.options.prefer_symlinked_executables && cfg!(unix)))
 }
 
 /// The Windows sibling shims a write produces.
@@ -357,7 +361,7 @@ where
         }
     }
     chmod_tolerating_removal(shim_path, Sys::set_executable)?;
-    cache.ensure_target_executable_once::<Sys>(probe_path)?;
+    cache.ensure_target_executable_once::<Sys>(probe_path, spec.installed_modules_dir())?;
     Ok(true)
 }
 

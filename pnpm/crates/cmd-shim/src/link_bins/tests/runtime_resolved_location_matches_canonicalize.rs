@@ -221,8 +221,11 @@ fn a_shim_in_a_freshly_created_bin_dir_is_written_without_reading_it_first() {
         }
     }
     impl FsEnsureExecutableBits for ReadCountingHost {
-        fn ensure_executable_bits(path: &Path) -> io::Result<()> {
-            <Host as FsEnsureExecutableBits>::ensure_executable_bits(path)
+        fn ensure_executable_bits(
+            path: &Path,
+            installed_modules_dir: Option<&Path>,
+        ) -> io::Result<()> {
+            <Host as FsEnsureExecutableBits>::ensure_executable_bits(path, installed_modules_dir)
         }
     }
 
@@ -304,8 +307,11 @@ fn shared_shim_target_cache_probes_a_resolved_target_once() {
         }
     }
     impl FsEnsureExecutableBits for CountingHost {
-        fn ensure_executable_bits(path: &Path) -> io::Result<()> {
-            <Host as FsEnsureExecutableBits>::ensure_executable_bits(path)
+        fn ensure_executable_bits(
+            path: &Path,
+            installed_modules_dir: Option<&Path>,
+        ) -> io::Result<()> {
+            <Host as FsEnsureExecutableBits>::ensure_executable_bits(path, installed_modules_dir)
         }
     }
 

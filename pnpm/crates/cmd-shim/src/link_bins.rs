@@ -259,6 +259,7 @@ impl ShimTargetCache {
     fn ensure_target_executable_once<Sys: FsEnsureExecutableBits>(
         &self,
         probe_path: &Path,
+        installed_modules_dir: Option<&Path>,
     ) -> Result<(), LinkBinsError> {
         if self.0.executable_ensured
             .lock()
@@ -267,7 +268,7 @@ impl ShimTargetCache {
         {
             return Ok(());
         }
-        ensure_target_executable::<Sys>(probe_path)?;
+        ensure_target_executable::<Sys>(probe_path, installed_modules_dir)?;
         self.0.executable_ensured
             .lock()
             .expect("executable memo lock")
@@ -299,6 +300,11 @@ pub struct LinkBinsOptions {
     /// installed there could not otherwise load the project's other packages,
     /// such as its plugins, ahead of its own.
     pub project_modules_dir_name: Option<OsString>,
+    /// A modules directory pnpm installs packages into although it is not
+    /// named `node_modules`: the root's custom `modulesDir` under the
+    /// hoisted linker. Bin targets inside it get their executable bits the
+    /// way targets under `node_modules` do.
+    pub installed_modules_dir: Option<PathBuf>,
 }
 
 /// Read `<location>/package.json` for each entry under `modules_dir` and link
@@ -453,7 +459,7 @@ where
                     probe_path: &probe_path,
                     shim_path: &paths.bins_dir.join(&command.name),
                     node_path: &node_path,
-                    prefer_symlinked_executables: options.prefer_symlinked_executables,
+                    options,
                     make_powershell_shim: wants_powershell_shim(pkg_name),
                     relocatable_root: paths.relocatable_root.as_deref(),
                     bin_dir,

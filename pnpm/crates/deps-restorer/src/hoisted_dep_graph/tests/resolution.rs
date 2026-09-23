@@ -207,3 +207,47 @@ fn walker_keeps_file_dep_peer_variants_apart() {
         "r2's copy must resolve the peer version r2 pinned",
     );
 }
+/// A custom `modulesDir` names the root's modules directory. A package
+/// the hoister nests under another keeps `node_modules`, which is the
+/// only name Node resolves from inside a package.
+#[test]
+fn walker_places_root_packages_in_the_configured_modules_dir() {
+    let mut root_deps = ResolvedDependencyMap::new();
+    root_deps.insert(pkg_name("a"), resolved_dep("1.0.0"));
+    root_deps.insert(pkg_name("b"), resolved_dep("2.0.0"));
+
+    let mut packages = HashMap::new();
+    for (name, version) in [("a", "1.0.0"), ("b", "1.0.0"), ("b", "2.0.0")] {
+        packages.insert(dep_key(name, version), metadata_stub());
+    }
+    let mut a_deps = HashMap::new();
+    a_deps.insert(pkg_name("b"), SnapshotDepRef::Plain(ver_peer("1.0.0")));
+    let mut snapshots = HashMap::new();
+    snapshots.insert(
+        dep_key("a", "1.0.0"),
+        SnapshotEntry { dependencies: Some(a_deps), ..SnapshotEntry::default() },
+    );
+    snapshots.insert(dep_key("b", "1.0.0"), SnapshotEntry::default());
+    snapshots.insert(dep_key("b", "2.0.0"), SnapshotEntry::default());
+
+    let lockfile = lockfile_with(root_deps, packages, snapshots);
+    let lockfile_dir = PathBuf::from("/repo");
+    let opts = LockfileToHoistedDepGraphOptions {
+        lockfile_dir: lockfile_dir.clone(),
+        root_modules_dir: "deps/vendor".into(),
+        ..LockfileToHoistedDepGraphOptions::default()
+    };
+    let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
+
+    let mut dirs: Vec<_> = result.graph.keys().cloned().collect();
+    dirs.sort();
+    assert_eq!(
+        dirs,
+        [
+            lockfile_dir.join("deps/vendor/a"),
+            lockfile_dir.join("deps/vendor/a/node_modules/b"),
+            lockfile_dir.join("deps/vendor/b"),
+        ],
+    );
+    assert_eq!(result.hoisted_locations["a@1.0.0"], vec!["deps/vendor/a".to_string()]);
+}

@@ -559,7 +559,7 @@ fn link_virtual_store_bins_propagates_read_error_via_di() {
         }
     }
     impl FsEnsureExecutableBits for DenyVirtualStore {
-        fn ensure_executable_bits(_: &Path) -> io::Result<()> {
+        fn ensure_executable_bits(_: &Path, _: Option<&Path>) -> io::Result<()> {
             unreachable!()
         }
     }

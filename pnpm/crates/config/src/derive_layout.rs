@@ -127,6 +127,8 @@ impl Config {
         // `virtual_store_dir` at the store.
         if let Some(lockfile_dir) = self.lockfile_dir.clone() {
             self.anchor_lockfile_paths(&lockfile_dir);
+        } else if self.explicit_settings.contains_key("modulesDir") {
+            self.follow_modules_dir_with_virtual_store();
         }
 
         // Build the per-URI auth-header lookup. Credentials were already
