@@ -1124,3 +1124,50 @@ fn managed_directory_equal_to_workspace_root_hides_nothing() {
         "a managed directory equal to the workspace root must not hide projects: {names:?}",
     );
 }
+
+#[test]
+fn managed_directory_outside_workspace_root_is_not_discovered() {
+    // A pnpm-managed directory can sit outside the workspace root
+    // (`storeDir: ../managed`). Patterns anchored above the root
+    // (`../managed/*`) walk from the parent, so the resolver must retain
+    // the normalized directory: its manifests must never surface as
+    // workspace projects, however the walk reaches them.
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), "workspace", "workspace-root");
+    make_project(tmp.path(), "workspace/pkg", "real");
+    make_project(tmp.path(), "managed/tool", "tool");
+
+    let names: Vec<String> = find_workspace_projects(
+        &tmp.path().join("workspace"),
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["pkg".to_string(), "../managed/*".to_string()]),
+            ignored_directories: vec![std::path::PathBuf::from("../managed")],
+        },
+    )
+    .unwrap()
+    .iter()
+    .map(|project| {
+        project
+            .manifest
+            .value()
+            .get("name")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string()
+    })
+    .collect();
+
+    assert!(
+        !names.contains(&"tool".to_string()),
+        "a manifest under a managed directory outside the workspace root must not surface as a workspace project: {names:?}",
+    );
+    assert!(
+        names.contains(&"real".to_string()),
+        "expected the `real` project to be enumerated; got {names:?}",
+    );
+    assert!(
+        names.contains(&"workspace-root".to_string()),
+        "expected the `workspace-root` project to be enumerated; got {names:?}",
+    );
+}
