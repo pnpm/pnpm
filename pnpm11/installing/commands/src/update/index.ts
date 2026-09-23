@@ -448,14 +448,7 @@ async function update (
   const packageDependencies = updateActions
     ? dependencies.filter((dependency) => !isGitHubActionSelector(dependency))
     : dependencies
-  const include = opts.include ?? (opts.cliOptions.peer === true
-    ? {
-      dependencies: true,
-      devDependencies: true,
-      optionalDependencies: true,
-      peerDependencies: true,
-    }
-    : undefined)
+  const include = opts.include
   const depth = opts.depth ?? Infinity
   let updateMatching: UpdateMatchingFunction | undefined
   if (opts.packageVulnerabilityAudit != null) {

@@ -367,8 +367,27 @@ impl UpdateArgs {
         state: &State,
         lockfile_path: &'path Path,
     ) -> super::install::PnprLink<'path> {
+        let prior_included = pnpm_modules_yaml::read_modules_layout::<pnpm_modules_yaml::Host>(
+            &state.config.modules_dir,
+        )
+        .ok()
+        .flatten()
+        .map(|layout| layout.included);
+
+        let dependency_groups = if let Some(included) = prior_included {
+            std::iter::empty()
+                .chain(included.dependencies.then_some(DependencyGroup::Prod))
+                .chain(included.dev_dependencies.then_some(DependencyGroup::Dev))
+                .chain((included.optional_dependencies && state.config.optional).then_some(
+                    DependencyGroup::Optional,
+                ))
+                .collect()
+        } else {
+            included_direct_groups(state.config.optional).collect()
+        };
+
         super::install::PnprLink {
-            dependency_groups: included_direct_groups(state.config.optional).collect(),
+            dependency_groups,
             supported_architectures: self.supported_architectures.apply_to(
                 state.config.supported_architectures.clone(),
             ),

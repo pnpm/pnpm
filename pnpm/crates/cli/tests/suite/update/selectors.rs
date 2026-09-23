@@ -499,6 +499,42 @@ fn update_preserves_omitted_optional_dependencies() {
     drop((root, anchor));
 }
 
+#[test]
+fn update_prod_and_peer_preserves_omitted_dev_dependencies() {
+    let (root, workspace, anchor) = setup();
+
+    let manifest = format!(
+        r#"{{ "name": "test-update", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }}, "devDependencies": {{ "@pnpm.e2e/peer-c": "^1.0.0" }}, "peerDependencies": {{ "{FOO}": "^1.0.0" }} }}"#,
+    );
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    pacquet(&workspace, ["install", "--prod"]).assert().success();
+
+    assert!(
+        !workspace
+            .join("node_modules")
+            .join("@pnpm.e2e/peer-c")
+            .exists(),
+    );
+
+    pacquet(&workspace, ["update", "--prod", "--peer", "--latest"]).assert().success();
+
+    assert!(
+        workspace
+            .join("node_modules")
+            .join(DEP)
+            .exists(),
+    );
+    assert!(
+        !workspace
+            .join("node_modules")
+            .join("@pnpm.e2e/peer-c")
+            .exists(),
+        "dev dependency must remain omitted when updating with --prod --peer",
+    );
+
+    drop((root, anchor));
+}
+
 /// When every included *direct* dep is ignored, `update --latest` is a
 /// full no-op — it must not re-resolve the non-ignored *indirect* deps.
 /// Mirrors pnpm's early `if (opts.latest) return`.

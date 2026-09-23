@@ -437,6 +437,7 @@ export async function mutateModules (
       dev?: boolean
       production?: boolean
       optional?: boolean
+      peer?: boolean
     })
     const cliOpts = extraOpts.cliOptions
     const hasCliOpts = cliOpts != null
@@ -463,6 +464,7 @@ export async function mutateModules (
       optionalDependencies: hasPriorModules
         ? (Boolean(ctx.include.optionalDependencies || isExplicitOptional) && !isNoOptional)
         : !isNoOptional,
+      ...(extraOpts.peer === true || (hasCliOpts && cliOpts.peer === true) ? { peerDependencies: true } : {}),
     }
     ctx.include = opts.include
   }

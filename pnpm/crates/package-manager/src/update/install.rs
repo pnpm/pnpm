@@ -218,14 +218,16 @@ fn update_dependency_groups(
         (
             included.dependencies || is_explicit_prod,
             included.dev_dependencies || is_explicit_dev,
-            (included.optional_dependencies || is_explicit_optional)
-                && update.config.optional,
+            !owned.explicit_groups.no_optional
+                && (is_explicit_optional
+                    || (included.optional_dependencies && update.config.optional)),
         )
     } else {
         (
             true,
             !is_explicit_prod || is_explicit_dev,
-            update.config.optional && !owned.explicit_groups.no_optional,
+            !owned.explicit_groups.no_optional
+                && (is_explicit_optional || update.config.optional),
         )
     };
 
