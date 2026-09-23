@@ -1,7 +1,7 @@
 use super::{
-    Arc, AuthHeaders, Duration, EnvGuard, NetworkSettings, PerRegistryTls, ProxyConfig,
-    TEST_CA_PEM, TEST_CLIENT_PKCS1_CERT, TEST_CLIENT_PKCS1_KEY, ThrottledClient, TlsConfig, Url,
-    nerf_dart,
+    Arc, AuthHeaders, Duration, EffectiveTrustRoots, EnvGuard, NetworkSettings, PerRegistryTls,
+    ProxyConfig, TEST_CA_PEM, TEST_CLIENT_PKCS1_CERT, TEST_CLIENT_PKCS1_KEY, ThrottledClient,
+    TlsConfig, TrustRoots, Url, apply_tls, nerf_dart, select_trust_roots,
 };
 
 /// End-to-end check that `for_installs` actually routes HTTP traffic
@@ -213,16 +213,56 @@ fn for_installs_ignores_ca_entries_that_carry_no_certificate() {
 fn unreadable_ca_does_not_disable_default_trust_anchors() {
     // When `ca` contains only malformed or unresolvable entries,
     // default trust anchors must not be discarded with `tls_certs_only(empty)`.
+    let unreadable_tls = TlsConfig {
+        ca: vec!["not a pem certificate".to_string(), String::new()],
+        ..TlsConfig::default()
+    };
+    let applied_unreadable =
+        apply_tls(reqwest::Client::builder(), &unreadable_tls).expect("apply_tls succeeds");
+    assert!(!applied_unreadable.has_custom_ca, "unreadable CA material must not set has_custom_ca");
+    let roots = select_trust_roots(applied_unreadable.has_custom_ca, TrustRoots::Platform);
+    let expected = if cfg!(target_os = "android") {
+        EffectiveTrustRoots::Bundled
+    } else {
+        EffectiveTrustRoots::Platform
+    };
+    assert_eq!(roots, expected, "unreadable CA must retain platform/default trust roots");
+
     let client = ThrottledClient::for_installs(
         &ProxyConfig::default(),
-        &TlsConfig {
-            ca: vec!["not a pem certificate".to_string(), String::new()],
-            ..TlsConfig::default()
-        },
+        &unreadable_tls,
         &PerRegistryTls::default(),
         &NetworkSettings::default(),
     );
     assert!(client.is_ok(), "client with unreadable CA should build with default trust roots");
+
+    // Valid custom CA material must set has_custom_ca and select CustomOnly roots.
+    let valid_tls = TlsConfig { ca: vec![TEST_CA_PEM.to_string()], ..TlsConfig::default() };
+    let applied_valid =
+        apply_tls(reqwest::Client::builder(), &valid_tls).expect("apply_tls succeeds");
+    assert!(applied_valid.has_custom_ca, "valid CA material must set has_custom_ca");
+    assert_eq!(
+        select_trust_roots(applied_valid.has_custom_ca, TrustRoots::Platform),
+        EffectiveTrustRoots::CustomOnly,
+        "valid custom CA must select CustomOnly roots",
+    );
+
+    // Mixed readable and unreadable entries must also select CustomOnly roots.
+    let mixed_tls = TlsConfig {
+        ca: vec!["not a pem certificate".to_string(), TEST_CA_PEM.to_string()],
+        ..TlsConfig::default()
+    };
+    let applied_mixed =
+        apply_tls(reqwest::Client::builder(), &mixed_tls).expect("apply_tls succeeds");
+    assert!(
+        applied_mixed.has_custom_ca,
+        "mixed CA containing valid material must set has_custom_ca",
+    );
+    assert_eq!(
+        select_trust_roots(applied_mixed.has_custom_ca, TrustRoots::Platform),
+        EffectiveTrustRoots::CustomOnly,
+        "mixed CA containing valid material must select CustomOnly roots",
+    );
 }
 
 #[test]

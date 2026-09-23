@@ -129,17 +129,48 @@ fn client_builder(
         builder = builder.add_root_certificate(cert.clone());
     }
     let AppliedTls { mut builder, has_custom_ca } = apply_tls(builder, effective_tls)?;
-    if has_custom_ca {
-        // An explicit, readable `ca` / `cafile` defines the trusted CA set, matching
-        // Node's behavior where specifying a custom CA overrides the well-known/system
-        // CAs. Verifying with webpki directly also avoids relying on the platform
-        // verifier (such as macOS Security.framework / trustd).
-        builder = builder.tls_certs_only(std::iter::empty());
-    } else if cfg!(target_os = "android") || trust_roots == TrustRoots::Bundled {
-        // Android's platform verifier requires a JVM, which the standalone CLI does not have.
-        builder = builder.tls_certs_only(bundled_root_certs().iter().cloned());
+    match select_trust_roots(has_custom_ca, trust_roots) {
+        EffectiveTrustRoots::CustomOnly => {
+            // An explicit, readable `ca` / `cafile` defines the trusted CA set, matching
+            // Node's behavior where specifying a custom CA overrides the well-known/system
+            // CAs. Verifying with webpki directly also avoids relying on the platform
+            // verifier (such as macOS Security.framework / trustd).
+            builder = builder.tls_certs_only(std::iter::empty());
+        }
+        EffectiveTrustRoots::Bundled => {
+            // Android's platform verifier requires a JVM, which the standalone CLI does not have.
+            builder = builder.tls_certs_only(bundled_root_certs().iter().cloned());
+        }
+        EffectiveTrustRoots::Platform => {}
     }
     Ok(apply_redirect_policy(builder, inputs.redirect_guard, forbid_redirects))
+}
+
+/// The trust roots selected for an HTTP client.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum EffectiveTrustRoots {
+    /// Custom CA certificates were provided; system / well-known roots are replaced.
+    CustomOnly,
+    /// Bundled Mozilla roots are used (either explicitly requested, fallback on Android,
+    /// or macOS sandbox fallback).
+    Bundled,
+    /// Platform trust store is used.
+    Platform,
+}
+
+/// Decide which trust root set to configure on the client builder based on
+/// whether custom CA roots were loaded and the requested fallback policy.
+pub(crate) fn select_trust_roots(
+    has_custom_ca: bool,
+    trust_roots: TrustRoots,
+) -> EffectiveTrustRoots {
+    if has_custom_ca {
+        EffectiveTrustRoots::CustomOnly
+    } else if cfg!(target_os = "android") || trust_roots == TrustRoots::Bundled {
+        EffectiveTrustRoots::Bundled
+    } else {
+        EffectiveTrustRoots::Platform
+    }
 }
 
 /// The proxy URL a setting names, treating an empty value as unset. See the
