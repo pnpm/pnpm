@@ -1039,7 +1039,7 @@ function calcSpecifier ({
   if (wantedDependency.prevSpecifier === wantedDependency.bareSpecifier && wantedDependency.prevSpecifier && versionSelectorType(wantedDependency.prevSpecifier)?.type === 'tag') {
     return wantedDependency.prevSpecifier
   }
-  const range = calcRange(version, wantedDependency, defaultRangeSpecStyle)
+  const range = semver.valid(version) == null ? version : calcRange(version, wantedDependency, defaultRangeSpecStyle)
   if (!wantedDependency.alias || spec.name === wantedDependency.alias) return range
   return `npm:${spec.name}@${range}`
 }

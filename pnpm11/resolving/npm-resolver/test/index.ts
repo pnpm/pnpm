@@ -3427,8 +3427,10 @@ test.each([
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registriesByScope,
+    saveWorkspaceProtocol: false,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'latest' }, {
+    calcSpecifier: true,
     preferWorkspacePackages: true,
     projectDir: '/home/istvan/src',
     workspacePackages: new Map([
@@ -3448,6 +3450,7 @@ test.each([
       id: 'link:is-positive',
     })
   )
+  expect(resolveResult!.normalizedBareSpecifier).toBe(localVersions.at(-1))
 })
 
 test('peekManifestFromStore: reuses store manifest and bypasses network when package is in store', async () => {
