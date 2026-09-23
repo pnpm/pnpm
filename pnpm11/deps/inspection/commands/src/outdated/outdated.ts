@@ -448,6 +448,15 @@ export function renderPackageName ({ belongsTo, dependencyType, packageName }: O
   }
 }
 
+export function getOutdatedJSONKey (outdatedPkg: OutdatedItem, hasMultiple: boolean): string {
+  if (!hasMultiple) return outdatedPkg.packageName
+  const suffix = getDependencyTypeSuffix(outdatedPkg)
+  if (outdatedPkg.current) {
+    return `${outdatedPkg.packageName}@${outdatedPkg.current}${suffix}`
+  }
+  return `${outdatedPkg.packageName}${suffix}`
+}
+
 export function getDependencyTypeSuffix (outdatedPkg: OutdatedItem): string {
   if (outdatedPkg.dependencyType === 'githubAction') return ' (github action)'
   switch (outdatedPkg.belongsTo) {
@@ -456,15 +465,6 @@ export function getDependencyTypeSuffix (outdatedPkg: OutdatedItem): string {
     case 'peerDependencies': return ' (peer)'
     default: return ''
   }
-}
-
-export function getOutdatedJSONKey (outdatedPkg: OutdatedItem, hasMultiple: boolean): string {
-  if (!hasMultiple) return outdatedPkg.packageName
-  const suffix = getDependencyTypeSuffix(outdatedPkg)
-  if (outdatedPkg.current) {
-    return `${outdatedPkg.packageName}@${outdatedPkg.current}${suffix}`
-  }
-  return `${outdatedPkg.packageName}${suffix}`
 }
 
 export function renderCurrent ({ current, wanted }: OutdatedPackage): string {
