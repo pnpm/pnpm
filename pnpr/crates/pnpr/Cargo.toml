@@ -10,8 +10,8 @@ repository = "https://github.com/pnpm/pnpm"
 keywords = ["npm", "registry", "pnpm", "verdaccio"]
 categories = ["development-tools", "web-programming::http-server"]
 readme = "README.md"
-# One integration-test binary (tests/suite.rs). Each file under tests/ links
-# the full server, so seventeen of them cost seventeen links.
+# Auto-discovery would build every file under tests/ as its own binary, each
+# linking the full server. tests/suite.rs declares them as modules of one.
 autotests = false
 
 [lib]
