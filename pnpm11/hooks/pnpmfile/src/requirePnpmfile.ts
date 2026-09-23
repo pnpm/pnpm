@@ -72,13 +72,18 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
         pkg.optionalDependencies = pkg.optionalDependencies ?? {}
         pkg.peerDependencies = pkg.peerDependencies ?? {}
         const newPkg = await readPackage(pkg, ...args)
-        if (!newPkg) {
+        if (!newPkg || typeof newPkg !== 'object' || Array.isArray(newPkg)) {
           throw new BadReadPackageHookError(pnpmFilePath, 'readPackage hook did not return a package manifest object.')
         }
         const dependencies = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const
         for (const dep of dependencies) {
           if (newPkg[dep] != null && (typeof newPkg[dep] !== 'object' || Array.isArray(newPkg[dep]))) {
             throw new BadReadPackageHookError(pnpmFilePath, `readPackage hook returned package manifest object's property '${dep}' must be an object.`)
+          }
+          for (const [depName, range] of Object.entries(newPkg[dep] ?? {})) {
+            if (typeof range !== 'string') {
+              throw new BadReadPackageHookError(pnpmFilePath, `readPackage hook returned an invalid range for '${depName}' in the '${dep}' of ${describePackage(newPkg)}. Expected a string, got ${range === null ? 'null' : typeof range}. To remove the dependency, delete the property.`)
+            }
           }
         }
         return newPkg
@@ -99,6 +104,11 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
     }
     throw new PnpmFileFailError(pnpmFilePath, toError(err))
   }
+}
+
+function describePackage (pkg: PackageManifest): string {
+  if (typeof pkg.name !== 'string' || !pkg.name) return 'an unnamed package'
+  return typeof pkg.version === 'string' && pkg.version ? `${pkg.name}@${pkg.version}` : pkg.name
 }
 
 /**
