@@ -3,7 +3,7 @@
 //! out of the archive for a tarball, off disk for a directory — once a
 //! [`LocalPackageSpec`] has been chosen.
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -51,6 +51,7 @@ pub struct LocalResolverOptions {
 pub struct LocalCurrentPkg {
     pub id: PkgResolutionId,
     pub resolution: LockfileResolution,
+    pub manifest: Option<Arc<serde_json::Value>>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -219,7 +220,7 @@ async fn resolve_spec(
     };
 
     if matches!(spec.kind, LocalSpecKind::File) {
-        return resolve_local_tarball(spec).await.map(Some);
+        return resolve_file_spec(&spec, opts).await.map(Some);
     }
 
     // Directory branch. Short-circuit when the lockfile already has
@@ -253,9 +254,42 @@ async fn resolve_spec(
     }))
 }
 
+async fn resolve_file_spec(
+    spec: &LocalPackageSpec,
+    opts: &LocalResolverOptions,
+) -> Result<LocalResolveResult, ResolveLocalError> {
+    match resolve_local_tarball(spec).await {
+        Ok(result) => Ok(result),
+        Err(ResolveLocalError::LinkedPkgDirNotFound { .. })
+            if opts.update == LocalResolverUpdate::Off
+                && opts.current_pkg
+                    .as_ref()
+                    .is_some_and(|current| {
+                        matches!(
+                            &current.resolution,
+                            LockfileResolution::Tarball(tarball)
+                                if tarball.integrity.is_some()
+                                    && (tarball.tarball == spec.id.as_str()
+                                        || current.id.as_str() == spec.id.as_str()),
+                        )
+                    }) =>
+        {
+            let current = opts.current_pkg.as_ref().unwrap();
+            Ok(LocalResolveResult {
+                id: spec.id.clone(),
+                manifest: current.manifest.as_ref().map(Arc::clone),
+                normalized_bare_specifier: Some(spec.normalized_bare_specifier.clone()),
+                resolution: current.resolution.clone(),
+                resolved_via: "local-filesystem",
+            })
+        }
+        Err(err) => Err(err),
+    }
+}
+
 /// Resolve a `file:` specifier that names a tarball.
 async fn resolve_local_tarball(
-    spec: LocalPackageSpec,
+    spec: &LocalPackageSpec,
 ) -> Result<LocalResolveResult, ResolveLocalError> {
     // A missing tarball file raises the same `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`
     // code the directory branch uses for a missing `file:` target, so both
@@ -279,7 +313,7 @@ async fn resolve_local_tarball(
     Ok(LocalResolveResult {
         id: spec.id.clone(),
         manifest: manifest.map(std::sync::Arc::new),
-        normalized_bare_specifier: Some(spec.normalized_bare_specifier),
+        normalized_bare_specifier: Some(spec.normalized_bare_specifier.clone()),
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: spec.id.as_str().to_string(),
             integrity: Some(integrity),

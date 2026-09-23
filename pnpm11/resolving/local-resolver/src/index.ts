@@ -83,7 +83,27 @@ async function resolveSpec (
   if (spec == null) return null
 
   if (spec.type === 'file') {
-    const integrity = await getTarballIntegrity(spec.fetchSpec)
+    let integrity: string
+    try {
+      integrity = await getTarballIntegrity(spec.fetchSpec)
+    } catch (err: unknown) {
+      if (
+        opts.currentPkg?.resolution &&
+        'tarball' in opts.currentPkg.resolution &&
+        Boolean(opts.currentPkg.resolution.integrity) &&
+        (opts.currentPkg.id === spec.id || opts.currentPkg.resolution.tarball === spec.id) &&
+        !opts.update &&
+        (err as { code?: string })?.code === 'ENOENT'
+      ) {
+        return {
+          id: spec.id,
+          normalizedBareSpecifier: spec.normalizedBareSpecifier,
+          resolution: opts.currentPkg.resolution as TarballResolution,
+          resolvedVia: 'local-filesystem',
+        }
+      }
+      throw err
+    }
     return {
       id: spec.id,
       normalizedBareSpecifier: spec.normalizedBareSpecifier,

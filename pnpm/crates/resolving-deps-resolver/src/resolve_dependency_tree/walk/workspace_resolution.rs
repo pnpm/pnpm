@@ -335,15 +335,19 @@ pub(super) fn fallback_manifest(
     wanted: &WantedDependency,
     current_pkg: Option<&CurrentPkg>,
 ) -> pnpm_resolving_resolver_base::DependencyManifest {
-    if let Some(current) = current_pkg
-        && let Some(name) = current.name
+    if let Some(current) = current_pkg {
+        if let Some(manifest) = &current.manifest {
+            return (**manifest).clone();
+        }
+        if let Some(name) = current.name
             .as_deref()
             .filter(|name| !name.is_empty())
-        && let Some(version) = current.version
-            .as_deref()
-            .filter(|version| !version.is_empty())
-    {
-        return serde_json::json!({ "name": name, "version": version });
+            && let Some(version) = current.version
+                .as_deref()
+                .filter(|version| !version.is_empty())
+        {
+            return serde_json::json!({ "name": name, "version": version });
+        }
     }
     let name = match wanted.alias
         .as_deref()

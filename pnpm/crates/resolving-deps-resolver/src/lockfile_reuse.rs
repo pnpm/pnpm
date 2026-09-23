@@ -5,14 +5,16 @@
 
 use node_semver::{Range, Version};
 use pnpm_lockfile::{
-    BundledDependencies, Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer,
-    ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotEntry, StringOrList,
-    TarballResolution, TarballUrlOptions, integrity_addressed_registry_tarball_url,
-    npm_tarball_url, pick_registry_for_package, registry_server_type,
+    BundledDependencies, ImporterDepVersion, Lockfile, LockfileResolution, PkgName, PkgNameVer,
+    PkgNameVerPeer, ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotDepRef,
+    SnapshotEntry, StringOrList, TarballResolution, TarballUrlOptions,
+    integrity_addressed_registry_tarball_url, npm_tarball_url, pick_registry_for_package,
+    registry_server_type,
 };
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
 use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
 use serde_json::{Map, Value};
+use std::sync::Arc;
 
 /// The `currentPkg` payload for re-resolving `key`'s edge: the prior
 /// lockfile entry shaped into what the resolver expects.
@@ -30,12 +32,18 @@ pub(crate) fn current_pkg_from_lockfile(
         .or_else(|| metadata_key.suffix.version_semver().map(ToString::to_string))
         .or_else(|| registry_qualified.map(|(_, version)| version.to_string()));
     let resolution = current_resolution(metadata, &metadata_key, registry_context)?;
+    let mut manifest_val = synthesize_manifest(&metadata_key.name, version.as_deref(), metadata);
+    let snapshot = lockfile.snapshots
+        .as_ref()
+        .and_then(|snaps| snaps.get(key));
+    attach_snapshot_dependencies(&mut manifest_val, snapshot);
     Some(CurrentPkg {
         id: PkgResolutionId::from(metadata_key.to_string()),
         name: Some(name),
         version,
         resolution,
         published_at: None,
+        manifest: Some(Arc::new(manifest_val)),
     })
 }
 
@@ -127,6 +135,13 @@ pub(crate) fn reusable_importer_dep(
     if is_git
         && (spec.specifier == bare_specifier
             || git_specifiers_are_equivalent(&spec.specifier, bare_specifier))
+    {
+        return Some(key);
+    }
+    if matches!(spec.version, ImporterDepVersion::File(_))
+        && (spec.specifier == bare_specifier
+            || pnpm_local_spec::normalize_specifier(&spec.specifier)
+                == pnpm_local_spec::normalize_specifier(bare_specifier))
     {
         return Some(key);
     }
@@ -280,6 +295,38 @@ fn synthesize_manifest(
     }
 
     Value::Object(manifest)
+}
+
+fn snapshot_dep_to_manifest_specifier(dep_ref: &SnapshotDepRef) -> String {
+    match dep_ref {
+        SnapshotDepRef::Plain(ver_peer) => ver_peer.without_peer().to_string(),
+        SnapshotDepRef::Alias(key) => format!("npm:{}@{}", key.name, key.suffix.without_peer()),
+        SnapshotDepRef::Link(target) => format!("link:{target}"),
+    }
+}
+
+fn attach_snapshot_dependencies(manifest: &mut Value, snapshot: Option<&SnapshotEntry>) {
+    let (Value::Object(map), Some(snapshot)) = (manifest, snapshot) else {
+        return;
+    };
+    if let Some(deps) = &snapshot.dependencies {
+        let dep_map: Map<String, Value> = deps
+            .iter()
+            .map(|(dep_name, dep_ref)| {
+                (dep_name.to_string(), Value::String(snapshot_dep_to_manifest_specifier(dep_ref)))
+            })
+            .collect();
+        map.insert("dependencies".to_string(), Value::Object(dep_map));
+    }
+    if let Some(deps) = &snapshot.optional_dependencies {
+        let dep_map: Map<String, Value> = deps
+            .iter()
+            .map(|(dep_name, dep_ref)| {
+                (dep_name.to_string(), Value::String(snapshot_dep_to_manifest_specifier(dep_ref)))
+            })
+            .collect();
+        map.insert("optionalDependencies".to_string(), Value::Object(dep_map));
+    }
 }
 
 fn insert_peer_fields(

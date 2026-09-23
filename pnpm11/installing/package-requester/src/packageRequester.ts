@@ -795,6 +795,15 @@ async function tarballIsUpToDate (
   if (resolution.integrity && currentIntegrity !== resolution.integrity) return false
 
   const tarball = path.join(lockfileDir, resolution.tarball.slice(5))
+  try {
+    await fs.stat(tarball)
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      if (!resolution.integrity) return false
+      return true
+    }
+    throw err
+  }
   const tarballStream = createReadStream(tarball)
   try {
     return Boolean(await ssri.checkStream(tarballStream, currentIntegrity))

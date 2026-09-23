@@ -830,3 +830,34 @@ test('install --force reports the frozenStore conflict on a repeat install', asy
   expect(status).toBe(1)
   expect(stdout.toString()).toContain('Cannot use force together with frozenStore')
 })
+
+test('adding a dependency succeeds after deleting offline package source', async () => {
+  const project = prepareEmpty()
+
+  const pkgDir = path.resolve('..', 'offline-pkg')
+  fs.mkdirSync(path.join(pkgDir, 'package'), { recursive: true })
+  fs.writeFileSync(path.join(pkgDir, 'package', 'package.json'), JSON.stringify({
+    name: 'offline-pkg',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }))
+  execPnpmSync(['pack', '--pack-destination', pkgDir], { cwd: path.join(pkgDir, 'package') })
+  const tarball = path.join(pkgDir, 'offline-pkg-1.0.0.tgz')
+
+  await execPnpm(['add', tarball])
+  project.has('offline-pkg')
+  let lockfile = project.readLockfile()
+  expect(lockfile.packages['is-positive@1.0.0']).toBeDefined()
+
+  fs.unlinkSync(tarball)
+
+  await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+
+  project.has('offline-pkg')
+  project.has('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  lockfile = project.readLockfile()
+  expect(lockfile.packages['is-positive@1.0.0']).toBeDefined()
+})
+

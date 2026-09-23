@@ -298,6 +298,8 @@ pub struct CurrentPkg {
     pub resolution: LockfileResolution,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub published_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest: Option<std::sync::Arc<serde_json::Value>>,
 }
 
 /// Options the dispatcher hands a resolver per-resolve.

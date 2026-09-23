@@ -29,7 +29,17 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let Some((missing, tarball)) = MissingTarballMetadata::of(result) else {
             return Ok(());
         };
-        let metadata = self.read_archive_once(result, tarball, lockfile_dir).await?;
+        let metadata = match self.read_archive_once(result, tarball, lockfile_dir).await {
+            Ok(metadata) => metadata,
+            Err(err)
+                if is_missing_local_tarball(&err)
+                    && tarball.integrity.is_some()
+                    && tarball.tarball.starts_with("file:") =>
+            {
+                return Ok(());
+            }
+            Err(err) => return Err(err),
+        };
         if self.ctx.policy.custom_session.is_some() {
             // A fetcher can select different content for the same URL, and
             // the manifest below was read out of whatever it chose. Record
@@ -255,5 +265,17 @@ impl MissingTarballMetadata {
             manifest: result.package.manifest.is_none(),
         };
         (missing.integrity || missing.manifest).then_some((missing, tarball))
+    }
+}
+
+fn is_missing_local_tarball(err: &ResolveError) -> bool {
+    if let Some(tarball_err) = err.downcast_ref::<pnpm_tarball::TarballError>() {
+        matches!(
+            tarball_err,
+            pnpm_tarball::TarballError::ReadLocalTarball { source, .. }
+                if source.kind() == std::io::ErrorKind::NotFound,
+        )
+    } else {
+        false
     }
 }

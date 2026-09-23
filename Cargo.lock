@@ -6025,6 +6025,7 @@ dependencies = [
  "pnpm-deps-path",
  "pnpm-fs",
  "pnpm-hooks",
+ "pnpm-local-spec",
  "pnpm-lockfile",
  "pnpm-package-manifest",
  "pnpm-package-name",

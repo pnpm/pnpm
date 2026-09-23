@@ -442,3 +442,41 @@ fn reduce_named_registry_spec_matches_registry_and_package_name() {
     assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "work:^1.0.0"), None);
     assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "^1.0.0"), None);
 }
+
+#[test]
+fn attach_snapshot_dependencies_converts_dep_refs_to_manifest_specifiers() {
+    let mut manifest = serde_json::json!({ "name": "pkg", "version": "1.0.0" });
+    let snapshot: pnpm_lockfile::SnapshotEntry = serde_json::from_value(serde_json::json!({
+        "dependencies": {
+            "is-positive": "1.0.0(peer@2.0.0)",
+            "aliased": "target@2.0.0",
+            "linked": "link:packages/sub",
+            "node": "runtime:22.0.0(peer@1.0.0)",
+            "custom-node": "node@runtime:22.0.0(peer@1.0.0)",
+        },
+        "optionalDependencies": {
+            "opt": "3.0.0",
+        },
+    }))
+    .expect("parse snapshot");
+
+    super::attach_snapshot_dependencies(&mut manifest, Some(&snapshot));
+
+    assert_eq!(
+        manifest,
+        serde_json::json!({
+            "name": "pkg",
+            "version": "1.0.0",
+            "dependencies": {
+                "aliased": "npm:target@2.0.0",
+                "custom-node": "npm:node@runtime:22.0.0",
+                "is-positive": "1.0.0",
+                "linked": "link:packages/sub",
+                "node": "runtime:22.0.0",
+            },
+            "optionalDependencies": {
+                "opt": "3.0.0",
+            },
+        }),
+    );
+}
