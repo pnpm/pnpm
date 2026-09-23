@@ -84,7 +84,11 @@ impl DedupeArgs {
             base_install.resolution.update_seed_policy =
                 pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll;
             base_install.resolution.observer =
-                Some(Arc::new(DedupeResolutionReporter::<Reporter>::new(&state, lockfile_path)?));
+                Some(Arc::new(DedupeResolutionReporter::<Reporter>::new(
+                    &state,
+                    lockfile_path,
+                    base_install.execution.lockfile_only,
+                )?));
             base_install.context.lockfile_path = Some(lockfile_path);
             base_install
         };
@@ -168,11 +172,17 @@ struct DedupeResolutionReporter<Reporter> {
     requester: String,
     store_index: Option<SharedReadonlyStoreIndex>,
     reusable_skipped_package_ids: HashSet<String>,
+    /// Whether `on_resolved` reports packages found in the store.
+    ///
+    /// Only lockfile-only runs, `--check` included, need it: a full run's
+    /// fetch and materialization phases report every store hit themselves,
+    /// so reporting here as well counts each reused package twice.
+    report_store_hits: bool,
     reporter: PhantomData<fn() -> Reporter>,
 }
 
 impl<Reporter> DedupeResolutionReporter<Reporter> {
-    fn new(state: &State, lockfile_path: &Path) -> miette::Result<Self> {
+    fn new(state: &State, lockfile_path: &Path, report_store_hits: bool) -> miette::Result<Self> {
         let config = state.config;
         let lockfile_packages = state.lockfile
             .get()
@@ -187,6 +197,7 @@ impl<Reporter> DedupeResolutionReporter<Reporter> {
                 .to_string(),
             store_index: StoreIndex::shared_for(&config.store_dir, config.frozen_store),
             reusable_skipped_package_ids,
+            report_store_hits,
             reporter: PhantomData,
         })
     }
@@ -201,6 +212,9 @@ impl<Reporter: self::Reporter> ResolutionObserver for DedupeResolutionReporter<R
                 requester: self.requester.clone(),
             },
         }));
+        if !self.report_store_hits {
+            return;
+        }
         let package_key = store_index_key(hint.integrity, hint.identity.id);
         let found_in_store = self.reusable_skipped_package_ids.contains(hint.identity.id)
             || self.store_index

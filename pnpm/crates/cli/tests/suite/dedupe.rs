@@ -882,3 +882,77 @@ fn dedupe_check_detects_config_dependency_changes_when_root_is_unselected() {
     }
     drop((root, npmrc_info));
 }
+
+#[test]
+fn dedupe_warm_full_run_counts_each_reused_package_once() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+
+    let manifest_path = workspace.join("package.json");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    // Warm the store, mirroring the issue's `pnpm install --frozen-lockfile`
+    // setup step.
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["dedupe", "--reporter=ndjson"])
+        .output()
+        .expect("run pnpm dedupe with the ndjson reporter");
+    assert!(output.status.success(), "dedupe must succeed: {output:?}");
+    assert!(output.stdout.is_empty(), "ndjson stdout: {output:?}");
+    let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+    let records = stderr
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("valid NDJSON"))
+        .collect::<Vec<_>>();
+    let package_ids = |status: &str| {
+        records
+            .iter()
+            .filter(|record| record["name"] == "pnpm:progress" && record["status"] == status)
+            .map(|record| {
+                record["packageId"]
+                    .as_str()
+                    .expect("packageId is a string")
+                    .to_string()
+            })
+            .collect::<Vec<_>>()
+    };
+    let resolved = package_ids("resolved");
+    let found_in_store = package_ids("found_in_store");
+    assert!(!resolved.is_empty(), "the warm dedupe run must resolve packages");
+    assert!(!found_in_store.is_empty(), "the warm dedupe run must report reused packages");
+    let mut unique_reused = found_in_store.clone();
+    unique_reused.sort();
+    unique_reused.dedup();
+    assert_eq!(
+        found_in_store.len(),
+        unique_reused.len(),
+        "each reused package must be reported exactly once: {found_in_store:?}",
+    );
+    assert!(
+        found_in_store.len() <= resolved.len(),
+        "reused ({}) must not exceed resolved ({})",
+        found_in_store.len(),
+        resolved.len(),
+    );
+    drop((root, npmrc_info));
+}
