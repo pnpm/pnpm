@@ -5,20 +5,19 @@ use super::{
     SnapshotEntry,
 };
 
-const WORKSPACE_ROOT: &str = ".";
-
 /// Finds the snapshot edges that only satisfy a peer.
 ///
 /// An entry whose alias is one of the package's own `peerDependencies` is the
 /// concrete package peer resolution picked for that peer. When every importer
-/// that reaches the snapshot lists that package as a direct dependency (or the
-/// workspace root does, since peers resolve from the root's dependencies), the
+/// that reaches the snapshot lists that package as a direct dependency, the
 /// entry only satisfies the peer, and each importer's dependency field decides
 /// whether the package is there: following the entry would make a peer
 /// satisfied by a devDependency reachable under `--prod`. The entry is followed
 /// as soon as one importer reaches the snapshot without listing the package:
-/// for that importer the peer was auto-installed (`autoInstallPeers`) or
-/// resolved from an ancestor package, and the entry is what provides it.
+/// for that importer the peer was auto-installed (`autoInstallPeers`), or
+/// resolved from an ancestor package or from the workspace root, and the entry
+/// is what provides it. The root is not taken as the provider because the
+/// lockfile doesn't record whether `resolvePeersFromWorkspaceRoot` was on.
 pub(super) fn peer_satisfaction_edges(
     importers: &[GraphImporter],
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
@@ -29,14 +28,10 @@ pub(super) fn peer_satisfaction_edges(
         .iter()
         .map(direct_keys)
         .collect::<Vec<_>>();
-    let root = importers
-        .iter()
-        .position(|importer| importer.path_segment == WORKSPACE_ROOT);
     let reached_without_listing = peer_edges
         .values()
         .flatten()
         .map(|(_, target)| target)
-        .filter(|target| !root.is_some_and(|root| direct[root].contains(target)))
         .collect::<HashSet<_>>()
         .into_iter()
         .map(|target| {
@@ -48,11 +43,7 @@ pub(super) fn peer_satisfaction_edges(
         .filter_map(|(key, edges)| {
             let satisfied = edges
                 .iter()
-                .filter(|(_, target)| {
-                    reached_without_listing
-                        .get(target)
-                        .is_none_or(|reached| !reached.contains(*key))
-                })
+                .filter(|(_, target)| !reached_without_listing[target].contains(*key))
                 .map(|(name, _)| (*name).clone())
                 .collect::<HashSet<_>>();
             (!satisfied.is_empty()).then(|| ((*key).clone(), satisfied))

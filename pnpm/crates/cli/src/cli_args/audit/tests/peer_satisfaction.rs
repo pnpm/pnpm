@@ -461,7 +461,7 @@ snapshots:
 }
 
 #[test]
-fn lockfile_to_audit_request_excludes_peer_satisfied_by_workspace_root_dev_dependency() {
+fn lockfile_to_audit_request_keeps_peer_only_the_workspace_root_lists() {
     let lockfile = parse_lockfile(
         "
 lockfileVersion: '9.0'
@@ -502,5 +502,5 @@ snapshots:
 
     let prod_only = lockfile_to_audit_request(&lockfile, None, prod_only());
     assert_eq!(prod_only.request["needs-ts"], vec!["1.0.0"]);
-    assert!(!prod_only.request.contains_key("typescript"));
+    assert_eq!(prod_only.request["typescript"], vec!["5.4.5"]);
 }

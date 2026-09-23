@@ -473,14 +473,15 @@ function appendNamedDepPaths (target: Array<{ name: string, depPath: DepPath }>,
 
 // An entry whose alias is one of the package's own peerDependencies is the
 // concrete package peer resolution picked for that peer. When every importer
-// that reaches the snapshot lists that package as a direct dependency (or the
-// workspace root does, since peers resolve from the root's dependencies), the
+// that reaches the snapshot lists that package as a direct dependency, the
 // entry only satisfies the peer, and each importer's dependency field decides
 // whether the package is there: following the entry would make a peer
 // satisfied by a devDependency reachable under `--prod`. The entry is followed
 // as soon as one importer reaches the snapshot without listing the package:
-// for that importer the peer was auto-installed (`autoInstallPeers`) or
-// resolved from an ancestor package, and the entry is what provides it.
+// for that importer the peer was auto-installed (`autoInstallPeers`), or
+// resolved from an ancestor package or from the workspace root, and the entry
+// is what provides it. The root is not taken as the provider because the
+// lockfile doesn't record whether `resolvePeersFromWorkspaceRoot` was on.
 function snapshotChildren (
   lockfile: LockfileObject,
   depPath: DepPath,
@@ -524,7 +525,6 @@ function getPeerSatisfactionEdges (lockfile: LockfileObject): Map<DepPath, Set<s
 function collectPeerSatisfactionEdges (lockfile: LockfileObject): Map<DepPath, Set<string>> {
   const importers = Object.entries(lockfile.importers) as Array<[ProjectId, ProjectSnapshot]>
   const directDepPaths = new Map(importers.map(([importerId, importer]) => [importerId, new Set(importerDirectDepPaths(importer))]))
-  const rootDirectDepPaths = directDepPaths.get('.' as ProjectId)
   const reachedByTarget = new Map<DepPath, Set<DepPath>>()
   const reachedWithoutListing = (target: DepPath): Set<DepPath> => {
     let reached = reachedByTarget.get(target)
@@ -544,7 +544,7 @@ function collectPeerSatisfactionEdges (lockfile: LockfileObject): Map<DepPath, S
       if (!isPeerAlias(snapshot, alias)) continue
       const target = dp.refToRelative(ref, alias)
       if (target == null) continue
-      if (!rootDirectDepPaths?.has(target) && reachedWithoutListing(target).has(parent)) continue
+      if (reachedWithoutListing(target).has(parent)) continue
       let aliases = edges.get(parent)
       if (aliases == null) {
         aliases = new Set()

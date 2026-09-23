@@ -540,7 +540,7 @@ describe('audit', () => {
     expect(prodOnly.request).toEqual({ 'needs-ts': ['1.0.0'], typescript: ['5.4.5'] })
   })
 
-  test('lockfileToAuditRequest() excludes a peer satisfied by a devDependency of the workspace root', () => {
+  test('lockfileToAuditRequest() keeps a peer that only the workspace root lists when another importer reaches the dependent', () => {
     const lockfile: LockfileObject = {
       importers: {
         ['.' as ProjectId]: {
@@ -566,7 +566,7 @@ describe('audit', () => {
     const prodOnly = lockfileToAuditRequest(lockfile, {
       include: { dependencies: true, devDependencies: false, optionalDependencies: true },
     })
-    expect(prodOnly.request).toEqual({ 'needs-ts': ['1.0.0'] })
+    expect(prodOnly.request).toEqual({ 'needs-ts': ['1.0.0'], typescript: ['5.4.5'] })
   })
 
   test('buildAuditPathIndex() flags findings reached only through optional edges', () => {
