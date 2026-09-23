@@ -334,3 +334,46 @@ fn deep_divergent_chain_does_not_overflow_the_stack() {
         &graph, &larger, &smaller
     ));
 }
+
+// <https://github.com/pnpm/pnpm/issues/6200>
+#[test]
+fn does_not_collapse_peer_dependents_across_different_peer_versions() {
+    let host1 = "host@1.0.0(peer@1.0.0)";
+    let host2 = "host@1.0.0(peer@2.0.0)";
+    let dep1 = "dependent@1.0.0(host@1.0.0(peer@1.0.0))";
+    let dep2 = "dependent@1.0.0(host@1.0.0(peer@2.0.0))";
+
+    let mut graph = DependenciesGraph::default();
+    for (id, dep_path) in [("peer@1.0.0", "peer@1.0.0"), ("peer@2.0.0", "peer@2.0.0")] {
+        graph.insert(dp(dep_path), make_node(id, dep_path, &[], &[]));
+    }
+    graph.insert(dp(host1), make_node("host@1.0.0", host1, &[("peer", "peer@1.0.0")], &["peer"]));
+    graph.insert(dp(host2), make_node("host@1.0.0", host2, &[("peer", "peer@2.0.0")], &["peer"]));
+    graph.insert(dp(dep1), make_node("dependent@1.0.0", dep1, &[("host", host1)], &["host"]));
+    graph.insert(dp(dep2), make_node("dependent@1.0.0", dep2, &[("host", host2)], &["host"]));
+
+    let mut direct: DirectByImporter = BTreeMap::new();
+    direct.insert(
+        "project1".to_string(),
+        BTreeMap::from([
+            ("dependent".to_string(), dp(dep1)),
+            ("host".to_string(), dp(host1)),
+            ("peer".to_string(), dp("peer@1.0.0")),
+        ]),
+    );
+    direct.insert(
+        "project2".to_string(),
+        BTreeMap::from([
+            ("dependent".to_string(), dp(dep2)),
+            ("host".to_string(), dp(host2)),
+            ("peer".to_string(), dp("peer@2.0.0")),
+        ]),
+    );
+
+    dedupe_peer_dependents(&mut graph, &mut direct);
+
+    assert_eq!(direct["project1"]["host"], dp(host1));
+    assert_eq!(direct["project2"]["host"], dp(host2));
+    assert_eq!(direct["project1"]["dependent"], dp(dep1));
+    assert_eq!(direct["project2"]["dependent"], dp(dep2));
+}
