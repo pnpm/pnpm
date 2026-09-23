@@ -611,10 +611,8 @@ async function resolveNpm (
         name: opts.currentPkg.name,
         version: opts.currentPkg.version,
       })
-      // Verify the manifest matches what we expect
       if (manifest?.name && manifest?.version) {
         const id = `${manifest.name}@${manifest.version}` as PkgResolutionId
-        // Only return if the ID matches what we have in currentPkg and satisfies the requested spec
         const satisfiesSpec =
           (spec.type !== 'range' || spec.fetchSpec === '*' || semver.satisfies(manifest.version, spec.fetchSpec, { loose: true })) &&
           (spec.type !== 'version' || manifest.version === spec.fetchSpec)
