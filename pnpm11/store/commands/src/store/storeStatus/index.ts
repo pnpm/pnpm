@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { dirRequiresBuild, pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
+import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { formatIntegrity } from '@pnpm/crypto.integrity'
 import * as dp from '@pnpm/deps.path'
 import { getContextForSingleImporter } from '@pnpm/installing.context'
@@ -42,6 +42,21 @@ function getSideEffectsDiffs (sideEffects: Map<string, SideEffectsDiff> | Record
     return Array.from(sideEffects.values())
   }
   return Object.values(sideEffects)
+}
+
+function isIsolatedDir (targetDir: string, filePaths: string[]): boolean {
+  for (const relPath of filePaths) {
+    const fullPath = path.join(targetDir, relPath)
+    try {
+      const stat = fs.statSync(fullPath)
+      if (stat.isFile() && stat.nlink > 1) {
+        return false
+      }
+    } catch {
+      // File may be missing or unreadable
+    }
+  }
+  return true
 }
 
 export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<string[]> {
@@ -128,11 +143,10 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
           return false
         }
       }
-      if (
+      const requiresBuild =
         pkgFilesIndex.requiresBuild === true ||
-        pkgRequiresBuild(pkgFilesIndex.manifest, pkgFilesIndex.files) ||
-        await dirRequiresBuild(targetDir)
-      ) {
+        pkgRequiresBuild(pkgFilesIndex.manifest, pkgFilesIndex.files)
+      if (requiresBuild && isIsolatedDir(targetDir, fileEntries.map(([filePath]) => filePath))) {
         return false
       }
       return true

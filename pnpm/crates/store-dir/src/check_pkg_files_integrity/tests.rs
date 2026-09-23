@@ -877,3 +877,30 @@ fn side_effects_diff_overlay_matches() {
     fs::write(package.join("index.js"), b"corrupted\n").unwrap();
     assert!(!package_dir_matches_index(&package, &index));
 }
+
+#[test]
+fn hardlinked_built_package_with_modifications_is_reported_as_modified() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+
+    let cas_file = dir.path().join("cas_file");
+    fs::write(&cas_file, b"corrupted\n").unwrap();
+    fs::hard_link(&cas_file, package.join("index.js")).unwrap();
+
+    let mut index = index_with_one_file("index.js", b"original content\n");
+    index.requires_build = Some(true);
+    assert!(!package_dir_matches_index(&package, &index));
+}
+
+#[test]
+fn unrelated_package_with_added_binding_gyp_is_reported_as_modified() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+    fs::write(package.join("index.js"), b"corrupted\n").unwrap();
+    fs::write(package.join("binding.gyp"), b"{}\n").unwrap();
+
+    let index = index_with_one_file("index.js", b"original content\n");
+    assert!(!package_dir_matches_index(&package, &index));
+}
