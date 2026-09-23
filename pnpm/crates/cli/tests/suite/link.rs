@@ -459,26 +459,42 @@ fn link_warns_about_peer_dependencies() {
     .expect("write target package.json");
 
     let output = pacquet
-        .with_arg("link")
-        .with_arg("../linked-with-peer-deps")
+        .with_args(["--reporter=ndjson", "link", "../linked-with-peer-deps"])
         .output()
         .expect("spawn pacquet link");
     assert!(output.status.success(), "link should succeed: {output:?}");
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let combined = format!("{stdout}\n{stderr}");
+    let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
+    let warn_events: Vec<serde_json::Value> = stderr
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|val| {
+            val.get("name").and_then(serde_json::Value::as_str) == Some("pnpm")
+                && val.get("level").and_then(serde_json::Value::as_str) == Some("warn")
+        })
+        .collect();
+
+    assert_eq!(
+        warn_events.len(),
+        1,
+        "expected exactly 1 warn event on pnpm channel, got:\n{stderr}",
+    );
+    let warn_event = &warn_events[0];
+    let message = warn_event
+        .get("message")
+        .and_then(serde_json::Value::as_str)
+        .expect("message string");
     assert!(
-        combined.contains("has the following peerDependencies specified in its package.json"),
-        "output must warn about peerDependencies:\n{combined}",
+        message.contains("has the following peerDependencies specified in its package.json"),
+        "message must warn about peerDependencies:\n{message}",
     );
     assert!(
-        combined.contains("The linked in dependency will not resolve the peer dependencies from the target node_modules."),
-        "output must explain the limitation:\n{combined}",
+        message.contains("The linked in dependency will not resolve the peer dependencies from the target node_modules."),
+        "message must explain the limitation:\n{message}",
     );
     assert!(
-        combined.contains(r#"To resolve this, you may use the "file:" protocol to reference the local dependency."#),
-        "output must suggest file: protocol:\n{combined}",
+        message.contains(r#"To resolve this, you may use the "file:" protocol to reference the local dependency."#),
+        "message must suggest file: protocol:\n{message}",
     );
 
     drop((root, mock_instance));
