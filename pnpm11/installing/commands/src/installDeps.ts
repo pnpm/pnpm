@@ -442,7 +442,10 @@ export async function installDeps (
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const { updatedCatalogs, updatedProject, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    const { updatedCatalogs, updatedProject, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult, projectLifecycleScriptsError } = await mutateModulesInSingleProject(mutatedProject, {
+      ...installOpts,
+      deferProjectLifecycleScriptsError: true,
+    })
     if (opts.save !== false && !opts.dryRun) {
       // Only pick entries when we'll actually persist. Otherwise the
       // info log would claim we added entries the workspace manifest
@@ -462,6 +465,7 @@ export async function installDeps (
         }),
       ])
     }
+    if (projectLifecycleScriptsError != null) throw projectLifecycleScriptsError
     if (!opts.lockfileOnly) {
       await updateWorkspaceState({
         allProjects,

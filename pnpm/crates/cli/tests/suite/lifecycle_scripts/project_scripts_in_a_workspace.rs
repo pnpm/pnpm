@@ -242,7 +242,10 @@ fn filtered_add_saves_the_manifest_when_the_root_postinstall_fails() {
     root_manifest["scripts"]["postinstall"] = serde_json::json!("exit 1");
     fs::write(workspace.join("package.json"), root_manifest.to_string()).unwrap();
 
-    pacquet(&workspace, ["--filter", "a", "add", "@pnpm.e2e/foo@100.0.0"]).assert().failure();
+    let output =
+        pacquet(&workspace, ["--filter", "a", "add", "@pnpm.e2e/foo@100.0.0"]).assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(stderr.contains("postinstall: `exit 1`"), "stderr: {stderr}");
 
     let manifest: serde_json::Value = serde_json::from_str(
         &fs::read_to_string(workspace.join("packages/a/package.json")).unwrap(),

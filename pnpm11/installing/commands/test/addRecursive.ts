@@ -4,7 +4,7 @@ import { expect, test } from '@jest/globals'
 import { add } from '@pnpm/installing.commands'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { preparePackages } from '@pnpm/prepare'
-import type { ProjectId } from '@pnpm/types'
+import type { ProjectId, ProjectManifest } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { readYamlFileSync } from 'read-yaml-file'
 
@@ -180,7 +180,10 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
   )
 })
 
-test('filtered add saves the manifest when the workspace root postinstall fails', async () => {
+test.each<[string, ProjectManifest[]]>([
+  ['every project is mutated', []],
+  ['an unselected project exists', [{ name: 'project-2', version: '1.0.0' }]],
+])('filtered add saves the manifest when the workspace root postinstall fails (%s)', async (_, otherProjects) => {
   const projects = preparePackages([
     {
       location: '.',
@@ -196,6 +199,7 @@ test('filtered add saves the manifest when the workspace root postinstall fails'
       name: 'project-1',
       version: '1.0.0',
     },
+    ...otherProjects,
   ])
 
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])

@@ -1,5 +1,7 @@
 ---
+"@pnpm/exec.lifecycle": patch
 "@pnpm/installing.deps-installer": patch
+"@pnpm/installing.deps-restorer": patch
 "@pnpm/installing.commands": patch
 "pacquet": patch
 "pnpm": patch

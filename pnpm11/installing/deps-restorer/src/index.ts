@@ -28,6 +28,7 @@ import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
+  isLifecycleScriptError,
   makeNodePackageMapOption,
   makeNodeRequireOption,
   POST_UNINSTALL_STAGES,
@@ -139,6 +140,12 @@ export interface HeadlessOptions extends RegistryContext {
    * of them quiet. `pnpm add -g` and `pnpm update -g` do exactly that.
    */
   omitSummaryLog?: boolean
+  /**
+   * Return a failure of the projects' own lifecycle scripts as
+   * `projectLifecycleScriptsError` instead of rejecting. See the install
+   * option of the same name.
+   */
+  deferProjectLifecycleScriptsError?: boolean
   excludeLinksFromLockfile?: boolean
   extraBinPaths?: string[]
   extraEnv?: Record<string, string>
@@ -247,6 +254,7 @@ export interface InstallationResultStats {
 export interface InstallationResult {
   stats: InstallationResultStats
   ignoredBuilds: IgnoredBuilds | undefined
+  projectLifecycleScriptsError?: unknown
 }
 
 export async function headlessInstall (opts: HeadlessOptions): Promise<InstallationResult> {
@@ -717,6 +725,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     ))
   }
   let ignoredBuilds: IgnoredBuilds | undefined
+  let projectLifecycleScriptsError: unknown
   if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && opts.enableModulesDir !== false) {
     const directNodes = new Set<string>()
     for (const id of union(importerIds, ['.'])) {
@@ -908,21 +917,26 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     // the lockfile, so they are held to the same gate as dependency builds —
     // also on the `enableModulesDir: false` path that skips buildModules.
     await opts.verifyLockfile?.()
-    await runLifecycleHooksConcurrently({
-      childConcurrency: opts.childConcurrency ?? 5,
-      importers: projectsToBeBuilt.flatMap((project) => {
-        if (projectDirsRunningInstallOnlyScripts.has(project.rootDir)) return [{ ...project, stages: PROJECT_INSTALL_STAGES }]
-        if (projectDirsRunningScripts.has(project.rootDir)) return [project]
-        if (projectDirsRunningUninstallScripts.has(project.rootDir)) return [{ ...project, stages: POST_UNINSTALL_STAGES }]
-        return []
-      }),
-      opts: scriptsOpts,
-      projectDependencies: opts.projectDependencies,
-      projectWithPreinstallRan: opts.rootProjectPreinstallRan ? opts.lockfileDir : undefined,
-      stages: (opts.deploy || opts.include?.devDependencies === false)
-        ? PROJECT_INSTALL_STAGES
-        : PROJECT_LIFECYCLE_STAGES,
-    })
+    try {
+      await runLifecycleHooksConcurrently({
+        childConcurrency: opts.childConcurrency ?? 5,
+        importers: projectsToBeBuilt.flatMap((project) => {
+          if (projectDirsRunningInstallOnlyScripts.has(project.rootDir)) return [{ ...project, stages: PROJECT_INSTALL_STAGES }]
+          if (projectDirsRunningScripts.has(project.rootDir)) return [project]
+          if (projectDirsRunningUninstallScripts.has(project.rootDir)) return [{ ...project, stages: POST_UNINSTALL_STAGES }]
+          return []
+        }),
+        opts: scriptsOpts,
+        projectDependencies: opts.projectDependencies,
+        projectWithPreinstallRan: opts.rootProjectPreinstallRan ? opts.lockfileDir : undefined,
+        stages: (opts.deploy || opts.include?.devDependencies === false)
+          ? PROJECT_INSTALL_STAGES
+          : PROJECT_LIFECYCLE_STAGES,
+      })
+    } catch (err: unknown) {
+      if (!opts.deferProjectLifecycleScriptsError || !isLifecycleScriptError(err)) throw err
+      projectLifecycleScriptsError = err
+    }
   }
 
   if ((reporter != null) && typeof reporter === 'function') {
@@ -935,6 +949,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       linkedToRoot,
     },
     ignoredBuilds,
+    projectLifecycleScriptsError,
   }
 }
 

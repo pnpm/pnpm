@@ -1,3 +1,5 @@
+import util from 'node:util'
+
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 
 import { makeProjectNodePathOption } from './makeProjectNodePathOption.js'
@@ -11,6 +13,14 @@ import {
   type RunLifecycleHooksConcurrentlyOptions,
 } from './runLifecycleHooksConcurrently.js'
 import { killTrackedProcessTrees, type TrackableChildProcess, trackChildProcess } from './trackChildProcess.js'
+
+/**
+ * Whether `err` is the failure of a lifecycle script itself, as opposed to
+ * an error raised while preparing or linking around it.
+ */
+export function isLifecycleScriptError (err: unknown): boolean {
+  return util.types.isNativeError(err) && typeof (err as { stage?: unknown }).stage === 'string' && typeof (err as { script?: unknown }).script === 'string'
+}
 
 export function makeNodeRequireOption (modulePath: string, env?: Record<string, string | undefined>): { NODE_OPTIONS: string } {
   let { NODE_OPTIONS } = env ?? process.env

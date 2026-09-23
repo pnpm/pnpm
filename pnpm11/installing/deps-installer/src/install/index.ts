@@ -1,5 +1,4 @@
 import path from 'node:path'
-import util from 'node:util'
 
 import { getProjectNodePath, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildSelectedPkgs } from '@pnpm/building.after-install'
@@ -30,6 +29,7 @@ import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
+  isLifecycleScriptError,
   makeNodePackageMapOption,
   makeNodeRequireOption,
   makeProjectNodePathOption,
@@ -1893,7 +1893,7 @@ Note that in CI environments, this setting is enabled by default.`,
       }
     }
     try {
-      const { stats, ignoredBuilds } = await headlessInstall({
+      const { stats, ignoredBuilds, projectLifecycleScriptsError } = await headlessInstall({
         ...ctx,
         ...opts,
         currentEngine: {
@@ -1943,6 +1943,7 @@ Note that in CI environments, this setting is enabled by default.`,
         }),
         stats,
         ignoredBuilds,
+        projectLifecycleScriptsError,
       }
     } catch (error: any) { // eslint-disable-line
       const isIntegrityError = BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
@@ -2950,7 +2951,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             : PROJECT_LIFECYCLE_STAGES,
         })
       } catch (err: unknown) {
-        if (!opts.deferProjectLifecycleScriptsError || !isLifecycleScriptFailure(err)) throw err
+        if (!opts.deferProjectLifecycleScriptsError || !isLifecycleScriptError(err)) throw err
         projectLifecycleScriptsError = err
       }
     }
@@ -3039,10 +3040,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
 }
 
-function isLifecycleScriptFailure (err: unknown): boolean {
-  return util.types.isNativeError(err) && 'code' in err && err.code === 'ELIFECYCLE'
-}
-
 function allMutationsAreInstalls (projects: MutatedProject[]): boolean {
   return projects.every((project) => project.mutation === 'install' && !project.update && !project.updateMatching)
 }
@@ -3122,9 +3119,9 @@ async function materializeOrDelegate (
     useGitBranchLockfile?: boolean
     useLockfile?: boolean
   },
-  runHeadlessInstall: () => Promise<{ stats: InstallationResultStats, ignoredBuilds: IgnoredBuilds | undefined }>,
+  runHeadlessInstall: () => Promise<{ stats: InstallationResultStats, ignoredBuilds: IgnoredBuilds | undefined, projectLifecycleScriptsError?: unknown }>,
   projects?: MutatedProject[]
-): Promise<{ stats?: InstallationResultStats, ignoredBuilds?: IgnoredBuilds }> {
+): Promise<{ stats?: InstallationResultStats, ignoredBuilds?: IgnoredBuilds, projectLifecycleScriptsError?: unknown }> {
   if (
     opts.runPacquet != null &&
     opts.useLockfile !== false &&
@@ -3184,7 +3181,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           ...opts,
           lockfileOnly: true,
         })
-        const { stats, ignoredBuilds } = await materializeOrDelegate(opts, () => headlessInstall({
+        const { stats, ignoredBuilds, projectLifecycleScriptsError } = await materializeOrDelegate(opts, () => headlessInstall({
           ...ctx,
           ...opts,
           currentEngine: {
@@ -3210,6 +3207,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           ...result,
           stats,
           ignoredBuilds,
+          projectLifecycleScriptsError,
         }
       }
     }
@@ -3228,7 +3226,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         omitSummaryLog: true,
         materializeAfterResolution: true,
       })
-      const { stats, ignoredBuilds } = await materializeOrDelegate(opts, () => headlessInstall({
+      const { stats, ignoredBuilds, projectLifecycleScriptsError } = await materializeOrDelegate(opts, () => headlessInstall({
         ...ctx,
         ...opts,
         // The resolve pass above already reported the whole graph as resolved.
@@ -3256,6 +3254,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         ...result,
         stats,
         ignoredBuilds,
+        projectLifecycleScriptsError,
       }
     }
     // Isolated `nodeLinker` (the default) with a non-frozen install.
