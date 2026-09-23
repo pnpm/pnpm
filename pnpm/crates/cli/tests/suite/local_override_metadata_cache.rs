@@ -48,8 +48,6 @@ fn an_override_to_a_local_directory_is_not_written_to_the_metadata_cache() {
     drop((root, mock_instance));
 }
 
-/// A project that depends on a registry package and overrides that
-/// package's dependency with the local `local-dep` directory.
 fn write_fixture(workspace: &Path) {
     fs::write(
         workspace.join("package.json"),

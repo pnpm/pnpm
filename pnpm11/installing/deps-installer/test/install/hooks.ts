@@ -1,8 +1,7 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
-import { ABBREVIATED_META_DIR, LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   addDependenciesToPackage,
   install,
@@ -12,11 +11,11 @@ import {
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { streamParser } from '@pnpm/logger'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectId, ProjectRootDir, ReadPackageHook } from '@pnpm/types'
 import { readYamlFileSync } from 'read-yaml-file'
 
-import { testDefaults } from '../utils/index.js'
+import { readMetadataMirror, testDefaults } from '../utils/index.js'
 
 test('readPackage, afterAllResolved hooks', async () => {
   const project = prepareEmpty()
@@ -259,8 +258,7 @@ test('a readPackage hook that edits a manifest in place does not change the meta
   const opts = testDefaults({ hooks: { readPackage: [readPackageHook] } })
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
 
-  const mirror = fs.readFileSync(path.join(opts.cacheDir, `${ABBREVIATED_META_DIR}/http%3A+localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep.jsonl`), 'utf8')
-  const meta = JSON.parse(mirror.slice(mirror.indexOf('\n') + 1))
+  const { meta } = await readMetadataMirror(opts.cacheDir, '@pnpm.e2e/pkg-with-1-dep')
   expect(meta.versions['100.0.0'].dependencies).toStrictEqual({
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0',
   })
