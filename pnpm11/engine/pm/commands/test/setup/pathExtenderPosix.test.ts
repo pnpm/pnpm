@@ -263,4 +263,21 @@ esac`)
       fs.rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  test('skips equivalent CRLF section when overwrite is disabled', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-posix-test-'))
+    try {
+      const configFile = path.join(dir, '.zshrc')
+      const settings = 'export PNPM_HOME=/home/user/.pnpm\nexport PATH=$PNPM_HOME:$PATH'
+      const lfBlock = wrapSettings('pnpm', settings)
+      const crlfBlock = lfBlock.replace(/\n/g, '\r\n')
+      fs.writeFileSync(configFile, crlfBlock)
+
+      const result = await updateShellConfig(configFile, lfBlock, opts(false))
+
+      expect(result.changeType).toBe('skipped')
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })

@@ -303,12 +303,16 @@ export async function updateShellConfig (
   newContent: string,
   opts: AddDirToPosixEnvPathOpts
 ): Promise<UpdateShellResult> {
-  if (!fs.existsSync(configFile)) {
-    await fs.promises.mkdir(path.dirname(configFile), { recursive: true })
-    await fs.promises.writeFile(configFile, `${newContent}\n`, 'utf8')
+  await fs.promises.mkdir(path.dirname(configFile), { recursive: true })
+  try {
+    await fs.promises.writeFile(configFile, `${newContent}\n`, { encoding: 'utf8', flag: 'wx' })
     return {
       changeType: 'created',
       oldSettings: '',
+    }
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== 'EEXIST') {
+      throw err
     }
   }
   const configContent = await fs.promises.readFile(configFile, 'utf8')
@@ -321,7 +325,8 @@ export async function updateShellConfig (
     }
   }
   const oldSettings = section.inner
-  if (section.fullMatch !== newContent) {
+  const normalizedFullMatch = section.fullMatch.replace(/\r\n/g, '\n')
+  if (normalizedFullMatch !== newContent) {
     if (!opts.overwrite) {
       throw new BadShellSectionError({
         configSectionName: opts.configSectionName,
