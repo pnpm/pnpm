@@ -771,7 +771,7 @@ fn add_updates_dependency_in_the_group_it_already_occupies() {
     .expect("write package.json");
 
     pacquet
-        .with_args(["add", "@pnpm.e2e/foo@100.1.0", "@pnpm.e2e/bar@100.1.0", "--lockfile-only"])
+        .with_args(["add", "@pnpm.e2e/foo@latest", "@pnpm.e2e/bar@latest", "--lockfile-only"])
         .assert()
         .success();
 

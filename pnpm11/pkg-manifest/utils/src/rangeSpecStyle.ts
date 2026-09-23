@@ -46,6 +46,7 @@ export function calcVersionRange (
     prevSpecifier?: string
     bareSpecifier?: string
     defaultRangeSpecStyle?: RangeSpecStyle
+    isUpdate?: boolean
   }
 ): string {
   const prevRangeSpecStyle = opts.prevSpecifier ? inferRangeSpecStyle(opts.prevSpecifier) : undefined
@@ -59,9 +60,9 @@ export function calcVersionRange (
     return prevRangeSpecStyle ? versionWithRangeSpecStyle(version, prevRangeSpecStyle) : version
   }
   const requestedRangeSpecStyle = opts.bareSpecifier ? inferRangeSpecStyle(opts.bareSpecifier) : undefined
-  const rangeSpecStyle = requestedRangeSpecStyle ??
-    prevRangeSpecStyle ??
-    opts.defaultRangeSpecStyle
+  const rangeSpecStyle = opts.isUpdate
+    ? prevRangeSpecStyle ?? requestedRangeSpecStyle ?? opts.defaultRangeSpecStyle
+    : requestedRangeSpecStyle ?? prevRangeSpecStyle ?? opts.defaultRangeSpecStyle
   return versionWithRangeSpecStyle(version, rangeSpecStyle ?? 'major')
 }
 

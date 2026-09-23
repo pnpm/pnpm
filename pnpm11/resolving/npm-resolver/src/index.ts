@@ -593,6 +593,7 @@ async function resolveNpm (
       workspacePackages: opts.workspacePackages,
       injectWorkspacePackages: opts.injectWorkspacePackages,
       update: Boolean(opts.update),
+      updateRequested: Boolean(opts.updateRequested),
       saveWorkspaceProtocol: ctx.saveWorkspaceProtocol !== false ? ctx.saveWorkspaceProtocol : true,
       calcSpecifier: opts.calcSpecifier,
       rangeSpecStyle: opts.rangeSpecStyle,
@@ -825,6 +826,7 @@ async function resolveNpm (
       spec,
       version: pickedPackage.version,
       defaultRangeSpecStyle: opts.rangeSpecStyle,
+      isUpdate: Boolean(opts.updateRequested),
     })
   }
   const publishedAt = meta.time?.[pickedPackage.version]
@@ -868,6 +870,7 @@ async function resolveJsr (
         version: picked.manifest.version,
         revision: spec.revision,
         defaultRangeSpecStyle: opts.rangeSpecStyle,
+        isUpdate: Boolean(opts.updateRequested),
       })
       : undefined,
     resolvedVia: 'jsr-registry',
@@ -958,6 +961,7 @@ async function resolveFromNamedRegistry (
         version: picked.manifest.version,
         revision: spec.revision,
         defaultRangeSpecStyle: opts.rangeSpecStyle,
+        isUpdate: Boolean(opts.updateRequested),
       })
       : undefined,
     resolvedVia: 'named-registry',
@@ -1040,13 +1044,14 @@ function calcPrefixedSpecifier (opts: {
   version: string
   revision?: number
   defaultRangeSpecStyle?: RangeSpecStyle
+  isUpdate?: boolean
 }): string {
   if (opts.revision != null) {
     const target = `${opts.version}+r${opts.revision}`
     if (!opts.wantedDependency.alias || opts.pkgName === opts.wantedDependency.alias) return `${opts.prefix}${target}`
     return `${opts.prefix}${opts.pkgName}@${target}`
   }
-  const range = calcRange(opts.version, opts.wantedDependency, opts.defaultRangeSpecStyle)
+  const range = calcRange(opts.version, opts.wantedDependency, opts.defaultRangeSpecStyle, opts.isUpdate)
   if (!opts.wantedDependency.alias || opts.pkgName === opts.wantedDependency.alias) return `${opts.prefix}${range}`
   return `${opts.prefix}${opts.pkgName}@${range}`
 }
@@ -1056,11 +1061,13 @@ function calcSpecifier ({
   spec,
   version,
   defaultRangeSpecStyle,
+  isUpdate,
 }: {
   wantedDependency: WantedDependency
   spec: RegistryPackageSpec
   version: string
   defaultRangeSpecStyle?: RangeSpecStyle
+  isUpdate?: boolean
 }): string {
   if (spec.revision != null) {
     const target = `${version}+r${spec.revision}`
@@ -1070,17 +1077,18 @@ function calcSpecifier ({
   if (wantedDependency.prevSpecifier === wantedDependency.bareSpecifier && wantedDependency.prevSpecifier && versionSelectorType(wantedDependency.prevSpecifier)?.type === 'tag') {
     return wantedDependency.prevSpecifier
   }
-  const range = calcRange(version, wantedDependency, defaultRangeSpecStyle)
+  const range = calcRange(version, wantedDependency, defaultRangeSpecStyle, isUpdate)
   if (!wantedDependency.alias || spec.name === wantedDependency.alias) return range
   return `npm:${spec.name}@${range}`
 }
 
 /** The manifest range `version` is saved as; see {@link calcVersionRange}. */
-function calcRange (version: string, wantedDependency: WantedDependency, defaultRangeSpecStyle?: RangeSpecStyle): string {
+function calcRange (version: string, wantedDependency: WantedDependency, defaultRangeSpecStyle?: RangeSpecStyle, isUpdate?: boolean): string {
   return calcVersionRange(version, {
     prevSpecifier: wantedDependency.prevSpecifier,
     bareSpecifier: wantedDependency.bareSpecifier,
     defaultRangeSpecStyle,
+    isUpdate,
   })
 }
 
@@ -1094,6 +1102,7 @@ function tryResolveFromWorkspace (
     workspacePackages?: WorkspacePackages
     injectWorkspacePackages?: boolean
     update?: boolean
+    updateRequested?: boolean
     saveWorkspaceProtocol?: boolean | 'rolling'
     calcSpecifier?: boolean
     rangeSpecStyle?: RangeSpecStyle
@@ -1118,6 +1127,7 @@ function tryResolveFromWorkspace (
     hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
     lockfileDir: opts.lockfileDir,
     update: opts.update,
+    updateRequested: opts.updateRequested,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     calcSpecifier: opts.calcSpecifier,
     rangeSpecStyle: opts.rangeSpecStyle,
@@ -1133,6 +1143,7 @@ function tryResolveFromWorkspacePackages (
     projectDir: string
     lockfileDir?: string
     update?: boolean
+    updateRequested?: boolean
     saveWorkspaceProtocol?: boolean | 'rolling'
     calcSpecifier?: boolean
     rangeSpecStyle?: RangeSpecStyle
@@ -1201,6 +1212,8 @@ function resolveFromLocalPackage (
     hardLinkLocalPackages?: boolean
     projectDir: string
     lockfileDir?: string
+    update?: boolean
+    updateRequested?: boolean
     saveWorkspaceProtocol?: boolean | 'rolling'
     calcSpecifier?: boolean
     rangeSpecStyle?: RangeSpecStyle
@@ -1224,6 +1237,7 @@ function resolveFromLocalPackage (
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       version: localPackage.manifest.version,
       defaultRangeSpecStyle: opts.rangeSpecStyle,
+      isUpdate: opts.updateRequested,
     })
   }
   return {
@@ -1244,6 +1258,7 @@ function calcSpecifierForWorkspaceDep ({
   saveWorkspaceProtocol,
   version,
   defaultRangeSpecStyle,
+  isUpdate,
 }: {
   wantedDependency: WantedDependency
   spec: RegistryPackageSpec
@@ -1251,11 +1266,12 @@ function calcSpecifierForWorkspaceDep ({
   // A workspace project may omit its version, whatever its manifest type says.
   version: string | undefined
   defaultRangeSpecStyle?: RangeSpecStyle
+  isUpdate?: boolean
 }): string {
   const parsedVersion = semver.parse(version)
   if (version != null && !saveWorkspaceProtocol && !wantedDependency.bareSpecifier?.startsWith('workspace:')) {
     if (parsedVersion != null) {
-      return calcSpecifier({ wantedDependency, spec, version, defaultRangeSpecStyle })
+      return calcSpecifier({ wantedDependency, spec, version, defaultRangeSpecStyle, isUpdate })
     }
     if (isPartialVersion(version)) {
       return (!wantedDependency.alias || spec.name === wantedDependency.alias) ? version : `npm:${spec.name}@${version}`

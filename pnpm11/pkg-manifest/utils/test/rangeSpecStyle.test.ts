@@ -70,6 +70,13 @@ test('calcVersionRange() honors exact and explicit ranges over previous range op
   expect(calcVersionRange('1.0.0', { prevSpecifier: '~0.5.0', bareSpecifier: '1.0.0' })).toBe('1.0.0')
 })
 
+test('calcVersionRange() preserves previous range operators when isUpdate is true', () => {
+  expect(calcVersionRange('1.0.0', { prevSpecifier: '^0.5.0', bareSpecifier: '1.0.0', isUpdate: true })).toBe('^1.0.0')
+  expect(calcVersionRange('1.0.0', { prevSpecifier: '~0.5.0', bareSpecifier: '1.0.0', isUpdate: true })).toBe('~1.0.0')
+  expect(calcVersionRange('1.0.0', { prevSpecifier: '=0.5.0', bareSpecifier: '1.0.0', isUpdate: true })).toBe('=1.0.0')
+  expect(calcVersionRange('1.0.0', { prevSpecifier: '0.5.0', bareSpecifier: '1.0.0', isUpdate: true })).toBe('1.0.0')
+})
+
 test('rangeSpecGranularity() collapses exact to patch', () => {
   expect(rangeSpecGranularity('exact')).toBe('patch')
   expect(rangeSpecGranularity('patch')).toBe('patch')
