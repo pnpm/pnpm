@@ -35,6 +35,11 @@ test('matcher()', () => {
     expect(match('eslint-ab')).toBe(false)
   }
   {
+    const match = createMatcher(['?'])
+    expect(match('😀')).toBe(true)
+    expect(match('😀😀')).toBe(false)
+  }
+  {
     const match = createMatcher(['*-positive'])
     expect(match('is-positive')).toBe(true)
   }
