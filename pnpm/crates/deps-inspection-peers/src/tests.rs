@@ -191,12 +191,42 @@ fn intersecting_long_nested_unions_stays_bounded() {
     assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some(">=1.0.0"));
 }
 
+/// Staggered alternatives overlap without covering each other, so only
+/// merging them keeps the next step from pairing every one with every
+/// alternative of the other range.
 #[test]
-fn test_intersect_keeps_the_order_of_surviving_alternatives() {
-    let version_ranges = vec!["^2.0.0 || ^1.0.0 || ^1.2.0".to_string(), "*".to_string()];
+fn intersecting_staggered_unions_stays_bounded() {
+    let staggered_union = |offset: u32| {
+        (0..10_000)
+            .map(|patch| format!(">=1.0.{patch} <2.0.{}", patch + offset))
+            .collect::<Vec<_>>()
+            .join(" || ")
+    };
+    let version_ranges = vec![staggered_union(0), staggered_union(1)];
+    assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some(">=1.0.0 <2.0.9999"));
+}
+
+#[test]
+fn intersecting_long_disjoint_unions_keeps_the_shared_versions() {
+    let exact_versions = |step: usize| {
+        (0..10_000)
+            .step_by(step)
+            .map(|patch| format!("1.0.{patch}"))
+            .collect::<Vec<_>>()
+            .join(" || ")
+    };
+    let version_ranges = vec![exact_versions(2), exact_versions(3)];
+    let intersection = intersect_multiple_ranges(&version_ranges).expect("shared versions");
+    let expected = exact_versions(6);
+    assert_eq!(intersection, expected);
+}
+
+#[test]
+fn test_intersect_sorts_and_merges_alternatives() {
+    let version_ranges = vec!["^2.0.0 || ^1.2.0 || >=1.0.0 <1.5.0".to_string(), "*".to_string()];
     assert_eq!(
         intersect_multiple_ranges(&version_ranges).as_deref(),
-        Some(">=2.0.0 <3.0.0 || >=1.0.0 <2.0.0"),
+        Some(">=1.0.0 <2.0.0 || >=2.0.0 <3.0.0"),
     );
 }
 
@@ -331,7 +361,7 @@ fn merging_many_consumers_of_one_peer_stays_bounded() {
     let missing = BTreeMap::from([("peer".to_string(), issues)]);
     let result = merge_missing_peers(&missing);
     assert!(result.conflicts.is_empty());
-    assert_eq!(result.intersections["peer"], ">=1.0.0 <2.0.0 || >=1.1.0");
+    assert_eq!(result.intersections["peer"], ">=1.0.0");
 }
 
 #[test]

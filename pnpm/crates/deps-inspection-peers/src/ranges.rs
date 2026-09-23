@@ -376,50 +376,46 @@ fn parse_comparator_set(part: &str) -> Option<Interval> {
     Some(interval)
 }
 
+/// The intersection of two unions, each sorted by lower bound with no two
+/// intervals overlapping, as [`merge_overlapping_intervals`] leaves them.
+/// The result keeps that shape. A single sweep pairs only the intervals
+/// that can overlap, so the work is linear in the two unions.
 fn intersect_intervals(left_intervals: &[Interval], right_intervals: &[Interval]) -> Vec<Interval> {
     let mut result = Vec::new();
-    for left_interval in left_intervals {
-        for right_interval in right_intervals {
-            let lower = max_lower(&left_interval.lower, &right_interval.lower);
-            let upper = min_upper(&left_interval.upper, &right_interval.upper);
-            if is_valid_interval(&lower, &upper) {
-                result.push(Interval { lower, upper });
-            }
+    let (mut left_index, mut right_index) = (0, 0);
+    while let (Some(left_interval), Some(right_interval)) =
+        (left_intervals.get(left_index), right_intervals.get(right_index))
+    {
+        let lower = max_lower(&left_interval.lower, &right_interval.lower);
+        let upper = min_upper(&left_interval.upper, &right_interval.upper);
+        if is_valid_interval(&lower, &upper) {
+            result.push(Interval { lower, upper });
+        }
+        if compare_upper(&left_interval.upper, &right_interval.upper).is_lt() {
+            left_index += 1;
+        } else {
+            right_index += 1;
         }
     }
     result
 }
 
-/// Drop the intervals of a union that another interval already covers,
-/// leaving the same set of versions behind. The survivors keep their
-/// order, and of two equal intervals the first survives.
-fn drop_covered_intervals(intervals: &[Interval]) -> Vec<Interval> {
-    // `intersect_intervals` pairs every interval of one union with every
-    // interval of the other, so an interval two ranges agree on survives
-    // once per pair, and each further range multiplies that count again.
-    // `semver-range-intersect` collapses the union after every step too.
-    // Sorted by lower bound, widest first on a tie, an interval is covered
-    // exactly when an earlier one reaches at least as high.
-    let mut by_lower: Vec<usize> = (0..intervals.len()).collect();
-    by_lower.sort_by(|&left, &right| {
-        compare_lower(&intervals[left].lower, &intervals[right].lower)
-            .then_with(|| compare_upper(&intervals[right].upper, &intervals[left].upper))
-    });
-    let mut kept = vec![false; intervals.len()];
-    let mut highest_upper: Option<&Bound<Version>> = None;
-    for index in by_lower {
-        let upper = &intervals[index].upper;
-        if highest_upper.is_none_or(|highest| compare_upper(upper, highest).is_gt()) {
-            kept[index] = true;
-            highest_upper = Some(upper);
+/// The same set of versions as a union sorted by lower bound, with every
+/// group of overlapping intervals merged into one.
+fn merge_overlapping_intervals(mut intervals: Vec<Interval>) -> Vec<Interval> {
+    intervals.sort_by(|left, right| compare_lower(&left.lower, &right.lower));
+    let mut merged: Vec<Interval> = Vec::with_capacity(intervals.len());
+    for interval in intervals {
+        match merged.last_mut() {
+            Some(last) if is_valid_interval(&interval.lower, &last.upper) => {
+                if compare_upper(&interval.upper, &last.upper).is_gt() {
+                    last.upper = interval.upper;
+                }
+            }
+            _ => merged.push(interval),
         }
     }
-    intervals
-        .iter()
-        .zip(kept)
-        .filter(|(_, kept)| *kept)
-        .map(|(interval, _)| interval.clone())
-        .collect()
+    merged
 }
 
 /// Orders lower bounds from the one admitting the most versions.
@@ -441,14 +437,18 @@ pub(super) fn intersect_multiple_ranges(version_ranges: &[String]) -> Option<Str
     if version_ranges.is_empty() {
         return Some("*".to_string());
     }
-    let mut current_intervals = drop_covered_intervals(&parse_range_to_intervals(
+    // A union straight from a range can list overlapping alternatives, and
+    // pairing every alternative of one with every alternative of the next
+    // grows with their product on each step. `semver-range-intersect`
+    // merges overlapping alternatives upstream as well.
+    let mut current_intervals = merge_overlapping_intervals(parse_range_to_intervals(
         &preprocess_hyphen_ranges(&version_ranges[0]),
     )?);
     for range in &version_ranges[1..] {
-        let next_intervals =
-            drop_covered_intervals(&parse_range_to_intervals(&preprocess_hyphen_ranges(range))?);
-        current_intervals =
-            drop_covered_intervals(&intersect_intervals(&current_intervals, &next_intervals));
+        let next_intervals = merge_overlapping_intervals(parse_range_to_intervals(
+            &preprocess_hyphen_ranges(range),
+        )?);
+        current_intervals = intersect_intervals(&current_intervals, &next_intervals);
         if current_intervals.is_empty() {
             return None;
         }
