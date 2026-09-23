@@ -99,7 +99,7 @@ test('finds symlinked packages', async () => {
   const ws = path.join(tempDir, 'ws')
   await fs.promises.mkdir(path.join(ws, 'packages'), { recursive: true })
   await fs.promises.writeFile(path.join(ws, 'package.json'), JSON.stringify({ name: 'ws-root' }))
-  await fs.promises.symlink(targetDir, path.join(ws, 'packages', 'linked-pkg'), 'dir')
+  await fs.promises.symlink(targetDir, path.join(ws, 'packages', 'linked-pkg'), process.platform === 'win32' ? 'junction' : 'dir')
 
   const pkgs = await findPackages(ws, { patterns: ['packages/*'] })
   expect(pkgs).toHaveLength(1)
