@@ -175,8 +175,7 @@ async function isLocalFileDepUpdated (
           const targetDir = cleanLockfileDep.startsWith('link:')
             ? path.resolve(lockfileDir, depPath)
             : path.resolve(localDepDir, depPath)
-          const relToWorkspace = path.relative(workspaceRoot, targetDir)
-          if (relToWorkspace.startsWith('..') || path.isAbsolute(relToWorkspace)) {
+          if (!isSubdirectory(workspaceRoot, targetDir)) {
             return false
           }
           let realTargetDir: string
@@ -187,8 +186,7 @@ async function isLocalFileDepUpdated (
           } catch {
             return false
           }
-          const relReal = path.relative(realWorkspaceRoot, realTargetDir)
-          if (relReal.startsWith('..') || path.isAbsolute(relReal)) {
+          if (!isSubdirectory(realWorkspaceRoot, realTargetDir)) {
             return false
           }
           const targetPkg = manifestsByDir?.[targetDir] ?? await safeReadPackageJsonFromDir(targetDir)
@@ -238,6 +236,15 @@ function getDepVersion (lockfileDep: string): string {
   const ver = atIndex > 0 ? lockfileDep.slice(atIndex + 1) : lockfileDep
   const colonIndex = ver.indexOf(':')
   return colonIndex >= 0 ? ver.slice(colonIndex + 1) : ver
+}
+
+function isSubdirectory (parentDir: string, childPath: string): boolean {
+  const relativePath = path.relative(parentDir, childPath)
+  return relativePath === '' || (
+    relativePath !== '..' &&
+    !relativePath.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relativePath)
+  )
 }
 
 function isWorkspacePath (spec: string): boolean {

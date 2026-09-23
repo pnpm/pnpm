@@ -34,7 +34,9 @@ fn file_or_link_spec_satisfies(
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> Option<bool> {
     if let Some(target) = spec.strip_prefix("link:") {
-        let lockfile_target = lockfile_dep.as_link_target()?;
+        let Some(lockfile_target) = lockfile_dep.as_link_target() else {
+            return Some(false);
+        };
         return Some(
             pnpm_fs::lexical_normalize(&local_dep_dir.join(target))
                 == pnpm_fs::lexical_normalize(&lockfile_dir.join(lockfile_target)),
