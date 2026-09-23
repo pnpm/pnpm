@@ -31,6 +31,9 @@ on:
       - '.github/workflows/pacquet-integrated-benchmark-comment.yml'
       - '.github/scripts/compare-integrated-benchmarks*.mjs'
       - '.github/scripts/run-integrated-benchmark*.mjs'
+      # Integration test targets never link into the benchmarked binaries.
+      - '!pnpm/crates/*/tests/**'
+      - '!pnpr/crates/*/tests/**'
   pull_request:
     types: [opened, synchronize]
     paths:
@@ -52,6 +55,9 @@ on:
       - '.github/workflows/pacquet-integrated-benchmark-comment.yml'
       - '.github/scripts/compare-integrated-benchmarks*.mjs'
       - '.github/scripts/run-integrated-benchmark*.mjs'
+      # Integration test targets never link into the benchmarked binaries.
+      - '!pnpm/crates/*/tests/**'
+      - '!pnpr/crates/*/tests/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
@@ -100,18 +106,18 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ matrix.revision == 'main' && needs.revisions.outputs.main_sha || needs.revisions.outputs.head_sha }}
-          fetch-depth: 0
           persist-credentials: false
 
+      # A main push and a PR baseline must use the same cache paths.
       - name: Cache revision binaries
         id: binaries
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          key: integrated-benchmark-bin-${{ matrix.os }}-${{ matrix.revision == 'main' && needs.revisions.outputs.main_sha || needs.revisions.outputs.head_sha }}-${{ hashFiles('rust-toolchain.toml') }}
+          key: integrated-benchmark-bin-v2-${{ matrix.os }}-${{ matrix.revision == 'main' && needs.revisions.outputs.main_sha || needs.revisions.outputs.head_sha }}-${{ hashFiles('rust-toolchain.toml') }}
           path: |
-            bench-work-env/pnpr@${{ matrix.revision }}/pacquet/target/release/pnpm
-            bench-work-env/pnpr@${{ matrix.revision }}/pacquet/target/release/pacquet
-            bench-work-env/pnpr@${{ matrix.revision }}/pacquet/target/release/pnpr
+            .bench-cache/release/pnpm
+            .bench-cache/release/pacquet
+            .bench-cache/release/pnpr
         timeout-minutes: 2
         continue-on-error: true
 
@@ -151,16 +157,17 @@ jobs:
               | select(. == "pnpm" or . == "pacquet")]
             | if length == 1 then .[0] else error("expected one pnpm CLI binary") end')
           cargo build --release --bin="$client" --bin=pnpr
-          release="bench-work-env/pnpr@$REVISION/pacquet/target/release"
-          mkdir -p "$release"
-          rm -f "$release/pnpm" "$release/pacquet"
-          cp "target/release/$client" target/release/pnpr "$release/"
+          mkdir -p .bench-cache/release
+          rm -f .bench-cache/release/pnpm .bench-cache/release/pacquet
+          cp "target/release/$client" target/release/pnpr .bench-cache/release/
 
       # Tar preserves executable permissions when artifacts cross runners.
       - name: Pack revision binaries
         shell: bash
         run: |
           release="bench-work-env/pnpr@$REVISION/pacquet/target/release"
+          mkdir -p "$release"
+          cp .bench-cache/release/* "$release/"
           client=pnpm
           if [ ! -f "$release/$client" ]; then
             client=pacquet

@@ -26,7 +26,7 @@ concurrency:
 jobs:
   coverage:
     name: Code Coverage
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     # Build the instrumented artifacts with line-tables-only debug info, as
     # `Rust CI / Test` does. Coverage regions live in the binary's own
     # `__llvm_covmap`/`__llvm_covfun` sections, so llvm-cov needs no DWARF at
@@ -38,6 +38,8 @@ jobs:
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      # Main only restores compiler cache entries that main wrote.
+      SCCACHE_SCOPE: ${{ github.event.pull_request.number && format('pr{0}', github.event.pull_request.number) || github.ref_name }}
     # A coverage run compiles the workspace from cold and then runs every
     # test; the healthy runtime is ~8 minutes. Without this a wedged job
     # would sit on the default 360-minute limit.
@@ -79,6 +81,30 @@ jobs:
         with:
           tool: cargo-nextest,sccache@0.17.0
 
+      # Same compiler cache as the Rust test jobs (see pacquet-ci.yml), in its own
+      # entries because instrumented builds hash differently.
+      - name: Use sccache
+        run: |
+          {
+            echo "SCCACHE_DAY=$(date -u +%Y-%m-%d)"
+            echo "SCCACHE_DIR=$RUNNER_TEMP/sccache"
+            echo "SCCACHE_CACHE_SIZE=2G"
+            echo "SCCACHE_IDLE_TIMEOUT=0"
+            echo "RUSTC_WRAPPER=sccache"
+            echo "CARGO_INCREMENTAL=0"
+          } >> "$GITHUB_ENV"
+
+      - name: Restore sccache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/sccache
+          key: sccache-cov-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-${{ env.SCCACHE_DAY }}
+          restore-keys: |
+            sccache-cov-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-
+            sccache-cov-v1-${{ runner.os }}-main-
+        timeout-minutes: 2
+        continue-on-error: true
+
       - name: Install llvm-tools-preview for llvm-cov
         run: rustup component add llvm-tools-preview
 
@@ -113,6 +139,19 @@ jobs:
           unset XDG_DATA_HOME
 
           env PNPM_CONFIG_CI=false cargo codecov --lcov --output-path lcov.info
+
+      - name: Stop sccache
+        if: ${{ !cancelled() }}
+        run: sccache --stop-server || true
+
+      - name: Save sccache
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/sccache
+          key: sccache-cov-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-${{ env.SCCACHE_DAY }}
+        timeout-minutes: 3
+        continue-on-error: true
 
       - name: Report disk usage
         if: always()

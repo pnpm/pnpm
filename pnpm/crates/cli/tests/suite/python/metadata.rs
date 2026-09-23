@@ -512,7 +512,7 @@ def prepare_metadata_for_build_wheel(directory, config_settings=None):
     .unwrap();
     fs::write(root.path().join(".python-version"), "3.11\n").unwrap();
     super::pacquet_in(root.path())
-        .args(["install", "--lockfile-only"])
+        .args(["install", "--lockfile-only", "--runtime-on-fail=error"])
         .env("PATH", format!("{}:{}", shims.display(), std::env::var("PATH").unwrap()))
         .assert()
         .success();

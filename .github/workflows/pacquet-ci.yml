@@ -31,6 +31,7 @@ jobs:
     outputs:
       rust: ${{ steps.manual.outputs.rust || steps.filter.outputs.rust }}
       changesets: ${{ steps.filter.outputs.changesets }}
+      docs: ${{ steps.filter.outputs.docs }}
     steps:
       # Force the full Rust suite on manual runs and in the merge queue.
       # The merge queue tests the merged commit, so path filtering it away
@@ -42,7 +43,7 @@ jobs:
         run: echo "rust=true" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group' && github.event_name != 'pull_request'
         with:
           persist-credentials: false
 
@@ -50,8 +51,16 @@ jobs:
         if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
         id: filter
         with:
+          predicate-quantifier: some-with-excludes
           filters: |
+            docs:
+              - 'pnpm/{AGENTS,CONTRIBUTING,CODE_STYLE_GUIDE}.md'
+              - 'pnpr/{AGENTS,CONTRIBUTING}.md'
+              - 'pnpm/plans/*.md'
             rust:
+              - '!pnpm/{AGENTS,CONTRIBUTING,CODE_STYLE_GUIDE}.md'
+              - '!pnpr/{AGENTS,CONTRIBUTING}.md'
+              - '!pnpm/plans/*.md'
               - 'pnpm/**'
               - 'pnpr/**'
               - 'Cargo.toml'
@@ -67,6 +76,10 @@ jobs:
               - '.typos.toml'
               - 'justfile'
               - '.cargo/**'
+              - '.config/nextest.toml'
+              - 'fixtures/**'
+              - 'pnpm11/installing/deps-installer/test/fixtures/patch-pkg/**'
+              - 'pnpm11/deps/compliance/commands/test/sbom/fixtures/**'
               - '.github/actions/rustup/**'
               - '.github/actions/binstall/**'
               - '.github/actions/install-crates/**'
@@ -109,6 +122,8 @@ jobs:
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      # Main only restores compiler cache entries that main wrote.
+      SCCACHE_SCOPE: ${{ github.event.pull_request.number && format('pr{0}', github.event.pull_request.number) || github.ref_name }}
     strategy:
       fail-fast: false
       matrix:
@@ -192,6 +207,39 @@ jobs:
         with:
           tool: cargo-nextest,sccache@0.17.0
 
+      # rust-cache saves no dependency artifacts for this workspace: the
+      # pnpm-managed crates source lives inside it, so every crate counts as a
+      # workspace member and gets pruned. sccache keys each compiler call by
+      # its inputs instead. On Windows a warm sccache build was no faster than
+      # a plain one and a cold one was slower, so it stays off there.
+      - name: Use sccache
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          {
+            echo "SCCACHE_DAY=$(date -u +%Y-%m-%d)"
+            echo "SCCACHE_DIR=$RUNNER_TEMP/sccache"
+            echo "SCCACHE_CACHE_SIZE=2G"
+            echo "SCCACHE_IDLE_TIMEOUT=0"
+            echo "RUSTC_WRAPPER=sccache"
+            echo "CARGO_INCREMENTAL=0"
+          } >> "$GITHUB_ENV"
+
+      # One cache entry per scope and day: a later run on the same day finds
+      # the key taken and skips the upload, which keeps the repository's
+      # cache quota for other entries.
+      - name: Restore sccache
+        if: runner.os != 'Windows'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/sccache
+          key: sccache-test-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-${{ env.SCCACHE_DAY }}
+          restore-keys: |
+            sccache-test-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-
+            sccache-test-v1-${{ runner.os }}-main-
+        timeout-minutes: 2
+        continue-on-error: true
+
       - name: Install Python for ecosystem tests
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 #v7.0.0  v6
         with:
@@ -230,6 +278,20 @@ jobs:
             --name tests.all \
             --output .bench/pnpr-tests-all.json \
             -- pnpm pipeline pnpr-test --include-workspace-root --full --no-cache
+
+      - name: Stop sccache
+        if: ${{ !cancelled() && runner.os != 'Windows' }}
+        shell: bash
+        run: sccache --stop-server || true
+
+      - name: Save sccache
+        if: ${{ !cancelled() && github.event_name != 'merge_group' && runner.os != 'Windows' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/sccache
+          key: sccache-test-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-${{ env.SCCACHE_DAY }}
+        timeout-minutes: 3
+        continue-on-error: true
 
       - name: Stage Bencher test durations
         env:
@@ -404,7 +466,7 @@ jobs:
   typos:
     name: Rust CI / Spell Check
     needs: changes
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.docs == 'true') }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

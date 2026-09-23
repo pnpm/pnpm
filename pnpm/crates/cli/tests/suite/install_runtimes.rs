@@ -595,7 +595,7 @@ fn assert_runtime_missing_offline(name: &'static str, version: &'static str) {
 
 fn assert_runtime_bad_integrity(name: &'static str, version: &'static str) {
     let root = tempfile::tempdir().unwrap();
-    let workspace = prepare_workspace(&root, "");
+    let workspace = prepare_workspace(&root, "fetchRetryMintimeout: 1\nfetchRetryMaxtimeout: 1\n");
     let mut server = mockito::Server::new();
     let mut fixture = runtime_fixture(&mut server, name, version, host_platform(), host_arch());
     let bad_integrity = ssri::IntegrityOpts::new()

@@ -268,6 +268,7 @@ function envLockfileV12 (): EnvLockfile {
 function optsTrusting (key: ReturnType<typeof createSigningKey>) {
   return {
     registriesByScope: { default: REGISTRY },
+    retry: { minTimeout: 1, maxTimeout: 1 },
     trustedKeys: [{ expires: null, key: key.publicKey, keyid: key.keyid, keytype: 'ecdsa-sha2-nistp256', scheme: 'ecdsa-sha2-nistp256' }],
   }
 }

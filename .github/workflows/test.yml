@@ -24,20 +24,21 @@ on:
         required: false
         type: string
         default: '1'
+      wait_for_pnpr:
+        required: false
+        type: boolean
+        default: false
     secrets:
       GARNET_API_TOKEN:
         required: false
 
 permissions:
+  actions: read # to wait for the pnpr build job of this run
   contents: read
 
 jobs:
   test:
     name: Node ${{ inputs.node_major }} / chunk ${{ inputs.test_chunk }}/${{ inputs.test_chunk_total }}
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.platform }}-${{ inputs.node }}-${{ inputs.test_chunk }}-${{ inputs.test_chunk_total }}
-      cancel-in-progress: true
-
     runs-on: ${{ inputs.platform }}
 
     steps:
@@ -110,6 +111,28 @@ jobs:
     # published `@pnpm/pnpr` that may predate it) once per OS by the
     # `build-pnpr` reusable workflow, then shared with every test job/shard
     # here as an artifact instead of rebuilt per job.
+    # With wait_for_pnpr the caller starts this job before its pnpr build
+    # finishes, so runner startup and installs overlap the build. A finished
+    # build job has uploaded its artifact.
+    - name: Wait for prebuilt pnpr binaries
+      if: ${{ inputs.wait_for_pnpr }}
+      timeout-minutes: 45
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        RUNNER_OS_NAME: ${{ runner.os }}
+      run: |
+        os=$(echo "$RUNNER_OS_NAME" | tr '[:upper:]' '[:lower:]')
+        while true; do
+          conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" \
+            --jq "[.jobs[] | select(.name | startswith(\"TS CI / Build pnpr / \")) | select(.name | ascii_downcase | contains(\"$os\"))][0].conclusion // \"pending\"" \
+            || echo pending)
+          case "$conclusion" in
+            success) exit 0 ;;
+            pending|null|"") sleep 15 ;;
+            *) echo "::error::The $RUNNER_OS_NAME pnpr build ended with $conclusion"; exit 1 ;;
+          esac
+        done
     - name: Download prebuilt pnpr binaries
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
@@ -128,33 +151,9 @@ jobs:
       id: test-scope
       shell: bash
       env:
-        REF_NAME: ${{ github.ref_name }}
-      run: |
-        if [[ "$REF_NAME" == "main" || "$REF_NAME" == "chore/update-lockfile" || "$REF_NAME" == release/* ]]; then
-          {
-            echo "script=ci:test-all"
-            echo "scope=all"
-            echo "full_tests=true"
-            echo "benchmark=tests.all"
-          } >> "$GITHUB_OUTPUT"
-        else
-          git remote set-branches --add origin main && git fetch origin main --depth=1
-          if [ -n "$(git diff --name-only origin/main HEAD -- pnpm-workspace.yaml)" ]; then
-            {
-              echo "script=ci:test-all"
-              echo "scope=all — pnpm-workspace.yaml modified"
-              echo "full_tests=true"
-              echo "benchmark=tests.all"
-            } >> "$GITHUB_OUTPUT"
-          else
-            {
-              echo "script=ci:test-branch"
-              echo "scope=affected packages"
-              echo "full_tests=false"
-              echo "benchmark=tests.affected"
-            } >> "$GITHUB_OUTPUT"
-          fi
-        fi
+        EVENT_NAME: ${{ github.event_name }}
+        PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      run: node .github/scripts/ts-test-scope.mjs
     - name: Validate test chunk inputs
       shell: bash
       env:

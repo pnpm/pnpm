@@ -169,6 +169,8 @@ fn trust_lockfile_skips_verification() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_policy_rejected_project(&workspace);
+    append_workspace_yaml_key(&workspace, "fetchRetryMintimeout", 1);
+    append_workspace_yaml_key(&workspace, "fetchRetryMaxtimeout", 1);
     append_workspace_yaml_key(&workspace, "trustLockfile", true);
 
     let output = pacquet
@@ -214,6 +216,8 @@ fn trust_lockfile_cli_flag_skips_verification() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_policy_rejected_project(&workspace);
+    append_workspace_yaml_key(&workspace, "fetchRetryMintimeout", 1);
+    append_workspace_yaml_key(&workspace, "fetchRetryMaxtimeout", 1);
 
     let output = pacquet
         .with_args(["install", "--frozen-lockfile", "--trust-lockfile"])
