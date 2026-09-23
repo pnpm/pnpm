@@ -164,8 +164,6 @@ impl<'a> InstallWorkspace<'a> {
             &dirs,
             loaded_workspace_projects.as_deref(),
         );
-        let workspace_packages =
-            workspace_packages_for_install(install, loaded_workspace_projects.as_deref(), options);
         Ok(Self {
             // Use `to_string_lossy` rather than `to_str().expect(...)` so a
             // valid filesystem path with non-UTF-8 bytes (possible on Unix)
@@ -179,13 +177,12 @@ impl<'a> InstallWorkspace<'a> {
             catalogs,
             workspace_projects_are_overridden,
             loaded_workspace_projects,
-            workspace_packages,
+            workspace_packages: None,
             dirs,
         })
     }
 }
-fn workspace_packages_for_install<'s>(
-    _install: InstallView<'_>,
+pub(super) fn workspace_packages_for_install<'s>(
     loaded_workspace_projects: Option<&'s [pnpm_workspace::Project]>,
     options: &InstallRunOptions<'s, '_>,
 ) -> Option<pnpm_resolving_resolver_base::WorkspacePackages> {
