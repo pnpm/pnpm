@@ -291,8 +291,17 @@ fn a_held_engine_lock_installs_the_engine_privately() {
     dbg!(&output);
     assert_success(&output);
     assert!(stdout(&output).contains("Version 9.3.0"), "stdout:\n{}", stdout(&output));
-    let slots = engine_store.join("links");
-    assert!(!slots.exists(), "the held slot must not be entered: {}", slots.display());
+    // Entering the slot links the engine's bins into it, at
+    // `links/<scope>/<name>/<version>/<hash>/bin`. (`links` itself is no
+    // evidence on macOS, where every install stages packages under it
+    // through the directory clone cache.)
+    let linked_slots: Vec<_> = walkdir::WalkDir::new(engine_store.join("links"))
+        .into_iter()
+        .flatten()
+        .filter(|entry| entry.depth() == 5 && entry.file_name() == "bin")
+        .map(|entry| entry.path().to_path_buf())
+        .collect();
+    assert!(linked_slots.is_empty(), "the held slot must not be entered: {linked_slots:?}");
     let private_installs = engine_store.join("tmp/private");
     let left_behind: Vec<_> = fs::read_dir(&private_installs)
         .into_iter()

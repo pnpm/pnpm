@@ -262,16 +262,22 @@ fn a_held_runtime_lock_installs_the_runtime_privately() {
     // lock.
     dispatch();
     let environment = managed_runtime_environment(&root);
-    let slots = root.path().join("store/v11/links");
     fs::remove_dir_all(&environment).unwrap();
-    fs::remove_dir_all(&slots).unwrap();
+    fs::remove_dir_all(root.path().join("store/v11/links")).unwrap();
     // A lock directory with no liveness record is one an older pnpm
     // holds, and counts as held until it ages out.
     fs::create_dir_all(environment.with_extension("lock")).unwrap();
 
     dispatch();
 
-    assert!(!slots.exists(), "the held slot must not be entered: {}", slots.display());
+    // The shared path would have re-created the environment around the
+    // slot. (`links` itself is no evidence on macOS, where every install
+    // stages packages under it through the directory clone cache.)
+    assert!(
+        !environment.exists(),
+        "the held environment must not be entered: {}",
+        environment.display(),
+    );
     let private_install = fs::read_dir(root.path().join("store/v11/tmp/private"))
         .expect("the runtime should be installed privately")
         .flatten()
