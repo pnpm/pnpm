@@ -225,8 +225,8 @@ pub(super) fn saved_specifier_options(opts: &ResolveOptions) -> SavedSpecifierOp
         save_workspace_protocol: opts.specifier.save_workspace_protocol,
         is_update: matches!(
             opts.refresh.update,
-            UpdateBehavior::Compatible | UpdateBehavior::Latest,
-        ),
+            UpdateBehavior::Compatible | UpdateBehavior::Latest | UpdateBehavior::Patches,
+        ) || opts.refresh.update_requested,
     }
 }
 
