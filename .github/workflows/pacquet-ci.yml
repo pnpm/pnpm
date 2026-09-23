@@ -144,9 +144,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Diagnostics draft: macOS only.
-          - os: blacksmith-12vcpu-macos-latest
-            os_label: macos
+          # Diagnostics draft: Windows only.
+          - os: blacksmith-8vcpu-windows-2025
+            os_label: windows
     runs-on: ${{ matrix.os }}
     # Backstop for hangs outside nextest's per-test terminate-after
     # (stuck cargo build, stuck tool download): warm-cache runs finish
@@ -258,6 +258,16 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Diagnose Windows runner before tests
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: bash
+        run: |
+          for probe in system net flush fs; do
+            echo "== $probe"
+            python .github/diagnostics/windows/probe.py "$probe" || true
+          done
+
       - name: Diagnose macOS runner before tests
         if: runner.os == 'macOS'
         continue-on-error: true
@@ -314,6 +324,12 @@ jobs:
           key: sccache-test-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-${{ env.SCCACHE_DAY }}
         timeout-minutes: 3
         continue-on-error: true
+
+      - name: Diagnose Windows runner after tests
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
+        continue-on-error: true
+        shell: bash
+        run: python .github/diagnostics/windows/probe.py spawn
 
       - name: Diagnose macOS runner after tests
         if: ${{ !cancelled() && runner.os == 'macOS' }}
