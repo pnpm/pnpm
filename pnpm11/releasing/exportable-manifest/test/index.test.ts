@@ -541,3 +541,28 @@ test('throws CANNOT_RESOLVE_WORKSPACE_PROTOCOL when node_modules and workspacePa
     code: 'ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
   })
 })
+
+test('workspacePackages preserves first encountered package version when duplicate names exist (pnpm/pnpm#6567)', async () => {
+  const manifest: ProjectManifest = {
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: {
+      'pkg-b': 'workspace:^',
+    },
+  }
+
+  const workspacePackages = [
+    { manifest: { name: 'pkg-b', version: '1.2.3' }, rootDir: '/root/b1' },
+    { manifest: { name: 'pkg-b', version: '2.0.0' }, rootDir: '/root/b2' },
+  ]
+
+  const exported = await createExportableManifest('/nonexistent-project-dir', manifest, {
+    catalogs: {},
+    workspacePackages,
+  })
+
+  expect(exported.dependencies).toStrictEqual({
+    'pkg-b': '^1.2.3',
+  })
+})
+

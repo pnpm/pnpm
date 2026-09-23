@@ -58,3 +58,6 @@ pub fn create_publish_pack_manifest_options(
         workspace_packages,
     })
 }
+
+#[cfg(test)]
+mod tests;
