@@ -2,6 +2,9 @@ use crate::_utils;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
+use pnpm_deps_restorer::store_index_key_for_resolution;
+use pnpm_lockfile::Lockfile;
+use pnpm_modules_yaml::{Host, read_modules_manifest};
 use pnpm_store_dir::STORE_VERSION;
 use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
 use pretty_assertions::assert_eq;
@@ -344,11 +347,34 @@ fn store_status_ignores_skipped_optional_packages() {
         .assert()
         .success();
 
-    let modules_yaml = fs::read_to_string(workspace.join("node_modules/.modules.yaml"))
-        .expect("read .modules.yaml");
+    // One snapshot exists for the optional, its key suffixed with the peer
+    // packageExtensions resolved. That key is the identity both
+    // `.modules.yaml.skipped` and `store status`'s store-index lookup are
+    // derived from, so resolve it from the lockfile the command reads.
+    let lockfile = Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load the wanted lockfile")
+        .expect("pnpm install must write pnpm-lock.yaml");
+    let snapshot = lockfile.snapshots
+        .as_ref()
+        .expect("the lockfile must carry a snapshots: section")
+        .iter()
+        .find(|(key, _)| key.name.to_string() == "@pnpm.e2e/not-compatible-with-any-os")
+        .map(|(key, _)| key)
+        .expect("a snapshot for the skipped optional");
+    let snapshot_key = snapshot.to_string();
+    assert_ne!(
+        snapshot_key,
+        snapshot.without_peer().to_string(),
+        "packageExtensions must resolve the peer so the snapshot key carries a suffix: {snapshot_key}",
+    );
+
+    let modules_manifest = read_modules_manifest::<Host>(&workspace.join("node_modules"))
+        .expect("read .modules.yaml")
+        .expect("pnpm install must write .modules.yaml");
     assert!(
-        modules_yaml.contains("not-compatible-with-any-os@1.0.0("),
-        "the skipped optional must be recorded under its peer-suffixed snapshot key:\n{modules_yaml}",
+        modules_manifest.skipped.contains(&snapshot_key),
+        "the skipped optional must be recorded under its peer-suffixed snapshot key {snapshot_key}: {:?}",
+        modules_manifest.skipped,
     );
 
     // Prime the store row the check looks up: the skipped package was
@@ -364,10 +390,20 @@ fn store_status_ignores_skipped_optional_packages() {
     let store_index = pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir)
         .expect("open the store index store add just wrote");
     let keys = store_index.keys().expect("read the store index keys");
+    let metadata = lockfile.packages
+        .as_ref()
+        .expect("the lockfile must carry a packages: section")
+        .get(&snapshot.without_peer())
+        .expect("a packages: entry for the skipped optional");
+    // The exact key `store status` queries: a row under any other key
+    // leaves the package silently unchecked, which would let the test
+    // pass without ever exercising the skipped-snapshot filter.
+    let status_index_key =
+        store_index_key_for_resolution(&metadata.resolution, &snapshot.pkg_id(), true)
+            .expect("a registry tarball resolves to a store index key");
     assert!(
-        keys.iter()
-            .any(|key| key.contains("not-compatible-with-any-os@1.0.0")),
-        "store add must record the skipped optional in the store index, got {keys:?}",
+        keys.contains(&status_index_key),
+        "store add must record the skipped optional under the key store status looks up ({status_index_key}), got {keys:?}",
     );
 
     let output = Command::cargo_bin("pnpm")
