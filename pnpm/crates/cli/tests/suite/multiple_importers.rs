@@ -362,6 +362,30 @@ fn resolve_a_subdependency_from_the_workspace() {
     fixture.run(["install", "--frozen-lockfile"]);
 }
 
+#[test]
+fn resolve_transitive_falls_back_to_registry_when_workspace_prerelease_mismatches() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("linkWorkspacePackages: deep\n");
+    fixture.project(
+        "project",
+        "project",
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+    );
+    let dep_project = fixture.project("dep", DEP, ManifestDeps::default());
+    set_version(&dep_project, "100.1.0-next.0");
+    fixture.run(["install"]);
+
+    let wanted = fixture.wanted();
+    let parent_snapshots = snapshot_entries(&wanted, PARENT);
+    assert_eq!(parent_snapshots.len(), 1);
+    let subdependency = parent_snapshots[0].1.dependencies
+        .as_ref()
+        .and_then(|dependencies| dependencies.get(&DEP.parse().expect("parse package name")))
+        .expect("parent snapshot records the subdependency")
+        .to_string();
+    assert_eq!(subdependency, "100.1.0");
+}
+
 /// TS: `resolve a subdependency from the workspace, when it uses the
 /// workspace protocol` (`multipleImporters.ts:1563`). The `workspace:*`
 /// pin arrives through an override while `linkWorkspacePackages` is
