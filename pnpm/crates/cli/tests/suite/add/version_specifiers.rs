@@ -242,10 +242,10 @@ fn readding_a_dev_dependency_at_a_dist_tag_keeps_its_group() {
 /// On a re-add with an explicit version, the existing entry biases the pick
 /// (it is a preferred version): re-adding `~100.0.0` with `@^100.0.0` keeps
 /// the existing `100.0.0` rather than bumping to the highest in range
-/// (`100.1.0`), and the existing operator wins over the spec's — matching
-/// pnpm, which dedups to and keeps the already-declared version.
+/// (`100.1.0`), and the requested operator (`^`) is honored over the existing
+/// operator (`~`).
 #[test]
-fn add_explicit_range_respects_existing_operator() {
+fn add_explicit_range_honors_requested_operator() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -264,7 +264,7 @@ fn add_explicit_range_respects_existing_operator() {
         .assert()
         .success();
 
-    assert_eq!(prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "~100.0.0");
+    assert_eq!(prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "^100.0.0");
     drop((root, npmrc_info)); // cleanup
 }
 
