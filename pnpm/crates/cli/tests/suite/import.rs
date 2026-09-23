@@ -12,7 +12,7 @@
 //! upstream would make these tests depend on the network and on versions
 //! published after they were written.
 
-use crate::_utils::{append_workspace_yaml_key, lockfile_package_keys};
+use crate::_utils::{append_workspace_yaml_key, lockfile_package_keys, read_lockfile};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -907,6 +907,51 @@ fn import_from_shared_npm_shrinkwrap_json_of_monorepo() {
         .success();
 
     assert_workspace_pins(&workspace);
+
+    drop((root, mock_instance));
+}
+
+fn importer_version(workspace: &Path, importer: &str, name: &str) -> String {
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let dependencies = lockfile.importers[importer].dependencies
+        .as_ref()
+        .unwrap_or_else(|| panic!("importer {importer} has dependencies"));
+    dependencies[&name.parse().expect("valid package name")].version.to_string()
+}
+
+/// The root's yarn.lock pins `1.0.0`, and another member's narrower range
+/// allows only newer versions. That range must not pull the root off its pin.
+#[test]
+fn import_keeps_the_root_on_its_yarn_lock_pin_when_another_member_allows_newer() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    append_workspace_yaml_key(&workspace, "packages", r#"["packages/*"]"#);
+    write_file(
+        &workspace,
+        "package.json",
+        r#"{"name":"root","version":"1.0.0","dependencies":{"@pnpm.e2e/bravo-dep":"^1.0.0"}}"#,
+    );
+    write_file(&workspace, "yarn.lock", "\"@pnpm.e2e/bravo-dep@^1.0.0\":\n  version \"1.0.0\"\n");
+    write_file(
+        &workspace,
+        "packages/foo/package.json",
+        r#"{"name":"foo","version":"1.0.0","dependencies":{"@pnpm.e2e/bravo-dep":"^1.0.1"}}"#,
+    );
+
+    pacquet
+        .with_arg("import")
+        .assert()
+        .success();
+
+    assert_eq!(importer_version(&workspace, ".", "@pnpm.e2e/bravo-dep"), "1.0.0");
+    assert_eq!(importer_version(&workspace, "packages/foo", "@pnpm.e2e/bravo-dep"), "1.1.0");
 
     drop((root, mock_instance));
 }

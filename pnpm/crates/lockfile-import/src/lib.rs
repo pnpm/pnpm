@@ -7,9 +7,10 @@
 //! `yarn.lock`, `package-lock.json`, `npm-shrinkwrap.json`.
 //!
 //! The extracted versions are advisory, not authoritative. They become
-//! plain `version` selectors, so a version the source lockfile pinned
-//! wins a tie among the versions a range allows, and a version no longer
-//! published is ignored rather than fatal.
+//! `version` selectors weighted like the pins of an existing pnpm
+//! lockfile, so a version the source lockfile pinned wins over the other
+//! versions a range allows, and a version no longer published is ignored
+//! rather than fatal.
 
 pub use npm::collect_npm_lockfile_versions;
 pub use yarn::{YarnSyntaxError, collect_yarn_lockfile_versions};
@@ -21,7 +22,10 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_resolving_resolver_base::{PreferredVersions, VersionSelectorEntry, VersionSelectorType};
+use pnpm_resolving_resolver_base::{
+    EXISTING_VERSION_SELECTOR_WEIGHT, PreferredVersions, VersionSelectorEntry, VersionSelectorType,
+    VersionSelectorWithWeight,
+};
 
 mod npm;
 mod yarn;
@@ -124,10 +128,13 @@ pub fn read_foreign_lockfile_versions(
 
 /// Turn collected versions into resolver preferences.
 ///
-/// Every version becomes a plain `version` selector, matching the
-/// TypeScript CLI. A range collected from npm's flat format therefore
-/// only takes effect when it happens to name a published version; the
-/// resolver drops the rest.
+/// Every version becomes a `version` selector with
+/// [`EXISTING_VERSION_SELECTOR_WEIGHT`], matching the TypeScript CLI. That
+/// weight outranks the direct-dependency ranges every workspace project
+/// contributes, so another project's wider range cannot pull a project off
+/// its pinned version. A range collected from npm's flat format only takes
+/// effect when it happens to name a published version; the resolver drops
+/// the rest.
 #[must_use]
 pub fn to_preferred_versions(versions: &VersionsByPackageName) -> PreferredVersions {
     versions
@@ -136,7 +143,11 @@ pub fn to_preferred_versions(versions: &VersionsByPackageName) -> PreferredVersi
             let selectors = versions
                 .iter()
                 .map(|version| {
-                    (version.clone(), VersionSelectorEntry::Plain(VersionSelectorType::Version))
+                    let selector = VersionSelectorWithWeight {
+                        selector_type: VersionSelectorType::Version,
+                        weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+                    };
+                    (version.clone(), VersionSelectorEntry::Weighted(selector))
                 })
                 .collect();
             (name.clone(), selectors)

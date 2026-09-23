@@ -11,7 +11,7 @@ import gfs from '@pnpm/fs.graceful-fs'
 import { install, type InstallOptions } from '@pnpm/installing.deps-installer'
 import { getWantedLockfileName, readEnvLockfile, writeEnvLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
-import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
+import { EXISTING_VERSION_SELECTOR_WEIGHT, type PreferredVersions } from '@pnpm/resolving.resolver-base'
 import {
   createStoreController,
   type CreateStoreControllerOptions,
@@ -311,9 +311,16 @@ async function readNpmLockfile (dir: string): Promise<LockedPackage> {
   throw new PnpmError('NPM_LOCKFILE_NOT_FOUND', 'No package-lock.json or npm-shrinkwrap.json found')
 }
 
+// The imported lockfile's pins must outrank the direct-dependency ranges that
+// every workspace project contributes, as the pins of a pnpm lockfile do.
+const IMPORTED_VERSION_SELECTOR = {
+  selectorType: 'version',
+  weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+} as const
+
 function getPreferredVersions (versionsByPackageNames: VersionsByPackageNames): PreferredVersions {
   const preferredVersions = mapValues(
-    (versions) => Object.fromEntries(Array.from(versions).map((version) => [version, 'version' as const])),
+    (versions) => Object.fromEntries(Array.from(versions).map((version) => [version, IMPORTED_VERSION_SELECTOR])),
     versionsByPackageNames
   )
   return preferredVersions
