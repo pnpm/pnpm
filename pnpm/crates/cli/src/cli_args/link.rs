@@ -7,6 +7,7 @@ use pnpm_config::Config;
 use pnpm_package_manager::{Install, ProjectMutation};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_text_sanitize::sanitize_inline;
 use pnpm_workspace_manifest_writer::set_overrides;
 use std::{
     path::{Path, PathBuf},
@@ -190,6 +191,11 @@ fn link_target(
     Ok((target_dir, package_name, target_manifest))
 }
 
+fn sanitize_warning_text(text: &str) -> String {
+    let stripped = console::strip_ansi_codes(text);
+    sanitize_inline(&stripped).into_owned()
+}
+
 fn check_peer_deps<Reporter: self::Reporter>(
     package_name: &str,
     target_manifest: &PackageManifest,
@@ -201,11 +207,14 @@ fn check_peer_deps<Reporter: self::Reporter>(
         .and_then(serde_json::Value::as_object)
         && !peer_deps_map.is_empty()
     {
+        let sanitized_pkg_name = sanitize_warning_text(package_name);
         let peer_deps = peer_deps_map
             .iter()
             .map(|(key, value)| {
+                let sanitized_key = sanitize_warning_text(key);
                 let val_str = value.as_str().map_or_else(|| value.to_string(), ToString::to_string);
-                format!("  - {key}@{val_str}")
+                let sanitized_val = sanitize_warning_text(&val_str);
+                format!("  - {sanitized_key}@{sanitized_val}")
             })
             .collect::<Vec<_>>()
             .join(", ");
@@ -213,7 +222,7 @@ fn check_peer_deps<Reporter: self::Reporter>(
         Reporter::emit(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Warn,
             message: format!(
-                "The package {package_name}, which you have just pnpm linked, has the following peerDependencies specified in its package.json:\n\n{peer_deps}\n\nThe linked in dependency will not resolve the peer dependencies from the target node_modules.\nThis might cause issues in your project. To resolve this, you may use the \"file:\" protocol to reference the local dependency.",
+                "The package {sanitized_pkg_name}, which you have just pnpm linked, has the following peerDependencies specified in its package.json:\n\n{peer_deps}\n\nThe linked in dependency will not resolve the peer dependencies from the target node_modules.\nThis might cause issues in your project. To resolve this, you may use the \"file:\" protocol to reference the local dependency.",
             ),
             prefix: prefix.display().to_string(),
         }));

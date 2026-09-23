@@ -531,3 +531,63 @@ fn link_does_not_warn_when_peer_dependencies_empty() {
 
     drop((root, mock_instance));
 }
+
+#[tokio::test]
+async fn link_sanitizes_control_characters_in_peer_deps_warning() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    let target_dir = root.path().join("linked-with-control-chars");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({
+            "name": "malicious-pkg",
+            "version": "1.0.0",
+            "peerDependencies": {
+                "react\x1b[0m\r\n": "^18.0.0\x1b[32m\r"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write target package.json");
+
+    let output = pacquet
+        .with_arg("link")
+        .with_arg("../linked-with-control-chars")
+        .output()
+        .expect("spawn pacquet link");
+    assert!(output.status.success(), "link should succeed: {output:?}");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let combined = format!("{stdout}\n{stderr}");
+
+    assert!(
+        combined.contains("The package malicious-pkg, which you have just pnpm linked"),
+        "sanitized package name must be in output:\n{combined}",
+    );
+    assert!(
+        combined.contains("react@^18.0.0"),
+        "sanitized peer dependency must be in output:\n{combined}",
+    );
+    assert!(
+        !combined.contains('\x1b'),
+        "output must not contain ANSI escape sequence:\n{combined}",
+    );
+    assert!(!combined.contains('\r'), "output must not contain carriage return:\n{combined}");
+
+    drop((root, mock_instance));
+}
