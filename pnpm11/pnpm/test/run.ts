@@ -534,6 +534,27 @@ async function waitForFile (file: string, timeout: number): Promise<void> {
   }
 }
 
+test('filtered shorthand runs a project-local command when no selected project has a script by that name', async () => {
+  preparePackages([
+    { name: 'project-1', version: '1.0.0' },
+    { name: 'project-2', version: '1.0.0' },
+  ])
+  writeFakeBin(path.resolve('project-1/node_modules/.bin'), 'greet', 'greet from project-1')
+  writeFakeBin(path.resolve('project-2/node_modules/.bin'), 'greet', 'greet from project-2')
+
+  const result = execPnpmSync(['--filter', 'project-1', '--config.verify-deps-before-run=false', 'greet'])
+
+  expect(result.status).toBe(0)
+  const stdout = result.stdout.toString()
+  expect(stdout).toContain('greet from project-1')
+  expect(stdout).not.toContain('greet from project-2')
+
+  const explicitRun = execPnpmSync(['--filter', 'project-1', '--config.verify-deps-before-run=false', 'run', 'greet'])
+
+  expect(explicitRun.status).not.toBe(0)
+  expect(explicitRun.stdout.toString()).toContain('None of the selected packages has a "greet" script')
+})
+
 test('run resolves commands from the configured modules directory, not a stale node_modules/.bin', async () => {
   prepare({
     name: 'root',

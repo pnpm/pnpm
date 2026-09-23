@@ -267,6 +267,9 @@ impl RecursiveRun<'_, '_> {
     fn prepare(&self) -> miette::Result<Prepared> {
         // Compiled once for the whole run, not per project or task.
         let full_task_graph = self.task_graph()?;
+        if self.falls_back_to_exec(&full_task_graph) {
+            return Ok(Prepared::NoMatchingScript);
+        }
         let extra_env: HashMap<String, String> = self.config.extra_env_with_node_options();
         let state_settings = run_state_settings(self.config, &extra_env);
         let task_run_state_context = TaskRunStateContext::new(
@@ -291,9 +294,7 @@ impl RecursiveRun<'_, '_> {
             return Ok(Prepared::DryRun);
         }
 
-        if !self.validate_requested_scripts(&mut task_graph)? {
-            return Ok(Prepared::NoMatchingScript);
-        }
+        self.validate_requested_scripts(&mut task_graph)?;
 
         let task_run_state = task_run_state_context.start(&initially_completed_tasks(
             &full_task_graph,
@@ -320,9 +321,15 @@ impl RecursiveRun<'_, '_> {
         )?)
     }
 
-    /// `false` when no requested task has a script and the run falls back
-    /// to `exec`.
-    fn validate_requested_scripts(&self, task_graph: &mut TaskGraph) -> miette::Result<bool> {
+    /// Decided on the graph as built, before the run-only resume and
+    /// sequencing, which do not apply to `exec`.
+    fn falls_back_to_exec(&self, task_graph: &TaskGraph) -> bool {
+        self.script.fallback_to_exec
+            && !self.args.if_present
+            && !a_project_has_the_script(task_graph)
+    }
+
+    fn validate_requested_scripts(&self, task_graph: &mut TaskGraph) -> miette::Result<()> {
         // Hidden scripts (names starting with `.`) can only be invoked from
         // within another script, detected by an inherited
         // `npm_lifecycle_event`. Checked only for the tasks the invocation
@@ -330,12 +337,6 @@ impl RecursiveRun<'_, '_> {
         // deliberate reference, like a call from another script.
         filter_hidden_requested_scripts(task_graph, self.script.script_name)?;
 
-        if self.script.fallback_to_exec
-            && !self.args.if_present
-            && !a_project_has_the_script(task_graph)
-        {
-            return Ok(false);
-        }
         check_a_project_has_the_script(
             task_graph,
             self.args,
@@ -343,7 +344,7 @@ impl RecursiveRun<'_, '_> {
             self.script.all_packages_selected,
         )?;
 
-        Ok(true)
+        Ok(())
     }
 
     fn task_graph(&self) -> miette::Result<TaskGraph> {

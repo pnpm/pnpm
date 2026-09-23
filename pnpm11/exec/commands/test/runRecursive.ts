@@ -487,6 +487,27 @@ test('"pnpm --filter <pkg> <command>" runs the command in the selected projects 
   expect(fs.existsSync('project-3/output.txt')).toBeFalsy()
 })
 
+test('"pnpm -r t" does not fall back to a "test" command when no selected project has a test script', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+  await expect(run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    fallbackCommandUsed: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['t'])).resolves.toBeUndefined()
+})
+
 test('"pnpm run --filter <pkg>" without specifying the script name', async () => {
   preparePackages([
     {

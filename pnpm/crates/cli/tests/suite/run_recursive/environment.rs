@@ -273,8 +273,6 @@ fn parallel_before_run_starts_selected_projects_concurrently() {
     drop(root);
 }
 
-/// Write a `commitlint` bin into each named project's `node_modules/.bin`
-/// that records its arguments in `bin-ran.txt` in its working directory.
 fn write_commitlint_bins(workspace: &std::path::Path, names: &[&str]) {
     for name in names {
         let bin_dir = workspace
@@ -341,6 +339,44 @@ fn top_level_fallback_with_filter_execs_local_bin_in_the_selected_project() {
             .join("bin-ran.txt")
             .exists(),
         "a project outside the filter must not run the binary",
+    );
+
+    drop(root);
+}
+
+#[test]
+fn top_level_fallback_execs_local_bin_despite_a_tasks_cycle_through_the_command() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({ "name": "project-1", "version": "1.0.0", "scripts": { "lint": "echo lint" } }),
+        )],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        concat!(
+            "packages:\n  - project-1\n",
+            "tasks:\n",
+            "  commitlint:\n    dependsOn: ['lint']\n",
+            "  lint:\n    dependsOn: ['commitlint']\n",
+        ),
+    )
+    .expect("write workspace settings");
+    write_commitlint_bins(&workspace, &["project-1"]);
+
+    pacquet
+        .with_args(["-r", "commitlint"])
+        .assert()
+        .success();
+
+    assert!(
+        workspace
+            .join("project-1")
+            .join("bin-ran.txt")
+            .exists(),
+        "the local binary should run, since exec does not follow the tasks declarations",
     );
 
     drop(root);

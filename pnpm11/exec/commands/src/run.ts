@@ -248,8 +248,9 @@ export async function handler (
 
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
-      if (opts.fallbackCommandUsed && !opts.ifPresent && !opts.dryRun && !someSelectedProjectHasScript(opts.selectedProjectsGraph, scriptName)) {
-        return exec({ implicitlyFellbackFromRun: true, ...opts }, params)
+      if (fallsBackToExec(opts, scriptName)) {
+        // The dependencies were verified above.
+        return exec({ implicitlyFellbackFromRun: true, ...opts, verifyDepsBeforeRun: false }, params)
       }
       return runRecursive(params, opts)
     }
@@ -508,6 +509,20 @@ function getRunScriptStages (
   if (scripts[pre] && !main.includes(pre)) stages.unshift({ name: pre, command: scripts[pre] })
   if (scripts[post] && !main.includes(post)) stages.push({ name: post, command: scripts[post] })
   return stages
+}
+
+/**
+ * Whether a recursive `pnpm <command>` shorthand hands the command to `exec`,
+ * as the single-project shorthand does when no selected project has a script
+ * by that name. `test` keeps the recursive run's exemption for a missing
+ * script, so the `t` and `tst` shorthands do not run a system `test` binary.
+ */
+function fallsBackToExec (opts: RunOpts & { recursive: true }, scriptName: string): boolean {
+  return Boolean(opts.fallbackCommandUsed) &&
+    scriptName !== 'test' &&
+    !opts.ifPresent &&
+    !opts.dryRun &&
+    !someSelectedProjectHasScript(opts.selectedProjectsGraph, scriptName)
 }
 
 function someSelectedProjectHasScript (selectedProjectsGraph: ProjectsGraph, scriptName: string): boolean {
