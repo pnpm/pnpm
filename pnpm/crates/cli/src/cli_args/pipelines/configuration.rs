@@ -4,6 +4,9 @@ use super::{
     warn_ignored_pnpm_manifest_fields, warn_unapplied_package_configs,
     warn_unmatched_registry_options, warn_unsupported_workspaces_field,
 };
+use crate::cli_args::config_warnings::emit_config_warning;
+use miette::IntoDiagnostic;
+use pnpm_config::WORKSPACE_MANIFEST_FILENAME;
 
 /// [`select_workspace_projects`](super::select_workspace_projects), optionally running the install's
 /// workspace-cycle search over the selection graph while it is still in
@@ -27,7 +30,7 @@ pub(super) fn apply_runtime_on_fail(cfg: &Config, projects: &mut [pnpm_workspace
 /// Shared workspace-root and package-manager policy derivation used by the
 /// install, dedupe, and prune dispatch paths.
 pub(crate) fn derive_config_root(
-    cfg: &Config,
+    cfg: &mut Config,
     dir_ref: &Path,
     reporter: ReporterType,
 ) -> miette::Result<PathBuf> {
@@ -38,11 +41,79 @@ pub(crate) fn derive_config_root(
     // install output. This is the install family's earliest point that
     // knows the root manifest's directory.
     warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
-    warn_unsupported_workspaces_field(root_manifest.as_ref(), cfg.workspace_dir.as_deref());
+    create_workspace_yaml_from_yarn_workspaces(cfg, &config_root, root_manifest.as_ref())?;
     warn_deprecated_override_version_references(cfg, reporter_emit(reporter));
     warn_unmatched_registry_options(cfg);
     warn_unapplied_package_configs(cfg);
     Ok(config_root)
+}
+
+/// Create `pnpm-workspace.yaml` from a root manifest's Yarn `workspaces`
+/// field, so the converted repository's projects link on this install.
+///
+/// The field is Yarn's and npm's way to declare a monorepo's projects;
+/// pnpm reads `pnpm-workspace.yaml` instead, and a repository converted
+/// without one installs as a single project with no hint about why. The
+/// install family is the migration's entry point, so it writes the file
+/// the field implies and re-anchors the workspace config to it. Inside an
+/// existing workspace (`workspace_dir` set), under `--ignore-workspace`,
+/// or when the field is absent, the config load is left untouched; a
+/// non-array spelling keeps pnpm 11's quiet behavior, and an array with
+/// no usable pattern keeps the unsupported-field warning.
+fn create_workspace_yaml_from_yarn_workspaces(
+    cfg: &mut Config,
+    config_root: &Path,
+    root_manifest: Option<&serde_json::Value>,
+) -> miette::Result<()> {
+    if cfg.workspace_dir.is_some() || cfg.ignore_workspace {
+        return Ok(());
+    }
+    let Some(entries) = root_manifest
+        .and_then(|manifest| manifest.get("workspaces"))
+        .and_then(serde_json::Value::as_array)
+    else {
+        return Ok(());
+    };
+    let patterns: Vec<String> = entries
+        .iter()
+        .filter_map(serde_json::Value::as_str)
+        .filter(|pattern| !pattern.is_empty())
+        .map(str::to_owned)
+        .collect();
+    // An array whose entries are all unusable keeps pnpm 11's warning:
+    // the field names projects pnpm cannot find, and the notice explains
+    // why none of them linked.
+    if patterns.is_empty() {
+        if !entries.is_empty() {
+            warn_unsupported_workspaces_field(root_manifest, None);
+        }
+        return Ok(());
+    }
+    let path = config_root.join(WORKSPACE_MANIFEST_FILENAME);
+    if path
+        .try_exists()
+        .into_diagnostic()
+        .wrap_err_with(|| {
+            format!("check for an existing pnpm-workspace.yaml at {}", path.display())
+        })?
+    {
+        return Ok(());
+    }
+    let mut text = String::from("packages:\n");
+    for pattern in &patterns {
+        text.push_str("  - ");
+        text.push_str(pattern);
+        text.push('\n');
+    }
+    std::fs::write(&path, text)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("create pnpm-workspace.yaml at {}", path.display()))?;
+    emit_config_warning(
+        "Created \"pnpm-workspace.yaml\" from the \"workspaces\" field in package.json.",
+    );
+    cfg.workspace_dir = Some(config_root.to_path_buf());
+    cfg.workspace_package_patterns = Some(patterns);
+    Ok(())
 }
 
 pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {

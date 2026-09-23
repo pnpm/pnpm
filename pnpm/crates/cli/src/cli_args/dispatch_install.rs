@@ -111,7 +111,7 @@ fn prepare_add_config(
     }
     args.install.lockfile_dir.apply_to(cfg, dir);
     args.apply_cli_config(cfg);
-    let config_root = derive_config_root(cfg, dir, reporter)
+    let config_root = derive_config_root(&mut *cfg, dir, reporter)
         .wrap_err("derive workspace root and package manager policy")?;
     // `allowBuilds` is persisted to `pnpm-workspace.yaml`, which stays
     // at the workspace root even when `lockfileDir` moved the config
@@ -206,7 +206,7 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
         let recursive_sort = cfg.sort;
         args.install.lockfile_dir.apply_to(cfg, dir);
         args.apply_cli_config(cfg);
-        let config_root = derive_config_root(cfg, dir, reporter)
+        let config_root = derive_config_root(&mut *cfg, dir, reporter)
             .wrap_err("derive workspace root and package manager policy")?;
         let pipeline = UpdatePipeline {
             args,
@@ -239,7 +239,7 @@ pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<C
     Ok(Box::pin(async move {
         let recursive_sort = cfg.sort;
         args.lockfile_dir.apply_to(cfg, dir);
-        let config_root = derive_config_root(cfg, dir, reporter)
+        let config_root = derive_config_root(&mut *cfg, dir, reporter)
             .wrap_err("derive workspace root and package manager policy")?;
         let pipeline = RemovePipeline {
             args,
@@ -316,7 +316,7 @@ fn install_with_config<'a>(
             // `pnpm-workspace.yaml` is found), falling back to `--dir`
             // for a single-package repo. Owned so it doesn't hold a
             // borrow of `cfg` across the `&mut` `updateConfig` pass.
-            let config_root = derive_config_root(cfg, dir, reporter)
+            let config_root = derive_config_root(&mut *cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
             let update_check = match update_check_policy {
                 UpdateCheckPolicy::Run => update_notifier::spawn(cfg, reporter_emit(reporter)),
