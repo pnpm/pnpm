@@ -137,7 +137,6 @@ pub struct CliWorkspaceArgs {
     /// the project in `--dir`.
     #[clap(short = 'r', long, global = true)]
     pub recursive: bool,
-    /// Whether `-r` / `--recursive` came from the command line.
     #[clap(skip)]
     pub recursive_from_command_line: bool,
     #[clap(flatten)]
