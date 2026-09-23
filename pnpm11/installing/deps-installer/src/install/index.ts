@@ -1,4 +1,5 @@
 import path from 'node:path'
+import util from 'node:util'
 
 import { getProjectNodePath, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildSelectedPkgs } from '@pnpm/building.after-install'
@@ -677,6 +678,19 @@ export async function mutateModules (
 
   reportVerifiedFileIntegrity(verifiedFileIntegritySince(verifiedFileIntegrityBaseline))
 
+
+  // The branch lockfiles become disposable only once the merge has been
+  // written for good. An install that never saves a lockfile did not merge
+  // them, and a `--dry-run` / `lockfileCheck` run only reports what it would
+  // do — deleting them in either case drops resolutions no file is left
+  // holding.
+  if (
+    opts.mergeGitBranchLockfiles && opts.useLockfile && opts.saveLockfile &&
+    !isCheckOnlyInstall(opts)
+  ) {
+    await cleanGitBranchLockfiles(ctx.lockfileDir)
+  }
+
   if (result.projectLifecycleScriptsError != null) {
     detachReporter()
     return {
@@ -690,18 +704,6 @@ export async function mutateModules (
       dryRunResult: result.dryRunResult,
       projectLifecycleScriptsError: result.projectLifecycleScriptsError,
     }
-  }
-
-  // The branch lockfiles become disposable only once the merge has been
-  // written for good. An install that never saves a lockfile did not merge
-  // them, and a `--dry-run` / `lockfileCheck` run only reports what it would
-  // do — deleting them in either case drops resolutions no file is left
-  // holding.
-  if (
-    opts.mergeGitBranchLockfiles && opts.useLockfile && opts.saveLockfile &&
-    !isCheckOnlyInstall(opts)
-  ) {
-    await cleanGitBranchLockfiles(ctx.lockfileDir)
   }
 
   let ignoredBuilds = result.ignoredBuilds
@@ -2948,7 +2950,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             : PROJECT_LIFECYCLE_STAGES,
         })
       } catch (err: unknown) {
-        if (!opts.deferProjectLifecycleScriptsError) throw err
+        if (!opts.deferProjectLifecycleScriptsError || !isLifecycleScriptFailure(err)) throw err
         projectLifecycleScriptsError = err
       }
     }
@@ -3035,6 +3037,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       : undefined,
     projectLifecycleScriptsError,
   }
+}
+
+function isLifecycleScriptFailure (err: unknown): boolean {
+  return util.types.isNativeError(err) && 'code' in err && err.code === 'ELIFECYCLE'
 }
 
 function allMutationsAreInstalls (projects: MutatedProject[]): boolean {

@@ -234,9 +234,6 @@ fn add_in_a_member_does_not_run_prepare_scripts() {
     drop((root, anchor));
 }
 
-/// The root's `postinstall` runs after the lockfile is written, so a
-/// failing one still leaves the `add` recorded in the selected member's
-/// manifest, matching the lockfile, while the command exits non-zero.
 #[test]
 fn filtered_add_saves_the_manifest_when_the_root_postinstall_fails() {
     let (root, workspace, anchor) = installed_workspace(&["a", "b"]);
