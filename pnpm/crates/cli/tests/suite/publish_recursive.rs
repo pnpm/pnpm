@@ -757,8 +757,6 @@ fn recursive_publish_json_prints_the_published_array() {
     drop(root);
 }
 
-/// pnpm/pnpm#7182: `pnpm --filter <pkg> publish` publishes to the registry
-/// configured in the workspace root .npmrc.
 #[test]
 fn recursive_publish_filter_uses_workspace_root_npmrc_registry() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

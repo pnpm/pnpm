@@ -662,8 +662,6 @@ fn publish_rejects_refused_head_metadata_in_ci() {
     assert!(stderr.contains("ERR_PNPM_GIT_UNKNOWN_BRANCH"), "stderr: {stderr}");
 }
 
-/// pnpm/pnpm#7182: configuring registry in workspace .npmrc is effective when
-/// publishing from inside a workspace package subdirectory.
 #[test]
 fn workspace_npmrc_registry_is_effective_for_package_publish() {
     let workspace = tempfile::tempdir().expect("workspace");

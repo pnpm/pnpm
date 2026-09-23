@@ -1101,15 +1101,11 @@ test('publish inherits registry from workspace root .npmrc (pnpm/pnpm#7182)', as
 
   fs.writeFileSync('.npmrc', 'engine-strict=true\nsave-exact=true\n')
 
-  await publish.handler({
-    ...DEFAULT_OPTS,
-    argv: { original: ['publish'] },
-    configByUri: CONFIG_BY_URI,
-    dir: process.cwd(),
-    registriesByScope: {
-      default: `http://localhost:${REGISTRY_MOCK_PORT}/`,
-    },
-  }, [])
+  const result = crossSpawn.sync(pnpmBin, ['publish', '--no-git-checks'], { env: SPAWN_ENV })
+  if (result.status !== 0) {
+    throw new Error(`pnpm publish failed with status ${result.status}: ${result.stderr?.toString()}`)
+  }
+  expect(result.status).toBe(0)
 
   await checkPkgExists(pkgName, '1.0.0')
 })
