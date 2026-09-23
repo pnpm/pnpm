@@ -3423,6 +3423,7 @@ test.each([
   [['1']],
   [['1', '2']],
   [['1.0']],
+  [['1.x']],
 ])('preferWorkspacePackages: a tag resolves to a workspace version that is not valid semver (local versions: %j)', async (localVersions) => {
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
@@ -3458,7 +3459,7 @@ test.each([
   expect(resolveResult!.normalizedBareSpecifier).toBe(localVersions.at(-1))
 })
 
-test.each(['github:owner/repo', 'file:../other', 'npm:other@1'])('preferWorkspacePackages: the workspace version %s is saved with the workspace protocol', async (version) => {
+test.each(['github:owner/repo', 'file:../other', 'npm:other@1', 'github:owner/repo || 1.2.3', 'file:../other || 1.2.3'])('preferWorkspacePackages: the workspace version %s is saved with the workspace protocol', async (version) => {
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),

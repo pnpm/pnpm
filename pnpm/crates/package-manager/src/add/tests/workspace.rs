@@ -62,11 +62,18 @@ fn workspace_save_specifier_without_protocol(version: &str) -> Option<String> {
 fn without_the_protocol_a_non_semver_range_version_is_saved_exactly() {
     assert_eq!(workspace_save_specifier_without_protocol("1").as_deref(), Some("1"));
     assert_eq!(workspace_save_specifier_without_protocol("1.0").as_deref(), Some("1.0"));
+    assert_eq!(workspace_save_specifier_without_protocol("1.x").as_deref(), Some("1.x"));
 }
 
 #[test]
 fn a_non_semver_version_that_is_not_a_range_keeps_the_protocol() {
-    for version in ["github:owner/repo", "file:../other", "npm:other@1"] {
+    for version in [
+        "github:owner/repo",
+        "file:../other",
+        "npm:other@1",
+        "github:owner/repo || 1.2.3",
+        "file:../other || 1.2.3",
+    ] {
         assert_eq!(
             workspace_save_specifier_without_protocol(version),
             Some(format!("workspace:{version}")),

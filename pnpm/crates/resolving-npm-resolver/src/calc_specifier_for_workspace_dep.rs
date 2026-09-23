@@ -100,12 +100,26 @@ fn is_saved_exactly(version: &str) -> bool {
 }
 
 /// Whether the specifier written for `version` still names the workspace
-/// package once the `workspace:` protocol is stripped from it. A version
-/// such as `github:owner/repo` is not: without the protocol, the next
-/// install would read it as a different dependency source.
+/// package once the `workspace:` protocol is stripped from it: a semver
+/// version, or a partial one such as `1`, `1.0` or `1.x`. Anything else,
+/// such as `github:owner/repo`, keeps the protocol, since the next install
+/// would read the bare text as a different dependency source. The check is
+/// stricter than a range parse because the range parser skips alternatives
+/// it cannot read (`github:owner/repo || 1.2.3` parses).
 #[must_use]
 pub fn can_drop_workspace_protocol(version: &str) -> bool {
-    version.parse::<node_semver::Version>().is_ok() || version.parse::<node_semver::Range>().is_ok()
+    version.parse::<node_semver::Version>().is_ok() || is_partial_version(version)
+}
+
+fn is_partial_version(version: &str) -> bool {
+    let parts: Vec<&str> = version.split('.').collect();
+    parts.len() <= 3
+        && parts
+            .iter()
+            .all(|part| {
+                matches!(*part, "x" | "X" | "*")
+                    || (!part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
+            })
 }
 
 #[cfg(test)]

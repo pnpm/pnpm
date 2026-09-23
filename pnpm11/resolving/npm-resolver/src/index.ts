@@ -1225,9 +1225,7 @@ function calcSpecifierForWorkspaceDep ({
     if (parsedVersion != null) {
       return calcSpecifier({ wantedDependency, spec, version, defaultRangeSpecStyle })
     }
-    // `github:owner/repo` and the like keep the protocol: without it, the next
-    // install would read the version as a different dependency source.
-    if (semver.validRange(version) != null) {
+    if (isPartialVersion(version)) {
       return (!wantedDependency.alias || spec.name === wantedDependency.alias) ? version : `npm:${spec.name}@${version}`
     }
   }
@@ -1252,6 +1250,19 @@ function calcSpecifierForWorkspaceDep ({
   const rangeSpecStyle = (wantedDependency.prevSpecifier ? inferRangeSpecStyle(wantedDependency.prevSpecifier) : undefined) ?? defaultRangeSpecStyle
   const range = versionWithRangeSpecStyle(version, rangeSpecStyle ?? 'major')
   return `${prefix}${range}`
+}
+
+/**
+ * `1`, `1.0` or `1.x`: a non-semver workspace version that still names the
+ * workspace package without the `workspace:` protocol. Anything else, such as
+ * `github:owner/repo`, keeps the protocol, since the next install would read
+ * the bare text as a different dependency source.
+ */
+function isPartialVersion (version: string): boolean {
+  const parts = version.split('.')
+  return parts.length <= 3 && parts.every((part) =>
+    part === 'x' || part === 'X' || part === '*' || (part !== '' && [...part].every((char) => char >= '0' && char <= '9'))
+  )
 }
 
 function resolveLocalPackageDir (localPackage: WorkspacePackage): string {
