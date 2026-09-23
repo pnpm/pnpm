@@ -60,6 +60,11 @@ pub(super) async fn run<Reporter: self::Reporter>(
 }
 
 /// Every installed package the store can verify, with where each lives.
+///
+/// Iterated from `snapshots:` rather than `packages:`: the snapshot key
+/// carries the peer-dependency suffix that names the package's
+/// materialized slot in the virtual store, and is the dep path
+/// `.modules.yaml.skipped` records.
 fn packages_to_check(
     config: &Config,
     lockfile: &Lockfile,
@@ -80,11 +85,14 @@ fn packages_to_check(
     );
 
     let max_length = config.virtual_store_dir_max_length as usize;
-    lockfile.packages
+    lockfile.snapshots
         .iter()
         .flatten()
         .filter(|(key, _)| !skipped.contains(key.to_string().as_str()))
-        .filter_map(|(key, metadata)| {
+        .filter_map(|(key, _)| {
+            let metadata = lockfile.packages
+                .as_ref()?
+                .get(&key.without_peer())?;
             let store_index_key =
                 store_index_key_for_resolution(&metadata.resolution, &key.pkg_id(), true)?;
             let modules_dir = virtual_store_dir

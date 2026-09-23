@@ -241,6 +241,150 @@ fn store_status_reports_a_package_edited_after_it_was_linked_out() {
     assert!(!stderr.contains("--force"), "stderr={stderr}");
 }
 
+/// A package resolved against peer dependencies materializes into a
+/// peer-suffixed slot (`<name>@<version>_<peer>@<version>`), which is
+/// also the dep path that `snapshots:` and `.modules.yaml.skipped`
+/// record. Checking the bare `name@version` directory finds nothing on
+/// disk and reports every peer-resolved package as modified.
+#[test]
+fn store_status_checks_packages_in_peer_suffixed_slots() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    // `@pnpm.e2e/abc` peer-depends on peer-a, peer-b, and peer-c. With
+    // auto-install-peers (the default) all three resolve, suffixing
+    // abc's snapshot key.
+    pacquet
+        .arg("add")
+        .arg("@pnpm.e2e/abc@1.0.0")
+        .assert()
+        .success();
+
+    let pnpm_dir = workspace.join("node_modules/.pnpm");
+    let abc_slot = fs::read_dir(&pnpm_dir)
+        .expect("read the virtual store")
+        .filter_map(Result::ok)
+        .map(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .find(|name| name.starts_with("@pnpm.e2e+abc@1.0.0_"))
+        .expect("abc must materialize into a peer-suffixed slot");
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .args(["store", "status"])
+        .output()
+        .expect("run pacquet store status");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(
+        output.status.success(),
+        "an untouched peer-resolved package must not be reported as modified: {stderr}",
+    );
+
+    let installed_package_json = pnpm_dir
+        .join(&abc_slot)
+        .join("node_modules")
+        .join("@pnpm.e2e")
+        .join("abc")
+        .join("package.json");
+    fs::write(&installed_package_json, "{}\n").expect("edit the installed package");
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .args(["store", "status"])
+        .output()
+        .expect("run pacquet store status");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(
+        !output.status.success(),
+        "an edit inside the peer-suffixed slot must be reported: {stderr}",
+    );
+    assert!(stderr.contains("ERR_PNPM_MODIFIED_DEPENDENCY"), "stderr={stderr}");
+    // The report names the snapshot dep path, peer suffix included.
+    assert!(stderr.contains("@pnpm.e2e/abc@1.0.0("), "stderr={stderr}");
+}
+
+/// A platform-skipped optional is recorded in `.modules.yaml.skipped`
+/// under its snapshot (peer-suffixed) key and never materializes.
+/// Filtering on the peer-stripped `packages:` key misses that record
+/// and reports the absent directory as a modification, so long as the
+/// package has a store row (without one the check bails out earlier).
+#[test]
+fn store_status_ignores_skipped_optional_packages() {
+    let CommandTempCwd {
+        mut pacquet,
+        workspace,
+        root: _root,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"name":"fixture","dependencies":{"is-odd":"3.0.1"},"optionalDependencies":{"@pnpm.e2e/not-compatible-with-any-os":"*"}}"#,
+    )
+    .expect("write package.json");
+    // The peer added through packageExtensions suffixes the snapshot key,
+    // which is the key `.modules.yaml.skipped` records. Appended, so the
+    // fixture's `storeDir`/`cacheDir` entries stay in place.
+    _utils::append_workspace_yaml_key(
+        &workspace,
+        "packageExtensions",
+        "\n  '@pnpm.e2e/not-compatible-with-any-os':\n    peerDependencies:\n      '@pnpm.e2e/peer-a': ^1.0.0",
+    );
+
+    pacquet
+        .arg("install")
+        .assert()
+        .success();
+
+    let modules_yaml = fs::read_to_string(workspace.join("node_modules/.modules.yaml"))
+        .expect("read .modules.yaml");
+    assert!(
+        modules_yaml.contains("not-compatible-with-any-os@1.0.0("),
+        "the skipped optional must be recorded under its peer-suffixed snapshot key:\n{modules_yaml}",
+    );
+
+    // Prime the store row the check looks up: the skipped package was
+    // never fetched by the install, and without a row store status would
+    // not inspect its directory at all.
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["store", "add", "@pnpm.e2e/not-compatible-with-any-os@1.0.0"])
+        .assert()
+        .success();
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    let store_index = pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir)
+        .expect("open the store index store add just wrote");
+    let keys = store_index.keys().expect("read the store index keys");
+    assert!(
+        keys.iter()
+            .any(|key| key.contains("not-compatible-with-any-os@1.0.0")),
+        "store add must record the skipped optional in the store index, got {keys:?}",
+    );
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .args(["store", "status"])
+        .output()
+        .expect("run pacquet store status");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(
+        output.status.success(),
+        "a skipped optional must not be reported as modified: {stderr}",
+    );
+    assert!(stderr.contains("Packages in the store are untouched"), "stderr={stderr}");
+}
+
 #[test]
 fn store_add_fetches_a_package_without_touching_the_project() {
     let CommandTempCwd {
