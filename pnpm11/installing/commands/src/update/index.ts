@@ -514,7 +514,7 @@ function makeIncludeDependenciesFromCLI (opts: {
   return {
     dependencies: opts.production === true || (opts.dev !== true && opts.optional !== true),
     devDependencies: opts.dev === true || (opts.production !== true && opts.optional !== true),
-    optionalDependencies: opts.optional === true || (opts.optional !== false && opts.production !== true && opts.dev !== true),
+    optionalDependencies: opts.optional === true || (opts.optional !== false && opts.dev !== true),
     ...(opts.peer === true ? { peerDependencies: true } : {}),
   }
 }

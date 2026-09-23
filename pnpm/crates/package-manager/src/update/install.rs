@@ -142,13 +142,8 @@ pub(super) struct UpdateSeed {
     pub(super) preferred_versions_override: PreferredVersions,
     pub(super) catalogs_override: Option<Catalogs>,
 }
-/// The materialized `node_modules` layout is preserved from `.modules.yaml`
-/// (so an update does not install devDependencies when previously installed
-/// with `--prod`, and does not prune them when previously installed with full
-/// dependencies). If no prior layout exists, the direct update groups apply.
-/// An explicitly selected peer group also reaches resolution; the install
-/// still honors `autoInstallPeers` when deciding whether to materialize
-/// those peers.
+/// An explicitly selected peer group reaches resolution; the install honors
+/// `autoInstallPeers` when deciding whether to materialize those peers.
 /// `update` always re-resolves against the registry, so the
 /// auto-frozen / repeat-install fast paths must not fire.
 pub(super) fn update_install<'i>(
