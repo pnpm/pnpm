@@ -22,11 +22,15 @@ const INVALID_EXPANSION: &str = "invalid environment-expanded value";
 ///
 /// Working out which placeholders are needed costs reads, and the file says
 /// how many placeholders there are, so without a bound a repository could set
-/// how long loading its own configuration takes. Placeholders are decided in
-/// groups, so this covers far more of them than it names: the ones a document
-/// reads without — in comments, and in every setting that takes free text —
-/// cost about one read per doubling of their number rather than one each.
-const MAX_DOCUMENT_READS: u32 = 64;
+/// how long loading its own configuration takes.
+///
+/// Placeholders are decided in groups, which is what makes this affordable:
+/// the ones a document reads without — in comments, and in every setting that
+/// takes free text — cost about one read per doubling of their number rather
+/// than one each, and only the ones a setting genuinely needs cost about two
+/// apiece. A file naming this many settings out of the environment is far past
+/// anything written by hand, and is read as written.
+const MAX_DOCUMENT_READS: u32 = 512;
 
 /// Read the settings of a `pnpm-workspace.yaml` / `config.yaml`, resolving a
 /// setting written as `${VAR}` or `${VAR:-fallback}`.

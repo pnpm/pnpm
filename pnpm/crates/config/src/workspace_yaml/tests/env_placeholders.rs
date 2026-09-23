@@ -224,3 +224,63 @@ fn an_error_after_a_resolved_placeholder_names_the_setting_at_fault() {
     assert!(message.contains("notabool"), "unexpected error: {message}");
     assert!(message.contains("line 2"), "unexpected error: {message}");
 }
+
+/// Settings that take a boolean and so cannot hold a placeholder as text.
+/// Deciding one costs about two reads of the document, and a file driving
+/// this many of them from the environment has to stay within what the second
+/// read is allowed to do.
+const BOOLEAN_SETTINGS: &[&str] = &[
+    "bail",
+    "progress",
+    "updateNotifier",
+    "embedReadme",
+    "ignoreWorkspaceRootCheck",
+    "optional",
+    "packageLock",
+    "pending",
+    "recursiveInstall",
+    "reverse",
+    "stream",
+    "aggregateOutput",
+    "reporterHidePrefix",
+    "useStderr",
+    "ignoreWorkspace",
+    "shellEmulator",
+    "skipManifestObfuscation",
+    "sort",
+    "useBetaCli",
+    "hoist",
+    "shamefullyHoist",
+    "nodeExperimentalPackageMap",
+    "symlink",
+    "enableGlobalVirtualStore",
+    "virtualStoreOnly",
+    "enableModulesDir",
+    "lockfile",
+    "preferFrozenLockfile",
+    "frozenLockfile",
+    "deployAllFiles",
+    "forceLegacyDeploy",
+    "sharedWorkspaceLockfile",
+    "gitBranchLockfile",
+    "mergeGitBranchLockfiles",
+    "offline",
+    "preferOffline",
+    "lockfileIncludeTarballUrl",
+    "autoInstallPeers",
+];
+
+#[test]
+fn every_placeholder_of_a_document_driven_from_the_environment_resolves() {
+    let document = BOOLEAN_SETTINGS
+        .iter()
+        .fold(String::new(), |mut document, setting| {
+            let _ = writeln!(document, "{setting}: ${{PNPM_TEST_UNSET:-true}}");
+            document
+        });
+
+    let settings = parse_settings::<Env>(&document).unwrap();
+
+    assert_eq!(settings.bail, Some(true));
+    assert_eq!(settings.auto_install_peers, Some(true));
+}
