@@ -152,18 +152,14 @@ impl<'a> AuditGraph<'a> {
                 roots: importer_roots(importer),
             })
             .collect();
-        Self { importers, snapshots, packages }
+        Self::new(importers, snapshots, packages)
     }
 
     pub(super) fn env(env_lockfile: &'a EnvLockfile) -> Self {
         let importer = env_lockfile.importers.get(EnvLockfile::ROOT_IMPORTER_KEY);
         let mut importers = Vec::new();
         let Some(importer) = importer else {
-            return Self {
-                importers,
-                snapshots: &env_lockfile.snapshots,
-                packages: &env_lockfile.packages,
-            };
+            return Self::new(importers, &env_lockfile.snapshots, &env_lockfile.packages);
         };
         let config_roots = env_roots(&importer.config_dependencies);
         if !config_roots.is_empty() {
@@ -188,22 +184,16 @@ impl<'a> AuditGraph<'a> {
             }
         }
 
-        Self { importers, snapshots: &env_lockfile.snapshots, packages: &env_lockfile.packages }
+        Self::new(importers, &env_lockfile.snapshots, &env_lockfile.packages)
     }
 
     pub(super) fn children(&self, key: &PackageKey, include_optional_edges: bool) -> Vec<Edge> {
         let Some(snapshot) = self.snapshots.get(key) else { return Vec::new() };
-        let peer_dependencies = self.packages
-            .get(&key.without_peer())
-            .and_then(|pkg| pkg.peer_dependencies.as_ref());
+        let skipped = self.peer_satisfaction_edges.get(key);
         let mut children = Vec::new();
-        append_snapshot_edges(&mut children, snapshot.dependencies.as_ref(), peer_dependencies);
+        append_snapshot_edges(&mut children, snapshot.dependencies.as_ref(), skipped);
         if include_optional_edges {
-            append_snapshot_edges(
-                &mut children,
-                snapshot.optional_dependencies.as_ref(),
-                peer_dependencies,
-            );
+            append_snapshot_edges(&mut children, snapshot.optional_dependencies.as_ref(), skipped);
         }
         children
     }

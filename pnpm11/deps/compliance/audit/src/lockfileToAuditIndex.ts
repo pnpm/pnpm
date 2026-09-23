@@ -1,7 +1,7 @@
 import * as dp from '@pnpm/deps.path'
 import { DepType, type DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { convertToLockfileObject } from '@pnpm/lockfile.fs'
-import type { EnvLockfile, LockfileObject, PackageSnapshot, ResolvedDependencies } from '@pnpm/lockfile.types'
+import type { EnvLockfile, LockfileObject, PackageSnapshot, ProjectSnapshot, ResolvedDependencies } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import type { DependenciesField, DepPath, ProjectId } from '@pnpm/types'
@@ -37,9 +37,7 @@ export interface AuditIndexOptions {
   // Pre-computed optional-only depPaths for the main lockfile. Shared between
   // lockfileToAuditRequest and buildAuditPathIndex when both are called.
   optionalOnly?: Set<DepPath>
-  // Pre-computed reachable depPaths for the main lockfile (collectReachableDepPaths).
-  // Shared with callers that already computed it (e.g. via collectOptionalOnlyDepPaths)
-  // so lockfileToAuditRequest doesn't walk the lockfile a second time.
+  // Pre-computed collectReachableDepPaths for the main lockfile.
   reachable?: Set<DepPath>
 }
 
@@ -114,11 +112,9 @@ export function lockfileToAuditRequest (
         }
         const { depPath, pkgSnapshot, next } = frame.dependencies[frame.next++]
         const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        // `@pnpm/lockfile.walker` follows every optionalDependencies edge
-        // unconditionally once inside the graph, including ones that only
-        // exist because they satisfy a peer of the parent — so it can visit
-        // a depPath that graphReachable (which excludes peer-satisfaction
-        // edges) correctly determined wouldn't be present under opts.include.
+        // `@pnpm/lockfile.walker` follows peer-satisfaction edges (see
+        // snapshotChildren), so it can visit a depPath that isn't present
+        // under opts.include.
         if (version && graphReachable.has(depPath)) {
           registerOccurrence({
             name,
@@ -240,7 +236,7 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
         optionalOnly.has(edge.depPath))
     }
     if (allReachableVulnerabilitiesSaturated(paths, reachable, depTypes, optionalOnly)) return
-    const children = snapshotChildren(pkgSnapshot, includeOptDeps)
+    const children = snapshotChildren(lockfile, edge.depPath, pkgSnapshot, includeOptDeps)
     inTrail.add(edge.depPath)
     stack.push({ depPath: edge.depPath, trail, children, next: 0 })
   }
@@ -329,7 +325,7 @@ function createReachableVulnerabilitiesGetter (
         if (version && vulnerableNames.has(resolvedName)) {
           own.add(vulnerabilityKey(resolvedName, version, edge.depPath))
         }
-        children = snapshotChildren(pkgSnapshot, includeOptDeps)
+        children = snapshotChildren(lockfile, edge.depPath, pkgSnapshot, includeOptDeps)
       }
       partial.set(edge.depPath, own)
       work.push({ edge, own, children, next: 0 })
@@ -476,54 +472,130 @@ function appendNamedDepPaths (target: Array<{ name: string, depPath: DepPath }>,
 }
 
 // A snapshot's children for graph-walking purposes: its dependencies, plus
-// optionalDependencies when includeOptDeps, excluding peer-satisfaction
-// edges (see isPeerSatisfactionAlias's doc comment for why).
-function snapshotChildren (pkgSnapshot: PackageSnapshot, includeOptDeps: boolean): Array<{ name: string, depPath: DepPath }> {
+// optionalDependencies when includeOptDeps, minus its peer-satisfaction edges.
+//
+// An entry whose alias is one of the package's own peerDependencies is the
+// concrete package peer resolution picked for that peer. When that package is
+// a direct dependency of an importer that reaches this snapshot, the entry only
+// satisfies the peer with the importer's own dependency, and whether that
+// dependency is present is decided by the importer's dependency field:
+// following the entry would make a peer satisfied by a devDependency reachable
+// under `--prod`. Any other peer entry is followed: the peer was auto-installed
+// (`autoInstallPeers`) or resolved from an ancestor package, and following it
+// can only over-report.
+function snapshotChildren (
+  lockfile: LockfileObject,
+  depPath: DepPath,
+  pkgSnapshot: PackageSnapshot,
+  includeOptDeps: boolean
+): Array<{ name: string, depPath: DepPath }> {
   const children: Array<{ name: string, depPath: DepPath }> = []
-  appendNonPeerNamedDepPaths(children, pkgSnapshot, pkgSnapshot.dependencies ?? {})
+  const parent = { depPath, snapshot: pkgSnapshot }
+  appendDependencyEdges(children, lockfile, parent, pkgSnapshot.dependencies ?? {})
   if (includeOptDeps) {
-    appendNonPeerNamedDepPaths(children, pkgSnapshot, pkgSnapshot.optionalDependencies ?? {})
+    appendDependencyEdges(children, lockfile, parent, pkgSnapshot.optionalDependencies ?? {})
   }
   return children
 }
 
-// Like appendNamedDepPaths, but skips a peer-satisfaction edge.
-function appendNonPeerNamedDepPaths (target: Array<{ name: string, depPath: DepPath }>, snapshot: PackageSnapshot, deps: ResolvedDependencies): void {
+function appendDependencyEdges (
+  target: Array<{ name: string, depPath: DepPath }>,
+  lockfile: LockfileObject,
+  parent: { depPath: DepPath, snapshot: PackageSnapshot },
+  deps: ResolvedDependencies
+): void {
   for (const [alias, ref] of Object.entries(deps)) {
-    if (isPeerSatisfactionAlias(snapshot, alias)) continue
     const depPath = dp.refToRelative(ref, alias)
-    if (depPath != null) target.push({ name: alias, depPath })
+    if (depPath == null) continue
+    if (isPeerAlias(parent.snapshot, alias) && getPeerSatisfactionEdges(lockfile).get(parent.depPath)?.has(alias)) continue
+    target.push({ name: alias, depPath })
   }
 }
 
-// True when `alias` is one of `snapshot`'s own declared `peerDependencies` —
-// i.e. the corresponding `dependencies`/`optionalDependencies` entry doesn't
-// exist because the package depends on it, but because that's the concrete
-// package pnpm's peer resolution picked to satisfy the peer. Every graph walk
-// in this file that enumerates a snapshot's children treats such an entry as
-// a non-edge: peer resolution only ever picks a package that's independently
-// present via a genuine (non-peer) edge somewhere in the whole workspace
-// tree, so the peer-satisfaction edge itself never needs to contribute
-// reachability or appear as an install path — if the satisfying package is
-// really available under the current `include`, it's already reachable via
-// its own genuine edge; if it isn't (e.g. it's only a devDependency and
-// `include.devDependencies` is false), the peer edge shouldn't make it
-// "available" either. Without this, `pnpm audit --prod` would report a
-// package that only exists in the resolved graph because an excluded
-// dependency type (typically a devDependency) happened to satisfy another
-// package's optional peer.
-function isPeerSatisfactionAlias (snapshot: PackageSnapshot, alias: string): boolean {
+const peerSatisfactionEdgesCache = new WeakMap<LockfileObject, Map<DepPath, Set<string>>>()
+
+function getPeerSatisfactionEdges (lockfile: LockfileObject): Map<DepPath, Set<string>> {
+  let edges = peerSatisfactionEdgesCache.get(lockfile)
+  if (edges == null) {
+    edges = collectPeerSatisfactionEdges(lockfile)
+    peerSatisfactionEdgesCache.set(lockfile, edges)
+  }
+  return edges
+}
+
+// The peer aliases of each snapshot that snapshotChildren leaves out.
+function collectPeerSatisfactionEdges (lockfile: LockfileObject): Map<DepPath, Set<string>> {
+  const importersListing = new Map<DepPath, ProjectId[]>()
+  for (const [importerId, importer] of Object.entries(lockfile.importers) as Array<[ProjectId, ProjectSnapshot]>) {
+    for (const depPath of importerDirectDepPaths(importer)) {
+      let listing = importersListing.get(depPath)
+      if (listing == null) {
+        listing = []
+        importersListing.set(depPath, listing)
+      }
+      listing.push(importerId)
+    }
+  }
+  const reachByImporter = new Map<ProjectId, Set<DepPath>>()
+  const reaches = (importerId: ProjectId, depPath: DepPath): boolean => {
+    let reached = reachByImporter.get(importerId)
+    if (reached == null) {
+      reached = new Set()
+      walkAllEdges(lockfile, importerDirectDepPaths(lockfile.importers[importerId]), reached)
+      reachByImporter.set(importerId, reached)
+    }
+    return reached.has(depPath)
+  }
+  const edges = new Map<DepPath, Set<string>>()
+  for (const [parent, snapshot] of Object.entries(lockfile.packages ?? {}) as Array<[DepPath, PackageSnapshot]>) {
+    for (const [alias, ref] of [...Object.entries(snapshot.dependencies ?? {}), ...Object.entries(snapshot.optionalDependencies ?? {})]) {
+      if (!isPeerAlias(snapshot, alias)) continue
+      const target = dp.refToRelative(ref, alias)
+      const listing = target == null ? undefined : importersListing.get(target)
+      if (!listing?.some((importerId) => reaches(importerId, parent))) continue
+      let aliases = edges.get(parent)
+      if (aliases == null) {
+        aliases = new Set()
+        edges.set(parent, aliases)
+      }
+      aliases.add(alias)
+    }
+  }
+  return edges
+}
+
+function importerDirectDepPaths (importer: ProjectSnapshot): DepPath[] {
+  return [
+    ...resolvedDepsToDepPaths(importer.dependencies ?? {}),
+    ...resolvedDepsToDepPaths(importer.devDependencies ?? {}),
+    ...resolvedDepsToDepPaths(importer.optionalDependencies ?? {}),
+  ]
+}
+
+function walkAllEdges (lockfile: LockfileObject, depPaths: DepPath[], seen: Set<DepPath>): void {
+  const packages = lockfile.packages ?? {}
+  const stack = [...depPaths]
+  while (stack.length > 0) {
+    const depPath = stack.pop()!
+    if (seen.has(depPath)) continue
+    seen.add(depPath)
+    const snapshot = packages[depPath]
+    if (!snapshot) continue
+    for (const deps of [snapshot.dependencies, snapshot.optionalDependencies]) {
+      for (const child of resolvedDepsToDepPaths(deps ?? {})) stack.push(child)
+    }
+  }
+}
+
+function isPeerAlias (snapshot: PackageSnapshot, alias: string): boolean {
   // Object.hasOwn rather than `in`: a lockfile is untrusted input, and `in`
   // also matches inherited Object.prototype property names (`constructor`,
-  // `toString`, `valueOf`, ...), some of which are syntactically valid
-  // package names — `in` would treat a plain dependency edge named
-  // `constructor` as a peer-satisfaction edge even with no such peer
-  // declared.
+  // `toString`, ...), some of which are valid package names.
   return snapshot.peerDependencies != null && Object.hasOwn(snapshot.peerDependencies, alias)
 }
 
 // Returns every depPath reachable from the importers' roots under `include`
-// (peer-satisfaction edges excluded — see isPeerSatisfactionAlias).
+// (peer-satisfaction edges excluded — see snapshotChildren).
 export function collectReachableDepPaths (
   lockfile: LockfileObject,
   include?: AuditIndexOptions['include']
@@ -554,9 +626,6 @@ export function collectReachableDepPaths (
 // Root selection honours the caller's `include` flags, so running
 // `pnpm audit --prod` doesn't let dev-only subgraphs flip a package out of
 // "optional-only" classification.
-//
-// Accepts an optional pre-computed `reachable` (collectReachableDepPaths(lockfile,
-// include)) for callers that already have one, to avoid walking the lockfile twice.
 export function collectOptionalOnlyDepPaths (
   lockfile: LockfileObject,
   include?: AuditIndexOptions['include'],
@@ -580,16 +649,9 @@ export function collectOptionalOnlyDepPaths (
   return result
 }
 
-// Computes the same DepType.DevOnly/DevAndProd/ProdOnly classification as
-// `@pnpm/lockfile.detect-dep-types`'s detectDepTypes, but locally — that
-// package is also consumed by `pnpm list`/`pnpm why`/the license-scanner/sbom
-// and has no way to exclude peer-satisfaction edges without widening its
-// contract for all of those. Peer-satisfaction edges are excluded per
-// collectReachableDepPaths's doc comment above. Intentionally not
-// parameterized by the caller's `include`, matching detectDepTypes's own
-// contract: this reports a fixed "would this survive without
-// devDependencies" property of the dependency, independent of what the
-// current `pnpm audit` invocation's own `--prod`/`--dev` flags select.
+// The DepType classification of `@pnpm/lockfile.detect-dep-types`'s
+// detectDepTypes, without peer-satisfaction edges (see snapshotChildren).
+// Like detectDepTypes, it ignores the caller's `include`.
 export function detectAuditDepTypes (lockfile: LockfileObject): DepTypes {
   const devReachable = new Set<DepPath>()
   const prodReachable = new Set<DepPath>()
@@ -624,20 +686,8 @@ function walkReachable (lockfile: LockfileObject, depPaths: DepPath[], seen: Set
     seen.add(depPath)
     const snapshot = packages[depPath]
     if (!snapshot) continue
-    for (const child of resolvedNonPeerDepPaths(snapshot, snapshot.dependencies ?? {})) stack.push(child)
-    if (includeOptionalEdges) {
-      for (const child of resolvedNonPeerDepPaths(snapshot, snapshot.optionalDependencies ?? {})) stack.push(child)
-    }
+    for (const child of snapshotChildren(lockfile, depPath, snapshot, includeOptionalEdges)) stack.push(child.depPath)
   }
-}
-
-// Like resolvedDepsToDepPaths, but skips a peer-satisfaction edge (see
-// isPeerSatisfactionAlias).
-function resolvedNonPeerDepPaths (snapshot: PackageSnapshot, deps: ResolvedDependencies): DepPath[] {
-  return Object.entries(deps)
-    .filter(([alias]) => !isPeerSatisfactionAlias(snapshot, alias))
-    .map(([alias, ref]) => dp.refToRelative(ref, alias))
-    .filter((depPath): depPath is DepPath => depPath !== null)
 }
 
 function resolvedDepsToDepPaths (deps: ResolvedDependencies): DepPath[] {

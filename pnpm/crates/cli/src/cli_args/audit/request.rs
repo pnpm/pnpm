@@ -1,5 +1,8 @@
 //! Turning a lockfile into the dependency graph the registry audits.
 
+mod peer_edges;
+use peer_edges::peer_satisfaction_edges;
+
 use super::{
     BTreeMap, EnvLockfile, HashMap, HashSet, ImporterDepVersion, Lockfile, PackageKey,
     PackageMetadata, PkgName, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry,
@@ -44,7 +47,19 @@ pub(crate) struct GraphImporter {
 pub(crate) struct AuditGraph<'a> {
     pub(crate) importers: Vec<GraphImporter>,
     pub(crate) snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
-    pub(crate) packages: &'a HashMap<PackageKey, PackageMetadata>,
+    /// Each snapshot's peer-satisfaction edges, which no walk follows.
+    pub(crate) peer_satisfaction_edges: HashMap<PackageKey, HashSet<PkgName>>,
+}
+
+impl<'a> AuditGraph<'a> {
+    pub(crate) fn new(
+        importers: Vec<GraphImporter>,
+        snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+        packages: &HashMap<PackageKey, PackageMetadata>,
+    ) -> Self {
+        let peer_satisfaction_edges = peer_satisfaction_edges(&importers, snapshots, packages);
+        Self { importers, snapshots, peer_satisfaction_edges }
+    }
 }
 
 pub(crate) fn empty_snapshots() -> &'static HashMap<PackageKey, SnapshotEntry> {
@@ -94,31 +109,15 @@ pub(crate) fn env_roots(deps: &BTreeMap<String, SpecifierAndResolution>) -> Vec<
         .collect()
 }
 
-/// Appends `deps`' edges, skipping a peer-satisfaction edge — an entry
-/// whose alias is also one of `peer_dependencies` (the snapshot's own
-/// package's declared peers, looked up by the caller via the peer-stripped
-/// key since peer declarations live on the `packages:` entry, not the
-/// `snapshots:` entry). That entry doesn't exist because the package
-/// depends on it; it exists because that's the concrete package pnpm's peer
-/// resolution picked to satisfy the peer. Peer resolution only ever picks a
-/// package that's independently present via a genuine (non-peer) edge
-/// somewhere in the whole workspace tree, so a peer-satisfaction edge never
-/// needs to contribute reachability or appear as an install path — if the
-/// satisfying package is really available, it's already reachable via its
-/// own genuine edge; if it isn't (e.g. it's only a devDependency and
-/// `--prod` excludes devDependencies), the peer edge shouldn't make it
-/// "available" either. Without this, `pnpm audit --prod` would report a
-/// package that only exists in the resolved graph because an excluded
-/// dependency type (typically a devDependency) happened to satisfy another
-/// package's optional peer.
+/// Appends `deps`' edges, except the ones named in `skipped`.
 pub(crate) fn append_snapshot_edges(
     children: &mut Vec<Edge>,
     deps: Option<&HashMap<PkgName, SnapshotDepRef>>,
-    peer_dependencies: Option<&HashMap<String, String>>,
+    skipped: Option<&HashSet<PkgName>>,
 ) {
     let Some(deps) = deps else { return };
     for (name, dep_ref) in deps {
-        if peer_dependencies.is_some_and(|peers| peers.contains_key(&name.to_string())) {
+        if skipped.is_some_and(|skipped| skipped.contains(name)) {
             continue;
         }
         if let Some(key) = dep_ref.resolve(name) {
