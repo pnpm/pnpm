@@ -105,9 +105,6 @@
       "path": "../exec/lifecycle"
     },
     {
-      "path": "../exec/pnpm-cli-runner"
-    },
-    {
       "path": "../hooks/pnpmfile"
     },
     {
