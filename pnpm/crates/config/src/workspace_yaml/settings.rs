@@ -186,7 +186,6 @@ pub struct WorkspaceSettings {
     pub update_notifier: Option<bool>,
     pub color: Option<crate::ColorMode>,
     pub loglevel: Option<crate::LogLevel>,
-    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub reporter: Option<crate::ReporterType>,
     pub embed_readme: Option<bool>,
     pub ignore_workspace_root_check: Option<bool>,
