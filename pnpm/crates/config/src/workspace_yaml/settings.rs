@@ -1,8 +1,8 @@
 use super::{
     AllowBuild, AuditConfig, AuditLevel, AuditSettings, BTreeMap, BTreeSet, CargoSettings,
     CatalogMode, ConfigDependency, Deserialize, Deserializer, DroppedKeys, EnvVar, ErrorKind,
-    GLOBAL_CONFIG_YAML_FILENAME, HashMap, HoistingLimits, IgnoredAny, IndexMap, InitType,
-    LinkWorkspacePackages, LoadWorkspaceYamlError, NodeLinker, NodePackageMapType,
+    Expansion, GLOBAL_CONFIG_YAML_FILENAME, HashMap, HoistingLimits, IgnoredAny, IndexMap,
+    InitType, LinkWorkspacePackages, LoadWorkspaceYamlError, NodeLinker, NodePackageMapType,
     PackageConfigsSetting, PackageExtension, PackageImportMethod, Path, PathBuf,
     PeerDependencyRules, Pipe, PmOnFail, PnpmfileSetting, PythonSettings, RegistryEntry,
     RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail, SCHEMA_DIRECTIVE_KEY,
@@ -27,35 +27,44 @@ const INVALID_EXPANSION: &str = "invalid environment-expanded value";
 ///
 /// A document that parses as written takes neither the second read nor any
 /// expansion, so what a file means today it goes on meaning.
-pub(super) fn parse_settings<Sys: EnvVar>(
+pub(crate) fn parse_settings<Sys: EnvVar>(
     text: &str,
 ) -> Result<WorkspaceSettings, Box<serde_saphyr::Error>> {
     let as_written = match serde_saphyr::from_str::<WorkspaceSettings>(text) {
         Ok(settings) => return Ok(settings),
         Err(error) => error,
     };
-    let Ok(document) = serde_saphyr::from_str::<serde_json::Value>(text) else {
+    let Ok(mut document) = serde_saphyr::from_str::<serde_json::Value>(text) else {
         return Err(Box::new(as_written));
     };
     let mut resolved = document.clone();
-    if !expand_typed_placeholders::<Sys>(&mut resolved) {
+    if !expand_typed_placeholders::<Sys>(&mut resolved, Expansion::Resolved) {
         return Err(Box::new(as_written));
     }
-    let error = match WorkspaceSettings::deserialize(resolved) {
-        Ok(settings) => return Ok(settings),
-        Err(error) => error,
-    };
-    // Reading the document with its placeholders in place fails the same way
-    // when they are not what it stumbled over, and that first error is the
-    // one worth reporting: it carries the line. Otherwise the setting holds
-    // an expansion, which the message must not repeat.
-    if WorkspaceSettings::deserialize(document)
-        .err()
-        .is_some_and(|as_text| as_text.to_string() == error.to_string())
-    {
-        return Err(Box::new(as_written));
+    if let Some(settings) = read_document(&resolved) {
+        return Ok(settings);
     }
-    Err(Box::new(serde::de::Error::custom(INVALID_EXPANSION)))
+    // The document reads once the settings an expansion decides are out of
+    // it, so an expansion is what it stumbled over, and the message must not
+    // repeat that. Otherwise the file says something it cannot mean on its
+    // own, and the first error is the one to report: it carries the line.
+    expand_typed_placeholders::<Sys>(&mut document, Expansion::Dropped);
+    if read_document(&document).is_some() {
+        return Err(Box::new(serde::de::Error::custom(INVALID_EXPANSION)));
+    }
+    Err(Box::new(as_written))
+}
+
+/// Read a parsed document back through the yaml reader, so every scalar is
+/// resolved against the setting it lands in rather than against the type it
+/// was parsed as. The `22` a resolved `${NODE_VERSION:-22}` spells is text
+/// where the setting takes text and a number where it takes a number,
+/// exactly as a `22` written in the file is.
+fn read_document(document: &serde_json::Value) -> Option<WorkspaceSettings> {
+    serde_saphyr::to_string(document)
+        .ok()?
+        .pipe_deref(serde_saphyr::from_str)
+        .ok()
 }
 
 /// `serde` helper for fields that need to distinguish "missing key"

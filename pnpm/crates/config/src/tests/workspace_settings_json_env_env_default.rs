@@ -815,3 +815,53 @@ pub fn pnpm_config_env_var_overrides_workspace_yaml() {
         "PNPM_CONFIG_* env var must win over pnpm-workspace.yaml",
     );
 }
+
+/// A workspace selected through `NPM_CONFIG_WORKSPACE_DIR` is read the same
+/// way a discovered one is, so a setting written as a placeholder resolves
+/// there too.
+#[test]
+pub fn npm_config_workspace_dir_resolves_a_typed_placeholder() {
+    let env_workspace = tempdir().unwrap();
+    write_file(
+        &env_workspace.path().join("pnpm-workspace.yaml"),
+        "nodeLinker: ${PNPM_TEST_WORKSPACE_LINKER:-hoisted}\n",
+    );
+    static ENV_WORKSPACE_PATH: std::sync::OnceLock<OsString> = std::sync::OnceLock::new();
+    ENV_WORKSPACE_PATH
+        .set(
+            env_workspace
+                .path()
+                .as_os_str()
+                .to_owned(),
+        )
+        .expect("set once");
+    struct HostWithEnvWorkspaceDir;
+    impl EnvVar for HostWithEnvWorkspaceDir {
+        fn var(name: &str) -> Option<String> {
+            safe_host_var(name)
+        }
+    }
+    impl EnvVarOs for HostWithEnvWorkspaceDir {
+        fn var_os(name: &str) -> Option<OsString> {
+            (name == "NPM_CONFIG_WORKSPACE_DIR").then(|| {
+                ENV_WORKSPACE_PATH
+                    .get()
+                    .expect("ENV_WORKSPACE_PATH initialised")
+                    .clone()
+            })
+        }
+    }
+    impl GetHomeDir for HostWithEnvWorkspaceDir {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithEnvWorkspaceDir);
+    host_current_dir!(HostWithEnvWorkspaceDir);
+
+    let config = Config::new()
+        .current::<HostWithEnvWorkspaceDir>(env_workspace.path())
+        .expect("config loads");
+
+    assert_eq!(config.node_linker, crate::NodeLinker::Hoisted);
+}

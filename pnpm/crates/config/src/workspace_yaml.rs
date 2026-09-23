@@ -9,6 +9,7 @@ pub use sections::{
     SideEffectsCacheSettings, TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings,
     decided_allow_builds,
 };
+pub(crate) use settings::parse_settings;
 pub use settings::{MacosBackupSettings, WorkspaceSettings};
 
 use crate::{
@@ -402,9 +403,9 @@ mod env;
 
 mod environment_values;
 use environment_values::{
-    expand_typed_placeholders, has_env_placeholder, no_proxy_scalar, normalize_registry_url,
-    substitute_json_string, substitute_optional_inner_string, substitute_optional_string,
-    substitute_optional_string_map, substitute_registry_entries,
+    Expansion, expand_typed_placeholders, has_env_placeholder, no_proxy_scalar,
+    normalize_registry_url, substitute_json_string, substitute_optional_inner_string,
+    substitute_optional_string, substitute_optional_string_map, substitute_registry_entries,
 };
 
 mod apply;

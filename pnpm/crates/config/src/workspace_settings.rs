@@ -201,8 +201,7 @@ impl Config {
             let yaml_path = env_dir.join(WORKSPACE_MANIFEST_FILENAME);
             match fs::read_to_string(&yaml_path) {
                 Ok(text) => {
-                    let mut settings: WorkspaceSettings = serde_saphyr::from_str(&text)
-                        .map_err(Box::new)
+                    let mut settings = crate::workspace_yaml::parse_settings::<Sys>(&text)
                         .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
                             path: yaml_path,
                             source,

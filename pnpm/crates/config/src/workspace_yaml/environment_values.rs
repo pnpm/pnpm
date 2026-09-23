@@ -54,43 +54,56 @@ const REQUEST_DESTINATION_KEYS: &[&str] = &[
 /// [`WorkspaceSettings::substitute_env_trusted`](super::WorkspaceSettings::substitute_env_trusted)
 /// and its untrusted counterpart, which resolve them once the settings are
 /// typed and know which layer the file came from.
-pub(super) fn expand_typed_placeholders<Sys: EnvVar>(document: &mut serde_json::Value) -> bool {
+pub(super) fn expand_typed_placeholders<Sys: EnvVar>(
+    document: &mut serde_json::Value,
+    expansion: Expansion,
+) -> bool {
     let serde_json::Value::Object(settings) = document else { return false };
     let mut expanded = false;
     for (key, value) in settings {
         if REQUEST_DESTINATION_KEYS.contains(&key.as_str()) {
             continue;
         }
-        expanded |= expand_tokens::<Sys>(value);
+        expanded |= expand_tokens::<Sys>(value, expansion);
     }
     expanded
 }
 
-fn expand_tokens<Sys: EnvVar>(value: &mut serde_json::Value) -> bool {
+/// What [`expand_typed_placeholders`] leaves where it resolves a placeholder.
+#[derive(Clone, Copy)]
+pub(super) enum Expansion {
+    /// The value the placeholder names.
+    Resolved,
+    /// Nothing, leaving the document the file describes apart from the
+    /// settings an expansion decides. A read of that answers whether a failed
+    /// read of the resolved document stumbled over an expansion or over
+    /// something the file says outright.
+    Dropped,
+}
+
+fn expand_tokens<Sys: EnvVar>(value: &mut serde_json::Value, expansion: Expansion) -> bool {
     match value {
-        serde_json::Value::String(text) => match expanded_token::<Sys>(text) {
-            Some(token) => {
-                *value = scalar_value(token);
-                true
-            }
-            None => false,
-        },
-        serde_json::Value::Array(items) => {
-            let mut expanded = false;
-            for item in items {
-                expanded |= expand_tokens::<Sys>(item);
-            }
-            expanded
-        }
-        serde_json::Value::Object(entries) => {
-            let mut expanded = false;
-            for entry in entries.values_mut() {
-                expanded |= expand_tokens::<Sys>(entry);
-            }
-            expanded
-        }
-        _ => false,
+        serde_json::Value::Array(items) => expand_each::<Sys>(items.iter_mut(), expansion),
+        serde_json::Value::Object(entries) => expand_each::<Sys>(entries.values_mut(), expansion),
+        _ => expand_scalar::<Sys>(value, expansion),
     }
+}
+
+fn expand_each<'document, Sys: EnvVar>(
+    values: impl Iterator<Item = &'document mut serde_json::Value>,
+    expansion: Expansion,
+) -> bool {
+    values.fold(false, |expanded, value| expand_tokens::<Sys>(value, expansion) | expanded)
+}
+
+fn expand_scalar<Sys: EnvVar>(value: &mut serde_json::Value, expansion: Expansion) -> bool {
+    let serde_json::Value::String(text) = value else { return false };
+    let Some(token) = expanded_token::<Sys>(text) else { return false };
+    *value = match expansion {
+        Expansion::Resolved => scalar_value(token),
+        Expansion::Dropped => serde_json::Value::Null,
+    };
+    true
 }
 
 fn expanded_token<Sys: EnvVar>(text: &str) -> Option<String> {

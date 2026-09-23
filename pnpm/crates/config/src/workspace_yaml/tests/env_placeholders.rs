@@ -130,3 +130,33 @@ fn an_error_beside_a_resolved_placeholder_keeps_its_location() {
     assert!(message.contains("line 1"), "unexpected error: {message}");
     assert!(!message.contains("invalid environment-expanded value"), "unexpected: {message}");
 }
+
+/// A setting that takes free text keeps it: the yaml scalar a resolved
+/// placeholder spells is read against the setting it lands in, as a value
+/// written out in the file would be.
+#[test]
+fn an_expansion_beside_a_typed_one_stays_text_where_the_setting_takes_text() {
+    let settings = parse_settings::<Env>(
+        "ignoreScripts: ${PNPM_TEST_UNSET:-false}
+nodeVersion: ${PNPM_TEST_UNSET:-22}
+userAgent: ${PNPM_TEST_UNSET:-true}
+",
+    )
+    .unwrap();
+
+    assert_eq!(settings.ignore_scripts, Some(false));
+    assert_eq!(settings.node_version.as_deref(), Some("22"));
+    assert_eq!(settings.user_agent.as_deref(), Some("true"));
+}
+
+/// The second read must not turn a quoted scalar into the value it spells,
+/// which would let a file mean something it does not say.
+#[test]
+fn a_quoted_scalar_beside_a_resolved_placeholder_stays_quoted() {
+    parse_settings::<Env>(
+        r#"ignoreScripts: ${PNPM_TEST_UNSET:-false}
+linkWorkspacePackages: "false"
+"#,
+    )
+    .expect_err("a quoted false is not a boolean");
+}
