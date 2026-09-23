@@ -50,16 +50,19 @@ function isIsolatedDir (targetDir: string, filePaths: string[]): boolean {
     if (dirStat.isSymbolicLink()) {
       return false
     }
-  } catch {
-    return false
+  } catch (err: unknown) {
+    if ((err as { code?: string })?.code === 'ENOENT') {
+      return false
+    }
+    throw err
   }
 
   for (const relPath of filePaths) {
     const normalized = path.normalize(relPath)
-    if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
+    if (normalized === '..' || normalized.startsWith(`..${path.sep}`) || path.isAbsolute(normalized)) {
       return false
     }
-    const parts = normalized.split(/[/\\]+/).filter(Boolean)
+    const parts = normalized.split(path.sep).filter(Boolean)
     let current = targetDir
     for (let i = 0; i < parts.length; i++) {
       current = path.join(current, parts[i])
@@ -76,7 +79,7 @@ function isIsolatedDir (targetDir: string, filePaths: string[]): boolean {
         if ((err as { code?: string })?.code === 'ENOENT') {
           break
         }
-        return false
+        throw err
       }
     }
   }
