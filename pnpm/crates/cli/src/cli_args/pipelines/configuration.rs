@@ -83,7 +83,12 @@ pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {
         cfg.frozen_store,
     );
     args.scripts.apply(cfg);
-    cfg.force = args.materialization.force || cfg.force;
+    cfg.ignore_platform_checks = args.materialization.ignore_platform_checks
+        || args.materialization.force
+        || cfg.ignore_platform_checks;
+    cfg.reinstall = args.materialization.reinstall || args.materialization.force || cfg.reinstall;
+    cfg.force =
+        args.materialization.force || (cfg.ignore_platform_checks && cfg.reinstall) || cfg.force;
     if let Some(network_concurrency) = args.fetching.concurrency {
         cfg.network_concurrency = network_concurrency;
     }

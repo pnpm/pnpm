@@ -44,6 +44,8 @@ pub(super) fn install_is_already_up_to_date<Reporter: self::Reporter>(
     let eligible = check.mutation.is_full_install()
         && matches!(check.update_seed_policy, UpdateSeedPolicy::KeepAll)
         && !check.frozen_lockfile
+        && !check.workspace.config.reinstall
+        && !check.workspace.config.ignore_platform_checks
         && !check.workspace.config.force
         && !check.disable_optimistic_repeat_install;
     if !eligible {

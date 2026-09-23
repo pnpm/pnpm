@@ -42,6 +42,7 @@ pub(super) fn frozen_tree_up_to_date<'a>(
     if !context.repeat.frozen
         || context.repeat.filtered
         || context.repeat.disable_optimistic_check
+        || config.reinstall
         || config.force
     {
         return None;

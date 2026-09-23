@@ -461,3 +461,40 @@ fn reject_frozen_with_update_checksums(
     }
     Ok(())
 }
+fn reject_lockfile_only_without_lockfile(
+    config: &Config,
+    lockfile_only: bool,
+) -> Result<(), InstallError> {
+    if lockfile_only && !config.lockfile {
+        return Err(InstallError::ConfigConflictLockfileOnlyWithNoLockfile);
+    }
+    Ok(())
+}
+
+/// `enableModulesDir: false` (with the global virtual store off) is "resolve
+/// and write the lockfile, materialize nothing" — the same pipeline
+/// `--lockfile-only` takes, entered from config. It stays outside the
+/// `lockfile: false` conflict (pnpm accepts that combination and simply
+/// writes nothing), and never turns a rebuild — which runs against an
+/// already-materialized `node_modules` — into a silent no-op.
+fn effective_lockfile_only(
+    config: &Config,
+    lockfile_only: bool,
+    rebuild: Option<&crate::RebuildOptions>,
+) -> bool {
+    lockfile_only
+        || (rebuild.is_none() && !config.enable_modules_dir && !config.enable_global_virtual_store)
+}
+
+fn reject_conflicting_store_config(config: &Config) -> Result<(), InstallError> {
+    if config.frozen_store && (config.reinstall || config.force) {
+        return Err(InstallError::ConfigConflictFrozenStoreWithForce);
+    }
+    if config.virtual_store_only
+        && !config.enable_modules_dir
+        && !config.enable_global_virtual_store
+    {
+        return Err(InstallError::ConfigConflictVirtualStoreOnlyWithNoModulesDir);
+    }
+    Ok(())
+}

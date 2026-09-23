@@ -296,7 +296,8 @@ pub(super) fn package_is_reusable(
     let expected_version = resolved.metadata.version
         .clone()
         .unwrap_or_else(|| resolved.pkg_key.suffix.version().to_string());
-    !state.opts.force
+    !state.opts.reinstall
+        && !state.opts.force
         && !matches!(resolved.metadata.resolution, LockfileResolution::Directory(_))
         && !reference.contains("(patch_hash=")
         && state.opts.current_hoisted_locations.is_some_and(|locations| {

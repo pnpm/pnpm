@@ -116,6 +116,8 @@ impl InstallArgs {
         if self.effective_frozen_lockfile(config)
             || self.lockfile.only
             || self.lockfile.fix
+            || self.materialization.reinstall
+            || self.materialization.ignore_platform_checks
             || self.materialization.force
             || self.materialization.verify_deps_before_run_install
             || !self.materialization.allow_build.is_empty()

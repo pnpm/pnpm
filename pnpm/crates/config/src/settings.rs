@@ -872,12 +872,28 @@ pub struct Config {
     /// The `frozenStore` / `--frozen-store` setting (default `false`).
     pub frozen_store: bool,
 
-    /// pnpm's `--force`. Refetch every package and re-materialize every
-    /// slot, changed or not, and lift [`engine_strict`](Self::engine_strict)
-    /// so an `engines` mismatch on a required package warns instead of
-    /// failing. Optional dependencies whose `cpu` / `os` / `libc` don't
-    /// match the host stay skipped unless
-    /// [`force_ignores_platform`](Self::force_ignores_platform) is set.
+    /// Bypass per-snapshot installability checks (`cpu` / `os` / `libc` / `engines`)
+    /// so packages for foreign platforms are materialized instead of skipped.
+    ///
+    /// CLI-only (merged from `--ignore-platform-checks` or `--force` on `pnpm install` /
+    /// `pnpm add` / `pnpm deploy` at dispatch); not a `pnpm-workspace.yaml` / `.npmrc` setting.
+    pub ignore_platform_checks: bool,
+
+    /// Re-materialize every package slot, bypassing repeat-install fast paths,
+    /// up-to-date checks, and recorded skip sets.
+    ///
+    /// CLI-only (merged from `--reinstall` or `--force` on `pnpm install` /
+    /// `pnpm add` / `pnpm deploy` at dispatch); not a `pnpm-workspace.yaml` / `.npmrc` setting.
+    pub reinstall: bool,
+
+    /// pnpm's `--force`. Install every package the lockfile names, even
+    /// ones whose `cpu` / `os` / `libc` / `engines` don't match the host
+    /// — the per-snapshot installability check is bypassed entirely, so
+    /// optional dependencies for foreign platforms are materialized
+    /// instead of skipped.
+    ///
+    /// It also re-materializes every slot, changed or not. Union of
+    /// `--ignore-platform-checks` and `--reinstall`.
     ///
     /// CLI-only (merged from `--force` on `pnpm install` / `pnpm add` /
     /// `pnpm deploy` at the dispatch, like `ignoreScripts`); not a

@@ -293,9 +293,9 @@ pub(super) fn seed_skip_set(
     config: &pnpm_config::Config,
     seed_skipped: Option<Vec<String>>,
 ) -> SkippedSnapshots {
-    // `--force` re-evaluates every snapshot, so the recorded skip set
-    // must not survive into this install.
-    if config.force {
+    // `--reinstall` or `--ignore-platform-checks` or `--force` installs previously-skipped snapshots too,
+    // so the recorded skip set must not survive into this install.
+    if config.reinstall || config.ignore_platform_checks || config.force {
         return SkippedSnapshots::new();
     }
     if let Some(skipped) = seed_skipped {

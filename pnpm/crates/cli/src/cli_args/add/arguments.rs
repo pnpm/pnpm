@@ -146,7 +146,17 @@ pub struct AddInstallArgs {
     /// Reinstall every package the lockfile names: relink packages an
     /// earlier install already materialized, and install optional
     /// dependencies whose `cpu` / `os` / `libc` / `engines` don't match
-    /// the host instead of skipping them.
+    /// the host instead of skipping them. Union of `--ignore-platform-checks`
+    /// and `--reinstall`.
     #[clap(long)]
     pub force: bool,
+    /// Bypass per-snapshot installability checks (`cpu`, `os`, `libc`,
+    /// `engines`) so packages for foreign platforms are materialized instead
+    /// of skipped.
+    #[clap(long = "ignore-platform-checks")]
+    pub ignore_platform_checks: bool,
+    /// Re-materialize every package slot, bypassing repeat-install fast
+    /// paths, up-to-date checks, and recorded skip sets.
+    #[clap(long = "reinstall")]
+    pub reinstall: bool,
 }

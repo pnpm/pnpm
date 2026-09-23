@@ -147,7 +147,8 @@ pub(super) fn installability_node_version<'a>(
     let (Some(snapshots), Some(packages)) = (&wanted.snapshots, &wanted.packages) else {
         return None;
     };
-    (!config.force
+    (!config.ignore_platform_checks
+        && !config.force
         && !snapshots.is_empty()
         && crate::any_installability_constraint(snapshots, packages))
     .then_some(effective_node_version)
