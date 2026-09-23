@@ -503,11 +503,13 @@ fn patch_commit_ambiguous_bare_name_and_versioned_state_entries_fails() {
     let mut state: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&state_file).expect("read state.json"))
             .expect("parse state.json");
-    state
+    for entry in state
         .as_object_mut()
         .unwrap()
-        .get_mut(edit_dir1.to_str().unwrap())
-        .unwrap()["patchedPkg"] = serde_json::json!("is-positive");
+        .values_mut()
+    {
+        entry["patchedPkg"] = serde_json::json!("is-positive");
+    }
     state
         .as_object_mut()
         .unwrap()
