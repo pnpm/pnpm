@@ -14,9 +14,7 @@ mod lockfile_load;
 use lockfile_load::{Loaded, load_lockfiles};
 
 mod workspace;
-use workspace::{
-    InstallScope, InstallWorkspace, workspace_packages_for_install, workspace_projects,
-};
+use workspace::{InstallScope, InstallWorkspace, workspace_projects};
 
 mod execution;
 mod mode;

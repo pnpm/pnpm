@@ -8,7 +8,7 @@ use super::{
     Dispatched, InstallRunOutcome, InstallScope, Loaded, Lockfiles, RunExecution, Settled,
     Verification, dispatch, load_lockfiles, settle_wanted_lockfile,
     time_machine_capture::capture_time_machine_exclusions,
-    workspace_packages_for_install, workspace_projects,
+    workspace_projects,
 };
 
 impl<'a> RunExecution<'a> {
@@ -34,10 +34,12 @@ impl<'a> RunExecution<'a> {
             &self.mode,
             &self.workspace,
         )? {
-            return Ok(self.report_already_up_to_date::<Reporter>());
+            Reporter::emit(&LogEvent::Summary(SummaryLog {
+                level: LogLevel::Debug,
+                prefix: self.workspace.prefix,
+            }));
+            return Ok(InstallRunOutcome::AlreadyUpToDate);
         }
-        self.workspace.workspace_packages =
-            workspace_packages_for_install(self.loaded_workspace_projects, &self.options);
         let mut loaded = load_lockfiles::<Reporter>(
             self.install,
             &mut self.owned,
@@ -61,14 +63,6 @@ impl<'a> RunExecution<'a> {
         )
         .await?;
         self.install_settled::<Reporter>(&scope, &mut loaded, &project_manifests, &lockfiles).await
-    }
-
-    fn report_already_up_to_date<Reporter: self::Reporter>(self) -> InstallRunOutcome {
-        Reporter::emit(&LogEvent::Summary(SummaryLog {
-            level: LogLevel::Debug,
-            prefix: self.workspace.prefix,
-        }));
-        InstallRunOutcome::AlreadyUpToDate
     }
 
     fn take_settled_outcome(&mut self) -> InstallRunOutcome {
