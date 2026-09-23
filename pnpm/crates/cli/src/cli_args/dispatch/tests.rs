@@ -29,3 +29,22 @@ fn json_error_message_unwraps_pack_context() {
 
     assert_eq!(json_error_message(&error), "canonical publish failure");
 }
+
+#[test]
+fn script_commands_place_the_store_only_for_config_dependencies() {
+    use super::configuration::StoreUse;
+    use pnpm_config::Config;
+    use pnpm_workspace_state::ConfigDependency;
+
+    let mut config = Config::default();
+    assert!(StoreUse::Opens.needs_store_placed(&config));
+    assert!(!StoreUse::Never.needs_store_placed(&config));
+    assert!(!StoreUse::ConfigDependencies.needs_store_placed(&config));
+
+    config.config_dependencies = Some(
+        [("plugin".to_string(), ConfigDependency::VersionWithIntegrity("1.0.0+sha512-x".into()))]
+            .into(),
+    );
+    assert!(StoreUse::ConfigDependencies.needs_store_placed(&config));
+    assert!(!StoreUse::Never.needs_store_placed(&config));
+}

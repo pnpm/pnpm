@@ -102,6 +102,65 @@ impl<'a> RunSetup<'a> {
     }
 }
 
+/// Where a command's config is loaded from, and what that command does
+/// with the package store.
+#[derive(Clone, Copy)]
+pub(super) struct ConfigTarget<'a> {
+    pub(super) anchor: &'a Path,
+    pub(super) is_global: bool,
+    pub(super) store_use: StoreUse,
+}
+
+/// How a command uses the package store, which decides whether its config
+/// load places the default store. Placing it probes for hardlink support
+/// by writing a temporary file into the project directory, and file
+/// watchers such as the Nx daemon pick that write up.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum StoreUse {
+    /// The command reads or writes the store.
+    Opens,
+    /// The command touches the store only to install the project's
+    /// `configDependencies` before it runs the `updateConfig` hooks.
+    ConfigDependencies,
+    /// The command never touches the store.
+    Never,
+}
+
+impl StoreUse {
+    /// A command missing from these lists only pays for an unneeded probe.
+    pub(super) fn of(command: &CliCommand) -> Self {
+        match command {
+            CliCommand::View(_)
+            | CliCommand::Config(_)
+            | CliCommand::Get(_)
+            | CliCommand::Set(_)
+            | CliCommand::Root(_)
+            | CliCommand::Prefix(_)
+            | CliCommand::Bin(_) => StoreUse::Never,
+            CliCommand::Exec(_)
+            | CliCommand::Run(_)
+            | CliCommand::Test(_)
+            | CliCommand::Start(_)
+            | CliCommand::Stop(_)
+            | CliCommand::Restart(_)
+            | CliCommand::External(_) => StoreUse::ConfigDependencies,
+            _ => StoreUse::Opens,
+        }
+    }
+
+    /// Whether the command, run with `config`, needs the store placed on
+    /// the project's volume.
+    pub(super) fn needs_store_placed(self, config: &Config) -> bool {
+        match self {
+            StoreUse::Opens => true,
+            StoreUse::ConfigDependencies => config.config_dependencies
+                .as_ref()
+                .is_some_and(|deps| !deps.is_empty()),
+            StoreUse::Never => false,
+        }
+    }
+}
+
 /// The config every load starts from. `npmrc_auth_file` is seeded from the
 /// CLI flag before `current()` reads `.npmrc`, so the override redirects the
 /// user-level read. Mirrors pnpm's `--npmrc-auth-file`. Production callers

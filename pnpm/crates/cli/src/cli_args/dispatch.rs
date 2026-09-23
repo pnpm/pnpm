@@ -20,8 +20,9 @@ use crate::{
 };
 
 use configuration::{
-    ProjectSelectors, RunAnchors, RunSetup, apply_color_override, apply_location_overrides,
-    apply_project_selectors, apply_run_output_config, warn_fast_path_config,
+    ConfigTarget, ProjectSelectors, RunAnchors, RunSetup, StoreUse, apply_color_override,
+    apply_location_overrides, apply_project_selectors, apply_run_output_config,
+    warn_fast_path_config,
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{ColorMode, Config, Host, default_pnpm_home_dir};
@@ -220,8 +221,10 @@ impl CliArgs {
     ) -> miette::Result<bool> {
         // Load config anchored at `anchor`, reading `.npmrc` /
         // `pnpm-workspace.yaml` from there.
+        let store_use = StoreUse::of(&command);
         let load_config = |anchor: &Path, is_global: bool| {
-            self.load_and_finalize_config(anchor, is_global, config_overrides, setup, anchors)
+            let target = ConfigTarget { anchor, is_global, store_use };
+            self.load_and_finalize_config(&target, config_overrides, setup, anchors)
         };
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
         // `--dir` rather than the process cwd, matching pnpm 11 (which
@@ -262,19 +265,26 @@ impl CliArgs {
 
     fn load_and_finalize_config(
         &self,
-        anchor: &Path,
-        is_global: bool,
+        target: &ConfigTarget<'_>,
         config_overrides: &ConfigOverrides,
         setup: &RunSetup<'_>,
         anchors: &RunAnchors,
     ) -> miette::Result<&'static mut Config> {
-        seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace)
-            .current::<Host>(anchor)
+        let ConfigTarget { anchor, is_global, store_use } = *target;
+        let mut cfg = self.load_config_at(anchor, store_use == StoreUse::Opens)?;
+        if cfg.skip_store_dir_resolution && store_use.needs_store_placed(&cfg) {
+            cfg = self.load_config_at(anchor, true)?;
+        }
+        self.finalize_run_config(cfg, anchor, is_global, config_overrides, setup, anchors)
+    }
+
+    fn load_config_at(&self, anchor: &Path, place_store: bool) -> miette::Result<Config> {
+        let mut seed =
+            seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace);
+        seed.skip_store_dir_resolution = !place_store;
+        seed.current::<Host>(anchor)
             .map_err(miette::Report::new)
             .wrap_err("load configuration")
-            .and_then(|cfg| {
-                self.finalize_run_config(cfg, anchor, is_global, config_overrides, setup, anchors)
-            })
     }
 
     fn finalize_run_config(
