@@ -422,6 +422,9 @@ catalogs:
     boxen:
       specifier: npm:@zkochan/boxen@5.1.2
       version: 5.1.2
+    bz2:
+      specifier: 1.0.1
+      version: 1.0.1
     c8:
       specifier: ^12.0.0
       version: 12.0.0
@@ -9347,6 +9350,9 @@ importers:
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
+      bz2:
+        specifier: 'catalog:'
+        version: 1.0.1
       is-gzip:
         specifier: 'catalog:'
         version: 2.0.0
@@ -13531,6 +13537,9 @@ packages:
   bytes@3.1.2:
     resolution: {integrity: sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==}
     engines: {node: '>= 0.8'}
+
+  bz2@1.0.1:
+    resolution: {integrity: sha512-TRUFsKDme+nCMKa1lMx3dkLGh4KvgmCq8/xh/MTMEXAtjPqSC/NqPTzpy5auBZxrJTJX/yjWM0pHxMbpVGc+UQ==}
 
   c8@12.0.0:
     resolution: {integrity: sha512-4zpJvrd1nKWutnnKC2pXkFmb6iM1l+ffN//o1CzlTNwW7GSOs9a1xrLqkC48nU8oEkjmPZLPiwMsIaOvoF4Pqg==}
@@ -21370,6 +21379,8 @@ snapshots:
       run-applescript: 7.1.0
 
   bytes@3.1.2: {}
+
+  bz2@1.0.1: {}
 
   c8@12.0.0:
     dependencies:

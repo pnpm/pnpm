@@ -348,7 +348,7 @@ test('resolveFromLocalPath claims a tarball whatever case its suffix is in', asy
 // with `ends_with(".tar.gz")`. A directory whose name merely looks like one is
 // a directory.
 test('isLocalFilesystemSpecifier reads a tarball suffix literally', () => {
-  for (const specifier of ['pkg.tgz', 'pkg.tar.gz', 'pkg.tar', 'PKG.TAR.GZ']) {
+  for (const specifier of ['pkg.tgz', 'pkg.tar.gz', 'pkg.tar', 'PKG.TAR.GZ', 'pkg.tar.bz2', 'pkg.tbz2', 'pkg.tbz', 'PKG.TAR.BZ2']) {
     expect([specifier, isLocalFilesystemSpecifier(specifier)]).toEqual([specifier, true])
   }
   for (const specifier of ['pkg.tarXgz', 'pkg.tar-gz']) {

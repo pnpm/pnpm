@@ -97,8 +97,10 @@ export async function toResolveImporter (
   }
 }
 
+const LOCAL_TARBALL_PATTERN = /\.(?:tgz|tar\.gz|tar|tar\.bz2|tbz2|tbz)$/i
+
 function prefIsLocalTarball (bareSpecifier: string): boolean {
-  return bareSpecifier.startsWith('file:') && bareSpecifier.endsWith('.tgz')
+  return bareSpecifier.startsWith('file:') && LOCAL_TARBALL_PATTERN.test(bareSpecifier)
 }
 
 async function partitionLinkedPackages (

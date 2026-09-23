@@ -8,7 +8,7 @@ import normalize from 'normalize-path'
 // @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
 const filespecPattern = isWindows ? /^(?:[./\\]|~\/|[a-z]:)/i : /^(?:[./]|~\/|[a-z]:)/i
-const tarballFilenamePattern = /\.(?:tgz|tar\.gz|tar)$/i
+const tarballFilenamePattern = /\.(?:tgz|tar\.gz|tar|tar\.bz2|tbz2|tbz)$/i
 const isAbsolutePath = /^\/|^[A-Z]:/i
 const driveLetterPrefixPattern = /^[a-z]:/i
 
