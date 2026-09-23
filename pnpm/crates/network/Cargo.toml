@@ -21,6 +21,9 @@ tokio = { workspace = true, features = ["time"] }
 tracing = { workspace = true }
 webpki-root-certs = { workspace = true }
 
+[target.'cfg(target_vendor = "apple")'.dependencies]
+security-framework = { workspace = true }
+
 [dev-dependencies]
 mockito = { workspace = true }
 pnpm-testing-utils = { workspace = true }

@@ -5582,6 +5582,7 @@ dependencies = [
  "pretty_assertions",
  "reqwest",
  "rustls",
+ "security-framework",
  "tokio",
  "tracing",
  "webpki-root-certs",

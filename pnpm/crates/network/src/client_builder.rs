@@ -64,26 +64,48 @@ pub(super) struct ClientBuildInputs<'a> {
 }
 
 /// Build one client, falling back to the bundled roots when the platform
-/// trust store cannot be loaded.
+/// trust store cannot be loaded or when the platform verifier is unavailable.
 pub(super) fn build_client_with_root_fallback(
     inputs: &ClientBuildInputs<'_>,
     effective_tls: &TlsConfig,
     forbid_redirects: bool,
 ) -> Result<Client, ForInstallsError> {
-    let platform = match client_builder(
-        inputs,
-        effective_tls,
-        TrustRoots::Platform,
-        forbid_redirects,
-    )?
-    .build()
-    {
-        Ok(client) => return Ok(client),
-        Err(platform) => platform,
-    };
-    client_builder(inputs, effective_tls, TrustRoots::Bundled, forbid_redirects)?
-        .build()
-        .map_err(|bundled| ForInstallsError::ClientBuild { platform, bundled })
+    #[cfg(target_vendor = "apple")]
+    let platform_supported = super::is_platform_verifier_available();
+    #[cfg(not(target_vendor = "apple"))]
+    let platform_supported = true;
+
+    if platform_supported {
+        let platform =
+            match client_builder(inputs, effective_tls, TrustRoots::Platform, forbid_redirects)?
+                .build()
+            {
+                Ok(client) => return Ok(client),
+                Err(platform) => platform,
+            };
+        client_builder(inputs, effective_tls, TrustRoots::Bundled, forbid_redirects)?
+            .build()
+            .map_err(|bundled| ForInstallsError::ClientBuild { platform, bundled })
+    } else {
+        let bundled =
+            client_builder(inputs, effective_tls, TrustRoots::Bundled, forbid_redirects)?.build();
+        match bundled {
+            Ok(client) => Ok(client),
+            Err(bundled) => {
+                let platform =
+                    client_builder(inputs, effective_tls, TrustRoots::Platform, forbid_redirects)?
+                        .build()
+                        .err()
+                        .unwrap_or_else(|| {
+                            reqwest::Client::builder()
+                                .tls_danger_accept_invalid_hostnames(true)
+                                .build()
+                                .unwrap_err()
+                        });
+                Err(ForInstallsError::ClientBuild { platform, bundled })
+            }
+        }
+    }
 }
 
 /// The builder for one client: proxies, additive roots, TLS, and the redirect
@@ -107,8 +129,14 @@ fn client_builder(
         builder = builder.add_root_certificate(cert.clone());
     }
     builder = apply_tls(builder, effective_tls)?;
-    // Android's platform verifier requires a JVM, which the standalone CLI does not have.
-    if cfg!(target_os = "android") || trust_roots == TrustRoots::Bundled {
+    if !effective_tls.ca.is_empty() {
+        // An explicit `ca` / `cafile` defines the trusted CA set, matching Node's
+        // behavior where specifying a custom CA overrides the well-known/system CAs.
+        // Verifying with webpki directly also avoids relying on the platform verifier
+        // (such as macOS Security.framework / trustd).
+        builder = builder.tls_certs_only(std::iter::empty());
+    } else if cfg!(target_os = "android") || trust_roots == TrustRoots::Bundled {
+        // Android's platform verifier requires a JVM, which the standalone CLI does not have.
         builder = builder.tls_certs_only(bundled_root_certs().iter().cloned());
     }
     Ok(apply_redirect_policy(builder, inputs.redirect_guard, forbid_redirects))

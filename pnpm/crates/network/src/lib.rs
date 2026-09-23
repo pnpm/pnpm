@@ -609,6 +609,8 @@ impl Default for ThrottledClient {
 }
 
 mod certificates;
+#[cfg(target_vendor = "apple")]
+use certificates::is_platform_verifier_available;
 use certificates::{
     TrustRoots, apply_tls, bundled_root_certs, load_node_extra_ca_certs, merge_tls,
 };
