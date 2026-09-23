@@ -528,8 +528,6 @@ fn unlink_keeps_link_dependency_to_another_directory() {
     drop((root, mock_instance));
 }
 
-/// `pnpm link` run in a workspace member adds the `link:` dependency to that
-/// member, so `pnpm -r unlink` at the workspace root removes it there.
 #[test]
 fn recursive_unlink_reverts_the_dependency_link_added_to_a_member() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -557,8 +555,6 @@ fn recursive_unlink_reverts_the_dependency_link_added_to_a_member() {
     drop((root, mock_instance));
 }
 
-/// A `-r` / `--filter` selection that fails leaves the link in place: the
-/// override is only removed once every selected manifest was read.
 #[test]
 fn failed_selection_keeps_link_override() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
