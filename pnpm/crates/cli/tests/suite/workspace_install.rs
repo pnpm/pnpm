@@ -1112,6 +1112,7 @@ fn shared_workspace_lockfile_false_symlinks_workspace_dependencies() {
     assert!(!root_lockfile.contains("packages/pkg-a"), "{root_lockfile}");
 
     fs::remove_dir_all(pkg_a_dir.join("node_modules")).expect("rm node_modules");
+    fs::remove_file(pkg_a_dir.join("pnpm-lock.yaml")).expect("rm pkg-a pnpm-lock.yaml");
     pacquet_at(workspace)
         .with_arg("install")
         .with_arg("--filter")
@@ -1124,6 +1125,9 @@ fn shared_workspace_lockfile_false_symlinks_workspace_dependencies() {
         is_symlink_or_junction(&symlink).expect("query pkg-a symlink"),
         "pkg-a/node_modules/custom-pkg-b must be a symlink after --filter pkg-a",
     );
+    let pkg_a_lockfile =
+        fs::read_to_string(pkg_a_dir.join("pnpm-lock.yaml")).expect("read pkg-a pnpm-lock.yaml");
+    assert!(pkg_a_lockfile.contains("version: link:../pkg-b"), "{pkg_a_lockfile}");
 
     drop(fixture);
 }
