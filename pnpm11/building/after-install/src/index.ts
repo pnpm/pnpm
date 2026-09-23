@@ -15,6 +15,7 @@ import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, iterateHashe
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
+  PROJECT_INSTALL_STAGES,
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
 } from '@pnpm/exec.lifecycle'
@@ -232,7 +233,9 @@ export async function buildProjects (
     importers: Object.values(ctx.projects),
     opts: scriptsOpts,
     projectDependencies: opts.projectDependencies,
-    stages: ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare'],
+    stages: ctx.include?.devDependencies !== false
+      ? ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare']
+      : PROJECT_INSTALL_STAGES,
   })
   for (const { id, manifest } of Object.values(ctx.projects)) {
     if (((manifest?.scripts) != null) && (!opts.pending || ctx.pendingBuilds.includes(id))) {

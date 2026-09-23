@@ -164,6 +164,7 @@ fn run_apply_scripts<Reporter: self::Reporter>(
             manifest_dir: inputs.scripts.manifest_dir,
             workspace: inputs.scripts.selection.as_ref(),
             rebuild: inputs.scripts.rebuild.as_ref(),
+            include_dev: inputs.projects.included.dev_dependencies,
         },
         config: inputs.completion.config,
         node_linker: inputs.projects.node_linker,

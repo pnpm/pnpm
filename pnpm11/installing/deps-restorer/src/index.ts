@@ -30,6 +30,8 @@ import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
   POST_UNINSTALL_STAGES,
+  PROJECT_INSTALL_STAGES,
+  PROJECT_LIFECYCLE_STAGES,
   runLifecycleHooksConcurrently,
 } from '@pnpm/exec.lifecycle'
 import { findCommonPathAncestor, safeJoinModulesDir, symlinkDependency, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
@@ -906,7 +908,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       opts: scriptsOpts,
       projectDependencies: opts.projectDependencies,
       projectWithPreinstallRan: opts.rootProjectPreinstallRan ? opts.lockfileDir : undefined,
-      stages: ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
+      stages: opts.include?.devDependencies !== false ? PROJECT_LIFECYCLE_STAGES : PROJECT_INSTALL_STAGES,
     })
   }
 

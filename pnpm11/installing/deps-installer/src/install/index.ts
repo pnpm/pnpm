@@ -33,6 +33,8 @@ import {
   makeProjectNodePathOption,
   POST_UNINSTALL_STAGES,
   PRE_UNINSTALL_STAGES,
+  PROJECT_INSTALL_STAGES,
+  PROJECT_LIFECYCLE_STAGES,
   runLifecycleHook,
   runLifecycleHooksConcurrently,
   type RunLifecycleHooksConcurrentlyOptions,
@@ -2801,7 +2803,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         opts: opts.scriptsOpts,
         projectDependencies: opts.projectDependencies,
         projectWithPreinstallRan: opts.rootProjectPreinstallRan ? opts.lockfileDir : undefined,
-        stages: ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
+        stages: opts.include?.devDependencies !== false ? PROJECT_LIFECYCLE_STAGES : PROJECT_INSTALL_STAGES,
       })
     }
   } else {

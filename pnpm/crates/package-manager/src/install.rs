@@ -45,9 +45,9 @@ use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, NodeLinker, PNPM_VERSION};
 use pnpm_executor::{
-    DEV_PREINSTALL_ALREADY_RAN_ENV, PROJECT_LIFECYCLE_STAGES, PROJECT_POST_UNINSTALL_STAGES,
-    PROJECT_PRE_UNINSTALL_STAGES, ROOT_PREINSTALL_ALREADY_RAN_ENV, RunPostinstallHooks,
-    run_project_lifecycle_stages,
+    DEV_PREINSTALL_ALREADY_RAN_ENV, PROJECT_INSTALL_STAGES, PROJECT_LIFECYCLE_STAGES,
+    PROJECT_POST_UNINSTALL_STAGES, PROJECT_PRE_UNINSTALL_STAGES, ROOT_PREINSTALL_ALREADY_RAN_ENV,
+    RunPostinstallHooks, run_project_lifecycle_stages,
 };
 use pnpm_lockfile::{
     LazyLockfile, Lockfile, LockfileEntries, MaybeLazyLockfile, PnpmfileChecksumCheck,

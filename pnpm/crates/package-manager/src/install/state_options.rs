@@ -112,6 +112,7 @@ pub(crate) struct ProjectScriptSelection<'a, 'selection> {
     pub(crate) manifest_dir: &'a Path,
     pub(crate) workspace: Option<&'a WorkspaceInstallSelection<'selection>>,
     pub(crate) rebuild: Option<&'a RebuildOptions>,
+    pub(crate) include_dev: bool,
 }
 
 #[derive(Clone, Copy)]
