@@ -10,13 +10,7 @@ mod publishing;
 #[path = "cargo_registry/routing.rs"]
 mod routing;
 
-// `#[path]` rather than the `tests/common/mod.rs` layout, which the
-// Perfectionist dylint forbids.
-#[path = "common/ecosystem.rs"]
-mod common;
-
-#[path = "common/registry_groups.rs"]
-mod registry_groups;
+use crate::{ecosystem as common, registry_groups};
 
 use axum::{
     body::Body,

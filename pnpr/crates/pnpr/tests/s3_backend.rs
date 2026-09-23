@@ -3,8 +3,7 @@
 //! of a real bucket, so it exercises the full publish (stage → upload)
 //! and serve (stream-from-bucket) wiring without a network.
 
-#[path = "common/npm.rs"]
-mod npm;
+use crate::npm;
 
 use axum::{
     body::{Body, to_bytes},

@@ -34,8 +34,7 @@ mod packuments;
 #[path = "server/resolver_access.rs"]
 mod resolver_access;
 
-#[path = "common/registry_groups.rs"]
-mod registry_groups;
+use crate::registry_groups;
 
 use axum::{
     Router,

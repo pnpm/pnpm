@@ -123,6 +123,8 @@ jobs:
         RUNNER_OS_NAME: ${{ runner.os }}
       run: |
         os=$(echo "$RUNNER_OS_NAME" | tr '[:upper:]' '[:lower:]')
+        # The build jobs are named after their runner label, which says ubuntu.
+        [ "$os" = linux ] && os=ubuntu
         while true; do
           conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" \
             --jq "[.jobs[] | select(.name | startswith(\"TS CI / Build pnpr / \")) | select(.name | ascii_downcase | contains(\"$os\"))][0].conclusion // \"pending\"" \

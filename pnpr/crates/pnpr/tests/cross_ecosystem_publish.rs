@@ -2,9 +2,7 @@
 //! carrying packages of more than one ecosystem. Static-mode (no upstream) to
 //! keep the tests hermetic.
 
-#[path = "common/npm.rs"]
-#[expect(dead_code, reason = "this suite needs part of the shared npm fixtures")]
-mod npm;
+use crate::npm;
 
 use axum::{
     body::{Body, to_bytes},

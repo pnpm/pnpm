@@ -6,11 +6,7 @@
 //! drive two routers over one bucket the way a load balancer would spread
 //! requests over two containers.
 
-#[path = "common/npm.rs"]
-mod npm;
-#[path = "common/pausing_store.rs"]
-#[expect(dead_code, reason = "the shared store pauses writes too, which this suite does not need")]
-mod pausing_store;
+use crate::{npm, pausing_store};
 
 use axum::{
     body::{Body, to_bytes},

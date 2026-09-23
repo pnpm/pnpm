@@ -132,7 +132,7 @@ jobs:
     name: TS CI / Build pnpr
     uses: $/.github/workflows/build-pnpr.yml
     with:
-      os: blacksmith-8vcpu-ubuntu-2404
+      os: blacksmith-16vcpu-ubuntu-2404
 
   build-pnpr-windows:
     needs: changes
@@ -142,9 +142,12 @@ jobs:
     with:
       os: blacksmith-16vcpu-windows-2025
 
+  # Like the Windows chunks, the Linux chunks start while the Linux pnpr
+  # build runs and wait for it inside the job (wait_for_pnpr).
   test:
     name: TS CI / Test / ubuntu
-    needs: [compile-and-lint, build-pnpr-linux]
+    needs: [changes, compile-and-lint]
+    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' && needs.compile-and-lint.result == 'success' }}
     permissions:
       actions: read
       contents: read
@@ -158,6 +161,9 @@ jobs:
             node_major: '22'
           - node: '24.0.0'
             node_major: '24'
+          # Garnet's post step costs about 160 s, so it runs on one chunk.
+          - node: '24.0.0'
+            test_chunk: '3'
             garnet: true
           - node: '26.10.0'
             node_major: '26'
@@ -169,6 +175,7 @@ jobs:
       test_chunk: ${{ matrix.test_chunk }}
       test_chunk_total: '3'
       garnet: ${{ matrix.garnet == true }}
+      wait_for_pnpr: true
     secrets:
       GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
 

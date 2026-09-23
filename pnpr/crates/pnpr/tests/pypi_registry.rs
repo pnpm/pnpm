@@ -1,10 +1,7 @@
 //! The Python package index surface: the legacy upload API, the Simple API
 //! in both renderings, file downloads, and proxying an upstream index.
 
-// `#[path]` rather than the `tests/common/mod.rs` layout, which the
-// Perfectionist dylint forbids.
-#[path = "common/ecosystem.rs"]
-mod common;
+use crate::ecosystem as common;
 
 use axum::{
     body::Body,

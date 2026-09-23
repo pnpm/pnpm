@@ -34,6 +34,10 @@ on:
       # Integration test targets never link into the benchmarked binaries.
       - '!pnpm/crates/*/tests/**'
       - '!pnpr/crates/*/tests/**'
+      - '!pnpr/*.md'
+      - '!pnpr/crates/*/*.md'
+      - '!pnpr/docker/*.md'
+      - '!pnpr/client/*.md'
   pull_request:
     types: [opened, synchronize]
     paths:
@@ -58,6 +62,10 @@ on:
       # Integration test targets never link into the benchmarked binaries.
       - '!pnpm/crates/*/tests/**'
       - '!pnpr/crates/*/tests/**'
+      - '!pnpr/*.md'
+      - '!pnpr/crates/*/*.md'
+      - '!pnpr/docker/*.md'
+      - '!pnpr/client/*.md'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
