@@ -1418,7 +1418,10 @@ test.each([
   })
 })
 
-test('deploy keeps the package manager pin of the deployed project', async () => {
+test.each([
+  { mode: 'native', forceLegacyDeploy: false },
+  { mode: 'legacy', forceLegacyDeploy: true },
+])('$mode deploy keeps the package manager pin of the deployed project', async ({ forceLegacyDeploy }) => {
   const rootProjectManifest = {
     name: 'root',
     version: '1.0.0',
@@ -1451,7 +1454,7 @@ test('deploy keeps the package manager pin of the deployed project', async () =>
   }
 
   await install.handler({ ...opts, dev: true, production: true })
-  await deploy.handler({ ...opts, dev: false, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+  await deploy.handler({ ...opts, dev: false, forceLegacyDeploy, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
 
   const deployedManifest = loadJsonFileSync<Record<string, unknown>>(path.resolve('deploy/package.json'))
   expect(deployedManifest.packageManager).toBeUndefined()

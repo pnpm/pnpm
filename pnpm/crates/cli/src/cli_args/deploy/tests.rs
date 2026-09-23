@@ -311,7 +311,7 @@ fn deploy_normalizes_registry_specifiers_and_preserves_snapshot_references() {
                 dependency_manifest: None,
             },
             projects_by_path: HashMap::new(),
-            workspace_root_manifest: None,
+            root_project_manifest: None,
         };
         let result = create_deploy_files(
             &lockfile,

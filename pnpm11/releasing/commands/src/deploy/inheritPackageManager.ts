@@ -2,16 +2,16 @@ import type { ProjectManifest } from '@pnpm/types'
 import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 
 /**
- * Copies the workspace root's `packageManager` and `devEngines.packageManager`
+ * Copies the root project's `packageManager` and `devEngines.packageManager`
  * into a deployed manifest that declares neither, so the deploy directory
  * pins the package manager the workspace uses.
  */
 export function inheritPackageManager (
   manifest: ProjectManifest,
-  workspaceRootManifest: ProjectManifest | undefined
+  rootProjectManifest: ProjectManifest | undefined
 ): ProjectManifest {
-  const packageManager = workspaceRootManifest?.packageManager
-  const devEngines = workspaceRootManifest?.devEngines
+  const packageManager = rootProjectManifest?.packageManager
+  const devEngines = rootProjectManifest?.devEngines
   if (
     (packageManager == null && devEngines?.packageManager == null) ||
     manifest.packageManager != null ||
@@ -31,11 +31,11 @@ export function inheritPackageManager (
 
 export async function writeInheritedPackageManager (
   deployDir: string,
-  workspaceRootManifest: ProjectManifest | undefined
+  rootProjectManifest: ProjectManifest | undefined
 ): Promise<void> {
   const { manifest, writeProjectManifest } = await tryReadProjectManifest(deployDir)
   if (manifest == null) return
-  const inherited = inheritPackageManager(manifest, workspaceRootManifest)
+  const inherited = inheritPackageManager(manifest, rootProjectManifest)
   if (inherited !== manifest) {
     await writeProjectManifest(inherited)
   }
