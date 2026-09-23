@@ -562,7 +562,10 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
             frozen: true,
             prefer_frozen: None,
             ignore_manifest_check: false,
-            trust: false,
+            // As in the sister test: without it the lockfile verifier fetches
+            // `broken-pkg` metadata from the live default registry and fails
+            // the install before the tarball fetch this test is about.
+            trust: true,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
@@ -608,7 +611,11 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
     .run::<SilentReporter>()
     .await;
 
-    assert!(result.is_err(), "non-optional fetch failure must abort the install, got {result:?}");
+    let error = result.expect_err("non-optional fetch failure must abort the install");
+    assert!(
+        format!("{error:?}").contains("DownloadTarball"),
+        "the install must abort on the tarball fetch, got {error:?}",
+    );
 
     drop(dirs.dir);
 }
