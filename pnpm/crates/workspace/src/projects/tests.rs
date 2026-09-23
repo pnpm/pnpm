@@ -980,7 +980,7 @@ fn discovery_honors_the_preferred_manifest_format() {
     assert_eq!(
         project.manifest_path,
         dir.join("package.json5"),
-        "the recorded path must be the file the manifest was read from"
+        "the recorded path must be the file the manifest was read from",
     );
 }
 

@@ -247,6 +247,14 @@ fn apply_runtime_on_fail(mut manifest: PackageManifest, config: &Config) -> Pack
     manifest
 }
 
+/// The directory whose manifest the engine check reads: the workspace root
+/// when there is one, otherwise the directory holding `manifest_path`.
+fn engine_check_project_dir<'a>(manifest_path: &'a Path, config: &'a Config) -> &'a Path {
+    config.workspace_dir
+        .as_deref()
+        .unwrap_or_else(|| manifest_path.parent().expect("manifest path always has a parent dir"))
+}
+
 pub(crate) fn check_root_project_engine(
     manifest_path: &Path,
     config: &Config,
@@ -255,9 +263,7 @@ pub(crate) fn check_root_project_engine(
     if !config.engine_strict {
         return Ok(());
     }
-    let project_dir = config.workspace_dir
-        .as_deref()
-        .unwrap_or_else(|| manifest_path.parent().expect("manifest path always has a parent dir"));
+    let project_dir = engine_check_project_dir(manifest_path, config);
     let Some((_, manifest)) = pnpm_workspace::try_read_project_manifest(
         project_dir,
         Some(config.preferred_manifest_format),

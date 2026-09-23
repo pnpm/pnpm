@@ -118,9 +118,30 @@ pub(super) struct UpdateChangesetContext {
     catalogs_before: Catalogs,
 }
 
+/// Each project's dependency specifiers as they stand before the update, so
+/// the generated changeset can describe what actually moved.
+fn read_dep_specs(
+    root_dirs: &[PathBuf],
+    config: &Config,
+) -> Result<BTreeMap<PathBuf, Option<UpdateDepSpecs>>, UpdateChangesetError> {
+    root_dirs
+        .iter()
+        .map(|root_dir| {
+            let manifest =
+                safe_read_project_manifest_only(root_dir, Some(config.preferred_manifest_format))
+                    .map_err(UpdateChangesetError::ReadProject)?;
+            let specs = manifest
+                .as_ref()
+                .map(UpdateDepSpecs::from_manifest)
+                .transpose()
+                .map_err(UpdateChangesetError::InspectProject)?;
+            Ok((root_dir.clone(), specs))
+        })
+        .collect()
+}
+
 impl UpdateChangesetContext {
     pub(super) fn capture(config: &Config, manifest_path: &Path) -> miette::Result<Self> {
-        let preferred_manifest_format = Some(config.preferred_manifest_format);
         let project_dir = manifest_path.parent().expect("manifest path always has a parent dir");
         let workspace_dir = config.workspace_dir
             .as_deref()
@@ -136,25 +157,13 @@ impl UpdateChangesetContext {
         } else {
             vec![project_dir.to_path_buf()]
         };
-        let dep_specs_before = root_dirs
-            .iter()
-            .map(|root_dir| {
-                let manifest = safe_read_project_manifest_only(root_dir, preferred_manifest_format)
-                    .map_err(UpdateChangesetError::ReadProject)?;
-                let specs = manifest
-                    .as_ref()
-                    .map(UpdateDepSpecs::from_manifest)
-                    .transpose()
-                    .map_err(UpdateChangesetError::InspectProject)?;
-                Ok((root_dir.clone(), specs))
-            })
-            .collect::<Result<_, UpdateChangesetError>>()?;
+        let dep_specs_before = read_dep_specs(&root_dirs, config)?;
         let workspace_manifest =
             read_workspace_manifest(&workspace_dir).map_err(UpdateChangesetError::ReadWorkspace)?;
         let catalogs_before = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())?;
         Ok(Self {
             workspace_dir,
-            preferred_manifest_format,
+            preferred_manifest_format: Some(config.preferred_manifest_format),
             root_dirs,
             dep_specs_before,
             catalogs_before,

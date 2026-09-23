@@ -339,30 +339,32 @@ fn merge_pattern_manifests(
 /// full-path order — and share one read task, so "first readable manifest
 /// wins" holds under concurrency: a candidate that vanishes mid-run hands its
 /// root to the next candidate, never to a skipped root.
+/// Where `path`'s manifest format sits in `precedence`. A name that is not a
+/// project manifest sorts last, so it can never displace one that is.
+fn format_rank(path: &Path, precedence: &[ManifestFormat]) -> usize {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .and_then(ManifestFormat::from_basename)
+        .and_then(|format| {
+            precedence
+                .iter()
+                .position(|candidate| *candidate == format)
+        })
+        .unwrap_or(precedence.len())
+}
+
 fn group_manifests_by_root(
     manifest_paths: BTreeSet<PathBuf>,
     workspace_root: &Path,
     preferred: Option<ManifestFormat>,
 ) -> Vec<(PathBuf, Vec<PathBuf>)> {
     let precedence = manifest_format_order(preferred);
-    let rank = |path: &Path| {
-        path.file_name()
-            .and_then(|name| name.to_str())
-            .and_then(ManifestFormat::from_basename)
-            .and_then(|format| {
-                precedence
-                    .iter()
-                    .position(|candidate| *candidate == format)
-            })
-            .unwrap_or(precedence.len())
-    };
     let mut sorted: Vec<PathBuf> = manifest_paths.into_iter().collect();
     sorted.sort_by(|left, right| {
-        let dir_left = left.parent().unwrap_or_else(|| Path::new(""));
-        let dir_right = right.parent().unwrap_or_else(|| Path::new(""));
-        dir_left
-            .cmp(dir_right)
-            .then_with(|| rank(left).cmp(&rank(right)))
+        left.parent()
+            .unwrap_or_else(|| Path::new(""))
+            .cmp(right.parent().unwrap_or_else(|| Path::new("")))
+            .then_with(|| format_rank(left, &precedence).cmp(&format_rank(right, &precedence)))
     });
     let mut root_groups: Vec<(PathBuf, Vec<PathBuf>)> = Vec::new();
     for manifest_path in sorted {

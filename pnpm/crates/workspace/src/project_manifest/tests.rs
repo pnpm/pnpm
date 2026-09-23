@@ -236,7 +236,7 @@ fn preferred_format_redirects_the_write_target() {
     assert_eq!(
         selected,
         tmp.path().join("package.json5"),
-        "the file written back must be the one that was read"
+        "the file written back must be the one that was read",
     );
 }
 
