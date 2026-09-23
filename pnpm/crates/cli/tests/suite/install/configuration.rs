@@ -708,6 +708,22 @@ fn assert_no_optional_install_downloads_no_optional_only_package(extra_install_a
         !store_holds(&workspace, ("is-positive", "1.0.0")),
         "install --no-optional downloaded is-positive@1.0.0, which is an optional dependency of a prod dependency",
     );
+    assert!(
+        !store_holds(&workspace, DEV_TRANSITIVE),
+        "install --no-optional downloaded {}@{}, which is a transitive dependency of an optional dependency",
+        DEV_TRANSITIVE.0,
+        DEV_TRANSITIVE.1,
+    );
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        lockfile.contains(&format!("{}@{}", DEV_DIRECT.0, DEV_DIRECT.1)),
+        "the lockfile must retain the optional dependency {DEV_DIRECT:?}",
+    );
+    assert!(
+        lockfile.contains("is-positive@1.0.0"),
+        "the lockfile must retain transitive optional dependency is-positive@1.0.0",
+    );
 
     // Now test with an existing lockfile on a fresh store (frozen install / repeat install)
     let CommandTempCwd {
@@ -742,6 +758,12 @@ fn assert_no_optional_install_downloads_no_optional_only_package(extra_install_a
     assert!(
         !store_holds(&workspace2, ("is-positive", "1.0.0")),
         "frozen install --no-optional downloaded is-positive@1.0.0, which is an optional dependency of a prod dependency",
+    );
+    assert!(
+        !store_holds(&workspace2, DEV_TRANSITIVE),
+        "frozen install --no-optional downloaded {}@{}, which is a transitive dependency of an optional dependency",
+        DEV_TRANSITIVE.0,
+        DEV_TRANSITIVE.1,
     );
 
     drop((root, mock_instance, root2, mock_instance2));

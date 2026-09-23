@@ -193,5 +193,6 @@ test('install --no-optional does not download optional dependencies', async () =
 
   expect(execPnpmSync(['cat-index', '@pnpm.e2e/pkg-with-good-optional@1.0.0'], { storeDir: freshStore }).status).toBe(0)
   expect(execPnpmSync(['cat-index', '@pnpm.e2e/bravo@1.0.0'], { storeDir: freshStore }).status).not.toBe(0)
+  expect(execPnpmSync(['cat-index', '@pnpm.e2e/bravo-dep@1.1.0'], { storeDir: freshStore }).status).not.toBe(0)
   expect(execPnpmSync(['cat-index', 'is-positive@1.0.0'], { storeDir: freshStore }).status).not.toBe(0)
 })
