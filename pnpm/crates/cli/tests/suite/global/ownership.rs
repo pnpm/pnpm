@@ -1,7 +1,7 @@
 use super::{Command, CommandCargoExt, CommandExtra, CommandTempCwd, fs};
 #[cfg(unix)]
 use super::{
-    assert_fixture_paths, dependency_manifest_path, global_command, prepare_global_home,
+    Path, assert_fixture_paths, dependency_manifest_path, global_command, prepare_global_home,
     seed_global_group, snapshot_tree, symlink_entries,
 };
 
@@ -426,6 +426,114 @@ fn global_remove_stops_protecting_a_bin_of_a_survivor_without_node_modules() {
     assert!(!shared_bin.exists());
 
     drop(root);
+}
+
+/// A survivor whose package directory is a link into a store that no longer
+/// holds it is unusable in the same way as one without `node_modules`, so it
+/// cannot claim the shared bin either.
+#[cfg(unix)]
+#[test]
+fn global_remove_stops_protecting_a_bin_of_a_survivor_whose_package_link_dangles() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    fs::create_dir_all(&global_bin).expect("create global bin directory");
+    fs::create_dir_all(&global_pkg_dir).expect("create global packages directory");
+    assert_fixture_paths(root.path(), &[&pnpm_home, &global_bin, &global_pkg_dir]);
+
+    let target_install = seed_global_group(
+        &global_pkg_dir,
+        "target-hash",
+        &[("victim", Some(r#"{"name":"victim","version":"1.0.0","bin":{"shared":"shared.js"}}"#))],
+    );
+    let survivor_install = seed_global_group(
+        &global_pkg_dir,
+        "survivor-hash",
+        &[("keeper", Some(r#"{"name":"keeper","version":"1.0.0","bin":{"shared":"keeper.js"}}"#))],
+    );
+    dangle_dependency_link(&survivor_install, "keeper");
+    let shared_bin = global_bin.join("shared");
+    fs::write(&shared_bin, b"keeper command\n").expect("seed the shared bin");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["remove", "-g", "victim"])
+        .assert()
+        .success();
+    assert!(!target_install.exists());
+    assert!(survivor_install.exists());
+    assert!(!shared_bin.exists());
+
+    drop(root);
+}
+
+/// Installing a new global package scans every other group's bins. A group
+/// whose package link dangles must not block that install.
+#[cfg(unix)]
+#[test]
+fn global_add_succeeds_past_a_survivor_whose_package_link_dangles() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    fs::create_dir_all(&global_pkg_dir).expect("create global packages directory");
+    assert_fixture_paths(
+        root.path(),
+        &[&pnpm_home, &global_bin, &global_pkg_dir, &npmrc_info.store_dir, &npmrc_info.cache_dir],
+    );
+
+    let target_install = seed_global_group(
+        &global_pkg_dir,
+        "target-hash",
+        &[(
+            "@foo/touch-file-one-bin",
+            Some(
+                r#"{"name":"@foo/touch-file-one-bin","version":"0.0.0","bin":{"shared":"shared.js","stale":"stale.js"}}"#,
+            ),
+        )],
+    );
+    let survivor_install = seed_global_group(
+        &global_pkg_dir,
+        "survivor-hash",
+        &[("keeper", Some(r#"{"name":"keeper","version":"1.0.0","bin":{"shared":"keeper.js"}}"#))],
+    );
+    dangle_dependency_link(&survivor_install, "keeper");
+    let shared_bin = global_bin.join("shared");
+    let stale_bin = global_bin.join("stale");
+    fs::write(&shared_bin, b"keeper command\n").expect("seed survivor-owned bin");
+    fs::write(&stale_bin, b"target command\n").expect("seed target-owned bin");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+    assert!(!shared_bin.exists(), "the dangling survivor no longer claims the shared bin");
+    assert!(!stale_bin.exists());
+    assert!(global_bin.join("touch-file-one-bin").exists());
+    assert!(!target_install.exists());
+    assert!(survivor_install.exists());
+    assert_eq!(symlink_entries(&global_pkg_dir).len(), 2);
+
+    drop((root, npmrc_info));
+}
+
+/// Replace a seeded group's package directory with a link to a store path
+/// that no longer exists, the shape a pruned global virtual store leaves.
+#[cfg(unix)]
+fn dangle_dependency_link(install_dir: &Path, alias: &str) {
+    let dep_dir = install_dir.join("node_modules").join(alias);
+    fs::remove_dir_all(&dep_dir).expect("remove the seeded dependency directory");
+    std::os::unix::fs::symlink(
+        install_dir.join("../../store/v11/links/pruned/node_modules").join(alias),
+        &dep_dir,
+    )
+    .expect("dangle the dependency link");
 }
 
 #[cfg(unix)]
