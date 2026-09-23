@@ -274,8 +274,7 @@ fn parse_nvmrc(contents: &str) -> Option<String> {
             NvmrcLine::Version(_) => {}
         }
     }
-    let version = version.map(normalize_nvm_version)?;
-    (!version.is_empty()).then_some(version)
+    version.and_then(normalize_nvm_version)
 }
 
 enum NvmrcLine<'a> {
@@ -300,18 +299,29 @@ fn classify_nvmrc_line(line: &str) -> NvmrcLine<'_> {
     NvmrcLine::Version(line)
 }
 
-fn normalize_nvm_version(version: &str) -> String {
+/// Translate an nvm selector into one pnpm's runtime resolver serves.
+/// Values only nvm can act on, such as `system`, `default`, `iojs`,
+/// `lts/-1`, and user-defined aliases, yield no pin, so the shim keeps
+/// running the global `node` the way it does for a project without a
+/// pin. A pin the resolver cannot satisfy would fail the invocation
+/// instead.
+fn normalize_nvm_version(version: &str) -> Option<String> {
     let version = version
         .strip_prefix('v')
         .filter(|rest| rest.starts_with(|character: char| character.is_ascii_digit()))
         .unwrap_or(version);
     match version {
-        "node" | "stable" => "latest".to_string(),
-        "lts/*" => "lts".to_string(),
-        _ => version
-            .strip_prefix("lts/")
-            .unwrap_or(version)
-            .to_string(),
+        "node" | "stable" => Some("latest".to_string()),
+        "lts/*" => Some("lts".to_string()),
+        _ if version.starts_with(|character: char| character.is_ascii_digit()) => {
+            Some(version.to_string())
+        }
+        _ => {
+            let codename = version.strip_prefix("lts/")?;
+            (!codename.is_empty() && codename.bytes().all(|byte| byte.is_ascii_alphabetic())).then(
+                || codename.to_string(),
+            )
+        }
     }
 }
 

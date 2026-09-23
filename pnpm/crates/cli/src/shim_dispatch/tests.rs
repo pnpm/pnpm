@@ -177,14 +177,28 @@ fn runtime_pin_prefers_the_manifest_over_nvmrc() {
 #[test]
 fn nvmrc_aliases_are_runtime_selectors() {
     let root = tempfile::tempdir().unwrap();
-    for (nvm_version, runtime_selector) in
-        [("node", "latest"), ("stable", "latest"), ("lts/*", "lts"), ("lts/Iron", "Iron")]
-    {
+    for (nvm_version, runtime_selector) in [
+        ("node", "latest"),
+        ("stable", "latest"),
+        ("lts/*", "lts"),
+        ("lts/Iron", "Iron"),
+        ("v20", "20"),
+    ] {
         fs::write(root.path().join(".nvmrc"), nvm_version).unwrap();
         assert_eq!(
             runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(),
             Some(runtime_selector),
         );
+    }
+}
+
+#[test]
+fn nvm_only_selectors_are_not_runtime_pins() {
+    let root = tempfile::tempdir().unwrap();
+    for contents in ["system", "default", "iojs", "iojs-v1.0.0", "unstable", "lts/-1", "iron", "v"]
+    {
+        fs::write(root.path().join(".nvmrc"), contents).unwrap();
+        assert_eq!(runtime_pin(root.path(), "node"), None, "contents: {contents:?}");
     }
 }
 
