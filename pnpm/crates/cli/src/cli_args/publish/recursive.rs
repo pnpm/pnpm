@@ -204,9 +204,8 @@ impl PublishArgs {
         Ok(published)
     }
 
-    /// Select the projects to publish and confirm that the selected versions
-    /// that already exist are available. A failed confirmation leaves an
-    /// empty summary, since no upload was accepted.
+    /// A failed availability check leaves an empty summary, since no upload
+    /// was accepted.
     async fn select_candidates<Reporter: self::Reporter>(
         &self,
         graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,

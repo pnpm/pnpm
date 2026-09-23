@@ -1,14 +1,11 @@
-//! Map the `publish` flags and the resolved [`Config`] onto the options the
-//! publish crate consumes, and reject flag combinations before any work runs.
-
 use pnpm_config::Config;
 use pnpm_publish::{Access, OidcHttpOptions, PublishPackedPkgOptions};
 
 use super::PublishArgs;
 
 impl PublishArgs {
-    /// Reject `--batch` outside `--recursive` and `--publish-wait-timeout`
-    /// with `stage publish` before git checks, packing, or any upload.
+    /// Runs before git checks, packing, and any upload, so a rejected flag
+    /// combination changes nothing.
     pub(super) fn validate_publish_flags(
         &self,
         config: &Config,
