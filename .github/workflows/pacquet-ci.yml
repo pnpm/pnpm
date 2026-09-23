@@ -258,16 +258,6 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Diagnose Windows runner before tests
-        if: runner.os == 'Windows'
-        continue-on-error: true
-        shell: bash
-        run: |
-          for probe in system net flush fs; do
-            echo "== $probe"
-            python .github/diagnostics/windows/probe.py "$probe" || true
-          done
-
       - name: Diagnose macOS runner before tests
         if: runner.os == 'macOS'
         continue-on-error: true
@@ -276,6 +266,17 @@ jobs:
           .github/diagnostics/macos/probe.sh system
           .github/diagnostics/macos/probe.sh flush
           echo "DIAG_TESTS_START=$(date '+%Y-%m-%d %H:%M:%S')" >> "$GITHUB_ENV"
+
+      # Diagnostics: build the pacquet tests with cargo --timings first, so the
+      # nextest step below finds them built and the report shows where time goes.
+      - name: Time the pacquet test build
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: bash
+        run: |
+          cargo test --no-run --timings --locked --workspace --exclude pnpm-registry-mock --exclude pnpr --exclude pnpr-auth --exclude pnpr-cargo --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-oci --exclude pnpr-osv --exclude pnpr-package-name --exclude pnpr-pipeline-runs --exclude pnpr-policy --exclude pnpr-pypi --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream > /dev/null 2>&1
+          cp target/cargo-timings/cargo-timing.html "$RUNNER_TEMP/timing-pacquet.html"
+          python .github/diagnostics/windows/timings.py "$RUNNER_TEMP/timing-pacquet.html" "pacquet tests, link.exe"
 
       - name: Test pacquet
         shell: bash
@@ -297,6 +298,15 @@ jobs:
           cp target/debug/libpnpm_napi.so "$RUNNER_TEMP/pnpm-napi.node"
           PNPM_NAPI_BINARY="$RUNNER_TEMP/pnpm-napi.node" \
             node --test pnpm/npm/napi/test/*.test.mjs
+
+      - name: Time the pnpr test build
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: bash
+        run: |
+          cargo test --no-run --timings --locked -p pnpm-registry-mock -p pnpr -p pnpr-auth -p pnpr-cargo -p pnpr-config -p pnpr-error -p pnpr-fixtures -p pnpr-oci -p pnpr-osv -p pnpr-package-name -p pnpr-pipeline-runs -p pnpr-policy -p pnpr-pypi -p pnpr-registry -p pnpr-route -p pnpr-search -p pnpr-shared-artifacts -p pnpr-storage -p pnpr-upstream > /dev/null 2>&1
+          cp target/cargo-timings/cargo-timing.html "$RUNNER_TEMP/timing-pnpr.html"
+          python .github/diagnostics/windows/timings.py "$RUNNER_TEMP/timing-pnpr.html" "pnpr tests after pacquet"
 
       - name: Test pnpr
         shell: bash
@@ -325,33 +335,6 @@ jobs:
         timeout-minutes: 3
         continue-on-error: true
 
-      - name: Diagnose Windows runner after tests
-        if: ${{ !cancelled() && runner.os == 'Windows' }}
-        continue-on-error: true
-        shell: bash
-        run: python .github/diagnostics/windows/probe.py spawn
-
-      # The slow Windows install tests take whole seconds that Linux does not.
-      # Record every filesystem operation that pnpm_fs had to retry in them.
-      - name: Trace filesystem retries on Windows
-        if: ${{ !cancelled() && runner.os == 'Windows' }}
-        continue-on-error: true
-        timeout-minutes: 15
-        shell: bash
-        env:
-          FS_RETRY_TRACE: '1'
-        run: |
-          unset PNPM_HOME XDG_DATA_HOME
-          node pnpm/scripts/run-rust-tests.mjs -p pnpm-package-manager -p pnpm-cli \
-            --no-fail-fast --success-output immediate --failure-output immediate \
-            -E 'test(/lockfile_writes::|partial_install_disables_optimistic_short_circuit|frozen_install_optional_included_surfaces_missing_metadata|workspace_settings_check::|workspace_install::|repeat_install::/)' \
-            > "$RUNNER_TEMP/fs-retry.log" 2>&1 || true
-          echo "operations retried: $(grep -c '^FS_RETRY' "$RUNNER_TEMP/fs-retry.log")"
-          grep '^FS_RETRY' "$RUNNER_TEMP/fs-retry.log" | sed -E 's/elapsed_ms=[0-9]+ //' | sort | uniq -c | sort -rn | head -20
-          echo "== slowest retries with callers"
-          grep -A40 '^FS_RETRY' "$RUNNER_TEMP/fs-retry.log" | grep -E '^FS_RETRY|pnpm[/\\]crates' | grep -vE 'retry\.rs' | head -120
-          grep -E 'PASS \[|FAIL \[' "$RUNNER_TEMP/fs-retry.log" | sort -t'[' -k2 -rn | head -30
-
       - name: Diagnose macOS runner after tests
         if: ${{ !cancelled() && runner.os == 'macOS' }}
         continue-on-error: true
@@ -362,12 +345,35 @@ jobs:
           .github/diagnostics/macos/probe.sh exec
           .github/diagnostics/macos/probe.sh subset
 
+      # Diagnostics: relink every pacquet test binary with rust-lld (the rustc
+      # runs repeat, only the linker differs), then rerun the crate whose test
+      # aborted with heap corruption under rust-lld.
+      - name: Relink with rust-lld
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: |
+          sysroot="$(rustc --print sysroot)"
+          export PATH="$sysroot/lib/rustlib/x86_64-pc-windows-msvc/bin:$PATH"
+          export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=rust-lld.exe
+          cargo test --no-run --timings --locked --workspace --exclude pnpm-registry-mock --exclude pnpr --exclude pnpr-auth --exclude pnpr-cargo --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-oci --exclude pnpr-osv --exclude pnpr-package-name --exclude pnpr-pipeline-runs --exclude pnpr-policy --exclude pnpr-pypi --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream > /dev/null 2>&1
+          cp target/cargo-timings/cargo-timing.html "$RUNNER_TEMP/timing-pacquet-lld.html"
+          python .github/diagnostics/windows/timings.py "$RUNNER_TEMP/timing-pacquet-lld.html" "pacquet tests, rust-lld relink"
+          unset PNPM_HOME XDG_DATA_HOME
+          for attempt in 1 2 3; do
+            echo "== npm-resolver tests with rust-lld, attempt $attempt"
+            node pnpm/scripts/run-rust-tests.mjs -p pnpm-resolving-npm-resolver --no-fail-fast 2>&1 | grep -E "ABORT|FAIL \[|SIGSEGV|0xc0|Summary" || true
+          done
+
       - name: Upload macOS diagnostics
-        if: ${{ !cancelled() && runner.os == 'macOS' }}
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: macos-diagnostics
-          path: ${{ runner.temp }}/macos-diagnostics/
+          name: runner-diagnostics
+          path: |
+            ${{ runner.temp }}/macos-diagnostics/
+            ${{ runner.temp }}/timing-*.html
           retention-days: 14
 
       - name: Stage Bencher test durations
