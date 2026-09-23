@@ -219,7 +219,7 @@ fn hoisted_walker_options<'a>(
             external_dependencies: config.external_dependencies.clone(),
         },
         lockfile_dir: inputs.projects.walker_lockfile_dir.to_path_buf(),
-        modules_dir_name: config.modules_dir_name().to_os_string(),
+        root_modules_dir: config.modules_dir.clone(),
 
         skipped: walker_skipped,
         force: config.force,
@@ -411,18 +411,22 @@ pub(crate) fn link_selected_hoisted_direct_dependencies(
 ) -> Result<(), HoistedLinkerError> {
     let modules_dir_name =
         config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
-    let root_modules_dir = pnpm_fs::lexical_normalize(&lockfile_dir.join(modules_dir_name));
+    let root_modules_dir = pnpm_fs::lexical_normalize(&config.modules_dir);
     let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
     for (project_dir, _) in project_manifests {
+        // The workspace root owns the hoisted slot itself, so its own
+        // entries are the real directories rather than links to them.
+        let is_workspace_root =
+            pnpm_fs::lexical_normalize(project_dir) == pnpm_fs::lexical_normalize(lockfile_dir);
         let scope = HoistedLinkScope {
             importer_id: pnpm_workspace::importer_id_from_root_dir(lockfile_dir, project_dir),
             root_modules_dir: &root_modules_dir,
-            modules_dir: project_dir.join(modules_dir_name),
-            // The workspace root owns the hoisted slot itself, so its
-            // own entries are the real directories rather than links to
-            // them.
-            is_workspace_root: pnpm_fs::lexical_normalize(project_dir)
-                == pnpm_fs::lexical_normalize(lockfile_dir),
+            modules_dir: if is_workspace_root {
+                root_modules_dir.clone()
+            } else {
+                project_dir.join(modules_dir_name)
+            },
+            is_workspace_root,
         };
         scope.link_direct_dependencies(direct_dependencies_by_importer_id, &link_options)?;
     }

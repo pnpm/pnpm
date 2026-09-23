@@ -468,15 +468,12 @@ fn development_preinstall_hooks_give_installed_tools_their_custom_modules_dir() 
     drop((root, mock_instance));
 }
 
-/// The hoisted linker installs the root's packages into the custom
-/// `modulesDir`, and a workspace project's own copies into its
-/// `node_modules`, as pnpm's `lockfileToHoistedDepGraph` does.
 #[test]
 fn the_hoisted_linker_installs_into_a_custom_modules_dir() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    append_workspace_yaml_key(&workspace, "modulesDir", "vendor");
+    append_workspace_yaml_key(&workspace, "modulesDir", "deps/vendor");
     append_workspace_yaml_key(&workspace, "nodeLinker", "hoisted");
     append_workspace_yaml_key(&workspace, "packages", "['project-1']");
     write_manifest(
@@ -506,15 +503,16 @@ fn the_hoisted_linker_installs_into_a_custom_modules_dir() {
             .with_args(args)
             .assert()
             .success();
-        assert_eq!(installed_version(&workspace.join("vendor")), "3.1.0", "{args:?}");
+        assert_eq!(installed_version(&workspace.join("deps/vendor")), "3.1.0", "{args:?}");
         assert_eq!(
             installed_version(&workspace.join("project-1/node_modules")),
             "1.0.0",
             "{args:?}",
         );
         assert!(!workspace.join("node_modules/is-positive").exists(), "{args:?}");
-        assert!(workspace.join("vendor/.pnpm/lock.yaml").is_file(), "{args:?}");
-        fs::remove_dir_all(workspace.join("vendor")).expect("remove vendor");
+        assert!(workspace.join("deps/vendor/.pnpm/lock.yaml").is_file(), "{args:?}");
+        assert!(!workspace.join("vendor").exists(), "{args:?}");
+        fs::remove_dir_all(workspace.join("deps/vendor")).expect("remove deps/vendor");
     }
 
     drop((root, mock_instance));

@@ -234,7 +234,7 @@ fn walker_places_root_packages_in_the_configured_modules_dir() {
     let lockfile_dir = PathBuf::from("/repo");
     let opts = LockfileToHoistedDepGraphOptions {
         lockfile_dir: lockfile_dir.clone(),
-        modules_dir_name: "vendor".into(),
+        root_modules_dir: "deps/vendor".into(),
         ..LockfileToHoistedDepGraphOptions::default()
     };
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
@@ -244,10 +244,10 @@ fn walker_places_root_packages_in_the_configured_modules_dir() {
     assert_eq!(
         dirs,
         [
-            lockfile_dir.join("vendor/a"),
-            lockfile_dir.join("vendor/a/node_modules/b"),
-            lockfile_dir.join("vendor/b"),
+            lockfile_dir.join("deps/vendor/a"),
+            lockfile_dir.join("deps/vendor/a/node_modules/b"),
+            lockfile_dir.join("deps/vendor/b"),
         ],
     );
-    assert_eq!(result.hoisted_locations["a@1.0.0"], vec!["vendor/a".to_string()]);
+    assert_eq!(result.hoisted_locations["a@1.0.0"], vec!["deps/vendor/a".to_string()]);
 }
