@@ -14,16 +14,16 @@ use super::{
 pub(super) fn overlay_version_view(
     overlay: &Arc<PreferredVersionsOverlay>,
     wanted: &WantedDependency,
-) -> Vec<(String, Vec<String>)> {
-    let mut view: Vec<(String, Vec<String>)> =
+) -> Vec<(String, Vec<(String, u32)>)> {
+    let mut view: Vec<(String, Vec<(String, u32)>)> =
         overlay_lookup_names(wanted.alias.as_deref(), wanted.bare_specifier.as_deref())
             .into_iter()
             .flatten()
             .filter_map(|name| {
-                let mut versions: Vec<String> = overlay
-                    .versions_for(&name)
+                let mut versions: Vec<(String, u32)> = overlay
+                    .weighted_versions_for(&name)
                     .into_iter()
-                    .map(str::to_string)
+                    .map(|(v, w)| (v.to_string(), w))
                     .collect();
                 if versions.is_empty() {
                     return None;

@@ -4,13 +4,15 @@ use crate::pick_package_from_meta::{
 };
 use pnpm_registry::Package;
 use pnpm_resolving_resolver_base::{
-    ResolveOptions, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
+    ResolveOptions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
+    VersionSelectors,
 };
 use std::sync::Mutex;
 
 /// The picker's preferred selectors for `name` with the per-level
-/// overlay folded in: each overlay version joins as a plain `version`
-/// selector.
+/// overlay folded in: each overlay version joins as a weighted `version`
+/// selector bumped by [`pnpm_resolving_resolver_base::DIRECT_DEP_SELECTOR_WEIGHT`]
+/// so direct dependencies take precedence over versions in sibling workspaces.
 /// `None` when no level resolved this name; callers then borrow the
 /// static map directly, so the owned merge allocates only on the rare
 /// overlay hit.
@@ -18,18 +20,32 @@ pub(crate) fn overlay_merged_selectors(
     opts: &ResolveOptions,
     name: &str,
 ) -> Option<VersionSelectors> {
-    let versions = opts.version.preferred_versions_overlay.as_ref()?.versions_for(name);
-    if versions.is_empty() {
+    let weighted_versions =
+        opts.version.preferred_versions_overlay.as_ref()?.weighted_versions_for(name);
+    if weighted_versions.is_empty() {
         return None;
     }
     let mut selectors = opts.version.preferred_versions
         .get(name)
         .cloned()
         .unwrap_or_default();
-    for version in versions {
-        selectors
+    for (version, weight) in weighted_versions {
+        let entry = selectors
             .entry(version.to_string())
-            .or_insert(VersionSelectorEntry::Plain(VersionSelectorType::Version));
+            .or_insert_with(|| {
+                VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                    selector_type: VersionSelectorType::Version,
+                    weight: 0,
+                })
+            });
+        let existing_weight = match entry {
+            VersionSelectorEntry::Plain(_) => 1,
+            VersionSelectorEntry::Weighted(w) => w.weight,
+        };
+        *entry = VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: existing_weight + weight,
+        });
     }
     Some(selectors)
 }

@@ -71,7 +71,7 @@ pub(in super::super) type WantedKeyFields = (
     Option<DateTime<Utc>>,
     Option<PathKey>,
     Option<PkgNameVerPeer>,
-    Vec<(String, Vec<String>)>,
+    Vec<(String, Vec<(String, u32)>)>,
     Option<String>,
     bool,
 );

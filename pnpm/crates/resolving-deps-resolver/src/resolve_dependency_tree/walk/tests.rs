@@ -203,3 +203,41 @@ mod fallback_manifest {
         );
     }
 }
+
+mod overlay_view {
+    use super::super::locked_versions::overlay_version_view;
+    use pnpm_resolving_resolver_base::{
+        DIRECT_DEP_SELECTOR_WEIGHT, PreferredVersionsOverlay, WantedDependency,
+    };
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn overlay_version_view_distinguishes_direct_and_descendant_weights() {
+        let direct_overlay = PreferredVersionsOverlay::layer_direct(
+            None,
+            BTreeMap::from([("foo".to_string(), vec!["1.0.0".to_string()])]),
+        )
+        .unwrap();
+        let descendant_overlay = PreferredVersionsOverlay::layer(
+            None,
+            BTreeMap::from([("foo".to_string(), vec!["1.0.0".to_string()])]),
+        )
+        .unwrap();
+
+        let wanted = WantedDependency {
+            alias: Some("foo".to_string()),
+            bare_specifier: Some("^1.0.0".to_string()),
+            ..WantedDependency::default()
+        };
+
+        let direct_view = overlay_version_view(&direct_overlay, &wanted);
+        let descendant_view = overlay_version_view(&descendant_overlay, &wanted);
+
+        assert_eq!(
+            direct_view,
+            vec![("foo".to_string(), vec![("1.0.0".to_string(), DIRECT_DEP_SELECTOR_WEIGHT)])],
+        );
+        assert_eq!(descendant_view, vec![("foo".to_string(), vec![("1.0.0".to_string(), 1)])]);
+        assert_ne!(direct_view, descendant_view);
+    }
+}
