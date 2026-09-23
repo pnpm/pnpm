@@ -25,6 +25,16 @@ pub enum LogLevel {
     Debug,
 }
 
+/// Accepted values of pnpm's `reporter` setting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ReporterType {
+    Default,
+    AppendOnly,
+    Ndjson,
+    Silent,
+}
+
 impl<'de> Deserialize<'de> for ColorMode {
     fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
     where

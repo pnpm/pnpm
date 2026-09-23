@@ -21,7 +21,7 @@ use super::{
         package_manager_to_sync, read_root_manifest, should_persist_package_manager_lockfile,
         version_satisfies, wanted_package_manager,
     },
-    reporter::reporter_emit,
+    reporter::ReporterFlags,
     sanitize::sanitize_inline,
     self_update::install_pnpm::{assert_release_is_installable, pnpm_package_to_install},
     with::{PackageManagerCheck, spawn_pnpm},
@@ -85,7 +85,7 @@ pub(crate) fn pre_command_plan(
             global: is_global(&args.command),
             skip_pm_handling: should_skip_pm_handling(&args.command),
             check_runtimes: true,
-            emit: reporter_emit(args.output.presentation.reporter),
+            reporter: args.reporter_flags(),
             key_issues: key_issue_reporting(&args.command),
         },
         config_overrides,
@@ -107,7 +107,7 @@ pub(crate) fn pre_command_plan_for_version_flag(
             global: false,
             skip_pm_handling: false,
             check_runtimes: false,
-            emit: DefaultReporter::emit,
+            reporter: SwitchInput::reporter_flags_from_version_argv(argv),
             // Printing the version must work in a project whose
             // `pnpm-workspace.yaml` is broken, like the runtime checks above.
             key_issues: KeyIssueReporting::WarnOnly,
@@ -196,7 +196,7 @@ fn check_manifest_runtimes(
         && !input.global
         && let Some(manifest) = manifest
     {
-        check_runtimes(manifest, config, input.emit)?;
+        check_runtimes(manifest, config, input.emit(config))?;
     }
     Ok(())
 }

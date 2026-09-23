@@ -3,7 +3,7 @@ use super::{
     ConfigDependency, Ecosystem, EnvVar, GlobalShims, HashMap, HoistingLimits, Host, IndexMap,
     InitType, LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PackageImportMethod,
     PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig, PythonSettings,
-    RegistryOptions, RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail,
+    RegistryOptions, RemoteSideEffectsCacheSettings, ReporterType, ResolutionMode, RuntimeOnFail,
     SaveWorkspaceProtocol, ScriptsPrependNodePath, SmartDefault, StoreDir, Tool, ToolSettings,
     TrustPolicy, VerifyDepsBeforeRun, WorkspaceKeyIssues, default_cache_dir,
     default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
@@ -78,6 +78,9 @@ pub struct Config {
 
     /// What level of logs to print.
     pub loglevel: Option<LogLevel>,
+
+    /// Output format for progress and log messages.
+    pub reporter: Option<ReporterType>,
 
     /// Include a package's README in the generated manifest when packing.
     pub embed_readme: bool,

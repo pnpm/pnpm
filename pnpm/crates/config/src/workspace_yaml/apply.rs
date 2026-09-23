@@ -30,6 +30,7 @@ impl WorkspaceSettings {
         // would collapse the distinction.
         overlay_some(&mut config.reporter_hide_prefix, self.reporter_hide_prefix.take());
         overlay_some(&mut config.loglevel, self.loglevel.take());
+        overlay_some(&mut config.reporter, self.reporter.take());
 
         // pnpm spells the setting `gitBranchLockfile` and exposes the
         // resolved answer as `useGitBranchLockfile`; the macro below can

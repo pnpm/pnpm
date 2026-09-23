@@ -5,13 +5,14 @@ use pnpm_reporter::{LogEvent, NdjsonReporter, Reporter, SilentReporter};
 use std::path::Path;
 
 /// Output format for progress and log messages.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, ValueEnum)]
 #[repr(u8)]
 pub enum ReporterType {
     /// Rich visual output: a progress line, a packages diff, lifecycle
     /// output, and a `Done in ...` summary. The default; renders in place
     /// on a terminal and falls back to `append-only` output when stdout is
     /// not a terminal.
+    #[default]
     Default = 0,
     /// Like `default` but forces the append-only rendering even on a TTY —
     /// one line per update, no cursor movement.
@@ -34,10 +35,62 @@ impl From<u8> for ReporterType {
     }
 }
 
+impl From<pnpm_config::ReporterType> for ReporterType {
+    fn from(reporter: pnpm_config::ReporterType) -> Self {
+        match reporter {
+            pnpm_config::ReporterType::Default => ReporterType::Default,
+            pnpm_config::ReporterType::AppendOnly => ReporterType::AppendOnly,
+            pnpm_config::ReporterType::Ndjson => ReporterType::Ndjson,
+            pnpm_config::ReporterType::Silent => ReporterType::Silent,
+        }
+    }
+}
+
+/// The `--reporter` and `--loglevel` flags as given on the command line,
+/// before the configuration they take precedence over is loaded.
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct ReporterFlags {
+    pub(crate) reporter: Option<ReporterType>,
+    pub(crate) loglevel: Option<LogLevelSetting>,
+}
+
+impl ReporterFlags {
+    /// The reporter the command should drive: `--loglevel silent` or configured
+    /// `loglevel: silent` forces the silent reporter over any `--reporter` choice.
+    /// Otherwise `--reporter` wins over the configured `reporter` setting,
+    /// mirroring the reporter selection in pnpm 11's `main.ts`.
+    pub(crate) fn resolve(
+        self,
+        config_loglevel: Option<pnpm_config::LogLevel>,
+        config_reporter: Option<pnpm_config::ReporterType>,
+    ) -> ReporterType {
+        if self.loglevel.or_else(|| config_loglevel.map(Into::into))
+            == Some(LogLevelSetting::Silent)
+        {
+            return ReporterType::Silent;
+        }
+        self.reporter
+            .or_else(|| config_reporter.map(Into::into))
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn resolve_with(self, config: &pnpm_config::Config) -> ReporterType {
+        self.resolve(config.loglevel, config.reporter)
+    }
+
+    /// Resolve the reporter and seed the default reporter's log-level ceiling
+    /// from the flags over `config`, for warnings emitted before the command
+    /// dispatch configures the reporter.
+    pub(crate) fn configure_with(self, config: &pnpm_config::Config) -> fn(&LogEvent) {
+        configure_max_log_level(self.loglevel.or_else(|| config.loglevel.map(Into::into)));
+        reporter_emit(self.resolve_with(config))
+    }
+}
+
 /// Accepted values of pnpm's universal `--loglevel` option.
 ///
 /// `silent` selects the silent reporter outright (see
-/// [`super::cli_command::CliArgs::effective_reporter`]); the other values
+/// [`ReporterFlags::resolve`]); the other values
 /// become the default reporter's [`MaxLogLevel`] ceiling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum LogLevelSetting {
@@ -134,7 +187,7 @@ pub(crate) fn configure_default_reporter(setup: &DefaultReporterSetup<'_>) {
 /// Seed the default reporter's verbosity ceiling from the `--loglevel`
 /// value. `silent` and an absent flag leave the [`MaxLogLevel::Info`]
 /// default in place — `silent` never reaches the default reporter (see
-/// [`super::cli_command::CliArgs::effective_reporter`]).
+/// [`ReporterFlags::resolve`]).
 pub(crate) fn configure_max_log_level(loglevel: Option<LogLevelSetting>) {
     if let Some(level) = loglevel.and_then(LogLevelSetting::as_max_log_level) {
         pnpm_default_reporter::set_max_log_level(level);

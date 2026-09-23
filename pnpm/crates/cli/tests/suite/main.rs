@@ -126,6 +126,7 @@ mod remove;
 mod removed_overrides;
 mod repeat_install;
 mod repo;
+mod reporter_setting;
 mod restart;
 mod root;
 mod run;

@@ -116,6 +116,7 @@ impl WorkspaceSettings {
             remote_side_effects_cache: config.remote_side_effects_cache.clone(),
             reporter_hide_prefix: config.reporter_hide_prefix,
             loglevel: config.loglevel,
+            reporter: config.reporter,
             max_sockets: config.max_sockets,
             patched_dependencies: config.patched_dependencies.clone(),
             patches_dir: config.patches_dir.clone(),
