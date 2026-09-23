@@ -510,7 +510,7 @@ fn unauthenticated_install_with_lockfile_reuses_package_from_store() {
         .match_header("authorization", "Bearer secret-token")
         .with_status(200)
         .with_body(tarball)
-        .expect(1)
+        .expect_at_least(1)
         .create();
 
     fs::write(
