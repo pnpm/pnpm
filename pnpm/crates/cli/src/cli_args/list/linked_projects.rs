@@ -11,6 +11,7 @@ use crate::cli_args::{
     recursive::discover_workspace_projects,
 };
 use pnpm_config::Config;
+use pnpm_workspace::Project;
 use std::{
     collections::{HashMap, HashSet},
     future::Future,
@@ -121,6 +122,23 @@ impl ListArgs {
             }
             Ok(())
         })
+    }
+
+    /// Discover the projects under `workspace_root` and remember them as the
+    /// ones `--only-projects` follows, so a recursive listing follows the
+    /// projects it selects from, even without a workspace manifest.
+    pub(super) fn discover_listed_projects(
+        &self,
+        workspace_root: &Path,
+        config: &Config,
+    ) -> miette::Result<Vec<Project>> {
+        let (projects, _) = discover_workspace_projects(workspace_root, config)?;
+        let dirs = projects
+            .iter()
+            .map(|project| project.root_dir.clone())
+            .collect();
+        let _ = self.workspace_project_dirs.set(Arc::new(dirs));
+        Ok(projects)
     }
 
     fn workspace_project_dirs(&self, config: &Config) -> miette::Result<Arc<HashSet<PathBuf>>> {
