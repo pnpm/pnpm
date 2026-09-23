@@ -693,6 +693,29 @@ describe('local tgz file dependency', () => {
     expect(resolveLocalTarballPath(lockfileDir, 'file:../../etc/shadow')).toBeUndefined()
     expect(resolveLocalTarballPath(lockfileDir, 'file:./vendor/tar.tgz')).toBe(path.resolve(lockfileDir, './vendor/tar.tgz'))
     expect(resolveLocalTarballPath(lockfileDir, 'file:vendor/tar.tgz')).toBe(path.resolve(lockfileDir, 'vendor/tar.tgz'))
+    expect(resolveLocalTarballPath(lockfileDir, 'file:./vendor/tar.tar.gz')).toBe(path.resolve(lockfileDir, './vendor/tar.tar.gz'))
+    expect(resolveLocalTarballPath(lockfileDir, 'file:./vendor/tar.tar')).toBe(path.resolve(lockfileDir, './vendor/tar.tar'))
+    expect(resolveLocalTarballPath(lockfileDir, 'file:./vendor/tar.tar.bz2')).toBe(path.resolve(lockfileDir, './vendor/tar.tar.bz2'))
+    expect(resolveLocalTarballPath(lockfileDir, 'file:./vendor/tar.tbz2')).toBe(path.resolve(lockfileDir, './vendor/tar.tbz2'))
+    expect(resolveLocalTarballPath(lockfileDir, 'file:./vendor/tar.tbz')).toBe(path.resolve(lockfileDir, './vendor/tar.tbz'))
+  })
+
+  test.each(['tar.bz2', 'tbz2', 'tbz'])('findPackageTarballIntegrityMismatch(): detects changed bzip archive (%s)', async (ext) => {
+    const lockfileDir = process.cwd()
+    const fileName = `local-tarball.${ext}`
+    await writeFile(fileName, 'archive content')
+    const ctx = { fileIntegrityCache: new Map<string, Promise<string>>(), lockfileDir }
+    const snapshot: PackageSnapshot = {
+      resolution: {
+        integrity: 'sha512-expectedMismatch',
+        tarball: `file:${fileName}`,
+      },
+    }
+    const mismatch = await findPackageTarballIntegrityMismatch(ctx, snapshot)
+    expect(mismatch).toMatchObject({
+      expected: 'sha512-expectedMismatch',
+      path: path.join(lockfileDir, fileName),
+    })
   })
 
   test('findPackageTarballIntegrityMismatch(): returns null on malformed lockfile entries', async () => {

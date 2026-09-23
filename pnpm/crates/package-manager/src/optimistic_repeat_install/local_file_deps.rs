@@ -40,8 +40,6 @@ impl FrozenLocalTarballCheck<'_> {
     }
 }
 
-/// Collects the list of local tarballs that an explicit frozen install
-/// materializes and must verify.
 pub(crate) fn frozen_local_tarballs_to_verify(
     check: &FrozenLocalTarballCheck<'_>,
 ) -> Vec<(PathBuf, ssri::Integrity)> {

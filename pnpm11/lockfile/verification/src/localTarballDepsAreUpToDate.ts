@@ -31,20 +31,14 @@ export interface LocalTarballIntegrityMismatch {
   readonly path: string
 }
 
-const LOCAL_TARBALL_EXTENSIONS = /\.(?:tgz|tar\.gz|tar)$/i
-
 function isUncLikeFilePayload (pathPart: string): boolean {
   return pathPart.startsWith('\\\\') ||
     pathPart.startsWith('////') ||
     (pathPart.startsWith('//') && !pathPart.startsWith('///'))
 }
 
-/**
- * Resolves a `file:` local tarball specifier to an absolute file path.
- * Rejects UNC, network paths, and malformed inputs.
- */
 export function resolveLocalTarballPath (lockfileDir: string, tarball: string): string | undefined {
-  if (!tarball.startsWith('file:') || !LOCAL_TARBALL_EXTENSIONS.test(tarball)) return undefined
+  if (!refIsLocalTarball(tarball)) return undefined
   const pathPart = tarball.slice('file:'.length)
   if (isUncLikeFilePayload(pathPart) || pathPart.includes('\0')) {
     return undefined
@@ -108,7 +102,6 @@ function readLocalTarballIntegrity (fileIntegrityCache: Map<string, Promise<stri
   return integrity
 }
 
-/** Checks direct local tarball contents. The caller checks manifest freshness. */
 export async function localTarballDepsAreUpToDate (
   {
     fileIntegrityCache,
