@@ -63,25 +63,30 @@ fn batch_rejection_keeps_uploads_accepted_by_an_earlier_registry() {
 
 #[test]
 fn publish_script_failure_keeps_sequential_uploads() {
-    assert_lifecycle_failure_summary(false, "publish");
+    assert_lifecycle_failure_summary(false, "publish", true);
 }
 
 #[test]
 fn postpublish_script_failure_keeps_sequential_uploads() {
-    assert_lifecycle_failure_summary(false, "postpublish");
+    assert_lifecycle_failure_summary(false, "postpublish", true);
 }
 
 #[test]
 fn publish_script_failure_keeps_all_batch_uploads() {
-    assert_lifecycle_failure_summary(true, "publish");
+    assert_lifecycle_failure_summary(true, "publish", true);
 }
 
 #[test]
 fn postpublish_script_failure_keeps_all_batch_uploads() {
-    assert_lifecycle_failure_summary(true, "postpublish");
+    assert_lifecycle_failure_summary(true, "postpublish", true);
 }
 
-fn assert_lifecycle_failure_summary(batch: bool, hook: &str) {
+#[test]
+fn postpublish_script_failure_keeps_uploads_without_waiting() {
+    assert_lifecycle_failure_summary(false, "postpublish", false);
+}
+
+fn assert_lifecycle_failure_summary(batch: bool, hook: &str, wait: bool) {
     let CommandTempCwd { pacquet, root: _root, workspace, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mut failing = json!({"name":"b","version":"1.0.0","dependencies":{"a":"1.0.0"}});
@@ -112,16 +117,21 @@ fn assert_lifecycle_failure_summary(batch: bool, hook: &str) {
         .mock("PUT", "/c")
         .expect(0)
         .create();
-    let available = mock_available_packages(&mut registry, accepted_names);
+    let available = if wait {
+        mock_available_packages(&mut registry, accepted_names)
+    } else {
+        vec![
+            registry
+                .mock("GET", mockito::Matcher::Any)
+                .expect(0)
+                .create(),
+        ]
+    };
     let mut command = clear_ci(pacquet)
-        .with_args([
-            "publish",
-            "-r",
-            "--force",
-            "--no-git-checks",
-            "--publish-wait-timeout=3000",
-            "--report-summary",
-        ]);
+        .with_args(["publish", "-r", "--force", "--no-git-checks", "--report-summary"]);
+    if wait {
+        command.arg("--publish-wait-timeout=3000");
+    }
     if batch {
         command.arg("--batch");
     }

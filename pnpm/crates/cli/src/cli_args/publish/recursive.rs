@@ -194,7 +194,7 @@ impl PublishArgs {
         let published = match published {
             Ok(published) => published,
             Err(failure) => {
-                if !opts.wait_timeout.is_zero() && !opts.dry_run {
+                if !opts.dry_run {
                     self.write_summary(workspace_root, &failure.published)?;
                 }
                 return Err(failure.error);
