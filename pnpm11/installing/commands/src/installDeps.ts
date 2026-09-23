@@ -147,6 +147,7 @@ export type InstallDepsOptions = Pick<Config,
     remain?: string[]
   }
   allowNew?: boolean
+  deploy?: boolean
   /** See {@link RecursiveOptions.excludeWorkspaceRootProject}. */
   excludeWorkspaceRootProject?: boolean
   forceFullResolution?: boolean

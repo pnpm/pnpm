@@ -153,6 +153,7 @@ export interface HeadlessOptions extends RegistryContext {
    * and doesn't need local packages that won't be available (e.g., in Docker builds).
    */
   ignoreLocalPackages?: boolean
+  deploy?: boolean
   include: IncludedDependencies
   selectedProjectDirs: string[]
   /**
@@ -912,7 +913,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       opts: scriptsOpts,
       projectDependencies: opts.projectDependencies,
       projectWithPreinstallRan: opts.rootProjectPreinstallRan ? opts.lockfileDir : undefined,
-      stages: opts.include?.devDependencies !== false ? PROJECT_LIFECYCLE_STAGES : PROJECT_INSTALL_STAGES,
+      stages: (opts.deploy || opts.include?.devDependencies === false)
+        ? PROJECT_INSTALL_STAGES
+        : PROJECT_LIFECYCLE_STAGES,
     })
   }
 

@@ -11,6 +11,7 @@ export type StrictBuildOptions = {
   autoInstallPeers: boolean
   cacheDir: string
   childConcurrency: number
+  deploy?: boolean
   excludeLinksFromLockfile: boolean
   extendNodePath?: boolean
   extraBinPaths: string[]
@@ -71,6 +72,7 @@ const defaults = async (opts: BuildOptions): Promise<StrictBuildOptions> => {
   const lockfileDir = opts.lockfileDir ?? dir
   return {
     childConcurrency: 5,
+    deploy: opts.deploy ?? false,
     development: true,
     dir,
     force: false,

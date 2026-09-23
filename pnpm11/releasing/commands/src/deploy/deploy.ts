@@ -159,6 +159,7 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
   }
   await install.handler({
     ...opts,
+    deploy: true,
     confirmModulesPurge: false,
     // Deploy doesn't work with dedupePeerDependents=true currently as for deploy
     // we need to select a single project for install, while dedupePeerDependents
@@ -406,6 +407,7 @@ async function deployFromSharedLockfile (
   try {
     await install.handler({
       ...opts,
+      deploy: true,
       allProjects: undefined,
       allProjectsGraph: undefined,
       selectedProjectsGraph: undefined,

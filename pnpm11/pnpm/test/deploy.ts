@@ -394,3 +394,31 @@ test('deployed peer dependencies can install with a fresh lockfile', async () =>
     })
   }
 })
+
+test('deploy does not run prepare scripts of the deployed project', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '0.0.0', private: true } },
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/foo': '100.0.0' },
+        scripts: {
+          prepare: 'node -e "process.exit(1)"',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+  })
+
+  await execPnpm(['install', '--ignore-scripts'])
+  await execPnpm(['--filter=app', 'deploy', '--prod', 'deploy-prod'])
+  expect(fs.existsSync('deploy-prod/package.json')).toBe(true)
+
+  await execPnpm(['--filter=app', 'deploy', 'deploy-dev'])
+  expect(fs.existsSync('deploy-dev/package.json')).toBe(true)
+})

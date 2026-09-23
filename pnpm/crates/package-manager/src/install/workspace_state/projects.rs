@@ -133,7 +133,7 @@ pub(in super::super) fn projects_running_own_scripts<'manifest>(
 ) -> Vec<(PathBuf, &'manifest PackageManifest)> {
     let full_install = match inputs.mutation {
         ProjectMutation::NoInstall => return Vec::new(),
-        ProjectMutation::InstallWorkspace => {
+        ProjectMutation::InstallWorkspace | ProjectMutation::Deploy => {
             return inputs.materialized_project_manifests.to_vec();
         }
         ProjectMutation::InstallSelected => true,

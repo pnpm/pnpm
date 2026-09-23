@@ -942,6 +942,41 @@ fn write_project(workspace: &Path, dirname: &str, manifest: &serde_json::Value) 
     fs::write(dir.join("test.js"), "").unwrap();
 }
 
+#[test]
+fn deploy_does_not_run_prepare_scripts() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info: AddMockedRegistry { mock_instance, .. },
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    write_reachability_workspace(&workspace);
+    let app_pkg_json = workspace.join("packages/app/package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&app_pkg_json).unwrap()).unwrap();
+    manifest["scripts"] = serde_json::json!({
+        "prepare": r#"node -e "process.exit(1)""#
+    });
+    fs::write(&app_pkg_json, manifest.to_string()).unwrap();
+
+    pacquet
+        .with_arg("install")
+        .with_arg("--ignore-scripts")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy-prod"])
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "deploy-dev"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
 mod legacy;
 
 mod peers;
