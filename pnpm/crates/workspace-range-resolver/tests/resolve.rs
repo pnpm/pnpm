@@ -49,6 +49,10 @@ fn resolves_wildcards_to_a_non_semver_version_when_no_semver_version_is_present(
     assert_eq!(resolve_workspace_range("^", &owned(&["1.0"])).as_deref(), Some("1.0"));
     assert_eq!(resolve_workspace_range("*", &owned(&["1", "2"])).as_deref(), Some("2"));
     assert_eq!(resolve_workspace_range("*", &owned(&["1", "1.0.0"])).as_deref(), Some("1.0.0"));
+    assert_eq!(
+        resolve_workspace_range("*", &owned(&["\u{10000}", "\u{E000}"])).as_deref(),
+        Some("\u{E000}"),
+    );
 }
 
 #[test]

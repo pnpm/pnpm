@@ -22,8 +22,7 @@ use node_semver::{Range, Version};
 #[must_use]
 pub fn resolve_workspace_range(range: &str, versions: &[String]) -> Option<String> {
     if is_wildcard(range) {
-        return max_version_including_prerelease(versions)
-            .or_else(|| versions.iter().max().cloned());
+        return max_version_including_prerelease(versions).or_else(|| max_by_utf16(versions));
     }
     max_satisfying(versions, range)
         .or_else(|| {
@@ -32,6 +31,15 @@ pub fn resolve_workspace_range(range: &str, versions: &[String]) -> Option<Strin
                 .any(|version| version == range)
                 .then(|| range.to_string())
         })
+}
+
+/// Compares UTF-16 code units so the pick matches JavaScript's default
+/// string sort in the TypeScript CLI.
+fn max_by_utf16(versions: &[String]) -> Option<String> {
+    versions
+        .iter()
+        .max_by(|left, right| left.encode_utf16().cmp(right.encode_utf16()))
+        .cloned()
 }
 
 fn is_wildcard(range: &str) -> bool {

@@ -35,6 +35,7 @@ describe('resolveWorkspaceRange', () => {
     expect(resolveWorkspaceRange('^', ['1.0'])).toBe('1.0')
     expect(resolveWorkspaceRange('*', ['1', '2'])).toBe('2')
     expect(resolveWorkspaceRange('*', ['1', '1.0.0'])).toBe('1.0.0')
+    expect(resolveWorkspaceRange('*', ['\u{10000}', '\u{E000}'])).toBe('\u{E000}')
   })
 
   test('resolves a range identical to a non-semver version', () => {
