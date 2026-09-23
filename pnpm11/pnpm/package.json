@@ -72,7 +72,6 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/exec.pnpm-cli-runner": "workspace:*",
     "@reflink/reflink": "catalog:",
     "node-gyp": "catalog:",
     "v8-compile-cache": "2.4.0"
@@ -106,6 +105,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.commands": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
+    "@pnpm/exec.pnpm-cli-runner": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
