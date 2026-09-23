@@ -282,6 +282,25 @@ esac`)
     }
   })
 
+  test('updates a symlinked config file through the link', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-posix-test-'))
+    try {
+      const target = path.join(dir, 'dotfiles', 'zshrc')
+      fs.mkdirSync(path.dirname(target))
+      fs.writeFileSync(target, `alias ll="ls -l"\n${wrapSettings('pnpm', 'export PNPM_HOME=/old')}\n`)
+      const configFile = path.join(dir, '.zshrc')
+      fs.symlinkSync(target, configFile)
+
+      const newBlock = wrapSettings('pnpm', 'export PNPM_HOME=/new')
+      await updateShellConfig(configFile, newBlock, opts(true))
+
+      expect(fs.lstatSync(configFile).isSymbolicLink()).toBe(true)
+      expect(fs.readFileSync(target, 'utf8')).toBe(`alias ll="ls -l"\n${newBlock}\n`)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   test('skips equivalent CRLF section when overwrite is disabled', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-posix-test-'))
     try {
