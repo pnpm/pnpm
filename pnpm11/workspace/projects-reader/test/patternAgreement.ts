@@ -34,6 +34,8 @@ test.each([
   [['packages/missing/../a']],
   [['packages/**', 'libs/*']],
   [['!packages/**']],
+  [['**', '.hidden/*', '!*/tool']],
+  [['.hidden/**', '!**/tool']],
 ])('agrees with the workspace walk on %s', async (patterns) => {
   const workspaceDir = prepareWorkspace()
   const selected = new Set((await findWorkspaceProjectsNoCheck(workspaceDir, { patterns }))

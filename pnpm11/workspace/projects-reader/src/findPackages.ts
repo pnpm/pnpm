@@ -4,7 +4,7 @@ import util from 'node:util'
 
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { Project, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
-import { normalizePatterns } from '@pnpm/workspace.package-patterns'
+import { createManifestExclusionMatcher, normalizePatterns } from '@pnpm/workspace.package-patterns'
 import { readExactProjectManifest, readExactProjectManifestSync } from '@pnpm/workspace.project-manifest-reader'
 import pFilter from 'p-filter'
 import { glob, globSync } from 'tinyglobby'
@@ -26,9 +26,9 @@ export async function findPackages (root: string, opts?: FindPackagesOptions): P
   opts = opts ?? {}
   const globOpts = { ...opts, cwd: root, expandDirectories: false }
   globOpts.ignore = opts.ignore ?? DEFAULT_IGNORE
-  const patterns = normalizePatterns(opts.patterns ?? ['.', '**'])
+  const patterns = opts.patterns ?? ['.', '**']
   delete globOpts.patterns
-  const paths: string[] = await glob(patterns, globOpts)
+  const paths: string[] = excludeManifests(await glob(normalizePatterns(patterns), globOpts), patterns)
 
   if (opts.includeRoot) {
     // Always include the workspace root (https://github.com/pnpm/pnpm/issues/1986)
@@ -61,9 +61,9 @@ export function findPackagesSync (root: string, opts?: FindPackagesOptions): Pro
   opts = opts ?? {}
   const globOpts = { ...opts, cwd: root, expandDirectories: false }
   globOpts.ignore = opts.ignore ?? DEFAULT_IGNORE
-  const patterns = normalizePatterns(opts.patterns ?? ['.', '**'])
+  const patterns = opts.patterns ?? ['.', '**']
   delete globOpts.patterns
-  const paths: string[] = globSync(patterns, globOpts)
+  const paths: string[] = excludeManifests(globSync(normalizePatterns(patterns), globOpts), patterns)
 
   if (opts.includeRoot) {
     paths.push(...globSync(normalizePatterns(['.']), globOpts))
@@ -88,6 +88,16 @@ export function findPackagesSync (root: string, opts?: FindPackagesOptions): Pro
     }
   }
   return projects
+}
+
+/**
+ * tinyglobby applies the negated patterns without letting their wildcards
+ * match dot directories, so the exclusions are applied again with the
+ * semantics the membership check uses.
+ */
+function excludeManifests (manifestPaths: string[], patterns: readonly string[]): string[] {
+  const isExcluded = createManifestExclusionMatcher(patterns)
+  return manifestPaths.filter((manifestPath) => !isExcluded(manifestPath))
 }
 
 function pickManifestPerDirectory (root: string, paths: string[]): string[] {
