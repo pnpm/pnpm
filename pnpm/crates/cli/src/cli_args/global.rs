@@ -167,7 +167,7 @@ pub enum GlobalError {
 
 /// Resolve the global packages and global bin directories, erroring with
 /// `NO_GLOBAL_BIN_DIR` when the pnpm home can't be determined.
-fn global_dirs(config: &Config) -> Result<(PathBuf, PathBuf), GlobalError> {
+pub(crate) fn global_dirs(config: &Config) -> Result<(PathBuf, PathBuf), GlobalError> {
     let bin = config.global_bin.clone().ok_or(GlobalError::NoGlobalBinDir)?;
     let pkg_dir = config.global_pkg_dir.clone().ok_or(GlobalError::NoGlobalBinDir)?;
     Ok((pkg_dir, bin))
