@@ -182,10 +182,7 @@ fn scan_field_tarballs(
         return true;
     };
     for (alias, spec) in deps {
-        if dependency_is_injected(manifest.value(), alias)
-            || (scan.inject_workspace_packages
-                && is_workspace_package(scan.project_manifests, alias))
-        {
+        if dependency_is_workspace_or_injected(scan, manifest.value(), alias, spec) {
             return false;
         }
         match local_tarball_candidate(scan, alias, spec) {
@@ -203,6 +200,40 @@ fn scan_field_tarballs(
         }
     }
     true
+}
+
+fn dependency_is_workspace_or_injected(
+    scan: &FieldTarballScan<'_>,
+    manifest: &serde_json::Value,
+    alias: &str,
+    spec: &serde_json::Value,
+) -> bool {
+    if dependency_is_injected(manifest, alias) {
+        return true;
+    }
+    if !scan.inject_workspace_packages {
+        return false;
+    }
+    let Some(spec_str) = spec.as_str() else {
+        return false;
+    };
+    if spec_str.starts_with("workspace:") {
+        return true;
+    }
+    let target = target_package_name(alias, spec_str);
+    is_workspace_package(scan.project_manifests, target)
+}
+
+fn target_package_name<'a>(alias: &'a str, spec: &'a str) -> &'a str {
+    if let Some(npm_spec) = spec.strip_prefix("npm:") {
+        if let Some(at_idx) = npm_spec.rfind('@')
+            && at_idx > 0
+        {
+            return &npm_spec[..at_idx];
+        }
+        return npm_spec;
+    }
+    alias
 }
 
 fn is_workspace_package(project_manifests: &[(PathBuf, &PackageManifest)], name: &str) -> bool {
