@@ -269,10 +269,7 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
         .map_err(SyncInjectedDepsError::LinkBins)?;
     }
 
-    if !has_bins && stale_bin_names.is_empty() {
-        return Ok(());
-    }
-    relink_project_bins(opts.workspace_dir, &stale_bin_names, opts.ignored_directories)
+    relink_project_bins(opts.workspace_dir, has_bins, &stale_bin_names, opts.ignored_directories)
 }
 
 /// The workspace's bins name the paths inside it relative to themselves,
@@ -289,9 +286,13 @@ fn workspace_link_options(workspace_dir: &Path) -> LinkBinsOptions {
 /// ones this sync touched.
 fn relink_project_bins(
     workspace_dir: &Path,
+    has_bins: bool,
     stale_bin_names: &[&String],
     ignored_directories: &[PathBuf],
 ) -> Result<(), SyncInjectedDepsError> {
+    if !has_bins && stale_bin_names.is_empty() {
+        return Ok(());
+    }
     let projects = find_workspace_projects_no_check(
         workspace_dir,
         &FindWorkspaceProjectsOpts {
