@@ -9,6 +9,7 @@
 mod gh_actions_env;
 mod path_extender;
 
+use super::shadowing_pnpm::find_shadowing_pnpm;
 use crate::process::Command;
 use clap::Args;
 use miette::{
@@ -109,6 +110,9 @@ fn handler<Reporter: self::Reporter + 'static>(
         create_alias_scripts(&bin_dir)
             .into_diagnostic()
             .wrap_err("create the pnpm alias scripts")?;
+    }
+    if let Some(shadowing) = find_shadowing_pnpm(&bin_dir, std::env::var_os("PATH").as_deref()) {
+        warn::<Reporter>(&dir.to_string_lossy(), &shadowing.warning(&bin_dir));
     }
 
     let output = if no_modify_path {
@@ -549,6 +553,14 @@ fn report_config_change(config_report: &ConfigReport) -> String {
 fn info<Reporter: self::Reporter>(prefix: &str, message: &str) {
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Info,
+        message: message.to_string(),
+        prefix: prefix.to_string(),
+    }));
+}
+
+fn warn<Reporter: self::Reporter>(prefix: &str, message: &str) {
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
         message: message.to_string(),
         prefix: prefix.to_string(),
     }));
