@@ -644,3 +644,57 @@ fn unchanged_resolutions_keep_their_previous_package_metadata() {
         "a changed resolution takes the freshly served metadata",
     );
 }
+
+/// pnpm/pnpm#5772: a stale metadata cache serves an older deprecation message
+/// for a version whose lockfile entry already records the current one.
+#[test]
+fn unchanged_resolutions_keep_their_recorded_deprecation_over_stale_metadata() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "react": "^17.0.2" },
+    }));
+    let build = |previous: Option<&std::collections::HashMap<PackageKey, PackageMetadata>>| {
+        let node = make_node(
+            "react",
+            "17.0.2",
+            json!({ "name": "react", "version": "17.0.2", "deprecated": "Old message" }),
+            BTreeMap::new(),
+            BTreeMap::new(),
+            HashSet::default(),
+        );
+        let mut graph = DependenciesGraph::default();
+        graph.insert(node.dep_path.clone(), node);
+        let direct =
+            BTreeMap::from([("react".to_string(), DepPath::from("react@17.0.2".to_string()))]);
+        let mut opts = single_importer_opts(&manifest, &graph, direct, true, false, None, None);
+        opts.metadata_sources.previous_packages = previous;
+        let lockfile = dependencies_graph_to_lockfile(opts);
+        let key: PackageKey = "react@17.0.2".parse().unwrap();
+        lockfile.packages.expect("packages map")[&key].clone()
+    };
+
+    let mut undeprecated = build(None);
+    undeprecated.deprecated = None;
+    let previous = std::collections::HashMap::from([(
+        "react@17.0.2".parse::<PackageKey>().unwrap(),
+        undeprecated.clone(),
+    )]);
+    assert_eq!(
+        build(Some(&previous)).deprecated.as_deref(),
+        Some("Old message"),
+        "an entry without a recorded deprecation takes the served one",
+    );
+
+    let mut recorded = undeprecated;
+    recorded.deprecated = Some("New message".to_string());
+    let previous = std::collections::HashMap::from([(
+        "react@17.0.2".parse::<PackageKey>().unwrap(),
+        recorded.clone(),
+    )]);
+    assert_eq!(
+        build(Some(&previous)),
+        recorded,
+        "an unchanged resolution keeps its recorded deprecation message",
+    );
+}
