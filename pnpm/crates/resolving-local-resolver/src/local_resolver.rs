@@ -260,11 +260,22 @@ async fn resolve_file_spec(
     match resolve_local_tarball(spec).await {
         Ok(result) => Ok(result),
         Err(ResolveLocalError::LinkedPkgDirNotFound { .. })
-            if opts.current_pkg.is_some() && opts.update == LocalResolverUpdate::Off =>
+            if opts.update == LocalResolverUpdate::Off
+                && opts.current_pkg
+                    .as_ref()
+                    .is_some_and(|current| {
+                        matches!(
+                            &current.resolution,
+                            LockfileResolution::Tarball(tarball)
+                                if tarball.integrity.is_some()
+                                    && (tarball.tarball == spec.id.as_str()
+                                        || current.id.as_str() == spec.id.as_str()),
+                        )
+                    }) =>
         {
             let current = opts.current_pkg.as_ref().unwrap();
             Ok(LocalResolveResult {
-                id: current.id.clone(),
+                id: spec.id.clone(),
                 manifest: None,
                 normalized_bare_specifier: Some(spec.normalized_bare_specifier.clone()),
                 resolution: current.resolution.clone(),

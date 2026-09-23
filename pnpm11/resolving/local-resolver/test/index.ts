@@ -244,6 +244,31 @@ test('resolve file falling back to currentPkg when file does not exist on disk a
       update: 'latest',
     })
   ).rejects.toThrow('ENOENT')
+
+  await expect(
+    resolveFromLocalScheme({}, wantedDependency, {
+      projectDir: TEST_DIR,
+      currentPkg: {
+        id: 'file:non-existent.tgz' as any, // eslint-disable-line
+        resolution: {
+          tarball: 'file:non-existent.tgz',
+        },
+      },
+    })
+  ).rejects.toThrow('ENOENT')
+
+  await expect(
+    resolveFromLocalScheme({}, wantedDependency, {
+      projectDir: TEST_DIR,
+      currentPkg: {
+        id: 'file:other-pkg.tgz' as any, // eslint-disable-line
+        resolution: {
+          tarball: 'file:other-pkg.tgz',
+          integrity: 'sha512-SAVED_INTEGRITY',
+        },
+      },
+    })
+  ).rejects.toThrow('ENOENT')
 })
 
 test('fail when resolving tarball specified with the link: protocol', async () => {
