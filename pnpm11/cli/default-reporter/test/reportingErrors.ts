@@ -471,3 +471,23 @@ ${ERROR_PAD}No authorization settings were found in the configs.
 ${ERROR_PAD}Try to log in to the registry by running "pnpm login"
 ${ERROR_PAD}or add the auth tokens manually to the ~/.npmrc file.`)
 })
+
+test('prints modified dependency error without refetch hint', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['store', 'status'] },
+    streamParser: createStreamParser(),
+  })
+
+  const err = Object.assign(new PnpmError('MODIFIED_DEPENDENCY', ''), {
+    modified: ['/registry.npmjs.org/is-positive/3.1.0'],
+  })
+  logger.error(err, err)
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`${formatError('ERR_PNPM_MODIFIED_DEPENDENCY', 'Packages in the store have been mutated')}
+
+These packages are modified:
+${chalk.gray('/registry.npmjs.org/is-positive/3.1.0')}`)
+})
