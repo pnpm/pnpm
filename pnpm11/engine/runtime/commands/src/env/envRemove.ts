@@ -50,6 +50,27 @@ function getGlobalNodeInstalledVersion (pnpmHomeDir?: string): string | null {
   return null
 }
 
+function isCandidateShimRemoved (binFile: string, ext: string, removedNames: Set<string>): boolean {
+  try {
+    const stat = fs.lstatSync(binFile)
+    if (stat.isSymbolicLink()) {
+      const target = fs.readlinkSync(binFile)
+      const isDangling = !fs.existsSync(binFile)
+      const targetSegments = target.split(/[\\/]/)
+      return isDangling || Array.from(removedNames).some((name) => targetSegments.includes(name))
+    }
+    if (ext === '.cmd' || ext === '.ps1') {
+      const content = fs.readFileSync(binFile, 'utf8')
+      return Array.from(removedNames).some((name) => content.includes(name))
+    }
+  } catch (err) {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+      throw err
+    }
+  }
+  return false
+}
+
 export async function envRemove (opts: NvmNodeCommandOptions, params: string[]): Promise<void> {
   globalWarn('"pnpm env remove" is deprecated. Use "pnpm remove -g node" instead.')
   if (!opts.global) {
@@ -123,28 +144,29 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
 
   if (opts.bin) {
     const unlinks: Array<Promise<void>> = []
+    const extensions = process.platform === 'win32' ? ['', '.cmd', '.ps1', '.exe'] : ['']
     for (const binBase of ['node', 'npm', 'npx']) {
-      const extensions = process.platform === 'win32' ? ['', '.cmd', '.ps1', '.exe'] : ['']
-      for (const ext of extensions) {
-        const binFile = path.join(opts.bin, `${binBase}${ext}`)
-        try {
-          const stat = fs.lstatSync(binFile)
-          if (stat.isSymbolicLink()) {
-            const target = fs.readlinkSync(binFile)
-            const isDangling = !fs.existsSync(binFile)
-            const targetSegments = target.split(/[\\/]/)
-            const pointsToRemoved = Array.from(removedNames).some((name) => targetSegments.includes(name))
-            if (isDangling || pointsToRemoved) {
-              unlinks.push(fs.promises.unlink(binFile))
-              removedSomething = true
-            }
-          } else if (process.platform === 'win32' && activeVersionMatches) {
+      let shouldRemoveGroup = activeVersionMatches
+      if (!shouldRemoveGroup) {
+        for (const ext of extensions) {
+          const binFile = path.join(opts.bin, `${binBase}${ext}`)
+          if (isCandidateShimRemoved(binFile, ext, removedNames)) {
+            shouldRemoveGroup = true
+            break
+          }
+        }
+      }
+      if (shouldRemoveGroup) {
+        for (const ext of extensions) {
+          const binFile = path.join(opts.bin, `${binBase}${ext}`)
+          try {
+            fs.lstatSync(binFile)
             unlinks.push(fs.promises.unlink(binFile))
             removedSomething = true
-          }
-        } catch (err) {
-          if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
-            throw err
+          } catch (err) {
+            if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+              throw err
+            }
           }
         }
       }

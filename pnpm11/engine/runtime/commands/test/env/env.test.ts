@@ -237,4 +237,39 @@ test('env remove cleans up dangling symlink when node is removed (pnpm/pnpm#6122
   fs.rmSync(tempDir, { recursive: true, force: true })
 })
 
+test('env remove cleans up Windows cmd shims and executables without a symlink', async () => {
+  const originalPlatform = process.platform
+  Object.defineProperty(process, 'platform', { value: 'win32' })
+  try {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
+    const binDir = path.join(tempDir, 'bin')
+    const pnpmHomeDir = path.join(tempDir, 'home')
+    const nodejsDir = path.join(pnpmHomeDir, 'nodejs')
+    fs.mkdirSync(binDir, { recursive: true })
+    fs.mkdirSync(path.join(nodejsDir, '18.12.0'), { recursive: true })
+
+    const cmdShim = path.join(binDir, 'node.cmd')
+    const ps1Shim = path.join(binDir, 'node.ps1')
+    const exeShim = path.join(binDir, 'node.exe')
+    fs.writeFileSync(cmdShim, '@"%~dp0\\..\\home\\nodejs\\18.12.0\\node.exe" %*')
+    fs.writeFileSync(ps1Shim, '& "$PSScriptRoot\\..\\home\\nodejs\\18.12.0\\node.exe" @args')
+    fs.writeFileSync(exeShim, 'fake-binary')
+
+    await env.handler({
+      bin: binDir,
+      global: true,
+      pnpmHomeDir,
+      configByUri: {},
+    }, ['remove', '18.12.0'])
+
+    expect(fs.existsSync(cmdShim)).toBe(false)
+    expect(fs.existsSync(ps1Shim)).toBe(false)
+    expect(fs.existsSync(exeShim)).toBe(false)
+
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  } finally {
+    Object.defineProperty(process, 'platform', { value: originalPlatform })
+  }
+})
+
 

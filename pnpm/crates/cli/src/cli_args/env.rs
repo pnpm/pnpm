@@ -6,7 +6,7 @@ use super::{
     global::{global_dirs, handle_global_add, handle_global_remove},
     registry_client::build_registry_client,
 };
-use crate::shim_dispatch::remove_native_shim;
+use crate::shim_dispatch::{ShimTarget, native_shim_target, remove_native_shim};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
@@ -283,6 +283,20 @@ fn cleanup_legacy_nodejs_dir(
     Ok(removed)
 }
 
+fn is_path_in_removed_names(
+    target: &Path,
+    removed_names: &std::collections::HashSet<String>,
+) -> bool {
+    let target_str = target.to_string_lossy();
+    removed_names
+        .iter()
+        .any(|name| {
+            target_str
+                .split(['/', '\\'])
+                .any(|part| part == name)
+        })
+}
+
 fn cleanup_nodejs_current(
     pnpm_home: &Path,
     removed_names: &std::collections::HashSet<String>,
@@ -293,21 +307,54 @@ fn cleanup_nodejs_current(
     }
     let is_dangling = !nodejs_current.exists();
     let points_to_removed = fs::read_link(&nodejs_current)
-        .is_ok_and(|target| {
-            let target_str = target.to_string_lossy();
-            removed_names
-                .iter()
-                .any(|name| {
-                    target_str
-                        .split(['/', '\\'])
-                        .any(|part| part == name)
-                })
-        });
+        .is_ok_and(|target| is_path_in_removed_names(&target, removed_names));
     if is_dangling || points_to_removed {
         fs::remove_file(&nodejs_current)?;
         return Ok(true);
     }
     Ok(false)
+}
+
+fn is_symlink_removed(bin_path: &Path, removed_names: &std::collections::HashSet<String>) -> bool {
+    if !bin_path.is_symlink() {
+        return false;
+    }
+    if !bin_path.exists() {
+        return true;
+    }
+    fs::read_link(bin_path).is_ok_and(|target| is_path_in_removed_names(&target, removed_names))
+}
+
+fn is_native_shim_removed(
+    global_bin_dir: &Path,
+    bin_name: &str,
+    removed_names: &std::collections::HashSet<String>,
+) -> bool {
+    match native_shim_target(global_bin_dir, bin_name) {
+        Ok(Some(ShimTarget::Installed(target))) => {
+            !target.exists() || is_path_in_removed_names(&target, removed_names)
+        }
+        _ => false,
+    }
+}
+
+fn is_cmd_shim_removed(
+    global_bin_dir: &Path,
+    bin_name: &str,
+    removed_names: &std::collections::HashSet<String>,
+) -> bool {
+    for ext in [".cmd", ".ps1"] {
+        let shim = global_bin_dir.join(format!("{bin_name}{ext}"));
+        if let Ok(content) = fs::read_to_string(&shim) {
+            let points_to_removed = removed_names
+                .iter()
+                .any(|name| content.contains(name));
+            if points_to_removed {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn cleanup_single_bin_link(
@@ -316,24 +363,19 @@ fn cleanup_single_bin_link(
     removed_names: &std::collections::HashSet<String>,
 ) -> std::io::Result<bool> {
     let bin_path = global_bin_dir.join(bin_name);
-    if !bin_path.is_symlink() {
-        return Ok(false);
-    }
-    let is_dangling = !bin_path.exists();
-    let points_to_removed = fs::read_link(&bin_path)
-        .is_ok_and(|target| {
-            let target_str = target.to_string_lossy();
-            removed_names
-                .iter()
-                .any(|name| {
-                    target_str
-                        .split(['/', '\\'])
-                        .any(|part| part == name)
-                })
-        });
-    if is_dangling || points_to_removed {
-        let _ = remove_cmd_shim(&bin_path);
-        let _ = remove_native_shim(global_bin_dir, bin_name);
+    let should_remove = is_symlink_removed(&bin_path, removed_names)
+        || is_native_shim_removed(global_bin_dir, bin_name, removed_names)
+        || is_cmd_shim_removed(global_bin_dir, bin_name, removed_names);
+
+    if should_remove {
+        remove_cmd_shim(&bin_path)?;
+        remove_native_shim(global_bin_dir, bin_name)?;
+        for ext in [".cmd", ".ps1"] {
+            let shim = global_bin_dir.join(format!("{bin_name}{ext}"));
+            if shim.exists() {
+                fs::remove_file(&shim)?;
+            }
+        }
         if bin_path.exists() || bin_path.is_symlink() {
             fs::remove_file(&bin_path)?;
         }
