@@ -383,3 +383,27 @@ fn update_shell_config_prioritizes_path_block_over_later_block_mentioning_pnpm()
     let written = fs::read_to_string(&config_file).expect("read updated config");
     assert_eq!(written, format!("{new_env_block}\n\nexport OTHER=1\n\n{alias_block}\n"));
 }
+
+#[test]
+fn update_shell_config_prioritizes_generated_env_block_over_later_custom_path_block() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config_file = dir.path().join(".zshrc");
+
+    let generated_env_block =
+        wrap_settings("pnpm", "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
+    let custom_path_block = wrap_settings("pnpm", "export PATH=/custom/bin:$PATH");
+    let initial = format!("{generated_env_block}\n\nexport OTHER=1\n\n{custom_path_block}\n");
+    fs::write(&config_file, &initial).expect("write initial config");
+
+    let new_env_block =
+        wrap_settings("pnpm", "export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH");
+    let (change_type, old_settings) =
+        update_shell_config(&config_file, &new_env_block, &opts(true))
+            .expect("update shell config");
+
+    assert_eq!(change_type, ConfigFileChangeType::Modified);
+    assert_eq!(old_settings, "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
+
+    let written = fs::read_to_string(&config_file).expect("read updated config");
+    assert_eq!(written, format!("{new_env_block}\n\nexport OTHER=1\n\n{custom_path_block}\n"));
+}

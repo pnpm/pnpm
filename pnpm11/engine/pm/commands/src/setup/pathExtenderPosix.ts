@@ -273,14 +273,19 @@ export function findSection (content: string, section: string): FoundSection | n
   if (sections.length === 0) return null
   if (sections.length === 1) return sections[0]
 
+  const homeVar = `${section.toUpperCase()}_HOME`
   for (let i = sections.length - 1; i >= 0; i--) {
-    if (sections[i].inner.includes('PATH')) {
+    if (sections[i].inner.includes('PATH') && sections[i].inner.includes(homeVar)) {
       return sections[i]
     }
   }
-  const homeVar = `${section.toUpperCase()}_HOME`
   for (let i = sections.length - 1; i >= 0; i--) {
     if (sections[i].inner.includes(homeVar)) {
+      return sections[i]
+    }
+  }
+  for (let i = sections.length - 1; i >= 0; i--) {
+    if (sections[i].inner.includes('PATH')) {
       return sections[i]
     }
   }

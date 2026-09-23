@@ -342,16 +342,22 @@ fn select_section(
     if sections.len() <= 1 {
         return sections.pop();
     }
-    if let Some(idx) = sections
-        .iter()
-        .rposition(|(_, inner)| inner.contains("PATH"))
-    {
-        return Some(sections.remove(idx));
-    }
     let home_var = format!("{}_HOME", section.to_uppercase());
     if let Some(idx) = sections
         .iter()
+        .rposition(|(_, inner)| inner.contains("PATH") && inner.contains(&home_var))
+    {
+        return Some(sections.remove(idx));
+    }
+    if let Some(idx) = sections
+        .iter()
         .rposition(|(_, inner)| inner.contains(&home_var))
+    {
+        return Some(sections.remove(idx));
+    }
+    if let Some(idx) = sections
+        .iter()
+        .rposition(|(_, inner)| inner.contains("PATH"))
     {
         return Some(sections.remove(idx));
     }
