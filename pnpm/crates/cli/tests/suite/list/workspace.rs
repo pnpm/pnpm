@@ -484,7 +484,7 @@ fn list_only_projects_follows_projects_with_dedicated_lockfiles() {
     // A workspace project without a lockfile is listed without dependencies.
     let project_c = workspace.join("packages/c");
     fs::remove_file(project_c.join("pnpm-lock.yaml")).expect("remove the lockfile of @scope/c");
-    fs::remove_dir_all(project_c.join("node_modules")).ok();
+    fs::remove_dir_all(project_c.join("node_modules")).expect("remove the modules of @scope/c");
 
     let output =
         run_ok(&workspace, &["--filter", ".", "list", "--depth", "Infinity", "--only-projects"]);
