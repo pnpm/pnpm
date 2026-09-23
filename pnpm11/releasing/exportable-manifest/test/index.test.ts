@@ -143,6 +143,31 @@ test('skipManifestObfuscation does not mutate the original manifest', async () =
   })
 })
 
+test('the original publishConfig is not mutated', async () => {
+  const manifest: ProjectManifest = {
+    name: 'foo',
+    version: '1.0.0',
+    publishConfig: {
+      main: './dist/index.js',
+      access: 'public',
+    },
+  }
+
+  expect(await createExportableManifest(process.cwd(), manifest, defaultOpts)).toStrictEqual({
+    name: 'foo',
+    version: '1.0.0',
+    main: './dist/index.js',
+    publishConfig: {
+      access: 'public',
+    },
+  })
+
+  expect(manifest.publishConfig).toStrictEqual({
+    main: './dist/index.js',
+    access: 'public',
+  })
+})
+
 test('readme added to published manifest', async () => {
   await withTempProjectReadme('readme content', async (projectDir) => {
     expect(await createExportableManifest(projectDir, {

@@ -1,5 +1,8 @@
+import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
+import { PnpmError } from '@pnpm/error'
 import { pnpmExec } from '@pnpm/exec'
 import {
   getLockfileImporterId,
@@ -13,6 +16,12 @@ import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { renameOverwrite } from 'rename-overwrite'
 
 export async function makeDedicatedLockfile (lockfileDir: string, projectDir: string): Promise<void> {
+  const tempModulesDir = path.join(projectDir, '.tmp_node_modules')
+  if (fs.existsSync(tempModulesDir)) {
+    throw new PnpmError('STAGED_MODULES_DIR_EXISTS', `${tempModulesDir} already exists`, {
+      hint: 'It holds the node_modules of an earlier run that could not be moved back. Restore or remove it, then run the command again.',
+    })
+  }
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
   if (lockfile == null) {
     throw new Error('no lockfile found')
@@ -44,17 +53,15 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
   await writeProjectManifest(withWorkspaceDependencies(manifest, publishManifest as ProjectManifest))
 
   const modulesDir = path.join(projectDir, 'node_modules')
-  const tmp = path.join(projectDir, 'tmp_node_modules')
-  const tempModulesDir = path.join(projectDir, 'node_modules/.tmp')
   let modulesRenamed = false
   try {
-    await renameOverwrite(modulesDir, tmp)
-    await renameOverwrite(tmp, tempModulesDir)
+    await renameOverwrite(modulesDir, tempModulesDir)
     modulesRenamed = true
   } catch (err: any) { // eslint-disable-line
     if (err['code'] !== 'ENOENT') throw err
   }
 
+  const errors: unknown[] = []
   try {
     await pnpmExec([
       'install',
@@ -66,12 +73,32 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
     ], {
       cwd: projectDir,
     })
-  } finally {
-    if (modulesRenamed) {
-      await renameOverwrite(tempModulesDir, tmp)
-      await renameOverwrite(tmp, modulesDir)
+  } catch (err) {
+    errors.push(err)
+  }
+  let modulesRestored = !modulesRenamed
+  if (modulesRenamed) {
+    try {
+      await renameOverwrite(tempModulesDir, modulesDir)
+      modulesRestored = true
+    } catch (err) {
+      errors.push(err)
     }
+  }
+  try {
     await writeProjectManifest(manifest)
+  } catch (err) {
+    errors.push(err)
+  }
+  if (errors.length === 1) {
+    throw errors[0]
+  }
+  if (errors.length > 1) {
+    const failures = errors.map((err) => util.types.isNativeError(err) ? err.message : String(err))
+    throw new PnpmError('MAKE_DEDICATED_LOCKFILE_FAILED', `Creating the dedicated lockfile in ${projectDir} failed:\n${failures.join('\n')}`, {
+      cause: new AggregateError(errors, undefined, { cause: errors[0] }),
+      hint: modulesRestored ? undefined : `The original node_modules is still in ${tempModulesDir}.`,
+    })
   }
 }
 
