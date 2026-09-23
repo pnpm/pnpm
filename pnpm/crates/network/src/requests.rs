@@ -91,12 +91,31 @@ impl ThrottledClient {
         url: &str,
         configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), reqwest::Error> {
+        self.response_with_scoped_headers(reqwest::Method::GET, url, configure).await
+    }
+
+    /// Apply the per-redirect header configuration and request-budget guarantees
+    /// documented by [`Self::get_response_with_scoped_headers`].
+    pub async fn head_response_with_scoped_headers(
+        &self,
+        url: &str,
+        configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
+    ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), reqwest::Error> {
+        self.response_with_scoped_headers(reqwest::Method::HEAD, url, configure).await
+    }
+
+    async fn response_with_scoped_headers(
+        &self,
+        method: reqwest::Method,
+        url: &str,
+        configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
+    ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), reqwest::Error> {
         let mut current_url = url.to_string();
         for redirect_count in 0..=MAX_REDIRECT_HOPS {
             let client =
                 self.acquire_for_url_without_redirects_with_priority(&current_url, UNPRIORITIZED)
                     .await;
-            let request = configure(client.get(&current_url), &current_url);
+            let request = configure(client.request(method.clone(), &current_url), &current_url);
             let response = request.send().await?;
             let target = response
                 .headers()

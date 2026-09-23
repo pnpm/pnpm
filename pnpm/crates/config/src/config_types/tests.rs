@@ -72,3 +72,10 @@ fn config_file_keys() {
     assert!(!is_config_file_key("catalog"));
     assert!(!is_config_file_key("package-extensions"));
 }
+
+#[test]
+fn publish_wait_timeout_is_numeric_and_routes_to_yaml() {
+    assert!(super::type_includes_number("publish-wait-timeout"));
+    assert!(super::is_config_file_key("publish-wait-timeout"));
+    assert!(!super::is_ini_config_key("publish-wait-timeout"));
+}

@@ -26,6 +26,8 @@ bytes = { workspace = true }
 derive_more = { workspace = true }
 dialoguer = { workspace = true }
 flate2 = { workspace = true }
+futures-util = { workspace = true }
+httpdate = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
 pipe-trait = { workspace = true }

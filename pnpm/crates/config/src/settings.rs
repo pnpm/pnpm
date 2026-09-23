@@ -1144,6 +1144,10 @@ pub struct Config {
     #[default(true)]
     pub git_checks: bool,
 
+    /// Maximum time in milliseconds to wait for published versions and their
+    /// tarballs to become available. Zero disables the check.
+    pub publish_wait_timeout: u64,
+
     /// `tagVersionPrefix` (`--tag-version-prefix`). Prefix prepended to the
     /// version when `pnpm version` creates its git tag, and stripped when
     /// `pnpm version from-git` reads the version back from the latest tag.

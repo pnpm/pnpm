@@ -844,3 +844,5 @@ fn recursive_publish_resolves_workspace_protocol_without_node_modules() {
     put2.assert();
     drop(root);
 }
+
+mod wait;

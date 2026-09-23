@@ -698,6 +698,7 @@ async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
     let opts = PublishPackedPkgOptions {
         dry_run: true,
         stage: false,
+        wait_timeout: Duration::ZERO,
         registry: crate::PublishRegistryOptions {
             default: "https://registry.example/".to_owned(),
             scoped: std::collections::BTreeMap::new(),
@@ -797,6 +798,7 @@ async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
     let opts = PublishPackedPkgOptions {
         dry_run: false,
         stage: false,
+        wait_timeout: Duration::ZERO,
         registry: crate::PublishRegistryOptions {
             default: format!("{}/", server.url()),
             scoped: std::collections::BTreeMap::new(),

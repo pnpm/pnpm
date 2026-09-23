@@ -175,6 +175,7 @@ fn create_config(
         ignore_scripts: false,
         ignore_pnpmfile: false,
         git_checks: true,
+        publish_wait_timeout: 0,
         tag_version_prefix: "v".to_string(),
         scripts_prepend_node_path: Default::default(),
         enable_pre_post_scripts: false,

@@ -107,6 +107,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("progress", false),
     ("public-hoist-pattern", false),
     ("publish-branch", false),
+    ("publish-wait-timeout", true),
     ("recursive-install", false),
     ("block-exotic-subdeps", false),
     ("reporter", false),

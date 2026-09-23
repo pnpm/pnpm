@@ -13,6 +13,7 @@ use crate::cli_args::{
         select_recursive_projects,
     },
     registry_client::build_registry_client,
+    workspace_packages::build_workspace_package_manifest_map,
 };
 use miette::{Context, IntoDiagnostic};
 use pipe_trait::Pipe;
@@ -20,8 +21,8 @@ use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_publish::{
-    Host, PublishNetwork, PublishSummary, batch_publish_packed_pkgs, find_registry_info,
-    resolve_otp_from_env, validate_batch_publish_options,
+    Host, PublishFailure, PublishNetwork, PublishSummary, batch_publish_packed_pkgs,
+    find_registry_info, resolve_otp_from_env, validate_batch_publish_options,
 };
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{
@@ -37,6 +38,8 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
+
+type RecursivePublishError = PublishFailure<miette::Report>;
 
 struct RecursivePublishContext<'a> {
     config: &'a Config,
@@ -73,7 +76,7 @@ impl PublishArgs {
     async fn publish_batch<Reporter: self::Reporter>(
         &self,
         ctx: &RecursivePublishContext<'_>,
-    ) -> miette::Result<Vec<PublishSummary>> {
+    ) -> Result<Vec<PublishSummary>, RecursivePublishError> {
         let mut packed = Vec::with_capacity(ctx.to_publish.len());
         for root in order_publish_roots(ctx.project_dependencies, ctx.to_publish) {
             let pkg = self.pack_directory::<Reporter>(
@@ -106,7 +109,7 @@ impl PublishArgs {
     async fn publish_selected<Reporter: self::Reporter>(
         &self,
         ctx: &RecursivePublishContext<'_>,
-    ) -> miette::Result<Vec<PublishSummary>> {
+    ) -> Result<Vec<PublishSummary>, RecursivePublishError> {
         if self.flags.batch {
             self.publish_batch::<Reporter>(ctx).await
         } else {
@@ -144,9 +147,7 @@ impl PublishArgs {
         // selection; its own name/version/private eligibility check drops it
         // below.
         let (projects, _patterns) = discover_workspace_projects(workspace_root, config)?;
-        let workspace_packages = Arc::new(
-            crate::cli_args::workspace_packages::build_workspace_package_manifest_map(&projects),
-        );
+        let workspace_packages = Arc::new(build_workspace_package_manifest_map(&projects));
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let graph = &selection.selected;
@@ -157,12 +158,12 @@ impl PublishArgs {
         let http_client = build_registry_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
         let (opts, to_publish) =
-            self.prepare_recursive_candidates(graph, config, stage, &http_client).await?;
+            self.select_candidates::<Reporter>(graph, config, stage, &network, workspace_root)
+                .await?;
 
         if to_publish.is_empty() {
             emit_info::<Reporter>("There are no new packages that should be published", dir);
-            self.write_summary(workspace_root, &[])?;
-            return Ok(Vec::new());
+            return self.finish_recursive_publish(workspace_root, &opts, Ok(Vec::new()));
         }
 
         let project_dependencies = filtered_projects_dependencies(
@@ -180,22 +181,48 @@ impl PublishArgs {
             project_dependencies: &project_dependencies,
             workspace_packages: &workspace_packages,
         };
-        let published = self.publish_selected::<Reporter>(&ctx).await?;
+        let published = self.publish_selected::<Reporter>(&ctx).await;
+        self.finish_recursive_publish(workspace_root, &opts, published)
+    }
+
+    fn finish_recursive_publish(
+        &self,
+        workspace_root: &Path,
+        opts: &pnpm_publish::PublishPackedPkgOptions,
+        published: Result<Vec<PublishSummary>, RecursivePublishError>,
+    ) -> miette::Result<Vec<PublishSummary>> {
+        let published = match published {
+            Ok(published) => published,
+            Err(failure) => {
+                if !opts.dry_run {
+                    self.write_summary(workspace_root, &failure.published)?;
+                }
+                return Err(failure.error);
+            }
+        };
         self.write_summary(workspace_root, &published)?;
         Ok(published)
     }
 
-    async fn prepare_recursive_candidates(
+    async fn select_candidates<Reporter: self::Reporter>(
         &self,
         graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
         config: &Config,
         stage: bool,
-        http_client: &pnpm_network::ThrottledClient,
+        network: &PublishNetwork<'_>,
+        workspace_root: &Path,
     ) -> miette::Result<(pnpm_publish::PublishPackedPkgOptions, HashSet<PathBuf>)> {
         let opts = self.checked_recursive_publish_options(config, stage)?;
         let to_publish =
-            self.projects_to_publish(graph, config, http_client, retry_opts_from_config(config))
+            self.projects_to_publish(graph, config, network.client, retry_opts_from_config(config))
                 .await;
+        if let Err(error) =
+            self.wait_for_existing_projects::<Reporter>(graph, &to_publish, config, &opts, network)
+                .await
+        {
+            self.write_summary(workspace_root, &[])?;
+            return Err(error);
+        }
         Ok((opts, to_publish))
     }
 
@@ -204,7 +231,7 @@ impl PublishArgs {
     async fn publish_one_by_one<Reporter: self::Reporter>(
         &self,
         ctx: &RecursivePublishContext<'_>,
-    ) -> miette::Result<Vec<PublishSummary>> {
+    ) -> Result<Vec<PublishSummary>, RecursivePublishError> {
         let published: Mutex<Vec<PublishSummary>> = Mutex::new(Vec::new());
         let first_error: Mutex<Option<miette::Report>> = Mutex::new(None);
         let run_node = |root: PathBuf| {
@@ -232,10 +259,11 @@ impl PublishArgs {
             &ScheduleGraphAsyncOptions::new(1, true, &run_node, &on_node_skipped),
         )
         .await;
-        if let Some(error) = first_error.into_inner().expect("publish error lock is not poisoned") {
-            return Err(error);
+        let published = published.into_inner().expect("publish results lock is not poisoned");
+        match first_error.into_inner().expect("publish error lock is not poisoned") {
+            Some(error) => Err(RecursivePublishError { published, error }),
+            None => Ok(published),
         }
-        Ok(published.into_inner().expect("publish results lock is not poisoned"))
     }
     /// The selected projects that should be published: those with a name
     /// and version, not private, and — unless `--force` — not already on
@@ -299,7 +327,7 @@ impl PublishArgs {
 /// unversioned, or private package is never published recursively. The name is
 /// the one the registry knows — the `publishConfig.name` rename, when the
 /// project has one — since it is only used to address the registry.
-fn publish_eligible(manifest: &Value) -> Option<(&str, &str)> {
+pub(super) fn publish_eligible(manifest: &Value) -> Option<(&str, &str)> {
     if manifest
         .get("private")
         .and_then(Value::as_bool)
@@ -391,12 +419,10 @@ fn emit_info<Reporter: self::Reporter>(message: &str, prefix: &Path) {
 #[cfg(test)]
 mod tests;
 
-/// Record one project's publish. The run does not bail, so a failure
-/// only fails that project; the first error is the one reported.
 fn record_publish_outcome(
     published: &Mutex<Vec<PublishSummary>>,
     first_error: &Mutex<Option<miette::Report>>,
-    result: miette::Result<PublishSummary>,
+    result: Result<PublishSummary, RecursivePublishError>,
 ) -> TaskCompletion {
     match result {
         Ok(summary) => {
@@ -406,11 +432,15 @@ fn record_publish_outcome(
                 .push(summary);
             TaskCompletion::Passed
         }
-        Err(error) => {
+        Err(failure) => {
+            published
+                .lock()
+                .expect("publish results lock is not poisoned")
+                .extend(failure.published);
             first_error
                 .lock()
                 .expect("publish error lock is not poisoned")
-                .get_or_insert(error);
+                .get_or_insert(failure.error);
             TaskCompletion::Failed
         }
     }

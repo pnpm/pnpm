@@ -247,6 +247,7 @@ macro_rules! identically_named_settings {
             network_concurrency, fetch_timeout,
             fetch_warn_timeout_ms, fetch_min_speed_ki_bps, user_agent,
             tag_version_prefix,
+            publish_wait_timeout,
             enable_global_virtual_store,
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,

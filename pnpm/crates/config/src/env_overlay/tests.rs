@@ -349,3 +349,14 @@ fn tag_version_prefix_reads_from_the_environment() {
     let settings = WorkspaceSettings::from_pnpm_config_env::<EnvEmptyPrefix>();
     assert_eq!(settings.tag_version_prefix.as_deref(), Some(""));
 }
+
+#[test]
+fn publish_wait_timeout_reads_from_environment() {
+    struct Env;
+    impl EnvVar for Env {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_PUBLISH_WAIT_TIMEOUT").then(|| "600000".to_owned())
+        }
+    }
+    assert_eq!(WorkspaceSettings::from_pnpm_config_env::<Env>().publish_wait_timeout, Some(600000));
+}
