@@ -87,7 +87,7 @@ fn workspace_dep_matches(
         return false;
     };
     let Ok(range) = range_str.parse::<node_semver::Range>() else {
-        return false;
+        return true;
     };
     match target_ver {
         Some(version) => range.satisfies(version),
@@ -95,12 +95,23 @@ fn workspace_dep_matches(
     }
 }
 
+fn is_workspace_path(ws_spec: &str) -> bool {
+    let is_windows_drive = {
+        let mut chars = ws_spec.chars();
+        chars.next().is_some_and(|first| first.is_ascii_alphabetic()) && chars.next() == Some(':')
+    };
+    ws_spec.starts_with('.')
+        || ws_spec.starts_with('/')
+        || ws_spec.starts_with("~/")
+        || is_windows_drive
+}
+
 fn ws_spec_matches_workspace(
     workspace_packages: &WorkspacePackageMap<'_>,
     alias: &str,
     ws_spec: &str,
 ) -> bool {
-    if ws_spec.starts_with('.') || ws_spec.starts_with('/') {
+    if is_workspace_path(ws_spec) {
         return true;
     }
     let (target_name, range_str) = match ws_spec.rfind('@') {
@@ -115,7 +126,7 @@ fn ws_spec_matches_workspace(
         other => other,
     };
     let Ok(range) = parsed_range_str.parse::<node_semver::Range>() else {
-        return false;
+        return true;
     };
     match workspace_packages.get(target_name).and_then(Option::as_ref) {
         Some(version) => range.satisfies(version),

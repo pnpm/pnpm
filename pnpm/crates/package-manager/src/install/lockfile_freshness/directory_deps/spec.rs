@@ -84,6 +84,17 @@ fn workspace_path_spec_satisfies(
     }
 }
 
+fn is_workspace_path(workspace_spec: &str) -> bool {
+    let is_windows_drive = {
+        let mut chars = workspace_spec.chars();
+        chars.next().is_some_and(|first| first.is_ascii_alphabetic()) && chars.next() == Some(':')
+    };
+    workspace_spec.starts_with('.')
+        || workspace_spec.starts_with('/')
+        || workspace_spec.starts_with("~/")
+        || is_windows_drive
+}
+
 fn workspace_spec_satisfies(
     workspace_root: &Path,
     lockfile_dir: &Path,
@@ -93,7 +104,7 @@ fn workspace_spec_satisfies(
     workspace_spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
-    if workspace_spec.starts_with('.') || workspace_spec.starts_with('/') {
+    if is_workspace_path(workspace_spec) {
         return workspace_path_spec_satisfies(
             lockfile_dir,
             local_dep_dir,

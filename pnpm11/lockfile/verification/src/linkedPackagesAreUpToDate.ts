@@ -156,7 +156,7 @@ async function isLocalFileDepUpdated (
       }
       if (currentSpec.startsWith('workspace:')) {
         const target = currentSpec.slice(10)
-        if (target.startsWith('.') || target.startsWith('/')) {
+        if (isWorkspacePath(target)) {
           const cleanLockfileDep = removeSuffix(lockfileDep)
           const lockfilePath = cleanLockfileDep.startsWith('link:') || cleanLockfileDep.startsWith('file:')
             ? cleanLockfileDep.slice(5)
@@ -240,10 +240,14 @@ function getDepVersion (lockfileDep: string): string {
   return colonIndex >= 0 ? ver.slice(colonIndex + 1) : ver
 }
 
+function isWorkspacePath (spec: string): boolean {
+  return spec.startsWith('.') || spec.startsWith('/') || spec.startsWith('~/') || /^[a-z]:/i.test(spec)
+}
+
 function getTargetPkgName (spec: string, defaultName: string): string {
   if (spec.startsWith('workspace:')) {
     const raw = spec.slice(10)
-    if (raw.startsWith('.') || raw.startsWith('/')) return defaultName
+    if (isWorkspacePath(raw)) return defaultName
     const atIndex = raw.lastIndexOf('@')
     if (atIndex > 0) {
       return raw.slice(0, atIndex)
