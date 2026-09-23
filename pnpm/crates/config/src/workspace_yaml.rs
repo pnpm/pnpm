@@ -29,7 +29,7 @@ use indexmap::IndexMap;
 use miette::Diagnostic;
 use package_configs::PackageConfigsSetting;
 use pipe_trait::Pipe;
-use pnpm_env_replace::env_replace_lossy;
+use pnpm_env_replace::{SystemEnv, env_replace_lossy};
 use pnpm_network::redact_and_sanitize;
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_store_dir::StoreDir;
@@ -402,9 +402,9 @@ mod env;
 
 mod environment_values;
 use environment_values::{
-    has_env_placeholder, no_proxy_scalar, normalize_registry_url, substitute_json_string,
-    substitute_optional_inner_string, substitute_optional_string, substitute_optional_string_map,
-    substitute_registry_entries,
+    expand_typed_placeholders, has_env_placeholder, no_proxy_scalar, normalize_registry_url,
+    substitute_json_string, substitute_optional_inner_string, substitute_optional_string,
+    substitute_optional_string_map, substitute_registry_entries,
 };
 
 mod apply;
