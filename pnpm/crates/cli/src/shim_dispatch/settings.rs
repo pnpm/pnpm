@@ -6,6 +6,7 @@ use super::{
     parse_node_specifier, resolve_configured_state_dir, trusted_runtime_config,
     wanted_package_manager,
 };
+use node_semver::Range;
 use std::collections::HashSet;
 
 /// The `globalShims` setting at dispatch time, so config edits take
@@ -301,10 +302,9 @@ fn classify_nvmrc_line(line: &str) -> NvmrcLine<'_> {
 
 /// Translate an nvm selector into one pnpm's runtime resolver serves.
 /// Values only nvm can act on, such as `system`, `default`, `iojs`,
-/// `lts/-1`, and user-defined aliases, yield no pin, so the shim keeps
-/// running the global `node` the way it does for a project without a
-/// pin. A pin the resolver cannot satisfy would fail the invocation
-/// instead.
+/// `lts/-1`, and user-defined aliases, and malformed versions yield no
+/// pin, so the directory counts as unpinned. A pin the resolver cannot
+/// satisfy would fail the invocation instead.
 fn normalize_nvm_version(version: &str) -> Option<String> {
     let version = version
         .strip_prefix('v')
@@ -314,7 +314,7 @@ fn normalize_nvm_version(version: &str) -> Option<String> {
         "node" | "stable" => Some("latest".to_string()),
         "lts/*" => Some("lts".to_string()),
         _ if version.starts_with(|character: char| character.is_ascii_digit()) => {
-            Some(version.to_string())
+            Range::parse(version).is_ok().then(|| version.to_string())
         }
         _ => {
             let codename = version.strip_prefix("lts/")?;

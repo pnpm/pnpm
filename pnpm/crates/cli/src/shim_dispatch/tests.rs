@@ -195,11 +195,35 @@ fn nvmrc_aliases_are_runtime_selectors() {
 #[test]
 fn nvm_only_selectors_are_not_runtime_pins() {
     let root = tempfile::tempdir().unwrap();
-    for contents in ["system", "default", "iojs", "iojs-v1.0.0", "unstable", "lts/-1", "iron", "v"]
+    for contents in
+        ["system", "default", "iojs", "iojs-v1.0.0", "unstable", "lts/-1", "iron", "v", "20foo"]
     {
         fs::write(root.path().join(".nvmrc"), contents).unwrap();
         assert_eq!(runtime_pin(root.path(), "node"), None, "contents: {contents:?}");
     }
+}
+
+#[test]
+fn unpinned_nvmrc_defers_to_an_ancestor_pin() {
+    let root = tempfile::tempdir().unwrap();
+    let nested = root.path().join("packages").join("app");
+    fs::create_dir_all(&nested).unwrap();
+    fs::write(
+        root.path().join("package.json"),
+        serde_json::json!({
+            "devEngines": { "runtime": { "name": "node", "version": "22.0.0" } },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(nested.join(".nvmrc"), "system\n").unwrap();
+
+    let candidate = find_candidate(&nested, "node", "node").unwrap();
+    let Candidate::RuntimePin { project_dir, version_spec, .. } = candidate else {
+        panic!("expected a runtime pin candidate");
+    };
+    assert_eq!(project_dir, root.path());
+    assert_eq!(version_spec, "22.0.0");
 }
 
 #[test]
