@@ -1216,3 +1216,64 @@ test('allProjectsAreUpToDate(): works with nested home-relative workspace depend
   expect(await allProjectsAreUpToDate(nestedProjects, mismatchedNestedOptions)).toBeFalsy()
 })
 
+test('allProjectsAreUpToDate(): works with injected workspace dependency with a file: reference in a package snapshot', async () => {
+  prepareEmpty()
+  await mkdir('packages/pkg-a', { recursive: true })
+  await mkdir('packages/pkg-b', { recursive: true })
+  await writeFile('./packages/pkg-a/package.json', JSON.stringify({
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: {
+      'pkg-b': 'workspace:*',
+    },
+  }))
+  await writeFile('./packages/pkg-b/package.json', JSON.stringify({
+    name: 'pkg-b',
+    version: '1.0.0',
+  }))
+  const projects = [
+    {
+      id: 'app' as ProjectId,
+      manifest: {
+        dependencies: {
+          'pkg-a': 'file:packages/pkg-a',
+        },
+      },
+      rootDir: 'app' as ProjectRootDir,
+    },
+  ]
+  const opts = {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        app: {
+          dependencies: {
+            'pkg-a': 'file:packages/pkg-a',
+          },
+          specifiers: {
+            'pkg-a': 'file:packages/pkg-a',
+          },
+        },
+      },
+      packages: {
+        'pkg-a@file:packages/pkg-a': {
+          resolution: { directory: 'packages/pkg-a', type: 'directory' },
+          version: '1.0.0',
+          dependencies: {
+            'pkg-b': 'file:packages/pkg-b',
+          },
+          dev: false,
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    } as LockfileObject,
+    workspacePackages: new Map(),
+    lockfileDir: process.cwd(),
+  }
+  expect(await allProjectsAreUpToDate(projects, opts)).toBeTruthy()
+})
+
+

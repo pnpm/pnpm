@@ -42,3 +42,30 @@ fn recognizes_windows_and_unc_workspace_paths() {
     assert!(is_workspace_path(r"c:\@scope\pkg"));
     assert!(!is_workspace_path("@scope/pkg@^1.0.0"));
 }
+
+#[test]
+fn workspace_range_rejects_registry_snapshot_and_accepts_file_snapshot() {
+    let workspace_root = PathBuf::from("/workspace");
+    let lockfile_dir = workspace_root.clone();
+    let local_dep_dir = workspace_root.join("packages/foo");
+
+    let registry_dep: pnpm_lockfile::SnapshotDepRef = "1.0.0".parse().unwrap();
+    assert!(!spec_satisfies_snapshot_dep(
+        &workspace_root,
+        &lockfile_dir,
+        &local_dep_dir,
+        "pkg",
+        "workspace:^1.0.0",
+        &registry_dep,
+    ));
+
+    let file_dep: pnpm_lockfile::SnapshotDepRef = "file:packages/pkg".parse().unwrap();
+    assert!(spec_satisfies_snapshot_dep(
+        &workspace_root,
+        &lockfile_dir,
+        &local_dep_dir,
+        "pkg",
+        "workspace:^1.0.0",
+        &file_dep,
+    ));
+}

@@ -173,9 +173,7 @@ async function isLocalFileDepUpdated (
           if (path.isAbsolute(depPath)) {
             return false
           }
-          const targetDir = cleanLockfileDep.startsWith('link:')
-            ? path.resolve(lockfileDir, depPath)
-            : path.resolve(localDepDir, depPath)
+          const targetDir = path.resolve(lockfileDir, depPath)
           if (!isSubdirectory(workspaceRoot, targetDir)) {
             return false
           }

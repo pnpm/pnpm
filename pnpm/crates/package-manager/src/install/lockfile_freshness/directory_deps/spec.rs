@@ -138,9 +138,6 @@ fn workspace_spec_satisfies(
     if !snapshot_dep_name_matches(lockfile_dep, dep_name, expected_name) {
         return false;
     }
-    if let Some(version) = lockfile_dep.ver_peer().and_then(extract_semver) {
-        return range.satisfies(version);
-    }
     lockfile_dep
         .ver_peer()
         .is_some_and(|ver_peer| matches!(ver_peer.version(), pnpm_lockfile::VersionPart::File(_)))
