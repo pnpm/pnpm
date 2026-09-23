@@ -773,3 +773,28 @@ test('update moves a declaration a range-scoped override does not claim', async 
   expect(updatedProject.manifest.dependencies).toStrictEqual({ '@pnpm.e2e/foo': '^100.1.0' })
   expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo'].specifier).toBe('^100.1.0')
 })
+
+test('overrides with leading or trailing whitespace on selectors are trimmed and applied', async () => {
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0',
+    },
+  }
+  const options = testDefaults({
+    overrides: {
+      '  @pnpm.e2e/dep-of-pkg-with-1-dep  ': '100.0.0',
+    },
+  })
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.overrides).toStrictEqual({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+  })
+})

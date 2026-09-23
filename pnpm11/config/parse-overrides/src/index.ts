@@ -32,7 +32,8 @@ export function parseOverrides (
   const _resolveFromCatalog = resolveFromCatalog.bind(null, catalogs ?? {})
   return Object.entries(overrides)
     .map(([selector, newBareSpecifier]) => {
-      const result = parsePkgAndParentSelector(selector)
+      const trimmedSelector = selector.trim()
+      const result = parsePkgAndParentSelector(trimmedSelector)
       const resolvedCatalog = matchCatalogResolveResult(_resolveFromCatalog({
         bareSpecifier: newBareSpecifier,
         alias: result.targetPkg.name,
@@ -44,7 +45,7 @@ export function parseOverrides (
         },
       })
       const override = {
-        selector,
+        selector: trimmedSelector,
         newBareSpecifier: resolvedCatalog ?? newBareSpecifier,
         ...result,
       }
@@ -67,23 +68,25 @@ function markConvergeOverride (override: VersionOverride): VersionOverride {
 }
 
 export function parsePkgAndParentSelector (selector: string): Pick<VersionOverride, 'parentPkg' | 'targetPkg'> {
-  let delimiterIndex = selector.search(DELIMITER_REGEX)
+  const trimmedSelector = selector.trim()
+  let delimiterIndex = trimmedSelector.search(DELIMITER_REGEX)
   if (delimiterIndex !== -1) {
     delimiterIndex++
-    const parentSelector = selector.substring(0, delimiterIndex)
-    const childSelector = selector.substring(delimiterIndex + 1)
+    const parentSelector = trimmedSelector.substring(0, delimiterIndex)
+    const childSelector = trimmedSelector.substring(delimiterIndex + 1)
     return {
       parentPkg: parsePkgSelector(parentSelector),
       targetPkg: parsePkgSelector(childSelector),
     }
   }
   return {
-    targetPkg: parsePkgSelector(selector),
+    targetPkg: parsePkgSelector(trimmedSelector),
   }
 }
 
 function parsePkgSelector (selector: string): PackageSelector {
-  const wantedDep = parseWantedDependency(selector)
+  const trimmedSelector = selector.trim()
+  const wantedDep = parseWantedDependency(trimmedSelector)
   if (!wantedDep.alias) {
     throw new PnpmError('INVALID_SELECTOR', `Cannot parse the "${selector}" selector`)
   }
