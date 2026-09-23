@@ -36,7 +36,7 @@ use crate::{
     cli_args::package_manager::wanted_package_manager,
     engine_pm::{
         channel::{Channel, PackageManager},
-        provision::provision,
+        provision::{ProvisionedEngine, provision},
     },
 };
 use derive_more::Display;
@@ -53,6 +53,7 @@ use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes};
 use pnpm_engine_runtime_node_resolver::parse_node_specifier;
 use pnpm_package_manifest::is_runtime_alias;
 use pnpm_reporter::SilentReporter;
+use run_program::{exec_program, exec_program_with_bin_dirs, run_held_program};
 
 use runtime_env::{PACKAGE_MANAGER_ENVS_DIR_NAME, trusted_runtime_config};
 use serde_json::Value;
@@ -62,9 +63,8 @@ use settings::{
     runtime_pin, trusted_package_manager_config, trusted_shim_settings, validate_candidate,
 };
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::OsString,
     path::{Path, PathBuf},
-    process::Command,
 };
 use trust::is_trusted;
 
@@ -398,7 +398,11 @@ fn run_runtime_from_store(
         materialize_runtime(state_dir, name.to_string(), version_spec.to_string()),
     );
     match result {
-        Ok(runtime) => exec_program(&runtime.bin, args),
+        Ok(MaterializedRuntime {
+            bin,
+            private_install: Some(private_install),
+        }) => run_held_program(&bin, &[], args, vec![private_install]),
+        Ok(MaterializedRuntime { bin, private_install: None }) => exec_program(&bin, args),
         Err(error) => {
             eprintln!("pnpm: failed to prepare {name}@runtime:{version_spec}: {error:?}");
             1
@@ -427,7 +431,16 @@ fn run_package_manager_from_pin(
     match result {
         Ok(engine) => {
             let program = engine.command(name);
-            exec_program_with_bin_dirs(&program, &engine.bin_dirs, args)
+            let ProvisionedEngine {
+                bin_dirs,
+                _private_installs: private_installs,
+                ..
+            } = engine;
+            if private_installs.is_empty() {
+                exec_program_with_bin_dirs(&program, &bin_dirs, args)
+            } else {
+                run_held_program(&program, &bin_dirs, args, private_installs)
+            }
         }
         Err(error) => {
             eprintln!("pnpm: failed to prepare {}@{version_spec}: {error:?}", pm.name());
@@ -436,67 +449,8 @@ fn run_package_manager_from_pin(
     }
 }
 
-/// Run `program` with `bin_dirs` prepended to `PATH`. A JavaScript
-/// package manager needs the Node.js it was provisioned with to be
-/// reachable, and its own directory has to come first so a nested
-/// invocation finds the same version.
-fn exec_program_with_bin_dirs(program: &Path, bin_dirs: &[PathBuf], args: &[OsString]) -> i32 {
-    match crate::path_env::prepend_dirs_to_path(bin_dirs) {
-        // The `PATH` travels on the command rather than through this
-        // process's own environment: an `exec` hands the child the
-        // command's environment just the same, and nothing here has to
-        // reason about which threads are running.
-        Ok(path) => exec_program_with_path(program, args, Some(path.as_os_str())),
-        Err(error) => {
-            // Rendered as a report so the failure carries the same
-            // `ERR_PNPM_BAD_PATH_DIR` code the commands report it under.
-            eprintln!("pnpm: {:?}", miette::Report::new(error));
-            1
-        }
-    }
-}
-
-/// Run `program` with `args`, replacing this process where the platform
-/// allows. Exit codes follow the shell convention: 127 when the program
-/// does not exist, 126 when it cannot be executed.
-fn exec_program(program: &Path, args: &[OsString]) -> i32 {
-    exec_program_with_path(program, args, None)
-}
-
-#[cfg(unix)]
-fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsStr>) -> i32 {
-    use std::os::unix::process::CommandExt as _;
-    let mut command = Command::new(program);
-    command.args(args);
-    if let Some(path) = path {
-        crate::path_env::set_command_path(&mut command, path);
-    }
-    let error = command.exec();
-    eprintln!("pnpm: failed to exec {}: {error}", program.display());
-    if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
-}
-
-#[cfg(windows)]
-fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsStr>) -> i32 {
-    // `.cmd`/`.bat` targets go to `Command::new` directly: the standard
-    // library spawns them through `cmd.exe` itself with the
-    // CVE-2024-24576 argument escaping, and rejects arguments it cannot
-    // pass safely — a hand-rolled `cmd /c` would reintroduce that bug.
-    let mut command = Command::new(program);
-    command.args(args);
-    if let Some(path) = path {
-        crate::path_env::set_command_path(&mut command, path);
-    }
-    match command.status() {
-        Ok(status) => status.code().unwrap_or(1),
-        Err(error) => {
-            eprintln!("pnpm: failed to run {}: {error}", program.display());
-            if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests;
 
+mod run_program;
 mod settings;

@@ -87,6 +87,27 @@ fn a_label_is_a_single_path_component() {
 }
 
 #[test]
+fn creation_refuses_a_linked_private_installs_dir() {
+    let root = tempfile::tempdir().unwrap();
+    let store = StoreDir::new(root.path().join("store"));
+    let elsewhere = root.path().join("elsewhere");
+    fs::create_dir_all(&elsewhere).unwrap();
+    fs::create_dir_all(store.tmp()).unwrap();
+    pnpm_fs::force_symlink_dir(&elsewhere, &store.tmp().join("private")).unwrap();
+
+    let error = store.create_private_install("node").unwrap_err();
+
+    assert!(matches!(error, crate::PrivateInstallError::Create { .. }), "{error}");
+    assert!(
+        fs::read_dir(&elsewhere)
+            .unwrap()
+            .next()
+            .is_none(),
+        "nothing lands in the target",
+    );
+}
+
+#[test]
 fn prune_removes_litter_and_refuses_a_linked_private_installs_dir() {
     let root = tempfile::tempdir().unwrap();
     let store = StoreDir::new(root.path().join("store"));

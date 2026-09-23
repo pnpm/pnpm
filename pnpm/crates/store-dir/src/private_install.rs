@@ -3,13 +3,13 @@
 //! would otherwise be installed into is held by another process.
 //!
 //! The copy lives under `<store>/tmp/private` and is removed when its
-//! [`PrivateInstall`] handle is dropped. A process that ends without
-//! dropping the handle — killed, or replaced by the program it
-//! executes — leaves the directory behind, and `pnpm store prune`
+//! [`PrivateInstall`] handle is dropped. A process killed before it
+//! drops the handle leaves the directory behind, and `pnpm store prune`
 //! removes it then. Prune tells a copy still in use from one left behind
 //! by the OS lock the handle holds on the `in-use` file inside the
 //! directory: the OS releases that lock when the holding process ends,
-//! however it ends.
+//! however it ends. Where the filesystem cannot hold such a lock, a copy
+//! counts as in use for [`ABANDONED_AFTER`] from its creation.
 //!
 //! A directory is marked in use only after it is created, so creation
 //! runs under the store's use lock and the sweep under its prune lock,
@@ -20,9 +20,10 @@ use crate::{StoreDir, StoreLockError};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::{
-    fs::{self, File},
+    fs::{self, File, TryLockError},
     io,
     path::{Component, Path, PathBuf},
+    time::{Duration, SystemTime},
 };
 
 /// The directory under the store's `tmp/` that holds the private installs.
@@ -30,6 +31,11 @@ pub(crate) const PRIVATE_INSTALLS_DIR: &str = "private";
 
 /// The file inside a private install whose OS lock marks it in use.
 const IN_USE_FILE: &str = "in-use";
+
+/// How long a private install whose marker cannot be probed counts as
+/// in use: well past any command that runs one, so a copy is never
+/// removed from under a live process for want of an OS lock.
+const ABANDONED_AFTER: Duration = Duration::from_hours(24);
 
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum PrivateInstallError {
@@ -103,7 +109,8 @@ impl StoreDir {
         // Exclusive creation: a directory that already exists belongs to
         // another install, and two handles over one directory would each
         // remove the other's copy.
-        fs::create_dir_all(&parent)
+        refuse_symlink(&parent)
+            .and_then(|()| fs::create_dir_all(&parent))
             .and_then(|()| fs::create_dir(&dir))
             .map_err(|error| PrivateInstallError::Create { path: dir.clone(), error })?;
         let marker = dir.join(IN_USE_FILE);
@@ -163,28 +170,51 @@ fn is_single_normal_component(label: &str) -> bool {
 /// none. A symbolic link in its place is refused rather than followed,
 /// since the sweep removes what it finds.
 fn read_private_installs_dir(dir: &Path) -> io::Result<Option<fs::ReadDir>> {
+    match refuse_symlink(dir).and_then(|()| fs::read_dir(dir)) {
+        Ok(entries) => Ok(Some(entries)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+/// Neither the creation nor the sweep may be steered elsewhere by a link
+/// planted at the private installs directory. A missing directory passes.
+fn refuse_symlink(dir: &Path) -> io::Result<()> {
     match fs::symlink_metadata(dir) {
         Ok(metadata) if metadata.file_type().is_symlink() => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "the private installs directory must not be a symbolic link",
         )),
-        Ok(_) => fs::read_dir(dir).map(Some),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error),
     }
 }
 
 /// Whether a process still holds the private install at `dir`. One with
 /// no `in-use` file was abandoned before it was marked. One whose lock
-/// cannot be probed is left alone: on a filesystem without OS locks its
-/// holder cannot be told from a process that is gone.
+/// cannot be probed — the filesystem holds no OS locks — is judged by
+/// its age instead.
 fn is_in_use(dir: &Path) -> io::Result<bool> {
     let in_use = match File::open(dir.join(IN_USE_FILE)) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
         Err(error) => return Err(error),
     };
-    Ok(in_use.try_lock().is_err())
+    match in_use.try_lock() {
+        Ok(()) => Ok(false),
+        Err(TryLockError::WouldBlock) => Ok(true),
+        Err(TryLockError::Error(_)) => Ok(!is_older_than(dir, ABANDONED_AFTER)),
+    }
+}
+
+fn is_older_than(path: &Path, age: Duration) -> bool {
+    let Ok(modified) = fs::metadata(path).and_then(|metadata| metadata.modified()) else {
+        return false;
+    };
+    SystemTime::now()
+        .duration_since(modified)
+        .is_ok_and(|elapsed| elapsed > age)
 }
 
 #[cfg(test)]

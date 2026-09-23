@@ -238,8 +238,6 @@ fn version_file_runtime_pin_downloads_node_on_demand(file_name: &str) {
     assert!(!root.path().join("cache/dlx").exists());
 }
 
-/// The dispatcher replaces itself with the runtime, so the private
-/// install outlives the dispatch and only `pnpm store prune` removes it.
 #[cfg(unix)]
 #[test]
 fn a_held_runtime_lock_installs_the_runtime_privately() {
@@ -275,20 +273,16 @@ fn a_held_runtime_lock_installs_the_runtime_privately() {
         "the held environment must not be entered: {}",
         environment.display(),
     );
-    let private_install = fs::read_dir(root.path().join("store/v11/tmp/private"))
-        .expect("the runtime should be installed privately")
+    let left_behind: Vec<_> = fs::read_dir(root.path().join("store/v11/tmp/private"))
+        .into_iter()
+        .flatten()
         .flatten()
         .map(|entry| entry.path())
-        .find(|dir| dir.join("node_modules/node").exists())
-        .expect("the private install should hold the runtime");
-
-    let prune_cwd = root.path().join("prune-cwd");
-    fs::create_dir_all(&prune_cwd).unwrap();
-    pnpm_command(&root, &prune_cwd)
-        .with_args(["store", "prune"])
-        .assert()
-        .success();
-    assert!(!private_install.exists(), "prune must remove the private install nobody holds");
+        .collect();
+    assert!(
+        left_behind.is_empty(),
+        "the private install is removed once the runtime has run: {left_behind:?}",
+    );
 }
 
 /// A project pinning Node.js `version` through `file_name`, whose own

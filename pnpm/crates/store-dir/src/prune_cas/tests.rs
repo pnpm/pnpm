@@ -76,6 +76,21 @@ fn keeps_the_private_installs_a_process_still_holds() {
 }
 
 #[test]
+fn unlinks_a_linked_tmp_without_following_it() {
+    let root = tempfile::tempdir().unwrap();
+    let store = StoreDir::new(root.path().join("store"));
+    let elsewhere = root.path().join("elsewhere");
+    fs::create_dir_all(elsewhere.join("keep")).unwrap();
+    fs::create_dir_all(store.root()).unwrap();
+    pnpm_fs::force_symlink_dir(&elsewhere, &store.tmp()).unwrap();
+
+    prune_cas(&store).unwrap();
+
+    assert!(fs::symlink_metadata(store.tmp()).is_err(), "the link itself is removed");
+    assert!(elsewhere.join("keep").exists(), "the link's target is untouched");
+}
+
+#[test]
 fn removes_executable_cas_suffix_from_the_index_digest() {
     let root = tempfile::tempdir().unwrap();
     let store = StoreDir::new(root.path().join("store"));

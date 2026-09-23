@@ -141,11 +141,13 @@ fn read_entries(path: &Path) -> Result<Vec<fs::DirEntry>, PruneCasError> {
 }
 
 /// Remove the store's temporary files: everything under `tmp/` except
-/// the private installs a process still holds.
+/// the private installs a process still holds. A link in place of `tmp/`
+/// is unlinked, never followed.
 fn remove_tmp(store_dir: &StoreDir) -> Result<(), PruneCasError> {
     let tmp = store_dir.tmp();
-    let entries = match fs::read_dir(&tmp) {
-        Ok(entries) => entries,
+    let entries = match tmp_entries(&tmp) {
+        Ok(Some(entries)) => entries,
+        Ok(None) => return Ok(()),
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(PruneCasError::RemoveTmp { path: tmp, error }),
     };
@@ -169,6 +171,17 @@ fn remove_tmp(store_dir: &StoreDir) -> Result<(), PruneCasError> {
             Ok(())
         }
         Err(error) => Err(PruneCasError::RemoveTmp { path: tmp, error }),
+    }
+}
+
+/// The entries of `tmp`, or `None` once a link found in its place has
+/// been unlinked: the sweep removes what it finds, so it never follows
+/// one.
+fn tmp_entries(tmp: &Path) -> io::Result<Option<fs::ReadDir>> {
+    if fs::symlink_metadata(tmp)?.file_type().is_symlink() {
+        pnpm_fs::remove_dirent(tmp).map(|()| None)
+    } else {
+        fs::read_dir(tmp).map(Some)
     }
 }
 
