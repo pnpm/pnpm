@@ -72,6 +72,33 @@ def net():
         print(f"{label:26} {times[0][1]:24} " + " ".join(ms(t) for t, _ in times))
     print("localhost resolves to:", [a[4][0] for a in socket.getaddrinfo("localhost", 1, type=socket.SOCK_STREAM)])
     listener.close()
+    localhost_to_ipv4_only_server()
+
+
+def localhost_to_ipv4_only_server():
+    """The TS test registry listens on 127.0.0.1 but is addressed as localhost."""
+    import http.server
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), http.server.SimpleHTTPRequestHandler)
+    port = server.server_address[1]
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    for label in ("localhost", "127.0.0.1"):
+        times = []
+        for _ in range(3):
+            start = time.perf_counter()
+            socket.create_connection((label, port), timeout=20).close()
+            times.append(time.perf_counter() - start)
+        print(f"python connect {label}:<ipv4 server>   " + " ".join(ms(t) for t in times))
+    script = (
+        "const u=process.argv[1];(async()=>{for(let i=0;i<3;i++){const t=performance.now();"
+        "await fetch(u,{method:'HEAD'}).catch(e=>console.log(e.cause?.code));"
+        "console.log((performance.now()-t).toFixed(1)+' ms')}})()"
+    )
+    for label in ("localhost", "127.0.0.1"):
+        # A fresh process per request, like each pnpm the tests spawn.
+        times = [run(["node", "-e", script, f"http://{label}:{port}/"]).splitlines()[0] for _ in range(3)]
+        print(f"node fetch {label}:<ipv4 server>, new process each: {', '.join(times)}")
+    server.shutdown()
 
 
 def flush():
