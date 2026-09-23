@@ -1,4 +1,6 @@
-use crate::_utils::{has_link, importer_has_group_dependency, pacquet_in, read_lockfile};
+use crate::_utils::{
+    append_line_script, has_link, importer_has_group_dependency, pacquet_in, read_lockfile,
+};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -7,6 +9,7 @@ use std::fs;
 
 const PROD: &str = "@pnpm.e2e/pkg-with-1-dep";
 const FILTERED: &str = "@pnpm.e2e/hello-world-js-bin";
+const ORDER_FILE: &str = "order.txt";
 
 #[test]
 fn prune_writes_lockfile() {
@@ -190,10 +193,6 @@ fn prune_with_no_optional_unlinks_optional_deps() {
     );
 }
 
-fn append_order_script(stage: &str) -> String {
-    format!(r#"node -e "require('fs').appendFileSync('order.txt','{stage}\n')""#)
-}
-
 /// `prepare` needs a devDependency, like a `husky` git-hooks setup, so
 /// running it after `prune --prod` unlinked that dependency would fail
 /// the prune (pnpm/pnpm#4770).
@@ -203,8 +202,10 @@ fn prune_with_prod_only_does_not_run_prepare_scripts() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    let prepare =
-        format!(r#"node -e "require('is-negative')" && {}"#, append_order_script("prepare"));
+    let prepare = format!(
+        r#"node -e "require('is-negative')" && {}"#,
+        append_line_script("prepare", ORDER_FILE)
+    );
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
@@ -213,19 +214,19 @@ fn prune_with_prod_only_does_not_run_prepare_scripts() {
             "dependencies": { "is-positive": "1.0.0" },
             "devDependencies": { "is-negative": "1.0.0" },
             "scripts": {
-                "preinstall": append_order_script("preinstall"),
-                "install": append_order_script("install"),
-                "postinstall": append_order_script("postinstall"),
-                "preprepare": append_order_script("preprepare"),
+                "preinstall": append_line_script("preinstall", ORDER_FILE),
+                "install": append_line_script("install", ORDER_FILE),
+                "postinstall": append_line_script("postinstall", ORDER_FILE),
+                "preprepare": append_line_script("preprepare", ORDER_FILE),
                 "prepare": prepare,
-                "postprepare": append_order_script("postprepare"),
+                "postprepare": append_line_script("postprepare", ORDER_FILE),
             },
         })
         .to_string(),
     )
     .expect("write package.json");
 
-    let order_path = workspace.join("order.txt");
+    let order_path = workspace.join(ORDER_FILE);
     let read_stages = || {
         fs::read_to_string(&order_path)
             .expect("read order.txt")
@@ -254,8 +255,11 @@ fn prune_with_prod_only_does_not_run_prepare_scripts() {
         ["preinstall", "install", "postinstall"],
         "prepare lifecycle scripts must not run during prune --prod",
     );
-    assert!(has_link(&workspace, "is-positive"));
-    assert!(!has_link(&workspace, "is-negative"));
+    assert_eq!(
+        (has_link(&workspace, "is-positive"), has_link(&workspace, "is-negative")),
+        (true, false),
+        "prune --prod must keep the prod dependency linked and unlink the dev dependency",
+    );
 
     drop((root, mock_instance));
 }
