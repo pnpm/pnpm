@@ -139,6 +139,12 @@ jobs:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       RUST_TEST_SHARED_BUILD: ${{ matrix.shared_test_build }}
+      # Pull requests run only the smoke profile on Windows: one end-to-end
+      # test per area of CLI behavior (see .config/nextest.toml). The full
+      # Windows suite runs on main, in the merge queue and on manual runs, so
+      # a full Windows run for a pull request is one workflow_dispatch away.
+      # Windows Clippy still compiles the Windows-only code on every PR.
+      RUST_TEST_SCOPE: ${{ (matrix.os_label == 'windows' && github.event_name == 'pull_request') && 'smoke' || 'full' }}
       # Main only restores compiler cache entries that main wrote.
       SCCACHE_SCOPE: ${{ github.event.pull_request.number && format('pr{0}', github.event.pull_request.number) || github.ref_name }}
     strategy:
@@ -264,7 +270,16 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Test pacquet smoke profile
+        if: env.RUST_TEST_SCOPE == 'smoke'
+        shell: bash
+        run: |
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+          just smoke -p pnpm-cli --test suite
+
       - name: Test pacquet
+        if: env.RUST_TEST_SCOPE != 'smoke'
         shell: bash
         run: |
           # removing env vars is a temporary workaround for unit tests in pacquet relying on external environment
@@ -286,6 +301,7 @@ jobs:
             node --test pnpm/npm/napi/test/*.test.mjs
 
       - name: Test pnpr
+        if: env.RUST_TEST_SCOPE != 'smoke'
         shell: bash
         run: |
           # removing env vars is a temporary workaround for unit tests in pacquet relying on external environment
@@ -313,6 +329,7 @@ jobs:
         continue-on-error: true
 
       - name: Stage Bencher test durations
+        if: env.RUST_TEST_SCOPE != 'smoke'
         env:
           TESTBED_OS: ${{ matrix.os_label }}
         shell: bash
@@ -340,6 +357,7 @@ jobs:
           EOF
 
       - name: Upload Bencher test duration artifact
+        if: env.RUST_TEST_SCOPE != 'smoke'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ci-performance-rust-${{ matrix.os_label }}
