@@ -44,11 +44,16 @@ fn integrity(integrity_str: &str) -> Integrity {
     integrity_str.parse().expect("parse integrity string")
 }
 
+/// A URL whose connect fails at once on every OS. Linux and macOS refuse
+/// `0.0.0.0:1` as they would loopback; Windows rejects the address without
+/// sending a packet, where a refused loopback port takes 2 s to fail.
+const UNREACHABLE_URL: &str = "http://0.0.0.0:1/unreachable.tgz";
+
 /// HTTP client for the fall-through tests. A default `ThrottledClient`
 /// uses `Client::new()` with no connect / request timeout, so on a
-/// firewalled runner the unreachable `http://127.0.0.1:1/...` URL
-/// could stall for minutes of TCP retry. One-second bounds are
-/// plenty for loopback and keep the failure mode deterministic.
+/// firewalled runner an unreachable URL could stall for minutes of TCP
+/// retry. One-second bounds are plenty for loopback and keep the
+/// failure mode deterministic.
 fn fast_fail_client() -> ThrottledClient {
     let build = |redirect| {
         reqwest::Client::builder()

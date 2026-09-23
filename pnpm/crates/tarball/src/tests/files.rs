@@ -2,9 +2,9 @@ use super::{
     Arc, ArchiveStoreProjection, AuthHeaders, CafsFileInfo, HashMap, IngestTarballToStore,
     PackageFilesIndex, PathBuf, PrefetchIntegrityCheck, PrefetchedCasPaths,
     SharedReportedProgressKeys, SharedVerifiedFilesCache, SilentReporter, StoreIndex,
-    StoreIndexWriter, TarballError, assert_eq, fast_fail_client, gzipped_tar, integrity,
-    prefetch_cas_paths, store_index_cache_key, store_index_key, tempdir, tempdir_with_leaked_path,
-    test_retry_opts,
+    StoreIndexWriter, TarballError, UNREACHABLE_URL, assert_eq, fast_fail_client, gzipped_tar,
+    integrity, prefetch_cas_paths, store_index_cache_key, store_index_key, tempdir,
+    tempdir_with_leaked_path, test_retry_opts,
 };
 
 /// When the `SQLite` index already has an entry for this
@@ -72,7 +72,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
-            url: "http://127.0.0.1:1/unreachable.tgz",
+            url: UNREACHABLE_URL,
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {
@@ -156,7 +156,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
-            url: "http://127.0.0.1:1/unreachable.tgz",
+            url: UNREACHABLE_URL,
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {
@@ -470,7 +470,7 @@ async fn falls_through_when_cafs_file_missing() {
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
-            url: "http://127.0.0.1:1/unreachable.tgz",
+            url: UNREACHABLE_URL,
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {
@@ -549,7 +549,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
-            url: "http://127.0.0.1:1/unreachable.tgz",
+            url: UNREACHABLE_URL,
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {

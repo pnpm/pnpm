@@ -117,9 +117,9 @@ fn a_latest_older_than_the_running_pnpm_is_not_pinned() {
 #[test]
 fn an_unreachable_registry_pins_the_running_pnpm() {
     let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
-    // Port 1 is reserved and unbound, so the connection is refused at once
-    // rather than waiting out the lookup's timeout.
-    pacquet.env("PNPM_CONFIG_REGISTRY", "http://127.0.0.1:1/");
+    // The connect to `0.0.0.0:1` fails at once on every OS rather than
+    // waiting out the lookup's timeout.
+    pacquet.env("PNPM_CONFIG_REGISTRY", "http://0.0.0.0:1/");
     pacquet
         .with_arg("init")
         .assert()

@@ -2,10 +2,11 @@ use super::{
     Arc, ArchiveStoreProjection, AuthHeaders, CafsFileInfo, Duration, FASTIFY_ERROR_INTEGRITY,
     FASTIFY_ERROR_TARBALL, HashMap, HttpStatusError, IngestTarballToStore, Integrity, MemCache,
     NetworkError, PackageFilesIndex, RetryOpts, SharedVerifiedFilesCache, SilentReporter,
-    StoreIndex, StoreIndexWriter, TarballError, ThrottledClient, VerifyChecksumError, assert_eq,
-    fast_fail_client, fast_retry_opts, fetch_and_extract_with_retry, gzipped_tar, integrity,
-    is_transient_error, seed_row_holding_another_package, store_index_cache_key, store_index_key,
-    tempdir, tempdir_with_leaked_path, test_retry_opts,
+    StoreIndex, StoreIndexWriter, TarballError, ThrottledClient, UNREACHABLE_URL,
+    VerifyChecksumError, assert_eq, fast_fail_client, fast_retry_opts,
+    fetch_and_extract_with_retry, gzipped_tar, integrity, is_transient_error,
+    seed_row_holding_another_package, store_index_cache_key, store_index_key, tempdir,
+    tempdir_with_leaked_path, test_retry_opts,
 };
 
 /// Pin `walk_reqwest_chain`'s contract: a `NetworkError` formed
@@ -153,7 +154,7 @@ async fn store_row_holding_another_package_fails_the_read() {
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
-            url: "http://127.0.0.1:1/unreachable.tgz",
+            url: UNREACHABLE_URL,
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {

@@ -6,8 +6,8 @@ use super::{
 #[cfg(not(target_os = "windows"))]
 use super::{
     ArchiveStoreProjection, AuthHeaders, CafsFileInfo, HashMap, IngestTarballToStore,
-    PackageFilesIndex, SharedVerifiedFilesCache, SilentReporter, StoreIndex, fast_fail_client,
-    integrity, store_index_key, test_retry_opts,
+    PackageFilesIndex, SharedVerifiedFilesCache, SilentReporter, StoreIndex, UNREACHABLE_URL,
+    fast_fail_client, integrity, store_index_key, test_retry_opts,
 };
 
 /// A symlink at the CAFS path — even one pointing at a valid regular
@@ -68,7 +68,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
-            url: "http://127.0.0.1:1/unreachable.tgz",
+            url: UNREACHABLE_URL,
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {

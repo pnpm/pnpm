@@ -194,7 +194,7 @@ fn first_release_probe_failure_fails_the_command() {
     let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
         .expect("write yaml");
-    fs::write(workspace.join(".npmrc"), "registry=http://127.0.0.1:1/\n").expect("write npmrc");
+    fs::write(workspace.join(".npmrc"), "registry=http://0.0.0.0:1/\n").expect("write npmrc");
     fs::write(workspace.join("package.json"), "{\"name\": \"e2e-root\", \"private\": true}\n")
         .expect("write root package.json");
     add_scoped_pkg(&workspace, "foo", "@pnpm.e2e/foo", "1.2.0");
