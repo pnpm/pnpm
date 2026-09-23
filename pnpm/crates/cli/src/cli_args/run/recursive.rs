@@ -326,6 +326,7 @@ impl RecursiveRun<'_, '_> {
     fn falls_back_to_exec(&self, task_graph: &TaskGraph) -> bool {
         self.script.fallback_to_exec
             && !self.args.if_present
+            && !self.args.dry_run
             && !a_project_has_the_script(task_graph)
     }
 

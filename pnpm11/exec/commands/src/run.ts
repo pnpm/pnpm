@@ -514,12 +514,13 @@ function getRunScriptStages (
 /**
  * Whether a recursive `pnpm <command>` shorthand hands the command to `exec`,
  * as the single-project shorthand does when no selected project has a script
- * by that name. `test` keeps the recursive run's exemption for a missing
- * script, so the `t` and `tst` shorthands do not run a system `test` binary.
+ * by that name. `test` and `start` have defaults of their own when the script
+ * is missing, so they are never handed to `exec` as binaries.
  */
 function fallsBackToExec (opts: RunOpts & { recursive: true }, scriptName: string): boolean {
   return Boolean(opts.fallbackCommandUsed) &&
     scriptName !== 'test' &&
+    scriptName !== 'start' &&
     !opts.ifPresent &&
     !opts.dryRun &&
     !someSelectedProjectHasScript(opts.selectedProjectsGraph, scriptName)

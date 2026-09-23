@@ -508,6 +508,27 @@ test('"pnpm -r t" does not fall back to a "test" command when no selected projec
   }, ['t'])).resolves.toBeUndefined()
 })
 
+test('"pnpm -r start" reports the missing start script instead of running a "start" command', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+  await expect(run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    fallbackCommandUsed: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['start'])).rejects.toThrow('None of the packages has a "start" script')
+})
+
 test('"pnpm run --filter <pkg>" without specifying the script name', async () => {
   preparePackages([
     {
