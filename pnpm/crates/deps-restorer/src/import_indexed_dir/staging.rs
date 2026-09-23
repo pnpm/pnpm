@@ -79,13 +79,13 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
     //    staged tree and any merge backup hold the preserved data. Try
     //    to move it back into place before bailing, and retain those
     //    temporary paths if restoration can't run.
-    if let Err(error) = pnpm_fs::remove_dir_all_with_retry(dir_path) {
+    if let Err(error) = pnpm_fs::remove_dirent(dir_path) {
         paths.cleanup_after_failure(&preserved_modules);
         return Err(ImportIndexedDirError::RemoveExisting { path: dir_path.to_path_buf(), error });
     }
 
     // 4. Move the staged tree into place. There's a brief window
-    //    between `remove_dir_all` and `rename` where `dir_path` does
+    //    between the removal and `rename` where `dir_path` does
     //    not exist on disk — acceptable for a slot only this install
     //    can reach; a shared slot never enters this function.
     if let Err(error) = pnpm_fs::rename_with_retry(&paths.stage, dir_path) {
