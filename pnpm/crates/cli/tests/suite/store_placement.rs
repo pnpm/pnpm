@@ -15,7 +15,7 @@ fn commands_without_store_access_do_not_modify_the_project_directory() {
         .with_status(404)
         .create();
     let registry_arg = format!("--registry={}/", registry.url());
-    let cases: [(&[&str], bool); 13] = [
+    let cases: [(&[&str], bool); 25] = [
         (&["root"], true),
         (&["prefix"], true),
         (&["bin"], true),
@@ -29,6 +29,18 @@ fn commands_without_store_access_do_not_modify_the_project_directory() {
         (&["owner", "ls", "nx", &registry_arg], false),
         (&["whoami", &registry_arg], false),
         (&["docs", "nx", &registry_arg], false),
+        (&["access", "list", "packages", "nx", &registry_arg], false),
+        (&["bugs", "nx", &registry_arg], false),
+        (&["deprecate", "nx@1", "message", &registry_arg], false),
+        (&["undeprecate", "nx@1", &registry_arg], false),
+        (&["unpublish", "nx@1.0.0", &registry_arg], false),
+        (&["login", &registry_arg], false),
+        (&["logout", &registry_arg], false),
+        (&["repo", "nx", &registry_arg], false),
+        (&["star", "nx", &registry_arg], false),
+        (&["unstar", "nx", &registry_arg], false),
+        (&["stars", &registry_arg], false),
+        (&["team", "ls", "@org", &registry_arg], false),
     ];
     for (args, succeeds) in cases {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
