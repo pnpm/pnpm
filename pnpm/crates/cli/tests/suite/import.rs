@@ -915,7 +915,7 @@ fn importer_version(workspace: &Path, importer: &str, name: &str) -> String {
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
     let dependencies = lockfile.importers[importer].dependencies
         .as_ref()
-        .unwrap_or_else(|| panic!("importer {importer} has dependencies"));
+        .unwrap_or_else(|| panic!("importer {importer} has no dependencies"));
     dependencies[&name.parse().expect("valid package name")].version.to_string()
 }
 
