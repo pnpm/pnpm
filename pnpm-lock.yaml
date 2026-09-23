@@ -7767,6 +7767,9 @@ importers:
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
+      '@pnpm/lockfile.pruner':
+        specifier: workspace:*
+        version: link:../../lockfile/pruner
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../lockfile/utils

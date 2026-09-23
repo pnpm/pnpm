@@ -1,6 +1,6 @@
 use super::{
-    AddMockedRegistry, fs, pacquet, setup_installed, setup_installed_workspace_project,
-    write_patch_edit,
+    AddMockedRegistry, CommandTempCwd, fs, pacquet, setup_installed,
+    setup_installed_workspace_project, write_patch_edit,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -531,6 +531,126 @@ fn patch_commit_ambiguous_bare_name_and_versioned_state_entries_fails() {
     assert!(!output.status.success(), "ambiguous bare name should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("ERR_PNPM_AMBIGUOUS_PATCH_TARGET"), "stderr: {stderr}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn patch_commit_updates_lockfile_when_manifest_dependencies_removed() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+
+    let lockfile_text =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        lockfile_text.contains("@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        "initial lockfile should contain dep-of-pkg-with-1-dep",
+    );
+
+    pacquet(&workspace, ["patch", "@pnpm.e2e/pkg-with-1-dep@100.0.0", "--reporter=silent"])
+        .assert()
+        .success();
+
+    let edit_dir = workspace.join("node_modules/.pnpm_patches/@pnpm.e2e/pkg-with-1-dep@100.0.0");
+    let edit_manifest_path = edit_dir.join("package.json");
+    let mut manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(&edit_manifest_path).expect("read edit package.json"),
+    )
+    .expect("parse edit package.json");
+    manifest
+        .as_object_mut()
+        .unwrap()
+        .remove("dependencies");
+    fs::write(&edit_manifest_path, serde_json::to_string_pretty(&manifest).unwrap())
+        .expect("write edit package.json");
+
+    pacquet(
+        &workspace,
+        ["patch-commit", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+    )
+    .assert()
+    .success();
+
+    let updated_lockfile_text =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read updated lockfile");
+    assert!(
+        !updated_lockfile_text.contains("@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        "dep-of-pkg-with-1-dep should be pruned from lockfile: {updated_lockfile_text}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn patch_commit_preserves_resolved_peer_dependencies_in_snapshot() {
+    let (root, workspace, npmrc_info) = setup_installed();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/wants-peer-c-1": "1.0.0",
+                "@pnpm.e2e/peer-c": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+
+    let initial_lockfile_text =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read initial lockfile");
+    assert!(
+        initial_lockfile_text.contains("@pnpm.e2e/peer-c"),
+        "initial lockfile should contain peer-c",
+    );
+
+    pacquet(&workspace, ["patch", "@pnpm.e2e/wants-peer-c-1@1.0.0", "--reporter=silent"])
+        .assert()
+        .success();
+
+    let edit_dir = workspace.join("node_modules/.pnpm_patches/@pnpm.e2e/wants-peer-c-1@1.0.0");
+    write_patch_edit(&edit_dir, "patched wants peer");
+
+    pacquet(
+        &workspace,
+        ["patch-commit", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+    )
+    .assert()
+    .success();
+
+    let updated_lockfile =
+        pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace).unwrap().unwrap();
+    let peer_c: pnpm_lockfile::PkgName = "@pnpm.e2e/peer-c".parse().unwrap();
+    let wants_peer = updated_lockfile.snapshots
+        .as_ref()
+        .expect("snapshots must exist")
+        .iter()
+        .find(|(key, _)| key.name.to_string() == "@pnpm.e2e/wants-peer-c-1")
+        .map(|(_, snapshot)| snapshot)
+        .expect("wants-peer-c-1 snapshot must exist");
+    assert!(
+        wants_peer.dependencies
+            .as_ref()
+            .is_some_and(|deps| deps.contains_key(&peer_c)),
+        "resolved peer dependency @pnpm.e2e/peer-c should remain in snapshot dependencies: {wants_peer:#?}",
+    );
 
     drop((root, mock_instance));
 }
