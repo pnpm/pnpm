@@ -125,16 +125,8 @@ fn create_workspace_yaml_from_yarn_workspaces(
                 .wrap_err_with(|| format!("render pnpm-workspace.yaml for {}", path.display()));
         }
     };
-    // create_new, not write: a manifest that appears between the check and
-    // the write (an editor, a concurrent install) wins, exactly like one
-    // that was there before the check.
-    use std::io::Write as _;
-    let mut file = match std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&path)
-    {
-        Ok(file) => file,
+    match publish_new_workspace_manifest(&path, &text) {
+        Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
             // The manifest that won the race is the repository's now;
             // anchor this install to it instead of the single-package
@@ -156,16 +148,6 @@ fn create_workspace_yaml_from_yarn_workspaces(
                 .into_diagnostic()
                 .wrap_err_with(|| format!("create pnpm-workspace.yaml at {}", path.display()));
         }
-    };
-    if let Err(error) = file.write_all(text.as_bytes()).and_then(|()| file.flush()) {
-        // A half-written manifest would be taken for an authored one by
-        // the next install, which would never retry the conversion;
-        // leave nothing behind when this write fails.
-        drop(file);
-        let _ = std::fs::remove_file(&path);
-        return Err(error)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("create pnpm-workspace.yaml at {}", path.display()));
     }
     emit_config_warning(
         "Created \"pnpm-workspace.yaml\" from the \"workspaces\" field in package.json.",
@@ -173,6 +155,41 @@ fn create_workspace_yaml_from_yarn_workspaces(
     cfg.workspace_dir = Some(config_root.to_path_buf());
     cfg.workspace_package_patterns = Some(patterns);
     Ok(())
+}
+
+/// Publish the generated manifest at `path` without ever exposing a
+/// partial write and without ever replacing one that appears mid-flight:
+/// the YAML lands in a sibling temp file, and a no-replace rename makes
+/// it visible only once it is complete. Readers therefore see either no
+/// manifest or a whole one, never a truncated or empty file.
+///
+/// `AlreadyExists` means another writer's manifest won the race, and the
+/// caller anchors this install to it. A failed write cleans up only the
+/// temp file it created (via the `TempFile` drop), never the published
+/// path, so a file that replaced ours mid-failure survives untouched.
+fn publish_new_workspace_manifest(path: &Path, text: &str) -> std::io::Result<()> {
+    use std::io::Write as _;
+    let dir = path.parent().unwrap_or_else(|| Path::new("."));
+    let tmp = tempfile::Builder::new()
+        .prefix(".pnpm-workspace-")
+        .suffix(".yaml-tmp")
+        .tempfile_in(dir)?;
+    // `NamedTempFile` starts 0600; the manifest is an ordinary project
+    // file, so give it the 0644 a plain `File::create` would have left
+    // under the common umask before this path went through a temp file.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        tmp.as_file()
+            .set_permissions(std::fs::Permissions::from_mode(0o644))?;
+    }
+    tmp.as_file()
+        .write_all(text.as_bytes())
+        .and_then(|()| tmp.as_file().flush())?;
+    match tmp.persist_noclobber(path) {
+        Ok(_) => Ok(()),
+        Err(persist) => Err(persist.error),
+    }
 }
 
 pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {
@@ -231,4 +248,131 @@ pub(super) fn active_manifest_is_standin(
         && !projects
             .iter()
             .any(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_active_dir))
+}
+
+#[cfg(test)]
+mod publish_new_workspace_manifest_tests {
+    use super::publish_new_workspace_manifest;
+    use std::fs;
+
+    #[test]
+    fn publishes_the_full_text_and_leaves_no_temp_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("pnpm-workspace.yaml");
+
+        publish_new_workspace_manifest(&path, "packages:\n  - packages/*\n")
+            .expect("publish succeeds");
+
+        assert_eq!(
+            fs::read_to_string(&path).expect("manifest written"),
+            "packages:\n  - packages/*\n",
+        );
+        let leftovers: Vec<_> = fs::read_dir(dir.path())
+            .expect("read dir")
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_name() != "pnpm-workspace.yaml")
+            .collect();
+        assert!(leftovers.is_empty(), "temp file must not survive: {leftovers:?}");
+    }
+
+    #[test]
+    fn an_existing_manifest_wins_and_is_left_untouched() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("pnpm-workspace.yaml");
+        let authored = "packages:\n  - .\n";
+        fs::write(&path, authored).expect("author manifest");
+
+        let error = publish_new_workspace_manifest(&path, "packages:\n  - packages/*\n")
+            .expect_err("publish must not clobber");
+
+        assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+        assert_eq!(fs::read_to_string(&path).expect("manifest kept"), authored);
+        let leftovers: Vec<_> = fs::read_dir(dir.path())
+            .expect("read dir")
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_name() != "pnpm-workspace.yaml")
+            .collect();
+        assert!(leftovers.is_empty(), "temp file must not survive: {leftovers:?}");
+    }
+
+    /// The loser of the race sees `AlreadyExists` the moment the winner's
+    /// manifest is visible, and by then it is already complete: the
+    /// no-replace rename is the manifest's first and only appearance.
+    #[test]
+    fn the_published_manifest_parses_from_the_first_visible_byte() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("pnpm-workspace.yaml");
+        let text = "packages:\n  - packages/*\n  - apps/web\n";
+
+        publish_new_workspace_manifest(&path, text).expect("publish succeeds");
+
+        let visible = fs::read_to_string(&path).expect("manifest visible");
+        let parsed: serde_json::Value =
+            serde_saphyr::from_str(&visible).expect("a reader that sees the file parses it");
+        assert_eq!(parsed, serde_json::json!({"packages": ["packages/*", "apps/web"]}));
+    }
+
+    /// Two converting installs racing on the same repository: exactly one
+    /// publishes, the loser gets `AlreadyExists` and anchors to the
+    /// winner, and the manifest on disk is never a mix or a fragment of
+    /// the two writers' texts. The loser also reads the file at the
+    /// instant it loses: what it sees must already be the winner's
+    /// complete manifest, never a partial one.
+    #[test]
+    fn concurrent_installs_publish_exactly_one_complete_manifest() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("pnpm-workspace.yaml");
+        let texts = ["packages:\n  - packages/*\n  - apps/web\n", "packages:\n  - crates/*\n"];
+
+        let handles: Vec<_> = texts
+            .iter()
+            .map(|text| {
+                let path = path.clone();
+                let text = (*text).to_owned();
+                std::thread::spawn(move || {
+                    match publish_new_workspace_manifest(&path, &text) {
+                        Ok(()) => (true, None),
+                        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                            // Read at the instant of losing: this is what a
+                            // concurrent install's anchor path would parse.
+                            (false, Some(fs::read_to_string(&path).expect("loser can read")))
+                        }
+                        Err(error) => panic!("unexpected publish error: {error}"),
+                    }
+                })
+            })
+            .collect();
+        // Collect-then-join, not a lazy chain: both publishers must be
+        // in flight before either is joined, or there is no race.
+        let mut results = Vec::with_capacity(handles.len());
+        for handle in handles {
+            results.push(handle.join().expect("publisher thread"));
+        }
+
+        let published = results
+            .iter()
+            .filter(|(ok, _)| *ok)
+            .count();
+        assert_eq!(published, 1, "exactly one racer may publish: {results:?}");
+        let (_, loser_view) = results
+            .iter()
+            .find(|(ok, _)| !*ok)
+            .expect("one loser");
+        let seen = loser_view.as_ref().expect("loser read the manifest");
+        assert!(
+            texts.contains(&seen.as_str()),
+            "the loser must never observe a partial manifest, got: {seen:?}",
+        );
+        let visible = fs::read_to_string(&path).expect("winner's manifest visible");
+        assert!(
+            texts.contains(&visible.as_str()),
+            "the manifest must be one racer's complete text, got: {visible:?}",
+        );
+        let leftovers: Vec<_> = fs::read_dir(dir.path())
+            .expect("read dir")
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_name() != "pnpm-workspace.yaml")
+            .collect();
+        assert!(leftovers.is_empty(), "temp file must not survive: {leftovers:?}");
+    }
 }
