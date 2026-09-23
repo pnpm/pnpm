@@ -3395,6 +3395,7 @@ test.each(['workspace:*', 'workspace:^'])('workspace protocol: %s resolves to a 
     registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier }, {
+    calcSpecifier: true,
     projectDir: '/home/istvan/src',
     workspacePackages: new Map([
       ['is-positive', new Map([
@@ -3411,6 +3412,7 @@ test.each(['workspace:*', 'workspace:^'])('workspace protocol: %s resolves to a 
 
   expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('link:is-positive')
+  expect(resolveResult!.normalizedBareSpecifier).toBe('workspace:1')
 })
 
 test.each([

@@ -61,9 +61,10 @@ pub fn calc_specifier_for_workspace_dep(
         return rolling_specifier(&prefix, declared);
     };
 
-    // A prerelease is written exactly: a `^`/`~` range over it would not
-    // match the prerelease it was resolved from.
-    if is_prerelease(resolved_version) {
+    // A prerelease or a version that isn't valid semver is written
+    // exactly: a `^`/`~` range over it would not match the version it was
+    // resolved from.
+    if !is_release_version(resolved_version) {
         return format!("{prefix}{resolved_version}");
     }
     let pin = declared.prev.and_then(infer_range_spec_style).unwrap_or(default_pin);
@@ -92,10 +93,10 @@ fn rolling_specifier(prefix: &str, declared: DeclaredSpecifiers<'_>) -> String {
     format!("{prefix}{suffix}")
 }
 
-fn is_prerelease(version: &str) -> bool {
+fn is_release_version(version: &str) -> bool {
     version
         .parse::<node_semver::Version>()
-        .is_ok_and(|parsed| !parsed.pre_release.is_empty())
+        .is_ok_and(|parsed| parsed.pre_release.is_empty())
 }
 
 #[cfg(test)]

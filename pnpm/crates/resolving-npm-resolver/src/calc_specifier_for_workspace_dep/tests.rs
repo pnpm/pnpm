@@ -134,6 +134,21 @@ fn pinned_writes_a_prerelease_exactly() {
     );
 }
 
+#[test]
+fn pinned_writes_a_non_semver_version_exactly() {
+    assert_eq!(
+        calc_specifier_for_workspace_dep(
+            DeclaredSpecifiers { prev: None, bare: Some("workspace:*") },
+            Some("my-lib"),
+            "my-lib",
+            Some("1"),
+            SaveWorkspaceProtocol::On,
+            RangeSpecStyle::Major,
+        ),
+        "workspace:1",
+    );
+}
+
 /// `Off` still renders a `workspace:` specifier — declining to use one
 /// at all is the caller's decision, not this function's.
 #[test]
