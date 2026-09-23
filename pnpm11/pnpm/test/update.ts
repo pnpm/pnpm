@@ -1488,3 +1488,28 @@ test('update --prod --peer preserves devDependencies: false from prior install',
   project.hasNot('is-negative')
   expect(project.readModulesManifest()?.included.devDependencies).toBe(false)
 })
+
+test('plain update honors optional=false from configuration', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    optionalDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['config', 'set', 'optional', 'false'])
+
+  await execPnpm(['update', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(false)
+
+  await execPnpm(['update', '--optional', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(true)
+})

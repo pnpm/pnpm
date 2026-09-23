@@ -451,7 +451,7 @@ export async function mutateModules (
       ? cliOpts.optional === true
       : extraOpts.optional === true
     const isNoOptional = hasCliOpts
-      ? cliOpts.optional === false
+      ? (cliOpts.optional === false || (cliOpts.optional !== true && extraOpts.optional === false))
       : extraOpts.optional === false
     const hasPriorModules = ctx.modulesFile != null
     opts.include = {

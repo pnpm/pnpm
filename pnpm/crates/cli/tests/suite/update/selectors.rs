@@ -463,11 +463,10 @@ fn update_preserves_omitted_optional_dependencies() {
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
     pacquet(&workspace, ["install", "--no-optional"]).assert().success();
 
+    let optional_dep = workspace.join("node_modules").join("@pnpm.e2e/peer-c");
     assert!(
-        !workspace
-            .join("node_modules")
-            .join("@pnpm.e2e/peer-c")
-            .exists(),
+        matches!(fs::symlink_metadata(&optional_dep), Err(err) if err.kind() == std::io::ErrorKind::NotFound),
+        "optional dependency must not be present after --no-optional install",
     );
 
     pacquet(&workspace, ["update", "--latest"]).assert().success();
@@ -479,10 +478,7 @@ fn update_preserves_omitted_optional_dependencies() {
             .exists(),
     );
     assert!(
-        !workspace
-            .join("node_modules")
-            .join("@pnpm.e2e/peer-c")
-            .exists(),
+        matches!(fs::symlink_metadata(&optional_dep), Err(err) if err.kind() == std::io::ErrorKind::NotFound),
         "optional dependency must remain omitted on plain update after --no-optional install",
     );
 
@@ -509,11 +505,10 @@ fn update_prod_and_peer_preserves_omitted_dev_dependencies() {
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
     pacquet(&workspace, ["install", "--prod"]).assert().success();
 
+    let dev_dep = workspace.join("node_modules").join("@pnpm.e2e/peer-c");
     assert!(
-        !workspace
-            .join("node_modules")
-            .join("@pnpm.e2e/peer-c")
-            .exists(),
+        matches!(fs::symlink_metadata(&dev_dep), Err(err) if err.kind() == std::io::ErrorKind::NotFound),
+        "dev dependency must not be present after --prod install",
     );
 
     pacquet(&workspace, ["update", "--prod", "--peer", "--latest"]).assert().success();
@@ -525,10 +520,7 @@ fn update_prod_and_peer_preserves_omitted_dev_dependencies() {
             .exists(),
     );
     assert!(
-        !workspace
-            .join("node_modules")
-            .join("@pnpm.e2e/peer-c")
-            .exists(),
+        matches!(fs::symlink_metadata(&dev_dep), Err(err) if err.kind() == std::io::ErrorKind::NotFound),
         "dev dependency must remain omitted when updating with --prod --peer",
     );
 
