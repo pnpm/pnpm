@@ -144,10 +144,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: blacksmith-8vcpu-windows-2025
-            os_label: windows
-          - os: blacksmith-8vcpu-ubuntu-2404
-            os_label: ubuntu
+          # Diagnostics draft: macOS only.
           - os: blacksmith-12vcpu-macos-latest
             os_label: macos
     runs-on: ${{ matrix.os }}
@@ -261,6 +258,15 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Diagnose macOS runner before tests
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        shell: bash
+        run: |
+          .github/diagnostics/macos/probe.sh system
+          .github/diagnostics/macos/probe.sh flush
+          echo "DIAG_TESTS_START=$(date '+%Y-%m-%d %H:%M:%S')" >> "$GITHUB_ENV"
+
       - name: Test pacquet
         shell: bash
         run: |
@@ -308,6 +314,24 @@ jobs:
           key: sccache-test-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-${{ env.SCCACHE_DAY }}
         timeout-minutes: 3
         continue-on-error: true
+
+      - name: Diagnose macOS runner after tests
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          .github/diagnostics/macos/probe.sh scans "$DIAG_TESTS_START" tests
+          .github/diagnostics/macos/probe.sh exec
+          .github/diagnostics/macos/probe.sh subset
+
+      - name: Upload macOS diagnostics
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: macos-diagnostics
+          path: ${{ runner.temp }}/macos-diagnostics/
+          retention-days: 14
 
       - name: Stage Bencher test durations
         env:
