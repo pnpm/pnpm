@@ -412,7 +412,7 @@ fn intersect_intervals(left_intervals: &[Interval], right_intervals: &[Interval]
 /// once per pair, and each further range multiplies that count again.
 /// `semver-range-intersect` collapses the union the same way after every
 /// step.
-fn drop_covered_intervals(intervals: Vec<Interval>) -> Vec<Interval> {
+fn drop_covered_intervals(intervals: &[Interval]) -> Vec<Interval> {
     let is_covered = |index: usize, interval: &Interval| {
         intervals
             .iter()
@@ -440,7 +440,7 @@ pub(super) fn intersect_multiple_ranges(version_ranges: &[String]) -> Option<Str
     for range in &version_ranges[1..] {
         let next_intervals = parse_range_to_intervals(&preprocess_hyphen_ranges(range))?;
         current_intervals =
-            drop_covered_intervals(intersect_intervals(&current_intervals, &next_intervals));
+            drop_covered_intervals(&intersect_intervals(&current_intervals, &next_intervals));
         if current_intervals.is_empty() {
             return None;
         }
