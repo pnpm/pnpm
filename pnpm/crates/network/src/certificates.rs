@@ -31,6 +31,42 @@ pub(super) fn bundled_root_certs() -> &'static [Certificate] {
     &CERTS
 }
 
+/// Check if the platform trust verifier is usable on Apple systems.
+///
+/// On macOS, `rustls-platform-verifier` evaluates trust through `Security.framework`,
+/// which relies on Mach IPC to `com.apple.trustd.agent`. In restricted environments
+/// (such as sandboxes or containerized runtimes) where access to `trustd` is denied,
+/// trust evaluation fails with `errSecVerifyActionFailed` (`-26276`).
+/// Unlike Linux, where missing system certificates cause `reqwest::ClientBuilder::build`
+/// to fail immediately, macOS defers verification to connection time.
+/// Probing `SecTrust` once detects an unreachable platform verifier so the client
+/// builder can fall back to [`TrustRoots::Bundled`].
+#[cfg(target_vendor = "apple")]
+pub(super) fn is_platform_verifier_available() -> bool {
+    static AVAILABLE: LazyLock<bool> = LazyLock::new(|| {
+        use security_framework::{
+            certificate::SecCertificate, policy::SecPolicy, secure_transport::SslProtocolSide,
+            trust::SecTrust,
+        };
+        let der = &webpki_root_certs::TLS_SERVER_ROOT_CERTS[0];
+        let Ok(cert) = SecCertificate::from_der(der.as_ref()) else {
+            return false;
+        };
+        let policy = SecPolicy::create_ssl(SslProtocolSide::SERVER, Some("registry.npmjs.org"));
+        let Ok(trust) = SecTrust::create_with_certificates(&[cert], &[policy]) else {
+            return false;
+        };
+        match trust.evaluate_with_error() {
+            Ok(()) => true,
+            Err(err) => {
+                const ERR_SEC_VERIFY_ACTION_FAILED: isize = -26276;
+                err.code() != ERR_SEC_VERIFY_ACTION_FAILED
+            }
+        }
+    });
+    *AVAILABLE
+}
+
 /// Load the PEM bundle named by `NODE_EXTRA_CA_CERTS` as extra trust
 /// roots, to be added to every client `for_installs` builds.
 ///
@@ -137,13 +173,24 @@ pub(super) fn merge_tls(top: &TlsConfig, override_: &RegistryTls) -> TlsConfig {
 /// [`ForInstallsError`](crate::ForInstallsError), the way Node throws from
 /// `tls.createSecureContext`. Unreadable `ca` material is dropped
 /// instead — see [`parse_ca_bundle`].
+pub(super) struct AppliedTls {
+    pub(super) builder: reqwest::ClientBuilder,
+    pub(super) has_custom_ca: bool,
+}
+
+/// Apply [`TlsConfig`] onto a [`reqwest::ClientBuilder`]: register each
+/// CA, install the client identity, set `danger_accept_invalid_certs`
+/// when `strict_ssl: false`, and pin the outbound interface. Returns
+/// the modified builder and whether any valid custom CA roots were loaded.
 pub(super) fn apply_tls(
     mut builder: reqwest::ClientBuilder,
     tls: &TlsConfig,
-) -> Result<reqwest::ClientBuilder, TlsError> {
+) -> Result<AppliedTls, TlsError> {
+    let mut has_custom_ca = false;
     for pem in &tls.ca {
         for cert in parse_ca_bundle(pem.as_bytes()) {
             builder = builder.add_root_certificate(cert);
+            has_custom_ca = true;
         }
     }
     let cert = drop_blank(tls.cert.as_deref());
@@ -177,7 +224,7 @@ pub(super) fn apply_tls(
     if let Some(addr) = tls.local_address {
         builder = builder.local_address(addr);
     }
-    Ok(builder)
+    Ok(AppliedTls { builder, has_custom_ca })
 }
 
 /// `None` for a PEM slot that is empty or all whitespace.
