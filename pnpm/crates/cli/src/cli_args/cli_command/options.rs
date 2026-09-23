@@ -28,7 +28,6 @@ impl CliArgs {
         }
     }
 
-    /// [`ReporterFlags::resolve`] before any configuration is loaded.
     pub(crate) fn effective_reporter(&self) -> ReporterType {
         self.effective_reporter_with_config(None, None)
     }

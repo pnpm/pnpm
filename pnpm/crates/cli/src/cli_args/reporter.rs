@@ -82,7 +82,7 @@ impl ReporterFlags {
 /// Accepted values of pnpm's universal `--loglevel` option.
 ///
 /// `silent` selects the silent reporter outright (see
-/// [`super::cli_command::CliArgs::effective_reporter`]); the other values
+/// [`ReporterFlags::resolve`]); the other values
 /// become the default reporter's [`MaxLogLevel`] ceiling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum LogLevelSetting {
@@ -179,7 +179,7 @@ pub(crate) fn configure_default_reporter(setup: &DefaultReporterSetup<'_>) {
 /// Seed the default reporter's verbosity ceiling from the `--loglevel`
 /// value. `silent` and an absent flag leave the [`MaxLogLevel::Info`]
 /// default in place — `silent` never reaches the default reporter (see
-/// [`super::cli_command::CliArgs::effective_reporter`]).
+/// [`ReporterFlags::resolve`]).
 pub(crate) fn configure_max_log_level(loglevel: Option<LogLevelSetting>) {
     if let Some(level) = loglevel.and_then(LogLevelSetting::as_max_log_level) {
         pnpm_default_reporter::set_max_log_level(level);

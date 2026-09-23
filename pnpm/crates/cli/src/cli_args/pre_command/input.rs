@@ -14,8 +14,6 @@ pub(super) struct PreCommandInput {
 }
 
 impl PreCommandInput {
-    /// The sink for the checks' warnings, honoring the `reporter` and
-    /// `loglevel` settings of the configuration the checks loaded.
     pub(super) fn emit(&self, config: &Config) -> fn(&LogEvent) {
         reporter_emit(self.reporter.resolve_with(config))
     }
