@@ -2,8 +2,10 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
+import writeFileAtomic from 'write-file-atomic'
 
 export class BadShellSectionError extends PnpmError {
   public current: string
@@ -306,7 +308,7 @@ export async function updateShellConfig (
       oldSettings: '',
     }
   } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code !== 'EEXIST') {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') {
       throw err
     }
   }
@@ -331,7 +333,7 @@ export async function updateShellConfig (
       })
     }
     const newConfigContent = configContent.slice(0, section.start) + newContent + configContent.slice(section.end)
-    await fs.promises.writeFile(configFile, newConfigContent, 'utf8')
+    await writeFileAtomic(configFile, newConfigContent, 'utf8')
     return {
       changeType: 'modified',
       oldSettings,
