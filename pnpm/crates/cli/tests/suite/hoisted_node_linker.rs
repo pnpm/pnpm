@@ -689,10 +689,7 @@ fn a_nested_copy_is_removed_once_its_version_wins_the_root_slot() {
 }
 
 /// TS: `bins of a nested package are removed when the package is deduped
-/// into the root node_modules` (`hoistedNodeLinker/install.ts`). A nested
-/// copy removed as an orphan takes its commands out of the project's
-/// `node_modules/.bin`, which would otherwise point at a missing package.
-/// Covers pnpm/pnpm#7568.
+/// into the root node_modules` (`hoistedNodeLinker/install.ts`).
 #[test]
 fn bins_of_a_nested_copy_are_removed_with_it() {
     const BIN_PKG: &str = "@pnpm.e2e/hello-world-js-bin";

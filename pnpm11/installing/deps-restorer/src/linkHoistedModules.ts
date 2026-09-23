@@ -101,8 +101,8 @@ export async function linkHoistedModules (
 
 async function tryRemoveDir (dir: string): Promise<void> {
   removalLogger.debug(dir)
+  await removeBinsOfDependency(dir, { binsDir: path.join(getModulesDir(dir), '.bin') }).catch(() => {})
   try {
-    await removeBinsOfDependency(dir, { binsDir: path.join(getModulesDir(dir), '.bin') })
     await rimraf(dir)
   } catch (err: any) { // eslint-disable-line
     /* Just ignoring for now. Not even logging.

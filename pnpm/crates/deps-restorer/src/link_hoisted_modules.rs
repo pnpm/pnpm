@@ -212,8 +212,6 @@ fn remove_orphans(
     orphan_dirs.len() as u64
 }
 
-/// The `node_modules` directory that holds the package at `pkg_dir`,
-/// stepping over the `@scope` directory of a scoped package.
 fn containing_modules_dir(pkg_dir: &Path) -> Option<&Path> {
     let parent = pkg_dir.parent()?;
     let is_scope = parent
