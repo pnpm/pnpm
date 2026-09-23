@@ -112,14 +112,31 @@ fn workspace_spec_satisfies(
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
     if is_workspace_path(workspace_spec) {
-        return workspace_path_spec_satisfies(
+        workspace_path_spec_satisfies(
             lockfile_dir,
             local_dep_dir,
             spec,
             workspace_spec,
             lockfile_dep,
-        );
+        )
+    } else {
+        workspace_range_spec_satisfies(
+            workspace_root,
+            lockfile_dir,
+            dep_name,
+            workspace_spec,
+            lockfile_dep,
+        )
     }
+}
+
+fn workspace_range_spec_satisfies(
+    workspace_root: &Path,
+    lockfile_dir: &Path,
+    dep_name: &str,
+    workspace_spec: &str,
+    lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
+) -> bool {
     let (target, parsed_range_str) = parse_workspace_range(workspace_spec);
     let expected_name = target.unwrap_or(dep_name);
     let Ok(range) = parsed_range_str.parse::<node_semver::Range>() else {
@@ -138,9 +155,23 @@ fn workspace_spec_satisfies(
     if !snapshot_dep_name_matches(lockfile_dep, dep_name, expected_name) {
         return false;
     }
-    lockfile_dep
+    let Some(recorded) = lockfile_dep
         .ver_peer()
-        .is_some_and(|ver_peer| matches!(ver_peer.version(), pnpm_lockfile::VersionPart::File(_)))
+        .and_then(|ver_peer| match ver_peer.version() {
+            pnpm_lockfile::VersionPart::File(recorded) => Some(recorded),
+            _ => None,
+        })
+    else {
+        return false;
+    };
+    linked_target_satisfies(
+        workspace_root,
+        lockfile_dir,
+        recorded,
+        expected_name,
+        parsed_range_str,
+        &range,
+    )
 }
 
 fn parse_workspace_range(workspace_spec: &str) -> (Option<&str>, &str) {

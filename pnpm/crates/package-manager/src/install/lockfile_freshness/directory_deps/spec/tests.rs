@@ -44,8 +44,9 @@ fn recognizes_windows_and_unc_workspace_paths() {
 }
 
 #[test]
-fn workspace_range_rejects_registry_snapshot_and_accepts_file_snapshot() {
-    let workspace_root = PathBuf::from("/workspace");
+fn workspace_range_validates_file_snapshot_target() {
+    let temp = tempfile::tempdir().unwrap();
+    let workspace_root = temp.path().to_path_buf();
     let lockfile_dir = workspace_root.clone();
     let local_dep_dir = workspace_root.join("packages/foo");
 
@@ -59,6 +60,11 @@ fn workspace_range_rejects_registry_snapshot_and_accepts_file_snapshot() {
         &registry_dep,
     ));
 
+    let valid_pkg_dir = workspace_root.join("packages/pkg");
+    std::fs::create_dir_all(&valid_pkg_dir).unwrap();
+    std::fs::write(valid_pkg_dir.join("package.json"), r#"{"name":"pkg","version":"1.2.3"}"#)
+        .unwrap();
+
     let file_dep: pnpm_lockfile::SnapshotDepRef = "file:packages/pkg".parse().unwrap();
     assert!(spec_satisfies_snapshot_dep(
         &workspace_root,
@@ -67,5 +73,37 @@ fn workspace_range_rejects_registry_snapshot_and_accepts_file_snapshot() {
         "pkg",
         "workspace:^1.0.0",
         &file_dep,
+    ));
+
+    std::fs::write(valid_pkg_dir.join("package.json"), r#"{"name":"other","version":"1.2.3"}"#)
+        .unwrap();
+    assert!(!spec_satisfies_snapshot_dep(
+        &workspace_root,
+        &lockfile_dir,
+        &local_dep_dir,
+        "pkg",
+        "workspace:^1.0.0",
+        &file_dep,
+    ));
+
+    std::fs::write(valid_pkg_dir.join("package.json"), r#"{"name":"pkg","version":"2.0.0"}"#)
+        .unwrap();
+    assert!(!spec_satisfies_snapshot_dep(
+        &workspace_root,
+        &lockfile_dir,
+        &local_dep_dir,
+        "pkg",
+        "workspace:^1.0.0",
+        &file_dep,
+    ));
+
+    let outside_dep: pnpm_lockfile::SnapshotDepRef = "file:../../outside/pkg".parse().unwrap();
+    assert!(!spec_satisfies_snapshot_dep(
+        &workspace_root,
+        &lockfile_dir,
+        &local_dep_dir,
+        "pkg",
+        "workspace:^1.0.0",
+        &outside_dep,
     ));
 }
