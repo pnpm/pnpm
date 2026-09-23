@@ -742,13 +742,7 @@ fn bins_of_a_nested_copy_are_removed_with_it() {
         Vec::<String>::new(),
         "no command of the removed copy survives",
     );
-    assert!(
-        fixture.workspace
-            .join("node_modules/.bin")
-            .join(BIN_NAME)
-            .exists(),
-        "the root copy keeps its command",
-    );
+    assert_bin_linked(&fixture.workspace.join("node_modules/.bin").join(BIN_NAME));
 }
 
 /// TS: `overwriting (…@3.0.0 with …@latest)`
