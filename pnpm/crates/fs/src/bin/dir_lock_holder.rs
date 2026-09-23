@@ -1,9 +1,5 @@
 //! Test-only holder invoked by `tests/dir_lock_holder.rs`.
 //!
-//! Takes the directory lock at `argv[1]`, reports `held` on stdout, and
-//! keeps the lock until its stdin closes or it is killed. Exits `0` when
-//! it released the lock itself, `1` when the lock could not be taken.
-//!
 //! A separate process is the only way to exercise what the lock promises
 //! about a holder that dies: the OS releases the file lock with the
 //! process, which no thread inside the test can stand in for.
