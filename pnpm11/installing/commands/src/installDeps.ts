@@ -539,7 +539,7 @@ export async function installDeps (
         storeController: store.ctrl,
         storeDir: store.dir,
         skipIfHasSideEffectsCache: true,
-        ...(params?.length ? { stages: PROJECT_INSTALL_STAGES } : {}),
+        ...(userNamedDeps ? { stages: PROJECT_INSTALL_STAGES } : {}),
       }
     )
   } else {
