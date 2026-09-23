@@ -3388,7 +3388,11 @@ test('resolve a tag from the registry when the workspace version is not valid se
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
 
-test.each(['workspace:*', 'workspace:^'])('workspace protocol: %s resolves to a local package whose version is not valid semver', async (bareSpecifier) => {
+test.each([
+  ['workspace:*', '1'],
+  ['workspace:^', '1'],
+  ['workspace:*', '1.0'],
+])('workspace protocol: %s resolves to a local package at the non-semver version %s', async (bareSpecifier, version) => {
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
@@ -3399,11 +3403,11 @@ test.each(['workspace:*', 'workspace:^'])('workspace protocol: %s resolves to a 
     projectDir: '/home/istvan/src',
     workspacePackages: new Map([
       ['is-positive', new Map([
-        ['1', {
+        [version, {
           rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
-            version: '1',
+            version,
           },
         }],
       ])],
@@ -3412,12 +3416,13 @@ test.each(['workspace:*', 'workspace:^'])('workspace protocol: %s resolves to a 
 
   expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('link:is-positive')
-  expect(resolveResult!.normalizedBareSpecifier).toBe('workspace:1')
+  expect(resolveResult!.normalizedBareSpecifier).toBe(`workspace:${version}`)
 })
 
 test.each([
   [['1']],
   [['1', '2']],
+  [['1.0']],
 ])('preferWorkspacePackages: a tag resolves to a workspace version that is not valid semver (local versions: %j)', async (localVersions) => {
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
@@ -3453,7 +3458,7 @@ test.each([
   expect(resolveResult!.normalizedBareSpecifier).toBe(localVersions.at(-1))
 })
 
-test.each(['github:owner/repo', 'file:../other', 'npm:other@1', 'latest'])('preferWorkspacePackages: the workspace version %s is not saved as a dependency source', async (version) => {
+test.each(['github:owner/repo', 'file:../other', 'npm:other@1'])('preferWorkspacePackages: the workspace version %s is saved with the workspace protocol', async (version) => {
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
@@ -3476,7 +3481,7 @@ test.each(['github:owner/repo', 'file:../other', 'npm:other@1', 'latest'])('pref
   })
 
   expect(resolveResult!.resolvedVia).toBe('workspace')
-  expect(resolveResult!.normalizedBareSpecifier).toBe(`^${version}`)
+  expect(resolveResult!.normalizedBareSpecifier).toBe(`workspace:${version}`)
 })
 
 test('peekManifestFromStore: reuses store manifest and bypasses network when package is in store', async () => {

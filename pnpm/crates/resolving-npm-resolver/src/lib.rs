@@ -18,7 +18,9 @@
 pub mod mirror;
 
 pub use calc_specifier::{calc_prefixed_specifier, calc_specifier, calc_version_range};
-pub use calc_specifier_for_workspace_dep::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};
+pub use calc_specifier_for_workspace_dep::{
+    DeclaredSpecifiers, calc_specifier_for_workspace_dep, can_drop_workspace_protocol,
+};
 pub use create_npm_resolution_verifier::{
     CreateNpmResolutionVerifierOptions, DistStats, NpmResolutionVerifier, ObservedDistStats,
     VerificationArtifacts, VerificationMetadataClient, VerificationReleaseAgeOptions,

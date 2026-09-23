@@ -15,8 +15,8 @@ use pnpm_reporter::LogEvent;
 use pnpm_resolving_git_resolver::{HostedGit, HostedOpts};
 use pnpm_resolving_jsr_specifier_parser::{JsrSpec, parse_jsr_specifier};
 use pnpm_resolving_npm_resolver::{
-    DeclaredSpecifiers, calc_specifier_for_workspace_dep, parse_bare_specifier,
-    pick_matching_local_version_or_null, pick_registry_for_package,
+    DeclaredSpecifiers, calc_specifier_for_workspace_dep, can_drop_workspace_protocol,
+    parse_bare_specifier, pick_matching_local_version_or_null, pick_registry_for_package,
 };
 use pnpm_resolving_resolver_base::WorkspacePackages;
 use pnpm_workspace_range_resolver::resolve_workspace_range;
@@ -275,6 +275,7 @@ pub(super) fn workspace_save_specifier(
     );
     if config.save_workspace_protocol == SaveWorkspaceProtocol::Off
         && !explicit_spec.is_some_and(|specifier| specifier.starts_with("workspace:"))
+        && resolved_version.as_deref().is_none_or(can_drop_workspace_protocol)
     {
         return workspace_specifier.strip_prefix("workspace:").map(str::to_string);
     }

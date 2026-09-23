@@ -136,22 +136,7 @@ fn pinned_writes_a_prerelease_exactly() {
 
 #[test]
 fn pinned_writes_a_non_semver_version_exactly() {
-    assert_eq!(
-        calc_specifier_for_workspace_dep(
-            DeclaredSpecifiers { prev: None, bare: Some("workspace:*") },
-            Some("my-lib"),
-            "my-lib",
-            Some("1"),
-            SaveWorkspaceProtocol::On,
-            RangeSpecStyle::Major,
-        ),
-        "workspace:1",
-    );
-}
-
-#[test]
-fn a_non_semver_version_that_is_not_a_range_is_not_written_as_is() {
-    for version in ["github:owner/repo", "file:../other", "npm:other@1", "latest"] {
+    for version in ["1", "1.0", "github:owner/repo"] {
         assert_eq!(
             calc_specifier_for_workspace_dep(
                 DeclaredSpecifiers { prev: None, bare: Some("workspace:*") },
@@ -161,7 +146,7 @@ fn a_non_semver_version_that_is_not_a_range_is_not_written_as_is() {
                 SaveWorkspaceProtocol::On,
                 RangeSpecStyle::Major,
             ),
-            format!("workspace:^{version}"),
+            format!("workspace:{version}"),
         );
     }
 }

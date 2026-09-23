@@ -90,17 +90,22 @@ fn rolling_specifier(prefix: &str, declared: DeclaredSpecifiers<'_>) -> String {
     format!("{prefix}{suffix}")
 }
 
-/// A prerelease, or a non-semver version that parses as a range such as
-/// `1`, is written exactly: a `^`/`~` range over it would not match the
-/// version it was resolved from. A non-semver version that is not a range
-/// either, such as `github:owner/repo`, is never written as is, because
-/// `pnpm add` strips the protocol and the next install would read it as a
-/// different dependency source.
+/// A prerelease or a version that isn't valid semver is written exactly:
+/// a `^`/`~` range over it would not match the version it was resolved
+/// from.
 fn is_saved_exactly(version: &str) -> bool {
-    match version.parse::<node_semver::Version>() {
-        Ok(parsed) => !parsed.pre_release.is_empty(),
-        Err(_) => version.parse::<node_semver::Range>().is_ok(),
-    }
+    !version
+        .parse::<node_semver::Version>()
+        .is_ok_and(|parsed| parsed.pre_release.is_empty())
+}
+
+/// Whether the specifier written for `version` still names the workspace
+/// package once the `workspace:` protocol is stripped from it. A version
+/// such as `github:owner/repo` is not: without the protocol, the next
+/// install would read it as a different dependency source.
+#[must_use]
+pub fn can_drop_workspace_protocol(version: &str) -> bool {
+    version.parse::<node_semver::Version>().is_ok() || version.parse::<node_semver::Range>().is_ok()
 }
 
 #[cfg(test)]
