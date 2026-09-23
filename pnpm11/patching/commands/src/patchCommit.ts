@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
@@ -301,8 +302,8 @@ function removeTrailingAndLeadingSlash (p: string): string {
  * If all files should be included, return the original source directory without creating any links.
  * This is required in order for the diff to not include files that are not part of the package.
  */
-async function preparePkgFilesForDiff (src: string): Promise<string> {
-  const files = Array.from(new Set((await packlist(src)).map((f) => path.join(f))))
+export async function preparePkgFilesForDiff (src: string, packageFiles?: string[]): Promise<string> {
+  const files = packageFiles ?? Array.from(new Set((await packlist(src)).map((f) => path.join(f))))
   // If there are no extra files in the source directories, then there is no reason
   // to copy.
   if (await areAllFilesInPkg(files, src)) {
@@ -316,10 +317,33 @@ async function preparePkgFilesForDiff (src: string): Promise<string> {
       const destFile = path.join(dest, file)
       const destDir = path.dirname(destFile)
       await fs.promises.mkdir(destDir, { recursive: true })
-      await fs.promises.link(srcFile, destFile)
+      try {
+        await fs.promises.link(srcFile, destFile)
+      } catch (err: unknown) {
+        if (isUnsupportedLinkError(err)) {
+          const stat = await fs.promises.lstat(srcFile)
+          if (stat.isSymbolicLink()) {
+            const target = await fs.promises.readlink(srcFile)
+            await fs.promises.symlink(target, destFile)
+          } else {
+            await fs.promises.copyFile(srcFile, destFile)
+          }
+        } else {
+          throw err
+        }
+      }
     })
   )
   return dest
+}
+
+function isUnsupportedLinkError (err: unknown): boolean {
+  return (
+    util.types.isNativeError(err) &&
+    'code' in err &&
+    typeof err.code === 'string' &&
+    ['EXDEV', 'EPERM', 'EACCES', 'ENOTSUP', 'EOPNOTSUPP'].includes(err.code)
+  )
 }
 
 async function areAllFilesInPkg (files: string[], basePath: string): Promise<boolean> {

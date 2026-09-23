@@ -390,6 +390,102 @@ describe('patch and commit', () => {
     expect(fs.existsSync('node_modules/is-positive/ignore.txt')).toBe(false)
   })
 
+  test.each(['EXDEV', 'EACCES'])('patch and commit falls back to copy when hard linking fails with %s', async (code) => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    expect(fs.existsSync(patchDir)).toBe(true)
+    fs.writeFileSync(path.join(patchDir, 'ignore.txt'), '', 'utf8')
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test fallback', 'utf8')
+
+    const linkSpy = jest.spyOn(fs.promises, 'link').mockRejectedValue(
+      Object.assign(new Error(`${code}: link failure`), { code })
+    )
+
+    try {
+      await patchCommit.handler({
+        ...DEFAULT_OPTS,
+        cacheDir,
+        dir: process.cwd(),
+        rootProjectManifestDir: process.cwd(),
+        frozenLockfile: false,
+        fixLockfile: true,
+        storeDir,
+      }, [patchDir])
+
+      expect(linkSpy).toHaveBeenCalled()
+      expect(fs.existsSync('node_modules/is-positive/ignore.txt')).toBe(false)
+      expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test fallback')
+    } finally {
+      linkSpy.mockRestore()
+    }
+  })
+
+  test('preparePkgFilesForDiff preserves packaged symlinks when hard linking falls back to copy', async () => {
+    const editDir = path.join(temporaryDirectory(), 'pkg')
+    await fs.promises.mkdir(editDir, { recursive: true })
+    await fs.promises.writeFile(path.join(editDir, 'package.json'), JSON.stringify({ name: 'pkg', version: '1.0.0' }), 'utf8')
+    await fs.promises.writeFile(path.join(editDir, 'index.js'), 'target content\n', 'utf8')
+    await fs.promises.writeFile(path.join(editDir, 'ignore.txt'), 'ignore\n', 'utf8')
+
+    try {
+      await fs.promises.symlink('index.js', path.join(editDir, 'link.js'))
+    } catch (err: unknown) {
+      if (process.platform === 'win32' && err && typeof err === 'object' && 'code' in err && (err.code === 'EPERM' || err.code === 'EACCES')) {
+        return
+      }
+      throw err
+    }
+
+    const linkSpy = jest.spyOn(fs.promises, 'link').mockRejectedValue(
+      Object.assign(new Error('EXDEV: cross-device link not permitted'), { code: 'EXDEV' })
+    )
+
+    try {
+      const preparedDir = await patchCommit.preparePkgFilesForDiff(editDir, ['package.json', 'index.js', 'link.js'])
+      expect(linkSpy).toHaveBeenCalled()
+      expect(preparedDir).toBe(`${editDir}_tmp`)
+
+      const stat = await fs.promises.lstat(path.join(preparedDir, 'link.js'))
+      expect(stat.isSymbolicLink()).toBe(true)
+      const target = await fs.promises.readlink(path.join(preparedDir, 'link.js'))
+      expect(target).toBe('index.js')
+      await fs.promises.rm(preparedDir, { recursive: true, force: true })
+    } finally {
+      linkSpy.mockRestore()
+      await fs.promises.rm(editDir, { recursive: true, force: true })
+    }
+  })
+
+  test('patch and commit rethrows unexpected hard link errors without falling back to copy', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    expect(fs.existsSync(patchDir)).toBe(true)
+    fs.writeFileSync(path.join(patchDir, 'ignore.txt'), '', 'utf8')
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test failure', 'utf8')
+
+    const linkSpy = jest.spyOn(fs.promises, 'link').mockRejectedValue(
+      Object.assign(new Error('EIO: i/o error'), { code: 'EIO' })
+    )
+
+    try {
+      await expect(patchCommit.handler({
+        ...DEFAULT_OPTS,
+        cacheDir,
+        dir: process.cwd(),
+        rootProjectManifestDir: process.cwd(),
+        frozenLockfile: false,
+        fixLockfile: true,
+        storeDir,
+      }, [patchDir])).rejects.toMatchObject({ code: 'EIO' })
+
+      expect(linkSpy).toHaveBeenCalled()
+    } finally {
+      linkSpy.mockRestore()
+    }
+  })
+
   test('patch and commit with a custom edit dir', async () => {
     const editDir = path.join(temporaryDirectory())
 
