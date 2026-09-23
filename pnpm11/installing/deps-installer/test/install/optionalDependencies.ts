@@ -497,8 +497,6 @@ test('optional subdependency is skipped', async () => {
   expect(Object.keys(lockfile.packages)).toHaveLength(3)
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
 
-  // forced headless install should not install non-compatible optional deps
-
   // TODO: move next case to @pnpm/installing.deps-restorer tests
   await mutateModulesInSingleProject({
     manifest,

@@ -256,7 +256,7 @@ async function resolveAndFetch (
 
   let isInstallable: boolean | null | undefined = (
     manifest == null
-      ? (ctx.force ? true : undefined)
+      ? undefined
       : packageIsInstallable(id, manifest, {
         engineStrict: !ctx.force && ctx.engineStrict,
         lockfileDir: options.lockfileDir,
