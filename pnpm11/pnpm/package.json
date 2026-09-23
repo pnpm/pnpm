@@ -105,6 +105,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.commands": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
+    "@pnpm/exec.pnpm-cli-runner": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",

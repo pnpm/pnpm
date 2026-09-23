@@ -1,4 +1,6 @@
+import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { detectIfCurrentPkgIsExecutable } from '@pnpm/cli.meta'
 import { sync as execSync } from 'execa'
@@ -10,13 +12,17 @@ import { sync as execSync } from 'execa'
  * while pnpm's own shims and Corepack name the target, so it is `pnpm.mjs` or
  * `pnpm.cjs`.
  *
- * The list cannot be dropped. `runPnpmCli` also runs inside processes that
- * merely import pnpm's packages, such as a Jest host, whose `process.argv[1]`
- * must not be re-executed. `pnpx` and `pnx` are absent for the mirror image of
- * that reason: that entry rewrites `process.argv` to prepend `dlx`, so
- * re-running it would turn `add` into `dlx add`.
+ * `pnpx` and `pnx` are absent on purpose: that entry rewrites `process.argv`
+ * to prepend `dlx`, so re-running it would turn `add` into `dlx add`.
  */
 const PNPM_ENTRY_SCRIPTS = new Set(['pnpm', 'pn', 'pnpm.cjs', 'pnpm.mjs'])
+
+const PNPM_PACKAGE_NAMES = new Set(['pnpm', '@pnpm/exe'])
+
+interface OwningPackage {
+  dir: string
+  manifest: { name?: string, bin?: unknown }
+}
 
 export interface RunPnpmCliOptions {
   cwd: string
@@ -24,21 +30,107 @@ export interface RunPnpmCliOptions {
 }
 
 export function runPnpmCli (command: string[], { cwd, reporter }: RunPnpmCliOptions): void {
-  const execOpts = {
-    cwd,
-    stdio: 'inherit' as const,
-  }
   const cliCommand = reporter ? [...command, `--reporter=${reporter}`] : command
+  const [executable, ...selfArgs] = resolvePnpmSelfCommand()
+  execSync(executable, [...selfArgs, ...cliCommand], {
+    cwd,
+    stdio: 'inherit',
+  })
+}
+
+/**
+ * The command that re-invokes the pnpm running now, so a child runs the same
+ * version: the executable itself for the `@pnpm/exe` single-file build, whose
+ * `process.argv[1]` is the binary rather than a script, and `node <entry>` for
+ * every other install method.
+ *
+ * Falls back to whichever pnpm is on `PATH` when this process is not pnpm.
+ * `runPnpmCli` also runs inside processes that merely import pnpm's packages,
+ * such as a Jest host, whose `process.argv[1]` must not be re-executed.
+ */
+export function resolvePnpmSelfCommand (): string[] {
+  if (detectIfCurrentPkgIsExecutable()) return [process.execPath]
   const entryScript = process.argv[1]
-  // Re-invoke the pnpm that is running now, so the child runs the same version.
-  // The `@pnpm/exe` single-file build is its own executable; every other
-  // install method runs one of the entry scripts above. Anything else has to
-  // guess and take whichever pnpm is on PATH.
-  if (detectIfCurrentPkgIsExecutable()) {
-    execSync(process.execPath, cliCommand, execOpts)
-  } else if (entryScript && PNPM_ENTRY_SCRIPTS.has(path.basename(entryScript).toLowerCase())) {
-    execSync(process.execPath, [entryScript, ...cliCommand], execOpts)
-  } else {
-    execSync('pnpm', cliCommand, execOpts)
+  if (entryScript == null || !isPnpmEntryScript(entryScript)) return ['pnpm']
+  return [process.execPath, entryScript]
+}
+
+/**
+ * Whether `entryScript` can be re-invoked as pnpm. The name alone is not
+ * enough, since these are ordinary enough for another package to publish as a
+ * bin, so a script carrying one is rejected when the package owning it claims
+ * it as a bin of its own.
+ *
+ * Nothing stronger is asked of it. pnpm is distributed as a copyable bundle
+ * and reached through shims and links, so a script that no package claims is
+ * pnpm as far as anything here can tell, and refusing it would put back the
+ * `PATH` lookup this exists to avoid.
+ */
+function isPnpmEntryScript (entryScript: string): boolean {
+  if (!PNPM_ENTRY_SCRIPTS.has(path.basename(entryScript).toLowerCase())) return false
+  let resolvedScript: string
+  try {
+    resolvedScript = fs.realpathSync(entryScript)
+  } catch {
+    return true
+  }
+  const owner = readOwningPackage(resolvedScript)
+  if (owner == null || owner.manifest.name == null) return true
+  if (PNPM_PACKAGE_NAMES.has(owner.manifest.name)) return true
+  return !declaresBin(owner, resolvedScript)
+}
+
+/**
+ * The nearest package above `resolvedScript`, or `undefined` when there is
+ * none to read. Takes a resolved path because an npm-installed pnpm is reached
+ * through `node_modules/.bin`, where the nearest package is the *consuming*
+ * project rather than pnpm itself.
+ */
+function readOwningPackage (resolvedScript: string): OwningPackage | undefined {
+  let dir = path.dirname(resolvedScript)
+  for (;;) {
+    let contents: string
+    try {
+      contents = fs.readFileSync(path.join(dir, 'package.json'), 'utf8')
+    } catch (err: unknown) {
+      if (!isMissingFileError(err)) return undefined
+      const parent = path.dirname(dir)
+      if (parent === dir) return undefined
+      dir = parent
+      continue
+    }
+    let manifest: unknown
+    try {
+      manifest = JSON.parse(contents)
+    } catch {
+      return undefined
+    }
+    // `null`, a bare string and a number are all valid JSON, so parsing
+    // succeeding says nothing about there being fields to read.
+    if (typeof manifest !== 'object' || manifest === null) return undefined
+    return { dir, manifest: manifest as OwningPackage['manifest'] }
+  }
+}
+
+/**
+ * Whether the package claims `resolvedScript` as one of its own bins. Declared
+ * targets are resolved too, since a package is free to point a bin at a
+ * symlink inside its own tree, and `resolvedScript` has already been resolved.
+ */
+function declaresBin ({ dir, manifest }: OwningPackage, resolvedScript: string): boolean {
+  const { bin } = manifest
+  const targets = typeof bin === 'string' ? [bin] : typeof bin === 'object' && bin !== null ? Object.values(bin) : []
+  return targets.some((target) => typeof target === 'string' && realpathOrSelf(path.resolve(dir, target)) === resolvedScript)
+}
+
+function isMissingFileError (err: unknown): boolean {
+  return util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')
+}
+
+function realpathOrSelf (target: string): string {
+  try {
+    return fs.realpathSync(target)
+  } catch {
+    return target
   }
 }
