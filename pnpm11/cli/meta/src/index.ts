@@ -1,4 +1,6 @@
-import { findPnpmEntryScript } from './selfEntry.js'
+import { findPnpmEntryScript, findPnpmExecutable } from './selfEntry.js'
+
+export { isPnpxExecutable } from './selfEntry.js'
 
 const defaultManifest = {
   name: process.env.npm_package_name != null && process.env.npm_package_name !== ''
@@ -34,12 +36,13 @@ export function detectIfCurrentPkgIsExecutable (_proc?: unknown): boolean {
 
 /**
  * The command that re-invokes the pnpm running now, so a child runs the same
- * version: the executable itself for the `@pnpm/exe` single-file build, and
- * `node <entry>` for every other install method. Falls back to whichever pnpm
- * is on `PATH` when this process is not running pnpm.
+ * version: the executable for the `@pnpm/exe` single-file build, and
+ * `node <entry>` for every other install method. Either is pnpm's own even
+ * when this process runs as `pnpx`. Falls back to whichever pnpm is on `PATH`
+ * when this process is not running pnpm.
  */
 export function resolvePnpmSelfCommand (): string[] {
-  if (detectIfCurrentPkgIsExecutable()) return [process.execPath]
+  if (detectIfCurrentPkgIsExecutable()) return [findPnpmExecutable(process.execPath)]
   const entryScript = findSelfEntryScript()
   return entryScript == null ? ['pnpm'] : [process.execPath, entryScript]
 }
@@ -50,7 +53,7 @@ export function resolvePnpmSelfCommand (): string[] {
  * `undefined` when this process is not running pnpm.
  */
 export function resolvePnpmExecPath (): string | undefined {
-  if (detectIfCurrentPkgIsExecutable()) return process.execPath
+  if (detectIfCurrentPkgIsExecutable()) return findPnpmExecutable(process.execPath)
   return findSelfEntryScript()
 }
 

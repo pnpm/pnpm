@@ -14,6 +14,7 @@ pub use lifecycle::{
 pub use make_env::{
     EnvBuild, EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env, package_manager_env,
 };
+pub use pnpm_executable::{current_pnpm_exe, is_pnpx_alias};
 pub use process_tracker::{ProcessTracker, SpawnedChild, spawn_child};
 pub use run_script::{RunScript, RunScriptError, ScriptOutput, run_script};
 pub use script_exit::ScriptExit;
@@ -27,6 +28,7 @@ mod interrupt;
 mod job_control;
 mod lifecycle;
 mod make_env;
+mod pnpm_executable;
 mod process_tracker;
 mod run_script;
 mod script_exit;

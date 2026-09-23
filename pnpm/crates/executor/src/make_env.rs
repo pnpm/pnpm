@@ -353,7 +353,7 @@ pub fn package_manager_env(
     }
     let npm_execpath = npm_execpath
         .map(Path::to_path_buf)
-        .or_else(|| env::current_exe().ok());
+        .or_else(|| crate::current_pnpm_exe().ok());
     if let Some(path) = npm_execpath {
         env.insert("npm_execpath".into(), path.into_os_string());
     }

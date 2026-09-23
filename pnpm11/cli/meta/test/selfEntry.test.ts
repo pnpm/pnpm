@@ -5,7 +5,7 @@ import path from 'node:path'
 import { afterEach, describe, expect, test } from '@jest/globals'
 import { resolvePnpmExecPath, resolvePnpmSelfCommand } from '@pnpm/cli.meta'
 
-import { findPnpmEntryScript } from '../src/selfEntry.js'
+import { findPnpmEntryScript, findPnpmExecutable } from '../src/selfEntry.js'
 
 const tempDirs: string[] = []
 
@@ -71,12 +71,29 @@ describe('findPnpmEntryScript()', () => {
     expect(findPnpmEntryScript(entryScript, bundle)).toBeUndefined()
   })
 
-  test('rejects pnpx, although it belongs to the running pnpm', () => {
-    const { bundle } = installPnpm({ binName: 'pnpm', scriptName: 'pnpm.mjs' })
-    const pnpx = path.join(path.dirname(path.dirname(bundle)), 'bin', 'pnpx.mjs')
-    fs.writeFileSync(pnpx, '')
+  test.each([
+    ['pnpx', 'pnpx.mjs'],
+    ['pnx', 'pnpx.mjs'],
+    ['pnpx', 'pnpx.cjs'],
+  ])('maps node_modules/.bin/%s linked to bin/%s of the running pnpm to the pnpm.mjs beside it', (binName, scriptName) => {
+    const { root, bundle } = installPnpm({ binName: 'pnpm', scriptName: 'pnpm.mjs' })
+    const binDir = path.join(path.dirname(path.dirname(bundle)), 'bin')
+    fs.writeFileSync(path.join(binDir, scriptName), '')
+    const binLink = path.join(root, 'node_modules', '.bin', binName)
+    fs.symlinkSync(path.join(binDir, scriptName), binLink)
 
-    expect(findPnpmEntryScript(pnpx, bundle)).toBeUndefined()
+    expect(findPnpmEntryScript(binLink, bundle)).toBe(path.join(fs.realpathSync(binDir), 'pnpm.mjs'))
+  })
+
+  test('rejects a pnpx of another package, even with a pnpm.mjs beside it', () => {
+    const { root, bundle } = installPnpm({ binName: 'pnpm', scriptName: 'pnpm.mjs' })
+    const otherBinDir = path.join(root, 'node_modules', 'not-pnpm', 'bin')
+    fs.mkdirSync(otherBinDir, { recursive: true })
+    fs.writeFileSync(path.join(otherBinDir, '..', 'package.json'), JSON.stringify({ name: 'not-pnpm' }))
+    fs.writeFileSync(path.join(otherBinDir, 'pnpx.mjs'), '')
+    fs.writeFileSync(path.join(otherBinDir, 'pnpm.mjs'), '')
+
+    expect(findPnpmEntryScript(path.join(otherBinDir, 'pnpx.mjs'), bundle)).toBeUndefined()
   })
 
   test('rejects the entry script of a host that merely imports pnpm\'s packages', () => {
@@ -112,6 +129,20 @@ describe('findPnpmEntryScript()', () => {
     const { bundle } = installPnpm({ binName: 'pnpm', scriptName: 'pnpm.mjs' })
 
     expect(findPnpmEntryScript(undefined, bundle)).toBeUndefined()
+  })
+})
+
+describe('findPnpmExecutable()', () => {
+  test.each([
+    ['pnpm.exe', 'pnpm.exe'],
+    ['pnpm', 'pnpm'],
+    ['pnpx.exe', 'pnpm.exe'],
+    ['PNX.EXE', 'pnpm.EXE'],
+    ['pnx', 'pnpm'],
+  ])('re-invokes %s as %s', (execName, expectedName) => {
+    const dir = path.resolve('opt', 'pnpm')
+
+    expect(findPnpmExecutable(path.join(dir, execName))).toBe(path.join(dir, expectedName))
   })
 })
 

@@ -123,7 +123,7 @@ fn spawn_install(
     install_args: &[String],
     reporter: ReporterType,
 ) -> miette::Result<()> {
-    let exe = std::env::current_exe().into_diagnostic()?;
+    let exe = pnpm_executor::current_pnpm_exe().into_diagnostic()?;
     let mut command = Command::new(exe);
     command
         .args(["install", "--verify-deps-before-run-install", "--use-stderr"])

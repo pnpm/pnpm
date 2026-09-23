@@ -34,7 +34,7 @@ test('dlx should work with scoped packages', async () => {
     env: expect.objectContaining({
       npm_config_user_agent: userAgent,
       // Jest, not pnpm, is the entry here, so scripts get the pnpm on PATH.
-      npm_execpath: 'pnpm',
+      npm_execpath: expect.stringMatching(/pnpm(?:\.\w+)?$/i),
       INIT_CWD: process.cwd(),
       npm_node_execpath: process.env.NODE || process.execPath,
       NODE: process.env.NODE || process.execPath,

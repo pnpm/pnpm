@@ -276,7 +276,7 @@ fn argv_with_alias_subcommand(argv: Vec<OsString>) -> Vec<OsString> {
     let exe_name = exe
         .as_deref()
         .and_then(Path::file_stem)
-        .map(|stem| stem.to_string_lossy().to_lowercase());
+        .map(|stem| stem.to_string_lossy());
     inject_alias_subcommand(exe_name.as_deref(), argv)
 }
 
@@ -284,7 +284,7 @@ fn argv_with_alias_subcommand(argv: Vec<OsString>) -> Vec<OsString> {
 /// `pnpx`/`pnx` alias. Split out from [`argv_with_alias_subcommand`] so the
 /// argv rewrite is unit-testable without depending on `current_exe`.
 fn inject_alias_subcommand(exe_name: Option<&str>, mut argv: Vec<OsString>) -> Vec<OsString> {
-    if matches!(exe_name, Some("pnpx" | "pnx")) {
+    if exe_name.is_some_and(pnpm_executor::is_pnpx_alias) {
         argv.insert(argv.len().min(1), OsString::from("dlx"));
     }
     argv
