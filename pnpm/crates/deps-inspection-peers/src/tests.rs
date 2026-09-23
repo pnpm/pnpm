@@ -170,6 +170,23 @@ fn test_intersect_multiple_ranges_exact() {
     assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some("16.1.0"));
 }
 
+/// Every range here is `>=1.0.0` in disguise. Without dropping the
+/// covered intervals after each step, the union doubles per range and
+/// exhausts memory long before the last one.
+#[test]
+fn intersecting_overlapping_alternatives_stays_bounded() {
+    let version_ranges: Vec<String> = (0..30)
+        .map(|minor| format!(">=1.0.0 || ^1.{minor}.0"))
+        .collect();
+    assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some(">=1.0.0"));
+}
+
+#[test]
+fn test_intersect_drops_covered_alternatives() {
+    let version_ranges = vec!["^1.0.0 || ^1.2.0".to_string(), "*".to_string()];
+    assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some(">=1.0.0 <2.0.0"));
+}
+
 /// A range that leaves `minor` or `patch` unpinned reaches the next
 /// level up, the way npm's own comparators do. Values checked against
 /// `new semver.Range(r).range`, which is what pnpm's
@@ -280,6 +297,22 @@ fn test_merge_missing_peers_same_range() {
     let result = merge_missing_peers(&missing);
     assert!(result.conflicts.is_empty());
     assert_eq!(result.intersections.len(), 1);
+}
+
+#[test]
+fn merging_many_consumers_of_one_peer_stays_bounded() {
+    let issues: Vec<MissingPeerIssue> = (0..40)
+        .map(|index| MissingPeerIssue {
+            parents: vec![ParentPkg { name: format!("consumer-{index}"), version: "1.0.0".into() }],
+            optional: false,
+            wanted_range: if index % 2 == 0 { ">=1.0.0 || ^1.0.0" } else { "^1.0.0 || >=1.1.0" }
+                .to_string(),
+        })
+        .collect();
+    let missing = BTreeMap::from([("peer".to_string(), issues)]);
+    let result = merge_missing_peers(&missing);
+    assert!(result.conflicts.is_empty());
+    assert_eq!(result.intersections["peer"], ">=1.0.0 <2.0.0 || >=1.1.0");
 }
 
 #[test]

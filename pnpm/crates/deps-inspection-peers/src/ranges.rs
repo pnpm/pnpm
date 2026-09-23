@@ -27,6 +27,21 @@ impl Interval {
         };
         above_lower && below_upper
     }
+
+    /// Whether every version `other` admits, this interval admits too.
+    fn covers(&self, other: &Interval) -> bool {
+        let lower_covers = match (lower_rank(&self.lower), lower_rank(&other.lower)) {
+            (None, _) => true,
+            (Some(_), None) => false,
+            (Some(own), Some(other)) => own <= other,
+        };
+        let upper_covers = match (upper_rank(&self.upper), upper_rank(&other.upper)) {
+            (None, _) => true,
+            (Some(_), None) => false,
+            (Some(own), Some(other)) => own >= other,
+        };
+        lower_covers && upper_covers
+    }
 }
 
 /// The bound as a user reads it, without the trailing `-0`.
@@ -388,6 +403,34 @@ fn intersect_intervals(left_intervals: &[Interval], right_intervals: &[Interval]
     result
 }
 
+/// Drop the intervals of a union that another interval already covers,
+/// leaving the same set of versions behind. Of two equal intervals, the
+/// first is kept.
+///
+/// [`intersect_intervals`] pairs every interval of one union with every
+/// interval of the other, so an interval two ranges agree on survives
+/// once per pair, and each further range multiplies that count again.
+/// `semver-range-intersect` collapses the union the same way after every
+/// step.
+fn drop_covered_intervals(intervals: Vec<Interval>) -> Vec<Interval> {
+    let is_covered = |index: usize, interval: &Interval| {
+        intervals
+            .iter()
+            .enumerate()
+            .any(|(other_index, other)| {
+                other_index != index
+                    && other.covers(interval)
+                    && (other_index < index || !interval.covers(other))
+            })
+    };
+    intervals
+        .iter()
+        .enumerate()
+        .filter(|(index, interval)| !is_covered(*index, interval))
+        .map(|(_, interval)| interval.clone())
+        .collect()
+}
+
 pub(super) fn intersect_multiple_ranges(version_ranges: &[String]) -> Option<String> {
     if version_ranges.is_empty() {
         return Some("*".to_string());
@@ -396,7 +439,8 @@ pub(super) fn intersect_multiple_ranges(version_ranges: &[String]) -> Option<Str
         parse_range_to_intervals(&preprocess_hyphen_ranges(&version_ranges[0]))?;
     for range in &version_ranges[1..] {
         let next_intervals = parse_range_to_intervals(&preprocess_hyphen_ranges(range))?;
-        current_intervals = intersect_intervals(&current_intervals, &next_intervals);
+        current_intervals =
+            drop_covered_intervals(intersect_intervals(&current_intervals, &next_intervals));
         if current_intervals.is_empty() {
             return None;
         }
