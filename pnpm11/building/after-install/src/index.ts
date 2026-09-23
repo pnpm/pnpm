@@ -56,6 +56,9 @@ import {
 
 export type { BuildOptions }
 
+export const PROJECT_INSTALL_STAGES = ['preinstall', 'install', 'postinstall', 'prepublish']
+export const PROJECT_LIFECYCLE_STAGES = ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare']
+
 // Serializes builds of a shared GVS projection across concurrent per-project
 // rebuilds: the first build proceeds, concurrent ones await it and reuse the
 // result. Keyed by the absolute projection directory.
@@ -232,9 +235,9 @@ export async function buildProjects (
     importers: Object.values(ctx.projects),
     opts: scriptsOpts,
     projectDependencies: opts.projectDependencies,
-    stages: ctx.include?.devDependencies !== false
-      ? ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare']
-      : ['preinstall', 'install', 'postinstall', 'prepublish'],
+    stages: opts.stages ?? (ctx.include?.devDependencies !== false
+      ? PROJECT_LIFECYCLE_STAGES
+      : PROJECT_INSTALL_STAGES),
   })
   for (const { id, manifest } of Object.values(ctx.projects)) {
     if (((manifest?.scripts) != null) && (!opts.pending || ctx.pendingBuilds.includes(id))) {

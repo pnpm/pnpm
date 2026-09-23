@@ -168,6 +168,8 @@ export interface HeadlessOptions extends RegistryContext {
   rootProjectPreinstallRan?: boolean
   /** The selected projects that run `postuninstall` in place of the install stages. */
   projectDirsRunningUninstallScripts?: string[]
+  /** The selected projects that run only install stages without prepare. */
+  projectDirsRunningInstallOnlyScripts?: string[]
   allProjects: Record<string, Project>
   prunedAt?: string
   hoistedDependencies: HoistedDependencies
@@ -281,6 +283,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     : Object.values(pick(opts.projectDirsRunningScripts, opts.allProjects))
   const projectDirsRunningScripts = new Set(projectsRunningScripts.map(({ rootDir }) => rootDir))
   const projectDirsRunningUninstallScripts = new Set(opts.projectDirsRunningUninstallScripts)
+  const projectDirsRunningInstallOnlyScripts = new Set(opts.projectDirsRunningInstallOnlyScripts)
 
   const scriptsOpts = {
     optional: false,
@@ -901,6 +904,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     await runLifecycleHooksConcurrently({
       childConcurrency: opts.childConcurrency ?? 5,
       importers: projectsToBeBuilt.flatMap((project) => {
+        if (projectDirsRunningInstallOnlyScripts.has(project.rootDir)) return [{ ...project, stages: PROJECT_INSTALL_STAGES }]
         if (projectDirsRunningScripts.has(project.rootDir)) return [project]
         if (projectDirsRunningUninstallScripts.has(project.rootDir)) return [{ ...project, stages: POST_UNINSTALL_STAGES }]
         return []

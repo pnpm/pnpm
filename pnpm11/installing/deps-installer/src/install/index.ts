@@ -270,6 +270,7 @@ interface ProjectToBeInstalled {
   manifest: ProjectManifest
   modulesDir: string
   rootDir: ProjectRootDir
+  stages?: string[]
 }
 
 export type MutatedProject = DependenciesMutation & { rootDir: ProjectRootDir }
@@ -1785,7 +1786,10 @@ Note that in CI environments, this setting is enabled by default.`,
         patchedDependencies: patchGroups,
         selectedProjectDirs: projects.map((project) => project.rootDir),
         projectDirsRunningScripts: projects
-          .filter((project) => project.mutation !== 'uninstallSome')
+          .filter((project) => project.mutation !== 'uninstallSome' && project.mutation !== 'installSome')
+          .map((project) => project.rootDir),
+        projectDirsRunningInstallOnlyScripts: projects
+          .filter((project) => project.mutation === 'installSome')
           .map((project) => project.rootDir),
         rootProjectPreinstallRan,
         projectDirsRunningUninstallScripts: [...projectDirsRemovingDeps],
@@ -3041,7 +3045,10 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
           selectedProjectDirs: projects.map((project) => project.rootDir),
           projectDirsRunningScripts: projects
-            .filter((project) => project.mutation !== 'uninstallSome')
+            .filter((project) => project.mutation !== 'uninstallSome' && project.mutation !== 'installSome')
+            .map((project) => project.rootDir),
+          projectDirsRunningInstallOnlyScripts: projects
+            .filter((project) => project.mutation === 'installSome')
             .map((project) => project.rootDir),
           projectDirsRunningUninstallScripts: [...opts.projectDirsRemovingDeps],
           allProjects: ctx.projects,
@@ -3084,7 +3091,10 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
         selectedProjectDirs: projects.map((project) => project.rootDir),
         projectDirsRunningScripts: projects
-          .filter((project) => project.mutation !== 'uninstallSome')
+          .filter((project) => project.mutation !== 'uninstallSome' && project.mutation !== 'installSome')
+          .map((project) => project.rootDir),
+        projectDirsRunningInstallOnlyScripts: projects
+          .filter((project) => project.mutation === 'installSome')
           .map((project) => project.rootDir),
         projectDirsRunningUninstallScripts: [...opts.projectDirsRemovingDeps],
         allProjects: ctx.projects,
