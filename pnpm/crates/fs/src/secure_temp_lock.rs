@@ -112,6 +112,44 @@ pub fn open_secure_lock_file(path: &Path) -> io::Result<fs::File> {
     Ok(file)
 }
 
+/// The lock file standing for `path` in the per-user lock directory
+/// `namespace`: `<directory>/<hash of path>.<extension>`.
+///
+/// Resolve `path` first, so that every alias of one location shares the
+/// file.
+pub fn secure_user_lock_file_path(
+    namespace: &str,
+    path: &Path,
+    extension: &str,
+) -> io::Result<PathBuf> {
+    let key = pnpm_crypto_hash::create_hex_hash_bytes(&native_path_bytes(path));
+    Ok(secure_user_lock_dir(namespace)?.join(format!("{key}.{extension}")))
+}
+
+#[cfg(unix)]
+fn native_path_bytes(path: &Path) -> Vec<u8> {
+    use std::os::unix::ffi::OsStrExt as _;
+
+    path.as_os_str().as_bytes().to_vec()
+}
+
+#[cfg(windows)]
+fn native_path_bytes(path: &Path) -> Vec<u8> {
+    use std::os::windows::ffi::OsStrExt as _;
+
+    path.as_os_str()
+        .encode_wide()
+        .flat_map(u16::to_le_bytes)
+        .collect()
+}
+
+#[cfg(not(any(unix, windows)))]
+fn native_path_bytes(path: &Path) -> Vec<u8> {
+    path.as_os_str()
+        .as_encoded_bytes()
+        .to_vec()
+}
+
 #[cfg(unix)]
 fn secure_unix_directory(directory: &Path) -> io::Result<()> {
     use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
