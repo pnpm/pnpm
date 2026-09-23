@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
+import util from 'node:util'
 
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
@@ -21,13 +22,16 @@ export async function readMetadataMirror (cacheDir: string, pkgName: string): Pr
   let lastError: unknown
   /* eslint-disable no-await-in-loop */
   for (let attempt = 0; attempt < 20; attempt++) {
+    let raw: string
     try {
-      const raw = await fs.promises.readFile(mirrorPath, 'utf8')
-      return { raw, meta: JSON.parse(raw.slice(raw.indexOf('\n') + 1)) }
+      raw = await fs.promises.readFile(mirrorPath, 'utf8')
     } catch (err: unknown) {
+      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
       lastError = err
+      await delay(100)
+      continue
     }
-    await delay(100)
+    return { raw, meta: JSON.parse(raw.slice(raw.indexOf('\n') + 1)) }
   }
   /* eslint-enable no-await-in-loop */
   throw lastError
