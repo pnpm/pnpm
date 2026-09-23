@@ -237,10 +237,6 @@ fn normal_install_accepts_missing_importer_with_only_ignored_optional_dependenci
     drop((root, mock_instance));
 }
 
-/// A project whose `package.json` is gone fails a frozen install, while a
-/// filtered frozen install, which does not see the whole project list, still
-/// installs the selected project.
-/// [pnpm/pnpm#7667](https://github.com/pnpm/pnpm/issues/7667)
 #[test]
 fn frozen_install_rejects_a_workspace_project_without_a_manifest() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(

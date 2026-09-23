@@ -3975,10 +3975,11 @@ async function findImporterWithoutProjectManifest (
   opts: { lockfileDir: string, projectIds: string[] }
 ): Promise<string | undefined> {
   const projectIds = new Set(opts.projectIds)
-  const staleImporterIds = Object.keys(lockfile.importers).filter((importerId) => !projectIds.has(importerId))
-  const manifestExists = await Promise.all(staleImporterIds.map(async (importerId) => {
-    const results = await Promise.all(MANIFEST_BASE_NAMES.map(async (basename) => pathExists(path.join(opts.lockfileDir, importerId, basename))))
-    return results.some(Boolean)
-  }))
-  return staleImporterIds.find((_, index) => !manifestExists[index])
+  for (const importerId of Object.keys(lockfile.importers)) {
+    if (projectIds.has(importerId)) continue
+    // eslint-disable-next-line no-await-in-loop
+    const manifestExists = await Promise.all(MANIFEST_BASE_NAMES.map(async (basename) => pathExists(path.join(opts.lockfileDir, importerId, basename))))
+    if (!manifestExists.some(Boolean)) return importerId
+  }
+  return undefined
 }
