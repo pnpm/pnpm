@@ -919,8 +919,6 @@ fn importer_version(workspace: &Path, importer: &str, name: &str) -> String {
     dependencies[&name.parse().expect("valid package name")].version.to_string()
 }
 
-/// The root's yarn.lock pins `1.0.0`, and another member's narrower range
-/// allows only newer versions. That range must not pull the root off its pin.
 #[test]
 fn import_keeps_the_root_on_its_yarn_lock_pin_when_another_member_allows_newer() {
     let CommandTempCwd {
