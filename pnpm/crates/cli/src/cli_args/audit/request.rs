@@ -1,8 +1,12 @@
 //! Turning a lockfile into the dependency graph the registry audits.
 
+mod peer_edges;
+use peer_edges::peer_satisfaction_edges;
+
 use super::{
-    BTreeMap, EnvLockfile, HashMap, HashSet, ImporterDepVersion, Lockfile, PackageKey, PkgName,
-    ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, package_version,
+    BTreeMap, EnvLockfile, HashMap, HashSet, ImporterDepVersion, Lockfile, PackageKey,
+    PackageMetadata, PkgName, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry,
+    SpecifierAndResolution, package_version,
 };
 
 #[derive(Debug, Default)]
@@ -43,12 +47,32 @@ pub(crate) struct GraphImporter {
 pub(crate) struct AuditGraph<'a> {
     pub(crate) importers: Vec<GraphImporter>,
     pub(crate) snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+    /// Each snapshot's peer-satisfaction edges, which no walk follows.
+    pub(crate) peer_satisfaction_edges: HashMap<PackageKey, HashSet<PkgName>>,
+}
+
+impl<'a> AuditGraph<'a> {
+    pub(crate) fn new(
+        importers: Vec<GraphImporter>,
+        snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+        packages: &HashMap<PackageKey, PackageMetadata>,
+    ) -> Self {
+        let peer_satisfaction_edges = peer_satisfaction_edges(&importers, snapshots, packages);
+        Self { importers, snapshots, peer_satisfaction_edges }
+    }
 }
 
 pub(crate) fn empty_snapshots() -> &'static HashMap<PackageKey, SnapshotEntry> {
     use std::sync::OnceLock;
 
     static EMPTY: OnceLock<HashMap<PackageKey, SnapshotEntry>> = OnceLock::new();
+    EMPTY.get_or_init(HashMap::new)
+}
+
+pub(crate) fn empty_packages() -> &'static HashMap<PackageKey, PackageMetadata> {
+    use std::sync::OnceLock;
+
+    static EMPTY: OnceLock<HashMap<PackageKey, PackageMetadata>> = OnceLock::new();
     EMPTY.get_or_init(HashMap::new)
 }
 
@@ -85,12 +109,17 @@ pub(crate) fn env_roots(deps: &BTreeMap<String, SpecifierAndResolution>) -> Vec<
         .collect()
 }
 
+/// Appends `deps`' edges, except the ones named in `skipped`.
 pub(crate) fn append_snapshot_edges(
     children: &mut Vec<Edge>,
     deps: Option<&HashMap<PkgName, SnapshotDepRef>>,
+    skipped: Option<&HashSet<PkgName>>,
 ) {
     let Some(deps) = deps else { return };
     for (name, dep_ref) in deps {
+        if skipped.is_some_and(|skipped| skipped.contains(name)) {
+            continue;
+        }
         if let Some(key) = dep_ref.resolve(name) {
             children.push(Edge { key });
         }

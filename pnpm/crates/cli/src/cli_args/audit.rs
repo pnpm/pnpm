@@ -14,8 +14,8 @@ pub(crate) use report::{
 };
 pub(crate) use request::{
     AuditGraph, AuditIndexRequest, DepClass, DepKind, Edge, GraphImporter, Include,
-    append_snapshot_edges, classify_graph, empty_snapshots, env_roots, importer_roots,
-    lockfile_to_audit_request, root_included,
+    append_snapshot_edges, classify_graph, empty_packages, empty_snapshots, env_roots,
+    importer_roots, lockfile_to_audit_request, root_included,
 };
 pub(crate) use version_ranges::{
     caret_range_for_patched, infer_patched_versions, is_range_subset, min_version_from_range,
@@ -41,8 +41,9 @@ use owo_colors::{OwoColorize, Stream};
 
 use pnpm_config::{AuditLevel as ConfigAuditLevel, Config};
 use pnpm_lockfile::{
-    EnvLockfile, ImporterDepVersion, Lockfile, PackageKey, PkgName, ResolvedDependencyMap,
-    SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, pick_registry_for_package,
+    EnvLockfile, ImporterDepVersion, Lockfile, PackageKey, PackageMetadata, PkgName,
+    ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry, SpecifierAndResolution,
+    pick_registry_for_package,
 };
 use pnpm_network::{RetryOpts, encode_package_name, send_with_retry};
 use pnpm_package_manager::{ResolutionObserver, ResolvedPackageHint, Update};

@@ -2,8 +2,8 @@ use super::{
     AuditError, AuditGraph, AuditReport, AuditVulnerabilityCounts, BTreeMap, Config,
     ConfigAuditLevel, DepKind, Duration, Edge, EnvLockfile, GraphImporter, HashMap, HashSet,
     Include, Lockfile, PackageKey, PackumentPublishInfo, Range, RawBulkAdvisory, RetryOpts,
-    append_snapshot_edges, bulk_response_to_audit_report, empty_snapshots, env_roots,
-    fetch_publish_times, importer_roots, lockfile_to_audit_request, normalize_ghsa_id,
+    append_snapshot_edges, bulk_response_to_audit_report, empty_packages, empty_snapshots,
+    env_roots, fetch_publish_times, importer_roots, lockfile_to_audit_request, normalize_ghsa_id,
     normalize_registry, pick_registry_for_package, redact_url_userinfo, sanitize_response_body,
     send_with_retry,
 };
@@ -143,6 +143,8 @@ impl<'a> AuditGraph<'a> {
     pub(super) fn main(lockfile: &'a Lockfile) -> Self {
         let empty = empty_snapshots();
         let snapshots = lockfile.snapshots.as_ref().unwrap_or(empty);
+        let empty_pkgs = empty_packages();
+        let packages = lockfile.packages.as_ref().unwrap_or(empty_pkgs);
         let importers = lockfile.importers
             .iter()
             .map(|(id, importer)| GraphImporter {
@@ -150,14 +152,14 @@ impl<'a> AuditGraph<'a> {
                 roots: importer_roots(importer),
             })
             .collect();
-        Self { importers, snapshots }
+        Self::new(importers, snapshots, packages)
     }
 
     pub(super) fn env(env_lockfile: &'a EnvLockfile) -> Self {
         let importer = env_lockfile.importers.get(EnvLockfile::ROOT_IMPORTER_KEY);
         let mut importers = Vec::new();
         let Some(importer) = importer else {
-            return Self { importers, snapshots: &env_lockfile.snapshots };
+            return Self::new(importers, &env_lockfile.snapshots, &env_lockfile.packages);
         };
         let config_roots = env_roots(&importer.config_dependencies);
         if !config_roots.is_empty() {
@@ -182,15 +184,16 @@ impl<'a> AuditGraph<'a> {
             }
         }
 
-        Self { importers, snapshots: &env_lockfile.snapshots }
+        Self::new(importers, &env_lockfile.snapshots, &env_lockfile.packages)
     }
 
     pub(super) fn children(&self, key: &PackageKey, include_optional_edges: bool) -> Vec<Edge> {
         let Some(snapshot) = self.snapshots.get(key) else { return Vec::new() };
+        let skipped = self.peer_satisfaction_edges.get(key);
         let mut children = Vec::new();
-        append_snapshot_edges(&mut children, snapshot.dependencies.as_ref());
+        append_snapshot_edges(&mut children, snapshot.dependencies.as_ref(), skipped);
         if include_optional_edges {
-            append_snapshot_edges(&mut children, snapshot.optional_dependencies.as_ref());
+            append_snapshot_edges(&mut children, snapshot.optional_dependencies.as_ref(), skipped);
         }
         children
     }

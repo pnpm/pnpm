@@ -2,7 +2,7 @@ import { describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { audit, buildAuditPathIndex, lockfileToAuditRequest } from '@pnpm/deps.compliance.audit'
 import type { PnpmError } from '@pnpm/error'
-import type { PackageSnapshots } from '@pnpm/lockfile.types'
+import type { LockfileObject, PackageSnapshots } from '@pnpm/lockfile.types'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
@@ -28,6 +28,32 @@ describe('audit', () => {
     expect(result.request).toEqual({ foo: ['1.0.0'], bar: ['1.0.0'] })
     expect(result.totalDependencies).toBe(2)
     expect(result.devDependencies).toBe(0)
+  })
+
+  test('lockfileToAuditRequest() does not treat a dependency named after an Object.prototype property as a peer-satisfaction edge', () => {
+    // Peer-satisfaction detection must check own properties only. Checking
+    // via `in` would match inherited Object.prototype names — `constructor`
+    // is both one of them and a syntactically valid npm package name — and
+    // wrongly exclude this real, non-peer dependency from every reachable
+    // set even though `foo` declares no peerDependencies at all.
+    const result = lockfileToAuditRequest({
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { foo: '1.0.0' },
+          specifiers: { foo: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['constructor@1.0.0' as DepPath]: { resolution: { integrity: 'constructor-integrity' } },
+        ['foo@1.0.0' as DepPath]: {
+          dependencies: { constructor: '1.0.0' },
+          resolution: { integrity: 'foo-integrity' },
+        },
+      },
+    }, {})
+
+    expect(result.request).toEqual({ foo: ['1.0.0'], constructor: ['1.0.0'] })
   })
 
   test('buildAuditPathIndex() records install paths for vulnerable packages', () => {
@@ -186,6 +212,335 @@ describe('audit', () => {
     // With devDependencies excluded the only remaining way to reach shared-pkg
     // is through opt-root, so the dep becomes optional-only.
     expect(prodOnly['shared-pkg']!.get('1.0.0')!.optional).toBe(true)
+  })
+
+  test('lockfileToAuditRequest() excludes a package only present because it satisfied a prod dependency\'s optional peer via an excluded devDependency', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { hookform: '1.0.0(valibot@1.2.0)' },
+          devDependencies: { valibot: '1.2.0' },
+          specifiers: { hookform: '^1.0.0', valibot: '^1.2.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['hookform@1.0.0(valibot@1.2.0)' as DepPath]: {
+          optionalDependencies: { valibot: '1.2.0' },
+          peerDependencies: { valibot: '^1.0.0' },
+          peerDependenciesMeta: { valibot: { optional: true as const } },
+          resolution: { integrity: 'hookform-integrity' },
+        },
+        ['valibot@1.2.0' as DepPath]: { resolution: { integrity: 'valibot-integrity' } },
+      },
+    }
+
+    const full = lockfileToAuditRequest(lockfile, {})
+    expect(full.request).toEqual({ hookform: ['1.0.0'], valibot: ['1.2.0'] })
+
+    const prodOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(prodOnly.request).toEqual({ hookform: ['1.0.0'] })
+    expect(prodOnly.request).not.toHaveProperty('valibot')
+  })
+
+  test('buildAuditPathIndex() classifies a peer-satisfied-by-devDependency package as dev, not optional', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { hookform: '1.0.0(valibot@1.2.0)' },
+          devDependencies: { valibot: '1.2.0' },
+          specifiers: { hookform: '^1.0.0', valibot: '^1.2.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['hookform@1.0.0(valibot@1.2.0)' as DepPath]: {
+          optionalDependencies: { valibot: '1.2.0' },
+          peerDependencies: { valibot: '^1.0.0' },
+          peerDependenciesMeta: { valibot: { optional: true as const } },
+          resolution: { integrity: 'hookform-integrity' },
+        },
+        ['valibot@1.2.0' as DepPath]: { resolution: { integrity: 'valibot-integrity' } },
+      },
+    }
+    const result = buildAuditPathIndex(lockfile, new Set(['valibot']), {})
+
+    expect(result['valibot']!.get('1.2.0')).toEqual({
+      paths: ['.>valibot'],
+      dev: true,
+      optional: false,
+    })
+  })
+
+  test('lockfileToAuditRequest() excludes a package only present because it satisfied a devDependency\'s optional peer via an excluded prod dependency (--dev mirror)', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { 'helper-lib': '1.0.0' },
+          devDependencies: { 'dev-tool': '1.0.0(helper-lib@1.0.0)' },
+          specifiers: { 'dev-tool': '^1.0.0', 'helper-lib': '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['dev-tool@1.0.0(helper-lib@1.0.0)' as DepPath]: {
+          optionalDependencies: { 'helper-lib': '1.0.0' },
+          peerDependencies: { 'helper-lib': '^1.0.0' },
+          peerDependenciesMeta: { 'helper-lib': { optional: true as const } },
+          resolution: { integrity: 'dev-tool-integrity' },
+        },
+        ['helper-lib@1.0.0' as DepPath]: { resolution: { integrity: 'helper-lib-integrity' } },
+      },
+    }
+
+    const full = lockfileToAuditRequest(lockfile, {})
+    expect(full.request).toEqual({ 'dev-tool': ['1.0.0'], 'helper-lib': ['1.0.0'] })
+
+    const devOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: false, devDependencies: true, optionalDependencies: false },
+    })
+    expect(devOnly.request).toEqual({ 'dev-tool': ['1.0.0'] })
+    expect(devOnly.request).not.toHaveProperty('helper-lib')
+  })
+
+  test('lockfileToAuditRequest() excludes a package only present because it satisfied a required (non-optional) peer via an excluded devDependency', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { 'needs-react': '1.0.0(react@18.0.0)' },
+          devDependencies: { react: '18.0.0' },
+          specifiers: { 'needs-react': '^1.0.0', react: '^18.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-react@1.0.0(react@18.0.0)' as DepPath]: {
+          dependencies: { react: '18.0.0' },
+          peerDependencies: { react: '^18.0.0' },
+          resolution: { integrity: 'needs-react-integrity' },
+        },
+        ['react@18.0.0' as DepPath]: { resolution: { integrity: 'react-integrity' } },
+      },
+    }
+
+    const prodOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(prodOnly.request).toEqual({ 'needs-react': ['1.0.0'] })
+    expect(prodOnly.request).not.toHaveProperty('react')
+  })
+
+  test('lockfileToAuditRequest() excludes a package only present because it satisfied a devDependency\'s required peer via an excluded prod dependency (--dev mirror)', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { 'ui-lib': '2.0.0' },
+          devDependencies: { 'needs-ui-lib': '1.0.0(ui-lib@2.0.0)' },
+          specifiers: { 'needs-ui-lib': '^1.0.0', 'ui-lib': '^2.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-ui-lib@1.0.0(ui-lib@2.0.0)' as DepPath]: {
+          dependencies: { 'ui-lib': '2.0.0' },
+          peerDependencies: { 'ui-lib': '^2.0.0' },
+          resolution: { integrity: 'needs-ui-lib-integrity' },
+        },
+        ['ui-lib@2.0.0' as DepPath]: { resolution: { integrity: 'ui-lib-integrity' } },
+      },
+    }
+
+    const full = lockfileToAuditRequest(lockfile, {})
+    expect(full.request).toEqual({ 'needs-ui-lib': ['1.0.0'], 'ui-lib': ['2.0.0'] })
+
+    const devOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: false, devDependencies: true, optionalDependencies: false },
+    })
+    expect(devOnly.request).toEqual({ 'needs-ui-lib': ['1.0.0'] })
+    expect(devOnly.request).not.toHaveProperty('ui-lib')
+  })
+
+  test('lockfileToAuditRequest() keeps an auto-installed peer whose only provider is the peer edge', () => {
+    const lockfile: LockfileObject = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { 'needs-peer-a': '1.0.0(peer-a@1.0.0)' },
+          devDependencies: { 'dev-tool': '1.0.0' },
+          specifiers: { 'needs-peer-a': '^1.0.0', 'dev-tool': '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-peer-a@1.0.0(peer-a@1.0.0)' as DepPath]: {
+          dependencies: { 'peer-a': '1.0.0' },
+          peerDependencies: { 'peer-a': '^1.0.0' },
+          resolution: { integrity: 'needs-peer-a-integrity' },
+        },
+        ['peer-a@1.0.0' as DepPath]: {
+          dependencies: { 'peer-a-dep': '1.0.0' },
+          resolution: { integrity: 'peer-a-integrity' },
+        },
+        ['peer-a-dep@1.0.0' as DepPath]: { resolution: { integrity: 'peer-a-dep-integrity' } },
+        ['dev-tool@1.0.0' as DepPath]: { resolution: { integrity: 'dev-tool-integrity' } },
+      },
+    }
+
+    const full = lockfileToAuditRequest(lockfile, {})
+    expect(full.request).toEqual({
+      'needs-peer-a': ['1.0.0'],
+      'peer-a': ['1.0.0'],
+      'peer-a-dep': ['1.0.0'],
+      'dev-tool': ['1.0.0'],
+    })
+    expect(full).toMatchObject({ totalDependencies: 4, dependencies: 3, devDependencies: 1, optionalDependencies: 0 })
+
+    const prodOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(prodOnly.request).toEqual({ 'needs-peer-a': ['1.0.0'], 'peer-a': ['1.0.0'], 'peer-a-dep': ['1.0.0'] })
+  })
+
+  test('buildAuditPathIndex() records the install path of an auto-installed peer', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { 'needs-peer-a': '1.0.0(peer-a@1.0.0)' },
+          specifiers: { 'needs-peer-a': '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-peer-a@1.0.0(peer-a@1.0.0)' as DepPath]: {
+          dependencies: { 'peer-a': '1.0.0' },
+          peerDependencies: { 'peer-a': '^1.0.0' },
+          resolution: { integrity: 'needs-peer-a-integrity' },
+        },
+        ['peer-a@1.0.0' as DepPath]: { resolution: { integrity: 'peer-a-integrity' } },
+      },
+    }
+
+    const index = buildAuditPathIndex(lockfile, new Set(['peer-a']), {})
+    expect(index['peer-a'].get('1.0.0')).toEqual({ paths: ['.>needs-peer-a>peer-a'], dev: false, optional: false })
+  })
+
+  test('lockfileToAuditRequest() keeps an auto-installed peer that another importer lists as a devDependency', () => {
+    const lockfile: LockfileObject = {
+      importers: {
+        ['pkg-a' as ProjectId]: {
+          devDependencies: { typescript: '5.4.5' },
+          specifiers: { typescript: '5.4.5' },
+        },
+        ['pkg-b' as ProjectId]: {
+          dependencies: { 'needs-ts': '1.0.0(typescript@5.4.5)' },
+          specifiers: { 'needs-ts': '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-ts@1.0.0(typescript@5.4.5)' as DepPath]: {
+          dependencies: { typescript: '5.4.5' },
+          peerDependencies: { typescript: '^5.0.0' },
+          resolution: { integrity: 'needs-ts-integrity' },
+        },
+        ['typescript@5.4.5' as DepPath]: { resolution: { integrity: 'typescript-integrity' } },
+      },
+    }
+
+    const prodOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(prodOnly.request).toEqual({ 'needs-ts': ['1.0.0'], typescript: ['5.4.5'] })
+  })
+
+  test('lockfileToAuditRequest() keeps an auto-installed peer that a devDependency also depends on', () => {
+    const lockfile: LockfileObject = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { 'needs-peer-a': '1.0.0(peer-a@1.0.0)' },
+          devDependencies: { 'dev-tool': '1.0.0' },
+          specifiers: { 'needs-peer-a': '^1.0.0', 'dev-tool': '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-peer-a@1.0.0(peer-a@1.0.0)' as DepPath]: {
+          dependencies: { 'peer-a': '1.0.0' },
+          peerDependencies: { 'peer-a': '^1.0.0' },
+          resolution: { integrity: 'needs-peer-a-integrity' },
+        },
+        ['dev-tool@1.0.0' as DepPath]: {
+          dependencies: { 'peer-a': '1.0.0' },
+          resolution: { integrity: 'dev-tool-integrity' },
+        },
+        ['peer-a@1.0.0' as DepPath]: { resolution: { integrity: 'peer-a-integrity' } },
+      },
+    }
+
+    const prodOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(prodOnly.request).toEqual({ 'needs-peer-a': ['1.0.0'], 'peer-a': ['1.0.0'] })
+  })
+
+  test('lockfileToAuditRequest() keeps a peer that one importer lists as a devDependency when another importer reaches the dependent without listing it', () => {
+    const lockfile: LockfileObject = {
+      importers: {
+        ['pkg-a' as ProjectId]: {
+          dependencies: { 'needs-ts': '1.0.0(typescript@5.4.5)' },
+          devDependencies: { typescript: '5.4.5' },
+          specifiers: { 'needs-ts': '^1.0.0', typescript: '5.4.5' },
+        },
+        ['pkg-b' as ProjectId]: {
+          dependencies: { 'needs-ts': '1.0.0(typescript@5.4.5)' },
+          specifiers: { 'needs-ts': '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-ts@1.0.0(typescript@5.4.5)' as DepPath]: {
+          dependencies: { typescript: '5.4.5' },
+          peerDependencies: { typescript: '^5.0.0' },
+          resolution: { integrity: 'needs-ts-integrity' },
+        },
+        ['typescript@5.4.5' as DepPath]: { resolution: { integrity: 'typescript-integrity' } },
+      },
+    }
+
+    const prodOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(prodOnly.request).toEqual({ 'needs-ts': ['1.0.0'], typescript: ['5.4.5'] })
+  })
+
+  test('lockfileToAuditRequest() keeps a peer that only the workspace root lists when another importer reaches the dependent', () => {
+    const lockfile: LockfileObject = {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: { typescript: '5.4.5' },
+          specifiers: { typescript: '5.4.5' },
+        },
+        ['pkg-b' as ProjectId]: {
+          dependencies: { 'needs-ts': '1.0.0(typescript@5.4.5)' },
+          specifiers: { 'needs-ts': '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-ts@1.0.0(typescript@5.4.5)' as DepPath]: {
+          dependencies: { typescript: '5.4.5' },
+          peerDependencies: { typescript: '^5.0.0' },
+          resolution: { integrity: 'needs-ts-integrity' },
+        },
+        ['typescript@5.4.5' as DepPath]: { resolution: { integrity: 'typescript-integrity' } },
+      },
+    }
+
+    const prodOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(prodOnly.request).toEqual({ 'needs-ts': ['1.0.0'], typescript: ['5.4.5'] })
   })
 
   test('buildAuditPathIndex() flags findings reached only through optional edges', () => {
