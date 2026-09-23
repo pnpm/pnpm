@@ -208,6 +208,36 @@ fn no_matching_version_surfaces_pnpm_error_code() {
 }
 
 #[test]
+fn no_matching_version_available_versions_deterministic_ordering() {
+    let mut entries: WorkspacePackagesByVersion = BTreeMap::new();
+    entries.insert(
+        "1.0.0+B".to_string(),
+        WorkspacePackage {
+            root_dir: Path::new("/repo/packages/b").to_path_buf(),
+            manifest: json!({ "name": "cased", "version": "1.0.0+B" }),
+        },
+    );
+    entries.insert(
+        "1.0.0+a".to_string(),
+        WorkspacePackage {
+            root_dir: Path::new("/repo/packages/a").to_path_buf(),
+            manifest: json!({ "name": "cased", "version": "1.0.0+a" }),
+        },
+    );
+    let mut packages: WorkspacePackages = BTreeMap::new();
+    packages.insert("cased".to_string(), entries);
+
+    let opts = opts(&packages);
+    let err = try_resolve_from_workspace(&wanted("cased", "workspace:^2.0.0"), &opts).unwrap_err();
+    match err {
+        ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace { available, .. } => {
+            assert_eq!(available, ". Available versions: 1.0.0+a, 1.0.0+B");
+        }
+        other => panic!("expected NoMatchingVersionInsideWorkspace, got {other:?}"),
+    }
+}
+
+#[test]
 fn workspace_packages_unset_surfaces_error() {
     let packages = build_packages();
     let mut opts = opts(&packages);

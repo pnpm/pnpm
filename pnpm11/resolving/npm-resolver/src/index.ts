@@ -1120,7 +1120,7 @@ function tryResolveFromWorkspacePackages (
     opts.update ? { name: spec.name, fetchSpec: '*', type: 'range' } : spec
   )
   if (!localVersion) {
-    const availableVersions = Array.from(workspacePkgsMatchingName.keys()).sort((a, b) => semver.rcompare(a, b) || b.localeCompare(a))
+    const availableVersions = Array.from(workspacePkgsMatchingName.keys()).sort((a, b) => semver.rcompare(a, b) || (b < a ? -1 : b > a ? 1 : 0))
     throw new PnpmError(
       'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
       `In ${path.relative(process.cwd(), opts.projectDir)}: No matching version found for ${opts.wantedDependency.alias ?? ''}@${opts.wantedDependency.bareSpecifier ?? ''} inside the workspace` +

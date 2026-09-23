@@ -2833,6 +2833,49 @@ test.each([
   expect(resolution!.manifest.version).toBe('0.5.6-next.3+f60facc')
 })
 
+test('workspace protocol: resolution fails with deterministic ordinal ordering for available versions with equal semver precedence', async () => {
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+
+  const projectDir = '/home/istvan/src'
+  const workspacePackages = new Map([
+    ['is-positive', new Map([
+      ['1.0.0+B', {
+        rootDir: '/home/istvan/src/is-positive-b' as ProjectRootDir,
+        manifest: {
+          name: 'is-positive',
+          version: '1.0.0+B',
+        },
+      }],
+      ['1.0.0+a', {
+        rootDir: '/home/istvan/src/is-positive-a' as ProjectRootDir,
+        manifest: {
+          name: 'is-positive',
+          version: '1.0.0+a',
+        },
+      }],
+    ])],
+  ])
+
+  let err!: Error
+  try {
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'workspace:^2.0.0' }, {
+      projectDir,
+      workspacePackages,
+    })
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  expect(err).toBeTruthy()
+  expect(err.message).toBe(`In ${path.relative(process.cwd(), projectDir)}: No matching version found for is-positive@workspace:^2.0.0 inside the workspace. Available versions: 1.0.0+a, 1.0.0+B`)
+})
+
+
 test('workspace protocol: resolution fails if there are no local packages', async () => {
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
