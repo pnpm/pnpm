@@ -72,6 +72,42 @@ fn prune_removes_the_private_installs_dir_once_it_is_empty() {
     assert_eq!(store.prune_private_installs().unwrap(), 0);
 }
 
+#[test]
+fn a_label_is_a_single_path_component() {
+    let root = tempfile::tempdir().unwrap();
+    let store = StoreDir::new(root.path().join("store"));
+
+    for label in ["", "a/b", "../escape", "/abs"] {
+        let error = store.create_private_install(label).unwrap_err();
+        assert!(
+            matches!(error, crate::PrivateInstallError::InvalidLabel { .. }),
+            "{label}: {error}",
+        );
+    }
+}
+
+#[test]
+fn prune_removes_litter_and_refuses_a_linked_private_installs_dir() {
+    let root = tempfile::tempdir().unwrap();
+    let store = StoreDir::new(root.path().join("store"));
+    let private_installs = store.tmp().join("private");
+    fs::create_dir_all(&private_installs).unwrap();
+    fs::write(private_installs.join("stray-file"), "").unwrap();
+    let elsewhere = root.path().join("elsewhere");
+    fs::create_dir_all(elsewhere.join("unmarked")).unwrap();
+    pnpm_fs::force_symlink_dir(&elsewhere, &private_installs.join("link")).unwrap();
+
+    assert_eq!(store.remove_orphaned_private_installs().unwrap(), 2);
+    assert!(!private_installs.exists());
+    assert!(elsewhere.join("unmarked").exists(), "the link's target must be untouched");
+
+    fs::create_dir_all(store.tmp()).unwrap();
+    pnpm_fs::force_symlink_dir(&elsewhere, &private_installs).unwrap();
+    let error = store.remove_orphaned_private_installs().unwrap_err();
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
+    assert!(elsewhere.join("unmarked").exists());
+}
+
 /// A prune that ran between a directory's creation and its marker would
 /// take the directory for one left behind.
 #[test]

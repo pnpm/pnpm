@@ -22,7 +22,7 @@ use miette::Diagnostic;
 use std::{
     fs::{self, File},
     io,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 /// The directory under the store's `tmp/` that holds the private installs.
@@ -35,6 +35,10 @@ const IN_USE_FILE: &str = "in-use";
 pub enum PrivateInstallError {
     #[diagnostic(transparent)]
     StoreLock(#[error(source)] StoreLockError),
+
+    #[display("A private install label must be a single path component, not {label:?}")]
+    #[diagnostic(code(ERR_PNPM_PRIVATE_INSTALL_LABEL))]
+    InvalidLabel { label: String },
 
     #[display("Failed to create the private install at {path:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_PRIVATE_INSTALL_CREATE))]
@@ -90,6 +94,9 @@ impl StoreDir {
         &self,
         label: &str,
     ) -> Result<PrivateInstall, PrivateInstallError> {
+        if !is_single_normal_component(label) {
+            return Err(PrivateInstallError::InvalidLabel { label: label.to_string() });
+        }
         let _store_lock = self.lock_for_use().map_err(PrivateInstallError::StoreLock)?;
         let parent = self.private_installs_dir();
         let dir = parent.join(crate::unique_dir_name(label));
@@ -121,15 +128,16 @@ impl StoreDir {
     /// the store's prune lock.
     pub(crate) fn remove_orphaned_private_installs(&self) -> io::Result<usize> {
         let dir = self.private_installs_dir();
-        let entries = match fs::read_dir(&dir) {
-            Ok(entries) => entries,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(0),
-            Err(error) => return Err(error),
+        let Some(entries) = read_private_installs_dir(&dir)? else {
+            return Ok(0);
         };
         let mut removed = 0;
         for entry in entries {
-            let path = entry?.path();
-            if is_in_use(&path)? {
+            let entry = entry?;
+            let path = entry.path();
+            // Only a real directory can be a private install a process
+            // holds; anything else under here is litter.
+            if entry.file_type()?.is_dir() && is_in_use(&path)? {
                 continue;
             }
             pnpm_fs::remove_dirent(&path)?;
@@ -143,6 +151,26 @@ impl StoreDir {
 
     fn private_installs_dir(&self) -> PathBuf {
         self.tmp().join(PRIVATE_INSTALLS_DIR)
+    }
+}
+
+fn is_single_normal_component(label: &str) -> bool {
+    let mut components = Path::new(label).components();
+    matches!((components.next(), components.next()), (Some(Component::Normal(_)), None))
+}
+
+/// The entries of the private installs directory, `None` when there is
+/// none. A symbolic link in its place is refused rather than followed,
+/// since the sweep removes what it finds.
+fn read_private_installs_dir(dir: &Path) -> io::Result<Option<fs::ReadDir>> {
+    match fs::symlink_metadata(dir) {
+        Ok(metadata) if metadata.file_type().is_symlink() => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "the private installs directory must not be a symbolic link",
+        )),
+        Ok(_) => fs::read_dir(dir).map(Some),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
     }
 }
 
