@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
 import { pnpmExec } from '@pnpm/exec'
@@ -93,13 +94,11 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
     throw errors[0]
   }
   if (errors.length > 1) {
-    throw new AggregateError(
-      errors,
-      modulesRestored
-        ? `Creating the dedicated lockfile in ${projectDir} failed`
-        : `Creating the dedicated lockfile in ${projectDir} failed, and the original node_modules is still in ${tempModulesDir}`,
-      { cause: errors[0] }
-    )
+    const failures = errors.map((err) => util.types.isNativeError(err) ? err.message : String(err))
+    throw new PnpmError('MAKE_DEDICATED_LOCKFILE_FAILED', `Creating the dedicated lockfile in ${projectDir} failed:\n${failures.join('\n')}`, {
+      cause: new AggregateError(errors),
+      hint: modulesRestored ? undefined : `The original node_modules is still in ${tempModulesDir}.`,
+    })
   }
 }
 

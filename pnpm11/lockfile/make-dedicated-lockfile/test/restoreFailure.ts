@@ -8,9 +8,10 @@ const { renameOverwrite: realRenameOverwrite } = await import('rename-overwrite'
 
 const restoreError = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
 const renameOverwrite = jest.fn<typeof realRenameOverwrite>()
+const pnpmExec = jest.fn(async () => {})
 
 jest.unstable_mockModule('rename-overwrite', () => ({ renameOverwrite }))
-jest.unstable_mockModule('@pnpm/exec', () => ({ pnpmExec: jest.fn(async () => {}) }))
+jest.unstable_mockModule('@pnpm/exec', () => ({ pnpmExec }))
 
 const { makeDedicatedLockfile } = await import('@pnpm/lockfile.make-dedicated-lockfile')
 
@@ -32,4 +33,21 @@ test('package.json is restored when node_modules cannot be moved back', async ()
 
   expect(JSON.parse(fs.readFileSync(manifestPath, 'utf8'))).toStrictEqual(manifestBefore)
   expect(fs.existsSync(path.join(projectDir, '.tmp_node_modules/original-tree'))).toBe(true)
+})
+
+test('an install failure and a restore failure are reported together', async () => {
+  const tmp = f.prepare('fixture')
+  const projectDir = path.join(tmp, 'packages/published')
+  fs.mkdirSync(path.join(projectDir, 'node_modules'), { recursive: true })
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'published', version: '1.0.0' }))
+  pnpmExec.mockRejectedValueOnce(new Error('install failed'))
+  renameOverwrite
+    .mockImplementationOnce(realRenameOverwrite)
+    .mockRejectedValueOnce(restoreError)
+
+  await expect(makeDedicatedLockfile(tmp, projectDir)).rejects.toMatchObject({
+    code: 'ERR_PNPM_MAKE_DEDICATED_LOCKFILE_FAILED',
+    message: expect.stringContaining('install failed\nEACCES: permission denied'),
+    hint: `The original node_modules is still in ${path.join(projectDir, '.tmp_node_modules')}.`,
+  })
 })
