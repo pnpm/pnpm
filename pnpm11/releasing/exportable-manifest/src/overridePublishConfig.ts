@@ -33,8 +33,9 @@ const PUBLISH_CONFIG_WHITELIST = new Set([
 ])
 
 export function overridePublishConfig (publishManifest: ProjectManifest): void {
-  const { publishConfig } = publishManifest
-  if (!publishConfig) return
+  if (!publishManifest.publishConfig) return
+  // The manifest may share its publishConfig object with the caller's manifest.
+  const publishConfig = { ...publishManifest.publishConfig }
 
   for (const key in publishConfig) {
     if (!PUBLISH_CONFIG_WHITELIST.has(key)) continue
@@ -45,5 +46,7 @@ export function overridePublishConfig (publishManifest: ProjectManifest): void {
 
   if (isEmpty(publishConfig)) {
     delete publishManifest.publishConfig
+  } else {
+    publishManifest.publishConfig = publishConfig
   }
 }
