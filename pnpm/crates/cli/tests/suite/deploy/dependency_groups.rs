@@ -346,6 +346,10 @@ fn release_style_deploy_accepts_pre_subcommand_flags() {
         "the hoisted deploy install must not materialize dev dependencies with --prod",
     );
 
+    let deploy_dir = workspace.join("release-deploy");
+    fs::create_dir_all(&deploy_dir).unwrap();
+    fs::write(deploy_dir.join("pre-existing.txt"), "stale").unwrap();
+
     pacquet_cmd(&workspace)
         .with_args([
             "--config.inject-workspace-packages=true",
@@ -360,8 +364,11 @@ fn release_style_deploy_accepts_pre_subcommand_flags() {
         .assert()
         .success();
 
-    let deploy_dir = workspace.join("release-deploy");
     assert!(deploy_dir.join("index.js").exists());
+    assert!(
+        !deploy_dir.join("pre-existing.txt").exists(),
+        "--force must overwrite the non-empty target directory",
+    );
     assert!(
         !deploy_dir.join(incompatible).exists(),
         "--force must not install optional dependencies that do not match the platform",
