@@ -6,9 +6,10 @@
 use node_semver::{Range, Version};
 use pnpm_lockfile::{
     BundledDependencies, ImporterDepVersion, Lockfile, LockfileResolution, PkgName, PkgNameVer,
-    PkgNameVerPeer, ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotEntry,
-    StringOrList, TarballResolution, TarballUrlOptions, integrity_addressed_registry_tarball_url,
-    npm_tarball_url, pick_registry_for_package, registry_server_type,
+    PkgNameVerPeer, ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotDepRef,
+    SnapshotEntry, StringOrList, TarballResolution, TarballUrlOptions,
+    integrity_addressed_registry_tarball_url, npm_tarball_url, pick_registry_for_package,
+    registry_server_type,
 };
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
 use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
@@ -296,6 +297,14 @@ fn synthesize_manifest(
     Value::Object(manifest)
 }
 
+fn snapshot_dep_to_manifest_specifier(dep_ref: &SnapshotDepRef) -> String {
+    match dep_ref {
+        SnapshotDepRef::Plain(ver_peer) => ver_peer.version().to_string(),
+        SnapshotDepRef::Alias(key) => format!("npm:{}@{}", key.name, key.suffix.version()),
+        SnapshotDepRef::Link(target) => format!("link:{target}"),
+    }
+}
+
 fn attach_snapshot_dependencies(manifest: &mut Value, snapshot: Option<&SnapshotEntry>) {
     let (Value::Object(map), Some(snapshot)) = (manifest, snapshot) else {
         return;
@@ -303,14 +312,18 @@ fn attach_snapshot_dependencies(manifest: &mut Value, snapshot: Option<&Snapshot
     if let Some(deps) = &snapshot.dependencies {
         let dep_map: Map<String, Value> = deps
             .iter()
-            .map(|(dep_name, dep_spec)| (dep_name.to_string(), Value::String(dep_spec.to_string())))
+            .map(|(dep_name, dep_ref)| {
+                (dep_name.to_string(), Value::String(snapshot_dep_to_manifest_specifier(dep_ref)))
+            })
             .collect();
         map.insert("dependencies".to_string(), Value::Object(dep_map));
     }
     if let Some(deps) = &snapshot.optional_dependencies {
         let dep_map: Map<String, Value> = deps
             .iter()
-            .map(|(dep_name, dep_spec)| (dep_name.to_string(), Value::String(dep_spec.to_string())))
+            .map(|(dep_name, dep_ref)| {
+                (dep_name.to_string(), Value::String(snapshot_dep_to_manifest_specifier(dep_ref)))
+            })
             .collect();
         map.insert("optionalDependencies".to_string(), Value::Object(dep_map));
     }

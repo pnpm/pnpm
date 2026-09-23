@@ -17,6 +17,8 @@ use crate::{
     },
     parse_bare_specifier::WantedLocalDependency,
 };
+use std::sync::Arc;
+
 use pnpm_lockfile::LockfileResolution;
 use pnpm_resolving_resolver_base::{
     LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
@@ -210,7 +212,7 @@ fn local_options(opts: &ResolveOptions) -> LocalResolverOptions {
             .map(|current| LocalCurrentPkg {
                 id: current.id.clone(),
                 resolution: current.resolution.clone(),
-                manifest: current.manifest.clone(),
+                manifest: current.manifest.as_ref().map(Arc::clone),
             }),
         update: match opts.refresh.update {
             UpdateBehavior::Compatible | UpdateBehavior::Latest => LocalResolverUpdate::On,

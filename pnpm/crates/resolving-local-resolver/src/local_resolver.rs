@@ -3,7 +3,7 @@
 //! out of the archive for a tarball, off disk for a directory — once a
 //! [`LocalPackageSpec`] has been chosen.
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -51,7 +51,7 @@ pub struct LocalResolverOptions {
 pub struct LocalCurrentPkg {
     pub id: PkgResolutionId,
     pub resolution: LockfileResolution,
-    pub manifest: Option<std::sync::Arc<serde_json::Value>>,
+    pub manifest: Option<Arc<serde_json::Value>>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -277,7 +277,7 @@ async fn resolve_file_spec(
             let current = opts.current_pkg.as_ref().unwrap();
             Ok(LocalResolveResult {
                 id: spec.id.clone(),
-                manifest: current.manifest.clone(),
+                manifest: current.manifest.as_ref().map(Arc::clone),
                 normalized_bare_specifier: Some(spec.normalized_bare_specifier.clone()),
                 resolution: current.resolution.clone(),
                 resolved_via: "local-filesystem",
