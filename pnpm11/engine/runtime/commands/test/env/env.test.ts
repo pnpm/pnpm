@@ -298,4 +298,34 @@ test('env remove cleans up Windows cmd shims and executables without a symlink',
   }
 })
 
+test('env remove does not remove Windows shims targeting 18.10 when removing 18.1', async () => {
+  const originalPlatform = process.platform
+  Object.defineProperty(process, 'platform', { value: 'win32' })
+  try {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
+    const binDir = path.join(tempDir, 'bin')
+    const pnpmHomeDir = path.join(tempDir, 'home')
+    const nodejsDir = path.join(pnpmHomeDir, 'nodejs')
+    fs.mkdirSync(binDir, { recursive: true })
+    fs.mkdirSync(path.join(nodejsDir, '18.1.0'), { recursive: true })
+    fs.mkdirSync(path.join(nodejsDir, '18.10.0'), { recursive: true })
+
+    const cmdShim = path.join(binDir, 'node.cmd')
+    fs.writeFileSync(cmdShim, '@"%~dp0\\..\\home\\nodejs\\18.10.0\\node.exe" %*')
+
+    await env.handler({
+      bin: binDir,
+      global: true,
+      pnpmHomeDir,
+      configByUri: {},
+    }, ['remove', '18.1.0'])
+
+    expect(fs.existsSync(cmdShim)).toBe(true)
+
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  } finally {
+    Object.defineProperty(process, 'platform', { value: originalPlatform })
+  }
+})
+
 

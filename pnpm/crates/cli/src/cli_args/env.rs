@@ -314,26 +314,32 @@ fn cleanup_nodejs_current(
     Ok(false)
 }
 
-fn is_symlink_removed(bin_path: &Path, removed_names: &std::collections::HashSet<String>) -> bool {
+fn is_symlink_removed(
+    bin_path: &Path,
+    removed_names: &std::collections::HashSet<String>,
+) -> std::io::Result<bool> {
     if !bin_path.is_symlink() {
-        return false;
+        return Ok(false);
     }
     if !bin_path.exists() {
-        return true;
+        return Ok(true);
     }
-    fs::read_link(bin_path).is_ok_and(|target| is_path_in_removed_names(&target, removed_names))
+    let target = fs::read_link(bin_path)?;
+    Ok(is_path_in_removed_names(&target, removed_names))
 }
 
 fn is_native_shim_removed(
     global_bin_dir: &Path,
     bin_name: &str,
     removed_names: &std::collections::HashSet<String>,
-) -> bool {
+) -> std::io::Result<bool> {
     match native_shim_target(global_bin_dir, bin_name) {
         Ok(Some(ShimTarget::Installed(target))) => {
-            !target.exists() || is_path_in_removed_names(&target, removed_names)
+            Ok(!target.exists() || is_path_in_removed_names(&target, removed_names))
         }
-        _ => false,
+        Ok(None | Some(ShimTarget::Virtual(_))) => Ok(false),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(err) => Err(err),
     }
 }
 
@@ -341,19 +347,22 @@ fn is_cmd_shim_removed(
     global_bin_dir: &Path,
     bin_name: &str,
     removed_names: &std::collections::HashSet<String>,
-) -> bool {
+) -> std::io::Result<bool> {
     for ext in [".cmd", ".ps1"] {
         let shim = global_bin_dir.join(format!("{bin_name}{ext}"));
-        if let Ok(content) = fs::read_to_string(&shim) {
-            let points_to_removed = removed_names
-                .iter()
-                .any(|name| content.contains(name));
-            if points_to_removed {
-                return true;
-            }
+        let content = match fs::read_to_string(&shim) {
+            Ok(content) => content,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(err) => return Err(err),
+        };
+        let points_to_removed = content
+            .split(['"', '\'', '\\', '/', ' ', '\t', '\r', '\n'])
+            .any(|segment| removed_names.contains(segment));
+        if points_to_removed {
+            return Ok(true);
         }
     }
-    false
+    Ok(false)
 }
 
 fn cleanup_single_bin_link(
@@ -362,9 +371,9 @@ fn cleanup_single_bin_link(
     removed_names: &std::collections::HashSet<String>,
 ) -> std::io::Result<bool> {
     let bin_path = global_bin_dir.join(bin_name);
-    let should_remove = is_symlink_removed(&bin_path, removed_names)
-        || is_native_shim_removed(global_bin_dir, bin_name, removed_names)
-        || is_cmd_shim_removed(global_bin_dir, bin_name, removed_names);
+    let should_remove = is_symlink_removed(&bin_path, removed_names)?
+        || is_native_shim_removed(global_bin_dir, bin_name, removed_names)?
+        || is_cmd_shim_removed(global_bin_dir, bin_name, removed_names)?;
 
     if should_remove {
         remove_cmd_shim(&bin_path)?;

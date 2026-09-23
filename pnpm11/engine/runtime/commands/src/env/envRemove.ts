@@ -12,56 +12,58 @@ function matchesNodeVersion (actualVersion: string, requestedVersion: string): b
   return actualVersion === requestedVersion || actualVersion.startsWith(`${requestedVersion}.`)
 }
 
-function getGlobalNodeInstalledVersion (globalPkgDir?: string, pnpmHomeDir?: string): string | null {
+async function getGlobalNodeInstalledVersion (globalPkgDir?: string, pnpmHomeDir?: string): Promise<string | null> {
   const globalDir = globalPkgDir ?? (pnpmHomeDir ? path.join(pnpmHomeDir, 'global', 'v11') : undefined)
   if (!globalDir) return null
   let entries: fs.Dirent[]
   try {
-    entries = fs.readdirSync(globalDir, { withFileTypes: true })
+    entries = await fs.promises.readdir(globalDir, { withFileTypes: true })
   } catch (err) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw err
   }
-  for (const entry of entries) {
-    if (!entry.isSymbolicLink()) continue
-    const linkPath = path.join(globalDir, entry.name)
-    let installDir: string
-    try {
-      installDir = fs.realpathSync(linkPath)
-    } catch (err) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-        continue
-      }
-      throw err
-    }
-    const nodePkgJson = path.join(installDir, 'node_modules', 'node', 'package.json')
-    try {
-      const pkg = JSON.parse(fs.readFileSync(nodePkgJson, 'utf8'))
-      if (pkg.version) return pkg.version
-    } catch (err) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-        continue
-      }
-      throw err
-    }
-  }
-  return null
+  const versions = await Promise.all(
+    entries
+      .filter((entry) => entry.isSymbolicLink())
+      .map(async (entry) => {
+        const linkPath = path.join(globalDir, entry.name)
+        try {
+          const installDir = await fs.promises.realpath(linkPath)
+          const nodePkgJson = path.join(installDir, 'node_modules', 'node', 'package.json')
+          const pkg = JSON.parse(await fs.promises.readFile(nodePkgJson, 'utf8'))
+          return (pkg.version as string | undefined) ?? null
+        } catch (err) {
+          if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+            return null
+          }
+          throw err
+        }
+      })
+  )
+  return versions.find(Boolean) ?? null
 }
 
-function isCandidateShimRemoved (binFile: string, ext: string, removedNames: Set<string>): boolean {
+async function isCandidateShimRemoved (binFile: string, ext: string, removedNames: Set<string>): Promise<boolean> {
   try {
-    const stat = fs.lstatSync(binFile)
+    const stat = await fs.promises.lstat(binFile)
     if (stat.isSymbolicLink()) {
-      const target = fs.readlinkSync(binFile)
-      const isDangling = !fs.existsSync(binFile)
+      const target = await fs.promises.readlink(binFile)
+      let exists = true
+      try {
+        await fs.promises.stat(binFile)
+      } catch {
+        exists = false
+      }
+      const isDangling = !exists
       const targetSegments = target.split(/[\\/]/)
       return isDangling || Array.from(removedNames).some((name) => targetSegments.includes(name))
     }
     if (ext === '.cmd' || ext === '.ps1') {
-      const content = fs.readFileSync(binFile, 'utf8')
-      return Array.from(removedNames).some((name) => content.includes(name))
+      const content = await fs.promises.readFile(binFile, 'utf8')
+      const segments = content.split(/["'\\/\s]+/)
+      return Array.from(removedNames).some((name) => segments.includes(name))
     }
   } catch (err) {
     if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
@@ -85,7 +87,7 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
   let removedSomething = false
   const removedNames = new Set<string>()
 
-  const installedGlobalNodeVersion = getGlobalNodeInstalledVersion(opts.globalPkgDir, opts.pnpmHomeDir)
+  const installedGlobalNodeVersion = await getGlobalNodeInstalledVersion(opts.globalPkgDir, opts.pnpmHomeDir)
   const activeVersionMatches = installedGlobalNodeVersion != null &&
     versions.some((v) => matchesNodeVersion(installedGlobalNodeVersion, v))
 
@@ -103,7 +105,7 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
     const nodejsDir = path.join(opts.pnpmHomeDir, 'nodejs')
     let entries: string[] = []
     try {
-      entries = fs.readdirSync(nodejsDir)
+      entries = await fs.promises.readdir(nodejsDir)
     } catch (err) {
       if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
         throw err
@@ -125,10 +127,16 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
 
     const nodeCurrentLink = path.join(opts.pnpmHomeDir, 'nodejs_current')
     try {
-      const stat = fs.lstatSync(nodeCurrentLink)
+      const stat = await fs.promises.lstat(nodeCurrentLink)
       if (stat.isSymbolicLink()) {
-        const target = fs.readlinkSync(nodeCurrentLink)
-        const isDangling = !fs.existsSync(nodeCurrentLink)
+        const target = await fs.promises.readlink(nodeCurrentLink)
+        let exists = true
+        try {
+          await fs.promises.stat(nodeCurrentLink)
+        } catch {
+          exists = false
+        }
+        const isDangling = !exists
         const targetSegments = target.split(/[\\/]/)
         const pointsToRemoved = Array.from(removedNames).some((name) => targetSegments.includes(name))
         if (isDangling || pointsToRemoved) {
@@ -144,35 +152,33 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
   }
 
   if (opts.bin) {
-    const unlinks: Array<Promise<void>> = []
     const extensions = process.platform === 'win32' ? ['', '.cmd', '.ps1', '.exe'] : ['']
-    for (const binBase of ['node', 'npm', 'npx']) {
-      let shouldRemoveGroup = activeVersionMatches
-      if (!shouldRemoveGroup) {
-        for (const ext of extensions) {
-          const binFile = path.join(opts.bin, `${binBase}${ext}`)
-          if (isCandidateShimRemoved(binFile, ext, removedNames)) {
-            shouldRemoveGroup = true
-            break
-          }
+    await Promise.all(
+      ['node', 'npm', 'npx'].map(async (binBase) => {
+        const candidates = extensions.map((ext) => ({
+          ext,
+          file: path.join(opts.bin!, `${binBase}${ext}`),
+        }))
+        const results = await Promise.all(
+          candidates.map(async ({ file, ext }) => isCandidateShimRemoved(file, ext, removedNames))
+        )
+        if (results.some(Boolean)) {
+          await Promise.all(
+            candidates.map(async ({ file }) => {
+              try {
+                await fs.promises.lstat(file)
+                await fs.promises.unlink(file)
+                removedSomething = true
+              } catch (err) {
+                if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+                  throw err
+                }
+              }
+            })
+          )
         }
-      }
-      if (shouldRemoveGroup) {
-        for (const ext of extensions) {
-          const binFile = path.join(opts.bin, `${binBase}${ext}`)
-          try {
-            fs.lstatSync(binFile)
-            unlinks.push(fs.promises.unlink(binFile))
-            removedSomething = true
-          } catch (err) {
-            if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
-              throw err
-            }
-          }
-        }
-      }
-    }
-    await Promise.all(unlinks)
+      })
+    )
   }
 
   if (!removedSomething) {

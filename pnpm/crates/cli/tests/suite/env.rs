@@ -180,3 +180,32 @@ fn remove_cleans_up_windows_cmd_shims_without_symlink() {
     assert!(!cmd_shim.exists());
     assert!(!ps1_shim.exists());
 }
+
+#[test]
+fn remove_preserves_windows_cmd_shims_targeting_longer_version() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm_home");
+    let global_bin = pnpm_home.join("bin");
+    let nodejs_dir = pnpm_home.join("nodejs");
+    std::fs::create_dir_all(&global_bin).unwrap();
+    std::fs::create_dir_all(nodejs_dir.join("18.1.0")).unwrap();
+    std::fs::create_dir_all(nodejs_dir.join("18.10.0")).unwrap();
+
+    let cmd_shim = global_bin.join("node.cmd");
+    std::fs::write(&cmd_shim, r#"@"%~dp0\..\nodejs\18.10.0\node.exe" %*"#).unwrap();
+
+    let existing_path = std::env::var("PATH").unwrap_or_default();
+    let path = format!("{}:{existing_path}", global_bin.display());
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("PATH", path)
+        .with_args(["--global", "env", "rm", "18.1.0"])
+        .output()
+        .expect("run pacquet env rm");
+
+    assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
+    assert!(cmd_shim.exists());
+    assert!(!nodejs_dir.join("18.1.0").exists());
+    assert!(nodejs_dir.join("18.10.0").exists());
+}
