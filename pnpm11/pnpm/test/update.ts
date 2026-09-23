@@ -1368,3 +1368,68 @@ test('update --prod does not install devDependencies when installed with --prod'
   project.has('is-positive')
   project.hasNot('is-negative')
 })
+
+test('update --prod does not install devDependencies in fresh project without prior install', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['update', '--prod', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+})
+
+test('update --prod --dev installs devDependencies in prod install', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--prod'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+
+  await execPnpm(['update', '--prod', '--dev', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+})
+
+test('update --dev expands layout and persists devDependencies: true in .modules.yaml', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--prod'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+
+  await execPnpm(['update', '--dev', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+  const modulesManifest = project.readModulesManifest()
+  expect(modulesManifest?.included.devDependencies).toBe(true)
+
+  await execPnpm(['update', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+})

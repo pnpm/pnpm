@@ -210,21 +210,22 @@ fn update_dependency_groups(
     .flatten()
     .map(|layout| layout.included);
 
-    let is_explicit_dev = owned.include_direct.contains(&DependencyGroup::Dev)
-        && !owned.include_direct.contains(&DependencyGroup::Prod);
+    let is_explicit_dev = owned.explicit_groups.dev;
+    let is_explicit_prod = owned.explicit_groups.prod;
+    let is_explicit_optional = owned.explicit_groups.optional;
 
     let (prod, dev, optional) = if let Some(included) = prior_included {
         (
-            included.dependencies || owned.include_direct.contains(&DependencyGroup::Prod),
+            included.dependencies || is_explicit_prod,
             included.dev_dependencies || is_explicit_dev,
-            included.optional_dependencies && update.config.optional,
+            (included.optional_dependencies || is_explicit_optional)
+                && update.config.optional,
         )
     } else {
         (
-            owned.include_direct.contains(&DependencyGroup::Prod),
-            owned.include_direct.contains(&DependencyGroup::Dev),
-            owned.include_direct.contains(&DependencyGroup::Optional)
-                && update.config.optional,
+            true,
+            !is_explicit_prod || is_explicit_dev,
+            update.config.optional && !owned.explicit_groups.no_optional,
         )
     };
 

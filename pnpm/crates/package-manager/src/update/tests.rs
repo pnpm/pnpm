@@ -1,6 +1,7 @@
 use super::{
-    UpdateError, UpdateOptions, UpdateResources, is_workspace_local_path_specifier,
-    prepare_selected_manifests, reject_versions_of_indirect_update_specs, selected_project_indices,
+    UpdateError, UpdateExplicitGroups, UpdateOptions, UpdateResources,
+    is_workspace_local_path_specifier, prepare_selected_manifests,
+    reject_versions_of_indirect_update_specs, selected_project_indices,
 };
 use crate::update::{
     install::persistence::{apply_bumped_manifest_specs, persist_selected_manifests},
@@ -49,6 +50,7 @@ fn test_update(
             tarball_mem_cache: std::sync::Arc::new(pnpm_tarball::MemCache::default()),
             http_client_arc: std::sync::Arc::new(pnpm_network::ThrottledClient::default()),
             include_direct: vec![DependencyGroup::Prod],
+            explicit_groups: UpdateExplicitGroups::default(),
             supported_architectures: None,
             resolution_observer: None,
         },

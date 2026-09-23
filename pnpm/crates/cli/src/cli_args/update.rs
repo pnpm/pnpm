@@ -72,6 +72,15 @@ impl UpdateDependencyOptions {
             .chain(self.peer.then_some(DependencyGroup::Peer))
             .collect()
     }
+
+    pub(crate) fn explicit_groups(&self) -> pnpm_package_manager::UpdateExplicitGroups {
+        pnpm_package_manager::UpdateExplicitGroups {
+            prod: self.prod,
+            dev: self.dev,
+            optional: self.optional,
+            no_optional: self.no_optional,
+        }
+    }
 }
 
 /// Update package and GitHub Actions dependencies to newer compatible versions.

@@ -407,6 +407,7 @@ fn update_resources(
             DependencyGroup::Dev,
             DependencyGroup::Optional,
         ],
+        explicit_groups: pnpm_package_manager::UpdateExplicitGroups::default(),
         supported_architectures: state.config.supported_architectures.clone(),
         resolution_observer: Some(fix_observer(
             &classification.vulnerabilities,

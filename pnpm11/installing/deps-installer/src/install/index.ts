@@ -432,12 +432,30 @@ export async function mutateModules (
   )
   let ctx = await getContext(isUpdate ? { ...opts, include: maybeOpts.include } : opts)
   if (isUpdate && !maybeOpts.include) {
-    const isExplicitDev = Boolean(opts.includeDirect?.devDependencies && !opts.includeDirect?.dependencies)
+    const extraOpts = (opts as {
+      cliOptions?: Record<string, unknown>
+      dev?: boolean
+      production?: boolean
+      optional?: boolean
+    })
+    const cliOpts = extraOpts.cliOptions ?? {}
+    const isExplicitDev = cliOpts.dev === true || (extraOpts.dev === true && extraOpts.production !== true)
+    const isExplicitProd = cliOpts.production === true || (extraOpts.production === true && extraOpts.dev !== true)
+    const isExplicitOptional = cliOpts.optional === true || extraOpts.optional === true
+    const isNoOptional = cliOpts.optional === false || extraOpts.optional === false
+    const hasPriorModules = ctx.modulesFile != null
     opts.include = {
-      dependencies: ctx.include.dependencies || Boolean(opts.includeDirect?.dependencies),
-      devDependencies: ctx.include.devDependencies || isExplicitDev,
-      optionalDependencies: ctx.include.optionalDependencies && (opts.includeDirect?.optionalDependencies !== false),
+      dependencies: hasPriorModules
+        ? (ctx.include.dependencies || isExplicitProd)
+        : true,
+      devDependencies: hasPriorModules
+        ? (ctx.include.devDependencies || isExplicitDev)
+        : (!isExplicitProd || isExplicitDev),
+      optionalDependencies: hasPriorModules
+        ? Boolean(ctx.include.optionalDependencies || isExplicitOptional)
+        : !isNoOptional,
     }
+    ctx.include = opts.include
   }
 
   if (!opts.include.dependencies && opts.include.optionalDependencies) {
