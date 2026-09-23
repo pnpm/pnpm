@@ -1,7 +1,8 @@
 use crate::_utils::{append_workspace_yaml_key, flatten_report};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use std::process::Command;
 
 #[test]
 fn dlx_sets_package_manager_environment() {
@@ -158,6 +159,33 @@ fn dlx_installs_and_runs_packages_bin() {
         workspace.join("touch.txt").exists(),
         "the package's bin should run in the process cwd and write `touch.txt`",
     );
+
+    drop(root);
+}
+
+/// Packages built by lifecycle scripts only load on the Node.js major they
+/// were built with, so a dlx cache entry is reused within a major and not
+/// across majors.
+#[cfg(unix)]
+#[test]
+fn dlx_does_not_reuse_the_cache_across_node_majors() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    for node_version in ["22.1.0", "22.2.0", "24.0.0"] {
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .without_ambient_pnpm_config()
+            .with_env("pnpm_config_node_version", node_version)
+            .with_args(["dlx", "@foo/touch-file-one-bin"])
+            .assert()
+            .success();
+    }
+
+    let cache_entries =
+        std::fs::read_dir(npmrc_info.cache_dir.join("dlx")).expect("read dlx cache").count();
+    assert_eq!(cache_entries, 2, "one cache entry per Node.js major");
 
     drop(root);
 }

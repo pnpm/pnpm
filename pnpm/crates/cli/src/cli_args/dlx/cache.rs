@@ -6,6 +6,8 @@ use super::{
     parse_catalog_protocol, parse_manifest, parse_overrides_iter, parse_wanted_dependency,
     resolve_from_catalog,
 };
+use pnpm_deps_restorer::parse_major_from_version;
+use pnpm_graph_hasher::{detect_node_major, engine_name};
 
 /// Install the packages into a fresh prepare directory and point the
 /// cache link at it.
@@ -158,9 +160,9 @@ fn build_registries_map(config: &Config) -> BTreeMap<String, String> {
 }
 
 /// Build the dlx cache key from the sorted package specs, sorted
-/// registries, the optional `allow_build` list, and each non-empty
+/// registries, the optional `allow_build` list, each non-empty
 /// `supportedArchitectures` axis (deduped + sorted, in `cpu` / `libc` /
-/// `os` order), all hashed together. pacquet keys on the raw specs (not
+/// `os` order), and the Node.js engine name, all hashed together. pacquet keys on the raw specs (not
 /// resolved ids) and uses [`create_short_hash`] rather than a full-length
 /// hex digest; the dlx caches are not shared between the two
 /// implementations, so the key format is not a cross-tool contract.
@@ -169,6 +171,7 @@ pub(super) fn create_cache_key(
     registries: &BTreeMap<String, String>,
     allow_build: &[String],
     supported_architectures: Option<&SupportedArchitectures>,
+    engine: Option<&str>,
 ) -> String {
     let mut sorted: Vec<&str> = pkgs
         .iter()
@@ -189,6 +192,9 @@ pub(super) fn create_cache_key(
         args.push(json!({ "allowBuild": sorted_allow }));
     }
     args.extend(architecture_key_inputs(supported_architectures));
+    if let Some(engine) = engine {
+        args.push(json!({ "engine": engine }));
+    }
     create_short_hash(&serde_json::to_string(&args).expect("serialize cache key inputs"))
 }
 
@@ -338,8 +344,21 @@ pub(super) fn command_cache_dir(
             &build_registries_map(config),
             allow_build,
             supported_architectures.apply_to(config.supported_architectures.clone()).as_ref(),
+            runtime_engine_name(config).as_deref(),
         ),
     )
+}
+
+/// The engine name of the Node.js the cache install builds for: the
+/// `nodeVersion` setting, else the `node` on `PATH`. Packages built by
+/// lifecycle scripts, native addons especially, only load on the Node.js
+/// major they were built with.
+fn runtime_engine_name(config: &Config) -> Option<String> {
+    let major = match config.node_version.as_deref() {
+        Some(version) => parse_major_from_version(version),
+        None => detect_node_major(),
+    }?;
+    Some(engine_name(major, None, None))
 }
 
 /// Only requested packages and explicit CLI additions may run builds in the cache install.
