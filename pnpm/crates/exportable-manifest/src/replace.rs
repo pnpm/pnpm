@@ -11,7 +11,10 @@
 //!   `workspace:` segment in place so a compound `a || workspace:>=`
 //!   round-trips correctly.
 
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -60,6 +63,7 @@ pub fn replace_workspace_protocol(
     dep_spec: &str,
     dir: &Path,
     modules_dir: Option<&Path>,
+    workspace_packages: Option<&HashMap<String, WorkspacePackageManifest>>,
 ) -> Result<String, ReplaceWorkspaceProtocolError> {
     let Some(rest) = dep_spec.strip_prefix("workspace:") else {
         return Ok(dep_spec.to_string());
@@ -67,7 +71,13 @@ pub fn replace_workspace_protocol(
 
     if let Some(parsed) = parse_version_alias_spec(rest) {
         let installed = installed_modules_dir(dir, modules_dir);
-        let manifest = read_and_check_manifest(dep_name, &installed.join(dep_name))?;
+        let target_pkg_name = parsed.alias.unwrap_or(dep_name);
+        let manifest = read_and_check_manifest(
+            dep_name,
+            target_pkg_name,
+            &installed.join(dep_name),
+            workspace_packages,
+        )?;
         let token = match parsed.sentinel {
             Some('^') => "^",
             Some('~') => "~",
@@ -77,7 +87,8 @@ pub fn replace_workspace_protocol(
     }
 
     if let Some(relative) = strip_workspace_relative_prefix(dep_spec) {
-        let manifest = read_and_check_manifest(dep_name, &dir.join(relative))?;
+        let manifest =
+            read_and_check_manifest(dep_name, dep_name, &dir.join(relative), workspace_packages)?;
         return Ok(published_spec(dep_name, &manifest, ""));
     }
 
@@ -98,6 +109,7 @@ pub fn replace_workspace_protocol_peer_dependency(
     dep_spec: &str,
     dir: &Path,
     modules_dir: Option<&Path>,
+    workspace_packages: Option<&HashMap<String, WorkspacePackageManifest>>,
 ) -> Result<String, ReplaceWorkspaceProtocolError> {
     if !dep_spec.contains("workspace:") {
         return Ok(dep_spec.to_string());
@@ -105,7 +117,13 @@ pub fn replace_workspace_protocol_peer_dependency(
     match parsed_peer_spec(dep_spec) {
         Some(ParsedPeer::Alias(alias)) => return Ok(alias),
         Some(ParsedPeer::Relative) => {
-            return replace_workspace_protocol(dep_name, dep_spec, dir, modules_dir);
+            return replace_workspace_protocol(
+                dep_name,
+                dep_spec,
+                dir,
+                modules_dir,
+                workspace_packages,
+            );
         }
         None => {}
     }
@@ -122,7 +140,8 @@ pub fn replace_workspace_protocol_peer_dependency(
     }
 
     let installed = installed_modules_dir(dir, modules_dir);
-    let manifest = read_and_check_manifest(dep_name, &installed.join(dep_name))?;
+    let manifest =
+        read_and_check_manifest(dep_name, dep_name, &installed.join(dep_name), workspace_packages)?;
     let token = if matched.range_group == "*" { "" } else { matched.range_group };
 
     let mut rewritten = String::with_capacity(dep_spec.len());
@@ -160,7 +179,7 @@ fn installed_modules_dir(dir: &Path, modules_dir: Option<&Path>) -> PathBuf {
 /// The specifier a published manifest records for a workspace dependency: the
 /// resolved version, or an `npm:` alias when the package is published under
 /// another name.
-fn published_spec(dep_name: &str, manifest: &DependencyManifest, token: &str) -> String {
+fn published_spec(dep_name: &str, manifest: &WorkspacePackageManifest, token: &str) -> String {
     if manifest.name == dep_name {
         return format!("{token}{version}", version = manifest.version);
     }
@@ -181,41 +200,50 @@ fn aliased_peer_spec(alias: &str, version: &str) -> String {
 /// dependency hasn't been installed yet.
 fn read_and_check_manifest(
     dep_name: &str,
+    target_pkg_name: &str,
     dependency_dir: &Path,
-) -> Result<DependencyManifest, ReplaceWorkspaceProtocolError> {
-    let value = match safe_read_package_json_from_dir(dependency_dir) {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            return Err(ReplaceWorkspaceProtocolError::CannotResolve(
-                CannotResolveWorkspaceProtocolError { dep_name: dep_name.to_string() },
-            ));
+    workspace_packages: Option<&HashMap<String, WorkspacePackageManifest>>,
+) -> Result<WorkspacePackageManifest, ReplaceWorkspaceProtocolError> {
+    let manifest_from_dir = match safe_read_package_json_from_dir(dependency_dir) {
+        Ok(Some(value)) => {
+            let name = value.get("name").and_then(Value::as_str);
+            let version = value.get("version").and_then(Value::as_str);
+            match (name, version) {
+                (Some(name), Some(version)) => Some(WorkspacePackageManifest {
+                    name: name.to_string(),
+                    version: version.to_string(),
+                }),
+                _ => None,
+            }
         }
+        Ok(None) => None,
         Err(err) => return Err(ReplaceWorkspaceProtocolError::ReadManifest(err)),
     };
-    let Some(name) = value.get("name").and_then(Value::as_str) else {
-        return Err(ReplaceWorkspaceProtocolError::CannotResolve(
-            CannotResolveWorkspaceProtocolError { dep_name: dep_name.to_string() },
-        ));
-    };
-    let Some(version) = value.get("version").and_then(Value::as_str) else {
-        return Err(ReplaceWorkspaceProtocolError::CannotResolve(
-            CannotResolveWorkspaceProtocolError { dep_name: dep_name.to_string() },
-        ));
-    };
-    Ok(DependencyManifest { name: name.to_string(), version: version.to_string() })
+
+    if let Some(manifest) = manifest_from_dir {
+        return Ok(manifest);
+    }
+
+    if let Some(ws_pkg) = workspace_packages.and_then(|pkgs| pkgs.get(target_pkg_name)) {
+        return Ok(ws_pkg.clone());
+    }
+
+    Err(ReplaceWorkspaceProtocolError::CannotResolve(CannotResolveWorkspaceProtocolError {
+        dep_name: dep_name.to_string(),
+    }))
 }
 
 /// The two fields the rewriters consult on the dependency's manifest.
-struct DependencyManifest {
-    name: String,
-    version: String,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspacePackageManifest {
+    pub name: String,
+    pub version: String,
 }
 
 /// Output of [`parse_version_alias_spec`]: the optional sentinel
-/// character (`^`/`~`/`*`). The alias portion of the spec is not
-/// captured here — it is implied by the spec shape and re-read from the
-/// dependency manifest.
-struct VersionAliasMatch {
+/// character (`^`/`~`/`*`) and optional alias.
+struct VersionAliasMatch<'a> {
+    alias: Option<&'a str>,
     sentinel: Option<char>,
 }
 
@@ -224,10 +252,10 @@ struct VersionAliasMatch {
 /// Greedy backtracking on the alias means it spans up to (and
 /// including) the **last** `@` in the suffix. Returns `None` when the
 /// input has trailing characters past an optional `^`/`~`/`*` sentinel.
-fn parse_version_alias_spec(after_protocol: &str) -> Option<VersionAliasMatch> {
-    let after_alias = match after_protocol.rfind('@') {
-        Some(idx) if idx >= 1 => &after_protocol[idx + 1..],
-        _ => after_protocol,
+fn parse_version_alias_spec(after_protocol: &str) -> Option<VersionAliasMatch<'_>> {
+    let (alias, after_alias) = match after_protocol.rfind('@') {
+        Some(idx) if idx >= 1 => (Some(&after_protocol[..idx]), &after_protocol[idx + 1..]),
+        _ => (None, after_protocol),
     };
     let sentinel = match after_alias.chars().count() {
         0 => None,
@@ -244,7 +272,7 @@ fn parse_version_alias_spec(after_protocol: &str) -> Option<VersionAliasMatch> {
         }
         _ => return None,
     };
-    Some(VersionAliasMatch { sentinel })
+    Some(VersionAliasMatch { alias, sentinel })
 }
 
 /// Strip the `workspace:` prefix and return the path portion of a

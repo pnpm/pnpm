@@ -452,3 +452,32 @@ test('recursive publish --report-summary: file entries use per-package summary s
   expect(entry.unpackedSize).toEqual(expect.any(Number))
   fs.unlinkSync('pnpm-publish-summary.json')
 })
+
+test('recursive publish resolves workspace protocol when node_modules is not installed (pnpm/pnpm#6567)', async () => {
+  const SUFFIX = Date.now()
+  const pkgA = {
+    name: `@pnpmtest/test-pkg-a-${SUFFIX}`,
+    version: '1.2.3',
+  }
+  const pkgB = {
+    name: `@pnpmtest/test-pkg-b-${SUFFIX}`,
+    version: '2.0.0',
+    dependencies: {
+      [pkgA.name]: 'workspace:^',
+    },
+  }
+  preparePackages([pkgA, pkgB])
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    recursive: true,
+  }, [])
+
+  const { stdout } = await execa('pnpm', ['view', pkgB.name, 'dependencies', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
+  const dependencies = JSON.parse(stdout?.toString() ?? '{}')
+  expect(dependencies[pkgA.name]).toBe('^1.2.3')
+})
+

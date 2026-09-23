@@ -105,6 +105,7 @@ pub mod view;
 pub mod whoami;
 pub mod why;
 pub mod with;
+pub(crate) mod workspace_packages;
 pub(crate) mod yarn_workspaces_field;
 
 pub(crate) use cli_command::CliArgs;

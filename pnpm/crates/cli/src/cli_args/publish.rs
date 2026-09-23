@@ -13,14 +13,16 @@ mod recursive;
 
 mod arguments;
 
-use crate::cli_args::{install::resolve_bool_override, registry_client::build_registry_client};
+use crate::cli_args::registry_client::build_registry_client;
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
 use pnpm_executor::{RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook};
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_pack::{Host as PackHost, PackOptions, PackResult, api as pack_api};
+use pnpm_pack::{
+    Host as PackHost, PackOptions, PackResult, WorkspacePackageManifest, api as pack_api,
+};
 use pnpm_publish::{
     Access, Host, OidcHttpOptions, PackedPkg, PublishNetwork, PublishPackedPkgOptions,
     PublishSummary, extract_publish_manifest_from_packed, is_tarball_path, publish_packed_pkg,
@@ -196,6 +198,7 @@ impl PublishArgs {
                     &opts,
                     &network,
                     &before_packing_hooks,
+                    None,
                 )
                 .await?
             };
@@ -239,9 +242,15 @@ impl PublishArgs {
         opts: &PublishPackedPkgOptions,
         network: &PublishNetwork<'_>,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
+        workspace_packages: Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
     ) -> miette::Result<PublishSummary> {
-        let packed =
-            self.pack_directory::<Reporter>(project_dir, config, before_packing_hooks).await?;
+        let packed = self.pack_directory::<Reporter>(
+            project_dir,
+            config,
+            before_packing_hooks,
+            workspace_packages,
+        )
+        .await?;
         let summary =
             publish_packed_pkg::<Host, Reporter>(&packed.packed_pkg(), opts, network).await?;
 
@@ -254,6 +263,7 @@ impl PublishArgs {
         project_dir: &Path,
         config: &Config,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
+        workspace_packages: Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
     ) -> miette::Result<PackedDirectory> {
         let manifest = pnpm_package_manifest::safe_read_project_manifest_from_dir(project_dir)
             .into_diagnostic()
@@ -281,6 +291,7 @@ impl PublishArgs {
             config,
             pack_destination.path(),
             before_packing_hooks,
+            workspace_packages,
         )
         .await?;
         let tarball_data = std::fs::read(&pack_result.tarball_path)
@@ -331,7 +342,22 @@ impl PublishArgs {
         config: &Config,
         pack_destination: &Path,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
+        workspace_packages: Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
     ) -> miette::Result<PackResult> {
+        let workspace_packages = workspace_packages
+            .cloned()
+            .or_else(|| {
+                crate::cli_args::workspace_packages::discover_workspace_package_manifests(
+                    config.workspace_dir.as_deref(),
+                    config,
+                )
+            });
+        let manifest = crate::cli_args::workspace_packages::create_publish_pack_manifest_options(
+            &self.flags.manifest,
+            config,
+            before_packing_hooks,
+            workspace_packages,
+        )?;
         let mut options = PackOptions {
             dir: dir.to_path_buf(),
             workspace_dir: config.workspace_dir.clone(),
@@ -342,22 +368,7 @@ impl PublishArgs {
                 extra_bin_paths: config.extra_bin_paths.clone(),
                 extra_env: config.extra_env.clone(),
             },
-            manifest: pnpm_pack::PackManifestOptions {
-                catalogs: crate::cli_args::catalogs::configured_catalogs(config)?,
-                catalogs_dir: config.workspace_dir.clone(),
-                embed_readme: resolve_bool_override(
-                    self.flags.manifest.embed_readme,
-                    self.flags.manifest.no_embed_readme,
-                    config.embed_readme,
-                ),
-                node_linker: config.node_linker,
-                skip_obfuscation: resolve_bool_override(
-                    self.flags.manifest.skip_manifest_obfuscation,
-                    self.flags.manifest.no_skip_manifest_obfuscation,
-                    config.skip_manifest_obfuscation,
-                ),
-                before_packing_hooks: before_packing_hooks.to_vec(),
-            },
+            manifest,
             output: pnpm_pack::PackOutputOptions {
                 gzip_level: None,
                 dry_run: false,

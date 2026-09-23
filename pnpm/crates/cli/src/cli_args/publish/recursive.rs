@@ -38,50 +38,64 @@ use std::{
     time::Duration,
 };
 
+struct RecursivePublishContext<'a> {
+    config: &'a Config,
+    opts: &'a pnpm_publish::PublishPackedPkgOptions,
+    network: &'a PublishNetwork<'a>,
+    before_packing_hooks: &'a [Arc<dyn PnpmfileHooks>],
+    to_publish: &'a HashSet<PathBuf>,
+    project_dependencies: &'a indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
+    workspace_packages:
+        &'a Arc<std::collections::HashMap<String, pnpm_pack::WorkspacePackageManifest>>,
+}
+
+fn order_publish_roots(
+    dependencies: &indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
+    to_publish: &HashSet<PathBuf>,
+) -> Vec<PathBuf> {
+    let edges = dependencies
+        .iter()
+        .map(|(root, deps)| (root.clone(), deps.clone()))
+        .collect();
+    let keys = dependencies
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    graph_sequencer(&edges, &keys).order
+        .into_iter()
+        .filter(|root| to_publish.contains(root))
+        .collect()
+}
+
 impl PublishArgs {
     /// Pack every project in dependency order, then publish the archives
     /// as one batch.
     async fn publish_batch<Reporter: self::Reporter>(
         &self,
-        config: &Config,
-        opts: &pnpm_publish::PublishPackedPkgOptions,
-        network: &PublishNetwork<'_>,
-        before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-        to_publish: &HashSet<PathBuf>,
-        project_dependencies: &indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
+        ctx: &RecursivePublishContext<'_>,
     ) -> miette::Result<Vec<PublishSummary>> {
-        let mut packed = Vec::with_capacity(to_publish.len());
-        let edges = project_dependencies
-            .iter()
-            .map(|(root, dependencies)| (root.clone(), dependencies.clone()))
-            .collect();
-        let order = graph_sequencer(
-            &edges,
-            &project_dependencies
-                .keys()
-                .cloned()
-                .collect::<Vec<_>>(),
-        )
-        .order;
-        for root in order
-            .into_iter()
-            .filter(|root| to_publish.contains(root))
-        {
-            packed.push(
-                self.pack_directory::<Reporter>(&root, config, before_packing_hooks).await?,
-            );
+        let mut packed = Vec::with_capacity(ctx.to_publish.len());
+        for root in order_publish_roots(ctx.project_dependencies, ctx.to_publish) {
+            let pkg = self.pack_directory::<Reporter>(
+                &root,
+                ctx.config,
+                ctx.before_packing_hooks,
+                Some(ctx.workspace_packages),
+            )
+            .await?;
+            packed.push(pkg);
         }
         let packages = packed
             .iter()
-            .map(|package| package.packed_pkg())
+            .map(|pkg| pkg.packed_pkg())
             .collect::<Vec<_>>();
         batch_publish_packed_pkgs::<Reporter, _, miette::Report>(
             &packages,
-            opts,
-            network,
-            |package_indexes| {
-                for &package_index in package_indexes {
-                    self.run_post_publish_scripts::<Reporter>(&packed[package_index], config)?;
+            ctx.opts,
+            ctx.network,
+            |indexes| {
+                for &index in indexes {
+                    self.run_post_publish_scripts::<Reporter>(&packed[index], ctx.config)?;
                 }
                 Ok(())
             },
@@ -91,33 +105,12 @@ impl PublishArgs {
 
     async fn publish_selected<Reporter: self::Reporter>(
         &self,
-        config: &Config,
-        opts: &pnpm_publish::PublishPackedPkgOptions,
-        network: &PublishNetwork<'_>,
-        before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-        to_publish: &HashSet<PathBuf>,
-        project_dependencies: &indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
+        ctx: &RecursivePublishContext<'_>,
     ) -> miette::Result<Vec<PublishSummary>> {
         if self.flags.batch {
-            self.publish_batch::<Reporter>(
-                config,
-                opts,
-                network,
-                before_packing_hooks,
-                to_publish,
-                project_dependencies,
-            )
-            .await
+            self.publish_batch::<Reporter>(ctx).await
         } else {
-            self.publish_one_by_one::<Reporter>(
-                config,
-                opts,
-                network,
-                before_packing_hooks,
-                to_publish,
-                project_dependencies,
-            )
-            .await
+            self.publish_one_by_one::<Reporter>(ctx).await
         }
     }
 
@@ -151,29 +144,20 @@ impl PublishArgs {
         // selection; its own name/version/private eligibility check drops it
         // below.
         let (projects, _patterns) = discover_workspace_projects(workspace_root, config)?;
+        let workspace_packages = Arc::new(
+            crate::cli_args::workspace_packages::build_workspace_package_manifest_map(&projects),
+        );
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let graph = &selection.selected;
-        // An empty selection is a no-op (exit 0) that writes no summary —
-        // whether the workspace enumerates no project at all or a `--filter`
-        // narrowed it to nothing: publishing returns before the handler when
-        // there are no projects at all or the selection is empty.
         if graph.is_empty() {
             return Ok(Vec::new());
         }
 
         let http_client = build_registry_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
-        let opts = self.checked_recursive_publish_options(config, stage)?;
-
-        // Filter the selected graph: keep only packages that have a name and
-        // version, are not private, and — unless `--force` — are not already on
-        // their registry. The already-published probes are independent registry
-        // reads, so run them concurrently rather than one round-trip at a time
-        // (the `ThrottledClient` still bounds the actual in-flight fan-out).
-        let to_publish =
-            self.projects_to_publish(graph, config, &http_client, retry_opts_from_config(config))
-                .await;
+        let (opts, to_publish) =
+            self.prepare_recursive_candidates(graph, config, stage, &http_client).await?;
 
         if to_publish.is_empty() {
             emit_info::<Reporter>("There are no new packages that should be published", dir);
@@ -187,29 +171,39 @@ impl PublishArgs {
             selection.prod_all.as_ref(),
             &selection.prod_only_selected,
         );
-        let published = self.publish_selected::<Reporter>(
+        let ctx = RecursivePublishContext {
             config,
-            &opts,
-            &network,
+            opts: &opts,
+            network: &network,
             before_packing_hooks,
-            &to_publish,
-            &project_dependencies,
-        )
-        .await?;
+            to_publish: &to_publish,
+            project_dependencies: &project_dependencies,
+            workspace_packages: &workspace_packages,
+        };
+        let published = self.publish_selected::<Reporter>(&ctx).await?;
         self.write_summary(workspace_root, &published)?;
         Ok(published)
+    }
+
+    async fn prepare_recursive_candidates(
+        &self,
+        graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+        config: &Config,
+        stage: bool,
+        http_client: &pnpm_network::ThrottledClient,
+    ) -> miette::Result<(pnpm_publish::PublishPackedPkgOptions, HashSet<PathBuf>)> {
+        let opts = self.checked_recursive_publish_options(config, stage)?;
+        let to_publish =
+            self.projects_to_publish(graph, config, http_client, retry_opts_from_config(config))
+                .await;
+        Ok((opts, to_publish))
     }
 
     /// Publish in dependency order, one project at a time: an OTP challenge
     /// is interactive and per-process.
     async fn publish_one_by_one<Reporter: self::Reporter>(
         &self,
-        config: &Config,
-        opts: &pnpm_publish::PublishPackedPkgOptions,
-        network: &PublishNetwork<'_>,
-        before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-        to_publish: &HashSet<PathBuf>,
-        project_dependencies: &indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
+        ctx: &RecursivePublishContext<'_>,
     ) -> miette::Result<Vec<PublishSummary>> {
         let published: Mutex<Vec<PublishSummary>> = Mutex::new(Vec::new());
         let first_error: Mutex<Option<miette::Report>> = Mutex::new(None);
@@ -217,15 +211,16 @@ impl PublishArgs {
             let published = &published;
             let first_error = &first_error;
             async move {
-                if !to_publish.contains(&root) {
+                if !ctx.to_publish.contains(&root) {
                     return TaskCompletion::Passed;
                 }
                 let result = self.publish_directory::<Reporter>(
                     &root,
-                    config,
-                    opts,
-                    network,
-                    before_packing_hooks,
+                    ctx.config,
+                    ctx.opts,
+                    ctx.network,
+                    ctx.before_packing_hooks,
+                    Some(ctx.workspace_packages),
                 )
                 .await;
                 record_publish_outcome(published, first_error, result)
@@ -233,7 +228,7 @@ impl PublishArgs {
         };
         let on_node_skipped: fn(&PathBuf) = |_| {};
         schedule_graph_async(
-            project_dependencies,
+            ctx.project_dependencies,
             &ScheduleGraphAsyncOptions::new(1, true, &run_node, &on_node_skipped),
         )
         .await;
