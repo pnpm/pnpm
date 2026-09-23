@@ -3,6 +3,8 @@
 "@pnpm/resolving.local-resolver": patch
 "@pnpm/deps.status": patch
 "@pnpm/lockfile.fs": patch
+"@pnpm/lockfile.utils": patch
+"@pnpm/installing.deps-resolver": patch
 "pnpm": patch
 ---
 
