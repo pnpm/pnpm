@@ -701,7 +701,7 @@ printf '%s\n' "$@"
     assert_eq!(actual, expected);
 }
 
-#[cfg(unix)]
+#[cfg_attr(not(unix), ignore = "requires Bash")]
 #[test]
 fn completion_bash_completes_words_split_at_word_breaks() {
     let project = project_with_scripts(&["build", "test:e2e", "test:unit"]);
