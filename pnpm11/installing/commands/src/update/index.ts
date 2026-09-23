@@ -448,17 +448,14 @@ async function update (
   const packageDependencies = updateActions
     ? dependencies.filter((dependency) => !isGitHubActionSelector(dependency))
     : dependencies
-  // include is always all-true for updates: updates should not change which
-  // dep types the modules directory supports. The filtering of which deps to
-  // actually resolve/update is handled by includeDirect (from CLI flags).
-  // This matches the original behavior where rawConfig didn't have derived
-  // values like dev=false from --prod, so include defaulted to all-true.
-  const include = {
-    dependencies: true,
-    devDependencies: true,
-    optionalDependencies: true,
-    ...(opts.cliOptions.peer === true ? { peerDependencies: true } : {}),
-  }
+  const include = opts.include ?? (opts.cliOptions.peer === true
+    ? {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+      peerDependencies: true,
+    }
+    : undefined)
   const depth = opts.depth ?? Infinity
   let updateMatching: UpdateMatchingFunction | undefined
   if (opts.packageVulnerabilityAudit != null) {
@@ -524,7 +521,7 @@ function makeIncludeDependenciesFromCLI (opts: {
   return {
     dependencies: opts.production === true || (opts.dev !== true && opts.optional !== true),
     devDependencies: opts.dev === true || (opts.production !== true && opts.optional !== true),
-    optionalDependencies: opts.optional === true || (opts.production !== true && opts.dev !== true),
+    optionalDependencies: opts.optional !== false && opts.dev !== true,
     ...(opts.peer === true ? { peerDependencies: true } : {}),
   }
 }

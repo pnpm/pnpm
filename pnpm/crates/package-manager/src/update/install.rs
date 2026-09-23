@@ -12,7 +12,7 @@ use super::{
 use crate::{
     Install, PolicyExcludes, UpdateSeedPolicy, WorkspaceInstallSelection,
     catalog_cleanup::{write_workspace_catalogs, write_workspace_catalogs_selected},
-    defer_ignored_builds, included_direct_groups,
+    defer_ignored_builds,
     manifest_spec_bumps::ManifestSpecBumps,
 };
 use pipe_trait::Pipe;
@@ -142,10 +142,12 @@ pub(super) struct UpdateSeed {
     pub(super) preferred_versions_override: PreferredVersions,
     pub(super) catalogs_override: Option<Catalogs>,
 }
-/// Every ordinary direct group remains included for updates: the materialized
-/// `node_modules` layout must not change just because the update scope was
-/// narrowed. An explicitly selected peer group also reaches resolution; the
-/// install still honors `autoInstallPeers` when deciding whether to materialize
+/// The materialized `node_modules` layout is preserved from `.modules.yaml`
+/// (so an update does not install devDependencies when previously installed
+/// with `--prod`, and does not prune them when previously installed with full
+/// dependencies). If no prior layout exists, the direct update groups apply.
+/// An explicitly selected peer group also reaches resolution; the install
+/// still honors `autoInstallPeers` when deciding whether to materialize
 /// those peers.
 /// `update` always re-resolves against the registry, so the
 /// auto-frozen / repeat-install fast paths must not fire.
@@ -201,7 +203,35 @@ fn update_dependency_groups(
     update: &UpdateOptions<'_>,
     owned: &UpdateResources,
 ) -> Vec<DependencyGroup> {
-    included_direct_groups(update.config.optional)
+    let prior_included = pnpm_modules_yaml::read_modules_layout::<pnpm_modules_yaml::Host>(
+        &update.config.modules_dir,
+    )
+    .ok()
+    .flatten()
+    .map(|layout| layout.included);
+
+    let is_explicit_dev = owned.include_direct.contains(&DependencyGroup::Dev)
+        && !owned.include_direct.contains(&DependencyGroup::Prod);
+
+    let (prod, dev, optional) = if let Some(included) = prior_included {
+        (
+            included.dependencies || owned.include_direct.contains(&DependencyGroup::Prod),
+            included.dev_dependencies || is_explicit_dev,
+            included.optional_dependencies && update.config.optional,
+        )
+    } else {
+        (
+            owned.include_direct.contains(&DependencyGroup::Prod),
+            owned.include_direct.contains(&DependencyGroup::Dev),
+            owned.include_direct.contains(&DependencyGroup::Optional)
+                && update.config.optional,
+        )
+    };
+
+    std::iter::empty()
+        .chain(prod.then_some(DependencyGroup::Prod))
+        .chain(dev.then_some(DependencyGroup::Dev))
+        .chain(optional.then_some(DependencyGroup::Optional))
         .chain(
             owned.include_direct.contains(&DependencyGroup::Peer).then_some(DependencyGroup::Peer),
         )

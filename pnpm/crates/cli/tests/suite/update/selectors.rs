@@ -302,6 +302,66 @@ fn update_prod_scopes_and_honors_ignore() {
     drop((root, anchor));
 }
 
+/// When a project is installed with `--prod`, devDependencies are skipped.
+/// A subsequent `update --prod` must not install devDependencies (pnpm/pnpm#8038).
+#[test]
+fn update_prod_does_not_install_dev_dependencies() {
+    let (root, workspace, anchor) = setup();
+
+    let manifest = format!(
+        r#"{{ "name": "test-update", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }}, "devDependencies": {{ "@pnpm.e2e/peer-c": "^1.0.0" }} }}"#,
+    );
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    pacquet(&workspace, ["install", "--prod"]).assert().success();
+
+    assert!(
+        workspace
+            .join("node_modules")
+            .join(DEP)
+            .exists(),
+    );
+    assert!(
+        !workspace
+            .join("node_modules")
+            .join("@pnpm.e2e/peer-c")
+            .exists(),
+    );
+
+    pacquet(&workspace, ["update", "--prod", "--latest"]).assert().success();
+
+    assert!(
+        workspace
+            .join("node_modules")
+            .join(DEP)
+            .exists(),
+    );
+    assert!(
+        !workspace
+            .join("node_modules")
+            .join("@pnpm.e2e/peer-c")
+            .exists(),
+        "dev dependency must not be installed by update --prod when previously installed with --prod",
+    );
+
+    pacquet(&workspace, ["update", DEP, "--latest"]).assert().success();
+
+    assert!(
+        workspace
+            .join("node_modules")
+            .join(DEP)
+            .exists(),
+    );
+    assert!(
+        !workspace
+            .join("node_modules")
+            .join("@pnpm.e2e/peer-c")
+            .exists(),
+        "dev dependency must not be installed by update <pkg> when previously installed with --prod",
+    );
+
+    drop((root, anchor));
+}
+
 /// When every included *direct* dep is ignored, `update --latest` is a
 /// full no-op — it must not re-resolve the non-ignored *indirect* deps.
 /// Mirrors pnpm's early `if (opts.latest) return`.

@@ -1342,3 +1342,29 @@ test('update --latest respects minimumReleaseAge, picking the newest mature vers
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.0.1')
 })
+
+test('update --prod does not install devDependencies when installed with --prod', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--prod'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+
+  await execPnpm(['update', '--prod', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+
+  await execPnpm(['update', 'is-positive', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+})

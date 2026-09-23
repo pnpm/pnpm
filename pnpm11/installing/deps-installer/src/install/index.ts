@@ -409,10 +409,6 @@ export async function mutateModules (
 
   const allowBuild = createAllowBuildFunction(opts)
 
-  if (!opts.include.dependencies && opts.include.optionalDependencies) {
-    throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
-  }
-
   const installsOnly = allMutationsAreInstalls(projects)
   // Removals, and additions the lockfile already holds a version for, may
   // take the fast lockfile update and the frozen-like install; an explicitly
@@ -430,7 +426,23 @@ export async function mutateModules (
     // so reading its manifest explicitly here.
     await safeReadProjectManifestOnly(opts.lockfileDir)
 
-  let ctx = await getContext(opts)
+  const isUpdate = Boolean(
+    (maybeOpts as { update?: boolean }).update ||
+    projects.some((project) => ('update' in project && project.update) || ('updateMatching' in project && project.updateMatching))
+  )
+  let ctx = await getContext(isUpdate ? { ...opts, include: maybeOpts.include } : opts)
+  if (isUpdate && !maybeOpts.include) {
+    const isExplicitDev = Boolean(opts.includeDirect?.devDependencies && !opts.includeDirect?.dependencies)
+    opts.include = {
+      dependencies: ctx.include.dependencies || Boolean(opts.includeDirect?.dependencies),
+      devDependencies: ctx.include.devDependencies || isExplicitDev,
+      optionalDependencies: ctx.include.optionalDependencies && (opts.includeDirect?.optionalDependencies !== false),
+    }
+  }
+
+  if (!opts.include.dependencies && opts.include.optionalDependencies) {
+    throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
+  }
 
   const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
     extraBinPaths: opts.extraBinPaths,
