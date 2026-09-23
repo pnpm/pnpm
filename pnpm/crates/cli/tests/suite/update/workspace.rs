@@ -481,8 +481,6 @@ fn update_strict_catalog_range_covering_the_wanted_version_succeeds() {
     drop((root, anchor));
 }
 
-/// The same update run recursively from the workspace root, the command
-/// `Renovate` runs, moves the one entry every project resolves through.
 #[test]
 fn update_recursive_strict_catalog_range_covering_the_wanted_version_moves_the_entry() {
     let (root, workspace, anchor) = setup();
