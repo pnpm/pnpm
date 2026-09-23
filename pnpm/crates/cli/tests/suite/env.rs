@@ -209,3 +209,60 @@ fn remove_preserves_windows_cmd_shims_targeting_longer_version() {
     assert!(!nodejs_dir.join("18.1.0").exists());
     assert!(nodejs_dir.join("18.10.0").exists());
 }
+
+#[test]
+fn remove_with_custom_global_dir_removes_configured_global_node() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm_home");
+    let global_bin = pnpm_home.join("bin");
+    let custom_global_dir = root.path().join("custom_global");
+    let custom_pkg_dir = custom_global_dir.join("v11");
+    let install_dir = custom_pkg_dir.join("install-node");
+    let node_pkg_dir = install_dir.join("node_modules").join("node");
+
+    std::fs::create_dir_all(&global_bin).unwrap();
+    std::fs::create_dir_all(&node_pkg_dir).unwrap();
+    std::fs::write(
+        install_dir.join("package.json"),
+        serde_json::to_string_pretty(&serde_json::json!({
+            "engines": {
+                "runtime": { "name": "node", "version": "18.12.0", "onFail": "download" },
+            },
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        node_pkg_dir.join("package.json"),
+        serde_json::to_string_pretty(&serde_json::json!({
+            "name": "node",
+            "version": "18.12.0",
+            "bin": { "node": "bin/node" }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&install_dir, custom_pkg_dir.join("hash-node")).unwrap();
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_dir(&install_dir, custom_pkg_dir.join("hash-node")).unwrap();
+
+    let existing_path = std::env::var("PATH").unwrap_or_default();
+    let path = format!("{}:{existing_path}", global_bin.display());
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("PATH", path)
+        .with_args([
+            "--global",
+            &format!("--global-dir={}", custom_global_dir.display()),
+            "env",
+            "rm",
+            "18.12.0",
+        ])
+        .output()
+        .expect("run pacquet env rm");
+
+    assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
+    assert!(!custom_pkg_dir.join("hash-node").exists());
+}
