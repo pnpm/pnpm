@@ -90,22 +90,60 @@ fn create_workspace_yaml_from_yarn_workspaces(
         return Ok(());
     }
     let path = config_root.join(WORKSPACE_MANIFEST_FILENAME);
-    if path
-        .try_exists()
-        .into_diagnostic()
-        .wrap_err_with(|| {
-            format!("check for an existing pnpm-workspace.yaml at {}", path.display())
-        })?
+    // symlink_metadata, not try_exists: a manifest that is a symlink is a
+    // file the repository authored, and following a dangling one would
+    // write the generated YAML to the link's target instead.
+    match std::fs::symlink_metadata(&path) {
+        Ok(_) => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| {
+                    format!("check for an existing pnpm-workspace.yaml at {}", path.display())
+                });
+        }
+    }
+    // Render through the workspace-manifest writer so patterns that are
+    // YAML syntax (a leading `!` or `#`, a newline) come out quoted and
+    // the generated file re-parses to the declared patterns.
+    let text = match pnpm_workspace_manifest_writer::edit_manifest_field(
+        None,
+        "packages",
+        &serde_json::Value::Array(
+            patterns
+                .iter()
+                .map(|pattern| serde_json::Value::String(pattern.clone()))
+                .collect(),
+        ),
+    ) {
+        Ok(pnpm_workspace_manifest_writer::ManifestEdit::Write(text)) => text,
+        Ok(_) => return Ok(()),
+        Err(error) => {
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("render pnpm-workspace.yaml for {}", path.display()));
+        }
+    };
+    // create_new, not write: a manifest that appears between the check and
+    // the write (an editor, a concurrent install) wins, exactly like one
+    // that was there before the check.
+    use std::io::Write as _;
+    let mut file = match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
     {
-        return Ok(());
-    }
-    let mut text = String::from("packages:\n");
-    for pattern in &patterns {
-        text.push_str("  - ");
-        text.push_str(pattern);
-        text.push('\n');
-    }
-    std::fs::write(&path, text)
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(()),
+        Err(error) => {
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("create pnpm-workspace.yaml at {}", path.display()));
+        }
+    };
+    file.write_all(text.as_bytes())
+        .and_then(|()| file.flush())
         .into_diagnostic()
         .wrap_err_with(|| format!("create pnpm-workspace.yaml at {}", path.display()))?;
     emit_config_warning(

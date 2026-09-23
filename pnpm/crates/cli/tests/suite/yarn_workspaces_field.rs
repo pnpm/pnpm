@@ -98,8 +98,8 @@ fn a_workspaces_field_inside_a_pnpm_workspace_stays_quiet() {
     assert_quiet(&output);
 }
 
-/// A hand-authored `pnpm-workspace.yaml` always wins: the install neither
-/// overwrites it nor adds the field's patterns to it.
+/// Existing-file precedence is the promise the converting install makes:
+/// the user's own manifest describes their workspace, not the field.
 #[test]
 fn an_existing_workspace_yaml_is_left_untouched() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -119,8 +119,8 @@ fn an_existing_workspace_yaml_is_left_untouched() {
     assert_eq!(kept, authored);
 }
 
-/// `--ignore-workspace` means "standalone project": the install does not
-/// create a workspace manifest the user just asked it to ignore.
+/// `--ignore-workspace` is the user saying "standalone project", so the
+/// install must not create the very manifest they asked it to ignore.
 #[test]
 fn an_ignored_workspace_creates_no_workspace_yaml() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -160,6 +160,57 @@ fn an_array_without_usable_patterns_keeps_the_unsupported_field_warning() {
         !workspace.join("pnpm-workspace.yaml").exists(),
         "no usable pattern must not create pnpm-workspace.yaml",
     );
+}
+
+/// Patterns that are YAML syntax rather than plain strings survive the
+/// round trip: the generated manifest quotes them, so a later parse sees
+/// the same patterns the manifest declared.
+#[test]
+fn yaml_special_characters_in_patterns_are_quoted_in_the_generated_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r##"{"name":"converted","version":"1.0.0","private":true,"workspaces":["!examples/**","#hidden/*","plain\nnewline"]}"##,
+    );
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    let created =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("workspace yaml created");
+    let parsed: serde_json::Value =
+        serde_saphyr::from_str(&created).expect("generated yaml parses");
+    assert_eq!(
+        parsed,
+        serde_json::json!({"packages": ["!examples/**", "#hidden/*", "plain\nnewline"]}),
+    );
+}
+
+/// A `pnpm-workspace.yaml` that is a symlink is a file the repository
+/// authored, however it resolves: the install neither follows it nor
+/// replaces it, so a dangling link cannot redirect the write elsewhere.
+#[test]
+fn a_symlinked_workspace_yaml_is_neither_followed_nor_replaced() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
+    );
+    let outside = root.path().join("elsewhere.yaml");
+    symlink(&workspace.join("pnpm-workspace.yaml"), &outside).expect("create dangling symlink");
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    assert!(!outside.exists(), "the symlink target outside the workspace must not be written");
+    let meta = fs::symlink_metadata(workspace.join("pnpm-workspace.yaml"))
+        .expect("workspace yaml still a symlink");
+    assert!(meta.file_type().is_symlink(), "the symlink itself must be left in place");
+}
+
+#[cfg(unix)]
+fn symlink(link: &Path, target: &Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(target, link)
 }
 
 /// Yarn's object spelling is the documented limit of the check: pnpm 11
