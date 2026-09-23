@@ -36,8 +36,8 @@ pub(crate) fn link_selected_hoisted_direct_dependencies(
 /// One importer's share of the hoisted direct-dependency linking.
 struct HoistedLinkScope<'a> {
     importer_id: String,
-    /// The workspace root's `node_modules`, where the hoister put the
-    /// dependency copy every project reaches by walking up.
+    /// The workspace root's modules directory, where the hoister put
+    /// the dependency copy every project reaches by walking up.
     root_modules_dir: &'a Path,
     modules_dir: PathBuf,
     is_workspace_root: bool,
