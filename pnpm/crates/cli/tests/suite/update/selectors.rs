@@ -453,6 +453,52 @@ fn update_prod_and_dev_installs_dev_dependencies_in_prod_install() {
     drop((root, anchor));
 }
 
+#[test]
+fn update_preserves_omitted_optional_dependencies() {
+    let (root, workspace, anchor) = setup();
+
+    let manifest = format!(
+        r#"{{ "name": "test-update", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }}, "optionalDependencies": {{ "@pnpm.e2e/peer-c": "^1.0.0" }} }}"#,
+    );
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    pacquet(&workspace, ["install", "--no-optional"]).assert().success();
+
+    assert!(
+        !workspace
+            .join("node_modules")
+            .join("@pnpm.e2e/peer-c")
+            .exists(),
+    );
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert!(
+        workspace
+            .join("node_modules")
+            .join(DEP)
+            .exists(),
+    );
+    assert!(
+        !workspace
+            .join("node_modules")
+            .join("@pnpm.e2e/peer-c")
+            .exists(),
+        "optional dependency must remain omitted on plain update after --no-optional install",
+    );
+
+    pacquet(&workspace, ["update", "--optional", "--latest"]).assert().success();
+
+    assert!(
+        workspace
+            .join("node_modules")
+            .join("@pnpm.e2e/peer-c")
+            .exists(),
+        "optional dependency must be installed by update --optional",
+    );
+
+    drop((root, anchor));
+}
+
 /// When every included *direct* dep is ignored, `update --latest` is a
 /// full no-op — it must not re-resolve the non-ignored *indirect* deps.
 /// Mirrors pnpm's early `if (opts.latest) return`.

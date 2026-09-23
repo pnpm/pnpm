@@ -1433,3 +1433,32 @@ test('update --dev expands layout and persists devDependencies: true in .modules
   project.has('is-positive')
   project.has('is-negative')
 })
+
+test('update preserves optionalDependencies: false from prior install', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    optionalDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--no-optional'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(false)
+
+  await execPnpm(['update', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(false)
+
+  await execPnpm(['update', '--optional', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(true)
+})
