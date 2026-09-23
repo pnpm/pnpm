@@ -269,6 +269,9 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
         .map_err(SyncInjectedDepsError::LinkBins)?;
     }
 
+    if !has_bins && stale_bin_names.is_empty() {
+        return Ok(());
+    }
     relink_project_bins(opts.workspace_dir, &stale_bin_names, opts.ignored_directories)
 }
 

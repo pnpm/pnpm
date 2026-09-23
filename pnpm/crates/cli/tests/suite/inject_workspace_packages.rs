@@ -443,8 +443,6 @@ fn injected_workspace_dependency_updated_re_resolves() {
     drop((root, mock_instance));
 }
 
-/// Workspace whose `project-1` builds `dist/index.js` from its own
-/// `prepare` script, and whose `project-2` gets `project-1` injected.
 fn write_workspace_with_prepare(workspace: &std::path::Path, node_linker: &str) {
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
