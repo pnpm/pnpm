@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@pnpm/byline": "catalog:",
+    "@pnpm/cli.meta": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@yarnpkg/fslib": "catalog:",
     "@yarnpkg/shell": "catalog:",

@@ -26,7 +26,7 @@ use std::{collections::HashMap, path::PathBuf, sync::LazyLock};
 /// binary to forward to — and the build then falls back to whatever
 /// package managers the host has installed.
 static PNPM_EXECPATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
-    let path = std::env::current_exe().ok()?;
+    let path = pnpm_executor::current_pnpm_exe().ok()?;
     let stem = path.file_stem()?.to_str()?;
     (stem == "pnpm").then_some(path)
 });

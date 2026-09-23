@@ -2306,6 +2306,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      empathic:
+        specifier: 'catalog:'
+        version: 2.1.0
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
@@ -4582,6 +4585,9 @@ importers:
       '@pnpm/byline':
         specifier: 'catalog:'
         version: 1.0.0
+      '@pnpm/cli.meta':
+        specifier: workspace:*
+        version: link:../../cli/meta
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
@@ -8097,9 +8103,6 @@ importers:
       '@pnpm/exec.lifecycle':
         specifier: workspace:*
         version: link:../exec/lifecycle
-      '@pnpm/exec.pnpm-cli-runner':
-        specifier: workspace:*
-        version: link:../exec/pnpm-cli-runner
       '@pnpm/hooks.pnpmfile':
         specifier: workspace:*
         version: link:../hooks/pnpmfile

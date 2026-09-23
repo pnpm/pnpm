@@ -380,8 +380,8 @@ fn run_install_smoke_test(base: &Path) -> Result<(), String> {
     // A throwaway store keeps the probe from writing into the real one. The
     // fixture is a temp directory with no lockfile and no workspace above it,
     // so nothing here depends on the lockfile or workspace flags.
-    let current_exe = std::env::current_exe().map_err(|error| error.to_string())?;
-    let output = Command::new(current_exe)
+    let pnpm = pnpm_executor::current_pnpm_exe().map_err(|error| error.to_string())?;
+    let output = Command::new(pnpm)
         .current_dir(&consumer)
         .args(["install", "--offline", "--ignore-scripts"])
         .arg(format!("--store-dir={}", store.display()))
