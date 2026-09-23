@@ -1,4 +1,5 @@
 ---
+"@pnpm/resolving.npm-resolver": patch
 "@pnpm/workspace.range-resolver": patch
 "pnpm": patch
 "pacquet": patch
