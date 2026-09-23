@@ -211,8 +211,6 @@ fn for_installs_ignores_ca_entries_that_carry_no_certificate() {
 
 #[test]
 fn unreadable_ca_does_not_disable_default_trust_anchors() {
-    // When `ca` contains only malformed or unresolvable entries,
-    // default trust anchors must not be discarded with `tls_certs_only(empty)`.
     let unreadable_tls = TlsConfig {
         ca: vec!["not a pem certificate".to_string(), String::new()],
         ..TlsConfig::default()
@@ -236,7 +234,6 @@ fn unreadable_ca_does_not_disable_default_trust_anchors() {
     );
     assert!(client.is_ok(), "client with unreadable CA should build with default trust roots");
 
-    // Valid custom CA material must set has_custom_ca and select CustomOnly roots.
     let valid_tls = TlsConfig { ca: vec![TEST_CA_PEM.to_string()], ..TlsConfig::default() };
     let applied_valid =
         apply_tls(reqwest::Client::builder(), &valid_tls).expect("apply_tls succeeds");
@@ -247,7 +244,6 @@ fn unreadable_ca_does_not_disable_default_trust_anchors() {
         "valid custom CA must select CustomOnly roots",
     );
 
-    // Mixed readable and unreadable entries must also select CustomOnly roots.
     let mixed_tls = TlsConfig {
         ca: vec!["not a pem certificate".to_string(), TEST_CA_PEM.to_string()],
         ..TlsConfig::default()
