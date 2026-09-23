@@ -2,8 +2,9 @@ use super::{
     Config, Context, Host, InstallArgs, Path, PathBuf, ReporterType, read_manifest_json,
     reporter_emit, resolve_bool_override, warn_deprecated_override_version_references,
     warn_ignored_pnpm_manifest_fields, warn_unapplied_package_configs,
-    warn_unmatched_registry_options, warn_unsupported_workspaces_field,
+    warn_unmatched_registry_options,
 };
+use crate::cli_args::yarn_workspaces_field::create_workspace_yaml_from_yarn_workspaces;
 
 /// [`select_workspace_projects`](super::select_workspace_projects), optionally running the install's
 /// workspace-cycle search over the selection graph while it is still in
@@ -27,7 +28,7 @@ pub(super) fn apply_runtime_on_fail(cfg: &Config, projects: &mut [pnpm_workspace
 /// Shared workspace-root and package-manager policy derivation used by the
 /// install, dedupe, and prune dispatch paths.
 pub(crate) fn derive_config_root(
-    cfg: &Config,
+    cfg: &mut Config,
     dir_ref: &Path,
     reporter: ReporterType,
 ) -> miette::Result<PathBuf> {
@@ -38,7 +39,7 @@ pub(crate) fn derive_config_root(
     // install output. This is the install family's earliest point that
     // knows the root manifest's directory.
     warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
-    warn_unsupported_workspaces_field(root_manifest.as_ref(), cfg.workspace_dir.as_deref());
+    create_workspace_yaml_from_yarn_workspaces(cfg, dir_ref, root_manifest.as_ref())?;
     warn_deprecated_override_version_references(cfg, reporter_emit(reporter));
     warn_unmatched_registry_options(cfg);
     warn_unapplied_package_configs(cfg);

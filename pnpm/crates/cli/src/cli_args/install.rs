@@ -14,7 +14,6 @@ use crate::{
         package_manager::read_root_manifest_json, pipelines::InstallFamilySelection,
         recursive::discover_workspace_projects,
         supported_architectures::SupportedArchitecturesArgs,
-        yarn_workspaces_field::warn_unsupported_workspaces_field,
     },
 };
 use clap::{Args, ValueEnum};
