@@ -281,8 +281,6 @@ async fn resolve_target_version(
     Ok(resolved.version)
 }
 
-/// The output of a run that touched both the project pin and the global
-/// install: one line each, so neither outcome hides the other.
 fn join_messages(first: Option<String>, second: Option<String>) -> Option<String> {
     match (first, second) {
         (Some(first), Some(second)) => Some(format!("{first}\n{second}")),
