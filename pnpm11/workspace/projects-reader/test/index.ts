@@ -84,16 +84,16 @@ test('findWorkspaceProjectsSync() works synchronously', () => {
 const customModulesDirFixture = path.join(import.meta.dirname, '__fixtures__/custom-modules-dir')
 
 test.each([
-  [{ modulesDir: 'vendor' }, ['app', 'nested-dep', 'root']],
-  [{ modulesDir: 'vendor/' }, ['app', 'nested-dep', 'root']],
-  [{ modulesDir: 'deps/nested' }, ['app', 'dep', 'root']],
-  [{ modulesDir: 'node_modules' }, ['app', 'dep', 'nested-dep', 'root']],
-  [{ modulesDir: '../vendor' }, ['app', 'dep', 'nested-dep', 'root']],
-  [{ modulesDir: '.' }, ['app', 'dep', 'nested-dep', 'root']],
-  [{ modulesDir: path.join(customModulesDirFixture, 'packages/app/vendor') }, ['app', 'nested-dep', 'root']],
-  [{ modulesDir: path.resolve(customModulesDirFixture, '../vendor') }, ['app', 'dep', 'nested-dep', 'root']],
-  [{ projectModulesDirs: ['deps/nested'] }, ['app', 'dep', 'root']],
-  [{ modulesDir: 'vendor', projectModulesDirs: ['deps/nested'] }, ['app', 'root']],
+  [{ modulesDir: 'vendor' }, ['app', 'nested-dep', 'root', 'vendored-lib']],
+  [{ modulesDir: 'vendor/' }, ['app', 'nested-dep', 'root', 'vendored-lib']],
+  [{ modulesDir: 'deps/nested' }, ['app', 'dep', 'lib-dep', 'root', 'vendored-lib']],
+  [{ modulesDir: 'node_modules' }, ['app', 'dep', 'lib-dep', 'nested-dep', 'root', 'vendored-lib']],
+  [{ modulesDir: '../vendor' }, ['app', 'dep', 'lib-dep', 'nested-dep', 'root', 'vendored-lib']],
+  [{ modulesDir: '.' }, ['app', 'dep', 'lib-dep', 'nested-dep', 'root', 'vendored-lib']],
+  [{ modulesDir: path.join(customModulesDirFixture, 'packages/app/vendor') }, ['app', 'lib-dep', 'nested-dep', 'root', 'vendored-lib']],
+  [{ modulesDir: path.resolve(customModulesDirFixture, '../vendor') }, ['app', 'dep', 'lib-dep', 'nested-dep', 'root', 'vendored-lib']],
+  [{ projectModulesDirs: ['deps/nested'] }, ['app', 'dep', 'lib-dep', 'root', 'vendored-lib']],
+  [{ modulesDir: 'vendor', projectModulesDirs: ['deps/nested'] }, ['app', 'root', 'vendored-lib']],
 ])('findWorkspaceProjectsNoCheck() skips the modules directories in %o', async (modulesDirOpts, expectedNames) => {
   const opts = { patterns: ['**'], ...modulesDirOpts }
 
