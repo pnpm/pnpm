@@ -1154,10 +1154,6 @@ export function pickMatchingLocalVersionOrNull (
   }
 }
 
-/**
- * Orders semver versions first, highest first, then the versions that are not
- * valid semver in descending string order.
- */
 function rcompareVersions (a: string, b: string): number {
   const aIsSemver = semver.valid(a) != null
   const bIsSemver = semver.valid(b) != null

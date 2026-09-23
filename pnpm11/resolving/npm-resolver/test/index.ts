@@ -2902,9 +2902,9 @@ test('workspace protocol: resolution fails listing available versions that are n
 })
 
 test.each([
-  [['10.0.0', '100', '2.0.0', '3']],
-  [['100', '2.0.0', '3', '10.0.0']],
-  [['3', '2.0.0', '100', '10.0.0']],
+  [['10.0.0', '100', '2.0.0', '3', '\u{E000}', '\u{10000}']],
+  [['100', '\u{10000}', '2.0.0', '3', '10.0.0', '\u{E000}']],
+  [['\u{E000}', '3', '2.0.0', '100', '\u{10000}', '10.0.0']],
 ])('workspace protocol: resolution fails listing semver versions before non-semver ones (insertion order: %j)', async (versions) => {
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
@@ -2926,7 +2926,7 @@ test.each([
   await expect(resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'workspace:^50.0.0' }, {
     projectDir,
     workspacePackages,
-  })).rejects.toThrow('Available versions: 10.0.0, 2.0.0, 3, 100')
+  })).rejects.toThrow('Available versions: 10.0.0, 2.0.0, \u{E000}, \u{10000}, 3, 100')
 })
 
 test('workspace protocol: resolution fails if there are no local packages', async () => {
