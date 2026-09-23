@@ -20,6 +20,15 @@ export function createProjectModulesDirResolver (opts: ProjectModulesDirOptions)
   return (projectName) => (projectName == null ? undefined : projectConfigs?.[projectName]?.modulesDir) ?? opts.modulesDir
 }
 
+/**
+ * The modules directories that packageConfigs sets for individual projects.
+ * Empty in shared-lockfile workspaces, which ignore packageConfigs.
+ */
+export function listProjectModulesDirs (opts: ProjectModulesDirOptions): string[] {
+  if (opts.lockfileDir != null) return []
+  return Object.values(createProjectConfigRecord(opts) ?? {}).flatMap(({ modulesDir }) => modulesDir ?? [])
+}
+
 export class ProjectConfigIsNotAnObjectError extends PnpmError {
   readonly actualRawConfig: unknown
   constructor (actualRawConfig: unknown) {

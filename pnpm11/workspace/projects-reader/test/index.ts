@@ -81,19 +81,23 @@ test('findWorkspaceProjectsSync() works synchronously', () => {
   ])
 })
 
+const customModulesDirFixture = path.join(import.meta.dirname, '__fixtures__/custom-modules-dir')
+
 test.each([
-  ['vendor', ['app', 'nested-dep', 'root']],
-  ['vendor/', ['app', 'nested-dep', 'root']],
-  ['deps/nested', ['app', 'dep', 'root']],
-  ['node_modules', ['app', 'dep', 'nested-dep', 'root']],
-  ['../vendor', ['app', 'dep', 'nested-dep', 'root']],
-  [path.resolve('/vendor'), ['app', 'dep', 'nested-dep', 'root']],
-  ['.', ['app', 'dep', 'nested-dep', 'root']],
-])('findWorkspaceProjectsNoCheck() skips the modulesDir %s inside every project', async (modulesDir, expectedNames) => {
-  const fixturePath = path.join(import.meta.dirname, '__fixtures__/custom-modules-dir')
-  const opts = { patterns: ['**'], modulesDir }
+  [{ modulesDir: 'vendor' }, ['app', 'nested-dep', 'root']],
+  [{ modulesDir: 'vendor/' }, ['app', 'nested-dep', 'root']],
+  [{ modulesDir: 'deps/nested' }, ['app', 'dep', 'root']],
+  [{ modulesDir: 'node_modules' }, ['app', 'dep', 'nested-dep', 'root']],
+  [{ modulesDir: '../vendor' }, ['app', 'dep', 'nested-dep', 'root']],
+  [{ modulesDir: '.' }, ['app', 'dep', 'nested-dep', 'root']],
+  [{ modulesDir: path.join(customModulesDirFixture, 'packages/app/vendor') }, ['app', 'nested-dep', 'root']],
+  [{ modulesDir: path.resolve(customModulesDirFixture, '../vendor') }, ['app', 'dep', 'nested-dep', 'root']],
+  [{ projectModulesDirs: ['deps/nested'] }, ['app', 'dep', 'root']],
+  [{ modulesDir: 'vendor', projectModulesDirs: ['deps/nested'] }, ['app', 'root']],
+])('findWorkspaceProjectsNoCheck() skips the modules directories in %o', async (modulesDirOpts, expectedNames) => {
+  const opts = { patterns: ['**'], ...modulesDirOpts }
 
   const names = (projects: Array<{ manifest: { name?: string } }>) => projects.map(({ manifest }) => manifest.name).sort()
-  expect(names(await findWorkspaceProjectsNoCheck(fixturePath, opts))).toStrictEqual(expectedNames)
-  expect(names(findWorkspaceProjectsNoCheckSync(fixturePath, opts))).toStrictEqual(expectedNames)
+  expect(names(await findWorkspaceProjectsNoCheck(customModulesDirFixture, opts))).toStrictEqual(expectedNames)
+  expect(names(findWorkspaceProjectsNoCheckSync(customModulesDirFixture, opts))).toStrictEqual(expectedNames)
 })

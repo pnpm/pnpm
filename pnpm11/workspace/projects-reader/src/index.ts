@@ -26,6 +26,12 @@ export interface FindWorkspaceProjectsOpts {
    */
   modulesDir?: string
 
+  /**
+   * The `modulesDir` values that `packageConfigs` sets for individual
+   * projects, skipped the same way.
+   */
+  projectModulesDirs?: string[]
+
   engineStrict?: boolean
   nodeVersion?: string
   sharedWorkspaceLockfile?: boolean
@@ -77,11 +83,11 @@ export function findWorkspaceProjectsSync (
   return projects
 }
 
-type FindWorkspaceProjectsNoCheckOpts = Pick<FindWorkspaceProjectsOpts, 'patterns' | 'modulesDir'>
+type FindWorkspaceProjectsNoCheckOpts = Pick<FindWorkspaceProjectsOpts, 'patterns' | 'modulesDir' | 'projectModulesDirs'>
 
 export async function findWorkspaceProjectsNoCheck (workspaceRoot: string, opts?: FindWorkspaceProjectsNoCheckOpts): Promise<Project[]> {
   const projects = await findPackages(workspaceRoot, {
-    ignore: discoveryIgnorePatterns(opts?.modulesDir),
+    ignore: discoveryIgnorePatterns(workspaceRoot, opts),
     includeRoot: true,
     patterns: opts?.patterns,
   })
@@ -91,7 +97,7 @@ export async function findWorkspaceProjectsNoCheck (workspaceRoot: string, opts?
 
 export function findWorkspaceProjectsNoCheckSync (workspaceRoot: string, opts?: FindWorkspaceProjectsNoCheckOpts): Project[] {
   const projects = findPackagesSync(workspaceRoot, {
-    ignore: discoveryIgnorePatterns(opts?.modulesDir),
+    ignore: discoveryIgnorePatterns(workspaceRoot, opts),
     includeRoot: true,
     patterns: opts?.patterns,
   })
@@ -99,25 +105,35 @@ export function findWorkspaceProjectsNoCheckSync (workspaceRoot: string, opts?: 
   return projects
 }
 
-function discoveryIgnorePatterns (modulesDir: string | undefined): string[] {
-  const ignore = ['**/node_modules/**', '**/bower_components/**']
-  const projectModulesDir = modulesDir == null ? undefined : relativeProjectDir(modulesDir)
-  if (projectModulesDir != null && projectModulesDir !== 'node_modules') {
-    ignore.push(`**/${convertPathToPattern(projectModulesDir)}/**`)
+function discoveryIgnorePatterns (workspaceRoot: string, opts: FindWorkspaceProjectsNoCheckOpts | undefined): string[] {
+  const ignore = new Set(['**/node_modules/**', '**/bower_components/**'])
+  for (const modulesDir of [opts?.modulesDir, ...(opts?.projectModulesDirs ?? [])]) {
+    if (modulesDir == null) continue
+    const pattern = path.isAbsolute(modulesDir)
+      ? workspaceDirPattern(path.relative(workspaceRoot, modulesDir))
+      : projectDirPattern(path.relative('.', modulesDir))
+    if (pattern != null) ignore.add(`${pattern}/**`)
   }
-  return ignore
+  return Array.from(ignore)
 }
 
 /**
- * `dir` as a path below a project directory, or `undefined` when it does
- * not name one: an absolute path, one that climbs out, or the project
- * directory itself.
+ * An absolute `modulesDir` is one directory, which only needs skipping when
+ * it is inside the workspace.
  */
-function relativeProjectDir (dir: string): string | undefined {
-  if (path.isAbsolute(dir)) return undefined
-  const normalized = path.relative('.', dir)
-  if (normalized === '' || normalized === '..' || normalized.startsWith(`..${path.sep}`)) return undefined
-  return normalized
+function workspaceDirPattern (relativeToWorkspace: string): string | undefined {
+  return isBelow(relativeToWorkspace) ? convertPathToPattern(relativeToWorkspace) : undefined
+}
+
+/**
+ * A relative `modulesDir` is created inside every project that uses it.
+ */
+function projectDirPattern (relativeToProject: string): string | undefined {
+  return isBelow(relativeToProject) ? `**/${convertPathToPattern(relativeToProject)}` : undefined
+}
+
+function isBelow (relativePath: string): boolean {
+  return relativePath !== '' && relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`) && !path.isAbsolute(relativePath)
 }
 
 const uselessNonRootManifestFields: Array<keyof ProjectManifest> = ['resolutions']
