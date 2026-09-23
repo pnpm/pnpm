@@ -18,7 +18,7 @@ import {
   runLifecycleHook,
   type RunLifecycleHookOptions,
 } from '@pnpm/exec.lifecycle'
-import type { DependencyManifest, PackageScripts, ProjectManifest } from '@pnpm/types'
+import type { DependencyManifest, PackageScripts, ProjectManifest, ProjectsGraph } from '@pnpm/types'
 import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
 import pLimit from 'p-limit'
 import { pick } from 'ramda'
@@ -248,6 +248,9 @@ export async function handler (
 
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
+      if (opts.fallbackCommandUsed && !opts.ifPresent && !opts.dryRun && !someSelectedProjectHasScript(opts.selectedProjectsGraph, scriptName)) {
+        return exec({ implicitlyFellbackFromRun: true, ...opts }, params)
+      }
       return runRecursive(params, opts)
     }
     dir = Object.keys(opts.selectedProjectsGraph)[0]
@@ -505,6 +508,12 @@ function getRunScriptStages (
   if (scripts[pre] && !main.includes(pre)) stages.unshift({ name: pre, command: scripts[pre] })
   if (scripts[post] && !main.includes(post)) stages.push({ name: post, command: scripts[post] })
   return stages
+}
+
+function someSelectedProjectHasScript (selectedProjectsGraph: ProjectsGraph, scriptName: string): boolean {
+  return Object.values(selectedProjectsGraph).some(({ package: { manifest } }) =>
+    getSpecifiedScriptWithoutStartCommand(manifest.scripts ?? {}, scriptName).length > 0
+  )
 }
 
 function renderCommands (commands: string[][]): string {

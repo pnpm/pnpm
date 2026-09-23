@@ -449,6 +449,44 @@ test('`pnpm recursive run` fails when run against a subset of packages and no pa
   ).rejects.toThrow(/None of the selected packages has a/)
 })
 
+test('"pnpm --filter <pkg> <command>" runs the command in the selected projects when none of them has a script by that name', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(
+    allProjects,
+    [{ namePattern: 'project-1' }, { namePattern: 'project-2' }],
+    { workspaceDir: process.cwd() }
+  )
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    fallbackCommandUsed: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['node', '-e', 'require("fs").writeFileSync("output.txt", process.argv[1])', 'ran'])
+
+  expect(fs.readFileSync('project-1/output.txt', 'utf8')).toBe('ran')
+  expect(fs.readFileSync('project-2/output.txt', 'utf8')).toBe('ran')
+  expect(fs.existsSync('project-3/output.txt')).toBeFalsy()
+})
+
 test('"pnpm run --filter <pkg>" without specifying the script name', async () => {
   preparePackages([
     {

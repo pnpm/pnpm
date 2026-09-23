@@ -130,7 +130,7 @@ pub(super) fn fallback<'a>(
         let config: &'static Config = config;
         let args = with_recursive_run_options(cli_options, args, config);
         if recursive {
-            args.run_recursive(config, dir, reporter)
+            args.run_recursive_fallback(config, dir, reporter).await
         } else {
             args.run_fallback(ExecDirs { run: cli_dir, project: dir }, config, reporter)
         }

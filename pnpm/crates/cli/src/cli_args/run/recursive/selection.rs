@@ -19,16 +19,16 @@ pub(super) fn check_a_project_has_the_script(
     script_name: &str,
     all_packages_selected: bool,
 ) -> miette::Result<()> {
-    if script_name == "test" || args.if_present {
-        return Ok(());
-    }
-    if task_graph
-        .values()
-        .any(|node| node.requested && !node.scripts.is_empty())
-    {
+    if script_name == "test" || args.if_present || a_project_has_the_script(task_graph) {
         return Ok(());
     }
     Err(no_requested_script_error(script_name, all_packages_selected).into())
+}
+
+pub(super) fn a_project_has_the_script(task_graph: &TaskGraph) -> bool {
+    task_graph
+        .values()
+        .any(|node| node.requested && !node.scripts.is_empty())
 }
 
 /// `--no-bail` runs every task whatever fails, so it needs no tracker at
