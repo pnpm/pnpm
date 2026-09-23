@@ -189,6 +189,7 @@ fn yaml_special_characters_in_patterns_are_quoted_in_the_generated_manifest() {
 /// A `pnpm-workspace.yaml` that is a symlink is a file the repository
 /// authored, however it resolves: the install neither follows it nor
 /// replaces it, so a dangling link cannot redirect the write elsewhere.
+#[cfg(unix)]
 #[test]
 fn a_symlinked_workspace_yaml_is_neither_followed_nor_replaced() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

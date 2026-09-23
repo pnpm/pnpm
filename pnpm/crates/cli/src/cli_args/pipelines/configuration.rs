@@ -135,17 +135,38 @@ fn create_workspace_yaml_from_yarn_workspaces(
         .open(&path)
     {
         Ok(file) => file,
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            // The manifest that won the race is the repository's now;
+            // anchor this install to it instead of the single-package
+            // fallback, exactly like one that was there before the check.
+            let manifest = pnpm_workspace::read_workspace_manifest(config_root)
+                .into_diagnostic()
+                .wrap_err_with(|| {
+                    format!("read the pnpm-workspace.yaml created at {}", path.display())
+                })?;
+            if let Some(manifest) = manifest {
+                cfg.workspace_dir = Some(config_root.to_path_buf());
+                cfg.workspace_package_patterns =
+                    Some(pnpm_workspace::workspace_package_patterns(&manifest));
+            }
+            return Ok(());
+        }
         Err(error) => {
             return Err(error)
                 .into_diagnostic()
                 .wrap_err_with(|| format!("create pnpm-workspace.yaml at {}", path.display()));
         }
     };
-    file.write_all(text.as_bytes())
-        .and_then(|()| file.flush())
-        .into_diagnostic()
-        .wrap_err_with(|| format!("create pnpm-workspace.yaml at {}", path.display()))?;
+    if let Err(error) = file.write_all(text.as_bytes()).and_then(|()| file.flush()) {
+        // A half-written manifest would be taken for an authored one by
+        // the next install, which would never retry the conversion;
+        // leave nothing behind when this write fails.
+        drop(file);
+        let _ = std::fs::remove_file(&path);
+        return Err(error)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("create pnpm-workspace.yaml at {}", path.display()));
+    }
     emit_config_warning(
         "Created \"pnpm-workspace.yaml\" from the \"workspaces\" field in package.json.",
     );
