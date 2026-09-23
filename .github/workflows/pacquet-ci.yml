@@ -146,6 +146,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Defender exclusions
+        uses: $/.github/actions/defender-exclusions
+
       # The nextest build holds a full set of debug artifacts in
       # target/, which no longer fits in the hosted runner's free disk —
       # the linker dies with ENOSPC / SIGBUS mid-build. Drop the
