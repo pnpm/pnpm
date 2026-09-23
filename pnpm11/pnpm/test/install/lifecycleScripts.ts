@@ -711,7 +711,6 @@ test('pnpm:devPreinstall runs on local install and is skipped when CI is defined
     },
   })
 
-  // When CI is set to 'true', pnpm:devPreinstall must be skipped while preinstall still runs
   execPnpmSync(['install'], {
     env: { CI: 'true' },
     expectSuccess: true,
@@ -721,7 +720,6 @@ test('pnpm:devPreinstall runs on local install and is skipped when CI is defined
 
   fs.rmSync('ran-preinstall.txt', { force: true })
 
-  // When CI is not defined / false, pnpm:devPreinstall runs
   execPnpmSync(['install'], {
     env: { CI: 'false' },
     expectSuccess: true,
