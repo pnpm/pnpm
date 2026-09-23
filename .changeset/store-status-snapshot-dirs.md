@@ -2,6 +2,4 @@
 "pacquet": patch
 ---
 
-Fixed `pnpm store status` reporting packages with peer dependencies as modified. The check now verifies each package in the peer-suffixed directory where the install placed it.
-
-Skipped optional dependencies are no longer reported as modified either.
+`pnpm store status` no longer reports packages with peer dependencies or skipped optional dependencies as modified [#15383](https://github.com/pnpm/pnpm/issues/15383).

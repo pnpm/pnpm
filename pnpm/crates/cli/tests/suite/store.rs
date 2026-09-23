@@ -344,12 +344,35 @@ fn store_status_ignores_skipped_optional_packages() {
         .assert()
         .success();
 
-    let modules_yaml = fs::read_to_string(workspace.join("node_modules/.modules.yaml"))
-        .expect("read .modules.yaml");
+    let lockfile = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("parse pnpm-lock.yaml")
+        .expect("install writes pnpm-lock.yaml");
+    let snapshot_key = lockfile.snapshots
+        .iter()
+        .flatten()
+        .map(|(key, _)| key)
+        .find(|key| key.to_string().starts_with("@pnpm.e2e/not-compatible-with-any-os@1.0.0("))
+        .expect("the skipped optional must have a peer-suffixed snapshot key");
+    let modules = pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
+        &workspace.join("node_modules"),
+    )
+    .expect("parse .modules.yaml")
+    .expect("install writes .modules.yaml");
     assert!(
-        modules_yaml.contains("not-compatible-with-any-os@1.0.0("),
-        "the skipped optional must be recorded under its peer-suffixed snapshot key:\n{modules_yaml}",
+        modules.skipped.contains(&snapshot_key.to_string()),
+        "the skipped optional must be recorded under its snapshot key {snapshot_key}, got {:?}",
+        modules.skipped,
     );
+    let metadata = lockfile.packages
+        .as_ref()
+        .and_then(|packages| packages.get(&snapshot_key.without_peer()))
+        .expect("the skipped optional must have a packages entry");
+    let store_index_key = pnpm_deps_restorer::store_index_key_for_resolution(
+        &metadata.resolution,
+        &snapshot_key.pkg_id(),
+        true,
+    )
+    .expect("a registry tarball has a store index key");
 
     // Prime the store row the check looks up: the skipped package was
     // never fetched by the install, and without a row store status would
@@ -365,9 +388,8 @@ fn store_status_ignores_skipped_optional_packages() {
         .expect("open the store index store add just wrote");
     let keys = store_index.keys().expect("read the store index keys");
     assert!(
-        keys.iter()
-            .any(|key| key.contains("not-compatible-with-any-os@1.0.0")),
-        "store add must record the skipped optional in the store index, got {keys:?}",
+        keys.contains(&store_index_key),
+        "store add must write the row store status looks up ({store_index_key}), got {keys:?}",
     );
 
     let output = Command::cargo_bin("pnpm")
