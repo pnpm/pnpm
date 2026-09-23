@@ -75,30 +75,21 @@ impl PeerSatisfactionEdges {
     #[must_use]
     pub fn of_graph(graph: &PeerEdgeGraph<'_>) -> Self {
         let candidates = optional_peer_edges(graph.snapshots, graph.packages);
-        let listing_by_target = candidates
-            .values()
-            .flatten()
-            .map(|(_, target)| (target, importers_listing(graph, target)))
-            .collect::<HashMap<_, _>>();
-        let reached_by_listing = listing_by_target
-            .values()
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .map(|listing| (listing, reach_from_importers_not_in(graph, listing)))
-            .collect::<HashMap<_, _>>();
-        let aliases_by_snapshot = candidates
-            .iter()
-            .filter_map(|(key, edges)| {
-                let aliases = edges
-                    .iter()
-                    .filter(|(_, target)| {
-                        !reached_by_listing[&listing_by_target[target]].contains(*key)
-                    })
-                    .map(|(alias, _)| (*alias).clone())
-                    .collect::<HashSet<_>>();
-                (!aliases.is_empty()).then(|| ((*key).clone(), aliases))
-            })
-            .collect();
+        let mut aliases_by_snapshot = HashMap::<PackageKey, HashSet<PkgName>>::new();
+        // One walk per distinct listing, dropped before the next one starts,
+        // so memory stays linear in the graph however many listings there are.
+        for (listing, edges) in edges_by_listing(graph, &candidates) {
+            let reached = reach_from_importers_not_in(graph, &listing);
+            for (key, alias) in edges
+                .into_iter()
+                .filter(|(key, _)| !reached.contains(*key))
+            {
+                aliases_by_snapshot
+                    .entry(key.clone())
+                    .or_default()
+                    .insert(alias.clone());
+            }
+        }
         PeerSatisfactionEdges { aliases_by_snapshot }
     }
 
@@ -148,17 +139,19 @@ impl PeerSatisfactionEdges {
             .iter()
             .filter_map(|(key, aliases)| {
                 let snapshot = snapshots.get(key)?;
-                let aliases = aliases
-                    .iter()
-                    .filter(|alias| !target_retained(snapshot, alias, snapshots))
-                    .cloned()
-                    .collect::<Vec<_>>();
-                (!aliases.is_empty()).then(|| (key.clone(), aliases))
+                let dependencies =
+                    dangling_aliases(snapshot.dependencies.as_ref(), aliases, snapshots);
+                let optional =
+                    dangling_aliases(snapshot.optional_dependencies.as_ref(), aliases, snapshots);
+                (!dependencies.is_empty() || !optional.is_empty()).then(|| {
+                    (key.clone(), dependencies, optional)
+                })
             })
             .collect::<Vec<_>>();
-        for (key, aliases) in dropped {
+        for (key, dependencies, optional) in dropped {
             if let Some(snapshot) = snapshots.get_mut(&key) {
-                remove_entries(snapshot, &aliases);
+                remove_entries(&mut snapshot.dependencies, &dependencies);
+                remove_entries(&mut snapshot.optional_dependencies, &optional);
             }
         }
     }
@@ -226,6 +219,27 @@ fn importers_listing(graph: &PeerEdgeGraph<'_>, target: &PackageKey) -> Vec<usiz
         .collect()
 }
 
+/// The candidate edges grouped by the sorted indices of the importers that
+/// list their target, since the edges of one group share a reachability walk.
+fn edges_by_listing<'a>(
+    graph: &PeerEdgeGraph<'_>,
+    candidates: &'a HashMap<&'a PackageKey, Vec<(&'a PkgName, PackageKey)>>,
+) -> HashMap<Vec<usize>, Vec<(&'a PackageKey, &'a PkgName)>> {
+    let mut listing_by_target = HashMap::<&PackageKey, Vec<usize>>::new();
+    let mut grouped = HashMap::<Vec<usize>, Vec<(&PackageKey, &PkgName)>>::new();
+    for (key, edges) in candidates {
+        for (alias, target) in edges {
+            let listing =
+                listing_by_target.entry(target).or_insert_with(|| importers_listing(graph, target));
+            grouped
+                .entry(listing.clone())
+                .or_default()
+                .push((*key, *alias));
+        }
+    }
+    grouped
+}
+
 /// Every snapshot the importers whose index is not in the sorted `listing`
 /// reach through any snapshot entry.
 fn reach_from_importers_not_in(
@@ -256,26 +270,32 @@ fn all_entries(snapshot: &SnapshotEntry) -> impl Iterator<Item = (&PkgName, &Sna
         .flatten()
 }
 
-fn target_retained(
-    snapshot: &SnapshotEntry,
-    alias: &PkgName,
+/// The `aliases` of `entries` whose target `snapshots` does not hold.
+fn dangling_aliases(
+    entries: Option<&HashMap<PkgName, SnapshotDepRef>>,
+    aliases: &HashSet<PkgName>,
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
-) -> bool {
-    all_entries(snapshot)
-        .filter(|(entry_alias, _)| *entry_alias == alias)
-        .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
-        .all(|target| snapshots.contains_key(&target))
+) -> Vec<PkgName> {
+    entries
+        .into_iter()
+        .flatten()
+        .filter(|(alias, _)| aliases.contains(*alias))
+        .filter(|(alias, dep_ref)| {
+            dep_ref
+                .resolve(alias)
+                .is_some_and(|target| !snapshots.contains_key(&target))
+        })
+        .map(|(alias, _)| alias.clone())
+        .collect()
 }
 
-fn remove_entries(snapshot: &mut SnapshotEntry, aliases: &[PkgName]) {
-    for entries in [&mut snapshot.dependencies, &mut snapshot.optional_dependencies] {
-        let Some(map) = entries.as_mut() else { continue };
-        for alias in aliases {
-            map.remove(alias);
-        }
-        if map.is_empty() {
-            *entries = None;
-        }
+fn remove_entries(entries: &mut Option<HashMap<PkgName, SnapshotDepRef>>, aliases: &[PkgName]) {
+    let Some(map) = entries.as_mut() else { return };
+    for alias in aliases {
+        map.remove(alias);
+    }
+    if map.is_empty() {
+        *entries = None;
     }
 }
 

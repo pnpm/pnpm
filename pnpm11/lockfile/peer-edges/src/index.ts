@@ -154,34 +154,40 @@ function collectPeerSatisfactionEdges (lockfile: LockfileObject, resolvePeersFro
   const directDepPathsByImporter = importers.map((importer) => new Set(importerDirectDepPaths(importer)))
   const rootImporter = resolvePeersFromWorkspaceRoot ? lockfile.importers['.' as ProjectId] : undefined
   const rootDevDepPaths = rootImporter == null ? undefined : new Set(resolvedDepsToDepPaths(rootImporter.devDependencies))
-  // The walk depends only on which importers do not list the target, so
-  // targets with the same set of non-listing importers share one walk.
-  const reachedByNonListing = new Map<string, Set<DepPath>>()
-  const reachedByTarget = new Map<DepPath, Set<DepPath>>()
-  const reachedWithoutListing = (target: DepPath): Set<DepPath> => {
-    let reached = reachedByTarget.get(target)
-    if (reached != null) return reached
-    const nonListing = rootDevDepPaths?.has(target)
-      ? []
-      : directDepPathsByImporter.flatMap((direct, index) => direct.has(target) ? [] : [index])
+  // The walk depends only on which importers do not list the target, so the
+  // entries are grouped by that set and each group shares one walk. A group's
+  // reached set is dropped before the next walk starts, which keeps memory
+  // linear in the graph however many groups a lockfile produces.
+  const nonListingByTarget = new Map<DepPath, number[]>()
+  const entriesByNonListing = new Map<string, { nonListing: number[], entries: OptionalPeerEntry[] }>()
+  for (const entry of entries) {
+    let nonListing = nonListingByTarget.get(entry.target)
+    if (nonListing == null) {
+      nonListing = rootDevDepPaths?.has(entry.target)
+        ? []
+        : directDepPathsByImporter.flatMap((direct, index) => direct.has(entry.target) ? [] : [index])
+      nonListingByTarget.set(entry.target, nonListing)
+    }
     const key = nonListing.join(',')
-    reached = reachedByNonListing.get(key)
-    if (reached == null) {
-      reached = new Set()
-      walkAllEdges(lockfile, nonListing.flatMap((index) => importerDirectDepPaths(importers[index])), reached)
-      reachedByNonListing.set(key, reached)
+    let group = entriesByNonListing.get(key)
+    if (group == null) {
+      group = { nonListing, entries: [] }
+      entriesByNonListing.set(key, group)
     }
-    reachedByTarget.set(target, reached)
-    return reached
+    group.entries.push(entry)
   }
-  for (const { parent, alias, target } of entries) {
-    if (reachedWithoutListing(target).has(parent)) continue
-    let aliases = edges.get(parent)
-    if (aliases == null) {
-      aliases = new Set()
-      edges.set(parent, aliases)
+  for (const { nonListing, entries: groupEntries } of entriesByNonListing.values()) {
+    const reached = new Set<DepPath>()
+    walkAllEdges(lockfile, nonListing.flatMap((index) => importerDirectDepPaths(importers[index])), reached)
+    for (const { parent, alias } of groupEntries) {
+      if (reached.has(parent)) continue
+      let aliases = edges.get(parent)
+      if (aliases == null) {
+        aliases = new Set()
+        edges.set(parent, aliases)
+      }
+      aliases.add(alias)
     }
-    aliases.add(alias)
   }
   return edges
 }

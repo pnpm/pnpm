@@ -363,6 +363,48 @@ fn prune_dangling_removes_only_edges_to_dropped_targets() {
 }
 
 #[test]
+fn prune_dangling_judges_each_dependency_map_by_its_own_target() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .: {}
+
+packages:
+
+  abc@1.0.0:
+    resolution: {integrity: sha512-abc}
+
+snapshots:
+
+  abc@1.0.0:
+    dependencies:
+      peer-c: 1.0.0
+    optionalDependencies:
+      peer-c: 2.0.0
+
+  peer-c@2.0.0: {}
+",
+    );
+    let abc = key("abc@1.0.0");
+    let edges = std::iter::once((abc.clone(), std::iter::once(alias("peer-c")).collect()))
+        .collect::<PeerSatisfactionEdges>();
+    let mut snapshots = lockfile.snapshots.unwrap();
+
+    edges.prune_dangling(&mut snapshots);
+
+    let abc_snapshot = &snapshots[&abc];
+    assert_eq!(abc_snapshot.dependencies, None);
+    assert!(
+        abc_snapshot.optional_dependencies
+            .as_ref()
+            .unwrap()
+            .contains_key(&alias("peer-c")),
+    );
+}
+
+#[test]
 fn a_lockfile_without_optional_peers_has_no_peer_satisfaction_edges() {
     let lockfile = parse(
         "lockfileVersion: '9.0'

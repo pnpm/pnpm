@@ -542,8 +542,8 @@ export function collectOptionalOnlyDepPaths (
       ...nonOptionalRoots,
       ...(includeOptDeps ? resolvedDepsToDepPaths(importer.optionalDependencies ?? {}) : []),
     ]
-    walkReachable(lockfile, nonOptionalRoots, withoutOptional, withoutOptionalChildOpts)
-    walkReachable(lockfile, allRoots, withOptional, withOptionalChildOpts)
+    walkReachable(lockfile, nonOptionalRoots, { seen: withoutOptional, childOpts: withoutOptionalChildOpts })
+    walkReachable(lockfile, allRoots, { seen: withOptional, childOpts: withOptionalChildOpts })
   }
   const result = new Set<DepPath>()
   for (const depPath of withOptional) {
@@ -555,7 +555,11 @@ export function collectOptionalOnlyDepPaths (
 // Explicit stack rather than recursion: a lockfile is untrusted input, and a
 // deep dependency chain would otherwise overflow the call stack. Order does not
 // matter — the result is the reachable set, so a LIFO walk is equivalent.
-function walkReachable (lockfile: LockfileObject, depPaths: DepPath[], seen: Set<DepPath>, childOpts: SnapshotChildrenOptions): void {
+function walkReachable (
+  lockfile: LockfileObject,
+  depPaths: DepPath[],
+  { seen, childOpts }: { seen: Set<DepPath>, childOpts: SnapshotChildrenOptions }
+): void {
   const packages = lockfile.packages ?? {}
   const stack: DepPath[] = []
   for (const depPath of depPaths) stack.push(depPath)

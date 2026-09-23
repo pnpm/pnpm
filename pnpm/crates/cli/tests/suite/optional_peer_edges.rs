@@ -82,15 +82,19 @@ fn has_slot(workspace: &Path, name: &str, version: &str) -> bool {
 }
 
 fn current_abc_aliases(workspace: &Path) -> Vec<String> {
-    let current = read_lockfile(&workspace.join("node_modules/.pnpm/lock.yaml"));
-    let (_, snapshot) = current.snapshots
+    recorded_abc_aliases(&workspace.join("node_modules/.pnpm/lock.yaml"))
+}
+
+fn recorded_abc_aliases(lockfile_path: &Path) -> Vec<String> {
+    let lockfile = read_lockfile(lockfile_path);
+    let (_, snapshot) = lockfile.snapshots
         .iter()
         .flatten()
         .find(|(key, _)| {
             key.to_string()
                 .starts_with(&format!("{ABC}@"))
         })
-        .expect("the current lockfile records abc-optional-peers");
+        .expect("the lockfile records abc-optional-peers");
     let mut aliases = [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
         .into_iter()
         .flatten()
@@ -496,6 +500,7 @@ fn a_resolving_prod_install_leaves_out_an_optional_peer_only_a_dev_dependency_pr
     assert!(has_slot(workspace, PEER_A, "1.0.0"), "the required peer must be installed");
     assert!(links(&slot, PEER_A));
     assert_eq!(current_abc_aliases(workspace), [PEER_A]);
+    assert_eq!(recorded_abc_aliases(&workspace.join("pnpm-lock.yaml")), [PEER_A, PEER_C]);
 }
 
 #[test]

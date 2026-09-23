@@ -224,7 +224,7 @@ function classifyDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickPkgs
     if (optional && incompatible.get(depPath)) continue
     ctx.installed.add(depPath)
     ctx.pickedPackages[depPath] = pkgSnapshot
-    const edges = nextDepEdges(ctx, depPath, pkgSnapshot, opts)
+    const edges = nextDepEdges(ctx, { depPath, pkgSnapshot }, opts)
     ctx.edgesByDepPath.set(depPath, edges)
     // Appended one by one: `push(...edges)` passes each edge as its own
     // argument and overflows the engine's argument limit on a wide enough
@@ -309,7 +309,7 @@ function pickSkippedDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickP
     // `visited` guarantees one pass per dep path, so a cached entry is
     // released as soon as it is consumed rather than being retained until the
     // whole walk ends.
-    const edges = ctx.edgesByDepPath.get(depPath) ?? nextDepEdges(ctx, depPath, pkgSnapshot, opts)
+    const edges = ctx.edgesByDepPath.get(depPath) ?? nextDepEdges(ctx, { depPath, pkgSnapshot }, opts)
     ctx.edgesByDepPath.delete(depPath)
     for (const edge of edges) {
       queue.push(edge.depPath)
@@ -318,7 +318,11 @@ function pickSkippedDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickP
 }
 
 /** The outbound edges of a package, tagged with the optionality of each. */
-function nextDepEdges (ctx: PickPkgsContext, depPath: DepPath, pkgSnapshot: PackageSnapshots[DepPath], opts: PickPkgsOptions): DepEdge[] {
+function nextDepEdges (
+  ctx: PickPkgsContext,
+  { depPath, pkgSnapshot }: { depPath: DepPath, pkgSnapshot: PackageSnapshots[DepPath] },
+  opts: PickPkgsOptions
+): DepEdge[] {
   let depRefs = [
     ...toDepRefs(pkgSnapshot.dependencies, false),
     ...(opts.include.optionalDependencies ? toDepRefs(pkgSnapshot.optionalDependencies, true) : []),
