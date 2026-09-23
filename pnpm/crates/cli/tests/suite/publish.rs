@@ -661,3 +661,37 @@ fn publish_rejects_refused_head_metadata_in_ci() {
     let stderr = String::from_utf8_lossy(&rejected.get_output().stderr);
     assert!(stderr.contains("ERR_PNPM_GIT_UNKNOWN_BRANCH"), "stderr: {stderr}");
 }
+
+#[test]
+fn workspace_npmrc_registry_is_effective_for_package_publish() {
+    let workspace = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let project_dir = workspace.path().join("packages/pkg-a");
+    fs::create_dir_all(&project_dir).expect("create project directory");
+    fs::write(workspace.path().join(".npmrc"), format!("registry={}/\n", server.url()))
+        .expect("write .npmrc");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        project_dir.join("package.json"),
+        json!({
+            "name": "test-publish-workspace-pkg",
+            "version": "1.0.0",
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let mock = server
+        .mock("PUT", "/test-publish-workspace-pkg")
+        .match_body(Matcher::PartialJsonString(
+            r#"{"name":"test-publish-workspace-pkg","dist-tags":{"latest":"1.0.0"}}"#.to_owned(),
+        ))
+        .with_status(200)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+
+    assert_success(&publish(&project_dir, &[]));
+    mock.assert();
+}
