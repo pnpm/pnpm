@@ -839,18 +839,25 @@ test('adding a dependency succeeds after deleting offline package source', async
   fs.writeFileSync(path.join(pkgDir, 'package', 'package.json'), JSON.stringify({
     name: 'offline-pkg',
     version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
   }))
   execPnpmSync(['pack', '--pack-destination', pkgDir], { cwd: path.join(pkgDir, 'package') })
   const tarball = path.join(pkgDir, 'offline-pkg-1.0.0.tgz')
 
   await execPnpm(['add', tarball])
   project.has('offline-pkg')
+  let lockfile = project.readLockfile()
+  expect(lockfile.packages['is-positive@1.0.0']).toBeDefined()
 
   fs.unlinkSync(tarball)
 
-  await execPnpm(['add', 'is-positive@1.0.0'])
+  await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   project.has('offline-pkg')
-  project.has('is-positive')
+  project.has('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  lockfile = project.readLockfile()
+  expect(lockfile.packages['is-positive@1.0.0']).toBeDefined()
 })
 

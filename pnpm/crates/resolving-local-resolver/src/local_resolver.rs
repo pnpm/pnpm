@@ -51,6 +51,7 @@ pub struct LocalResolverOptions {
 pub struct LocalCurrentPkg {
     pub id: PkgResolutionId,
     pub resolution: LockfileResolution,
+    pub manifest: Option<std::sync::Arc<serde_json::Value>>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -276,7 +277,7 @@ async fn resolve_file_spec(
             let current = opts.current_pkg.as_ref().unwrap();
             Ok(LocalResolveResult {
                 id: spec.id.clone(),
-                manifest: None,
+                manifest: current.manifest.clone(),
                 normalized_bare_specifier: Some(spec.normalized_bare_specifier.clone()),
                 resolution: current.resolution.clone(),
                 resolved_via: "local-filesystem",

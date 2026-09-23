@@ -57,6 +57,7 @@ async fn revision_refresh_does_not_replace_a_registry_resolution_with_a_workspac
             revision: None,
         }),
         published_at: None,
+        manifest: None,
     });
 
     let wanted = WantedDependency {

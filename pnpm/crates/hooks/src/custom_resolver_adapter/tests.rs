@@ -224,6 +224,7 @@ async fn sends_upstream_payload_shapes() {
                 )
                 .unwrap(),
                 published_at: None,
+                manifest: None,
             }),
             ..Default::default()
         },

@@ -17,6 +17,7 @@ use crate::{
     },
     parse_bare_specifier::WantedLocalDependency,
 };
+use pnpm_lockfile::LockfileResolution;
 use pnpm_resolving_resolver_base::{
     LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
     Resolver, UpdateBehavior, WantedDependency,
@@ -205,9 +206,11 @@ fn local_options(opts: &ResolveOptions) -> LocalResolverOptions {
         lockfile_dir: Some(opts.project.lockfile_dir.clone()),
         current_pkg: opts.refresh.current_pkg
             .as_ref()
+            .filter(|current| matches!(current.resolution, LockfileResolution::Tarball(_)))
             .map(|current| LocalCurrentPkg {
                 id: current.id.clone(),
                 resolution: current.resolution.clone(),
+                manifest: current.manifest.clone(),
             }),
         update: match opts.refresh.update {
             UpdateBehavior::Compatible | UpdateBehavior::Latest => LocalResolverUpdate::On,

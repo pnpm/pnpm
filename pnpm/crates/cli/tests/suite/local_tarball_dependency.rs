@@ -408,7 +408,11 @@ fn adding_package_succeeds_after_deleting_local_tarball_source() {
     write_tarball(
         &workspace,
         "pkg-from-tarball-1.0.0.tgz",
-        &serde_json::json!({ "name": "pkg-from-tarball", "version": "1.0.0" }),
+        &serde_json::json!({
+            "name": "pkg-from-tarball",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+        }),
     );
     fs::write(
         workspace.join("package.json"),
@@ -431,7 +435,7 @@ fn adding_package_succeeds_after_deleting_local_tarball_source() {
 
     let add_cmd = crate::_utils::pacquet_in(&workspace);
     add_cmd
-        .with_args(["add", "is-positive"])
+        .with_args(["add", "ms"])
         .assert()
         .success();
 
@@ -439,7 +443,13 @@ fn adding_package_succeeds_after_deleting_local_tarball_source() {
         fs::read_to_string(workspace.join("node_modules/pkg-from-tarball/package.json"))
             .expect("read the installed manifest");
     assert!(installed_tarball_pkg.contains(r#""version":"1.0.0""#));
-    assert!(workspace.join("node_modules/is-positive/package.json").exists());
+    assert!(
+        workspace
+            .join("node_modules/.pnpm/pkg-from-tarball@file+pkg-from-tarball-1.0.0.tgz/node_modules/is-positive/package.json")
+            .exists(),
+        "transitive dependency is-positive must remain installed",
+    );
+    assert!(workspace.join("node_modules/ms/package.json").exists());
 
     drop((root, mock_instance));
 }

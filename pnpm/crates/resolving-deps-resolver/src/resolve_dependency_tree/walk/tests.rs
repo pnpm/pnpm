@@ -134,6 +134,7 @@ mod fallback_manifest {
                 directory: "sub".to_string(),
             }),
             published_at: None,
+            manifest: None,
         }
     }
 
@@ -167,6 +168,27 @@ mod fallback_manifest {
                 Some(&current_pkg(Some("sub"), Some("2.0.0"))),
             ),
             serde_json::json!({ "name": "sub", "version": "2.0.0" }),
+        );
+    }
+
+    #[test]
+    fn the_lockfile_manifest_is_reused() {
+        let mut pkg = current_pkg(Some("sub"), Some("2.0.0"));
+        pkg.manifest = Some(std::sync::Arc::new(serde_json::json!({
+            "name": "sub",
+            "version": "2.0.0",
+            "dependencies": { "dep": "1.0.0" },
+        })));
+        assert_eq!(
+            super::super::workspace_resolution::fallback_manifest(
+                &wanted(Some("sub"), Some("file:./sub")),
+                Some(&pkg),
+            ),
+            serde_json::json!({
+                "name": "sub",
+                "version": "2.0.0",
+                "dependencies": { "dep": "1.0.0" },
+            }),
         );
     }
 

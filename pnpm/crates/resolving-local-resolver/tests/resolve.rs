@@ -515,6 +515,7 @@ async fn resolve_missing_tarball_falls_back_to_current_pkg_when_not_updating() {
     options.current_pkg = Some(pnpm_resolving_local_resolver::LocalCurrentPkg {
         id: PkgResolutionId::from("file:missing-pkg.tgz"),
         resolution: current_resolution.clone(),
+        manifest: None,
     });
     options.update = LocalResolverUpdate::Off;
 
@@ -548,6 +549,7 @@ async fn resolve_missing_tarball_fails_when_current_pkg_has_no_integrity() {
             git_hosted: None,
             path: None,
         }),
+        manifest: None,
     });
     options.update = LocalResolverUpdate::Off;
 
@@ -573,6 +575,7 @@ async fn resolve_missing_tarball_fails_when_current_pkg_id_does_not_match() {
             git_hosted: None,
             path: None,
         }),
+        manifest: None,
     });
     options.update = LocalResolverUpdate::Off;
 
@@ -627,6 +630,7 @@ async fn resolve_file_with_different_integrity_force_fetch() {
             git_hosted: None,
             path: None,
         }),
+        manifest: None,
     });
 
     let wd = WantedLocalDependency {
