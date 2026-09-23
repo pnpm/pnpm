@@ -211,7 +211,7 @@ fn terminal_star_applies_user_negations() {
 
 #[cfg(unix)]
 #[test]
-fn terminal_star_does_not_follow_symlinked_child_directories() {
+fn terminal_star_follows_symlinked_child_directories() {
     use std::os::unix::fs::symlink;
 
     let tmp = TempDir::new().unwrap();
@@ -221,7 +221,40 @@ fn terminal_star_does_not_follow_symlinked_child_directories() {
     symlink(tmp.path().join("linked-target"), tmp.path().join("packages/linked")).unwrap();
 
     let names = find_project_names(tmp.path(), &["packages/*"]);
-    assert_eq!(names, vec!["root".to_string()]);
+    assert_eq!(names, vec!["root".to_string(), "linked".to_string()]);
+}
+
+#[cfg(unix)]
+#[test]
+fn recursive_wildcard_follows_symlinked_child_directories() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "linked-target", "linked");
+    fs::create_dir_all(tmp.path().join("packages")).unwrap();
+    symlink(tmp.path().join("linked-target"), tmp.path().join("packages/linked")).unwrap();
+
+    let names = find_project_names(tmp.path(), &["packages/**"]);
+    assert_eq!(names, vec!["root".to_string(), "linked".to_string()]);
+}
+
+#[cfg(unix)]
+#[test]
+fn ignores_broken_or_looping_symlinks() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/alpha", "alpha");
+    symlink(tmp.path().join("missing"), tmp.path().join("packages/broken")).unwrap();
+    symlink(tmp.path().join("packages/loop"), tmp.path().join("packages/loop")).unwrap();
+
+    let names = find_project_names(tmp.path(), &["packages/*"]);
+    assert_eq!(names, vec!["root".to_string(), "alpha".to_string()]);
+
+    let generic_names = find_project_names(tmp.path(), &["packages/**"]);
+    assert_eq!(generic_names, vec!["root".to_string(), "alpha".to_string()]);
 }
 
 #[test]

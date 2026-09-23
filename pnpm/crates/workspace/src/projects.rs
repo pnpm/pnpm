@@ -34,7 +34,7 @@ use std::{
 };
 use wax::{
     Glob,
-    walk::{Entry, FileIterator},
+    walk::{Entry, FileIterator, LinkBehavior},
 };
 
 /// A project discovered under the workspace root.
@@ -421,7 +421,7 @@ fn collect_glob_manifests(
         let ignores =
             manifest_walk_ignores(normalized, dot_pruning_ignore_template).map_err(invalid_glob)?;
         collect_walk_manifests(
-            glob.walk(walk_root)
+            glob.walk_with_behavior(walk_root, LinkBehavior::ReadTarget)
                 .not(ignores)
                 .map_err(invalid_glob)?,
             walk_root,
