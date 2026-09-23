@@ -120,7 +120,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
       FILTERING,
     ],
     url: docsUrl('remove'),
-    usages: ['pnpm remove <pkg>[@<version>]...'],
+    usages: ['pnpm remove <pkg>...'],
   })
 }
 
