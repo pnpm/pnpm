@@ -55,7 +55,10 @@ export function help (): string {
   })
 }
 
-type PatchCommitCommandOptions = install.InstallCommandOptions & Pick<Config, 'patchesDir' | 'patchedDependencies'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'>
+type PatchCommitCommandOptions = install.InstallCommandOptions &
+  Pick<Config, 'patchesDir' | 'patchedDependencies'> &
+  Partial<Pick<Config, 'useGitBranchLockfile' | 'mergeGitBranchLockfiles'>> &
+  Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'>
 
 export async function handler (opts: PatchCommitCommandOptions, params: string[]): Promise<string | undefined> {
   if (!params[0]) {
@@ -114,7 +117,10 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
   })
 
-  await updateLockfileSnapshots(lockfileDir, patchedPkgManifest, applyToAll)
+  await updateLockfileSnapshots(lockfileDir, patchedPkgManifest, applyToAll, {
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+  })
 
   await install.handler({
     ...opts,
@@ -127,9 +133,17 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
 async function updateLockfileSnapshots (
   lockfileDir: string,
   patchedPkgManifest: PackageManifest,
-  applyToAll: boolean
+  applyToAll: boolean,
+  opts?: {
+    useGitBranchLockfile?: boolean
+    mergeGitBranchLockfiles?: boolean
+  }
 ): Promise<void> {
-  const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
+  const lockfile = await readWantedLockfile(lockfileDir, {
+    ignoreIncompatible: true,
+    useGitBranchLockfile: opts?.useGitBranchLockfile,
+    mergeGitBranchLockfiles: opts?.mergeGitBranchLockfiles,
+  })
   if (!lockfile?.packages) return
 
   let lockfileChanged = false
@@ -137,7 +151,11 @@ async function updateLockfileSnapshots (
     const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
     if (name === patchedPkgManifest.name && (applyToAll || version === patchedPkgManifest.version)) {
       if (snapshot.dependencies != null) {
-        const declaredDeps = patchedPkgManifest.dependencies ?? {}
+        const declaredDeps = {
+          ...patchedPkgManifest.peerDependencies,
+          ...patchedPkgManifest.optionalDependencies,
+          ...patchedPkgManifest.dependencies,
+        }
         for (const depName of Object.keys(snapshot.dependencies)) {
           if (!Object.prototype.hasOwnProperty.call(declaredDeps, depName)) {
             delete snapshot.dependencies[depName]
@@ -172,25 +190,15 @@ async function updateLockfileSnapshots (
           delete snapshot.peerDependencies
         }
       }
-      if (snapshot.transitivePeerDependencies != null) {
-        const declaredPeerDeps = patchedPkgManifest.peerDependencies ?? {}
-        const initialLen = snapshot.transitivePeerDependencies.length
-        snapshot.transitivePeerDependencies = snapshot.transitivePeerDependencies.filter(
-          (peerName: string) => Object.prototype.hasOwnProperty.call(declaredPeerDeps, peerName)
-        )
-        if (snapshot.transitivePeerDependencies.length !== initialLen) {
-          lockfileChanged = true
-        }
-        if (snapshot.transitivePeerDependencies.length === 0) {
-          delete snapshot.transitivePeerDependencies
-        }
-      }
     }
   }
 
   if (lockfileChanged) {
     const prunedLockfile = pruneSharedLockfile(lockfile)
-    await writeWantedLockfile(lockfileDir, prunedLockfile)
+    await writeWantedLockfile(lockfileDir, prunedLockfile, {
+      useGitBranchLockfile: opts?.useGitBranchLockfile,
+      mergeGitBranchLockfiles: opts?.mergeGitBranchLockfiles,
+    })
   }
 }
 

@@ -9,6 +9,7 @@ import type { PatchCommandOptions, PatchRemoveCommandOptions } from '@pnpm/patch
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import type { DepPath } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
@@ -1069,6 +1070,55 @@ describe('patching should work when there is a no EOL in the patched file', () =
     const updatedLockfile = await readWantedLockfile(process.cwd(), { ignoreIncompatible: true })
     const packageKeys = Object.keys(updatedLockfile!.packages ?? {})
     expect(packageKeys.some(key => key.includes('@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBe(false)
+  })
+
+  test('patch and commit preserves resolved peer dependencies in snapshot', async () => {
+    prepare({
+      dependencies: {
+        '@pnpm.e2e/wants-peer-c-1': '1.0.0',
+        '@pnpm.e2e/peer-c': '1.0.0',
+      },
+    })
+
+    const cacheDir = path.resolve('cache')
+    const storeDir = path.resolve('store')
+    const patchOption = {
+      ...basePatchOption,
+      cacheDir,
+      dir: process.cwd(),
+      storeDir,
+    }
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      dir: process.cwd(),
+      saveLockfile: true,
+    })
+
+    const initialLockfile = await readWantedLockfile(process.cwd(), { ignoreIncompatible: true })
+    const snapshotKey = Object.keys(initialLockfile!.packages ?? {}).find(key => key.includes('@pnpm.e2e/wants-peer-c-1')) as DepPath
+    expect(initialLockfile!.packages![snapshotKey].dependencies?.['@pnpm.e2e/peer-c']).toBeDefined()
+
+    const output = await patch.handler(patchOption, ['@pnpm.e2e/wants-peer-c-1@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '\n// patched')
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      storeDir,
+    }, [patchDir])
+
+    const updatedLockfile = await readWantedLockfile(process.cwd(), { ignoreIncompatible: true })
+    const updatedSnapshotKey = Object.keys(updatedLockfile!.packages ?? {}).find(key => key.includes('@pnpm.e2e/wants-peer-c-1')) as DepPath
+    const updatedSnapshot = updatedLockfile!.packages![updatedSnapshotKey]
+    expect(updatedSnapshot.dependencies?.['@pnpm.e2e/peer-c']).toBeDefined()
   })
 })
 

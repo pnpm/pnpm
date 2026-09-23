@@ -172,9 +172,8 @@ impl PatchCommitArgs {
             state_value.apply_to_all,
             &patch_content,
         )?;
-        let workspace_dir = state.config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
         update_lockfile_snapshots(
-            &workspace_dir,
+            &state,
             &name,
             &version,
             state_value.apply_to_all,

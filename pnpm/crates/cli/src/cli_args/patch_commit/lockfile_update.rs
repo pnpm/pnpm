@@ -1,7 +1,7 @@
+use crate::state::State;
 use pnpm_lockfile::{Lockfile, SnapshotEntry};
 use pnpm_package_manifest::PackageManifest;
 use serde_json::Value;
-use std::path::Path;
 
 struct DeclaredDeps<'a> {
     deps: Option<&'a serde_json::Map<String, Value>>,
@@ -18,13 +18,19 @@ impl<'a> DeclaredDeps<'a> {
             peer_deps: val.get("peerDependencies").and_then(|v| v.as_object()),
         }
     }
+
+    fn contains(&self, name: &str) -> bool {
+        self.deps.is_some_and(|d| d.contains_key(name))
+            || self.opt_deps.is_some_and(|d| d.contains_key(name))
+            || self.peer_deps.is_some_and(|d| d.contains_key(name))
+    }
 }
 
 fn prune_snapshot_edges(snapshot: &mut SnapshotEntry, declared: &DeclaredDeps<'_>) -> bool {
     let mut changed = false;
     if let Some(deps) = &mut snapshot.dependencies {
         let initial_len = deps.len();
-        deps.retain(|name, _| declared.deps.is_some_and(|d| d.contains_key(&name.to_string())));
+        deps.retain(|name, _| declared.contains(&name.to_string()));
         changed |= deps.len() != initial_len;
         if deps.is_empty() {
             snapshot.dependencies = None;
@@ -38,14 +44,6 @@ fn prune_snapshot_edges(snapshot: &mut SnapshotEntry, declared: &DeclaredDeps<'_
         changed |= opt_deps.len() != initial_len;
         if opt_deps.is_empty() {
             snapshot.optional_dependencies = None;
-        }
-    }
-    if let Some(trans_peers) = &mut snapshot.transitive_peer_dependencies {
-        let initial_len = trans_peers.len();
-        trans_peers.retain(|name| declared.peer_deps.is_some_and(|d| d.contains_key(name)));
-        changed |= trans_peers.len() != initial_len;
-        if trans_peers.is_empty() {
-            snapshot.transitive_peer_dependencies = None;
         }
     }
     changed
@@ -73,14 +71,15 @@ fn prune_matching_snapshots(
 }
 
 pub(super) fn update_lockfile_snapshots(
-    workspace_dir: &Path,
+    state: &State,
     name: &str,
     version: &str,
     apply_to_all: bool,
     patched_manifest: &PackageManifest,
 ) -> Result<(), super::PatchCommitError> {
-    let Some(mut lockfile) = Lockfile::load_wanted_from_dir(workspace_dir)
-        .map_err(super::PatchCommitError::LoadLockfile)?
+    let Some(mut lockfile) =
+        Lockfile::load_wanted(state.lockfile_dir(), &state.config.wanted_lockfile_selection())
+            .map_err(super::PatchCommitError::LoadLockfile)?
     else {
         return Ok(());
     };
@@ -89,6 +88,6 @@ pub(super) fn update_lockfile_snapshots(
         return Ok(());
     }
     pnpm_package_manager::prune_unreachable_packages(&mut lockfile);
-    let lockfile_path = workspace_dir.join("pnpm-lock.yaml");
+    let lockfile_path = state.lockfile_path();
     lockfile.save_to_path(&lockfile_path).map_err(super::PatchCommitError::SaveLockfile)
 }
