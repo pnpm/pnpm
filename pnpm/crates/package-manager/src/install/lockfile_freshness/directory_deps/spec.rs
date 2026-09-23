@@ -218,7 +218,7 @@ fn linked_target_satisfies(
     let Ok(content) = std::fs::read_to_string(&canonical_manifest) else {
         return false;
     };
-    let Ok(pkg_json) = serde_json::from_str::<serde_json::Value>(&content) else {
+    let Ok(pkg_json) = pnpm_package_manifest::parse_manifest(&content) else {
         return false;
     };
     if pkg_json.get("name").and_then(serde_json::Value::as_str) != Some(expected_name) {

@@ -148,3 +148,27 @@ fn workspace_range_validates_file_snapshot_target() {
         &symlink_dep,
     ));
 }
+
+#[test]
+fn manifest_with_utf8_bom_satisfies_workspace_spec() {
+    let fixture = tempfile::tempdir().unwrap();
+    let workspace_root = fixture.path().to_path_buf();
+    let lockfile_dir = workspace_root.clone();
+    let local_dep_dir = workspace_root.join("packages/consumer");
+    let bom_pkg_dir = workspace_root.join("packages/bom-pkg");
+    std::fs::create_dir_all(&bom_pkg_dir).unwrap();
+    std::fs::write(
+        bom_pkg_dir.join("package.json"),
+        format!("\u{feff}{}", r#"{"name":"pkg","version":"1.2.3"}"#),
+    )
+    .unwrap();
+    let bom_dep: pnpm_lockfile::SnapshotDepRef = "file:packages/bom-pkg".parse().unwrap();
+    assert!(spec_satisfies_snapshot_dep(
+        &workspace_root,
+        &lockfile_dir,
+        &local_dep_dir,
+        "pkg",
+        "workspace:^1.0.0",
+        &bom_dep,
+    ));
+}
