@@ -144,7 +144,7 @@ struct ProjectInfo {
 struct SelectedProject {
     project: Project,
     projects_by_path: HashMap<ProjectPathKey, ProjectInfo>,
-    root_project_manifest: Option<Value>,
+    engine_pin_manifest: Option<Value>,
 }
 
 impl SelectedProject {
@@ -221,7 +221,7 @@ impl DeployArgs {
     ) -> miette::Result<()> {
         let manifest_path = deploy_dir.join("package.json");
         apply_deploy_hook(&manifest_path)?;
-        write_inherited_package_manager(&manifest_path, selected.root_project_manifest.as_ref())?;
+        write_inherited_package_manager(&manifest_path, selected.engine_pin_manifest.as_ref())?;
         let preferred_versions_override = legacy_deploy_preferred_versions::<ReporterT>(
             config,
             config.lockfile_dir_for(&selected.project.root_dir),
@@ -294,10 +294,7 @@ impl DeployArgs {
             config,
             &dependency_groups,
         )?;
-        inherit_package_manager(
-            &mut deploy_files.manifest,
-            selected.root_project_manifest.as_ref(),
-        );
+        inherit_package_manager(&mut deploy_files.manifest, selected.engine_pin_manifest.as_ref());
         write_deploy_files(deploy_dir, &deploy_files)?;
         // Boxed for the same large-future reason as the legacy path above.
         Box::pin(self.run_install_in_deploy_dir::<ReporterT>(
@@ -356,7 +353,7 @@ fn select_project(
     Ok(SelectedProject {
         project,
         projects_by_path,
-        root_project_manifest: read_root_manifest(config.root_project_manifest_dir(workspace_dir)),
+        engine_pin_manifest: read_root_manifest(workspace_dir),
     })
 }
 

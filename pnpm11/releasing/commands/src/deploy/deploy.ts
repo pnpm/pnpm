@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { FILTERING } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, types as configTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as configTypes } from '@pnpm/config.reader'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
@@ -87,6 +87,7 @@ export function help (): string {
 export type DeployOptions =
   & Omit<install.InstallCommandOptions, 'useLockfile'>
   & Pick<Config, 'allowBuilds' | 'forceLegacyDeploy' | 'resolvePeersFromWorkspaceRoot'>
+  & Pick<ConfigContext, 'enginePinManifest'>
 
 export async function handler (opts: DeployOptions, params: string[]): Promise<void> {
   if (!opts.workspaceDir) {
@@ -154,7 +155,7 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     }
   }
 
-  await writeInheritedPackageManager(deployDir, opts.rootProjectManifest)
+  await writeInheritedPackageManager(deployDir, opts.enginePinManifest)
   const deployedProject = opts.allProjects?.find(({ rootDir }) => rootDir === selectedProject.rootDir)
   if (deployedProject) {
     deployedProject.modulesDir = path.relative(selectedProject.rootDir, path.join(deployDir, 'node_modules'))
@@ -394,7 +395,7 @@ async function deployFromSharedLockfile (
     lockfile,
     lockfileDir,
     patchedDependencies: opts.patchedDependencies,
-    selectedProjectManifest: inheritPackageManager(selectedProject.manifest, opts.rootProjectManifest),
+    selectedProjectManifest: inheritPackageManager(selectedProject.manifest, opts.enginePinManifest),
     projectId,
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     rootProjectManifestDir,

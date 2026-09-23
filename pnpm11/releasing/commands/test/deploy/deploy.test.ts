@@ -1366,7 +1366,7 @@ test.each([
   { mode: 'native', forceLegacyDeploy: false },
   { mode: 'legacy', forceLegacyDeploy: true },
 ])('$mode deploy copies the package manager pin of the workspace root', async ({ forceLegacyDeploy }) => {
-  const rootProjectManifest = {
+  const workspaceRootManifest = {
     name: 'root',
     version: '1.0.0',
     private: true,
@@ -1378,7 +1378,7 @@ test.each([
   preparePackages([
     {
       location: '.',
-      package: rootProjectManifest,
+      package: workspaceRootManifest,
     },
     {
       name: 'project-1',
@@ -1401,7 +1401,8 @@ test.each([
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
-    rootProjectManifest,
+    rootProjectManifest: { name: 'root', version: '1.0.0', private: true },
+    enginePinManifest: workspaceRootManifest,
     sharedWorkspaceLockfile: true,
     lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
@@ -1448,6 +1449,7 @@ test.each([
     allProjects,
     dir: process.cwd(),
     rootProjectManifest,
+    enginePinManifest: rootProjectManifest,
     sharedWorkspaceLockfile: true,
     lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
