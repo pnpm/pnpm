@@ -108,33 +108,28 @@ async function isLocalFileDepUpdated (
   const localDepDir = path.join(lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
   const manifest = manifestsByDir?.[localDepDir] ?? await safeReadPackageJsonFromDir(localDepDir)
   if (!manifest) return false
-  for (const depField of DEPENDENCIES_OR_PEER_FIELDS) {
-    if (depField === 'devDependencies') continue
+  return pEvery.default(DEPENDENCIES_OR_PEER_FIELDS, async (depField) => {
+    if (depField === 'devDependencies') return true
     const manifestDeps = manifest[depField] ?? {}
     const lockfileDeps = pkgSnapshot[depField] ?? {}
 
-    // Lock file has more dependencies than the current manifest, e.g. some dependencies are removed.
     if (Object.keys(lockfileDeps).some(depName => !manifestDeps[depName])) {
       return false
     }
 
-    for (const depName of Object.keys(manifestDeps)) {
-      // If a dependency does not exist in the lock file, e.g. a new dependency is added to the current manifest.
-      // We need to do full resolution again.
+    return pEvery.default(Object.keys(manifestDeps), async (depName) => {
       if (!lockfileDeps[depName]) {
         return false
       }
       const currentSpec = manifestDeps[depName]
       const lockfileDep = lockfileDeps[depName]
       if (currentSpec.startsWith('link:')) {
-        if (lockfileDep !== currentSpec) return false
-        continue
+        return lockfileDep === currentSpec
       }
       if (currentSpec.startsWith('file:')) {
         const cleanLockfileDep = removeSuffix(lockfileDep)
         const target = cleanLockfileDep.startsWith('link:') ? `file:${cleanLockfileDep.slice(5)}` : cleanLockfileDep
-        if (target !== currentSpec) return false
-        continue
+        return target === currentSpec
       }
       if (currentSpec.startsWith('workspace:')) {
         const target = currentSpec.slice(10)
@@ -143,35 +138,57 @@ async function isLocalFileDepUpdated (
           const cleanTarget = target.startsWith('./') ? target.slice(2) : target
           const cleanLink = cleanLockfileDep.startsWith('link:') ? cleanLockfileDep.slice(5) : null
           const cleanFile = cleanLockfileDep.startsWith('file:') ? cleanLockfileDep.slice(5) : null
-          if (cleanLink !== target && cleanLink !== cleanTarget &&
-              cleanFile !== target && cleanFile !== cleanTarget) {
-            return false
-          }
-          continue
+          return cleanLink === target || cleanLink === cleanTarget ||
+            cleanFile === target || cleanFile === cleanTarget
         }
         const range = getVersionRange(currentSpec)
         const cleanLockfileDep = removeSuffix(lockfileDep)
         if (cleanLockfileDep.startsWith('link:') || cleanLockfileDep.startsWith('file:')) {
-          continue
+          const depPath = cleanLockfileDep.slice(5)
+          const targetDir = path.resolve(localDepDir, depPath)
+          const targetPkg = manifestsByDir?.[targetDir] ?? await safeReadPackageJsonFromDir(targetDir)
+          const expectedName = getTargetPkgName(currentSpec, depName)
+          if (!targetPkg || targetPkg.name !== expectedName) {
+            return false
+          }
+          if (range !== '*' && range !== '^' && range !== '~' && range !== '' &&
+              !semver.satisfies(targetPkg.version, range, { loose: true })) {
+            return false
+          }
+          return true
         }
         if (semver.valid(cleanLockfileDep) && !semver.satisfies(cleanLockfileDep, range, { loose: true })) {
           return false
         }
-        continue
+        return true
       }
       const cleanLockfileDep = removeSuffix(lockfileDeps[depName])
-      if (semver.satisfies(cleanLockfileDep, getVersionRange(currentSpec), { loose: true })) {
-        continue
-      } else {
-        return false
-      }
+      return semver.satisfies(cleanLockfileDep, getVersionRange(currentSpec), { loose: true })
+    })
+  })
+}
+
+function getTargetPkgName (spec: string, defaultName: string): string {
+  if (spec.startsWith('workspace:')) {
+    const raw = spec.slice(10)
+    if (raw.startsWith('.') || raw.startsWith('/')) return defaultName
+    const atIndex = raw.lastIndexOf('@')
+    if (atIndex > 0) {
+      return raw.slice(0, atIndex)
     }
   }
-  return true
+  return defaultName
 }
 
 function getVersionRange (spec: string): string {
-  if (spec.startsWith('workspace:')) return spec.slice(10)
+  if (spec.startsWith('workspace:')) {
+    const raw = spec.slice(10)
+    const atIndex = raw.lastIndexOf('@')
+    if (atIndex > 0) {
+      return raw.slice(atIndex + 1) || '*'
+    }
+    return raw
+  }
   if (spec.startsWith('npm:')) {
     spec = spec.slice(4)
     const index = spec.indexOf('@', 1)

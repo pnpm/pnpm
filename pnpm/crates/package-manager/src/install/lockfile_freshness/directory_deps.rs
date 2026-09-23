@@ -358,7 +358,17 @@ fn workspace_spec_satisfies(
     if workspace_spec.starts_with('.') || workspace_spec.starts_with('/') {
         return workspace_path_spec_satisfies(spec, workspace_spec, lockfile_dep);
     }
-    let range_str = match workspace_spec {
+    let (target, range_str) = match workspace_spec.rfind('@') {
+        Some(idx) if idx > 0 => (Some(&workspace_spec[..idx]), &workspace_spec[idx + 1..]),
+        _ => (None, workspace_spec),
+    };
+    if let Some(target) = target
+        && let Some(link) = lockfile_dep.as_link_target()
+        && !link.ends_with(target)
+    {
+        return false;
+    }
+    let range_str = match range_str {
         "*" | "^" | "~" | "" => "*",
         other => other,
     };
