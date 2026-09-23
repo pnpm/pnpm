@@ -208,6 +208,44 @@ test('resolve file with different integrity (forceFetch)', async () => {
   })
 })
 
+test('resolve file falling back to currentPkg when file does not exist on disk and not updating', async () => {
+  const wantedDependency = { bareSpecifier: 'file:./non-existent.tgz' }
+  const resolveResult = await resolveFromLocalScheme({}, wantedDependency, {
+    projectDir: TEST_DIR,
+    currentPkg: {
+      id: 'file:non-existent.tgz' as any, // eslint-disable-line
+      resolution: {
+        tarball: 'file:non-existent.tgz',
+        integrity: 'sha512-SAVED_INTEGRITY',
+      },
+    },
+  })
+
+  expect(resolveResult).toEqual({
+    id: 'file:non-existent.tgz',
+    normalizedBareSpecifier: 'file:non-existent.tgz',
+    resolution: {
+      integrity: 'sha512-SAVED_INTEGRITY',
+      tarball: 'file:non-existent.tgz',
+    },
+    resolvedVia: 'local-filesystem',
+  })
+
+  await expect(
+    resolveFromLocalScheme({}, wantedDependency, {
+      projectDir: TEST_DIR,
+      currentPkg: {
+        id: 'file:non-existent.tgz' as any, // eslint-disable-line
+        resolution: {
+          tarball: 'file:non-existent.tgz',
+          integrity: 'sha512-SAVED_INTEGRITY',
+        },
+      },
+      update: 'latest',
+    })
+  ).rejects.toThrow('ENOENT')
+})
+
 test('fail when resolving tarball specified with the link: protocol', async () => {
   const wantedDependency = { bareSpecifier: 'link:./pnpm-local-resolver-0.1.1.tgz' }
   await expect(

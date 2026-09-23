@@ -392,3 +392,54 @@ fn absolute_tarball_path_crossing_a_symlink_reads_what_it_installs() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn adding_package_succeeds_after_deleting_local_tarball_source() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let tarball_path = workspace.join("pkg-from-tarball-1.0.0.tgz");
+    write_tarball(
+        &workspace,
+        "pkg-from-tarball-1.0.0.tgz",
+        &serde_json::json!({ "name": "pkg-from-tarball", "version": "1.0.0" }),
+    );
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": { "pkg-from-tarball": "file:./pkg-from-tarball-1.0.0.tgz" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    fs::remove_file(&tarball_path).expect("delete local tarball");
+    assert!(!tarball_path.exists());
+
+    let add_cmd = crate::_utils::pacquet_in(&workspace);
+    add_cmd
+        .with_args(["add", "is-positive"])
+        .assert()
+        .success();
+
+    let installed_tarball_pkg =
+        fs::read_to_string(workspace.join("node_modules/pkg-from-tarball/package.json"))
+            .expect("read the installed manifest");
+    assert!(installed_tarball_pkg.contains(r#""version":"1.0.0""#));
+    assert!(workspace.join("node_modules/is-positive/package.json").exists());
+
+    drop((root, mock_instance));
+}

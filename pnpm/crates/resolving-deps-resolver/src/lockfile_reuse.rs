@@ -5,9 +5,9 @@
 
 use node_semver::{Range, Version};
 use pnpm_lockfile::{
-    BundledDependencies, Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer,
-    ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotEntry, StringOrList,
-    TarballResolution, TarballUrlOptions, integrity_addressed_registry_tarball_url,
+    BundledDependencies, ImporterDepVersion, Lockfile, LockfileResolution, PkgName, PkgNameVer,
+    PkgNameVerPeer, ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotEntry,
+    StringOrList, TarballResolution, TarballUrlOptions, integrity_addressed_registry_tarball_url,
     npm_tarball_url, pick_registry_for_package, registry_server_type,
 };
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
@@ -127,6 +127,13 @@ pub(crate) fn reusable_importer_dep(
     if is_git
         && (spec.specifier == bare_specifier
             || git_specifiers_are_equivalent(&spec.specifier, bare_specifier))
+    {
+        return Some(key);
+    }
+    if matches!(spec.version, ImporterDepVersion::File(_))
+        && (spec.specifier == bare_specifier
+            || pnpm_local_spec::normalize_specifier(&spec.specifier)
+                == pnpm_local_spec::normalize_specifier(bare_specifier))
     {
         return Some(key);
     }

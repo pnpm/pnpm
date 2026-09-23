@@ -334,6 +334,37 @@ test('refetch local tarball if its integrity has changed', async () => {
     expect(files.resolvedFrom).toBe('store')
     expect(bundledManifest).toBeTruthy()
   }
+
+  fs.unlinkSync(tarballPath)
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers: localFetchers,
+      cafs,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    const response = await requestPackage(wantedPackage, {
+      ...requestPackageOpts,
+      currentPkg: {
+        id: pkgId as PkgResolutionId,
+        resolution: {
+          integrity: 'sha512-v3uhYkN+Eh3Nus4EZmegjQhrfpdPIH+2FjrkeBc6ueqZJWWRaLnSYIkD0An6m16D3v+6HCE18ox6t95eGxj5Pw==',
+          tarball,
+        },
+      },
+    }) as PackageResponse & {
+      fetching: () => Promise<PkgRequestFetchResult>
+    }
+    const { files, bundledManifest } = await response.fetching()
+
+    expect(response.body.updated).toBeFalsy()
+    expect(files.resolvedFrom).toBe('store')
+    expect(bundledManifest).toBeTruthy()
+  }
 })
 
 test('refetch local tarball if its integrity has changed. The requester does not know the correct integrity', async () => {

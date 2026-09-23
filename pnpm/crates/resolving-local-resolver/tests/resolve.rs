@@ -498,6 +498,41 @@ async fn resolve_absolute_tarball_path_stepping_back_through_a_missing_directory
 }
 
 #[tokio::test]
+async fn resolve_missing_tarball_falls_back_to_current_pkg_when_not_updating() {
+    let tmp = TempDir::new().expect("tempdir");
+    let missing_tarball = tmp.path().join("missing-pkg.tgz");
+    let wd = WantedLocalDependency {
+        bare_specifier: format!("file:{}", missing_tarball.display()),
+        injected: false,
+    };
+    let mut options = opts(tmp.path());
+    let current_resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: format!("file:{}", missing_tarball.display()),
+        integrity: Some("sha512-SAVED_INTEGRITY".parse().unwrap()),
+        revision: None,
+        git_hosted: None,
+        path: None,
+    });
+    options.current_pkg = Some(pnpm_resolving_local_resolver::LocalCurrentPkg {
+        id: PkgResolutionId::from(format!("file:{}", missing_tarball.display())),
+        resolution: current_resolution.clone(),
+    });
+    options.update = LocalResolverUpdate::Off;
+
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &options).await
+        .expect("resolve should succeed with fallback")
+        .expect("claims");
+
+    assert_eq!(result.id.as_str(), format!("file:{}", missing_tarball.display()));
+    assert_eq!(result.resolution, current_resolution);
+
+    options.update = LocalResolverUpdate::On;
+    let err = resolve_from_local_scheme(&ctx_default(), &wd, &options).await
+        .expect_err("update should fail when tarball is missing");
+    assert!(matches!(err, ResolveLocalError::LinkedPkgDirNotFound { .. }));
+}
+
+#[tokio::test]
 async fn resolve_tarball_specified_with_file_protocol() {
     let tmp = TempDir::new().expect("tempdir");
     let test_dir = tmp.path().join("tgz");

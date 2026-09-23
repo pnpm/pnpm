@@ -830,3 +830,27 @@ test('install --force reports the frozenStore conflict on a repeat install', asy
   expect(status).toBe(1)
   expect(stdout.toString()).toContain('Cannot use force together with frozenStore')
 })
+
+test('adding a dependency succeeds after deleting offline package source', async () => {
+  const project = prepareEmpty()
+
+  const pkgDir = path.resolve('..', 'offline-pkg')
+  fs.mkdirSync(path.join(pkgDir, 'package'), { recursive: true })
+  fs.writeFileSync(path.join(pkgDir, 'package', 'package.json'), JSON.stringify({
+    name: 'offline-pkg',
+    version: '1.0.0',
+  }))
+  execPnpmSync(['pack', '--pack-destination', pkgDir], { cwd: path.join(pkgDir, 'package') })
+  const tarball = path.join(pkgDir, 'offline-pkg-1.0.0.tgz')
+
+  await execPnpm(['add', tarball])
+  project.has('offline-pkg')
+
+  fs.unlinkSync(tarball)
+
+  await execPnpm(['add', 'is-positive@1.0.0'])
+
+  project.has('offline-pkg')
+  project.has('is-positive')
+})
+

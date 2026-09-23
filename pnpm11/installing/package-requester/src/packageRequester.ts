@@ -1,4 +1,4 @@
-import { createReadStream, promises as fs } from 'node:fs'
+import { createReadStream, existsSync, promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
@@ -795,6 +795,9 @@ async function tarballIsUpToDate (
   if (resolution.integrity && currentIntegrity !== resolution.integrity) return false
 
   const tarball = path.join(lockfileDir, resolution.tarball.slice(5))
+  if (!existsSync(tarball)) {
+    return true
+  }
   const tarballStream = createReadStream(tarball)
   try {
     return Boolean(await ssri.checkStream(tarballStream, currentIntegrity))
