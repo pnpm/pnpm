@@ -1,8 +1,11 @@
+use crate::cli_args::pipelines::select_workspace_projects;
 use clap::Args;
+use indexmap::IndexMap;
 use miette::Context;
 use pnpm_config::Config;
 use pnpm_fs::lexical_normalize;
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_workspace::project_manifest_path;
 use pnpm_workspace_manifest_writer::remove_overrides;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -30,8 +33,8 @@ impl UnlinkArgs {
     /// Revert what `pnpm link` wrote: strip the matching `link:` overrides
     /// from `config` (in memory) and from `pnpm-workspace.yaml`, and drop the
     /// `link:` dependencies that point at the same directories from the
-    /// manifests `project_manifest_paths` returns. Returns whether the caller
-    /// should reinstall.
+    /// current project's manifest and from those of the projects a `-r` /
+    /// `--filter` run selects. Returns whether the caller should reinstall.
     ///
     /// Mirrors pnpm: when no overrides are configured it prints "Nothing to
     /// unlink" and returns `false` so the caller stops; otherwise it removes
@@ -40,15 +43,53 @@ impl UnlinkArgs {
     pub(crate) fn remove_links(
         &self,
         config: &mut Config,
+        prefix: &Path,
         manifest_path: &Path,
-        project_manifest_paths: impl FnOnce(&Config) -> miette::Result<Vec<PathBuf>>,
+        recursive_sort: bool,
     ) -> miette::Result<bool> {
         let Some(overrides) = config.overrides.as_mut() else {
             println!("Nothing to unlink");
             return Ok(false);
         };
 
-        let removed: Vec<(String, String)> = overrides
+        let removed = self.take_link_overrides(overrides);
+
+        if !removed.is_empty() {
+            let manifest_dir = manifest_path
+                .parent()
+                .ok_or_else(|| miette::miette!("manifest path has no parent directory"))?;
+            let root_dir = config.workspace_dir.as_deref().unwrap_or(manifest_dir);
+
+            remove_overrides(
+                root_dir,
+                &removed
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            )
+            .wrap_err("removing link: overrides from pnpm-workspace.yaml")?;
+
+            let linked_dirs: Vec<(&str, PathBuf)> = removed
+                .iter()
+                .map(|(name, specifier)| (name.as_str(), link_target_dir(root_dir, specifier)))
+                .collect();
+            for project_manifest_path in
+                selected_manifest_paths(config, prefix, manifest_path, recursive_sort)?
+            {
+                remove_linked_dependencies(&project_manifest_path, &linked_dirs)?;
+            }
+        }
+
+        Ok(true)
+    }
+
+    /// Remove the `link:` overrides this run unlinks (the named ones, or all
+    /// of them) from `overrides` and return them.
+    fn take_link_overrides(
+        &self,
+        overrides: &mut IndexMap<String, String>,
+    ) -> IndexMap<String, String> {
+        let removed: IndexMap<String, String> = overrides
             .iter()
             .filter(|(selector, specifier)| {
                 specifier.starts_with("link:")
@@ -59,35 +100,33 @@ impl UnlinkArgs {
             })
             .map(|(selector, specifier)| (selector.clone(), specifier.clone()))
             .collect();
-
-        for (selector, _) in &removed {
+        for selector in removed.keys() {
             overrides.shift_remove(selector);
         }
-
-        if !removed.is_empty() {
-            let manifest_dir = manifest_path
-                .parent()
-                .ok_or_else(|| miette::miette!("manifest path has no parent directory"))?;
-            let root_dir = config.workspace_dir.as_deref().unwrap_or(manifest_dir);
-
-            let selectors: Vec<String> = removed
-                .iter()
-                .map(|(selector, _)| selector.clone())
-                .collect();
-            remove_overrides(root_dir, &selectors)
-                .wrap_err("removing link: overrides from pnpm-workspace.yaml")?;
-
-            let linked_dirs: Vec<(&str, PathBuf)> = removed
-                .iter()
-                .map(|(name, specifier)| (name.as_str(), link_target_dir(root_dir, specifier)))
-                .collect();
-            for project_manifest_path in project_manifest_paths(config)? {
-                remove_linked_dependencies(&project_manifest_path, &linked_dirs)?;
-            }
-        }
-
-        Ok(true)
+        removed
     }
+}
+
+/// The current project's manifest, then those of the projects a `-r` /
+/// `--filter` run selects.
+fn selected_manifest_paths(
+    config: &Config,
+    prefix: &Path,
+    manifest_path: &Path,
+    recursive_sort: bool,
+) -> miette::Result<Vec<PathBuf>> {
+    let mut paths = vec![manifest_path.to_path_buf()];
+    if let Some(selection) =
+        select_workspace_projects(config, prefix, manifest_path, recursive_sort, false)?
+    {
+        paths.extend(
+            selection.selected_dirs
+                .iter()
+                .map(|dir| project_manifest_path(dir))
+                .filter(|path| path != manifest_path),
+        );
+    }
+    Ok(paths)
 }
 
 fn link_target_dir(base_dir: &Path, specifier: &str) -> PathBuf {
