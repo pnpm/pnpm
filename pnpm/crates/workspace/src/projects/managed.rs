@@ -7,15 +7,38 @@ use super::{Path, PathBuf};
 /// Whether `path` sits under one of the directories returned by
 /// [`resolve_ignored_directories`]. `path` is normalized lexically first:
 /// a walk anchored at a root spelled with `.` or `..` components yields
-/// paths that name a managed directory without sharing its spelling.
+/// paths that name a managed directory without sharing its spelling. On
+/// Windows and macOS, whose filesystems are case-insensitive by default,
+/// components are compared ignoring case.
 pub(super) fn is_under_ignored_directory(path: &Path, ignored_directories: &[PathBuf]) -> bool {
     if ignored_directories.is_empty() {
         return false;
     }
     let path = pnpm_fs::lexical_normalize(path);
-    ignored_directories
-        .iter()
-        .any(|dir| path.starts_with(dir))
+    ignored_directories.iter().any(|dir| starts_with_directory(&path, dir))
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+fn starts_with_directory(path: &Path, directory: &Path) -> bool {
+    path.starts_with(directory)
+}
+
+#[cfg(any(windows, target_os = "macos"))]
+fn starts_with_directory(path: &Path, directory: &Path) -> bool {
+    let fold = |component: std::path::Component<'_>| {
+        component
+            .as_os_str()
+            .to_string_lossy()
+            .to_lowercase()
+    };
+    let mut path_components = path.components();
+    directory
+        .components()
+        .all(|expected| {
+            path_components
+                .next()
+                .is_some_and(|actual| fold(actual) == fold(expected))
+        })
 }
 
 /// Resolve managed directories against the workspace root into lexically

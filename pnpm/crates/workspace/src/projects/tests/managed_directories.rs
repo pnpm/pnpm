@@ -137,6 +137,24 @@ fn skips_a_managed_directory_when_the_root_is_spelled_with_dot_dot() {
     );
 }
 
+#[cfg(any(windows, target_os = "macos"))]
+#[test]
+fn skips_a_managed_directory_configured_with_different_casing() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "store/tool", "tool");
+    make_project(tmp.path(), "store/children/pkg", "pkg");
+
+    assert_eq!(
+        find_sorted_names(
+            tmp.path(),
+            &["**", "store/tool", "store/children/*"],
+            vec![PathBuf::from("STORE")]
+        ),
+        ["root"],
+    );
+}
+
 #[test]
 fn a_managed_directory_is_never_a_workspace_project_dir() {
     let tmp = TempDir::new().unwrap();
