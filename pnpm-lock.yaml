@@ -4097,6 +4097,9 @@ importers:
       symlink-dir:
         specifier: 'catalog:'
         version: 10.0.3
+      write-file-atomic:
+        specifier: 'catalog:'
+        version: 7.0.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -4125,6 +4128,9 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.8.0
+      '@types/write-file-atomic':
+        specifier: 'catalog:'
+        version: 4.0.3
 
   pnpm11/engine/runtime/bun-resolver:
     dependencies:

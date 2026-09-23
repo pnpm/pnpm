@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
 import type { PathExtenderReport } from '@pnpm/os.env.path-extender'
 
-jest.unstable_mockModule('@pnpm/os.env.path-extender', () => ({
+jest.unstable_mockModule('../../lib/setup/pathExtender.js', () => ({
   addDirToEnvPath: jest.fn(),
 }))
 
@@ -33,7 +33,7 @@ jest.unstable_mockModule('fs', () => {
   }
 })
 
-const { addDirToEnvPath } = await import('@pnpm/os.env.path-extender')
+const { addDirToEnvPath } = await import('../../lib/setup/pathExtender.js')
 const { detectIfCurrentPkgIsExecutable } = await import('@pnpm/cli.meta')
 const { spawnSync } = await import('node:child_process')
 const { setup, LEGACY_HOME_DIR_SHIM_NAMES } = await import('@pnpm/engine.pm.commands')
