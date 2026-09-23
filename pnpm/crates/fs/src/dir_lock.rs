@@ -8,10 +8,18 @@
 //! A directory outlives the process that created it, so on its own it
 //! cannot tell a waiter whether its holder is still at work or died
 //! holding it — interrupted by `Ctrl+C`, say. The holder therefore also
-//! keeps an OS file lock on a file inside the directory. The OS releases
-//! that lock when the holder's process ends, however it ends, and a
-//! waiter that finds the file unlocked takes the directory over at once
-//! instead of sitting out its whole wait.
+//! keeps an OS file lock on the held file beside the directory,
+//! `<path>.held`, for as long as it holds the lock. The OS releases that
+//! lock when the holder's process ends, however it ends. Only the process
+//! holding the file lock creates, removes, or takes over the directory,
+//! so a waiter that gets the file lock and still finds the directory
+//! there knows its holder is gone, and takes it over at once instead of
+//! sitting out its whole wait.
+//!
+//! The directory stays the lock a pnpm without the file lock — an older
+//! release, or one on a filesystem that cannot hold OS locks — agrees on.
+//! Such a holder's liveness cannot be told, so its directory's age decides
+//! when it counts as gone.
 //!
 //! The lock is advisory in a second sense — [`DirLock::acquire`] gives
 //! up after a bounded wait and reports that it could not take the lock,
@@ -36,17 +44,21 @@ const POLL_INTERVAL: Duration = Duration::from_millis(50);
 /// `create_dir` in the delete-pending state.
 const RELEASE_RETRY_BUDGET: Duration = Duration::from_secs(1);
 
-/// How long a claimer keeps trying to take the OS lock on its own held
-/// file while a waiter's probe has it. A probe holds it for the length
-/// of one small read, so this is far more than it needs.
-const HOLD_RETRY_BUDGET: Duration = Duration::from_secs(1);
+/// How long a claimer may take between creating the directory and
+/// recording itself in it. A directory still unrecorded past this age
+/// was left by a claimer that died in between.
+const CLAIM_GRACE: Duration = Duration::from_secs(10);
 
 /// Names the file inside the lock directory that records who took it.
 const OWNER_FILE: &str = "owner";
 
-/// Names the file inside the lock directory the holder keeps an OS file
-/// lock on for as long as it holds the lock.
-const HELD_FILE: &str = "held";
+/// Names the file inside the lock directory that says its holder keeps
+/// the OS lock on the held file, so a waiter holding that lock knows the
+/// holder is gone without waiting for the directory to age.
+const HELD_MARKER: &str = "held";
+
+/// The suffix that names the held file beside the lock directory.
+const HELD_FILE_SUFFIX: &str = ".held";
 
 /// A held lock. Released on drop.
 #[derive(Debug)]
@@ -57,9 +69,9 @@ pub struct DirLock {
     /// was declared abandoned". Without it a slow holder would release
     /// its successor's lock on drop.
     token: String,
-    /// The OS lock that tells waiters this process is still running.
-    /// `None` on a filesystem that cannot hold one; the lock is then only
-    /// as good as its age bound.
+    /// The OS lock on the held file, kept for as long as the lock is.
+    /// `None` on a filesystem that cannot hold one; the directory is
+    /// then the whole lock, and waiters judge it by its age.
     held: Option<File>,
 }
 
@@ -88,18 +100,18 @@ impl DirLock {
             fs::create_dir_all(parent)?;
         }
         let deadline = Instant::now() + wait;
-        let mut release_retry_started = None;
+        let mut acquisition = Acquisition {
+            held: HeldFile::open(&path),
+            path,
+            abandoned_after,
+            deadline,
+            release_retry_started: None,
+        };
         loop {
-            match try_create_lock_dir(&path, deadline, &mut release_retry_started)? {
-                CreateAttempt::Claimed => return claim(path).map(Some),
+            match acquisition.poll()? {
+                CreateAttempt::Claimed => return acquisition.claim().map(Some),
                 CreateAttempt::Retry => continue,
                 CreateAttempt::Held => {}
-            }
-            // Best-effort: whoever removes it first wins the next
-            // `create_dir`, and a failure just means another waiter
-            // got there first.
-            if is_abandoned(&path, abandoned_after) && remove_lock_dir(&path) {
-                continue;
             }
             if Instant::now() >= deadline {
                 return Ok(None);
@@ -118,12 +130,106 @@ impl DirLock {
     }
 }
 
+/// One process's attempt to take the lock at `path`, polled until it
+/// succeeds or the deadline passes.
+struct Acquisition {
+    path: PathBuf,
+    held: HeldFile,
+    abandoned_after: Duration,
+    deadline: Instant,
+    release_retry_started: Option<Instant>,
+}
+
+impl Acquisition {
+    /// One poll: create the directory, remove one whose holder is gone so
+    /// that the next poll can, or find it held.
+    fn poll(&mut self) -> io::Result<CreateAttempt> {
+        let liveness = self.held.lock();
+        if liveness == Liveness::Busy {
+            return Ok(CreateAttempt::Held);
+        }
+        match try_create_lock_dir(&self.path, self.deadline, &mut self.release_retry_started)? {
+            CreateAttempt::Held => {}
+            attempt => return Ok(attempt),
+        }
+        // Best-effort: a removal that fails is retried on the next poll,
+        // and a directory already gone was removed by a process without
+        // the held file.
+        if is_abandoned(&self.path, self.abandoned_after, liveness) && remove_lock_dir(&self.path) {
+            return Ok(CreateAttempt::Retry);
+        }
+        Ok(CreateAttempt::Held)
+    }
+
+    fn claim(self) -> io::Result<DirLock> {
+        claim(self.path, self.held.into_locked())
+    }
+}
+
+/// What the OS lock on the held file says about the lock directory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Liveness {
+    /// This process holds the file lock: no process that proves its
+    /// liveness through it holds the directory.
+    Proven,
+    /// Another process holds the file lock, and with it the directory
+    /// or the right to claim it.
+    Busy,
+    /// The file lock cannot be taken here, so the directory is the whole
+    /// lock, as for an older pnpm.
+    Unavailable,
+}
+
+/// The held file beside the lock directory, opened once per acquisition
+/// and locked on the first poll that finds it free.
+struct HeldFile {
+    file: Option<File>,
+    locked: bool,
+}
+
+impl HeldFile {
+    fn open(lock_path: &Path) -> Self {
+        let file = crate::open_secure_lock_file(&held_path(lock_path)).ok();
+        Self { file, locked: false }
+    }
+
+    fn lock(&mut self) -> Liveness {
+        let Some(file) = &self.file else {
+            return Liveness::Unavailable;
+        };
+        if self.locked {
+            return Liveness::Proven;
+        }
+        match file.try_lock() {
+            Ok(()) => {
+                self.locked = true;
+                Liveness::Proven
+            }
+            Err(TryLockError::WouldBlock) => Liveness::Busy,
+            Err(TryLockError::Error(_)) => {
+                self.file = None;
+                Liveness::Unavailable
+            }
+        }
+    }
+
+    fn into_locked(self) -> Option<File> {
+        self.file.filter(|_| self.locked)
+    }
+}
+
+fn held_path(lock_path: &Path) -> PathBuf {
+    let mut held = lock_path.as_os_str().to_owned();
+    held.push(HELD_FILE_SUFFIX);
+    PathBuf::from(held)
+}
+
 /// What one attempt at creating the lock directory settled.
 enum CreateAttempt {
     /// The directory is ours.
     Claimed,
-    /// A release was still in flight; the attempt was slept out and should be
-    /// repeated.
+    /// The attempt should be repeated at once: a release was still in
+    /// flight and slept out, or an abandoned directory was removed.
     Retry,
     /// Someone else holds the lock.
     Held,
@@ -173,18 +279,19 @@ fn is_transient_release_error(
 
 impl Drop for DirLock {
     fn drop(&mut self) {
-        // Only release a lock that is still ours. A holder that outran
-        // `abandoned_after` has already had its directory removed and
-        // replaced by the next process in line; removing that one would
-        // hand the resource to two processes at once.
+        // Only release a lock that is still ours. A holder judged by age
+        // alone — because it or its successor lacks the held file — may
+        // have had its directory removed and replaced by the next process
+        // in line; removing that one would hand the resource to two
+        // processes at once.
         //
         // Reading the record and removing the directory are two steps, so
         // a takeover landing between them is still removable — the check
         // narrows the window from the whole guarded operation to a couple
         // of syscalls, it does not close it. Closing it needs an atomic
         // compare-and-remove no portable filesystem API offers. The
-        // residual is acceptable because reaching it requires a takeover,
-        // which requires this holder to have already run past
+        // residual is acceptable because reaching it requires a takeover
+        // by age, which requires this holder to have already run past
         // `abandoned_after` — a bound the caller sizes well above the
         // work being guarded.
         match fs::read_to_string(self.path.join(OWNER_FILE)) {
@@ -192,54 +299,33 @@ impl Drop for DirLock {
             Err(error) if error.kind() != io::ErrorKind::NotFound => return,
             _ => {}
         }
-        // Windows keeps a file with an open handle in place, and the
-        // directory with it, so the OS lock goes before the directory.
-        drop(self.held.take());
         let _ = fs::remove_dir_all(&self.path);
+        // Released only now, so no waiter gets the file lock while the
+        // directory is still there.
+        drop(self.held.take());
     }
 }
 
 /// Record this process as the owner of a lock directory it just created.
 /// A lock that cannot be recorded is given back, since [`Drop`] would
 /// have no way to tell at release time whether it is still ours.
-///
-/// The OS lock is taken before the record is written, so a waiter that
-/// finds the record beside an unlocked held file knows the holder took
-/// the lock and then went away, not that it has yet to take it.
-fn claim(path: PathBuf) -> io::Result<DirLock> {
-    let held = hold(&path);
+fn claim(path: PathBuf, held: Option<File>) -> io::Result<DirLock> {
     let token = mint_token();
-    if let Err(error) = fs::write(path.join(OWNER_FILE), &token) {
-        drop(held);
+    if let Err(error) = record_claim(&path, &token, held.is_some()) {
         let _ = fs::remove_dir_all(&path);
         return Err(error);
     }
     Ok(DirLock { path, token, held })
 }
 
-/// Take the OS lock that tells waiters this process is still running.
-///
-/// `None` when the filesystem cannot hold one. The held file is then
-/// removed again, so a waiter does not read a lock that was never taken
-/// as a holder that died.
-fn hold(path: &Path) -> Option<File> {
-    let held_path = path.join(HELD_FILE);
-    let file = File::create(&held_path).ok()?;
-    let started = Instant::now();
-    loop {
-        match file.try_lock() {
-            Ok(()) => return Some(file),
-            // A waiter probing this very file holds it for the length of
-            // one read.
-            Err(TryLockError::WouldBlock) if started.elapsed() < HOLD_RETRY_BUDGET => {
-                sleep(POLL_INTERVAL);
-            }
-            Err(_) => break,
-        }
+/// The marker goes in before the record: a waiter holding the file lock
+/// then takes over a claimer that died at any point after creating the
+/// directory, either at once or after the claim grace.
+fn record_claim(path: &Path, token: &str, holds_held_file: bool) -> io::Result<()> {
+    if holds_held_file {
+        fs::write(path.join(HELD_MARKER), "")?;
     }
-    drop(file);
-    let _ = fs::remove_file(held_path);
-    None
+    fs::write(path.join(OWNER_FILE), token)
 }
 
 /// A value no concurrent acquisition shares. The clock supplies
@@ -255,28 +341,22 @@ fn mint_token() -> String {
     format!("{}-{nanos}-{}", std::process::id(), COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
-/// Whether the lock directory at `path` belongs to nobody any more: its
-/// holder's process has ended, or it is older than `abandoned_after`.
-fn is_abandoned(path: &Path, abandoned_after: Duration) -> bool {
-    holder_is_gone(path) || is_older_than(path, abandoned_after)
-}
-
-/// Whether the process that took the lock at `path` has ended, told by
-/// the OS lock on the held file: a live holder keeps it, and the OS
-/// releases it when the holder's process ends.
+/// Whether the lock directory at `path` belongs to nobody any more.
 ///
-/// `false` whenever that cannot be told: the held file is missing (an
-/// older pnpm keeps none), the filesystem cannot hold an OS lock, or the
-/// owner record is not there yet, which is a claim still in progress
-/// rather than a holder that died.
-fn holder_is_gone(path: &Path) -> bool {
-    let Ok(held) = File::open(path.join(HELD_FILE)) else {
-        return false;
-    };
-    if held.try_lock().is_err() {
-        return false;
+/// Holding the file lock settles it for a holder that marked the
+/// directory: it would hold the file lock if it were still running. Any
+/// other directory is judged by its age — `abandoned_after` once its
+/// claimer recorded itself, the claim grace before that.
+fn is_abandoned(path: &Path, abandoned_after: Duration, liveness: Liveness) -> bool {
+    if liveness == Liveness::Proven && path.join(HELD_MARKER).exists() {
+        return true;
     }
-    path.join(OWNER_FILE).exists()
+    let age = if path.join(OWNER_FILE).exists() {
+        abandoned_after
+    } else {
+        CLAIM_GRACE.min(abandoned_after)
+    };
+    is_older_than(path, age)
 }
 
 fn is_older_than(path: &Path, age: Duration) -> bool {
@@ -289,8 +369,7 @@ fn is_older_than(path: &Path, age: Duration) -> bool {
 }
 
 /// Remove an abandoned lock directory. A directory that is already gone
-/// counts as removed: another waiter got there first, and the next
-/// `create_dir` decides between them.
+/// counts as removed, and the next `create_dir` decides who claims it.
 fn remove_lock_dir(path: &Path) -> bool {
     match fs::remove_dir_all(path) {
         Ok(()) => true,
