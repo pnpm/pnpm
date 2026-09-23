@@ -58,9 +58,16 @@ jobs:
               - 'pnpr/{AGENTS,CONTRIBUTING}.md'
               - 'pnpm/plans/*.md'
             rust:
-              - '!pnpm/{AGENTS,CONTRIBUTING,CODE_STYLE_GUIDE}.md'
-              - '!pnpr/{AGENTS,CONTRIBUTING}.md'
+              # Documentation only. Markdown under pnpr/.fixtures ships inside
+              # registry fixtures, so it stays in.
+              - '!pnpm/*.md'
               - '!pnpm/plans/*.md'
+              - '!pnpm/scripts/*.md'
+              - '!pnpm/tasks/*/*.md'
+              - '!pnpr/*.md'
+              - '!pnpr/crates/*/*.md'
+              - '!pnpr/docker/*.md'
+              - '!pnpr/client/*.md'
               - 'pnpm/**'
               - 'pnpr/**'
               - 'Cargo.toml'

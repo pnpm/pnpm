@@ -68,10 +68,17 @@ test('Rust gate configuration keeps exclusions limited to approved documentation
   assert.match(filters, /predicate-quantifier: some-with-excludes/)
   const patterns = filters.split('            rust:\n')[1].split('\n').map(line => line.match(/- '([^']+)'/)?.[1]).filter(Boolean)
   assert.deepEqual(patterns.filter(pattern => pattern.startsWith('!')), [
-    '!pnpm/{AGENTS,CONTRIBUTING,CODE_STYLE_GUIDE}.md',
-    '!pnpr/{AGENTS,CONTRIBUTING}.md',
+    '!pnpm/*.md',
     '!pnpm/plans/*.md',
+    '!pnpm/scripts/*.md',
+    '!pnpm/tasks/*/*.md',
+    '!pnpr/*.md',
+    '!pnpr/crates/*/*.md',
+    '!pnpr/docker/*.md',
+    '!pnpr/client/*.md',
   ])
+  // Markdown under pnpr/.fixtures ships inside registry fixtures.
+  assert.ok(!patterns.some(pattern => pattern.startsWith('!') && pattern.includes('**')), 'exclusions name their directories')
   for (const pattern of ['pnpm/**', 'pnpr/**', '.config/nextest.toml', 'fixtures/**', 'pnpm11/installing/deps-installer/test/fixtures/patch-pkg/**', 'pnpm11/deps/compliance/commands/test/sbom/fixtures/**']) {
     assert.ok(patterns.includes(pattern), `required test input: ${pattern}`)
   }
