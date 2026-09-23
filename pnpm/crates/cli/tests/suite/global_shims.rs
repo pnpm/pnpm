@@ -205,6 +205,17 @@ fn missing_global_target_reports_not_found() {
 #[cfg(unix)]
 #[test]
 fn nvmrc_runtime_pin_downloads_node_on_demand() {
+    version_file_runtime_pin_downloads_node_on_demand(".nvmrc");
+}
+
+#[cfg(unix)]
+#[test]
+fn node_version_file_runtime_pin_downloads_node_on_demand() {
+    version_file_runtime_pin_downloads_node_on_demand(".node-version");
+}
+
+#[cfg(unix)]
+fn version_file_runtime_pin_downloads_node_on_demand(file_name: &str) {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new();
     let version = "24.0.0-rc.4";
@@ -236,7 +247,7 @@ fn nvmrc_runtime_pin_downloads_node_on_demand() {
     )
     .unwrap();
     write_script(&project.join("node_modules/.bin/node"), "compromised-local-bin");
-    fs::write(project.join(".nvmrc"), format!("v{version}\n")).unwrap();
+    fs::write(project.join(file_name), format!("v{version}\n")).unwrap();
     let global_target = root
         .path()
         .join("global")

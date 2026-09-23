@@ -6,9 +6,9 @@
 //! running the CLI: the `globalShims` record decides which providing
 //! packages are eligible, and the managed runtimes are enabled by default.
 //! For a runtime pin, the dispatcher reads the project's
-//! `devEngines.runtime` / `engines.runtime` or `.nvmrc`, materializes the
-//! release in pnpm's global virtual store, and executes it directly —
-//! never through the project's `node_modules/.bin`. A
+//! `devEngines.runtime` / `engines.runtime`, `.node-version`, or `.nvmrc`,
+//! materializes the release in pnpm's global virtual store, and executes
+//! it directly — never through the project's `node_modules/.bin`. A
 //! publisher-signature-verified stable Node release runs without prompting.
 //!
 //! Everything else eligible — ordinary package bins, unsigned runtime
@@ -276,8 +276,9 @@ enum Candidate {
     /// dependency (including a materialized runtime) providing the bin.
     LocalBin { project_dir: PathBuf, bin: PathBuf, identity: String },
     /// The project pins the runtime `<name>` in `devEngines.runtime`,
-    /// `engines.runtime`, or `.nvmrc`, but has not materialized it; the
-    /// pinned version is fetched into the store on demand.
+    /// `engines.runtime`, `.node-version`, or `.nvmrc`, but has not
+    /// materialized it; the pinned version is fetched into the store on
+    /// demand.
     RuntimePin { project_dir: PathBuf, version_spec: String, source_hash: String, identity: String },
     /// The project pins its package manager in `packageManager` /
     /// `devEngines.packageManager`. Like a runtime pin, the version is
