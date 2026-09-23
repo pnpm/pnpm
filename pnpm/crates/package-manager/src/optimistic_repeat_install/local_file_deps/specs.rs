@@ -1,5 +1,3 @@
-//! Detecting dependency specs that point at the local filesystem.
-
 use crate::optimistic_repeat_install::{
     CatalogAnchor, CatalogResolutionResult, Catalogs, Config, IncludedDependencies,
     WantedDependency, resolve_from_catalog,

@@ -1089,27 +1089,26 @@ test('allProjectsAreUpToDate(): returns false if the lockfile is broken, the res
 
 test('allProjectsAreUpToDate(): works with packages linked through the workspace protocol using home-relative path', async () => {
   const homePkgDir = path.resolve(os.homedir(), 'pkg')
-  const relativeFromLockfile = path.relative(process.cwd(), homePkgDir)
-  expect(await allProjectsAreUpToDate([
-    {
-      id: 'bar' as ProjectId,
-      manifest: {
-        dependencies: {
-          foo: 'workspace:~/pkg',
-        },
+  const relativeFromProject = path.relative(process.cwd(), homePkgDir)
+  const project = {
+    id: '.' as ProjectId,
+    manifest: {
+      dependencies: {
+        foo: 'workspace:~/pkg',
       },
-      rootDir: 'bar' as ProjectRootDir,
     },
-  ], {
+    rootDir: process.cwd() as ProjectRootDir,
+  }
+  const opts = {
     autoInstallPeers: false,
     catalogs: {},
     excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     wantedLockfile: {
       importers: {
-        ['bar' as ProjectId]: {
+        ['.' as ProjectId]: {
           dependencies: {
-            foo: `link:${relativeFromLockfile}`,
+            foo: `link:${relativeFromProject}`,
           },
           specifiers: {
             foo: 'workspace:~/pkg',
@@ -1120,6 +1119,100 @@ test('allProjectsAreUpToDate(): works with packages linked through the workspace
     },
     workspacePackages: new Map(),
     lockfileDir: process.cwd(),
-  })).toBeTruthy()
+  }
+  expect(await allProjectsAreUpToDate([project], opts)).toBeTruthy()
+
+  const mismatchedOpts = {
+    ...opts,
+    wantedLockfile: {
+      ...opts.wantedLockfile,
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            foo: 'link:./other-path',
+          },
+          specifiers: {
+            foo: 'workspace:~/pkg',
+          },
+        },
+      },
+    },
+  }
+  expect(await allProjectsAreUpToDate([project], mismatchedOpts)).toBeFalsy()
+})
+
+test('allProjectsAreUpToDate(): works with nested home-relative workspace dependency in local directory package', async () => {
+  prepareEmpty()
+  await mkdir('local-dir')
+  await writeFile('./local-dir/package.json', JSON.stringify({
+    name: 'local-dir',
+    version: '1.0.0',
+    dependencies: {
+      nested: 'workspace:~/pkg',
+    },
+  }))
+  const homePkgDir = path.resolve(os.homedir(), 'pkg')
+  const relativeFromLockfile = path.relative(process.cwd(), homePkgDir)
+  const nestedProjects = [
+    {
+      id: 'bar' as ProjectId,
+      manifest: {
+        dependencies: {
+          local: 'file:./local-dir',
+        },
+      },
+      rootDir: 'bar' as ProjectRootDir,
+    },
+  ]
+  const nestedOptions = {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        bar: {
+          dependencies: {
+            local: 'file:./local-dir',
+          },
+          specifiers: {
+            local: 'file:./local-dir',
+          },
+        },
+      },
+      packages: {
+        'local@file:./local-dir': {
+          resolution: { directory: './local-dir', type: 'directory' },
+          version: '1.0.0',
+          dependencies: {
+            nested: `link:${relativeFromLockfile}`,
+          },
+          dev: false,
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    } as LockfileObject,
+    workspacePackages: new Map(),
+    lockfileDir: process.cwd(),
+  }
+  expect(await allProjectsAreUpToDate(nestedProjects, nestedOptions)).toBeTruthy()
+
+  const mismatchedNestedOptions = {
+    ...nestedOptions,
+    wantedLockfile: {
+      ...nestedOptions.wantedLockfile,
+      packages: {
+        'local@file:./local-dir': {
+          resolution: { directory: './local-dir', type: 'directory' },
+          version: '1.0.0',
+          dependencies: {
+            nested: 'link:./other-path',
+          },
+          dev: false,
+        },
+      },
+    } as LockfileObject,
+  }
+  expect(await allProjectsAreUpToDate(nestedProjects, mismatchedNestedOptions)).toBeFalsy()
 })
 

@@ -65,15 +65,16 @@ export async function linkedPackagesAreUpToDate (
             return depPath != null && isLocalFileDepUpdated(lockfileDir, lockfilePackages?.[depPath], manifestsByDir, workspaceDir)
           }
           const isLinked = lockfileRef.startsWith('link:')
-          if (
-            isLinked &&
-            (
-              currentSpec.startsWith('link:') ||
-              currentSpec.startsWith('file:') ||
-              (currentSpec.startsWith('workspace:') && isWorkspacePath(currentSpec.slice(10)))
-            )
-          ) {
-            return true
+          if (isLinked) {
+            if (currentSpec.startsWith('link:') || currentSpec.startsWith('file:')) {
+              return resolveSpecPath(project.dir, currentSpec.slice(5)) === resolveSpecPath(project.dir, lockfileRef.slice(5))
+            }
+            if (currentSpec.startsWith('workspace:')) {
+              const target = currentSpec.slice(10)
+              if (isWorkspacePath(target)) {
+                return resolveSpecPath(project.dir, target) === resolveSpecPath(project.dir, lockfileRef.slice(5))
+              }
+            }
           }
           // https://github.com/pnpm/pnpm/issues/6592
           // if the dependency is linked and the specified version type is tag, we consider it to be up-to-date to skip full resolution.

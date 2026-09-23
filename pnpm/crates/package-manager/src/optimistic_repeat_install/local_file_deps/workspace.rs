@@ -1,5 +1,3 @@
-//! Workspace dependency matching for repeat install.
-
 use crate::optimistic_repeat_install::{
     CatalogAnchor, CatalogResolutionResult, Catalogs, PackageManifest, WantedDependency,
     resolve_from_catalog,

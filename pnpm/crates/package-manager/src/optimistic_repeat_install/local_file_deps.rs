@@ -1,5 +1,3 @@
-//! Detecting dependency specs that point at the local filesystem.
-
 pub(crate) mod specs;
 pub(crate) use specs::{
     has_local_file_override, has_local_file_package_extension, is_local_file_spec,
