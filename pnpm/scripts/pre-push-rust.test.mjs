@@ -10,9 +10,6 @@ import { temporaryRepo } from './git-fixture.mjs'
 
 const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'pre-push-rust.sh')
 
-// Every tool the script runs is a stub, so the test exercises only the
-// script's own logic. The `cargo` stub records the git variables it sees when
-// asked to run dylint.
 function stubbedCheckout (context) {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-pre-push-')))
   context.after(() => fs.rmSync(dir, { recursive: true, force: true }))
