@@ -2,8 +2,8 @@
 
 use super::{
     CatalogAnchor, CatalogResolutionResult, Catalogs, Config, DependencyGroup,
-    IncludedDependencies, Lockfile, OptimisticRepeatInstallCheck, Path, PathBuf, WantedDependency,
-    resolve_from_catalog,
+    IncludedDependencies, Lockfile, OptimisticRepeatInstallCheck, PackageManifest, Path, PathBuf,
+    WantedDependency, resolve_from_catalog,
 };
 use pnpm_lockfile::{LockfileResolution, PkgName, is_local_tarball_path};
 use pnpm_resolving_local_resolver::local_tarball_path;
@@ -142,6 +142,8 @@ fn scan_local_tarball_deps(check: &OptimisticRepeatInstallCheck<'_>) -> LocalTar
                 project_dir,
                 field,
                 group,
+                inject_workspace_packages: check.config.inject_workspace_packages,
+                project_manifests: check.project_manifests,
             };
             if !scan_field_tarballs(&scan, manifest, &mut tarballs) {
                 return LocalTarballScan::RequiresInstall;
@@ -161,6 +163,8 @@ struct FieldTarballScan<'a> {
     project_dir: &'a Path,
     field: &'a str,
     group: DependencyGroup,
+    inject_workspace_packages: bool,
+    project_manifests: &'a [(PathBuf, &'a PackageManifest)],
 }
 
 /// `false` when a `file:` dependency in this field cannot be resolved to a
@@ -178,7 +182,10 @@ fn scan_field_tarballs(
         return true;
     };
     for (alias, spec) in deps {
-        if dependency_is_injected(manifest.value(), alias) {
+        if dependency_is_injected(manifest.value(), alias)
+            || (scan.inject_workspace_packages
+                && is_workspace_package(scan.project_manifests, alias))
+        {
             return false;
         }
         match local_tarball_candidate(scan, alias, spec) {
@@ -196,6 +203,18 @@ fn scan_field_tarballs(
         }
     }
     true
+}
+
+fn is_workspace_package(project_manifests: &[(PathBuf, &PackageManifest)], name: &str) -> bool {
+    project_manifests
+        .iter()
+        .any(|(_, manifest)| {
+            manifest
+                .value()
+                .get("name")
+                .and_then(serde_json::Value::as_str)
+                == Some(name)
+        })
 }
 
 fn dependency_is_injected(manifest: &serde_json::Value, name: &str) -> bool {

@@ -403,7 +403,6 @@ fn injected_workspace_dependency_updated_re_resolves() {
         .assert()
         .success();
 
-    // Now update project-1 to add a dependency
     fs::write(
         workspace.join("project-1/package.json"),
         serde_json::json!({
