@@ -196,34 +196,19 @@ pub(super) fn build_package_metadata(
     })
 }
 /// The manifest's `engines`, without the ranges that constrain nothing.
+/// The legacy array form, such as `["node >= 0.8"]`, is not checked for
+/// installability, so it is not recorded either.
 pub(super) fn read_engines(manifest: Option<&Value>) -> Option<HashMap<String, String>> {
-    manifest
-        .and_then(|manifest| manifest.get("engines"))
-        .and_then(|value| match value {
-            Value::Object(map) => Some(
-                map.iter()
-                    .filter_map(|(name, value)| Some((name.clone(), value.as_str()?)))
-                    .collect::<Vec<(String, &str)>>(),
-            ),
-            // Array-form `engines` (e.g. `["node >= 0.2.0"]`) records
-            // index-keyed entries.
-            Value::Array(items) => Some(
-                items
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, value)| Some((index.to_string(), value.as_str()?)))
-                    .collect(),
-            ),
-            _ => None,
+    let engines: HashMap<String, String> = manifest?
+        .get("engines")?
+        .as_object()?
+        .iter()
+        .filter_map(|(name, value)| {
+            let range = value.as_str()?;
+            (range != "*").then(|| (name.clone(), range.to_string()))
         })
-        .map(|entries| {
-            entries
-                .into_iter()
-                .filter(|(_, range)| *range != "*")
-                .map(|(name, range)| (name, range.to_string()))
-                .collect::<HashMap<String, String>>()
-        })
-        .filter(|map| !map.is_empty())
+        .collect();
+    (!engines.is_empty()).then_some(engines)
 }
 /// Record `version` only for non-registry packages (depPath carries
 /// a `:`), and only when the manifest declares one and the resolution

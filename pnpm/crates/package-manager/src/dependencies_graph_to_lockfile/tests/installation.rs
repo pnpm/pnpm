@@ -3,7 +3,7 @@ use super::{
     error_from_single_node_graph, make_file_node, make_named_registry_node, make_node,
     make_node_with_optional, named_registries_with, single_importer_opts, write_manifest,
 };
-use crate::dependencies_graph_to_lockfile::packages::read_string_or_list;
+use crate::dependencies_graph_to_lockfile::packages::{read_engines, read_string_or_list};
 use pnpm_deps_path::DepPath;
 use pnpm_lockfile::{
     ImporterDepVersion, LockfileResolution, PackageKey, PackageMetadata, PkgName,
@@ -133,6 +133,20 @@ fn string_or_list_metadata_accepts_arrays_and_rejects_other_values() {
 
     let object_manifest = json!({ "libc": { "name": "musl" } });
     assert_eq!(read_string_or_list(Some(&object_manifest), "libc"), None);
+}
+#[test]
+fn engines_record_only_constraining_object_entries() {
+    let object_manifest = json!({ "engines": { "node": ">=18", "npm": "*" } });
+    assert_eq!(
+        read_engines(Some(&object_manifest)),
+        Some([("node".to_string(), ">=18".to_string())].into()),
+    );
+
+    let wildcard_manifest = json!({ "engines": { "npm": "*" } });
+    assert_eq!(read_engines(Some(&wildcard_manifest)), None);
+
+    let array_manifest = json!({ "engines": ["node >= 0.2.0"] });
+    assert_eq!(read_engines(Some(&array_manifest)), None);
 }
 #[test]
 fn duplicate_manifest_alias_uses_pnpm_dependency_field_precedence() {
