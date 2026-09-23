@@ -1,8 +1,8 @@
 use super::{
     super::{
-        Config, InstallError, NodeLinker, PROJECT_LIFECYCLE_STAGES, PROJECT_POST_UNINSTALL_STAGES,
-        PROJECT_PRE_UNINSTALL_STAGES, PackageManifest, Path, PathBuf, ProjectMutation, Reporter,
-        project_requires_lifecycle_scripts,
+        Config, InstallError, NodeLinker, PROJECT_INSTALL_STAGES, PROJECT_LIFECYCLE_STAGES,
+        PROJECT_POST_UNINSTALL_STAGES, PROJECT_PRE_UNINSTALL_STAGES, PackageManifest, Path,
+        PathBuf, ProjectMutation, Reporter, project_requires_lifecycle_scripts,
     },
     ProjectScriptRunner,
 };
@@ -10,13 +10,20 @@ use super::{
 /// The stages a project runs once this run has materialized it.
 pub(in crate::install) fn project_script_stages(
     mutation: ProjectMutation,
+    include_dev: bool,
 ) -> &'static [&'static str] {
     match mutation {
         ProjectMutation::UninstallSome => &PROJECT_POST_UNINSTALL_STAGES,
+        ProjectMutation::InstallSome => &PROJECT_INSTALL_STAGES,
         ProjectMutation::InstallWorkspace
         | ProjectMutation::InstallSelected
-        | ProjectMutation::InstallSome
-        | ProjectMutation::NoInstall => &PROJECT_LIFECYCLE_STAGES,
+        | ProjectMutation::NoInstall => {
+            if include_dev {
+                &PROJECT_LIFECYCLE_STAGES
+            } else {
+                &PROJECT_INSTALL_STAGES
+            }
+        }
     }
 }
 

@@ -28,6 +28,12 @@ export const PRE_UNINSTALL_STAGES = ['preuninstall', 'uninstall']
 /** The project stage `pnpm remove` runs after unlinking. */
 export const POST_UNINSTALL_STAGES = ['postuninstall']
 
+/** The project install stages run during install when devDependencies are excluded (e.g. `--prod`). */
+export const PROJECT_INSTALL_STAGES = ['preinstall', 'install', 'postinstall']
+
+/** The project lifecycle stages run during full install. */
+export const PROJECT_LIFECYCLE_STAGES = ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare']
+
 export interface Importer {
   buildIndex: number
   manifest: ProjectManifest

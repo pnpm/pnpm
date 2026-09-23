@@ -58,6 +58,7 @@ export type StrictBuildOptions = {
   strictStorePkgContentCheck: boolean
   fetchFullMetadata?: boolean
   supportedArchitectures?: SupportedArchitectures
+  stages?: string[]
 } & Pick<Config, 'allowBuilds'>
 
 export type BuildOptions = Partial<StrictBuildOptions> &

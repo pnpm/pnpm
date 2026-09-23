@@ -84,7 +84,7 @@ pub(super) fn run_materialized_project_scripts<Reporter: self::Reporter>(
                 inputs.node_linker,
                 inputs.workspace_root,
                 inputs.root_preinstall_ran,
-                project_script_stages(inputs.request.mutation),
+                project_script_stages(inputs.request.mutation, inputs.request.include_dev),
             )?;
         }
         if let Some(rebuild) = inputs.request.rebuild {

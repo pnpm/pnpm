@@ -104,6 +104,11 @@ pub struct RunPostinstallHooks<'a> {
 /// phase, in execution order.
 const DEPENDENCY_LIFECYCLE_STAGES: [&str; 3] = ["preinstall", "install", "postinstall"];
 
+/// The install lifecycle stages pnpm runs for each workspace *project* during
+/// `pnpm install` when devDependencies are excluded (e.g. `--prod`) or when
+/// installing specific packages, in execution order.
+pub const PROJECT_INSTALL_STAGES: [&str; 3] = ["preinstall", "install", "postinstall"];
+
 /// The lifecycle stages pnpm runs for each workspace *project* during
 /// `pnpm install`, in execution order.
 pub const PROJECT_LIFECYCLE_STAGES: [&str; 6] =

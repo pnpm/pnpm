@@ -211,3 +211,25 @@ fn remove_in_a_member_runs_no_project_scripts() {
 
     drop((root, anchor));
 }
+
+#[test]
+fn add_in_a_member_does_not_run_prepare_scripts() {
+    let (root, workspace, anchor) = installed_workspace(&["a", "b"]);
+
+    let pkg_a_dir = workspace.join("packages").join("a");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(pkg_a_dir.join("package.json")).unwrap()).unwrap();
+    manifest["scripts"]["prepare"] =
+        serde_json::json!(r#"node -e "require('fs').writeFileSync('ran-prepare.txt','a')""#);
+    fs::write(pkg_a_dir.join("package.json"), manifest.to_string()).unwrap();
+
+    pacquet(&pkg_a_dir, ["add", "@pnpm.e2e/foo"]).assert().success();
+
+    assert_ran(&workspace, &["root", "a"], &["root", "a", "b"]);
+    assert!(
+        !pkg_a_dir.join("ran-prepare.txt").exists(),
+        "prepare script must not run during add in workspace member",
+    );
+
+    drop((root, anchor));
+}

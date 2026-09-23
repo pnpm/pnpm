@@ -255,6 +255,7 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
             manifest_dir: workspace.dirs.manifest_dir,
             workspace: options.selection.as_ref(),
             rebuild: options.rebuild.as_ref(),
+            include_dev: mode.included.dev_dependencies,
         },
     })?;
     Reporter::emit(&LogEvent::Stage(StageLog {

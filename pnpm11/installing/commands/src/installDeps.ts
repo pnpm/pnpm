@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { buildProjects } from '@pnpm/building.after-install'
+import { buildProjects, PROJECT_INSTALL_STAGES } from '@pnpm/building.after-install'
 import { mergeCatalogs } from '@pnpm/catalogs.config'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { CommandHandler } from '@pnpm/cli.command'
@@ -539,6 +539,7 @@ export async function installDeps (
         storeController: store.ctrl,
         storeDir: store.dir,
         skipIfHasSideEffectsCache: true,
+        ...(userNamedDeps ? { stages: PROJECT_INSTALL_STAGES } : {}),
       }
     )
   } else {

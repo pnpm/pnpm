@@ -164,6 +164,57 @@ test('run install scripts in the current project', async () => {
   ])
 })
 
+test('prepare scripts are not run when devDependencies are excluded (e.g. install --prod)', async () => {
+  await using server = await createTestIpcServer()
+  prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({
+    scripts: {
+      install: `node -e "console.log('install-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      postinstall: `node -e "console.log('postinstall-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      preinstall: `node -e "console.log('preinstall-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      prepare: `node -e "console.log('prepare-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      preprepare: `node -e "console.log('preprepare-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      postprepare: `node -e "console.log('postprepare-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+    },
+  }, [], testDefaults({ fastUnpack: false }))
+  server.clear()
+  await install(manifest, testDefaults({
+    fastUnpack: false,
+    include: {
+      dependencies: true,
+      devDependencies: false,
+      optionalDependencies: true,
+    },
+  }))
+
+  expect(server.getLines()).toStrictEqual([
+    `preinstall-${process.cwd()}`,
+    `install-${process.cwd()}`,
+    `postinstall-${process.cwd()}`,
+  ])
+})
+
+test('prepare scripts are not run when installing with package arguments in hoisted mode', async () => {
+  await using server = await createTestIpcServer()
+  prepareEmpty()
+  await addDependenciesToPackage({
+    scripts: {
+      install: `node -e "console.log('install-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      postinstall: `node -e "console.log('postinstall-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      preinstall: `node -e "console.log('preinstall-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      prepare: `node -e "console.log('prepare-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      preprepare: `node -e "console.log('preprepare-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      postprepare: `node -e "console.log('postprepare-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+    },
+  }, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ fastUnpack: false, nodeLinker: 'hoisted' }))
+
+  expect(server.getLines()).toStrictEqual([
+    `preinstall-${process.cwd()}`,
+    `install-${process.cwd()}`,
+    `postinstall-${process.cwd()}`,
+  ])
+})
+
 test('run install scripts in the current project when its name is different than its directory', async () => {
   await using server = await createTestIpcServer()
   prepareEmpty()

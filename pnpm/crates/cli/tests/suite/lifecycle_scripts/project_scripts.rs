@@ -59,6 +59,37 @@ fn runs_project_lifecycle_scripts_in_order() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn install_prod_does_not_run_prepare_scripts() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(workspace.join("package.json"), project_with_lifecycle_scripts().to_string())
+        .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .with_arg("--prod")
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+    let stages: Vec<&str> = order.lines().collect();
+    assert_eq!(
+        stages,
+        ["preinstall", "install", "postinstall"],
+        "prepare lifecycle scripts must not run during install --prod",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// `npm_config_user_agent` carries the configured user agent in every
 /// script context. Guards such as n8n's `preinstall` compare its
 /// leading `name/version` token against `pnpm`, so a missing or

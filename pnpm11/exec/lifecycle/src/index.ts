@@ -2,7 +2,14 @@ import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 
 import { makeProjectNodePathOption } from './makeProjectNodePathOption.js'
 import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook.js'
-import { POST_UNINSTALL_STAGES, PRE_UNINSTALL_STAGES, runLifecycleHooksConcurrently, type RunLifecycleHooksConcurrentlyOptions } from './runLifecycleHooksConcurrently.js'
+import {
+  POST_UNINSTALL_STAGES,
+  PRE_UNINSTALL_STAGES,
+  PROJECT_INSTALL_STAGES,
+  PROJECT_LIFECYCLE_STAGES,
+  runLifecycleHooksConcurrently,
+  type RunLifecycleHooksConcurrentlyOptions,
+} from './runLifecycleHooksConcurrently.js'
 import { killTrackedProcessTrees, type TrackableChildProcess, trackChildProcess } from './trackChildProcess.js'
 
 export function makeNodeRequireOption (modulePath: string, env?: Record<string, string | undefined>): { NODE_OPTIONS: string } {
@@ -42,6 +49,8 @@ export {
   makeProjectNodePathOption,
   POST_UNINSTALL_STAGES,
   PRE_UNINSTALL_STAGES,
+  PROJECT_INSTALL_STAGES,
+  PROJECT_LIFECYCLE_STAGES,
   runLifecycleHook,
   type RunLifecycleHookOptions,
   runLifecycleHooksConcurrently,
