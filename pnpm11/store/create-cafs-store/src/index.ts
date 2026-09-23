@@ -33,7 +33,7 @@ export function createPackageImporterAsync (
     const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
     const willBeBuilt = !isBuilt && opts.requiresBuild
     const pkgImportMethod = willBeBuilt
-      ? 'clone-or-copy'
+      ? (packageImportMethod === 'copy' ? 'copy' : 'clone-or-copy')
       : (packageImportMethod && packageImportMethod !== 'auto'
         ? packageImportMethod
         : (opts.filesResponse.packageImportMethod ?? packageImportMethod))
@@ -66,7 +66,7 @@ function createPackageImporter (
     const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
     const willBeBuilt = !isBuilt && opts.requiresBuild
     const pkgImportMethod = willBeBuilt
-      ? 'clone-or-copy'
+      ? (packageImportMethod === 'copy' ? 'copy' : 'clone-or-copy')
       : (packageImportMethod && packageImportMethod !== 'auto'
         ? packageImportMethod
         : (opts.filesResponse.packageImportMethod ?? packageImportMethod))

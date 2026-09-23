@@ -458,6 +458,8 @@ test('deploy respects --package-import-method from CLI', async () => {
 
   const hardlinkResult = execPnpmSync(['--filter=app', 'deploy', '--prod', '--package-import-method=hardlink', 'deploy-hardlink'])
   expect(hardlinkResult.stdout.toString()).toContain('Packages are hard linked from the content-addressable store to the virtual store.')
+  const hardlinkProjectFile = path.resolve('deploy-hardlink/package.json')
+  expect(fs.statSync(hardlinkProjectFile).nlink).toBe(1)
   const hardlinkDepFile = path.resolve('deploy-hardlink/node_modules/@pnpm.e2e/foo/package.json')
   expect(fs.statSync(hardlinkDepFile).nlink).toBeGreaterThanOrEqual(2)
 })

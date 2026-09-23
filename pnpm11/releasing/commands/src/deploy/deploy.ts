@@ -7,7 +7,7 @@ import { type Config, types as configTypes } from '@pnpm/config.reader'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
-import { createIndexedPkgImporter, type PackageImportMethod } from '@pnpm/fs.indexed-pkg-importer'
+import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
 import { install } from '@pnpm/installing.commands'
 import { getLockfileImporterId, readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
@@ -140,10 +140,7 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     await fs.promises.mkdir(deployDir, { recursive: true })
   }
   const includeOnlyPackageFiles = !opts.deployAllFiles
-  await copyProject(selectedProject.rootDir, deployDir, {
-    includeOnlyPackageFiles,
-    packageImportMethod: opts.packageImportMethod,
-  })
+  await copyProject(selectedProject.rootDir, deployDir, { includeOnlyPackageFiles })
 
   if (opts.sharedWorkspaceLockfile) {
     const warning = opts.forceLegacyDeploy
@@ -227,19 +224,9 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
   })
 }
 
-async function copyProject (
-  src: string,
-  dest: string,
-  opts: {
-    includeOnlyPackageFiles: boolean
-    packageImportMethod?: PackageImportMethod
-  }
-): Promise<void> {
+async function copyProject (src: string, dest: string, opts: { includeOnlyPackageFiles: boolean }): Promise<void> {
   const { filesMap } = await fetchFromDir(src, opts)
-  const importMethod = opts.packageImportMethod && opts.packageImportMethod !== 'auto'
-    ? opts.packageImportMethod
-    : 'clone-or-copy'
-  const importPkg = createIndexedPkgImporter(importMethod, { disableLogging: true })
+  const importPkg = createIndexedPkgImporter('clone-or-copy', { disableLogging: true })
   importPkg(dest, { filesMap, force: true, resolvedFrom: 'local-dir' })
 }
 

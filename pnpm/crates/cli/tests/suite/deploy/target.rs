@@ -266,6 +266,13 @@ fn deploy_respects_package_import_method() {
         .output()
         .expect("spawn pacquet deploy copy");
     assert!(output.status.success(), "deploy with copy must succeed");
+    let copy_stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        copy_stdout.contains(
+            "Packages are copied from the content-addressable store to the virtual store."
+        ),
+        "stdout should report copy: {copy_stdout}",
+    );
 
     let output_hardlink = pacquet_cmd(&workspace)
         .with_args([
@@ -279,6 +286,13 @@ fn deploy_respects_package_import_method() {
         .output()
         .expect("spawn pacquet deploy hardlink");
     assert!(output_hardlink.status.success(), "deploy with hardlink must succeed");
+    let hardlink_stdout = String::from_utf8_lossy(&output_hardlink.stdout);
+    assert!(
+        hardlink_stdout.contains(
+            "Packages are hard linked from the content-addressable store to the virtual store."
+        ),
+        "stdout should report hardlink: {hardlink_stdout}",
+    );
 
     #[cfg(unix)]
     {
@@ -287,7 +301,7 @@ fn deploy_respects_package_import_method() {
         assert_eq!(fs::metadata(copy_index_js).unwrap().nlink(), 1);
 
         let hardlink_index_js = workspace.join("deploy-hardlink/index.js");
-        assert!(fs::metadata(hardlink_index_js).unwrap().nlink() >= 2);
+        assert_eq!(fs::metadata(hardlink_index_js).unwrap().nlink(), 1);
 
         let copy_dep_json = workspace.join("deploy-copy/node_modules/@pnpm.e2e/foo/package.json");
         assert_eq!(fs::metadata(copy_dep_json).unwrap().nlink(), 1);
@@ -296,6 +310,15 @@ fn deploy_respects_package_import_method() {
             workspace.join("deploy-hardlink/node_modules/@pnpm.e2e/foo/package.json");
         assert!(fs::metadata(hardlink_dep_json).unwrap().nlink() >= 2);
     }
+
+    assert!(
+        !same_file::is_same_file(
+            workspace.join("packages/app/index.js"),
+            workspace.join("deploy-hardlink/index.js"),
+        )
+        .unwrap(),
+        "deployed project file must not be hardlinked to source file",
+    );
 
     drop((root, mock_instance));
 }
