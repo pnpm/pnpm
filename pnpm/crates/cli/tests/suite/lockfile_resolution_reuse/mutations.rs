@@ -566,7 +566,7 @@ fn a_remove_keeps_the_specifiers_a_project_rewriting_pnpmfile_recorded() {
 }
 
 #[test]
-fn a_frozen_install_tolerates_the_importer_of_a_removed_workspace_project() {
+fn a_frozen_install_rejects_the_importer_of_a_deleted_workspace_project() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -578,12 +578,17 @@ fn a_frozen_install_tolerates_the_importer_of_a_removed_workspace_project() {
 
     fs::remove_dir_all(workspace.join("packages/b")).expect("remove the member");
 
-    // pnpm's importer-set gate lives in the auto-frozen branch, which an
-    // explicit `--frozen-lockfile` short-circuits past.
-    pacquet_at(&workspace)
+    let output = pacquet_at(&workspace)
         .with_args(["install", "--frozen-lockfile"])
-        .assert()
-        .success();
+        .output()
+        .expect("run frozen install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "frozen install accepted the deleted member");
+    assert!(
+        stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE")
+            && stderr.contains(r#"importers["packages/b"]"#),
+        "the deleted member returned the wrong error\nstderr:\n{stderr}",
+    );
 
     drop((root, mock_instance));
 }

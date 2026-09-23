@@ -16,6 +16,7 @@ import {
   LAYOUT_VERSION,
   LOCKFILE_MAJOR_VERSION,
   LOCKFILE_VERSION,
+  MANIFEST_BASE_NAMES,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
@@ -114,6 +115,7 @@ import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-re
 import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
 import { pathAbsolute } from 'path-absolute'
+import { pathExists } from 'path-exists'
 import { clone, isEmpty, map as mapValues, pipeWith, props } from 'ramda'
 import semver from 'semver'
 
@@ -1683,6 +1685,22 @@ Note that in CI environments, this setting is enabled by default.`,
           `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is absent`, {
             hint: 'Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"',
           })
+      }
+      if (frozenLockfile && opts.pruneLockfileImporters) {
+        const removedImporterId = await findImporterWithoutProjectManifest(ctx.wantedLockfile, {
+          lockfileDir: opts.lockfileDir,
+          projectIds: Object.values(ctx.projects).map(({ id }) => id),
+        })
+        if (removedImporterId != null) {
+          throw new PnpmError('OUTDATED_LOCKFILE',
+            `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with ` +
+            path.join('<ROOT>', removedImporterId, 'package.json'), {
+              hint: `Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"
+
+  Failure reason:
+  The lockfile records importers["${removedImporterId}"], but that project's directory or package.json is missing`,
+            })
+        }
       }
       const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
         autoInstallPeers: opts.autoInstallPeers,
@@ -3945,4 +3963,22 @@ function removesAnyDependency (project: UninstallSomeDepsMutation, manifest: Pro
     ? [project.targetDependenciesField, 'peerDependencies']
     : [...DEPENDENCIES_FIELDS, 'peerDependencies']
   return project.dependencyNames.some((name) => fields.some((field) => manifest[field]?.[name] != null))
+}
+
+/**
+ * A project removed from the workspace patterns keeps its directory and is
+ * skipped by a frozen install. One whose directory or manifest is gone cannot
+ * be installed at all, so the lockfile no longer describes the workspace.
+ */
+async function findImporterWithoutProjectManifest (
+  lockfile: LockfileObject,
+  opts: { lockfileDir: string, projectIds: string[] }
+): Promise<string | undefined> {
+  const projectIds = new Set(opts.projectIds)
+  const staleImporterIds = Object.keys(lockfile.importers).filter((importerId) => !projectIds.has(importerId))
+  const manifestExists = await Promise.all(staleImporterIds.map(async (importerId) => {
+    const results = await Promise.all(MANIFEST_BASE_NAMES.map(async (basename) => pathExists(path.join(opts.lockfileDir, importerId, basename))))
+    return results.some(Boolean)
+  }))
+  return staleImporterIds.find((_, index) => !manifestExists[index])
 }
