@@ -161,7 +161,7 @@ fn guard_rejecting(
     })
 }
 
-fn reject_versions(versions: &[&str]) -> Arc<dyn PackageVersionGuard> {
+pub(super) fn reject_versions(versions: &[&str]) -> Arc<dyn PackageVersionGuard> {
     guard_rejecting(versions, GuardExhaustionPolicy::Fail)
 }
 

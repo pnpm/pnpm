@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use node_semver::Version;
+use pnpm_config::TrustPolicy;
 use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer};
 use pnpm_resolving_resolver_base::{
     CurrentPkg, ResolveError, ResolveOptions, ResolveResult, UpdateBehavior, WantedDependency,
@@ -62,6 +63,12 @@ fn is_eligible_for_store_peek<'a>(
         return None;
     }
     if opts.policy.published_by.is_some() && current_pkg.published_at.is_none() {
+        return None;
+    }
+    if opts.policy.trust_policy == Some(TrustPolicy::NoDowngrade) {
+        return None;
+    }
+    if opts.policy.package_version_guard.is_some() {
         return None;
     }
     if let LockfileResolution::Tarball(tarball) = &current_pkg.resolution

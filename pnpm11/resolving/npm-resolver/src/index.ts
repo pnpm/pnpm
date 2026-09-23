@@ -536,6 +536,13 @@ export type ResolveFromNpmOptions = {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   rangeSpecStyle?: RangeSpecStyle
+  currentPkg?: {
+    id: PkgResolutionId
+    name?: string
+    version?: string
+    resolution: Resolution
+    publishedAt?: string
+  }
 } & ({
   projectDir?: string
   workspacePackages?: undefined
@@ -547,15 +554,7 @@ export type ResolveFromNpmOptions = {
 async function resolveNpm (
   ctx: ResolveFromNpmContext,
   wantedDependency: WantedDependency & { optional?: boolean },
-  opts: ResolveFromNpmOptions & {
-    currentPkg?: {
-      id: PkgResolutionId
-      name?: string
-      version?: string
-      resolution: Resolution
-      publishedAt?: string
-    }
-  }
+  opts: ResolveFromNpmOptions
 ): Promise<NpmResolveResult | WorkspaceResolveResult | null> {
   const defaultTag = opts.defaultTag ?? 'latest'
   const registry = wantedDependency.alias
@@ -600,6 +599,7 @@ async function resolveNpm (
     !opts.update &&
     !opts.updatePatches &&
     spec.revision == null &&
+    opts.trustPolicy !== 'no-downgrade' &&
     (opts.publishedBy == null || opts.currentPkg.publishedAt != null)
   ) {
     const currentResolution = opts.currentPkg.resolution

@@ -3,8 +3,10 @@ use super::{
     JSR_PACKAGE_BODY, LockfileResolution, MalformedRevisionHistoryError, NoMatchingRevisionError,
     PACKAGE_BODY, PkgResolutionId, ResolveOptions, TarballRevision, UpdateBehavior,
     WantedDependency, assert_eq, build_resolver, build_resolver_with_registries, json,
-    revision_history_package_body, revision_package_body, shasum_only_package_body,
+    reject_versions, revision_history_package_body, revision_package_body,
+    shasum_only_package_body,
 };
+use pnpm_config::TrustPolicy;
 use pnpm_resolving_resolver_base::Resolver;
 
 #[tokio::test]
@@ -409,6 +411,7 @@ async fn peek_manifest_from_store_bypasses_network_when_package_in_store() {
                     path: None,
                 }),
                 published_at: None,
+                manifest: None,
             }),
             update: UpdateBehavior::Off,
             ..Default::default()
@@ -427,4 +430,144 @@ async fn peek_manifest_from_store_bypasses_network_when_package_in_store() {
     let manifest = result.package.manifest.expect("manifest should be present");
     assert_eq!(manifest["name"], "acme");
     assert_eq!(manifest["version"], "1.0.0");
+}
+
+#[tokio::test]
+async fn store_peek_bypassed_under_trust_policy_no_downgrade() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (mut resolver, _tempdir) = build_resolver(&registry);
+
+    let store_dir = tempfile::TempDir::new().unwrap();
+    let index = pnpm_store_dir::StoreIndex::open(store_dir.path()).unwrap();
+    let integrity_str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+    let pkg_id = "acme@1.0.0";
+    let key = pnpm_store_dir::store_index_key(integrity_str, pkg_id);
+    index
+        .set(
+            &key,
+            &pnpm_store_dir::PackageFilesIndex {
+                manifest: Some(json!({
+                    "name": "acme",
+                    "version": "1.0.0",
+                })),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+    resolver.store_index = Some(Arc::new(std::sync::Mutex::new(index)));
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions {
+        refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+            current_pkg: Some(CurrentPkg {
+                id: PkgResolutionId::from(pkg_id),
+                name: Some("acme".to_string()),
+                version: Some("1.0.0".to_string()),
+                resolution: LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
+                    tarball: "https://registry/acme-1.0.0.tgz".to_string(),
+                    integrity: Some(integrity_str.parse().unwrap()),
+                    revision: None,
+                    git_hosted: None,
+                    path: None,
+                }),
+                published_at: None,
+                manifest: None,
+            }),
+            update: UpdateBehavior::Off,
+            ..Default::default()
+        },
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            trust_policy: Some(TrustPolicy::NoDowngrade),
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
+
+    let _ = resolver.resolve(&wanted, &opts).await;
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn store_peek_bypassed_when_version_guard_configured() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (mut resolver, _tempdir) = build_resolver(&registry);
+
+    let store_dir = tempfile::TempDir::new().unwrap();
+    let index = pnpm_store_dir::StoreIndex::open(store_dir.path()).unwrap();
+    let integrity_str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+    let pkg_id = "acme@1.0.0";
+    let key = pnpm_store_dir::store_index_key(integrity_str, pkg_id);
+    index
+        .set(
+            &key,
+            &pnpm_store_dir::PackageFilesIndex {
+                manifest: Some(json!({
+                    "name": "acme",
+                    "version": "1.0.0",
+                })),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+    resolver.store_index = Some(Arc::new(std::sync::Mutex::new(index)));
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions {
+        refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+            current_pkg: Some(CurrentPkg {
+                id: PkgResolutionId::from(pkg_id),
+                name: Some("acme".to_string()),
+                version: Some("1.0.0".to_string()),
+                resolution: LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
+                    tarball: "https://registry/acme-1.0.0.tgz".to_string(),
+                    integrity: Some(integrity_str.parse().unwrap()),
+                    revision: None,
+                    git_hosted: None,
+                    path: None,
+                }),
+                published_at: None,
+                manifest: None,
+            }),
+            update: UpdateBehavior::Off,
+            ..Default::default()
+        },
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            package_version_guard: Some(reject_versions(&["1.0.0"])),
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
+
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("should resolve allowed version");
+    let name_ver = result.package.name_ver.as_ref().expect("name_ver");
+    assert_eq!(name_ver.suffix.to_string(), "1.1.0");
+    mock.assert_async().await;
 }
