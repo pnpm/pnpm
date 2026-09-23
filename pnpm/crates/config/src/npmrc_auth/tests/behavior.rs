@@ -15,6 +15,19 @@ fn picks_up_registry_and_normalises_trailing_slash() {
 }
 
 #[test]
+fn strips_utf8_bom_before_first_setting() {
+    // pnpm/pnpm#15353: a leading UTF-8 BOM must not corrupt the first key.
+    let ini = "\u{feff}registry=https://bom.example\n";
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
+    assert!(auth.raw_ini_config.contains_key("registry"));
+    assert_eq!(auth.routes.default.as_deref(), Some("https://bom.example"));
+
+    let mut config = Config::new();
+    auth.apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.registry, "https://bom.example/");
+}
+
+#[test]
 fn preserves_existing_trailing_slash() {
     let mut config = Config::new();
     NpmrcAuth::from_ini::<NoEnv>("registry=https://r.example/\n", Path::new(""))
