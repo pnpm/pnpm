@@ -1,6 +1,6 @@
 use super::{
     create_workspace_yaml_from_yarn_workspaces, declares_yarn_workspaces,
-    publish_new_workspace_manifest, same_patterns,
+    publish_new_workspace_manifest, same_patterns, workspaces_field_differs,
 };
 use crate::cli_args::package_manager::read_root_manifest_json;
 use std::{fs, path::Path};
@@ -174,6 +174,7 @@ fn a_manifest_published_after_the_config_loaded_anchors_the_install() {
 
     assert_eq!(config.workspace_dir.as_deref(), Some(dir.path()));
     assert_eq!(config.workspace_package_patterns, Some(vec!["apps/*".to_owned()]));
+    assert!(workspaces_field_differs(&config, dir.path(), Some(&root_manifest)));
     assert_eq!(
         fs::read_to_string(dir.path().join("pnpm-workspace.yaml")).expect("read manifest"),
         "packages:\n  - apps/*\n",
@@ -197,4 +198,44 @@ fn a_dangling_symlinked_manifest_leaves_the_install_standalone() {
 
     assert_eq!(config.workspace_dir, None);
     assert!(!dir.path().join("missing.yaml").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlinked_manifest_published_after_the_config_loaded_is_not_followed() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let target = dir.path().join("elsewhere.yaml");
+    fs::write(&target, "packages:\n  - apps/*\n").expect("write symlink target");
+    std::os::unix::fs::symlink(&target, dir.path().join("pnpm-workspace.yaml"))
+        .expect("create symlink");
+    let mut config = pnpm_config::Config::default();
+    let root_manifest = serde_json::json!({"workspaces": ["packages/*"]});
+
+    create_workspace_yaml_from_yarn_workspaces(&mut config, dir.path(), Some(&root_manifest))
+        .expect("leave the symlink alone");
+
+    assert_eq!(config.workspace_dir, None);
+}
+
+#[test]
+fn a_field_differs_from_the_workspace_unless_it_is_an_empty_array() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config = pnpm_config::Config {
+        workspace_dir: Some(dir.path().to_path_buf()),
+        workspace_package_patterns: Some(vec!["packages/*".to_owned()]),
+        ..pnpm_config::Config::default()
+    };
+    let differs = |field: serde_json::Value| {
+        workspaces_field_differs(
+            &config,
+            dir.path(),
+            Some(&serde_json::json!({"workspaces": field})),
+        )
+    };
+
+    assert!(!differs(serde_json::json!(["packages/*"])));
+    assert!(differs(serde_json::json!(["packages/*", "tools/*"])));
+    assert!(differs(serde_json::json!(["", 1])), "no usable pattern selects nothing");
+    assert!(!differs(serde_json::json!([])), "an empty array declares nothing");
+    assert!(!differs(serde_json::json!({"packages": ["tools/*"]})), "the object form is not read");
 }

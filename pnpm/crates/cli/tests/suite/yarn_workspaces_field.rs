@@ -101,6 +101,22 @@ fn a_workspaces_field_edited_after_conversion_warns_about_the_difference() {
 }
 
 #[test]
+fn a_workspaces_field_without_usable_patterns_inside_a_workspace_warns_about_the_difference() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["",1]}"#,
+    );
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    assert_contains(&stderr(&output), DIFFERS);
+}
+
+#[test]
 fn a_converted_repository_warns_once_then_stays_quiet() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     write_manifest(
