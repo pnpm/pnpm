@@ -3,8 +3,8 @@ use super::{
     InstallArgs, LockfileDirArg, LogEvent, OsStr, OsString, PACKAGE_MANAGER_SWITCH_ENV_VARS, Path,
     PathBuf, ReporterFlags, reporter_emit, resolve_bool_override,
 };
-use crate::cli_args::reporter::{LogLevelSetting, ReporterType};
-use clap::ValueEnum;
+
+mod reporter_flags;
 
 pub(super) struct PreCommandInput {
     pub(super) switch: SwitchInput,
@@ -358,36 +358,6 @@ impl SwitchInput {
             index += input.absorb_global_flag(token, next, &global_options);
         }
         input
-    }
-
-    /// The `--reporter` and `--loglevel` flags typed before the first
-    /// non-option token, read the way [`Self::from_version_argv`] scans.
-    pub(super) fn reporter_flags_from_version_argv(argv: &[OsString]) -> ReporterFlags {
-        let global_options = ArgTable::top_level(super::super::grammar());
-        let mut flags = ReporterFlags::default();
-        let mut index = 1;
-        while let Some(token) = argv.get(index).and_then(|token| token.to_str()) {
-            if token == "--" || !token.starts_with('-') {
-                break;
-            }
-            let next = argv
-                .get(index + 1)
-                .map(OsString::as_os_str);
-            let value = |option| {
-                long_value(token, option, next)
-                    .and_then(|(value, width)| Some((value.to_str()?, width)))
-            };
-            if let Some((value, width)) = value("reporter") {
-                flags.reporter = ReporterType::from_str(value, false).ok().or(flags.reporter);
-                index += width;
-            } else if let Some((value, width)) = value("loglevel") {
-                flags.loglevel = LogLevelSetting::from_str(value, false).ok().or(flags.loglevel);
-                index += width;
-            } else {
-                index += if consumes_next_token(token, &global_options) { 2 } else { 1 };
-            }
-        }
-        flags
     }
 
     /// Read one global flag this pass cares about, returning how many
