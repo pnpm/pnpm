@@ -954,5 +954,17 @@ describe('createOverrides', () => {
       'foo@<1.0.0': '^1.0.0',
     })
   })
+
+  test('retains narrower range when it has a higher patched version floor', () => {
+    const advisories = [
+      advisory('foo', '<1.0.2', '>=1.0.2'),
+      advisory('foo', '<2.0.0', '>=1.0.0'),
+    ]
+    const overrides = createOverrides(advisories, 'major')
+    expect(overrides).toEqual({
+      'foo@<1.0.2': '^1.0.2',
+      'foo@<2.0.0': '^1.0.0',
+    })
+  })
 })
 

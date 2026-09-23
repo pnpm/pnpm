@@ -3,8 +3,9 @@ use super::{
     PackageVersionGuard, PackageVersionGuardDecision, Range, SnapshotDepRef,
     filter_ignored_advisories,
     fix::{
-        PackumentPublishInfo, VulnerabilityGuard, create_overrides, filter_advisories_for_fix,
-        format_fix_with_update_output, minimum_release_age_excludes, prune_subsumed_advisories,
+        PackumentPublishInfo, VulnerabilityGuard, filter_advisories_for_fix,
+        format_fix_with_update_output, minimum_release_age_excludes, overrides::create_overrides,
+        prune_subsumed_advisories,
     },
     paths::{AuditPathIndex, PathInfo, build_audit_path_index},
     render::{render_json_report, render_text_report},

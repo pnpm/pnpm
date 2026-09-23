@@ -8,13 +8,21 @@ use crate::cli_args::audit::{
 
 /// Build the override map from fixable advisories, omitting entries
 /// whose vulnerable ranges are subsumed by another advisory for the same package.
+#[allow(dead_code, reason = "called by audit remediation tests")]
 pub(crate) fn create_overrides(
     advisories: &BTreeMap<String, AuditAdvisory>,
     range_spec_style: RangeSpecStyle,
 ) -> BTreeMap<String, String> {
     let pruned = prune_subsumed_advisories(advisories);
+    create_overrides_from_pruned(&pruned, range_spec_style)
+}
+
+pub(crate) fn create_overrides_from_pruned(
+    advisories: &BTreeMap<String, AuditAdvisory>,
+    range_spec_style: RangeSpecStyle,
+) -> BTreeMap<String, String> {
     let mut overrides = BTreeMap::new();
-    for advisory in pruned.values() {
+    for advisory in advisories.values() {
         let Some(patched) = advisory.patched_versions.as_deref() else { continue };
         let key = format!("{}@{}", advisory.module_name, advisory.vulnerable_versions);
         overrides.insert(key, patched_range_for_style(patched, range_spec_style));
@@ -47,6 +55,9 @@ pub(crate) fn prune_subsumed_advisories(
 fn filter_unsubsumed_advisories<'a>(
     advisories: &[(&'a str, &'a AuditAdvisory)],
 ) -> Vec<(&'a str, &'a AuditAdvisory)> {
+    if advisories.len() <= 1 {
+        return advisories.to_vec();
+    }
     advisories
         .iter()
         .enumerate()
@@ -83,33 +94,22 @@ fn is_advisory_subsumed(
         return false;
     }
 
-    if is_range_subset(other_range, candidate_range) {
-        return break_equivalent_ranges_tie(
-            candidate_patched,
-            other_patched,
-            candidate_index,
-            other_index,
-        );
+    let (Some(candidate_min), Some(other_min)) =
+        (min_version_from_range(candidate_patched), min_version_from_range(other_patched))
+    else {
+        return false;
+    };
+
+    if other_min < candidate_min {
+        return false;
     }
 
-    true
-}
-
-fn break_equivalent_ranges_tie(
-    candidate_patched: &str,
-    other_patched: &str,
-    candidate_index: usize,
-    other_index: usize,
-) -> bool {
-    let candidate_min = min_version_from_range(candidate_patched);
-    let other_min = min_version_from_range(other_patched);
-    if let (Some(candidate_min), Some(other_min)) = (candidate_min, other_min) {
+    if is_range_subset(other_range, candidate_range) {
         if other_min > candidate_min {
             return true;
         }
-        if other_min < candidate_min {
-            return false;
-        }
+        return candidate_index > other_index;
     }
-    candidate_index > other_index
+
+    true
 }

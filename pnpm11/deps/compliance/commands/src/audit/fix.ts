@@ -17,7 +17,7 @@ export interface FixResult {
 export async function fix (auditReport: AuditReport, opts: AuditOptions): Promise<FixResult> {
   const fixableAdvisories = getFixableAdvisories(Object.values(auditReport.advisories), opts.auditConfig?.ignoreGhsas)
   const nonSubsumed = filterSubsumedAdvisories(fixableAdvisories)
-  const vulnOverrides = createOverrides(nonSubsumed, getRangeSpecStyle(opts))
+  const vulnOverrides = createOverridesFromPruned(nonSubsumed, getRangeSpecStyle(opts))
   if (Object.values(vulnOverrides).length === 0) return { vulnOverrides, addedAgeExcludes: [] }
   const addedAgeExcludes = opts.minimumReleaseAge
     ? await createMinimumReleaseAgeExcludes(nonSubsumed, {
@@ -49,9 +49,12 @@ function getFixableAdvisories (advisories: AuditAdvisory[], ignoreGhsas?: string
 
 export function createOverrides (advisories: AuditAdvisory[], rangeSpecStyle: RangeSpecStyle): Record<string, string> {
   const fixable = advisories.filter(({ patched_versions: patchedVersions }) => patchedVersions != null)
-  const nonSubsumed = filterSubsumedAdvisories(fixable)
+  return createOverridesFromPruned(filterSubsumedAdvisories(fixable), rangeSpecStyle)
+}
+
+function createOverridesFromPruned (advisories: AuditAdvisory[], rangeSpecStyle: RangeSpecStyle): Record<string, string> {
   const entries: Array<[string, string]> = []
-  for (const advisory of nonSubsumed) {
+  for (const advisory of advisories) {
     if (!advisory.patched_versions) continue
     entries.push([`${advisory.module_name}@${advisory.vulnerable_versions}`, patchedRangeForStyle(advisory.patched_versions, rangeSpecStyle)])
   }
@@ -71,6 +74,10 @@ export function filterSubsumedAdvisories (advisories: AuditAdvisory[]): AuditAdv
 
   const result: AuditAdvisory[] = []
   for (const moduleAdvisories of byModule.values()) {
+    if (moduleAdvisories.length <= 1) {
+      result.push(...moduleAdvisories)
+      continue
+    }
     for (let i = 0; i < moduleAdvisories.length; i++) {
       const a = moduleAdvisories[i]
       const subsumed = moduleAdvisories.some((b, j) => isAdvisorySubsumed(a, i, b, j))
@@ -92,14 +99,14 @@ function isAdvisorySubsumed (a: AuditAdvisory, idxA: number, b: AuditAdvisory, i
   if (!semver.validRange(aRange) || !semver.validRange(bRange)) return false
   if (!semver.subset(aRange, bRange)) return false
 
+  const minA = semver.minVersion(a.patched_versions)
+  const minB = semver.minVersion(b.patched_versions)
+  if (!minA || !minB || semver.lt(minB, minA)) return false
+
   if (semver.subset(bRange, aRange)) {
-    const minA = semver.minVersion(a.patched_versions)
-    const minB = semver.minVersion(b.patched_versions)
-    if (minA && minB) {
-      const comp = semver.compare(minB, minA)
-      if (comp > 0) return true
-      if (comp < 0) return false
-    }
+    const comp = semver.compare(minB, minA)
+    if (comp > 0) return true
+    if (comp < 0) return false
     return idxA > idxB
   }
 

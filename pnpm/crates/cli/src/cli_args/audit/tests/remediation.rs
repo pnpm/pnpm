@@ -25,6 +25,34 @@ fn is_range_subset_determines_subset_relationship() {
     assert!(is_range_subset("<1.0.0 || >=2.0.0 <2.1.0", "<3.0.0"));
     assert!(!is_range_subset("<4.0.0", "<1.0.0 || >=2.0.0 <2.1.0"));
     assert!(!is_range_subset(">=1.0.0-alpha <1.0.0", "<1.0.0"));
+    assert!(!is_range_subset("^1.0.0-alpha", ">=0.0.0"));
+    assert!(!is_range_subset("~1.0.0-alpha", ">=0.0.0"));
+    assert!(is_range_subset("~1.0.0-alpha", "^1.0.0-alpha"));
+    assert!(is_range_subset("=1.0.0-alpha.1", "^1.0.0-alpha"));
+}
+
+#[test]
+fn create_overrides_retains_narrower_range_with_higher_patched_floor() {
+    let advisories = BTreeMap::from([
+        (
+            "1".to_string(),
+            fix_advisory(1, "foo", "<1.0.2", Some(">=1.0.2"), ConfigAuditLevel::High, "GHSA-1"),
+        ),
+        (
+            "2".to_string(),
+            fix_advisory(2, "foo", "<2.0.0", Some(">=1.0.0"), ConfigAuditLevel::High, "GHSA-2"),
+        ),
+    ]);
+
+    let overrides = create_overrides(&advisories, RangeSpecStyle::Major);
+
+    assert_eq!(
+        overrides.into_iter().collect::<Vec<_>>(),
+        vec![
+            ("foo@<1.0.2".to_string(), "^1.0.2".to_string()),
+            ("foo@<2.0.0".to_string(), "^1.0.0".to_string()),
+        ],
+    );
 }
 
 #[test]

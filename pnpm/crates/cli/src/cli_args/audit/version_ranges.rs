@@ -36,12 +36,12 @@ pub(crate) fn comparator_matches(version: &Version, comparator: &str) -> bool {
 }
 
 pub(crate) fn comparator_operator_and_version(comparator: &str) -> (&str, &str) {
-    for operator in [">=", "<=", ">", "<"] {
+    for operator in [">=", "<=", ">", "<", "=", "^", "~"] {
         if let Some(version) = comparator.strip_prefix(operator) {
-            return (operator, version);
+            return (operator, version.trim());
         }
     }
-    ("", comparator)
+    ("", comparator.trim())
 }
 
 pub(crate) fn infer_patched_versions(vulnerable_range: &str) -> Option<String> {
@@ -108,7 +108,7 @@ pub(crate) fn is_range_subset(sub: &str, dom: &str) -> bool {
 
 fn sub_prereleases_admitted_by_dom(sub: &str, dom: &str) -> bool {
     for comparator in extract_comparators(sub) {
-        let (_, version_str) = comparator_operator_and_version(comparator);
+        let (_, version_str) = comparator_operator_and_version(&comparator);
         let Ok(version) = version_str.parse::<Version>() else { continue };
         if version.is_prerelease()
             && !has_matching_prerelease_tuple(dom, version.major, version.minor, version.patch)
@@ -121,8 +121,9 @@ fn sub_prereleases_admitted_by_dom(sub: &str, dom: &str) -> bool {
 
 fn has_matching_prerelease_tuple(dom: &str, major: u64, minor: u64, patch: u64) -> bool {
     extract_comparators(dom)
+        .into_iter()
         .any(|comparator| {
-            let (_, version_str) = comparator_operator_and_version(comparator);
+            let (_, version_str) = comparator_operator_and_version(&comparator);
             version_str
                 .parse::<Version>()
                 .is_ok_and(|version| {
@@ -134,8 +135,25 @@ fn has_matching_prerelease_tuple(dom: &str, major: u64, minor: u64, patch: u64) 
         })
 }
 
-fn extract_comparators(range_str: &str) -> impl Iterator<Item = &str> {
-    range_str.split("||").flat_map(str::split_whitespace)
+fn extract_comparators(range_str: &str) -> Vec<String> {
+    let mut comparators = Vec::new();
+    for part in range_str.split("||") {
+        let tokens: Vec<&str> = part.split_whitespace().collect();
+        let mut index = 0;
+        while index < tokens.len() {
+            let token = tokens[index];
+            if matches!(token, ">=" | "<=" | ">" | "<" | "=" | "^" | "~")
+                && index + 1 < tokens.len()
+            {
+                comparators.push(format!("{}{}", token, tokens[index + 1]));
+                index += 2;
+            } else {
+                comparators.push(token.to_string());
+                index += 1;
+            }
+        }
+    }
+    comparators
 }
 
 pub(crate) fn min_version_from_range(range_str: &str) -> Option<Version> {

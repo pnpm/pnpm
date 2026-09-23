@@ -3,7 +3,7 @@
 pub(super) mod overrides;
 pub(super) mod update;
 
-pub(crate) use overrides::{create_overrides, prune_subsumed_advisories};
+pub(crate) use overrides::{create_overrides_from_pruned, prune_subsumed_advisories};
 pub(crate) use update::{
     AuditFixObserver, VulnerabilityGuard, fix_with_update, format_fix_with_update_output,
 };
@@ -94,7 +94,7 @@ pub(crate) async fn fix_override(
     publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
 ) -> miette::Result<String> {
     let pruned_advisories = prune_subsumed_advisories(advisories);
-    let overrides = create_overrides(
+    let overrides = create_overrides_from_pruned(
         &pruned_advisories,
         RangeSpecStyle::from_save_options(config.save_exact, config.save_prefix.as_deref()),
     );
@@ -422,10 +422,8 @@ pub(crate) fn interactive_select(
         advisories
             .into_iter()
             .filter(|(_, advisory)| {
-                chosen.contains(&format!(
-                    "{}@{}",
-                    advisory.module_name, advisory.vulnerable_versions,
-                ))
+                let key = format!("{}@{}", advisory.module_name, advisory.vulnerable_versions);
+                chosen.contains(&key)
             })
             .collect(),
     ))
