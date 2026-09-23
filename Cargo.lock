@@ -6768,6 +6768,7 @@ dependencies = [
  "base64 0.23.1",
  "futures-util",
  "getrandom 0.4.3",
+ "libc",
  "object_store",
  "pnpm-crypto-hash",
  "pnpm-network",
