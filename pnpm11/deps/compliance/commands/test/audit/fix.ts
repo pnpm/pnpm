@@ -59,12 +59,9 @@ test('overrides are added for vulnerable dependencies', async () => {
   expect(manifest.overrides?.['axios@<=0.18.0']).toBeFalsy()
   expect(manifest.overrides?.['sync-exec@>=0.0.0']).toBeFalsy()
 
-  // minimumReleaseAgeExclude should combine versions per module
+  // minimumReleaseAgeExclude should only contain entries for unpruned advisories
   const axiosExclude = manifest.minimumReleaseAgeExclude?.find((e) => e.startsWith('axios@'))
-  expect(axiosExclude).toBeDefined()
-  expect(axiosExclude).toContain('0.18.1')
-  expect(axiosExclude).toContain('0.21.1')
-  expect(axiosExclude).toContain('0.21.2')
+  expect(axiosExclude).toBe('axios@1.15.0')
 })
 
 test('no minimumReleaseAgeExclude entries are added for patched versions published before the cutoff', async () => {

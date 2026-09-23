@@ -16,10 +16,11 @@ export interface FixResult {
 
 export async function fix (auditReport: AuditReport, opts: AuditOptions): Promise<FixResult> {
   const fixableAdvisories = getFixableAdvisories(Object.values(auditReport.advisories), opts.auditConfig?.ignoreGhsas)
-  const vulnOverrides = createOverrides(fixableAdvisories, getRangeSpecStyle(opts))
+  const nonSubsumed = filterSubsumedAdvisories(fixableAdvisories)
+  const vulnOverrides = createOverrides(nonSubsumed, getRangeSpecStyle(opts))
   if (Object.values(vulnOverrides).length === 0) return { vulnOverrides, addedAgeExcludes: [] }
   const addedAgeExcludes = opts.minimumReleaseAge
-    ? await createMinimumReleaseAgeExcludes(fixableAdvisories, {
+    ? await createMinimumReleaseAgeExcludes(nonSubsumed, {
       getPublishTimes: opts.getPublishTimes ?? createPublishTimesFetcher(opts),
       minimumReleaseAge: opts.minimumReleaseAge,
     })
@@ -57,7 +58,7 @@ export function createOverrides (advisories: AuditAdvisory[], rangeSpecStyle: Ra
   return sortDirectKeys(Object.fromEntries(entries))
 }
 
-function filterSubsumedAdvisories (advisories: AuditAdvisory[]): AuditAdvisory[] {
+export function filterSubsumedAdvisories (advisories: AuditAdvisory[]): AuditAdvisory[] {
   const byModule = new Map<string, AuditAdvisory[]>()
   for (const advisory of advisories) {
     const list = byModule.get(advisory.module_name)

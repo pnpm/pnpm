@@ -3,7 +3,7 @@
 pub(super) mod overrides;
 pub(super) mod update;
 
-pub(crate) use overrides::create_overrides;
+pub(crate) use overrides::{create_overrides, prune_subsumed_advisories};
 pub(crate) use update::{
     AuditFixObserver, VulnerabilityGuard, fix_with_update, format_fix_with_update_output,
 };
@@ -93,8 +93,9 @@ pub(crate) async fn fix_override(
     config: &Config,
     publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
 ) -> miette::Result<String> {
+    let pruned_advisories = prune_subsumed_advisories(advisories);
     let overrides = create_overrides(
-        advisories,
+        &pruned_advisories,
         RangeSpecStyle::from_save_options(config.save_exact, config.save_prefix.as_deref()),
     );
     if overrides.is_empty() {
@@ -113,8 +114,11 @@ pub(crate) async fn fix_override(
         overrides.len(),
     );
     if let Some(minimum_release_age) = config.resolved_minimum_release_age() {
-        let added =
-            resolve_minimum_release_age_excludes(advisories, publish_infos, minimum_release_age)?;
+        let added = resolve_minimum_release_age_excludes(
+            &pruned_advisories,
+            publish_infos,
+            minimum_release_age,
+        )?;
         if !added.is_empty() {
             write_age_excludes(settings_dir, &added)?;
             let note = format!(

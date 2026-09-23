@@ -4,7 +4,7 @@ use super::{
     filter_ignored_advisories,
     fix::{
         PackumentPublishInfo, VulnerabilityGuard, create_overrides, filter_advisories_for_fix,
-        format_fix_with_update_output, minimum_release_age_excludes,
+        format_fix_with_update_output, minimum_release_age_excludes, prune_subsumed_advisories,
     },
     paths::{AuditPathIndex, PathInfo, build_audit_path_index},
     render::{render_json_report, render_text_report},

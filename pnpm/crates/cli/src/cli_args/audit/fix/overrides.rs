@@ -14,40 +14,53 @@ pub(crate) fn create_overrides(
     advisories: &BTreeMap<String, AuditAdvisory>,
     range_spec_style: RangeSpecStyle,
 ) -> BTreeMap<String, String> {
-    let mut by_module: HashMap<&str, Vec<&AuditAdvisory>> = HashMap::new();
-    for advisory in advisories.values() {
-        if advisory.patched_versions.is_some() {
-            by_module
-                .entry(&advisory.module_name)
-                .or_default()
-                .push(advisory);
-        }
-    }
-
+    let pruned = prune_subsumed_advisories(advisories);
     let mut overrides = BTreeMap::new();
-    for module_advisories in by_module.values() {
-        for advisory in filter_unsubsumed_advisories(module_advisories) {
-            let Some(patched) = advisory.patched_versions.as_deref() else { continue };
-            let key = format!("{}@{}", advisory.module_name, advisory.vulnerable_versions);
-            overrides.insert(key, patched_range_for_style(patched, range_spec_style));
-        }
+    for advisory in pruned.values() {
+        let Some(patched) = advisory.patched_versions.as_deref() else { continue };
+        let key = format!("{}@{}", advisory.module_name, advisory.vulnerable_versions);
+        overrides.insert(key, patched_range_for_style(patched, range_spec_style));
     }
     overrides
 }
 
-fn filter_unsubsumed_advisories<'a>(advisories: &[&'a AuditAdvisory]) -> Vec<&'a AuditAdvisory> {
+/// Filter out advisories whose vulnerable ranges are subsumed by another advisory
+/// for the same package with an equal or greater minimum patched version.
+pub(crate) fn prune_subsumed_advisories(
+    advisories: &BTreeMap<String, AuditAdvisory>,
+) -> BTreeMap<String, AuditAdvisory> {
+    let mut by_module: HashMap<&str, Vec<(&str, &AuditAdvisory)>> = HashMap::new();
+    for (id, advisory) in advisories {
+        by_module
+            .entry(&advisory.module_name)
+            .or_default()
+            .push((id.as_str(), advisory));
+    }
+
+    let mut result = BTreeMap::new();
+    for module_advisories in by_module.values() {
+        for (id, advisory) in filter_unsubsumed_advisories(module_advisories) {
+            result.insert((*id).to_string(), (*advisory).clone());
+        }
+    }
+    result
+}
+
+fn filter_unsubsumed_advisories<'a>(
+    advisories: &[(&'a str, &'a AuditAdvisory)],
+) -> Vec<(&'a str, &'a AuditAdvisory)> {
     advisories
         .iter()
         .enumerate()
-        .filter(|&(candidate_index, candidate)| {
+        .filter(|&(candidate_index, &(_, candidate))| {
             !advisories
                 .iter()
                 .enumerate()
-                .any(|(other_index, other)| {
+                .any(|(other_index, &(_, other))| {
                     is_advisory_subsumed(candidate, candidate_index, other, other_index)
                 })
         })
-        .map(|(_, advisory)| *advisory)
+        .map(|(_, item)| *item)
         .collect()
 }
 

@@ -2,8 +2,8 @@ use super::{
     BTreeMap, Config, ConfigAuditLevel, HashMap, HashSet, InstalledPackages, PackumentPublishInfo,
     Range, RangeSpecStyle, age_cutoff, caret_range_for_patched, classify_for_update,
     create_overrides, deprecate, filter_advisories_for_fix, fix_advisory,
-    format_fix_with_update_output, is_range_subset, minimum_release_age_excludes, publish_times,
-    report_fixed_remaining, report_of,
+    format_fix_with_update_output, is_range_subset, minimum_release_age_excludes,
+    prune_subsumed_advisories, publish_times, report_fixed_remaining, report_of,
 };
 
 #[test]
@@ -161,6 +161,46 @@ fn create_overrides_deduplicates_identical_ranges() {
         overrides.into_iter().collect::<Vec<_>>(),
         vec![("foo@<1.0.0".to_string(), "^1.0.0".to_string())],
     );
+}
+
+#[test]
+fn prune_subsumed_advisories_omits_subsets_from_age_excludes() {
+    let advisories = BTreeMap::from([
+        (
+            "1".to_string(),
+            fix_advisory(
+                1,
+                "postcss",
+                "<7.0.36",
+                Some(">=7.0.36"),
+                ConfigAuditLevel::High,
+                "GHSA-1",
+            ),
+        ),
+        (
+            "2".to_string(),
+            fix_advisory(
+                2,
+                "postcss",
+                "<8.4.31",
+                Some(">=8.4.31"),
+                ConfigAuditLevel::High,
+                "GHSA-2",
+            ),
+        ),
+    ]);
+
+    let pruned = prune_subsumed_advisories(&advisories);
+    assert_eq!(pruned.len(), 1);
+    assert!(pruned.contains_key("2"));
+
+    let times = publish_times(
+        "postcss",
+        &[("7.0.36", "2026-06-01T00:00:00Z"), ("8.4.31", "2026-06-01T00:00:00Z")],
+    );
+
+    let excludes = minimum_release_age_excludes(&pruned, &times, age_cutoff()).expect("excludes");
+    assert_eq!(excludes, vec!["postcss@8.4.31".to_string()]);
 }
 
 #[test]
