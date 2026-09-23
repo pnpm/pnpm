@@ -75,9 +75,10 @@ where
     }
 }
 
-/// Parse the `.npmrc` at `path`. A file that exists but cannot be read
-/// becomes a source carrying only its warning, so the failure reaches the
-/// user instead of the file's settings silently going missing.
+/// Parse the INI config file at `path`: a `.npmrc`, `auth.ini`, or the
+/// `npmrcAuthFile` override. A file that exists but cannot be read becomes
+/// a source carrying only its warning, so the failure reaches the user
+/// instead of the file's settings silently going missing.
 pub(super) fn npmrc_source<Sys: FsReadFile>(
     path: &Path,
     parse: impl FnOnce(&str) -> NpmrcAuth,

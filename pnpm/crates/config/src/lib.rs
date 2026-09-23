@@ -216,7 +216,16 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
 fn read_npmrc_file<Sys: api::FsReadFile>(path: &Path) -> Result<Option<String>, String> {
     match Sys::read_file(path) {
         Ok(bytes) => Ok(Some(String::from_utf8_lossy(&bytes).into_owned())),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound || path.is_dir() => Ok(None),
+        Err(error)
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::IsADirectory,
+            ) =>
+        {
+            Ok(None)
+        }
+        // Windows reports reading a directory as `PermissionDenied`.
+        Err(_) if path.is_dir() => Ok(None),
         Err(error) => Err(format!(r#"Issue while reading "{}". {error}"#, path.display())),
     }
 }

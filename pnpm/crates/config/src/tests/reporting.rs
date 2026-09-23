@@ -102,3 +102,24 @@ pub fn npmrc_with_invalid_utf8_is_still_read() {
     assert_eq!(config.registry, "https://example.com/");
     assert_eq!(config.npmrc_warnings, Vec::<String>::new());
 }
+
+#[test]
+pub fn unresolved_env_placeholder_keeps_the_rest_of_the_npmrc() {
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(
+        &user_file,
+        "//reg.example.com/:_authToken=${PNPM_TEST_UNSET_5065}\nregistry=https://example.com/\n",
+    );
+
+    let config = load_with_project_and_user("", user_file);
+
+    assert_eq!(config.registry, "https://example.com/");
+    assert!(
+        config.npmrc_warnings
+            .iter()
+            .any(|warning| warning.contains("${PNPM_TEST_UNSET_5065}")),
+        "{:?} should report the unresolved placeholder",
+        config.npmrc_warnings,
+    );
+}
