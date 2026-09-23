@@ -1012,3 +1012,35 @@ fn install_with_a_package_skips_dependencies_when_dev_is_set() {
     assert_eq!(group_spec(DependencyGroup::Prod), None);
     drop((root, npmrc_info)); // cleanup
 }
+
+/// Regression test for <https://github.com/pnpm/pnpm/issues/6040>.
+/// `pnpm add pkg@<version>` should save the exact version into package.json
+/// even when a range entry already exists.
+#[test]
+fn add_exact_version_honors_exact_when_range_already_exists() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "p", "version": "1.0.0", "dependencies": { "is-positive": "^0.5.0" } }"#,
+    )
+    .unwrap();
+
+    pacquet
+        .with_args(["add", "is-positive@1.0.0"])
+        .assert()
+        .success();
+
+    let manifest = PackageManifest::from_path(workspace.join("package.json")).unwrap();
+    let spec = manifest
+        .dependencies([DependencyGroup::Prod])
+        .find(|(key, _)| *key == "is-positive")
+        .map(|(_, spec)| spec.to_string());
+    assert_eq!(spec.as_deref(), Some("1.0.0"));
+    drop((root, npmrc_info));
+}

@@ -62,6 +62,14 @@ test('calcVersionRange() lets a request that names a specifier replace a kept ra
   expect(calcVersionRange('1.2.0', { prevSpecifier: '<= 1.2.5', bareSpecifier: 'latest' })).toBe('^1.2.0')
 })
 
+test('calcVersionRange() honors exact and explicit ranges over previous range operators (pnpm/pnpm#6040)', () => {
+  expect(calcVersionRange('1.0.0', { prevSpecifier: '^0.5.0', bareSpecifier: '1.0.0' })).toBe('1.0.0')
+  expect(calcVersionRange('1.0.0', { prevSpecifier: '^0.5.0', bareSpecifier: '~1.0.0' })).toBe('~1.0.0')
+  expect(calcVersionRange('1.0.0', { prevSpecifier: '^0.5.0', bareSpecifier: '=1.0.0' })).toBe('=1.0.0')
+  expect(calcVersionRange('1.0.0', { prevSpecifier: '^0.5.0', bareSpecifier: 'latest' })).toBe('^1.0.0')
+  expect(calcVersionRange('1.0.0', { prevSpecifier: '~0.5.0', bareSpecifier: '1.0.0' })).toBe('1.0.0')
+})
+
 test('rangeSpecGranularity() collapses exact to patch', () => {
   expect(rangeSpecGranularity('exact')).toBe('patch')
   expect(rangeSpecGranularity('patch')).toBe('patch')

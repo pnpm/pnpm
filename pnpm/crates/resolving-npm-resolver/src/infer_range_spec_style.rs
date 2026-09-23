@@ -38,7 +38,8 @@ pub fn infer_range_spec_style(spec: &str) -> Option<RangeSpecStyle> {
 /// pinning is defined by the catalog entry it points to, so a catalog name
 /// that happens to look like a version (`catalog:express4-21`) must not be
 /// read as one.
-pub(crate) fn range_of_specifier(spec: &str) -> Option<&str> {
+#[must_use]
+pub fn range_of_specifier(spec: &str) -> Option<&str> {
     if spec.starts_with("catalog:") {
         return None;
     }

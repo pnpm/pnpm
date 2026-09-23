@@ -238,11 +238,10 @@ fn an_unaliased_prefixed_specifier_carries_the_range_alone() {
     );
 }
 
-/// A dependency the manifest already declares under `^` or `~` keeps that
-/// operator when it is requested at an exact version, as pnpm 11 does
-/// (pnpm/pnpm#14745).
+/// An exact requested version takes precedence over a previous range operator
+/// in the manifest (pnpm/pnpm#6040).
 #[test]
-fn the_previous_range_operator_wins_over_an_exact_request() {
+fn an_exact_request_wins_over_the_previous_range_operator() {
     assert_eq!(
         calc_specifier(
             "19.3.0",
@@ -251,7 +250,7 @@ fn the_previous_range_operator_wins_over_an_exact_request() {
             &picked("19.3.0"),
             RangeSpecStyle::Major,
         ),
-        "^19.3.0",
+        "19.3.0",
     );
     assert_eq!(
         calc_specifier(
@@ -261,7 +260,7 @@ fn the_previous_range_operator_wins_over_an_exact_request() {
             &picked("19.3.0"),
             RangeSpecStyle::Major,
         ),
-        "~19.3.0",
+        "19.3.0",
     );
     // No previous pin: the exact requested version stays exact.
     assert_eq!(
