@@ -285,8 +285,6 @@ fn strip_segment_suffix<'a>(input: &'a str, segment: &str) -> Option<&'a str> {
     segment_matches_exact(segment, suffix).then(|| &input[..split_idx])
 }
 
-/// Returns the byte length of the first `n` Unicode characters of `s`,
-/// or `None` if `s` has fewer than `n` characters.
 fn char_window_len(s: &str, n: usize) -> Option<usize> {
     let mut char_count = 0;
     for (idx, _) in s.char_indices() {
@@ -308,7 +306,7 @@ fn find_segment(input: &str, segment: &str) -> Option<(usize, usize)> {
     for (start_idx, _) in input.char_indices() {
         let rest = &input[start_idx..];
         let Some(end_offset) = char_window_len(rest, seg_chars) else {
-            continue;
+            break;
         };
         let candidate = &rest[..end_offset];
         if segment_matches_exact(segment, candidate) {
