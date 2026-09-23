@@ -4,6 +4,7 @@ use super::{
     scan_global_packages,
 };
 use pnpm_cmd_shim::{FsReadDir, FsReadFile, FsWalkFiles};
+use pnpm_fs::symlink_dir;
 use pnpm_package_manifest::PackageManifestError;
 use serde_json::json;
 use std::{io, path::Path};
@@ -139,14 +140,13 @@ fn installed_bin_names_treats_an_absent_dependency_dir_as_binless() {
     assert_eq!(get_installed_bin_names(&info).unwrap(), vec!["readable-command".to_string()]);
 }
 
-#[cfg(unix)]
 #[test]
 fn installed_bin_names_treats_a_dangling_dependency_link_as_binless() {
     let tmp = TempDir::new().unwrap();
     write_readable_manifest(tmp.path());
-    std::os::unix::fs::symlink(
-        tmp.path().join("store/links/pruned/node_modules/pruned"),
-        tmp.path().join("node_modules/pruned"),
+    symlink_dir(
+        &tmp.path().join("store/links/pruned/node_modules/pruned"),
+        &tmp.path().join("node_modules/pruned"),
     )
     .unwrap();
     let info = package_group(tmp.path(), &["readable", "pruned"]);

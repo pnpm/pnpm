@@ -147,7 +147,8 @@ fn installed_packages(
 /// through a directory that is not there. Every dependency directory that
 /// does exist must hold a readable, valid manifest: returning a partial set
 /// would make destructive callers mistake unknown ownership for an unowned
-/// bin.
+/// bin. The directory is probed only after its manifest read fails with
+/// `NotFound`, so a link pruned underneath the scan is skipped as absent.
 pub fn get_installed_bin_names(
     info: &GlobalPackageInfo,
 ) -> Result<Vec<String>, PackageManifestError> {
@@ -167,12 +168,16 @@ where
     let mut bins = BTreeSet::new();
     for (alias, _) in &info.dependencies {
         let dep_dir = modules_dir.join(alias);
-        if !dir_exists::<Sys>(&dep_dir)? {
-            continue;
-        }
         let manifest_path = dep_dir.join("package.json");
-        let bytes = Sys::read_file(&manifest_path)
-            .map_err(|source| PackageManifestError::Read { path: manifest_path.clone(), source })?;
+        let bytes = match Sys::read_file(&manifest_path) {
+            Ok(bytes) => bytes,
+            Err(source) => {
+                if source.kind() == io::ErrorKind::NotFound && !dir_exists::<Sys>(&dep_dir)? {
+                    continue;
+                }
+                return Err(PackageManifestError::Read { path: manifest_path, source });
+            }
+        };
         let manifest = parse_manifest_bytes(&bytes)
             .map_err(|source| PackageManifestError::Parse { path: manifest_path, source })?;
         for command in get_bins_from_package_manifest::<Sys>(&manifest, &dep_dir) {

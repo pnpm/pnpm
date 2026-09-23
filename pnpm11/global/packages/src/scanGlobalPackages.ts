@@ -64,9 +64,7 @@ export function scanGlobalPackages (globalDir: string): GlobalPackageInfo[] {
   try {
     entries = fs.readdirSync(globalDir, { withFileTypes: true })
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return []
-    }
+    if (isNotFound(err)) return []
     throw err
   }
   const result: GlobalPackageInfo[] = []
@@ -161,7 +159,8 @@ export function cleanOrphanedInstallDirs (globalDir: string): void {
  * through a directory that is not there. Every dependency directory that
  * does exist must hold a readable, valid manifest: returning a partial set
  * would make destructive callers mistake unknown ownership for an unowned
- * bin.
+ * bin. The directory is probed only after its manifest read fails with
+ * ENOENT, so a link pruned underneath the scan is skipped as absent.
  */
 export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<string[]> {
   const bins = new Set<string>()
@@ -171,8 +170,13 @@ export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<st
   await Promise.all(
     aliases.map(async (alias) => {
       const depDir = path.join(modulesDir, alias)
-      if (!await dirExists(depDir)) return
-      const manifest = await readPackageJsonFromDir(depDir)
+      let manifest: PackageManifest
+      try {
+        manifest = await readPackageJsonFromDir(depDir)
+      } catch (err) {
+        if (isNotFound(err) && !await dirExists(depDir)) return
+        throw err
+      }
       const binsOfPkg = await getBinsFromPackageManifest(manifest, depDir)
       for (const bin of binsOfPkg) {
         bins.add(bin.name)
@@ -191,9 +195,11 @@ async function dirExists (dir: string): Promise<boolean> {
     await fs.promises.stat(dir)
     return true
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return false
-    }
+    if (isNotFound(err)) return false
     throw err
   }
+}
+
+function isNotFound (err: unknown): boolean {
+  return util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT'
 }
