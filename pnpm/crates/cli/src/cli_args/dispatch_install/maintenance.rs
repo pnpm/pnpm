@@ -311,8 +311,8 @@ fn env_with_reporter<'a, Reporter: pnpm_reporter::Reporter + 'static>(
         EnvSubcommand::Use { package_name } => {
             Box::pin(EnvArgs::run_use::<Reporter>(package_name, config, dir))
         }
-        EnvSubcommand::Remove { version } => {
-            Box::pin(EnvArgs::run_remove::<Reporter>(version, config, dir))
+        EnvSubcommand::Remove { versions } => {
+            Box::pin(EnvArgs::run_remove::<Reporter>(versions, config, dir))
         }
         EnvSubcommand::List { version_spec } => Box::pin(async move {
             println!("{}", EnvArgs::run_list(version_spec, config).await?);

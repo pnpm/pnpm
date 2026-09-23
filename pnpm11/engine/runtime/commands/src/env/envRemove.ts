@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
@@ -7,51 +8,97 @@ import { globalWarn } from '@pnpm/logger'
 
 import type { NvmNodeCommandOptions } from './node.js'
 
+function matchesNodeVersion (actualVersion: string, requestedVersion: string): boolean {
+  return actualVersion === requestedVersion || actualVersion.startsWith(`${requestedVersion}.`)
+}
+
+function getGlobalNodeInstalledVersion (pnpmHomeDir?: string): string | null {
+  if (!pnpmHomeDir) return null
+  const globalDir = path.join(pnpmHomeDir, 'global', 'v11')
+  let entries: fs.Dirent[]
+  try {
+    entries = fs.readdirSync(globalDir, { withFileTypes: true })
+  } catch (err) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return null
+    }
+    throw err
+  }
+  for (const entry of entries) {
+    if (!entry.isSymbolicLink()) continue
+    const linkPath = path.join(globalDir, entry.name)
+    let installDir: string
+    try {
+      installDir = fs.realpathSync(linkPath)
+    } catch (err) {
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+        continue
+      }
+      throw err
+    }
+    const nodePkgJson = path.join(installDir, 'node_modules', 'node', 'package.json')
+    try {
+      const pkg = JSON.parse(fs.readFileSync(nodePkgJson, 'utf8'))
+      if (pkg.version) return pkg.version
+    } catch (err) {
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+        continue
+      }
+      throw err
+    }
+  }
+  return null
+}
+
 export async function envRemove (opts: NvmNodeCommandOptions, params: string[]): Promise<void> {
   globalWarn('"pnpm env remove" is deprecated. Use "pnpm remove -g node" instead.')
   if (!opts.global) {
     throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env remove <version>" can only be used with the "--global" option currently')
   }
 
-  const version = params[0]?.trim()
-  if (!version) {
+  const versions = params.map((v) => v.trim()).filter(Boolean)
+  if (versions.length === 0) {
     throw new PnpmError('MISSING_NODE_VERSION', '"pnpm env remove --global <version>" requires a Node.js version to be specified')
   }
 
-  let removed = false
+  let removedSomething = false
+  const removedNames = new Set<string>()
 
-  // 1. Try removing global node package via pnpm CLI
-  try {
+  const installedGlobalNodeVersion = getGlobalNodeInstalledVersion(opts.pnpmHomeDir)
+  const activeVersionMatches = installedGlobalNodeVersion != null &&
+    versions.some((v) => matchesNodeVersion(installedGlobalNodeVersion, v))
+
+  if (activeVersionMatches) {
     const args = ['remove', '--global', 'node']
     if (opts.bin) args.push('--global-bin-dir', opts.bin)
     if (opts.storeDir) args.push('--store-dir', opts.storeDir)
     if (opts.cacheDir) args.push('--cache-dir', opts.cacheDir)
     runPnpmCli(args, { cwd: opts.pnpmHomeDir })
-    removed = true
-  } catch {
-    // If 'node' wasn't installed as a global package, proceed to check legacy/dangling links
+    removedSomething = true
   }
 
-  // 2. Check and clean up legacy directories in pnpmHomeDir
-  const removedNames = new Set<string>([version])
   if (opts.pnpmHomeDir) {
     const nodejsDir = path.join(opts.pnpmHomeDir, 'nodejs')
-    if (fs.existsSync(nodejsDir)) {
-      try {
-        const entries = fs.readdirSync(nodejsDir)
-        const entriesToRemove = entries.filter((entry) =>
-          entry === version || entry.startsWith(`${version}.`) || entry.startsWith(version)
-        )
-        if (entriesToRemove.length > 0) {
-          await Promise.all(
-            entriesToRemove.map(async (entry) => {
-              await fs.promises.rm(path.join(nodejsDir, entry), { recursive: true, force: true })
-              removedNames.add(entry)
-            })
-          )
-          removed = true
-        }
-      } catch {}
+    let entries: string[] = []
+    try {
+      entries = fs.readdirSync(nodejsDir)
+    } catch (err) {
+      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+        throw err
+      }
+    }
+
+    const entriesToRemove = entries.filter((entry) =>
+      versions.some((v) => matchesNodeVersion(entry, v))
+    )
+    if (entriesToRemove.length > 0) {
+      await Promise.all(
+        entriesToRemove.map(async (entry) => {
+          await fs.promises.rm(path.join(nodejsDir, entry), { recursive: true, force: true })
+          removedNames.add(entry)
+        })
+      )
+      removedSomething = true
     }
 
     const nodeCurrentLink = path.join(opts.pnpmHomeDir, 'nodejs_current')
@@ -60,16 +107,20 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
       if (stat.isSymbolicLink()) {
         const target = fs.readlinkSync(nodeCurrentLink)
         const isDangling = !fs.existsSync(nodeCurrentLink)
-        const pointsToRemoved = Array.from(removedNames).some((name) => target.includes(name))
+        const targetSegments = target.split(/[\\/]/)
+        const pointsToRemoved = Array.from(removedNames).some((name) => targetSegments.includes(name))
         if (isDangling || pointsToRemoved) {
           await fs.promises.unlink(nodeCurrentLink)
-          removed = true
+          removedSomething = true
         }
       }
-    } catch {}
+    } catch (err) {
+      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+        throw err
+      }
+    }
   }
 
-  // 3. Check and clean up bin links in opts.bin if dangling or pointing to the removed version
   if (opts.bin) {
     const unlinks: Array<Promise<void>> = []
     for (const binBase of ['node', 'npm', 'npx']) {
@@ -81,20 +132,27 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
           if (stat.isSymbolicLink()) {
             const target = fs.readlinkSync(binFile)
             const isDangling = !fs.existsSync(binFile)
-            const pointsToRemoved = Array.from(removedNames).some((name) => target.includes(name)) ||
-              target.includes('nodejs')
+            const targetSegments = target.split(/[\\/]/)
+            const pointsToRemoved = Array.from(removedNames).some((name) => targetSegments.includes(name))
             if (isDangling || pointsToRemoved) {
               unlinks.push(fs.promises.unlink(binFile))
-              removed = true
+              removedSomething = true
             }
+          } else if (process.platform === 'win32' && activeVersionMatches) {
+            unlinks.push(fs.promises.unlink(binFile))
+            removedSomething = true
           }
-        } catch {}
+        } catch (err) {
+          if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+            throw err
+          }
+        }
       }
     }
     await Promise.all(unlinks)
   }
 
-  if (!removed) {
-    throw new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js version matching ${version}`)
+  if (!removedSomething) {
+    throw new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js version matching ${versions.join(', ')}`)
   }
 }

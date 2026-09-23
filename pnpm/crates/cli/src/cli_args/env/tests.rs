@@ -93,11 +93,22 @@ fn remove_subcommand_and_aliases() {
         let subcommand = args(true, &[subcommand_name, "20"])
             .subcommand::<SilentReporter>(&config_with_global_bin())
             .unwrap();
-        let EnvSubcommand::Remove { version } = subcommand else {
+        let EnvSubcommand::Remove { versions } = subcommand else {
             panic!("expected a `remove` subcommand for {subcommand_name}");
         };
-        assert_eq!(version, "20", "{subcommand_name}");
+        assert_eq!(versions, vec!["20".to_string()], "{subcommand_name}");
     }
+}
+
+#[test]
+fn remove_multiple_versions() {
+    let subcommand = args(true, &["remove", "14.0.0", "16.2.3"])
+        .subcommand::<SilentReporter>(&config_with_global_bin())
+        .unwrap();
+    let EnvSubcommand::Remove { versions } = subcommand else {
+        panic!("expected a `remove` subcommand");
+    };
+    assert_eq!(versions, vec!["14.0.0".to_string(), "16.2.3".to_string()]);
 }
 
 #[test]

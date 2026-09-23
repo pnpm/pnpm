@@ -89,34 +89,93 @@ test('fail if there is no global bin directory', async () => {
   expect(mockRunPnpmCli).not.toHaveBeenCalled()
 })
 
-test('env remove calls pnpm remove with the correct arguments', async () => {
+test('env remove calls pnpm remove when installed node version matches', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
+  const pnpmHomeDir = path.join(tempDir, 'home')
+  const installDir = path.join(pnpmHomeDir, 'global', 'v11', 'install-node')
+  fs.mkdirSync(path.join(installDir, 'node_modules', 'node'), { recursive: true })
+  fs.writeFileSync(path.join(installDir, 'node_modules', 'node', 'package.json'), JSON.stringify({ name: 'node', version: '18.12.0' }))
+  fs.symlinkSync(installDir, path.join(pnpmHomeDir, 'global', 'v11', 'hash-node'))
+
   await env.handler({
     bin: '/usr/local/bin',
     cacheDir: '/tmp/cache',
     global: true,
-    pnpmHomeDir: '/tmp/pnpm-home',
+    pnpmHomeDir,
     configByUri: {},
     storeDir: '/tmp/store',
   }, ['remove', '18'])
 
   expect(mockRunPnpmCli).toHaveBeenCalledWith(
     ['remove', '--global', 'node', '--global-bin-dir', '/usr/local/bin', '--store-dir', '/tmp/store', '--cache-dir', '/tmp/cache'],
-    { cwd: '/tmp/pnpm-home' }
+    { cwd: pnpmHomeDir }
   )
+
+  fs.rmSync(tempDir, { recursive: true, force: true })
 })
 
-test('env rm alias works identically to env remove', async () => {
+test('env remove does not call pnpm remove when installed node version does not match', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
+  const pnpmHomeDir = path.join(tempDir, 'home')
+  const installDir = path.join(pnpmHomeDir, 'global', 'v11', 'install-node')
+  fs.mkdirSync(path.join(installDir, 'node_modules', 'node'), { recursive: true })
+  fs.writeFileSync(path.join(installDir, 'node_modules', 'node', 'package.json'), JSON.stringify({ name: 'node', version: '20.8.0' }))
+  fs.symlinkSync(installDir, path.join(pnpmHomeDir, 'global', 'v11', 'hash-node'))
+
+  await expect(
+    env.handler({
+      bin: '/usr/local/bin',
+      global: true,
+      pnpmHomeDir,
+      configByUri: {},
+    }, ['remove', '18'])
+  ).rejects.toEqual(new PnpmError('ENV_NO_NODE_DIRECTORY', "Couldn't find Node.js version matching 18"))
+
+  expect(mockRunPnpmCli).not.toHaveBeenCalled()
+
+  fs.rmSync(tempDir, { recursive: true, force: true })
+})
+
+test('env remove does not delete legacy directories that only share a prefix without boundary', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
+  const pnpmHomeDir = path.join(tempDir, 'home')
+  const nodejsDir = path.join(pnpmHomeDir, 'nodejs')
+  fs.mkdirSync(path.join(nodejsDir, '20.8.0'), { recursive: true })
+  fs.mkdirSync(path.join(nodejsDir, '22.0.0'), { recursive: true })
+
+  await expect(
+    env.handler({
+      bin: '/usr/local/bin',
+      global: true,
+      pnpmHomeDir,
+      configByUri: {},
+    }, ['remove', '2'])
+  ).rejects.toEqual(new PnpmError('ENV_NO_NODE_DIRECTORY', "Couldn't find Node.js version matching 2"))
+
+  expect(fs.existsSync(path.join(nodejsDir, '20.8.0'))).toBe(true)
+  expect(fs.existsSync(path.join(nodejsDir, '22.0.0'))).toBe(true)
+
+  fs.rmSync(tempDir, { recursive: true, force: true })
+})
+
+test('env remove supports multiple version arguments', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
+  const pnpmHomeDir = path.join(tempDir, 'home')
+  const nodejsDir = path.join(pnpmHomeDir, 'nodejs')
+  fs.mkdirSync(path.join(nodejsDir, '14.0.0'), { recursive: true })
+  fs.mkdirSync(path.join(nodejsDir, '16.2.3'), { recursive: true })
+
   await env.handler({
     bin: '/usr/local/bin',
     global: true,
-    pnpmHomeDir: '/tmp/pnpm-home',
+    pnpmHomeDir,
     configByUri: {},
-  }, ['rm', '20'])
+  }, ['remove', '14.0.0', '16.2.3'])
 
-  expect(mockRunPnpmCli).toHaveBeenCalledWith(
-    ['remove', '--global', 'node', '--global-bin-dir', '/usr/local/bin'],
-    { cwd: '/tmp/pnpm-home' }
-  )
+  expect(fs.existsSync(path.join(nodejsDir, '14.0.0'))).toBe(false)
+  expect(fs.existsSync(path.join(nodejsDir, '16.2.3'))).toBe(false)
+
+  fs.rmSync(tempDir, { recursive: true, force: true })
 })
 
 test('env remove fails if not run with --global', async () => {
@@ -146,10 +205,6 @@ test('env remove fails if no version is specified', async () => {
 })
 
 test('env remove cleans up dangling symlink when node is removed (pnpm/pnpm#6122)', async () => {
-  mockRunPnpmCli.mockImplementation(() => {
-    throw new Error('not in global packages')
-  })
-
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
   const binDir = path.join(tempDir, 'bin')
   const pnpmHomeDir = path.join(tempDir, 'home')

@@ -99,3 +99,55 @@ fn remove_cleans_up_dangling_node_link() {
     assert!(!bin_node.is_symlink());
     assert!(!bin_node.exists());
 }
+
+#[cfg(unix)]
+#[test]
+fn remove_multiple_versions() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm_home");
+    let global_bin = pnpm_home.join("bin");
+    let nodejs_dir = pnpm_home.join("nodejs");
+    std::fs::create_dir_all(&global_bin).unwrap();
+    std::fs::create_dir_all(nodejs_dir.join("14.0.0")).unwrap();
+    std::fs::create_dir_all(nodejs_dir.join("16.2.3")).unwrap();
+
+    let existing_path = std::env::var("PATH").unwrap_or_default();
+    let path = format!("{}:{existing_path}", global_bin.display());
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("PATH", path)
+        .with_args(["--global", "env", "rm", "14.0.0", "16.2.3"])
+        .output()
+        .expect("run pacquet env rm");
+
+    assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
+    assert!(!nodejs_dir.join("14.0.0").exists());
+    assert!(!nodejs_dir.join("16.2.3").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn remove_does_not_delete_prefix_unrelated_versions() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm_home");
+    let global_bin = pnpm_home.join("bin");
+    let nodejs_dir = pnpm_home.join("nodejs");
+    std::fs::create_dir_all(&global_bin).unwrap();
+    std::fs::create_dir_all(nodejs_dir.join("20.8.0")).unwrap();
+    std::fs::create_dir_all(nodejs_dir.join("22.0.0")).unwrap();
+
+    let existing_path = std::env::var("PATH").unwrap_or_default();
+    let path = format!("{}:{existing_path}", global_bin.display());
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("PATH", path)
+        .with_args(["--global", "env", "rm", "2"])
+        .output()
+        .expect("run pacquet env rm");
+
+    assert!(!output.status.success());
+    assert!(nodejs_dir.join("20.8.0").exists());
+    assert!(nodejs_dir.join("22.0.0").exists());
+}
