@@ -827,6 +827,42 @@ fn repeat_hoisted_install_with_workspace_member_deps_is_up_to_date() {
     drop((root, mock_instance));
 }
 
+/// A repeat `--frozen-lockfile` install of an unchanged hoisted workspace
+/// whose member is named takes the frozen up-to-date short-circuit. Under
+/// the hoisted linker `hoistWorkspacePackages` writes no isolated-style
+/// hoist links, so the short-circuit must not require them.
+#[test]
+fn repeat_frozen_hoisted_install_with_named_workspace_member_is_up_to_date() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let hoisted_manifest = install_hoisted_workspace_member(pacquet, &workspace);
+    let hoisted_witness = SameFileWitness::take(&hoisted_manifest, root.path());
+
+    let second = pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--reporter=ndjson"])
+        .assert()
+        .success();
+    let second_events = String::from_utf8_lossy(&second.get_output().stderr).into_owned();
+    assert!(
+        second_events.contains("Lockfile is up to date, resolution step is skipped"),
+        "the repeat frozen install must reuse the lockfile: {second_events}",
+    );
+    assert!(
+        !second_events.contains(r#""name":"pnpm:progress""#),
+        "the repeat frozen install must not walk the tree: {second_events}",
+    );
+    assert!(hoisted_witness.is_intact(), "the second install must re-import nothing");
+
+    drop((root, mock_instance));
+}
+
 /// pnpm/pnpm#14495: an unchanged local tarball does not make a hoisted
 /// workspace reinstall its registry dependency tree.
 #[test]

@@ -100,13 +100,19 @@ fn tree_contents_intact(
         config,
         context.tree.workspace_root,
         context.tree.node_linker,
-    ) && hoisted_workspace_packages_present(
-        current,
-        config,
-        context.tree.workspace_root,
-        context.tree.included,
-        context.recorded.projects,
-        &skipped,
+    ) && (
+        // The hoisted linker places workspace projects through its own
+        // hoisting tree, which `frozen_tree_intact` already probes, and
+        // never writes the isolated linker's hoist links.
+        context.tree.node_linker == pnpm_config::NodeLinker::Hoisted
+            || hoisted_workspace_packages_present(
+                current,
+                config,
+                context.tree.workspace_root,
+                context.tree.included,
+                context.recorded.projects,
+                &skipped,
+            )
     )
 }
 
