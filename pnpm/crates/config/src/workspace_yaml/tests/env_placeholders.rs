@@ -1,5 +1,6 @@
 use super::{AuditLevel, ColorMode, EnvVar, NodeLinker, assert_eq};
-use crate::workspace_yaml::settings::parse_settings;
+use crate::workspace_yaml::settings::{MAX_RESOLVABLE_PLACEHOLDERS, parse_settings};
+use std::fmt::Write as _;
 
 struct Env;
 
@@ -133,25 +134,40 @@ fn an_error_beside_a_resolved_placeholder_keeps_its_location() {
 
 /// A setting that takes free text reads as written, so the second read has
 /// no reason to resolve its placeholder and leaves it to the substitution
-/// that knows which layer the file came from. `PNPM_TEST_TOKEN` stands for
-/// the secret a repository must not be able to name its way into.
+/// that knows which layer the file came from.
 #[test]
 fn a_placeholder_a_setting_can_hold_is_left_for_the_substitution() {
     let mut settings = parse_settings::<Env>(
         "ignoreScripts: ${PNPM_TEST_UNSET:-false}
 cacheDir: ${PNPM_TEST_UNSET:-cache}
-userAgent: ${PNPM_TEST_TOKEN}
+userAgent: ${PNPM_TEST_HOST}
 ",
     )
     .unwrap();
 
     assert_eq!(settings.ignore_scripts, Some(false));
     assert_eq!(settings.cache_dir.as_deref(), Some("${PNPM_TEST_UNSET:-cache}"));
-    assert_eq!(settings.user_agent.as_deref(), Some("${PNPM_TEST_TOKEN}"));
+    assert_eq!(settings.user_agent.as_deref(), Some("${PNPM_TEST_HOST}"));
 
     settings.substitute_env_untrusted::<Env>();
 
     assert_eq!(settings.cache_dir.as_deref(), Some("cache"));
+}
+
+/// The second read decides one placeholder per read of the document, so a
+/// file may not name as many as it likes.
+#[test]
+fn a_document_naming_more_placeholders_than_the_bound_reads_as_written() {
+    let padding = (0..MAX_RESOLVABLE_PLACEHOLDERS).fold(String::new(), |mut padding, index| {
+        let _ = writeln!(padding, "# ${{PNPM_TEST_UNSET:-pad{index}}}");
+        padding
+    });
+
+    let error =
+        parse_settings::<Env>(&format!("nodeLinker: ${{PNPM_TEST_UNSET:-isolated}}\n{padding}"))
+            .unwrap_err();
+
+    assert!(error.to_string().contains("${PNPM_TEST_UNSET:-isolated}"), "unexpected: {error}");
 }
 
 /// The second read must not turn a quoted scalar into the value it spells,

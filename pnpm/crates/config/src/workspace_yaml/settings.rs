@@ -18,6 +18,14 @@ use super::{
 /// the token in a build log.
 const INVALID_EXPANSION: &str = "invalid environment-expanded value";
 
+/// How many placeholders a second read will work out the necessity of.
+///
+/// Deciding one costs a read of the document, and the file says how many
+/// there are, so without a bound a repository could set how long loading its
+/// own configuration takes. A file naming this many settings out of the
+/// environment is already far past what anyone writes by hand.
+pub(super) const MAX_RESOLVABLE_PLACEHOLDERS: usize = 32;
+
 /// Read the settings of a `pnpm-workspace.yaml` / `config.yaml`, resolving a
 /// setting written as `${VAR}` or `${VAR:-fallback}`.
 ///
@@ -39,7 +47,7 @@ pub(crate) fn parse_settings<Sys: EnvVar>(
         Err(error) => error,
     };
     let placeholders = resolvable_placeholders::<Sys>(text);
-    if placeholders.is_empty() {
+    if placeholders.is_empty() || placeholders.len() > MAX_RESOLVABLE_PLACEHOLDERS {
         return Err(Box::new(as_written));
     }
     let mut resolved = vec![true; placeholders.len()];
