@@ -274,7 +274,7 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          cargo test --no-run --timings --locked --workspace --exclude pnpm-registry-mock --exclude pnpr --exclude pnpr-auth --exclude pnpr-cargo --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-oci --exclude pnpr-osv --exclude pnpr-package-name --exclude pnpr-pipeline-runs --exclude pnpr-policy --exclude pnpr-pypi --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream > /dev/null 2>&1
+          cargo test --no-run --timings --locked --workspace --exclude pnpm-registry-mock --exclude pnpr --exclude pnpr-auth --exclude pnpr-cargo --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-oci --exclude pnpr-osv --exclude pnpr-package-name --exclude pnpr-pipeline-runs --exclude pnpr-policy --exclude pnpr-pypi --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream 2>&1 | grep -E "^(error|warning: unused)" | head -20 || true
           cp target/cargo-timings/cargo-timing.html "$RUNNER_TEMP/timing-pacquet.html"
           python .github/diagnostics/windows/timings.py "$RUNNER_TEMP/timing-pacquet.html" "pacquet tests, link.exe"
 
@@ -304,7 +304,7 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          cargo test --no-run --timings --locked -p pnpm-registry-mock -p pnpr -p pnpr-auth -p pnpr-cargo -p pnpr-config -p pnpr-error -p pnpr-fixtures -p pnpr-oci -p pnpr-osv -p pnpr-package-name -p pnpr-pipeline-runs -p pnpr-policy -p pnpr-pypi -p pnpr-registry -p pnpr-route -p pnpr-search -p pnpr-shared-artifacts -p pnpr-storage -p pnpr-upstream > /dev/null 2>&1
+          cargo test --no-run --timings --locked -p pnpm-registry-mock -p pnpr -p pnpr-auth -p pnpr-cargo -p pnpr-config -p pnpr-error -p pnpr-fixtures -p pnpr-oci -p pnpr-osv -p pnpr-package-name -p pnpr-pipeline-runs -p pnpr-policy -p pnpr-pypi -p pnpr-registry -p pnpr-route -p pnpr-search -p pnpr-shared-artifacts -p pnpr-storage -p pnpr-upstream 2>&1 | grep -E "^(error|warning: unused)" | head -20 || true
           cp target/cargo-timings/cargo-timing.html "$RUNNER_TEMP/timing-pnpr.html"
           python .github/diagnostics/windows/timings.py "$RUNNER_TEMP/timing-pnpr.html" "pnpr tests after pacquet"
 
@@ -357,7 +357,7 @@ jobs:
           sysroot="$(rustc --print sysroot)"
           export PATH="$sysroot/lib/rustlib/x86_64-pc-windows-msvc/bin:$PATH"
           export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=rust-lld.exe
-          cargo test --no-run --timings --locked --workspace --exclude pnpm-registry-mock --exclude pnpr --exclude pnpr-auth --exclude pnpr-cargo --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-oci --exclude pnpr-osv --exclude pnpr-package-name --exclude pnpr-pipeline-runs --exclude pnpr-policy --exclude pnpr-pypi --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream > /dev/null 2>&1
+          cargo test --no-run --timings --locked --workspace --exclude pnpm-registry-mock --exclude pnpr --exclude pnpr-auth --exclude pnpr-cargo --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-oci --exclude pnpr-osv --exclude pnpr-package-name --exclude pnpr-pipeline-runs --exclude pnpr-policy --exclude pnpr-pypi --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream 2>&1 | grep -E "^(error|warning: unused)" | head -20 || true
           cp target/cargo-timings/cargo-timing.html "$RUNNER_TEMP/timing-pacquet-lld.html"
           python .github/diagnostics/windows/timings.py "$RUNNER_TEMP/timing-pacquet-lld.html" "pacquet tests, rust-lld relink"
           unset PNPM_HOME XDG_DATA_HOME
