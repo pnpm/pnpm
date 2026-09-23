@@ -2,7 +2,10 @@ use super::{
     CreateVirtualStoreError, SnapshotWithCacheKey,
     cache_keys::{SlotReuse, dir_clone_cacheable},
     cas_paths_key, partition, removed_aliases_for,
-    slot_linking::{LinkSlotsParallel, SlotLink, emit_warm_snapshot_progress, link_slots_parallel},
+    slot_linking::{
+        LinkSlotsParallel, SlotLink, emit_warm_snapshot_progress, link_slots_parallel,
+        warm_progress_already_reported,
+    },
 };
 use crate::{CasPathsByPkgId, InstallPackageBySnapshotError};
 use pnpm_git_fetcher::{GitFetcherError, resolve_package_build_permission};
@@ -11,7 +14,7 @@ use pnpm_package_manifest::{
     files_include_install_scripts, manifest_requires_build, parse_manifest,
 };
 use pnpm_reporter::Reporter;
-use pnpm_tarball::{PrefetchResult, pending_progress_key};
+use pnpm_tarball::PrefetchResult;
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
@@ -230,15 +233,10 @@ pub(super) fn emit_hoisted_warm_progress<Reporter: self::Reporter>(
     batch: &WarmLinkBatch<'_>,
 ) {
     for (snapshot_key, _, _, cache_key, _) in warm {
-        let pending_observer =
-            batch.template.progress_reported.contains(&pending_progress_key(cache_key));
         emit_warm_snapshot_progress::<Reporter>(
             &snapshot_key.pkg_id(),
             batch.template.import.requester,
-            batch.template.progress_reported.contains(*cache_key),
+            warm_progress_already_reported(batch.template.progress_reported, cache_key),
         );
-        if pending_observer {
-            batch.template.progress_reported.insert((*cache_key).to_string());
-        }
     }
 }

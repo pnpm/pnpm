@@ -10,6 +10,8 @@ mod store;
 
 mod installation;
 
+mod optional_progress;
+
 mod reporting;
 
 use super::CreateVirtualStore;
