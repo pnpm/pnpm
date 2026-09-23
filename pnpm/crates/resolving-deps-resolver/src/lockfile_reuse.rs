@@ -299,8 +299,8 @@ fn synthesize_manifest(
 
 fn snapshot_dep_to_manifest_specifier(dep_ref: &SnapshotDepRef) -> String {
     match dep_ref {
-        SnapshotDepRef::Plain(ver_peer) => ver_peer.version().to_string(),
-        SnapshotDepRef::Alias(key) => format!("npm:{}@{}", key.name, key.suffix.version()),
+        SnapshotDepRef::Plain(ver_peer) => ver_peer.without_peer().to_string(),
+        SnapshotDepRef::Alias(key) => format!("npm:{}@{}", key.name, key.suffix.without_peer()),
         SnapshotDepRef::Link(target) => format!("link:{target}"),
     }
 }

@@ -451,6 +451,8 @@ fn attach_snapshot_dependencies_converts_dep_refs_to_manifest_specifiers() {
             "is-positive": "1.0.0(peer@2.0.0)",
             "aliased": "target@2.0.0",
             "linked": "link:packages/sub",
+            "node": "runtime:22.0.0(peer@1.0.0)",
+            "custom-node": "node@runtime:22.0.0(peer@1.0.0)",
         },
         "optionalDependencies": {
             "opt": "3.0.0",
@@ -466,9 +468,11 @@ fn attach_snapshot_dependencies_converts_dep_refs_to_manifest_specifiers() {
             "name": "pkg",
             "version": "1.0.0",
             "dependencies": {
-                "is-positive": "1.0.0",
                 "aliased": "npm:target@2.0.0",
+                "custom-node": "npm:node@runtime:22.0.0",
+                "is-positive": "1.0.0",
                 "linked": "link:packages/sub",
+                "node": "runtime:22.0.0",
             },
             "optionalDependencies": {
                 "opt": "3.0.0",
