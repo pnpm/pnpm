@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-With `enableGlobalVirtualStore` and `nodeExperimentalPackageMap`, `node_modules/.package-map.json` no longer contains entries pointing at non-existent flat virtual-store paths. A metadata-only entry (`name@version`, which carries no peer/patch suffix) is not one of the snapshot keys the global virtual store computes hashed slots for, so resolving it directly fell back to the legacy flat name. It now resolves its slot through a peer-suffixed snapshot sibling, which holds the same package version at a real directory.
+`node_modules/.package-map.json` no longer contains entries that point at directories that do not exist. Such entries appeared for packages installed only with peer dependencies, most visibly with `enableGlobalVirtualStore` [#14938](https://github.com/pnpm/pnpm/issues/14938).

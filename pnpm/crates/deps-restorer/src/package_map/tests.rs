@@ -180,13 +180,8 @@ fn lockfile_package_map_uses_global_virtual_store_layout() {
 }
 
 #[test]
-fn lockfile_package_map_resolves_metadata_only_entries_through_snapshot_siblings() {
-    // pnpm/pnpm#14938: a metadata-only key (`name@version`) carries no
-    // peer/patch suffix, so it is not among the snapshot keys the GVS
-    // layout precomputed slots for. Resolving it directly falls back to
-    // the legacy flat name — a directory that does not exist on disk.
-    // The entry must resolve through a peer-suffixed snapshot sibling
-    // instead.
+fn lockfile_package_map_omits_metadata_keys_of_peer_suffixed_snapshots() {
+    // pnpm/pnpm#14938
     let cwd = std::env::current_dir().expect("current dir");
     let mut config = pnpm_config::Config::new();
     config.enable_global_virtual_store = true;
@@ -221,19 +216,15 @@ fn lockfile_package_map_resolves_metadata_only_entries_through_snapshot_siblings
         },
     );
 
-    let sibling_url = &package_map.packages["dep1@1.0.0(dep2@2.0.0)"].url;
+    let snapshot_url = &package_map.packages["dep1@1.0.0(dep2@2.0.0)"].url;
     assert!(
-        sibling_url.contains("store/links/") && sibling_url.contains("/dep1/1.0.0/"),
-        "sibling entry must use the GVS slot, got {sibling_url:?}",
-    );
-    let metadata_url = &package_map.packages["dep1@1.0.0"].url;
-    assert_eq!(
-        metadata_url, sibling_url,
-        "metadata-only entry must resolve through the snapshot sibling's slot",
+        snapshot_url.contains("store/links/") && snapshot_url.contains("/dep1/1.0.0/"),
+        "snapshot entry must use the GVS slot, got {snapshot_url:?}",
     );
     assert!(
-        !metadata_url.contains("dep1@1.0.0/node_modules"),
-        "must not fall back to the flat local layout, got {metadata_url:?}",
+        !package_map.packages.contains_key("dep1@1.0.0"),
+        "the peer-stripped key has no slot of its own, got {:?}",
+        package_map.packages.keys().collect::<Vec<_>>(),
     );
 }
 

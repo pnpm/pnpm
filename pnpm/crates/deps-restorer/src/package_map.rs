@@ -21,7 +21,7 @@ use pnpm_lockfile::{Lockfile, PackageKey};
 use pnpm_package_manifest::PackageManifest;
 use serde::Serialize;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     fmt::Write as _,
     path::{Path, PathBuf},
 };
@@ -152,13 +152,22 @@ pub fn lockfile_to_package_map(lockfile: &Lockfile, opts: &PackageMapOptions<'_>
     }
 
     // A package with metadata but no snapshot still needs a map entry:
-    // it resolves to its own slot and to nothing else.
+    // it resolves to its own slot and to nothing else. A metadata key
+    // that is the peer-stripped form of a snapshot key is not such a
+    // package: it is installed only under its snapshots' slots, and
+    // nothing references the stripped key.
+    let snapshot_package_keys: HashSet<PackageKey> = lockfile.snapshots
+        .iter()
+        .flatten()
+        .map(|(key, _)| key.without_peer())
+        .collect();
     for key in lockfile.packages
         .iter()
         .flatten()
         .map(|(key, _)| key)
+        .filter(|key| !snapshot_package_keys.contains(*key))
     {
-        add_metadata_only_package(&mut accum, lockfile, opts, key);
+        add_metadata_only_package(&mut accum, opts, key);
     }
 
     add_loose_dependencies(
@@ -261,28 +270,13 @@ fn add_snapshot_package(
 
 fn add_metadata_only_package(
     accum: &mut PackageMapAccum,
-    lockfile: &Lockfile,
     opts: &PackageMapOptions<'_>,
     key: &PackageKey,
 ) {
     let id = key.to_string();
-    // The metadata key (`name@version`) carries no peer/patch suffix, so
-    // under the global virtual store it is not one of the snapshot keys
-    // `VirtualStoreLayout` precomputed hashed slots for — resolving it
-    // directly falls back to the legacy flat name, a directory that does
-    // not exist on disk. Resolve the slot through a peer-suffixed
-    // snapshot sibling instead: every sibling slot holds the same package
-    // version, so any one of them is a real directory (pnpm/pnpm#14938).
-    // The scan only runs for ids no snapshot entry claimed, which is
-    // exactly the metadata-only case.
-    let slot_key = if accum.packages.contains_key(&id) {
-        key
-    } else {
-        snapshot_sibling_key(lockfile, key).unwrap_or(key)
-    };
     let package_dir = || {
         pnpm_fs::join_slash_separated_path(
-            &opts.layout.slot_dir(slot_key).join("node_modules"),
+            &opts.layout.slot_dir(key).join("node_modules"),
             &key.name.to_string(),
         )
     };
@@ -299,20 +293,6 @@ fn add_metadata_only_package(
     if let Some(package_dirs) = accum.package_dirs.as_mut() {
         package_dirs.entry(id).or_insert_with(package_dir);
     }
-}
-
-/// A snapshot key sharing `key`'s peer-stripped identity (`name@version`)
-/// but carrying a peer/patch suffix — the slot a metadata-only
-/// package-map entry resolves through under the global virtual store.
-/// The lexicographically smallest sibling wins so the emitted map stays
-/// byte-stable across installs. `None` when no such sibling exists, in
-/// which case the caller falls back to the metadata key itself.
-fn snapshot_sibling_key<'a>(lockfile: &'a Lockfile, key: &PackageKey) -> Option<&'a PackageKey> {
-    lockfile.snapshots
-        .as_ref()?
-        .keys()
-        .filter(|snapshot_key| *snapshot_key != key && snapshot_key.without_peer() == *key)
-        .min_by(|left, right| left.to_string().cmp(&right.to_string()))
 }
 
 fn has_package_entry(lockfile: &Lockfile, key: &PackageKey) -> bool {
