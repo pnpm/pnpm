@@ -199,7 +199,7 @@ fn lockfile_package_map_omits_metadata_keys_of_peer_suffixed_snapshots() {
             importers: HashMap::from([(
                 ".".to_string(),
                 ProjectSnapshot {
-                    dependencies: Some(deps(&[("dep1", "1.0.0")])),
+                    dependencies: Some(deps(&[("dep1", "1.0.0(dep2@2.0.0)")])),
                     ..ProjectSnapshot::default()
                 },
             )]),
@@ -225,6 +225,10 @@ fn lockfile_package_map_omits_metadata_keys_of_peer_suffixed_snapshots() {
         !package_map.packages.contains_key("dep1@1.0.0"),
         "the peer-stripped key has no slot of its own, got {:?}",
         package_map.packages.keys().collect::<Vec<_>>(),
+    );
+    assert_eq!(
+        package_map.packages["."].dependencies.get("dep1").map(String::as_str),
+        Some("dep1@1.0.0(dep2@2.0.0)"),
     );
 }
 
