@@ -1300,11 +1300,14 @@ function calcSpecifierForWorkspaceDep ({
     }
     return `${prefix}^`
   }
-  if (parsedVersion == null ? isPartialVersion(version) : parsedVersion.prerelease.length) {
-    return `${prefix}${version}`
-  }
   const prevRangeSpecStyle = wantedDependency.prevSpecifier ? inferRangeSpecStyle(wantedDependency.prevSpecifier) : undefined
   const requestedRangeSpecStyle = wantedDependency.bareSpecifier ? inferRangeSpecStyle(wantedDependency.bareSpecifier) : undefined
+  if (!isUpdate && (requestedRangeSpecStyle === 'patch' || requestedRangeSpecStyle === 'exact')) {
+    return `${prefix}${versionWithRangeSpecStyle(version, requestedRangeSpecStyle)}`
+  }
+  if (parsedVersion == null ? isPartialVersion(version) : parsedVersion.prerelease.length) {
+    return prevRangeSpecStyle ? `${prefix}${versionWithRangeSpecStyle(version, prevRangeSpecStyle)}` : `${prefix}${version}`
+  }
   const rangeSpecStyle = isUpdate
     ? (prevRangeSpecStyle ?? requestedRangeSpecStyle ?? defaultRangeSpecStyle)
     : (requestedRangeSpecStyle ?? prevRangeSpecStyle ?? defaultRangeSpecStyle)

@@ -77,6 +77,11 @@ test('calcVersionRange() preserves previous range operators when isUpdate is tru
   expect(calcVersionRange('1.0.0', { prevSpecifier: '0.5.0', bareSpecifier: '1.0.0', isUpdate: true })).toBe('1.0.0')
 })
 
+test('calcVersionRange() honors exact version for prereleases when manifest has a range', () => {
+  expect(calcVersionRange('1.0.0-rc.2', { prevSpecifier: '^1.0.0-rc.1', bareSpecifier: '1.0.0-rc.2' })).toBe('1.0.0-rc.2')
+  expect(calcVersionRange('1.0.0-rc.2', { prevSpecifier: '^1.0.0-rc.1', bareSpecifier: '1.0.0-rc.2', isUpdate: true })).toBe('^1.0.0-rc.2')
+})
+
 test('rangeSpecGranularity() collapses exact to patch', () => {
   expect(rangeSpecGranularity('exact')).toBe('patch')
   expect(rangeSpecGranularity('patch')).toBe('patch')

@@ -56,10 +56,13 @@ export function calcVersionRange (
       return prevRange
     }
   }
+  const requestedRangeSpecStyle = opts.bareSpecifier ? inferRangeSpecStyle(opts.bareSpecifier) : undefined
+  if (!opts.isUpdate && (requestedRangeSpecStyle === 'patch' || requestedRangeSpecStyle === 'exact')) {
+    return versionWithRangeSpecStyle(version, requestedRangeSpecStyle)
+  }
   if (semver.parse(version)?.prerelease.length) {
     return prevRangeSpecStyle ? versionWithRangeSpecStyle(version, prevRangeSpecStyle) : version
   }
-  const requestedRangeSpecStyle = opts.bareSpecifier ? inferRangeSpecStyle(opts.bareSpecifier) : undefined
   const rangeSpecStyle = opts.isUpdate
     ? prevRangeSpecStyle ?? requestedRangeSpecStyle ?? opts.defaultRangeSpecStyle
     : requestedRangeSpecStyle ?? prevRangeSpecStyle ?? opts.defaultRangeSpecStyle

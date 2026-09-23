@@ -48,16 +48,18 @@ pub fn calc_version_range(
     {
         return prev_range.to_string();
     }
+    let requested_style = requested.and_then(infer_range_spec_style);
+    if matches!(requested_style, Some(RangeSpecStyle::Patch | RangeSpecStyle::Exact)) {
+        let style = requested_style.unwrap();
+        return format!("{}{version}", style.range_prefix());
+    }
     if !version.pre_release.is_empty() {
         return match prev_style {
             Some(style) => format!("{}{version}", style.range_prefix()),
             None => version.to_string(),
         };
     }
-    let style = requested
-        .and_then(infer_range_spec_style)
-        .or(prev_style)
-        .unwrap_or(default_style);
+    let style = requested_style.or(prev_style).unwrap_or(default_style);
     format!("{}{version}", style.range_prefix())
 }
 

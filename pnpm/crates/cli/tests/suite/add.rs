@@ -1013,9 +1013,6 @@ fn install_with_a_package_skips_dependencies_when_dev_is_set() {
     drop((root, npmrc_info)); // cleanup
 }
 
-/// Regression test for <https://github.com/pnpm/pnpm/issues/6040>.
-/// `pnpm add pkg@<version>` should save the exact version into package.json
-/// even when a range entry already exists.
 #[test]
 fn add_exact_version_honors_exact_when_range_already_exists() {
     let CommandTempCwd {

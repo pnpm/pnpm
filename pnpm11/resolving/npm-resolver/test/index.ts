@@ -3907,3 +3907,48 @@ test('targeted explicit-version update preserves range operator for registry-fai
   })
   expect(updateResult!.normalizedBareSpecifier).toBe('^1.0.0')
 })
+
+test('workspace protocol: targeted update preserves operator while add honors exact version', async () => {
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+    saveWorkspaceProtocol: true,
+  })
+  const workspacePackages = new Map([
+    ['is-positive', new Map([
+      ['1.0.0', {
+        rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+        manifest: {
+          name: 'is-positive',
+          version: '1.0.0',
+        },
+      }],
+    ])],
+  ])
+
+  const addResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '1.0.0',
+    prevSpecifier: 'workspace:^0.5.0',
+  }, {
+    calcSpecifier: true,
+    projectDir: '/home/istvan/src/foo',
+    workspacePackages,
+  })
+  expect(addResult!.normalizedBareSpecifier).toBe('workspace:1.0.0')
+
+  const updateResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '1.0.0',
+    prevSpecifier: 'workspace:^0.5.0',
+  }, {
+    calcSpecifier: true,
+    projectDir: '/home/istvan/src/foo',
+    update: 'compatible',
+    updateRequested: true,
+    workspacePackages,
+  })
+  expect(updateResult!.normalizedBareSpecifier).toBe('workspace:^1.0.0')
+})

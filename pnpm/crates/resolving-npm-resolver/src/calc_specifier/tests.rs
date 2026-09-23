@@ -91,7 +91,7 @@ fn an_alias_that_names_the_install_name_round_trips_as_a_bare_range() {
 fn a_prerelease_pick_keeps_the_declared_range_operator() {
     assert_eq!(
         calc_specifier(
-            "5.0.0-rc.1",
+            "latest",
             Some("^1.0.0"),
             Some("foo"),
             &picked("5.0.0-rc.1"),
@@ -99,8 +99,6 @@ fn a_prerelease_pick_keeps_the_declared_range_operator() {
         ),
         "^5.0.0-rc.1",
     );
-    // With no previous pin the prerelease stays exact rather than widened
-    // to the default pin.
     assert_eq!(
         calc_specifier("latest", None, Some("foo"), &picked("5.0.0-rc.1"), RangeSpecStyle::Major),
         "5.0.0-rc.1",
@@ -238,8 +236,6 @@ fn an_unaliased_prefixed_specifier_carries_the_range_alone() {
     );
 }
 
-/// An exact requested version takes precedence over a previous range operator
-/// in the manifest (pnpm/pnpm#6040).
 #[test]
 fn an_exact_request_wins_over_the_previous_range_operator() {
     assert_eq!(
@@ -262,9 +258,22 @@ fn an_exact_request_wins_over_the_previous_range_operator() {
         ),
         "19.3.0",
     );
-    // No previous pin: the exact requested version stays exact.
     assert_eq!(
         calc_specifier("19.3.0", None, Some("react"), &picked("19.3.0"), RangeSpecStyle::Major),
         "19.3.0",
+    );
+}
+
+#[test]
+fn exact_prerelease_request_wins_over_previous_range_operator() {
+    assert_eq!(
+        calc_specifier(
+            "1.0.0-rc.2",
+            Some("^1.0.0-rc.1"),
+            Some("1.0.0-rc.2"),
+            &picked("1.0.0-rc.2"),
+            RangeSpecStyle::Major,
+        ),
+        "1.0.0-rc.2",
     );
 }

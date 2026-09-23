@@ -239,11 +239,6 @@ fn readding_a_dev_dependency_at_a_dist_tag_keeps_its_group() {
     drop((root, npmrc_info));
 }
 
-/// On a re-add with an explicit version, the existing entry biases the pick
-/// (it is a preferred version): re-adding `~100.0.0` with `@^100.0.0` keeps
-/// the existing `100.0.0` rather than bumping to the highest in range
-/// (`100.1.0`), and the requested operator (`^`) is honored over the existing
-/// operator (`~`).
 #[test]
 fn add_explicit_range_honors_requested_operator() {
     let CommandTempCwd {
