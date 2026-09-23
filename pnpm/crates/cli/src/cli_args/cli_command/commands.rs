@@ -155,8 +155,8 @@ pub enum CliCommand {
     Start(ScriptShortcutArgs),
     /// Runs a package's "stop" script, if one was provided.
     Stop(ScriptShortcutArgs),
-    /// Restarts a package. Runs "stop", "restart", and "start" scripts,
-    /// and associated pre- and post- scripts.
+    /// Restarts a package. Runs "stop", "restart" (if present), and "start"
+    /// scripts, and associated pre- and post- scripts.
     Restart(RestartArgs),
     /// Lists the packages that include the file with the specified hash.
     FindHash(FindHashArgs),
