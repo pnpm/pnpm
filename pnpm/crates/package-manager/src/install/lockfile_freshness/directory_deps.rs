@@ -167,18 +167,13 @@ fn check_single_directory_dep_freshness(
             check.optional_exclusions.allow_unresolved,
         )?;
     }
-    check_local_peer_deps_freshness(
-        dep,
-        &local_manifest,
-        pkg_meta.peer_dependencies.as_ref(),
-        snapshot.dependencies.as_ref(),
-    )
+    check_local_peer_deps_freshness(dep, &local_manifest, pkg_meta, snapshot.dependencies.as_ref())
 }
 
 fn check_local_peer_deps_freshness(
     dep: &LocalDepContext<'_>,
     local_manifest: &PackageManifest,
-    recorded_peers: Option<&std::collections::HashMap<String, String>>,
+    pkg_meta: &pnpm_lockfile::PackageMetadata,
     snapshot_deps: Option<
         &std::collections::HashMap<pnpm_lockfile::PkgName, pnpm_lockfile::SnapshotDepRef>,
     >,
@@ -187,7 +182,8 @@ fn check_local_peer_deps_freshness(
         .dependencies([DependencyGroup::Peer])
         .collect();
 
-    let recorded_count = recorded_peers.map_or(0, std::collections::HashMap::len);
+    let recorded_count =
+        pkg_meta.peer_dependencies.as_ref().map_or(0, std::collections::HashMap::len);
     if manifest_peers.len() != recorded_count {
         return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
             name: dep.name.to_string(),
@@ -195,7 +191,9 @@ fn check_local_peer_deps_freshness(
         }));
     }
     for (name, spec) in &manifest_peers {
-        let recorded_spec = recorded_peers.and_then(|p| p.get(*name));
+        let recorded_spec = pkg_meta.peer_dependencies
+            .as_ref()
+            .and_then(|p| p.get(*name));
         if recorded_spec.map(String::as_str) != Some(spec) {
             return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
                 name: dep.name.to_string(),
@@ -204,6 +202,8 @@ fn check_local_peer_deps_freshness(
         }
     }
 
+    check_peer_dependencies_meta_freshness(dep, local_manifest, pkg_meta)?;
+
     for (name, spec) in &manifest_peers {
         let lockfile_dep = snapshot_deps.and_then(|deps| {
             pnpm_lockfile::PkgName::parse(*name)
@@ -211,7 +211,7 @@ fn check_local_peer_deps_freshness(
                 .and_then(|n| deps.get(&n))
         });
         if let Some(lockfile_dep) = lockfile_dep
-            && !spec_satisfies_snapshot_dep(dep.lockfile_dir, name, spec, lockfile_dep)
+            && !spec_satisfies_snapshot_dep(dep.lockfile_dir, dep.dir, name, spec, lockfile_dep)
         {
             return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
                 name: dep.name.to_string(),
@@ -220,6 +220,52 @@ fn check_local_peer_deps_freshness(
         }
     }
 
+    Ok(())
+}
+
+fn check_peer_dependencies_meta_freshness(
+    dep: &LocalDepContext<'_>,
+    local_manifest: &PackageManifest,
+    pkg_meta: &pnpm_lockfile::PackageMetadata,
+) -> Result<(), FreshnessCheckError> {
+    let manifest_meta = local_manifest
+        .value()
+        .get("peerDependenciesMeta")
+        .and_then(serde_json::Value::as_object);
+    let recorded_meta = pkg_meta.peer_dependencies_meta.as_ref();
+    let manifest_optional_count = manifest_meta.map_or(0, |meta| {
+        meta.values()
+            .filter(|entry| {
+                entry.get("optional").and_then(serde_json::Value::as_bool) == Some(true)
+            })
+            .count()
+    });
+    let recorded_optional_count = recorded_meta.map_or(0, |meta| {
+        meta.values()
+            .filter(|m| m.optional)
+            .count()
+    });
+    if manifest_optional_count != recorded_optional_count {
+        return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
+            name: dep.name.to_string(),
+            path: dep.rel_path.to_string(),
+        }));
+    }
+    if let Some(recorded) = recorded_meta {
+        for (name, meta) in recorded {
+            let manifest_optional = manifest_meta
+                .and_then(|m| m.get(name))
+                .and_then(|entry| entry.get("optional"))
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false);
+            if meta.optional != manifest_optional {
+                return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
+                    name: dep.name.to_string(),
+                    path: dep.rel_path.to_string(),
+                }));
+            }
+        }
+    }
     Ok(())
 }
 
@@ -291,7 +337,7 @@ fn check_manifest_specs_satisfy_snapshot(
                 path: dep.rel_path.to_string(),
             }));
         };
-        if !spec_satisfies_snapshot_dep(dep.lockfile_dir, name, spec, lockfile_dep) {
+        if !spec_satisfies_snapshot_dep(dep.lockfile_dir, dep.dir, name, spec, lockfile_dep) {
             return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
                 name: dep.name.to_string(),
                 path: dep.rel_path.to_string(),

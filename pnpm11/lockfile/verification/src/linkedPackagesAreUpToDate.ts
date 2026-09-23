@@ -108,6 +108,18 @@ async function isLocalFileDepUpdated (
   const localDepDir = path.join(lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
   const manifest = manifestsByDir?.[localDepDir] ?? await safeReadPackageJsonFromDir(localDepDir)
   if (!manifest) return false
+  const manifestPeerMeta = manifest.peerDependenciesMeta ?? {}
+  const lockfilePeerMeta = pkgSnapshot.peerDependenciesMeta ?? {}
+  for (const [name, meta] of Object.entries(manifestPeerMeta)) {
+    if (Boolean(meta?.optional) !== Boolean(lockfilePeerMeta[name]?.optional)) {
+      return false
+    }
+  }
+  for (const [name, meta] of Object.entries(lockfilePeerMeta)) {
+    if (Boolean(meta?.optional) !== Boolean(manifestPeerMeta[name]?.optional)) {
+      return false
+    }
+  }
   return pEvery.default(DEPENDENCIES_OR_PEER_FIELDS, async (depField) => {
     if (depField === 'devDependencies') return true
     const manifestDeps = manifest[depField] ?? {}
@@ -124,22 +136,29 @@ async function isLocalFileDepUpdated (
       const currentSpec = manifestDeps[depName]
       const lockfileDep = lockfileDeps[depName]
       if (currentSpec.startsWith('link:')) {
-        return lockfileDep === currentSpec
+        return (
+          lockfileDep.startsWith('link:') &&
+          path.resolve(localDepDir, currentSpec.slice(5)) === path.resolve(lockfileDir, lockfileDep.slice(5))
+        )
       }
       if (currentSpec.startsWith('file:')) {
         const cleanLockfileDep = removeSuffix(lockfileDep)
-        const target = cleanLockfileDep.startsWith('link:') ? `file:${cleanLockfileDep.slice(5)}` : cleanLockfileDep
-        return target === currentSpec
+        const lockfilePath = cleanLockfileDep.startsWith('link:') || cleanLockfileDep.startsWith('file:')
+          ? cleanLockfileDep.slice(5)
+          : null
+        if (lockfilePath == null) return false
+        return path.resolve(localDepDir, currentSpec.slice(5)) === path.resolve(lockfileDir, lockfilePath)
       }
       if (currentSpec.startsWith('workspace:')) {
         const target = currentSpec.slice(10)
         if (target.startsWith('.') || target.startsWith('/')) {
           const cleanLockfileDep = removeSuffix(lockfileDep)
+          const lockfilePath = cleanLockfileDep.startsWith('link:') || cleanLockfileDep.startsWith('file:')
+            ? cleanLockfileDep.slice(5)
+            : null
+          if (lockfilePath == null) return false
           const cleanTarget = target.startsWith('./') ? target.slice(2) : target
-          const cleanLink = cleanLockfileDep.startsWith('link:') ? cleanLockfileDep.slice(5) : null
-          const cleanFile = cleanLockfileDep.startsWith('file:') ? cleanLockfileDep.slice(5) : null
-          return cleanLink === target || cleanLink === cleanTarget ||
-            cleanFile === target || cleanFile === cleanTarget
+          return path.resolve(localDepDir, cleanTarget) === path.resolve(lockfileDir, lockfilePath)
         }
         const range = getVersionRange(currentSpec)
         const cleanLockfileDep = removeSuffix(lockfileDep)

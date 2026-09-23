@@ -1,16 +1,15 @@
 //! Detecting dependency specs that point at the local filesystem.
 
 pub(crate) mod specs;
-
 pub(crate) use specs::{
     has_local_file_override, has_local_file_package_extension, is_local_file_spec,
     is_unambiguous_local_file_spec,
 };
+mod workspace;
 
 use super::{
     CatalogAnchor, CatalogResolutionResult, Catalogs, DependencyGroup, IncludedDependencies,
-    Lockfile, OptimisticRepeatInstallCheck, PackageManifest, Path, PathBuf, WantedDependency,
-    resolve_from_catalog,
+    Lockfile, OptimisticRepeatInstallCheck, Path, PathBuf, WantedDependency, resolve_from_catalog,
 };
 use pnpm_lockfile::{LockfileResolution, PkgName, is_local_tarball_path};
 use pnpm_resolving_local_resolver::local_tarball_path;
@@ -137,27 +136,53 @@ fn scan_local_tarball_deps(check: &OptimisticRepeatInstallCheck<'_>) -> LocalTar
             check.layout.included.optional_dependencies,
         ),
     ];
+    let workspace_packages = if check.config.inject_workspace_packages {
+        workspace::collect_workspace_packages(check.project_manifests)
+    } else {
+        std::collections::HashMap::new()
+    };
     let mut tarballs = Vec::new();
     for (project_dir, manifest) in check.project_manifests {
-        for (field, group, group_included) in fields {
-            if !group_included {
-                continue;
-            }
-            let scan = FieldTarballScan {
-                catalogs: check.catalogs,
-                workspace_dir: check.config.workspace_dir.as_deref(),
-                project_dir,
-                field,
-                group,
-                inject_workspace_packages: check.config.inject_workspace_packages,
-                project_manifests: check.project_manifests,
-            };
-            if !scan_field_tarballs(&scan, manifest, &mut tarballs) {
-                return LocalTarballScan::RequiresInstall;
-            }
+        if !scan_project_manifest_tarballs(
+            check,
+            &workspace_packages,
+            project_dir,
+            manifest,
+            &fields,
+            &mut tarballs,
+        ) {
+            return LocalTarballScan::RequiresInstall;
         }
     }
     LocalTarballScan::Candidates(tarballs)
+}
+
+fn scan_project_manifest_tarballs(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    workspace_packages: &workspace::WorkspacePackageMap<'_>,
+    project_dir: &Path,
+    manifest: &pnpm_package_manifest::PackageManifest,
+    fields: &[(&str, DependencyGroup, bool); 3],
+    tarballs: &mut Vec<LocalTarballDependency>,
+) -> bool {
+    for (field, group, group_included) in fields {
+        if !group_included {
+            continue;
+        }
+        let scan = FieldTarballScan {
+            catalogs: check.catalogs,
+            workspace_dir: check.config.workspace_dir.as_deref(),
+            project_dir,
+            field,
+            group: *group,
+            inject_workspace_packages: check.config.inject_workspace_packages,
+            workspace_packages,
+        };
+        if !scan_field_tarballs(&scan, manifest, tarballs) {
+            return false;
+        }
+    }
+    true
 }
 
 /// One manifest field of one project, as the tarball scan reads it.
@@ -171,7 +196,7 @@ struct FieldTarballScan<'a> {
     field: &'a str,
     group: DependencyGroup,
     inject_workspace_packages: bool,
-    project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    workspace_packages: &'a workspace::WorkspacePackageMap<'a>,
 }
 
 /// `false` when a `file:` dependency in this field cannot be resolved to a
@@ -189,7 +214,14 @@ fn scan_field_tarballs(
         return true;
     };
     for (alias, spec) in deps {
-        if dependency_is_workspace_or_injected(scan, manifest.value(), alias, spec) {
+        if workspace::dependency_is_workspace_or_injected(
+            scan.workspace_packages,
+            scan.inject_workspace_packages,
+            scan.catalogs,
+            manifest.value(),
+            alias,
+            spec,
+        ) {
             return false;
         }
         match local_tarball_candidate(scan, alias, spec) {
@@ -207,62 +239,6 @@ fn scan_field_tarballs(
         }
     }
     true
-}
-
-fn dependency_is_workspace_or_injected(
-    scan: &FieldTarballScan<'_>,
-    manifest: &serde_json::Value,
-    alias: &str,
-    spec: &serde_json::Value,
-) -> bool {
-    if dependency_is_injected(manifest, alias) {
-        return true;
-    }
-    if !scan.inject_workspace_packages {
-        return false;
-    }
-    let Some(spec_str) = spec.as_str() else {
-        return false;
-    };
-    if spec_str.starts_with("workspace:") {
-        return true;
-    }
-    let target = target_package_name(alias, spec_str);
-    is_workspace_package(scan.project_manifests, target)
-}
-
-fn target_package_name<'a>(alias: &'a str, spec: &'a str) -> &'a str {
-    if let Some(npm_spec) = spec.strip_prefix("npm:") {
-        if let Some(at_idx) = npm_spec.rfind('@')
-            && at_idx > 0
-        {
-            return &npm_spec[..at_idx];
-        }
-        return npm_spec;
-    }
-    alias
-}
-
-fn is_workspace_package(project_manifests: &[(PathBuf, &PackageManifest)], name: &str) -> bool {
-    project_manifests
-        .iter()
-        .any(|(_, manifest)| {
-            manifest
-                .value()
-                .get("name")
-                .and_then(serde_json::Value::as_str)
-                == Some(name)
-        })
-}
-
-fn dependency_is_injected(manifest: &serde_json::Value, name: &str) -> bool {
-    manifest
-        .get("dependenciesMeta")
-        .and_then(serde_json::Value::as_object)
-        .and_then(|meta| meta.get(name))
-        .and_then(|entry| entry.get("injected"))
-        .and_then(serde_json::Value::as_bool)
-        .unwrap_or(false)
 }
 
 /// What one declared dependency contributes to the tarball scan.

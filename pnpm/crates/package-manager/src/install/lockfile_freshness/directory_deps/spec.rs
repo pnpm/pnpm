@@ -2,16 +2,20 @@ use std::path::Path;
 
 pub(super) fn spec_satisfies_snapshot_dep(
     lockfile_dir: &Path,
+    local_dep_dir: &Path,
     dep_name: &str,
     spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
-    if let Some(matches) = file_or_link_spec_satisfies(spec, lockfile_dep) {
+    if let Some(matches) =
+        file_or_link_spec_satisfies(lockfile_dir, local_dep_dir, spec, lockfile_dep)
+    {
         return matches;
     }
     if let Some(workspace_spec) = spec.strip_prefix("workspace:") {
         return workspace_spec_satisfies(
             lockfile_dir,
+            local_dep_dir,
             dep_name,
             spec,
             workspace_spec,
@@ -22,41 +26,56 @@ pub(super) fn spec_satisfies_snapshot_dep(
 }
 
 fn file_or_link_spec_satisfies(
+    lockfile_dir: &Path,
+    local_dep_dir: &Path,
     spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> Option<bool> {
     if let Some(target) = spec.strip_prefix("link:") {
-        return Some(lockfile_dep.as_link_target() == Some(target));
+        let lockfile_target = lockfile_dep.as_link_target()?;
+        return Some(
+            pnpm_fs::lexical_normalize(&local_dep_dir.join(target))
+                == pnpm_fs::lexical_normalize(&lockfile_dir.join(lockfile_target)),
+        );
     }
     let path = spec.strip_prefix("file:")?;
     if let Some(target) = lockfile_dep.as_link_target() {
-        return Some(target == path);
+        return Some(
+            pnpm_fs::lexical_normalize(&local_dep_dir.join(path))
+                == pnpm_fs::lexical_normalize(&lockfile_dir.join(target)),
+        );
     }
     let Some(ver_peer) = lockfile_dep.ver_peer() else {
         return Some(false);
     };
     match ver_peer.version() {
-        pnpm_lockfile::VersionPart::File(recorded) => Some(recorded == path),
+        pnpm_lockfile::VersionPart::File(recorded) => Some(
+            pnpm_fs::lexical_normalize(&local_dep_dir.join(path))
+                == pnpm_fs::lexical_normalize(&lockfile_dir.join(recorded)),
+        ),
         pnpm_lockfile::VersionPart::NonSemver(raw) => Some(raw == spec || raw == path),
         _ => Some(false),
     }
 }
 
 fn workspace_path_spec_satisfies(
+    lockfile_dir: &Path,
+    local_dep_dir: &Path,
     spec: &str,
     workspace_spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
     let clean_spec = workspace_spec.strip_prefix("./").unwrap_or(workspace_spec);
+    let resolved_spec = pnpm_fs::lexical_normalize(&local_dep_dir.join(clean_spec));
     if let Some(target) = lockfile_dep.as_link_target() {
-        return target.strip_prefix("./").unwrap_or(target) == clean_spec;
+        return pnpm_fs::lexical_normalize(&lockfile_dir.join(target)) == resolved_spec;
     }
     let Some(ver_peer) = lockfile_dep.ver_peer() else {
         return false;
     };
     match ver_peer.version() {
         pnpm_lockfile::VersionPart::File(recorded) => {
-            recorded.strip_prefix("./").unwrap_or(recorded) == clean_spec
+            pnpm_fs::lexical_normalize(&lockfile_dir.join(recorded)) == resolved_spec
         }
         pnpm_lockfile::VersionPart::NonSemver(raw) => raw == spec || raw == workspace_spec,
         _ => false,
@@ -65,13 +84,20 @@ fn workspace_path_spec_satisfies(
 
 fn workspace_spec_satisfies(
     lockfile_dir: &Path,
+    local_dep_dir: &Path,
     dep_name: &str,
     spec: &str,
     workspace_spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
     if workspace_spec.starts_with('.') || workspace_spec.starts_with('/') {
-        return workspace_path_spec_satisfies(spec, workspace_spec, lockfile_dep);
+        return workspace_path_spec_satisfies(
+            lockfile_dir,
+            local_dep_dir,
+            spec,
+            workspace_spec,
+            lockfile_dep,
+        );
     }
     let (target, parsed_range_str) = parse_workspace_range(workspace_spec);
     let expected_name = target.unwrap_or(dep_name);
