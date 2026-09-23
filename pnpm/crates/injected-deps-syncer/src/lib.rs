@@ -83,10 +83,8 @@ pub struct SyncInjectedDeps<'a> {
     /// which bins they used to have: their `package.json` is hardlinked to
     /// the source, so an in-place rewrite has already reached them.
     pub manifest_before_scripts: Option<&'a serde_json::Value>,
-    /// pnpm-managed directories (store, cache, state, ...) that project
-    /// discovery must never report projects from, even when a pattern
-    /// would otherwise match them. Entries may be absolute or relative
-    /// to the workspace root.
+    /// Passed to [`FindWorkspaceProjectsOpts::ignored_directories`] when
+    /// discovering the projects whose bins are relinked.
     pub ignored_directories: Vec<PathBuf>,
 }
 

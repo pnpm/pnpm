@@ -3,11 +3,9 @@
 use super::{
     FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, PROJECT_MANIFEST_BASENAMES, Path,
     PathBuf, WorkspacePattern, compile_user_negations, dot_pruning_ignore_template,
+    managed::{is_under_ignored_directory, resolve_ignored_directories},
     manifest_walk_ignores, split_include_and_negation,
-    walk::{
-        has_always_ignored_component, is_under_ignored_directory, normalize_manifest_patterns,
-        resolve_ignored_directories, split_parent_prefix,
-    },
+    walk::{has_always_ignored_component, normalize_manifest_patterns, split_parent_prefix},
 };
 use wax::{Glob, Program as _};
 

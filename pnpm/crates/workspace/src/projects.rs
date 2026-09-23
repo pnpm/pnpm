@@ -139,11 +139,6 @@ pub fn find_workspace_projects_no_check(
 
     parse_check_walk_patterns(&include_patterns, workspace_root)?;
 
-    // pnpm-managed directories resolve against the workspace root the
-    // same way `find_workspace_inventory` resolves its
-    // `ignored_directories`: absolutely, without touching the
-    // filesystem, so a configured-but-absent directory simply matches
-    // nothing.
     let ignored_directories =
         resolve_ignored_directories(workspace_root, &opts.ignored_directories);
 
@@ -531,6 +526,9 @@ struct WorkspacePattern<'source> {
     normalized: String,
 }
 
+mod managed;
+use managed::{managed_directory_ignores, resolve_ignored_directories};
+
 mod membership;
 
 #[cfg(test)]
@@ -539,7 +537,6 @@ mod tests;
 mod walk;
 use walk::{
     SpecializedPattern, collect_literal_manifests_in, collect_manifests_in_children,
-    collect_walk_manifests, is_literal_pattern, managed_directory_ignores,
-    normalize_manifest_patterns, positional_dot_ignores, resolve_ignored_directories,
-    specialized_pattern, split_parent_prefix,
+    collect_walk_manifests, is_literal_pattern, normalize_manifest_patterns,
+    positional_dot_ignores, specialized_pattern, split_parent_prefix,
 };
