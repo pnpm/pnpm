@@ -39,7 +39,7 @@ const PACKED_MANIFEST_NAME: &str = "package/package.json";
 /// the order [`compression_ordered_entries`] returns. Manifest entries
 /// carry `manifest_json` instead of their on-disk bytes and are written
 /// under [`PACKED_MANIFEST_NAME`]; entries whose source path is in `bins`
-/// are marked executable.
+/// or whose source file on disk is executable are marked executable.
 pub fn build_tarball<Sys: FsReadFile>(
     writer: &mut dyn Write,
     files_map: &IndexMap<String, PathBuf>,
@@ -156,7 +156,19 @@ pub(super) fn extname(base: &str) -> &str {
 }
 
 fn bin_mode(bin_set: &HashSet<&Path>, source: &Path) -> u32 {
-    if bin_set.contains(source) { EXECUTABLE_MODE } else { REGULAR_MODE }
+    if bin_set.contains(source) {
+        return EXECUTABLE_MODE;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if std::fs::metadata(source)
+            .is_ok_and(|metadata| pnpm_fs::file_mode::is_executable(metadata.permissions().mode()))
+        {
+            return EXECUTABLE_MODE;
+        }
+    }
+    REGULAR_MODE
 }
 
 fn append_entry<Writer: Write>(

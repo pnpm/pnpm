@@ -274,6 +274,34 @@ fn manifest_named_in_executable_files_is_packed_executable() {
     assert_eq!(mode, 0o755);
 }
 
+#[test]
+#[cfg(unix)]
+fn on_disk_executable_file_is_packed_executable() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (dir, opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "files": ["scripts/run.sh", "index.js"],
+    }));
+    touch(dir.path(), "scripts/run.sh", "#!/bin/sh\necho hi\n");
+    touch(dir.path(), "index.js", "module.exports = 1;\n");
+
+    std::fs::set_permissions(
+        dir.path().join("scripts/run.sh"),
+        std::fs::Permissions::from_mode(0o755),
+    )
+    .unwrap();
+
+    api::<SilentReporter, Host>(&opts).unwrap();
+
+    let mode = tarball_entry_mode(&dir.path().join("foo-1.0.0.tgz"), "package/scripts/run.sh");
+    assert_eq!(mode, 0o755);
+
+    let js_mode = tarball_entry_mode(&dir.path().join("foo-1.0.0.tgz"), "package/index.js");
+    assert_eq!(js_mode, 0o644);
+}
+
 /// A `publishConfig.name` rename has to reach the tarball filename and the
 /// packed manifest together — the registry derives the published package from
 /// the manifest, so a filename naming the workspace package would name a

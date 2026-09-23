@@ -605,7 +605,7 @@ async function packPkg (opts: {
       pack.entry({ mode: 0o644, mtime, name: entry.name }, entry.content)
       continue
     }
-    const isExecutable = bins.some((bin) => path.relative(bin, entry.source) === '')
+    const isExecutable = bins.some((bin) => path.relative(bin, entry.source) === '') || isFileExecutable(entry.source)
     const mode = isExecutable ? 0o755 : 0o644
     const content = isManifestEntry(entry.name)
       ? JSON.stringify(manifest, null, 2)
@@ -675,5 +675,13 @@ function toPackResultJson (packResult: PackResult): PackResultJson {
     version: publishedManifest.version as string,
     filename: tarballPath,
     files: contents.map((file) => ({ path: file })),
+  }
+}
+
+function isFileExecutable (file: string): boolean {
+  try {
+    return (fs.statSync(file).mode & 0o111) !== 0
+  } catch {
+    return false
   }
 }

@@ -723,6 +723,34 @@ const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
   }
 })
 
+;(process.platform === 'win32' ? test.skip : test)('pack: preserves file executable permissions for files not in bin', async () => {
+  prepare({
+    name: 'test-exec-permissions',
+    version: '1.0.0',
+    files: ['scripts/run.sh', 'index.js'],
+  })
+
+  fs.mkdirSync('scripts', { recursive: true })
+  fs.writeFileSync('scripts/run.sh', '#!/bin/sh\necho hi\n')
+  fs.chmodSync('scripts/run.sh', 0o755)
+  fs.writeFileSync('index.js', 'module.exports = 1\n')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  await tar.x({ file: 'test-exec-permissions-1.0.0.tgz' })
+
+  const scriptStat = fs.statSync(path.resolve('package/scripts/run.sh'))
+  expect(modeIsExecutable(scriptStat.mode)).toBeTruthy()
+
+  const jsStat = fs.statSync(path.resolve('package/index.js'))
+  expect(modeIsExecutable(jsStat.mode)).toBeFalsy()
+})
+
 test('pack: should embed readme', async () => {
   tempDir()
 
