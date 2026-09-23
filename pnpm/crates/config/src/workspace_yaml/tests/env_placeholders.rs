@@ -131,22 +131,27 @@ fn an_error_beside_a_resolved_placeholder_keeps_its_location() {
     assert!(!message.contains("invalid environment-expanded value"), "unexpected: {message}");
 }
 
-/// A setting that takes free text keeps it: the yaml scalar a resolved
-/// placeholder spells is read against the setting it lands in, as a value
-/// written out in the file would be.
+/// A setting that takes free text reads as written, so the second read has
+/// no reason to resolve its placeholder and leaves it to the substitution
+/// that knows which layer the file came from. `PNPM_TEST_TOKEN` stands for
+/// the secret a repository must not be able to name its way into.
 #[test]
-fn an_expansion_beside_a_typed_one_stays_text_where_the_setting_takes_text() {
-    let settings = parse_settings::<Env>(
+fn a_placeholder_a_setting_can_hold_is_left_for_the_substitution() {
+    let mut settings = parse_settings::<Env>(
         "ignoreScripts: ${PNPM_TEST_UNSET:-false}
-nodeVersion: ${PNPM_TEST_UNSET:-22}
-userAgent: ${PNPM_TEST_UNSET:-true}
+cacheDir: ${PNPM_TEST_UNSET:-cache}
+userAgent: ${PNPM_TEST_TOKEN}
 ",
     )
     .unwrap();
 
     assert_eq!(settings.ignore_scripts, Some(false));
-    assert_eq!(settings.node_version.as_deref(), Some("22"));
-    assert_eq!(settings.user_agent.as_deref(), Some("true"));
+    assert_eq!(settings.cache_dir.as_deref(), Some("${PNPM_TEST_UNSET:-cache}"));
+    assert_eq!(settings.user_agent.as_deref(), Some("${PNPM_TEST_TOKEN}"));
+
+    settings.substitute_env_untrusted::<Env>();
+
+    assert_eq!(settings.cache_dir.as_deref(), Some("cache"));
 }
 
 /// The second read must not turn a quoted scalar into the value it spells,
@@ -159,4 +164,18 @@ linkWorkspacePackages: "false"
 "#,
     )
     .expect_err("a quoted false is not a boolean");
+}
+
+/// The second read must leave every scalar it did not resolve exactly as the
+/// file spells it.
+#[test]
+fn a_scalar_beside_a_resolved_placeholder_keeps_its_text() {
+    let settings = parse_settings::<Env>(
+        "nodeLinker: ${PNPM_TEST_UNSET:-isolated}
+nodeVersion: 20.10
+",
+    )
+    .unwrap();
+
+    assert_eq!(settings.node_version.as_deref(), Some("20.10"));
 }

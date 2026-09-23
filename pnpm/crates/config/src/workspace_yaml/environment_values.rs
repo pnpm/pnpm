@@ -22,102 +22,88 @@ pub(super) fn has_env_placeholder(value: &str) -> bool {
         })
 }
 
-/// The settings whose value names where a request goes. A
-/// repository-controlled file must not resolve an environment variable into
-/// one, so [`expand_typed_placeholders`] leaves them to
-/// [`WorkspaceSettings::substitute_env_untrusted`](super::WorkspaceSettings::substitute_env_untrusted),
-/// which drops the placeholder instead of expanding it.
-const REQUEST_DESTINATION_KEYS: &[&str] = &[
-    "httpProxy",
-    "httpsProxy",
-    "namedRegistries",
-    "noProxy",
-    "noproxy",
-    "pnprServer",
-    "proxy",
-    "registries",
-    "registry",
-];
+/// A `${VAR}` / `${VAR:-fallback}` placeholder of a document, and the text
+/// resolving it puts in its place.
+pub(super) struct Placeholder {
+    pub(super) range: std::ops::Range<usize>,
+    pub(super) resolved: String,
+}
 
-/// Resolve the `${VAR}` / `${VAR:-fallback}` placeholders of a parsed
-/// document, reporting whether any were resolved.
+/// The placeholders of `text` that may stand in for what a setting is written
+/// as, in the order they appear.
 ///
-/// Only an expansion that is a bare token — ASCII letters, digits, `-`, `_`,
-/// and `.` — replaces the text it came from. A variant name, a boolean, and
-/// a number each are one; a URL, a path, an unresolved placeholder, and an
-/// empty expansion are not, so an expansion can reach neither a request
-/// destination beyond [`REQUEST_DESTINATION_KEYS`] nor a second resolution.
-/// What is left stays as written for
-/// [`WorkspaceSettings::substitute_env_trusted`](super::WorkspaceSettings::substitute_env_trusted)
-/// and its untrusted counterpart, which resolve them once the settings are
-/// typed and know which layer the file came from.
-pub(super) fn expand_typed_placeholders<Sys: EnvVar>(
-    document: &mut serde_json::Value,
-    expansion: Expansion,
-) -> bool {
-    let serde_json::Value::Object(settings) = document else { return false };
-    let mut expanded = false;
-    for (key, value) in settings {
-        if REQUEST_DESTINATION_KEYS.contains(&key.as_str()) {
+/// A placeholder qualifies only when it resolves to a bare token — ASCII
+/// letters, digits, `-`, `_`, and `.`. A variant name, a boolean, and a
+/// number each are one; a URL, a path, an unresolved placeholder, and an
+/// empty expansion are not. That bounds what resolving one can do twice over:
+/// the text put back cannot spell yaml of its own, and it cannot name a
+/// request destination.
+pub(super) fn resolvable_placeholders<Sys: EnvVar>(text: &str) -> Vec<Placeholder> {
+    placeholder_ranges(text)
+        .into_iter()
+        .filter_map(|range| {
+            let (resolved, unresolved) = env_replace_lossy::<Sys>(&text[range.clone()]);
+            (unresolved.is_empty() && is_bare_token(&resolved)).then_some(Placeholder {
+                range,
+                resolved,
+            })
+        })
+        .collect()
+}
+
+/// `text` with the `selected` placeholders resolved and every other byte of
+/// it left alone, so a scalar this did not resolve reaches the reader as the
+/// file spells it.
+pub(super) fn resolve_placeholders(
+    text: &str,
+    placeholders: &[Placeholder],
+    selected: impl Fn(usize) -> bool,
+) -> String {
+    let mut resolved = String::with_capacity(text.len());
+    let mut copied = 0;
+    for (index, placeholder) in placeholders.iter().enumerate() {
+        if !selected(index) {
             continue;
         }
-        expanded |= expand_tokens::<Sys>(value, expansion);
+        resolved.push_str(&text[copied..placeholder.range.start]);
+        resolved.push_str(&placeholder.resolved);
+        copied = placeholder.range.end;
     }
-    expanded
+    resolved.push_str(&text[copied..]);
+    resolved
 }
 
-/// What [`expand_typed_placeholders`] leaves where it resolves a placeholder.
-#[derive(Clone, Copy)]
-pub(super) enum Expansion {
-    /// The value the placeholder names.
-    Resolved,
-    /// Nothing, leaving the document the file describes apart from the
-    /// settings an expansion decides.
-    Dropped,
+/// `text` with every placeholder replaced by `null`, leaving the document the
+/// file describes apart from the settings a placeholder decides.
+pub(super) fn drop_placeholders(text: &str, placeholders: &[Placeholder]) -> String {
+    let dropped: Vec<Placeholder> = placeholders
+        .iter()
+        .map(|placeholder| Placeholder {
+            range: placeholder.range.clone(),
+            resolved: "null".to_string(),
+        })
+        .collect();
+    resolve_placeholders(text, &dropped, |_| true)
 }
 
-fn expand_tokens<Sys: EnvVar>(value: &mut serde_json::Value, expansion: Expansion) -> bool {
-    match value {
-        serde_json::Value::Array(items) => expand_each::<Sys>(items.iter_mut(), expansion),
-        serde_json::Value::Object(entries) => expand_each::<Sys>(entries.values_mut(), expansion),
-        _ => expand_scalar::<Sys>(value, expansion),
+/// Every `${...}` of `text`, skipping the ones a backslash escapes, as
+/// [`env_replace_lossy`] reads them.
+fn placeholder_ranges(text: &str) -> Vec<std::ops::Range<usize>> {
+    let mut ranges = Vec::new();
+    let mut searched = 0;
+    while let Some(found) = text[searched..].find("${") {
+        let open = searched + found;
+        if open > 0 && text.as_bytes()[open - 1] == b'\\' {
+            searched = open + 2;
+            continue;
+        }
+        let Some(close) = text[open + 2..].find('}') else { break };
+        searched = open + 2 + close + 1;
+        if close > 0 {
+            ranges.push(open..searched);
+        }
     }
-}
-
-fn expand_each<'document, Sys: EnvVar>(
-    values: impl Iterator<Item = &'document mut serde_json::Value>,
-    expansion: Expansion,
-) -> bool {
-    values.fold(false, |expanded, value| expand_tokens::<Sys>(value, expansion) | expanded)
-}
-
-fn expand_scalar<Sys: EnvVar>(value: &mut serde_json::Value, expansion: Expansion) -> bool {
-    let serde_json::Value::String(text) = value else { return false };
-    let Some(token) = expanded_token::<Sys>(text) else { return false };
-    *value = match expansion {
-        Expansion::Resolved => scalar_value(token),
-        Expansion::Dropped => serde_json::Value::Null,
-    };
-    true
-}
-
-fn expanded_token<Sys: EnvVar>(text: &str) -> Option<String> {
-    if !has_env_placeholder(text) {
-        return None;
-    }
-    let (expanded, unresolved) = env_replace_lossy::<Sys>(text);
-    (unresolved.is_empty() && is_bare_token(&expanded)).then_some(expanded)
-}
-
-/// Carry an expansion as the value its text spells, so that writing the
-/// document back out writes it as a plain scalar. Carried as a string it
-/// would be written quoted, which is a claim the file never made and which
-/// only the settings that take text could then accept.
-fn scalar_value(token: String) -> serde_json::Value {
-    match serde_saphyr::from_str::<serde_json::Value>(&token) {
-        Ok(value) => value,
-        Err(_) => serde_json::Value::String(token),
-    }
+    ranges
 }
 
 fn is_bare_token(value: &str) -> bool {

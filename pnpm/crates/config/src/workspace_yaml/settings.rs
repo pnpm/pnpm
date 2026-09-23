@@ -1,15 +1,16 @@
 use super::{
     AllowBuild, AuditConfig, AuditLevel, AuditSettings, BTreeMap, BTreeSet, CargoSettings,
     CatalogMode, ConfigDependency, Deserialize, Deserializer, DroppedKeys, EnvVar, ErrorKind,
-    Expansion, GLOBAL_CONFIG_YAML_FILENAME, HashMap, HoistingLimits, IgnoredAny, IndexMap,
-    InitType, LinkWorkspacePackages, LoadWorkspaceYamlError, NodeLinker, NodePackageMapType,
+    GLOBAL_CONFIG_YAML_FILENAME, HashMap, HoistingLimits, IgnoredAny, IndexMap, InitType,
+    LinkWorkspacePackages, LoadWorkspaceYamlError, NodeLinker, NodePackageMapType,
     PackageConfigsSetting, PackageExtension, PackageImportMethod, Path, PathBuf,
-    PeerDependencyRules, Pipe, PmOnFail, PnpmfileSetting, PythonSettings, RegistryEntry,
-    RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail, SCHEMA_DIRECTIVE_KEY,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, SideEffectsCacheSetting, SupportedArchitectures,
-    SystemEnv, TaskSettings, Tool, ToolSettings, TrustPolicy, UpdateConfig, UpdateSettings,
-    VerifyDepsBeforeRun, VirtualStoreType, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues,
-    expand_typed_placeholders, fs, redact_and_sanitize,
+    PeerDependencyRules, Pipe, Placeholder, PmOnFail, PnpmfileSetting, PythonSettings,
+    RegistryEntry, RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail,
+    SCHEMA_DIRECTIVE_KEY, SaveWorkspaceProtocol, ScriptsPrependNodePath, SideEffectsCacheSetting,
+    SupportedArchitectures, SystemEnv, TaskSettings, Tool, ToolSettings, TrustPolicy, UpdateConfig,
+    UpdateSettings, VerifyDepsBeforeRun, VirtualStoreType, WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceKeyIssues, drop_placeholders, fs, redact_and_sanitize, resolvable_placeholders,
+    resolve_placeholders,
 };
 
 /// What a failed read reports in place of a value that came from the
@@ -20,51 +21,66 @@ const INVALID_EXPANSION: &str = "invalid environment-expanded value";
 /// Read the settings of a `pnpm-workspace.yaml` / `config.yaml`, resolving a
 /// setting written as `${VAR}` or `${VAR:-fallback}`.
 ///
-/// Which placeholders resolve is [`expand_typed_placeholders`]'s to say; the
-/// rest are left for the trusted / untrusted substitution that follows. A
-/// document that parses as written resolves none of them and is returned
-/// exactly as it was read, so what a file means today it goes on meaning.
+/// Only the placeholders the document cannot be read without are resolved
+/// here. A setting that takes free text reads as written, so its placeholder
+/// is left for the trusted / untrusted substitution that follows — which is
+/// what keeps a repository-controlled file from naming a request destination
+/// out of the environment. A document that reads as written resolves nothing
+/// at all and is returned exactly as it was read, so what a file means today
+/// it goes on meaning.
 pub(crate) fn parse_settings<Sys: EnvVar>(
     text: &str,
 ) -> Result<WorkspaceSettings, Box<serde_saphyr::Error>> {
     // A placeholder reaches serde as its own text, which only a string-valued
     // setting can hold, so a document carrying one for any other setting has
-    // to be read a second time with the placeholders already gone.
+    // to be read a second time with that placeholder already resolved.
     let as_written = match serde_saphyr::from_str::<WorkspaceSettings>(text) {
         Ok(settings) => return Ok(settings),
         Err(error) => error,
     };
-    let Ok(mut document) = serde_saphyr::from_str::<serde_json::Value>(text) else {
-        return Err(Box::new(as_written));
-    };
-    let mut resolved = document.clone();
-    if !expand_typed_placeholders::<Sys>(&mut resolved, Expansion::Resolved) {
+    let placeholders = resolvable_placeholders::<Sys>(text);
+    if placeholders.is_empty() {
         return Err(Box::new(as_written));
     }
-    if let Some(settings) = read_document(&resolved) {
-        return Ok(settings);
+    let mut resolved = vec![true; placeholders.len()];
+    if read_text(&resolve_placeholders(text, &placeholders, |index| resolved[index])).is_none() {
+        return Err(Box::new(classify(text, &placeholders, as_written)));
     }
-    // The document reads once the settings an expansion decides are out of
-    // it, so an expansion is what it stumbled over, and the message must not
-    // repeat that. Otherwise the file says something it cannot mean on its
-    // own, and the first error is the one to report: it carries the line.
-    expand_typed_placeholders::<Sys>(&mut document, Expansion::Dropped);
-    if read_document(&document).is_some() {
-        return Err(Box::new(serde::de::Error::custom(INVALID_EXPANSION)));
+    // Resolving a placeholder the document reads without would take a setting
+    // out of the hands of the substitution that knows which layer the file
+    // came from, so each one that turns out not to be needed is put back.
+    for index in 0..placeholders.len() {
+        resolved[index] = false;
+        if read_text(&resolve_placeholders(text, &placeholders, |index| resolved[index])).is_none()
+        {
+            resolved[index] = true;
+        }
     }
-    Err(Box::new(as_written))
+    read_text(&resolve_placeholders(text, &placeholders, |index| resolved[index]))
+        .ok_or_else(|| Box::new(as_written))
 }
 
-/// Read a parsed document as the settings it describes.
+/// The error a document that will not read even with its placeholders
+/// resolved reports.
 ///
-/// It goes back through the yaml reader rather than deserializing the parsed
-/// form directly, because that form has already typed every scalar, while the
-/// reader resolves each one against the setting it lands in.
-fn read_document(document: &serde_json::Value) -> Option<WorkspaceSettings> {
-    serde_saphyr::to_string(document)
-        .ok()?
-        .pipe_deref(serde_saphyr::from_str)
-        .ok()
+/// The document read without them answers which it is: it reads when a
+/// placeholder is what the reader stumbled over, and the message must not
+/// repeat what one resolved to. Otherwise the file says something it cannot
+/// mean on its own, and the first error is the one to report: it carries the
+/// line.
+fn classify(
+    text: &str,
+    placeholders: &[Placeholder],
+    as_written: serde_saphyr::Error,
+) -> serde_saphyr::Error {
+    if read_text(&drop_placeholders(text, placeholders)).is_some() {
+        return serde::de::Error::custom(INVALID_EXPANSION);
+    }
+    as_written
+}
+
+fn read_text(text: &str) -> Option<WorkspaceSettings> {
+    serde_saphyr::from_str(text).ok()
 }
 
 /// `serde` helper for fields that need to distinguish "missing key"

@@ -403,9 +403,10 @@ mod env;
 
 mod environment_values;
 use environment_values::{
-    Expansion, expand_typed_placeholders, has_env_placeholder, no_proxy_scalar,
-    normalize_registry_url, substitute_json_string, substitute_optional_inner_string,
-    substitute_optional_string, substitute_optional_string_map, substitute_registry_entries,
+    Placeholder, drop_placeholders, has_env_placeholder, no_proxy_scalar, normalize_registry_url,
+    resolvable_placeholders, resolve_placeholders, substitute_json_string,
+    substitute_optional_inner_string, substitute_optional_string, substitute_optional_string_map,
+    substitute_registry_entries,
 };
 
 mod apply;
