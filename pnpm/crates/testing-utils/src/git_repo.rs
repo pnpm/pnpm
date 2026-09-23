@@ -12,7 +12,9 @@
 //! a tarball and are covered at the resolver level instead.
 
 use std::{
+    fmt::Write as _,
     fs,
+    io::Write,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -42,12 +44,15 @@ impl GitRepoFixture {
         fs::create_dir_all(&bare).expect("create bare repo directory");
 
         git(&bare, &["init", "-q", "--bare", "-b", "main", "--template="]);
-        override_global_config(&bare, &bare);
+        override_global_config(&bare, &[]);
         git(&work, &["init", "-q", "-b", "main", "--template="]);
-        git(&work, &["config", "user.email", "test@example.invalid"]);
-        git(&work, &["config", "user.name", "Test"]);
-        override_global_config(&work, &work.join(".git"));
-        git(&work, &["remote", "add", "origin", &bare.to_string_lossy()]);
+        let bare_path = bare.to_string_lossy();
+        // What `git remote add origin <bare>` would write.
+        let origin = [
+            ("remote \"origin\"", "url", &*bare_path),
+            ("remote \"origin\"", "fetch", "+refs/heads/*:refs/remotes/origin/*"),
+        ];
+        override_global_config(&work.join(".git"), &[&IDENTITY[..], &origin].concat());
 
         Self { work, bare }
     }
@@ -96,10 +101,20 @@ impl GitRepoFixture {
     }
 
     /// Force-push every branch and tag into the bare repo, so what a
-    /// test resolves against always matches the work tree.
+    /// test resolves against always matches the work tree. The refspecs
+    /// are spelled out because git will not combine `--all` with `--tags`.
     fn mirror(&self) {
-        git(&self.work, &["push", "-q", "--force", "origin", "--all"]);
-        git(&self.work, &["push", "-q", "--force", "origin", "--tags"]);
+        git(
+            &self.work,
+            &[
+                "push",
+                "-q",
+                "--force",
+                "origin",
+                "refs/heads/*:refs/heads/*",
+                "refs/tags/*:refs/tags/*",
+            ],
+        );
     }
 
     /// SHA of the work tree's current `HEAD`.
@@ -143,10 +158,12 @@ impl GitRepoFixture {
 pub fn init_isolated_repo(path: &Path) {
     fs::create_dir_all(path).expect("create git repo directory");
     git(path, &["init", "-q", "-b", "main", "--template="]);
-    git(path, &["config", "user.email", "test@example.invalid"]);
-    git(path, &["config", "user.name", "Test"]);
-    override_global_config(path, &path.join(".git"));
+    override_global_config(&path.join(".git"), &IDENTITY);
 }
+
+/// The commit and tag author of every fixture repo.
+const IDENTITY: [ConfigEntry<'static>; 2] =
+    [("user", "email", "test@example.invalid"), ("user", "name", "Test")];
 
 /// The path of every file in `repo` that git does not ignore, tracked or
 /// not, as `git ls-files --cached --others --exclude-standard` lists them.
@@ -162,12 +179,20 @@ pub fn unignored_files(repo: &Path) -> Vec<String> {
         .collect()
 }
 
-/// Override, in the local configuration of the repo at `repo` whose git
-/// directory is `git_dir`, the user-global settings that would otherwise
-/// change what a fixture repo does: `core.excludesFile`,
-/// `core.attributesFile`, `core.hooksPath`, `core.fsmonitor`,
-/// `core.autocrlf`, and `gpgsign`. Configuration this does not name
+/// A `(section, key, value)` line of a git config file. `section` carries a
+/// subsection in quotes when it has one, as in `remote "origin"`.
+type ConfigEntry<'a> = (&'a str, &'a str, &'a str);
+
+/// Override, in the local configuration of the repo whose git directory is
+/// `git_dir`, the user-global settings that would otherwise change what a
+/// fixture repo does: `core.excludesFile`, `core.attributesFile`,
+/// `core.hooksPath`, `core.fsmonitor`, `core.autocrlf`, and `gpgsign`, and
+/// set the `extra` entries alongside them. Configuration this does not name
 /// still reaches the repo.
+///
+/// The entries are appended to the config file directly rather than set
+/// with one `git config` process each: fixtures are built per test, and a
+/// process spawn is expensive on Windows.
 ///
 /// `git ls-files --exclude-standard` consults the user-global excludes
 /// file, and pnpm builds a task's cache inputs from that listing. A
@@ -183,30 +208,60 @@ pub fn unignored_files(repo: &Path) -> Vec<String> {
 /// The repo must have been created with `git init --template=`, since
 /// a user-global `init.templateDir` would otherwise seed `info/exclude`,
 /// which no configuration setting overrides.
-fn override_global_config(repo: &Path, git_dir: &Path) {
+fn override_global_config(git_dir: &Path, extra: &[ConfigEntry<'_>]) {
     // A path that does not exist: git reads a missing excludes or
     // attributes file as empty, and a missing hooks directory as no
     // hooks. `/dev/null` would not work on Windows.
     let absent = git_dir.join("absent-global-config");
     let absent = absent.to_string_lossy();
-    git(repo, &["config", "core.excludesFile", &absent]);
-    // User-global attributes can assign a `clean` filter to a fixture's
-    // files, a user-global `core.hooksPath` its own hooks, and a
-    // user-global `core.fsmonitor` a command git consults whenever it
-    // refreshes the index: each runs the contributor's arbitrary code on
-    // `git add` and commit.
-    git(repo, &["config", "core.attributesFile", &absent]);
-    git(repo, &["config", "core.hooksPath", &absent]);
-    git(repo, &["config", "core.fsmonitor", "false"]);
-    // Git for Windows installs with `core.autocrlf = true`, which writes
-    // CRLF into a checkout. A fixture's own files reach the work tree as
-    // written, so a second work tree of the same repo would hold
-    // different bytes and hash differently.
-    git(repo, &["config", "core.autocrlf", "false"]);
-    // Neutralise a user-global `gpgsign = true`, which would
-    // otherwise demand a real signing key for every commit and tag.
-    git(repo, &["config", "commit.gpgsign", "false"]);
-    git(repo, &["config", "tag.gpgsign", "false"]);
+    let overrides = [
+        ("core", "excludesFile", &*absent),
+        // User-global attributes can assign a `clean` filter to a fixture's
+        // files, a user-global `core.hooksPath` its own hooks, and a
+        // user-global `core.fsmonitor` a command git consults whenever it
+        // refreshes the index: each runs the contributor's arbitrary code on
+        // `git add` and commit.
+        ("core", "attributesFile", &*absent),
+        ("core", "hooksPath", &*absent),
+        ("core", "fsmonitor", "false"),
+        // Git for Windows installs with `core.autocrlf = true`, which writes
+        // CRLF into a checkout. A fixture's own files reach the work tree as
+        // written, so a second work tree of the same repo would hold
+        // different bytes and hash differently.
+        ("core", "autocrlf", "false"),
+        // Neutralise a user-global `gpgsign = true`, which would
+        // otherwise demand a real signing key for every commit and tag.
+        ("commit", "gpgsign", "false"),
+        ("tag", "gpgsign", "false"),
+    ];
+    let mut config = String::new();
+    for (section, key, value) in overrides.iter().chain(extra) {
+        writeln!(config, "[{section}]\n\t{key} = {}", quote_config_value(value)).expect(
+            "write to a String",
+        );
+    }
+    let path = git_dir.join("config");
+    fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .and_then(|mut file| file.write_all(config.as_bytes()))
+        .unwrap_or_else(|err| panic!("append to {}: {err}", path.display()));
+}
+
+/// `value` as a quoted git config value. Git reads a backslash as the start
+/// of an escape sequence, so a Windows path written bare would lose its
+/// separators or fail to parse.
+fn quote_config_value(value: &str) -> String {
+    let mut quoted = String::with_capacity(value.len() + 2);
+    quoted.push('"');
+    for character in value.chars() {
+        if matches!(character, '\\' | '"') {
+            quoted.push('\\');
+        }
+        quoted.push(character);
+    }
+    quoted.push('"');
+    quoted
 }
 
 /// Run `git` with `args` in `cwd` and return its stdout.
