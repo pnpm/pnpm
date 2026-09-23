@@ -883,8 +883,6 @@ fn dedupe_check_detects_config_dependency_changes_when_root_is_unselected() {
     drop((root, npmrc_info));
 }
 
-/// A warm full `pnpm dedupe` run reports each reused package once
-/// (pnpm/pnpm#15303).
 #[test]
 fn dedupe_warm_full_run_counts_each_reused_package_once() {
     let CommandTempCwd {
