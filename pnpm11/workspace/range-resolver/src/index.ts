@@ -17,4 +17,3 @@ export function resolveWorkspaceRange (range: string, versions: string[]): strin
     loose: true,
   }) ?? (versions.includes(range) ? range : null)
 }
-

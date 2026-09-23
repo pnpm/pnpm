@@ -767,7 +767,7 @@ async function resolveNpm (
       }
     }
     const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
-    if (localVersion && (semver.gte(localVersion, pickedPackage.version) || opts.preferWorkspacePackages)) {
+    if (localVersion && semver.valid(localVersion) && (semver.gte(localVersion, pickedPackage.version) || opts.preferWorkspacePackages)) {
       return {
         ...resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, spec, {
           wantedDependency,
@@ -1143,9 +1143,7 @@ export function pickMatchingLocalVersionOrNull (
 ): string | null {
   switch (spec.type) {
     case 'tag':
-      return semver.maxSatisfying(Array.from(versions.keys()), '*', {
-        includePrerelease: true,
-      })
+      return resolveWorkspaceRange('*', Array.from(versions.keys()))
     case 'version':
       if (versions.has(spec.fetchSpec)) return spec.fetchSpec
       return resolveWorkspaceRange(spec.fetchSpec, Array.from(versions.keys()))
