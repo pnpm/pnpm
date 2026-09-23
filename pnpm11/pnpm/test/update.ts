@@ -1498,8 +1498,7 @@ test('plain update honors optional=false from configuration', async () => {
       'is-negative': '1.0.0',
     },
   })
-
-  await execPnpm(['config', 'set', 'optional', 'false'])
+  writeYamlFileSync('pnpm-workspace.yaml', { optional: false })
 
   await execPnpm(['update', '--latest'])
 

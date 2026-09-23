@@ -209,7 +209,6 @@ fn update_dependency_groups(
     .ok()
     .flatten()
     .map(|layout| layout.included);
-
     let is_explicit_dev = owned.explicit_groups.dev;
     let is_explicit_prod = owned.explicit_groups.prod;
     let is_explicit_optional = owned.explicit_groups.optional;

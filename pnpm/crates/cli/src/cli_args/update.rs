@@ -15,7 +15,7 @@ use miette::{Context, Diagnostic};
 use pnpm_config::Config;
 use pnpm_github_actions as github_actions;
 use pnpm_matcher::Matcher;
-use pnpm_package_manager::{Update, build_workspace_packages_map, included_direct_groups};
+use pnpm_package_manager::{Update, build_workspace_packages_map};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
@@ -357,16 +357,13 @@ impl UpdateArgs {
         self.selection.patches
             && self.selection.depth.is_none()
             && !update_actions
+            && !self.dependency_options.no_optional
             && all_dependency_groups
                 .iter()
                 .all(|group| include_direct.contains(group))
     }
 
-    fn pnpr_patch_link<'path>(
-        &self,
-        state: &State,
-        lockfile_path: &'path Path,
-    ) -> super::install::PnprLink<'path> {
+    fn patch_refresh_dependency_groups(&self, state: &State) -> Vec<DependencyGroup> {
         let prior_included = pnpm_modules_yaml::read_modules_layout::<pnpm_modules_yaml::Host>(
             &state.config.modules_dir,
         )
@@ -374,20 +371,37 @@ impl UpdateArgs {
         .flatten()
         .map(|layout| layout.included);
 
-        let dependency_groups = if let Some(included) = prior_included {
-            std::iter::empty()
-                .chain(included.dependencies.then_some(DependencyGroup::Prod))
-                .chain(included.dev_dependencies.then_some(DependencyGroup::Dev))
-                .chain((included.optional_dependencies && state.config.optional).then_some(
-                    DependencyGroup::Optional,
-                ))
-                .collect()
+        let explicit = self.dependency_options.explicit_groups();
+        let (prod, dev, optional) = if let Some(included) = prior_included {
+            (
+                included.dependencies || explicit.prod,
+                included.dev_dependencies || explicit.dev,
+                !explicit.no_optional
+                    && (explicit.optional
+                        || (included.optional_dependencies && state.config.optional)),
+            )
         } else {
-            included_direct_groups(state.config.optional).collect()
+            (
+                true,
+                !explicit.prod || explicit.dev,
+                !explicit.no_optional && (explicit.optional || state.config.optional),
+            )
         };
 
+        std::iter::empty()
+            .chain(prod.then_some(DependencyGroup::Prod))
+            .chain(dev.then_some(DependencyGroup::Dev))
+            .chain(optional.then_some(DependencyGroup::Optional))
+            .collect()
+    }
+
+    fn pnpr_patch_link<'path>(
+        &self,
+        state: &State,
+        lockfile_path: &'path Path,
+    ) -> super::install::PnprLink<'path> {
         super::install::PnprLink {
-            dependency_groups,
+            dependency_groups: self.patch_refresh_dependency_groups(state),
             supported_architectures: self.supported_architectures.apply_to(
                 state.config.supported_architectures.clone(),
             ),
