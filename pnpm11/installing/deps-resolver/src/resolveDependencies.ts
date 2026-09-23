@@ -167,6 +167,7 @@ export interface ResolutionContext extends RegistryContext {
   defaultTag: string
   dryRun: boolean
   forceFullResolution: boolean
+  staleOverrideTargets?: ReadonlySet<string>
   updateChecksums?: boolean
   ignoreScripts?: boolean
   resolvedPkgsById: ResolvedPkgsById
@@ -652,6 +653,7 @@ async function resolveDependenciesOfImporters (
         proceed: importer.options.proceed || ctx.forceFullResolution,
         ...pickRegistryContext(ctx),
         resolvedDependencies: importer.options.resolvedDependencies,
+        staleOverrideTargets: ctx.staleOverrideTargets,
       })
       const postponedResolutionsQueue: PostponedResolutionFunction[] = []
       const postponedPeersResolutionQueue: PostponedPeersResolutionFunction[] = []
@@ -914,6 +916,7 @@ export async function resolveDependencies (
     proceed: options.proceed || ctx.forceFullResolution,
     ...pickRegistryContext(ctx),
     resolvedDependencies: options.resolvedDependencies,
+    staleOverrideTargets: ctx.staleOverrideTargets,
   })
   const postponedResolutionsQueue: PostponedResolutionFunction[] = []
   const postponedPeersResolutionQueue: PostponedPeersResolutionFunction[] = []
@@ -1658,6 +1661,7 @@ function getDepsToResolve (
     prefix: string
     proceed: boolean
     resolvedDependencies?: ResolvedDependencies
+    staleOverrideTargets?: ReadonlySet<string>
   }
 ): ExtendedWantedDependency[] {
   const resolvedDependencies = options.resolvedDependencies ?? {}
@@ -1676,7 +1680,7 @@ function getDepsToResolve (
     let reference = undefined as undefined | string
     let preferredVersion = undefined as undefined | string
     let proceed = proceedAll
-    if (wantedDependency.alias) {
+    if (wantedDependency.alias && !options.staleOverrideTargets?.has(wantedDependency.alias)) {
       const satisfiesWanted = satisfiesWanted2Args.bind(null, wantedDependency)
       if (
         resolvedDependencies[wantedDependency.alias] &&

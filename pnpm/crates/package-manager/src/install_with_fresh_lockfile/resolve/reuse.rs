@@ -1,6 +1,8 @@
 use super::super::{ImporterUpdateSeedPolicy, UpdateSeedPolicy};
+use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
+use pnpm_config_parse_overrides::parse_pkg_and_parent_selector;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_deps_resolver::{ManifestHook, UpdateTargets};
@@ -34,6 +36,7 @@ pub(in super::super) fn preferred_versions_seeds(
     wanted_lockfile: Option<&Lockfile>,
     importer_manifests: &BTreeMap<String, &PackageManifest>,
     overrides: Option<&PreferredVersions>,
+    stale_override_targets: &UpdateTargets,
 ) -> (Arc<PreferredVersions>, BTreeMap<String, Arc<PreferredVersions>>) {
     use pnpm_lockfile_preferred_versions::{
         get_preferred_versions_from_lockfile_and_manifests as from_lockfile,
@@ -44,7 +47,19 @@ pub(in super::super) fn preferred_versions_seeds(
         .values()
         .copied()
         .collect();
-    let snapshots = wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref());
+    let unstale_snapshots;
+    let mut snapshots = wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref());
+    if !stale_override_targets.is_empty() {
+        let stale = withheld_pin(stale_override_targets);
+        unstale_snapshots = snapshots.map(|snapshots| {
+            snapshots
+                .iter()
+                .filter(|(key, _)| !stale(key))
+                .map(|(key, snapshot)| (key.clone(), snapshot.clone()))
+                .collect::<HashMap<_, _>>()
+        });
+        snapshots = unstale_snapshots.as_ref();
+    }
 
     let mut workspace_seed = match update_seed_policy {
         UpdateSeedPolicy::KeepAll
@@ -122,6 +137,28 @@ pub(super) fn drop_only_seed(
     let seed = Arc::new(seed);
     cache.insert(targets.clone(), Arc::clone(&seed));
     seed
+}
+/// The names targeted by a selector the lockfile records but `overrides` no
+/// longer sets to the same value. A version such an override locked can
+/// still satisfy the declared range, so these names are resolved as if the
+/// lockfile held no version of them.
+pub(in super::super) fn stale_override_targets(
+    wanted_lockfile: Option<&Lockfile>,
+    overrides: Option<&IndexMap<String, String>>,
+) -> UpdateTargets {
+    let Some(locked_overrides) =
+        wanted_lockfile.and_then(|lockfile| lockfile.overrides.as_ref())
+    else {
+        return UpdateTargets::default();
+    };
+    locked_overrides
+        .iter()
+        .filter(|(selector, value)| {
+            overrides.and_then(|overrides| overrides.get(*selector)) != Some(*value)
+        })
+        .filter_map(|(selector, _)| parse_pkg_and_parent_selector(selector).ok())
+        .map(|(_, target)| (target.name, None))
+        .collect()
 }
 /// Layer caller-supplied preferences onto a seed, per package name. A
 /// selector present in both wins from `overrides`, which is how a version

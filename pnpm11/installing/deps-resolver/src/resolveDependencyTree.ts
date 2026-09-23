@@ -119,6 +119,11 @@ export interface ResolveDependenciesOptions extends RegistryContext {
   engineStrict: boolean
   force: boolean
   forceFullResolution: boolean
+  /**
+   * Aliases whose lockfile pins are not reused, because an override that may
+   * have produced them no longer applies.
+   */
+  staleOverrideTargets?: ReadonlySet<string>
   updateChecksums?: boolean
   ignoreScripts?: boolean
   hooks: {
@@ -193,6 +198,7 @@ export async function resolveDependencyTree<T> (
     engineStrict: opts.engineStrict,
     force: opts.force,
     forceFullResolution: opts.forceFullResolution,
+    staleOverrideTargets: opts.staleOverrideTargets,
     updateChecksums: opts.updateChecksums,
     ignoreScripts: opts.ignoreScripts,
     injectWorkspacePackages: opts.injectWorkspacePackages,

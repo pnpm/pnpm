@@ -107,6 +107,7 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> super::ResolutionContext<'_, R
         lockfile_reuse_seed: Option<Arc<Lockfile>>,
         mut preferred_versions_seed: Arc<PreferredVersions>,
         mut preferred_versions_seeds_by_importer: BTreeMap<String, Arc<PreferredVersions>>,
+        stale_override_targets: UpdateTargets,
     ) -> Result<ResolveWorkspaceResult, super::InstallWithFreshLockfileError> {
         let shared_resolve_options = self.shared_options();
         let mut dedupe = targets(
@@ -114,6 +115,7 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> super::ResolutionContext<'_, R
             self.wanted_lockfile(),
             lockfile_reuse_seed.is_some(),
         );
+        dedupe.merge(stale_override_targets);
         loop {
             let walk = self.workspace_walk(lockfile_reuse_seed.as_ref(), dedupe.clone());
             let result = resolve::run_dependency_pass::<Reporter>(resolve::ResolvePassInputs {

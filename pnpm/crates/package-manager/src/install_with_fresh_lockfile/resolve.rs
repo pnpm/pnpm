@@ -5,7 +5,9 @@
 //! [`super::manifest_transforms`]; the resolver chain it walks is built
 //! by [`super::resolver_setup`].
 
-pub(super) use reuse::{ReuseSeedInputs, lockfile_reuse_seed, preferred_versions_seeds};
+pub(super) use reuse::{
+    ReuseSeedInputs, lockfile_reuse_seed, preferred_versions_seeds, stale_override_targets,
+};
 
 mod reuse;
 

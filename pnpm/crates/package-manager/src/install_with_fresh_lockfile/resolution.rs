@@ -342,16 +342,33 @@ pub(super) async fn run_prepared_resolve<'m, Reporter: self::Reporter + 'static>
     importer_manifests: ManifestsView<'m>,
 ) -> Result<ResolvePass<'m>, InstallWithFreshLockfileError> {
     let wanted_lockfile = context.wanted_lockfile();
-    let (preferred_versions_seed, preferred_versions_seeds_by_importer) =
+    let seeds = |stale_override_targets: &pnpm_resolving_deps_resolver::UpdateTargets| {
         resolve::preferred_versions_seeds(
             &context.owned.resolution.update_seed_policy,
             wanted_lockfile,
             &importer_manifests,
             context.owned.resolution.preferred_versions_override.as_ref(),
-        );
+            stale_override_targets,
+        )
+    };
+    let (mut preferred_versions_seed, mut preferred_versions_seeds_by_importer) =
+        seeds(&pnpm_resolving_deps_resolver::UpdateTargets::default());
     let shared_resolve_options = context.shared_options();
     let lockfile_reuse_seed =
         context.reuse_seed(&shared_resolve_options, &preferred_versions_seed).await?;
+    // A reuse seed means the lockfile rewrite already absorbed the overrides drift.
+    let stale_override_targets = if lockfile_reuse_seed.is_some() {
+        pnpm_resolving_deps_resolver::UpdateTargets::default()
+    } else {
+        resolve::stale_override_targets(
+            wanted_lockfile,
+            context.prep.transforms.resolved_overrides.as_ref(),
+        )
+    };
+    if !stale_override_targets.is_empty() {
+        (preferred_versions_seed, preferred_versions_seeds_by_importer) =
+            seeds(&stale_override_targets);
+    }
     let phase_start = std::time::Instant::now();
     Reporter::emit(&LogEvent::Stage(StageLog {
         level: LogLevel::Debug,
@@ -363,6 +380,7 @@ pub(super) async fn run_prepared_resolve<'m, Reporter: self::Reporter + 'static>
         lockfile_reuse_seed.clone(),
         preferred_versions_seed,
         preferred_versions_seeds_by_importer,
+        stale_override_targets,
     )
     .await?;
     Ok(context.completed_pass(
