@@ -141,6 +141,7 @@ mod star_tests;
 mod stars_tests;
 mod store;
 mod store_pkg_content_check;
+mod store_placement;
 mod sync_injected_deps_after_scripts;
 mod tarball_url_dependency;
 mod team;
