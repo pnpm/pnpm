@@ -314,7 +314,7 @@ pub(super) async fn installability_host(
     host: (Option<String>, Option<&pnpm_package_is_installable::SupportedArchitectures>),
 ) -> Option<pnpm_deps_restorer::InstallabilityHost> {
     let (node_version, supported_architectures) = host;
-    let needed = !config.force
+    let needed = !config.installs_incompatible_packages()
         && lockfile.packages
             .as_ref()
             .is_some_and(|packages| {
@@ -329,7 +329,7 @@ pub(super) async fn installability_host(
         (_, needed) => {
             pnpm_deps_restorer::materialization_plan::detect_installability_host(
                 needed,
-                config.engine_strict,
+                config.effective_engine_strict(),
                 node_version,
                 supported_architectures,
             )

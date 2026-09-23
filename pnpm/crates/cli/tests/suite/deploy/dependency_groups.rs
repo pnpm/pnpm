@@ -291,8 +291,9 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
 
 /// The invocation pnpm's release tooling (`bundle-deps.ts`) forwards: every
 /// option ahead of the `deploy` subcommand, `--config.*` overrides for
-/// settings the workspace yaml doesn't enable, and `--force` so optional
-/// dependencies of every platform are materialized into the deploy dir.
+/// settings the workspace yaml doesn't enable, and `--force` under
+/// `forceIgnoresPlatform` so optional dependencies of every platform are
+/// materialized into the deploy dir.
 #[test]
 fn release_style_deploy_accepts_pre_subcommand_flags_and_forces_foreign_platform_optionals() {
     let CommandTempCwd {
@@ -347,10 +348,15 @@ fn release_style_deploy_accepts_pre_subcommand_flags_and_forces_foreign_platform
         "the hoisted deploy install must not materialize dev dependencies with --prod",
     );
 
+    let deploy_dir = workspace.join("release-deploy");
+    fs::create_dir_all(&deploy_dir).unwrap();
+    fs::write(deploy_dir.join("pre-existing.txt"), "stale").unwrap();
+
     pacquet_cmd(&workspace)
         .with_args([
             "--config.inject-workspace-packages=true",
             "--config.node-linker=hoisted",
+            "--config.force-ignores-platform=true",
             "--ignore-scripts",
             "--force",
             "--filter=app",
@@ -361,11 +367,14 @@ fn release_style_deploy_accepts_pre_subcommand_flags_and_forces_foreign_platform
         .assert()
         .success();
 
-    let deploy_dir = workspace.join("release-deploy");
     assert!(deploy_dir.join("index.js").exists());
     assert!(
+        !deploy_dir.join("pre-existing.txt").exists(),
+        "--force must overwrite the non-empty target directory",
+    );
+    assert!(
         deploy_dir.join(incompatible).exists(),
-        "--force must install optional dependencies regardless of platform",
+        "--force under forceIgnoresPlatform must install optional dependencies regardless of platform",
     );
     assert!(
         !deploy_dir.join("node_modules/dev-only").exists(),

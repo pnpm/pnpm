@@ -289,8 +289,8 @@ pub(super) fn seed_skip_set(
     config: &pnpm_config::Config,
     seed_skipped: Option<Vec<String>>,
 ) -> SkippedSnapshots {
-    // `--force` installs previously-skipped snapshots too, so the
-    // recorded skip set must not survive into this install.
+    // `--force` re-evaluates every snapshot, so the recorded skip set
+    // must not survive into this install.
     if config.force {
         return SkippedSnapshots::new();
     }
@@ -324,7 +324,7 @@ pub(super) fn needs_installability_check(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
 ) -> bool {
-    !config.force
+    !config.installs_incompatible_packages()
         && match (snapshots, packages) {
             (Some(snaps), Some(pkgs)) if !snaps.is_empty() => {
                 any_installability_constraint(snaps, pkgs)
@@ -365,7 +365,7 @@ pub(super) async fn detect_host(
     if !config.enable_global_virtual_store {
         return early_host_detection.unwrap_or_else(|| {
             crate::materialization_plan::HostDetection::spawn(
-                config.engine_strict,
+                config.effective_engine_strict(),
                 node_version,
                 supported_architectures.cloned(),
             )
@@ -376,7 +376,7 @@ pub(super) async fn detect_host(
         None => {
             crate::materialization_plan::detect_installability_host(
                 true,
-                config.engine_strict,
+                config.effective_engine_strict(),
                 node_version,
                 supported_architectures,
             )

@@ -193,6 +193,7 @@ impl ConfigOverrides {
             unsafe_perm => "unsafePerm",
             dangerously_allow_all_builds => "dangerouslyAllowAllBuilds",
             engine_strict => "engineStrict",
+            force_ignores_platform => "forceIgnoresPlatform",
             frozen_store => "frozenStore",
             ignore_pnpmfile => "ignorePnpmfile",
         );

@@ -1203,6 +1203,65 @@ test('do not fetch an optional package that is not installable', async () => {
   expect(pkgResponse.fetching).toBeFalsy()
 })
 
+test('force installs an optional package that is not installable', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    force: true,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+  const pkgResponse = await requestPackage({ alias: '@pnpm.e2e/not-compatible-with-any-os', optional: true, bareSpecifier: '*' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+  })
+
+  expect(pkgResponse.body.isInstallable).toBe(true)
+  expect(pkgResponse.fetching).toBeTruthy()
+})
+
+test('force does not install an optional package that is not installable under forceIgnoresPlatform: false, even when the manifest arrives with the tarball', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const resolveWithoutManifest: typeof resolve = async (wantedDependency, opts) => {
+    const result = await resolve(wantedDependency, opts)
+    return {
+      ...result,
+      manifest: undefined,
+    }
+  }
+  const requestPackage = createPackageRequester({
+    resolve: resolveWithoutManifest,
+    fetchers,
+    cafs,
+    force: true,
+    forceIgnoresPlatform: false,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+  const pkgResponse = await requestPackage({ alias: '@pnpm.e2e/not-compatible-with-any-os', optional: true, bareSpecifier: '*' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+  })
+
+  expect(pkgResponse.body.isInstallable).toBe(false)
+})
+
 // Test case for https://github.com/pnpm/pnpm/issues/11702
 test('do not fetch an optional package whose name declares an unsupported platform when the registry metadata has no platform fields', async () => {
   const storeDir = temporaryDirectory()

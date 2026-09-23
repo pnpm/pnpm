@@ -284,6 +284,7 @@ impl WorkspaceSettings {
         overlay(&mut config.ignore_pnpmfile, self.ignore_pnpmfile.take());
         overlay(&mut config.git_checks, self.git_checks.take());
         overlay(&mut config.engine_strict, self.engine_strict.take());
+        overlay(&mut config.force_ignores_platform, self.force_ignores_platform.take());
         overlay_some(&mut config.node_version, self.node_version.take());
         overlay_some(&mut config.runtime_on_fail, self.runtime_on_fail.take());
         overlay(&mut config.node_download_mirrors, self.node_download_mirrors.take());

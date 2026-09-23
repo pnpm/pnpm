@@ -43,6 +43,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("fetching-concurrency", true),
     ("filter", false),
     ("filter-prod", false),
+    ("force-ignores-platform", false),
     ("force-legacy-deploy", false),
     ("frozen-lockfile", false),
     ("git-checks", false),

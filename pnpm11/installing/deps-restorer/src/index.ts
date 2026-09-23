@@ -5,6 +5,7 @@ import util from 'node:util'
 import { getProjectNodePath, type LinkBinOptions, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildModules, linkBinsOfRuntimeDependencies } from '@pnpm/building.during-install'
 import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
+import { installabilityUnderForce } from '@pnpm/config.package-is-installable'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
@@ -197,6 +198,8 @@ export interface HeadlessOptions extends RegistryContext {
   symlink?: boolean
   disableRelinkLocalDirDeps?: boolean
   force: boolean
+  /** See `installabilityUnderForce` in `@pnpm/config.package-is-installable`. */
+  forceIgnoresPlatform?: boolean
   storeDir: string
   configByUri: Record<string, RegistryConfig>
   unsafePerm: boolean
@@ -317,9 +320,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     skipped,
     skipRuntimes: opts.skipRuntimes,
     currentEngine: opts.currentEngine,
-    engineStrict: opts.engineStrict,
+    ...installabilityUnderForce(opts),
     failOnMissingDependencies: true,
-    includeIncompatiblePackages: opts.force,
     lockfileDir,
     supportedArchitectures: opts.supportedArchitectures,
   }
@@ -400,6 +402,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const allowBuild = createAllowBuildFunction(opts)
   const lockfileToDepGraphOpts = {
     ...opts,
+    ...installabilityUnderForce(opts),
     allowBuild,
     importerIds,
     lockfileDir,

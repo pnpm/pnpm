@@ -5901,6 +5901,9 @@ importers:
       '@pnpm/config.normalize-registries':
         specifier: workspace:*
         version: link:../../config/normalize-registries
+      '@pnpm/config.package-is-installable':
+        specifier: workspace:*
+        version: link:../../config/package-is-installable
       '@pnpm/config.parse-overrides':
         specifier: workspace:*
         version: link:../../config/parse-overrides

@@ -17,6 +17,7 @@ const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
     "fetch-warn-timeout-ms",
     "fetch-min-speed-ki-bps",
     "fetching-concurrency",
+    "force-ignores-platform",
     "frozen-store",
     "git-checks",
     "git-shallow-hosts",

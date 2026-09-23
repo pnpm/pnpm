@@ -171,6 +171,34 @@ fn hoisted_install_does_not_report_an_optional_dependency_it_skipped() {
 }
 
 #[test]
+fn hoisted_forced_install_keeps_skipping_an_incompatible_optional_dependency() {
+    const PKG: &str = "@pnpm.e2e/not-compatible-with-any-os";
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "optionalDependencies": { PKG: "*" } }).to_string(),
+    )
+    .expect("write package.json");
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    pacquet
+        .with_args(["install", "--force"])
+        .assert()
+        .success();
+    let installed = workspace.join("node_modules").join(PKG);
+    assert!(!installed.exists());
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn hoisted_install_reports_an_optional_dependency_it_stops_supporting() {
     const PKG: &str = "@pnpm.e2e/not-compatible-with-any-os";
     let CommandTempCwd {

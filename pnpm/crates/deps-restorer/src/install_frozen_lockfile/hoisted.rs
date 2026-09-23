@@ -183,7 +183,7 @@ fn walk_hoisted_graph(
         .collect();
     let walker_opts = LockfileToHoistedDepGraphOptions {
         installability: crate::HoistedInstallability {
-            engine_strict: config.engine_strict,
+            engine_strict: config.effective_engine_strict(),
             current_node_version: inputs.host_node
                 .map(|host| host.version.clone())
                 .unwrap_or_default(),
@@ -205,10 +205,7 @@ fn walk_hoisted_graph(
 
         skipped: walker_skipped.clone(),
         force: config.force,
-        // Matches the `engineStrict` policy `compute_skipped_snapshots`
-        // used upthread (both read `config.engine_strict`): an engine
-        // mismatch on a required package is a hard error under strict,
-        // otherwise a skip-optional / warning.
+        include_incompatible_packages: config.installs_incompatible_packages(),
         current_hoisted_locations: inputs.prior.current_hoisted_locations,
     };
     let walked =

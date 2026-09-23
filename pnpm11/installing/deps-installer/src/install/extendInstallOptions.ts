@@ -75,6 +75,8 @@ export interface StrictInstallOptions extends RegistryContext {
   storeDir: string
   reporter: ReporterFunction
   force: boolean
+  /** See `installabilityUnderForce` in `@pnpm/config.package-is-installable`. */
+  forceIgnoresPlatform: boolean
   depth: number
   lockfileDir: string
   modulesDir: string
@@ -314,6 +316,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     enablePnp: false,
     engineStrict: false,
     force: false,
+    forceIgnoresPlatform: true,
     forceFullResolution: false,
     frozenLockfile: false,
     frozenStore: false,

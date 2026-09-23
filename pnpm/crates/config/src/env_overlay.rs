@@ -362,6 +362,7 @@ impl WorkspaceSettings {
         // Empty removes the `v` prefix, so an empty env value must survive.
         string_field_allow_empty!(settings, Sys, tag_version_prefix, "TAG_VERSION_PREFIX");
         json_field!(settings, Sys, engine_strict, "ENGINE_STRICT");
+        json_field!(settings, Sys, force_ignores_platform, "FORCE_IGNORES_PLATFORM");
         string_field!(settings, Sys, node_version, "NODE_VERSION");
         enum_field!(settings, Sys, runtime_on_fail, "RUNTIME_ON_FAIL", RuntimeOnFail);
         json_field!(settings, Sys, node_download_mirrors, "NODE_DOWNLOAD_MIRRORS");

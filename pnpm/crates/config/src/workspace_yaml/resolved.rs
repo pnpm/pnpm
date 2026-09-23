@@ -133,6 +133,7 @@ impl WorkspaceSettings {
             ignore_pnpmfile: Some(config.ignore_pnpmfile),
             git_checks: Some(config.git_checks),
             engine_strict: Some(config.engine_strict),
+            force_ignores_platform: Some(config.force_ignores_platform),
             node_version: config.node_version.clone(),
             runtime_on_fail: config.runtime_on_fail,
             node_download_mirrors: Some(config.node_download_mirrors.clone()),

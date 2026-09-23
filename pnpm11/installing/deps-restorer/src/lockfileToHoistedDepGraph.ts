@@ -38,6 +38,8 @@ export interface LockfileToHoistedDepGraphOptions extends RegistryContext {
   autoInstallPeers: boolean
   engineStrict: boolean
   force: boolean
+  /** See `installabilityUnderForce` in `@pnpm/config.package-is-installable`. */
+  includeIncompatiblePackages?: boolean
   hoistingLimits?: HoistingLimits
   externalDependencies?: Set<string>
   importerIds: string[]
@@ -79,6 +81,7 @@ export async function lockfileToHoistedDepGraph (
     prevGraph = (await _lockfileToHoistedDepGraph(currentLockfile, {
       ...opts,
       force: true,
+      includeIncompatiblePackages: true,
       skipFetching: true,
       skipped: new Set(),
     })).graph
@@ -222,7 +225,7 @@ async function fetchDeps (
       os: pkgSnapshot.os,
       libc: pkgSnapshot.libc,
     }
-    if (!opts.force &&
+    if (!opts.includeIncompatiblePackages &&
       packageIsInstallable(packageId, pkg, {
         // An incompatibility inside an `optionalDependencies` subtree is
         // reported, not fatal — see `filterLockfileByImportersAndEngine`,

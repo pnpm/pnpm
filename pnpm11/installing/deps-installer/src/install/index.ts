@@ -9,6 +9,7 @@ import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { type CatalogResultMatcher, matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { toRegistryDeclarations } from '@pnpm/config.normalize-registries'
+import { installabilityUnderForce } from '@pnpm/config.package-is-installable'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import {
@@ -1741,9 +1742,8 @@ Note that in CI environments, this setting is enabled by default.`,
           nodeVersion: opts.nodeVersion,
           pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
         },
-        engineStrict: opts.engineStrict,
+        ...installabilityUnderForce(opts),
         failOnMissingDependencies: false,
-        includeIncompatiblePackages: opts.force === true,
         lockfileDir: opts.lockfileDir,
         skipped,
         skipRuntimes: opts.skipRuntimes,

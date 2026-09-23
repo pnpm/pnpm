@@ -24,6 +24,7 @@ function makeEngine (lockfileDir: string, packageName: 'pacquet' | '@pnpm/pacque
     argv: { original: [], remain: [] },
     isInstallCommand: true,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    forceIgnoresPlatform: true,
   })
 }
 
@@ -63,7 +64,25 @@ const envOpts: MakeRunPacquetOpts = {
   argv: { original: [], remain: [] },
   isInstallCommand: true,
   virtualStoreDirMaxLength: 120,
+  forceIgnoresPlatform: true,
 }
+
+test('the effective forceIgnoresPlatform value reaches pacquet through the environment', () => {
+  const previous = process.env.pnpm_config_force_ignores_platform
+  process.env.pnpm_config_force_ignores_platform = 'false'
+  try {
+    const env = makePacquetEnv(envOpts)
+    expect(env.PNPM_CONFIG_FORCE_IGNORES_PLATFORM).toBe('true')
+    expect(env.pnpm_config_force_ignores_platform).toBeUndefined()
+    expect(makePacquetEnv({ ...envOpts, forceIgnoresPlatform: false }).PNPM_CONFIG_FORCE_IGNORES_PLATFORM).toBe('false')
+  } finally {
+    if (previous == null) {
+      delete process.env.pnpm_config_force_ignores_platform
+    } else {
+      process.env.pnpm_config_force_ignores_platform = previous
+    }
+  }
+})
 
 // Resolve mode hands pacquet the whole install after pnpm has already run
 // the root `pnpm:devPreinstall`, and is the one delegation shape that
