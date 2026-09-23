@@ -158,6 +158,9 @@ jobs:
             node_major: '22'
           - node: '24.0.0'
             node_major: '24'
+          # Garnet's post step costs about 160 s, so it runs on one chunk.
+          - node: '24.0.0'
+            test_chunk: '3'
             garnet: true
           - node: '26.10.0'
             node_major: '26'
