@@ -224,10 +224,8 @@ pub(super) fn is_automatic_runtime(name: &str, version_spec: &str) -> bool {
         && pnpm_detect_libc::detect() != Some(pnpm_detect_libc::Implementation::Musl)
 }
 
-/// The version one directory pins for the runtime `name`. The pnpm-native
-/// manifest fields take precedence over the version-manager files, and
-/// `.node-version` over `.nvmrc`, in the same directory, the order fnm
-/// and n read them in.
+/// The version one directory pins for the runtime `name`. The version
+/// files are read in the order fnm and n use.
 pub(super) fn runtime_pin(dir: &Path, name: &str) -> Option<(String, String)> {
     manifest_runtime_pin(dir, name)
         .or_else(|| version_file_runtime_pin(dir, name, ".node-version"))
@@ -252,10 +250,10 @@ fn manifest_runtime_pin(dir: &Path, name: &str) -> Option<(String, String)> {
     None
 }
 
-/// The pin in a version-manager file. `.node-version` holds one version,
-/// optionally `v`-prefixed, with any line ending; `.nvmrc` extends that
-/// syntax with comments, `key=value` settings, and nvm aliases, so one
-/// parser reads both.
+/// The pin in a version-manager file. Both files are read with the
+/// `.nvmrc` grammar, as fnm and n do: `.node-version` conventionally
+/// holds one version, optionally `v`-prefixed, but a comment or an nvm
+/// alias in it means the same as it would in `.nvmrc`.
 fn version_file_runtime_pin(dir: &Path, name: &str, file_name: &str) -> Option<(String, String)> {
     if name != "node" {
         return None;

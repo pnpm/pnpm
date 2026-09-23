@@ -2,4 +2,4 @@
 "pacquet": minor
 ---
 
-The global `node` shim created by pnpm now uses the Node.js version from the nearest `.node-version` file when the project declares no Node.js runtime in `package.json`. A `.node-version` file takes precedence over an `.nvmrc` file in the same directory.
+The global `node` shim created by pnpm now reads `.node-version` files as well as `.nvmrc` files. The nearest directory with a Node.js runtime declaration decides the version. Within one directory, `package.json` takes precedence over `.node-version`, which takes precedence over `.nvmrc`.
