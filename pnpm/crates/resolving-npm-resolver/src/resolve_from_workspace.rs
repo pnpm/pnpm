@@ -75,6 +75,8 @@ pub struct SavedSpecifierOptions {
     pub range_spec_style: Option<RangeSpecStyle>,
     /// The `saveWorkspaceProtocol` setting.
     pub save_workspace_protocol: SaveWorkspaceProtocol,
+    /// `true` when updating an existing dependency rather than adding one.
+    pub is_update: bool,
 }
 
 /// Error envelope for [`try_resolve_from_workspace`]. The two error
@@ -302,6 +304,7 @@ fn workspace_specifier(
         manifest_field("version"),
         saved_specifier.save_workspace_protocol,
         saved_specifier.range_spec_style.unwrap_or_default(),
+        saved_specifier.is_update,
     ))
 }
 

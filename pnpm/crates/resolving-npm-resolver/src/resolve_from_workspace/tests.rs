@@ -354,3 +354,43 @@ fn publish_config_link_directory_false_keeps_root() {
         .expect("some");
     assert_eq!(result.id.as_str(), "link:../foo");
 }
+
+#[test]
+fn calc_specifier_honors_requested_exact_add_while_update_preserves_operator() {
+    use pnpm_config::SaveWorkspaceProtocol;
+
+    let packages = build_packages();
+
+    let mut add_opts = opts(&packages);
+    add_opts.saved_specifier = SavedSpecifierOptions {
+        calc_specifier: true,
+        range_spec_style: None,
+        save_workspace_protocol: SaveWorkspaceProtocol::On,
+        is_update: false,
+    };
+    let add_dep = WantedDependency {
+        alias: Some("foo".to_string()),
+        bare_specifier: Some("workspace:1.0.0".to_string()),
+        prev_specifier: Some("workspace:^0.5.0".to_string()),
+        ..Default::default()
+    };
+    let add_result = try_resolve_from_workspace(&add_dep, &add_opts).expect("ok").expect("some");
+    assert_eq!(add_result.normalized_bare_specifier.as_deref(), Some("workspace:1.0.0"));
+
+    let mut update_opts = opts(&packages);
+    update_opts.saved_specifier = SavedSpecifierOptions {
+        calc_specifier: true,
+        range_spec_style: None,
+        save_workspace_protocol: SaveWorkspaceProtocol::On,
+        is_update: true,
+    };
+    let update_dep = WantedDependency {
+        alias: Some("foo".to_string()),
+        bare_specifier: Some("workspace:1.0.0".to_string()),
+        prev_specifier: Some("workspace:^0.5.0".to_string()),
+        ..Default::default()
+    };
+    let update_result =
+        try_resolve_from_workspace(&update_dep, &update_opts).expect("ok").expect("some");
+    assert_eq!(update_result.normalized_bare_specifier.as_deref(), Some("workspace:^1.0.0"));
+}
