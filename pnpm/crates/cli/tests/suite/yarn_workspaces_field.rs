@@ -22,6 +22,8 @@ use std::{
 const CREATED: &str =
     r#"[WARN] Created "pnpm-workspace.yaml" from the "workspaces" field in package.json."#;
 
+const DIFFERS: &str = r#"[WARN] The "workspaces" field in package.json differs from "packages" in pnpm-workspace.yaml. pnpm uses pnpm-workspace.yaml."#;
+
 #[test]
 fn an_install_creates_a_workspace_yaml_from_the_workspaces_field() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -76,6 +78,29 @@ fn an_up_to_date_standalone_install_still_converts() {
 }
 
 #[test]
+fn a_workspaces_field_edited_after_conversion_warns_about_the_difference() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
+    );
+    let first = run(pacquet_in(&workspace), root.path(), &["install", "--lockfile-only"]);
+    assert_success(&first);
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*","tools/*"]}"#,
+    );
+
+    let output = run(pacquet_in(&workspace), root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    assert_contains(&stderr(&output), DIFFERS);
+    let kept =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("workspace yaml kept");
+    assert_eq!(kept, "packages:\n  - packages/*\n");
+}
+
+#[test]
 fn a_converted_repository_warns_once_then_stays_quiet() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     write_manifest(
@@ -117,7 +142,7 @@ fn a_workspaces_field_inside_a_pnpm_workspace_stays_quiet() {
         &workspace,
         r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
     );
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - .\n")
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
         .expect("write pnpm-workspace.yaml");
 
     let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
@@ -139,7 +164,7 @@ fn an_existing_workspace_yaml_is_left_untouched() {
     let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
 
     assert_success(&output);
-    assert_quiet(&output);
+    assert_contains(&stderr(&output), DIFFERS);
     let kept =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("workspace yaml kept");
     assert_eq!(kept, authored);

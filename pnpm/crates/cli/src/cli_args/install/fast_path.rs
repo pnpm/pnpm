@@ -1,9 +1,11 @@
 use super::{
     InstallArgs, NodeLinkerArg, UpToDateFastPathCheck, install_already_up_to_date,
     read_root_manifest_json, warn_deprecated_override_version_references,
-    warn_ignored_pnpm_manifest_fields, warn_unsupported_workspaces_field,
+    warn_ignored_pnpm_manifest_fields,
 };
-use crate::cli_args::yarn_workspaces_field::converts_yarn_workspaces;
+use crate::cli_args::yarn_workspaces_field::{
+    converts_yarn_workspaces, warn_about_workspaces_field,
+};
 
 fn report_up_to_date_install(
     root_manifest: Option<&serde_json::Value>,
@@ -12,7 +14,7 @@ fn report_up_to_date_install(
     emit: fn(&pnpm_reporter::LogEvent),
 ) {
     warn_ignored_pnpm_manifest_fields(root_manifest);
-    warn_unsupported_workspaces_field(root_manifest, config.workspace_dir.as_deref());
+    warn_about_workspaces_field(config, root_manifest);
     warn_deprecated_override_version_references(config, emit);
     // The scope covers the same projects the full install path would
     // report; an up-to-date run says so too rather than going quiet

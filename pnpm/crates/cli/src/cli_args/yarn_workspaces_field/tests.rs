@@ -1,4 +1,7 @@
-use super::{declares_yarn_workspaces, publish_new_workspace_manifest};
+use super::{
+    create_workspace_yaml_from_yarn_workspaces, declares_yarn_workspaces,
+    publish_new_workspace_manifest, same_patterns,
+};
 use crate::cli_args::package_manager::read_root_manifest_json;
 use std::{fs, path::Path};
 
@@ -141,4 +144,57 @@ fn concurrent_publishers_leave_one_complete_manifest() {
     let published = fs::read_to_string(&path).expect("read manifest");
     assert!(texts.contains(&published.as_str()), "partial manifest: {published:?}");
     assert!(files_besides_the_manifest(dir.path()).is_empty());
+}
+
+#[test]
+fn pattern_lists_compare_without_order_or_repeats() {
+    let list = |patterns: &[&str]| {
+        patterns
+            .iter()
+            .map(|&pattern| pattern.to_owned())
+            .collect::<Vec<_>>()
+    };
+    assert!(same_patterns(
+        &list(&["packages/*", "apps/*"]),
+        &list(&["apps/*", "packages/*", "apps/*"])
+    ));
+    assert!(!same_patterns(&list(&["packages/*"]), &list(&["packages/*", "tools/*"])));
+}
+
+#[test]
+fn a_manifest_published_after_the_config_loaded_anchors_the_install() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let mut config = pnpm_config::Config::default();
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - apps/*\n")
+        .expect("publish manifest");
+    let root_manifest = serde_json::json!({"workspaces": ["packages/*"]});
+
+    create_workspace_yaml_from_yarn_workspaces(&mut config, dir.path(), Some(&root_manifest))
+        .expect("anchor to the published manifest");
+
+    assert_eq!(config.workspace_dir.as_deref(), Some(dir.path()));
+    assert_eq!(config.workspace_package_patterns, Some(vec!["apps/*".to_owned()]));
+    assert_eq!(
+        fs::read_to_string(dir.path().join("pnpm-workspace.yaml")).expect("read manifest"),
+        "packages:\n  - apps/*\n",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_dangling_symlinked_manifest_leaves_the_install_standalone() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let mut config = pnpm_config::Config::default();
+    std::os::unix::fs::symlink(
+        dir.path().join("missing.yaml"),
+        dir.path().join("pnpm-workspace.yaml"),
+    )
+    .expect("create dangling symlink");
+    let root_manifest = serde_json::json!({"workspaces": ["packages/*"]});
+
+    create_workspace_yaml_from_yarn_workspaces(&mut config, dir.path(), Some(&root_manifest))
+        .expect("leave the symlink alone");
+
+    assert_eq!(config.workspace_dir, None);
+    assert!(!dir.path().join("missing.yaml").exists());
 }

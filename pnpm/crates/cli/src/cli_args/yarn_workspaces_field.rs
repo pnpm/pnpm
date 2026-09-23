@@ -12,21 +12,36 @@ use pnpm_config::{Config, WORKSPACE_MANIFEST_FILENAME};
 use serde_json::Value;
 use std::path::Path;
 
-/// Warn when the root project manifest declares Yarn's `workspaces` field
-/// outside a pnpm workspace. Inside one the field is redundant rather than
-/// misleading: `pnpm-workspace.yaml` already selects the projects, so
-/// `workspace_dir` being set silences the warning.
-pub(crate) fn warn_unsupported_workspaces_field(
-    manifest: Option<&Value>,
-    workspace_dir: Option<&Path>,
-) {
-    if workspace_dir.is_some() || !declares_yarn_workspaces(manifest) {
+/// Warn about a `workspaces` field in the root project manifest that pnpm
+/// does not follow. Outside a pnpm workspace the field is unsupported.
+/// Inside one, `pnpm-workspace.yaml` selects the projects, so the field
+/// only warrants a warning when its patterns differ from that file's.
+pub(crate) fn warn_about_workspaces_field(config: &Config, manifest: Option<&Value>) {
+    let Some(workspace_dir) = config.workspace_dir.as_deref() else {
+        if declares_yarn_workspaces(manifest) {
+            emit_config_warning(
+                "The \"workspaces\" field in package.json is not supported by pnpm. \
+                 Create a \"pnpm-workspace.yaml\" file instead.",
+            );
+        }
+        return;
+    };
+    // With `lockfileDir` elsewhere, the root manifest is not the workspace
+    // root's, so its field says nothing about `pnpm-workspace.yaml`.
+    if config.lockfile_dir
+        .as_deref()
+        .is_some_and(|dir| dir != workspace_dir)
+    {
         return;
     }
-    emit_config_warning(
-        "The \"workspaces\" field in package.json is not supported by pnpm. \
-         Create a \"pnpm-workspace.yaml\" file instead.",
-    );
+    let field = yarn_workspace_patterns(manifest);
+    let packages = config.workspace_package_patterns.as_deref().unwrap_or_default();
+    if !field.is_empty() && !same_patterns(&field, packages) {
+        emit_config_warning(
+            "The \"workspaces\" field in package.json differs from \"packages\" in \
+             pnpm-workspace.yaml. pnpm uses pnpm-workspace.yaml.",
+        );
+    }
 }
 
 /// Whether [`create_workspace_yaml_from_yarn_workspaces`] would convert
@@ -43,24 +58,24 @@ pub(crate) fn converts_yarn_workspaces(config: &Config, root_manifest: Option<&V
 ///
 /// An existing `pnpm-workspace.yaml` is never replaced, whether it was
 /// there before the check or appeared while this one was being written;
-/// `cfg` then follows that file. Without a usable pattern, or under
-/// `--ignore-workspace`, the unsupported-field warning applies instead.
+/// `cfg` then follows that file. Inside a workspace, without a usable
+/// pattern, or under `--ignore-workspace`, nothing is created and
+/// [`warn_about_workspaces_field`] applies instead.
 pub(crate) fn create_workspace_yaml_from_yarn_workspaces(
     cfg: &mut Config,
     config_root: &Path,
     root_manifest: Option<&Value>,
 ) -> miette::Result<()> {
-    if cfg.workspace_dir.is_some() {
-        return Ok(());
-    }
     let patterns = yarn_workspace_patterns(root_manifest);
-    if cfg.ignore_workspace || patterns.is_empty() {
-        warn_unsupported_workspaces_field(root_manifest, None);
+    if cfg.workspace_dir.is_some() || cfg.ignore_workspace || patterns.is_empty() {
+        warn_about_workspaces_field(cfg, root_manifest);
         return Ok(());
     }
     let path = config_root.join(WORKSPACE_MANIFEST_FILENAME);
-    if workspace_manifest_exists(&path)? {
-        return Ok(());
+    match existing_workspace_manifest(&path)? {
+        Some(ExistingManifest::File) => return anchor_to_existing_workspace(cfg, config_root),
+        Some(ExistingManifest::Other) => return Ok(()),
+        None => {}
     }
     let text = render_workspace_manifest(&patterns)
         .into_diagnostic()
@@ -82,12 +97,21 @@ pub(crate) fn create_workspace_yaml_from_yarn_workspaces(
     }
 }
 
+enum ExistingManifest {
+    /// A regular file, which another writer may have published after the
+    /// config loaded.
+    File,
+    /// A symlink or any other entry, left alone and never followed.
+    Other,
+}
+
 /// Not `try_exists`: that follows a dangling symlink to report "absent",
 /// and the write would then land on the link's target.
-fn workspace_manifest_exists(path: &Path) -> miette::Result<bool> {
+fn existing_workspace_manifest(path: &Path) -> miette::Result<Option<ExistingManifest>> {
     match std::fs::symlink_metadata(path) {
-        Ok(_) => Ok(true),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Ok(metadata) if metadata.is_file() => Ok(Some(ExistingManifest::File)),
+        Ok(_) => Ok(Some(ExistingManifest::Other)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error)
             .into_diagnostic()
             .wrap_err_with(|| format!("check for an existing {}", path.display())),
@@ -111,7 +135,7 @@ fn render_workspace_manifest(
 }
 
 /// Anchor `cfg` to the `pnpm-workspace.yaml` another writer published in
-/// `config_root` while this one was being written.
+/// `config_root` after the config loaded.
 fn anchor_to_existing_workspace(cfg: &mut Config, config_root: &Path) -> miette::Result<()> {
     let manifest = pnpm_workspace::read_workspace_manifest(config_root)
         .into_diagnostic()
@@ -165,6 +189,14 @@ fn yarn_workspace_patterns(manifest: Option<&Value>) -> Vec<String> {
         .filter(|pattern| !pattern.is_empty())
         .map(str::to_owned)
         .collect()
+}
+
+/// Whether two pattern lists select the same projects, ignoring order and
+/// repeats.
+fn same_patterns(left: &[String], right: &[String]) -> bool {
+    let left: std::collections::BTreeSet<&String> = left.iter().collect();
+    let right: std::collections::BTreeSet<&String> = right.iter().collect();
+    left == right
 }
 
 /// Whether the manifest declares a non-empty array-form `workspaces`
