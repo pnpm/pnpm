@@ -114,6 +114,32 @@ test('env remove calls pnpm remove when installed node version matches', async (
   fs.rmSync(tempDir, { recursive: true, force: true })
 })
 
+test('env remove inspects configured globalPkgDir and passes globalDir to pnpm remove', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
+  const customGlobalDir = path.join(tempDir, 'custom-global')
+  const customGlobalPkgDir = path.join(customGlobalDir, 'v11')
+  const installDir = path.join(customGlobalPkgDir, 'install-node')
+  fs.mkdirSync(path.join(installDir, 'node_modules', 'node'), { recursive: true })
+  fs.writeFileSync(path.join(installDir, 'node_modules', 'node', 'package.json'), JSON.stringify({ name: 'node', version: '18.12.0' }))
+  fs.symlinkSync(installDir, path.join(customGlobalPkgDir, 'hash-node'))
+
+  await env.handler({
+    bin: '/usr/local/bin',
+    global: true,
+    globalDir: customGlobalDir,
+    globalPkgDir: customGlobalPkgDir,
+    pnpmHomeDir: path.join(tempDir, 'home'),
+    configByUri: {},
+  }, ['remove', '18'])
+
+  expect(mockRunPnpmCli).toHaveBeenCalledWith(
+    ['remove', '--global', 'node', '--global-bin-dir', '/usr/local/bin', '--global-dir', customGlobalDir],
+    { cwd: path.join(tempDir, 'home') }
+  )
+
+  fs.rmSync(tempDir, { recursive: true, force: true })
+})
+
 test('env remove does not call pnpm remove when installed node version does not match', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
   const pnpmHomeDir = path.join(tempDir, 'home')

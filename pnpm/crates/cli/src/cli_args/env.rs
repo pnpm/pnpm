@@ -230,8 +230,7 @@ impl EnvArgs {
         }
 
         let mut removed_names = std::collections::HashSet::new();
-        let pnpm_home = pnpm_config::default_pnpm_home_dir::<pnpm_config::Host>()
-            .or_else(|| global_bin_dir.parent().map(Path::to_path_buf));
+        let pnpm_home = pnpm_config::default_pnpm_home_dir::<pnpm_config::Host>();
 
         if cleanup_pnpm_home(pnpm_home.as_deref(), &versions, &mut removed_names).into_diagnostic()?
         {

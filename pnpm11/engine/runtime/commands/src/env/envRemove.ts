@@ -12,9 +12,9 @@ function matchesNodeVersion (actualVersion: string, requestedVersion: string): b
   return actualVersion === requestedVersion || actualVersion.startsWith(`${requestedVersion}.`)
 }
 
-function getGlobalNodeInstalledVersion (pnpmHomeDir?: string): string | null {
-  if (!pnpmHomeDir) return null
-  const globalDir = path.join(pnpmHomeDir, 'global', 'v11')
+function getGlobalNodeInstalledVersion (globalPkgDir?: string, pnpmHomeDir?: string): string | null {
+  const globalDir = globalPkgDir ?? (pnpmHomeDir ? path.join(pnpmHomeDir, 'global', 'v11') : undefined)
+  if (!globalDir) return null
   let entries: fs.Dirent[]
   try {
     entries = fs.readdirSync(globalDir, { withFileTypes: true })
@@ -85,7 +85,7 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
   let removedSomething = false
   const removedNames = new Set<string>()
 
-  const installedGlobalNodeVersion = getGlobalNodeInstalledVersion(opts.pnpmHomeDir)
+  const installedGlobalNodeVersion = getGlobalNodeInstalledVersion(opts.globalPkgDir, opts.pnpmHomeDir)
   const activeVersionMatches = installedGlobalNodeVersion != null &&
     versions.some((v) => matchesNodeVersion(installedGlobalNodeVersion, v))
 
@@ -94,6 +94,7 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
     if (opts.bin) args.push('--global-bin-dir', opts.bin)
     if (opts.storeDir) args.push('--store-dir', opts.storeDir)
     if (opts.cacheDir) args.push('--cache-dir', opts.cacheDir)
+    if (opts.globalDir) args.push('--global-dir', opts.globalDir)
     runPnpmCli(args, { cwd: opts.pnpmHomeDir })
     removedSomething = true
   }
