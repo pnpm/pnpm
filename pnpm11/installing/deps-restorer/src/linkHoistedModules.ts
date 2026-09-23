@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { linkBins } from '@pnpm/bins.linker'
@@ -101,7 +102,7 @@ export async function linkHoistedModules (
 
 async function tryRemoveDir (dir: string): Promise<void> {
   removalLogger.debug(dir)
-  await removeBinsOfDependency(dir, { binsDir: path.join(getModulesDir(dir), '.bin') }).catch(() => {})
+  await removeOrphanBins(dir).catch(() => {})
   try {
     await rimraf(dir)
   } catch (err: any) { // eslint-disable-line
@@ -113,6 +114,14 @@ async function tryRemoveDir (dir: string): Promise<void> {
     })
     */
   }
+}
+
+async function removeOrphanBins (pkgDir: string): Promise<void> {
+  const binsDir = path.join(getModulesDir(pkgDir), '.bin')
+  // Unlinking through a symlinked `.bin` would delete files outside the install root.
+  const binsDirStats = await fs.promises.lstat(binsDir)
+  if (!binsDirStats.isDirectory()) return
+  await removeBinsOfDependency(pkgDir, { binsDir })
 }
 
 function getModulesDir (pkgDir: string): string {
