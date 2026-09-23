@@ -1,3 +1,5 @@
+import util from 'node:util'
+
 import { parsePkgAndParentSelector } from '@pnpm/config.parse-overrides'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
@@ -13,6 +15,7 @@ import type { DepPath } from '@pnpm/types'
  * of its alias. Reopening every edge would move the others too, so a scoped
  * selector contributes nothing. A selector that is still set keeps governing
  * its edges, so a version it locked stays while the new value accepts it.
+ * A selector that does not parse never governed anything and is skipped.
  */
 export function getStaleOverrideTargets (
   lockedOverrides: Record<string, string> | undefined,
@@ -21,12 +24,24 @@ export function getStaleOverrideTargets (
   const targets = new Set<string>()
   for (const selector of Object.keys(lockedOverrides ?? {})) {
     if (overrides[selector] != null) continue
-    const { parentPkg, targetPkg } = parsePkgAndParentSelector(selector)
-    if (parentPkg == null && targetPkg.bareSpecifier == null) {
-      targets.add(targetPkg.name)
+    const parsed = tryParseSelector(selector)
+    if (parsed == null) continue
+    if (parsed.parentPkg == null && parsed.targetPkg.bareSpecifier == null) {
+      targets.add(parsed.targetPkg.name)
     }
   }
   return targets
+}
+
+function tryParseSelector (selector: string): ReturnType<typeof parsePkgAndParentSelector> | undefined {
+  try {
+    return parsePkgAndParentSelector(selector)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_PNPM_INVALID_SELECTOR') {
+      return undefined
+    }
+    throw err
+  }
 }
 
 export function omitPackagesNamed (
