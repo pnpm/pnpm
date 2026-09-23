@@ -230,6 +230,24 @@ test('prints command error without exit code', async () => {
   expect(output).toBe(`${formatError('ELIFECYCLE', 'Command failed.')}`)
 })
 
+test('prints the signal that killed the command', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['run', 'lint'] },
+    streamParser: createStreamParser(),
+  })
+
+  expect.assertions(1)
+
+  const err: Exception = new Error('Command failed')
+  err['signal'] = 'SIGKILL'
+  err['stage'] = 'lint'
+  err['code'] = 'ELIFECYCLE'
+  logger.error(err, err)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`${formatError('ELIFECYCLE', 'Command failed with signal SIGKILL.')}`)
+})
+
 test('prints unsupported pnpm version error', async () => {
   const output$ = toOutput$({
     context: { argv: ['install'] },

@@ -335,6 +335,34 @@ fn run_propagates_failing_script_exit_code() {
     drop(root);
 }
 
+/// A script killed by a signal has no exit code, so the lifecycle error
+/// names the signal.
+#[cfg(unix)]
+#[test]
+fn run_names_the_signal_that_killed_the_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "die": "kill -9 $$" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    let output = pacquet
+        .with_arg("run")
+        .with_arg("die")
+        .output()
+        .expect("spawn pacquet run");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("[ELIFECYCLE] Command failed with signal SIGKILL."),
+        "the lifecycle error should name the signal:\n{stderr}",
+    );
+
+    drop(root);
+}
+
 /// A script body with embedded quotes reaches the child untouched. On
 /// Windows the default `cmd /d /s /c` path is `windows_verbatim_args`, so
 /// the script must be appended with `raw_arg`; a plain `arg` would escape

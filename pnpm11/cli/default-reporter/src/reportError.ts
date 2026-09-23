@@ -367,6 +367,7 @@ function reportLifecycleError (
   msg: {
     stage: string
     errno?: number | string
+    signal?: string
   }
 ): ErrorInfo {
   if (msg.stage === 'test') {
@@ -374,6 +375,9 @@ function reportLifecycleError (
   }
   if (typeof msg.errno === 'number') {
     return { title: `Command failed with exit code ${msg.errno}.` }
+  }
+  if (msg.signal) {
+    return { title: `Command failed with signal ${msg.signal}.` }
   }
   return { title: 'Command failed.' }
 }
