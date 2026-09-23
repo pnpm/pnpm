@@ -383,17 +383,22 @@ export interface OutdatedPackageJSONOutput {
 }
 
 function renderOutdatedJSON (outdatedPackages: readonly OutdatedItem[], opts: { long?: boolean, sortBy?: 'name' }): string {
+  const packageCounts: Record<string, number> = {}
+  for (const pkg of outdatedPackages) {
+    packageCounts[pkg.packageName] = (packageCounts[pkg.packageName] ?? 0) + 1
+  }
   const outdatedPackagesJSON: Record<string, OutdatedPackageJSONOutput> = sortOutdatedPackages(outdatedPackages, { sortBy: opts.sortBy })
     .reduce((acc, outdatedPkg) => {
-      acc[outdatedPkg.packageName] = {
+      const key = getOutdatedJSONKey(outdatedPkg, packageCounts[outdatedPkg.packageName] > 1)
+      acc[key] = {
         current: outdatedPkg.current,
         latest: outdatedPkg.latestManifest?.version,
         wanted: outdatedPkg.wanted,
         isDeprecated: Boolean(outdatedPkg.latestManifest?.deprecated),
-        dependencyType: outdatedPkg.dependencyType ?? outdatedPkg.belongsTo,
+        dependencyType: outdatedPkg.dependencyType ?? outdatedPkg.belongsTo!,
       }
       if (opts.long) {
-        acc[outdatedPkg.packageName].latestManifest = outdatedPkg.latestManifest
+        acc[key].latestManifest = outdatedPkg.latestManifest
       }
       return acc
     }, {} as Record<string, OutdatedPackageJSONOutput>)
@@ -441,6 +446,25 @@ export function renderPackageName ({ belongsTo, dependencyType, packageName }: O
     case 'peerDependencies': return `${packageName} ${chalk.dim('(peer)')}`
     default: return packageName
   }
+}
+
+export function getDependencyTypeSuffix (outdatedPkg: OutdatedItem): string {
+  if (outdatedPkg.dependencyType === 'githubAction') return ' (github action)'
+  switch (outdatedPkg.belongsTo) {
+    case 'devDependencies': return ' (dev)'
+    case 'optionalDependencies': return ' (optional)'
+    case 'peerDependencies': return ' (peer)'
+    default: return ''
+  }
+}
+
+export function getOutdatedJSONKey (outdatedPkg: OutdatedItem, hasMultiple: boolean): string {
+  if (!hasMultiple) return outdatedPkg.packageName
+  const suffix = getDependencyTypeSuffix(outdatedPkg)
+  if (outdatedPkg.current) {
+    return `${outdatedPkg.packageName}@${outdatedPkg.current}${suffix}`
+  }
+  return `${outdatedPkg.packageName}${suffix}`
 }
 
 export function renderCurrent ({ current, wanted }: OutdatedPackage): string {

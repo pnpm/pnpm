@@ -17,6 +17,7 @@ import { isEmpty, sortWith } from 'ramda'
 
 import {
   getCellWidth,
+  getOutdatedJSONKey,
   hasUnmatchedPackageParams,
   type OutdatedCommandOptions,
   type OutdatedItem,
@@ -211,9 +212,14 @@ function renderOutdatedJSON (
   outdatedMap: Record<string, OutdatedInWorkspace>,
   opts: { long?: boolean }
 ): string {
+  const packageCounts: Record<string, number> = {}
+  for (const pkg of Object.values(outdatedMap)) {
+    packageCounts[pkg.packageName] = (packageCounts[pkg.packageName] ?? 0) + 1
+  }
   const outdatedPackagesJSON: Record<string, OutdatedPackageInWorkspaceJSONOutput> = sortOutdatedPackages(Object.values(outdatedMap))
     .reduce((acc, outdatedPkg) => {
-      acc[outdatedPkg.packageName] = {
+      const key = getOutdatedJSONKey(outdatedPkg, packageCounts[outdatedPkg.packageName] > 1)
+      acc[key] = {
         current: outdatedPkg.current,
         latest: outdatedPkg.latestManifest?.version,
         wanted: outdatedPkg.wanted,
@@ -222,7 +228,7 @@ function renderOutdatedJSON (
         dependentPackages: outdatedPkg.dependentPkgs.map(({ manifest, location }) => ({ name: manifest.name!, location })),
       }
       if (opts.long) {
-        acc[outdatedPkg.packageName].latestManifest = outdatedPkg.latestManifest
+        acc[key].latestManifest = outdatedPkg.latestManifest
       }
       return acc
     }, {} as Record<string, OutdatedPackageInWorkspaceJSONOutput>)
