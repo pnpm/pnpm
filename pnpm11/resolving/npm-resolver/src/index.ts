@@ -598,6 +598,7 @@ async function resolveNpm (
     opts.currentPkg?.resolution &&
     !opts.update &&
     !opts.updatePatches &&
+    !opts.updateChecksums &&
     spec.revision == null &&
     opts.trustPolicy !== 'no-downgrade' &&
     (opts.publishedBy == null || opts.currentPkg.publishedAt != null)

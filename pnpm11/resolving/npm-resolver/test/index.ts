@@ -3356,4 +3356,49 @@ test('peekManifestFromStore: bypassed when cached version does not satisfy reque
   getMockAgent().assertNoPendingInterceptors()
 })
 
+test('peekManifestFromStore: bypassed when updateChecksums is true', async () => {
+  const storeDir = temporaryDirectory()
+  const storeIndex = new StoreIndex(storeDir)
+  const integrity = 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ=='
+  const key = storeIndexKey(integrity, 'is-positive@1.0.0')
+  storeIndex.set(key, {
+    algo: 'sha512',
+    files: new Map(),
+    manifest: {
+      name: 'is-positive',
+      version: '1.0.0',
+    },
+  })
+
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMetaFull)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir,
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  const resolveResult = await resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    {
+      updateChecksums: true,
+      currentPkg: {
+        id: 'is-positive@1.0.0' as PkgResolutionId,
+        name: 'is-positive',
+        version: '1.0.0',
+        resolution: {
+          integrity,
+          tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        },
+      },
+    }
+  )
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
+  getMockAgent().assertNoPendingInterceptors()
+})
+
 
