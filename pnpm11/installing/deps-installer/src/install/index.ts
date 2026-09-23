@@ -3916,6 +3916,7 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
     // https://github.com/pnpm/pnpm/issues/12230.
     const headlessOpts = {
       ...opts,
+      deferProjectLifecycleScriptsError: false,
       dir: rootDir as string,
       lockfileDir,
       engineStrict: opts.engineStrict ?? false,
