@@ -60,23 +60,24 @@ impl UnlinkArgs {
                 .ok_or_else(|| miette::miette!("manifest path has no parent directory"))?;
             let root_dir = config.workspace_dir.as_deref().unwrap_or(manifest_dir);
 
-            remove_overrides(
-                root_dir,
-                &removed
-                    .keys()
-                    .cloned()
-                    .collect::<Vec<_>>(),
-            )
-            .wrap_err("removing link: overrides from pnpm-workspace.yaml")?;
-
             let linked_dirs: Vec<(&str, PathBuf)> = removed
                 .iter()
                 .map(|(name, specifier)| (name.as_str(), link_target_dir(root_dir, specifier)))
                 .collect();
-            for project_manifest_path in
+            let unlinked_manifests: Vec<PackageManifest> =
                 selected_manifest_paths(config, prefix, manifest_path, recursive_sort)?
-            {
-                remove_linked_dependencies(&project_manifest_path, &linked_dirs)?;
+                    .iter()
+                    .map(|path| remove_linked_dependencies(path, &linked_dirs))
+                    .filter_map(Result::transpose)
+                    .collect::<miette::Result<_>>()?;
+
+            let selectors: Vec<String> = removed.into_keys().collect();
+            remove_overrides(root_dir, &selectors)
+                .wrap_err("removing link: overrides from pnpm-workspace.yaml")?;
+            for mut manifest in unlinked_manifests {
+                manifest
+                    .save()
+                    .wrap_err("saving package.json without the unlinked dependencies")?;
             }
         }
 
@@ -134,17 +135,18 @@ fn link_target_dir(base_dir: &Path, specifier: &str) -> PathBuf {
     lexical_normalize(&base_dir.join(path))
 }
 
-/// Drop the dependencies `pnpm link` added to `package.json` for the removed
-/// overrides. `pnpm link` only writes `dependencies`, and only a `link:`
-/// dependency that points at the same directory as its override is dropped,
-/// so a `link:` dependency declared to another directory is kept.
+/// The manifest at `manifest_path` with the dependencies `pnpm link` added
+/// for the removed overrides dropped, unsaved, or `None` when it has none.
+/// `pnpm link` only writes `dependencies`, and only a `link:` dependency that
+/// points at the same directory as its override is dropped, so a `link:`
+/// dependency declared to another directory is kept.
 fn remove_linked_dependencies(
     manifest_path: &Path,
     linked_dirs: &[(&str, PathBuf)],
-) -> miette::Result<()> {
+) -> miette::Result<Option<PackageManifest>> {
     let mut manifest = match PackageManifest::from_path(manifest_path.to_path_buf()) {
         Ok(manifest) => manifest,
-        Err(PackageManifestError::NoImporterManifestFound(_)) => return Ok(()),
+        Err(PackageManifestError::NoImporterManifestFound(_)) => return Ok(None),
         Err(error) => return Err(error).wrap_err("reading the project package.json"),
     };
     let manifest_dir = manifest_path
@@ -155,7 +157,7 @@ fn remove_linked_dependencies(
         .get_mut("dependencies")
         .and_then(Value::as_object_mut)
     else {
-        return Ok(());
+        return Ok(None);
     };
 
     let mut changed = false;
@@ -173,8 +175,5 @@ fn remove_linked_dependencies(
         }
     }
 
-    if changed {
-        manifest.save().wrap_err("saving package.json without the unlinked dependencies")?;
-    }
-    Ok(())
+    Ok(changed.then_some(manifest))
 }

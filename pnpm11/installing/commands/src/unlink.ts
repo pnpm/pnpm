@@ -4,6 +4,7 @@ import { UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, tryReadProjectManifest } from '@pnpm/cli.utils'
 import { writeSettings } from '@pnpm/config.writer'
 import type { ProjectManifest } from '@pnpm/types'
+import type { WriteProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { isEmpty } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -59,6 +60,7 @@ export async function handler (
   }
   let rootProjectManifest = opts.rootProjectManifest
   if (!isEmpty(removedLinks)) {
+    const unlinked = await removeLinkedDependencies(opts, removedLinks)
     await writeSettings({
       workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
       rootProjectManifestDir: opts.rootProjectManifestDir,
@@ -66,7 +68,10 @@ export async function handler (
         overrides: isEmpty(opts.overrides) ? undefined : opts.overrides,
       },
     })
-    rootProjectManifest = await removeLinkedDependencies(opts, removedLinks) ?? rootProjectManifest
+    if (unlinked?.changed && !opts.dryRun) {
+      await unlinked.writeProjectManifest(unlinked.manifest)
+    }
+    rootProjectManifest = unlinked?.manifest ?? rootProjectManifest
   }
   await install.handler({ ...opts, rootProjectManifest })
   return undefined
@@ -74,15 +79,15 @@ export async function handler (
 
 /**
  * Removes the dependencies that `pnpm link` added to the root project manifest
- * for the given `link:` overrides, on disk and in the workspace projects the
- * install reads. `pnpm link` only writes `dependencies`, and a dependency is
+ * for the given `link:` overrides, in the manifest read from disk and in the
+ * workspace projects the install reads. The caller writes the manifest back. `pnpm link` only writes `dependencies`, and a dependency is
  * removed only when it is a `link:` to the same directory as the override, so
  * a `link:` dependency the user declared elsewhere is kept.
  */
 async function removeLinkedDependencies (
   opts: install.InstallCommandOptions,
   removedLinks: Record<string, string>
-): Promise<ProjectManifest | undefined> {
+): Promise<{ manifest: ProjectManifest, changed: boolean, writeProjectManifest: WriteProjectManifest } | undefined> {
   const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.rootProjectManifestDir, opts)
   if (manifest == null) return undefined
   const rootDir = path.resolve(opts.rootProjectManifestDir)
@@ -93,10 +98,8 @@ async function removeLinkedDependencies (
   for (const loadedManifest of loadedRootManifests) {
     dropLinkedDependencies(loadedManifest, removedLinks, rootDir)
   }
-  if (dropLinkedDependencies(manifest, removedLinks, rootDir) && !opts.dryRun) {
-    await writeProjectManifest(manifest)
-  }
-  return manifest
+  const changed = dropLinkedDependencies(manifest, removedLinks, rootDir)
+  return { manifest, changed, writeProjectManifest }
 }
 
 function dropLinkedDependencies (manifest: ProjectManifest, removedLinks: Record<string, string>, manifestDir: string): boolean {

@@ -562,3 +562,36 @@ fn recursive_unlink_reverts_the_dependency_link_added_to_a_member() {
 
     drop((root, mock_instance));
 }
+
+/// A `-r` / `--filter` selection that fails leaves the link in place: the
+/// override is only removed once every selected manifest was read.
+#[test]
+fn failed_selection_keeps_link_override() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, &serde_json::json!({ "name": "root", "private": true }));
+    add_overrides(
+        &workspace,
+        "packages:\n  - 'packages/*'\noverrides:\n  linked-foo: link:linked-foo\n",
+    );
+    let member = workspace.join("packages").join("app");
+    fs::create_dir_all(&member).expect("create member dir");
+    write_manifest(&member, &serde_json::json!({ "name": "app", "version": "1.0.0" }));
+
+    let mut unlink = std::process::Command::cargo_bin("pnpm").expect("locate pacquet binary");
+    unlink.current_dir(&workspace);
+    unlink
+        .with_args(["--filter", "missing", "--fail-if-no-match", "unlink"])
+        .assert()
+        .failure();
+
+    let workspace_yaml = read_workspace_yaml(&workspace);
+    assert!(
+        workspace_yaml.contains("linked-foo: link:linked-foo"),
+        "the override must survive a failed selection: {workspace_yaml}",
+    );
+
+    drop((root, mock_instance));
+}
