@@ -68,6 +68,92 @@ fn an_abandoned_lock_is_taken_over() {
     assert!(!path.exists());
 }
 
+/// A process killed while holding the lock leaves its directory behind
+/// with nobody holding the OS lock on the held file. The next acquire
+/// must not sit out its wait for a holder that is not coming back
+/// ([pnpm/pnpm#15360](https://github.com/pnpm/pnpm/issues/15360)).
+#[test]
+fn a_lock_whose_holder_died_is_taken_over_at_once() {
+    let root = tempdir().expect("create tempdir");
+    let path = root.path().join("engine.lock");
+    plant_dead_holders_lock(&path);
+
+    let started = std::time::Instant::now();
+    let taken = DirLock::acquire(path.clone(), Duration::ZERO, NEVER_ABANDONED)
+        .expect("acquire")
+        .expect("a dead holder's lock is taken over");
+    assert!(
+        started.elapsed() < NEVER_ABANDONED,
+        "the takeover does not wait for the age threshold",
+    );
+    assert!(taken.is_owner().expect("inspect owner"));
+
+    drop(taken);
+    assert!(!path.exists(), "the successor releases it on its own drop");
+}
+
+/// A holder that took the directory but has not recorded itself yet is
+/// mid-claim, not dead, even though its held file is still unlocked.
+#[test]
+fn a_claim_in_progress_is_not_taken_over() {
+    let root = tempdir().expect("create tempdir");
+    let path = root.path().join("engine.lock");
+    fs::create_dir(&path).expect("plant a lock mid-claim");
+    fs::write(path.join(super::HELD_FILE), "").expect("plant the held file");
+
+    let contended =
+        DirLock::acquire(path.clone(), Duration::ZERO, NEVER_ABANDONED).expect("acquire");
+
+    assert!(contended.is_none(), "a claim in progress is not stolen");
+    assert!(path.is_dir(), "the claimer's directory is left alone");
+}
+
+/// An older pnpm records its owner but keeps no OS lock, so its liveness
+/// cannot be told. Only the age threshold may declare such a lock
+/// abandoned, or a mixed-version host runs the guarded work twice at
+/// once.
+#[test]
+fn a_lock_without_a_held_file_waits_for_the_age_threshold() {
+    let root = tempdir().expect("create tempdir");
+    let path = root.path().join("engine.lock");
+    fs::create_dir(&path).expect("plant an older pnpm's lock");
+    fs::write(path.join(super::OWNER_FILE), "1-2-3").expect("plant the owner record");
+
+    let contended =
+        DirLock::acquire(path.clone(), Duration::ZERO, NEVER_ABANDONED).expect("acquire");
+    assert!(contended.is_none(), "a lock of unknown liveness is not stolen while fresh");
+
+    sleep(AGE);
+    let taken = DirLock::acquire(path, Duration::ZERO, THRESHOLD)
+        .expect("acquire")
+        .expect("an aged lock of unknown liveness is taken over");
+    assert!(taken.is_owner().expect("inspect owner"));
+}
+
+/// The holder keeps the OS lock for as long as it holds the directory,
+/// so a live holder never reads as dead to a waiter.
+#[test]
+fn a_live_holder_keeps_its_held_file_locked() {
+    let root = tempdir().expect("create tempdir");
+    let path = root.path().join("engine.lock");
+
+    let held = DirLock::acquire(path.clone(), Duration::ZERO, NEVER_ABANDONED)
+        .expect("acquire")
+        .expect("uncontended lock is taken");
+    assert!(!super::holder_is_gone(&path), "a live holder is not reported gone");
+
+    drop(held);
+    assert!(!path.exists());
+}
+
+/// Plant what a process killed while holding the lock leaves behind: the
+/// directory, its owner record, and a held file nobody has locked.
+fn plant_dead_holders_lock(path: &std::path::Path) {
+    fs::create_dir(path).expect("plant the lock directory");
+    fs::write(path.join(super::HELD_FILE), "").expect("plant the held file");
+    fs::write(path.join(super::OWNER_FILE), "1-2-3").expect("plant the owner record");
+}
+
 /// A holder that outran the abandonment threshold has already lost its
 /// lock to the next process in line. Releasing then must not remove the
 /// successor's directory, or two processes hold the resource at once.
