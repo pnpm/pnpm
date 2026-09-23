@@ -842,30 +842,73 @@ ${boldHighlighted(`root@1.0.0 ${fixture}`)}
 
 test('--only-projects shows the projects of a workspace with dedicated lockfiles', async () => {
   const fixture = f.find('workspace-with-nested-workspace-deps-and-dedicated-lockfiles')
-  const output = await list([fixture], { depth: Infinity, lockfileDir: fixture, onlyProjects: true, virtualStoreDirMaxLength: 120 })
+  const output = await list([fixture], {
+    depth: Infinity,
+    lockfileDir: fixture,
+    onlyProjects: true,
+    virtualStoreDirMaxLength: 120,
+    workspaceProjectDirs: dedicatedLockfilesWorkspaceProjectDirs(fixture),
+  })
+
+  // The linked "external" directory has a lockfile but is not a workspace
+  // project, so it is not printed. The second "@scope/b" is not walked again.
 
   expect(output).toBe(`${LEGEND}
 
 ${boldHighlighted(`root@1.0.0 ${fixture}`)}
 │
 │   ${DEPENDENCIES}
-└─┬ @scope/a${VERSION_CLR('@link:packages/a')}
-  └─┬ @scope/b${VERSION_CLR('@link:packages/b')}
-    └── @scope/c${VERSION_CLR('@link:packages/c')}`)
+├─┬ @scope/a${VERSION_CLR('@link:packages/a')}
+│ └─┬ @scope/b${VERSION_CLR('@link:packages/b')}
+│   └── @scope/c${VERSION_CLR('@link:packages/c')}
+└── @scope/b${VERSION_CLR('@link:packages/b')} [deduped]`)
 })
 
 test('--only-projects respects the depth in a workspace with dedicated lockfiles', async () => {
   const fixture = f.find('workspace-with-nested-workspace-deps-and-dedicated-lockfiles')
-  const output = await list([fixture], { depth: 1, lockfileDir: fixture, onlyProjects: true, virtualStoreDirMaxLength: 120 })
+  const output = await list([fixture], {
+    depth: 1,
+    lockfileDir: fixture,
+    onlyProjects: true,
+    virtualStoreDirMaxLength: 120,
+    workspaceProjectDirs: dedicatedLockfilesWorkspaceProjectDirs(fixture),
+  })
 
   expect(output).toBe(`${LEGEND}
 
 ${boldHighlighted(`root@1.0.0 ${fixture}`)}
 │
 │   ${DEPENDENCIES}
-└─┬ @scope/a${VERSION_CLR('@link:packages/a')}
-  └── @scope/b${VERSION_CLR('@link:packages/b')}`)
+├─┬ @scope/a${VERSION_CLR('@link:packages/a')}
+│ └── @scope/b${VERSION_CLR('@link:packages/b')}
+└─┬ @scope/b${VERSION_CLR('@link:packages/b')}
+  └── @scope/c${VERSION_CLR('@link:packages/c')}`)
 })
+
+test('--only-projects finds a searched project behind projects with dedicated lockfiles', async () => {
+  const fixture = f.find('workspace-with-nested-workspace-deps-and-dedicated-lockfiles')
+  const output = await listForPackages(['@scope/c'], [fixture], {
+    depth: Infinity,
+    lockfileDir: fixture,
+    onlyProjects: true,
+    virtualStoreDirMaxLength: 120,
+    workspaceProjectDirs: dedicatedLockfilesWorkspaceProjectDirs(fixture),
+  })
+
+  expect(output).toBe(`${LEGEND}
+
+${boldHighlighted(`root@1.0.0 ${fixture}`)}
+│
+│   ${DEPENDENCIES}
+├─┬ @scope/a${VERSION_CLR('@link:packages/a')}
+│ └─┬ @scope/b${VERSION_CLR('@link:packages/b')}
+│   └── ${highlighted(`@scope/c${VERSION_CLR('@link:packages/c')}`)}
+└── @scope/b${VERSION_CLR('@link:packages/b')} [deduped]`)
+})
+
+function dedicatedLockfilesWorkspaceProjectDirs (fixture: string): string[] {
+  return [fixture, ...['a', 'b', 'c'].map((name) => path.join(fixture, 'packages', name))]
+}
 
 test('renderTree displays npm: protocol for aliased packages', async () => {
   const testPath = '/test/path'

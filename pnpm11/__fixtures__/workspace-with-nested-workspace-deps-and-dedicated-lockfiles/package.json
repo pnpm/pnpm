@@ -2,6 +2,8 @@
   "name": "root",
   "version": "1.0.0",
   "dependencies": {
-    "@scope/a": "workspace:*"
+    "@scope/a": "workspace:*",
+    "external": "link:external",
+    "@scope/b": "workspace:*"
   }
 }

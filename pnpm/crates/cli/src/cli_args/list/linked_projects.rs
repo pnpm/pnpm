@@ -1,37 +1,109 @@
 //! `list --only-projects` across projects with dedicated lockfiles.
 
-use super::{ListArgs, TreeRequest, recursive::dedicated_project_config};
-use crate::cli_args::deps_tree::{
-    DependencyNode,
-    build::{DependenciesHierarchy, LoadedState, importer_id_for},
-    get_tree::MaxDepth,
-    pkg_info::PkgInfoEnv,
+use crate::cli_args::{
+    deps_tree::{
+        DependencyNode,
+        build::{DependenciesHierarchy, LoadedState, importer_id_for},
+        get_tree::MaxDepth,
+        pkg_info::PkgInfoEnv,
+    },
+    list::{ListArgs, TreeRequest, recursive::dedicated_project_config},
+    recursive::discover_workspace_projects,
 };
 use pnpm_config::Config;
-use pnpm_lockfile::Lockfile;
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     future::Future,
     path::{Path, PathBuf},
     pin::Pin,
+    sync::{Arc, Mutex, PoisonError},
 };
 
 type BoxedResult<'a, Output> = Pin<Box<dyn Future<Output = miette::Result<Output>> + Send + 'a>>;
+
+/// The state every linked-project walk of one `list` run shares.
+pub(super) struct SharedLinkedProjects {
+    workspace_project_dirs: HashSet<PathBuf>,
+    /// Linked projects already expanded in the output, by directory and
+    /// depth, so that a repeated one is marked deduped instead of walked.
+    expanded: Mutex<HashMap<(PathBuf, MaxDepth), ExpandedLinkedProject>>,
+}
+
+impl SharedLinkedProjects {
+    fn load(config: &Config) -> miette::Result<Self> {
+        let workspace_project_dirs = match &config.workspace_dir {
+            Some(workspace_dir) => discover_workspace_projects(workspace_dir, config)?
+                .0
+                .into_iter()
+                .map(|project| project.root_dir)
+                .collect(),
+            None => HashSet::new(),
+        };
+        Ok(SharedLinkedProjects { workspace_project_dirs, expanded: Mutex::default() })
+    }
+
+    fn previously_expanded(&self, key: &(PathBuf, MaxDepth)) -> Option<ExpandedLinkedProject> {
+        self.expanded
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(key)
+            .copied()
+    }
+
+    fn record_expanded(&self, key: (PathBuf, MaxDepth), expanded: ExpandedLinkedProject) {
+        self.expanded
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(key, expanded);
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ExpandedLinkedProject {
+    kept: bool,
+    count: u64,
+}
+
+impl ExpandedLinkedProject {
+    fn dedupe(self, mut node: DependencyNode) -> Option<DependencyNode> {
+        if !self.kept {
+            return None;
+        }
+        if self.count > 0 {
+            node.status.deduped = true;
+            node.status.deduped_dependencies_count = Some(self.count);
+        }
+        Some(node)
+    }
+}
+
+/// The lockfile a tree was built from.
+struct ReadLockfile<'a> {
+    dir: &'a Path,
+    importer_ids: HashSet<String>,
+}
+
+impl ReadLockfile<'_> {
+    fn has_importer_for(&self, project_dir: &Path) -> bool {
+        self.importer_ids.contains(&importer_id_for(self.dir, project_dir))
+    }
+}
 
 /// The walk of one listed project's linked projects.
 struct LinkedProjects<'a> {
     config: &'a Config,
     params: &'a [String],
-    lockfile_dir: &'a Path,
-    importer_ids: &'a HashSet<String>,
+    lockfile: &'a ReadLockfile<'a>,
     depth: MaxDepth,
+    shared: Arc<SharedLinkedProjects>,
     ancestors: HashSet<PathBuf>,
     rewrite_link_version_dir: &'a Path,
+    searching: bool,
 }
 
 impl ListArgs {
-    /// Attach the project dependencies of every linked project that has a
-    /// lockfile of its own. With `sharedWorkspaceLockfile: false`, the
+    /// Attach the project dependencies of every linked workspace project
+    /// that the lockfile has no importer for. With `sharedWorkspaceLockfile: false`, the
     /// lockfile the tree was built from knows nothing about the
     /// dependencies of the other workspace projects.
     pub(super) fn expand_linked_projects<'a>(
@@ -42,22 +114,30 @@ impl ListArgs {
         request: &'a TreeRequest<'_>,
         hierarchies: &'a mut [(PathBuf, DependenciesHierarchy)],
     ) -> BoxedResult<'a, ()> {
-        let importer_ids: HashSet<String> = env.current_lockfile.importers
-            .keys()
-            .map(ToString::to_string)
-            .collect();
+        let lockfile = ReadLockfile {
+            dir: lockfile_dir,
+            importer_ids: env.current_lockfile.importers
+                .keys()
+                .map(ToString::to_string)
+                .collect(),
+        };
         Box::pin(async move {
+            let shared = match &request.linked_projects {
+                Some(shared) => Arc::clone(shared),
+                None => Arc::new(SharedLinkedProjects::load(config)?),
+            };
             for (project_dir, hierarchy) in hierarchies {
                 let mut ancestors = request.linked_project_ancestors.clone();
                 ancestors.insert(project_dir.clone());
                 let walk = LinkedProjects {
                     config,
                     params: request.params,
-                    lockfile_dir,
-                    importer_ids: &importer_ids,
+                    lockfile: &lockfile,
                     depth: request.depth,
+                    shared: Arc::clone(&shared),
                     ancestors,
                     rewrite_link_version_dir: project_dir,
+                    searching: !request.params.is_empty() || !self.find_by.is_empty(),
                 };
                 for nodes in [
                     &mut hierarchy.dependencies,
@@ -88,9 +168,7 @@ impl ListArgs {
                     continue;
                 }
                 let path = PathBuf::from(&node.package.path);
-                if node.status.circular
-                    || walk.importer_ids.contains(&importer_id_for(walk.lockfile_dir, &path))
-                {
+                if node.status.circular || walk.lockfile.has_importer_for(&path) {
                     expanded.push(node);
                     continue;
                 }
@@ -102,7 +180,8 @@ impl ListArgs {
         })
     }
 
-    /// `None` when the linked directory is not a project with a lockfile.
+    /// `None` when the linked directory is not a workspace project, or when
+    /// neither it nor its project dependencies match the search.
     async fn expand_linked_project(
         &self,
         walk: &LinkedProjects<'_>,
@@ -110,25 +189,33 @@ impl ListArgs {
         project_dir: &Path,
         level: u64,
     ) -> miette::Result<Option<DependencyNode>> {
-        if !has_own_lockfile(project_dir) {
+        if !walk.shared.workspace_project_dirs.contains(project_dir) {
             return Ok(None);
         }
         if walk.ancestors.contains(project_dir) {
             node.status.circular = true;
-            return Ok(Some(node));
+            return Ok(keep_searched(node, walk));
         }
         let Some(depth) = depth_below(walk.depth, level) else {
-            return Ok(Some(node));
+            return Ok(keep_searched(node, walk));
         };
+        let key = (project_dir.to_path_buf(), depth);
+        if let Some(previous) = walk.shared.previously_expanded(&key) {
+            return Ok(previous.dedupe(node));
+        }
         let request = TreeRequest {
             params: walk.params,
             depth,
             linked_project_ancestors: walk.ancestors.clone(),
+            linked_projects: Some(Arc::clone(&walk.shared)),
         };
         node.dependencies =
             self.load_linked_project_dependencies(walk.config, project_dir, &request).await?;
         rewrite_link_versions(&mut node.dependencies, walk.rewrite_link_version_dir);
-        Ok(Some(node))
+        let count = count_nodes(&node.dependencies);
+        let expanded = keep_searched(node, walk);
+        walk.shared.record_expanded(key, ExpandedLinkedProject { kept: expanded.is_some(), count });
+        Ok(expanded)
     }
 
     async fn load_linked_project_dependencies(
@@ -170,11 +257,16 @@ impl ListArgs {
     }
 }
 
-fn has_own_lockfile(project_dir: &Path) -> bool {
-    Lockfile::load_wanted_from_dir(project_dir)
-        .ok()
-        .flatten()
-        .is_some_and(|lockfile| lockfile.importers.contains_key("."))
+fn count_nodes(nodes: &[DependencyNode]) -> u64 {
+    nodes
+        .iter()
+        .map(|node| 1 + count_nodes(&node.dependencies))
+        .sum()
+}
+
+fn keep_searched(node: DependencyNode, walk: &LinkedProjects<'_>) -> Option<DependencyNode> {
+    let pruned = walk.searching && !node.search.matched && node.dependencies.is_empty();
+    (!pruned).then_some(node)
 }
 
 /// The depth left for the dependencies of a node at `level` (0 for a

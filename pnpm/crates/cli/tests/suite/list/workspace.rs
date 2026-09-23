@@ -463,11 +463,28 @@ fn list_only_projects_shows_only_projects() {
 fn list_only_projects_follows_projects_with_dedicated_lockfiles() {
     let (_root, workspace, _registry) = setup_registry();
     write_nested_projects_workspace(&workspace, "sharedWorkspaceLockfile: false\n");
+    // A linked directory with a lockfile of its own that is not a workspace
+    // project stays out of the tree, and the second `@scope/b` is not walked
+    // again.
+    let external = workspace
+        .parent()
+        .expect("workspace parent")
+        .join("external");
+    fs::create_dir_all(&external).expect("create external dir");
+    fs::write(external.join("package.json"), json!({ "name": "external" }).to_string())
+        .expect("write external package.json");
+    fs::write(external.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n")
+        .expect("write external lockfile");
+    let mut manifest: Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
+    manifest["dependencies"]["external"] = json!("link:../external");
+    manifest["dependencies"]["@scope/b"] = json!("workspace:*");
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
     run_ok(&workspace, &["install"]);
 
     let output =
         run_ok(&workspace, &["--filter", ".", "list", "--depth", "Infinity", "--only-projects"]);
-    assert_eq!(output, nested_projects_tree(&workspace));
+    assert_eq!(output, dedicated_lockfiles_tree(&workspace));
 
     let output = run_ok(&workspace, &["--filter", ".", "list", "--depth", "1", "--only-projects"]);
     let dir = canonical(&workspace);
@@ -478,12 +495,20 @@ fn list_only_projects_follows_projects_with_dedicated_lockfiles() {
              root@1.0.0 {dir}\n\
              \u{2502}\n\
              \u{2502}   dependencies:\n\
-             \u{2514}\u{2500}\u{252c} @scope/a@link:packages/a\n\
-             \x20\x20\u{2514}\u{2500}\u{2500} @scope/b@link:packages/b\n\
+             \u{251c}\u{2500}\u{252c} @scope/a@link:packages/a\n\
+             \u{2502} \u{2514}\u{2500}\u{2500} @scope/b@link:packages/b\n\
+             \u{2514}\u{2500}\u{252c} @scope/b@link:packages/b\n\
+             \x20\x20\u{2514}\u{2500}\u{2500} @scope/c@link:packages/c\n\
              \n\
-             2 packages\n"
+             4 packages\n"
         ),
     );
+
+    let output = run_ok(
+        &workspace,
+        &["--filter", ".", "list", "@scope/c", "--depth", "Infinity", "--only-projects"],
+    );
+    assert_eq!(output, dedicated_lockfiles_tree(&workspace));
 }
 
 /// `root` depends on `@scope/a`, which depends on `@scope/b`, which
@@ -535,5 +560,21 @@ fn nested_projects_tree(workspace: &Path) -> String {
          \x20\x20\x20\x20\u{2514}\u{2500}\u{2500} @scope/c@link:packages/c\n\
          \n\
          3 packages\n",
+    )
+}
+
+fn dedicated_lockfiles_tree(workspace: &Path) -> String {
+    let dir = canonical(workspace);
+    format!(
+        "{LEGEND}\n\n\
+         root@1.0.0 {dir}\n\
+         \u{2502}\n\
+         \u{2502}   dependencies:\n\
+         \u{251c}\u{2500}\u{252c} @scope/a@link:packages/a\n\
+         \u{2502} \u{2514}\u{2500}\u{252c} @scope/b@link:packages/b\n\
+         \u{2502}   \u{2514}\u{2500}\u{2500} @scope/c@link:packages/c\n\
+         \u{2514}\u{2500}\u{2500} @scope/b@link:packages/b [deduped]\n\
+         \n\
+         4 packages\n",
     )
 }

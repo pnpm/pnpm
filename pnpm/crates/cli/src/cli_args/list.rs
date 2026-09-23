@@ -19,6 +19,7 @@ use crate::cli_args::{
     install::resolve_bool_override,
 };
 use clap::Args;
+use linked_projects::SharedLinkedProjects;
 use miette::IntoDiagnostic;
 use pnpm_config::Config;
 use pnpm_global::{ListReportAs, find_global_install_dirs, list_global_packages};
@@ -27,6 +28,7 @@ use render::{ProjectHierarchy, RenderParseableOptions, RenderTreeOptions};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -407,11 +409,18 @@ struct TreeRequest<'a> {
     /// Linked projects whose trees enclose this walk, to stop at cycles
     /// between projects with dedicated lockfiles.
     linked_project_ancestors: HashSet<PathBuf>,
+    /// Shared by the walks of every linked project, created by the first one.
+    linked_projects: Option<Arc<SharedLinkedProjects>>,
 }
 
 impl<'a> TreeRequest<'a> {
     fn new(params: &'a [String], depth: MaxDepth) -> Self {
-        TreeRequest { params, depth, linked_project_ancestors: HashSet::new() }
+        TreeRequest {
+            params,
+            depth,
+            linked_project_ancestors: HashSet::new(),
+            linked_projects: None,
+        }
     }
 }
 

@@ -209,8 +209,11 @@ fn materialize_edge(inputs: MaterializeEdge<'_>) {
 
     // An entry is kept when it has children to show, when it matched the
     // search itself, or when it stands in for an elided subtree that did.
+    // With `only_projects`, an edge without a target links a project outside
+    // the lockfile, which `pnpm list` walks and prunes for the search later.
     let keep = !subtree.dependencies.is_empty()
         || opts.search.is_none()
+        || (opts.only_projects && edge.target.is_none())
         || search_match.as_ref().is_some_and(super::search::SearchMatch::is_match)
         || subtree.deduped_has_search_match;
     if !keep {

@@ -188,8 +188,10 @@ function materializeChildren (
     let dedupedSearchMessages: string[] = []
 
     if (edge.target == null) {
-      // External link or unresolvable — no traversal possible
-      if (ctx.search == null || searchMatch) {
+      // External link or unresolvable — no traversal possible. With
+      // onlyProjects, this is a link to a project outside the lockfile, which
+      // buildDependenciesTree walks and prunes for the search afterwards.
+      if (ctx.search == null || searchMatch || ctx.onlyProjects) {
         newEntry = packageInfo
       } else {
         continue
