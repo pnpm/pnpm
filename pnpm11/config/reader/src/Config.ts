@@ -237,6 +237,11 @@ export interface Config extends OptionsFromRootManifest {
   workspaceConcurrency: number
   workspaceDir?: string
   workspacePackagePatterns?: string[]
+  /**
+   * The `modulesDir` that `packageConfigs` sets for a project, keyed by
+   * project name. Derived from `packageConfigs`.
+   */
+  modulesDirsByProjectName?: Record<string, string>
   catalogs?: Catalogs
   catalogMode?: 'strict' | 'prefer' | 'manual'
   catalogPrune?: boolean

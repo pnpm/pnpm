@@ -343,6 +343,8 @@ test('a dependency in a modulesDir that packageConfigs sets is not a workspace p
 
   execPnpmSync(['install'], { expectSuccess: true })
   execPnpmSync(['install'], { expectSuccess: true })
+  const addFromWorkspace = execPnpmSync(['add', '-w', '--workspace', '@pnpm.e2e/pre-and-postinstall-scripts-example'])
+  expect(addFromWorkspace.status).not.toBe(0)
 
   const depDir = 'packages/app/vendor/@pnpm.e2e/pre-and-postinstall-scripts-example'
   expect(fs.existsSync(path.join(depDir, 'package.json'))).toBeTruthy()

@@ -138,6 +138,7 @@ async function getProjectDirs (
   opts: {
     dir: string
     modulesDir?: string
+    modulesDirsByProjectName?: Record<string, string>
     workspaceDir?: string
     workspacePackagePatterns?: string[]
   }
@@ -148,6 +149,7 @@ async function getProjectDirs (
   const pkgs = await findWorkspaceProjectsNoCheck(opts.workspaceDir, {
     patterns: opts.workspacePackagePatterns,
     modulesDir: opts.modulesDir,
+    modulesDirsByProjectName: opts.modulesDirsByProjectName,
   })
   return pkgs.map((pkg) => pkg.rootDir)
 }
