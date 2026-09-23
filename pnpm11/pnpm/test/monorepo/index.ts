@@ -2168,7 +2168,7 @@ test('a directory without a manifest of its own still installs the whole workspa
   expect(fs.existsSync('packages/package-1/node_modules/is-positive')).toBe(true)
 })
 
-test('issue 6529: shared-workspace-lockfile=false links workspace packages matching semver range', async () => {
+test('a dedicated lockfile links a workspace package that matches a semver range', async () => {
   preparePackages([
     {
       location: 'packages/pkg-a',
@@ -2202,4 +2202,3 @@ test('issue 6529: shared-workspace-lockfile=false links workspace packages match
   expect(fs.existsSync('packages/pkg-a/node_modules/custom-pkg-b')).toBe(true)
   expect(fs.lstatSync('packages/pkg-a/node_modules/custom-pkg-b').isSymbolicLink()).toBe(true)
 })
-

@@ -1041,9 +1041,8 @@ fn shared_workspace_lockfile_false_symlinks_workspace_dependencies() {
     let fixture = CommandTempCwd::init().add_mocked_registry();
     let workspace = &fixture.workspace;
 
-    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     fs::write(
-        &workspace_yaml_path,
+        workspace.join("pnpm-workspace.yaml"),
         "packages:\n  - 'packages/*'\nsharedWorkspaceLockfile: false\nlinkWorkspacePackages: true\n",
     )
     .expect("write pnpm-workspace.yaml");
@@ -1095,13 +1094,13 @@ fn shared_workspace_lockfile_false_symlinks_workspace_dependencies() {
 
     let root_symlink = workspace.join("node_modules/custom-pkg-b");
     assert!(
-        is_symlink_or_junction(&root_symlink).unwrap(),
+        is_symlink_or_junction(&root_symlink).expect("query root symlink"),
         "workspace/node_modules/custom-pkg-b must be a symlink",
     );
 
     let symlink = pkg_a_dir.join("node_modules/custom-pkg-b");
     assert!(
-        is_symlink_or_junction(&symlink).unwrap(),
+        is_symlink_or_junction(&symlink).expect("query pkg-a symlink"),
         "pkg-a/node_modules/custom-pkg-b must be a symlink",
     );
 
@@ -1115,7 +1114,7 @@ fn shared_workspace_lockfile_false_symlinks_workspace_dependencies() {
 
     let symlink = pkg_a_dir.join("node_modules/custom-pkg-b");
     assert!(
-        is_symlink_or_junction(&symlink).unwrap(),
+        is_symlink_or_junction(&symlink).expect("query pkg-a symlink"),
         "pkg-a/node_modules/custom-pkg-b must be a symlink after --filter pkg-a",
     );
 
