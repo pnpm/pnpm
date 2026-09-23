@@ -708,5 +708,26 @@ async fn store_peek_bypassed_when_update_checksums_is_true() {
         .expect("should resolve from registry when update_checksums is true");
     let name_ver = result.package.name_ver.as_ref().expect("name_ver");
     assert_eq!(name_ver.suffix.to_string(), "1.0.0");
+    let registry_manifest: serde_json::Value = serde_json::from_str(PACKAGE_BODY).unwrap();
+    let registry_integrity = registry_manifest["versions"]["1.0.0"]["dist"]["integrity"]
+        .as_str()
+        .expect("registry integrity");
+    assert_ne!(registry_integrity, integrity_str);
+    let LockfileResolution::Tarball(tarball) = &result.resolution else {
+        panic!("expected tarball resolution");
+    };
+    assert_eq!(
+        tarball.integrity
+            .as_ref()
+            .map(ToString::to_string)
+            .as_deref(),
+        Some(registry_integrity),
+    );
+    assert_eq!(
+        result.package.manifest
+            .as_ref()
+            .and_then(|manifest| manifest["dist"]["integrity"].as_str()),
+        Some(registry_integrity),
+    );
     mock.assert_async().await;
 }
