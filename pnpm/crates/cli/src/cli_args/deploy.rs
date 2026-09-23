@@ -285,7 +285,7 @@ impl DeployArgs {
         let dependency_groups = self.install_args.dependency_options
             .dependency_groups(config.optional)
             .collect::<Vec<_>>();
-        let deploy_files = create_deploy_files(
+        let mut deploy_files = create_deploy_files(
             &lockfile,
             selected,
             &project_id,
@@ -294,6 +294,10 @@ impl DeployArgs {
             config,
             &dependency_groups,
         )?;
+        inherit_package_manager(
+            &mut deploy_files.manifest,
+            selected.workspace_root_manifest.as_ref(),
+        );
         write_deploy_files(deploy_dir, &deploy_files)?;
         // Boxed for the same large-future reason as the legacy path above.
         Box::pin(self.run_install_in_deploy_dir::<ReporterT>(

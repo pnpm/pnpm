@@ -5,10 +5,9 @@ use super::{
     ProjectPathKey, ProjectSnapshot, ResolveBases, ResolvedDependencyMap, ResolvedDependencySpec,
     SelectedProject, SnapshotEntry, State, Value, bind_singleton_peers, convert_package_key,
     convert_package_metadata, convert_resolved_dependency_spec, convert_snapshot,
-    create_file_url_key, deploy_peer_edges, deploy_workspace_manifest, inherit_package_manager,
-    is_ancestor_path, lexical_normalize, omit_peers_of_excluded_dependencies,
-    project_snapshot_to_snapshot_entry, prune_deploy_lockfile_graph, relative_path, same_path,
-    validate_lockfile_local_path,
+    create_file_url_key, deploy_peer_edges, deploy_workspace_manifest, is_ancestor_path,
+    lexical_normalize, omit_peers_of_excluded_dependencies, project_snapshot_to_snapshot_entry,
+    prune_deploy_lockfile_graph, relative_path, same_path, validate_lockfile_local_path,
 };
 
 pub(super) struct DeployFiles {
@@ -80,9 +79,8 @@ pub(super) fn create_deploy_files(
         &deploy_peer_edges(lockfile, config, dependency_groups, &ctx)?,
     )?;
 
-    let mut manifest =
+    let manifest =
         deploy_manifest(&selected.project.manifest, &target_snapshot, &declared_dependencies);
-    inherit_package_manager(&mut manifest, selected.workspace_root_manifest.as_ref());
 
     finish_deploy_files(lockfile, config, &ctx, manifest, deploy_lockfile)
 }
