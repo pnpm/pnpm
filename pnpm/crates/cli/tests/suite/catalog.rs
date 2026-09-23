@@ -495,6 +495,237 @@ fn removes_unused_entries_from_the_workspace_catalog() {
     drop((root, anchor));
 }
 
+#[test]
+fn install_removes_unused_entries_from_the_workspace_catalog() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "{FOO}": "catalog:", "@pnpm.e2e/peer-a": "catalog:named" }}"#),
+    );
+    append_workspace_yaml(
+        &workspace,
+        &format!(
+            "catalogPrune: true\n\
+             catalog:\n  \
+               '{FOO}': 1.0.0\n  \
+               '@pnpm.e2e/bar': 100.0.0\n\
+             catalogs:\n  \
+               named:\n    \
+                 '@pnpm.e2e/peer-a': 1.0.0\n    \
+                 '@pnpm.e2e/baz': 100.0.0\n",
+        ),
+    );
+
+    run_ok(&workspace, &["install"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(&format!("'{FOO}': 1.0.0")),
+        "the referenced default catalog entry must survive:\n{workspace_yaml}",
+    );
+    assert!(
+        workspace_yaml.contains("'@pnpm.e2e/peer-a': 1.0.0"),
+        "the referenced named catalog entry must survive:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/bar"),
+        "the unreferenced default catalog entry must be removed:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/baz"),
+        "the unreferenced named catalog entry must be removed:\n{workspace_yaml}",
+    );
+
+    let output = pacquet(&workspace, ["install"]).output().expect("run install");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Already up to date"), "{stdout}");
+
+    drop((root, anchor));
+}
+
+#[test]
+fn install_dry_run_does_not_prune_workspace_catalogs() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalogPrune: true\ncatalog:\n  '{FOO}': 1.0.0\n  '@pnpm.e2e/bar': 100.0.0\n"),
+    );
+
+    run_ok(&workspace, &["install", "--dry-run"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/bar"),
+        "dry-run must not modify pnpm-workspace.yaml:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn install_does_not_prune_workspace_catalogs_when_validation_fails() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalogPrune: true\ncatalog:\n  '{FOO}': 1.0.0\n  '@pnpm.e2e/bar': 100.0.0\n"),
+    );
+
+    let output = pacquet(&workspace, ["install", "--lockfile-only", "--no-lockfile"])
+        .output()
+        .expect("run install");
+    assert!(!output.status.success());
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/bar"),
+        "failed validation must not prune pnpm-workspace.yaml:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn warm_install_prunes_unused_catalog_entries_when_catalog_prune_is_enabled() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalog:\n  '{FOO}': 1.0.0\n  '@pnpm.e2e/bar': 100.0.0\n"),
+    );
+
+    run_ok(&workspace, &["install"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/bar"),
+        "initial install without catalogPrune must preserve unused entries:\n{workspace_yaml}",
+    );
+
+    append_workspace_yaml(&workspace, "catalogPrune: true\n");
+    run_ok(&workspace, &["install"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/bar"),
+        "warm install with catalogPrune must prune unused entries:\n{workspace_yaml}",
+    );
+
+    let output = pacquet(&workspace, ["install"]).output().expect("run install");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Already up to date"), "{stdout}");
+
+    drop((root, anchor));
+}
+
+#[test]
+fn install_frozen_lockfile_with_missing_lockfile_does_not_prune_catalogs() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalogPrune: true\ncatalog:\n  '{FOO}': 1.0.0\n  '@pnpm.e2e/bar': 100.0.0\n"),
+    );
+
+    let output =
+        pacquet(&workspace, ["install", "--frozen-lockfile"]).output().expect("run install");
+    assert!(!output.status.success());
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/bar"),
+        "frozen install without lockfile must not prune pnpm-workspace.yaml:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn install_frozen_lockfile_prunes_unused_catalogs_when_lockfile_is_up_to_date() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalog:\n  '{FOO}': 1.0.0\n  '@pnpm.e2e/bar': 100.0.0\n"),
+    );
+
+    run_ok(&workspace, &["install"]);
+
+    append_workspace_yaml(&workspace, "catalogPrune: true\n");
+
+    let output =
+        pacquet(&workspace, ["install", "--frozen-lockfile"]).output().expect("run install");
+    assert!(output.status.success());
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(FOO),
+        "referenced catalog entry must be preserved:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/bar"),
+        "unused catalog entry must be pruned on successful frozen install:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn failed_resolution_rolls_back_pruned_workspace_catalogs() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "{FOO}": "catalog:", "nonexistent-pkg-xyz-12345": "1.0.0" }}"#),
+    );
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalogPrune: true\ncatalog:\n  '{FOO}': 1.0.0\n  '@pnpm.e2e/bar': 100.0.0\n"),
+    );
+
+    let output = pacquet(&workspace, ["install"]).output().expect("run install");
+    assert!(!output.status.success());
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/bar"),
+        "install failure after validation must roll back pnpm-workspace.yaml:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn failed_resolution_rolls_back_deleted_workspace_manifest() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, r#"{ "nonexistent-pkg-xyz-12345": "1.0.0" }"#);
+    let npmrc_path = workspace.join(".npmrc");
+    let mut npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    npmrc.push_str("catalog-prune=true\n");
+    fs::write(&npmrc_path, npmrc).expect("write .npmrc");
+
+    fs::write(workspace.join("pnpm-workspace.yaml"), format!("catalog:\n  '{FOO}': 1.0.0\n"))
+        .expect("write pnpm-workspace.yaml");
+
+    let output = pacquet(&workspace, ["install"]).output().expect("run install");
+    assert!(!output.status.success());
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml_path.exists(),
+        "deleted pnpm-workspace.yaml must be restored after install failure",
+    );
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(FOO),
+        "restored pnpm-workspace.yaml must contain the original catalog:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
 /// With `minimumReleaseAgeExcludePrune: true`, a
 /// manifest-persisting command (`pnpm add` here) prunes the
 /// `minimumReleaseAgeExclude` entries the freshly resolved lockfile no

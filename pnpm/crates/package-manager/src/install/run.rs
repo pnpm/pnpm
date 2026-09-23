@@ -17,19 +17,27 @@ mod workspace;
 use workspace::{InstallScope, InstallWorkspace, workspace_projects};
 
 mod execution;
+mod mode;
+use mode::{RunMode, WorkspaceManifestRollbackGuard};
 mod time_machine_capture;
 mod uninstall_hooks;
 use uninstall_hooks::run_pre_uninstall_hooks;
 
+use std::fs;
+
 use super::{
-    Arc, DependencyGroup, InMemoryPackageMetaCache, IncludedDependencies, Install, InstallError,
-    InstallRunOptions, IsTerminal, Lockfile, Path, PathBuf, Reporter, UpdateSeedPolicy,
-    build_resolution_verifiers, lockfile_root_dir,
+    Arc, DependencyGroup, InMemoryPackageMetaCache, Install, InstallError, InstallRunOptions,
+    Lockfile, Path, PathBuf, Reporter, UpdateSeedPolicy, build_resolution_verifiers,
+    configured_or_discovered_workspace_dir, lockfile_root_dir,
 };
 use pnpm_config::Config;
-use pnpm_store_dir::VerifiedFileIntegrity;
 
-use crate::{PolicyExcludes, ProjectMutation, catalog_cleanup::post_install_prune};
+use crate::{
+    PolicyExcludes, ProjectMutation,
+    catalog_cleanup::{
+        post_install_prune, write_workspace_catalogs, write_workspace_catalogs_selected,
+    },
+};
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
 where
@@ -163,9 +171,17 @@ where
         );
         owned.http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let mode = RunMode::settle(install, &owned, &options)?;
+        let rollback_guard = if install.should_prune_catalogs(&options) {
+            install.prune_workspace_catalogs(
+                &options,
+                owned.projects.workspace_projects_override.as_deref(),
+            )?
+        } else {
+            None
+        };
         let mut workspace = InstallWorkspace::discover::<Reporter>(install, &mut owned, &options)?;
         let loaded_workspace_projects = workspace.loaded_workspace_projects.take();
-        Box::pin(
+        let outcome = Box::pin(
             RunExecution {
                 install,
                 owned,
@@ -176,7 +192,11 @@ where
             }
             .run::<Reporter>(time_machine_exclusions),
         )
-        .await
+        .await?;
+        if let Some(guard) = rollback_guard {
+            guard.commit();
+        }
+        Ok(outcome)
     }
 }
 
@@ -205,6 +225,69 @@ pub(super) struct InstallView<'a> {
     pub(super) context: super::InstallInvocation<'a>,
     pub(super) lockfile_policy: InstallLockfilePolicy,
     pub(super) execution: InstallExecution,
+}
+
+impl InstallView<'_> {
+    fn should_prune_catalogs(&self, options: &InstallRunOptions<'_, '_>) -> bool {
+        self.context.config.catalog_prune
+            && options.save_lockfile
+            && !options.lockfile_check
+            && !self.execution.dry_run
+            && self.execution.mutation.is_full_install()
+    }
+
+    fn prune_workspace_catalogs(
+        &self,
+        options: &InstallRunOptions<'_, '_>,
+        workspace_projects_override: Option<&[pnpm_workspace::Project]>,
+    ) -> Result<Option<WorkspaceManifestRollbackGuard>, InstallError> {
+        let manifest_dir = self.context.manifest
+            .path()
+            .parent()
+            .expect("manifest path always has a parent dir");
+        let Some(workspace_dir) =
+            configured_or_discovered_workspace_dir(self.context.config, manifest_dir)
+                .map_err(InstallError::FindWorkspaceDir)?
+        else {
+            return Ok(None);
+        };
+        let workspace_manifest_path = workspace_dir.join("pnpm-workspace.yaml");
+        let original_content = fs::read_to_string(&workspace_manifest_path).ok();
+        let selected_projects = workspace_projects_override.or_else(|| {
+            options.selection.as_ref().map(|s| s.all_projects)
+        });
+        write_pruned_catalogs(
+            self.context.config,
+            self.context.manifest,
+            &workspace_dir,
+            selected_projects,
+        )?;
+        Ok(WorkspaceManifestRollbackGuard::new(workspace_manifest_path, original_content))
+    }
+}
+
+fn write_pruned_catalogs(
+    config: &pnpm_config::Config,
+    manifest: &pnpm_package_manifest::PackageManifest,
+    workspace_dir: &Path,
+    selected_projects: Option<&[pnpm_workspace::Project]>,
+) -> Result<(), InstallError> {
+    if let Some(projects) = selected_projects {
+        write_workspace_catalogs_selected(
+            config,
+            workspace_dir,
+            &pnpm_catalogs_types::Catalogs::new(),
+            projects,
+        )
+    } else {
+        write_workspace_catalogs(
+            config,
+            Some(workspace_dir),
+            &pnpm_catalogs_types::Catalogs::new(),
+            manifest,
+        )
+    }
+    .map_err(InstallError::WriteWorkspaceManifest)
 }
 
 #[derive(Clone, Copy)]
@@ -269,77 +352,6 @@ pub struct ResolutionInputs {
     pub observer: Option<Arc<dyn crate::ResolutionObserver>>,
     pub peer_issues_sink: Option<crate::PeerIssuesSink>,
     pub deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
-}
-
-/// What the run's flags settle into before anything is read from disk.
-struct RunMode {
-    lockfile_only: bool,
-    resolve_only: bool,
-    prefer_frozen_lockfile: bool,
-    included: IncludedDependencies,
-    can_prompt: bool,
-    peer_issues_sink_is_none: bool,
-    effective_node_version: Option<String>,
-    verified_file_integrity_baseline: VerifiedFileIntegrity,
-}
-
-impl RunMode {
-    fn settle(
-        install: InstallView<'_>,
-        owned: &InstallOwned,
-        options: &InstallRunOptions<'_, '_>,
-    ) -> Result<Self, InstallError> {
-        // Taken before any fetching so the store-verification figures
-        // this install reports are its own — a recursive workspace run
-        // and a long-lived embedder (the NAPI addon) both drive several
-        // installs through the same process-global tally.
-        let verified_file_integrity_baseline = VerifiedFileIntegrity::snapshot();
-        // `--lockfile-only` with `lockfile: false` (pnpm's
-        // `useLockfile: false`) is a config conflict: the only output the
-        // flag produces is the lockfile, and that write is disabled.
-        // Fail fast rather than run a resolve that writes nothing.
-        reject_lockfile_only_without_lockfile(
-            install.context.config,
-            install.execution.lockfile_only,
-        )?;
-        // `enableModulesDir: false` (with the global virtual store off) is
-        // "resolve and write the lockfile, materialize nothing" — the same
-        // pipeline `--lockfile-only` takes, entered from config. It stays
-        // outside the `lockfile: false` conflict above (pnpm accepts that
-        // combination and simply writes nothing), and never turns a
-        // rebuild — which runs against an already-materialized
-        // `node_modules` — into a silent no-op.
-        let lockfile_only = effective_lockfile_only(
-            install.context.config,
-            install.execution.lockfile_only,
-            options.rebuild.as_ref(),
-        );
-        reject_conflicting_store_config(install.context.config)?;
-        Ok(Self {
-            lockfile_only,
-            // `--dry-run` resolves but never materializes, so it borrows the
-            // lockfile-only plumbing (skip node_modules / `.modules.yaml` /
-            // workspace-state) while additionally skipping the lockfile write.
-            // Both lockfile-only paths must stop after writing the wanted lockfile:
-            // neither may write `.modules.yaml`, the current lockfile, or workspace state.
-            // The frozen path returns below; the fresh path returns in `complete_resolve_only`.
-            resolve_only: lockfile_only || install.execution.dry_run,
-            prefer_frozen_lockfile: !install.context.config.auto_dedupe
-                && install.lockfile_policy.prefer_frozen.unwrap_or(
-                    install.context.config.prefer_frozen_lockfile,
-                ),
-            // The same set the dependency-graph walker observes, written to
-            // `.modules.yaml` as `included`.
-            included: super::included_dependencies(&owned.projects.dependency_groups),
-            can_prompt: options.prompt_eligibility_override.unwrap_or_else(prompts_are_answerable),
-            peer_issues_sink_is_none: owned.resolution.peer_issues_sink.is_none(),
-            effective_node_version: super::effective_node_version(
-                install.context.config,
-                install.context.manifest,
-            ),
-            verified_file_integrity_baseline,
-        })
-    }
 }
 
 // One per-install packument cache shared with both the
@@ -409,11 +421,6 @@ impl Verification {
     }
 }
 
-/// A prompt only reaches a person on an interactive terminal outside CI.
-fn prompts_are_answerable() -> bool {
-    !is_ci::cached() && std::io::stdin().is_terminal()
-}
-
 /// Resolution verifiers re-apply `minimumReleaseAge` /
 /// `trustPolicy='no-downgrade'` (plus the tarball-URL anti-tamper check) to
 /// every entry in the loaded `pnpm-lock.yaml`. `trust_lockfile` — the opt-out
@@ -450,46 +457,6 @@ fn reject_frozen_with_update_checksums(
 ) -> Result<(), InstallError> {
     if update_checksums && frozen_lockfile {
         return Err(InstallError::FrozenLockfileWithUpdateChecksums);
-    }
-    Ok(())
-}
-
-/// `--lockfile-only` with `lockfile: false` asks for a lockfile the run is
-/// forbidden to write.
-fn reject_lockfile_only_without_lockfile(
-    config: &Config,
-    lockfile_only: bool,
-) -> Result<(), InstallError> {
-    if lockfile_only && !config.lockfile {
-        return Err(InstallError::ConfigConflictLockfileOnlyWithNoLockfile);
-    }
-    Ok(())
-}
-
-/// `enableModulesDir: false` (with the global virtual store off) is "resolve
-/// and write the lockfile, materialize nothing" — the same pipeline
-/// `--lockfile-only` takes, entered from config. It stays outside the
-/// `lockfile: false` conflict (pnpm accepts that combination and simply
-/// writes nothing), and never turns a rebuild — which runs against an
-/// already-materialized `node_modules` — into a silent no-op.
-fn effective_lockfile_only(
-    config: &Config,
-    lockfile_only: bool,
-    rebuild: Option<&crate::RebuildOptions>,
-) -> bool {
-    lockfile_only
-        || (rebuild.is_none() && !config.enable_modules_dir && !config.enable_global_virtual_store)
-}
-
-fn reject_conflicting_store_config(config: &Config) -> Result<(), InstallError> {
-    if config.frozen_store && config.force {
-        return Err(InstallError::ConfigConflictFrozenStoreWithForce);
-    }
-    if config.virtual_store_only
-        && !config.enable_modules_dir
-        && !config.enable_global_virtual_store
-    {
-        return Err(InstallError::ConfigConflictVirtualStoreOnlyWithNoModulesDir);
     }
     Ok(())
 }
