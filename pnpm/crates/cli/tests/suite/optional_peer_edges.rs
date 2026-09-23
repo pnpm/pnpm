@@ -22,8 +22,6 @@ const PEER_C: &str = "@pnpm.e2e/peer-c";
 const PROD_ABC: &[(&str, &str)] = &[(ABC, "1.0.0")];
 const DEV_PEERS: &[(&str, &str)] = &[(PEER_A, "1.0.0"), (PEER_C, "1.0.0")];
 
-/// A project whose production `abc-optional-peers` has both peers satisfied
-/// by its own devDependencies, resolved into `pnpm-lock.yaml` only.
 fn dev_provided_peers() -> WorkspaceFixture {
     let fixture = WorkspaceFixture::new();
     fixture.write_root_manifest(
@@ -67,8 +65,6 @@ fn slot_of(modules_dir: &Path, name: &str) -> PathBuf {
         .to_path_buf()
 }
 
-/// The virtual-store slot of the `abc-optional-peers` that `importer` depends
-/// on directly.
 fn abc_slot(importer: &Path) -> PathBuf {
     slot_of(&importer.join("node_modules"), ABC)
 }
@@ -85,8 +81,6 @@ fn has_slot(workspace: &Path, name: &str, version: &str) -> bool {
         .exists()
 }
 
-/// The aliases the current lockfile records on the `abc-optional-peers`
-/// snapshot.
 fn current_abc_aliases(workspace: &Path) -> Vec<String> {
     let current = read_lockfile(&workspace.join("node_modules/.pnpm/lock.yaml"));
     let (_, snapshot) = current.snapshots
@@ -198,9 +192,6 @@ fn a_prod_install_keeps_an_optional_peer_a_production_package_depends_on() {
     );
 }
 
-/// The root lists the optional peer as a devDependency, and the project that
-/// depends on `abc-optional-peers` does not list it at all, so the peer is
-/// resolved from the root.
 fn root_provided_optional_peer() -> WorkspaceFixture {
     let fixture = WorkspaceFixture::new();
     fixture.write_root_manifest(
@@ -332,8 +323,6 @@ fn deploy_prod_leaves_out_an_optional_peer_the_workspace_root_provides() {
     assert_deploy_leaves_out_the_optional_peer(&fixture);
 }
 
-/// The names `list --json` shows under the root project's
-/// `abc-optional-peers`.
 fn listed_abc_children(fixture: &WorkspaceFixture, extra_args: &[&str]) -> Vec<String> {
     let args = [&["list", "--json", "--depth", "1"][..], extra_args].concat();
     let listed = json(&pnpm(fixture, &args));
@@ -424,7 +413,6 @@ fn component_names(sbom: &Value) -> Vec<String> {
     names
 }
 
-/// The component refs `abc-optional-peers` depends on.
 fn abc_depends_on(sbom: &Value) -> Vec<String> {
     let abc_ref = sbom["components"]
         .as_array()
@@ -510,8 +498,6 @@ fn a_resolving_prod_install_leaves_out_an_optional_peer_only_a_dev_dependency_pr
     assert_eq!(current_abc_aliases(workspace), [PEER_A]);
 }
 
-/// The mirror image of `--prod`: a devDependency's optional peer that only a
-/// production dependency provides is left out of a `--dev` install.
 #[test]
 fn a_dev_install_leaves_out_an_optional_peer_only_a_production_dependency_provides() {
     let fixture = WorkspaceFixture::new();
