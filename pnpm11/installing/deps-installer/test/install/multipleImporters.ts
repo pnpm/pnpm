@@ -1524,6 +1524,58 @@ test('resolve a subdependency from the workspace', async () => {
   }))
 })
 
+test('resolve a subdependency falls back to registry when workspace prerelease does not match', async () => {
+  preparePackages([
+    {
+      location: 'project',
+      package: { name: 'project' },
+    },
+    {
+      location: '@pnpm.e2e/dep-of-pkg-with-1-dep',
+      package: { name: '@pnpm.e2e/dep-of-pkg-with-1-dep' },
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep') as ProjectRootDir,
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project',
+        version: '1.0.0',
+
+        dependencies: {
+          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+        },
+      },
+      rootDir: path.resolve('project') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
+        version: '100.1.0-next.0',
+      },
+      rootDir: path.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep') as ProjectRootDir,
+    },
+  ]
+  await mutateModules(importers, testDefaults({ allProjects, linkWorkspacePackagesDepth: Infinity }))
+
+  const project = assertProject(process.cwd())
+
+  const wantedLockfile = project.readLockfile()
+  expect(wantedLockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.1.0')
+})
+
 test('resolve a subdependency from the workspace and use it as a peer', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.1', distTag: 'latest' })
   preparePackages([
