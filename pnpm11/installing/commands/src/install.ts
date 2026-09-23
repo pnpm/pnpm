@@ -410,6 +410,8 @@ export type InstallCommandOptions = Pick<Config,
   recursive?: boolean
   resolutionOnly?: boolean
   saveLockfile?: boolean
+  /** See {@link InstallDepsOptions.saveWorkspaceState}. */
+  saveWorkspaceState?: boolean
   workspace?: boolean
   interactiveUpdate?: boolean
   includeOnlyPackageFiles?: boolean

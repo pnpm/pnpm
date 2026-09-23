@@ -202,7 +202,7 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
             effective_node_version: mode.effective_node_version.as_deref(),
         },
         verification,
-        write: lockfiles.write_policy(options.save_lockfile),
+        write: lockfiles.write_policy(options.save.lockfile),
         resolve_only: mode.resolve_only,
 
         installs_only: install.execution.installs_only,

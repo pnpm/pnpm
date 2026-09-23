@@ -207,6 +207,7 @@ impl<'a> RunExecution<'a> {
             catalog_context_present: self.workspace.catalog_context_present,
             verified_file_integrity_baseline: self.mode.verified_file_integrity_baseline,
             config: self.install.context.config,
+            save_workspace_state: self.options.save.workspace_state,
         }
     }
 
@@ -271,7 +272,7 @@ impl<'a> RunExecution<'a> {
                 frozen: dispatched.take_frozen_path,
             },
             scripts: self.take_project_scripts(dispatched.root_preinstall_ran),
-            write: lockfiles.write_policy(self.options.save_lockfile),
+            write: lockfiles.write_policy(self.options.save.lockfile),
             materialized,
         }
     }
@@ -356,7 +357,7 @@ impl super::RunMode {
             early_host_detection,
             resolve_only: self.resolve_only,
             can_prompt: self.can_prompt,
-            save_lockfile: options.save_lockfile,
+            save_lockfile: options.save.lockfile,
             prefix,
         }
     }

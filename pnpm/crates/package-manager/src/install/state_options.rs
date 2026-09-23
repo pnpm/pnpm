@@ -48,6 +48,9 @@ pub(crate) struct ApplyCompletionContext {
     pub(crate) catalog_context_present: bool,
     pub(crate) verified_file_integrity_baseline: VerifiedFileIntegrity,
     pub(crate) config: &'static Config,
+    /// Whether the run may write the workspace state. See
+    /// `InstallSaveOptions::workspace_state`.
+    pub(crate) save_workspace_state: bool,
 }
 
 #[derive(Clone, Copy)]
