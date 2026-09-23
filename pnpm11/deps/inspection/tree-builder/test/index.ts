@@ -488,6 +488,16 @@ test('unsaved dependencies are listed', async () => {
     })
 })
 
+test('unsaved dependencies are omitted when only projects are listed', async () => {
+  const tree = await buildDependenciesTree([withUnsavedDepsFixture], {
+    depth: 0,
+    lockfileDir: withUnsavedDepsFixture,
+    onlyProjects: true,
+    virtualStoreDirMaxLength,
+  })
+  expect(tree[withUnsavedDepsFixture].unsavedDependencies).toBeUndefined()
+})
+
 test('unsaved dependencies are listed and filtered', async () => {
   const modulesDir = path.join(withUnsavedDepsFixture, 'node_modules')
   expect(

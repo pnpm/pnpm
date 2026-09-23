@@ -21,15 +21,20 @@ export async function listRecursive (
     lockfileDir?: string
     checkWantedLockfileOnly?: boolean
     onlyProjects?: boolean
+    findBy?: string[]
     workspaceProjectDirs?: string[]
     workspaceProjectPublishDirs?: Record<string, string>
   }
 ): Promise<string> {
   const depth = opts.depth ?? 0
+  // --only-projects lists the selected projects themselves, so each is printed
+  // even when it links no other project. A search prints only the matches.
+  const alwaysPrintRootPackage = depth === -1 ||
+    (opts.onlyProjects === true && params.length === 0 && !opts.findBy?.length)
   if (opts.lockfileDir) {
     return render(pkgs.map((pkg) => pkg.rootDir), params, {
       ...opts,
-      alwaysPrintRootPackage: depth === -1,
+      alwaysPrintRootPackage,
       lockfileDir: opts.lockfileDir,
     })
   }
@@ -48,7 +53,7 @@ export async function listRecursive (
   const outputs = (await Promise.all(pkgs.map((pkg) =>
     withProjectError(pkg.rootDir, () => render([pkg.rootDir], params, {
       ...projectOpts(pkg),
-      alwaysPrintRootPackage: depth === -1,
+      alwaysPrintRootPackage,
     }))
   ))).filter(Boolean)
   if (outputs.length === 0) return ''

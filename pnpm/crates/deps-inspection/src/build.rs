@@ -141,8 +141,9 @@ fn hierarchy_for_project(
     // Unsaved (extraneous) dependencies: packages present in the
     // project's modules dir but absent from its lockfile entry. They
     // are irrelevant while searching — they are not in the lockfile
-    // graph and cannot contain paths to the search target.
-    if opts.search.is_none() {
+    // graph and cannot contain paths to the search target — and they
+    // are not workspace projects, which is all `only_projects` lists.
+    if opts.search.is_none() && !opts.only_projects {
         hierarchy.unsaved_dependencies =
             read_unsaved_dependencies(importer, project_dir, &project_modules_dir)?;
     }

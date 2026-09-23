@@ -15,7 +15,8 @@ impl ListArgs {
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
 
-        let always_print_root_package = self.graph.depth == RecursionLimit::ProjectsOnly;
+        let always_print_root_package =
+            self.graph.depth == RecursionLimit::ProjectsOnly || self.lists_selected_projects();
 
         if config.shares_one_lockfile() {
             let project_dirs: Vec<PathBuf> = selection.selected
@@ -56,6 +57,13 @@ impl ListArgs {
         }
         let joiner = if self.graph.depth == RecursionLimit::ProjectsOnly { "\n" } else { "\n\n" };
         Ok(outputs.join(joiner))
+    }
+
+    /// Whether `--only-projects` lists the selected projects themselves,
+    /// so each is printed even when it links no other project. A search
+    /// still prints only the projects it matched in.
+    fn lists_selected_projects(&self) -> bool {
+        self.graph.only_projects && self.packages.is_empty() && self.find_by.is_empty()
     }
 
     /// Every selected project's hierarchy in one JSON array. Joining the
