@@ -244,7 +244,13 @@ fn target_is_within_workspace(workspace_root: &Path, target_dir: &Path) -> bool 
     let Ok(canonical_target) = std::fs::canonicalize(target_dir) else {
         return false;
     };
-    pnpm_fs::is_subdir(&canonical_root, &canonical_target)
+    if !pnpm_fs::is_subdir(&canonical_root, &canonical_target) {
+        return false;
+    }
+    let Ok(canonical_manifest) = std::fs::canonicalize(target_dir.join("package.json")) else {
+        return false;
+    };
+    pnpm_fs::is_subdir(&canonical_root, &canonical_manifest)
 }
 
 fn npm_or_registry_spec_satisfies(

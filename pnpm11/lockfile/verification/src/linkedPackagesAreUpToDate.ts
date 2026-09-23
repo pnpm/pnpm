@@ -179,13 +179,15 @@ async function isLocalFileDepUpdated (
           }
           let realTargetDir: string
           let realWorkspaceRoot: string
+          let realManifestPath: string
           try {
             realTargetDir = fs.realpathSync(targetDir)
             realWorkspaceRoot = fs.realpathSync(workspaceRoot)
+            realManifestPath = fs.realpathSync(path.join(targetDir, 'package.json'))
           } catch {
             return false
           }
-          if (!isSubdirectory(realWorkspaceRoot, realTargetDir)) {
+          if (!isSubdirectory(realWorkspaceRoot, realTargetDir) || !isSubdirectory(realWorkspaceRoot, realManifestPath)) {
             return false
           }
           const targetPkg = manifestsByDir?.[targetDir] ?? await safeReadPackageJsonFromDir(targetDir)
