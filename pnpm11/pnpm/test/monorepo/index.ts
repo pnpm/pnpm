@@ -2167,3 +2167,39 @@ test('a directory without a manifest of its own still installs the whole workspa
   expect(fs.existsSync(path.join('packages/package-1/src', WANTED_LOCKFILE))).toBe(false)
   expect(fs.existsSync('packages/package-1/node_modules/is-positive')).toBe(true)
 })
+
+test('issue 6529: shared-workspace-lockfile=false links workspace packages matching semver range', async () => {
+  preparePackages([
+    {
+      location: 'packages/pkg-a',
+      package: {
+        name: 'pkg-a',
+        version: '1.0.0',
+        dependencies: {
+          'custom-pkg-b': '~1.0.0',
+        },
+      },
+    },
+    {
+      location: 'packages/pkg-b',
+      package: {
+        name: 'custom-pkg-b',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    linkWorkspacePackages: true,
+    sharedWorkspaceLockfile: false,
+  })
+
+  await execPnpm(['install'])
+
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
+  expect(fs.existsSync('packages/pkg-a/pnpm-lock.yaml')).toBe(true)
+  expect(fs.existsSync('packages/pkg-a/node_modules/custom-pkg-b')).toBe(true)
+  expect(fs.lstatSync('packages/pkg-a/node_modules/custom-pkg-b').isSymbolicLink()).toBe(true)
+})
+

@@ -1036,4 +1036,90 @@ fn workspace_install_with_build_metadata_version() {
     drop(root);
 }
 
+#[test]
+fn shared_workspace_lockfile_false_symlinks_workspace_dependencies() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        "packages:\n  - 'packages/*'\nsharedWorkspaceLockfile: false\nlinkWorkspacePackages: true\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "dependencies": {
+                "custom-pkg-b": "~1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+
+    let pkg_a_dir = workspace.join("packages/pkg-a");
+    let pkg_b_dir = workspace.join("packages/pkg-b");
+    fs::create_dir_all(&pkg_a_dir).expect("mkdir pkg-a");
+    fs::create_dir_all(&pkg_b_dir).expect("mkdir pkg-b");
+
+    fs::write(
+        pkg_a_dir.join("package.json"),
+        serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": {
+                "custom-pkg-b": "~1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write pkg-a package.json");
+
+    fs::write(
+        pkg_b_dir.join("package.json"),
+        serde_json::json!({
+            "name": "custom-pkg-b",
+            "version": "1.0.0",
+        })
+        .to_string(),
+    )
+    .expect("write pkg-b package.json");
+
+    pacquet_at(workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let root_symlink = workspace.join("node_modules/custom-pkg-b");
+    assert!(
+        is_symlink_or_junction(&root_symlink).unwrap(),
+        "workspace/node_modules/custom-pkg-b must be a symlink",
+    );
+
+    let symlink = pkg_a_dir.join("node_modules/custom-pkg-b");
+    assert!(
+        is_symlink_or_junction(&symlink).unwrap(),
+        "pkg-a/node_modules/custom-pkg-b must be a symlink",
+    );
+
+    fs::remove_dir_all(pkg_a_dir.join("node_modules")).expect("rm node_modules");
+    pacquet_at(workspace)
+        .with_arg("install")
+        .with_arg("--filter")
+        .with_arg("pkg-a")
+        .assert()
+        .success();
+
+    let symlink = pkg_a_dir.join("node_modules/custom-pkg-b");
+    assert!(
+        is_symlink_or_junction(&symlink).unwrap(),
+        "pkg-a/node_modules/custom-pkg-b must be a symlink after --filter pkg-a",
+    );
+
+    drop(fixture);
+}
+
 mod freshness;

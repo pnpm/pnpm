@@ -185,19 +185,14 @@ impl<'a> InstallWorkspace<'a> {
     }
 }
 fn workspace_packages_for_install<'s>(
-    install: InstallView<'_>,
+    _install: InstallView<'_>,
     loaded_workspace_projects: Option<&'s [pnpm_workspace::Project]>,
     options: &InstallRunOptions<'s, '_>,
 ) -> Option<pnpm_resolving_resolver_base::WorkspacePackages> {
-    (install.context.config.exclude_links_from_lockfile
-        && install.context.config.link_workspace_packages.enabled_at_depth(0))
-    .then(|| {
-        build_workspace_packages_map(workspace_projects(
-            loaded_workspace_projects,
-            options.selection.as_ref(),
-        ))
-    })
-    .flatten()
+    build_workspace_packages_map(workspace_projects(
+        loaded_workspace_projects,
+        options.selection.as_ref(),
+    ))
 }
 // In-memory mutation catalogs take precedence over hooked configuration and the workspace file.
 // Filtered and dedicated-lockfile installs have already reported their own scope.
