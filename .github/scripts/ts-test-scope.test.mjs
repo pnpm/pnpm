@@ -67,6 +67,7 @@ test('Rust gate configuration keeps exclusions limited to approved documentation
   const filters = workflow.slice(workflow.indexOf('          predicate-quantifier:'), workflow.indexOf('\n  test:'))
   assert.match(filters, /predicate-quantifier: some-with-excludes/)
   const patterns = filters.split('            rust:\n')[1].split('\n').map(line => line.match(/- '([^']+)'/)?.[1]).filter(Boolean)
+  const docs = filters.split('            docs:\n')[1].split('            rust:\n')[0].split('\n').map(line => line.match(/- '([^']+)'/)?.[1]).filter(Boolean)
   assert.deepEqual(patterns.filter(pattern => pattern.startsWith('!')), [
     '!pnpm/*.md',
     '!pnpm/plans/*.md',
@@ -82,5 +83,6 @@ test('Rust gate configuration keeps exclusions limited to approved documentation
   for (const pattern of ['pnpm/**', 'pnpr/**', '.config/nextest.toml', 'fixtures/**', 'pnpm11/installing/deps-installer/test/fixtures/patch-pkg/**', 'pnpm11/deps/compliance/commands/test/sbom/fixtures/**']) {
     assert.ok(patterns.includes(pattern), `required test input: ${pattern}`)
   }
+  assert.deepEqual(docs, patterns.filter(pattern => pattern.startsWith('!')).map(pattern => pattern.slice(1)), 'docs covers every exclusion, so the spell check still runs')
   assert.match(workflow.slice(workflow.indexOf('\n  typos:'), workflow.indexOf('\n  deny:')), /needs.changes.outputs.docs == 'true'/)
 })
