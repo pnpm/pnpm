@@ -11,8 +11,9 @@ test('refIsLocalTarball recognizes tarball extensions including bzip2', () => {
   expect(refIsLocalDirectory('file:../pkg')).toBe(true)
 
   expect(refIsLocalTarball('file:../pkg.tgz(react@18.0.0)')).toBe(true)
-  expect(refIsLocalDirectory('file:../pkg.tgz(react@18.0.0)')).toBe(false)
   expect(refIsLocalDirectory('file:../pkg(react@18.0.0)')).toBe(true)
+  expect(refIsLocalTarball('file:../pkg(test).tgz')).toBe(true)
+  expect(refIsLocalTarball('file:../pkg(test).tgz(react@18.0.0)')).toBe(true)
 
   expect(refIsLocalTarball('pkg@1.0.0')).toBe(false)
   expect(refIsLocalDirectory('pkg@1.0.0')).toBe(false)

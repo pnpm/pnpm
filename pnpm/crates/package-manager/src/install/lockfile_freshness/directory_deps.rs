@@ -86,7 +86,10 @@ fn check_single_dep_spec_directory_freshness(
         .as_ref()
         .and_then(|p| p.get(&pkg_key))
     else {
-        return Ok(());
+        return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
+            name: dep_str,
+            path: dep_spec.specifier.clone(),
+        }));
     };
     if let pnpm_lockfile::LockfileResolution::Directory(dir_res) = &pkg_meta.resolution {
         let local_dep_dir = check.lockfile_dir.join(&dir_res.directory);
@@ -99,18 +102,18 @@ fn check_single_dep_spec_directory_freshness(
             &dir_res.directory,
             &local_dep_dir,
             snapshot,
+            pkg_meta,
         )?;
     }
     Ok(())
 }
 
-fn check_single_directory_dep_freshness(
+fn read_and_override_manifest(
     check: &ImporterSatisfactionCheck<'_>,
     dep_name: &str,
     rel_path: &str,
     local_dep_dir: &Path,
-    snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
-) -> Result<(), FreshnessCheckError> {
+) -> Result<PackageManifest, FreshnessCheckError> {
     let mut local_manifest = pnpm_workspace::safe_read_project_manifest_only(local_dep_dir)
         .ok()
         .flatten()
@@ -124,6 +127,18 @@ fn check_single_directory_dep_freshness(
         crate::VersionsOverrider::new(parsed, check.lockfile_dir)
             .apply(&mut local_manifest, Some(local_dep_dir));
     }
+    Ok(local_manifest)
+}
+
+fn check_single_directory_dep_freshness(
+    check: &ImporterSatisfactionCheck<'_>,
+    dep_name: &str,
+    rel_path: &str,
+    local_dep_dir: &Path,
+    snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
+    pkg_meta: &pnpm_lockfile::PackageMetadata,
+) -> Result<(), FreshnessCheckError> {
+    let local_manifest = read_and_override_manifest(check, dep_name, rel_path, local_dep_dir)?;
     let Some(snapshot) = snapshot else {
         return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
             name: dep_name.to_string(),
@@ -148,6 +163,61 @@ fn check_single_directory_dep_freshness(
             check.optional_exclusions.allow_unresolved,
         )?;
     }
+    check_local_peer_deps_freshness(
+        dep_name,
+        rel_path,
+        &local_manifest,
+        pkg_meta.peer_dependencies.as_ref(),
+        snapshot.dependencies.as_ref(),
+    )
+}
+
+fn check_local_peer_deps_freshness(
+    dep_name: &str,
+    rel_path: &str,
+    local_manifest: &PackageManifest,
+    recorded_peers: Option<&std::collections::HashMap<String, String>>,
+    snapshot_deps: Option<
+        &std::collections::HashMap<pnpm_lockfile::PkgName, pnpm_lockfile::SnapshotDepRef>,
+    >,
+) -> Result<(), FreshnessCheckError> {
+    let manifest_peers: std::collections::HashMap<&str, &str> = local_manifest
+        .dependencies([DependencyGroup::Peer])
+        .collect();
+
+    let recorded_count = recorded_peers.map_or(0, std::collections::HashMap::len);
+    if manifest_peers.len() != recorded_count {
+        return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
+            name: dep_name.to_string(),
+            path: rel_path.to_string(),
+        }));
+    }
+    for (name, spec) in &manifest_peers {
+        let recorded_spec = recorded_peers.and_then(|p| p.get(*name));
+        if recorded_spec.map(String::as_str) != Some(spec) {
+            return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
+                name: dep_name.to_string(),
+                path: rel_path.to_string(),
+            }));
+        }
+    }
+
+    for (name, spec) in &manifest_peers {
+        let lockfile_dep = snapshot_deps.and_then(|deps| {
+            pnpm_lockfile::PkgName::parse(*name)
+                .ok()
+                .and_then(|n| deps.get(&n))
+        });
+        if let Some(lockfile_dep) = lockfile_dep
+            && !spec_satisfies_snapshot_dep(spec, lockfile_dep)
+        {
+            return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
+                name: dep_name.to_string(),
+                path: rel_path.to_string(),
+            }));
+        }
+    }
+
     Ok(())
 }
 
@@ -238,9 +308,80 @@ fn check_manifest_specs_satisfy_snapshot(
     Ok(())
 }
 
-fn spec_satisfies_snapshot_dep(spec: &str, lockfile_dep: &pnpm_lockfile::SnapshotDepRef) -> bool {
-    if spec.starts_with("file:") || spec.starts_with("link:") || spec.starts_with("workspace:") {
+fn file_or_link_spec_satisfies(
+    spec: &str,
+    lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
+) -> Option<bool> {
+    if let Some(target) = spec.strip_prefix("link:") {
+        return Some(lockfile_dep.as_link_target() == Some(target));
+    }
+    let path = spec.strip_prefix("file:")?;
+    if let Some(target) = lockfile_dep.as_link_target() {
+        return Some(target == path);
+    }
+    let Some(ver_peer) = lockfile_dep.ver_peer() else {
+        return Some(false);
+    };
+    match ver_peer.version() {
+        pnpm_lockfile::VersionPart::File(recorded) => Some(recorded == path),
+        pnpm_lockfile::VersionPart::NonSemver(raw) => Some(raw == spec || raw == path),
+        _ => Some(false),
+    }
+}
+
+fn workspace_path_spec_satisfies(
+    spec: &str,
+    workspace_spec: &str,
+    lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
+) -> bool {
+    let clean_spec = workspace_spec.strip_prefix("./").unwrap_or(workspace_spec);
+    if let Some(target) = lockfile_dep.as_link_target() {
+        return target.strip_prefix("./").unwrap_or(target) == clean_spec;
+    }
+    let Some(ver_peer) = lockfile_dep.ver_peer() else {
+        return false;
+    };
+    match ver_peer.version() {
+        pnpm_lockfile::VersionPart::File(recorded) => {
+            recorded.strip_prefix("./").unwrap_or(recorded) == clean_spec
+        }
+        pnpm_lockfile::VersionPart::NonSemver(raw) => raw == spec || raw == workspace_spec,
+        _ => false,
+    }
+}
+
+fn workspace_spec_satisfies(
+    spec: &str,
+    workspace_spec: &str,
+    lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
+) -> bool {
+    if workspace_spec.starts_with('.') || workspace_spec.starts_with('/') {
+        return workspace_path_spec_satisfies(spec, workspace_spec, lockfile_dep);
+    }
+    let range_str = match workspace_spec {
+        "*" | "^" | "~" | "" => "*",
+        other => other,
+    };
+    let Ok(range) = range_str.parse::<node_semver::Range>() else {
+        return false;
+    };
+    if let Some(version) = lockfile_dep.ver_peer().and_then(|v| v.version_semver()) {
+        return range.satisfies(version);
+    }
+    if lockfile_dep.as_link_target().is_some() {
         return true;
+    }
+    lockfile_dep
+        .ver_peer()
+        .is_some_and(|v| matches!(v.version(), pnpm_lockfile::VersionPart::File(_)))
+}
+
+fn spec_satisfies_snapshot_dep(spec: &str, lockfile_dep: &pnpm_lockfile::SnapshotDepRef) -> bool {
+    if let Some(matches) = file_or_link_spec_satisfies(spec, lockfile_dep) {
+        return matches;
+    }
+    if let Some(workspace_spec) = spec.strip_prefix("workspace:") {
+        return workspace_spec_satisfies(spec, workspace_spec, lockfile_dep);
     }
     let clean_spec = if let Some(stripped) = spec.strip_prefix("npm:") {
         stripped

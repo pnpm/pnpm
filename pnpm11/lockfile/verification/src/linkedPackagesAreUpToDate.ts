@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { refToRelative } from '@pnpm/deps.path'
+import { refToRelative, removeSuffix } from '@pnpm/deps.path'
 import type {
   PackageSnapshot,
   PackageSnapshots,
@@ -103,7 +103,8 @@ async function isLocalFileDepUpdated (
   pkgSnapshot: PackageSnapshot | undefined,
   manifestsByDir?: Record<string, DependencyManifest>
 ): Promise<boolean> {
-  if (!pkgSnapshot || !('directory' in (pkgSnapshot.resolution ?? {}))) return true
+  if (!pkgSnapshot) return false
+  if (!('directory' in (pkgSnapshot.resolution ?? {}))) return true
   const localDepDir = path.join(lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
   const manifest = manifestsByDir?.[localDepDir] ?? await safeReadPackageJsonFromDir(localDepDir)
   if (!manifest) return false
@@ -124,9 +125,42 @@ async function isLocalFileDepUpdated (
         return false
       }
       const currentSpec = manifestDeps[depName]
-      // We do not care about the link dependencies of local dependency.
-      if (currentSpec.startsWith('file:') || currentSpec.startsWith('link:') || currentSpec.startsWith('workspace:')) continue
-      if (semver.satisfies(lockfileDeps[depName], getVersionRange(currentSpec), { loose: true })) {
+      const lockfileDep = lockfileDeps[depName]
+      if (currentSpec.startsWith('link:')) {
+        if (lockfileDep !== currentSpec) return false
+        continue
+      }
+      if (currentSpec.startsWith('file:')) {
+        const cleanLockfileDep = removeSuffix(lockfileDep)
+        const target = cleanLockfileDep.startsWith('link:') ? `file:${cleanLockfileDep.slice(5)}` : cleanLockfileDep
+        if (target !== currentSpec) return false
+        continue
+      }
+      if (currentSpec.startsWith('workspace:')) {
+        const target = currentSpec.slice(10)
+        if (target.startsWith('.') || target.startsWith('/')) {
+          const cleanLockfileDep = removeSuffix(lockfileDep)
+          const cleanTarget = target.startsWith('./') ? target.slice(2) : target
+          const cleanLink = cleanLockfileDep.startsWith('link:') ? cleanLockfileDep.slice(5) : null
+          const cleanFile = cleanLockfileDep.startsWith('file:') ? cleanLockfileDep.slice(5) : null
+          if (cleanLink !== target && cleanLink !== cleanTarget &&
+              cleanFile !== target && cleanFile !== cleanTarget) {
+            return false
+          }
+          continue
+        }
+        const range = getVersionRange(currentSpec)
+        const cleanLockfileDep = removeSuffix(lockfileDep)
+        if (cleanLockfileDep.startsWith('link:') || cleanLockfileDep.startsWith('file:')) {
+          continue
+        }
+        if (semver.valid(cleanLockfileDep) && !semver.satisfies(cleanLockfileDep, range, { loose: true })) {
+          return false
+        }
+        continue
+      }
+      const cleanLockfileDep = removeSuffix(lockfileDeps[depName])
+      if (semver.satisfies(cleanLockfileDep, getVersionRange(currentSpec), { loose: true })) {
         continue
       } else {
         return false
