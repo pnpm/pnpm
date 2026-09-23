@@ -39,7 +39,7 @@ pub(crate) fn derive_config_root(
     // install output. This is the install family's earliest point that
     // knows the root manifest's directory.
     warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
-    create_workspace_yaml_from_yarn_workspaces(cfg, &config_root, root_manifest.as_ref())?;
+    create_workspace_yaml_from_yarn_workspaces(cfg, dir_ref, root_manifest.as_ref())?;
     warn_deprecated_override_version_references(cfg, reporter_emit(reporter));
     warn_unmatched_registry_options(cfg);
     warn_unapplied_package_configs(cfg);

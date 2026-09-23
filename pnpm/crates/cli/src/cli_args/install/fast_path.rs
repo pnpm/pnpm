@@ -81,7 +81,7 @@ impl InstallArgs {
             return false;
         }
         let root_manifest = read_root_manifest_json(&config_root);
-        if converts_yarn_workspaces(config, root_manifest.as_ref()) {
+        if converts_yarn_workspaces(config, dir, root_manifest.as_ref()) {
             return false;
         }
         let manifest_path = dir.join("package.json");

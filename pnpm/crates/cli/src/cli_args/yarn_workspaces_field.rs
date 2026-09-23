@@ -54,38 +54,47 @@ fn workspaces_field_differs(
 }
 
 /// Whether [`create_workspace_yaml_from_yarn_workspaces`] would convert
-/// this root manifest, so an install must not skip it.
-pub(crate) fn converts_yarn_workspaces(config: &Config, root_manifest: Option<&Value>) -> bool {
+/// the root manifest of an install in `dir`, so the install must not skip
+/// it.
+pub(crate) fn converts_yarn_workspaces(
+    config: &Config,
+    dir: &Path,
+    root_manifest: Option<&Value>,
+) -> bool {
+    // A `lockfileDir` elsewhere moves the root manifest to a directory the
+    // config's workspace search, which starts at `dir`, never looked in.
     config.workspace_dir.is_none()
         && !config.ignore_workspace
-        && config.lockfile_dir.is_none()
+        && pnpm_fs::lexical_normalize(config.root_project_manifest_dir(dir))
+            == pnpm_fs::lexical_normalize(dir)
         && !yarn_workspace_patterns(root_manifest).is_empty()
 }
 
-/// Create `pnpm-workspace.yaml` in `config_root` from the root manifest's
+/// Create `pnpm-workspace.yaml` in `dir` from the root manifest's
 /// `workspaces` patterns and anchor `cfg` to it, so the projects link on
 /// this install.
 ///
 /// An existing `pnpm-workspace.yaml` is never replaced, whether it was
 /// there before the check or appeared while this one was being written;
 /// `cfg` then follows that file. Inside a workspace, without a usable
-/// pattern, under `--ignore-workspace`, or with a `lockfileDir`, nothing is
-/// created and [`warn_about_workspaces_field`] applies instead.
+/// pattern, under `--ignore-workspace`, or with a `lockfileDir` other than
+/// `dir`, nothing is created and [`warn_about_workspaces_field`] applies
+/// instead.
 pub(crate) fn create_workspace_yaml_from_yarn_workspaces(
     cfg: &mut Config,
-    config_root: &Path,
+    dir: &Path,
     root_manifest: Option<&Value>,
 ) -> miette::Result<()> {
-    if !converts_yarn_workspaces(cfg, root_manifest) {
+    if !converts_yarn_workspaces(cfg, dir, root_manifest) {
         warn_about_workspaces_field(cfg, root_manifest);
         return Ok(());
     }
     let patterns = yarn_workspace_patterns(root_manifest);
-    let path = config_root.join(WORKSPACE_MANIFEST_FILENAME);
-    // Without a `lockfileDir`, `config_root` is where the config's
-    // workspace search started, so a manifest here appeared after it ran.
+    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+    // The config's workspace search started in `dir`, so a manifest here
+    // appeared after it ran.
     if existing_workspace_manifest(&path)?.is_some() {
-        return adopt_existing_workspace(cfg, config_root, root_manifest);
+        return adopt_existing_workspace(cfg, dir, root_manifest);
     }
     let text = render_workspace_manifest(&patterns)
         .into_diagnostic()
@@ -95,11 +104,11 @@ pub(crate) fn create_workspace_yaml_from_yarn_workspaces(
             emit_config_warning(
                 r#"Created "pnpm-workspace.yaml" from the "workspaces" field in package.json."#,
             );
-            cfg.anchor_to_created_workspace(config_root.to_path_buf(), patterns);
+            cfg.anchor_to_created_workspace(dir.to_path_buf(), patterns);
             Ok(())
         }
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            adopt_existing_workspace(cfg, config_root, root_manifest)
+            adopt_existing_workspace(cfg, dir, root_manifest)
         }
         Err(error) => Err(error)
             .into_diagnostic()

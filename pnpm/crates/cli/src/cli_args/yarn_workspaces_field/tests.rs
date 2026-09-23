@@ -266,32 +266,67 @@ fn a_manifest_with_settings_published_after_the_config_loaded_is_an_error() {
 }
 
 #[test]
-fn a_lockfile_dir_install_neither_creates_nor_adopts_a_manifest() {
-    let lockfile_root = tempfile::tempdir().expect("create temp dir");
+fn a_lockfile_dir_elsewhere_neither_creates_nor_adopts_a_manifest() {
+    let project = tempfile::tempdir().expect("create project dir");
+    let lockfile_root = tempfile::tempdir().expect("create lockfile dir");
     let config = || pnpm_config::Config {
         lockfile_dir: Some(lockfile_root.path().to_path_buf()),
         ..pnpm_config::Config::default()
     };
     let root_manifest = serde_json::json!({"workspaces": ["packages/*"]});
-    let manifest_path = lockfile_root.path().join("pnpm-workspace.yaml");
 
     let mut without_manifest = config();
     create_workspace_yaml_from_yarn_workspaces(
         &mut without_manifest,
-        lockfile_root.path(),
+        project.path(),
         Some(&root_manifest),
     )
     .expect("nothing to convert");
-    assert!(!manifest_path.exists());
+    assert!(
+        !project
+            .path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+    );
+    assert!(
+        !lockfile_root
+            .path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+    );
 
-    fs::write(&manifest_path, "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n")
-        .expect("write manifest");
+    fs::write(
+        lockfile_root.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write manifest");
     let mut with_manifest = config();
     create_workspace_yaml_from_yarn_workspaces(
         &mut with_manifest,
-        lockfile_root.path(),
+        project.path(),
         Some(&root_manifest),
     )
     .expect("a manifest the config search never reached is not an error");
     assert_eq!(with_manifest.workspace_dir, None);
+}
+
+#[test]
+fn a_lockfile_dir_at_the_project_still_converts() {
+    let project = tempfile::tempdir().expect("create project dir");
+    let mut config = pnpm_config::Config {
+        lockfile_dir: Some(project.path().join(".")),
+        ..pnpm_config::Config::default()
+    };
+    let root_manifest = serde_json::json!({"workspaces": ["packages/*"]});
+
+    create_workspace_yaml_from_yarn_workspaces(&mut config, project.path(), Some(&root_manifest))
+        .expect("convert");
+
+    assert!(
+        project
+            .path()
+            .join("pnpm-workspace.yaml")
+            .is_file(),
+    );
+    assert_eq!(config.workspace_dir.as_deref(), Some(project.path()));
 }
