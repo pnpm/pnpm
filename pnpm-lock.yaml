@@ -2916,6 +2916,9 @@ importers:
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../../lockfile/fs
+      '@pnpm/lockfile.peer-edges':
+        specifier: workspace:*
+        version: link:../../../lockfile/peer-edges
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../../lockfile/types
@@ -3795,6 +3798,9 @@ importers:
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../../lockfile/fs
+      '@pnpm/lockfile.peer-edges':
+        specifier: workspace:*
+        version: link:../../../lockfile/peer-edges
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../../lockfile/utils
@@ -6989,6 +6995,9 @@ importers:
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
+      '@pnpm/lockfile.peer-edges':
+        specifier: workspace:*
+        version: link:../peer-edges
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../types
@@ -7017,6 +7026,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/lockfile.peer-edges':
+        specifier: workspace:*
+        version: link:../peer-edges
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../types
@@ -7039,6 +7051,9 @@ importers:
       '@pnpm/lockfile.filtering':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../fs
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -7222,6 +7237,25 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.8.0
+
+  pnpm11/lockfile/peer-edges:
+    dependencies:
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../deps/path
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../types
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
+      '@pnpm/lockfile.peer-edges':
+        specifier: workspace:*
+        version: 'link:'
 
   pnpm11/lockfile/preferred-versions:
     dependencies:
@@ -7511,6 +7545,9 @@ importers:
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
+      '@pnpm/lockfile.peer-edges':
+        specifier: workspace:*
+        version: link:../peer-edges
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../types
@@ -8627,6 +8664,9 @@ importers:
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
+      '@pnpm/lockfile.peer-edges':
+        specifier: workspace:*
+        version: link:../../lockfile/peer-edges
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types

@@ -66,12 +66,7 @@ impl WhyArgs {
 
         let loaded =
             LoadedState::load(&lockfile_dir, Some(state.config.modules_dir.as_path()), false)?;
-        let Some(env) = loaded.env(
-            &lockfile_dir,
-            state.config.virtual_store_dir_max_length as usize,
-            &state.config.resolved_registries(),
-            state.config.registry_options_by_url.clone(),
-        ) else {
+        let Some(env) = loaded.env_for_config(&lockfile_dir, state.config) else {
             return Ok(());
         };
         let lockfile = env.current_lockfile;
@@ -83,7 +78,12 @@ impl WhyArgs {
         let root_ids = importer_root_ids(lockfile, &lockfile_dir, &project_dirs);
         let graph = build_dependency_graph(
             &root_ids,
-            &BuildGraphOptions { lockfile, include, only_projects: false },
+            &BuildGraphOptions {
+                lockfile,
+                include,
+                only_projects: false,
+                peer_edges: state.config.peer_edge_options(),
+            },
         );
 
         let searcher = self.searcher(&env, &graph, state.config, &lockfile_dir).await?;

@@ -613,6 +613,12 @@ export interface DependentsOptions {
    * unreadable — and every workspace-project node — carry none.
    */
   manifestFields?: string[]
+  /**
+   * Whether a `devDependencies` entry of the root importer provides a peer to
+   * every importer when a walk that leaves out a group decides which
+   * optional-peer edges to skip. Default `false`.
+   */
+  resolvePeersFromWorkspaceRoot?: boolean
 }
 
 /** One entry of a {@link DependentsTree}'s reverse tree. */
@@ -752,6 +758,12 @@ export interface FilterLockfileOptions {
    * possibly-stale lockfile wants.
    */
   failOnMissingDependencies?: boolean
+  /**
+   * Whether a `devDependencies` entry of the root importer provides a peer to
+   * every importer when the filter decides which optional-peer edges to
+   * skip. Default `false`.
+   */
+  resolvePeersFromWorkspaceRoot?: boolean
 }
 
 /**

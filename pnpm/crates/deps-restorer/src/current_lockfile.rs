@@ -14,7 +14,7 @@
 //! those slots were already on disk and skip work that should
 //! actually run.
 
-pub use reachability::{ReachableLockfileGraph, collect_reachable};
+pub use reachability::{GroupSelection, ReachableLockfileGraph, collect_reachable};
 
 mod reachability;
 
@@ -45,16 +45,20 @@ pub enum MergeFilteredWantedLockfileError {
     },
 }
 
+/// The part of `lockfile` that `initial_importer_ids` materialize under
+/// `groups` and `skipped`. Each retained snapshot loses the peer-satisfaction
+/// entries whose target the closure drops, so nothing links a package that is
+/// not installed.
 #[must_use]
 pub fn materialization_closure(
     lockfile: &Lockfile,
     workspace_root: &Path,
     initial_importer_ids: &HashSet<String>,
-    included: IncludedDependencies,
+    groups: &GroupSelection,
     skipped: &SkippedSnapshots,
 ) -> MaterializationClosure {
     let reachable =
-        collect_reachable(lockfile, workspace_root, initial_importer_ids, included, |key| {
+        collect_reachable(lockfile, workspace_root, initial_importer_ids, groups, |key| {
             skipped.contains(key)
         });
     // Package metadata survives an installability skip and a failed fetch but
@@ -62,7 +66,7 @@ pub fn materialization_closure(
     // unless those two subsets are empty, in which case the second walk would
     // retrace the first over the whole graph.
     let metadata_walk = (!skipped.optional_exclusions_are_the_only_skips()).then(|| {
-        collect_reachable(lockfile, workspace_root, initial_importer_ids, included, |key| {
+        collect_reachable(lockfile, workspace_root, initial_importer_ids, groups, |key| {
             skipped.contains_optional_excluded(key)
         })
     });
@@ -77,24 +81,31 @@ pub fn materialization_closure(
         .iter()
         .filter(|(id, _)| reachable.importer_ids.contains(*id))
         .map(|(id, importer)| {
-            (id.clone(), filter_importer(importer, included, &reachable.snapshot_keys))
+            (id.clone(), filter_importer(importer, groups.included, &reachable.snapshot_keys))
         })
         .collect();
-    let snapshots = lockfile.snapshots
-        .as_ref()
-        .map(|snapshots| {
-            snapshots
-                .iter()
-                .filter(|(key, _)| reachable.snapshot_keys.contains(*key))
-                .map(|(key, snapshot)| (key.clone(), snapshot.clone()))
-                .collect()
-        });
+    let snapshots = retained_snapshots(lockfile, &reachable.snapshot_keys, groups);
     let packages = reachable_package_metadata(lockfile, &reachable_metadata);
 
     MaterializationClosure {
         lockfile: lockfile_with_graph(lockfile, importers, packages, snapshots),
         importer_ids: reachable.importer_ids,
     }
+}
+
+fn retained_snapshots(
+    lockfile: &Lockfile,
+    reachable: &HashSet<PackageKey>,
+    groups: &GroupSelection,
+) -> Option<HashMap<PackageKey, pnpm_lockfile::SnapshotEntry>> {
+    let mut snapshots = lockfile.snapshots
+        .as_ref()?
+        .iter()
+        .filter(|(key, _)| reachable.contains(*key))
+        .map(|(key, snapshot)| (key.clone(), snapshot.clone()))
+        .collect();
+    groups.skipped_peer_edges.prune_dangling(&mut snapshots);
+    Some(snapshots)
 }
 
 /// Build the complete wanted lockfile for a filtered install: the
@@ -175,7 +186,7 @@ pub fn merge_filtered_current_lockfile(
     previous_current: Option<&Lockfile>,
     wanted: &Lockfile,
     requested_importer_ids: &HashSet<String>,
-    included: IncludedDependencies,
+    groups: &GroupSelection,
     skipped: &SkippedSnapshots,
     workspace_root: &Path,
 ) -> Lockfile {
@@ -183,7 +194,7 @@ pub fn merge_filtered_current_lockfile(
         wanted,
         workspace_root,
         requested_importer_ids,
-        included,
+        groups,
         &skipped.transient_only(),
     );
     let Some(previous_current) = previous_current else {
@@ -226,7 +237,7 @@ fn retained_closure(
         &retained_source,
         workspace_root,
         &retained_importer_ids,
-        all_dependencies(),
+        &GroupSelection::all(),
         &SkippedSnapshots::new(),
     )
     .lockfile
@@ -257,7 +268,7 @@ fn full_closure(lockfile: &Lockfile, workspace_root: &Path) -> Lockfile {
         lockfile,
         workspace_root,
         &importer_ids,
-        all_dependencies(),
+        &GroupSelection::all(),
         &SkippedSnapshots::new(),
     )
     .lockfile
@@ -306,7 +317,7 @@ pub fn extend_skipped_with_dependency_closure(
     lockfile: &Lockfile,
     workspace_root: &Path,
     importer_ids: &HashSet<String>,
-    included: IncludedDependencies,
+    groups: &GroupSelection,
 ) {
     if skipped
         .iter_installability()
@@ -315,8 +326,8 @@ pub fn extend_skipped_with_dependency_closure(
     {
         return;
     }
-    let full = collect_reachable(lockfile, workspace_root, importer_ids, included, |_| false);
-    let kept = collect_reachable(lockfile, workspace_root, importer_ids, included, |key| {
+    let full = collect_reachable(lockfile, workspace_root, importer_ids, groups, |_| false);
+    let kept = collect_reachable(lockfile, workspace_root, importer_ids, groups, |key| {
         skipped.contains_installability(key)
     });
     for key in full.snapshot_keys {
@@ -324,10 +335,6 @@ pub fn extend_skipped_with_dependency_closure(
             skipped.insert_installability(key);
         }
     }
-}
-
-fn all_dependencies() -> IncludedDependencies {
-    IncludedDependencies { dependencies: true, dev_dependencies: true, optional_dependencies: true }
 }
 
 fn overlay_package_maps<Value: Clone>(
@@ -381,7 +388,7 @@ fn lockfile_with_graph(
 #[must_use]
 pub fn filter_lockfile_for_current(
     lockfile: &Lockfile,
-    included: IncludedDependencies,
+    groups: &GroupSelection,
     skipped: &SkippedSnapshots,
 ) -> Lockfile {
     let all_importer_ids = lockfile.importers
@@ -397,7 +404,7 @@ pub fn filter_lockfile_for_current(
         lockfile,
         Path::new(""),
         &all_importer_ids,
-        included,
+        groups,
         &skipped.transient_only(),
     )
     .lockfile

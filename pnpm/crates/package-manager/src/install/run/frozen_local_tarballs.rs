@@ -34,8 +34,13 @@ async fn compute_frozen_skip_set(
     settled: &Settled<'_, '_>,
     lockfile: &pnpm_lockfile::Lockfile,
     importer_ids: &HashSet<String>,
-) -> Result<pnpm_deps_restorer::SkippedSnapshots, InstallError> {
+) -> Result<(pnpm_deps_restorer::SkippedSnapshots, crate::GroupSelection), InstallError> {
     let host = detect_host(settled, lockfile).await;
+    let groups = crate::GroupSelection::classify(
+        lockfile,
+        settled.mode.included,
+        settled.install.context.config.peer_edge_options(),
+    );
     let seed = if settled.install.context.config.force {
         pnpm_deps_restorer::SkippedSnapshots::default()
     } else {
@@ -48,7 +53,7 @@ async fn compute_frozen_skip_set(
                 lockfile,
                 root: &workspace.dirs.workspace_root,
                 importer_ids,
-                included: settled.mode.included,
+                groups: &groups,
             },
             entries: pnpm_lockfile::LockfileEntries {
                 packages: lockfile.packages.as_ref(),
@@ -62,6 +67,7 @@ async fn compute_frozen_skip_set(
             skip_runtimes: settled.install.execution.skip_runtimes,
         },
     )
+    .map(|skipped| (skipped, groups))
     .map_err(pnpm_deps_restorer::InstallFrozenLockfileError::Installability)
     .map_err(map_frozen_lockfile_error)
 }
@@ -69,6 +75,9 @@ async fn compute_frozen_skip_set(
 pub(super) async fn verify_frozen_tarballs(settled: Settled<'_, '_>) -> Result<(), InstallError> {
     let lockfile =
         settled.lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
+    if !has_local_tarball(lockfile) {
+        return Ok(());
+    }
     let requested = settled.projects.scope.importers.requested_importer_ids
         .as_ref()
         .or_else(|| {
@@ -81,31 +90,51 @@ pub(super) async fn verify_frozen_tarballs(settled: Settled<'_, '_>) -> Result<(
         requested,
         settled.install.execution.node_linker,
     );
-    let skipped = compute_frozen_skip_set(&settled, lockfile, &importer_ids).await?;
+    let (skipped, groups) = compute_frozen_skip_set(&settled, lockfile, &importer_ids).await?;
 
     let targets = crate::optimistic_repeat_install::frozen_local_tarballs_to_verify(
         &crate::optimistic_repeat_install::FrozenLocalTarballCheck {
             workspace_root: &settled.projects.workspace.dirs.workspace_root,
             importer_ids: &importer_ids,
-            included: settled.mode.included,
+            groups: &groups,
             lockfile,
             skipped: &skipped,
         },
     );
 
-    if !targets.is_empty() {
-        tokio::task::spawn_blocking(move || {
-            use rayon::prelude::*;
-            targets
-                .into_par_iter()
-                .try_for_each(|(path, integrity)| {
-                    pnpm_tarball::verify_local_file_integrity(&path, &integrity)
-                })
-        })
-        .await
-        .expect("verify frozen local tarballs task panicked")
-        .map_err(InstallError::LocalTarballIntegrity)?;
-    }
+    verify_integrity(targets).await
+}
 
-    Ok(())
+/// Whether any package resolves to a tarball on the local filesystem, the
+/// only kind [`verify_frozen_tarballs`] checks.
+fn has_local_tarball(lockfile: &pnpm_lockfile::Lockfile) -> bool {
+    lockfile.packages
+        .iter()
+        .flat_map(|packages| packages.values())
+        .any(|package| {
+            matches!(
+                &package.resolution,
+                pnpm_lockfile::LockfileResolution::Tarball(resolution)
+                    if pnpm_lockfile::is_local_tarball_path(&resolution.tarball),
+            )
+        })
+}
+
+async fn verify_integrity(
+    targets: Vec<(std::path::PathBuf, ssri::Integrity)>,
+) -> Result<(), InstallError> {
+    if targets.is_empty() {
+        return Ok(());
+    }
+    tokio::task::spawn_blocking(move || {
+        use rayon::prelude::*;
+        targets
+            .into_par_iter()
+            .try_for_each(|(path, integrity)| {
+                pnpm_tarball::verify_local_file_integrity(&path, &integrity)
+            })
+    })
+    .await
+    .expect("verify frozen local tarballs task panicked")
+    .map_err(InstallError::LocalTarballIntegrity)
 }

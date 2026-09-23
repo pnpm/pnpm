@@ -8,6 +8,8 @@ mod installation;
 
 mod workspace;
 
+mod peer_edges;
+
 use std::collections::{BTreeMap, HashMap};
 
 use indexmap::IndexMap;
@@ -101,8 +103,12 @@ fn empty_lockfile() -> Lockfile {
     }
 }
 
-fn include_all() -> IncludedDependencies {
-    IncludedDependencies { dependencies: true, dev_dependencies: true, optional_dependencies: true }
+fn include_all() -> crate::GroupSelection {
+    crate::GroupSelection::all()
+}
+
+fn groups(included: IncludedDependencies) -> crate::GroupSelection {
+    crate::GroupSelection::following_every_edge(included)
 }
 
 fn lockfile_with_top_level(marker: &str, minor: u16) -> Lockfile {

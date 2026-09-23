@@ -472,8 +472,11 @@ fn a_moved_production_install_passes_the_run_gate() {
     )
     .unwrap();
     let wanted = Lockfile::load_wanted_from_dir(dir.path()).unwrap().unwrap();
-    let current =
-        crate::filter_lockfile_for_current(&wanted, included, &crate::SkippedSnapshots::new());
+    let current = crate::filter_lockfile_for_current(
+        &wanted,
+        &crate::GroupSelection::following_every_edge(included),
+        &crate::SkippedSnapshots::new(),
+    );
     current
         .save_to_path(&config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME))
         .unwrap();

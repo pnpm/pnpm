@@ -54,7 +54,7 @@ fn materialization_closure_excludes_optional_snapshot_link_when_optionals_are_di
         &lockfile,
         Path::new("/workspace"),
         &HashSet::from([selected_id.clone()]),
-        included,
+        &super::groups(included),
         &SkippedSnapshots::new(),
     );
 
@@ -91,7 +91,7 @@ fn materialization_closure_ignores_unknown_link_targets() {
         &lockfile,
         Path::new("/workspace"),
         &HashSet::from([Lockfile::ROOT_IMPORTER_KEY.to_string()]),
-        include_all(),
+        &include_all(),
         &SkippedSnapshots::new(),
     );
 

@@ -1,5 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
+import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
 import { type DispatcherOptions, fetchWithDispatcher, type RetryTimeoutOptions } from '@pnpm/network.fetch'
 import type { DependenciesField } from '@pnpm/types'
@@ -10,8 +11,6 @@ import {
   type AuditPathIndex,
   buildAuditPathIndex,
   collectOptionalOnlyDepPaths,
-  collectReachableDepPaths,
-  detectAuditDepTypes,
   lockfileToAuditRequest,
   type PathInfo,
 } from './lockfileToAuditIndex.js'
@@ -44,14 +43,21 @@ export async function audit (
     envLockfile?: EnvLockfile | null
     include?: { [dependenciesField in DependenciesField]: boolean }
     registry: string
+    resolvePeersFromWorkspaceRoot?: boolean
     retry?: RetryTimeoutOptions
     timeout?: number
   }
 ): Promise<AuditReport> {
-  const depTypes = detectAuditDepTypes(lockfile)
-  const reachable = collectReachableDepPaths(lockfile, opts.include)
-  const optionalOnly = collectOptionalOnlyDepPaths(lockfile, opts.include, reachable)
-  const auditRequest = lockfileToAuditRequest(lockfile, { envLockfile: opts.envLockfile, include: opts.include, depTypes, optionalOnly, reachable })
+  const depTypes = detectDepTypes(lockfile, opts)
+  const optionalOnly = collectOptionalOnlyDepPaths(lockfile, opts)
+  const indexOpts = {
+    envLockfile: opts.envLockfile,
+    include: opts.include,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
+    depTypes,
+    optionalOnly,
+  }
+  const auditRequest = lockfileToAuditRequest(lockfile, indexOpts)
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/advisories/bulk`
   const authHeaderValue = getAuthHeader(registry)
@@ -84,7 +90,7 @@ export async function audit (
     const vulnerableNames = new Set(Object.keys(body))
     let auditPathIndex: AuditPathIndex = {}
     if (vulnerableNames.size > 0) {
-      auditPathIndex = buildAuditPathIndex(lockfile, vulnerableNames, { envLockfile: opts.envLockfile, include: opts.include, depTypes, optionalOnly })
+      auditPathIndex = buildAuditPathIndex(lockfile, vulnerableNames, indexOpts)
     }
     return bulkResponseToAuditReport(body, auditRequest, auditPathIndex)
   }

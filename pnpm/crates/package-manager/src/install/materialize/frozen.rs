@@ -6,6 +6,14 @@ use super::{
 };
 
 impl<'a> MaterializationInputs<'a, '_> {
+    fn groups(&self, lockfile: &Lockfile) -> crate::GroupSelection {
+        crate::GroupSelection::classify(
+            lockfile,
+            self.modules.included,
+            self.install.context.config.peer_edge_options(),
+        )
+    }
+
     fn frozen_lockfiles<'b>(
         &'b self,
         scope: &'b FrozenScope<'a>,
@@ -78,6 +86,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 workspace_root: self.workspace.workspace_root,
                 requester: self.execution.prefix,
                 dependency_groups: &self.workspace.dependency_groups,
+                groups: &scope.groups,
                 manifests: &scope.project_manifests,
                 package_map_manifests: self.workspace.project_manifests,
             },
@@ -101,7 +110,7 @@ impl<'a> MaterializationInputs<'a, '_> {
         let scope = self.workspace.frozen_scope(
             lockfile,
             self.install.execution.node_linker,
-            self.modules.included,
+            self.groups(lockfile),
             self.install.lockfile_policy.ignore_manifest_check,
         );
         let supported_lockfile_major = matches!(scope.lockfile().lockfile_version.major, 9 | 12);
@@ -133,6 +142,6 @@ impl<'a> MaterializationInputs<'a, '_> {
             // than nesting it under `FrozenLockfile` — the concurrent gate
             // is the same gate, just run alongside the fetch.
             .map_err(map_frozen_lockfile_error)?;
-        Ok(MaterializationOutput::from_frozen(frozen_result))
+        Ok(MaterializationOutput::from_frozen(frozen_result, scope.groups))
     }
 }

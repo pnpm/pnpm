@@ -68,6 +68,7 @@ export interface LinkPackagesOptions {
   pruneStore: boolean
   pruneVirtualStore: boolean
   registriesByScope: RegistriesByScope
+  resolvePeersFromWorkspaceRoot?: boolean
   rootModulesDir: string
   sideEffectsCacheRead: boolean
   remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
@@ -127,6 +128,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     pruneStore: opts.pruneStore,
     pruneVirtualStore: opts.pruneVirtualStore,
     publicHoistedModulesDir: (opts.publicHoistPattern != null) ? opts.rootModulesDir : undefined,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     skipped: opts.skipped,
     skipRuntimes: opts.skipRuntimes,
     storeController: opts.storeController,
@@ -144,6 +146,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
   const filterOpts = {
     include: opts.include,
     registriesByScope: opts.registriesByScope,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     skipped: opts.skipped,
     skipRuntimes: opts.skipRuntimes,
   }

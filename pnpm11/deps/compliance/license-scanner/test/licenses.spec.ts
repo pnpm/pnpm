@@ -47,6 +47,49 @@ jest.unstable_mockModule('../lib/getPkgInfo.js', () => {
 const { findDependencyLicenses } = await import('@pnpm/deps.compliance.license-scanner')
 
 describe('licences', () => {
+  test('findDependencyLicenses() leaves out a devDependency that only satisfies an optional peer when devDependencies are excluded', async () => {
+    const lockfile: LockfileObject = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { abc: '1.0.0(peer-a@1.0.0)(peer-c@1.0.0)' },
+          devDependencies: { 'peer-a': '1.0.0', 'peer-c': '1.0.0' },
+          specifiers: { abc: '1.0.0', 'peer-a': '1.0.0', 'peer-c': '1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)' as DepPath]: {
+          dependencies: { 'peer-a': '1.0.0', 'peer-c': '1.0.0' },
+          peerDependencies: { 'peer-a': '^1.0.0', 'peer-c': '^1.0.0' },
+          peerDependenciesMeta: { 'peer-c': { optional: true } },
+          resolution: { integrity: 'abc-integrity' },
+        },
+        ['peer-a@1.0.0' as DepPath]: { resolution: { integrity: 'peer-a-integrity' } },
+        ['peer-c@1.0.0' as DepPath]: { resolution: { integrity: 'peer-c-integrity' } },
+      },
+    }
+    const findLicenses = async (include?: { dependencies: boolean, devDependencies: boolean, optionalDependencies: boolean }) => findDependencyLicenses({
+      include,
+      lockfileDir: '/opt/pnpm',
+      manifest: {} as ProjectManifest,
+      virtualStoreDir: '/.pnpm',
+      registriesByScope: {} as RegistriesByScope,
+      wantedLockfile: lockfile,
+      storeDir: tmpStoreDir,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    const prodOnly = await findLicenses({ dependencies: true, devDependencies: false, optionalDependencies: true })
+    expect(prodOnly.map(({ name }) => name).sort()).toStrictEqual(['abc', 'peer-a'])
+
+    const all = await findLicenses()
+    expect(all.map(({ name, belongsTo }) => [name, belongsTo]).sort()).toStrictEqual([
+      ['abc', 'dependencies'],
+      ['peer-a', 'dependencies'],
+      ['peer-c', 'devDependencies'],
+    ])
+  })
+
   test('findDependencyLicenses()', async () => {
     const lockfile: LockfileObject = {
       importers: {

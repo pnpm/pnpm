@@ -1,6 +1,7 @@
 use super::{
-    DependencyGroup, DeployError, HashMap, HashSet, Lockfile, PackageKey, PkgName, PkgNameVerPeer,
-    ProjectInfo, ProjectSnapshot, SnapshotDepRef, SnapshotEntry, Value, VecDeque,
+    Config, ConvertCtx, DependencyGroup, DeployError, HashMap, HashSet, Lockfile, PackageKey,
+    PeerSatisfactionEdges, PkgName, PkgNameVerPeer, ProjectInfo, ProjectSnapshot, SnapshotDepRef,
+    SnapshotEntry, Value, VecDeque, convert_package_key,
 };
 
 /// A linked workspace package has no package snapshot in the shared lockfile,
@@ -145,26 +146,51 @@ fn singleton_peer_binding(
         .map(|resolution| SnapshotDepRef::Plain(resolution.suffix.clone())))
 }
 
+/// The source lockfile's peer-satisfaction edges, under the keys the deployed
+/// lockfile gives their snapshots. They are classified over the workspace's
+/// own importers, since the deployed lockfile keeps only the deployed project.
+/// Empty when the deploy installs every dependency group.
+pub(super) fn deploy_peer_edges(
+    lockfile: &Lockfile,
+    config: &Config,
+    dependency_groups: &[DependencyGroup],
+    ctx: &ConvertCtx<'_>,
+) -> miette::Result<PeerSatisfactionEdges> {
+    let every_group = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
+        .iter()
+        .all(|group| dependency_groups.contains(group));
+    if every_group {
+        return Ok(PeerSatisfactionEdges::default());
+    }
+    PeerSatisfactionEdges::of_lockfile(lockfile, config.peer_edge_options())
+        .iter()
+        .map(|(key, aliases)| Ok((convert_package_key(key, ctx)?, aliases.clone())))
+        .collect()
+}
+
 /// Keep only the dependency graph that the deploy install will materialize.
 ///
 /// The deploy importer already carries just the included dependency groups, so
 /// this walks it in full: `deploy --prod` excludes dev-only and unrelated
 /// workspace snapshots from both the lockfile and the localized virtual store.
+/// The walk leaves out `peer_edges`, and a retained snapshot loses those of
+/// them whose target the prune drops.
 pub(super) fn prune_deploy_lockfile_graph(
     lockfile: &mut Lockfile,
     dependency_groups: &[DependencyGroup],
+    peer_edges: &PeerSatisfactionEdges,
 ) {
     let Some(snapshots) = lockfile.snapshots.as_ref() else { return };
     let Some(importer) = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY) else { return };
 
     let include_optional = dependency_groups.contains(&DependencyGroup::Optional);
-    let reachable = reachable_deploy_snapshots(importer, snapshots, include_optional);
+    let reachable = reachable_deploy_snapshots(importer, snapshots, include_optional, peer_edges);
 
     let reachable_metadata = reachable
         .iter()
         .map(PackageKey::without_peer)
         .collect::<HashSet<_>>();
-    retain_reachable_snapshots(lockfile, &reachable, include_optional);
+    retain_reachable_snapshots(lockfile, &reachable, include_optional, peer_edges);
     if let Some(packages) = lockfile.packages.as_mut() {
         packages.retain(|key, _| reachable_metadata.contains(key));
         if packages.is_empty() {
@@ -177,6 +203,7 @@ fn retain_reachable_snapshots(
     lockfile: &mut Lockfile,
     reachable: &HashSet<PkgNameVerPeer>,
     include_optional: bool,
+    peer_edges: &PeerSatisfactionEdges,
 ) {
     let Some(snapshots) = lockfile.snapshots.as_mut() else { return };
     snapshots.retain(|key, _| reachable.contains(key));
@@ -187,6 +214,7 @@ fn retain_reachable_snapshots(
             snapshot.optional_dependencies = None;
         }
     }
+    peer_edges.prune_dangling(snapshots);
     if snapshots.is_empty() {
         lockfile.snapshots = None;
     }
@@ -197,6 +225,7 @@ fn reachable_deploy_snapshots(
     importer: &ProjectSnapshot,
     snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
     include_optional: bool,
+    peer_edges: &PeerSatisfactionEdges,
 ) -> HashSet<PkgNameVerPeer> {
     let mut queue: VecDeque<PkgNameVerPeer> = [
         importer.dependencies.as_ref(),
@@ -217,13 +246,8 @@ fn reachable_deploy_snapshots(
         }
         let Some(snapshot) = snapshots.get(&key) else { continue };
         queue.extend(
-            snapshot.dependencies
-                .as_ref()
-                .into_iter()
-                .chain(
-                    include_optional.then_some(snapshot.optional_dependencies.as_ref()).flatten(),
-                )
-                .flatten()
+            peer_edges
+                .followed_entries(&key, snapshot, include_optional)
                 .filter_map(|(alias, dependency)| dependency.resolve(alias))
                 .filter(|child| snapshots.contains_key(child)),
         );

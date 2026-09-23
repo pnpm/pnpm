@@ -3,6 +3,12 @@ import url from 'node:url'
 
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
+import {
+  getPeerSatisfactionEdgesToSkip,
+  isPeerSatisfactionEdge,
+  type PeerSatisfactionEdges,
+  pruneDanglingPeerSatisfactionEdges,
+} from '@pnpm/lockfile.peer-edges'
 import type {
   DirectoryResolution,
   LockfileObject,
@@ -34,6 +40,7 @@ export interface CreateDeployFilesOptions {
   patchedDependencies?: PnpmSettings['patchedDependencies']
   selectedProjectManifest: ProjectManifest
   projectId: ProjectId
+  resolvePeersFromWorkspaceRoot?: boolean
   rootProjectManifestDir: string
   allowBuilds?: Record<string, boolean | string>
 }
@@ -66,6 +73,7 @@ export function createDeployFiles ({
   patchedDependencies,
   selectedProjectManifest,
   projectId,
+  resolvePeersFromWorkspaceRoot,
   rootProjectManifestDir,
   allowBuilds,
 }: CreateDeployFilesOptions): DeployFiles {
@@ -84,6 +92,11 @@ export function createDeployFiles ({
     Object.keys(selectedProjectManifest.peerDependencies ?? {}).filter(name => !directDependencyNames.has(name))
   )
 
+  // Classified on the workspace lockfile: the deploy lockfile keeps only the
+  // deployed project's included dependencies, so it no longer shows which
+  // importers list a peer.
+  const sourcePeerSatisfactionEdges = getPeerSatisfactionEdgesToSkip(lockfile, { include, resolvePeersFromWorkspaceRoot })
+  const peerSatisfactionEdges = new Map<DepPath, ReadonlySet<string>>()
   const targetPackageSnapshots: PackageSnapshots = {}
   for (const name in lockfile.packages) {
     const inputDepPath = name as DepPath
@@ -95,6 +108,8 @@ export function createDeployFiles ({
     const outputDepPath = resolveResult
       ? createFileUrlDepPath(resolveResult, allProjects)
       : inputDepPath
+    const skippedAliases = sourcePeerSatisfactionEdges?.get(inputDepPath)
+    if (skippedAliases != null) peerSatisfactionEdges.set(outputDepPath, skippedAliases)
     targetPackageSnapshots[outputDepPath] = convertPackageSnapshot(inputSnapshot, {
       allProjects,
       deployDir,
@@ -163,7 +178,7 @@ export function createDeployFiles ({
   const deployPackageSnapshots = filterDeployPackageSnapshots(
     targetSnapshot,
     targetPackageSnapshots,
-    include
+    { include, peerSatisfactionEdges }
   )
   bindSingletonPeers(targetSnapshot, deployPackageSnapshots, linkedWorkspaceProjects)
 
@@ -261,11 +276,16 @@ function omitKeys<T> (record: Record<string, T> | undefined, keys: Set<string>):
 function filterDeployPackageSnapshots (
   importer: ProjectSnapshot,
   packages: PackageSnapshots,
-  include: CreateDeployFilesOptions['include']
+  opts: {
+    include: CreateDeployFilesOptions['include']
+    peerSatisfactionEdges: PeerSatisfactionEdges
+  }
 ): PackageSnapshots {
+  const { include, peerSatisfactionEdges } = opts
   const queue: DepPath[] = []
-  const enqueue = (dependencies: ResolvedDependencies | undefined) => {
+  const enqueue = (dependencies: ResolvedDependencies | undefined, parent?: DepPath) => {
     for (const [alias, reference] of Object.entries(dependencies ?? {})) {
+      if (parent != null && isPeerSatisfactionEdge(peerSatisfactionEdges, parent, alias)) continue
       const depPath = dp.refToRelative(reference, alias)
       if (depPath != null && packages[depPath] != null) queue.push(depPath)
     }
@@ -284,18 +304,18 @@ function filterDeployPackageSnapshots (
 
     const snapshot = packages[depPath]
     if (snapshot == null) continue
-    enqueue(snapshot.dependencies)
-    if (include.optionalDependencies) enqueue(snapshot.optionalDependencies)
+    enqueue(snapshot.dependencies, depPath)
+    if (include.optionalDependencies) enqueue(snapshot.optionalDependencies, depPath)
   }
 
-  return Object.fromEntries(
+  return pruneDanglingPeerSatisfactionEdges(Object.fromEntries(
     Array.from(reachable, (depPath) => {
       const snapshot = packages[depPath]
       // A retained snapshot's optional edges point at packages this filter just dropped.
       if (!include.optionalDependencies) snapshot.optionalDependencies = undefined
       return [depPath, snapshot]
     })
-  ) as PackageSnapshots
+  ) as PackageSnapshots, peerSatisfactionEdges)
 }
 
 /**

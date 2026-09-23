@@ -238,12 +238,7 @@ impl ListArgs {
             Some(config.modules_dir.as_path()),
             self.graph.lockfile_only,
         )?;
-        let Some(env) = state.env(
-            project_dir,
-            config.virtual_store_dir_max_length as usize,
-            &config.resolved_registries(),
-            config.registry_options_by_url.clone(),
-        ) else {
+        let Some(env) = state.env_for_config(project_dir, config) else {
             return Ok(Vec::new());
         };
         let project_dirs = [project_dir.to_path_buf()];

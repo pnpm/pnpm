@@ -26,8 +26,8 @@ use metadata::{
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    LazyLockfile, Lockfile, LockfileResolution, PackageKey, PackageMetadata, PkgName,
-    PkgNameVerPeer, SnapshotEntry,
+    LazyLockfile, Lockfile, LockfileResolution, PackageKey, PackageMetadata, PeerSatisfactionEdges,
+    PkgName, PkgNameVerPeer, SnapshotEntry,
 };
 use pnpm_package_is_installable::{
     InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
@@ -47,7 +47,8 @@ use std::{
     path::{Path, PathBuf},
 };
 use walk::{
-    ImporterComponents, WalkContext, WalkStores, component_walk_context, walk_importer_components,
+    ImporterComponents, TransitiveEdges, WalkContext, WalkStores, component_walk_context,
+    walk_importer_components,
 };
 use workspace::{
     merged_dedicated_lockfile_state, required_sbom_lockfile, select_importer_ids,
@@ -125,11 +126,7 @@ pub struct SbomDependencyArgs {
     pub exclude_peers: bool,
 }
 
-struct IncludeFilter {
-    dependencies: bool,
-    dev_dependencies: bool,
-    optional_dependencies: bool,
-}
+use pnpm_modules_yaml::IncludedDependencies as IncludeFilter;
 
 impl SbomArgs {
     fn include_filter(&self, include_optional: bool) -> IncludeFilter {
@@ -239,7 +236,7 @@ impl SbomArgs {
         if self.splits_output(&importer_ids) {
             return self.write_split_sboms(
                 &state,
-                &include,
+                include,
                 &authors,
                 &importer_ids,
                 virtual_store_dirs.as_deref(),
@@ -254,7 +251,7 @@ impl SbomArgs {
             });
         let result = collect_components(
             &state,
-            &include,
+            include,
             self.document.sbom_type,
             self.dependencies.exclude_peers,
             self.lockfile_only,
@@ -352,7 +349,7 @@ impl SbomArgs {
     fn write_split_sboms(
         &self,
         state: &State,
-        include: &IncludeFilter,
+        include: IncludeFilter,
         authors: &[String],
         importer_ids: &[String],
         virtual_store_dirs: Option<&[PathBuf]>,

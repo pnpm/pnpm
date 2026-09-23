@@ -1,7 +1,6 @@
 use super::{
     BTreeMap, Config, ConfigAuditLevel, GuardExhaustionPolicy, HashMap, MAX_PATHS_PER_FINDING,
-    PackageVersionGuard, PackageVersionGuardDecision, Range, SnapshotDepRef,
-    filter_ignored_advisories,
+    PackageVersionGuard, PackageVersionGuardDecision, Range, filter_ignored_advisories,
     fix::{
         PackumentPublishInfo, VulnerabilityGuard, filter_advisories_for_fix,
         format_fix_with_update_output, minimum_release_age_excludes, overrides::create_overrides,
@@ -21,7 +20,9 @@ use crate::cli_args::audit::fix::update::{
     InstalledPackages, classify_for_update, report_fixed_remaining,
 };
 use chrono::{DateTime, Utc};
-use pnpm_lockfile::{EnvLockfile, Lockfile, SnapshotEntry, SpecifierAndResolution};
+use pnpm_lockfile::{
+    EnvLockfile, Lockfile, PeerEdgeOptions, SnapshotDepRef, SnapshotEntry, SpecifierAndResolution,
+};
 use pnpm_registry::RangeSpecStyle;
 use std::collections::HashSet;
 
@@ -81,11 +82,21 @@ fn fixture_env_lockfile() -> EnvLockfile {
 }
 
 fn all_dependencies() -> Include {
-    Include { dependencies: true, dev_dependencies: true, optional_dependencies: true }
+    Include {
+        dependencies: true,
+        dev_dependencies: true,
+        optional_dependencies: true,
+        peer_edges: PeerEdgeOptions::default(),
+    }
 }
 
 fn prod_without_optional() -> Include {
-    Include { dependencies: true, dev_dependencies: false, optional_dependencies: false }
+    Include {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: false,
+        peer_edges: PeerEdgeOptions::default(),
+    }
 }
 
 fn empty_lockfile() -> Lockfile {

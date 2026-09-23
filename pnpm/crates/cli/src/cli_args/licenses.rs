@@ -19,7 +19,9 @@ use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic};
 use owo_colors::{OwoColorize, Stream};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, PackageKey, ResolvedDependencyMap};
+use pnpm_lockfile::{
+    Lockfile, PackageKey, PeerEdgeOptions, PeerSatisfactionEdges, ResolvedDependencyMap,
+};
 use pnpm_package_is_installable::{
     InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
 };
@@ -88,12 +90,7 @@ pub struct LicensesDependencyOptions {
     optional: bool,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Include {
-    dependencies: bool,
-    dev_dependencies: bool,
-    optional_dependencies: bool,
-}
+use pnpm_modules_yaml::IncludedDependencies as Include;
 
 impl LicensesDependencyOptions {
     fn include(&self, include_optional: bool) -> Include {
@@ -177,6 +174,7 @@ impl LicensesArgs {
                 current_libc: pnpm_graph_hasher::host_libc(),
                 ..Default::default()
             },
+            config.peer_edge_options(),
         );
         let layout = lockfile_layout(config, dir, lockfile_dir, &lockfile)?;
 

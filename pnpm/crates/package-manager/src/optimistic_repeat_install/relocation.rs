@@ -196,7 +196,12 @@ fn validated_moved_lockfile<'a>(
         .map_err(|_| "the wanted lockfile cannot be read or parsed")?
         .ok_or("a moved tree has no wanted lockfile to compare against")?;
     assert_loaded_current_lockfile_records(wanted, current.as_ref(), |current| {
-        super::materialized_shape_matches(wanted, current, modules.included)
+        super::materialized_shape_matches(
+            wanted,
+            current,
+            modules.included,
+            config.peer_edge_options(),
+        )
     })?;
     if let Some(current) = current.as_ref()
         && !crate::install::frozen_tree_intact(

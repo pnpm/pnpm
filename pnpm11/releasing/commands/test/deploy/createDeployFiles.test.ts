@@ -374,3 +374,63 @@ test.each(['dependencies', 'devDependencies', 'optionalDependencies'] as const)(
   expect(result.lockfile.importers['.' as ProjectId][field]).toStrictEqual(references)
   expect(result.lockfile.packages).toEqual(lockfile.packages)
 })
+
+test('createDeployFiles counts an optional peer the workspace root lists only when resolvePeersFromWorkspaceRoot is on', () => {
+  const lockfileDir = path.resolve('workspace')
+  const deployDir = path.join(lockfileDir, 'out')
+  const projectId = 'app' as ProjectId
+  const abcDepPath = 'abc@1.0.0(peer-c@1.0.0)' as DepPath
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { 'peer-c': '1.0.0' },
+        devDependencies: { 'peer-c': '1.0.0' },
+      },
+      [projectId]: {
+        specifiers: { abc: '1.0.0' },
+        dependencies: { abc: '1.0.0(peer-c@1.0.0)' },
+      },
+    },
+    packages: {
+      [abcDepPath]: {
+        resolution: { integrity: 'sha512-abc' },
+        peerDependencies: { 'peer-c': '^1.0.0' },
+        peerDependenciesMeta: { 'peer-c': { optional: true } },
+        dependencies: { 'peer-c': '1.0.0' },
+      },
+      ['peer-c@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-peer-c' } },
+    },
+  }
+  const deployLockfile = (resolvePeersFromWorkspaceRoot: boolean) => createDeployFiles({
+    allProjects: [
+      {
+        rootDir: lockfileDir as ProjectRootDir,
+        rootDirRealPath: lockfileDir as ProjectRootDirRealPath,
+        manifest: { name: 'root', version: '1.0.0' },
+      },
+      {
+        rootDir: path.join(lockfileDir, 'app') as ProjectRootDir,
+        rootDirRealPath: path.join(lockfileDir, 'app') as ProjectRootDirRealPath,
+        manifest: { name: 'app', version: '1.0.0' },
+      },
+    ],
+    deployDir,
+    include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    lockfile,
+    lockfileDir,
+    resolvePeersFromWorkspaceRoot,
+    selectedProjectManifest: { name: 'app', version: '1.0.0', dependencies: { abc: '1.0.0' } },
+    projectId,
+    rootProjectManifestDir: lockfileDir,
+  }).lockfile
+
+  const withRootPeers = deployLockfile(true)
+  expect(withRootPeers.packages?.['peer-c@1.0.0' as DepPath]).toBeUndefined()
+  expect(withRootPeers.packages?.[abcDepPath].dependencies).toBeUndefined()
+  expect(lockfile.packages?.[abcDepPath].dependencies).toStrictEqual({ 'peer-c': '1.0.0' })
+
+  const withoutRootPeers = deployLockfile(false)
+  expect(withoutRootPeers.packages?.['peer-c@1.0.0' as DepPath]).toBeDefined()
+  expect(withoutRootPeers.packages?.[abcDepPath].dependencies).toStrictEqual({ 'peer-c': '1.0.0' })
+})

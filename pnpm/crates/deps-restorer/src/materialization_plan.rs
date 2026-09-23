@@ -249,7 +249,7 @@ pub fn compute_skip_set<Reporter: pnpm_reporter::Reporter>(
         inputs.closure.lockfile,
         inputs.closure.root,
         inputs.closure.importer_ids,
-        inputs.closure.included,
+        inputs.closure.groups,
     );
 
     Ok(skipped)

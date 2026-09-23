@@ -218,7 +218,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
             PlanLockfiles { initial: initial.lockfile(&built_lockfile), built: &built_lockfile },
             &allow_build_policy,
             PlanScope {
-                included: self.install.included(),
+                groups: &initial.groups,
                 include_transitive_optional_dependencies: self.shape
                     .include_transitive_optional_dependencies,
             },

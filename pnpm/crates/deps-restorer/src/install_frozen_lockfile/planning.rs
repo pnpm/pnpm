@@ -63,6 +63,10 @@ impl<'a> FrozenInputs<'a> {
         }
     }
 
+    pub(super) fn groups(&self) -> &'a crate::GroupSelection {
+        self.projects.groups
+    }
+
     // Declared projects may live outside the lockfile directory, unlike untrusted importer keys.
     pub(super) fn importer_sets(&self) -> (HashSet<String>, HashSet<String>) {
         let install = self;

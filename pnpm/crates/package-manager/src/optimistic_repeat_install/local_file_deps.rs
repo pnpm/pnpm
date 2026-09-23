@@ -22,7 +22,7 @@ struct LocalTarballDependency {
 pub(crate) struct FrozenLocalTarballCheck<'a> {
     pub(crate) workspace_root: &'a Path,
     pub(crate) importer_ids: &'a HashSet<String>,
-    pub(crate) included: IncludedDependencies,
+    pub(crate) groups: &'a crate::GroupSelection,
     pub(crate) lockfile: &'a Lockfile,
     pub(crate) skipped: &'a pnpm_deps_restorer::SkippedSnapshots,
 }
@@ -33,7 +33,7 @@ impl FrozenLocalTarballCheck<'_> {
             self.lockfile,
             self.workspace_root,
             self.importer_ids,
-            self.included,
+            self.groups,
             |key| self.skipped.contains(key),
         )
         .snapshot_keys

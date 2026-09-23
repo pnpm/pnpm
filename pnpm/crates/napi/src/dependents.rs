@@ -33,7 +33,7 @@ use pnpm_deps_inspection::{
     graph::{BuildGraphOptions, build_dependency_graph},
     search::Searcher,
 };
-use pnpm_lockfile::Lockfile;
+use pnpm_lockfile::{Lockfile, PeerEdgeOptions};
 use pnpm_matcher::create_matcher;
 use pnpm_modules_yaml::{DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, IncludedDependencies};
 
@@ -79,6 +79,10 @@ pub struct DependentsOptions {
     /// tree, as `manifest`. Nodes whose manifest is missing (and every
     /// workspace-project node) carry none.
     pub manifest_fields: Option<Vec<String>>,
+    /// Whether a `devDependencies` entry of the root importer provides a peer to
+    /// every importer when a walk that leaves out a group decides which
+    /// optional-peer edges to skip. Defaults to `false`.
+    pub resolve_peers_from_workspace_root: Option<bool>,
 }
 
 /// Inputs for [`render_dependents`]. Mirrors [`RenderDependentsOptions`]
@@ -188,6 +192,7 @@ fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>>
         virtual_store_dir_max_length(options),
         &registries,
         BTreeMap::new(),
+        peer_edge_options(options),
     ) else {
         return Ok(Vec::new());
     };
@@ -201,6 +206,7 @@ fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>>
             lockfile,
             include: included_dependencies(options),
             only_projects: false,
+            peer_edges: peer_edge_options(options),
         },
     );
     let searcher =
@@ -280,6 +286,14 @@ fn included_dependencies(options: &DependentsOptions) -> IncludedDependencies {
         dependencies: options.include_dependencies.unwrap_or(true),
         dev_dependencies: options.include_dev_dependencies.unwrap_or(true),
         optional_dependencies: options.include_optional_dependencies.unwrap_or(true),
+    }
+}
+
+fn peer_edge_options(options: &DependentsOptions) -> PeerEdgeOptions {
+    PeerEdgeOptions {
+        resolve_peers_from_workspace_root: options
+            .resolve_peers_from_workspace_root
+            .unwrap_or(false),
     }
 }
 

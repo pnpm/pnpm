@@ -69,6 +69,7 @@ fn options(dir: &Path, packages: &[&str]) -> DependentsOptions {
         registries: None,
         virtual_store_dir_max_length: None,
         manifest_fields: None,
+        resolve_peers_from_workspace_root: None,
     }
 }
 

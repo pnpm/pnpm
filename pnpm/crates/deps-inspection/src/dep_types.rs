@@ -3,7 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
+use pnpm_lockfile::{Lockfile, PeerSatisfactionEdges, PkgNameVerPeer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DepType {
@@ -14,10 +14,14 @@ pub enum DepType {
 
 pub type DepTypes = HashMap<PkgNameVerPeer, DepType>;
 
+/// A peer-satisfaction edge in `peer_edges` does not make its target a
+/// dependency of the dependent's type: a devDependency that only satisfies a
+/// production package's optional peer is dev-only.
 #[must_use]
-pub fn detect_dep_types(lockfile: &Lockfile) -> DepTypes {
+pub fn detect_dep_types(lockfile: &Lockfile, peer_edges: &PeerSatisfactionEdges) -> DepTypes {
     let mut ctx = Ctx {
         lockfile,
+        peer_edges,
         walked: HashSet::new(),
         not_prod_only: HashSet::new(),
         dep_types: HashMap::new(),
@@ -49,6 +53,7 @@ pub fn detect_dep_types(lockfile: &Lockfile) -> DepTypes {
 
 struct Ctx<'a> {
     lockfile: &'a Lockfile,
+    peer_edges: &'a PeerSatisfactionEdges,
     walked: HashSet<(PkgNameVerPeer, bool)>,
     not_prod_only: HashSet<PkgNameVerPeer>,
     dep_types: DepTypes,
@@ -74,13 +79,10 @@ fn detect_in_subgraph_at(ctx: &mut Ctx<'_>, dep_paths: &[PkgNameVerPeer], dev: b
         };
         record_dep_type(ctx, dep_path, dev);
 
-        let child_paths: Vec<PkgNameVerPeer> =
-            [&snapshot.dependencies, &snapshot.optional_dependencies]
-                .into_iter()
-                .flatten()
-                .flatten()
-                .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
-                .collect();
+        let child_paths: Vec<PkgNameVerPeer> = ctx.peer_edges
+            .followed_entries(dep_path, snapshot, true)
+            .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
+            .collect();
         detect_in_subgraph_at(ctx, &child_paths, dev, depth + 1);
     }
 }

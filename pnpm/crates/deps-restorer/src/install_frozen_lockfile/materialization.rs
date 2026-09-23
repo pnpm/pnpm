@@ -50,7 +50,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             // `CreateVirtualStore`) so the git fetcher could consult it.
             run_build_phase::<Reporter>(&BuildPhaseInputs {
                 cache: phase.fetched.build_cache(engine_name.as_deref(), phase.store_index_writer),
-                directories: build_directories(install, ctx, phase.linked),
+                directories: build_directories(install.projects.workspace_root, ctx, phase.linked),
                 graph: crate::BuildPhaseGraph {
                     snapshots,
                     packages,
@@ -187,7 +187,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                 host.engine_name,
                 host_node.as_ref(),
             );
-            let included = inputs.included();
+            let groups = inputs.groups();
 
             let skipped = crate::materialization_plan::compute_skip_set::<Reporter>(
                 crate::materialization_plan::SkipSetInputs {
@@ -198,7 +198,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                             .keys()
                             .cloned()
                             .collect(),
-                        included,
+                        groups,
                     },
                     entries: inputs.entries(),
                     requester: inputs.projects.requester,
@@ -209,7 +209,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                     // The frozen path always installs the groups it was
                     // given, so `--no-optional` needs no further
                     // qualification here.
-                    exclude_optional: !included.optional_dependencies,
+                    exclude_optional: !groups.included.optional_dependencies,
                     skip_runtimes: inputs.platform.skip_runtimes,
                 },
             )
@@ -343,13 +343,13 @@ impl<'a> InstallFrozenLockfile<'a> {
 }
 
 fn build_directories<'a>(
-    install: super::FrozenInputs<'a>,
+    workspace_root: &'a std::path::Path,
     ctx: &'a crate::InstallContext<'a>,
     linked: &'a crate::linking::LinkPhaseOutput,
 ) -> crate::BuildPhaseDirectories<'a> {
     crate::BuildPhaseDirectories {
-        workspace_root: install.projects.workspace_root,
-        top_level_bin_root: install.projects.workspace_root,
+        workspace_root,
+        top_level_bin_root: workspace_root,
         layout: ctx.linker.layout,
         hoisted_pkg_roots_by_key: linked.hoisted_pkg_roots_by_key.as_ref(),
         is_hoisted: ctx.is_hoisted(),

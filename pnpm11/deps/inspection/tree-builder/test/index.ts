@@ -1,5 +1,6 @@
 /// <reference path="../../../../__typings__/index.d.ts"/>
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -664,4 +665,71 @@ test('on custom modules-dir workspaces', async () => {
       optionalDependencies: [],
     },
   })
+})
+
+test('a production tree leaves out a devDependency that only satisfies an optional peer', async () => {
+  const lockfileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-optional-peer-'))
+  try {
+    fs.writeFileSync(path.join(lockfileDir, 'package.json'), JSON.stringify({ name: 'root', version: '1.0.0' }))
+    fs.writeFileSync(path.join(lockfileDir, WANTED_LOCKFILE), `lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      abc:
+        specifier: 1.0.0
+        version: 1.0.0(peer-a@1.0.0)(peer-c@1.0.0)
+    devDependencies:
+      peer-a:
+        specifier: 1.0.0
+        version: 1.0.0
+      peer-c:
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages:
+
+  abc@1.0.0:
+    resolution: {integrity: sha512-abc}
+    peerDependencies:
+      peer-a: ^1.0.0
+      peer-c: ^1.0.0
+    peerDependenciesMeta:
+      peer-c:
+        optional: true
+
+  peer-a@1.0.0:
+    resolution: {integrity: sha512-peer-a}
+
+  peer-c@1.0.0:
+    resolution: {integrity: sha512-peer-c}
+
+snapshots:
+
+  abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0):
+    dependencies:
+      peer-a: 1.0.0
+      peer-c: 1.0.0
+
+  peer-a@1.0.0: {}
+
+  peer-c@1.0.0: {}
+`)
+    const abcChildren = async (include?: { dependencies: boolean, devDependencies: boolean, optionalDependencies: boolean }) => {
+      const tree = await buildDependenciesTree([lockfileDir], {
+        checkWantedLockfileOnly: true,
+        depth: 1,
+        include,
+        lockfileDir,
+        virtualStoreDirMaxLength,
+      })
+      return tree[lockfileDir].dependencies![0].dependencies!.map(({ name }) => name)
+    }
+
+    expect(await abcChildren({ dependencies: true, devDependencies: false, optionalDependencies: true })).toStrictEqual(['peer-a'])
+    expect(await abcChildren()).toStrictEqual(['peer-a', 'peer-c'])
+  } finally {
+    fs.rmSync(lockfileDir, { recursive: true, force: true })
+  }
 })

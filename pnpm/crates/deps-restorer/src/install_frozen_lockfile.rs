@@ -446,7 +446,7 @@ impl<'a> InstallFrozenLockfile<'a> {
     /// module-resolution sidecars describe it, and the virtual-store
     /// sweep leaves exactly its snapshots on disk.
     fn current_lockfile(&self, skipped: &SkippedSnapshots) -> Lockfile {
-        crate::filter_lockfile_for_current(self.lockfiles.wanted, self.inputs().included(), skipped)
+        crate::filter_lockfile_for_current(self.lockfiles.wanted, self.inputs().groups(), skipped)
     }
 
     /// The filtered lockfile that the sidecars and the `injectedDeps`

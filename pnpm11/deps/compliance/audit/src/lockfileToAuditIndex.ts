@@ -1,7 +1,12 @@
 import * as dp from '@pnpm/deps.path'
-import { DepType, type DepTypes } from '@pnpm/lockfile.detect-dep-types'
+import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { convertToLockfileObject } from '@pnpm/lockfile.fs'
-import type { EnvLockfile, LockfileObject, PackageSnapshot, ProjectSnapshot, ResolvedDependencies } from '@pnpm/lockfile.types'
+import {
+  getPeerSatisfactionEdgesToSkip,
+  isPeerSatisfactionEdge,
+  type PeerSatisfactionEdges,
+} from '@pnpm/lockfile.peer-edges'
+import type { EnvLockfile, LockfileObject, PackageSnapshot, ResolvedDependencies } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import type { DependenciesField, DepPath, ProjectId } from '@pnpm/types'
@@ -31,14 +36,13 @@ export interface AuditIndexRequest {
 export interface AuditIndexOptions {
   envLockfile?: EnvLockfile | null
   include?: { [dependenciesField in DependenciesField]: boolean }
+  resolvePeersFromWorkspaceRoot?: boolean
   // Pre-computed dep types. Callers that also call buildAuditPathIndex on the
   // same lockfile can share this to avoid walking the lockfile twice.
   depTypes?: DepTypes
   // Pre-computed optional-only depPaths for the main lockfile. Shared between
   // lockfileToAuditRequest and buildAuditPathIndex when both are called.
   optionalOnly?: Set<DepPath>
-  // Pre-computed collectReachableDepPaths for the main lockfile.
-  reachable?: Set<DepPath>
 }
 
 export function lockfileToAuditRequest (
@@ -46,10 +50,12 @@ export function lockfileToAuditRequest (
   opts: AuditIndexOptions
 ): AuditIndexRequest {
   const importerIds = Object.keys(lockfile.importers) as ProjectId[]
-  const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, importerIds, { include: opts.include })
-  const depTypes = opts.depTypes ?? detectAuditDepTypes(lockfile)
-  const reachable = opts.reachable ?? collectReachableDepPaths(lockfile, opts.include)
-  const optionalOnly = opts.optionalOnly ?? collectOptionalOnlyDepPaths(lockfile, opts.include, reachable)
+  const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, importerIds, {
+    include: opts.include,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
+  })
+  const depTypes = opts.depTypes ?? detectDepTypes(lockfile, opts)
+  const optionalOnly = opts.optionalOnly ?? collectOptionalOnlyDepPaths(lockfile, opts)
 
   // Use null-prototype objects for records keyed by package names so a
   // hostile or unusual package name (e.g. "__proto__") cannot pollute the
@@ -101,7 +107,7 @@ export function lockfileToAuditRequest (
   // explicit frame stack stands in for recursion (registering each dependency
   // before descending, preserving pre-order) so a deep dependency chain from an
   // untrusted lockfile cannot overflow the call stack.
-  const makeVisitor = (graphDepTypes: DepTypes, graphOptionalOnly: Set<DepPath>, graphReachable: Set<DepPath>) => {
+  const makeVisitor = (graphDepTypes: DepTypes, graphOptionalOnly: Set<DepPath>) => {
     return (rootStep: LockfileWalkerStep): void => {
       const stack: Array<{ dependencies: LockfileWalkerStep['dependencies'], next: number }> = [{ dependencies: rootStep.dependencies, next: 0 }]
       while (stack.length > 0) {
@@ -112,10 +118,7 @@ export function lockfileToAuditRequest (
         }
         const { depPath, pkgSnapshot, next } = frame.dependencies[frame.next++]
         const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        // `@pnpm/lockfile.walker` follows peer-satisfaction edges (see
-        // snapshotChildren), so it can visit a depPath that isn't present
-        // under opts.include.
-        if (version && graphReachable.has(depPath)) {
+        if (version) {
           registerOccurrence({
             name,
             version,
@@ -128,16 +131,15 @@ export function lockfileToAuditRequest (
     }
   }
 
-  const visitMain = makeVisitor(depTypes, optionalOnly, reachable)
+  const visitMain = makeVisitor(depTypes, optionalOnly)
   for (const importerWalker of importerWalkers) {
     visitMain(importerWalker.step)
   }
   if (opts.envLockfile) {
     const envLockfileObject = envLockfileToLockfileObject(opts.envLockfile)
-    const envDepTypes = detectAuditDepTypes(envLockfileObject)
-    const envReachable = collectReachableDepPaths(envLockfileObject, opts.include)
-    const envOptionalOnly = collectOptionalOnlyDepPaths(envLockfileObject, opts.include, envReachable)
-    const visitEnv = makeVisitor(envDepTypes, envOptionalOnly, envReachable)
+    const envDepTypes = detectDepTypes(envLockfileObject)
+    const envOptionalOnly = collectOptionalOnlyDepPaths(envLockfileObject, { include: opts.include })
+    const visitEnv = makeVisitor(envDepTypes, envOptionalOnly)
     for (const { step } of lockfileWalkerGroupImporterSteps(envLockfileObject, Object.keys(envLockfileObject.importers) as ProjectId[], { include: opts.include })) {
       visitEnv(step)
     }
@@ -154,8 +156,8 @@ export function buildAuditPathIndex (
   // Null-prototype record keyed by package name to avoid prototype pollution
   // from registry-supplied or lockfile-supplied names.
   const paths: AuditPathIndex = Object.create(null)
-  const depTypes = opts.depTypes ?? detectAuditDepTypes(lockfile)
-  const optionalOnly = opts.optionalOnly ?? collectOptionalOnlyDepPaths(lockfile, opts.include, opts.reachable)
+  const depTypes = opts.depTypes ?? detectDepTypes(lockfile, opts)
+  const optionalOnly = opts.optionalOnly ?? collectOptionalOnlyDepPaths(lockfile, opts)
 
   walkForPaths({
     lockfile,
@@ -164,6 +166,7 @@ export function buildAuditPathIndex (
     depTypes,
     optionalOnly,
     include: opts.include,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     importerSegmentOf: (importerId) => importerId.replace(/\//g, '__'),
   })
 
@@ -173,8 +176,8 @@ export function buildAuditPathIndex (
       lockfile: envLockfileObject,
       vulnerableNames,
       paths,
-      depTypes: detectAuditDepTypes(envLockfileObject),
-      optionalOnly: collectOptionalOnlyDepPaths(envLockfileObject, opts.include),
+      depTypes: detectDepTypes(envLockfileObject),
+      optionalOnly: collectOptionalOnlyDepPaths(envLockfileObject, { include: opts.include }),
       include: opts.include,
       importerSegmentOf: (importerId) => importerId,
     })
@@ -196,6 +199,7 @@ interface WalkForPathsCtx {
   depTypes: DepTypes
   optionalOnly: Set<DepPath>
   include?: AuditIndexOptions['include']
+  resolvePeersFromWorkspaceRoot?: boolean
   importerSegmentOf: (importerId: string) => string
 }
 
@@ -205,7 +209,8 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
   const includeDevDeps = include?.devDependencies !== false
   const includeOptDeps = include?.optionalDependencies !== false
   const packages = lockfile.packages ?? {}
-  const reachableVulnerabilities = createReachableVulnerabilitiesGetter(lockfile, vulnerableNames, includeOptDeps)
+  const skippedPeerEdges = getPeerSatisfactionEdgesToSkip(lockfile, ctx)
+  const reachableVulnerabilities = createReachableVulnerabilitiesGetter(lockfile, vulnerableNames, { includeOptDeps, skippedPeerEdges })
 
   // Tracks the depPaths on the current DFS trail so cycles terminate. A frame is
   // added when its node is opened and removed when the frame is unwound, so the
@@ -236,7 +241,7 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
         optionalOnly.has(edge.depPath))
     }
     if (allReachableVulnerabilitiesSaturated(paths, reachable, depTypes, optionalOnly)) return
-    const children = snapshotChildren(lockfile, { depPath: edge.depPath, snapshot: pkgSnapshot }, includeOptDeps)
+    const children = snapshotChildren({ depPath: edge.depPath, snapshot: pkgSnapshot }, { includeOptDeps, skippedPeerEdges })
     inTrail.add(edge.depPath)
     stack.push({ depPath: edge.depPath, trail, children, next: 0 })
   }
@@ -288,7 +293,7 @@ function joinTrail (node: TrailNode): string {
 function createReachableVulnerabilitiesGetter (
   lockfile: LockfileObject,
   vulnerableNames: Set<string>,
-  includeOptDeps: boolean
+  childOpts: SnapshotChildrenOptions
 ): (edge: { name: string, depPath: DepPath }) => ReadonlySet<string> {
   const packages = lockfile.packages ?? {}
   // Final reachable set per node, shared across its SCC.
@@ -325,7 +330,7 @@ function createReachableVulnerabilitiesGetter (
         if (version && vulnerableNames.has(resolvedName)) {
           own.add(vulnerabilityKey(resolvedName, version, edge.depPath))
         }
-        children = snapshotChildren(lockfile, { depPath: edge.depPath, snapshot: pkgSnapshot }, includeOptDeps)
+        children = snapshotChildren({ depPath: edge.depPath, snapshot: pkgSnapshot }, childOpts)
       }
       partial.set(edge.depPath, own)
       work.push({ edge, own, children, next: 0 })
@@ -464,150 +469,36 @@ function recordPath (paths: AuditPathIndex, name: string, version: string, joine
 // input, and spreading a pathologically large dependency list into push()
 // arguments can exceed the engine's argument limit and throw, crashing the
 // audit. Appending in a loop also avoids the intermediate array.
-function appendNamedDepPaths (target: Array<{ name: string, depPath: DepPath }>, deps: ResolvedDependencies): void {
+function appendNamedDepPaths (
+  target: Array<{ name: string, depPath: DepPath }>,
+  deps: ResolvedDependencies,
+  isSkipped?: (alias: string) => boolean
+): void {
   for (const [alias, ref] of Object.entries(deps)) {
+    if (isSkipped?.(alias)) continue
     const depPath = dp.refToRelative(ref, alias)
     if (depPath != null) target.push({ name: alias, depPath })
   }
 }
 
-// An entry whose alias is one of the package's own peerDependencies is the
-// concrete package peer resolution picked for that peer. When every importer
-// that reaches the snapshot lists that package as a direct dependency, the
-// entry only satisfies the peer, and each importer's dependency field decides
-// whether the package is there: following the entry would make a peer
-// satisfied by a devDependency reachable under `--prod`. The entry is followed
-// as soon as one importer reaches the snapshot without listing the package:
-// for that importer the peer was auto-installed (`autoInstallPeers`), or
-// resolved from an ancestor package or from the workspace root, and the entry
-// is what provides it. The root is not taken as the provider because the
-// lockfile doesn't record whether `resolvePeersFromWorkspaceRoot` was on.
-function snapshotChildren (
-  lockfile: LockfileObject,
-  parent: { depPath: DepPath, snapshot: PackageSnapshot },
+interface SnapshotChildrenOptions {
   includeOptDeps: boolean
+  skippedPeerEdges: PeerSatisfactionEdges | undefined
+}
+
+function snapshotChildren (
+  parent: { depPath: DepPath, snapshot: PackageSnapshot },
+  opts: SnapshotChildrenOptions
 ): Array<{ name: string, depPath: DepPath }> {
   const children: Array<{ name: string, depPath: DepPath }> = []
-  const skipped = parent.snapshot.peerDependencies == null ? undefined : getPeerSatisfactionEdges(lockfile).get(parent.depPath)
-  appendDependencyEdges(children, parent.snapshot.dependencies ?? {}, skipped)
-  if (includeOptDeps) {
-    appendDependencyEdges(children, parent.snapshot.optionalDependencies ?? {}, skipped)
+  const isSkipped = opts.skippedPeerEdges?.has(parent.depPath)
+    ? (alias: string) => isPeerSatisfactionEdge(opts.skippedPeerEdges, parent.depPath, alias)
+    : undefined
+  appendNamedDepPaths(children, parent.snapshot.dependencies ?? {}, isSkipped)
+  if (opts.includeOptDeps) {
+    appendNamedDepPaths(children, parent.snapshot.optionalDependencies ?? {}, isSkipped)
   }
   return children
-}
-
-function appendDependencyEdges (
-  target: Array<{ name: string, depPath: DepPath }>,
-  deps: ResolvedDependencies,
-  skipped: Set<string> | undefined
-): void {
-  for (const [alias, ref] of Object.entries(deps)) {
-    if (skipped?.has(alias)) continue
-    const depPath = dp.refToRelative(ref, alias)
-    if (depPath == null) continue
-    target.push({ name: alias, depPath })
-  }
-}
-
-const peerSatisfactionEdgesCache = new WeakMap<LockfileObject, Map<DepPath, Set<string>>>()
-
-function getPeerSatisfactionEdges (lockfile: LockfileObject): Map<DepPath, Set<string>> {
-  let edges = peerSatisfactionEdgesCache.get(lockfile)
-  if (edges == null) {
-    edges = collectPeerSatisfactionEdges(lockfile)
-    peerSatisfactionEdgesCache.set(lockfile, edges)
-  }
-  return edges
-}
-
-function collectPeerSatisfactionEdges (lockfile: LockfileObject): Map<DepPath, Set<string>> {
-  const importers = Object.values(lockfile.importers)
-  const directDepPaths = importers.map((importer) => new Set(importerDirectDepPaths(importer)))
-  // The walk depends only on which importers list the target, so targets
-  // with the same listing share one walk.
-  const reachedByListing = new Map<string, Set<DepPath>>()
-  const reachedByTarget = new Map<DepPath, Set<DepPath>>()
-  const reachedWithoutListing = (target: DepPath): Set<DepPath> => {
-    let reached = reachedByTarget.get(target)
-    if (reached != null) return reached
-    const notListing = directDepPaths.flatMap((direct, index) => direct.has(target) ? [] : [index])
-    const listingKey = notListing.join(',')
-    reached = reachedByListing.get(listingKey)
-    if (reached == null) {
-      reached = new Set()
-      walkAllEdges(lockfile, notListing.flatMap((index) => importerDirectDepPaths(importers[index])), reached)
-      reachedByListing.set(listingKey, reached)
-    }
-    reachedByTarget.set(target, reached)
-    return reached
-  }
-  const edges = new Map<DepPath, Set<string>>()
-  for (const [parent, snapshot] of Object.entries(lockfile.packages ?? {}) as Array<[DepPath, PackageSnapshot]>) {
-    for (const [alias, ref] of [...Object.entries(snapshot.dependencies ?? {}), ...Object.entries(snapshot.optionalDependencies ?? {})]) {
-      if (!isPeerAlias(snapshot, alias)) continue
-      const target = dp.refToRelative(ref, alias)
-      if (target == null) continue
-      if (reachedWithoutListing(target).has(parent)) continue
-      let aliases = edges.get(parent)
-      if (aliases == null) {
-        aliases = new Set()
-        edges.set(parent, aliases)
-      }
-      aliases.add(alias)
-    }
-  }
-  return edges
-}
-
-function importerDirectDepPaths (importer: ProjectSnapshot): DepPath[] {
-  return [
-    ...resolvedDepsToDepPaths(importer.dependencies ?? {}),
-    ...resolvedDepsToDepPaths(importer.devDependencies ?? {}),
-    ...resolvedDepsToDepPaths(importer.optionalDependencies ?? {}),
-  ]
-}
-
-function walkAllEdges (lockfile: LockfileObject, depPaths: DepPath[], seen: Set<DepPath>): void {
-  const packages = lockfile.packages ?? {}
-  const stack = [...depPaths]
-  while (stack.length > 0) {
-    const depPath = stack.pop()!
-    if (seen.has(depPath)) continue
-    seen.add(depPath)
-    const snapshot = packages[depPath]
-    if (!snapshot) continue
-    for (const deps of [snapshot.dependencies, snapshot.optionalDependencies]) {
-      for (const child of resolvedDepsToDepPaths(deps ?? {})) stack.push(child)
-    }
-  }
-}
-
-function isPeerAlias (snapshot: PackageSnapshot, alias: string): boolean {
-  // Object.hasOwn rather than `in`: a lockfile is untrusted input, and `in`
-  // also matches inherited Object.prototype property names (`constructor`,
-  // `toString`, ...), some of which are valid package names.
-  return snapshot.peerDependencies != null && Object.hasOwn(snapshot.peerDependencies, alias)
-}
-
-// Returns every depPath reachable from the importers' roots under `include`
-// (peer-satisfaction edges excluded — see snapshotChildren).
-export function collectReachableDepPaths (
-  lockfile: LockfileObject,
-  include?: AuditIndexOptions['include']
-): Set<DepPath> {
-  const includeDeps = include?.dependencies !== false
-  const includeDevDeps = include?.devDependencies !== false
-  const includeOptDeps = include?.optionalDependencies !== false
-  const reachable = new Set<DepPath>()
-  for (const importer of Object.values(lockfile.importers)) {
-    const roots = [
-      ...(includeDeps ? resolvedDepsToDepPaths(importer.dependencies ?? {}) : []),
-      ...(includeDevDeps ? resolvedDepsToDepPaths(importer.devDependencies ?? {}) : []),
-      ...(includeOptDeps ? resolvedDepsToDepPaths(importer.optionalDependencies ?? {}) : []),
-    ]
-    walkReachable(lockfile, roots, reachable, includeOptDeps)
-  }
-  return reachable
 }
 
 // Returns the set of depPaths that are reachable only through optional edges
@@ -623,20 +514,37 @@ export function collectReachableDepPaths (
 // "optional-only" classification.
 export function collectOptionalOnlyDepPaths (
   lockfile: LockfileObject,
-  include?: AuditIndexOptions['include'],
-  reachable?: Set<DepPath>
+  opts: Pick<AuditIndexOptions, 'include' | 'resolvePeersFromWorkspaceRoot'>
 ): Set<DepPath> {
+  const { include } = opts
   const includeDeps = include?.dependencies !== false
   const includeDevDeps = include?.devDependencies !== false
+  const includeOptDeps = include?.optionalDependencies !== false
   const withoutOptional = new Set<DepPath>()
+  const withOptional = new Set<DepPath>()
+  const withOptionalChildOpts: SnapshotChildrenOptions = {
+    includeOptDeps,
+    skippedPeerEdges: getPeerSatisfactionEdgesToSkip(lockfile, opts),
+  }
+  const withoutOptionalChildOpts: SnapshotChildrenOptions = {
+    includeOptDeps: false,
+    skippedPeerEdges: getPeerSatisfactionEdgesToSkip(lockfile, {
+      include: { dependencies: includeDeps, devDependencies: includeDevDeps, optionalDependencies: false },
+      resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
+    }),
+  }
   for (const importer of Object.values(lockfile.importers)) {
     const nonOptionalRoots = [
       ...(includeDeps ? resolvedDepsToDepPaths(importer.dependencies ?? {}) : []),
       ...(includeDevDeps ? resolvedDepsToDepPaths(importer.devDependencies ?? {}) : []),
     ]
-    walkReachable(lockfile, nonOptionalRoots, withoutOptional, false)
+    const allRoots = [
+      ...nonOptionalRoots,
+      ...(includeOptDeps ? resolvedDepsToDepPaths(importer.optionalDependencies ?? {}) : []),
+    ]
+    walkReachable(lockfile, nonOptionalRoots, { seen: withoutOptional, childOpts: withoutOptionalChildOpts })
+    walkReachable(lockfile, allRoots, { seen: withOptional, childOpts: withOptionalChildOpts })
   }
-  const withOptional = reachable ?? collectReachableDepPaths(lockfile, include)
   const result = new Set<DepPath>()
   for (const depPath of withOptional) {
     if (!withoutOptional.has(depPath)) result.add(depPath)
@@ -644,34 +552,14 @@ export function collectOptionalOnlyDepPaths (
   return result
 }
 
-// The DepType classification of `@pnpm/lockfile.detect-dep-types`'s
-// detectDepTypes, without peer-satisfaction edges (see snapshotChildren).
-// Like detectDepTypes, it ignores the caller's `include`.
-export function detectAuditDepTypes (lockfile: LockfileObject): DepTypes {
-  const devReachable = new Set<DepPath>()
-  const prodReachable = new Set<DepPath>()
-  for (const importer of Object.values(lockfile.importers)) {
-    walkReachable(lockfile, resolvedDepsToDepPaths(importer.devDependencies ?? {}), devReachable, true)
-    const prodRoots = [
-      ...resolvedDepsToDepPaths(importer.dependencies ?? {}),
-      ...resolvedDepsToDepPaths(importer.optionalDependencies ?? {}),
-    ]
-    walkReachable(lockfile, prodRoots, prodReachable, true)
-  }
-  const dev: DepTypes = {}
-  for (const depPath of devReachable) {
-    dev[depPath] = prodReachable.has(depPath) ? DepType.DevAndProd : DepType.DevOnly
-  }
-  for (const depPath of prodReachable) {
-    if (!devReachable.has(depPath)) dev[depPath] = DepType.ProdOnly
-  }
-  return dev
-}
-
 // Explicit stack rather than recursion: a lockfile is untrusted input, and a
 // deep dependency chain would otherwise overflow the call stack. Order does not
 // matter — the result is the reachable set, so a LIFO walk is equivalent.
-function walkReachable (lockfile: LockfileObject, depPaths: DepPath[], seen: Set<DepPath>, includeOptionalEdges: boolean): void {
+function walkReachable (
+  lockfile: LockfileObject,
+  depPaths: DepPath[],
+  { seen, childOpts }: { seen: Set<DepPath>, childOpts: SnapshotChildrenOptions }
+): void {
   const packages = lockfile.packages ?? {}
   const stack: DepPath[] = []
   for (const depPath of depPaths) stack.push(depPath)
@@ -681,7 +569,7 @@ function walkReachable (lockfile: LockfileObject, depPaths: DepPath[], seen: Set
     seen.add(depPath)
     const snapshot = packages[depPath]
     if (!snapshot) continue
-    for (const child of snapshotChildren(lockfile, { depPath, snapshot }, includeOptionalEdges)) stack.push(child.depPath)
+    for (const child of snapshotChildren({ depPath, snapshot }, childOpts)) stack.push(child.depPath)
   }
 }
 

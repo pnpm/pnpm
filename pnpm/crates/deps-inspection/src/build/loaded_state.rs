@@ -58,6 +58,22 @@ impl LoadedState {
         }
     }
 
+    /// [`Self::env`] with every setting read from `config`.
+    #[must_use]
+    pub fn env_for_config<'a>(
+        &'a self,
+        lockfile_dir: &Path,
+        config: &pnpm_config::Config,
+    ) -> Option<PkgInfoEnv<'a>> {
+        self.env(
+            lockfile_dir,
+            config.virtual_store_dir_max_length as usize,
+            &config.resolved_registries(),
+            config.registry_options_by_url.clone(),
+            config.peer_edge_options(),
+        )
+    }
+
     #[must_use]
     pub fn env<'a>(
         &'a self,
@@ -65,6 +81,7 @@ impl LoadedState {
         virtual_store_dir_max_length: usize,
         registries_by_scope: &BTreeMap<String, String>,
         registry_options_by_url: BTreeMap<String, RegistryOptions>,
+        peer_edges: pnpm_lockfile::PeerEdgeOptions,
     ) -> Option<PkgInfoEnv<'a>> {
         let lockfile = self.lockfile_to_use()?;
         let registries: HashMap<String, String> = registries_by_scope
@@ -85,7 +102,10 @@ impl LoadedState {
                 .unwrap_or_default(),
             current_lockfile: lockfile,
             wanted_lockfile: self.wanted_lockfile.as_ref(),
-            dep_types: detect_dep_types(lockfile),
+            dep_types: detect_dep_types(
+                lockfile,
+                &pnpm_lockfile::PeerSatisfactionEdges::of_lockfile(lockfile, peer_edges),
+            ),
             layout: self.layout(lockfile_dir, virtual_store_dir_max_length),
         })
     }

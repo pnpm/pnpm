@@ -108,6 +108,15 @@ impl Config {
         self.lockfile_dir.is_some() || self.shared_workspace_lockfile
     }
 
+    /// How a walk that leaves out a dependency group classifies the lockfile's
+    /// optional-peer edges.
+    #[must_use]
+    pub fn peer_edge_options(&self) -> pnpm_lockfile::PeerEdgeOptions {
+        pnpm_lockfile::PeerEdgeOptions {
+            resolve_peers_from_workspace_root: self.resolve_peers_from_workspace_root,
+        }
+    }
+
     /// pnpm's `rootProjectManifestDir`: where the root `package.json`,
     /// the config dependencies (`node_modules/.pnpm-config`), and the
     /// pnpmfile a command reads live — `lockfileDir ?? workspaceDir ??

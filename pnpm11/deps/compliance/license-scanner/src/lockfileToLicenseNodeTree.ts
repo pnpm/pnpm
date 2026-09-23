@@ -137,14 +137,15 @@ export async function lockfileToLicenseNodeTree (
   opts: {
     include?: { [dependenciesField in DependenciesField]: boolean }
     includedImporterIds?: ProjectId[]
-  } & Omit<LicenseExtractOptions, 'storeIndex'>
+    resolvePeersFromWorkspaceRoot?: boolean
+  } & Omit<LicenseExtractOptions, 'storeIndex' | 'depTypes'>
 ): Promise<LicenseNodeTree> {
   const importerWalkers = lockfileWalkerGroupImporterSteps(
     lockfile,
     opts.includedImporterIds ?? Object.keys(lockfile.importers) as ProjectId[],
-    { include: opts?.include }
+    { include: opts.include, resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot }
   )
-  const depTypes = detectDepTypes(lockfile)
+  const depTypes = detectDepTypes(lockfile, opts)
   const storeIndex = new StoreIndex(opts.storeDir)
   const dependencies = Object.fromEntries(
     await Promise.all(

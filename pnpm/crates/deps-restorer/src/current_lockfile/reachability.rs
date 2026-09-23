@@ -1,20 +1,71 @@
-use pnpm_lockfile::{Lockfile, PackageKey};
+use pnpm_lockfile::{Lockfile, PackageKey, PeerEdgeOptions, PeerSatisfactionEdges};
 use pnpm_modules_yaml::IncludedDependencies;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     path::Path,
+    sync::Arc,
 };
 
 pub struct ReachableLockfileGraph {
     pub importer_ids: HashSet<String>,
     pub snapshot_keys: HashSet<PackageKey>,
 }
+
+/// The dependency groups a lockfile walk includes, and the peer-satisfaction
+/// edges (see [`PeerSatisfactionEdges`]) it leaves out while it excludes one.
+///
+/// The classification is computed once per install and shared, since every
+/// walk of that install over the lockfile, or over a closure of it, skips the
+/// same edges.
+#[derive(Debug, Clone)]
+pub struct GroupSelection {
+    pub included: IncludedDependencies,
+    pub skipped_peer_edges: Arc<PeerSatisfactionEdges>,
+}
+
+impl GroupSelection {
+    /// `included`, with `lockfile`'s peer-satisfaction edges classified when
+    /// `included` leaves a group out.
+    #[must_use]
+    pub fn classify(
+        lockfile: &Lockfile,
+        included: IncludedDependencies,
+        peer_edges: PeerEdgeOptions,
+    ) -> Self {
+        let skipped_peer_edges = if included.excludes_a_group() {
+            PeerSatisfactionEdges::of_lockfile(lockfile, peer_edges)
+        } else {
+            PeerSatisfactionEdges::default()
+        };
+        GroupSelection { included, skipped_peer_edges: Arc::new(skipped_peer_edges) }
+    }
+
+    /// `included` without a peer classification, for a walk that only reads
+    /// which importers it reaches.
+    #[must_use]
+    pub fn following_every_edge(included: IncludedDependencies) -> Self {
+        GroupSelection { included, skipped_peer_edges: Arc::default() }
+    }
+
+    /// Every group, which leaves no edge out.
+    #[must_use]
+    pub fn all() -> Self {
+        Self::following_every_edge(IncludedDependencies {
+            dependencies: true,
+            dev_dependencies: true,
+            optional_dependencies: true,
+        })
+    }
+}
+
+/// The importers and snapshots `initial_importer_ids` reach through the
+/// edges `groups` selects, never entering a key `should_skip` accepts.
 #[must_use]
 pub fn collect_reachable<ShouldSkip>(
     lockfile: &Lockfile,
     workspace_root: &Path,
     initial_importer_ids: &HashSet<String>,
-    included: IncludedDependencies,
+    groups: &GroupSelection,
     should_skip: ShouldSkip,
 ) -> ReachableLockfileGraph
 where
@@ -38,7 +89,7 @@ where
                 (pnpm_fs::lexical_normalize(&crate::importer_root_dir(workspace_root, &id)), id)
             })
             .collect(),
-        included,
+        groups,
         should_skip,
 
         importer_queue: initial_importer_ids
@@ -68,7 +119,7 @@ pub(super) struct ReachableWalk<'a, ShouldSkip> {
     lockfile: &'a Lockfile,
     workspace_root: &'a Path,
     known_importers: HashMap<std::path::PathBuf, String>,
-    included: IncludedDependencies,
+    groups: &'a GroupSelection,
     should_skip: ShouldSkip,
     importer_queue: VecDeque<String>,
     snapshot_queue: VecDeque<PackageKey>,
@@ -82,7 +133,7 @@ impl<ShouldSkip: Fn(&PackageKey) -> bool> ReachableWalk<'_, ShouldSkip> {
             return;
         };
         self.reached.importer_ids.insert(importer_id.to_owned());
-        let included = self.included;
+        let included = self.groups.included;
         for map in [
             included.dependencies.then_some(importer.dependencies.as_ref()).flatten(),
             included.dev_dependencies.then_some(importer.dev_dependencies.as_ref()).flatten(),
@@ -111,21 +162,16 @@ impl<ShouldSkip: Fn(&PackageKey) -> bool> ReachableWalk<'_, ShouldSkip> {
         else {
             return;
         };
-        for map in [
-            snapshot.dependencies.as_ref(),
-            self.included.optional_dependencies
-                .then_some(snapshot.optional_dependencies.as_ref())
-                .flatten(),
-        ]
-        .into_iter()
-        .flatten()
-        {
-            for (alias, dep_ref) in map {
-                if let Some(target) = dep_ref.as_link_target() {
-                    self.enqueue_linked_importer(target);
-                } else if let Some(child) = dep_ref.resolve(alias) {
-                    self.enqueue_snapshot(child);
-                }
+        let entries = self.groups.skipped_peer_edges.followed_entries(
+            key,
+            snapshot,
+            self.groups.included.optional_dependencies,
+        );
+        for (alias, dep_ref) in entries {
+            if let Some(target) = dep_ref.as_link_target() {
+                self.enqueue_linked_importer(target);
+            } else if let Some(child) = dep_ref.resolve(alias) {
+                self.enqueue_snapshot(child);
             }
         }
     }

@@ -78,6 +78,7 @@ export async function searchForPackages (
     workspaceProjectDirs?: string[]
     registriesByScope?: RegistriesByScope
     registriesByPrefix?: Record<string, string>
+    resolvePeersFromWorkspaceRoot?: boolean
     modulesDir?: string
     virtualStoreDirMaxLength: number
     finders?: Finder[]
@@ -96,6 +97,7 @@ export async function searchForPackages (
       workspaceProjectDirs: opts.workspaceProjectDirs,
       registriesByScope: opts.registriesByScope,
       registriesByPrefix: opts.registriesByPrefix,
+      resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
       search,
       showDedupedSearchMatches: true,
       modulesDir: opts.modulesDir,
@@ -130,6 +132,7 @@ export async function listForPackages (
     reportAs?: 'parseable' | 'tree' | 'json'
     registriesByScope?: RegistriesByScope
     registriesByPrefix?: Record<string, string>
+    resolvePeersFromWorkspaceRoot?: boolean
     modulesDir?: string
     virtualStoreDirMaxLength: number
     finders?: Finder[]
@@ -164,6 +167,7 @@ export interface ListOptions {
   reportAs?: 'parseable' | 'tree' | 'json'
   registriesByScope?: RegistriesByScope
   registriesByPrefix?: Record<string, string>
+  resolvePeersFromWorkspaceRoot?: boolean
   showExtraneous?: boolean
   modulesDir?: string
   virtualStoreDirMaxLength: number
@@ -212,6 +216,7 @@ export async function getPackagesForListing (
           workspaceProjectDirs: maybeOpts?.workspaceProjectDirs,
           registriesByScope: opts.registriesByScope,
           registriesByPrefix: opts.registriesByPrefix,
+          resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
           modulesDir: opts.modulesDir,
           virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
         })
@@ -259,6 +264,7 @@ export async function whyForPackages (
     registriesByScope?: RegistriesByScope
     registriesByPrefix?: Record<string, string>
     reportAs?: 'parseable' | 'tree' | 'json'
+    resolvePeersFromWorkspaceRoot?: boolean
     modulesDir?: string
     finders?: Finder[]
   }
@@ -297,6 +303,7 @@ export async function whyForPackages (
     finders: opts.finders,
     importerInfoMap,
     lockfile,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
   })
 
   switch (reportAs) {

@@ -88,7 +88,7 @@ fn indexed_edges(
     keys.iter()
         .map(|key| {
             graph
-                .children(key, include.optional_dependencies)
+                .children(key, include)
                 .into_iter()
                 .map(|edge| index[&edge.key])
                 .collect()

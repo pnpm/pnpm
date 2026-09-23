@@ -3,7 +3,10 @@
 
 use std::collections::{HashMap, HashSet};
 
-use pnpm_lockfile::{Lockfile, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotEntry};
+use pnpm_lockfile::{
+    Lockfile, PeerEdgeOptions, PeerSatisfactionEdges, PkgNameVerPeer, ProjectSnapshot,
+    SnapshotEntry,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 
 use super::TreeNodeId;
@@ -61,6 +64,9 @@ pub struct BuildGraphOptions<'a> {
     pub lockfile: &'a Lockfile,
     pub include: IncludedDependencies,
     pub only_projects: bool,
+    /// How the graph classifies the peer-satisfaction edges it leaves out
+    /// while `include` excludes a group.
+    pub peer_edges: PeerEdgeOptions,
 }
 
 /// Breadth-first walk from `root_ids`, recording every reachable node
@@ -74,6 +80,11 @@ pub fn build_dependency_graph(
     let mut queue: Vec<TreeNodeId> = root_ids.to_vec();
     let mut queue_idx = 0;
     let mut visited: HashSet<TreeNodeId> = HashSet::new();
+    let skipped_peer_edges = if opts.include.excludes_a_group() {
+        PeerSatisfactionEdges::of_lockfile(opts.lockfile, opts.peer_edges)
+    } else {
+        PeerSatisfactionEdges::default()
+    };
 
     while queue_idx < queue.len() {
         let node_id = queue[queue_idx].clone();
@@ -82,7 +93,7 @@ pub fn build_dependency_graph(
             continue;
         }
 
-        let edges = node_edges(&node_id, opts);
+        let edges = node_edges(&node_id, opts, &skipped_peer_edges);
         let peers = match &node_id {
             TreeNodeId::Package(dep_path) => peer_names(opts.lockfile, dep_path),
             TreeNodeId::Importer(_) => HashSet::new(),
@@ -103,7 +114,11 @@ pub fn build_dependency_graph(
 
 /// The outgoing edges of one node. A node the lockfile does not describe has
 /// none.
-fn node_edges(node_id: &TreeNodeId, opts: &BuildGraphOptions<'_>) -> Vec<GraphEdge> {
+fn node_edges(
+    node_id: &TreeNodeId,
+    opts: &BuildGraphOptions<'_>,
+    skipped_peer_edges: &PeerSatisfactionEdges,
+) -> Vec<GraphEdge> {
     match node_id {
         TreeNodeId::Importer(importer_id) => opts.lockfile.importers
             .get(importer_id.as_str())
@@ -112,7 +127,7 @@ fn node_edges(node_id: &TreeNodeId, opts: &BuildGraphOptions<'_>) -> Vec<GraphEd
         TreeNodeId::Package(dep_path) => opts.lockfile.snapshots
             .as_ref()
             .and_then(|snapshots| snapshots.get(dep_path))
-            .map(|snapshot| package_edges(snapshot, opts))
+            .map(|snapshot| package_edges(dep_path, snapshot, opts, skipped_peer_edges))
             .unwrap_or_default(),
     }
 }
@@ -171,35 +186,32 @@ fn importer_edges(
     edges
 }
 
-fn package_edges(snapshot: &SnapshotEntry, opts: &BuildGraphOptions<'_>) -> Vec<GraphEdge> {
+fn package_edges(
+    key: &PkgNameVerPeer,
+    snapshot: &SnapshotEntry,
+    opts: &BuildGraphOptions<'_>,
+    skipped_peer_edges: &PeerSatisfactionEdges,
+) -> Vec<GraphEdge> {
     let mut edges = Vec::new();
-    let groups: [(bool, Option<&HashMap<PkgName, pnpm_lockfile::SnapshotDepRef>>); 2] = [
-        (true, snapshot.dependencies.as_ref()),
-        (opts.include.optional_dependencies, snapshot.optional_dependencies.as_ref()),
-    ];
-    for (included, group) in groups {
-        if !included {
+    let entries =
+        skipped_peer_edges.followed_entries(key, snapshot, opts.include.optional_dependencies);
+    for (alias, dep_ref) in entries {
+        let dep_path = dep_ref.resolve(alias);
+        let link_target = dep_ref.as_link_target().map(str::to_string);
+        // Links from external packages are not traversed (the
+        // TypeScript `getTreeNodeChildId` returns undefined for
+        // package parents), so no importer id is passed here.
+        let target = edge_target(dep_path.as_ref(), link_target.as_deref(), None, opts.lockfile);
+        if opts.only_projects && !matches!(target, Some(TreeNodeId::Importer(_))) {
             continue;
         }
-        for (alias, dep_ref) in group.into_iter().flatten() {
-            let dep_path = dep_ref.resolve(alias);
-            let link_target = dep_ref.as_link_target().map(str::to_string);
-            // Links from external packages are not traversed (the
-            // TypeScript `getTreeNodeChildId` returns undefined for
-            // package parents), so no importer id is passed here.
-            let target =
-                edge_target(dep_path.as_ref(), link_target.as_deref(), None, opts.lockfile);
-            if opts.only_projects && !matches!(target, Some(TreeNodeId::Importer(_))) {
-                continue;
-            }
-            edges.push(GraphEdge {
-                alias: alias.to_string(),
-                ref_display: dep_ref.to_string(),
-                dep_path,
-                link_target,
-                target,
-            });
-        }
+        edges.push(GraphEdge {
+            alias: alias.to_string(),
+            ref_display: dep_ref.to_string(),
+            dep_path,
+            link_target,
+            target,
+        });
     }
     edges
 }
