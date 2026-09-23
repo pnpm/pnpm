@@ -2,7 +2,8 @@ use super::{
     Arc, AsyncReadExt, AsyncSeekExt, BlobFinalize, Body, BoxStream, CanonicalPackageName,
     DocumentWrite, ErrorKind, GetRange, HostedBackend, HostedBlobFile, HostedDocumentForUpdate,
     HostedDocumentVersion, HostedRevisionRefWrite, Path, PathBuf, RangedBlob, Result, SeekFrom,
-    Store, StreamExt, async_trait, fs, read_dir_if_present, stream, streaming, write_atomic,
+    Store, StreamExt, async_trait, create_tmp_file, fs, read_dir_if_present, stream, streaming,
+    write_atomic,
 };
 
 /// The single-node filesystem backend. It owns its directory tree
@@ -249,14 +250,30 @@ async fn blob_file(root: &Path, entry: &fs::DirEntry) -> Result<HostedBlobFile> 
     Ok(HostedBlobFile { path, modified: metadata.modified()?, size: metadata.len() })
 }
 
-/// Writes an empty index marker so it reaches the device before `.complete`
-/// does. On Apple platforms `sync_all` is `F_FULLFSYNC`, which also flushes
-/// the drive cache and costs about 4 ms alone and 19 ms under load, once per
-/// package. A plain `fsync` hands the marker to the device, and the
-/// `F_FULLFSYNC` that publishes `.complete` afterwards flushes the drive
-/// cache for everything written before it.
+/// Publishes an empty index marker the way `write_atomic` does, by renaming
+/// a temporary sibling over it, so a symlink planted at the marker path is
+/// replaced rather than followed. Only the flush differs: on Apple platforms
+/// `sync_all` is `F_FULLFSYNC`, which also flushes the drive cache and costs
+/// about 4 ms alone and 19 ms under load, once per package. A plain `fsync`
+/// hands the marker to the device, and the `F_FULLFSYNC` that publishes
+/// `.complete` afterwards flushes the drive cache for everything written
+/// before it.
 async fn write_index_marker(path: &Path) -> Result<()> {
-    let file = fs::File::create(path).await?;
+    let (file, tmp) = create_tmp_file(path).await?;
+    let published = match flush_to_device(file).await {
+        Ok(()) => fs::rename(&tmp, path).await,
+        Err(err) => Err(err),
+    };
+    if let Err(err) = published {
+        let _ = fs::remove_file(&tmp).await;
+        return Err(err.into());
+    }
+    Ok(())
+}
+
+/// `fsync` without the drive-cache flush that `sync_all` adds on Apple
+/// platforms; `sync_all` everywhere else.
+async fn flush_to_device(file: fs::File) -> std::io::Result<()> {
     #[cfg(target_vendor = "apple")]
     {
         let file = file.into_std().await;
@@ -270,9 +287,8 @@ async fn write_index_marker(path: &Path) -> Result<()> {
             }
         })
         .await
-        .map_err(std::io::Error::other)??;
+        .map_err(std::io::Error::other)?
     }
     #[cfg(not(target_vendor = "apple"))]
-    file.sync_all().await?;
-    Ok(())
+    file.sync_all().await
 }

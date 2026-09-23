@@ -247,6 +247,25 @@ async fn package_index_migrates_nested_legacy_documents_and_ignores_removed_ones
     assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app/tool"]);
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn package_index_rebuild_replaces_a_symlink_planted_at_a_marker() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let root = tmp.path().join("storage");
+    fs::create_dir_all(root.join("acme/app")).await.unwrap();
+    fs::write(root.join("acme/app/package.json"), b"{}").await.unwrap();
+    let outside = tmp.path().join("outside");
+    fs::write(&outside, b"keep").await.unwrap();
+    let marker = root.join(".package-index/acme/app/.present");
+    fs::create_dir_all(marker.parent().unwrap()).await.unwrap();
+    fs::symlink(&outside, &marker).await.unwrap();
+    storage.rebuild_package_index().await.unwrap();
+    assert_eq!(fs::read(&outside).await.unwrap(), b"keep");
+    assert!(fs::symlink_metadata(&marker).await.unwrap().is_file());
+    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app"]);
+}
+
 #[tokio::test]
 async fn package_index_removes_deleted_and_failed_package_entries() {
     let tmp = TempDir::new().unwrap();
