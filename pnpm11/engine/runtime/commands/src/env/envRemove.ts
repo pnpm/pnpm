@@ -12,6 +12,24 @@ function matchesNodeVersion (actualVersion: string, requestedVersion: string): b
   return actualVersion === requestedVersion || actualVersion.startsWith(`${requestedVersion}.`)
 }
 
+function manifestDeclaresNode (manifest: {
+  dependencies?: Record<string, string>
+  engines?: {
+    runtime?: string | { name?: string } | Array<string | { name?: string }>
+  }
+}): boolean {
+  if (manifest.dependencies?.node) return true
+  const runtime = manifest.engines?.runtime
+  if (typeof runtime === 'string') return runtime === 'node'
+  if (Array.isArray(runtime)) {
+    return runtime.some((entry) => (typeof entry === 'string' ? entry === 'node' : entry?.name === 'node'))
+  }
+  if (runtime && typeof runtime === 'object') {
+    return runtime.name === 'node'
+  }
+  return false
+}
+
 async function getGlobalNodeInstalledVersion (globalPkgDir?: string, pnpmHomeDir?: string): Promise<string | null> {
   const globalDir = globalPkgDir ?? (pnpmHomeDir ? path.join(pnpmHomeDir, 'global', 'v11') : undefined)
   if (!globalDir) return null
@@ -31,19 +49,16 @@ async function getGlobalNodeInstalledVersion (globalPkgDir?: string, pnpmHomeDir
         const linkPath = path.join(globalDir, entry.name)
         try {
           const installDir = await fs.promises.realpath(linkPath)
-          let declaresNode = true
+          let groupPkg: Record<string, unknown>
           try {
-            const groupPkg = JSON.parse(await fs.promises.readFile(path.join(installDir, 'package.json'), 'utf8'))
-            declaresNode = Boolean(
-              groupPkg.dependencies?.node ??
-              (groupPkg.engines?.runtime?.name === 'node' || groupPkg.engines?.runtime === 'node')
-            )
+            groupPkg = JSON.parse(await fs.promises.readFile(path.join(installDir, 'package.json'), 'utf8'))
           } catch (err) {
-            if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
-              throw err
+            if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+              return null
             }
+            throw err
           }
-          if (!declaresNode) return null
+          if (!manifestDeclaresNode(groupPkg)) return null
           const nodePkgJson = path.join(installDir, 'node_modules', 'node', 'package.json')
           const pkg = JSON.parse(await fs.promises.readFile(nodePkgJson, 'utf8'))
           return (pkg.version as string | undefined) ?? null

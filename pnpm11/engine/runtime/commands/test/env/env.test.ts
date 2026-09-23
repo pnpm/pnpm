@@ -16,6 +16,10 @@ beforeEach(() => {
   mockRunPnpmCli.mockClear()
 })
 
+function createSymlinkDir (target: string, linkPath: string): void {
+  fs.symlinkSync(target, linkPath, process.platform === 'win32' ? 'junction' : 'dir')
+}
+
 test('env use calls pnpm add with the correct arguments', async () => {
   await env.handler({
     bin: '/usr/local/bin',
@@ -94,8 +98,9 @@ test('env remove calls pnpm remove when installed node version matches', async (
   const pnpmHomeDir = path.join(tempDir, 'home')
   const installDir = path.join(pnpmHomeDir, 'global', 'v11', 'install-node')
   fs.mkdirSync(path.join(installDir, 'node_modules', 'node'), { recursive: true })
+  fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies: { node: '18.12.0' } }))
   fs.writeFileSync(path.join(installDir, 'node_modules', 'node', 'package.json'), JSON.stringify({ name: 'node', version: '18.12.0' }))
-  fs.symlinkSync(installDir, path.join(pnpmHomeDir, 'global', 'v11', 'hash-node'))
+  createSymlinkDir(installDir, path.join(pnpmHomeDir, 'global', 'v11', 'hash-node'))
 
   await env.handler({
     bin: '/usr/local/bin',
@@ -120,8 +125,9 @@ test('env remove inspects configured globalPkgDir and passes globalDir to pnpm r
   const customGlobalPkgDir = path.join(customGlobalDir, 'v11')
   const installDir = path.join(customGlobalPkgDir, 'install-node')
   fs.mkdirSync(path.join(installDir, 'node_modules', 'node'), { recursive: true })
+  fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies: { node: '18.12.0' } }))
   fs.writeFileSync(path.join(installDir, 'node_modules', 'node', 'package.json'), JSON.stringify({ name: 'node', version: '18.12.0' }))
-  fs.symlinkSync(installDir, path.join(customGlobalPkgDir, 'hash-node'))
+  createSymlinkDir(installDir, path.join(customGlobalPkgDir, 'hash-node'))
 
   await env.handler({
     bin: '/usr/local/bin',
@@ -145,8 +151,9 @@ test('env remove does not call pnpm remove when installed node version does not 
   const pnpmHomeDir = path.join(tempDir, 'home')
   const installDir = path.join(pnpmHomeDir, 'global', 'v11', 'install-node')
   fs.mkdirSync(path.join(installDir, 'node_modules', 'node'), { recursive: true })
+  fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies: { node: '20.8.0' } }))
   fs.writeFileSync(path.join(installDir, 'node_modules', 'node', 'package.json'), JSON.stringify({ name: 'node', version: '20.8.0' }))
-  fs.symlinkSync(installDir, path.join(pnpmHomeDir, 'global', 'v11', 'hash-node'))
+  createSymlinkDir(installDir, path.join(pnpmHomeDir, 'global', 'v11', 'hash-node'))
 
   await expect(
     env.handler({
@@ -169,7 +176,63 @@ test('env remove ignores packages whose manifest does not declare node', async (
   fs.mkdirSync(path.join(installDir, 'node_modules', 'node'), { recursive: true })
   fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies: { other: '1.0.0' } }))
   fs.writeFileSync(path.join(installDir, 'node_modules', 'node', 'package.json'), JSON.stringify({ name: 'node', version: '18.12.0' }))
-  fs.symlinkSync(installDir, path.join(pnpmHomeDir, 'global', 'v11', 'hash-other'))
+  createSymlinkDir(installDir, path.join(pnpmHomeDir, 'global', 'v11', 'hash-other'))
+
+  await expect(
+    env.handler({
+      bin: '/usr/local/bin',
+      global: true,
+      pnpmHomeDir,
+      configByUri: {},
+    }, ['remove', '18'])
+  ).rejects.toEqual(new PnpmError('ENV_NO_NODE_DIRECTORY', "Couldn't find Node.js version matching 18"))
+
+  expect(mockRunPnpmCli).not.toHaveBeenCalled()
+
+  fs.rmSync(tempDir, { recursive: true, force: true })
+})
+
+test('env remove recognizes node in mixed runtime array in engines.runtime', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
+  const pnpmHomeDir = path.join(tempDir, 'home')
+  const installDir = path.join(pnpmHomeDir, 'global', 'v11', 'install-node')
+  fs.mkdirSync(path.join(installDir, 'node_modules', 'node'), { recursive: true })
+  fs.writeFileSync(
+    path.join(installDir, 'package.json'),
+    JSON.stringify({
+      engines: {
+        runtime: [
+          { name: 'node', version: '18.12.0' },
+          { name: 'deno', version: '1.40.0' },
+        ],
+      },
+    })
+  )
+  fs.writeFileSync(path.join(installDir, 'node_modules', 'node', 'package.json'), JSON.stringify({ name: 'node', version: '18.12.0' }))
+  createSymlinkDir(installDir, path.join(pnpmHomeDir, 'global', 'v11', 'hash-node'))
+
+  await env.handler({
+    bin: '/usr/local/bin',
+    global: true,
+    pnpmHomeDir,
+    configByUri: {},
+  }, ['remove', '18'])
+
+  expect(mockRunPnpmCli).toHaveBeenCalledWith(
+    ['remove', '--global', 'node', '--global-bin-dir', '/usr/local/bin'],
+    { cwd: pnpmHomeDir }
+  )
+
+  fs.rmSync(tempDir, { recursive: true, force: true })
+})
+
+test('env remove ignores groups without readable package.json', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
+  const pnpmHomeDir = path.join(tempDir, 'home')
+  const installDir = path.join(pnpmHomeDir, 'global', 'v11', 'install-missing-manifest')
+  fs.mkdirSync(path.join(installDir, 'node_modules', 'node'), { recursive: true })
+  fs.writeFileSync(path.join(installDir, 'node_modules', 'node', 'package.json'), JSON.stringify({ name: 'node', version: '18.12.0' }))
+  createSymlinkDir(installDir, path.join(pnpmHomeDir, 'global', 'v11', 'hash-missing'))
 
   await expect(
     env.handler({
