@@ -11,9 +11,8 @@
 pub fn get_normalized_arch(platform: &str, arch: &str, node_version: Option<&str>) -> String {
     if let Some(version) = node_version
         && let Some(major) = node_major(version)
-        && platform == "darwin"
         && arch == "arm64"
-        && major < 16
+        && ((platform == "darwin" && major < 16) || (platform == "win32" && major < 20))
     {
         return "x64".to_string();
     }
@@ -26,7 +25,7 @@ pub fn get_normalized_arch(platform: &str, arch: &str, node_version: Option<&str
     arch.to_string()
 }
 
-fn node_major(version: &str) -> Option<u32> {
+pub(crate) fn node_major(version: &str) -> Option<u32> {
     version.split('.').next()?.parse().ok()
 }
 

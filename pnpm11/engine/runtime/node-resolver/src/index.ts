@@ -265,8 +265,16 @@ async function readNodeAssetsFromMirror (
       cpu: arch,
       ...(libc != null && { libc }),
     }
+    const targets = [target]
+    const nodeMajorVersion = +version.split('.')[0]
+    if (platform === 'darwin' && arch === 'x64' && nodeMajorVersion < 16) {
+      targets.push({ os: 'darwin', cpu: 'arm64' })
+    }
+    if (platform === 'win32' && arch === 'x64' && nodeMajorVersion < 20) {
+      targets.push({ os: 'win32', cpu: 'arm64' })
+    }
     assets.push({
-      targets: [target],
+      targets,
       resolution,
     })
   }

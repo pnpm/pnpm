@@ -275,3 +275,69 @@ async function resolveMuslVariants (respondToMuslRequest: () => Promise<Response
 
 const GLIBC_SHASUMS = 'ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz\n'
 const MUSL_SHASUMS = '696cb00a4b9d0e4dd2eb95e5fe32e8ff1ac2c3dfe54c7a2a5f03f7f9e6f0b1c2  node-v22.11.0-linux-x64-musl.tar.gz\n'
+
+test('resolveNodeRuntime() resolves native win-arm64 variant for Node 20+', async () => {
+  const fetch: FetchFromRegistry = async (url) => {
+    if (url === `${MIRROR}index.json`) {
+      return new Response(JSON.stringify([{ version: 'v22.11.0', lts: false }]))
+    }
+    if (url === `${MIRROR}v22.11.0/SHASUMS256.txt`) {
+      return new Response(
+        'b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2  node-v22.11.0-win-x64.zip\n' +
+        'a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1  node-v22.11.0-win-arm64.zip\n'
+      )
+    }
+    throw new Error(`Unexpected URL: ${url}`)
+  }
+
+  const resolution = await resolveNodeRuntime({
+    fetchFromRegistry: fetch,
+    nodeDownloadMirrors: { rc: MIRROR },
+  }, {
+    alias: 'node',
+    bareSpecifier: 'runtime:rc/22.11.0',
+  })
+
+  const variants = resolution!.resolution.variants
+  const winArm64 = variants.find(v => v.targets.some(t => t.os === 'win32' && t.cpu === 'arm64'))
+  expect(winArm64).toBeDefined()
+  expect(winArm64!.targets).toStrictEqual([{ os: 'win32', cpu: 'arm64' }])
+  expect(winArm64!.resolution).toMatchObject({
+    url: `${MIRROR}v22.11.0/node-v22.11.0-win-arm64.zip`,
+    archive: 'zip',
+    prefix: 'node-v22.11.0-win-arm64',
+  })
+})
+
+test('resolveNodeRuntime() includes win32-arm64 target on win-x64 variant for Node < 20', async () => {
+  const fetch: FetchFromRegistry = async (url) => {
+    if (url === `${MIRROR}index.json`) {
+      return new Response(JSON.stringify([{ version: 'v18.20.0', lts: false }]))
+    }
+    if (url === `${MIRROR}v18.20.0/SHASUMS256.txt`) {
+      return new Response('c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3  node-v18.20.0-win-x64.zip\n')
+    }
+    throw new Error(`Unexpected URL: ${url}`)
+  }
+
+  const resolution = await resolveNodeRuntime({
+    fetchFromRegistry: fetch,
+    nodeDownloadMirrors: { rc: MIRROR },
+  }, {
+    alias: 'node',
+    bareSpecifier: 'runtime:rc/18.20.0',
+  })
+
+  const variants = resolution!.resolution.variants
+  expect(variants).toHaveLength(1)
+  expect(variants[0].targets).toStrictEqual([
+    { os: 'win32', cpu: 'x64' },
+    { os: 'win32', cpu: 'arm64' },
+  ])
+  expect(variants[0].resolution).toMatchObject({
+    url: `${MIRROR}v18.20.0/node-v18.20.0-win-x64.zip`,
+    archive: 'zip',
+    prefix: 'node-v18.20.0-win-x64',
+  })
+})
+

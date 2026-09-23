@@ -58,6 +58,28 @@ test.each([
       extname: '.tar.gz',
     },
   ],
+  [
+    '18.20.0',
+    'https://nodejs.org/download/release/',
+    'win32',
+    'arm64',
+    {
+      basename: 'node-v18.20.0-win-x64',
+      dirname: 'https://nodejs.org/download/release/v18.20.0',
+      extname: '.zip',
+    },
+  ],
+  [
+    '20.7.0',
+    'https://nodejs.org/download/release/',
+    'win32',
+    'arm64',
+    {
+      basename: 'node-v20.7.0-win-arm64',
+      dirname: 'https://nodejs.org/download/release/v20.7.0',
+      extname: '.zip',
+    },
+  ],
 ])('getNodeArtifactAddress', (version, nodeMirrorBaseUrl, platform, arch, tarball) => {
   expect(getNodeArtifactAddress({
     version,
