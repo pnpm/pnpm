@@ -725,7 +725,7 @@ COMP_LINE='{line}'
 COMP_POINT=${{#COMP_LINE}}
 _pnpm_completion
 printf '%s\n' "${{COMPREPLY[@]}}"
-"#
+"#,
         );
         let output = Command::new("bash")
             .current_dir(project.path())
