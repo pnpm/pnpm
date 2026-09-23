@@ -425,3 +425,109 @@ fn link_existing_dependency_writes_override_only() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn link_warns_about_peer_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    let target_dir = root.path().join("linked-with-peer-deps");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({
+            "name": "linked-with-peer-deps",
+            "version": "1.0.0",
+            "peerDependencies": {
+                "some-peer-dependency": "1.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write target package.json");
+
+    let output = pacquet
+        .with_arg("link")
+        .with_arg("../linked-with-peer-deps")
+        .output()
+        .expect("spawn pacquet link");
+    assert!(output.status.success(), "link should succeed: {output:?}");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let combined = format!("{stdout}\n{stderr}");
+    assert!(
+        combined.contains("has the following peerDependencies specified in its package.json"),
+        "output must warn about peerDependencies:\n{combined}",
+    );
+    assert!(
+        combined.contains("The linked in dependency will not resolve the peer dependencies from the target node_modules."),
+        "output must explain the limitation:\n{combined}",
+    );
+    assert!(
+        combined.contains(r#"To resolve this, you may use the "file:" protocol to reference the local dependency."#),
+        "output must suggest file: protocol:\n{combined}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn link_does_not_warn_when_peer_dependencies_empty() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    let target_dir = root.path().join("linked-with-empty-peer-deps");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({
+            "name": "linked-with-empty-peer-deps",
+            "version": "1.0.0",
+            "peerDependencies": {}
+        })
+        .to_string(),
+    )
+    .expect("write target package.json");
+
+    let output = pacquet
+        .with_arg("link")
+        .with_arg("../linked-with-empty-peer-deps")
+        .output()
+        .expect("spawn pacquet link");
+    assert!(output.status.success(), "link should succeed: {output:?}");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let combined = format!("{stdout}\n{stderr}");
+    assert!(
+        !combined.contains("has the following peerDependencies specified in its package.json"),
+        "output must not warn about empty peerDependencies:\n{combined}",
+    );
+
+    drop((root, mock_instance));
+}
