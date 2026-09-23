@@ -13,20 +13,9 @@ use super::{
     default_modules_dir, default_peers_suffix_max_length, default_public_hoist_pattern,
     default_registry, default_state_dir, default_store_dir, default_tag_version_prefix,
     default_unsafe_perm, default_user_agent, default_virtual_store_dir,
-    default_virtual_store_dir_max_length, default_workspace_concurrency, npmrc_auth,
+    default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci, npmrc_auth,
     side_effects_cache_remote_env, workspace_yaml,
 };
-
-pub(super) fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
-    let ci = Sys::var("CI");
-    if ci.as_deref() == Some("false") {
-        return false;
-    }
-
-    matches!(ci.as_deref(), Some("true" | "1" | "woodpecker"))
-        || Sys::var("GITHUB_ACTIONS").is_some()
-        || detect_ci()
-}
 
 /// The two hoist patterns as one value, for
 /// [`Config::hoist_patterns_before_virtual_store_only`].
@@ -71,7 +60,7 @@ pub struct Config {
     /// Whether pnpm is running in a continuous-integration environment.
     /// Defaults to automatic CI detection and may be overridden through
     /// configuration.
-    #[default(_code = "default_ci::<Host>(is_ci::cached)")]
+    #[default(_code = "is_ci()")]
     pub ci: bool,
 
     /// Whether the default reporter renders dependency and download progress.
