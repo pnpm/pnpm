@@ -55,14 +55,12 @@ test('wantedDepIsLocallyAvailable preserves stable-only behavior for tag selecto
     ])],
   ])
 
-  // Prerelease-only in workspace does not satisfy tag (default 'latest')
   expect(wantedDepIsLocallyAvailable(
     workspacePackages,
     { alias: 'foo', bareSpecifier: 'latest', dev: false, optional: false },
     { defaultTag: 'latest', registry: 'https://registry.npmjs.org/' }
   )).toBe(false)
 
-  // Stable in workspace satisfies tag 'latest'
   expect(wantedDepIsLocallyAvailable(
     workspacePackages,
     { alias: 'bar', bareSpecifier: 'latest', dev: false, optional: false },
