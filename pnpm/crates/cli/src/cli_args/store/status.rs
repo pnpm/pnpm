@@ -19,13 +19,10 @@ use std::{
 };
 
 /// pnpm renders this as a title plus the list, so the message carries the
-/// dep paths one per line and the remedy is the diagnostic's help.
+/// dep paths one per line.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("Packages in the store have been mutated\nThese packages are modified:\n{}", modified.join("\n"))]
-#[diagnostic(
-    code(ERR_PNPM_MODIFIED_DEPENDENCY),
-    help(r#"You can run "pnpm install --force" to refetch the modified packages"#)
-)]
+#[diagnostic(code(ERR_PNPM_MODIFIED_DEPENDENCY))]
 pub struct ModifiedDependencyError {
     #[error(not(source))]
     pub modified: Vec<String>,
