@@ -2,13 +2,14 @@ import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
+import * as dp from '@pnpm/deps.path'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
 import { BUILTIN_REGISTRIES_BY_PREFIX } from '@pnpm/resolving.npm-resolver'
 import type { PreferredVersions, Resolution, ResolutionPolicyViolation, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { AllowBuild, AllowedDeprecatedVersions, PkgResolutionId, ProjectId, ProjectManifest, ProjectRootDir, RangeSpecStyle, ReadPackageHook, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
+import type { AllowBuild, AllowedDeprecatedVersions, DepPath, PkgResolutionId, ProjectId, ProjectManifest, ProjectRootDir, RangeSpecStyle, ReadPackageHook, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 import { partition } from 'ramda'
 
 import type { WantedDependency } from './getNonDevWantedDependencies.js'
@@ -221,6 +222,7 @@ export async function resolveDependencyTree<T> (
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     wantedLockfile: opts.wantedLockfile,
     updatedSet: new Set<string>(),
+    lockedDepPathByPkgId: getLockedDepPathByPkgId(opts.wantedLockfile),
     workspacePackages: opts.workspacePackages,
     missingPeersOfChildrenByPkgId: {},
     hoistPeers: autoInstallPeers || opts.dedupePeerDependents,
@@ -396,4 +398,15 @@ function dedupeSameAliasDirectDeps (directDeps: PkgAddressOrLink[], wantedDepend
     }
   }
   return Array.from(deps.values())
+}
+
+function getLockedDepPathByPkgId (lockfile: LockfileObject): Map<PkgResolutionId, DepPath> {
+  const lockedDepPathByPkgId = new Map<PkgResolutionId, DepPath>()
+  for (const depPath of Object.keys(lockfile.packages ?? {}) as DepPath[]) {
+    const pkgId = dp.tryGetPackageId(depPath) as string as PkgResolutionId
+    if (!lockedDepPathByPkgId.has(pkgId)) {
+      lockedDepPathByPkgId.set(pkgId, depPath)
+    }
+  }
+  return lockedDepPathByPkgId
 }
