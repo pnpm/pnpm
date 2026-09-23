@@ -176,12 +176,29 @@ fn walk_hoisted_graph(
     lockfile: &Lockfile,
     skipped: &mut SkippedSnapshots,
 ) -> Result<crate::hoisted_dep_graph::LockfileToDepGraphResult, HoistedLinkerError> {
-    let config = inputs.config;
     let walker_skipped: BTreeSet<String> = skipped
         .iter()
         .map(std::string::ToString::to_string)
         .collect();
-    let walker_opts = LockfileToHoistedDepGraphOptions {
+    let walker_opts = hoisted_walker_options(inputs, lockfile, walker_skipped.clone());
+    let walked =
+        lockfile_to_hoisted_dep_graph(lockfile, inputs.prior.current_lockfile, &walker_opts)
+            .map_err(HoistedLinkerError::HoistedDepGraph)?;
+    for skipped_dep_path in walked.skipped.difference(&walker_skipped) {
+        if let Ok(key) = skipped_dep_path.parse::<PackageKey>() {
+            skipped.insert_installability(key);
+        }
+    }
+    Ok(walked)
+}
+
+fn hoisted_walker_options<'a>(
+    inputs: &HoistedLinkerInputs<'a>,
+    lockfile: &Lockfile,
+    walker_skipped: BTreeSet<String>,
+) -> LockfileToHoistedDepGraphOptions<'a> {
+    let config = inputs.config;
+    LockfileToHoistedDepGraphOptions {
         installability: crate::HoistedInstallability {
             engine_strict: config.effective_engine_strict(),
             current_node_version: inputs.host_node
@@ -204,20 +221,11 @@ fn walk_hoisted_graph(
         lockfile_dir: inputs.projects.walker_lockfile_dir.to_path_buf(),
         modules_dir_name: config.modules_dir_name().to_os_string(),
 
-        skipped: walker_skipped.clone(),
+        skipped: walker_skipped,
         force: config.force,
         include_incompatible_packages: config.installs_incompatible_packages(),
         current_hoisted_locations: inputs.prior.current_hoisted_locations,
-    };
-    let walked =
-        lockfile_to_hoisted_dep_graph(lockfile, inputs.prior.current_lockfile, &walker_opts)
-            .map_err(HoistedLinkerError::HoistedDepGraph)?;
-    for skipped_dep_path in walked.skipped.difference(&walker_skipped) {
-        if let Ok(key) = skipped_dep_path.parse::<PackageKey>() {
-            skipped.insert_installability(key);
-        }
     }
-    Ok(walked)
 }
 
 fn link_hoisted<Reporter: self::Reporter>(
