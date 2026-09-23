@@ -117,7 +117,10 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
   })
 
-  await updateLockfileSnapshots(lockfileDir, patchedPkgManifest, applyToAll, {
+  await updateLockfileSnapshots({
+    lockfileDir,
+    patchedPkgManifest,
+    applyToAll,
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   })
@@ -130,19 +133,25 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   return undefined
 }
 
-async function updateLockfileSnapshots (
-  lockfileDir: string,
-  patchedPkgManifest: PackageManifest,
-  applyToAll: boolean,
-  opts?: {
-    useGitBranchLockfile?: boolean
-    mergeGitBranchLockfiles?: boolean
-  }
-): Promise<void> {
+interface UpdateLockfileSnapshotsOptions {
+  lockfileDir: string
+  patchedPkgManifest: PackageManifest
+  applyToAll: boolean
+  useGitBranchLockfile?: boolean
+  mergeGitBranchLockfiles?: boolean
+}
+
+async function updateLockfileSnapshots ({
+  lockfileDir,
+  patchedPkgManifest,
+  applyToAll,
+  useGitBranchLockfile,
+  mergeGitBranchLockfiles,
+}: UpdateLockfileSnapshotsOptions): Promise<void> {
   const lockfile = await readWantedLockfile(lockfileDir, {
     ignoreIncompatible: true,
-    useGitBranchLockfile: opts?.useGitBranchLockfile,
-    mergeGitBranchLockfiles: opts?.mergeGitBranchLockfiles,
+    useGitBranchLockfile,
+    mergeGitBranchLockfiles,
   })
   if (!lockfile?.packages) return
 
@@ -196,8 +205,8 @@ async function updateLockfileSnapshots (
   if (lockfileChanged) {
     const prunedLockfile = pruneSharedLockfile(lockfile)
     await writeWantedLockfile(lockfileDir, prunedLockfile, {
-      useGitBranchLockfile: opts?.useGitBranchLockfile,
-      mergeGitBranchLockfiles: opts?.mergeGitBranchLockfiles,
+      useGitBranchLockfile,
+      mergeGitBranchLockfiles,
     })
   }
 }

@@ -635,11 +635,21 @@ fn patch_commit_preserves_resolved_peer_dependencies_in_snapshot() {
     .assert()
     .success();
 
-    let updated_lockfile_text =
-        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read updated lockfile");
+    let updated_lockfile =
+        pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace).unwrap().unwrap();
+    let peer_c: pnpm_lockfile::PkgName = "@pnpm.e2e/peer-c".parse().unwrap();
+    let wants_peer = updated_lockfile.snapshots
+        .as_ref()
+        .expect("snapshots must exist")
+        .iter()
+        .find(|(key, _)| key.name.to_string() == "@pnpm.e2e/wants-peer-c-1")
+        .map(|(_, snapshot)| snapshot)
+        .expect("wants-peer-c-1 snapshot must exist");
     assert!(
-        updated_lockfile_text.contains("@pnpm.e2e/peer-c"),
-        "resolved peer dependency @pnpm.e2e/peer-c should remain in lockfile: {updated_lockfile_text}",
+        wants_peer.dependencies
+            .as_ref()
+            .is_some_and(|deps| deps.contains_key(&peer_c)),
+        "resolved peer dependency @pnpm.e2e/peer-c should remain in snapshot dependencies: {wants_peer:#?}",
     );
 
     drop((root, mock_instance));
