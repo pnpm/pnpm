@@ -158,3 +158,6 @@ impl UpdateDepth {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
