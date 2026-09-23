@@ -18,10 +18,10 @@ const f = fixtures(import.meta.dirname)
 const originalModule = await import('@pnpm/logger')
 jest.unstable_mockModule('@pnpm/logger', () => {
   originalModule.logger.warn = jest.fn()
-  return originalModule
+  return { ...originalModule, globalWarn: jest.fn() }
 })
 
-const { logger } = await import('@pnpm/logger')
+const { globalWarn, logger } = await import('@pnpm/logger')
 const { mutateModules, addDependenciesToPackage } = await import('@pnpm/installing.deps-installer')
 
 function preparePackagesAndReturnObjects (manifests: Array<ProjectManifest & Required<Pick<ProjectManifest, 'name'>>>) {
@@ -2020,6 +2020,7 @@ describe('update', () => {
       '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
     })
 
+    jest.mocked(globalWarn).mockClear()
     const { updatedCatalogs, updatedProjects } = await mutateModules(
       Object.entries(projects).map(([id, manifest]) => ({
         ...manifest,
@@ -2038,6 +2039,7 @@ describe('update', () => {
     expect(updatedCatalogs).toEqual({
       default: { '@pnpm.e2e/foo': '^1.1.0' },
     })
+    expect(globalWarn).not.toHaveBeenCalledWith(expect.stringContaining('Skip adding'))
 
     const lockfile = readLockfile()
     expect(lockfile.catalogs).toEqual({

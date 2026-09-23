@@ -92,9 +92,39 @@ fn strict_uses_the_catalog_when_its_range_covers_the_wanted_version() {
         decision,
         CatalogDecision::Catalog {
             manifest_specifier: "catalog:".to_string(),
+            updated_entry: Some(CatalogEntry {
+                catalog_name: "default".to_string(),
+                specifier: "^2.1.0".to_string(),
+            }),
+        },
+        "a version inside the catalog range moves the entry onto it, keeping its operator",
+    );
+}
+
+#[test]
+fn strict_keeps_a_compound_catalog_range_that_covers_the_wanted_version() {
+    let catalogs = catalogs(&[("default", &[("is-positive", ">=2.0.0 <3.0.0")])]);
+    let decision = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "2.1.0")).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
             updated_entry: None
         },
-        "a version inside the catalog range reuses the existing catalog entry",
+        "a range no single operator describes has nothing to move onto the version",
+    );
+}
+
+#[test]
+fn strict_keeps_a_catalog_entry_that_already_names_the_wanted_version() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "~2.1.0")])]);
+    let decision = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "2.1.0")).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: None
+        },
     );
 }
 
@@ -106,7 +136,10 @@ fn prefer_uses_the_catalog_when_its_range_covers_the_wanted_version() {
         decision,
         CatalogDecision::Catalog {
             manifest_specifier: "catalog:".to_string(),
-            updated_entry: None
+            updated_entry: Some(CatalogEntry {
+                catalog_name: "default".to_string(),
+                specifier: "^2.1.0".to_string(),
+            }),
         },
     );
 }
