@@ -58,6 +58,11 @@ test('matcher()', () => {
     expect(match('@local/a')).toBe(true)
     expect(match('@local/ab')).toBe(false)
   }
+  {
+    const match = createMatcher(['?'])
+    expect(match('😀')).toBe(true)
+    expect(match('😀😀')).toBe(false)
+  }
 })
 
 test('createMatcherWithIndex()', () => {
