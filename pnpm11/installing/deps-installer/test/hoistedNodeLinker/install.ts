@@ -309,6 +309,65 @@ test('linking bins of local projects when node-linker is set to hoisted', async 
   expect(fs.existsSync('project-1/node_modules/.bin/project-2')).toBeTruthy()
 })
 
+// https://github.com/pnpm/pnpm/issues/7568
+test('bins of a nested package are removed when the package is deduped into the root node_modules', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+    },
+  }
+  let project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '0.0.0',
+    },
+  }
+  preparePackages([project1Manifest, project2Manifest])
+  const installProjects = () => mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ], testDefaults({
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest: project1Manifest,
+        rootDir: path.resolve('project-1') as ProjectRootDir,
+      },
+      {
+        buildIndex: 0,
+        manifest: project2Manifest,
+        rootDir: path.resolve('project-2') as ProjectRootDir,
+      },
+    ],
+    nodeLinker: 'hoisted',
+  }))
+
+  await installProjects()
+  expect(loadJsonFileSync<{ version: string }>('project-2/node_modules/@pnpm.e2e/hello-world-js-bin/package.json').version).toBe('0.0.0')
+  expect(fs.readdirSync('project-2/node_modules/.bin')).toContain('hello-world-js-bin')
+
+  project2Manifest = {
+    ...project2Manifest,
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+    },
+  }
+  await installProjects()
+
+  expect(fs.existsSync('project-2/node_modules/@pnpm.e2e/hello-world-js-bin')).toBeFalsy()
+  expect(fs.readdirSync('project-2/node_modules/.bin')).not.toContain('hello-world-js-bin')
+  expect(fs.readdirSync('node_modules/.bin')).toContain('hello-world-js-bin')
+})
+
 test('peerDependencies should be installed when autoInstallPeers is set to true and nodeLinker is set to hoisted', async () => {
   prepareEmpty()
   await install({

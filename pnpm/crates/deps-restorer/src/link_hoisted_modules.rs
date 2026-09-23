@@ -24,6 +24,7 @@ mod dir_clone;
 use crate::{
     DepHierarchy, DependenciesGraph, DependenciesGraphNode, ImportIndexedDirError,
     ImportIndexedDirOpts, import_indexed_dir, link_direct_dep_bins,
+    prune_direct_deps::remove_dep_bins,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -117,7 +118,8 @@ pub enum LinkHoistedModulesError {
 /// Produce the on-disk hoisted tree from a Slice 4 walk result.
 ///
 /// 1. **Orphan removal.** Every directory in `prev_graph` but
-///    not in `graph` is silently `rimraf`'d. Removal happens
+///    not in `graph` is silently `rimraf`'d, together with the
+///    bins it linked into its parent's `node_modules/.bin`. Removal happens
 ///    *before* any insert so the linker doesn't race against
 ///    itself when a directory name is reused for a different
 ///    package version.
@@ -168,7 +170,8 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
 }
 
 /// Phase 1: rimraf every directory that was in the previous
-/// install's graph but isn't in the new one. Errors are swallowed
+/// install's graph but isn't in the new one, after unlinking the
+/// bins it declared from its `node_modules/.bin`. Errors are swallowed
 /// silently with the same `EPERM`/`EBUSY` tolerance — a directory
 /// we can't remove right now is no worse than leaving a stale
 /// entry, and the next install will retry. Returns the orphan count
@@ -201,9 +204,22 @@ fn remove_orphans(
     orphan_dirs
         .par_iter()
         .for_each(|dir| {
+            if let Some(modules_dir) = containing_modules_dir(dir) {
+                let _ = remove_dep_bins(modules_dir, dir);
+            }
             let _ = try_remove_dir(dir);
         });
     orphan_dirs.len() as u64
+}
+
+/// The `node_modules` directory that holds the package at `pkg_dir`,
+/// stepping over the `@scope` directory of a scoped package.
+fn containing_modules_dir(pkg_dir: &Path) -> Option<&Path> {
+    let parent = pkg_dir.parent()?;
+    let is_scope = parent
+        .file_name()
+        .is_some_and(|name| name.as_encoded_bytes().starts_with(b"@"));
+    if is_scope { parent.parent() } else { Some(parent) }
 }
 
 /// Single-directory rimraf with error-swallowing semantics.

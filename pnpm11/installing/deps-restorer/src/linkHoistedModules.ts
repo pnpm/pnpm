@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { linkBins } from '@pnpm/bins.linker'
+import { removeBinsOfDependency } from '@pnpm/bins.remover'
 import {
   removalLogger,
   reportPackageImported,
@@ -101,6 +102,7 @@ export async function linkHoistedModules (
 async function tryRemoveDir (dir: string): Promise<void> {
   removalLogger.debug(dir)
   try {
+    await removeBinsOfDependency(dir, { binsDir: path.join(getModulesDir(dir), '.bin') })
     await rimraf(dir)
   } catch (err: any) { // eslint-disable-line
     /* Just ignoring for now. Not even logging.
@@ -111,6 +113,11 @@ async function tryRemoveDir (dir: string): Promise<void> {
     })
     */
   }
+}
+
+function getModulesDir (pkgDir: string): string {
+  const parentDir = path.dirname(pkgDir)
+  return path.basename(parentDir).startsWith('@') ? path.dirname(parentDir) : parentDir
 }
 
 async function linkAllPkgsInOrder (
