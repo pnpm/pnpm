@@ -103,14 +103,14 @@ pub(super) async fn run_runtime(
     args: &[String],
     spawn: &DlxSpawn<'_>,
 ) -> miette::Result<()> {
-    let executable =
+    let runtime =
         Box::pin(materialize_runtime(state_dir, name.to_string(), version_spec.to_string())).await?;
-    let bin_dirs: Vec<PathBuf> = executable
+    let bin_dirs: Vec<PathBuf> = runtime.bin
         .parent()
         .map(Path::to_path_buf)
         .into_iter()
         .collect();
-    run_bin(DlxProgram::Provisioned { command, executable: &executable }, args, bin_dirs, spawn)
+    run_bin(DlxProgram::Provisioned { command, executable: &runtime.bin }, args, bin_dirs, spawn)
 }
 
 /// Provision `pm` and run `bin` — or the engine's own command, when the

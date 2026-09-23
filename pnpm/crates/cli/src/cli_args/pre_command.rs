@@ -35,7 +35,7 @@ use crate::{
     config_overrides::{ConfigOverrides, apply_state_dir_override, apply_store_dir_override},
     engine_pm::{
         channel::PackageManager,
-        install::{install_engine_from_env, install_engine_to_store},
+        install::{InstalledEngine, install_engine_from_env, install_engine_to_store},
     },
     flag_relocation::ArgTable,
 };

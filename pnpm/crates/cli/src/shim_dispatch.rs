@@ -29,7 +29,7 @@ pub(crate) use native_shim::{
     native_shim_is_installed, native_shim_paths, native_shim_target, native_shims,
     refresh_native_shims, remove_native_shim,
 };
-pub(crate) use runtime_env::materialize_runtime;
+pub(crate) use runtime_env::{MaterializedRuntime, materialize_runtime};
 pub(crate) use settings::{apply_settings_above_global_config, global_shims_setting};
 
 use crate::{
@@ -398,7 +398,7 @@ fn run_runtime_from_store(
         materialize_runtime(state_dir, name.to_string(), version_spec.to_string()),
     );
     match result {
-        Ok(bin) => exec_program(&bin, args),
+        Ok(runtime) => exec_program(&runtime.bin, args),
         Err(error) => {
             eprintln!("pnpm: failed to prepare {name}@runtime:{version_spec}: {error:?}");
             1

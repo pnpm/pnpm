@@ -1,20 +1,39 @@
 //! Materialization of pinned runtimes into the trusted global virtual
 //! store, under configuration a project cannot influence.
+//!
+//! A runtime's slot is entered only under its [`crate::slot_lock`]. When
+//! another process holds that lock, the runtime is installed into a
+//! [`PrivateInstall`] of this process's own instead, and runs from there.
 
-use crate::{State, cli_args::add::add_package};
+use crate::{State, cli_args::add::add_package, slot_lock};
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{Config, Host, NodeLinker};
 use pnpm_crypto_hash::create_hex_hash;
-use pnpm_fs::DirLock;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::SilentReporter;
+use pnpm_store_dir::PrivateInstall;
 use serde_json::Value;
 use std::{
     fs,
     path::{Path, PathBuf},
-    time::Duration,
 };
+
+/// A runtime installed and ready to run.
+pub(crate) struct MaterializedRuntime {
+    /// The runtime's real executable.
+    pub(crate) bin: PathBuf,
+    /// The private directory the runtime was installed into when its
+    /// shared slot was held. It is removed when dropped, and the runtime
+    /// runs from it, so it lives for as long as the runtime may run.
+    pub(crate) private_install: Option<PrivateInstall>,
+}
+
+impl MaterializedRuntime {
+    fn shared(bin: PathBuf) -> Self {
+        Self { bin, private_install: None }
+    }
+}
 
 pub(super) const RUNTIME_ENVS_DIR_NAME: &str = "global-shim-runtimes";
 
@@ -57,20 +76,26 @@ pub(crate) fn trusted_runtime_config(environments_dir: &Path) -> miette::Result<
 /// select an unofficial-builds artifact that the promptless policy's
 /// host-libc check did not account for.
 ///
+/// The runtime materializes in the global virtual store at
+/// `global_virtual_store_dir`, or self-contained inside the environment
+/// when that is `None` (a private install).
+///
 /// The linker is pinned to isolated for the same reason: a `hoisted`
 /// setting inherited from the environment or the global config would
 /// materialize the runtime inside the environment directory, where
-/// [`managed_runtime_bin`] does not accept it.
+/// [`managed_runtime_bin`] does not accept it for a shared install.
 pub(super) fn hardened_install_config(
     config: Config,
     environment_dir: &Path,
-    global_virtual_store_dir: PathBuf,
+    global_virtual_store_dir: Option<PathBuf>,
 ) -> Config {
     let mut install_config = config;
     install_config.modules_dir = environment_dir.join("node_modules");
     install_config.virtual_store_dir = environment_dir.join("node_modules").join(".pnpm");
-    install_config.enable_global_virtual_store = true;
-    install_config.global_virtual_store_dir = global_virtual_store_dir;
+    install_config.enable_global_virtual_store = global_virtual_store_dir.is_some();
+    if let Some(global_virtual_store_dir) = global_virtual_store_dir {
+        install_config.global_virtual_store_dir = global_virtual_store_dir;
+    }
     install_config.node_linker = NodeLinker::Isolated;
     install_config.workspace_dir = Some(environment_dir.to_path_buf());
     install_config.lockfile = true;
@@ -88,15 +113,16 @@ pub(super) fn hardened_install_config(
     install_config
 }
 
-/// Materialize a runtime into the configured global virtual store and return
-/// its real executable. The small environment under pnpm's state directory
-/// contains only the lockfile and symlinks required to address the GVS slot;
-/// project `node_modules` is never consulted.
+/// Materialize a runtime into the configured global virtual store, or
+/// privately when its slot is held, and return its real executable. The
+/// small environment under pnpm's state directory contains only the
+/// lockfile and symlinks required to address the GVS slot; project
+/// `node_modules` is never consulted.
 pub(crate) async fn materialize_runtime(
     state_dir: &Path,
     name: String,
     version_spec: String,
-) -> miette::Result<PathBuf> {
+) -> miette::Result<MaterializedRuntime> {
     if state_dir.as_os_str().is_empty() {
         return Err(miette::miette!("the pnpm state directory could not be resolved"));
     }
@@ -109,30 +135,60 @@ pub(crate) async fn materialize_runtime(
     ));
     let environment_dir = environments_dir.join(&key);
     if let Some(bin) = managed_runtime_bin(&environment_dir, &name, &global_virtual_store_dir) {
-        return Ok(bin);
+        return Ok(MaterializedRuntime::shared(bin));
     }
 
-    const WAIT: Duration = Duration::from_mins(5);
-    const ABANDONED_AFTER: Duration = Duration::from_mins(30);
     let lock_path = environments_dir.join(format!("{key}.lock"));
-    let _lock = DirLock::acquire(lock_path.clone(), WAIT, ABANDONED_AFTER)
+    let Some(_lock) = slot_lock::acquire(lock_path.clone())
         .into_diagnostic()
-        .wrap_err_with(|| format!("lock the managed runtime at {}", lock_path.display()))?;
+        .wrap_err_with(|| format!("lock the managed runtime at {}", lock_path.display()))?
+    else {
+        return install_runtime_privately(config, &name, &version_spec).await;
+    };
     if let Some(bin) = managed_runtime_bin(&environment_dir, &name, &global_virtual_store_dir) {
-        return Ok(bin);
+        return Ok(MaterializedRuntime::shared(bin));
     }
 
-    install_runtime(config, &environment_dir, global_virtual_store_dir, &name, &version_spec).await
+    reset_environment(&environment_dir)?;
+    let bin = Box::pin(install_runtime(
+        config,
+        &environment_dir,
+        Some(global_virtual_store_dir),
+        &name,
+        &version_spec,
+    ))
+    .await?;
+    Ok(MaterializedRuntime::shared(bin))
 }
 
+/// Install the runtime into a private directory of this process's own,
+/// self-contained rather than linked into the global virtual store, for
+/// when another process holds the slot lock.
+async fn install_runtime_privately(
+    config: Config,
+    name: &str,
+    version_spec: &str,
+) -> miette::Result<MaterializedRuntime> {
+    let private_install = config.store_dir
+        .create_private_install(&name.replace('/', "+"))
+        .into_diagnostic()
+        .wrap_err("create the private runtime install directory")?;
+    let bin =
+        Box::pin(install_runtime(config, private_install.dir(), None, name, version_spec)).await?;
+    Ok(MaterializedRuntime { bin, private_install: Some(private_install) })
+}
+
+/// The runtime's real executable, when the package installed as `name`
+/// in the environment resolves inside `trusted_root`: the global virtual
+/// store for a shared install, the environment itself for a private one.
 pub(super) fn managed_runtime_bin(
     environment_dir: &Path,
     name: &str,
-    global_virtual_store_dir: &Path,
+    trusted_root: &Path,
 ) -> Option<PathBuf> {
     let package_dir = dunce::canonicalize(environment_dir.join("node_modules").join(name)).ok()?;
-    let store_dir = dunce::canonicalize(global_virtual_store_dir).ok()?;
-    if !package_dir.starts_with(&store_dir) {
+    let trusted_root = dunce::canonicalize(trusted_root).ok()?;
+    if !package_dir.starts_with(&trusted_root) {
         return None;
     }
     let manifest: Value =
@@ -164,20 +220,26 @@ pub(super) fn remove_dir_if_not_symlink(path: &Path) -> std::io::Result<()> {
     fs::remove_dir_all(path)
 }
 
-async fn install_runtime(
-    config: Config,
-    environment_dir: &Path,
-    global_virtual_store_dir: PathBuf,
-    name: &str,
-    version_spec: &str,
-) -> miette::Result<PathBuf> {
+fn reset_environment(environment_dir: &Path) -> miette::Result<()> {
     remove_dir_if_not_symlink(environment_dir)
         .into_diagnostic()
         .wrap_err_with(|| format!("reset {}", environment_dir.display()))?;
     fs::create_dir_all(environment_dir)
         .into_diagnostic()
-        .wrap_err_with(|| format!("create {}", environment_dir.display()))?;
+        .wrap_err_with(|| format!("create {}", environment_dir.display()))
+}
 
+/// Install `name` into the existing, empty `environment_dir` and return
+/// its executable.
+async fn install_runtime(
+    config: Config,
+    environment_dir: &Path,
+    global_virtual_store_dir: Option<PathBuf>,
+    name: &str,
+    version_spec: &str,
+) -> miette::Result<PathBuf> {
+    let trusted_root =
+        global_virtual_store_dir.clone().unwrap_or_else(|| environment_dir.to_path_buf());
     let install_config =
         Config::leak(hardened_install_config(config, environment_dir, global_virtual_store_dir));
     let state = State::init(environment_dir.join("package.json"), install_config, false)
@@ -192,16 +254,11 @@ async fn install_runtime(
         [DependencyGroup::Prod],
     )
     .await
-    .wrap_err("install the managed runtime into the global virtual store")?;
+    .wrap_err("install the managed runtime")?;
 
-    let global_virtual_store_dir_display = install_config
-        .global_virtual_store_dir
-        .display();
-    managed_runtime_bin(environment_dir, name, &install_config.global_virtual_store_dir).ok_or_else(
-        || {
-            miette::miette!(
-                "the installed {name} executable is not in the global virtual store at {global_virtual_store_dir_display}"
-            )
-        },
-    )
+    managed_runtime_bin(environment_dir, name, &trusted_root)
+        .ok_or_else(|| {
+            let trusted_root_display = trusted_root.display();
+            miette::miette!("the installed {name} executable is not under {trusted_root_display}")
+        })
 }

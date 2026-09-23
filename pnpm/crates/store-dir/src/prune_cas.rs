@@ -1,4 +1,7 @@
-use crate::{StoreDir, StoreIndex, StoreIndexError, decode_package_files_index};
+use crate::{
+    StoreDir, StoreIndex, StoreIndexError, decode_package_files_index,
+    private_install::PRIVATE_INSTALLS_DIR,
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::{
@@ -137,12 +140,35 @@ fn read_entries(path: &Path) -> Result<Vec<fs::DirEntry>, PruneCasError> {
         .map_err(|error| PruneCasError::ReadDir { path: path.to_path_buf(), error })
 }
 
+/// Remove the store's temporary files: everything under `tmp/` except
+/// the private installs a process still holds.
 fn remove_tmp(store_dir: &StoreDir) -> Result<(), PruneCasError> {
-    let path = store_dir.tmp();
-    match fs::remove_dir_all(&path) {
+    let tmp = store_dir.tmp();
+    let entries = match fs::read_dir(&tmp) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(PruneCasError::RemoveTmp { path: tmp, error }),
+    };
+    for entry in entries {
+        let entry = entry.map_err(|error| PruneCasError::RemoveTmp { path: tmp.clone(), error })?;
+        let path = entry.path();
+        let result = if entry.file_name() == PRIVATE_INSTALLS_DIR {
+            store_dir
+                .remove_orphaned_private_installs()
+                .map(|_| ())
+        } else {
+            pnpm_fs::remove_dirent(&path)
+        };
+        result.map_err(|error| PruneCasError::RemoveTmp { path, error })?;
+    }
+    match fs::remove_dir(&tmp) {
         Ok(()) => Ok(()),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(PruneCasError::RemoveTmp { path, error }),
+        Err(error)
+            if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::DirectoryNotEmpty) =>
+        {
+            Ok(())
+        }
+        Err(error) => Err(PruneCasError::RemoveTmp { path: tmp, error }),
     }
 }
 

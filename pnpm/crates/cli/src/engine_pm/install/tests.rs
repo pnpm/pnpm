@@ -1,4 +1,4 @@
-use super::{link_cached_engine_bins, package_dir, package_manager_engine_config, resolve_slot};
+use super::{link_engine_bins, package_dir, package_manager_engine_config, resolve_slot};
 use pnpm_config::Config;
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
 use pnpm_store_dir::StoreDir;
@@ -20,7 +20,7 @@ fn cache_hit_relinks_missing_pnpm_bin() {
     let bin_dir = slot.join("bin");
     fs::create_dir_all(&bin_dir).expect("create stale bin dir");
 
-    let linked = link_cached_engine_bins(&slot, "pnpm", false).expect("link bins");
+    let linked = link_engine_bins(&slot, "pnpm", false).expect("link bins");
 
     assert_eq!(linked, bin_dir);
     let pnpm_bin = bin_dir.join("pnpm");
@@ -42,7 +42,7 @@ fn cache_hit_relinks_legacy_wrapper_native_binary() {
     let bin_dir = slot.join("bin");
     fs::create_dir_all(&bin_dir).expect("create stale bin dir");
 
-    let linked = link_cached_engine_bins(&slot, "@pnpm/exe", true).expect("link bins");
+    let linked = link_engine_bins(&slot, "@pnpm/exe", true).expect("link bins");
 
     assert_eq!(linked, bin_dir);
     let wrapper_bin = pkg_dir.join(host_executable());

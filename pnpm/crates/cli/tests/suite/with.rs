@@ -261,6 +261,53 @@ fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
 }
 
+/// Another process installing the engine holds the slot lock, and is
+/// waited on only briefly: the engine is then installed into a private
+/// directory and run from there, never entering the held slot.
+#[test]
+fn a_held_engine_lock_installs_the_engine_privately() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_manifest(&workspace, &serde_json::json!({ "name": "project", "version": "1.0.0" }));
+    let engine_store = root.path().join("pnpm-home/package-manager-store/v11");
+    // A lock directory with no liveness record is one an older pnpm
+    // holds, and counts as held until it ages out.
+    fs::create_dir_all(engine_store.join(format!(
+        "tmp/engine-locks/@pnpm+exe@{PINNED_PNPM_VERSION}.lock",
+    )))
+    .expect("hold the engine slot lock");
+
+    let registry_arg = format!("--config.registry={}", mock_instance.url());
+    let output = test_command(pacquet, root.path())
+        .args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
+        .output()
+        .expect("run pacquet with a specified pnpm version");
+    dbg!(&output);
+    assert_success(&output);
+    assert!(stdout(&output).contains("Version 9.3.0"), "stdout:\n{}", stdout(&output));
+    let slots = engine_store.join("links");
+    assert!(!slots.exists(), "the held slot must not be entered: {}", slots.display());
+    let private_installs = engine_store.join("tmp/private");
+    let left_behind: Vec<_> = fs::read_dir(&private_installs)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+        .collect();
+    assert!(
+        left_behind.is_empty(),
+        "the private install is removed once the engine has run: {left_behind:?}",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// A task runner that pins `packageManager` spawns many `pnpm run`
 /// children at once, and on a cold cache every one of them installs the
 /// same engine into the same host-wide store slot. They must not clobber

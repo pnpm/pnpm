@@ -27,6 +27,7 @@ mod pm_prefix;
 mod renamed_options;
 mod shim_dispatch;
 mod shorthands;
+mod slot_lock;
 mod state;
 mod virtual_terminal;
 mod with_current;

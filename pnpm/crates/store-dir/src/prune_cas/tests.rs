@@ -52,6 +52,30 @@ fn removes_unlinked_cas_files_and_their_package_rows() {
 }
 
 #[test]
+fn keeps_the_private_installs_a_process_still_holds() {
+    let root = tempfile::tempdir().unwrap();
+    let store = StoreDir::new(root.path().join("store"));
+    fs::create_dir_all(store.tmp()).unwrap();
+    fs::write(store.tmp().join("partial"), "partial").unwrap();
+    let held = store.create_private_install("node").unwrap();
+    let orphan = store
+        .tmp()
+        .join("private")
+        .join("orphan");
+    fs::create_dir_all(&orphan).unwrap();
+
+    prune_cas(&store).unwrap();
+
+    assert!(!store.tmp().join("partial").exists());
+    assert!(!orphan.exists());
+    assert!(held.dir().exists());
+
+    drop(held);
+    prune_cas(&store).unwrap();
+    assert!(!store.tmp().exists());
+}
+
+#[test]
 fn removes_executable_cas_suffix_from_the_index_digest() {
     let root = tempfile::tempdir().unwrap();
     let store = StoreDir::new(root.path().join("store"));
