@@ -1,6 +1,6 @@
 use super::{
-    Config, HostNoHome, Path, assert_eq, capture_warnings, fs, io, load_with_project_and_user,
-    tempdir, write_file,
+    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, HostNoHome, LinkProbe, OsString, Path,
+    PathBuf, assert_eq, capture_warnings, fs, io, load_with_project_and_user, tempdir, write_file,
 };
 use crate::{api::FsReadFile, auth_sources::npmrc_source, npmrc_auth::NpmrcAuth};
 
@@ -105,6 +105,8 @@ pub fn npmrc_with_invalid_utf8_is_still_read() {
 
 #[test]
 pub fn unresolved_env_placeholder_keeps_the_rest_of_the_npmrc() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
     let auth = tempdir().expect("auth tempdir");
     let user_file = auth.path().join("user-npmrc");
     write_file(
@@ -112,7 +114,8 @@ pub fn unresolved_env_placeholder_keeps_the_rest_of_the_npmrc() {
         "//reg.example.com/:_authToken=${PNPM_TEST_UNSET_5065}\nregistry=https://example.com/\n",
     );
 
-    let config = load_with_project_and_user("", user_file);
+    set_fake_env(&[("PNPM_CONFIG_NPMRC_AUTH_FILE", user_file.to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
 
     assert_eq!(config.registry, "https://example.com/");
     assert!(
