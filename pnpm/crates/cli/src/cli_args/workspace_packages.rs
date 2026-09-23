@@ -10,10 +10,13 @@ pub fn build_workspace_package_manifest_map(
     let mut map = HashMap::new();
     for project in projects {
         let manifest = project.manifest.value();
-        if let (Some(name), Some(version)) = (
-            manifest.get("name").and_then(|val| val.as_str()),
-            manifest.get("version").and_then(|val| val.as_str()),
-        ) {
+        // Name-only projects stay in the map with an empty version so a
+        // missing `version` is reported as such instead of "not installed".
+        if let Some(name) = manifest.get("name").and_then(|val| val.as_str()) {
+            let version = manifest
+                .get("version")
+                .and_then(|val| val.as_str())
+                .unwrap_or("");
             map.entry(name.to_string())
                 .or_insert_with(|| WorkspacePackageManifest {
                     name: name.to_string(),

@@ -566,3 +566,62 @@ test('throws CANNOT_RESOLVE_WORKSPACE_PROTOCOL when node_modules and workspacePa
     code: 'ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
   })
 })
+
+// pnpm/pnpm#4164: the same error used to claim the dependency was not
+// installed when the package was present but had no version field.
+test('reports a missing version field on a workspace dependency instead of "not installed"', async () => {
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-no-version-dep-'))
+  const depDir = path.join(projectDir, 'node_modules', 'pkg-b')
+  fs.mkdirSync(depDir, { recursive: true })
+  fs.writeFileSync(path.join(depDir, 'package.json'), JSON.stringify({ name: 'pkg-b' }))
+
+  const manifest: ProjectManifest = {
+    name: 'pkg-a',
+    version: '1.0.0',
+    peerDependencies: {
+      'pkg-b': 'workspace:*',
+    },
+  }
+
+  await expect(createExportableManifest(projectDir, manifest, { catalogs: {} })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+    message: expect.stringContaining('has no "version" field'),
+  })
+})
+
+test('resolves a scoped peerDependency from workspacePackages (pnpm/pnpm#4164)', async () => {
+  const exported = await createExportableManifest('/nonexistent-project-dir', {
+    name: '@scope/pkg-a',
+    version: '1.0.0',
+    peerDependencies: {
+      '@scope/prettier-config': 'workspace:*',
+    },
+  }, {
+    catalogs: {},
+    workspacePackages: [
+      { manifest: { name: '@scope/prettier-config', version: '2.0.0' }, rootDir: '/root/prettier' },
+    ],
+  })
+
+  expect(exported.peerDependencies).toStrictEqual({
+    '@scope/prettier-config': '2.0.0',
+  })
+})
+
+test('reports a missing version on a scoped peerDependency from workspacePackages (pnpm/pnpm#4164)', async () => {
+  await expect(createExportableManifest('/nonexistent-project-dir', {
+    name: '@scope/pkg-a',
+    version: '1.0.0',
+    peerDependencies: {
+      '@scope/eslint-config': 'workspace:~',
+    },
+  }, {
+    catalogs: {},
+    workspacePackages: [
+      { manifest: { name: '@scope/eslint-config' }, rootDir: '/root/eslint' },
+    ],
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+    message: expect.stringContaining('has no "version" field'),
+  })
+})

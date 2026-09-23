@@ -24,17 +24,28 @@ use serde_json::Value;
 
 /// Error returned when the lookup against the dependency's installed
 /// `package.json` fails. Carries the
-/// `ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL` error code; preserve the
-/// public message so reporters that key off it keep matching.
+/// `ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL` error code.
 #[derive(Debug, Display, Error, Diagnostic, Clone)]
-#[display(
-    "Cannot resolve workspace protocol of dependency \"{dep_name}\" \
-     because this dependency is not installed. Try running \"pnpm install\"."
-)]
+#[display("Cannot resolve workspace protocol of dependency \"{dep_name}\" because {reason}")]
 #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL))]
 pub struct CannotResolveWorkspaceProtocolError {
     #[error(not(source))]
     pub dep_name: String,
+    pub reason: CannotResolveReason,
+}
+
+/// Why a `workspace:` specifier could not be resolved to a published
+/// version. `MissingVersion` / `MissingName` mean the package was found
+/// but its manifest is incomplete, which is not the same as "not
+/// installed" and must not be reported as such.
+#[derive(Debug, Display, Error, Diagnostic, Clone, Copy, PartialEq, Eq)]
+pub enum CannotResolveReason {
+    #[display("this dependency is not installed. Try running \"pnpm install\".")]
+    NotInstalled,
+    #[display("its package.json has no \"version\" field.")]
+    MissingVersion,
+    #[display("its package.json has no \"name\" field.")]
+    MissingName,
 }
 
 /// Error envelope for both rewrite helpers.
@@ -197,13 +208,14 @@ fn aliased_peer_spec(alias: &str, version: &str) -> String {
 /// Read `<dependency_dir>/package.json` and verify the `name` / `version`
 /// fields are present. Surfaces the
 /// `ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL` error when the
-/// dependency hasn't been installed yet.
+/// dependency hasn't been installed yet or its manifest is incomplete.
 fn read_and_check_manifest(
     dep_name: &str,
     target_pkg_name: &str,
     dependency_dir: &Path,
     workspace_packages: Option<&HashMap<String, WorkspacePackageManifest>>,
 ) -> Result<WorkspacePackageManifest, ReplaceWorkspaceProtocolError> {
+    let mut incomplete: Option<CannotResolveReason> = None;
     let manifest_from_dir = match safe_read_package_json_from_dir(dependency_dir) {
         Ok(Some(value)) => {
             let name = value.get("name").and_then(Value::as_str);
@@ -213,7 +225,14 @@ fn read_and_check_manifest(
                     name: name.to_string(),
                     version: version.to_string(),
                 }),
-                _ => None,
+                (Some(_), None) => {
+                    incomplete = Some(CannotResolveReason::MissingVersion);
+                    None
+                }
+                (_, _) => {
+                    incomplete = Some(CannotResolveReason::MissingName);
+                    None
+                }
             }
         }
         Ok(None) => None,
@@ -225,15 +244,22 @@ fn read_and_check_manifest(
     }
 
     if let Some(ws_pkg) = workspace_packages.and_then(|pkgs| pkgs.get(target_pkg_name)) {
-        return Ok(ws_pkg.clone());
+        if !ws_pkg.version.is_empty() {
+            return Ok(ws_pkg.clone());
+        }
+        incomplete = Some(CannotResolveReason::MissingVersion);
     }
 
     Err(ReplaceWorkspaceProtocolError::CannotResolve(CannotResolveWorkspaceProtocolError {
         dep_name: dep_name.to_string(),
+        reason: incomplete.unwrap_or(CannotResolveReason::NotInstalled),
     }))
 }
 
 /// The two fields the rewriters consult on the dependency's manifest.
+/// `version` is empty when a workspace package was found but its
+/// `package.json` has no `version` field, so the caller can report that
+/// instead of claiming the dependency is not installed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspacePackageManifest {
     pub name: String,

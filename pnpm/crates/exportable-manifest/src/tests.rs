@@ -11,7 +11,7 @@ use serde_json::Value;
 use tempfile::TempDir;
 
 use super::{
-    CannotResolveWorkspaceProtocolError, CreateExportableManifestOptions,
+    CannotResolveReason, CannotResolveWorkspaceProtocolError, CreateExportableManifestOptions,
     ReplaceWorkspaceProtocolError, WorkspacePackageManifest, create_exportable_manifest,
     replace_workspace_protocol, replace_workspace_protocol_peer_dependency,
 };
@@ -123,6 +123,7 @@ fn missing_dependency_surfaces_cannot_resolve_error() {
         err,
         ReplaceWorkspaceProtocolError::CannotResolve(CannotResolveWorkspaceProtocolError {
             dep_name,
+            reason: CannotResolveReason::NotInstalled,
         }) if dep_name == "ghost"
     ));
 }
@@ -139,7 +140,94 @@ fn missing_dependency_surfaces_cannot_resolve_error_for_peer() {
         err,
         ReplaceWorkspaceProtocolError::CannotResolve(CannotResolveWorkspaceProtocolError {
             dep_name,
+            reason: CannotResolveReason::NotInstalled,
         }) if dep_name == "ghost"
+    ));
+}
+
+/// pnpm/pnpm#4164: a package that exists but has no `version` must not
+/// be reported as "not installed".
+#[test]
+fn missing_version_on_dependency_is_not_reported_as_not_installed() {
+    let fixture = TempDir::new().unwrap();
+    let dir = fixture.path();
+    let dep_dir = dir.join("node_modules/pkg-b");
+    fs::create_dir_all(&dep_dir).unwrap();
+    fs::write(dep_dir.join("package.json"), r#"{ "name": "pkg-b" }"#).unwrap();
+
+    let err = replace_workspace_protocol("pkg-b", "workspace:*", dir, None, None).unwrap_err();
+    match err {
+        ReplaceWorkspaceProtocolError::CannotResolve(CannotResolveWorkspaceProtocolError {
+            dep_name,
+            reason: CannotResolveReason::MissingVersion,
+        }) => assert_eq!(dep_name, "pkg-b"),
+        other => panic!("expected MissingVersion, got {other:?}"),
+    }
+
+    let err = replace_workspace_protocol_peer_dependency("pkg-b", "workspace:*", dir, None, None)
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        ReplaceWorkspaceProtocolError::CannotResolve(CannotResolveWorkspaceProtocolError {
+            dep_name,
+            reason: CannotResolveReason::MissingVersion,
+        }) if dep_name == "pkg-b"
+    ));
+}
+
+/// pnpm/pnpm#4164: scoped `workspace:` peerDependencies resolve from the
+/// workspace-packages lookup even when they are not installed.
+#[test]
+fn scoped_peer_workspace_spec_resolves_from_workspace_packages() {
+    let dir = TempDir::new().unwrap();
+    let mut ws_pkgs = std::collections::HashMap::new();
+    ws_pkgs.insert(
+        "@scope/prettier-config".to_string(),
+        WorkspacePackageManifest {
+            name: "@scope/prettier-config".to_string(),
+            version: "2.0.0".to_string(),
+        },
+    );
+
+    let res = replace_workspace_protocol_peer_dependency(
+        "@scope/prettier-config",
+        "workspace:*",
+        dir.path(),
+        None,
+        Some(&ws_pkgs),
+    )
+    .expect("resolves scoped peer from workspace_packages");
+    assert_eq!(res, "2.0.0");
+}
+
+/// A name-only workspace package stays in the lookup with an empty
+/// version so the error names the missing field.
+#[test]
+fn workspace_package_without_version_reports_missing_version() {
+    let dir = TempDir::new().unwrap();
+    let mut ws_pkgs = std::collections::HashMap::new();
+    ws_pkgs.insert(
+        "@scope/eslint-config".to_string(),
+        WorkspacePackageManifest {
+            name: "@scope/eslint-config".to_string(),
+            version: String::new(),
+        },
+    );
+
+    let err = replace_workspace_protocol_peer_dependency(
+        "@scope/eslint-config",
+        "workspace:~",
+        dir.path(),
+        None,
+        Some(&ws_pkgs),
+    )
+    .unwrap_err();
+    assert!(matches!(
+        err,
+        ReplaceWorkspaceProtocolError::CannotResolve(CannotResolveWorkspaceProtocolError {
+            dep_name,
+            reason: CannotResolveReason::MissingVersion,
+        }) if dep_name == "@scope/eslint-config"
     ));
 }
 
