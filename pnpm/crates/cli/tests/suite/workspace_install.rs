@@ -1036,4 +1036,100 @@ fn workspace_install_with_build_metadata_version() {
     drop(root);
 }
 
+#[test]
+fn shared_workspace_lockfile_false_symlinks_workspace_dependencies() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - 'packages/*'\nsharedWorkspaceLockfile: false\nlinkWorkspacePackages: true\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "dependencies": {
+                "custom-pkg-b": "~1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+
+    let pkg_a_dir = workspace.join("packages/pkg-a");
+    let pkg_b_dir = workspace.join("packages/pkg-b");
+    fs::create_dir_all(&pkg_a_dir).expect("mkdir pkg-a");
+    fs::create_dir_all(&pkg_b_dir).expect("mkdir pkg-b");
+
+    fs::write(
+        pkg_a_dir.join("package.json"),
+        serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": {
+                "custom-pkg-b": "~1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write pkg-a package.json");
+
+    fs::write(
+        pkg_b_dir.join("package.json"),
+        serde_json::json!({
+            "name": "custom-pkg-b",
+            "version": "1.0.0",
+        })
+        .to_string(),
+    )
+    .expect("write pkg-b package.json");
+
+    pacquet_at(workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let root_symlink = workspace.join("node_modules/custom-pkg-b");
+    assert!(
+        is_symlink_or_junction(&root_symlink).expect("query root symlink"),
+        "workspace/node_modules/custom-pkg-b must be a symlink",
+    );
+
+    let symlink = pkg_a_dir.join("node_modules/custom-pkg-b");
+    assert!(
+        is_symlink_or_junction(&symlink).expect("query pkg-a symlink"),
+        "pkg-a/node_modules/custom-pkg-b must be a symlink",
+    );
+
+    let pkg_a_lockfile =
+        fs::read_to_string(pkg_a_dir.join("pnpm-lock.yaml")).expect("read pkg-a pnpm-lock.yaml");
+    assert!(pkg_a_lockfile.contains("version: link:../pkg-b"), "{pkg_a_lockfile}");
+    let root_lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read root pnpm-lock.yaml");
+    assert!(!root_lockfile.contains("packages/pkg-a"), "{root_lockfile}");
+
+    fs::remove_dir_all(pkg_a_dir.join("node_modules")).expect("rm node_modules");
+    fs::remove_file(pkg_a_dir.join("pnpm-lock.yaml")).expect("rm pkg-a pnpm-lock.yaml");
+    pacquet_at(workspace)
+        .with_arg("install")
+        .with_arg("--filter")
+        .with_arg("pkg-a")
+        .assert()
+        .success();
+
+    let symlink = pkg_a_dir.join("node_modules/custom-pkg-b");
+    assert!(
+        is_symlink_or_junction(&symlink).expect("query pkg-a symlink"),
+        "pkg-a/node_modules/custom-pkg-b must be a symlink after --filter pkg-a",
+    );
+    let pkg_a_lockfile =
+        fs::read_to_string(pkg_a_dir.join("pnpm-lock.yaml")).expect("read pkg-a pnpm-lock.yaml");
+    assert!(pkg_a_lockfile.contains("version: link:../pkg-b"), "{pkg_a_lockfile}");
+
+    drop(fixture);
+}
+
 mod freshness;
