@@ -65,10 +65,15 @@ pub(super) struct StoreCaches {
 pub(super) async fn open_store_index_handles(
     config: &Config,
     store_dir: &'static StoreDir,
+    progress_reported: Option<SharedReportedProgressKeys>,
 ) -> StoreIndexHandles {
     let index = StoreIndex::open_shared(store_dir, config.frozen_store).await;
     let (writer, writer_task) = StoreIndexWriter::spawn_for(store_dir, config.frozen_store);
-    StoreIndexHandles { index, writer, writer_task, caches: StoreCaches::default() }
+    let caches = StoreCaches {
+        progress_reported: progress_reported.unwrap_or_default(),
+        ..StoreCaches::default()
+    };
+    StoreIndexHandles { index, writer, writer_task, caches }
 }
 
 #[derive(Default)]

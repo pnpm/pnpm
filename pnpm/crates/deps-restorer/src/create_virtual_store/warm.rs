@@ -12,6 +12,7 @@ use pnpm_package_manifest::{
 };
 use pnpm_reporter::Reporter;
 use pnpm_tarball::PrefetchResult;
+use pnpm_tarball::pending_progress_key;
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
@@ -230,10 +231,15 @@ pub(super) fn emit_hoisted_warm_progress<Reporter: self::Reporter>(
     batch: &WarmLinkBatch<'_>,
 ) {
     for (snapshot_key, _, _, cache_key, _) in warm {
+        let pending_observer =
+            batch.template.progress_reported.contains(&pending_progress_key(cache_key));
         emit_warm_snapshot_progress::<Reporter>(
             &snapshot_key.pkg_id(),
             batch.template.import.requester,
             batch.template.progress_reported.contains(*cache_key),
         );
+        if pending_observer {
+            batch.template.progress_reported.insert((*cache_key).to_string());
+        }
     }
 }

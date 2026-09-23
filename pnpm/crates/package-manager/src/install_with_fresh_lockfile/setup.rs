@@ -18,6 +18,7 @@ use std::{collections::BTreeMap, path::Path, sync::Arc};
 /// inputs and the resolution observer fix for the whole install.
 pub(super) struct ResolverSetup {
     pub(super) workspace_packages: Option<Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
+    pub(super) completion_observer: Option<Arc<dyn crate::ResolutionObserver>>,
     pub(super) observer: ObserverSettings,
     pub(super) shape: InstallShape,
     pub(super) policy: crate::resolution_policy::PickPolicy,
@@ -99,7 +100,10 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
         .take()
         .unwrap_or_else(|| Arc::clone(&install.drivers.config.auth_headers));
     let resolution_observer = owned.resolution.observer.take();
+    let completion_observer = resolution_observer.clone();
     let observer = ObserverSettings::of(resolution_observer.as_ref());
+    let progress_reported =
+        resolution_observer.as_ref().and_then(|observer| observer.progress_reported());
 
     let store_dir: &'static _ = &install.drivers.config.store_dir;
     // Eagerly create `files/00..ff` under the v11 store root so per-
@@ -133,7 +137,12 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     // progress emitted by resolve-time prefetches: `CreateVirtualStore`
     // still emits `resolved` later, but skips duplicate `fetched` /
     // `found_in_store` statuses for keys already reported here.
-    let stores = resolver_setup::open_store_index_handles(install.drivers.config, store_dir).await;
+    let stores = resolver_setup::open_store_index_handles(
+        install.drivers.config,
+        store_dir,
+        progress_reported,
+    )
+    .await;
 
     let chain = build_fresh_resolver_chain::<Reporter>(
         install,
@@ -147,6 +156,7 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     .await?;
     Ok(ResolverSetup {
         workspace_packages: owned.projects.workspace_packages.take().map(Arc::new),
+        completion_observer,
         observer,
         shape,
         policy,

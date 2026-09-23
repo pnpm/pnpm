@@ -16,6 +16,7 @@ use pnpm_resolving_resolver_base::{
     LatestQuery, PackageVersionGuard, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };
+use pnpm_tarball::SharedReportedProgressKeys;
 use std::sync::Arc;
 
 /// One resolved tarball-shaped package, surfaced as the resolver's tree
@@ -76,6 +77,17 @@ pub trait ResolutionObserver: Send + Sync {
     fn minimum_release_age_exclude_override(&self) -> Option<Vec<String>> {
         None
     }
+
+    /// Install-scoped package-status keys this observer coordinates with
+    /// fetch and materialization paths.
+    fn progress_reported(&self) -> Option<SharedReportedProgressKeys> {
+        None
+    }
+
+    /// Emit deferred package progress after fetch and materialization paths
+    /// settle, before `ImportingDone` and `Summary`. Called once on a
+    /// successful fresh-resolution install.
+    fn flush_progress(&self) {}
 }
 
 /// Wraps an inner [`Resolver`], forwarding each tarball-shaped result to

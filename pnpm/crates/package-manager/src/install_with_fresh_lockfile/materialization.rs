@@ -22,6 +22,7 @@ pub(super) struct MaterializationResources {
     early_host_detection: Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
     deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
     lockfile_verification_gate: Option<crate::LockfileVerificationGate>,
+    resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
 }
 pub(super) struct MaterializationStores {
     index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
@@ -92,6 +93,7 @@ pub(super) fn finish_resolved_install<'a, Reporter: self::Reporter + 'static>(
                 early_host_detection: owned.early_host_detection,
                 deps_requiring_build_sink: owned.resolution.deps_requiring_build_sink,
                 lockfile_verification_gate: owned.lockfile_verification_gate,
+                resolution_observer: setup.completion_observer,
             },
             shape: setup.shape,
             stores: setup.stores.into(),
@@ -154,6 +156,9 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
         self,
         built_lockfile: Lockfile,
     ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
+        if let Some(observer) = &self.resources.resolution_observer {
+            observer.flush_progress();
+        }
         finish_lockfile_only::<Reporter>(LockfileOnlyOptions {
             write:
                 crate::install_with_fresh_lockfile::resolution_inputs::LockfilePersistenceOptions {
@@ -273,6 +278,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                     store_index_ref: self.stores.index.as_ref(),
                     store_index_writer,
                     caches: &self.stores.caches,
+                    resolution_observer: self.resources.resolution_observer.as_deref(),
                 },
                 runtime: crate::install_with_fresh_lockfile::on_disk::OnDiskRuntime {
                     host_node: plan.host_node.as_ref(),

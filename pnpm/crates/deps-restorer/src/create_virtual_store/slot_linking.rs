@@ -5,7 +5,7 @@ use super::{
 use crate::InstallPackageBySnapshotError;
 use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, SnapshotEntry};
 use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
-use pnpm_tarball::SharedReportedProgressKeys;
+use pnpm_tarball::{SharedReportedProgressKeys, pending_progress_key};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -232,11 +232,15 @@ pub(super) fn emit_group_warm_progress<Reporter: self::Reporter>(
     let reported = std::iter::once(group.representative).chain(group.duplicates.iter().copied());
     for slot in reported {
         if let Some(cache_key) = slot.warm_cache_key {
+            let pending_observer = progress_reported.contains(&pending_progress_key(cache_key));
             emit_warm_snapshot_progress::<Reporter>(
                 &slot.snapshot_key.pkg_id(),
                 requester,
                 progress_reported.contains(cache_key),
             );
+            if pending_observer {
+                progress_reported.insert(cache_key.to_string());
+            }
         }
     }
 }

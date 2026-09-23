@@ -81,6 +81,7 @@ pub(super) struct OnDiskStore<'a> {
     pub(super) store_index_ref: Option<&'a pnpm_store_dir::SharedReadonlyStoreIndex>,
     pub(super) store_index_writer: Arc<pnpm_store_dir::StoreIndexWriter>,
     pub(super) caches: &'a resolver_setup::StoreCaches,
+    pub(super) resolution_observer: Option<&'a dyn crate::ResolutionObserver>,
 }
 
 pub(super) struct OnDiskRuntime<'a> {
@@ -227,6 +228,9 @@ impl<'a> OnDiskInputs<'a> {
             skipped,
         )
         .map_err(InstallWithFreshLockfileError::LinkPhase)?;
+        if let Some(observer) = self.store.resolution_observer {
+            observer.flush_progress();
+        }
         Reporter::emit(&LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
             prefix: self.ctx.requester.to_string(),

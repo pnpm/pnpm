@@ -9,7 +9,8 @@ use crate::{CasPathsByPkgId, InstallPackageBySnapshot, InstallPackageBySnapshotE
 use futures_util::{StreamExt, stream::FuturesUnordered};
 use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, SnapshotEntry};
 use pnpm_reporter::Reporter;
-use pnpm_tarball::PrefetchResult;
+use pnpm_store_dir::store_index_key;
+use pnpm_tarball::{PrefetchResult, pending_progress_key};
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
@@ -135,7 +136,18 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
         })?;
     let installed = match batch.installer.run::<Reporter>(snapshot_key, metadata, snapshot).await {
         Ok(installed) => installed,
-        Err(err) => return swallow_optional_fetch_failure(snapshot_key, snapshot, err),
+        Err(err) => {
+            let failure = swallow_optional_fetch_failure(snapshot_key, snapshot, err);
+            if failure.is_ok()
+                && let Some(integrity) = metadata.resolution.integrity()
+            {
+                let key = store_index_key(&integrity.to_string(), &metadata_key.pkg_id());
+                if batch.link_template.progress_reported.contains(&pending_progress_key(&key)) {
+                    batch.link_template.progress_reported.insert(key);
+                }
+            }
+            return failure;
+        }
     };
     let crate::InstalledPackage { cas_paths, source_is_mutable } = installed;
     Ok((
