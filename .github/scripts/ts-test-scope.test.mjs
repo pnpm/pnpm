@@ -72,6 +72,7 @@ test('Rust gate configuration keeps exclusions limited to approved documentation
     '!pnpm/*.md',
     '!pnpm/plans/*.md',
     '!pnpm/scripts/*.md',
+    '!pnpm/crates/*/*.md',
     '!pnpm/tasks/*/*.md',
     '!pnpr/*.md',
     '!pnpr/crates/*/*.md',
