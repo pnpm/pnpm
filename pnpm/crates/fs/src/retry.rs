@@ -182,10 +182,15 @@ where
     Sleep: FnMut(Duration),
 {
     let mut backoff = Duration::ZERO;
+    let mut attempts = 0_u32;
 
     loop {
+        attempts += 1;
         let error = match operation() {
-            Ok(value) => return Ok(value),
+            Ok(value) => {
+                trace_retry(attempts, &mut timing.elapsed, None);
+                return Ok(value);
+            }
             Err(error) => error,
         };
         if error.kind() == io::ErrorKind::PermissionDenied
@@ -194,6 +199,7 @@ where
             timing.budget = timing.budget.min(timing.permission_denied_budget);
         }
         if !is_transient(&error) || !wait_for_retry(&mut timing, backoff) {
+            trace_retry(attempts, &mut timing.elapsed, Some(&error));
             return Err(error);
         }
         backoff = (backoff + Duration::from_millis(10)).min(RETRY_BACKOFF_CAP);
@@ -230,6 +236,21 @@ where
 /// share mode), or `ERROR_BUSY`. The sharing and lock violations have no
 /// [`io::ErrorKind`] of their own, so they are matched by raw OS error.
 /// Always `false` on Unix.
+/// Diagnostics only: with `FS_RETRY_TRACE` set, report every operation that
+/// needed more than one attempt, with the caller's backtrace.
+#[cfg(any(windows, test))]
+fn trace_retry(attempts: u32, elapsed: &mut impl FnMut() -> Duration, error: Option<&io::Error>) {
+    if attempts < 2 || std::env::var_os("FS_RETRY_TRACE").is_none() {
+        return;
+    }
+    let outcome = error.map_or_else(|| "ok".to_string(), |error| format!("error: {error}"));
+    eprintln!(
+        "FS_RETRY attempts={attempts} elapsed_ms={} outcome={outcome}\n{}",
+        elapsed().as_millis(),
+        std::backtrace::Backtrace::force_capture(),
+    );
+}
+
 pub(crate) fn is_transient_file_lock_error(error: &io::Error) -> bool {
     cfg!(windows)
         && (matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ResourceBusy)

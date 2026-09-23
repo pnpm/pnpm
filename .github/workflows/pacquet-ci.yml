@@ -331,6 +331,27 @@ jobs:
         shell: bash
         run: python .github/diagnostics/windows/probe.py spawn
 
+      # The slow Windows install tests take whole seconds that Linux does not.
+      # Record every filesystem operation that pnpm_fs had to retry in them.
+      - name: Trace filesystem retries on Windows
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          FS_RETRY_TRACE: '1'
+        run: |
+          unset PNPM_HOME XDG_DATA_HOME
+          node pnpm/scripts/run-rust-tests.mjs -p pnpm-package-manager -p pnpm-cli \
+            --no-fail-fast --success-output immediate --failure-output immediate \
+            -E 'test(/lockfile_writes::|partial_install_disables_optimistic_short_circuit|frozen_install_optional_included_surfaces_missing_metadata|workspace_settings_check::|workspace_install::|repeat_install::/)' \
+            > "$RUNNER_TEMP/fs-retry.log" 2>&1 || true
+          echo "operations retried: $(grep -c '^FS_RETRY' "$RUNNER_TEMP/fs-retry.log")"
+          grep '^FS_RETRY' "$RUNNER_TEMP/fs-retry.log" | sed -E 's/elapsed_ms=[0-9]+ //' | sort | uniq -c | sort -rn | head -20
+          echo "== slowest retries with callers"
+          grep -A40 '^FS_RETRY' "$RUNNER_TEMP/fs-retry.log" | grep -E '^FS_RETRY|pnpm[/\\]crates' | grep -vE 'retry\.rs' | head -120
+          grep -E 'PASS \[|FAIL \[' "$RUNNER_TEMP/fs-retry.log" | sort -t'[' -k2 -rn | head -30
+
       - name: Diagnose macOS runner after tests
         if: ${{ !cancelled() && runner.os == 'macOS' }}
         continue-on-error: true
