@@ -4,6 +4,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { install } from '@pnpm/installing.commands'
+import type { LogBase } from '@pnpm/logger'
 import { preparePackages } from '@pnpm/prepare'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { loadJsonFileSync } from 'load-json-file'
@@ -23,7 +24,7 @@ jest.unstable_mockModule('@pnpm/logger', () => {
     logger: Object.assign(() => logger, logger),
   }
 })
-const { globalWarn } = await import('@pnpm/logger')
+const { globalWarn, streamParser } = await import('@pnpm/logger')
 const { deploy } = await import('@pnpm/releasing.commands')
 const testOnNonWindows = process.platform === 'win32' ? test.skip : test
 
@@ -1155,4 +1156,67 @@ test('deploy does not preserve the inject workspace packages settings in the loc
   expect(packageKeys.some((key) => key.startsWith('is-negative@'))).toBeFalsy()
   expect(packageKeys.some((key) => key.startsWith('is-odd@'))).toBeFalsy()
   expect(lockfile.settings).not.toHaveProperty('injectWorkspacePackages')
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/7593
+test.each([
+  { name: 'shared lockfile', forceLegacyDeploy: false },
+  { name: 'legacy', forceLegacyDeploy: true },
+])('deploy ($name) reports the configured package import method', async ({ forceLegacyDeploy }) => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    lockfileOnly: true,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+
+  const importMethods: string[] = []
+  const collectImportMethods = (log: LogBase): void => {
+    if ('name' in log && log.name === 'pnpm:package-import-method' && 'method' in log && typeof log.method === 'string') {
+      importMethods.push(log.method)
+    }
+  }
+  streamParser.on('data', collectImportMethods)
+  try {
+    await deploy.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      forceLegacyDeploy,
+      packageImportMethod: 'hardlink',
+      recursive: true,
+      selectedProjectsGraph,
+      sharedWorkspaceLockfile: true,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+    }, ['dist'])
+  } finally {
+    streamParser.removeListener('data', collectImportMethods)
+  }
+
+  assertProject(path.resolve('dist')).has('is-positive')
+  expect(importMethods[0]).toBe('hardlink')
 })

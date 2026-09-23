@@ -30,7 +30,7 @@ use pnpm_package_manager::{
     ImportIndexedDirOpts, apply_deploy_manifest_hook, import_indexed_dir, manifest_has_bin,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter, SilentReporter};
 use pnpm_resolving_resolver_base::PreferredVersions;
 use pnpm_workspace::{Project, WORKSPACE_MANIFEST_FILENAME, importer_id_from_root_dir};
 use resolution::{
@@ -251,11 +251,7 @@ impl DeployArgs {
             deploy_dir,
             self.install_args.materialization.force,
         )?;
-        copy_project::<ReporterT>(
-            &selected.project.root_dir,
-            deploy_dir,
-            !config.deploy_all_files,
-        )?;
+        copy_project(&selected.project.root_dir, deploy_dir, !config.deploy_all_files)?;
 
         Ok(())
     }

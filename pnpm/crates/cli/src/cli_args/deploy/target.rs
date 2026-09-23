@@ -1,8 +1,8 @@
 use super::{
     AtomicU8, Context, DeployError, DeployFiles, DirectoryFetcher, ImportIndexedDirOpts,
     IntoDiagnostic, Lockfile, PackageImportMethod, PackageManifest, Path, PathBuf, Reporter,
-    WORKSPACE_MANIFEST_FILENAME, Write, apply_deploy_manifest_hook, fs, import_indexed_dir, io,
-    lexical_normalize, remove_dirent, warn,
+    SilentReporter, WORKSPACE_MANIFEST_FILENAME, Write, apply_deploy_manifest_hook, fs,
+    import_indexed_dir, io, lexical_normalize, remove_dirent, warn,
 };
 #[cfg(windows)]
 use std::os::windows::fs::MetadataExt;
@@ -219,7 +219,11 @@ fn is_unsafe_deploy_link(metadata: &fs::Metadata) -> bool {
     }
 }
 
-pub(super) fn copy_project<ReporterT: Reporter>(
+/// Copies the deployed project's own files into `dest`. This is not an
+/// import from the store, so it reports no `pnpm:package-import-method`:
+/// the reporter prints the first reported method as the one packages
+/// are imported with.
+pub(super) fn copy_project(
     src: &Path,
     dest: &Path,
     include_only_package_files: bool,
@@ -234,7 +238,7 @@ pub(super) fn copy_project<ReporterT: Reporter>(
     .map_err(miette::Report::new)
     .wrap_err("fetch project files")?;
     let logged_methods = AtomicU8::new(0);
-    import_indexed_dir::<ReporterT>(
+    import_indexed_dir::<SilentReporter>(
         &logged_methods,
         PackageImportMethod::CloneOrCopy,
         dest,

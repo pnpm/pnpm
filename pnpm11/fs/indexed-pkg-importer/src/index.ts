@@ -17,12 +17,31 @@ export { type FilesMap, type ImportIndexedPackage, type ImportOptions }
 
 export type PackageImportMethod = 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
 
-export function createIndexedPkgImporter (packageImportMethod?: PackageImportMethod): ImportIndexedPackage {
-  const importPackage = createImportPackage(packageImportMethod)
-  return importPackage
+export interface IndexedPkgImporterOptions {
+  /**
+   * Whether to emit `pnpm:package-import-method` for the selected method.
+   * The reporter prints the first emitted method as the way packages are
+   * imported from the store, so imports that do not come from the store
+   * must not emit it.
+   */
+  reportImportMethod?: boolean
 }
 
-function createImportPackage (packageImportMethod?: PackageImportMethod): ImportIndexedPackage {
+type ReportImportMethod = (method: 'clone' | 'hardlink' | 'copy') => void
+
+export function createIndexedPkgImporter (
+  packageImportMethod?: PackageImportMethod,
+  opts?: IndexedPkgImporterOptions
+): ImportIndexedPackage {
+  const reportImportMethod: ReportImportMethod = opts?.reportImportMethod === false
+    ? () => {}
+    : (method) => {
+      packageImportMethodLogger.debug({ method })
+    }
+  return createImportPackage(packageImportMethod, reportImportMethod)
+}
+
+function createImportPackage (packageImportMethod: PackageImportMethod | undefined, reportImportMethod: ReportImportMethod): ImportIndexedPackage {
   // this works in the following way:
   // - hardlink: hardlink the packages, no fallback
   // - clone: clone the packages, no fallback
@@ -30,25 +49,25 @@ function createImportPackage (packageImportMethod?: PackageImportMethod): Import
   // - copy: copy the packages, do not try to link them first
   switch (packageImportMethod ?? 'auto') {
     case 'clone':
-      packageImportMethodLogger.debug({ method: 'clone' })
+      reportImportMethod('clone')
       return createClonePkg()
     case 'hardlink':
-      packageImportMethodLogger.debug({ method: 'hardlink' })
+      reportImportMethod('hardlink')
       return hardlinkPkg.bind(null, linkOrCopy)
     case 'auto': {
-      return createAutoImporter()
+      return createAutoImporter(reportImportMethod)
     }
     case 'clone-or-copy':
-      return createCloneOrCopyImporter()
+      return createCloneOrCopyImporter(reportImportMethod)
     case 'copy':
-      packageImportMethodLogger.debug({ method: 'copy' })
+      reportImportMethod('copy')
       return copyPkg
     default:
       throw new Error(`Unknown package import method ${packageImportMethod as string}`)
   }
 }
 
-function createAutoImporter (): ImportIndexedPackage {
+function createAutoImporter (reportImportMethod: ReportImportMethod): ImportIndexedPackage {
   let auto = initialAuto
 
   return (to, opts) => auto(to, opts)
@@ -69,7 +88,7 @@ function createAutoImporter (): ImportIndexedPackage {
         // clone importer (with ENOTSUP fallback for transient failures
         // during heavy parallel I/O) for all subsequent packages.
         if (!tryClonePkg(to, opts)) return undefined
-        packageImportMethodLogger.debug({ method: 'clone' })
+        reportImportMethod('clone')
         auto = createClonePkg()
         return 'clone'
       } catch {
@@ -78,7 +97,7 @@ function createAutoImporter (): ImportIndexedPackage {
     }
     try {
       if (!hardlinkPkg(fs.linkSync, to, opts)) return undefined
-      packageImportMethodLogger.debug({ method: 'hardlink' })
+      reportImportMethod('hardlink')
       auto = hardlinkPkg.bind(null, linkOrCopy)
       return 'hardlink'
     } catch (err: unknown) {
@@ -86,19 +105,19 @@ function createAutoImporter (): ImportIndexedPackage {
       if (err.message.startsWith('EXDEV: cross-device link not permitted')) {
         globalWarn(err.message)
         globalInfo('Falling back to copying packages from store')
-        packageImportMethodLogger.debug({ method: 'copy' })
+        reportImportMethod('copy')
         auto = copyPkg
         return auto(to, opts)
       }
       // We still choose hard linking that will fall back to copying in edge cases.
-      packageImportMethodLogger.debug({ method: 'hardlink' })
+      reportImportMethod('hardlink')
       auto = hardlinkPkg.bind(null, linkOrCopy)
       return auto(to, opts)
     }
   }
 }
 
-function createCloneOrCopyImporter (): ImportIndexedPackage {
+function createCloneOrCopyImporter (reportImportMethod: ReportImportMethod): ImportIndexedPackage {
   let auto = initialAuto
 
   return (to, opts) => auto(to, opts)
@@ -109,13 +128,13 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
   ): string | undefined {
     try {
       if (!tryClonePkg(to, opts)) return undefined
-      packageImportMethodLogger.debug({ method: 'clone' })
+      reportImportMethod('clone')
       auto = createClonePkg()
       return 'clone'
     } catch {
       // ignore
     }
-    packageImportMethodLogger.debug({ method: 'copy' })
+    reportImportMethod('copy')
     auto = copyPkg
     return auto(to, opts)
   }

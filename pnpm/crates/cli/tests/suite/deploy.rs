@@ -991,6 +991,46 @@ fn deploy_does_not_run_prepare_scripts() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn deploy_reports_the_configured_package_import_method() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info: AddMockedRegistry { mock_instance, .. },
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    write_reachability_workspace(&workspace);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    for (target, legacy) in [("deploy-shared", false), ("deploy-legacy", true)] {
+        let mut command = pacquet_cmd(&workspace)
+            .with_args([
+                "--filter",
+                "app",
+                "deploy",
+                "--prod",
+                "--package-import-method=hardlink",
+                target,
+            ]);
+        if legacy {
+            command = command.with_arg("--legacy");
+        }
+        let output = command.output().expect("run pnpm deploy");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(output.status.success(), "{target} failed:\n{stdout}");
+        assert!(
+            stdout.contains("Packages are hard linked from the content-addressable store"),
+            "{target} should report the configured import method:\n{stdout}",
+        );
+    }
+
+    drop((root, mock_instance));
+}
+
 mod legacy;
 
 mod peers;
