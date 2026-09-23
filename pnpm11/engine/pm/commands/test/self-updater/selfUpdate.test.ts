@@ -392,7 +392,7 @@ test('self-update respects minimumReleaseAge for implicit latest resolution', as
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
 })
 
@@ -696,7 +696,7 @@ test('self-update does not bypass minimumReleaseAge when minimumReleaseAgeExclud
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
 })
 
@@ -853,7 +853,7 @@ test('should update packageManager field when a newer pnpm version is available'
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
 })
 
@@ -876,7 +876,7 @@ test('should not update packageManager field when current version matches latest
     },
   }, [])
 
-  expect(output).toBe('The current project is already set to use pnpm v9.0.0')
+  expect(output).toBe('The current project is already set to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
 })
 
@@ -901,7 +901,7 @@ test('should update devEngines.packageManager version when a newer pnpm version 
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
   expect(pkgJson.devEngines.packageManager.version).toBe('9.0.0')
   expect(pkgJson.packageManager).toBeUndefined()
@@ -931,7 +931,7 @@ test('should update pnpm entry in devEngines.packageManager array', async () => 
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
   expect(pkgJson.devEngines.packageManager[1].version).toBe('9.0.0')
   expect(pkgJson.devEngines.packageManager[0].version).toBe('10.0.0')
@@ -961,7 +961,7 @@ test.each([
     },
   }, [])
 
-  expect(output).toBe(`The current project has been updated to use pnpm v${resolvedVersion}`)
+  expect(output).toBe(`The current project has been updated to use pnpm v${resolvedVersion}\nThe currently active pnpm v9.0.0 is newer than the "latest" version on the registry (v${resolvedVersion}). No update performed. Run "pnpm self-update latest" to downgrade.`)
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
   expect(pkgJson.devEngines.packageManager.version).toBe(expectedRange)
   const lockfile = fs.readFileSync(path.join(opts.dir, 'pnpm-lock.yaml'), 'utf8')
@@ -989,7 +989,7 @@ test('should not modify complex devEngines.packageManager range when resolved ve
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   // The range should remain unchanged — the exact version is pinned in the lockfile
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
   expect(pkgJson.devEngines.packageManager.version).toBe('>=8.0.0')
@@ -1045,7 +1045,7 @@ test('should update both packageManager and devEngines.packageManager when both 
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
   expect(pkgJson.packageManager).toBe('pnpm@9.0.0')
   expect(pkgJson.devEngines.packageManager.version).toBe('9.0.0')
@@ -1180,7 +1180,7 @@ test('should update devEngines.packageManager range when resolved version no lon
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
   // Range operator preserved, version updated
   expect(pkgJson.devEngines.packageManager.version).toBe('^9.0.0')
@@ -1273,6 +1273,31 @@ test('self-update updates the packageManager field in package.json', async () =>
 
   const pkgJson = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8'))
   expect(pkgJson.packageManager).toBe('pnpm@9.1.0')
+})
+
+test('self-update leaves the project pin alone when the global install fails', async () => {
+  const opts = prepare({
+    packageManager: 'pnpm@9.0.0',
+  })
+  const registry = opts.registriesByScope.default.replace(/\/$/, '')
+  getMockAgent().get(registry)
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('9.1.0', opts.registriesByScope.default)).persist()
+  mockExeMetadata(opts.registriesByScope.default, '9.1.0')
+  getMockAgent().get(registry)
+    .intercept({ path: '/pnpm/-/pnpm-9.1.0.tgz', method: 'GET' })
+    .reply(404, {})
+
+  await expect(selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+  }, [])).rejects.toThrow()
+
+  const pkgJson = JSON.parse(fs.readFileSync(path.join(opts.dir, 'package.json'), 'utf8'))
+  expect(pkgJson.packageManager).toBe('pnpm@9.0.0')
 })
 
 test('installPnpm rejects and cleans up when the installed pnpm has no working executable', async () => {

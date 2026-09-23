@@ -25,6 +25,11 @@ use tempfile::{TempDir, tempdir};
 /// it stays newer than the running version through every release.
 const NEWER_PNPM: &str = "99.0.0";
 
+/// A pnpm the mocked registry can serve as `latest` that is older than the
+/// running version, so an implicit-`latest` run declines the global switch
+/// and the project pin is the only thing it writes.
+const OLDER_PNPM: &str = "1.0.0";
+
 #[test]
 fn self_update_loads_config_and_reaches_the_resolver() {
     let CommandTempCwd { mut pacquet, root, workspace, .. } =
@@ -64,7 +69,7 @@ fn self_update_loads_config_and_reaches_the_resolver() {
 
 #[test]
 fn self_update_switches_the_global_pnpm_when_the_project_pin_is_already_current() {
-    let mut project = PinnedProject::pinned_to(NEWER_PNPM);
+    let mut project = PinnedProject::pinned_to(NEWER_PNPM, NEWER_PNPM);
 
     let output = project.self_update();
 
@@ -72,31 +77,45 @@ fn self_update_switches_the_global_pnpm_when_the_project_pin_is_already_current(
 }
 
 #[test]
-fn self_update_switches_the_global_pnpm_after_rewriting_the_project_pin() {
-    let mut project = PinnedProject::pinned_to("1.2.3");
+fn self_update_leaves_the_project_pin_alone_when_the_global_switch_fails() {
+    let mut project = PinnedProject::pinned_to("1.2.3", NEWER_PNPM);
 
     let output = project.self_update();
 
     assert_reached_the_global_switch(&output);
-    assert_eq!(project.manifest_text(), format!(r#"{{"packageManager":"pnpm@{NEWER_PNPM}"}}"#));
+    assert!(
+        !output.status.success(),
+        "the global switch cannot finish against the fixture registry",
+    );
+    assert_eq!(project.manifest_text(), r#"{"packageManager":"pnpm@1.2.3"}"#);
 }
 
 #[test]
-fn self_update_switches_the_global_pnpm_after_rewriting_a_dev_engines_pin() {
-    let mut project = PinnedProject::pinned_through_dev_engines("1.2.3");
+fn self_update_rewrites_the_project_pin_and_reports_the_declined_global_switch() {
+    let mut project = PinnedProject::pinned_to("0.1.0", OLDER_PNPM);
 
     let output = project.self_update();
 
-    assert_reached_the_global_switch(&output);
+    assert_pin_updated_and_global_switch_declined(&output);
+    assert_eq!(project.manifest_text(), format!(r#"{{"packageManager":"pnpm@{OLDER_PNPM}"}}"#));
+}
+
+#[test]
+fn self_update_rewrites_a_dev_engines_pin_and_reports_the_declined_global_switch() {
+    let mut project = PinnedProject::pinned_through_dev_engines("0.1.0", OLDER_PNPM);
+
+    let output = project.self_update();
+
+    assert_pin_updated_and_global_switch_declined(&output);
     let manifest = project.manifest_text();
     assert!(
-        manifest.contains(&format!(r#""version":"{NEWER_PNPM}""#)),
+        manifest.contains(&format!(r#""version":"{OLDER_PNPM}""#)),
         "the devEngines pin was not rewritten: {manifest}",
     );
 }
 
-/// A project that pins pnpm, wired to a mocked registry
-/// serving [`NEWER_PNPM`] as `latest` and to a throwaway `PNPM_HOME`.
+/// A project that pins pnpm, wired to a mocked registry serving
+/// `registry_latest` as pnpm's `latest` and to a throwaway `PNPM_HOME`.
 struct PinnedProject {
     pacquet: Command,
     workspace: PathBuf,
@@ -107,24 +126,27 @@ struct PinnedProject {
 }
 
 impl PinnedProject {
-    fn pinned_to(version: &str) -> Self {
-        Self::with_manifest(&format!(r#"{{"packageManager":"pnpm@{version}"}}"#))
+    fn pinned_to(version: &str, registry_latest: &str) -> Self {
+        Self::with_manifest(&format!(r#"{{"packageManager":"pnpm@{version}"}}"#), registry_latest)
     }
 
-    fn pinned_through_dev_engines(version: &str) -> Self {
-        Self::with_manifest(&format!(
-            r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{version}"}}}}}}"#,
-        ))
+    fn pinned_through_dev_engines(version: &str, registry_latest: &str) -> Self {
+        Self::with_manifest(
+            &format!(
+                r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{version}"}}}}}}"#,
+            ),
+            registry_latest,
+        )
     }
 
-    fn with_manifest(manifest: &str) -> Self {
+    fn with_manifest(manifest: &str, registry_latest: &str) -> Self {
         let CommandTempCwd {
             mut pacquet,
             root,
             workspace,
             npmrc_info,
             ..
-        } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(NEWER_PNPM);
+        } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(registry_latest);
         let global_home = tempdir().expect("global home tempdir");
         pacquet.env("PNPM_HOME", global_home.path());
         // Point the trusted package-manager bootstrap registry at the mock
@@ -152,16 +174,24 @@ impl PinnedProject {
     }
 }
 
-/// The pin is not the end of the run: `self-update` has to move the global
-/// install forward too, which returning after the pin skipped
-/// (pnpm/pnpm#14747). The switch announces itself before it downloads
-/// anything, so the announcement is what proves it was reached — the switch
-/// itself cannot finish against the fixture registry.
 fn assert_reached_the_global_switch(output: &Output) {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stdout.contains("Switching pnpm from v") && stdout.contains(NEWER_PNPM),
         "self-update stopped at the project pin; stdout={stdout}, stderr={stderr}",
+    );
+}
+
+fn assert_pin_updated_and_global_switch_declined(output: &Output) {
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stdout={stdout}, stderr={stderr}");
+    assert!(
+        stdout.contains(&format!("The current project has been updated to use pnpm v{OLDER_PNPM}"))
+            && stdout.contains(&format!(
+                r#"is newer than the "latest" version on the registry (v{OLDER_PNPM})"#,
+            )),
+        "both the pin update and the declined global switch must be reported; stdout={stdout}, stderr={stderr}",
     );
 }

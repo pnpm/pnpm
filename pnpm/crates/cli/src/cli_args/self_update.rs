@@ -24,7 +24,7 @@ use pnpm_lockfile::EnvLockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, infer_range_spec_style};
-use project_pin::{ProjectPinResult, read_project_pinned_pnpm_version, update_project_pin};
+use project_pin::{project_pin_refusal, read_project_pinned_pnpm_version, update_project_pin};
 use serde_json::Value;
 use std::{io::IsTerminal, path::Path};
 
@@ -228,32 +228,36 @@ async fn handler<Reporter: self::Reporter + 'static>(
         warn::<Reporter>(&prefix, hint);
     }
 
-    // Updating the pin is not enough on its own: the machine still has to
-    // hold a pnpm that can reach the pinned version, so the global install
-    // moves forward too. See pnpm/pnpm#14747.
-    let mut project_pin_message = None;
-    if let Some(pm) = &wanted
-        && pm.name == "pnpm"
+    let pinned_pnpm = wanted
+        .as_ref()
+        .filter(|pm| pm.name == "pnpm");
+    if let Some(pm) = pinned_pnpm
+        && let Some(refusal) =
+            project_pin_refusal(config, dir, pm, &target_version, is_implicit_latest)
     {
-        match Box::pin(update_project_pin(config, dir, pm, &target_version, is_implicit_latest))
-            .await?
-        {
-            ProjectPinResult::Refused(message) => return Ok(Some(message)),
-            ProjectPinResult::Updated(message) | ProjectPinResult::AlreadySet(message) => {
-                project_pin_message = Some(message);
-            }
+        return Ok(Some(refusal));
+    }
+
+    // The global install moves forward even when the project pins pnpm, or
+    // the machine never holds a pnpm that reaches the pin (pnpm/pnpm#14747).
+    // The pin is written last so a failed switch leaves the project as it was.
+    let global_message = match global_switch_declined(
+        config,
+        &target_version,
+        bare_specifier,
+        is_implicit_latest,
+    )? {
+        Some(declined) => Some(declined),
+        None => {
+            switch_global_pnpm::<Reporter>(config, &target_version, &prefix, bare_specifier).await?
         }
-    }
+    };
 
-    if let Some(message) =
-        global_switch_declined(config, &target_version, bare_specifier, is_implicit_latest)?
-    {
-        return Ok(project_pin_message.or(Some(message)));
-    }
-
-    let message =
-        switch_global_pnpm::<Reporter>(config, &target_version, &prefix, bare_specifier).await?;
-    Ok(join_messages(project_pin_message, message))
+    let project_pin_message = match pinned_pnpm {
+        Some(pm) => Some(Box::pin(update_project_pin(config, dir, pm, &target_version)).await?),
+        None => None,
+    };
+    Ok(join_messages(project_pin_message, global_message))
 }
 
 /// The version `bare_specifier` resolves to on the trusted bootstrap
@@ -278,8 +282,7 @@ async fn resolve_target_version(
 }
 
 /// The output of a run that touched both the project pin and the global
-/// install: one line each. Reporting only the pin would hide the global
-/// switch, which is the half `self-update` was run for.
+/// install: one line each, so neither outcome hides the other.
 fn join_messages(first: Option<String>, second: Option<String>) -> Option<String> {
     match (first, second) {
         (Some(first), Some(second)) => Some(format!("{first}\n{second}")),
