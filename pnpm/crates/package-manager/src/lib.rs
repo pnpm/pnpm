@@ -4,6 +4,7 @@ pub use build_snapshot::*;
 pub use catalog_mode::*;
 pub use command_lockfile::CommandLockfile;
 pub use dependencies_graph_to_lockfile::*;
+pub use fast_update_lockfile::prune_unreachable_packages;
 pub use install::*;
 pub use install_with_fresh_lockfile::*;
 pub use link_manifest_link_deps::*;

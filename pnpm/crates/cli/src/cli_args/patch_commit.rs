@@ -7,6 +7,7 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
+use lockfile_update::update_lockfile_snapshots;
 use miette::Diagnostic;
 use paths::{
     PatchFileWriteContext, clean_source_dir, cleanup_after_diff, normalize_patches_dir_name,
@@ -14,7 +15,7 @@ use paths::{
 };
 use pnpm_crypto_hash::create_short_hash;
 use pnpm_fs::{is_subdir, lexical_normalize};
-use pnpm_lockfile::{LoadLockfileError, Lockfile, PackageKey};
+use pnpm_lockfile::{LoadLockfileError, Lockfile, PackageKey, SaveLockfileError};
 use pnpm_package_manager::{
     PatchCandidate, PatchCandidateSet, PatchTarget, PatchTargetError, PkgFilesForDiff,
     WritePackageForPatch, WritePackageForPatchError, diff_folders, patch_candidates_from_lockfile,
@@ -120,6 +121,9 @@ pub(crate) enum PatchCommitError {
     LoadLockfile(#[error(source)] LoadLockfileError),
 
     #[diagnostic(transparent)]
+    SaveLockfile(#[error(source)] SaveLockfileError),
+
+    #[diagnostic(transparent)]
     PatchTarget(#[error(source)] PatchTargetError),
 
     #[diagnostic(transparent)]
@@ -144,7 +148,7 @@ impl PatchCommitArgs {
         let resolved = resolve_patch_dir(dir, &state.config.modules_dir, &self.patch_dir)?;
         let patch_dir = resolved.patch_dir;
         let state_value = resolved.state_value;
-        let (name, version) = patched_identity(&patch_dir)?;
+        let (name, version, patched_manifest) = patched_identity(&patch_dir)?;
 
         let current_lockfile =
             Lockfile::load_current_from_virtual_store_dir(&state.config.virtual_store_dir)
@@ -160,8 +164,23 @@ impl PatchCommitArgs {
             return Ok(None);
         }
 
-        self.record_patch(&state, dir, &name, &version, state_value.apply_to_all, &patch_content)
-            .map(Some)
+        let patched_dependencies = self.record_patch(
+            &state,
+            dir,
+            &name,
+            &version,
+            state_value.apply_to_all,
+            &patch_content,
+        )?;
+        let workspace_dir = state.config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
+        update_lockfile_snapshots(
+            &workspace_dir,
+            &name,
+            &version,
+            state_value.apply_to_all,
+            &patched_manifest,
+        )?;
+        Ok(Some(patched_dependencies))
     }
 
     /// Write the patch under the patches directory and record it in the
@@ -213,14 +232,15 @@ impl PatchCommitArgs {
 
 /// The patched package's name and version, from the manifest `pnpm patch`
 /// left in the directory.
-fn patched_identity(patch_dir: &Path) -> Result<(String, String), PatchCommitError> {
+fn patched_identity(
+    patch_dir: &Path,
+) -> Result<(String, String, PackageManifest), PatchCommitError> {
     let manifest_path = patch_dir.join("package.json");
     let patched_manifest = PackageManifest::from_path(manifest_path.clone())
         .map_err(|source| PatchCommitError::ReadManifest { path: manifest_path.clone(), source })?;
-    Ok((
-        manifest_string(patched_manifest.value(), "name", &manifest_path)?,
-        manifest_string(patched_manifest.value(), "version", &manifest_path)?,
-    ))
+    let name = manifest_string(patched_manifest.value(), "name", &manifest_path)?;
+    let version = manifest_string(patched_manifest.value(), "version", &manifest_path)?;
+    Ok((name, version, patched_manifest))
 }
 
 /// The diff between the package as installed and the edited copy, with
@@ -344,5 +364,6 @@ fn resolve_path(dir: &Path, path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests;
 
+mod lockfile_update;
 mod paths;
 mod resolution;

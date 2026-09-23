@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { beforeAll, beforeEach, describe, expect, it, jest, test } from '@jest/globals'
 import { install } from '@pnpm/installing.commands'
+import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import type { PatchCommandOptions, PatchRemoveCommandOptions } from '@pnpm/patching.commands'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -1018,6 +1019,56 @@ describe('patching should work when there is a no EOL in the patched file', () =
     const patchContent = fs.readFileSync('patches/safe-execa@0.1.2.patch', 'utf8')
     expect(patchContent).toContain('No newline at end of file')
     expect(fs.readFileSync('node_modules/safe-execa/lib/index.js', 'utf8')).toContain('//# sourceMappingURL=index.js.map// patch without newline')
+  })
+
+  test('patch and commit updates lockfile when dependencies in package.json are removed', async () => {
+    prepare({
+      dependencies: {
+        '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+      },
+    })
+    const cacheDir = path.resolve('cache')
+    const storeDir = path.resolve('store')
+    const patchOption = {
+      ...basePatchOption,
+      cacheDir,
+      dir: process.cwd(),
+      storeDir,
+    }
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      dir: process.cwd(),
+      saveLockfile: true,
+    })
+
+    const initialLockfile = await readWantedLockfile(process.cwd(), { ignoreIncompatible: true })
+    expect(Object.keys(initialLockfile!.packages ?? {})).toEqual(
+      expect.arrayContaining([expect.stringContaining('@pnpm.e2e/dep-of-pkg-with-1-dep')])
+    )
+
+    const output = await patch.handler(patchOption, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    const manifestPath = path.join(patchDir, 'package.json')
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+    delete manifest.dependencies
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf8')
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      storeDir,
+    }, [patchDir])
+
+    const updatedLockfile = await readWantedLockfile(process.cwd(), { ignoreIncompatible: true })
+    const packageKeys = Object.keys(updatedLockfile!.packages ?? {})
+    expect(packageKeys.some(key => key.includes('@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBe(false)
   })
 })
 

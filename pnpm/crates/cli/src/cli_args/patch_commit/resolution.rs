@@ -163,7 +163,7 @@ fn collect_matches(
         if !candidate_path.is_dir() {
             continue;
         }
-        let Ok((name, version)) = patched_identity(&candidate_path) else {
+        let Ok((name, version, _)) = patched_identity(&candidate_path) else {
             continue;
         };
         match query.matches_candidate(&candidate_path, &patches_dir, &state_value, &name, &version)

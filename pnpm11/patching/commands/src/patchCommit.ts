@@ -7,11 +7,14 @@ import { createShortHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { packlist } from '@pnpm/fs.packlist'
 import { install } from '@pnpm/installing.commands'
+import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
+import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { globalWarn } from '@pnpm/logger'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseWantedDependency, type ParseWantedDependencyResult } from '@pnpm/resolving.parse-wanted-dependency'
 import { getStorePath } from '@pnpm/store.path'
-import type { ProjectRootDir } from '@pnpm/types'
+import type { PackageManifest, ProjectRootDir } from '@pnpm/types'
 import escapeStringRegexp from 'escape-string-regexp'
 import { makeEmptyDir } from 'make-empty-dir'
 import normalizePath from 'normalize-path'
@@ -111,12 +114,84 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
   })
 
+  await updateLockfileSnapshots(lockfileDir, patchedPkgManifest, applyToAll)
+
   await install.handler({
     ...opts,
     patchedDependencies,
     frozenLockfile: false,
   })
   return undefined
+}
+
+async function updateLockfileSnapshots (
+  lockfileDir: string,
+  patchedPkgManifest: PackageManifest,
+  applyToAll: boolean
+): Promise<void> {
+  const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
+  if (!lockfile?.packages) return
+
+  let lockfileChanged = false
+  for (const [depPath, snapshot] of Object.entries(lockfile.packages)) {
+    const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
+    if (name === patchedPkgManifest.name && (applyToAll || version === patchedPkgManifest.version)) {
+      if (snapshot.dependencies != null) {
+        const declaredDeps = patchedPkgManifest.dependencies ?? {}
+        for (const depName of Object.keys(snapshot.dependencies)) {
+          if (!Object.prototype.hasOwnProperty.call(declaredDeps, depName)) {
+            delete snapshot.dependencies[depName]
+            lockfileChanged = true
+          }
+        }
+        if (Object.keys(snapshot.dependencies).length === 0) {
+          delete snapshot.dependencies
+        }
+      }
+      if (snapshot.optionalDependencies != null) {
+        const declaredOptDeps = patchedPkgManifest.optionalDependencies ?? {}
+        for (const depName of Object.keys(snapshot.optionalDependencies)) {
+          if (!Object.prototype.hasOwnProperty.call(declaredOptDeps, depName)) {
+            delete snapshot.optionalDependencies[depName]
+            lockfileChanged = true
+          }
+        }
+        if (Object.keys(snapshot.optionalDependencies).length === 0) {
+          delete snapshot.optionalDependencies
+        }
+      }
+      if (snapshot.peerDependencies != null) {
+        const declaredPeerDeps = patchedPkgManifest.peerDependencies ?? {}
+        for (const peerName of Object.keys(snapshot.peerDependencies)) {
+          if (!Object.prototype.hasOwnProperty.call(declaredPeerDeps, peerName)) {
+            delete snapshot.peerDependencies[peerName]
+            lockfileChanged = true
+          }
+        }
+        if (Object.keys(snapshot.peerDependencies).length === 0) {
+          delete snapshot.peerDependencies
+        }
+      }
+      if (snapshot.transitivePeerDependencies != null) {
+        const declaredPeerDeps = patchedPkgManifest.peerDependencies ?? {}
+        const initialLen = snapshot.transitivePeerDependencies.length
+        snapshot.transitivePeerDependencies = snapshot.transitivePeerDependencies.filter(
+          (peerName: string) => Object.prototype.hasOwnProperty.call(declaredPeerDeps, peerName)
+        )
+        if (snapshot.transitivePeerDependencies.length !== initialLen) {
+          lockfileChanged = true
+        }
+        if (snapshot.transitivePeerDependencies.length === 0) {
+          delete snapshot.transitivePeerDependencies
+        }
+      }
+    }
+  }
+
+  if (lockfileChanged) {
+    const prunedLockfile = pruneSharedLockfile(lockfile)
+    await writeWantedLockfile(lockfileDir, prunedLockfile)
+  }
 }
 
 interface GetPatchContentContext {
