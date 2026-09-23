@@ -468,17 +468,16 @@ test('recursive publish resolves workspace protocol when node_modules is not ins
   }
   preparePackages([pkgA, pkgB])
 
-  const result = await publish.handler({
+  await publish.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
     configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
-    dryRun: true,
-    json: true,
     recursive: true,
   }, [])
 
-  expect(result?.output).toBeDefined()
-  const summaries = JSON.parse(result!.output!) as Array<Record<string, unknown>>
-  expect(summaries).toHaveLength(2)
+  const { stdout } = await execa('pnpm', ['view', pkgB.name, 'dependencies', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
+  const dependencies = JSON.parse(stdout?.toString() ?? '{}')
+  expect(dependencies[pkgA.name]).toBe('^1.2.3')
 })
+

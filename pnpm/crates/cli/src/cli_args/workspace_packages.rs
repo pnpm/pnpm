@@ -7,18 +7,21 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 pub fn build_workspace_package_manifest_map(
     projects: &[pnpm_workspace::Project],
 ) -> HashMap<String, WorkspacePackageManifest> {
-    projects
-        .iter()
-        .filter_map(|project| {
-            let manifest = project.manifest.value();
-            let name = manifest.get("name")?.as_str()?;
-            let version = manifest.get("version")?.as_str()?;
-            Some((
-                name.to_string(),
-                WorkspacePackageManifest { name: name.to_string(), version: version.to_string() },
-            ))
-        })
-        .collect()
+    let mut map = HashMap::new();
+    for project in projects {
+        let manifest = project.manifest.value();
+        if let (Some(name), Some(version)) = (
+            manifest.get("name").and_then(|val| val.as_str()),
+            manifest.get("version").and_then(|val| val.as_str()),
+        ) {
+            map.entry(name.to_string())
+                .or_insert_with(|| WorkspacePackageManifest {
+                    name: name.to_string(),
+                    version: version.to_string(),
+                });
+        }
+    }
+    map
 }
 
 pub fn discover_workspace_package_manifests(

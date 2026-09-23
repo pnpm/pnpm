@@ -191,7 +191,7 @@ function buildWorkspaceManifestGetter (
   const byName = new Map<string, ProjectManifest>()
   const addManifest = (val: unknown) => {
     const manifest = extractManifest(val)
-    if (manifest?.name && manifest?.version) {
+    if (manifest?.name && manifest?.version && !byName.has(manifest.name)) {
       byName.set(manifest.name, manifest)
     }
   }
