@@ -5,8 +5,6 @@ use crate::cli_args::reporter::{LogLevelSetting, ReporterType};
 use clap::ValueEnum;
 
 impl SwitchInput {
-    /// The `--reporter` and `--loglevel` flags typed before the first
-    /// non-option token, read the way [`Self::from_version_argv`] scans.
     pub(in crate::cli_args::pre_command) fn reporter_flags_from_version_argv(
         argv: &[OsString],
     ) -> ReporterFlags {
@@ -27,9 +25,6 @@ impl SwitchInput {
     }
 }
 
-/// Read `--reporter` or `--loglevel`, returning how many argv tokens it
-/// consumed, or `None` when the token names neither. A value clap would
-/// reject leaves the flag unset.
 fn absorb_reporter_flag(
     flags: &mut ReporterFlags,
     token: &str,
