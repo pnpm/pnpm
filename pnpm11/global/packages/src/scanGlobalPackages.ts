@@ -159,8 +159,7 @@ export function cleanOrphanedInstallDirs (globalDir: string): void {
  * through a directory that is not there. Every dependency directory that
  * does exist must hold a readable, valid manifest: returning a partial set
  * would make destructive callers mistake unknown ownership for an unowned
- * bin. The directory is probed only after its manifest read fails with
- * ENOENT, so a link pruned underneath the scan is skipped as absent.
+ * bin.
  */
 export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<string[]> {
   const bins = new Set<string>()
@@ -174,6 +173,8 @@ export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<st
       try {
         manifest = await readPackageJsonFromDir(depDir)
       } catch (err) {
+        // Probing after the read rather than before also covers a link
+        // pruned while the scan runs.
         if (isNotFound(err) && !await dirExists(depDir)) return
         throw err
       }

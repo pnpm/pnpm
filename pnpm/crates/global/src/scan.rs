@@ -147,8 +147,7 @@ fn installed_packages(
 /// through a directory that is not there. Every dependency directory that
 /// does exist must hold a readable, valid manifest: returning a partial set
 /// would make destructive callers mistake unknown ownership for an unowned
-/// bin. The directory is probed only after its manifest read fails with
-/// `NotFound`, so a link pruned underneath the scan is skipped as absent.
+/// bin.
 pub fn get_installed_bin_names(
     info: &GlobalPackageInfo,
 ) -> Result<Vec<String>, PackageManifestError> {
@@ -172,6 +171,8 @@ where
         let bytes = match Sys::read_file(&manifest_path) {
             Ok(bytes) => bytes,
             Err(source) => {
+                // Probing after the read rather than before also covers a
+                // link pruned while the scan runs.
                 if source.kind() == io::ErrorKind::NotFound && !dir_exists::<Sys>(&dep_dir)? {
                     continue;
                 }
