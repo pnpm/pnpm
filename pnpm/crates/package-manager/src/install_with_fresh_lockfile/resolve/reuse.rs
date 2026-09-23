@@ -138,10 +138,15 @@ pub(super) fn drop_only_seed(
     cache.insert(targets.clone(), Arc::clone(&seed));
     seed
 }
-/// The names targeted by a selector the lockfile records but `overrides` no
-/// longer sets to the same value. A version such an override locked can
-/// still satisfy the declared range, so these names are resolved as if the
-/// lockfile held no version of them.
+/// The names targeted by an unscoped selector the lockfile records but
+/// `overrides` no longer has. Such an override governed every edge of its
+/// name, and a version it locked can still satisfy the declared range, so
+/// these names are resolved as if the lockfile held no version of them.
+///
+/// A selector scoped to a parent or a version range governed only some edges
+/// of its name. Reopening every edge would move the others too, so a scoped
+/// selector contributes nothing. A selector that is still set keeps governing
+/// its edges, so a version it locked stays while the new value accepts it.
 pub(in super::super) fn stale_override_targets(
     wanted_lockfile: Option<&Lockfile>,
     overrides: Option<&IndexMap<String, String>>,
@@ -152,11 +157,10 @@ pub(in super::super) fn stale_override_targets(
         return UpdateTargets::default();
     };
     locked_overrides
-        .iter()
-        .filter(|(selector, value)| {
-            overrides.and_then(|overrides| overrides.get(*selector)) != Some(*value)
-        })
-        .filter_map(|(selector, _)| parse_pkg_and_parent_selector(selector).ok())
+        .keys()
+        .filter(|selector| !overrides.is_some_and(|overrides| overrides.contains_key(*selector)))
+        .filter_map(|selector| parse_pkg_and_parent_selector(selector).ok())
+        .filter(|(parent, target)| parent.is_none() && target.bare_specifier.is_none())
         .map(|(_, target)| (target.name, None))
         .collect()
 }
