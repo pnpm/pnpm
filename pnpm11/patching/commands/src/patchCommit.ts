@@ -21,7 +21,7 @@ import { safeExeca as execa } from 'safe-execa'
 import { glob } from 'tinyglobby'
 
 import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency.js'
-import { readEditDirState } from './stateFile.js'
+import { resolvePatchDir } from './resolvePatchDir.js'
 import { updatePatchedDependencies } from './updatePatchedDependencies.js'
 import { writePackage, type WritePackageOptions } from './writePackage.js'
 
@@ -55,21 +55,20 @@ export function help (): string {
 type PatchCommitCommandOptions = install.InstallCommandOptions & Pick<Config, 'patchesDir' | 'patchedDependencies'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'>
 
 export async function handler (opts: PatchCommitCommandOptions, params: string[]): Promise<string | undefined> {
-  const userDir = params[0]
+  if (!params[0]) {
+    throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm patch-commit` requires the patch directory or package name')
+  }
+  const userParam = params[0]
   const lockfileDir = (opts.lockfileDir ?? opts.dir ?? process.cwd()) as ProjectRootDir
+  const modulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
+  const { editDir, stateValue } = await resolvePatchDir(userParam, {
+    dir: opts.dir,
+    lockfileDir,
+    modulesDir,
+  })
   const patchesDirName = normalizePath(path.normalize(opts.patchesDir ?? 'patches'))
   const patchesDir = path.join(lockfileDir, patchesDirName)
-  const patchedPkgManifest = await readPackageJsonFromDir(userDir)
-  const editDir = path.resolve(opts.dir, userDir)
-  const stateValue = readEditDirState({
-    editDir,
-    modulesDir: path.join(lockfileDir, opts.modulesDir ?? 'node_modules'),
-  })
-  if (!stateValue) {
-    throw new PnpmError('INVALID_PATCH_DIR', `${userDir} is not a valid patch directory`, {
-      hint: 'A valid patch directory should be created by `pnpm patch`',
-    })
-  }
+  const patchedPkgManifest = await readPackageJsonFromDir(editDir)
   const { applyToAll } = stateValue
   const nameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
   const patchKey = applyToAll ? patchedPkgManifest.name : nameAndVersion
@@ -85,18 +84,18 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
     })
   }
   const patchedPkg = parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : nameAndVersion)
-  const patchedPkgDir = await preparePkgFilesForDiff(userDir)
+  const patchedPkgDir = await preparePkgFilesForDiff(editDir)
   const patchContent = await getPatchContent({
     patchedPkg,
     patchedPkgDir,
     tmpName: createShortHash(editDir),
   }, opts)
-  if (patchedPkgDir !== userDir) {
+  if (patchedPkgDir !== editDir) {
     fs.rmSync(patchedPkgDir, { recursive: true })
   }
 
   if (!patchContent.length) {
-    return `No changes were found to the following directory: ${userDir}`
+    return `No changes were found to the following directory: ${editDir}`
   }
   await fs.promises.mkdir(patchesDir, { recursive: true })
 

@@ -163,6 +163,54 @@ describe('patch and commit', () => {
     expect(fs.existsSync('node_modules/is-positive/license')).toBe(false)
   })
 
+  test('patch and commit with package name', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    expect(fs.existsSync(patchDir)).toBe(true)
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching by pkg name', 'utf8')
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, ['is-positive'])
+
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
+      'is-positive': 'patches/is-positive.patch',
+    })
+    expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching by pkg name')
+  })
+
+  test('patch and commit with package specifier', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    expect(fs.existsSync(patchDir)).toBe(true)
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching by specifier', 'utf8')
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, ['is-positive@1.0.0'])
+
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
+      'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+    })
+    expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching by specifier')
+  })
+
   test('patch-commit multiple times', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
