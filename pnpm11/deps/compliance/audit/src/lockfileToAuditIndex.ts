@@ -525,17 +525,22 @@ function getPeerSatisfactionEdges (lockfile: LockfileObject): Map<DepPath, Set<s
 function collectPeerSatisfactionEdges (lockfile: LockfileObject): Map<DepPath, Set<string>> {
   const importers = Object.entries(lockfile.importers) as Array<[ProjectId, ProjectSnapshot]>
   const directDepPaths = new Map(importers.map(([importerId, importer]) => [importerId, new Set(importerDirectDepPaths(importer))]))
+  // The walk depends only on which importers list the target, so targets
+  // with the same listing share one walk.
+  const reachedByListing = new Map<string, Set<DepPath>>()
   const reachedByTarget = new Map<DepPath, Set<DepPath>>()
   const reachedWithoutListing = (target: DepPath): Set<DepPath> => {
     let reached = reachedByTarget.get(target)
+    if (reached != null) return reached
+    const notListing = importers.filter(([importerId]) => !directDepPaths.get(importerId)!.has(target))
+    const listingKey = notListing.map(([importerId]) => importerId).join('\0')
+    reached = reachedByListing.get(listingKey)
     if (reached == null) {
       reached = new Set()
-      const roots = importers
-        .filter(([importerId]) => !directDepPaths.get(importerId)!.has(target))
-        .flatMap(([, importer]) => importerDirectDepPaths(importer))
-      walkAllEdges(lockfile, roots, reached)
-      reachedByTarget.set(target, reached)
+      walkAllEdges(lockfile, notListing.flatMap(([, importer]) => importerDirectDepPaths(importer)), reached)
+      reachedByListing.set(listingKey, reached)
     }
+    reachedByTarget.set(target, reached)
     return reached
   }
   const edges = new Map<DepPath, Set<string>>()

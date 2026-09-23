@@ -28,22 +28,25 @@ pub(super) fn peer_satisfaction_edges(
         .iter()
         .map(direct_keys)
         .collect::<Vec<_>>();
-    let reached_without_listing = peer_edges
+    let listing_by_target = peer_edges
         .values()
         .flatten()
-        .map(|(_, target)| target)
+        .map(|(_, target)| (target, importers_listing(&direct, target)))
+        .collect::<HashMap<_, _>>();
+    let reached_by_listing = listing_by_target
+        .values()
         .collect::<HashSet<_>>()
         .into_iter()
-        .map(|target| {
-            (target, reach_from_importers_not_listing(importers, &direct, target, snapshots))
-        })
+        .map(|listing| (listing, reach_from_importers_not_in(importers, listing, snapshots)))
         .collect::<HashMap<_, _>>();
     peer_edges
         .iter()
         .filter_map(|(key, edges)| {
             let satisfied = edges
                 .iter()
-                .filter(|(_, target)| !reached_without_listing[target].contains(*key))
+                .filter(|(_, target)| {
+                    !reached_by_listing[&listing_by_target[target]].contains(*key)
+                })
                 .map(|(name, _)| (*name).clone())
                 .collect::<HashSet<_>>();
             (!satisfied.is_empty()).then(|| ((*key).clone(), satisfied))
@@ -78,18 +81,30 @@ fn direct_keys(importer: &GraphImporter) -> HashSet<&PackageKey> {
         .collect()
 }
 
-fn reach_from_importers_not_listing(
+/// The sorted indices of the importers that list `target` as a direct
+/// dependency. Targets with the same listing share one reachability walk.
+fn importers_listing(direct: &[HashSet<&PackageKey>], target: &PackageKey) -> Vec<usize> {
+    direct
+        .iter()
+        .enumerate()
+        .filter(|(_, keys)| keys.contains(target))
+        .map(|(index, _)| index)
+        .collect()
+}
+
+/// Walks every edge from the importers whose index is not in the sorted
+/// `listing`.
+fn reach_from_importers_not_in(
     importers: &[GraphImporter],
-    direct: &[HashSet<&PackageKey>],
-    target: &PackageKey,
+    listing: &[usize],
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
 ) -> HashSet<PackageKey> {
     let mut reached = HashSet::new();
     let mut stack = importers
         .iter()
-        .zip(direct)
-        .filter(|(_, direct)| !direct.contains(target))
-        .flat_map(|(importer, _)| importer.roots.iter().map(|(_, edge)| edge.key.clone()))
+        .enumerate()
+        .filter(|(index, _)| listing.binary_search(index).is_err())
+        .flat_map(|(_, importer)| importer.roots.iter().map(|(_, edge)| edge.key.clone()))
         .collect::<Vec<_>>();
     while let Some(key) = stack.pop() {
         if !reached.insert(key.clone()) {
