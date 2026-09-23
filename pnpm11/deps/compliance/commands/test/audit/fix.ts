@@ -59,7 +59,6 @@ test('overrides are added for vulnerable dependencies', async () => {
   expect(manifest.overrides?.['axios@<=0.18.0']).toBeFalsy()
   expect(manifest.overrides?.['sync-exec@>=0.0.0']).toBeFalsy()
 
-  // minimumReleaseAgeExclude should only contain entries for unpruned advisories
   const axiosExclude = manifest.minimumReleaseAgeExclude?.find((e) => e.startsWith('axios@'))
   expect(axiosExclude).toBe('axios@1.15.0')
 })

@@ -6,10 +6,8 @@ use crate::cli_args::audit::{
     AuditAdvisory, is_range_subset, min_version_from_range, patched_range_for_style,
 };
 
-/// Build the `name@vulnerable_versions → patched-range` override map from the
-/// fixable advisories (those with an inferred patched range), saving each
-/// minimum patched version in the style of `range_spec_style`. Keyed by a
-/// `BTreeMap` so the output is sorted, mirroring pnpm's `sortDirectKeys`.
+/// Build the override map from fixable advisories, omitting entries
+/// whose vulnerable ranges are subsumed by another advisory for the same package.
 pub(crate) fn create_overrides(
     advisories: &BTreeMap<String, AuditAdvisory>,
     range_spec_style: RangeSpecStyle,
