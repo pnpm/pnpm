@@ -157,7 +157,7 @@ fn link_bins_propagates_chmod_error_via_di() {
         }
     }
     impl FsEnsureExecutableBits for FailingChmod {
-        fn ensure_executable_bits(_: &Path) -> io::Result<()> {
+        fn ensure_executable_bits(_: &Path, _: Option<&Path>) -> io::Result<()> {
             unreachable!()
         }
     }
@@ -227,7 +227,7 @@ fn link_bins_propagates_target_chmod_error_via_di() {
         }
     }
     impl FsEnsureExecutableBits for FailingTargetChmod {
-        fn ensure_executable_bits(_: &Path) -> io::Result<()> {
+        fn ensure_executable_bits(_: &Path, _: Option<&Path>) -> io::Result<()> {
             Err(io::Error::from(io::ErrorKind::PermissionDenied))
         }
     }
@@ -297,7 +297,7 @@ fn link_bins_swallows_target_chmod_not_found_via_di() {
         }
     }
     impl FsEnsureExecutableBits for NotFoundTargetChmod {
-        fn ensure_executable_bits(_: &Path) -> io::Result<()> {
+        fn ensure_executable_bits(_: &Path, _: Option<&Path>) -> io::Result<()> {
             Err(io::Error::from(io::ErrorKind::NotFound))
         }
     }

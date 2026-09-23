@@ -37,6 +37,7 @@ use pnpm_patching::PatchInfo;
 use pnpm_real_hoist::{HoistError, HoistOpts, hoist};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    ffi::OsString,
     path::PathBuf,
 };
 
@@ -162,9 +163,13 @@ pub struct LockfileToHoistedDepGraphOptions<'a> {
     pub installability: HoistedInstallability,
     pub placement: HoistedPlacementOptions,
     /// Project / workspace root. Used as the base for relativizing
-    /// `hoisted_locations` entries and for placing the root's
-    /// `node_modules/` directory.
+    /// `hoisted_locations` entries and for placing the root's modules
+    /// directory.
     pub lockfile_dir: PathBuf,
+    /// The name of the root's modules directory, the configured
+    /// `modulesDir`. Workspace projects and package directories keep
+    /// `node_modules`, as pnpm's `lockfileToHoistedDepGraph` does.
+    pub modules_dir_name: OsString,
     /// Packages the previous install decided not to fetch
     /// (installability check failed; the package was added here).
     /// The walker skips any depPath in this set without consulting
@@ -212,6 +217,7 @@ impl Default for LockfileToHoistedDepGraphOptions<'_> {
                 external_dependencies: BTreeSet::new(),
             },
             lockfile_dir: PathBuf::new(),
+            modules_dir_name: OsString::from("node_modules"),
 
             skipped: BTreeSet::new(),
             force: false,
@@ -335,7 +341,7 @@ fn build_dep_graph<'a>(
     };
     let hoister_result = hoist(lockfile, &hoist_opts)?;
 
-    let modules_dir = opts.lockfile_dir.join("node_modules");
+    let modules_dir = opts.lockfile_dir.join(&opts.modules_dir_name);
     let mut state = WalkState {
         result: LockfileToDepGraphResult { skipped: opts.skipped.clone(), ..Default::default() },
         lockfile,

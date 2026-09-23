@@ -9,11 +9,16 @@ use crate::{FsReadHead, read_head_filled};
 
 /// Add missing executable bits to installed targets without modifying
 /// workspace files or rewriting CRLF shebangs.
-pub(super) fn ensure_target_executable<Sys>(target_path: &Path) -> Result<(), LinkBinsError>
+pub(super) fn ensure_target_executable<Sys>(
+    target_path: &Path,
+    installed_modules_dir: Option<&Path>,
+) -> Result<(), LinkBinsError>
 where
     Sys: FsEnsureExecutableBits,
 {
-    chmod_tolerating_removal(target_path, Sys::ensure_executable_bits)
+    chmod_tolerating_removal(target_path, |path| {
+        Sys::ensure_executable_bits(path, installed_modules_dir)
+    })
 }
 
 #[cfg(unix)]

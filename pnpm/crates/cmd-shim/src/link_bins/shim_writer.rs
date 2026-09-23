@@ -37,6 +37,8 @@ pub(super) struct ShimSpec<'a> {
     pub(super) prefer_symlinked_executables: bool,
     pub(super) make_powershell_shim: bool,
     pub(super) relocatable_root: Option<&'a Path>,
+    /// See [`LinkBinsOptions::installed_modules_dir`](super::LinkBinsOptions::installed_modules_dir).
+    pub(super) installed_modules_dir: Option<&'a Path>,
     /// Whether this run created the bin directory. Read by
     /// [`read_or_create_shim`], which documents what it is worth.
     pub(super) bin_dir: DirCreation,
@@ -143,7 +145,7 @@ where
     }
 
     chmod_tolerating_removal(spec.shim_path, Sys::set_executable)?;
-    cache.ensure_target_executable_once::<Sys>(spec.probe_path)
+    cache.ensure_target_executable_once::<Sys>(spec.probe_path, spec.installed_modules_dir)
 }
 
 fn prepare_direct_target<Sys>(
@@ -153,7 +155,7 @@ fn prepare_direct_target<Sys>(
 where
     Sys: FsReadHead + FsEnsureExecutableBits,
 {
-    cache.ensure_target_executable_once::<Sys>(spec.probe_path)?;
+    cache.ensure_target_executable_once::<Sys>(spec.probe_path, spec.installed_modules_dir)?;
     Ok(!target_requires_shim::<Sys>(spec.probe_path))
 }
 
@@ -328,6 +330,7 @@ where
         shim_path,
         node_path,
         make_powershell_shim,
+        installed_modules_dir,
         ..
     } = spec;
     let runtime = cache
@@ -357,7 +360,7 @@ where
         }
     }
     chmod_tolerating_removal(shim_path, Sys::set_executable)?;
-    cache.ensure_target_executable_once::<Sys>(probe_path)?;
+    cache.ensure_target_executable_once::<Sys>(probe_path, installed_modules_dir)?;
     Ok(true)
 }
 

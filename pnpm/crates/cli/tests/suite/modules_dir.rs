@@ -467,3 +467,55 @@ fn development_preinstall_hooks_give_installed_tools_their_custom_modules_dir() 
     assert_eq!(output.trim_end(), "root: plugin loaded");
     drop((root, mock_instance));
 }
+
+/// The hoisted linker installs the root's packages into the custom
+/// `modulesDir`, and a workspace project's own copies into its
+/// `node_modules`, as pnpm's `lockfileToHoistedDepGraph` does.
+#[test]
+fn the_hoisted_linker_installs_into_a_custom_modules_dir() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "modulesDir", "vendor");
+    append_workspace_yaml_key(&workspace, "nodeLinker", "hoisted");
+    append_workspace_yaml_key(&workspace, "packages", "['project-1']");
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "name": "root", "dependencies": { "is-positive": "3.1.0" } }),
+    );
+    write_manifest(
+        &workspace.join("project-1"),
+        &serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+        }),
+    );
+    let installed_version = |dir: &Path| -> String {
+        let manifest = fs::read_to_string(dir.join("is-positive/package.json"))
+            .unwrap_or_else(|error| panic!("read {}: {error}", dir.display()));
+        let manifest: serde_json::Value = serde_json::from_str(&manifest).expect("parse manifest");
+        manifest["version"]
+            .as_str()
+            .expect("version")
+            .to_string()
+    };
+
+    for args in [&["install"][..], &["install", "--frozen-lockfile"]] {
+        pacquet_in(&workspace)
+            .with_args(args)
+            .assert()
+            .success();
+        assert_eq!(installed_version(&workspace.join("vendor")), "3.1.0", "{args:?}");
+        assert_eq!(
+            installed_version(&workspace.join("project-1/node_modules")),
+            "1.0.0",
+            "{args:?}"
+        );
+        assert!(!workspace.join("node_modules/is-positive").exists(), "{args:?}");
+        assert!(workspace.join("vendor/.pnpm/lock.yaml").is_file(), "{args:?}");
+        fs::remove_dir_all(workspace.join("vendor")).expect("remove vendor");
+    }
+
+    drop((root, mock_instance));
+}

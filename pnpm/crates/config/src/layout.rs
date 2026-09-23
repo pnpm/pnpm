@@ -165,14 +165,22 @@ impl Config {
                 Some(raw) => dir.join(raw),
                 None => dir.join("node_modules"),
             };
-        if !self.enable_global_virtual_store {
-            self.virtual_store_dir = match self.explicit_settings
-                .get("virtualStoreDir")
-                .and_then(serde_json::Value::as_str)
-            {
-                Some(raw) => dir.join(raw),
-                None => self.modules_dir.join(".pnpm"),
-            };
+        match self.explicit_settings.get("virtualStoreDir").and_then(serde_json::Value::as_str) {
+            Some(raw) if !self.enable_global_virtual_store => {
+                self.virtual_store_dir = dir.join(raw);
+            }
+            _ => self.follow_modules_dir_with_virtual_store(),
+        }
+    }
+
+    /// Put the virtual store at `<modules_dir>/.pnpm`, pnpm's default,
+    /// unless `virtualStoreDir` is set or a global virtual store is on,
+    /// whose virtual store is store-anchored and follows nothing.
+    pub(crate) fn follow_modules_dir_with_virtual_store(&mut self) {
+        if !self.enable_global_virtual_store
+            && !self.explicit_settings.contains_key("virtualStoreDir")
+        {
+            self.virtual_store_dir = self.modules_dir.join(".pnpm");
         }
     }
 

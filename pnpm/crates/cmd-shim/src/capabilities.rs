@@ -191,14 +191,15 @@ pub trait FsSetExecutable {
 }
 
 /// Add missing executable bits to bin targets whose real path is inside
-/// `node_modules`, preserving existing read/write bits. Already executable
-/// files and targets outside `node_modules` are left unchanged.
+/// `node_modules` or inside `installed_modules_dir`, preserving existing
+/// read/write bits. Already executable files and targets elsewhere are left
+/// unchanged.
 ///
 /// The method is always present for the same reason as
 /// [`FsSetExecutable::set_executable`]; the production impl is a
 /// no-op on Windows.
 pub trait FsEnsureExecutableBits {
-    fn ensure_executable_bits(path: &Path) -> io::Result<()>;
+    fn ensure_executable_bits(path: &Path, installed_modules_dir: Option<&Path>) -> io::Result<()>;
 }
 
 /// The production filesystem provider. Every method delegates straight
@@ -346,14 +347,17 @@ impl FsSetExecutable for Host {
 
 #[cfg(unix)]
 impl FsEnsureExecutableBits for Host {
-    fn ensure_executable_bits(path: &Path) -> io::Result<()> {
-        executable::ensure_executable_bits::<Host>(path)
+    fn ensure_executable_bits(path: &Path, installed_modules_dir: Option<&Path>) -> io::Result<()> {
+        executable::ensure_executable_bits::<Host>(path, installed_modules_dir)
     }
 }
 
 #[cfg(not(unix))]
 impl FsEnsureExecutableBits for Host {
-    fn ensure_executable_bits(_path: &Path) -> io::Result<()> {
+    fn ensure_executable_bits(
+        _path: &Path,
+        _installed_modules_dir: Option<&Path>,
+    ) -> io::Result<()> {
         Ok(())
     }
 }

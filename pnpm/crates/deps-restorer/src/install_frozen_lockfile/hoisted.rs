@@ -202,6 +202,7 @@ fn walk_hoisted_graph(
             external_dependencies: config.external_dependencies.clone(),
         },
         lockfile_dir: inputs.projects.walker_lockfile_dir.to_path_buf(),
+        modules_dir_name: config.modules_dir_name().to_os_string(),
 
         skipped: walker_skipped.clone(),
         force: config.force,
