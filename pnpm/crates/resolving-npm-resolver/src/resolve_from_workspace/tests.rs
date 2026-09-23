@@ -170,6 +170,26 @@ fn workspace_exact_version_matches_entry_with_build_metadata() {
 }
 
 #[test]
+fn workspace_exact_version_picks_lowest_entry_differing_only_in_build_metadata() {
+    let mut packages = build_packages();
+    let bar = packages.get_mut("bar").unwrap();
+    for (version, dir) in [("0.2.0+bbb", "bar-bbb"), ("0.2.0+aaa", "bar-aaa")] {
+        bar.insert(
+            version.to_string(),
+            WorkspacePackage {
+                root_dir: Path::new("/repo/packages").join(dir),
+                manifest: json!({ "name": "bar", "version": version }),
+            },
+        );
+    }
+    let opts = opts(&packages);
+    let result = try_resolve_from_workspace(&wanted("bar", "workspace:0.2.0+bbb"), &opts)
+        .expect("ok")
+        .expect("some");
+    assert_eq!(result.id.as_str(), "link:../bar-aaa");
+}
+
+#[test]
 fn aliased_workspace_form_routes_through_package_name() {
     let packages = build_packages();
     let opts = opts(&packages);

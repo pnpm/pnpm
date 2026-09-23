@@ -241,17 +241,19 @@ pub fn pick_matching_local_version_or_null(
 /// Find the workspace version equal to `version`. A requested version carries
 /// no build metadata, because the specifier parser normalizes it away, while a
 /// workspace package may declare some (e.g. `1.0.0+abc`). Semver ignores build
-/// metadata when comparing versions, so such a package still matches.
+/// metadata when comparing versions, so such a package still matches. When
+/// several do, the lowest in string order wins, as in the TypeScript resolver.
 fn pick_workspace_version(versions: &WorkspacePackagesByVersion, version: &str) -> Option<String> {
     if versions.contains_key(version) {
         return Some(version.to_string());
     }
     versions
         .keys()
-        .find(|workspace_version| {
+        .filter(|workspace_version| {
             workspace_version.split_once('+').map_or(workspace_version.as_str(), |(base, _)| base)
                 == version
         })
+        .min()
         .cloned()
 }
 

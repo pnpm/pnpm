@@ -2729,6 +2729,31 @@ test('workspace protocol: resolve from local package whose version has build met
   expect(resolveResult!.manifest!.version).toBe('3.0.0-next.3+f60facc')
 })
 
+test('workspace protocol: pick the lowest workspace version when several differ only in build metadata', async () => {
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'workspace:3.0.0+bbb' }, {
+    projectDir: '/home/istvan/src',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['3.0.0+bbb', {
+          rootDir: '/home/istvan/src/is-positive-bbb' as ProjectRootDir,
+          manifest: { name: 'is-positive', version: '3.0.0+bbb' },
+        }],
+        ['3.0.0+aaa', {
+          rootDir: '/home/istvan/src/is-positive-aaa' as ProjectRootDir,
+          manifest: { name: 'is-positive', version: '3.0.0+aaa' },
+        }],
+      ])],
+    ]),
+  })
+
+  expect(resolveResult!.id).toBe('link:is-positive-aaa')
+})
+
 test('resolve from local package whose version has build metadata when the registry does not have the package', async () => {
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
