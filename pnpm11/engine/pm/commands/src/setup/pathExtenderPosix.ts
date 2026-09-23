@@ -220,8 +220,10 @@ export interface FoundSection {
  *
  * A valid section is bounded by an opening `# <section>` line and a closing
  * `# <section> end` line with no intermediate `# <section>` or `# <section> end`
- * markers. If multiple valid sections exist, any section referencing `PATH`
- * or the uppercase section name takes precedence.
+ * markers. If several valid sections exist, the last one whose non-comment
+ * lines reference both `PATH` and `<SECTION>_HOME` wins, then the last one
+ * referencing `<SECTION>_HOME`, then the last one referencing `PATH`, then the
+ * last section.
  */
 export function findSection (content: string, section: string): FoundSection | null {
   if (!content) return null
@@ -250,14 +252,7 @@ export function findSection (content: string, section: string): FoundSection | n
         const { lineStart: startOffset, innerStart } = lastStart
         lastStart = null
 
-        let innerEnd = lineStart
-        if (innerEnd >= innerStart) {
-          const innerSlice = content.slice(innerStart, lineStart).replace(/[\r\n]+$/, '')
-          innerEnd = innerStart + innerSlice.length
-        } else {
-          innerEnd = innerStart
-        }
-        const inner = content.slice(innerStart, innerEnd)
+        const inner = content.slice(innerStart, lineStart).replace(/[\r\n]+$/, '')
         const markerLen = line.replace(/[\r\n]+$/, '').length
         const rangeEnd = lineStart + markerLen
         sections.push({
@@ -274,22 +269,22 @@ export function findSection (content: string, section: string): FoundSection | n
   if (sections.length === 1) return sections[0]
 
   const homeVar = `${section.toUpperCase()}_HOME`
-  for (let i = sections.length - 1; i >= 0; i--) {
-    if (sections[i].inner.includes('PATH') && sections[i].inner.includes(homeVar)) {
-      return sections[i]
-    }
-  }
-  for (let i = sections.length - 1; i >= 0; i--) {
-    if (sections[i].inner.includes(homeVar)) {
-      return sections[i]
-    }
-  }
-  for (let i = sections.length - 1; i >= 0; i--) {
-    if (sections[i].inner.includes('PATH')) {
-      return sections[i]
+  const settings = sections.map(({ inner }) => stripComments(inner))
+  const predicates: Array<(text: string) => boolean> = [
+    (text) => text.includes('PATH') && text.includes(homeVar),
+    (text) => text.includes(homeVar),
+    (text) => text.includes('PATH'),
+  ]
+  for (const predicate of predicates) {
+    for (let i = sections.length - 1; i >= 0; i--) {
+      if (predicate(settings[i])) return sections[i]
     }
   }
   return sections[sections.length - 1]
+}
+
+function stripComments (settings: string): string {
+  return settings.split('\n').filter((line) => !line.trimStart().startsWith('#')).join('\n')
 }
 
 export function replaceSection (originalContent: string, newSection: string, sectionName: string): string {

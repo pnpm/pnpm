@@ -264,6 +264,24 @@ esac`)
     }
   })
 
+  test('ignores comments that mention PNPM_HOME and PATH when selecting the env block', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-posix-test-'))
+    try {
+      const configFile = path.join(dir, '.zshrc')
+      const generatedEnvBlock = wrapSettings('pnpm', 'export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH')
+      const customBlock = wrapSettings('pnpm', '# Keep PNPM_HOME and PATH customizations\nalias pn=pnpm')
+      fs.writeFileSync(configFile, `${generatedEnvBlock}\n\n${customBlock}\n`)
+
+      const newEnvBlock = wrapSettings('pnpm', 'export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH')
+      const result = await updateShellConfig(configFile, newEnvBlock, opts(true))
+
+      expect(result.oldSettings).toBe('export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH')
+      expect(fs.readFileSync(configFile, 'utf8')).toBe(`${newEnvBlock}\n\n${customBlock}\n`)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   test('skips equivalent CRLF section when overwrite is disabled', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-posix-test-'))
     try {

@@ -264,7 +264,7 @@ fn update_shell_config(
         write_config(config_file, &format!("{config_content}\n{new_content}\n"))?;
         return Ok((ConfigFileChangeType::Appended, String::new()));
     };
-    if &config_content[matched_range] != new_content {
+    if config_content[matched_range].replace("\r\n", "\n") != new_content {
         if !opts.overwrite {
             return Err(PathExtenderError::BadShellSection {
                 config_file: config_file.to_path_buf(),
@@ -289,9 +289,6 @@ fn write_config(path: &Path, content: &str) -> Result<(), PathExtenderError> {
     Ok(())
 }
 
-/// Locate the `# <section>` ... `# <section> end` block, returning the byte
-/// range of the whole block and the inner settings between the markers.
-///
 fn complete_section(
     content: &str,
     start_offset: usize,
@@ -323,12 +320,10 @@ fn parse_sections(content: &str, section: &str) -> Vec<(std::ops::Range<usize>, 
 
         if trimmed == start_marker {
             last_start = Some((line_start, offset));
-        } else if trimmed == end_marker {
-            if let Some((start, inner)) = last_start.take() {
-                sections.push(complete_section(content, start, inner, line_start, line));
-            } else {
-                continue;
-            }
+        } else if trimmed == end_marker
+            && let Some((start, inner)) = last_start.take()
+        {
+            sections.push(complete_section(content, start, inner, line_start, line));
         }
     }
 
@@ -343,25 +338,29 @@ fn select_section(
         return sections.pop();
     }
     let home_var = format!("{}_HOME", section.to_uppercase());
-    if let Some(idx) = sections
+    let settings: Vec<String> = sections
         .iter()
-        .rposition(|(_, inner)| inner.contains("PATH") && inner.contains(&home_var))
-    {
-        return Some(sections.remove(idx));
-    }
-    if let Some(idx) = sections
-        .iter()
-        .rposition(|(_, inner)| inner.contains(&home_var))
-    {
-        return Some(sections.remove(idx));
-    }
-    if let Some(idx) = sections
-        .iter()
-        .rposition(|(_, inner)| inner.contains("PATH"))
-    {
-        return Some(sections.remove(idx));
+        .map(|(_, inner)| strip_comments(inner))
+        .collect();
+    let predicates: [&dyn Fn(&str) -> bool; 3] = [
+        &|text| text.contains("PATH") && text.contains(&home_var),
+        &|text| text.contains(&home_var),
+        &|text| text.contains("PATH"),
+    ];
+    for predicate in predicates {
+        if let Some(idx) = settings.iter().rposition(|text| predicate(text)) {
+            return Some(sections.swap_remove(idx));
+        }
     }
     sections.pop()
+}
+
+fn strip_comments(settings: &str) -> String {
+    settings
+        .lines()
+        .filter(|line| !line.trim_start().starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Find a `# <section>` ... `# <section> end` section and return its full byte range
@@ -369,8 +368,10 @@ fn select_section(
 ///
 /// A valid section is bounded by an opening `# <section>` line and a closing
 /// `# <section> end` line with no intermediate `# <section>` or `# <section> end`
-/// markers. If multiple valid sections exist, any section referencing `PATH`
-/// or the uppercase section name takes precedence.
+/// markers. If several valid sections exist, the last one whose non-comment
+/// lines reference both `PATH` and `<SECTION>_HOME` wins, then the last one
+/// referencing `<SECTION>_HOME`, then the last one referencing `PATH`, then
+/// the last section.
 fn find_section(content: &str, section: &str) -> Option<(std::ops::Range<usize>, String)> {
     if content.is_empty() {
         return None;

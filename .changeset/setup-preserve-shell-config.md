@@ -4,4 +4,4 @@
 "pnpm": patch
 ---
 
-`pnpm setup` preserves preceding comments and shell configuration lines (such as aliases or NVM setup) when updating shell startup files.
+`pnpm setup` no longer deletes aliases and other lines that sit between a `# pnpm` comment and the pnpm block in a shell startup file [#7067](https://github.com/pnpm/pnpm/issues/7067).

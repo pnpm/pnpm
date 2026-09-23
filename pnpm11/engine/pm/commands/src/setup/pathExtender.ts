@@ -13,7 +13,7 @@ export async function addDirToEnvPath (
   dir: string,
   opts: AddDirToEnvPathOpts
 ): Promise<PathExtenderReport> {
-  if (process.platform === 'win32' || '_isMockFunction' in addDirToEnvPathExt) {
+  if (process.platform === 'win32') {
     return addDirToEnvPathExt(dir, opts)
   }
   return addDirToPosixEnvPath(dir, opts)
