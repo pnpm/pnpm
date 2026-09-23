@@ -2877,6 +2877,30 @@ test('workspace protocol: resolution fails with deterministic ordinal ordering f
 })
 
 
+test('workspace protocol: resolution fails listing available versions that are not valid semver', async () => {
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  const projectDir = '/home/istvan/src'
+  const workspacePackages = new Map([
+    ['is-positive', new Map(['1', '2'].map((version) => [version, {
+      rootDir: `/home/istvan/src/is-positive-${version}` as ProjectRootDir,
+      manifest: {
+        name: 'is-positive',
+        version,
+      },
+    }]))],
+  ])
+
+  await expect(resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'workspace:^5.0.0' }, {
+    projectDir,
+    workspacePackages,
+  })).rejects.toThrow(`In ${path.relative(process.cwd(), projectDir)}: No matching version found for is-positive@workspace:^5.0.0 inside the workspace. Available versions: 2, 1`)
+})
+
 test('workspace protocol: resolution fails if there are no local packages', async () => {
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
