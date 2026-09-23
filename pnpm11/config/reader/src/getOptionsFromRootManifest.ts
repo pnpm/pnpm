@@ -59,7 +59,13 @@ interface ReplaceEnvInSettingsOptions {
   expandRequestDestinationEnv: boolean
 }
 
-const REQUEST_DESTINATION_SCALAR_KEYS = new Set(['pnprServer', 'registry', 'httpProxy', 'httpsProxy', 'noProxy', 'proxy', 'noproxy'])
+/**
+ * Scalar settings that pick where a request goes or what it carries. A
+ * repo-controlled file may not resolve an environment variable into either,
+ * since the one lets it choose the host and the other lets it send that host
+ * the variable's value.
+ */
+const REQUEST_SCALAR_KEYS = new Set(['pnprServer', 'registry', 'httpProxy', 'httpsProxy', 'noProxy', 'proxy', 'noproxy', 'userAgent'])
 
 export function getOptionsFromPnpmSettings (
   manifestDir: string | undefined,
@@ -682,7 +688,7 @@ function replaceEnvInSettings (
   for (const [key, value] of Object.entries(settings)) {
     const newKey = envReplace(key, process.env)
     if (typeof value === 'string') {
-      if (REQUEST_DESTINATION_SCALAR_KEYS.has(newKey) && !opts.expandRequestDestinationEnv && hasEnvPlaceholder(value)) continue
+      if (REQUEST_SCALAR_KEYS.has(newKey) && !opts.expandRequestDestinationEnv && hasEnvPlaceholder(value)) continue
       // @ts-expect-error
       newSettings[newKey as keyof PnpmSettings] = envReplace(value, process.env)
     } else if (newKey === 'namedRegistries' || (newKey === 'registries' && isScopeRouteMap(value))) {
