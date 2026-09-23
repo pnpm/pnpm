@@ -316,7 +316,11 @@ async function preparePkgFilesForDiff (src: string): Promise<string> {
       const destFile = path.join(dest, file)
       const destDir = path.dirname(destFile)
       await fs.promises.mkdir(destDir, { recursive: true })
-      await fs.promises.link(srcFile, destFile)
+      try {
+        await fs.promises.link(srcFile, destFile)
+      } catch {
+        await fs.promises.copyFile(srcFile, destFile)
+      }
     })
   )
   return dest

@@ -390,6 +390,37 @@ describe('patch and commit', () => {
     expect(fs.existsSync('node_modules/is-positive/ignore.txt')).toBe(false)
   })
 
+  test('patch and commit falls back to copy when hard linking fails with EXDEV', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    expect(fs.existsSync(patchDir)).toBe(true)
+    fs.writeFileSync(path.join(patchDir, 'ignore.txt'), '', 'utf8')
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test fallback', 'utf8')
+
+    const linkSpy = jest.spyOn(fs.promises, 'link').mockRejectedValue(
+      Object.assign(new Error('EXDEV: cross-device link not permitted'), { code: 'EXDEV' })
+    )
+
+    try {
+      await patchCommit.handler({
+        ...DEFAULT_OPTS,
+        cacheDir,
+        dir: process.cwd(),
+        rootProjectManifestDir: process.cwd(),
+        frozenLockfile: false,
+        fixLockfile: true,
+        storeDir,
+      }, [patchDir])
+
+      expect(linkSpy).toHaveBeenCalled()
+      expect(fs.existsSync('node_modules/is-positive/ignore.txt')).toBe(false)
+      expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test fallback')
+    } finally {
+      linkSpy.mockRestore()
+    }
+  })
+
   test('patch and commit with a custom edit dir', async () => {
     const editDir = path.join(temporaryDirectory())
 

@@ -131,9 +131,11 @@ fn prepare_pkg_files_for_diff_with_fs(
                 dir: parent.to_path_buf(),
                 source,
             })?;
-        fs_ops
-            .hard_link(&source_path, &target)
-            .map_err(|source| PatchCommitError::LinkFile { source_path, target, source })?;
+        if fs_ops.hard_link(&source_path, &target).is_err() {
+            fs_ops
+                .copy(&source_path, &target)
+                .map_err(|source| PatchCommitError::LinkFile { source_path, target, source })?;
+        }
     }
     Ok(PkgFilesForDiff::Temporary(temp_dir))
 }
@@ -220,6 +222,7 @@ trait PatchCommitFs {
     fn symlink_metadata(&self, path: &Path) -> io::Result<fs::Metadata>;
     fn create_dir_all(&self, path: &Path) -> io::Result<()>;
     fn hard_link(&self, source: &Path, target: &Path) -> io::Result<()>;
+    fn copy(&self, source: &Path, target: &Path) -> io::Result<u64>;
     fn remove_dir_all(&self, path: &Path) -> io::Result<()>;
 }
 
@@ -236,6 +239,10 @@ impl PatchCommitFs for RealPatchCommitFs {
 
     fn hard_link(&self, source: &Path, target: &Path) -> io::Result<()> {
         fs::hard_link(source, target)
+    }
+
+    fn copy(&self, source: &Path, target: &Path) -> io::Result<u64> {
+        fs::copy(source, target)
     }
 
     fn remove_dir_all(&self, path: &Path) -> io::Result<()> {

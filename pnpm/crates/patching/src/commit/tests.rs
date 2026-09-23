@@ -168,7 +168,7 @@ fn patch_commit_prepare_pkg_files_for_diff_reports_nested_parent_create_errors()
 }
 
 #[test]
-fn patch_commit_prepare_pkg_files_for_diff_reports_hard_link_errors() {
+fn patch_commit_prepare_pkg_files_for_diff_falls_back_to_copy_on_hard_link_error() {
     let edit_dir = tempdir().expect("edit dir");
     fs::write(
         edit_dir.path().join("package.json"),
@@ -178,8 +178,30 @@ fn patch_commit_prepare_pkg_files_for_diff_reports_hard_link_errors() {
     fs::write(edit_dir.path().join("index.js"), "included\n").unwrap();
     fs::write(edit_dir.path().join("ignore.txt"), "excluded\n").unwrap();
 
-    let err = prepare_pkg_files_for_diff_with_fs(edit_dir.path(), &HardLinkErrorFs)
-        .expect_err("hard link creation should fail");
+    let prepared = prepare_pkg_files_for_diff_with_fs(edit_dir.path(), &HardLinkErrorFs)
+        .expect("prepare files with copy fallback");
+    let PkgFilesForDiff::Temporary(path) = prepared else {
+        panic!("package files should be prepared in a temporary filtered dir");
+    };
+
+    assert_eq!(fs::read_to_string(path.join("index.js")).unwrap(), "included\n");
+    assert!(!path.join("ignore.txt").exists());
+    fs::remove_dir_all(path).unwrap();
+}
+
+#[test]
+fn patch_commit_prepare_pkg_files_for_diff_reports_error_when_hard_link_and_copy_fail() {
+    let edit_dir = tempdir().expect("edit dir");
+    fs::write(
+        edit_dir.path().join("package.json"),
+        r#"{"name":"pkg","version":"1.0.0","files":["index.js"]}"#,
+    )
+    .unwrap();
+    fs::write(edit_dir.path().join("index.js"), "included\n").unwrap();
+    fs::write(edit_dir.path().join("ignore.txt"), "excluded\n").unwrap();
+
+    let err = prepare_pkg_files_for_diff_with_fs(edit_dir.path(), &HardLinkAndCopyErrorFs)
+        .expect_err("hard link and copy creation should fail");
 
     assert!(matches!(err, PatchCommitError::LinkFile { .. }));
 }
@@ -482,6 +504,10 @@ impl PatchCommitFs for CreateDirErrorFs {
         fs::hard_link(source, target)
     }
 
+    fn copy(&self, source: &Path, target: &Path) -> io::Result<u64> {
+        fs::copy(source, target)
+    }
+
     fn remove_dir_all(&self, path: &Path) -> io::Result<()> {
         match fs::remove_dir_all(path) {
             Ok(()) => Ok(()),
@@ -506,6 +532,38 @@ impl PatchCommitFs for HardLinkErrorFs {
         Err(io::Error::new(io::ErrorKind::PermissionDenied, "blocked hard_link"))
     }
 
+    fn copy(&self, source: &Path, target: &Path) -> io::Result<u64> {
+        fs::copy(source, target)
+    }
+
+    fn remove_dir_all(&self, path: &Path) -> io::Result<()> {
+        match fs::remove_dir_all(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error),
+        }
+    }
+}
+
+struct HardLinkAndCopyErrorFs;
+
+impl PatchCommitFs for HardLinkAndCopyErrorFs {
+    fn symlink_metadata(&self, path: &Path) -> io::Result<fs::Metadata> {
+        fs::symlink_metadata(path)
+    }
+
+    fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        fs::create_dir_all(path)
+    }
+
+    fn hard_link(&self, _source: &Path, _target: &Path) -> io::Result<()> {
+        Err(io::Error::new(io::ErrorKind::PermissionDenied, "blocked hard_link"))
+    }
+
+    fn copy(&self, _source: &Path, _target: &Path) -> io::Result<u64> {
+        Err(io::Error::new(io::ErrorKind::PermissionDenied, "blocked copy"))
+    }
+
     fn remove_dir_all(&self, path: &Path) -> io::Result<()> {
         match fs::remove_dir_all(path) {
             Ok(()) => Ok(()),
@@ -528,6 +586,10 @@ impl PatchCommitFs for RemoveDirErrorFs {
 
     fn hard_link(&self, source: &Path, target: &Path) -> io::Result<()> {
         fs::hard_link(source, target)
+    }
+
+    fn copy(&self, source: &Path, target: &Path) -> io::Result<u64> {
+        fs::copy(source, target)
     }
 
     fn remove_dir_all(&self, _path: &Path) -> io::Result<()> {
