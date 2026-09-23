@@ -297,15 +297,19 @@ function parseCatalogDep (depName: string, specifier: string): { catalogName: st
 }
 
 // Diffing against the merge base keeps commits made only on the `<since>`
-// side out of the result. Without a merge base (a shallow clone, unrelated
-// histories, or an invalid `<since>`), `<since>` itself is diffed, so git
-// still reports a bad revision.
+// side out of the result. git exits with 1 when there is no merge base (a
+// shallow clone or unrelated histories) and with 128 for an invalid
+// `<since>`. Both fall back to diffing `<since>` itself, which reports the
+// bad revision.
 async function getMergeBase (commit: string, workingDir: string): Promise<string> {
   try {
     const { stdout } = await execa('git', ['merge-base', '--end-of-options', commit, 'HEAD'], { cwd: workingDir })
     return (stdout as string).trim() || commit
-  } catch {
-    return commit
+  } catch (err: unknown) {
+    assert(util.types.isNativeError(err))
+    const exitCode = 'exitCode' in err ? err.exitCode : undefined
+    if (exitCode === 1 || exitCode === 128) return commit
+    throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. ${'stderr' in err && err.stderr ? err.stderr as string : err.message}`, { cause: err })
   }
 }
 

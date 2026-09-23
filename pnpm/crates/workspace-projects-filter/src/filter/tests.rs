@@ -780,9 +780,6 @@ mod changed_packages {
         );
     }
 
-    /// Commits made only on the `<since>` branch after the current
-    /// branch forked from it are not changes of the current branch.
-    /// Uncommitted changes are.
     #[test]
     fn select_changed_packages_since_merge_base() {
         let workspace = TempDir::new().expect("create tempdir");

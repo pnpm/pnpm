@@ -42,7 +42,7 @@ pub fn get_changed_projects(
     opts: &GetChangedProjectsOptions<'_>,
 ) -> Result<ChangedProjects, FilterError> {
     let repo_root = find_repo_root(opts.workspace_dir);
-    let base = merge_base(commit, opts.workspace_dir);
+    let base = merge_base(commit, opts.workspace_dir)?;
     let ChangedDirsResult {
         changed_dirs,
         workspace_manifest_changed,
@@ -194,19 +194,27 @@ fn get_changed_dirs_since_commit(
 }
 
 /// The commit `commit` and `HEAD` share. Diffing against it keeps commits
-/// made only on the `<since>` side out of the result. Without a merge base
-/// (a shallow clone, unrelated histories, or an invalid `<since>`), this is
-/// `commit` itself, so `git diff` still reports a bad revision.
-fn merge_base(commit: &str, workspace_dir: &Path) -> String {
-    Command::new("git")
+/// made only on the `<since>` side out of the result. git exits with 1 when
+/// there is no merge base (a shallow clone or unrelated histories) and with
+/// 128 for an invalid `<since>`. Both fall back to `commit` itself, so
+/// `git diff` reports the bad revision.
+fn merge_base(commit: &str, workspace_dir: &Path) -> Result<String, FilterError> {
+    let output = Command::new("git")
         .args(["merge-base", "--end-of-options", commit, "HEAD"])
         .current_dir(workspace_dir)
         .output()
-        .ok()
-        .filter(|output| output.status.success())
-        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
-        .filter(|base| !base.is_empty())
-        .unwrap_or_else(|| commit.to_string())
+        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
+    match output.status.code() {
+        Some(0) => {
+            let base = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            Ok(if base.is_empty() { commit.to_string() } else { base })
+        }
+        Some(1 | 128) => Ok(commit.to_string()),
+        _ => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            Err(FilterError::FilterChanged { stderr: strip_final_newline(&stderr).to_string() })
+        }
+    }
 }
 
 fn git_diff_names(

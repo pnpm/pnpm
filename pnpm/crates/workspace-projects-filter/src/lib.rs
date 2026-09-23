@@ -13,7 +13,9 @@
 //! A `[<since>]` changed-packages selector selects the projects whose
 //! files changed since the merge base of `HEAD` and the given git ref
 //! (`git diff --name-only`), including uncommitted changes,
-//! honoring `testPattern` / `changedFilesIgnorePattern`.
+//! honoring `testPattern` / `changedFilesIgnorePattern`. Without a merge
+//! base (a shallow clone, unrelated histories, or an invalid ref), it
+//! diffs against the ref itself.
 
 pub use filter::{
     FilterError, FilterProjectsOptions, FilterWorkspaceProjectsOptions, FilteredProjects,
