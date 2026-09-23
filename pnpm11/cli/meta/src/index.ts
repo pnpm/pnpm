@@ -22,18 +22,6 @@ export const packageManager = {
   version: pkgJson.version,
 }
 
-export function detectIfCurrentPkgIsExecutable (_proc?: unknown): boolean {
-  try {
-    // require() is available here because esbuild injects a createRequire shim
-    // via the banner in pnpm/bundle.ts. node:sea is not available as an ESM
-    // import, so require() is the correct approach.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require('node:sea').isSea()
-  } catch {
-    return false
-  }
-}
-
 /**
  * The command that re-invokes the pnpm running now, so a child runs the same
  * version: the executable for the `@pnpm/exe` single-file build, and
@@ -55,6 +43,18 @@ export function resolvePnpmSelfCommand (): string[] {
 export function resolvePnpmExecPath (): string | undefined {
   if (detectIfCurrentPkgIsExecutable()) return findPnpmExecutable(process.execPath)
   return findSelfEntryScript()
+}
+
+export function detectIfCurrentPkgIsExecutable (_proc?: unknown): boolean {
+  try {
+    // require() is available here because esbuild injects a createRequire shim
+    // via the banner in pnpm/bundle.ts. node:sea is not available as an ESM
+    // import, so require() is the correct approach.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('node:sea').isSea()
+  } catch {
+    return false
+  }
 }
 
 let selfEntryScript: { value: string | undefined } | undefined
