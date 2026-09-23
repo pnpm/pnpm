@@ -995,4 +995,45 @@ fn a_circular_peers_optional_peer_is_shared_by_every_importer() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn workspace_install_with_build_metadata_version() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - 'packages/*'\n")
+        .expect("write pnpm-workspace.yaml");
+
+    fs::create_dir_all(workspace.join("packages/lib")).expect("mkdir packages/lib");
+    fs::write(
+        workspace.join("packages/lib/package.json"),
+        serde_json::json!({
+            "name": "lib",
+            "version": "0.5.6-next.3+f60facc",
+        })
+        .to_string(),
+    )
+    .expect("write packages/lib/package.json");
+
+    fs::create_dir_all(workspace.join("packages/app")).expect("mkdir packages/app");
+    fs::write(
+        workspace.join("packages/app/package.json"),
+        serde_json::json!({
+            "name": "app",
+            "dependencies": { "lib": "workspace:0.5.6-next.3+f60facc" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/app/package.json");
+
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(lockfile.contains("link:../lib"));
+
+    drop(root);
+}
+
 mod freshness;

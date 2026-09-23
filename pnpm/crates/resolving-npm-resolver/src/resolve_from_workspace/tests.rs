@@ -42,9 +42,19 @@ fn build_packages() -> WorkspacePackages {
         },
     );
 
+    let mut meta: WorkspacePackagesByVersion = BTreeMap::new();
+    meta.insert(
+        "0.5.6-next.3+f60facc".to_string(),
+        WorkspacePackage {
+            root_dir: Path::new("/repo/packages/meta").to_path_buf(),
+            manifest: json!({ "name": "meta", "version": "0.5.6-next.3+f60facc" }),
+        },
+    );
+
     let mut packages: WorkspacePackages = BTreeMap::new();
     packages.insert("foo".to_string(), foo);
     packages.insert("bar".to_string(), bar);
+    packages.insert("meta".to_string(), meta);
     packages
 }
 
@@ -146,6 +156,25 @@ fn workspace_exact_version_picks_that_entry() {
         .expect("ok")
         .expect("some");
     assert_eq!(result.id.as_str(), "link:../bar");
+}
+
+#[test]
+fn workspace_build_metadata_resolution() {
+    let packages = build_packages();
+    let opts = opts(&packages);
+    for specifier in [
+        "workspace:0.5.6-next.3+f60facc",
+        "workspace:0.5.6-next.3",
+        "workspace:^0.5.6-next.3+f60facc",
+        "workspace:^0.5.6-next.3",
+        "workspace:~0.5.6-next.3+f60facc",
+        "workspace:*",
+    ] {
+        let result = try_resolve_from_workspace(&wanted("meta", specifier), &opts)
+            .expect("ok")
+            .unwrap_or_else(|| panic!("expected Some for {specifier}"));
+        assert_eq!(result.id.as_str(), "link:../meta", "specifier: {specifier}");
+    }
 }
 
 #[test]

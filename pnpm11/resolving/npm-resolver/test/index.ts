@@ -2795,6 +2795,44 @@ test('workspace protocol: resolution fails if there is no matching local package
   expect(err.message).toBe(`In ${path.relative(process.cwd(), projectDir)}: No matching version found for is-positive@workspace:^3.0.0 inside the workspace. Available versions: 2.0.0`)
 })
 
+test.each([
+  'workspace:0.5.6-next.3+f60facc',
+  'workspace:0.5.6-next.3',
+  'workspace:^0.5.6-next.3+f60facc',
+  'workspace:^0.5.6-next.3',
+  'workspace:~0.5.6-next.3+f60facc',
+  'workspace:*',
+])('workspace protocol: resolves a package with build metadata in version (%s)', async (bareSpecifier) => {
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+
+  const projectDir = '/home/istvan/src'
+  const workspacePackages = new Map([
+    ['is-positive', new Map([
+      ['0.5.6-next.3+f60facc', {
+        rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+        manifest: {
+          name: 'is-positive',
+          version: '0.5.6-next.3+f60facc',
+        },
+      }],
+    ])],
+  ])
+
+  const resolution = await resolveFromNpm({ alias: 'is-positive', bareSpecifier }, {
+    projectDir,
+    workspacePackages,
+  })
+
+  expect(resolution).toBeTruthy()
+  expect(resolution!.resolvedVia).toBe('workspace')
+  expect(resolution!.manifest.version).toBe('0.5.6-next.3+f60facc')
+})
+
 test('workspace protocol: resolution fails if there are no local packages', async () => {
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({

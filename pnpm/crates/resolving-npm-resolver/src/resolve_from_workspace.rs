@@ -231,7 +231,11 @@ pub fn pick_matching_local_version_or_null(
             resolve_workspace_range("*", &raw)
         }
         RegistryPackageSpecType::Version => {
-            versions.contains_key(&spec.fetch_spec).then(|| spec.fetch_spec.clone())
+            if versions.contains_key(&spec.fetch_spec) {
+                return Some(spec.fetch_spec.clone());
+            }
+            let raw: Vec<String> = versions.keys().cloned().collect();
+            resolve_workspace_range(&spec.fetch_spec, &raw)
         }
         RegistryPackageSpecType::Range => {
             let raw: Vec<String> = versions.keys().cloned().collect();
@@ -368,7 +372,9 @@ fn pathdiff_string(base: &Path, target: &Path) -> Option<String> {
 /// reverse so the message at least stays stable.
 fn rcompare_versions(left: &str, right: &str) -> std::cmp::Ordering {
     match (Version::parse(left), Version::parse(right)) {
-        (Ok(left_parsed), Ok(right_parsed)) => right_parsed.cmp(&left_parsed),
+        (Ok(left_parsed), Ok(right_parsed)) => right_parsed
+            .cmp(&left_parsed)
+            .then_with(|| right.cmp(left)),
         _ => right.cmp(left),
     }
 }
