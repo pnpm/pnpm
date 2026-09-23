@@ -77,6 +77,13 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
     }
   }
   await writeProjectManifest(manifest)
+  if (installError != null && restoreError != null) {
+    throw new AggregateError(
+      [installError, restoreError],
+      `Installing from the dedicated lockfile failed, and the original node_modules could not be moved back from ${tempModulesDir}`,
+      { cause: installError }
+    )
+  }
   if (installError != null) {
     throw installError
   }

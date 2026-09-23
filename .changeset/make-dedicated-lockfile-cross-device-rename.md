@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-`make-dedicated-lockfile` no longer fails on cross-device or container mount boundaries when backing up and restoring `node_modules`.
+`make-dedicated-lockfile` now restores `package.json` when it cannot move the original `node_modules` back. If the install also failed, the error names the directory that still holds the original `node_modules`.

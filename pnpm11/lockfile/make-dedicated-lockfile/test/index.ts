@@ -32,8 +32,12 @@ test('a workspace dependency stays linked instead of being fetched from the regi
   const tmp = f.prepare('workspace-protocol')
   await installWorkspace(tmp)
   const projectDir = path.join(tmp, 'packages/app')
+  const originalModulesMarker = path.join(projectDir, 'node_modules/original-tree')
+  fs.writeFileSync(originalModulesMarker, '')
   const result = await execa('node', [makeDedicatedLockfileBin], { cwd: projectDir, all: true })
   expect(result.exitCode).toBe(0)
+  expect(fs.existsSync(originalModulesMarker)).toBe(true)
+  expect(fs.existsSync(path.join(projectDir, '.tmp_node_modules'))).toBe(false)
 
   const lockfile = await readWantedLockfile(projectDir, { ignoreIncompatible: false })
   expect(lockfile?.importers?.['.' as ProjectId]?.dependencies).toStrictEqual({
@@ -48,9 +52,6 @@ test('a workspace dependency stays linked instead of being fetched from the regi
   expect(JSON.parse(fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8')).dependencies['@dedicated-lockfile-test/lib']).toBe('workspace:^')
 
   await expect(installDedicatedCopy(tmp)).resolves.toStrictEqual(['@dedicated-lockfile-test', 'is-positive'])
-
-  const stagingDir = path.join(projectDir, '.tmp_node_modules')
-  expect(fs.existsSync(stagingDir)).toBe(false)
 })
 
 test('a workspace dependency linked through linkWorkspacePackages stays linked', async () => {
