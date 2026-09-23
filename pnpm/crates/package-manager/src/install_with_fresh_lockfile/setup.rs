@@ -86,6 +86,24 @@ impl ObserverSettings {
         }
     }
 }
+
+fn take_auth(config: &Config, auth_override: &mut Option<Arc<AuthHeaders>>) -> Arc<AuthHeaders> {
+    auth_override.take().unwrap_or_else(|| Arc::clone(&config.auth_headers))
+}
+
+fn take_resolution_observer(
+    observer: &mut Option<Arc<dyn crate::ResolutionObserver>>,
+) -> (
+    Option<Arc<dyn crate::ResolutionObserver>>,
+    ObserverSettings,
+    Option<pnpm_tarball::SharedReportedProgressKeys>,
+) {
+    let observer = observer.take();
+    let settings = ObserverSettings::of(observer.as_ref());
+    let progress_reported = observer.as_ref().and_then(|observer| observer.progress_reported());
+    (observer, settings, progress_reported)
+}
+
 /// Open the store, resolve the registries and build the resolver chain.
 /// Consumes the auth override, the resolution observer, the workspace
 /// packages and the pnpmfile override off `owned`.
@@ -96,14 +114,9 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     let shape = InstallShape::derive(install, &owned.resolution.update_seed_policy);
     // The pnpr override when supplied, else the config's npmrc headers;
     // shared by every registry-touching resolver below.
-    let auth_headers = owned.resolution.auth_override
-        .take()
-        .unwrap_or_else(|| Arc::clone(&install.drivers.config.auth_headers));
-    let resolution_observer = owned.resolution.observer.take();
-    let completion_observer = resolution_observer.clone();
-    let observer = ObserverSettings::of(resolution_observer.as_ref());
-    let progress_reported =
-        resolution_observer.as_ref().and_then(|observer| observer.progress_reported());
+    let auth_headers = take_auth(install.drivers.config, &mut owned.resolution.auth_override);
+    let (resolution_observer, observer, progress_reported) =
+        take_resolution_observer(&mut owned.resolution.observer);
 
     let store_dir: &'static _ = &install.drivers.config.store_dir;
     // Eagerly create `files/00..ff` under the v11 store root so per-
@@ -151,12 +164,12 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
         &registries,
         &policy,
         &shape,
-        ResolverAccess { auth_headers, observer: resolution_observer },
+        ResolverAccess { auth_headers, observer: resolution_observer.clone() },
     )
     .await?;
     Ok(ResolverSetup {
         workspace_packages: owned.projects.workspace_packages.take().map(Arc::new),
-        completion_observer,
+        completion_observer: resolution_observer,
         observer,
         shape,
         policy,
