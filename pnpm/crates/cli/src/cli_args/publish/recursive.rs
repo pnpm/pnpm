@@ -13,6 +13,7 @@ use crate::cli_args::{
         select_recursive_projects,
     },
     registry_client::build_registry_client,
+    workspace_packages::build_workspace_package_manifest_map,
 };
 use miette::{Context, IntoDiagnostic};
 use pipe_trait::Pipe;
@@ -146,9 +147,7 @@ impl PublishArgs {
         // selection; its own name/version/private eligibility check drops it
         // below.
         let (projects, _patterns) = discover_workspace_projects(workspace_root, config)?;
-        let workspace_packages = Arc::new(
-            crate::cli_args::workspace_packages::build_workspace_package_manifest_map(&projects),
-        );
+        let workspace_packages = Arc::new(build_workspace_package_manifest_map(&projects));
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let graph = &selection.selected;
@@ -159,13 +158,8 @@ impl PublishArgs {
         let http_client = build_registry_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
         let (opts, to_publish) =
-            self.prepare_recursive_candidates(graph, config, stage, &http_client).await?;
-        if let Err(error) =
-            self.wait_for_existing_projects::<Reporter>(graph, &to_publish, config, &opts, &network)
-                .await
-        {
-            return self.finish_recursive_publish(workspace_root, &opts, Err(error.into()));
-        }
+            self.select_candidates::<Reporter>(graph, config, stage, &network, workspace_root)
+                .await?;
 
         if to_publish.is_empty() {
             emit_info::<Reporter>("There are no new packages that should be published", dir);
@@ -210,17 +204,28 @@ impl PublishArgs {
         Ok(published)
     }
 
-    async fn prepare_recursive_candidates(
+    /// Select the projects to publish and confirm that the selected versions
+    /// that already exist are available. A failed confirmation leaves an
+    /// empty summary, since no upload was accepted.
+    async fn select_candidates<Reporter: self::Reporter>(
         &self,
         graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
         config: &Config,
         stage: bool,
-        http_client: &pnpm_network::ThrottledClient,
+        network: &PublishNetwork<'_>,
+        workspace_root: &Path,
     ) -> miette::Result<(pnpm_publish::PublishPackedPkgOptions, HashSet<PathBuf>)> {
         let opts = self.checked_recursive_publish_options(config, stage)?;
         let to_publish =
-            self.projects_to_publish(graph, config, http_client, retry_opts_from_config(config))
+            self.projects_to_publish(graph, config, network.client, retry_opts_from_config(config))
                 .await;
+        if let Err(error) =
+            self.wait_for_existing_projects::<Reporter>(graph, &to_publish, config, &opts, network)
+                .await
+        {
+            self.write_summary(workspace_root, &[])?;
+            return Err(error);
+        }
         Ok((opts, to_publish))
     }
 

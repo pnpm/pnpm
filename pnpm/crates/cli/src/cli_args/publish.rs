@@ -9,6 +9,7 @@
 //! lives in [`recursive`].
 
 pub use arguments::{PublishGitArgs, PublishManifestArgs, PublishOutputArgs, PublishRegistryArgs};
+mod options;
 mod recursive;
 mod wait;
 
@@ -25,9 +26,9 @@ use pnpm_pack::{
     Host as PackHost, PackOptions, PackResult, WorkspacePackageManifest, api as pack_api,
 };
 use pnpm_publish::{
-    Access, Host, OidcHttpOptions, PackedPkg, PublishFailure, PublishNetwork,
-    PublishPackedPkgOptions, PublishSummary, extract_publish_manifest_from_packed, is_tarball_path,
-    publish_packed_pkg, resolve_otp_from_env, run_git_checks,
+    Host, PackedPkg, PublishFailure, PublishNetwork, PublishPackedPkgOptions, PublishSummary,
+    extract_publish_manifest_from_packed, is_tarball_path, publish_packed_pkg,
+    resolve_otp_from_env, run_git_checks,
 };
 use pnpm_reporter::Reporter;
 use serde_json::Value;
@@ -156,16 +157,7 @@ impl PublishArgs {
         stage: bool,
         before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<PublishedPackages> {
-        if stage {
-            self.publish_options(config, None, stage).validate()?;
-        }
-        if self.flags.batch && !recursive {
-            return Err(miette::miette!(
-                code = "ERR_PNPM_BATCH_PUBLISH_REQUIRES_RECURSIVE",
-                help = r#"Run "pnpm publish -r --batch" to publish all workspace packages in a single request."#,
-                "--batch can only be used together with --recursive",
-            ));
-        }
+        self.validate_publish_flags(config, recursive, stage)?;
 
         // Upstream gates on `opts.gitChecks !== false`, which folds together
         // the `git-checks` config setting and the `--no-git-checks` flag.
@@ -395,39 +387,6 @@ impl PublishArgs {
         pack_api::<Reporter, PackHost>(&options).await
             .map_err(miette::Report::new)
             .wrap_err(crate::cli_args::pack::PACK_ERROR_CONTEXT)
-    }
-
-    /// Map the CLI flags and resolved [`Config`] onto the publish options.
-    fn publish_options(
-        &self,
-        config: &Config,
-        otp: Option<String>,
-        stage: bool,
-    ) -> PublishPackedPkgOptions {
-        let default_wait_timeout = if stage { 0 } else { config.publish_wait_timeout };
-        PublishPackedPkgOptions {
-            dry_run: self.flags.dry_run,
-            stage,
-            wait_timeout: std::time::Duration::from_millis(
-                self.flags.registry.publish_wait_timeout.unwrap_or(default_wait_timeout),
-            ),
-            registry: pnpm_publish::PublishRegistryOptions {
-                default: config.registry.clone(),
-                scoped: config.registries_by_scope.clone(),
-                access: self.flags.registry.access.as_deref().and_then(Access::parse),
-                tag: self.flags.registry.tag.clone().unwrap_or_else(|| "latest".to_owned()),
-                otp,
-                // An absent `--provenance` leaves the decision to the OIDC flow.
-                provenance: self.flags.registry.provenance.then_some(true),
-                http: OidcHttpOptions {
-                    fetch_retries: Some(config.fetch_retries),
-                    fetch_retry_factor: Some(f64::from(config.fetch_retry_factor)),
-                    fetch_retry_maxtimeout: Some(config.fetch_retry_maxtimeout),
-                    fetch_retry_mintimeout: Some(config.fetch_retry_mintimeout),
-                    fetch_timeout: Some(config.fetch_timeout),
-                },
-            },
-        }
     }
 }
 
