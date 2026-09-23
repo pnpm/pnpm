@@ -109,6 +109,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       REVISION: ${{ matrix.revision }}
+      # Both revisions build with thin LTO and 16 codegen units, so the
+      # comparison stays like for like while the build takes about 4 minutes
+      # instead of 10. Released binaries keep the fat-LTO release profile.
+      CARGO_PROFILE_RELEASE_LTO: thin
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -121,7 +126,7 @@ jobs:
         id: binaries
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          key: integrated-benchmark-bin-v2-${{ matrix.os }}-${{ matrix.revision == 'main' && needs.revisions.outputs.main_sha || needs.revisions.outputs.head_sha }}-${{ hashFiles('rust-toolchain.toml') }}
+          key: integrated-benchmark-bin-v3-${{ matrix.os }}-${{ matrix.revision == 'main' && needs.revisions.outputs.main_sha || needs.revisions.outputs.head_sha }}-${{ hashFiles('rust-toolchain.toml') }}
           path: |
             .bench-cache/release/pnpm
             .bench-cache/release/pacquet
@@ -133,10 +138,10 @@ jobs:
         if: steps.binaries.outputs.cache-hit != 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          key: integrated-benchmark-deps-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}-${{ github.run_id }}-${{ matrix.revision }}
+          key: integrated-benchmark-deps-thin-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}-${{ github.run_id }}-${{ matrix.revision }}
           restore-keys: |
-            integrated-benchmark-deps-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}-
-            integrated-benchmark-deps-${{ matrix.os }}-
+            integrated-benchmark-deps-thin-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}-
+            integrated-benchmark-deps-thin-${{ matrix.os }}-
           path: |
             ~/.cargo/registry
             ~/.cargo/git
