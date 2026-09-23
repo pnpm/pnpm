@@ -3,8 +3,9 @@ use super::{
     PackageVersionGuard, PackageVersionGuardDecision, Range, SnapshotDepRef,
     filter_ignored_advisories,
     fix::{
-        PackumentPublishInfo, VulnerabilityGuard, create_overrides, filter_advisories_for_fix,
-        format_fix_with_update_output, minimum_release_age_excludes,
+        PackumentPublishInfo, VulnerabilityGuard, filter_advisories_for_fix,
+        format_fix_with_update_output, minimum_release_age_excludes, overrides::create_overrides,
+        prune_subsumed_advisories,
     },
     paths::{AuditPathIndex, PathInfo, build_audit_path_index},
     render::{render_json_report, render_text_report},
@@ -14,7 +15,7 @@ use super::{
         sanitize_control_chars,
     },
     request::{Include, lockfile_to_audit_request},
-    version_ranges::{caret_range_for_patched, satisfies_safe},
+    version_ranges::{caret_range_for_patched, is_range_subset, satisfies_safe},
 };
 use crate::cli_args::audit::fix::update::{
     InstalledPackages, classify_for_update, report_fixed_remaining,

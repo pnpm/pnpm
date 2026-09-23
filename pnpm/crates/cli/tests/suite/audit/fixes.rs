@@ -259,8 +259,12 @@ fn audit_fix_override_writes_age_exclude_when_patched_version_is_within_the_wind
         "manifest should hold the exclusions:\n{manifest}",
     );
     assert!(
-        manifest.contains("vulnerable@1.5.0 || 2.0.0"),
-        "manifest should hold both patched-version exclusions:\n{manifest}",
+        manifest.contains("vulnerable@2.0.0"),
+        "manifest should hold the unpruned patched-version exclusion:\n{manifest}",
+    );
+    assert!(
+        !manifest.contains("1.5.0"),
+        "subsumed advisory patched version should be pruned:\n{manifest}",
     );
     mock.assert();
     packument_mock.assert();
