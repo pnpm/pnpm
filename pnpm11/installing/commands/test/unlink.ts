@@ -104,12 +104,16 @@ test('recursive unlink removes the dependency that link added to the workspace r
   expect(fs.existsSync('node_modules/linked-foo')).toBe(false)
 })
 
-test('unlink --dry-run does not change package.json', async () => {
+test('unlink --dry-run does not change package.json or pnpm-workspace.yaml', async () => {
   prepareLinkTargets()
 
   await link.handler(commandOpts(), ['../linked-foo'])
 
+  const workspaceManifest = fs.readFileSync('pnpm-workspace.yaml', 'utf8')
+
   await unlink.handler({ ...commandOpts({ 'linked-foo': 'link:../linked-foo' }), dryRun: true }, [])
+
+  expect(fs.readFileSync('pnpm-workspace.yaml', 'utf8')).toBe(workspaceManifest)
 
   expect(loadJsonFileSync('package.json')).toStrictEqual({
     name: 'project',

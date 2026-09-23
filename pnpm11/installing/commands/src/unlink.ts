@@ -61,15 +61,17 @@ export async function handler (
   let rootProjectManifest = opts.rootProjectManifest
   if (!isEmpty(removedLinks)) {
     const unlinked = await removeLinkedDependencies(opts, removedLinks)
-    await writeSettings({
-      workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
-      rootProjectManifestDir: opts.rootProjectManifestDir,
-      updatedSettings: {
-        overrides: isEmpty(opts.overrides) ? undefined : opts.overrides,
-      },
-    })
-    if (unlinked?.changed && !opts.dryRun) {
-      await unlinked.writeProjectManifest(unlinked.manifest)
+    if (!opts.dryRun) {
+      await writeSettings({
+        workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+        rootProjectManifestDir: opts.rootProjectManifestDir,
+        updatedSettings: {
+          overrides: isEmpty(opts.overrides) ? undefined : opts.overrides,
+        },
+      })
+      if (unlinked?.changed) {
+        await unlinked.writeProjectManifest(unlinked.manifest)
+      }
     }
     rootProjectManifest = unlinked?.manifest ?? rootProjectManifest
   }
