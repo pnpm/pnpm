@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use super::{Version, fmt};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,21 +28,6 @@ impl Interval {
             Bound::Unbounded => true,
         };
         above_lower && below_upper
-    }
-
-    /// Whether every version `other` admits, this interval admits too.
-    fn covers(&self, other: &Interval) -> bool {
-        let lower_covers = match (lower_rank(&self.lower), lower_rank(&other.lower)) {
-            (None, _) => true,
-            (Some(_), None) => false,
-            (Some(own), Some(other)) => own <= other,
-        };
-        let upper_covers = match (upper_rank(&self.upper), upper_rank(&other.upper)) {
-            (None, _) => true,
-            (Some(_), None) => false,
-            (Some(own), Some(other)) => own >= other,
-        };
-        lower_covers && upper_covers
     }
 }
 
@@ -404,41 +391,62 @@ fn intersect_intervals(left_intervals: &[Interval], right_intervals: &[Interval]
 }
 
 /// Drop the intervals of a union that another interval already covers,
-/// leaving the same set of versions behind. Of two equal intervals, the
-/// first is kept.
-///
-/// [`intersect_intervals`] pairs every interval of one union with every
-/// interval of the other, so an interval two ranges agree on survives
-/// once per pair, and each further range multiplies that count again.
-/// `semver-range-intersect` collapses the union the same way after every
-/// step.
+/// leaving the same set of versions behind. The survivors keep their
+/// order, and of two equal intervals the first survives.
 fn drop_covered_intervals(intervals: &[Interval]) -> Vec<Interval> {
-    let is_covered = |index: usize, interval: &Interval| {
-        intervals
-            .iter()
-            .enumerate()
-            .any(|(other_index, other)| {
-                other_index != index
-                    && other.covers(interval)
-                    && (other_index < index || !interval.covers(other))
-            })
-    };
+    // `intersect_intervals` pairs every interval of one union with every
+    // interval of the other, so an interval two ranges agree on survives
+    // once per pair, and each further range multiplies that count again.
+    // `semver-range-intersect` collapses the union after every step too.
+    // Sorted by lower bound, widest first on a tie, an interval is covered
+    // exactly when an earlier one reaches at least as high.
+    let mut by_lower: Vec<usize> = (0..intervals.len()).collect();
+    by_lower.sort_by(|&left, &right| {
+        compare_lower(&intervals[left].lower, &intervals[right].lower)
+            .then_with(|| compare_upper(&intervals[right].upper, &intervals[left].upper))
+    });
+    let mut kept = vec![false; intervals.len()];
+    let mut highest_upper: Option<&Bound<Version>> = None;
+    for index in by_lower {
+        let upper = &intervals[index].upper;
+        if highest_upper.is_none_or(|highest| compare_upper(upper, highest).is_gt()) {
+            kept[index] = true;
+            highest_upper = Some(upper);
+        }
+    }
     intervals
         .iter()
-        .enumerate()
-        .filter(|(index, interval)| !is_covered(*index, interval))
-        .map(|(_, interval)| interval.clone())
+        .zip(kept)
+        .filter(|(_, kept)| *kept)
+        .map(|(interval, _)| interval.clone())
         .collect()
+}
+
+/// Orders lower bounds from the one admitting the most versions.
+fn compare_lower(left: &Bound<Version>, right: &Bound<Version>) -> Ordering {
+    lower_rank(left).cmp(&lower_rank(right))
+}
+
+/// Orders upper bounds up to the one admitting the most versions.
+fn compare_upper(left: &Bound<Version>, right: &Bound<Version>) -> Ordering {
+    match (upper_rank(left), upper_rank(right)) {
+        (None, None) => Ordering::Equal,
+        (None, Some(_)) => Ordering::Greater,
+        (Some(_), None) => Ordering::Less,
+        (Some(left), Some(right)) => left.cmp(&right),
+    }
 }
 
 pub(super) fn intersect_multiple_ranges(version_ranges: &[String]) -> Option<String> {
     if version_ranges.is_empty() {
         return Some("*".to_string());
     }
-    let mut current_intervals =
-        parse_range_to_intervals(&preprocess_hyphen_ranges(&version_ranges[0]))?;
+    let mut current_intervals = drop_covered_intervals(&parse_range_to_intervals(
+        &preprocess_hyphen_ranges(&version_ranges[0]),
+    )?);
     for range in &version_ranges[1..] {
-        let next_intervals = parse_range_to_intervals(&preprocess_hyphen_ranges(range))?;
+        let next_intervals =
+            drop_covered_intervals(&parse_range_to_intervals(&preprocess_hyphen_ranges(range))?);
         current_intervals =
             drop_covered_intervals(&intersect_intervals(&current_intervals, &next_intervals));
         if current_intervals.is_empty() {

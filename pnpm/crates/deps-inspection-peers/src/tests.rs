@@ -182,6 +182,25 @@ fn intersecting_overlapping_alternatives_stays_bounded() {
 }
 
 #[test]
+fn intersecting_long_nested_unions_stays_bounded() {
+    let nested_union = (0..1000)
+        .map(|patch| format!(">=1.0.{patch}"))
+        .collect::<Vec<_>>()
+        .join(" || ");
+    let version_ranges = vec![nested_union.clone(), nested_union];
+    assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some(">=1.0.0"));
+}
+
+#[test]
+fn test_intersect_keeps_the_order_of_surviving_alternatives() {
+    let version_ranges = vec!["^2.0.0 || ^1.0.0 || ^1.2.0".to_string(), "*".to_string()];
+    assert_eq!(
+        intersect_multiple_ranges(&version_ranges).as_deref(),
+        Some(">=2.0.0 <3.0.0 || >=1.0.0 <2.0.0"),
+    );
+}
+
+#[test]
 fn test_intersect_drops_covered_alternatives() {
     let version_ranges = vec!["^1.0.0 || ^1.2.0".to_string(), "*".to_string()];
     assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some(">=1.0.0 <2.0.0"));
