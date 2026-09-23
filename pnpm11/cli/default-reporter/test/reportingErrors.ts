@@ -16,6 +16,7 @@ import StackTracey from 'stacktracey'
 
 interface Exception extends NodeJS.ErrnoException {
   prefix?: string
+  signal?: string
   stage?: string
 }
 
