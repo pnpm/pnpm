@@ -681,7 +681,10 @@ function toPackResultJson (packResult: PackResult): PackResultJson {
 function isFileExecutable (file: string): boolean {
   try {
     return (fs.statSync(file).mode & 0o111) !== 0
-  } catch {
-    return false
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return false
+    }
+    throw err
   }
 }
