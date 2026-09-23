@@ -39,7 +39,7 @@ const PACKED_MANIFEST_NAME: &str = "package/package.json";
 /// the order [`compression_ordered_entries`] returns. Manifest entries
 /// carry `manifest_json` instead of their on-disk bytes and are written
 /// under [`PACKED_MANIFEST_NAME`]; entries whose source path is in `bins`
-/// are marked executable.
+/// or whose source file on disk is executable are marked executable.
 pub fn build_tarball<Sys: FsReadFile>(
     writer: &mut dyn Write,
     files_map: &IndexMap<String, PathBuf>,
@@ -61,11 +61,11 @@ pub fn build_tarball<Sys: FsReadFile>(
     for entry in compression_ordered_entries(files_map, injected) {
         let file_data;
         let (data, mode) = match entry.source {
-            EntrySource::Manifest(path) => (manifest_json, bin_mode(&bin_set, path)),
+            EntrySource::Manifest(path) => (manifest_json, bin_mode(&bin_set, path)?),
             EntrySource::Injected(data) => (data, REGULAR_MODE),
             EntrySource::File(path) => {
                 file_data = Sys::read_file(path)?;
-                (file_data.as_slice(), bin_mode(&bin_set, path))
+                (file_data.as_slice(), bin_mode(&bin_set, path)?)
             }
         };
         append_entry(&mut builder, entry.name, data, mode)?;
@@ -155,8 +155,26 @@ pub(super) fn extname(base: &str) -> &str {
     }
 }
 
-fn bin_mode(bin_set: &HashSet<&Path>, source: &Path) -> u32 {
-    if bin_set.contains(source) { EXECUTABLE_MODE } else { REGULAR_MODE }
+fn bin_mode(bin_set: &HashSet<&Path>, source: &Path) -> io::Result<u32> {
+    if bin_set.contains(source) {
+        return Ok(EXECUTABLE_MODE);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        match std::fs::metadata(source) {
+            Ok(metadata) if pnpm_fs::file_mode::is_executable(metadata.permissions().mode()) => {
+                Ok(EXECUTABLE_MODE)
+            }
+            Ok(_) => Ok(REGULAR_MODE),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(REGULAR_MODE),
+            Err(error) => Err(error),
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        Ok(REGULAR_MODE)
+    }
 }
 
 fn append_entry<Writer: Write>(

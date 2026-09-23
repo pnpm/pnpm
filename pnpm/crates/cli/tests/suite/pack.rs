@@ -523,6 +523,60 @@ fn read_manifest_from_tarball(tarball: &Path) -> serde_json::Value {
     panic!("package/package.json not found in {}", tarball.display());
 }
 
+#[cfg(unix)]
+fn read_entry_mode_from_tarball(tarball: &Path, entry_path: &str) -> u32 {
+    let bytes = fs::read(tarball).expect("read tarball");
+    let decoder = flate2::read::GzDecoder::new(bytes.as_slice());
+    let mut archive = tar::Archive::new(decoder);
+    for entry in archive.entries().expect("iterate tarball entries") {
+        let entry = entry.expect("read tarball entry");
+        if entry.path().expect("entry path") == Path::new(entry_path) {
+            return entry
+                .header()
+                .mode()
+                .expect("read entry mode");
+        }
+    }
+    panic!("{entry_path} not found in {}", tarball.display());
+}
+
+#[test]
+#[cfg(unix)]
+fn pack_preserves_on_disk_executable_file_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pkg-exec",
+            "version": "1.0.0",
+            "files": ["scripts/run.sh", "index.js"],
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::create_dir_all(workspace.join("scripts")).unwrap();
+    fs::write(workspace.join("scripts/run.sh"), "#!/bin/sh\necho hi\n").unwrap();
+    fs::set_permissions(workspace.join("scripts/run.sh"), fs::Permissions::from_mode(0o755))
+        .unwrap();
+    fs::write(workspace.join("index.js"), "module.exports = 1;\n").unwrap();
+
+    pacquet
+        .with_arg("pack")
+        .assert()
+        .success();
+
+    let tarball = workspace.join("pkg-exec-1.0.0.tgz");
+    let script_mode = read_entry_mode_from_tarball(&tarball, "package/scripts/run.sh");
+    assert_eq!(script_mode, 0o755);
+
+    let js_mode = read_entry_mode_from_tarball(&tarball, "package/index.js");
+    assert_eq!(js_mode, 0o644);
+
+    drop(root);
+}
+
 #[test]
 fn pack_json_preserves_lifecycle_streams_before_the_result() {
     assert_pack_json_lifecycle_streams(None, false);
