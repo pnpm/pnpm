@@ -5,13 +5,14 @@ use pnpm_reporter::{LogEvent, NdjsonReporter, Reporter, SilentReporter};
 use std::path::Path;
 
 /// Output format for progress and log messages.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, ValueEnum)]
 #[repr(u8)]
 pub enum ReporterType {
     /// Rich visual output: a progress line, a packages diff, lifecycle
     /// output, and a `Done in ...` summary. The default; renders in place
     /// on a terminal and falls back to `append-only` output when stdout is
     /// not a terminal.
+    #[default]
     Default = 0,
     /// Like `default` but forces the append-only rendering even on a TTY —
     /// one line per update, no cursor movement.
@@ -30,6 +31,17 @@ impl From<u8> for ReporterType {
             2 => ReporterType::Ndjson,
             3 => ReporterType::Silent,
             _ => unreachable!("invalid reporter discriminant: {value}"),
+        }
+    }
+}
+
+impl From<pnpm_config::ReporterType> for ReporterType {
+    fn from(reporter: pnpm_config::ReporterType) -> Self {
+        match reporter {
+            pnpm_config::ReporterType::Default => ReporterType::Default,
+            pnpm_config::ReporterType::AppendOnly => ReporterType::AppendOnly,
+            pnpm_config::ReporterType::Ndjson => ReporterType::Ndjson,
+            pnpm_config::ReporterType::Silent => ReporterType::Silent,
         }
     }
 }

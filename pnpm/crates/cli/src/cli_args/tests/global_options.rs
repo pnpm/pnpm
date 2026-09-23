@@ -123,7 +123,7 @@ fn non_silent_loglevels_keep_the_selected_reporter() {
 fn configured_silent_loglevel_selects_silent_reporter_when_cli_loglevel_unset() {
     let parsed = CliArgs::try_parse_from(["pacquet", "install"]).expect("parses");
     assert!(matches!(
-        parsed.effective_reporter_with_config(Some(pnpm_config::LogLevel::Silent)),
+        parsed.effective_reporter_with_config(Some(pnpm_config::LogLevel::Silent), None),
         ReporterType::Silent
     ));
 }
@@ -133,7 +133,7 @@ fn cli_loglevel_takes_precedence_over_configured_silent_loglevel() {
     let parsed =
         CliArgs::try_parse_from(["pacquet", "--loglevel", "warn", "install"]).expect("parses");
     assert!(matches!(
-        parsed.effective_reporter_with_config(Some(pnpm_config::LogLevel::Silent)),
+        parsed.effective_reporter_with_config(Some(pnpm_config::LogLevel::Silent), None),
         ReporterType::Default
     ));
 }
@@ -681,4 +681,23 @@ fn workspace_root_tolerates_a_dir_that_does_not_exist() {
 
     assert_eq!(args.paths.dir, canonical);
     drop(root); // cleanup
+}
+
+#[test]
+fn configured_reporter_applies_when_cli_reporter_unset() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "install"]).expect("parses");
+    assert!(matches!(
+        parsed.effective_reporter_with_config(None, Some(pnpm_config::ReporterType::Ndjson)),
+        ReporterType::Ndjson
+    ));
+}
+
+#[test]
+fn cli_reporter_takes_precedence_over_configured_reporter() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "--reporter", "append-only", "install"])
+        .expect("parses");
+    assert!(matches!(
+        parsed.effective_reporter_with_config(None, Some(pnpm_config::ReporterType::Silent)),
+        ReporterType::AppendOnly
+    ));
 }

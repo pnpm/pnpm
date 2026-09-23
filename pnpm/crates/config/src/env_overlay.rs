@@ -13,7 +13,7 @@
 
 use crate::{
     AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, LogLevel, NodeLinker,
-    NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
+    NodePackageMapType, PackageImportMethod, PmOnFail, ReporterType, ResolutionMode, RuntimeOnFail,
     SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
     VirtualStoreType, WorkspaceSettings, api::EnvVar,
 };
@@ -174,6 +174,7 @@ impl WorkspaceSettings {
         json_field!(settings, Sys, update_notifier, "UPDATE_NOTIFIER");
         enum_field!(settings, Sys, color, "COLOR", ColorMode);
         enum_field!(settings, Sys, loglevel, "LOGLEVEL", LogLevel);
+        enum_field!(settings, Sys, reporter, "REPORTER", ReporterType);
         json_field!(settings, Sys, embed_readme, "EMBED_README");
         json_field!(settings, Sys, ignore_pnpmfile, "IGNORE_PNPMFILE");
         json_field!(settings, Sys, ignore_workspace_root_check, "IGNORE_WORKSPACE_ROOT_CHECK");

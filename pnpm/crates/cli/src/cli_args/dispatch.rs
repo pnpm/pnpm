@@ -166,7 +166,8 @@ impl CliArgs {
         else {
             return false;
         };
-        let emit = reporter_emit(self.effective_reporter_with_config(config.loglevel));
+        let emit =
+            reporter_emit(self.effective_reporter_with_config(config.loglevel, config.reporter));
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
             warn_fast_path_config(config_overrides, &config);
@@ -328,7 +329,7 @@ impl CliArgs {
             },
         );
         apply_run_output_config(self, &mut cfg);
-        let reporter = self.effective_reporter_with_config(cfg.loglevel);
+        let reporter = self.effective_reporter_with_config(cfg.loglevel, cfg.reporter);
         setup.effective_reporter.store(reporter as u8, Ordering::Relaxed);
         self.configure_run_reporter(&cfg, reporter, setup, anchors);
         Ok(Config::leak(cfg))

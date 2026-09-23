@@ -130,6 +130,8 @@ pub struct WorkspaceSettings {
     pub color: Option<crate::ColorMode>,
     #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub loglevel: Option<crate::LogLevel>,
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
+    pub reporter: Option<crate::ReporterType>,
     pub embed_readme: Option<bool>,
     pub ignore_workspace_root_check: Option<bool>,
     pub optional: Option<bool>,

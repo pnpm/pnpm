@@ -7,8 +7,8 @@ use super::{
 };
 use crate::{
     AuditLevel, CatalogMode, ColorMode, Config, GlobalShims, GlobalShimsSetting, HoistingLimits,
-    LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PmOnFail, ResolutionMode,
-    RuntimeOnFail, ScriptsPrependNodePath, ShimPolicy, TrustPolicy,
+    LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PmOnFail, ReporterType,
+    ResolutionMode, RuntimeOnFail, ScriptsPrependNodePath, ShimPolicy, TrustPolicy,
     api::{EnvVar, GetHomeDir},
 };
 use indexmap::IndexMap;

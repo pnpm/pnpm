@@ -85,7 +85,7 @@ pub(crate) fn pre_command_plan(
             global: is_global(&args.command),
             skip_pm_handling: should_skip_pm_handling(&args.command),
             check_runtimes: true,
-            emit: reporter_emit(args.output.presentation.reporter),
+            emit: reporter_emit(args.output.presentation.reporter.unwrap_or_default()),
             key_issues: key_issue_reporting(&args.command),
         },
         config_overrides,

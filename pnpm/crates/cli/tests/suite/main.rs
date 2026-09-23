@@ -123,6 +123,7 @@ mod relocated_install;
 mod remove;
 mod repeat_install;
 mod repo;
+mod reporter_setting;
 mod restart;
 mod root;
 mod run;

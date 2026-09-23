@@ -28,8 +28,8 @@ pub use pnpm_matcher as matcher;
 pub use setting_types::{
     AuditConfig, AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType,
     LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail,
-    ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy,
-    VerifyDepsBeforeRun, VirtualStoreType,
+    ReporterType, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
+    TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType,
 };
 pub use settings::{Config, HoistPatterns, MacosBackupConfig};
 pub use shim_policy::{
