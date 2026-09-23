@@ -39,8 +39,6 @@ fn restart_runs_stop_restart_start_scripts() {
     drop(root);
 }
 
-/// Without a "restart" script, `pacquet restart` runs "stop" and then
-/// "start", each with its pre- and post- scripts.
 #[cfg(unix)]
 #[test]
 fn restart_runs_stop_and_start_when_restart_script_is_missing() {
