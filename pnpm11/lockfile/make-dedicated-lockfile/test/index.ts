@@ -86,6 +86,23 @@ test('a workspace peer dependency stays linked', async () => {
   expect(JSON.parse(fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8')).peerDependencies['@dedicated-lockfile-test/peer-lib']).toBe('workspace:^')
 })
 
+test('a node_modules left staged by an earlier run is not overwritten', async () => {
+  const tmp = f.prepare('workspace-protocol')
+  await installWorkspace(tmp)
+  const projectDir = path.join(tmp, 'packages/app')
+  const stagedMarker = path.join(projectDir, '.tmp_node_modules/original-tree')
+  fs.mkdirSync(path.dirname(stagedMarker))
+  fs.writeFileSync(stagedMarker, '')
+  const manifestBefore = fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8')
+
+  const result = await execa('node', [makeDedicatedLockfileBin], { cwd: projectDir, all: true, reject: false })
+
+  expect(result.exitCode).not.toBe(0)
+  expect(result.all).toContain('ERR_PNPM_STAGED_MODULES_DIR_EXISTS')
+  expect(fs.existsSync(stagedMarker)).toBe(true)
+  expect(fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8')).toBe(manifestBefore)
+})
+
 async function installWorkspace (workspaceDir: string): Promise<void> {
   await execa('node', [
     pnpmBin,

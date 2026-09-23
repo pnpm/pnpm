@@ -1,5 +1,7 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
+import { PnpmError } from '@pnpm/error'
 import { pnpmExec } from '@pnpm/exec'
 import {
   getLockfileImporterId,
@@ -13,6 +15,12 @@ import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { renameOverwrite } from 'rename-overwrite'
 
 export async function makeDedicatedLockfile (lockfileDir: string, projectDir: string): Promise<void> {
+  const tempModulesDir = path.join(projectDir, '.tmp_node_modules')
+  if (fs.existsSync(tempModulesDir)) {
+    throw new PnpmError('STAGED_MODULES_DIR_EXISTS', `${tempModulesDir} already exists`, {
+      hint: 'It holds the node_modules of an earlier run that could not be moved back. Restore or remove it, then run the command again.',
+    })
+  }
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
   if (lockfile == null) {
     throw new Error('no lockfile found')
@@ -44,7 +52,6 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
   await writeProjectManifest(withWorkspaceDependencies(manifest, publishManifest as ProjectManifest))
 
   const modulesDir = path.join(projectDir, 'node_modules')
-  const tempModulesDir = path.join(projectDir, '.tmp_node_modules')
   let modulesRenamed = false
   try {
     await renameOverwrite(modulesDir, tempModulesDir)
@@ -53,7 +60,7 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
     if (err['code'] !== 'ENOENT') throw err
   }
 
-  let installError: unknown
+  const errors: unknown[] = []
   try {
     await pnpmExec([
       'install',
@@ -66,29 +73,33 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
       cwd: projectDir,
     })
   } catch (err) {
-    installError = err
+    errors.push(err)
   }
-  let restoreError: unknown
+  let modulesRestored = !modulesRenamed
   if (modulesRenamed) {
     try {
       await renameOverwrite(tempModulesDir, modulesDir)
+      modulesRestored = true
     } catch (err) {
-      restoreError = err
+      errors.push(err)
     }
   }
-  await writeProjectManifest(manifest)
-  if (installError != null && restoreError != null) {
+  try {
+    await writeProjectManifest(manifest)
+  } catch (err) {
+    errors.push(err)
+  }
+  if (errors.length === 1) {
+    throw errors[0]
+  }
+  if (errors.length > 1) {
     throw new AggregateError(
-      [installError, restoreError],
-      `Installing from the dedicated lockfile failed, and the original node_modules could not be moved back from ${tempModulesDir}`,
-      { cause: installError }
+      errors,
+      modulesRestored
+        ? `Creating the dedicated lockfile in ${projectDir} failed`
+        : `Creating the dedicated lockfile in ${projectDir} failed, and the original node_modules is still in ${tempModulesDir}`,
+      { cause: errors[0] }
     )
-  }
-  if (installError != null) {
-    throw installError
-  }
-  if (restoreError != null) {
-    throw restoreError
   }
 }
 

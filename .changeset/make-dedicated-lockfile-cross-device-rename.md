@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-`make-dedicated-lockfile` now restores `package.json` when it cannot move the original `node_modules` back. If the install also failed, the error names the directory that still holds the original `node_modules`.
+`make-dedicated-lockfile` now restores `package.json` when it cannot move the original `node_modules` back to its place. The error then names `.tmp_node_modules`, where the original `node_modules` was left. The command refuses to run while that directory exists, so a retry cannot overwrite it.
