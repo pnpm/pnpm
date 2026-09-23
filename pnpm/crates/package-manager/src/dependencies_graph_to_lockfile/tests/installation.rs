@@ -645,8 +645,6 @@ fn unchanged_resolutions_keep_their_previous_package_metadata() {
     );
 }
 
-/// pnpm/pnpm#5772: a stale metadata cache serves an older deprecation message
-/// for a version whose lockfile entry already records the current one.
 #[test]
 fn unchanged_resolutions_keep_their_recorded_deprecation_over_stale_metadata() {
     let (_tmp, manifest) = write_manifest(json!({
