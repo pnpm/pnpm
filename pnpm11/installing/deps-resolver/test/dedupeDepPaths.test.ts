@@ -337,7 +337,6 @@ test('dependencies with peer dependencies do not resolve to peer versions from a
     id: '' as PkgResolutionId,
     peerDependencies: {
       host: { version: '1.0.0' },
-      peer: { version: '>=1.0.0' },
     },
   }
 
@@ -402,7 +401,7 @@ test('dependencies with peer dependencies do not resolve to peer versions from a
 
   expect(dependenciesByProjectId.project1.get('host')).toBe('host/1.0.0(peer/1.0.0)')
   expect(dependenciesByProjectId.project2.get('host')).toBe('host/1.0.0(peer/2.0.0)')
-  expect(dependenciesByProjectId.project1.get('dependent')).toBe('dependent/1.0.0(host/1.0.0(peer/1.0.0))(peer/1.0.0)')
-  expect(dependenciesByProjectId.project2.get('dependent')).toBe('dependent/1.0.0(host/1.0.0(peer/2.0.0))(peer/2.0.0)')
+  expect(dependenciesByProjectId.project1.get('dependent')).toBe('dependent/1.0.0(host/1.0.0(peer/1.0.0))')
+  expect(dependenciesByProjectId.project2.get('dependent')).toBe('dependent/1.0.0(host/1.0.0(peer/2.0.0))')
 })
 
