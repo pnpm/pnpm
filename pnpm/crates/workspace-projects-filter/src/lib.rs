@@ -11,7 +11,8 @@
 //!   filter, handling the `--filter-prod` production-only graph.
 //!
 //! A `[<since>]` changed-packages selector selects the projects whose
-//! files changed since the given git ref (`git diff --name-only`),
+//! files changed since the merge base of `HEAD` and the given git ref
+//! (`git diff --name-only`), including uncommitted changes,
 //! honoring `testPattern` / `changedFilesIgnorePattern`.
 
 pub use filter::{

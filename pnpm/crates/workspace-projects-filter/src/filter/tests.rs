@@ -780,6 +780,48 @@ mod changed_packages {
         );
     }
 
+    /// Commits made only on the `<since>` branch after the current
+    /// branch forked from it are not changes of the current branch.
+    /// Uncommitted changes are.
+    #[test]
+    fn select_changed_packages_since_merge_base() {
+        let workspace = TempDir::new().expect("create tempdir");
+        let workspace_dir = workspace.path();
+        init_repo(workspace_dir);
+        let pkg_a_dir = workspace_dir.join("package-a");
+        let pkg_b_dir = workspace_dir.join("package-b");
+        let pkg_c_dir = workspace_dir.join("package-c");
+        for dir in [&pkg_a_dir, &pkg_b_dir, &pkg_c_dir] {
+            touch(&dir.join("file.js"));
+        }
+        commit_all(workspace_dir);
+
+        git(workspace_dir, &["checkout", "-b", "feature"]);
+        fs::write(pkg_a_dir.join("feature.js"), "feature").expect("write file");
+        commit_all(workspace_dir);
+
+        git(workspace_dir, &["checkout", "main"]);
+        fs::write(pkg_b_dir.join("main.js"), "main").expect("write file");
+        commit_all(workspace_dir);
+
+        git(workspace_dir, &["checkout", "feature"]);
+        fs::write(pkg_c_dir.join("file.js"), "uncommitted").expect("write file");
+
+        let graph = graph_of(&[&pkg_a_dir, &pkg_b_dir, &pkg_c_dir]);
+
+        assert_eq!(
+            selected(
+                &graph,
+                &[diff_selector("main")],
+                &FilterWorkspaceProjectsOptions {
+                    workspace_dir: workspace_dir.to_path_buf(),
+                    ..Default::default()
+                },
+            ),
+            [pkg_a_dir.to_string_lossy().into_owned(), pkg_c_dir.to_string_lossy().into_owned()],
+        );
+    }
+
     /// An option-like `<since>` must not be parsed as a git option:
     /// without `--end-of-options`, `[--output=<path>]` would make
     /// `git diff` write its output to an arbitrary file and exit 0.

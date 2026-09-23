@@ -43,8 +43,9 @@ export async function getChangedProjects (
 
   const repoRoot = path.resolve(gitPath ?? opts.workspaceDir, '..')
 
+  const base = await getMergeBase(commit, opts.workspaceDir)
   const { changedDirs: rawChangedDirs, workspaceManifestChanged } = await getChangedDirsSinceCommit(
-    commit,
+    base,
     workingDir,
     repoRoot,
     opts.testPattern ?? [],
@@ -72,7 +73,7 @@ export async function getChangedProjects (
   if (workspaceManifestChanged) {
     await applyCatalogChangesToProjects({
       allProjects: opts.allProjects,
-      commit,
+      commit: base,
       projectChangeTypes,
       projectDirs,
       repoRoot,
@@ -293,6 +294,19 @@ function parseCatalogDep (depName: string, specifier: string): { catalogName: st
     }
   }
   return { catalogName, lookupName }
+}
+
+// Diffing against the merge base keeps commits made only on the `<since>`
+// side out of the result. Without a merge base (a shallow clone, unrelated
+// histories, or an invalid `<since>`), `<since>` itself is diffed, so git
+// still reports a bad revision.
+async function getMergeBase (commit: string, workingDir: string): Promise<string> {
+  try {
+    const { stdout } = await execa('git', ['merge-base', '--end-of-options', commit, 'HEAD'], { cwd: workingDir })
+    return (stdout as string).trim() || commit
+  } catch {
+    return commit
+  }
 }
 
 async function getChangedDirsSinceCommit (
