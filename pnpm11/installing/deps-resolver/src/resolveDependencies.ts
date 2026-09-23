@@ -158,6 +158,11 @@ export interface ResolutionContext extends RegistryContext {
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allPreferredVersions?: PreferredVersions
   updatedSet: Set<string>
+  /**
+   * One snapshot of each package in the wanted lockfile. The dependencies of
+   * a package other than its peers are the same in every snapshot of it.
+   */
+  lockedDepPathByPkgId: Map<PkgResolutionId, DepPath>
   catalogResolver: CatalogResolver
   defaultTag: string
   dryRun: boolean
@@ -347,6 +352,12 @@ interface ResolvedDependenciesOptions {
   // which were used by the previous version are passed
   // via this option
   preferredDependencies?: ResolvedDependencies
+  /**
+   * The dependencies that the lockfile records for the parent package, when
+   * the edge to the parent has no lockfile entry of its own. They are reused
+   * as preferred versions only, so the peers are resolved from scratch.
+   */
+  lockedDependencies?: ResolvedDependencies
   proceed: boolean
   publishedBy?: Date
   pickLowestVersion?: boolean
@@ -897,6 +908,7 @@ export async function resolveDependencies (
 ): Promise<ResolvedDependenciesResult> {
   const extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
     preferredDependencies: options.preferredDependencies,
+    lockedDependencies: options.lockedDependencies,
     preferredVersions,
     prefix: options.prefix,
     proceed: options.proceed || ctx.forceFullResolution,
@@ -1192,6 +1204,9 @@ async function resolveDependenciesOfDependency (
     parentPkg: resolveDependencyResult,
     childrenResolutionId: resolveDependencyResult.childrenResolutionId!,
     dependencyLockfile: extendedWantedDep.infoFromLockfile?.dependencyLockfile,
+    lockedDependencies: extendedWantedDep.infoFromLockfile?.dependencyLockfile == null && !updateRequested
+      ? getLockedDependenciesOfPkg(ctx, resolveDependencyResult)
+      : undefined,
     parentDepth: options.currentDepth,
     parentIds: [...options.parentIds, resolveDependencyResult.pkgId],
     updateDepth,
@@ -1510,6 +1525,7 @@ async function resolveChildren (
     childrenResolutionId,
     parentIds,
     dependencyLockfile,
+    lockedDependencies,
     parentDepth,
     updateDepth,
     updatePatches,
@@ -1521,6 +1537,7 @@ async function resolveChildren (
     childrenResolutionId: number
     parentIds: PkgResolutionId[]
     dependencyLockfile: PackageSnapshot | undefined
+    lockedDependencies?: ResolvedDependencies
     parentDepth: number
     updateDepth: number
     updatePatches?: boolean
@@ -1576,6 +1593,7 @@ async function resolveChildren (
       parentPkg,
       parentPkgAliases,
       preferredDependencies: currentResolvedDependencies,
+      lockedDependencies,
       prefix,
       // If the package is not linked, we should also gather information about its dependencies.
       // After linking the package we'll need to symlink its dependencies.
@@ -1635,6 +1653,7 @@ function getDepsToResolve (
   wantedLockfile: LockfileObject,
   options: RegistryContext & {
     preferredDependencies?: ResolvedDependencies
+    lockedDependencies?: ResolvedDependencies
     preferredVersions?: PreferredVersions
     prefix: string
     proceed: boolean
@@ -1643,6 +1662,7 @@ function getDepsToResolve (
 ): ExtendedWantedDependency[] {
   const resolvedDependencies = options.resolvedDependencies ?? {}
   const preferredDependencies = options.preferredDependencies ?? {}
+  const lockedDependencies = options.lockedDependencies ?? {}
   const extendedWantedDeps: ExtendedWantedDependency[] = []
   // The only reason we resolve children in case the package depends on peers
   // is to get information about the existing dependencies, so that they can
@@ -1695,6 +1715,11 @@ function getDepsToResolve (
       ) {
         proceed = true
         reference = preferredDependencies[wantedDependency.alias]
+      } else if (
+        lockedDependencies[wantedDependency.alias] &&
+        satisfiesWanted(lockedDependencies[wantedDependency.alias])
+      ) {
+        preferredVersion = getPinnedNameVer(wantedLockfile, lockedDependencies[wantedDependency.alias], wantedDependency.alias)?.version
       }
     }
     const infoFromLockfile = getInfoFromLockfile(wantedLockfile, pickRegistryContext(options), reference, wantedDependency.alias)
@@ -1744,9 +1769,13 @@ function referenceSatisfiesWantedSpec (
     })
     return false
   }
-  const { version, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+  const { name, version, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
   let bareSpecifier = wantedDep.bareSpecifier
-  if (registryName != null) {
+  if (registryName == null && bareSpecifier.startsWith('npm:')) {
+    const npmAlias = unwrapPackageName(wantedDep.alias, bareSpecifier)
+    if (npmAlias.pkgName !== name) return false
+    bareSpecifier = npmAlias.bareSpecifier
+  } else if (registryName != null) {
     // A registry-qualified entry may only satisfy a spec of the same named
     // registry. A plain semver range means a default/scope-registry dep, which
     // the qualified entry must never be substituted for.
@@ -1760,6 +1789,23 @@ function referenceSatisfiesWantedSpec (
     return true
   }
   return semver.satisfies(version, bareSpecifier, true)
+}
+
+/**
+ * An edge without a lockfile entry of its own (such as an auto-installed peer)
+ * may resolve to a package that the lockfile already has. That package keeps
+ * the versions of its locked dependencies, as it does when it is reached
+ * through a locked edge.
+ */
+function getLockedDependenciesOfPkg (ctx: ResolutionContext, pkg: PkgAddress): ResolvedDependencies | undefined {
+  const depPath = ctx.lockedDepPathByPkgId.get(pkg.pkgId)
+  if (depPath == null) return undefined
+  const snapshot = getInfoFromLockfile(ctx.wantedLockfile, pickRegistryContext(ctx), depPath, pkg.pkg.name)?.dependencyLockfile
+  if (snapshot == null) return undefined
+  return {
+    ...snapshot.dependencies,
+    ...snapshot.optionalDependencies,
+  }
 }
 
 function getPinnedNameVer (
