@@ -27,7 +27,7 @@ fn pacquet_in_aws_codebuild(workspace: &Path) -> Command {
 
 fn pacquet_without_ci(workspace: &Path) -> Command {
     let mut command = pacquet_in(workspace);
-    command.env_remove("PNPM_CONFIG_CI");
+    command.env_remove("PNPM_CONFIG_CI").env_remove("NODE");
     for name in pnpm_config::CI_ENV_VARS {
         command.env_remove(name);
     }
