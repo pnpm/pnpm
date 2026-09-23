@@ -2,7 +2,7 @@ use super::{
     Config, EnvVar, GetCurrentDir, GetHomeDir, GitHost, HashMap, HoistPatterns, LinkProbe,
     Lockfile, NodeLinker, Path, StoreDir, WantedLockfileSelection, WorkspaceSettings,
     collect_explicit_settings, create_matcher, default_store_dir, esm_node_path_loader,
-    get_current_branch, store_path,
+    get_branch_candidates_from_git, get_branch_from_ci_env, get_current_branch, store_path,
 };
 
 impl Config {
@@ -382,7 +382,17 @@ impl Config {
             merge_git_branch_lockfiles: self.merge_git_branch_lockfiles,
         }
     }
+}
 
+struct GitSysAdapter<Sys>(std::marker::PhantomData<Sys>);
+
+impl<Sys: EnvVar> pnpm_git_utils::EnvVar for GitSysAdapter<Sys> {
+    fn var(name: &str) -> Option<String> {
+        Sys::var(name)
+    }
+}
+
+impl Config {
     /// Resolve the per-branch lockfile settings against the git branch the
     /// process is on: which `pnpm-lock.<branch>.yaml` an install under
     /// `gitBranchLockfile` uses, and whether
@@ -392,7 +402,7 @@ impl Config {
     /// The branch is read from the process's working directory, which is
     /// where pnpm reads it from too — not from the workspace root, which
     /// may sit in a different repository than the one the user is in.
-    pub fn apply_git_branch_lockfile_derivation<Sys: GetCurrentDir>(&mut self) {
+    pub fn apply_git_branch_lockfile_derivation<Sys: GetCurrentDir + EnvVar>(&mut self) {
         // An explicit `mergeGitBranchLockfiles` — including an explicit
         // `false` — settles the question without consulting the pattern.
         let merge_is_explicit = self.explicit_settings.contains_key("mergeGitBranchLockfiles");
@@ -402,14 +412,45 @@ impl Config {
             return;
         }
         let Ok(cwd) = Sys::current_dir() else { return };
-        let Some(branch) = get_current_branch::<GitHost>(&cwd) else { return };
-        if pattern_decides {
+        let current_branch = get_current_branch::<GitHost>(&cwd);
+        if pattern_decides && let Some(branch) = &current_branch {
             self.merge_git_branch_lockfiles =
-                create_matcher(&self.merge_git_branch_lockfiles_branch_pattern).matches(&branch);
+                create_matcher(&self.merge_git_branch_lockfiles_branch_pattern).matches(branch);
         }
         if self.use_git_branch_lockfile {
-            self.git_branch_lockfile_name = Some(Lockfile::git_branch_file_name(&branch));
+            let lockfile_dir = self.lockfile_dir_for(&cwd);
+            let branch = current_branch
+                .or_else(|| get_branch_from_ci_env::<GitSysAdapter<Sys>>(&cwd))
+                .or_else(|| Self::match_git_branch_lockfile::<GitHost>(&cwd, lockfile_dir));
+            if let Some(branch) = branch {
+                self.git_branch_lockfile_name = Some(Lockfile::git_branch_file_name(&branch));
+            }
         }
+    }
+
+    fn match_git_branch_lockfile<Sys: pnpm_git_utils::RunCommand>(
+        cwd: &Path,
+        lockfile_dir: &Path,
+    ) -> Option<String> {
+        let existing_files = Lockfile::git_branch_lockfiles(lockfile_dir).ok()?;
+        if existing_files.is_empty() {
+            return None;
+        }
+        let candidates = get_branch_candidates_from_git::<Sys>(cwd);
+        for candidate in candidates {
+            let expected_name = Lockfile::git_branch_file_name(&candidate);
+            if existing_files
+                .iter()
+                .any(|path| {
+                    path.file_name()
+                        .and_then(std::ffi::OsStr::to_str)
+                        .is_some_and(|name| name == expected_name)
+                })
+            {
+                return Some(candidate);
+            }
+        }
+        None
     }
 
     /// Record the settings `settings` sets in [`Self::explicit_settings`],

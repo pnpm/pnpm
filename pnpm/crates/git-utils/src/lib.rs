@@ -6,7 +6,7 @@
 //!
 //! Counterpart of pnpm's `@pnpm/network.git-utils`.
 
-pub use capabilities::{CommandOutput, Host, RunCommand};
+pub use capabilities::{CommandOutput, EnvVar, Host, RunCommand};
 pub use non_interactive::{
     disable_git_prompts, has_configured_ssh_command, non_interactive_git_env,
 };
@@ -47,8 +47,8 @@ pub fn is_remote_history_clean<Sys: RunCommand>(cwd: &Path) -> bool {
     }
 }
 
-/// The current branch name, or `None` when HEAD is detached. Reads `.git/HEAD`
-/// first, then falls back to `git symbolic-ref`.
+/// The current branch name, or `None` when HEAD is detached or unresolved.
+/// Reads `.git/HEAD` first, then falls back to `git symbolic-ref`.
 #[must_use]
 pub fn get_current_branch<Sys: RunCommand>(cwd: &Path) -> Option<String> {
     match read_branch_from_head_file(cwd) {
@@ -61,6 +61,152 @@ pub fn get_current_branch<Sys: RunCommand>(cwd: &Path) -> Option<String> {
             }
         }
     }
+}
+
+/// Resolve the branch name from standard CI environment variables when `cwd`
+/// is within the CI workspace (or when `PNPM_GIT_BRANCH` is explicitly set).
+fn non_empty_var<Sys: EnvVar>(name: &str) -> Option<String> {
+    Sys::var(name).filter(|value| !value.trim().is_empty())
+}
+
+#[must_use]
+pub fn get_branch_from_ci_env<Sys: EnvVar>(cwd: &Path) -> Option<String> {
+    if let Some(branch) = non_empty_var::<Sys>("PNPM_GIT_BRANCH") {
+        return Some(clean_branch_name(&branch));
+    }
+    if !is_ci_workspace::<Sys>(cwd) {
+        return None;
+    }
+    let branch = non_empty_var::<Sys>("GITHUB_HEAD_REF")
+        .or_else(|| {
+            if non_empty_var::<Sys>("GITHUB_REF_TYPE").as_deref() == Some("tag") {
+                None
+            } else {
+                non_empty_var::<Sys>("GITHUB_REF_NAME")
+            }
+        })
+        .or_else(|| non_empty_var::<Sys>("CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"))
+        .or_else(|| non_empty_var::<Sys>("CI_COMMIT_BRANCH"))
+        .or_else(|| non_empty_var::<Sys>("BUILDKITE_BRANCH"))
+        .or_else(|| non_empty_var::<Sys>("CIRCLE_BRANCH"))
+        .or_else(|| non_empty_var::<Sys>("BITBUCKET_PR_SOURCE_BRANCH"))
+        .or_else(|| non_empty_var::<Sys>("BITBUCKET_BRANCH"))
+        .or_else(|| non_empty_var::<Sys>("SYSTEM_PULLREQUEST_SOURCEBRANCH"))
+        .or_else(|| non_empty_var::<Sys>("BUILD_SOURCEBRANCHNAME"))
+        .or_else(|| non_empty_var::<Sys>("CHANGE_BRANCH"))
+        .or_else(|| non_empty_var::<Sys>("BRANCH_NAME"))
+        .or_else(|| non_empty_var::<Sys>("GIT_BRANCH"))
+        .or_else(|| non_empty_var::<Sys>("CI_BRANCH"))
+        .or_else(|| {
+            non_empty_var::<Sys>("GITHUB_REF")
+                .filter(|github_ref| github_ref.starts_with("refs/heads/"))
+        })?;
+
+    let cleaned = clean_branch_name(&branch);
+    if cleaned.is_empty() { None } else { Some(cleaned) }
+}
+
+fn candidate_from_name_rev<Sys: RunCommand>(cwd: &Path) -> Option<String> {
+    let output = Sys::run(
+        "git",
+        &["name-rev", "--name-only", "--no-undefined", "--exclude=tags/*", "HEAD"],
+        Some(cwd),
+    )
+    .ok()?;
+    if !output.success {
+        return None;
+    }
+    let name = output.stdout.trim();
+    let base_name = name.split(['~', '^']).next()?.trim();
+    if base_name.is_empty() || base_name == "undefined" {
+        return None;
+    }
+    let cleaned = clean_branch_name(base_name);
+    if cleaned.is_empty() || cleaned == "HEAD" {
+        return None;
+    }
+    Some(cleaned)
+}
+
+fn candidates_from_branch_contains<Sys: RunCommand>(cwd: &Path) -> Vec<String> {
+    let mut candidates = Vec::new();
+    let Ok(output) = Sys::run(
+        "git",
+        &["branch", "-a", "--format=%(refname:short)", "--contains", "HEAD"],
+        Some(cwd),
+    ) else {
+        return candidates;
+    };
+    if !output.success {
+        return candidates;
+    }
+    for line in output.stdout.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('(') || trimmed.starts_with("HEAD detached") {
+            continue;
+        }
+        let cleaned = clean_branch_name(trimmed);
+        if !cleaned.is_empty() && cleaned != "HEAD" && !candidates.contains(&cleaned) {
+            candidates.push(cleaned);
+        }
+    }
+    candidates
+}
+
+/// Query candidate branches containing HEAD from git on detached HEAD.
+#[must_use]
+pub fn get_branch_candidates_from_git<Sys: RunCommand>(cwd: &Path) -> Vec<String> {
+    if matches!(read_branch_from_head_file(cwd), HeadBranch::Branch(_) | HeadBranch::Refused) {
+        return Vec::new();
+    }
+    let mut candidates = Vec::new();
+    if let Some(candidate) = candidate_from_name_rev::<Sys>(cwd) {
+        candidates.push(candidate);
+    }
+    for candidate in candidates_from_branch_contains::<Sys>(cwd) {
+        if !candidates.contains(&candidate) {
+            candidates.push(candidate);
+        }
+    }
+    candidates
+}
+
+fn clean_branch_name(name: &str) -> String {
+    let trimmed = name.trim();
+    if let Some(branch) = trimmed.strip_prefix("refs/heads/") {
+        branch.to_owned()
+    } else if let Some(branch) = trimmed.strip_prefix("remotes/origin/") {
+        branch.to_owned()
+    } else if let Some(branch) = trimmed.strip_prefix("origin/") {
+        branch.to_owned()
+    } else {
+        trimmed.to_owned()
+    }
+}
+
+fn is_ci_workspace<Sys: EnvVar>(cwd: &Path) -> bool {
+    if non_empty_var::<Sys>("CI").is_none()
+        && non_empty_var::<Sys>("CONTINUOUS_INTEGRATION").is_none()
+    {
+        return false;
+    }
+    let ci_workspaces: Vec<PathBuf> = [
+        "GITHUB_WORKSPACE",
+        "CI_PROJECT_DIR",
+        "BUILDKITE_BUILD_CHECKOUT_PATH",
+        "BITBUCKET_CLONE_DIR",
+    ]
+    .iter()
+    .filter_map(|key| non_empty_var::<Sys>(key))
+    .map(PathBuf::from)
+    .collect();
+
+    if !ci_workspaces.is_empty() {
+        return ci_workspaces
+            .iter()
+            .any(|workspace| cwd.starts_with(workspace));
+    }
+    true
 }
 
 /// Verify that HEAD resolves to a detached commit. Refused metadata and failed
@@ -114,7 +260,7 @@ fn git_dir_of(
         return Ok(dot_git);
     }
     if !metadata.is_file() {
-        return Err(HeadBranch::Unknown);
+        return Err(HeadBranch::Refused);
     }
     let content = match read_git_metadata_file(&dot_git) {
         GitMetadata::Content(content) => content,

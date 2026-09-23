@@ -2,7 +2,17 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { getCurrentBranch, isGitRepo, isHeadDetached, isWorkingTreeClean, nonInteractiveGitEnv, nonInteractiveGitSubmoduleEnv, safeGitEnv } from '@pnpm/network.git-utils'
+import {
+  getBranchCandidatesFromGit,
+  getBranchFromCiEnv,
+  getCurrentBranch,
+  isGitRepo,
+  isHeadDetached,
+  isWorkingTreeClean,
+  nonInteractiveGitEnv,
+  nonInteractiveGitSubmoduleEnv,
+  safeGitEnv,
+} from '@pnpm/network.git-utils'
 import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
 
@@ -54,6 +64,55 @@ test('getCurrentBranch returns null for detached HEAD', async () => {
   const subdir = path.join(tempDir, 'subdir')
   fs.mkdirSync(subdir)
   await expect(isHeadDetached({ cwd: subdir })).resolves.toBe(true)
+})
+
+test('getBranchFromCiEnv detects branch from environment', () => {
+  const originalEnv = { ...process.env }
+  try {
+    for (const key of Object.keys(process.env)) {
+      if (/^(?:GITHUB_|CI_|BUILDKITE|CIRCLE_|BITBUCKET_|SYSTEM_|BUILD_)|^(?:CHANGE_BRANCH|BRANCH_NAME|GIT_BRANCH|CONTINUOUS_INTEGRATION|CI|PNPM_GIT_BRANCH)$/.test(key)) {
+        delete process.env[key]
+      }
+    }
+    process.env.PNPM_GIT_BRANCH = 'feature-x'
+    expect(getBranchFromCiEnv()).toBe('feature-x')
+
+    delete process.env.PNPM_GIT_BRANCH
+    process.env.CI = 'true'
+    process.env.GITHUB_WORKSPACE = '/workspace/repo'
+    process.env.GITHUB_HEAD_REF = 'pr-branch'
+    expect(getBranchFromCiEnv('/workspace/repo')).toBe('pr-branch')
+    expect(getBranchFromCiEnv('/tmp/somewhere')).toBeNull()
+
+    delete process.env.GITHUB_HEAD_REF
+    process.env.GITHUB_REF_NAME = 'main'
+    expect(getBranchFromCiEnv('/workspace/repo')).toBe('main')
+
+    process.env.GITHUB_REF_TYPE = 'tag'
+    expect(getBranchFromCiEnv('/workspace/repo')).toBeNull()
+
+    delete process.env.GITHUB_REF_TYPE
+    delete process.env.GITHUB_REF_NAME
+    process.env.BUILDKITE_BRANCH = 'buildkite-feat'
+    expect(getBranchFromCiEnv('/workspace/repo')).toBe('buildkite-feat')
+  } finally {
+    process.env = originalEnv
+  }
+})
+
+test('getBranchCandidatesFromGit finds branches containing detached HEAD', async () => {
+  const tempDir = temporaryDirectory()
+
+  await execa('git', ['init'], { cwd: tempDir })
+  await execa('git', ['checkout', '-b', 'feat/candidate'], { cwd: tempDir })
+  await execa('git', ['config', 'user.email', 'test@test.com'], { cwd: tempDir })
+  await execa('git', ['config', 'user.name', 'test'], { cwd: tempDir })
+  await execa('git', ['config', 'commit.gpgsign', 'false'], { cwd: tempDir })
+  await execa('git', ['commit', '--allow-empty', '-m', 'feat commit'], { cwd: tempDir })
+  await execa('git', ['checkout', '--detach', 'HEAD'], { cwd: tempDir })
+
+  const candidates = await getBranchCandidatesFromGit({ cwd: tempDir })
+  expect(candidates).toContain('feat/candidate')
 })
 
 test('getCurrentBranch returns null outside a git repo', async () => {

@@ -44,9 +44,14 @@ export async function writeWantedLockfile (
     /** Pre-resolved filename; skips the `getWantedLockfileName` (and
      *  its `getCurrentBranch`) call when supplied. */
     lockfileName?: string
+    lockfileDir?: string
+    cwd?: string
   }
 ): Promise<LockfileObject> {
-  const wantedLockfileName: string = opts?.lockfileName ?? await getWantedLockfileName(opts)
+  const wantedLockfileName: string = opts?.lockfileName ?? await getWantedLockfileName({
+    ...opts,
+    lockfileDir: opts?.lockfileDir ?? pkgPath,
+  })
   return writeLockfile(wantedLockfileName, pkgPath, wantedLockfile)
 }
 
@@ -226,9 +231,13 @@ export async function writeLockfiles (
     mergeGitBranchLockfiles?: boolean
     /** See {@link writeWantedLockfile}'s `lockfileName` option. */
     wantedLockfileName?: string
+    cwd?: string
   }
 ): Promise<WriteLockfilesResult> {
-  const wantedLockfileName: string = opts.wantedLockfileName ?? await getWantedLockfileName(opts)
+  const wantedLockfileName: string = opts.wantedLockfileName ?? await getWantedLockfileName({
+    ...opts,
+    lockfileDir: opts.wantedLockfileDir,
+  })
   const wantedLockfilePath = path.join(opts.wantedLockfileDir, wantedLockfileName)
   const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')
 

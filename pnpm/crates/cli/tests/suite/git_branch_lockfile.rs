@@ -378,3 +378,82 @@ fn merging_with_nothing_to_merge_still_rejects_an_outdated_lockfile() {
         drop((root, mock_instance));
     }
 }
+
+#[test]
+fn a_detached_head_installs_against_candidate_branch_lockfile() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    std::process::Command::new("git")
+        .args(["init", "-b", "feature/Candidate"])
+        .current_dir(&workspace)
+        .status()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.name", "Test"])
+        .current_dir(&workspace)
+        .status()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.email", "test@test.com"])
+        .current_dir(&workspace)
+        .status()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "commit.gpgsign", "false"])
+        .current_dir(&workspace)
+        .status()
+        .unwrap();
+    append_workspace_yaml_key(&workspace, "gitBranchLockfile", true);
+    write_dependencies(&workspace, &serde_json::json!({ "@pnpm.e2e/foo": "1.0.0" }));
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert!(workspace.join("pnpm-lock.feature!candidate.yaml").exists());
+
+    std::process::Command::new("git")
+        .args(["add", "."])
+        .current_dir(&workspace)
+        .status()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["commit", "-m", "init"])
+        .current_dir(&workspace)
+        .status()
+        .unwrap();
+    let sha = String::from_utf8(
+        std::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&workspace)
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap();
+    std::process::Command::new("git")
+        .args(["checkout", "--detach", sha.trim()])
+        .current_dir(&workspace)
+        .status()
+        .unwrap();
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    assert!(
+        !workspace.join("pnpm-lock.yaml").exists(),
+        "shared lockfile should not be created when matching candidate branch lockfile exists",
+    );
+
+    drop((root, mock_instance));
+}
