@@ -76,6 +76,18 @@ fn keeps_the_private_installs_a_process_still_holds() {
 }
 
 #[test]
+fn removes_a_file_named_private_as_litter() {
+    let root = tempfile::tempdir().unwrap();
+    let store = StoreDir::new(root.path().join("store"));
+    fs::create_dir_all(store.tmp()).unwrap();
+    fs::write(store.tmp().join("private"), "").unwrap();
+
+    prune_cas(&store).unwrap();
+
+    assert!(!store.tmp().exists());
+}
+
+#[test]
 fn unlinks_a_linked_tmp_without_following_it() {
     let root = tempfile::tempdir().unwrap();
     let store = StoreDir::new(root.path().join("store"));

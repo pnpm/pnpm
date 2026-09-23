@@ -246,12 +246,16 @@ fn a_held_runtime_lock_installs_the_runtime_privately() {
     let version = "24.0.0-rc.4";
     let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
     let (project, global_target) = runtime_pin_project(&root, &server, version, ".nvmrc");
+    // The mocked release's `node` prints nothing; the global and local
+    // fallbacks each print their name, so empty output is the pinned
+    // runtime's signature.
     let dispatch = || {
         shim_command(&root, &project, "node", global_target.to_str().unwrap())
             .with_env(AUTO_TRUST_ENV, "1")
             .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
             .assert()
-            .success();
+            .success()
+            .stdout("");
     };
     // A first dispatch names the runtime's environment, and with it its
     // lock.

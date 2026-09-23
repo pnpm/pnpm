@@ -154,7 +154,13 @@ fn remove_tmp(store_dir: &StoreDir) -> Result<(), PruneCasError> {
     for entry in entries {
         let entry = entry.map_err(|error| PruneCasError::RemoveTmp { path: tmp.clone(), error })?;
         let path = entry.path();
-        let result = if entry.file_name() == PRIVATE_INSTALLS_DIR {
+        let is_dir = entry
+            .file_type()
+            .map_err(|error| PruneCasError::RemoveTmp { path: path.clone(), error })?
+            .is_dir();
+        // Only a real directory can hold private installs; a file or link
+        // by that name is litter like any other entry.
+        let result = if is_dir && entry.file_name() == PRIVATE_INSTALLS_DIR {
             store_dir
                 .remove_orphaned_private_installs()
                 .map(|_| ())
