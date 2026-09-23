@@ -126,6 +126,30 @@ pub(super) enum StoreUse {
     Never,
 }
 
+fn talks_only_to_the_registry(command: &CliCommand) -> bool {
+    matches!(
+        command,
+        CliCommand::Access(_)
+            | CliCommand::Bugs(_)
+            | CliCommand::Deprecate(_)
+            | CliCommand::DistTag(_)
+            | CliCommand::Docs(_)
+            | CliCommand::Login(_)
+            | CliCommand::Logout(_)
+            | CliCommand::Owner(_)
+            | CliCommand::Ping(_)
+            | CliCommand::Repo(_)
+            | CliCommand::Search(_)
+            | CliCommand::Star(_)
+            | CliCommand::Stars(_)
+            | CliCommand::Team(_)
+            | CliCommand::Undeprecate(_)
+            | CliCommand::Unpublish(_)
+            | CliCommand::Unstar(_)
+            | CliCommand::Whoami,
+    )
+}
+
 impl StoreUse {
     /// A command missing from these lists only pays for an unneeded probe.
     pub(super) fn of(command: &CliCommand) -> Self {
@@ -137,6 +161,7 @@ impl StoreUse {
             | CliCommand::Root(_)
             | CliCommand::Prefix(_)
             | CliCommand::Bin(_) => StoreUse::Never,
+            command if talks_only_to_the_registry(command) => StoreUse::Never,
             CliCommand::Exec(_)
             | CliCommand::Run(_)
             | CliCommand::Test(_)
