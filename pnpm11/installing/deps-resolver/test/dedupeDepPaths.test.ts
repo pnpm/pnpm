@@ -317,3 +317,92 @@ test('a deep chain of peer-suffixed children does not overflow the call stack', 
     'pkg0/1.0.0' as DepPath
   )).toBe(true)
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/6200
+test('dependencies with peer dependencies do not resolve to peer versions from another workspace project when dedupePeerDependents is true', async () => {
+  const hostPkg: PartialResolvedPackage = {
+    name: 'host',
+    version: '1.0.0',
+    pkgIdWithPatchHash: 'host/1.0.0' as PkgIdWithPatchHash,
+    id: '' as PkgResolutionId,
+    peerDependencies: {
+      peer: { version: '>=1.0.0' },
+    },
+  }
+
+  const dependentPkg: PartialResolvedPackage = {
+    name: 'dependent',
+    version: '1.0.0',
+    pkgIdWithPatchHash: 'dependent/1.0.0' as PkgIdWithPatchHash,
+    id: '' as PkgResolutionId,
+    peerDependencies: {
+      host: { version: '1.0.0' },
+      peer: { version: '>=1.0.0' },
+    },
+  }
+
+  const peerPkg = (version: string): PartialResolvedPackage => ({
+    name: 'peer',
+    version,
+    pkgIdWithPatchHash: `peer/${version}` as PkgIdWithPatchHash,
+    peerDependencies: {},
+    id: '' as PkgResolutionId,
+  })
+
+  const treeNode = (resolvedPackage: PartialResolvedPackage, children: Record<string, NodeId> = {}) => ({
+    children,
+    installable: true,
+    resolvedPackage,
+    depth: 0,
+  } as DependenciesTreeNode<PartialResolvedPackage>)
+
+  const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+    ['>project1>dependent/1.0.0>' as NodeId, treeNode(dependentPkg)],
+    ['>project1>host/1.0.0>' as NodeId, treeNode(hostPkg)],
+    ['>project1>peer/1.0.0>' as NodeId, treeNode(peerPkg('1.0.0'))],
+
+    ['>project2>dependent/1.0.0>' as NodeId, treeNode(dependentPkg)],
+    ['>project2>host/1.0.0>' as NodeId, treeNode(hostPkg)],
+    ['>project2>peer/2.0.0>' as NodeId, treeNode(peerPkg('2.0.0'))],
+  ])
+
+  const { dependenciesByProjectId } = await resolvePeers({
+    allPeerDepNames: new Set(['host', 'peer']),
+    projects: [
+      {
+        directNodeIdsByAlias: new Map([
+          ['dependent', '>project1>dependent/1.0.0>' as NodeId],
+          ['host', '>project1>host/1.0.0>' as NodeId],
+          ['peer', '>project1>peer/1.0.0>' as NodeId],
+        ]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: 'project1' as PkgResolutionId,
+      },
+      {
+        directNodeIdsByAlias: new Map([
+          ['dependent', '>project2>dependent/1.0.0>' as NodeId],
+          ['host', '>project2>host/1.0.0>' as NodeId],
+          ['peer', '>project2>peer/2.0.0>' as NodeId],
+        ]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: 'project2' as PkgResolutionId,
+      },
+    ],
+    resolvedImporters: {},
+    dependenciesTree,
+    dedupePeerDependents: true,
+    virtualStoreDir: '',
+    virtualStoreDirMaxLength: 120,
+    lockfileDir: '',
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(),
+  })
+
+  expect(dependenciesByProjectId.project1.get('host')).toBe('host/1.0.0(peer/1.0.0)')
+  expect(dependenciesByProjectId.project2.get('host')).toBe('host/1.0.0(peer/2.0.0)')
+  expect(dependenciesByProjectId.project1.get('dependent')).toBe('dependent/1.0.0(host/1.0.0(peer/1.0.0))(peer/1.0.0)')
+  expect(dependenciesByProjectId.project2.get('dependent')).toBe('dependent/1.0.0(host/1.0.0(peer/2.0.0))(peer/2.0.0)')
+})
+
