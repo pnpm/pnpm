@@ -15,18 +15,14 @@ impl HostedBackend for Store {
         if fs::try_exists(&complete).await? {
             return Ok(());
         }
+        let index = self.root.join(".package-index");
         let mut files = self.list_blob_files();
         while let Some(file) = files.next().await {
             let file = file?;
             let Some(name) = file.path.strip_suffix("/package.json") else { continue };
-            write_atomic(
-                &self.root
-                    .join(".package-index")
-                    .join(name)
-                    .join(".present"),
-                b"",
-            )
-            .await?;
+            let marker_dir = index.join(name);
+            fs::create_dir_all(&marker_dir).await?;
+            write_index_marker(&marker_dir.join(".present")).await?;
         }
         write_atomic(&complete, b"").await
     }
@@ -251,4 +247,32 @@ async fn blob_file(root: &Path, entry: &fs::DirEntry) -> Result<HostedBlobFile> 
         .to_string_lossy()
         .replace('\\', "/");
     Ok(HostedBlobFile { path, modified: metadata.modified()?, size: metadata.len() })
+}
+
+/// Writes an empty index marker so it reaches the device before `.complete`
+/// does. On Apple platforms `sync_all` is `F_FULLFSYNC`, which also flushes
+/// the drive cache and costs about 4 ms alone and 19 ms under load, once per
+/// package. A plain `fsync` hands the marker to the device, and the
+/// `F_FULLFSYNC` that publishes `.complete` afterwards flushes the drive
+/// cache for everything written before it.
+async fn write_index_marker(path: &Path) -> Result<()> {
+    let file = fs::File::create(path).await?;
+    #[cfg(target_vendor = "apple")]
+    {
+        let file = file.into_std().await;
+        tokio::task::spawn_blocking(move || {
+            use std::os::fd::AsRawFd as _;
+            // SAFETY: `file` keeps the descriptor open for the whole call.
+            if unsafe { libc::fsync(file.as_raw_fd()) } == 0 {
+                Ok(())
+            } else {
+                Err(std::io::Error::last_os_error())
+            }
+        })
+        .await
+        .map_err(std::io::Error::other)??;
+    }
+    #[cfg(not(target_vendor = "apple"))]
+    file.sync_all().await?;
+    Ok(())
 }
