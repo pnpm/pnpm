@@ -1,13 +1,97 @@
 use super::{
-    FsRemoveDirAll, FsRemoveNonDirDirent, clear_dir_blocking_file, clear_dirent_blocking_dir,
-    dir_fits_at, entries_by_target_dir, file_fits_at,
+    FsRemoveDirAll, FsRemoveNonDirDirent, Placement, clear_dir_blocking_file,
+    clear_dirent_blocking_dir, dir_fits_at, entries_by_target_dir, file_fits_at, populate_dir,
 };
+use pnpm_config::PackageImportMethod;
+use pnpm_reporter::SilentReporter;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     fs, io,
     path::{Path, PathBuf},
+    sync::{Mutex, PoisonError, atomic::AtomicU8},
 };
 use tempfile::tempdir;
+
+/// Per target directory, how many workers are placing entries in it and
+/// the most there have been at once. Keyed by absolute path, so tests
+/// sharing the process only ever read their own directories.
+static DIRECTORY_WRITERS: Mutex<BTreeMap<PathBuf, DirectoryWriters>> = Mutex::new(BTreeMap::new());
+
+#[derive(Default)]
+pub(super) struct DirectoryWriters {
+    current: usize,
+    max: usize,
+}
+
+impl DirectoryWriters {
+    /// Count one worker into the directory `cleaned_entry` lands in until
+    /// the guard drops.
+    pub(super) fn enter(dir_path: &Path, cleaned_entry: &str) -> DirectoryWriter {
+        let directory =
+            dir_path.join(Path::new(cleaned_entry).parent().unwrap_or_else(|| Path::new("")));
+        let mut writers = DIRECTORY_WRITERS.lock().unwrap_or_else(PoisonError::into_inner);
+        let writers = writers.entry(directory.clone()).or_default();
+        writers.current += 1;
+        writers.max = writers.max.max(writers.current);
+        DirectoryWriter { directory }
+    }
+
+    fn max_at_once(directory: &Path) -> usize {
+        DIRECTORY_WRITERS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(directory)
+            .map_or(0, |writers| writers.max)
+    }
+}
+
+pub(super) struct DirectoryWriter {
+    directory: PathBuf,
+}
+
+impl Drop for DirectoryWriter {
+    fn drop(&mut self) {
+        let mut writers = DIRECTORY_WRITERS.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(writers) = writers.get_mut(&self.directory) {
+            writers.current -= 1;
+        }
+    }
+}
+
+#[test]
+fn a_directory_has_one_writer_at_a_time() {
+    let root = tempdir().unwrap();
+    let store = root.path().join("store");
+    fs::create_dir(&store).unwrap();
+    let mut cas_paths: HashMap<String, PathBuf> = HashMap::new();
+    for directory in ["lib", "lib/esm"] {
+        for index in 0..200 {
+            let store_path = store.join(format!("{}-{index}", directory.replace('/', "-")));
+            fs::write(&store_path, b"payload").unwrap();
+            cas_paths.insert(format!("{directory}/{index}.js"), store_path);
+        }
+    }
+    let manifest = store.join("package.json");
+    fs::write(&manifest, b"{}").unwrap();
+    cas_paths.insert("package.json".to_string(), manifest);
+    let target = root.path().join("pkg");
+
+    populate_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas_paths,
+        Placement::Fresh,
+    )
+    .unwrap();
+
+    for directory in ["lib", "lib/esm"] {
+        assert_eq!(DirectoryWriters::max_at_once(&target.join(directory)), 1, "{directory}");
+    }
+    assert!(target.join("lib/199.js").is_file());
+    assert!(target.join("lib/esm/199.js").is_file());
+    assert!(target.join("package.json").is_file());
+}
 
 #[test]
 fn entries_are_grouped_by_the_directory_they_land_in() {

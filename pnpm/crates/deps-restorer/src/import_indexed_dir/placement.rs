@@ -37,6 +37,8 @@ pub(super) fn populate_dir<Reporter: self::Reporter>(
             entries
                 .iter()
                 .try_for_each(|(cleaned_entry, store_path)| {
+                    #[cfg(test)]
+                    let _writer = tests::DirectoryWriters::enter(dir_path, cleaned_entry);
                     place_entry::<Reporter>(
                         placement,
                         logged_methods,
