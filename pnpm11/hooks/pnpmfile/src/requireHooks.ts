@@ -96,16 +96,18 @@ export async function requireHooks (
     })
   }
   const entries: PnpmfileEntryLoaded[] = []
-  const loadedFiles: string[] = []
   // Must stay sequential: loading in parallel registers .mjs pnpmfiles in import
   // completion order, not in the order listed above.
   for (const { path, fallbackPath, includeInChecksum, optional } of pnpmfiles) {
     for (const candidate of fallbackPath == null ? [path] : [path, fallbackPath]) {
       const file = pathAbsolute(candidate, prefix)
-      if (loadedFiles.includes(file)) break
+      const loadedEntry = entries.find((entry) => entry.file === file)
+      if (loadedEntry != null) {
+        loadedEntry.includeInChecksum ||= includeInChecksum
+        break
+      }
       const requirePnpmfileResult = await requirePnpmfile(file, prefix) // eslint-disable-line no-await-in-loop
       if (requirePnpmfileResult != null) {
-        loadedFiles.push(file)
         entries.push({
           file,
           includeInChecksum,
