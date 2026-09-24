@@ -2138,6 +2138,7 @@ async function resolveDependency (
         pickLowestVersion: options.pickLowestVersion,
         downloadPriority: -options.currentDepth,
         lockfileDir: ctx.lockfileDir,
+        nodeVersion: ctx.nodeVersion,
         preferredVersions,
         preferWorkspacePackages: ctx.preferWorkspacePackages,
         projectDir: (

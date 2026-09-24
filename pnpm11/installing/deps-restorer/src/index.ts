@@ -59,6 +59,7 @@ import {
 } from '@pnpm/lockfile.fs'
 import { PACKAGE_MAP_FILENAME, removePackageMap, writePackageMap, writePackageMapFromDependenciesGraph, writePnpFile } from '@pnpm/lockfile.to-pnp'
 import {
+  findLockedRootNodeRuntime,
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
 import {
@@ -322,7 +323,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     ? opts.currentEngine
     : {
       ...opts.currentEngine,
-      nodeVersion: findRootRuntimeNodeVersion(wantedLockfile) ?? opts.currentEngine.nodeVersion,
+      nodeVersion: findLockedRootNodeRuntime(wantedLockfile)?.version ?? opts.currentEngine.nodeVersion,
     }
   const filterOpts = {
     include: opts.include,
@@ -1285,20 +1286,6 @@ async function workspaceHoistPointsToProject (projectId: ProjectId, aliases: Rec
       throw error
     }
   }))).some(Boolean)
-}
-
-/**
- * The Node.js version the root project's `node` runtime dependency is locked
- * to: the Node.js pnpm installs for the project.
- */
-function findRootRuntimeNodeVersion (lockfile: LockfileObject): string | undefined {
-  const rootImporter = lockfile.importers['.' as ProjectId]
-  if (rootImporter == null) return undefined
-  for (const depType of DEPENDENCIES_FIELDS) {
-    const ref = rootImporter[depType]?.node
-    if (ref?.startsWith('runtime:')) return ref.slice('runtime:'.length)
-  }
-  return undefined
 }
 
 function lockfileRemovesPackages (currentLockfile: LockfileObject | null, wantedLockfile: LockfileObject): boolean {

@@ -166,6 +166,11 @@ export interface RequestPackageOptions {
   ignoreScripts?: boolean
   projectDir: string
   lockfileDir: string
+  /**
+   * The Node.js version this package's engines are checked against. Defaults
+   * to the one the store controller was created with.
+   */
+  nodeVersion?: string
   preferredVersions: PreferredVersions
   preferWorkspacePackages?: boolean
   sideEffectsCache?: boolean
