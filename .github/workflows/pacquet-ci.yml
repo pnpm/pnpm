@@ -144,7 +144,7 @@ jobs:
       # Windows suite runs on main, in the merge queue and on manual runs, so
       # a full Windows run for a pull request is one workflow_dispatch away.
       # Windows Clippy still compiles the Windows-only code on every PR.
-      RUST_TEST_SCOPE: ${{ (matrix.os_label == 'windows' && github.event_name == 'pull_request') && 'smoke' || 'full' }}
+      RUST_TEST_SCOPE: full # TEMPORARY: one full Windows run on this PR, reverted before review
       # Main only restores compiler cache entries that main wrote.
       SCCACHE_SCOPE: ${{ github.event.pull_request.number && format('pr{0}', github.event.pull_request.number) || github.ref_name }}
     strategy:
