@@ -441,13 +441,8 @@ fn settings_block_fast_path(
     if !project_structure_matches(state, project_manifests) {
         return Some("workspace project list changed");
     }
-    // The "modules dir exists when the project has deps" gate: a
-    // project with `dependencies`/`devDependencies` but no
-    // `node_modules` cannot be up to date. The `modulesDir` is read
-    // off the per-project config; pacquet doesn't track per-importer
-    // overrides yet, so check the install-time `config.modules_dir`
-    // for the root + `<project_root>/node_modules` for siblings,
-    // matching the `isolated`-linker default.
+    // A project with `dependencies`/`devDependencies` but no modules
+    // directory cannot be up to date.
     if !modules_dirs_present(check) {
         return Some("project has dependencies but no node_modules directory");
     }

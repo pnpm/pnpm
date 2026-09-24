@@ -242,8 +242,19 @@ pub(super) fn first_project_missing_modules_dir(
         .find_map(|(root_dir, manifest)| {
             let root_project_dir = workspace_dir_of(config, root_dir);
             let is_root = *root_dir == root_project_dir;
+            let sibling_modules_dir = || {
+                root_dir.join(config.modules_dir_name_for(
+                    root_dir,
+                    manifest_string_field(manifest, "name").as_deref(),
+                ))
+            };
             let installed = !manifest_has_runtime_deps(manifest)
-                || modules_dir_exists(node_linker, root_dir, is_root, root_modules_dir_exists)
+                || modules_dir_exists(
+                    node_linker,
+                    is_root,
+                    root_modules_dir_exists,
+                    sibling_modules_dir,
+                )
                 || (!is_root
                     && root_modules_dir_exists
                     && config.dedupe_direct_deps
@@ -263,15 +274,13 @@ pub(super) fn first_project_missing_modules_dir(
         })
 }
 
-/// The root importer uses `config.modules_dir`; siblings use their own
-/// `<root>/node_modules`. Matches the isolated-linker default —
-/// `config.modules_dir` is `<workspace_root>/node_modules` unless the user
-/// overrode it explicitly.
+/// The root importer uses `config.modules_dir`; under the isolated linker
+/// each sibling has its own, the directory `sibling_modules_dir` names.
 fn modules_dir_exists(
     node_linker: NodeLinker,
-    root_dir: &Path,
     is_root: bool,
     root_modules_dir_exists: bool,
+    sibling_modules_dir: impl FnOnce() -> PathBuf,
 ) -> bool {
     match node_linker {
         NodeLinker::Hoisted => root_modules_dir_exists,
@@ -279,7 +288,7 @@ fn modules_dir_exists(
             if is_root {
                 root_modules_dir_exists
             } else {
-                root_dir.join("node_modules").is_dir()
+                sibling_modules_dir().is_dir()
             }
         }
     }
