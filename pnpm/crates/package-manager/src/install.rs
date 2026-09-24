@@ -18,7 +18,7 @@ pub(crate) use modules_state::{
 pub use run::{InstallExecution, InstallLockfilePolicy, ResolutionInputs};
 pub use workspace_state::{
     UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,
-    check_deps_status_before_run_at, install_already_up_to_date,
+    check_deps_status_before_run_at, deps_install_root, install_already_up_to_date,
 };
 pub(crate) use workspace_state::{
     build_workspace_state, configured_or_discovered_workspace_dir, lockfile_root_dir,
