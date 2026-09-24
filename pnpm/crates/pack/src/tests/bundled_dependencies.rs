@@ -2,7 +2,10 @@ use super::{
     Host, NodeLinker, SilentReporter, api, fixture, install_module, json, tarball_entry_content,
 };
 use pnpm_fs::symlink_dir;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 /// `pack` bundles dependencies listed in `bundleDependencies`.
 /// Covers the `fs-packlist` `bundleDependencies` recursion and the
@@ -173,9 +176,14 @@ fn bundles_isolated_workspace_dependencies_from_the_project_when_publishing_a_su
 }
 
 /// Lay out `name@version` the way the isolated linker does: the package in
-/// its own `.pnpm` slot, each dependency linked next to it, and `name` linked
-/// from `project`'s `node_modules`.
-fn link_isolated(project: &Path, name: &str, version: &str, dependencies: &[(&str, &str)]) {
+/// its own `.pnpm` slot with each dependency linked next to it. Returns the
+/// package directory.
+fn add_to_virtual_store(
+    project: &Path,
+    name: &str,
+    version: &str,
+    dependencies: &[(&str, &str)],
+) -> PathBuf {
     let slot = project.join(format!("node_modules/.pnpm/{name}@{version}/node_modules"));
     let package = slot.join(name);
     fs::create_dir_all(&package).unwrap();
@@ -195,10 +203,12 @@ fn link_isolated(project: &Path, name: &str, version: &str, dependencies: &[(&st
             .join(dependency);
         symlink_dir(&target, &slot.join(dependency)).unwrap();
     }
-    let link = project.join("node_modules").join(name);
-    if !link.exists() {
-        symlink_dir(&package, &link).unwrap();
-    }
+    package
+}
+
+/// Link a package from the virtual store into `project`'s `node_modules`.
+fn link_direct_dependency(project: &Path, name: &str, package: &Path) {
+    symlink_dir(package, &project.join("node_modules").join(name)).unwrap();
 }
 
 #[test]
@@ -209,9 +219,9 @@ fn bundles_dependencies_of_an_isolated_bundled_dependency() {
         "dependencies": { "top": "1.0.0" },
         "bundleDependencies": ["top"],
     }));
-    link_isolated(dir.path(), "nested", "1.0.0", &[]);
-    fs::remove_file(dir.path().join("node_modules/nested")).unwrap();
-    link_isolated(dir.path(), "top", "1.0.0", &[("nested", "1.0.0")]);
+    add_to_virtual_store(dir.path(), "nested", "1.0.0", &[]);
+    let top = add_to_virtual_store(dir.path(), "top", "1.0.0", &[("nested", "1.0.0")]);
+    link_direct_dependency(dir.path(), "top", &top);
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
 
@@ -241,10 +251,11 @@ fn nests_an_isolated_transitive_bundle_under_a_conflicting_root_dependency() {
         "dependencies": { "nested": "2.0.0", "top": "1.0.0" },
         "bundleDependencies": ["top"],
     }));
-    link_isolated(dir.path(), "nested", "1.0.0", &[]);
-    fs::remove_file(dir.path().join("node_modules/nested")).unwrap();
-    link_isolated(dir.path(), "nested", "2.0.0", &[]);
-    link_isolated(dir.path(), "top", "1.0.0", &[("nested", "1.0.0")]);
+    add_to_virtual_store(dir.path(), "nested", "1.0.0", &[]);
+    let nested = add_to_virtual_store(dir.path(), "nested", "2.0.0", &[]);
+    link_direct_dependency(dir.path(), "nested", &nested);
+    let top = add_to_virtual_store(dir.path(), "top", "1.0.0", &[("nested", "1.0.0")]);
+    link_direct_dependency(dir.path(), "top", &top);
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
 

@@ -5216,6 +5216,7 @@ dependencies = [
  "derive_more",
  "ignore",
  "pnpm-diagnostics",
+ "pnpm-fs",
  "pnpm-package-manifest",
  "serde_json",
  "tempfile",

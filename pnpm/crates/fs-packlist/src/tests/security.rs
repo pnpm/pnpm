@@ -67,7 +67,6 @@ fn bundle_dependency_symlink_escaping_pkg_dir_is_refused() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn bundle_dependency_symlink_to_workspace_package_is_included() {
     let dir = tempdir().unwrap();
@@ -79,7 +78,7 @@ fn bundle_dependency_symlink_to_workspace_package_is_included() {
     fs::create_dir_all(&bundled).unwrap();
     fs::write(bundled.join("package.json"), r#"{"name":"bundled","version":"1.0.0"}"#).unwrap();
     fs::write(bundled.join("index.js"), "module.exports = 42").unwrap();
-    std::os::unix::fs::symlink(&bundled, root.join("node_modules/bundled")).unwrap();
+    pnpm_fs::symlink_dir(&bundled, &root.join("node_modules/bundled")).unwrap();
 
     let manifest = json!({
         "name": "app",
