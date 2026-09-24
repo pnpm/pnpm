@@ -115,7 +115,10 @@ pub(super) fn is_git_hosted_resolution(resolution: &LockfileResolution) -> bool 
         _ => false,
     }
 }
-pub(super) fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
+/// Whether a package's own files ask for a build: a `binding.gyp` or
+/// `.hooks/` entry, or an install script in its `package.json`.
+#[must_use]
+pub fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
     if files_include_install_scripts(cas_paths.keys()) {
         return true;
     }
@@ -203,6 +206,7 @@ pub(super) fn link_warm_batch<Reporter: self::Reporter>(
                     build_marker: needs_build_marker
                         .then_some(batch.needs_build_marker_source)
                         .flatten(),
+                    needs_build: *needs_build_marker,
                 },
                 snapshot_key,
                 snapshot,

@@ -149,7 +149,7 @@ impl CreateVirtualDirBySnapshot<'_> {
         // inside the virtual store. `method` is best-effort — pacquet
         // doesn't surface the per-package resolved method past
         // `link_file`'s install-scoped atomic, so we report the
-        // optimistic value the configured method would resolve to in
+        // optimistic value this slot's import method would resolve to in
         // a non-degraded environment (`Auto` → its platform ladder's
         // head, `CloneOrCopy` → `clone`, explicit settings as-is).
         // Refining to per-package resolution
@@ -158,13 +158,19 @@ impl CreateVirtualDirBySnapshot<'_> {
         Reporter::emit(&LogEvent::Progress(ProgressLog {
             level: LogLevel::Debug,
             message: ProgressMessage::Imported {
-                method: optimistic_wire_method(self.import.method),
+                method: optimistic_wire_method(self.import_method()),
                 requester: self.import.requester.to_owned(),
                 to: slot.save_path.to_string_lossy().into_owned(),
             },
         }));
 
         Ok(())
+    }
+
+    /// The method this slot's files are imported with — the configured one,
+    /// unless a build or patch is still going to write them.
+    fn import_method(&self) -> PackageImportMethod {
+        effective_import_method(self.import.method, self.source.needs_build)
     }
 
     fn import_slot<Reporter: self::Reporter>(
@@ -186,7 +192,7 @@ impl CreateVirtualDirBySnapshot<'_> {
             && let Some(cache) = self.dir_clone_cache
             && cache.try_import::<Reporter>(
                 self.import.logged_methods,
-                self.import.method,
+                self.import_method(),
                 self.dependencies.package_key,
                 save_path,
                 cas_paths,
@@ -196,7 +202,7 @@ impl CreateVirtualDirBySnapshot<'_> {
         }
         import_indexed_dir::<Reporter>(
             self.import.logged_methods,
-            self.import.method,
+            self.import_method(),
             save_path,
             cas_paths,
             slot_import_opts(
@@ -363,6 +369,23 @@ fn remove_obsolete_children<'a>(
         }
     }
     Ok(())
+}
+
+/// The import method a slot's files are actually materialized with.
+///
+/// A package that a lifecycle script or a patch is still going to write must
+/// not share inodes with the source its files were imported from: a hard link
+/// carries those writes back into the workspace directory of an injected
+/// package, or into the content-addressable store for a registry package.
+/// `clone-or-copy` gives the build private inodes and still lets a reflink
+/// avoid a byte-for-byte copy. pnpm v11 applies the same override to
+/// `willBeBuilt` packages in `createPackageImporter`.
+#[must_use]
+pub fn effective_import_method(
+    configured: PackageImportMethod,
+    needs_build: bool,
+) -> PackageImportMethod {
+    if needs_build { PackageImportMethod::CloneOrCopy } else { configured }
 }
 
 /// Map pacquet's configured [`PackageImportMethod`] to the value

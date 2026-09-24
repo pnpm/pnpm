@@ -1,11 +1,12 @@
 pub(crate) use cache_keys::{dir_clone_cacheable, package_content_changed};
+pub use warm::requires_build_from_cas_paths;
 
 mod pipeline;
 
 mod warm;
 use warm::{
-    gvs_slot_needs_rebuild, requires_build_from_cas_paths, snapshot_needs_build_marker,
-    warm_cas_paths_by_pkg_id, warm_shared_base_cas_paths,
+    gvs_slot_needs_rebuild, snapshot_needs_build_marker, warm_cas_paths_by_pkg_id,
+    warm_shared_base_cas_paths,
 };
 
 mod cold;
