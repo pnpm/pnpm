@@ -25,11 +25,14 @@ fn legacy_deploy_installs_selected_project() {
         .assert()
         .success();
     let workspace_lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    let workspace_state_path = workspace.join("node_modules/.pnpm-workspace-state-v1.json");
+    let workspace_state = fs::read_to_string(&workspace_state_path).unwrap();
     pacquet_cmd(&workspace)
         .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "legacy-deploy"])
         .assert()
         .success();
 
+    assert_eq!(fs::read_to_string(&workspace_state_path).unwrap(), workspace_state);
     let deploy_dir = workspace.join("legacy-deploy");
     assert!(deploy_dir.join("index.js").exists());
     assert!(!deploy_dir.join("test.js").exists());

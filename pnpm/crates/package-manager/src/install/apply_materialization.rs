@@ -267,7 +267,8 @@ fn finish_apply<Reporter: self::Reporter>(
 
     // Refreshing the root here would hide stale bins in unselected projects
     // from the next install.
-    if !(inputs.prior.tree_moved && inputs.projects.filtered_install) {
+    let hides_stale_bins = inputs.prior.tree_moved && inputs.projects.filtered_install;
+    if !(hides_stale_bins || deploys_outside_workspace_root(&inputs)) {
         write_applied_workspace_state(&inputs)?;
     }
 
@@ -288,6 +289,11 @@ fn finish_apply<Reporter: self::Reporter>(
     });
     pnpm_fs::background_drop(inputs.materialized.fresh_lockfile);
     completion
+}
+
+fn deploys_outside_workspace_root(inputs: &ApplyMaterializationInputs<'_, '_>) -> bool {
+    matches!(inputs.scripts.mutation, crate::ProjectMutation::Deploy)
+        && inputs.scripts.manifest_dir != inputs.projects.workspace_root
 }
 
 // Publish workspace freshness only after modules.yaml and the current lockfile are committed.
