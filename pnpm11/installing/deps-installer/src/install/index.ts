@@ -82,7 +82,16 @@ import {
   resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, removePackageMap, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
-import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAreUpToDate, findPackageTarballIntegrityMismatch, satisfiesPackageManifest, unresolvedOptionalDependencies } from '@pnpm/lockfile.verification'
+import {
+  allProjectsAreUpToDate,
+  catalogResolutionIsStale,
+  catalogResolutionsAreUpToDate,
+  checkLinkedPackagesAreUpToDate,
+  findPackageTarballIntegrityMismatch,
+  getWorkspacePackagesByDirectory,
+  satisfiesPackageManifest,
+  unresolvedOptionalDependencies,
+} from '@pnpm/lockfile.verification'
 import { logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs, getSpecFromPackageManifest, guessDependencyType } from '@pnpm/pkg-manifest.utils'
@@ -1748,28 +1757,59 @@ Note that in CI environments, this setting is enabled by default.`,
             })
         }
       }
+      const manifestsByDir = ctx.workspacePackages ? getWorkspacePackagesByDirectory(ctx.workspacePackages) : {}
+      const _checkLinkedPackagesAreUpToDate = checkLinkedPackagesAreUpToDate.bind(null, {
+        linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
+        manifestsByDir,
+        workspacePackages: ctx.workspacePackages,
+        lockfilePackages: ctx.wantedLockfile.packages,
+        lockfileDir: opts.lockfileDir,
+        workspaceDir: opts.workspaceDir,
+        injectWorkspacePackages: opts.injectWorkspacePackages ?? ctx.wantedLockfile.settings?.injectWorkspacePackages,
+        skipLocalDirectoryDependencies: true,
+      })
       const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
         allowUnresolvedOptionalDependencies: frozenLockfile,
       })
-      for (const { id, manifest, rootDir } of Object.values(ctx.projects)) {
+      const projectChecks = await Promise.all(Object.values(ctx.projects).map(async ({ id, manifest, rootDir }) => {
         const importer = ctx.wantedLockfile.importers[id]
-        const { satisfies, detailedReason } = _satisfiesPackageManifest(importer, manifest)
+        let { satisfies, detailedReason } = _satisfiesPackageManifest(importer, manifest)
+        let skipped: Record<string, string> | undefined
         if (satisfies && frozenLockfile && importer != null) {
-          const skipped = unresolvedOptionalDependencies({
+          const unresolved = unresolvedOptionalDependencies({
             excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
             ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
           }, importer, manifest)
-          if (Object.keys(skipped).length > 0) {
-            skippedOptionalDependencies.push({
-              prefix: rootDir,
-              skipped,
-            })
+          if (Object.keys(unresolved).length > 0) {
+            skipped = unresolved
           }
         }
-        if (!satisfies || (importer != null && !catalogResolutionsAreUpToDate(importer, ctx.wantedLockfile.catalogs))) {
+        if (satisfies && importer != null) {
+          if (!catalogResolutionsAreUpToDate(importer, ctx.wantedLockfile.catalogs)) {
+            satisfies = false
+            detailedReason = 'Catalog resolutions are not up to date'
+          } else {
+            const linkedResult = await _checkLinkedPackagesAreUpToDate({ dir: rootDir, manifest, snapshot: importer })
+            if (!linkedResult.upToDate) {
+              satisfies = false
+              detailedReason = linkedResult.detailedReason
+            }
+          }
+        }
+        return { satisfies, detailedReason, rootDir, skipped }
+      }))
+
+      for (const { satisfies, detailedReason, rootDir, skipped } of projectChecks) {
+        if (skipped) {
+          skippedOptionalDependencies.push({
+            prefix: rootDir,
+            skipped,
+          })
+        }
+        if (!satisfies) {
           if (!ctx.existsWantedLockfile) {
             throw new PnpmError('NO_LOCKFILE',
               `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is absent`, {

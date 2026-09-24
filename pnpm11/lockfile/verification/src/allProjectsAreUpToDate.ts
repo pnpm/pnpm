@@ -49,6 +49,7 @@ export async function allProjectsAreUpToDate (
     lockfilePackages: opts.wantedLockfile.packages,
     lockfileDir: opts.lockfileDir,
     workspaceDir: opts.workspaceDir,
+    injectWorkspacePackages: opts.wantedLockfile.settings?.injectWorkspacePackages,
   })
   const _localTarballDepsAreUpToDate = localTarballDepsAreUpToDate.bind(null, {
     fileIntegrityCache: new Map(),
@@ -71,6 +72,6 @@ export async function allProjectsAreUpToDate (
       _satisfiesPackageManifest(importer, project.manifest).satisfies &&
       catalogResolutionsAreUpToDate(importer, opts.wantedLockfile.catalogs) &&
       (await _localTarballDepsAreUpToDate(projectInfo)) &&
-      (_linkedPackagesAreUpToDate(projectInfo))
+      _linkedPackagesAreUpToDate(projectInfo)
   })
 }
