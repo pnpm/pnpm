@@ -14,7 +14,7 @@
 //! the process alive while children settle. It calls
 //! [`install_temp_file_cleanup`] before installing itself, so the two
 //! installs never race and the relay is the handler a signal reaches first.
-//! The relay ends the process through [`die_from_signal`], which unlinks
+//! The relay ends the process through `die_from_signal`, which unlinks
 //! the pending temp files; while it keeps waiting, the files stay, as
 //! unlinking them would pull them out from under writes that keep running.
 //! This handler chains to whatever disposition it replaced for the same
@@ -105,7 +105,7 @@ pub fn track_temp_file(path: &Path) -> PendingTempFile {
 ///
 /// Async-signal-safe: the walk only touches atomics and unlinks. Called
 /// from this module's own handler on the path that ends the process, and
-/// through [`die_from_signal`] by `pnpm-executor`'s relay when it is the
+/// through `die_from_signal` by `pnpm-executor`'s relay when it is the
 /// handler that ends the process.
 pub fn remove_pending_temp_files() {
     ACTIVE_WALKS.fetch_add(1, Ordering::SeqCst);
