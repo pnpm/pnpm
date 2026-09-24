@@ -543,6 +543,85 @@ fn separate_lockfiles_filtered_recursive_run_checks_selected_project() {
     drop(root);
 }
 
+/// With `sharedWorkspaceLockfile: false` and project-specific `packageConfigs`
+/// overrides, running a script inside the project or via `--filter` right
+/// after install must not fail the `verifyDepsBeforeRun` check (pnpm/pnpm#15545).
+#[cfg(unix)]
+#[test]
+fn separate_lockfiles_with_package_configs_overrides_allows_script_run() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\nsharedWorkspaceLockfile: false\npackages:\n  - packages/*\npackageConfigs:\n  project-a:\n    overrides:\n      ms: 2.0.0\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let project_a = workspace.join("packages/project-a");
+    let project_b = workspace.join("packages/project-b");
+    fs::create_dir_all(&project_a).expect("create project-a");
+    fs::create_dir_all(&project_b).expect("create project-b");
+    let marker_a = project_a.join("marker-a.txt");
+    let marker_b = project_b.join("marker-b.txt");
+    write_named_manifest(&project_a, "project-a", &marker_a);
+    write_named_manifest(&project_b, "project-b", &marker_b);
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    pacquet_in(&project_a)
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
+    assert!(marker_a.exists(), "project-a script must run from inside package dir");
+    fs::remove_file(&marker_a).expect("clean marker-a");
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "run", "hello"])
+        .assert()
+        .success();
+    assert!(marker_a.exists(), "project-a script must run via --filter from root");
+    fs::remove_file(&marker_a).expect("clean marker-a");
+
+    pacquet_in(&project_a)
+        .with_args(["exec", "node", "-e", "0"])
+        .assert()
+        .success();
+
+    pacquet_in(&project_b)
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
+    assert!(marker_b.exists(), "project-b without overrides must also run");
+    fs::remove_file(&marker_b).expect("clean marker-b");
+
+    // When the override setting in pnpm-workspace.yaml changes, the check
+    // must detect the drift and fail.
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\nsharedWorkspaceLockfile: false\npackages:\n  - packages/*\npackageConfigs:\n  project-a:\n    overrides:\n      ms: 3.0.0\n",
+    )
+    .expect("write updated pnpm-workspace.yaml");
+
+    let output = pacquet_in(&project_a)
+        .with_args(["run", "hello"])
+        .output()
+        .expect("spawn pacquet run");
+    assert!(!output.status.success(), "project-a must fail after overrides drift");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"),
+        "expected verify-deps error after overrides drift:\n{stderr}",
+    );
+    assert!(
+        stderr.contains("overrides"),
+        "expected overrides setting drift in error message:\n{stderr}",
+    );
+
+    drop(root);
+}
+
 /// One shared lockfile covers every project, so a command run from a
 /// directory that has no manifest of its own is still checked against
 /// the workspace root's state.
