@@ -1110,3 +1110,120 @@ catalog:
   }
 })
 
+test('selects nested projects matching glob-scoped selector when catalog changes', async () => {
+  if (isCI && isWindows()) {
+    return
+  }
+
+  const workspaceDir = temporaryDirectory()
+  await execa('git', ['init', '--initial-branch=main'], { cwd: workspaceDir })
+  await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: workspaceDir })
+  await execa('git', ['config', 'user.name', 'xyz'], { cwd: workspaceDir })
+
+  const pkgADir = path.join(workspaceDir, 'packages/pkg-a') as ProjectRootDir
+  const pkgNestedDir = path.join(workspaceDir, 'packages/nested/pkg-nested') as ProjectRootDir
+  const outsidePkgDir = path.join(workspaceDir, 'other/pkg-other') as ProjectRootDir
+
+  await fs.promises.mkdir(pkgADir, { recursive: true })
+  await fs.promises.mkdir(pkgNestedDir, { recursive: true })
+  await fs.promises.mkdir(outsidePkgDir, { recursive: true })
+
+  await fs.promises.writeFile(
+    path.join(workspaceDir, 'pnpm-workspace.yaml'),
+    `packages:
+  - 'packages/**'
+  - 'other/*'
+catalog:
+  foo: ^1.0.0
+`
+  )
+
+  await fs.promises.writeFile(
+    path.join(pkgADir, 'package.json'),
+    JSON.stringify({
+      name: 'pkg-a',
+      version: '1.0.0',
+      dependencies: { foo: 'catalog:' },
+    })
+  )
+
+  await fs.promises.writeFile(
+    path.join(pkgNestedDir, 'package.json'),
+    JSON.stringify({
+      name: 'pkg-nested',
+      version: '1.0.0',
+      dependencies: { foo: 'catalog:' },
+    })
+  )
+
+  await fs.promises.writeFile(
+    path.join(outsidePkgDir, 'package.json'),
+    JSON.stringify({
+      name: 'pkg-other',
+      version: '1.0.0',
+      dependencies: { foo: 'catalog:' },
+    })
+  )
+
+  await execa('git', ['add', '.'], { cwd: workspaceDir })
+  await execa('git', ['commit', '-m', 'initial commit', '--no-gpg-sign'], { cwd: workspaceDir })
+
+  await fs.promises.writeFile(
+    path.join(workspaceDir, 'pnpm-workspace.yaml'),
+    `packages:
+  - 'packages/**'
+  - 'other/*'
+catalog:
+  foo: ^1.1.0
+`
+  )
+
+  const projectsGraph: ProjectGraph<BaseProject> = {
+    [pkgADir]: {
+      dependencies: [],
+      package: {
+        rootDir: pkgADir,
+        manifest: {
+          name: 'pkg-a',
+          version: '1.0.0',
+          dependencies: { foo: 'catalog:' },
+        },
+      },
+    },
+    [pkgNestedDir]: {
+      dependencies: [],
+      package: {
+        rootDir: pkgNestedDir,
+        manifest: {
+          name: 'pkg-nested',
+          version: '1.0.0',
+          dependencies: { foo: 'catalog:' },
+        },
+      },
+    },
+    [outsidePkgDir]: {
+      dependencies: [],
+      package: {
+        rootDir: outsidePkgDir,
+        manifest: {
+          name: 'pkg-other',
+          version: '1.0.0',
+          dependencies: { foo: 'catalog:' },
+        },
+      },
+    },
+  }
+
+  // With useGlobDirFiltering: true, Git diff packages/* matches nested packages too
+  {
+    const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, [{
+      diff: 'HEAD',
+      parentDir: path.join(workspaceDir, 'packages/*'),
+      useGlobDirFiltering: true,
+    }], { workspaceDir })
+
+    expect(Object.keys(selectedProjectsGraph).sort()).toStrictEqual([pkgADir, pkgNestedDir].sort())
+  }
+})
+
+

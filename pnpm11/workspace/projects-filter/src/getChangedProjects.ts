@@ -25,6 +25,7 @@ export interface GetChangedProjectsOptions {
   testPattern?: string[]
   changedFilesIgnorePattern?: string[]
   allProjects?: Array<{ rootDir: ProjectRootDir, manifest: BaseManifest }>
+  useGlobDirFiltering?: boolean
 }
 
 export async function getChangedProjects (
@@ -75,6 +76,7 @@ export async function getChangedProjects (
       projectChangeTypes,
       projectDirs,
       repoRoot,
+      useGlobDirFiltering: opts.useGlobDirFiltering,
       workingDir,
       workspaceDir: opts.workspaceDir,
     })
@@ -100,13 +102,27 @@ function isSubdir (parent: string, child: string): boolean {
   return !rel.startsWith('..') && !path.isAbsolute(rel)
 }
 
-function projectMatchesWorkingDir (workingDir: string, projectDir: string): boolean {
+function projectMatchesWorkingDir (
+  workingDir: string,
+  projectDir: string,
+  useGlobDirFiltering?: boolean
+): boolean {
   if (isSubdir(workingDir, projectDir) || projectDir === workingDir) {
     return true
   }
+  if (!useGlobDirFiltering) {
+    return false
+  }
   const format = (str: string) => str.replace(/\/$/, '')
   const formattedFilter = workingDir.replace(/\\/g, '/').replace(/\/$/, '')
-  return micromatch.default.isMatch(projectDir, formattedFilter, { format })
+  if (micromatch.default.isMatch(projectDir, formattedFilter, { format })) {
+    return true
+  }
+  if (formattedFilter.endsWith('/*')) {
+    const recursivePattern = `${formattedFilter}*`
+    return micromatch.default.isMatch(projectDir, recursivePattern, { format })
+  }
+  return false
 }
 
 async function applyCatalogChangesToProjects (params: {
@@ -115,6 +131,7 @@ async function applyCatalogChangesToProjects (params: {
   projectChangeTypes: Map<ProjectRootDir, ChangeType | undefined>
   projectDirs: ProjectRootDir[]
   repoRoot: string
+  useGlobDirFiltering?: boolean
   workingDir: string
   workspaceDir: string
 }): Promise<void> {
@@ -163,7 +180,7 @@ async function applyCatalogChangesToProjects (params: {
 
   const projects = await loadProjects(params.projectDirs, params.allProjects)
   for (const project of projects) {
-    if (params.workingDir !== params.workspaceDir && !projectMatchesWorkingDir(params.workingDir, project.rootDir)) {
+    if (params.workingDir !== params.workspaceDir && !projectMatchesWorkingDir(params.workingDir, project.rootDir, params.useGlobDirFiltering)) {
       continue
     }
     if (params.projectChangeTypes.get(project.rootDir) === 'source') continue

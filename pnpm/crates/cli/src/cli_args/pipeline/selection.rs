@@ -221,6 +221,7 @@ fn select_changed_projects(
             test_pattern: &options.config.test_pattern,
             changed_files_ignore_pattern: &options.config.changed_files_ignore_pattern,
             project_dependencies: Some(&project_dependencies),
+            use_glob_dir_filtering: false,
         },
     )
     .map_err(miette::Report::new)?;

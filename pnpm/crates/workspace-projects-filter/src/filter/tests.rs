@@ -1059,6 +1059,85 @@ mod changed_packages {
             empty,
         );
     }
+
+    #[test]
+    fn select_nested_projects_matching_glob_scoped_selector() {
+        let repo = TempDir::new().expect("create tempdir");
+        let workspace_dir = repo.path();
+        init_repo(workspace_dir);
+
+        let pkg_a_dir = workspace_dir.join("packages").join("pkg-a");
+        let pkg_nested_dir = workspace_dir
+            .join("packages")
+            .join("nested")
+            .join("pkg-nested");
+        let outside_dir = workspace_dir.join("other").join("pkg-other");
+        fs::create_dir_all(&pkg_a_dir).expect("create pkg-a");
+        fs::create_dir_all(&pkg_nested_dir).expect("create pkg-nested");
+        fs::create_dir_all(&outside_dir).expect("create outside");
+
+        fs::write(
+            workspace_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/**'\n  - 'other/*'\ncatalog:\n  foo: ^1.0.0\n",
+        )
+        .expect("write workspace manifest");
+        fs::write(
+            pkg_a_dir.join("package.json"),
+            r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-a package.json");
+        fs::write(
+            pkg_nested_dir.join("package.json"),
+            r#"{"name":"pkg-nested","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-nested package.json");
+        fs::write(
+            outside_dir.join("package.json"),
+            r#"{"name":"pkg-other","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-other package.json");
+
+        commit_all(workspace_dir);
+
+        fs::write(
+            workspace_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/**'\n  - 'other/*'\ncatalog:\n  foo: ^1.1.0\n",
+        )
+        .expect("update workspace manifest");
+
+        let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+        for (dir, name) in
+            [(&pkg_a_dir, "pkg-a"), (&pkg_nested_dir, "pkg-nested"), (&outside_dir, "pkg-other")]
+        {
+            graph.insert(
+                dir.clone(),
+                ProjectGraphNode {
+                    package: graph_project(&dir.to_string_lossy(), name, &[("foo", "catalog:")]),
+                    dependencies: Vec::new(),
+                },
+            );
+        }
+
+        let opts = FilterWorkspaceProjectsOptions {
+            workspace_dir: workspace_dir.to_path_buf(),
+            ..Default::default()
+        };
+        let path_of = |dir: &Path| dir.to_string_lossy().into_owned();
+
+        let mut actual = selected(
+            &graph,
+            &[ProjectSelector {
+                parent_dir: Some(workspace_dir.join("packages/*")),
+                use_glob_dir_filtering: Some(true),
+                ..diff_selector("HEAD")
+            }],
+            &opts,
+        );
+        actual.sort();
+        let mut expected = vec![path_of(&pkg_a_dir), path_of(&pkg_nested_dir)];
+        expected.sort();
+        assert_eq!(actual, expected);
+    }
 }
 
 fn graph_project(root: &str, name: &str, deps: &[(&str, &str)]) -> TestPkg {

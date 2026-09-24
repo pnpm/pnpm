@@ -21,6 +21,7 @@ pub struct GetChangedProjectsOptions<'a> {
     pub test_pattern: &'a [String],
     pub changed_files_ignore_pattern: &'a [String],
     pub project_dependencies: Option<&'a HashMap<PathBuf, Vec<(String, String)>>>,
+    pub use_glob_dir_filtering: bool,
 }
 
 /// The two selection groups a `[<since>]` diff produces.

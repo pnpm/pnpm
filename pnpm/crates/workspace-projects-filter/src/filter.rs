@@ -259,6 +259,9 @@ fn changed_selector_projects<Pkg: BaseProject>(
             test_pattern: &opts.test_pattern,
             changed_files_ignore_pattern: &opts.changed_files_ignore_pattern,
             project_dependencies: Some(&project_dependencies),
+            use_glob_dir_filtering: selector.use_glob_dir_filtering.unwrap_or(
+                opts.use_glob_dir_filtering,
+            ),
         },
     )
 }

@@ -28,7 +28,8 @@ pub fn apply_changed_catalogs(
         if *change_type == Some(ChangeType::Source) {
             continue;
         }
-        if working_dir != opts.workspace_dir && !is_project_in_working_dir(working_dir, project_dir)
+        if working_dir != opts.workspace_dir
+            && !is_project_in_working_dir(working_dir, project_dir, opts.use_glob_dir_filtering)
         {
             continue;
         }
@@ -42,12 +43,24 @@ pub fn apply_changed_catalogs(
     Ok(())
 }
 
-fn is_project_in_working_dir(working_dir: &Path, project_dir: &Path) -> bool {
+fn is_project_in_working_dir(working_dir: &Path, project_dir: &Path, use_glob: bool) -> bool {
     if project_dir == working_dir || project_dir.starts_with(working_dir) {
         return true;
     }
-    let dir_glob = crate::glob::DirGlob::new(&working_dir.to_string_lossy());
-    dir_glob.is_match(&project_dir.to_string_lossy())
+    if !use_glob {
+        return false;
+    }
+    let working_str = working_dir.to_string_lossy();
+    let dir_glob = crate::glob::DirGlob::new(&working_str);
+    if dir_glob.is_match(&project_dir.to_string_lossy()) {
+        return true;
+    }
+    if working_str.ends_with("/*") || working_str.ends_with(r"\*") {
+        let recursive = format!("{working_str}*");
+        let recursive_glob = crate::glob::DirGlob::new(&recursive);
+        return recursive_glob.is_match(&project_dir.to_string_lossy());
+    }
+    false
 }
 
 fn detect_changed_catalogs(
