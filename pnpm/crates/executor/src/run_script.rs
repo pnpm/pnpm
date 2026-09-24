@@ -4,7 +4,7 @@ use crate::{
     make_env::{EnvOptions, build_env, path_value},
     process_tracker::{ProcessTracker, spawn_child},
     script_exit::ScriptExit,
-    shell::{ScriptShellError, SelectedShell, select_shell},
+    shell::{ScriptShellError, SelectedShell, missing_script_shell, select_shell},
     shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
 };
 use derive_more::{Display, Error};
@@ -191,7 +191,7 @@ fn run_streamed(
         .map(ScriptExit::Emulated)
         .map_err(RunScriptError::ShellEmulator)?
     } else {
-        run_piped(shell, command, opts.pkg_root, child_env, streamed, opts.process_tracker)?
+        run_piped(opts, shell, command, child_env, streamed)?
     };
     streamed.finished(status.code().unwrap_or(-1));
     Ok(status)
@@ -214,7 +214,7 @@ fn run_in_shell(
         .env_clear()
         .envs(child_env);
     let mut child = spawn_child(&mut cmd, opts.process_tracker)
-        .map_err(|source| RunScriptError::Spawn { script: command.to_string(), source })?;
+        .map_err(|source| spawn_error(opts, command, source))?;
     let status = child
         .wait()
         .map_err(|source| RunScriptError::Wait { script: command.to_string(), source })?;
@@ -224,28 +224,34 @@ fn run_in_shell(
 /// Spawn `command` under `shell` with both output streams piped, and
 /// republish each line through `streamed`.
 fn run_piped(
+    opts: &RunScript<'_>,
     shell: &SelectedShell,
     command: &str,
-    pkg_root: &Path,
     child_env: &HashMap<String, String>,
     streamed: StreamedScript<'_>,
-    process_tracker: Option<&ProcessTracker>,
 ) -> Result<ScriptExit, RunScriptError> {
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
     push_script_arg(&mut cmd, command, shell.windows_verbatim_args);
-    cmd.current_dir(pkg_root)
+    cmd.current_dir(opts.pkg_root)
         .env_clear()
         .envs(child_env)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let mut child = spawn_child(&mut cmd, process_tracker)
-        .map_err(|source| RunScriptError::Spawn { script: command.to_string(), source })?;
+    let mut child = spawn_child(&mut cmd, opts.process_tracker)
+        .map_err(|source| spawn_error(opts, command, source))?;
 
     streamed
         .pump(&mut child)
         .map(ScriptExit::Process)
         .map_err(|source| RunScriptError::Wait { script: command.to_string(), source })
+}
+
+fn spawn_error(opts: &RunScript<'_>, command: &str, source: io::Error) -> RunScriptError {
+    match missing_script_shell(opts.execution.shell, source, opts.pkg_root) {
+        Ok(error) => RunScriptError::ScriptShell(error),
+        Err(source) => RunScriptError::Spawn { script: command.to_string(), source },
+    }
 }
 
 /// Whether `cmd` will parse the script. The shell emulator is a POSIX

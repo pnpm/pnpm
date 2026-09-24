@@ -40,3 +40,7 @@ mod script_shell;
 /// could never be spawned, so an install that still succeeds proves the
 /// built-in shell took over.
 mod shell_emulator;
+
+/// A `scriptShell` that does not exist fails the spawn with an error that
+/// names it, not only the package directory the script was to run in.
+mod missing_script_shell;
