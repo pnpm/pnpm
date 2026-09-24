@@ -314,4 +314,8 @@ fn drops_only_the_no_newline_markers_that_follow_context() {
         r" \ No newline at end of file"
     };
     assert_eq!(drop_context_no_newline_markers(patch.to_string()), expected);
+    assert_eq!(
+        drop_context_no_newline_markers(patch.to_string().replace('\n', "\r\n")),
+        expected.to_string().replace('\n', "\r\n"),
+    );
 }

@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-pnpm now applies the patch that `pnpm patch-commit` writes when an edit removes the last lines of a file together with its final newline. Such a patch used to fail with `ERR_PNPM_INVALID_PATCH` and "expected end of hunk" [#12451](https://github.com/pnpm/pnpm/issues/12451).
+`pnpm install` now applies patches produced by `pnpm patch-commit` when an edit removes the trailing lines of a file along with its newline. The install no longer fails with `ERR_PNPM_INVALID_PATCH` ("expected end of hunk") [#12451](https://github.com/pnpm/pnpm/issues/12451).

@@ -48,7 +48,7 @@ pub(super) fn drop_context_no_newline_markers(text: String) -> String {
             continue;
         }
         // `diffy` reads an empty line inside a hunk as context too.
-        follows_context = line.starts_with([' ', '\n']);
+        follows_context = line.starts_with([' ', '\n']) || line.starts_with("\r\n");
         kept.push_str(line);
     }
     kept

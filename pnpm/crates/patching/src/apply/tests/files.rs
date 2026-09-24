@@ -179,7 +179,6 @@ fn applies_deletions_after_a_context_line_marked_without_a_newline() {
         "two"
     };
     let after = applied_hunk(original, hunk);
-    eprintln!("AFTER:\n{after}\n");
     assert_eq!(after, expected);
 }
 
