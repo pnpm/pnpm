@@ -212,7 +212,10 @@ async fn send_once<'a>(
         },
     )
     .await
-    .map_err(|error| FetchMetadataError::Network { url: redact_url_credentials(opts.url), error })
+    .map_err(|error| FetchMetadataError::Network {
+        url: redact_url_credentials(opts.url),
+        error: error.without_url(),
+    })
 }
 
 /// Convert a stored `modified` value — the packument's ISO-8601
@@ -257,7 +260,7 @@ pub async fn fetch_full_metadata(
             .error_for_status()
             .map_err(|error| FetchMetadataError::Network {
                 url: redact_url_credentials(&url),
-                error,
+                error: error.without_url(),
             })?;
         let normalize_to_abbreviated =
             !opts.full_metadata && !is_abbreviated_content_type(response.headers());
@@ -266,7 +269,7 @@ pub async fn fetch_full_metadata(
             .await
             .map_err(|error| FetchMetadataError::BodyRead {
                 url: redact_url_credentials(&url),
-                error,
+                error: error.without_url(),
             })?;
         // Body fully buffered — release the connection and its
         // network-concurrency permit, then parse off the reactor: a
