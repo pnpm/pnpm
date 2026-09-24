@@ -1,3 +1,5 @@
+import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { nameVerFromPkgSnapshot, type PackageSnapshots } from '@pnpm/lockfile.utils'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import {
@@ -14,7 +16,7 @@ import getVersionSelectorType from 'version-selector-type'
 export function getPreferredVersionsFromLockfileAndManifests (
   snapshots: PackageSnapshots | undefined,
   manifests: Array<DependencyManifest | ProjectManifest>,
-  opts: { dedupe?: boolean } = {}
+  opts: { catalogs?: Catalogs, dedupe?: boolean } = {}
 ): PreferredVersions {
   // All maps in here are keyed by package names and specifiers coming from
   // manifests and the lockfile — attacker-controlled inputs. Null-prototype
@@ -23,7 +25,9 @@ export function getPreferredVersionsFromLockfileAndManifests (
   const preferredVersions: PreferredVersions = Object.create(null)
   for (const manifest of manifests) {
     const specs = getAllDependenciesFromManifest(manifest)
-    for (const [name, spec] of Object.entries(specs)) {
+    for (const [name, bareSpecifier] of Object.entries(specs)) {
+      const spec = resolveCatalogSpec(opts.catalogs ?? {}, name, bareSpecifier)
+      if (spec == null) continue
       const selector = getVersionSelectorType(spec)
       if (!selector) continue
       preferredVersions[name] = preferredVersions[name] ?? (Object.create(null) as VersionSelectors)
@@ -37,6 +41,20 @@ export function getPreferredVersionsFromLockfileAndManifests (
   // Dedupe must let newly resolved dependencies compete with lockfile versions.
   addPreferredVersionsFromLockfile(snapshots, preferredVersions, opts.dedupe ? 1 : EXISTING_VERSION_SELECTOR_WEIGHT)
   return preferredVersions
+}
+
+/**
+ * The specifier the resolver installs for a direct dependency: the catalog
+ * entry a `catalog:` specifier names, otherwise the specifier itself.
+ * `undefined` for a `catalog:` specifier without a usable entry.
+ */
+function resolveCatalogSpec (catalogs: Catalogs, alias: string, bareSpecifier: string): string | undefined {
+  const result = resolveFromCatalog(catalogs, { alias, bareSpecifier })
+  switch (result.type) {
+    case 'found': return result.resolution.specifier
+    case 'misconfiguration': return undefined
+    case 'unused': return bareSpecifier
+  }
 }
 
 function addPreferredVersionsFromLockfile (snapshots: PackageSnapshots, preferredVersions: PreferredVersions, weight: number): void {

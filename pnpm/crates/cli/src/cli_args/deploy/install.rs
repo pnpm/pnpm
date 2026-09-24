@@ -1,6 +1,6 @@
 use super::{
-    Arc, Config, Context, DeployArgs, DeployInstallMode, LazyLockfile, Lockfile, NodeLinker,
-    NodeLinkerArg, Path, PreferredVersions, Reporter, State, WantedLockfileSelection,
+    Arc, Config, Context, DeployArgs, DeployInstallMode, DirectSpecs, LazyLockfile, Lockfile,
+    NodeLinker, NodeLinkerArg, Path, PreferredVersions, Reporter, State, WantedLockfileSelection,
     deployed_workspace_projects, get_preferred_versions_from_lockfile_and_manifests,
     resolve_bool_override, warn,
 };
@@ -81,7 +81,7 @@ pub(super) fn legacy_deploy_preferred_versions<ReporterT: Reporter>(
     match Lockfile::load_wanted(source_lockfile_dir, &config.wanted_lockfile_selection()) {
         Ok(Some(lockfile)) => Some(get_preferred_versions_from_lockfile_and_manifests(
             lockfile.snapshots.as_ref(),
-            &[],
+            DirectSpecs::without_catalogs(&[]),
         )),
         Ok(None) => None,
         Err(error) => {

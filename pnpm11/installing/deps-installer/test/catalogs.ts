@@ -1180,6 +1180,56 @@ describe('dedupe', () => {
     expect(Object.keys(dedupedLockfile.packages)).toEqual(['@pnpm.e2e/foo@100.0.0', '@pnpm.e2e/foo@100.1.0'])
     expect(dedupedLockfile.catalogs.default['@pnpm.e2e/foo'].version).toBe('100.0.0')
   })
+
+  test('pnpm dedupe moves transitive dependencies to the version a catalog entry pins', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+      {
+        name: 'pinned',
+        dependencies: {
+          '@pnpm.e2e/dep-of-pkg-with-1-dep': 'catalog:',
+          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+        },
+      },
+      {
+        name: 'loose',
+        dependencies: {
+          '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
+          '@pnpm.e2e/pkg-with-1-dep': '100.1.0',
+        },
+      },
+    ])
+    const catalogs = {
+      default: { '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0' },
+    }
+
+    await mutateModules(installProjects(projects), {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    })
+
+    // Without its direct dependency, loose keeps 100.1.0 only through the
+    // lockfile pin of @pnpm.e2e/pkg-with-1-dep@100.1.0.
+    projects['loose' as ProjectId].dependencies = {
+      '@pnpm.e2e/pkg-with-1-dep': '100.1.0',
+    }
+    await mutateModules(installProjects(projects), {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    })
+    expect(readLockfile().packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+
+    await mutateModules(installProjects(projects), {
+      ...options,
+      dedupe: true,
+      lockfileOnly: true,
+      catalogs,
+    })
+    const lockfile = readLockfile()
+    expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+    expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  })
 })
 
 describe('add', () => {

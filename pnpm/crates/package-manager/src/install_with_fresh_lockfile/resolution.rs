@@ -252,10 +252,17 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
         Arc<pnpm_resolving_resolver_base::PreferredVersions>,
         BTreeMap<String, Arc<pnpm_resolving_resolver_base::PreferredVersions>>,
     ) {
+        let manifests: Vec<&PackageManifest> = importer_manifests
+            .values()
+            .copied()
+            .collect();
         resolve::preferred_versions_seeds(
             &self.owned.resolution.update_seed_policy,
             self.wanted_lockfile(),
-            importer_manifests,
+            pnpm_lockfile_preferred_versions::DirectSpecs {
+                manifests: &manifests,
+                catalogs: &self.owned.projects.catalogs,
+            },
             self.owned.resolution.preferred_versions_override.as_ref(),
             stale_override_targets,
         )

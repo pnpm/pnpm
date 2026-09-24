@@ -7262,6 +7262,12 @@ importers:
 
   pnpm11/lockfile/preferred-versions:
     dependencies:
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../utils

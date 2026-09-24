@@ -2384,7 +2384,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     getPreferredVersionsFromLockfileAndManifests(
       omitPackagesNamed(ctx.wantedLockfile.packages, opts.staleOverrideTargets ?? new Set()),
       Object.values(ctx.projects).map(({ manifest }) => manifest),
-      { dedupe: opts.dedupe }
+      { catalogs: opts.catalogs, dedupe: opts.dedupe }
     )
   )
   for (const [pkgName, selectors] of Object.entries(opts.preferredVersions ?? {})) {

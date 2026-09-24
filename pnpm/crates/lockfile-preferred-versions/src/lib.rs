@@ -1,14 +1,20 @@
 //! Seeds the [`PreferredVersions`] map the deps-resolver consults to
 //! break version-pick ties: every spec from a project manifest gets a
-//! [`DIRECT_DEP_SELECTOR_WEIGHT`] entry, every concrete `name@version`
+//! [`DIRECT_DEP_SELECTOR_WEIGHT`] entry (a `catalog:` spec contributes the
+//! catalog entry it names), every concrete `name@version`
 //! pinned by the wanted lockfile gets a [`EXISTING_VERSION_SELECTOR_WEIGHT`]
 //! entry, and an entry that appears in both buckets has its weight bumped
 //! by the lockfile weight so it outranks single-source matches.
 
 pub use version_selector_type::get_version_selector_type;
 
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_catalogs_resolver::{
+    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+};
+use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::{
@@ -19,6 +25,36 @@ use rayon::prelude::*;
 
 mod version_selector_type;
 
+/// The importer manifests whose direct-dependency specs seed the
+/// preferences, and the catalogs to resolve them against.
+#[derive(Clone, Copy)]
+pub struct DirectSpecs<'a> {
+    pub manifests: &'a [&'a PackageManifest],
+    pub catalogs: &'a Catalogs,
+}
+
+impl<'a> DirectSpecs<'a> {
+    /// Specs from `manifests` with no catalogs, so a `catalog:` spec among
+    /// them seeds nothing.
+    #[must_use]
+    pub fn without_catalogs(manifests: &'a [&'a PackageManifest]) -> Self {
+        static NO_CATALOGS: Catalogs = Catalogs::new();
+        DirectSpecs { manifests, catalogs: &NO_CATALOGS }
+    }
+
+    /// `None` for a `catalog:` spec without a usable entry.
+    fn effective_spec<'spec>(&self, name: &str, spec: &'spec str) -> Option<Cow<'spec, str>> {
+        if parse_catalog_protocol(spec).is_none() {
+            return Some(Cow::Borrowed(spec));
+        }
+        let wanted = WantedDependency { alias: name.to_string(), bare_specifier: spec.to_string() };
+        match resolve_from_catalog(self.catalogs, &wanted, CatalogAnchor::AsWritten) {
+            CatalogResolutionResult::Found(found) => Some(Cow::Owned(found.resolution.specifier)),
+            CatalogResolutionResult::Misconfiguration(_) | CatalogResolutionResult::Unused => None,
+        }
+    }
+}
+
 /// Build a [`PreferredVersions`] map from the wanted lockfile's
 /// `snapshots:` block plus every importer manifest.
 ///
@@ -28,9 +64,9 @@ mod version_selector_type;
 #[must_use]
 pub fn get_preferred_versions_from_lockfile_and_manifests(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
-    manifests: &[&PackageManifest],
+    direct: DirectSpecs<'_>,
 ) -> PreferredVersions {
-    get_preferred_versions_from_lockfile_and_manifests_excluding(snapshots, manifests, &|_| false)
+    get_preferred_versions_from_lockfile_and_manifests_excluding(snapshots, direct, &|_| false)
 }
 
 /// Build a [`PreferredVersions`] map while withholding every lockfile pin
@@ -38,7 +74,7 @@ pub fn get_preferred_versions_from_lockfile_and_manifests(
 #[must_use]
 pub fn get_preferred_versions_from_lockfile_and_manifests_excluding(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
-    manifests: &[&PackageManifest],
+    direct: DirectSpecs<'_>,
     withheld: &dyn Fn(&PackageKey) -> bool,
 ) -> PreferredVersions {
     // Each manifest's selector classification (semver parses, mostly)
@@ -47,7 +83,7 @@ pub fn get_preferred_versions_from_lockfile_and_manifests_excluding(
     // `(name, spec)` pair — same selector type, same weight — so the
     // reduce's merge order is immaterial: colliding inserts write the
     // same value the serial loop would.
-    let mut preferred: PreferredVersions = manifests
+    let mut preferred: PreferredVersions = direct.manifests
         .par_iter()
         .map(|manifest| {
             let mut preferred = PreferredVersions::new();
@@ -56,12 +92,13 @@ pub fn get_preferred_versions_from_lockfile_and_manifests_excluding(
                 DependencyGroup::Prod,
                 DependencyGroup::Optional,
             ]) {
-                let Some(selector_type) = get_version_selector_type(spec) else { continue };
+                let Some(spec) = direct.effective_spec(name, spec) else { continue };
+                let Some(selector_type) = get_version_selector_type(&spec) else { continue };
                 preferred
                     .entry(name.to_string())
                     .or_default()
                     .insert(
-                        spec.to_string(),
+                        spec.into_owned(),
                         VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
                             selector_type,
                             weight: DIRECT_DEP_SELECTOR_WEIGHT,
