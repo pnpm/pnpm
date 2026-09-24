@@ -2270,6 +2270,29 @@ test('resolveFromNpm() falls back past both a too-young version and a trust down
   expect(resolveResult!.id).toBe('is-positive@3.0.0')
 })
 
+test('resolveFromNpm() stops falling back past trust downgrades at the re-pick cap', async () => {
+  const meta = isPositiveMetaWithTrustHistory()
+  const untrusted = meta.versions['3.1.0']
+  for (let patch = 1; patch <= 1000; patch++) {
+    const version = `3.0.${patch}`
+    meta.versions[version] = { ...untrusted, version }
+    meta.time[version] = new Date(Date.UTC(2017, 6, 1) + patch * 60_000).toISOString()
+  }
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, meta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  await expect(
+    resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, { trustPolicy: 'no-downgrade' })
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_TRUST_DOWNGRADE' })
+})
+
 test('resolveFromNpm() fails with the trust downgrade when no other version satisfies the spec', async () => {
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })

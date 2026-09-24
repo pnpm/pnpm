@@ -19,6 +19,13 @@ const TRUST_RANK = {
 
 type TrustCheckOptions = Parameters<typeof failIfTrustDowngraded>[2]
 
+/**
+ * Upper bound on trust downgrades set aside for one pick. Each one re-runs the
+ * picker over the packument, so the cap bounds the work a hostile packument
+ * can force. It matches the Rust resolver's re-pick cap.
+ */
+const TRUST_REPICK_LIMIT = 1000
+
 export interface TrustedPick {
   pickedPackage: PackageInRegistry
   /** Candidates set aside as trust downgrades before `pickedPackage`, in the order they were picked. */
@@ -29,7 +36,8 @@ export interface TrustedPick {
  * Returns `pickedPackage` when it passes {@link failIfTrustDowngraded}.
  * Otherwise sets it aside and asks `repick` for the next candidate from the
  * packument without it, the way `minimumReleaseAge` narrows the candidates,
- * until one passes. Throws the first downgrade when no candidate is left.
+ * until one passes. Throws the first downgrade when no candidate is left or
+ * {@link TRUST_REPICK_LIMIT} candidates were set aside.
  *
  * Every version is checked against the full packument: setting a version
  * aside never removes the history that another version is compared with.
@@ -53,6 +61,7 @@ export function pickWithoutTrustDowngrade (
       if (!isTrustDowngradeError(err)) throw err
       firstDowngrade ??= err
       rejectedVersions.add(candidate.version)
+      if (rejectedVersions.size >= TRUST_REPICK_LIMIT) break
     }
     candidate = opts.repick(filterPkgMetadataVersions(meta, (version) => !rejectedVersions.has(version)))
   }
