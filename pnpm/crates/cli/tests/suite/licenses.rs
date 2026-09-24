@@ -556,7 +556,13 @@ fn licenses_lists_all_valid_copies_of_a_collapsed_hoisted_variant() {
     let root = dunce::canonicalize(workspace.path()).expect("canonicalize workspace");
     assert_eq!(report["MIT"][0]["name"], "alpha");
     assert_eq!(report["MIT"][0]["versions"], json!(["1.0.0"]));
-    assert_eq!(report["MIT"][0]["paths"], json!(locations.map(|location| root.join(location))));
+    let expected_paths: Vec<_> = locations
+        .iter()
+        .map(|location| {
+            dunce::canonicalize(root.join(location)).expect("canonicalize installed package")
+        })
+        .collect();
+    assert_eq!(report["MIT"][0]["paths"], json!(expected_paths));
 }
 
 #[test]
@@ -591,5 +597,11 @@ fn licenses_lists_distinct_isolated_peer_installations_of_one_version() {
     let root = dunce::canonicalize(workspace.path()).expect("canonicalize workspace");
     assert_eq!(report["MIT"][0]["name"], "alpha");
     assert_eq!(report["MIT"][0]["versions"], json!(["1.0.0"]));
-    assert_eq!(report["MIT"][0]["paths"], json!(locations.map(|location| root.join(location))));
+    let expected_paths: Vec<_> = locations
+        .iter()
+        .map(|location| {
+            dunce::canonicalize(root.join(location)).expect("canonicalize installed package")
+        })
+        .collect();
+    assert_eq!(report["MIT"][0]["paths"], json!(expected_paths));
 }
