@@ -163,9 +163,8 @@ fn get_changed_dirs_since_commit(
 ) -> Result<ChangedDirsResult, FilterError> {
     let working_dir = opts.working_dir.unwrap_or(opts.workspace_dir);
     let manifest_path = opts.workspace_dir.join(pnpm_workspace::WORKSPACE_MANIFEST_FILENAME);
-    let rel_manifest = pathdiff::diff_paths(&manifest_path, repo_root);
 
-    let stdout = git_diff_names(commit, opts.workspace_dir, working_dir, rel_manifest.as_deref())?;
+    let stdout = git_diff_names(commit, opts.workspace_dir, working_dir, &manifest_path)?;
     let diff = strip_final_newline(&stdout);
     if diff.is_empty() {
         return Ok(ChangedDirsResult {
@@ -197,15 +196,13 @@ fn git_diff_names(
     commit: &str,
     workspace_dir: &Path,
     working_dir: &Path,
-    rel_manifest: Option<&Path>,
+    manifest_path: &Path,
 ) -> Result<String, FilterError> {
     let mut cmd = Command::new("git");
     cmd.args(["diff", "--name-only", "--no-relative", "--end-of-options", commit, "--"])
         .arg(working_dir);
-    if working_dir != workspace_dir
-        && let Some(rel) = rel_manifest
-    {
-        cmd.arg(rel);
+    if working_dir != workspace_dir {
+        cmd.arg(manifest_path);
     }
     cmd.current_dir(workspace_dir);
 

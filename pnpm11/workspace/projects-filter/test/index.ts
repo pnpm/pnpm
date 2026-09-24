@@ -994,4 +994,119 @@ catalogs:
 
     expect(Object.keys(selectedProjectsGraph)).toStrictEqual([])
   }
+
+  {
+    const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, [{
+      diff: 'HEAD',
+      parentDir: path.join(workspaceDir, 'packages/*'),
+      useGlobDirFiltering: true,
+    }], { workspaceDir })
+
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkgADir])
+  }
 })
+
+test('selects projects using catalog dependencies when workspace is nested in a repository subdirectory', async () => {
+  if (isCI && isWindows()) {
+    return
+  }
+
+  const repoDir = temporaryDirectory()
+  await execa('git', ['init'], { cwd: repoDir })
+  await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: repoDir })
+  await execa('git', ['config', 'user.name', 'xyz'], { cwd: repoDir })
+
+  const workspaceDir = path.join(repoDir, 'sub-workspace')
+  const packagesDir = path.join(workspaceDir, 'packages')
+  const pkgADir = path.join(packagesDir, 'pkg-a') as ProjectRootDir
+  const pkgBDir = path.join(packagesDir, 'pkg-b') as ProjectRootDir
+  await fs.promises.mkdir(pkgADir, { recursive: true })
+  await fs.promises.mkdir(pkgBDir, { recursive: true })
+
+  await fs.promises.writeFile(
+    path.join(workspaceDir, 'pnpm-workspace.yaml'),
+    `packages:
+  - 'packages/*'
+catalog:
+  foo: ^1.0.0
+`
+  )
+
+  await fs.promises.writeFile(
+    path.join(pkgADir, 'package.json'),
+    JSON.stringify({
+      name: 'pkg-a',
+      version: '1.0.0',
+      dependencies: {
+        foo: 'catalog:',
+      },
+    })
+  )
+
+  await fs.promises.writeFile(
+    path.join(pkgBDir, 'package.json'),
+    JSON.stringify({
+      name: 'pkg-b',
+      version: '1.0.0',
+      dependencies: {
+        bar: '^1.0.0',
+      },
+    })
+  )
+
+  await execa('git', ['add', '.'], { cwd: repoDir })
+  await execa('git', ['commit', '-m', 'initial', '--no-gpg-sign'], { cwd: repoDir })
+
+  await fs.promises.writeFile(
+    path.join(workspaceDir, 'pnpm-workspace.yaml'),
+    `packages:
+  - 'packages/*'
+catalog:
+  foo: ^1.1.0
+`
+  )
+
+  const projectsGraph: ProjectGraph<BaseProject> = {
+    [pkgADir]: {
+      dependencies: [],
+      package: {
+        rootDir: pkgADir,
+        manifest: {
+          name: 'pkg-a',
+          version: '1.0.0',
+          dependencies: { foo: 'catalog:' },
+        },
+      },
+    },
+    [pkgBDir]: {
+      dependencies: [],
+      package: {
+        rootDir: pkgBDir,
+        manifest: {
+          name: 'pkg-b',
+          version: '1.0.0',
+          dependencies: { bar: '^1.0.0' },
+        },
+      },
+    },
+  }
+
+  {
+    const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, [{
+      diff: 'HEAD',
+      parentDir: pkgADir,
+    }], { workspaceDir })
+
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkgADir])
+  }
+
+  {
+    const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, [{
+      diff: 'HEAD',
+      parentDir: pkgBDir,
+    }], { workspaceDir })
+
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([])
+  }
+})
+

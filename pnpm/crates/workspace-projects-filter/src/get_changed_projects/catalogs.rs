@@ -28,7 +28,8 @@ pub fn apply_changed_catalogs(
         if *change_type == Some(ChangeType::Source) {
             continue;
         }
-        if working_dir != opts.workspace_dir && !is_subdir(working_dir, project_dir) {
+        if working_dir != opts.workspace_dir && !is_project_in_working_dir(working_dir, project_dir)
+        {
             continue;
         }
         let deps = opts.project_dependencies
@@ -41,8 +42,12 @@ pub fn apply_changed_catalogs(
     Ok(())
 }
 
-fn is_subdir(parent: &Path, child: &Path) -> bool {
-    child == parent || child.starts_with(parent)
+fn is_project_in_working_dir(working_dir: &Path, project_dir: &Path) -> bool {
+    if project_dir == working_dir || project_dir.starts_with(working_dir) {
+        return true;
+    }
+    let dir_glob = crate::glob::DirGlob::new(&working_dir.to_string_lossy());
+    dir_glob.is_match(&project_dir.to_string_lossy())
 }
 
 fn detect_changed_catalogs(
@@ -78,6 +83,7 @@ fn read_git_file(
     let output = Command::new("git")
         .args(["show", "--end-of-options", &format!("{commit}:{rel_str}")])
         .current_dir(workspace_dir)
+        .env("LC_ALL", "C")
         .output()
         .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
     if output.status.success() {

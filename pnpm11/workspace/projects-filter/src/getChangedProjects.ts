@@ -100,6 +100,15 @@ function isSubdir (parent: string, child: string): boolean {
   return !rel.startsWith('..') && !path.isAbsolute(rel)
 }
 
+function projectMatchesWorkingDir (workingDir: string, projectDir: string): boolean {
+  if (isSubdir(workingDir, projectDir) || projectDir === workingDir) {
+    return true
+  }
+  const format = (str: string) => str.replace(/\/$/, '')
+  const formattedFilter = workingDir.replace(/\\/g, '/').replace(/\/$/, '')
+  return micromatch.default.isMatch(projectDir, formattedFilter, { format })
+}
+
 async function applyCatalogChangesToProjects (params: {
   allProjects?: Array<{ rootDir: ProjectRootDir, manifest: BaseManifest }>
   commit: string
@@ -117,7 +126,7 @@ async function applyCatalogChangesToProjects (params: {
       'show',
       '--end-of-options',
       `${params.commit}:${relManifestPath}`,
-    ], { cwd: params.workspaceDir })
+    ], { cwd: params.workspaceDir, env: { ...process.env, LC_ALL: 'C' } })
     prevManifestContent = result.stdout as string
   } catch (err: unknown) {
     const stderr = (err as { stderr?: string }).stderr ?? ''
@@ -154,7 +163,7 @@ async function applyCatalogChangesToProjects (params: {
 
   const projects = await loadProjects(params.projectDirs, params.allProjects)
   for (const project of projects) {
-    if (params.workingDir !== params.workspaceDir && !isSubdir(params.workingDir, project.rootDir)) {
+    if (params.workingDir !== params.workspaceDir && !projectMatchesWorkingDir(params.workingDir, project.rootDir)) {
       continue
     }
     if (params.projectChangeTypes.get(project.rootDir) === 'source') continue
@@ -278,10 +287,9 @@ async function getChangedDirsSinceCommit (
   workspaceDir: string
 ): Promise<{ changedDirs: ChangedDir[], workspaceManifestChanged: boolean }> {
   const workspaceManifestPath = path.resolve(workspaceDir, 'pnpm-workspace.yaml')
-  const relWorkspaceManifest = path.relative(repoRoot, workspaceManifestPath).replaceAll('\\', '/')
   const diffPaths = workingDir === workspaceDir
     ? [workingDir]
-    : [workingDir, relWorkspaceManifest]
+    : [workingDir, workspaceManifestPath]
 
   let diff!: string
   try {

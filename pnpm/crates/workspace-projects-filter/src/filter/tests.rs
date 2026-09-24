@@ -508,7 +508,7 @@ fn is_subdir_contract() {
 /// upstream's "select changed packages" suite. Each builds a real git
 /// repository in a temp directory.
 mod changed_packages {
-    use super::{TestPkg, node_at};
+    use super::{TestPkg, graph_project, node_at};
     use crate::{
         filter::{FilterError, FilterWorkspaceProjectsOptions, filter_workspace_projects},
         parse_project_selector::ProjectSelector,
@@ -947,17 +947,109 @@ mod changed_packages {
             "packages:\n  - 'packages/*'\ncatalog:\n  foo: ^1.2.0\ncatalogs:\n  react18:\n    react: ^18.0.0\n",
         ).expect("update workspace manifest");
 
-        let pkg_a_str = path_of(&pkg_a_dir);
         assert_eq!(
             selected(
                 &graph,
-                &[ProjectSelector { parent_dir: Some(pkg_a_dir), ..diff_selector("HEAD") }],
+                &[ProjectSelector { parent_dir: Some(pkg_a_dir.clone()), ..diff_selector("HEAD") }],
                 &opts,
             ),
-            [pkg_a_str],
+            [path_of(&pkg_a_dir)],
         );
 
         // Selector scoped to pkg-b does not select pkg-a or pkg-b
+        assert_eq!(
+            selected(
+                &graph,
+                &[ProjectSelector { parent_dir: Some(pkg_b_dir), ..diff_selector("HEAD") }],
+                &opts,
+            ),
+            empty,
+        );
+
+        // Selector scoped by glob packages/* selects pkg-a
+        assert_eq!(
+            selected(
+                &graph,
+                &[ProjectSelector {
+                    parent_dir: Some(workspace_dir.join("packages/*")),
+                    use_glob_dir_filtering: Some(true),
+                    ..diff_selector("HEAD")
+                }],
+                &opts,
+            ),
+            [path_of(&pkg_a_dir)],
+        );
+    }
+
+    #[test]
+    fn select_changed_catalogs_in_nested_workspace() {
+        let repo = TempDir::new().expect("create tempdir");
+        let repo_dir = repo.path();
+        init_repo(repo_dir);
+
+        let ws_dir = repo_dir.join("nested").join("ws");
+        let pkg_a_dir = ws_dir.join("packages").join("pkg-a");
+        let pkg_b_dir = ws_dir.join("packages").join("pkg-b");
+        fs::create_dir_all(&pkg_a_dir).expect("create pkg-a");
+        fs::create_dir_all(&pkg_b_dir).expect("create pkg-b");
+
+        fs::write(
+            ws_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/*'\ncatalog:\n  foo: ^1.0.0\n",
+        )
+        .expect("write workspace manifest");
+        fs::write(
+            pkg_a_dir.join("package.json"),
+            r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-a package.json");
+        fs::write(
+            pkg_b_dir.join("package.json"),
+            r#"{"name":"pkg-b","version":"1.0.0","dependencies":{"bar":"^1.0.0"}}"#,
+        )
+        .expect("write pkg-b package.json");
+
+        commit_all(repo_dir);
+
+        fs::write(
+            ws_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/*'\ncatalog:\n  foo: ^1.1.0\n",
+        )
+        .expect("update workspace manifest");
+
+        let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+        graph.insert(
+            pkg_a_dir.clone(),
+            ProjectGraphNode {
+                package: graph_project(
+                    &pkg_a_dir.to_string_lossy(),
+                    "pkg-a",
+                    &[("foo", "catalog:")],
+                ),
+                dependencies: Vec::new(),
+            },
+        );
+        graph.insert(
+            pkg_b_dir.clone(),
+            ProjectGraphNode {
+                package: graph_project(&pkg_b_dir.to_string_lossy(), "pkg-b", &[("bar", "^1.0.0")]),
+                dependencies: Vec::new(),
+            },
+        );
+
+        let opts = FilterWorkspaceProjectsOptions { workspace_dir: ws_dir, ..Default::default() };
+        let path_of = |dir: &Path| dir.to_string_lossy().into_owned();
+
+        assert_eq!(
+            selected(
+                &graph,
+                &[ProjectSelector { parent_dir: Some(pkg_a_dir.clone()), ..diff_selector("HEAD") }],
+                &opts,
+            ),
+            [path_of(&pkg_a_dir)],
+        );
+
+        let empty: [String; 0] = [];
         assert_eq!(
             selected(
                 &graph,
