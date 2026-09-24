@@ -42,28 +42,34 @@ const SIGNALS: [libc::c_int; 3] = [libc::SIGINT, libc::SIGTERM, libc::SIGHUP];
 #[cfg(unix)]
 static PREVIOUS: [AtomicUsize; SIGNALS.len()] = [const { AtomicUsize::new(0) }; SIGNALS.len()];
 
-/// The capacity of an entry's path buffer, NUL included. Covers `PATH_MAX`
-/// on Linux and macOS; a longer path stays untracked rather than being
-/// truncated into the name of a different file.
-const MAX_STORED_PATH: usize = 4096;
+/// The registered path as the cleanup reads it: a C string on Unix, where
+/// the reader is a signal handler and only `unlink` is async-signal-safe.
+#[cfg(unix)]
+type StoredPath = std::ffi::CString;
 
-/// A claim in progress: the slot's buffer is being overwritten, so the
-/// cleanup must skip it. No real path length collides with the sentinel.
-const CLAIMING: usize = usize::MAX;
+#[cfg(not(unix))]
+type StoredPath = std::path::PathBuf;
 
-/// One staged temp file: the path bytes to unlink on interrupt, NUL
-/// terminated, with `len` 0 while the slot is free and [`CLAIMING`] while a
-/// claim writes them.
+/// How many temp files a process may register over its lifetime before new
+/// writes stay untracked. Each registration leaks its stored path — the
+/// signal handler may still be reading a previously published pointer, so
+/// the memory behind it is never reused — and the cap keeps that leak
+/// bounded. Past the cap a write keeps its pre-registry behavior: an
+/// interrupt leaves the temp file behind.
+const MAX_TRACKED_WRITES: usize = 4096;
+
+/// Registrations taken so far, against [`MAX_TRACKED_WRITES`].
+static REGISTRATIONS: AtomicUsize = AtomicUsize::new(0);
+
+/// One staged temp file: the path to unlink on interrupt, or null while the
+/// slot is free.
 ///
 /// Entries form a list the signal handler walks, so they are leaked rather
-/// than freed, and a released slot — buffer included — is reused by the
-/// next write, keeping the footprint bounded by the peak number of
-/// concurrent writes rather than the total. The handler then only reads
-/// atomics and unlinks, which is async-signal-safe, while the list itself
-/// has no fixed size.
+/// than freed, and a released slot is reused by the next write. The handler
+/// then only reads atomics and unlinks, which is async-signal-safe, while
+/// the list itself has no fixed size.
 struct Entry {
-    len: AtomicUsize,
-    buf: [u8; MAX_STORED_PATH],
+    path: AtomicPtr<StoredPath>,
     next: AtomicPtr<Entry>,
 }
 
@@ -78,7 +84,7 @@ pub struct PendingTempFile {
 impl Drop for PendingTempFile {
     fn drop(&mut self) {
         if let Some(entry) = self.entry {
-            entry.len.store(0, Ordering::Release);
+            entry.path.store(ptr::null_mut(), Ordering::Release);
         }
     }
 }
@@ -88,13 +94,19 @@ impl Drop for PendingTempFile {
 #[must_use]
 pub fn track_temp_file(path: &Path) -> PendingTempFile {
     install_handler();
-    let Some(bytes) = path_bytes(path) else {
+    let Some(stored) = store_path(path) else {
         return PendingTempFile { entry: None };
     };
-    if bytes.len() >= MAX_STORED_PATH {
+    if !take_budget(&REGISTRATIONS) {
         return PendingTempFile { entry: None };
     }
-    PendingTempFile { entry: Some(claim_entry(bytes)) }
+    PendingTempFile { entry: Some(claim_entry(Box::leak(Box::new(stored)))) }
+}
+
+/// Take one registration from `used`, refusing once the process has hit
+/// [`MAX_TRACKED_WRITES`].
+fn take_budget(used: &AtomicUsize) -> bool {
+    used.fetch_add(1, Ordering::Relaxed) < MAX_TRACKED_WRITES
 }
 
 /// Unlink every temp file still registered.
@@ -105,53 +117,51 @@ pub fn track_temp_file(path: &Path) -> PendingTempFile {
 pub fn remove_pending_temp_files() {
     let mut next = HEAD.load(Ordering::Acquire);
     // SAFETY: every pointer in the list came from the `Box::leak` in
-    // `push_entry` and is never freed, so it stays dereferenceable.
+    // `push_entry` and is never freed, so it stays dereferenceable. The same
+    // holds for the stored paths, which `track_temp_file` leaks, so a
+    // pointer the handler read before a slot was released still names a
+    // valid, never-reused path.
     while let Some(entry) = unsafe { next.as_ref() } {
-        let len = entry.len.load(Ordering::Acquire);
-        if len != 0 && len != CLAIMING {
-            unlink_entry(entry, len);
+        let path = entry.path.load(Ordering::Acquire);
+        // SAFETY: as above; a non-null stored path is a leaked `StoredPath`
+        // that stays dereferenceable for the life of the process.
+        if let Some(stored) = unsafe { path.as_ref() } {
+            unlink_stored(stored);
         }
         next = entry.next.load(Ordering::Acquire);
     }
 }
 
-/// Take the first free slot for `bytes`, or extend the list with one. The
-/// length is published only after the buffer holds the path, so a handler
-/// that reads a nonzero length after acquiring it sees the whole path.
-fn claim_entry(bytes: &[u8]) -> &'static Entry {
+/// Take the first free slot for `stored`, or extend the list with one. A
+/// slot is claimed with a single compare-and-swap, so the handler either
+/// still reads null or reads the published path, never a half-claimed slot.
+fn claim_entry(stored: &'static StoredPath) -> &'static Entry {
     let mut next = HEAD.load(Ordering::Acquire);
     // SAFETY: as in `remove_pending_temp_files`, list entries are leaked and
     // stay dereferenceable for the life of the process.
     while let Some(entry) = unsafe { next.as_ref() } {
-        if entry.len.compare_exchange(0, CLAIMING, Ordering::AcqRel, Ordering::Acquire).is_ok() {
-            // SAFETY: the claim makes the slot this thread's alone until
-            // `len` is published. A handler that read the previous length
-            // before the slot was released may still be reading; it then
-            // unlinks a mix of two of this process's own temp paths, which
-            // at worst removes a temp file of a concurrent write.
-            unsafe {
-                let buf = ptr::from_ref(&entry.buf).cast_mut().cast::<u8>();
-                ptr::copy_nonoverlapping(bytes.as_ptr(), buf, bytes.len());
-                *buf.add(bytes.len()) = 0;
-            }
-            entry.len.store(bytes.len(), Ordering::Release);
+        if entry.path
+            .compare_exchange(
+                ptr::null_mut(),
+                ptr::from_ref(stored).cast_mut(),
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
+            .is_ok()
+        {
             return entry;
         }
         next = entry.next.load(Ordering::Acquire);
     }
-    push_entry(bytes)
+    push_entry(stored)
 }
 
-/// Add an entry for `bytes` at the head of the list. The buffer and length
-/// are set before the head swings, so a handler walking the list
-/// concurrently either misses the new entry entirely or reads a complete
-/// one.
-fn push_entry(bytes: &[u8]) -> &'static Entry {
-    let mut buf = [0; MAX_STORED_PATH];
-    buf[..bytes.len()].copy_from_slice(bytes);
+/// Add an entry for `stored` at the head of the list. `path` is set before
+/// the head swings, so a handler walking the list concurrently either
+/// misses the new entry entirely or reads a complete one.
+fn push_entry(stored: &'static StoredPath) -> &'static Entry {
     let entry: &'static Entry = Box::leak(Box::new(Entry {
-        len: AtomicUsize::new(bytes.len()),
-        buf,
+        path: AtomicPtr::new(ptr::from_ref(stored).cast_mut()),
         next: AtomicPtr::new(ptr::null_mut()),
     }));
     let mut head = HEAD.load(Ordering::Acquire);
@@ -169,39 +179,30 @@ fn push_entry(bytes: &[u8]) -> &'static Entry {
     }
 }
 
-/// The path as the cleanup consumes it: raw bytes on Unix, where the reader
-/// is a signal handler passing them straight to `unlink`.
 #[cfg(unix)]
-fn path_bytes(path: &Path) -> Option<&[u8]> {
+fn store_path(path: &Path) -> Option<StoredPath> {
     use std::os::unix::ffi::OsStrExt as _;
 
-    Some(path.as_os_str().as_bytes())
+    std::ffi::CString::new(path.as_os_str().as_bytes()).ok()
 }
 
-/// The console-handler thread reconstructs the path from UTF-8; a
-/// non-UTF-8 path stays untracked rather than being lossily rewritten.
 #[cfg(not(unix))]
-fn path_bytes(path: &Path) -> Option<&[u8]> {
-    path.to_str().map(str::as_bytes)
+fn store_path(path: &Path) -> Option<StoredPath> {
+    Some(path.to_path_buf())
 }
 
 #[cfg(unix)]
-fn unlink_entry(entry: &Entry, _len: usize) {
-    // SAFETY: a published slot's buffer holds the path bytes followed by a
-    // NUL, and `unlink` is async-signal-safe.
+fn unlink_stored(path: &StoredPath) {
+    // SAFETY: `path` is a leaked C string that stays valid for the life of
+    // the process, and `unlink` is async-signal-safe.
     unsafe {
-        libc::unlink(entry.buf.as_ptr().cast());
+        libc::unlink(path.as_ptr());
     }
 }
 
 #[cfg(not(unix))]
-fn unlink_entry(entry: &Entry, len: usize) {
-    // SAFETY: the buffer stays dereferenceable for the life of the process,
-    // and a published length names bytes written before the publication.
-    let bytes = unsafe { std::slice::from_raw_parts(entry.buf.as_ptr(), len) };
-    if let Ok(path) = std::str::from_utf8(bytes) {
-        let _ = std::fs::remove_file(path);
-    }
+fn unlink_stored(path: &StoredPath) {
+    let _ = std::fs::remove_file(path);
 }
 
 #[cfg(unix)]

@@ -1,5 +1,5 @@
-use super::{MAX_STORED_PATH, PendingTempFile, remove_pending_temp_files, track_temp_file};
-use std::fs;
+use super::{MAX_TRACKED_WRITES, remove_pending_temp_files, take_budget, track_temp_file};
+use std::{fs, sync::atomic::AtomicUsize};
 
 #[test]
 fn pending_temp_file_is_unlinked_by_cleanup() {
@@ -42,13 +42,11 @@ fn released_slot_is_reused() {
 }
 
 #[test]
-fn a_path_longer_than_the_slot_buffer_stays_untracked() {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let mut long = dir.path().to_path_buf();
-    while long.as_os_str().len() < MAX_STORED_PATH {
-        long.push("x".repeat(200));
-    }
+fn registrations_stop_at_the_cap() {
+    // A local counter stands in for the process-global one, which the other
+    // tests in this binary share.
+    let used = AtomicUsize::new(0);
+    let taken = (0..=MAX_TRACKED_WRITES).filter(|_| take_budget(&used)).count();
 
-    let guard: PendingTempFile = track_temp_file(&long);
-    assert!(guard.entry.is_none(), "an over-long path gets no slot: {long:?}");
+    assert_eq!(taken, MAX_TRACKED_WRITES, "the budget grants exactly the cap");
 }
