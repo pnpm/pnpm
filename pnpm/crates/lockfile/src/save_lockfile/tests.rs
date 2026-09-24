@@ -1,4 +1,4 @@
-use super::SaveLockfileError;
+use super::{SaveLockfileError, write_atomic};
 use crate::Lockfile;
 use pretty_assertions::assert_eq;
 use std::path::Path;
@@ -792,4 +792,51 @@ fn parallel_map_lowering_matches_serial_lowering() {
         "every marker-prefixed character must belong to a planted decoy",
     );
     assert!(via_to_string.contains(decoy), "marker-shaped data must round-trip untouched");
+}
+
+/// The interrupt cleanup must see the temp file a lockfile save stages
+/// ([pnpm/pnpm#1418](https://github.com/pnpm/pnpm/issues/1418)). Running
+/// the cleanup mid-write stands in for the signal, whose delivery
+/// `pnpm-fs`'s own cross-process test covers: the unlinked temp file then
+/// fails the rename that would have published it.
+#[cfg(unix)]
+#[test]
+fn interrupt_cleanup_unlinks_the_staged_lockfile() {
+    let dir = tempdir().expect("create tempdir");
+    let target = dir.path().join(Lockfile::FILE_NAME);
+    let writer = std::thread::spawn({
+        let target = target.clone();
+        move || write_atomic(&target, &vec![b'x'; 256 * 1024 * 1024])
+    });
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while !has_staged_temp_file(dir.path()) {
+        assert!(!writer.is_finished(), "the save finished before the test saw its temp file");
+        assert!(std::time::Instant::now() < deadline, "the save staged no temp file in 30s");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    pnpm_fs::remove_pending_temp_files();
+
+    let result = writer.join().expect("join the writer");
+    assert!(
+        matches!(result, Err(SaveLockfileError::RenameFile { .. })),
+        "the cleanup should have unlinked the staged temp file, got: {result:?}",
+    );
+    assert!(!target.exists(), "nothing should have been published");
+    assert!(!has_staged_temp_file(dir.path()), "the temp file should be gone");
+}
+
+fn has_staged_temp_file(dir: &Path) -> bool {
+    std::fs::read_dir(dir)
+        .expect("list the project directory")
+        .filter_map(Result::ok)
+        .any(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".tmp")
+                && entry
+                    .metadata()
+                    .is_ok_and(|metadata| metadata.len() > 0)
+        })
 }

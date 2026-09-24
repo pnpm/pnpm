@@ -10,16 +10,15 @@
 //! module installs unlinks whatever is still pending before the signal ends
 //! the process.
 //!
-//! The handler chains to the disposition it replaced rather than assuming
-//! the default: `pnpm-executor`'s interrupt relay may have been installed
-//! first and may keep the process alive while children settle, so the
-//! handler unlinks only when the process is about to die — before the
-//! reset-and-raise for the default disposition, or in the relay's own exit
-//! path through [`die_from_signal`]. Unlinking while the relay
-//! keeps waiting would pull temp files out from under writes that keep
-//! running. An interrupt thus both reaches the children pnpm started and
-//! removes the temp files, whichever order the two handlers were installed
-//! in.
+//! `pnpm-executor`'s interrupt relay handles the same signals and may keep
+//! the process alive while children settle. It calls
+//! [`install_temp_file_cleanup`] before installing itself, so the two
+//! installs never race and the relay is the handler a signal reaches first.
+//! The relay ends the process through [`die_from_signal`], which unlinks
+//! the pending temp files; while it keeps waiting, the files stay, as
+//! unlinking them would pull them out from under writes that keep running.
+//! This handler chains to whatever disposition it replaced for the same
+//! reason, unlinking only before the reset-and-raise of the default one.
 
 use std::{
     path::Path,
@@ -95,7 +94,7 @@ impl Drop for PendingTempFile {
 /// until the returned guard is dropped.
 #[must_use]
 pub fn track_temp_file(path: &Path) -> PendingTempFile {
-    install_handler();
+    install_temp_file_cleanup();
     let Some(stored) = store_path(path) else {
         return PendingTempFile { entry: None };
     };
@@ -193,8 +192,12 @@ fn unlink_stored(path: &StoredPath) {
     let _ = std::fs::remove_file(path);
 }
 
+/// Install the handler that unlinks the pending temp files on interrupt.
+/// [`track_temp_file`] installs it on first use. A module that installs its
+/// own handler for the same signals calls this first, so the two
+/// read-then-replace sequences cannot interleave and lose one handler.
 #[cfg(unix)]
-fn install_handler() {
+pub fn install_temp_file_cleanup() {
     static INSTALLED: Once = Once::new();
     INSTALLED.call_once(|| {
         for (index, signal) in SIGNALS.iter().enumerate() {
@@ -269,10 +272,10 @@ extern "C" fn clean_temp_files(signal: libc::c_int) {
 /// have ended it without a handler. For a signal handler that decides the
 /// process dies.
 ///
-/// Async-signal-safe. The signal is unblocked first because a handler runs with its own
-/// signal blocked: `raise` would otherwise leave it pending until the
-/// handler returned, and the `_exit` below would report a plain exit code
-/// where the caller expects death by a signal.
+/// Async-signal-safe. The signal is unblocked first because a handler runs
+/// with its own signal blocked: `raise` would otherwise leave it pending
+/// until the handler returned, and the `_exit` below would report a plain
+/// exit code where the caller expects death by a signal.
 #[cfg(unix)]
 pub fn die_from_signal(signal: libc::c_int) -> ! {
     remove_pending_temp_files();
@@ -291,8 +294,12 @@ pub fn die_from_signal(signal: libc::c_int) -> ! {
     }
 }
 
+/// Install the handler that unlinks the pending temp files on a console
+/// interrupt. [`track_temp_file`] installs it on first use. Console
+/// handlers run last-registered first, so a module that installs its own
+/// handler after calling this sees each event before the cleanup does.
 #[cfg(windows)]
-fn install_handler() {
+pub fn install_temp_file_cleanup() {
     use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
 
     static INSTALLED: Once = Once::new();
@@ -305,14 +312,9 @@ fn install_handler() {
     });
 }
 
-/// Remove the pending temp files, then pass the event on: returning `FALSE`
-/// lets the next handler — `pnpm-executor`'s relay while children are
-/// running, or the default termination — decide how the process ends.
-///
-/// Unlike the Unix handler this cannot defer the cleanup to the exit path:
-/// a console handler runs on a thread of its own and never learns whether
-/// the next handler kept the process alive, and the relay's Windows exit
-/// path is a plain exit code with no cleanup point of its own.
+/// Remove the pending temp files, then pass the event on to the default
+/// termination. `pnpm-executor`'s relay, registered after this handler,
+/// sees the event first and stops it here while children are running.
 #[cfg(windows)]
 unsafe extern "system" fn clean_temp_files(event: u32) -> windows_sys::core::BOOL {
     use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT};
@@ -325,7 +327,7 @@ unsafe extern "system" fn clean_temp_files(event: u32) -> windows_sys::core::BOO
 }
 
 #[cfg(not(any(unix, windows)))]
-fn install_handler() {}
+pub fn install_temp_file_cleanup() {}
 
 #[cfg(test)]
 mod tests;

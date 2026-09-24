@@ -203,6 +203,7 @@ pub fn exit_like(exit: ScriptExit) -> ! {
 
 #[cfg(unix)]
 fn install_handler() {
+    pnpm_fs::install_temp_file_cleanup();
     static INSTALLED: Once = Once::new();
     INSTALLED.call_once(|| {
         for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
@@ -343,6 +344,7 @@ fn open_controlling_terminal() -> Option<libc::c_int> {
 fn install_handler() {
     use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
 
+    pnpm_fs::install_temp_file_cleanup();
     static INSTALLED: Once = Once::new();
     INSTALLED.call_once(|| {
         // SAFETY: the handler is a plain `extern "system"` function whose
