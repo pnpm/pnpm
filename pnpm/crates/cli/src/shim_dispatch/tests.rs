@@ -401,6 +401,18 @@ fn a_private_runtime_install_stays_out_of_the_global_virtual_store() {
 }
 
 #[test]
+fn a_runtime_install_keeps_its_release_age_approvals_out_of_the_caller_workspace() {
+    let root = tempfile::tempdir().unwrap();
+    let environment_dir = root.path().join("environment");
+    let config = Config { workspace_dir: Some(root.path().join("project")), ..Config::default() };
+
+    let install_config = hardened_install_config(config, &environment_dir, None);
+
+    assert_eq!(install_config.workspace_dir, Some(environment_dir));
+    assert_eq!(install_config.target_workspace_dir, None);
+}
+
+#[test]
 fn trust_decisions_round_trip_last_record_wins() {
     let root = tempfile::tempdir().unwrap();
     let trust_file = root
