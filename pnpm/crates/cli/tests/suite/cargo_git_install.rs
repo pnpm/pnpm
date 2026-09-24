@@ -297,6 +297,13 @@ fn failed_resolution_restores_manifest_lockfile_and_sources() {
             .mock("GET", "/mi/ss/missing-crate")
             .with_status(404)
             .create();
+        // After the 404, cargo looks up the underscore spelling to suggest it.
+        // A real index answers 404 there too; the mock's default 501 would
+        // send cargo through its network retries instead.
+        let _missing_alternative = registry
+            .mock("GET", "/mi/ss/missing_crate")
+            .with_status(404)
+            .create();
 
         let output = pnpm(&root)
             .env("CARGO_HOME", cargo_home.path())
@@ -306,7 +313,9 @@ fn failed_resolution_restores_manifest_lockfile_and_sources() {
 
         eprintln!("Failed resolution must roll back the native metadata: {output:?}");
         assert!(!output.status.success());
-        assert!(String::from_utf8_lossy(&output.stderr).contains("generate-lockfile failed"));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("generate-lockfile failed"));
+        assert!(stderr.contains("no matching package named `missing-crate` found"), "{stderr}");
         for (path, contents) in paths.into_iter().zip(original) {
             assert_eq!(fs::read(root.path().join(path)).unwrap(), contents, "{path}");
         }
