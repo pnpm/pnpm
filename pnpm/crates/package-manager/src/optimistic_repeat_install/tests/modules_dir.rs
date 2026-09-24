@@ -182,3 +182,57 @@ fn a_direct_dependency_linked_to_a_missing_target_is_not_installed() {
         Decision::Skipped { reason } if reason.contains("missing target"),
     ));
 }
+
+#[test]
+fn a_hoisted_sibling_dependency_linked_to_a_missing_target_is_not_installed() {
+    let linker = pnpm_config::NodeLinker::Hoisted;
+    let (dir, config, root_manifest) =
+        setup_fresh_install_with_config(linker, "root", "1.0.0", "", |_| {});
+    let sibling_dir = dir.path().join("pkg-a");
+    fs::create_dir_all(&sibling_dir).unwrap();
+    let sibling_manifest_path = sibling_dir.join("package.json");
+    fs::write(
+        &sibling_manifest_path,
+        r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
+    )
+    .unwrap();
+    let sibling_manifest = PackageManifest::from_path(sibling_manifest_path).unwrap();
+    pnpm_fs::symlink_dir(&dir.path().join("missing-foo"), &config.modules_dir.join("foo")).unwrap();
+
+    let settings = current_settings(config, linker, isolated_included(), None);
+    let projects = BTreeMap::from([
+        (
+            dir.path()
+                .to_string_lossy()
+                .into_owned(),
+            ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ),
+        (
+            sibling_dir.to_string_lossy().into_owned(),
+            ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
+        ),
+    ]);
+    write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
+
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        project_manifests: &[
+            (dir.path().to_path_buf(), &root_manifest),
+            (sibling_dir, &sibling_manifest),
+        ],
+        is_workspace_install: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: linker,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifest_freshness: crate::ManifestFreshness::Mtime,
+    });
+    assert!(matches!(
+        decision,
+        Decision::Skipped { reason } if reason.contains("missing target"),
+    ));
+}

@@ -269,26 +269,35 @@ pub(super) fn first_project_missing_modules_dir(
 /// when a link is broken or retargeted outside pnpm, and the full install
 /// relinks it. A missing entry is not a broken link: skipped optional and
 /// excluded dependencies have none, and a healthy entry costs one `stat`.
+/// The hoisted linker places a sibling's dependencies in the root modules
+/// directory too, so both are probed there.
 pub(super) fn direct_dependency_link_dangling(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
         project_manifests,
-        layout: crate::RepeatInstallLayout { included, .. },
+        layout: crate::RepeatInstallLayout { node_linker, included, .. },
         ..
     } = check;
     let groups = included_groups(included);
     project_manifests
         .iter()
         .any(|(root_dir, manifest)| {
-            let modules_dir = if lexical_normalize(root_dir) == lexical_normalize(workspace_root) {
-                config.modules_dir.clone()
-            } else {
-                sibling_modules_dir(config, root_dir, manifest)
-            };
+            let is_root = lexical_normalize(root_dir) == lexical_normalize(workspace_root);
+            let own_modules_dir =
+                (!is_root).then(|| sibling_modules_dir(config, root_dir, manifest));
+            let root_modules_dir = (is_root || node_linker == NodeLinker::Hoisted).then_some(
+                config.modules_dir.as_path(),
+            );
             manifest
                 .dependencies(groups.iter().copied())
-                .any(|(alias, _)| is_dangling_link(&modules_dir.join(alias)))
+                .any(|(alias, _)| {
+                    own_modules_dir
+                        .iter()
+                        .map(PathBuf::as_path)
+                        .chain(root_modules_dir)
+                        .any(|modules_dir| is_dangling_link(&modules_dir.join(alias)))
+                })
         })
 }
 

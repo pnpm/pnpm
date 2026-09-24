@@ -878,3 +878,29 @@ test('a repeat install relinks a direct dependency whose link points to a missin
 
   expect((await readPackageJsonFromDir(directLink)).version).toBe('1.0.0')
 })
+
+test('a repeat hoisted install relinks a workspace project dependency whose root link points to a missing target', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      name: 'project',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project'], nodeLinker: 'hoisted' })
+
+  await execPnpm(['install'])
+
+  const rootEntry = path.resolve('node_modules/is-positive')
+  fs.rmSync(rootEntry, { recursive: true })
+  fs.symlinkSync(path.resolve('node_modules/.missing/is-positive'), rootEntry, 'junction')
+
+  await execPnpm(['install'])
+
+  expect((await readPackageJsonFromDir(rootEntry)).version).toBe('1.0.0')
+})
