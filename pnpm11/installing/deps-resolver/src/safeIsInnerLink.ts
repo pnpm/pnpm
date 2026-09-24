@@ -49,17 +49,25 @@ export async function safeIsInnerLink (
 }
 
 async function moveAlienModule (alienDir: string, ignoredDir: string): Promise<void> {
-  await fs.promises.rm(ignoredDir, { recursive: true, force: true })
+  try {
+    await fs.promises.rm(ignoredDir, { recursive: true, force: true })
+  } catch (err: unknown) {
+    throw describeLockError(err, `Could not remove "${ignoredDir}"`)
+  }
   await fs.promises.mkdir(path.dirname(ignoredDir), { recursive: true })
   try {
     renameFileWithRetry(alienDir, ignoredDir)
   } catch (err: unknown) {
-    if (!isWindowsFileLockError(err)) throw err
-    throw new PnpmError('MODULES_DIR_IN_USE', `Could not move "${alienDir}" to "${ignoredDir}" (${err.code})`, {
-      cause: err,
-      hint: 'A file in this directory is probably in use by another process, such as a dev server or an editor. Stop that process and try again.',
-    })
+    throw describeLockError(err, `Could not move "${alienDir}" to "${ignoredDir}"`)
   }
+}
+
+function describeLockError (err: unknown, message: string): unknown {
+  if (!isWindowsFileLockError(err)) return err
+  return new PnpmError('MODULES_DIR_IN_USE', `${message} (${err.code})`, {
+    cause: err,
+    hint: 'A file in this directory is probably in use by another process, such as a dev server or an editor. Stop that process and try again.',
+  })
 }
 
 function isWindowsFileLockError (err: unknown): err is NodeJS.ErrnoException {

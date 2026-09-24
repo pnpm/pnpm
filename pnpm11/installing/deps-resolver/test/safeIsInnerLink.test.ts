@@ -64,3 +64,17 @@ test('a directory locked by another process on Windows fails within a second and
   })
   expect(elapsed).toBe(1_000)
 })
+
+test('a locked leftover in node_modules/.ignored on Windows is named in the error', async () => {
+  const { modulesDir, opts } = createAlienModule()
+  Object.defineProperty(process, 'platform', { value: 'win32' })
+  const locked = Object.assign(new Error('EBUSY: resource busy or locked, rmdir'), { code: 'EBUSY' })
+  jest.spyOn(fs.promises, 'rm').mockRejectedValue(locked)
+
+  await expect(safeIsInnerLink(modulesDir, '@types/node', opts)).rejects.toMatchObject({
+    code: 'ERR_PNPM_MODULES_DIR_IN_USE',
+    message: `Could not remove "${path.join(modulesDir, '.ignored', '@types/node')}" (EBUSY)`,
+    cause: locked,
+  })
+  expect(fs.existsSync(path.join(modulesDir, '@types/node/index.d.ts'))).toBe(true)
+})
