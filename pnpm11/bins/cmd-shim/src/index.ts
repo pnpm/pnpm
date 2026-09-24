@@ -236,7 +236,7 @@ async function searchScriptRuntime (target: string, opts: InternalOptions): Prom
     if (!isMissingPathError(err)) throw err
     // The target may be created after linking, for instance by a build step,
     // so the shim is written with the runtime inferred from the path alone.
-    if (isWindows && await exists(`${target}${getExeExtension()}`, opts)) {
+    if (isWindows && path.extname(target) === '' && await exists(`${target}${getExeExtension()}`, opts)) {
       return {
         program: null,
         additionalArgs: '',

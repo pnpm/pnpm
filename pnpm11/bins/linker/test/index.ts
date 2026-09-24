@@ -859,6 +859,25 @@ testOnWindows("linkBinsOfPackages() links a package's own bin whose target exist
   expect(fs.readdirSync(ownBinsDir)).toEqual(getExpectedBins(['tool']))
 })
 
+testOnPosix("linkBinsOfPackages() links a package's other own bins when probing one of them fails", async () => {
+  const pkgDir = temporaryDirectory()
+  const ownBinsDir = path.join(pkgDir, 'node_modules', '.bin')
+  const lockedDir = path.join(pkgDir, 'locked')
+  fs.mkdirSync(lockedDir)
+  fs.writeFileSync(path.join(pkgDir, 'ok.js'), 'console.log(\'ok\')\n')
+  fs.chmodSync(lockedDir, 0o000)
+  try {
+    await expect(linkBinsOfPackages([{
+      location: pkgDir,
+      manifest: { name: 'tool', version: '1.0.0', bin: { locked: 'locked/tool.js', ok: 'ok.js' } },
+    }], ownBinsDir)).rejects.toHaveProperty('code', 'EACCES')
+  } finally {
+    fs.chmodSync(lockedDir, 0o755)
+  }
+
+  expect(fs.readdirSync(ownBinsDir)).toEqual(['ok'])
+})
+
 testOnWindows("linkBinsOfPackages() keeps a bin named like the .cmd sibling of a package's own missing bin", async () => {
   const pkgDir = temporaryDirectory()
   const ownBinsDir = path.join(pkgDir, 'node_modules', '.bin')

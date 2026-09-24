@@ -167,12 +167,12 @@ async function _linkBins (
 
   // Removals finish before any shim is written: on Windows the siblings of a
   // removed bin `tool` include `tool.cmd`, which may be another bin's shim.
-  const isMissingOwnBin = await Promise.all(allCmds.map(async (cmd) => isOwnBinsDir(cmd.pkgDir, binsDir) && isOwnBinTargetMissing(cmd.path)))
-  await Promise.all(allCmds.filter((_, i) => isMissingOwnBin[i]).map(async (cmd) => removeBin(path.join(binsDir, cmd.name))))
-  const results = await Promise.allSettled(allCmds.filter((_, i) => !isMissingOwnBin[i]).map(async cmd => linkBin(cmd, binsDir, opts)))
+  const removals = await Promise.allSettled(allCmds.map(async (cmd) => removeBinIfOwnTargetMissing(cmd, binsDir)))
+  const cmdsToLink = allCmds.filter((_, i) => removals[i].status === 'fulfilled' && !removals[i].value)
+  const results = await Promise.allSettled(cmdsToLink.map(async cmd => linkBin(cmd, binsDir, opts)))
 
   // We want to create all commands that we can create before throwing an exception
-  for (const result of results) {
+  for (const result of [...removals, ...results]) {
     if (result.status === 'rejected') {
       throw result.reason
     }
@@ -495,6 +495,12 @@ async function haveEqualContents (pathA: string, pathB: string): Promise<boolean
     await fhA.close().catch(() => {})
     await fhB.close().catch(() => {})
   }
+}
+
+async function removeBinIfOwnTargetMissing (cmd: CommandInfo, binsDir: string): Promise<boolean> {
+  if (!isOwnBinsDir(cmd.pkgDir, binsDir) || !await isOwnBinTargetMissing(cmd.path)) return false
+  await removeBin(path.join(binsDir, cmd.name))
+  return true
 }
 
 async function removeBin (binPath: string): Promise<void> {
