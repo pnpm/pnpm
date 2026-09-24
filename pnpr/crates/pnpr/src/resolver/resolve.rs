@@ -195,6 +195,7 @@ async fn write_importer_manifest(
         "dependencies": project.dependencies,
         "devDependencies": project.dev_dependencies,
         "optionalDependencies": project.optional_dependencies,
+        "peerDependencies": project.peer_dependencies,
     });
     let manifest_bytes =
         serde_json::to_vec(&manifest_json).map_err(|err| ResolveError::Install(err.to_string()))?;
@@ -263,12 +264,12 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
         "dependencies": project.dependencies,
         "devDependencies": project.dev_dependencies,
         "optionalDependencies": project.optional_dependencies,
+        "peerDependencies": project.peer_dependencies,
     });
     std::fs::write(&manifest_path, serde_json::to_vec(&manifest_json).ok()?).ok()?;
     let manifest = PackageManifest::from_path(manifest_path).ok()?;
-    // The synthesized manifest carries no `peerDependencies`, so the
-    // auto-install-peers fold is a no-op; pass pnpm's default anyway.
-    satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).ok()?;
+    satisfies_package_manifest(importer, &manifest, config.auto_install_peers, &|_: &str| false)
+        .ok()?;
 
     Some(lockfile.clone())
 }

@@ -85,6 +85,10 @@ pub struct ResolveRequestProject {
     pub dev_dependencies: DepMap,
     #[serde(default)]
     pub optional_dependencies: DepMap,
+    /// Auto-installed as dependencies of the importer when the request
+    /// enables `autoInstallPeers`.
+    #[serde(default)]
+    pub peer_dependencies: DepMap,
 }
 
 fn root_dir() -> String {
@@ -114,6 +118,8 @@ pub struct ResolveRequest {
     pub dev_dependencies: Option<DepMap>,
     #[serde(default)]
     pub optional_dependencies: Option<DepMap>,
+    #[serde(default)]
+    pub peer_dependencies: Option<DepMap>,
     #[serde(default)]
     pub projects: Option<Vec<ResolveRequestProject>>,
     /// The client's default registry. Falls back to npmjs when absent.
@@ -247,6 +253,7 @@ pub struct ProjectDeps {
     pub dependencies: DepMap,
     pub dev_dependencies: DepMap,
     pub optional_dependencies: DepMap,
+    pub peer_dependencies: DepMap,
 }
 
 impl ResolveRequest {
@@ -268,6 +275,7 @@ impl ResolveRequest {
                     dependencies: project.dependencies.clone(),
                     dev_dependencies: project.dev_dependencies.clone(),
                     optional_dependencies: project.optional_dependencies.clone(),
+                    peer_dependencies: project.peer_dependencies.clone(),
                 })
                 .collect();
         }
@@ -278,6 +286,7 @@ impl ResolveRequest {
             dependencies: self.dependencies.clone().unwrap_or_default(),
             dev_dependencies: self.dev_dependencies.clone().unwrap_or_default(),
             optional_dependencies: self.optional_dependencies.clone().unwrap_or_default(),
+            peer_dependencies: self.peer_dependencies.clone().unwrap_or_default(),
         }]
     }
 }

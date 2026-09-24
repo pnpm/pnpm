@@ -120,6 +120,23 @@ test('pnpm install resolves optionalDependencies via the pnpr server', async () 
   expect(fs.existsSync('node_modules/is-negative')).toBe(true)
 })
 
+test('pnpm install auto-installs the peers of a peer-only project via the pnpr server', async () => {
+  prepareProject({
+    peerDependencies: {
+      'is-positive': '^1.0.0',
+    },
+  })
+
+  requestCount = 0
+
+  await execPnpm(
+    ['install', `--config.pnprServer=http://localhost:${serverPort}`]
+  )
+
+  expect(requestCount).toBeGreaterThanOrEqual(1)
+  expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+})
+
 test('pnpm install forwards patched dependencies and package extensions to pnpr', async () => {
   prepareProject({
     dependencies: {
