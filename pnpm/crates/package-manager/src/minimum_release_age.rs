@@ -152,7 +152,7 @@ where
         return persist_and_report_excludes::<ReporterImpl>(
             workspace_dir,
             &immature,
-            "(set minimumReleaseAgeStrict to true to gate these updates with a prompt)",
+            ExcludeReportMode::Loose,
         );
     }
 
@@ -181,14 +181,20 @@ where
     persist_and_report_excludes::<ReporterImpl>(
         workspace_dir,
         &immature,
-        "(approved at the prompt)",
+        ExcludeReportMode::ApprovedAtPrompt,
     )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExcludeReportMode {
+    Loose,
+    ApprovedAtPrompt,
 }
 
 fn persist_and_report_excludes<ReporterImpl: Reporter>(
     workspace_dir: &Path,
     immature: &[&ResolutionPolicyViolation],
-    reason: &str,
+    mode: ExcludeReportMode,
 ) -> Result<(), MinimumReleaseAgeError> {
     let added: Vec<String> = immature
         .iter()
@@ -204,14 +210,21 @@ fn persist_and_report_excludes<ReporterImpl: Reporter>(
     )
     .map_err(MinimumReleaseAgeError::WriteWorkspaceManifest)?;
 
-    ReporterImpl::emit(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Info,
-        message: format!(
-            "Added {} {} to minimumReleaseAgeExclude in pnpm-workspace.yaml {reason}:\n  {}",
-            added.len(),
-            if added.len() == 1 { "entry" } else { "entries" },
+    let count = added.len();
+    let entry_word = if count == 1 { "entry" } else { "entries" };
+    let message = match mode {
+        ExcludeReportMode::Loose => format!(
+            "Added {count} {entry_word} to minimumReleaseAgeExclude in pnpm-workspace.yaml (set minimumReleaseAgeStrict to true to gate these updates with a prompt):\n  {}",
             added.join("\n  "),
         ),
+        ExcludeReportMode::ApprovedAtPrompt => format!(
+            "Added {count} {entry_word} to minimumReleaseAgeExclude in pnpm-workspace.yaml (approved at the prompt)",
+        ),
+    };
+
+    ReporterImpl::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Info,
+        message,
         prefix: workspace_dir.to_string_lossy().into_owned(),
     }));
     Ok(())
