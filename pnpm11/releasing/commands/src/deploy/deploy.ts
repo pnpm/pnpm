@@ -230,9 +230,10 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
 
 async function copyProject (src: string, dest: string, opts: { includeOnlyPackageFiles: boolean }): Promise<void> {
   const { filesMap } = await fetchFromDir(src, opts)
-  const importPkg = createIndexedPkgImporter('clone-or-copy')
+  const importPkg = createIndexedPkgImporter('clone-or-copy', { disableLogging: true })
   importPkg(dest, { filesMap, force: true, resolvedFrom: 'local-dir' })
 }
+
 
 function validateDeployTarget (
   deployDir: string,
