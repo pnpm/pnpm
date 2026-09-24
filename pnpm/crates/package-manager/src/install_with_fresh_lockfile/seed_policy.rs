@@ -1,7 +1,7 @@
 use pnpm_lockfile::{Lockfile, PkgName};
 use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     sync::Arc,
 };
 
@@ -129,15 +129,15 @@ impl UpdateSeedPolicy {
         {
             return None;
         }
-        let targets = match self {
-            UpdateSeedPolicy::DropOnly { targets, .. } => vec![targets.clone()],
+        let targets: BTreeSet<&UpdateTargets> = match self {
+            UpdateSeedPolicy::DropOnly { targets, .. } => BTreeSet::from([targets]),
             UpdateSeedPolicy::ByImporter { policies, .. } => lockfile.importers
                 .keys()
                 .map(|importer_id| match policies.get(importer_id) {
-                    Some(ImporterUpdateSeedPolicy::DropOnly(targets)) => Some(targets.clone()),
+                    Some(ImporterUpdateSeedPolicy::DropOnly(targets)) => Some(targets),
                     Some(ImporterUpdateSeedPolicy::DropAll) | None => None,
                 })
-                .collect::<Option<Vec<_>>>()?,
+                .collect::<Option<_>>()?,
             UpdateSeedPolicy::KeepAll
             | UpdateSeedPolicy::KeepAllResolveAll
             | UpdateSeedPolicy::FixLockfile
@@ -147,6 +147,7 @@ impl UpdateSeedPolicy {
         if targets.is_empty() {
             return None;
         }
+        let targets: Vec<UpdateTargets> = targets.into_iter().cloned().collect();
         Some(Arc::new(move |name: &PkgName, version: &str| {
             let Ok(version) = node_semver::Version::parse(version) else { return false };
             let name = name.to_string();

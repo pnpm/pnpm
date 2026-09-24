@@ -3019,16 +3019,17 @@ function matchUpdateTargetsReplacedEverywhere (
   depth: number
 ): ((name: string, version: string) => boolean) | undefined {
   if (depth !== Infinity || projects.length === 0) return undefined
-  const updateMatchings: UpdateMatchingFunction[] = []
+  const updateMatchings = new Set<UpdateMatchingFunction>()
   for (const project of projects) {
     if (project.mutation === 'uninstallSome' || project.updateMatching == null) return undefined
-    updateMatchings.push(project.updateMatching)
+    updateMatchings.add(project.updateMatching)
   }
   const updatedImporterIds = new Set<string | undefined>(projects.map(({ rootDir }) => ctx.projects[rootDir]?.id))
   if (Object.keys(ctx.wantedLockfile.importers ?? {}).some((importerId) => !updatedImporterIds.has(importerId))) {
     return undefined
   }
-  return (name, version) => updateMatchings.every((updateMatching) => updateMatching(name, version))
+  const distinctUpdateMatchings = [...updateMatchings]
+  return (name, version) => distinctUpdateMatchings.every((updateMatching) => updateMatching(name, version))
 }
 
 function hasUninstallMutations (projects: MutatedProject[]): boolean {
