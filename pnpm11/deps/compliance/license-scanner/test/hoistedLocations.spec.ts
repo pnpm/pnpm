@@ -29,9 +29,12 @@ function addToStore (name: string, integrity: string): void {
   storeIndex.close()
 }
 
-test('findDependencyLicenses() reports a peer variant the hoisted linker collapsed at the location it recorded', async () => {
-  addToStore('alpha', 'sha512-alpha')
-  addToStore('peer', 'sha512-peer')
+addToStore('alpha', 'sha512-alpha')
+addToStore('peer', 'sha512-peer')
+
+const lockfileDir = path.join(os.tmpdir(), 'project')
+
+async function listedPaths (hoistedLocations: Record<string, string[]>): Promise<Array<[string, string | undefined]>> {
   const lockfile: LockfileObject = {
     importers: {
       ['.' as ProjectId]: {
@@ -49,8 +52,6 @@ test('findDependencyLicenses() reports a peer variant the hoisted linker collaps
       ['peer@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-peer' } },
     },
   }
-  const lockfileDir = path.join(os.tmpdir(), 'project')
-
   const licenses = await findDependencyLicenses({
     lockfileDir,
     manifest: {} as ProjectManifest,
@@ -59,14 +60,27 @@ test('findDependencyLicenses() reports a peer variant the hoisted linker collaps
     registriesByScope: { default: 'https://registry.npmjs.org/' },
     wantedLockfile: lockfile,
     storeDir,
-    hoistedLocations: {
-      'alpha@1.0.0(peer@2.0.0)': ['node_modules/alpha'],
-      'peer@1.0.0': ['node_modules/peer'],
-    },
+    hoistedLocations,
   })
+  return licenses.map(({ name, path }) => [name, path])
+}
 
-  expect(licenses.map(({ name, path }) => [name, path])).toStrictEqual([
+test('findDependencyLicenses() reports a peer variant the hoisted linker collapsed at the location it recorded', async () => {
+  expect(await listedPaths({
+    'alpha@1.0.0(peer@2.0.0)': ['node_modules/alpha'],
+    'peer@1.0.0': ['node_modules/peer'],
+  })).toStrictEqual([
     ['alpha', path.join(lockfileDir, 'node_modules', 'alpha')],
     ['peer', path.join(lockfileDir, 'node_modules', 'peer')],
+  ])
+})
+
+test('findDependencyLicenses() ignores a hoisted location outside the lockfile directory', async () => {
+  expect(await listedPaths({
+    'alpha@1.0.0(peer@1.0.0)': ['../outside/alpha'],
+    'peer@1.0.0': [path.join(os.tmpdir(), 'peer')],
+  })).toStrictEqual([
+    ['alpha', path.join(lockfileDir, 'node_modules', '.pnpm', 'alpha@1.0.0_peer@1.0.0', 'node_modules', 'alpha')],
+    ['peer', path.join(lockfileDir, 'node_modules', '.pnpm', 'peer@1.0.0', 'node_modules', 'peer')],
   ])
 })

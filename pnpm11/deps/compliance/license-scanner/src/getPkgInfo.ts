@@ -111,15 +111,13 @@ export async function getPkgInfo (
     opts.dir
   )
 
-  const hoistedLocation = (opts.hoistedLocations?.[pkg.depPath] ?? opts.hoistedLocations?.[removeSuffix(pkg.depPath)])?.[0]
-  const packageModulePath = hoistedLocation != null
-    ? path.join(opts.dir, hoistedLocation)
-    : path.join(
-      virtualStoreDir,
-      depPathToFilename(pkg.depPath, opts.virtualStoreDirMaxLength),
-      modulesDir,
-      manifest.name
-    )
+  const hoistedDir = hoistedPackageDir(opts.dir, (opts.hoistedLocations?.[pkg.depPath] ?? opts.hoistedLocations?.[removeSuffix(pkg.depPath)])?.[0])
+  const packageModulePath = hoistedDir ?? path.join(
+    virtualStoreDir,
+    depPathToFilename(pkg.depPath, opts.virtualStoreDirMaxLength),
+    modulesDir,
+    manifest.name
+  )
 
   const licenseInfo = await resolveLicense({ manifest, files })
 
@@ -147,4 +145,16 @@ export async function getPkgInfo (
   }
 
   return packageInfo
+}
+
+/**
+ * A lockfile-relative hoisted location resolved against `lockfileDir`, or
+ * `undefined` for a location that leaves it.
+ */
+function hoistedPackageDir (lockfileDir: string, location: string | undefined): string | undefined {
+  if (location == null || path.isAbsolute(location)) return undefined
+  const dir = path.join(lockfileDir, location)
+  const relative = path.relative(lockfileDir, dir)
+  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return undefined
+  return dir
 }

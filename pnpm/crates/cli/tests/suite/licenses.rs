@@ -310,9 +310,6 @@ snapshots:
     assert_eq!(listed_names(&["--recursive", "licenses", "list", "--json"]), ["alpha", "zeta"]);
 }
 
-/// A project whose `alpha` the hoisted linker placed in
-/// `node_modules/alpha`, recording it in `.modules.yaml` under
-/// `recorded_dep_path`.
 fn hoisted_project(recorded_dep_path: &str) -> tempfile::TempDir {
     let workspace = tempfile::tempdir().expect("create workspace");
     fs::write(
