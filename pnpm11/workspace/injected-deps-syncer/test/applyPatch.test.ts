@@ -255,3 +255,31 @@ test('falls back to copy when link fails with EXDEV', async () => {
 
   expect(fs.readFileSync('target/file.txt', 'utf8')).toBe('hello world')
 })
+
+// Creating a file symlink needs extra privileges on Windows.
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+
+testOnPosix('does not copy through a symlink that occupies the target when link fails with EXDEV', async () => {
+  prepareEmpty()
+
+  createFile('source/file.txt', 'hello world')
+  createFile('victim.txt', 'untouched')
+  createDir('target')
+  fs.symlinkSync(path.resolve('victim.txt'), path.resolve('target/file.txt'))
+
+  fs.promises.link = jest.fn<typeof fs.promises.link>(async () => {
+    throw Object.assign(new Error('cross-device link not permitted'), { code: 'EXDEV' })
+  })
+
+  await applyPatch({
+    added: [
+      { path: 'file.txt', newValue: 'source/file.txt' },
+    ],
+    removed: [],
+    modified: [],
+  }, path.resolve('source'), path.resolve('target'))
+
+  expect(fs.readFileSync('victim.txt', 'utf8')).toBe('untouched')
+  expect(fs.lstatSync('target/file.txt').isSymbolicLink()).toBe(false)
+  expect(fs.readFileSync('target/file.txt', 'utf8')).toBe('hello world')
+})

@@ -5204,6 +5204,7 @@ dependencies = [
  "pathdiff",
  "pnpm-crypto-hash",
  "reflink-copy",
+ "same-file",
  "sha2",
  "tempfile",
  "tracing",

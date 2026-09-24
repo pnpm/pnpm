@@ -8,7 +8,7 @@ use super::{
 };
 #[cfg(unix)]
 use super::{
-    super::{LINK_STATE_COPY, import_into_fresh_target, path_still_names},
+    super::{LINK_STATE_COPY, import_into_fresh_target},
     EaccesLinks, EpermLinks,
 };
 use pnpm_config::PackageImportMethod;
@@ -486,28 +486,4 @@ fn a_failed_copy_removes_its_partial_target() {
         .expect_err("a directory cannot be read as a file");
 
     assert!(!dst.exists(), "the partial target must not survive the failure");
-}
-/// The failed-copy cleanup unlinks by path, so it has to confirm the
-/// path still names what it created. A concurrent `import_atomic`
-/// renames a complete file onto the target, and removing that would
-/// undo an import that already reported success.
-///
-/// Unix only: the Windows arm cannot stage this, since deleting a file
-/// with an open handle leaves the name in place until the handle closes.
-#[test]
-#[cfg(unix)]
-fn path_still_names_rejects_a_replaced_dirent() {
-    let tmp = tempdir().unwrap();
-    let path = tmp.path().join("f");
-    let created = fs::File::create(&path).unwrap();
-
-    assert!(path_still_names(&created, &path), "the path names the file this call created");
-
-    fs::remove_file(&path).unwrap();
-    fs::write(&path, b"another importer's file").unwrap();
-
-    assert!(!path_still_names(&created, &path), "a replaced dirent is not ours to remove");
-
-    fs::remove_file(&path).unwrap();
-    assert!(!path_still_names(&created, &path), "a path that names nothing has nothing to remove");
 }

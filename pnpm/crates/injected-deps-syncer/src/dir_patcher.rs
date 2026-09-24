@@ -1,11 +1,12 @@
 //! Bring one directory tree in step with another by hardlinking, so an
 //! injected copy of a workspace package can be refreshed in place
-//! without re-running the installer.
+//! without re-running the installer. A target on another filesystem
+//! than its source gets copies instead.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_directory_fetcher::{DirectoryFetcher, DirectoryFetcherError};
-use pnpm_fs::{FsHardLink, FsReflink, Host, is_cross_device};
+use pnpm_fs::{FsHardLink, Host, is_cross_device};
 use std::{
     collections::{BTreeMap, HashMap},
     fs, io,
@@ -22,49 +23,18 @@ pub struct FileId {
     pub inode: u64,
 }
 
-/// A file entry in an [`InodeMap`].
-///
-/// Holds the file's filesystem identity ([`FileId`]) as well as its size and
-/// modification time. Equality checks prioritize matching hardlink identity,
-/// but also recognize unchanged fallback copies across filesystems when size
-/// and modification time match.
-#[derive(Debug, Clone, Copy, Eq)]
-pub struct FileEntry {
-    pub id: FileId,
-    pub size: u64,
-    pub modified: Option<std::time::SystemTime>,
-}
-
-impl PartialEq for FileEntry {
-    fn eq(&self, other: &Self) -> bool {
-        if self.id == other.id {
-            return true;
-        }
-        if self.size == other.size {
-            let (Some(t1), Some(t2)) = (self.modified, other.modified) else {
-                return false;
-            };
-            let diff = if t1 > t2 {
-                t1.duration_since(t2).unwrap_or_default()
-            } else {
-                t2.duration_since(t1).unwrap_or_default()
-            };
-            return diff <= std::time::Duration::from_secs(2);
-        }
-        false
-    }
-}
-
 /// What a path in an [`InodeMap`] holds.
 ///
 /// A file carries its identity rather than its content, because that is
 /// all a hardlink comparison needs: two paths hold the same bytes
 /// exactly when they are the same file, so an unchanged file costs no
-/// filesystem work.
+/// filesystem work. A copy made because the target is on another
+/// filesystem never shares its source's identity, so every sync copies
+/// it again.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Value {
     Dir,
-    File(FileEntry),
+    File(FileId),
 }
 
 /// Relative path → inode type, for every file and directory in a tree.
@@ -207,7 +177,7 @@ pub fn apply_patch(
     apply_patch_with_link::<Host>(patch, source_dir, target_dir)
 }
 
-pub(crate) fn apply_patch_with_link<Sys: FsHardLink + FsReflink>(
+pub(crate) fn apply_patch_with_link<Sys: FsHardLink>(
     patch: &DirDiff,
     source_dir: &Path,
     target_dir: &Path,
@@ -224,7 +194,7 @@ pub(crate) fn apply_patch_with_link<Sys: FsHardLink + FsReflink>(
     Ok(())
 }
 
-fn apply_change_with_link<Sys: FsHardLink + FsReflink>(
+fn apply_change_with_link<Sys: FsHardLink>(
     change: &Change,
     source_dir: &Path,
     target_dir: &Path,
@@ -241,39 +211,24 @@ fn apply_change_with_link<Sys: FsHardLink + FsReflink>(
         Value::File(_) => {
             let source_path = source_dir.join(&change.path);
             retry_over_blocking_inode(&target_path, || {
-                match Sys::hard_link(&source_path, &target_path) {
-                    Ok(()) => Ok(()),
-                    Err(error) if is_cross_device(&error) => {
-                        copy_file_fallback::<Sys>(&source_path, &target_path)
-                    }
-                    Err(error) => Err(PatchError::Link {
+                link_or_copy::<Sys>(&source_path, &target_path)
+                    .map_err(|error| PatchError::Link {
                         source: source_path.clone(),
                         target: target_path.clone(),
                         error,
-                    }),
-                }
+                    })
             })
         }
     }
 }
 
-fn copy_file_fallback<Sys: FsReflink>(source: &Path, target: &Path) -> Result<(), PatchError> {
-    let source_meta = fs::metadata(source)
-        .map_err(|error| PatchError::Stat { path: source.to_path_buf(), error })?;
-    if Sys::reflink(source, target).is_err() {
-        fs::copy(source, target)
-            .map_err(|error| PatchError::Link {
-                source: source.to_path_buf(),
-                target: target.to_path_buf(),
-                error,
-            })?;
+fn link_or_copy<Sys: FsHardLink>(source_path: &Path, target_path: &Path) -> io::Result<()> {
+    match Sys::hard_link(source_path, target_path) {
+        Err(error) if is_cross_device(&error) => {
+            pnpm_fs::copy_file_exclusive(source_path, target_path, |_| Ok(()))
+        }
+        result => result,
     }
-    if let (Ok(modified), Ok(file)) =
-        (source_meta.modified(), fs::File::options().write(true).open(target))
-    {
-        let _ = file.set_times(fs::FileTimes::new().set_modified(modified));
-    }
-    Ok(())
 }
 
 /// The target may hold an inode that [`extend_files_map`] skips — a
@@ -336,11 +291,7 @@ pub fn extend_files_map(files_map: &HashMap<String, PathBuf>) -> Result<InodeMap
             continue;
         };
         let value = if metadata.is_file() {
-            Value::File(FileEntry {
-                id: file_id(real_path, &metadata)?,
-                size: metadata.len(),
-                modified: metadata.modified().ok(),
-            })
+            Value::File(file_id(real_path, &metadata)?)
         } else if metadata.is_dir() {
             Value::Dir
         } else {

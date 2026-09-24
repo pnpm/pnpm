@@ -1,8 +1,8 @@
-use super::{DirPatcher, FileEntry, InodeMap, Value, extend_files_map, file_id};
+use super::{DirPatcher, InodeMap, Value, extend_files_map, file_id};
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::os::unix::fs::FileTypeExt as _;
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{collections::HashMap, fs, io, path::PathBuf};
 use tempfile::TempDir;
 
 fn create_file(path: &std::path::Path, content: &str) {
@@ -44,18 +44,13 @@ fn extend_files_map_names_every_ancestor() {
         .expect("build inode map");
 
     let index_js = dir.path().join("distribution/index.js");
-    let meta = fs::metadata(&index_js).expect("stat");
-    let entry = FileEntry {
-        id: file_id(&index_js, &meta).expect("file id"),
-        size: meta.len(),
-        modified: meta.modified().ok(),
-    };
+    let id = file_id(&index_js, &fs::metadata(&index_js).expect("stat")).expect("file id");
     assert_eq!(
         map,
         InodeMap::from([
             (".".to_string(), Value::Dir),
             ("distribution".to_string(), Value::Dir),
-            ("distribution/index.js".to_string(), Value::File(entry)),
+            ("distribution/index.js".to_string(), Value::File(id)),
         ]),
     );
 }
@@ -158,104 +153,78 @@ fn sync_shares_inodes_with_the_source() {
     );
 }
 
-struct CrossDeviceHardLink;
+/// Hardlinks fail with the error each platform raises when the target
+/// is on another filesystem than the source.
+struct CrossDeviceLinks;
 
-impl pnpm_fs::FsHardLink for CrossDeviceHardLink {
-    fn hard_link(_source: &std::path::Path, _target: &std::path::Path) -> std::io::Result<()> {
-        Err(std::io::Error::from(std::io::ErrorKind::CrossesDevices))
-    }
-}
-
-impl pnpm_fs::FsReflink for CrossDeviceHardLink {
-    fn reflink(_source: &std::path::Path, _target: &std::path::Path) -> std::io::Result<()> {
-        Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
-    }
-}
-
-struct RawOsCrossDeviceHardLink;
-
-impl pnpm_fs::FsHardLink for RawOsCrossDeviceHardLink {
-    fn hard_link(_source: &std::path::Path, _target: &std::path::Path) -> std::io::Result<()> {
-        #[cfg(unix)]
-        return Err(std::io::Error::from_raw_os_error(18));
+impl pnpm_fs::FsHardLink for CrossDeviceLinks {
+    fn hard_link(_: &std::path::Path, _: &std::path::Path) -> io::Result<()> {
         #[cfg(windows)]
-        return Err(std::io::Error::from_raw_os_error(17));
-        #[cfg(not(any(unix, windows)))]
-        return Err(std::io::Error::from(std::io::ErrorKind::CrossesDevices));
+        return Err(io::Error::from_raw_os_error(17));
+        #[cfg(not(windows))]
+        return Err(io::Error::from_raw_os_error(18));
     }
 }
 
-impl pnpm_fs::FsReflink for RawOsCrossDeviceHardLink {
-    fn reflink(_source: &std::path::Path, _target: &std::path::Path) -> std::io::Result<()> {
-        Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
+struct DeniedLinks;
+
+impl pnpm_fs::FsHardLink for DeniedLinks {
+    fn hard_link(_: &std::path::Path, _: &std::path::Path) -> io::Result<()> {
+        Err(io::Error::from(io::ErrorKind::PermissionDenied))
     }
 }
 
-#[test]
-fn sync_falls_back_to_copy_on_cross_device_link() {
-    let dir = TempDir::new().expect("temp dir");
-    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
-    create_file(&source.join("lib/index.js"), "built");
-    create_file(&source.join("assets/logo.png"), "image-bytes");
-    fs::create_dir_all(&target).expect("create target");
-
-    let source_map = super::load_inode_map(&source).expect("source inode map");
-    let target_map = super::load_inode_map(&target).expect("target inode map");
-    let patch = super::diff_dir(&target_map, &source_map);
-    super::apply_patch_with_link::<CrossDeviceHardLink>(&patch, &source, &target)
-        .expect("apply patch with cross-device link fallback");
-
-    let (source_path, target_path) = (source.join("lib/index.js"), target.join("lib/index.js"));
-    assert_eq!(fs::read_to_string(&target_path).expect("read target file"), "built");
-    assert_eq!(
-        fs::read_to_string(target.join("assets/logo.png")).expect("read target image"),
-        "image-bytes",
+fn sync_with<Sys: pnpm_fs::FsHardLink>(
+    source: &std::path::Path,
+    target: &std::path::Path,
+) -> Result<(), super::PatchError> {
+    let patch = super::diff_dir(
+        &super::load_inode_map(target).expect("target inode map"),
+        &super::load_inode_map(source).expect("source inode map"),
     );
-
-    let source_stat = fs::metadata(&source_path).expect("stat source");
-    let target_stat = fs::metadata(&target_path).expect("stat target");
-    assert_ne!(
-        file_id(&source_path, &source_stat).expect("source file id"),
-        file_id(&target_path, &target_stat).expect("target file id"),
-    );
+    super::apply_patch_with_link::<Sys>(&patch, source, target)
 }
 
 #[test]
-fn sync_falls_back_to_copy_on_raw_os_cross_device_error() {
-    let dir = TempDir::new().expect("temp dir");
-    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
-    create_file(&source.join("main.js"), "content");
-    fs::create_dir_all(&target).expect("create target");
-
-    let source_map = super::load_inode_map(&source).expect("source inode map");
-    let target_map = super::load_inode_map(&target).expect("target inode map");
-    let patch = super::diff_dir(&target_map, &source_map);
-    super::apply_patch_with_link::<RawOsCrossDeviceHardLink>(&patch, &source, &target)
-        .expect("apply patch with raw os cross device error");
-
-    assert_eq!(fs::read_to_string(target.join("main.js")).expect("read copied file"), "content");
-}
-
-#[test]
-fn sync_repeatedly_does_not_recopy_unchanged_fallback_files() {
+fn sync_copies_when_the_target_is_on_another_filesystem() {
     let dir = TempDir::new().expect("temp dir");
     let (source, target) = (dir.path().join("source"), dir.path().join("target"));
     create_file(&source.join("lib/index.js"), "built");
     fs::create_dir_all(&target).expect("create target");
 
-    let source_map = super::load_inode_map(&source).expect("source inode map");
-    let target_map = super::load_inode_map(&target).expect("target inode map");
-    let patch = super::diff_dir(&target_map, &source_map);
-    super::apply_patch_with_link::<CrossDeviceHardLink>(&patch, &source, &target)
-        .expect("initial sync");
+    sync_with::<CrossDeviceLinks>(&source, &target).expect("sync by copying");
 
-    let source_map = super::load_inode_map(&source).expect("source inode map");
-    let target_map = super::load_inode_map(&target).expect("target inode map");
-    let repeated_patch = super::diff_dir(&target_map, &source_map);
+    assert_eq!(fs::read_to_string(target.join("lib/index.js")).expect("read copy"), "built");
+}
+
+/// A copy never shares its source's identity, so nothing short of
+/// recopying tells a same-length rewrite apart from an unchanged file.
+#[test]
+fn sync_refreshes_a_copy_whose_source_changed_in_place() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("index.js"), "old");
+    fs::create_dir_all(&target).expect("create target");
+    sync_with::<CrossDeviceLinks>(&source, &target).expect("first sync");
+
+    fs::write(source.join("index.js"), "new").expect("rewrite source");
+    sync_with::<CrossDeviceLinks>(&source, &target).expect("second sync");
+
+    assert_eq!(fs::read_to_string(target.join("index.js")).expect("read copy"), "new");
+}
+
+#[test]
+fn sync_reports_a_link_error_that_is_not_cross_device() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("index.js"), "built");
+    fs::create_dir_all(&target).expect("create target");
+
+    let error = sync_with::<DeniedLinks>(&source, &target).expect_err("the link error surfaces");
+
     assert!(
-        repeated_patch.changes.is_empty(),
-        "repeated sync should produce no changes for unchanged files, got: {:?}",
-        repeated_patch.changes,
+        matches!(&error, super::PatchError::Link { error, .. } if error.kind() == io::ErrorKind::PermissionDenied),
+        "{error:?}",
     );
-    assert!(repeated_patch.removed.is_empty());
+    assert!(!target.join("index.js").exists(), "nothing was copied");
 }

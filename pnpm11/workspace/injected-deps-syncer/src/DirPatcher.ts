@@ -102,7 +102,7 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
       await fs.promises.link(sourcePath, targetPath)
     } catch (error) {
       if (util.types.isNativeError(error) && 'code' in error && error.code === 'EXDEV') {
-        await fs.promises.copyFile(sourcePath, targetPath)
+        await fs.promises.copyFile(sourcePath, targetPath, fs.constants.COPYFILE_EXCL)
         return
       }
       throw error
