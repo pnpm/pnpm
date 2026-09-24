@@ -227,3 +227,61 @@ test('ls inside a workspace package outputs information for that package (pnpm/p
   expect(rootList).toHaveLength(3)
 })
 
+test('root-level list with symlinked workspace directory remains recursive (pnpm/pnpm#14494)', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      location: 'packages/foo',
+      package: {
+        name: 'foo',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' },
+      },
+    },
+    {
+      location: 'packages/bar',
+      package: {
+        name: 'bar',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/hello-world-js-bin': '1.0.0' },
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+  })
+  await execPnpm(['install'])
+
+  const workspaceRealDir = fs.realpathSync.native(process.cwd())
+  const symlinkWorkspaceDir = path.resolve('..', `${path.basename(process.cwd())}-symlink`)
+  fs.symlinkSync(workspaceRealDir, symlinkWorkspaceDir, 'junction')
+
+  try {
+    const rootListWithEnv = JSON.parse(execPnpmSync(['ls', '--json'], {
+      env: {
+        NPM_CONFIG_WORKSPACE_DIR: symlinkWorkspaceDir,
+      },
+    }).stdout.toString())
+    expect(rootListWithEnv).toHaveLength(3)
+
+    const initialCwd = process.cwd()
+    try {
+      process.chdir(symlinkWorkspaceDir)
+      const listFromSymlinkCwd = JSON.parse(execPnpmSync(['ls', '--json']).stdout.toString())
+      expect(listFromSymlinkCwd).toHaveLength(3)
+    } finally {
+      process.chdir(initialCwd)
+    }
+  } finally {
+    fs.rmSync(symlinkWorkspaceDir, { force: true, recursive: true })
+  }
+})
+
+

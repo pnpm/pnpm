@@ -6,6 +6,7 @@ declare const global: Global
 if (!global['pnpm__startedAt']) {
   global['pnpm__startedAt'] = Date.now()
 }
+import fs from 'node:fs'
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi, types as utilTypes } from 'node:util'
 
@@ -258,7 +259,7 @@ export async function main (inputArgv: string[]): Promise<void> {
   }
 
   const isWorkspaceSubdirectory = typeof workspaceDir === 'string' &&
-    path.resolve(config.dir) !== path.resolve(workspaceDir)
+    getRealPathSync(config.dir) !== getRealPathSync(workspaceDir)
   const isListCommand = cmd === 'list' || cmd === 'll'
 
   if (
@@ -580,6 +581,15 @@ function failRuntimeCheck (onFail: 'error' | 'warn', message: string): void {
     throw new PnpmError('BAD_RUNTIME_VERSION', message, { hint: RUNTIME_ON_FAIL_HINT })
   }
   globalWarn(message)
+}
+
+function getRealPathSync (dir: string): string {
+  const resolved = path.resolve(dir)
+  try {
+    return fs.realpathSync.native(resolved)
+  } catch {
+    return resolved
+  }
 }
 
 const RUNTIME_ON_FAIL_HINT = 'If you want to bypass this version check, set "runtimeOnFail" to "warn" or "ignore" (e.g. via --runtime-on-fail=ignore), or set "devEngines.runtime.onFail"/"engines.runtime.onFail" to "warn" or "ignore"'
