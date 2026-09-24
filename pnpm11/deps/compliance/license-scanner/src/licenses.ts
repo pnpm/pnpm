@@ -33,6 +33,8 @@ export interface LicensePackage {
   description?: string
   repository?: string
   path?: string
+  /** Installed copies retained when several locations share one package version. */
+  paths?: string[]
 }
 
 /**
@@ -67,6 +69,7 @@ function appendDependenciesFromLicenseNode (
       description: dependencyNode.description,
       repository: dependencyNode.repository as string,
       path: dependencyNode.dir,
+      ...(dependencyNode.paths == null ? {} : { paths: dependencyNode.paths }),
     })
   }
 }
@@ -128,9 +131,15 @@ export async function findDependencyLicenses (opts: {
       const mapKey = dependencyNode.registryName == null
         ? `${dependencyNode.name}@${dependencyNode.version}`
         : `${dependencyNode.name}@${dependencyNode.registryName}:${dependencyNode.version}`
-      const existingVersion = licensePackages.get(mapKey)?.version
-      if (existingVersion === undefined) {
+      const existing = licensePackages.get(mapKey)
+      if (existing === undefined) {
         licensePackages.set(mapKey, dependencyNode)
+      } else {
+        const paths = [...new Set([
+          ...(existing.paths ?? (existing.path ? [existing.path] : [])),
+          ...(dependencyNode.paths ?? (dependencyNode.path ? [dependencyNode.path] : [])),
+        ])]
+        if (paths.length > 1) existing.paths = paths
       }
     }
   }

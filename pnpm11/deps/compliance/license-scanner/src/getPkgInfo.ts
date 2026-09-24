@@ -111,11 +111,14 @@ export async function getPkgInfo (
     opts.dir
   )
 
-  const hoistedDir = hoistedPackageDir(opts.dir, (opts.hoistedLocations?.[pkg.depPath] ?? opts.hoistedLocations?.[removeSuffix(pkg.depPath)])?.[0])
+  const hoistedPaths = (opts.hoistedLocations?.[pkg.depPath] ?? opts.hoistedLocations?.[removeSuffix(pkg.depPath)] ?? [])
+    .map((location) => hoistedPackageDir(opts.dir, location))
+    .filter((location): location is string => location != null)
+  const hoistedDir = hoistedPaths[0]
   const packageModulePath = hoistedDir ?? path.join(
     virtualStoreDir,
     depPathToFilename(pkg.depPath, opts.virtualStoreDirMaxLength),
-    modulesDir,
+    'node_modules',
     manifest.name
   )
 
@@ -124,6 +127,7 @@ export async function getPkgInfo (
   const packageInfo = {
     from: manifest.name,
     path: packageModulePath,
+    ...(hoistedPaths.length ? { paths: [...new Set(hoistedPaths)] } : {}),
     name: manifest.name,
     version: manifest.version,
     description: manifest.description,

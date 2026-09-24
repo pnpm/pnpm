@@ -63,7 +63,7 @@ export function renderLicences (
 
 function renderLicensesJson (licensePackages: readonly LicensePackage[]): string {
   const data = licensePackages
-    .map((item) => pick(['name', 'version', 'path', 'license', 'author', 'homepage', 'description', 'registryName'], item))
+    .map((item) => pick(['name', 'version', 'path', 'paths', 'license', 'author', 'homepage', 'description', 'registryName'], item))
 
   const output: Record<string, LicensePackageJson[]> = {}
   const groupedByLicense = groupBy((item) => item.license, data)
@@ -79,13 +79,13 @@ function renderLicensesJson (licensePackages: readonly LicensePackage[]): string
       if (inputList == null) continue
       inputList.sort((a, b) => compareVersions(a.version, b.version))
       const versions = inputList.map((item) => item.version)
-      const paths = inputList.map((item) => item.path ?? null)
+      const paths = [...new Set(inputList.flatMap((item) => item.paths ?? [item.path ?? null]))]
       const lastInputItem = inputList.at(-1)! // last item is chosen for its latest information
       const outputItem: LicensePackageJson = {
         name: lastInputItem.name,
         versions,
         paths,
-        ...omit(['name', 'version', 'path'], lastInputItem),
+        ...omit(['name', 'version', 'path', 'paths'], lastInputItem),
       }
       outputList.push(outputItem)
     }

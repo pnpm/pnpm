@@ -525,3 +525,71 @@ snapshots:
         ],
     );
 }
+
+#[test]
+fn licenses_lists_all_valid_copies_of_a_collapsed_hoisted_variant() {
+    let workspace = hoisted_project("alpha@1.0.0(peer@2.0.0)");
+    let locations = ["node_modules/a/node_modules/alpha", "node_modules/b/node_modules/alias"];
+    for location in locations {
+        let package_dir = workspace.path().join(location);
+        fs::create_dir_all(&package_dir).expect("create package directory");
+        fs::write(
+            package_dir.join("package.json"),
+            json!({ "name": "alpha", "version": "1.0.0", "license": "MIT" }).to_string(),
+        )
+        .expect("write manifest");
+    }
+    fs::write(workspace.path().join("node_modules/.modules.yaml"), json!({
+        "layoutVersion": 5,
+        "nodeLinker": "hoisted",
+        "hoistedLocations": {
+            "alpha@1.0.0(peer@2.0.0)": ["../outside/alpha", locations[0], locations[1], locations[0]],
+            "peer@1.0.0": ["node_modules/peer"],
+        },
+    }).to_string()).expect("write modules manifest");
+    let output = pacquet_in(workspace.path())
+        .args(["licenses", "list", "--json"])
+        .output()
+        .expect("run licenses");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
+    let root = dunce::canonicalize(workspace.path()).expect("canonicalize workspace");
+    assert_eq!(report["MIT"][0]["name"], "alpha");
+    assert_eq!(report["MIT"][0]["versions"], json!(["1.0.0"]));
+    assert_eq!(report["MIT"][0]["paths"], json!(locations.map(|location| root.join(location))));
+}
+
+#[test]
+fn licenses_lists_distinct_isolated_peer_installations_of_one_version() {
+    let workspace = hoisted_project("alpha@1.0.0(peer@1.0.0)");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "nodeLinker: isolated\n")
+        .expect("write workspace config");
+    let lockfile_path = workspace.path().join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read lockfile")
+        .replace("      peer:\n", "      alternate:\n        specifier: npm:alpha@1.0.0\n        version: alpha@1.0.0(peer@2.0.0)\n      peer:\n")
+        .replace("  peer@1.0.0: {}", "  alpha@1.0.0(peer@2.0.0): {}\n  peer@1.0.0: {}");
+    fs::write(lockfile_path, lockfile).expect("write lockfile");
+    let locations = [
+        "node_modules/.pnpm/alpha@1.0.0_peer@1.0.0/node_modules/alpha",
+        "node_modules/.pnpm/alpha@1.0.0_peer@2.0.0/node_modules/alpha",
+    ];
+    for location in locations {
+        let package_dir = workspace.path().join(location);
+        fs::create_dir_all(&package_dir).expect("create package directory");
+        fs::write(
+            package_dir.join("package.json"),
+            json!({ "name": "alpha", "version": "1.0.0", "license": "MIT" }).to_string(),
+        )
+        .expect("write manifest");
+    }
+    let output = pacquet_in(workspace.path())
+        .args(["licenses", "list", "--json"])
+        .output()
+        .expect("run licenses");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
+    let root = dunce::canonicalize(workspace.path()).expect("canonicalize workspace");
+    assert_eq!(report["MIT"][0]["name"], "alpha");
+    assert_eq!(report["MIT"][0]["versions"], json!(["1.0.0"]));
+    assert_eq!(report["MIT"][0]["paths"], json!(locations.map(|location| root.join(location))));
+}

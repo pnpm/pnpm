@@ -4,18 +4,19 @@ use pnpm_deps_restorer::VirtualStoreLayout;
 use pnpm_lockfile::PackageKey;
 use pnpm_modules_yaml::{Host, read_modules_manifest};
 use std::{
+    borrow::Cow,
     collections::BTreeMap,
     path::{Component, Path, PathBuf},
 };
 
 /// Where each listed package is installed: its virtual store slot, or
-/// the directory the hoisted linker placed it in.
+/// the directories the hoisted linker placed it in.
 pub(super) struct PackageDirs {
     layout: VirtualStoreLayout,
     /// The directories a `nodeLinker: hoisted` install, which leaves the
     /// virtual store empty, recorded in `.modules.yaml`, keyed by
     /// dependency path.
-    hoisted_dirs: BTreeMap<String, PathBuf>,
+    hoisted_dirs: BTreeMap<String, Vec<PathBuf>>,
 }
 
 impl PackageDirs {
@@ -34,34 +35,38 @@ impl PackageDirs {
                 .unwrap_or_default();
         let mut hoisted_dirs = BTreeMap::new();
         for (dep_path, locations) in hoisted_locations {
-            let Some(dir) =
-                locations.first().and_then(|location| hoisted_dir(lockfile_dir, location))
-            else {
+            let dirs: Vec<_> = locations
+                .iter()
+                .filter_map(|location| hoisted_dir(lockfile_dir, location))
+                .collect();
+            if dirs.is_empty() {
                 continue;
-            };
+            }
             // The hoisted linker collapses the peer variants of one
             // package version onto the first dependency path it meets,
             // so only that one is recorded.
             if let Ok(key) = dep_path.parse::<PackageKey>() {
                 hoisted_dirs
                     .entry(key.without_peer().to_string())
-                    .or_insert_with(|| dir.clone());
+                    .or_insert_with(|| dirs.clone());
             }
-            hoisted_dirs.insert(dep_path, dir);
+            hoisted_dirs.insert(dep_path, dirs);
         }
         Ok(Self { layout, hoisted_dirs })
     }
 
-    pub(super) fn package_dir(&self, key: &PackageKey, name: &str) -> PathBuf {
+    pub(super) fn package_dirs(&self, key: &PackageKey, name: &str) -> Cow<'_, [PathBuf]> {
         let hoisted_dir = self.hoisted_dirs
             .get(&key.to_string())
             .or_else(|| self.hoisted_dirs.get(&key.without_peer().to_string()));
         match hoisted_dir {
-            Some(dir) => dir.clone(),
-            None => self.layout
-                .slot_dir(key)
-                .join("node_modules")
-                .join(name),
+            Some(dirs) => Cow::Borrowed(dirs),
+            None => Cow::Owned(vec![
+                self.layout
+                    .slot_dir(key)
+                    .join("node_modules")
+                    .join(name),
+            ]),
         }
     }
 }

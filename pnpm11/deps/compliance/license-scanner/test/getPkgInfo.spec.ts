@@ -172,4 +172,28 @@ describe('getPkgInfo', () => {
     expect(result.author).toBe('Steve Mao')
     expect(result.description).toBe('String left pad')
   })
+
+  test.each(['node_modules', 'custom_modules'])('uses node_modules inside a custom virtual store with modulesDir %s', async (modulesDir) => {
+    const digest = 'dd00ff1122334455'
+    writeCafsFile(storeDir, digest, JSON.stringify({ name: 'express', version: '4.18.2', license: 'MIT' }))
+    const id = 'express@4.18.2'
+    const integrity = 'sha512-custom/modules'
+    storeIndex.set(storeIndexKey(integrity, id), {
+      algo: 'sha256',
+      files: new Map([['package.json', { digest, mode: 0o644, size: 0 }]]),
+    })
+    const result = await getPkgInfo({
+      id,
+      depPath: id,
+      snapshot: { resolution: { integrity } },
+      registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
+    }, {
+      ...defaultGetOpts(),
+      dir: storeDir,
+      modulesDir,
+      virtualStoreDir: 'virtual-store',
+    })
+    expect(result.path).toBe(path.join(storeDir, 'virtual-store', id, 'node_modules', 'express'))
+  })
+
 })

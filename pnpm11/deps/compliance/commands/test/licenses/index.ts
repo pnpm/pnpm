@@ -575,3 +575,55 @@ test('pnpm licenses: reports a runtime downloaded through devEngines', async () 
   expect(exitCode).toBe(0)
   expect(stripAnsi(output)).toMatchSnapshot('show-packages')
 })
+
+test.each([
+  ['hoisted', 'node_modules', undefined],
+  ['hoisted', 'custom_modules', undefined],
+  ['isolated', 'node_modules', undefined],
+  ['isolated', 'custom_modules', undefined],
+  ['isolated', 'custom_modules', 'virtual-store'],
+] as const)('pnpm licenses: reports installed paths with the %s linker in %s with virtual store %s', async (nodeLinker, modulesDir, virtualStoreDir) => {
+  const workspaceDir = tempDir()
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({
+    private: true,
+    dependencies: { 'is-positive': '3.1.0', a: 'file:./a', b: 'file:./b' },
+  }))
+  for (const name of ['a', 'b']) {
+    fs.mkdirSync(path.join(workspaceDir, name))
+    fs.writeFileSync(path.join(workspaceDir, name, 'package.json'), JSON.stringify({
+      name,
+      version: '1.0.0',
+      license: 'MIT',
+      dependencies: { 'is-positive': '1.0.0' },
+    }))
+  }
+  const storeDir = path.join(workspaceDir, 'store')
+  const opts = { ...DEFAULT_OPTS, dir: workspaceDir, pnpmHomeDir: '', storeDir, nodeLinker, modulesDir, virtualStoreDir }
+  await install.handler(opts)
+  const { output, exitCode } = await licenses.handler({
+    ...opts,
+    json: true,
+    storeDir: path.join(storeDir, STORE_VERSION),
+  }, ['list'])
+  expect(exitCode).toBe(0)
+  const packages = Object.values(JSON.parse(output)).flat() as Array<{ name: string, versions: string[], paths: string[] }>
+  const positive = packages.find(({ name }) => name === 'is-positive')!
+  expect(positive.versions).toEqual(['1.0.0', '3.1.0'])
+  if (nodeLinker === 'hoisted') {
+    expect(positive.paths.sort()).toEqual([
+      path.join(workspaceDir, modulesDir, 'a/node_modules/is-positive'),
+      path.join(workspaceDir, modulesDir, 'b/node_modules/is-positive'),
+      path.join(workspaceDir, modulesDir, 'is-positive'),
+    ].sort())
+  }
+  for (const pkg of packages) {
+    for (const pkgPath of pkg.paths) {
+      expect(path.isAbsolute(pkgPath)).toBe(true)
+      const manifest = JSON.parse(fs.readFileSync(path.join(pkgPath, 'package.json'), 'utf8'))
+      expect(manifest.name).toBe(pkg.name)
+      if (pkg.name === 'is-positive') {
+        expect(pkg.versions).toContain(manifest.version)
+      }
+    }
+  }
+})

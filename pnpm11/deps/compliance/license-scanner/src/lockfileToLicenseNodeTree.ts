@@ -20,6 +20,7 @@ export interface LicenseNode {
   license: string
   licenseContents?: string
   dir: string
+  paths?: string[]
   author?: string
   homepage?: string
   description?: string
@@ -113,6 +114,7 @@ export async function lockfileToLicenseNode (
         description: packageInfo.description,
         repository: packageInfo.repository,
         dir: packageInfo.path as string,
+        ...(packageInfo.paths == null ? {} : { paths: packageInfo.paths }),
       }
 
       if (Object.keys(subdeps).length > 0) {
