@@ -78,18 +78,7 @@ pub(super) async fn verify_frozen_tarballs(settled: Settled<'_, '_>) -> Result<(
     if !has_local_tarball(lockfile) {
         return Ok(());
     }
-    let requested = settled.projects.scope.importers.requested_importer_ids
-        .as_ref()
-        .or_else(|| {
-            (!settled.install.lockfile_policy.ignore_manifest_check).then_some(
-                &settled.projects.scope.importers.real_importer_ids,
-            )
-        });
-    let importer_ids = crate::install::materialize::initial_materialization_ids(
-        lockfile,
-        requested,
-        settled.install.execution.node_linker,
-    );
+    let importer_ids = installed_importer_ids(settled, lockfile);
     let (skipped, groups) = compute_frozen_skip_set(&settled, lockfile, &importer_ids).await?;
 
     let targets = crate::optimistic_repeat_install::frozen_local_tarballs_to_verify(
@@ -103,6 +92,92 @@ pub(super) async fn verify_frozen_tarballs(settled: Settled<'_, '_>) -> Result<(
     );
 
     verify_integrity(targets).await
+}
+
+/// Whether a local tarball a project depends on was replaced since the
+/// lockfile recorded it. An install not told to keep the lockfile frozen
+/// then has to re-resolve it instead of reusing the lockfile.
+pub(super) fn local_tarballs_changed(settled: Settled<'_, '_>) -> bool {
+    let Some(lockfile) = settled.lockfiles.wanted.get() else { return false };
+    if !has_local_tarball(lockfile) {
+        return false;
+    }
+    let workspace_root = &settled.projects.workspace.dirs.workspace_root;
+    direct_package_keys(lockfile, &installed_importer_ids(settled, lockfile), settled.mode.included)
+        .iter()
+        .filter_map(|key| lockfile.packages.as_ref()?.get(key))
+        .any(|metadata| local_tarball_changed(workspace_root, &metadata.resolution))
+}
+
+/// The packages `importer_ids` depend on directly through the included
+/// dependency groups.
+fn direct_package_keys(
+    lockfile: &pnpm_lockfile::Lockfile,
+    importer_ids: &HashSet<String>,
+    included: pnpm_modules_yaml::IncludedDependencies,
+) -> HashSet<pnpm_lockfile::PackageKey> {
+    use pnpm_package_manifest::DependencyGroup;
+    let groups = [
+        (DependencyGroup::Prod, included.dependencies),
+        (DependencyGroup::Dev, included.dev_dependencies),
+        (DependencyGroup::Optional, included.optional_dependencies),
+    ];
+    importer_ids
+        .iter()
+        .filter_map(|importer_id| lockfile.importers.get(importer_id))
+        .flat_map(|importer| {
+            groups
+                .iter()
+                .filter(|(_, group_included)| *group_included)
+                .filter_map(|(group, _)| importer.get_map_by_group(*group))
+                .flatten()
+        })
+        .filter_map(|(alias, resolved)| {
+            resolved.version.resolved_key(alias).map(|key| key.without_peer())
+        })
+        .collect()
+}
+
+/// Whether `resolution` is a local tarball whose file no longer holds the
+/// recorded bytes. A tarball that cannot be read counts as changed and is
+/// left to the resolver.
+fn local_tarball_changed(
+    workspace_root: &Path,
+    resolution: &pnpm_lockfile::LockfileResolution,
+) -> bool {
+    let pnpm_lockfile::LockfileResolution::Tarball(resolution) = resolution else { return false };
+    if !pnpm_lockfile::is_local_tarball_path(&resolution.tarball) {
+        return false;
+    }
+    let Some(path) =
+        pnpm_resolving_local_resolver::local_tarball_path(&resolution.tarball, workspace_root)
+    else {
+        return true;
+    };
+    resolution.integrity
+        .as_ref()
+        .filter(|integrity| !integrity.hashes.is_empty())
+        .is_none_or(|integrity| {
+            pnpm_tarball::verify_local_file_integrity(&path, integrity).is_err()
+        })
+}
+
+fn installed_importer_ids(
+    settled: Settled<'_, '_>,
+    lockfile: &pnpm_lockfile::Lockfile,
+) -> HashSet<String> {
+    let requested = settled.projects.scope.importers.requested_importer_ids
+        .as_ref()
+        .or_else(|| {
+            (!settled.install.lockfile_policy.ignore_manifest_check).then_some(
+                &settled.projects.scope.importers.real_importer_ids,
+            )
+        });
+    crate::install::materialize::initial_materialization_ids(
+        lockfile,
+        requested,
+        settled.install.execution.node_linker,
+    )
 }
 
 /// Whether any package resolves to a tarball on the local filesystem, the
