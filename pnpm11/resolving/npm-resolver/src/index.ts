@@ -1217,11 +1217,12 @@ function calcSpecifierForWorkspaceDep ({
   wantedDependency: WantedDependency
   spec: RegistryPackageSpec
   saveWorkspaceProtocol: boolean | 'rolling' | undefined
-  version: string
+  // A workspace project may omit its version, whatever its manifest type says.
+  version: string | undefined
   defaultRangeSpecStyle?: RangeSpecStyle
 }): string {
   const parsedVersion = semver.parse(version)
-  if (!saveWorkspaceProtocol && !wantedDependency.bareSpecifier?.startsWith('workspace:')) {
+  if (version != null && !saveWorkspaceProtocol && !wantedDependency.bareSpecifier?.startsWith('workspace:')) {
     if (parsedVersion != null) {
       return calcSpecifier({ wantedDependency, spec, version, defaultRangeSpecStyle })
     }
@@ -1230,7 +1231,7 @@ function calcSpecifierForWorkspaceDep ({
     }
   }
   const prefix = (!wantedDependency.alias || spec.name === wantedDependency.alias) ? 'workspace:' : `workspace:${spec.name}@`
-  if (saveWorkspaceProtocol === 'rolling') {
+  if (saveWorkspaceProtocol === 'rolling' || version == null) {
     const specifier = wantedDependency.prevSpecifier ?? wantedDependency.bareSpecifier
     if (specifier) {
       if ([`${prefix}*`, `${prefix}^`, `${prefix}~`].includes(specifier)) return specifier
@@ -1259,8 +1260,7 @@ function calcSpecifierForWorkspaceDep ({
  * exactly it could mean a wildcard, a tag or an alias inside `workspace:`, or
  * a different dependency source without it.
  */
-function isPartialVersion (version: string | undefined): boolean {
-  if (version == null) return false
+function isPartialVersion (version: string): boolean {
   const [major, ...minorAndPatch] = version.split('.')
   return isVersionNumber(major) &&
     minorAndPatch.length <= 2 &&

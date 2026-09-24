@@ -3508,6 +3508,7 @@ test.each([true, false])('workspace protocol: a local package without a version 
   })
 
   expect(resolveResult!.resolvedVia).toBe('workspace')
+  expect(resolveResult!.normalizedBareSpecifier).toBe('workspace:*')
 })
 
 test('peekManifestFromStore: reuses store manifest and bypasses network when package is in store', async () => {
