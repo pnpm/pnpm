@@ -281,9 +281,8 @@ mod tests {
             tarball_url: format!("file:{}", tarball_path.display()),
             integrity: integrity.clone(),
         });
-        let session = CustomFetcherSession::new(vec![
-            Arc::clone(&fetcher) as Arc<dyn pnpm_hooks::CustomFetcher>
-        ]);
+        let custom_fetcher = Arc::clone(&fetcher) as Arc<dyn pnpm_hooks::CustomFetcher>;
+        let session = CustomFetcherSession::new(vec![custom_fetcher]);
 
         let config = leaked_config(&dir.path().join("store"));
         let http_client = pnpm_network::ThrottledClient::default();
