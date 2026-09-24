@@ -8,7 +8,10 @@
 //! moving its dist-tags, so what gates a release is what ships to users.
 
 use crate::cli_args::ping::PingArgs;
+mod install_method;
+
 use clap::Args;
+use install_method::check_install_method;
 use pnpm_config::{Config, PNPM_VERSION};
 use serde::Serialize;
 use std::{
@@ -121,7 +124,7 @@ impl DoctorArgs {
     /// print alongside the outcome, leaving printing and the exit status to
     /// the caller.
     pub async fn run(&self, config: &Config) -> miette::Result<DoctorResult> {
-        let mut checks = vec![check_versions(), check_install_method()];
+        let mut checks = vec![check_versions(), check_install_method(config)];
         checks.push(check_global_bin_dir(config));
         checks.push(check_writable_dir("Cache directory", &config.cache_dir));
         checks.push(check_writable_dir("Store directory", config.store_dir.root()));
@@ -196,18 +199,6 @@ fn node_version() -> Option<String> {
             .trim_start_matches('v')
             .to_owned(),
     )
-}
-
-fn check_install_method() -> CheckResult {
-    let title = "Install method";
-    if std::env::var_os("COREPACK_ROOT").is_some() {
-        return CheckResult::warn(
-            title,
-            "pnpm, run by Corepack",
-            r#"Corepack manages the pnpm version itself; "pnpm self-update" is unavailable under it."#,
-        );
-    }
-    CheckResult::pass(title, "pnpm")
 }
 
 /// Check the global executables directory — where the CLI links binaries and

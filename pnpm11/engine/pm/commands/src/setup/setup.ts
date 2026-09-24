@@ -4,10 +4,11 @@ import path from 'node:path'
 
 import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
-import { logger } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
 import PATH from 'path-name'
 import { renderHelp } from 'render-help'
 
+import { findShadowingPnpm, renderShadowingPnpmWarning } from '../findShadowingPnpm.js'
 import {
   validateGHActionsEnvFileValues,
   writeGHActionsEnvFiles,
@@ -273,6 +274,10 @@ export async function handler (
   if (execPath.match(/\.[cm]?js$/) == null) {
     installCliGlobally(execPath, opts.pnpmHomeDir)
     createAliasScripts(binDir)
+  }
+  const shadowing = findShadowingPnpm(binDir, process.env[PATH])
+  if (shadowing != null) {
+    globalWarn(renderShadowingPnpmWarning(shadowing, binDir))
   }
   try {
     const report = await addDirToEnvPath(opts.pnpmHomeDir, {

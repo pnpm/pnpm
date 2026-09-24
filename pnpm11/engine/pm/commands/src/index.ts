@@ -1,3 +1,4 @@
+export { detectInstallOrigin, findShadowingPnpm, type InstallOrigin, renderShadowingPnpmWarning, type ShadowingPnpm } from './findShadowingPnpm.js'
 export { selfUpdate } from './self-updater/index.js'
 export { assertPnpmRuns, assertReleaseIsInstallable, exePlatformPkgDirName, exePlatformPkgDirNameNext, installPnpm, installPnpmToStore, isReleaseInstallable, linkExePlatformBinary, nativeTargetName, pnpmPackageNameToInstall } from './self-updater/installPnpm.js'
 export { type PnpmVersionLookup, prepareResolvePnpmVersion, type ResolvedPnpmVersion, resolvePnpmVersion, type ResolvePnpmVersionOptions } from './self-updater/resolvePnpmVersion.js'

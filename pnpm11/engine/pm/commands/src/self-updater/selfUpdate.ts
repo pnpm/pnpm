@@ -16,10 +16,12 @@ import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { isCI } from 'ci-info'
+import PATH from 'path-name'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
+import { findShadowingPnpm, renderShadowingPnpmWarning } from '../findShadowingPnpm.js'
 import { assertReleaseIsInstallable, findGlobalPnpmInstallDir, installPnpm, pnpmPackageNameToInstall } from './installPnpm.js'
 import { resolvePnpmVersion } from './resolvePnpmVersion.js'
 
@@ -190,7 +192,9 @@ async function switchGlobalPnpm (
   })
 
   // Link bins to pnpmHomeDir/bin so the updated pnpm is the active global binary
-  await linkBins(path.join(baseDir, 'node_modules'), path.join(opts.pnpmHomeDir, 'bin'), { warn: globalWarn })
+  const globalBin = path.join(opts.pnpmHomeDir, 'bin')
+  await linkBins(path.join(baseDir, 'node_modules'), globalBin, { warn: globalWarn })
+  warnIfShadowed(globalBin)
 
   // pnpm v10 setup linked bins directly into pnpmHomeDir and added that
   // directory to PATH (instead of pnpmHomeDir/bin as v11 does). When a v10
@@ -319,6 +323,16 @@ async function enforceResolutionPolicy (
   }
   if (!confirmed) {
     throw new PnpmError('MINIMUM_RELEASE_AGE_DENIED', 'Aborted: the immature pnpm version was not approved.')
+  }
+}
+
+// Say so when the pnpm just linked into the global bin directory is not the
+// one PATH resolves, or "Successfully updated" is the last thing the person
+// reads before `pnpm --version` prints the old version again.
+function warnIfShadowed (globalBin: string): void {
+  const shadowing = findShadowingPnpm(globalBin, process.env[PATH])
+  if (shadowing != null) {
+    globalWarn(renderShadowingPnpmWarning(shadowing, globalBin))
   }
 }
 

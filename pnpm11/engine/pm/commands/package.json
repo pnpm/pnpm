@@ -66,6 +66,7 @@
     "render-help": "catalog:",
     "semver": "catalog:",
     "symlink-dir": "catalog:",
+    "which": "catalog:",
     "write-file-atomic": "catalog:"
   },
   "peerDependencies": {
@@ -82,6 +83,7 @@
     "@types/cross-spawn": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
+    "@types/which": "catalog:",
     "@types/write-file-atomic": "catalog:"
   },
   "engines": {
