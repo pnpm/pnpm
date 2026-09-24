@@ -512,6 +512,12 @@ async function haveEqualContents (pathA: string, pathB: string): Promise<boolean
  * shim of bin/node itself. So a package's own bin is not linked into its own
  * .bin while the target is missing, and neither is any bin of a pass with
  * `holdBackMissingTargets`. Other bins get the shim (see cmd-shim).
+ *
+ * @returns `true` when the bin is held back: its target is missing, and any
+ * shim an earlier install left for it, with its Windows siblings, is removed.
+ * `false` when the bin should be linked.
+ * @throws When probing the target or removing the shim fails for a reason
+ * other than a missing path.
  */
 async function removeBinIfTargetAwaited (cmd: CommandInfo, binsDir: string, opts: LinkBinOptions): Promise<boolean> {
   if (!opts.holdBackMissingTargets && !isOwnBinsDir(cmd.pkgDir, binsDir)) return false

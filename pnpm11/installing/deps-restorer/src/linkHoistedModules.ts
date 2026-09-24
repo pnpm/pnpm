@@ -35,10 +35,12 @@ export async function linkHoistedModules (
     disableRelinkLocalDirDeps?: boolean
     force: boolean
     /**
-     * Whether the projects' `.bin` directories are linked again after the
-     * builds. See `holdBackMissingTargets` in `@pnpm/bins.linker`.
+     * Hold back the missing-target bins of the projects' `.bin` directories.
+     * Only sound when dependency scripts may run and the projects' bins are
+     * linked again after the builds. See `holdBackMissingTargets` in
+     * `@pnpm/bins.linker`.
      */
-    relinksProjectBinsAfterBuild: boolean
+    holdBackMissingProjectBins: boolean
     ignoreScripts: boolean
     lockfileDir: string
     preferSymlinkedExecutables?: boolean
@@ -95,7 +97,7 @@ export async function linkHoistedModules (
         }
         return linkAllPkgsInOrder(storeController, graph, depsHierarchy, parentDir, {
           ...opts,
-          holdBackMissingTargets: opts.relinksProjectBinsAfterBuild,
+          holdBackMissingTargets: opts.holdBackMissingProjectBins,
           nodeVersion,
           restorer,
           warn,
