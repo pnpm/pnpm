@@ -582,16 +582,23 @@ await writeWantedLockfileAtomic(process.env.LOCKFILE_PATH, 'key: ' + 'x'.repeat(
   // Interrupt once the temp file exists. Killing earlier — while the child
   // is still building the write's payload — would pass without exercising
   // the cleanup, as there would be no temp file to remove.
+  const exited = once(child, 'exit')
   await waitForTempFile(1000)
   child.kill('SIGINT')
 
-  const [, signal] = await once(child, 'exit')
+  const [, signal] = await exited
   expect(signal).toBe('SIGINT')
   expect(fs.readdirSync(projectPath).filter((entry) => entry.endsWith('.tmp'))).toStrictEqual([])
 
   function waitForTempFile (attempts: number): Promise<void> {
-    if (attempts === 0 || fs.readdirSync(projectPath).some((entry) => entry.endsWith('.tmp'))) {
+    if (fs.readdirSync(projectPath).some((entry) => entry.endsWith('.tmp'))) {
       return Promise.resolve()
+    }
+    if (child.exitCode != null || child.signalCode != null) {
+      throw new Error('the child exited before staging a temp file')
+    }
+    if (attempts === 0) {
+      throw new Error('the child staged no temp file within 5s')
     }
     return new Promise<void>((resolve) => setTimeout(resolve, 5)).then(() => waitForTempFile(attempts - 1))
   }
