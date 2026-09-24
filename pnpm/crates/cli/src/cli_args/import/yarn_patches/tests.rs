@@ -1,4 +1,4 @@
-use super::YarnPatchSpecifier;
+use super::{RecordedPatch, YarnPatchSpecifier};
 use pretty_assertions::assert_eq;
 
 fn parse(specifier: &str) -> (String, String, Vec<String>) {
@@ -73,4 +73,27 @@ fn ignores_other_protocols() {
     assert_eq!(YarnPatchSpecifier::parse("npm:foo@1.0.0"), None);
     assert_eq!(YarnPatchSpecifier::parse("^1.0.0"), None);
     assert_eq!(YarnPatchSpecifier::parse("patch:foo"), None);
+}
+
+#[test]
+fn records_a_patch_once_and_reports_a_conflicting_one() {
+    let workspace_dir = std::path::Path::new("/workspace");
+    let mut patched_dependencies =
+        indexmap::IndexMap::from([("foo@1.0.0".to_string(), "./patches/foo.patch".to_string())]);
+    let record = |file: &str, patched_dependencies: &mut indexmap::IndexMap<String, String>| {
+        let file = workspace_dir.join(file);
+        let patch =
+            RecordedPatch { key: "foo@1.0.0".to_string(), file: &file, alias: "foo".to_string() };
+        patch.record(patched_dependencies, workspace_dir).map(|dropped| dropped.warning())
+    };
+
+    assert_eq!(record("patches/foo.patch", &mut patched_dependencies), None);
+    assert_eq!(
+        record("packages/bar/foo.patch", &mut patched_dependencies),
+        Some(
+            r#"The Yarn patch packages/bar/foo.patch of "foo" was not applied, because "foo@1.0.0" already uses the patch ./patches/foo.patch."#
+                .to_string()
+        ),
+    );
+    assert_eq!(patched_dependencies["foo@1.0.0"], "./patches/foo.patch");
 }

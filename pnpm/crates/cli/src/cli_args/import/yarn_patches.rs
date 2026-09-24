@@ -4,6 +4,7 @@ use miette::{Context, IntoDiagnostic};
 use node_semver::Range;
 use percent_encoding::percent_decode_str;
 use pnpm_config::Config;
+use pnpm_fs::lexical_normalize;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::Reporter;
 use serde_json::Value;
@@ -143,9 +144,8 @@ pub(super) fn convert_yarn_patches(
                 }
             };
             let Some(patch_file) = patch_file else { continue };
-            let patch_file = workspace_relative_path(&patch_file, workspace_dir);
-            let conflict = record_patch(patched_dependencies, patch.patch_key, patch_file, alias);
-            converted.dropped.extend(conflict);
+            let recorded = RecordedPatch { key: patch.patch_key, file: &patch_file, alias };
+            converted.dropped.extend(recorded.record(patched_dependencies, workspace_dir));
         }
     }
     Ok(converted)
@@ -171,24 +171,40 @@ fn single_patch_file(
     Ok(Some(patch_file))
 }
 
-fn record_patch(
-    patched_dependencies: &mut IndexMap<String, String>,
-    patch_key: String,
-    patch_file: String,
-    alias: String,
-) -> Option<DroppedPatch> {
-    match patched_dependencies.entry(patch_key) {
-        Entry::Vacant(entry) => {
-            entry.insert(patch_file);
-            None
+/// A converted patch about to be recorded in `patchedDependencies`.
+pub(super) struct RecordedPatch<'a> {
+    pub key: String,
+    pub file: &'a Path,
+    pub alias: String,
+}
+
+impl RecordedPatch<'_> {
+    /// Record the patch unless its key already has one. A kept entry that
+    /// names another file is reported as a conflict.
+    pub(super) fn record(
+        self,
+        patched_dependencies: &mut IndexMap<String, String>,
+        workspace_dir: &Path,
+    ) -> Option<DroppedPatch> {
+        let relative_file = workspace_relative_path(self.file, workspace_dir);
+        match patched_dependencies.entry(self.key) {
+            Entry::Vacant(entry) => {
+                entry.insert(relative_file);
+                None
+            }
+            Entry::Occupied(entry)
+                if lexical_normalize(&workspace_dir.join(entry.get()))
+                    == lexical_normalize(self.file) =>
+            {
+                None
+            }
+            Entry::Occupied(entry) => Some(DroppedPatch::Conflicting {
+                alias: self.alias,
+                patch_file: relative_file,
+                patch_key: entry.key().clone(),
+                kept: entry.get().clone(),
+            }),
         }
-        Entry::Occupied(entry) if *entry.get() == patch_file => None,
-        Entry::Occupied(entry) => Some(DroppedPatch::Conflicting {
-            alias,
-            patch_file,
-            patch_key: entry.key().clone(),
-            kept: entry.get().clone(),
-        }),
     }
 }
 
