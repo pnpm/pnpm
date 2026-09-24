@@ -14,8 +14,8 @@ import { cmdShim, cmdShimIfExists, isShimForMissingTarget, isShimPointingAt } fr
  * @param {string} fileName
  * @param {'\n' | '\r\n'} lineEnding
  */
-async function testFile (t, fileName, lineEnding = '\n') {
-  await t.test(path.basename(fileName).toLowerCase(), async (t) => {
+async function testFile (t, fileName, lineEnding = '\n', name = path.basename(fileName).toLowerCase()) {
+  await t.test(name, async (t) => {
     const invalidLineEnding = lineEnding === '\r\n' ? /$(?<!\r)\n/ugm : /$\r\n/ugm
     let content = await fs.promises.readFile(fileName, 'utf8')
 
@@ -160,7 +160,8 @@ describe('env shebang with NODE_PATH', () => {
   })
 
   test('shim files', async (t) => {
-    await testFile(t, to)
+    // A shim written on Windows picks the NODE_PATH form when it runs.
+    await testFile(t, to, '\n', process.platform === 'win32' ? 'env.shim (windows)' : 'env.shim')
     await testFile(t, `${to}${cmdExtension}`, '\r\n')
     await testFile(t, `${to}.ps1`)
   })
