@@ -678,6 +678,84 @@ fn recursive_run_if_present_is_a_noop_when_no_package_has_the_script() {
     drop(root);
 }
 
+/// A `--filter` that selects no project skips the run with exit 0 and
+/// says so on stdout, as pnpm does. The selector here is `'**'` with the
+/// quotes kept, which is what `cmd.exe` passes for `--filter '**'` in a
+/// package script.
+#[test]
+fn recursive_run_reports_a_filter_that_matched_nothing() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &[("project-1", build_writes_marker("project-1"))]);
+
+    let output = pacquet
+        .with_arg("--filter")
+        .with_arg("'**'")
+        .with_arg("build")
+        .output()
+        .expect("run pacquet");
+
+    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("No projects matched the filters in"), "stdout: {stdout}");
+    assert!(
+        !workspace
+            .join("project-1")
+            .join("ran.txt")
+            .exists(),
+        "no project is selected",
+    );
+
+    drop(root);
+}
+
+/// The explicit `run` spelling reports the empty selection the same way.
+#[test]
+fn recursive_run_command_reports_a_filter_that_matched_nothing() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &[("project-1", build_writes_marker("project-1"))]);
+
+    let output = pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("does-not-exist")
+        .with_arg("run")
+        .with_arg("build")
+        .output()
+        .expect("run pacquet");
+
+    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("No projects matched the filters in"), "stdout: {stdout}");
+
+    drop(root);
+}
+
+#[test]
+fn recursive_run_silent_suppresses_no_match_notice() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &[("project-1", build_writes_marker("project-1"))]);
+
+    for flag in ["--silent", "--reporter=ndjson"] {
+        let output = Command::cargo_bin("pnpm")
+            .expect("find pacquet binary")
+            .with_current_dir(&workspace)
+            .with_arg("-r")
+            .with_arg("--filter")
+            .with_arg("does-not-exist")
+            .with_arg(flag)
+            .with_arg("run")
+            .with_arg("build")
+            .output()
+            .expect("run pacquet");
+
+        assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(!stdout.contains("No projects matched the filters in"), "stdout: {stdout}");
+    }
+
+    drop(root);
+}
+
 /// The top-level `--if-present` spelling with a shorthand script — the
 /// shape the repo's own `test-pkgs-branch` script uses
 /// (`pnpm --workspace-concurrency=1 --no-sort --if-present <script>`) —

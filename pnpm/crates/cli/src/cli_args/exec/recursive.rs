@@ -15,8 +15,8 @@ use super::{ExecArgs, ExecDirs, ExecError, prepare_command, spawn_in_dir};
 use crate::cli_args::{
     recursive::{
         AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
-        filtered_projects_dependencies, find_resume_root, select_recursive_projects,
-        write_recursive_summary,
+        filtered_projects_dependencies, find_resume_root, no_projects_matched_message,
+        notice_workspace_dir, select_recursive_projects, write_recursive_summary,
     },
     reporter::{ReporterType, reporter_emit},
     task_run_state::{TaskRunExecutionSettings, TaskRunStateContext, task_run_execution_settings},
@@ -103,6 +103,9 @@ pub async fn exec_recursive(
     )?;
     // An empty `--filter` selection is a no-op (exit 0).
     if selection.selected.is_empty() {
+        if !matches!(reporter, ReporterType::Ndjson | ReporterType::Silent) {
+            println!("{}", no_projects_matched_message(notice_workspace_dir(config, dir)));
+        }
         return Ok(());
     }
 
