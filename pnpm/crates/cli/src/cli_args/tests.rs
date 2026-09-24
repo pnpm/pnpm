@@ -10,6 +10,7 @@ use super::{
         current_source_pnpm_version, package_manager_to_sync, parse_package_manager,
         read_manifest_json,
     },
+    remove::RemoveArgs,
     reporter::{LogLevelSetting, ReporterType},
     store::StoreCommand,
     tasks::{TasksArgs, TasksCommand},
@@ -26,6 +27,13 @@ fn install_args(argv: &[&str]) -> InstallArgs {
     match CliArgs::try_parse_from(argv).expect("parses").command {
         CliCommand::Install(install) => install,
         other => panic!("expected install, got {other:?}"),
+    }
+}
+
+fn remove_args(argv: &[&str]) -> RemoveArgs {
+    match CliArgs::try_parse_from(argv).expect("parses").command {
+        CliCommand::Remove(remove) => remove,
+        other => panic!("expected remove, got {other:?}"),
     }
 }
 
@@ -339,6 +347,19 @@ fn trust_lockfile_pair_resolves_last_one_wins() {
         last_on.lockfile_updates.trust_lockfile && !last_on.lockfile_updates.no_trust_lockfile,
         "--trust wins when last",
     );
+}
+
+#[test]
+fn remove_trust_lockfile_pair_resolves_last_one_wins() {
+    assert!(remove_args(&["pacquet", "remove", "foo", "--no-trust-lockfile"]).no_trust_lockfile);
+    assert!(remove_args(&["pacquet", "remove", "foo", "--trust-lockfile"]).trust_lockfile);
+
+    let last_off =
+        remove_args(&["pacquet", "remove", "foo", "--trust-lockfile", "--no-trust-lockfile"]);
+    assert!(last_off.no_trust_lockfile && !last_off.trust_lockfile, "--no wins when last");
+    let last_on =
+        remove_args(&["pacquet", "remove", "foo", "--no-trust-lockfile", "--trust-lockfile"]);
+    assert!(last_on.trust_lockfile && !last_on.no_trust_lockfile, "--trust wins when last");
 }
 
 /// Returns the canonicalized root too: a temp dir is a symlink on some
