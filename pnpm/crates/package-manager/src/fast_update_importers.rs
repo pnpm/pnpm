@@ -283,15 +283,36 @@ fn place_dependency(
     alias: &PkgName,
     groups: ImporterGroups,
 ) -> Option<ImporterGroups> {
+    let recorded = recorded_groups(importer, alias);
+    if recorded == groups {
+        return None;
+    }
+    let dependency = take_dependency(importer, alias)?;
+    for group in groups.iter() {
+        importer_group(importer, group)
+            .get_or_insert_default()
+            .insert(alias.clone(), dependency.clone());
+    }
+    Some(recorded)
+}
+
+/// The groups the importer currently records `alias` under.
+fn recorded_groups(importer: &ProjectSnapshot, alias: &PkgName) -> ImporterGroups {
     let mut recorded = ImporterGroups::default();
     for group in [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev] {
         if importer_records(importer, group, alias) {
             recorded.insert(group);
         }
     }
-    if recorded == groups {
-        return None;
-    }
+    recorded
+}
+
+/// Remove `alias` from every group recording it, dropping the groups that
+/// become empty, and return the removed entry (once, not per group).
+fn take_dependency(
+    importer: &mut ProjectSnapshot,
+    alias: &PkgName,
+) -> Option<ResolvedDependencySpec> {
     let mut dependency = None;
     for group in [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev] {
         let slot = importer_group(importer, group);
@@ -302,13 +323,7 @@ fn place_dependency(
             }
         }
     }
-    let dependency = dependency?;
-    for group in groups.iter() {
-        importer_group(importer, group)
-            .get_or_insert_default()
-            .insert(alias.clone(), dependency.clone());
-    }
-    Some(recorded)
+    dependency
 }
 
 fn importer_group(

@@ -1,7 +1,7 @@
 //! Which manifest groups one dependency belongs to in an importer record.
 //!
 //! Shared by both lockfile writers — the fresh build
-//! ([`crate::dependencies_graph_to_lockfile`]) and the importers fast path
+//! ([`mod@crate::dependencies_graph_to_lockfile`]) and the importers fast path
 //! ([`crate::fast_update_importers`]) — so a lockfile either of them writes
 //! describes the manifest the same way.
 
