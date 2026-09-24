@@ -284,6 +284,10 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
     for _ in 0..MAX_TEMP_ATTEMPTS {
         let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
         let tmp = parent.join(format!(".{file_name}.{pid}.{counter}.tmp"));
+        // Registered before the create so a signal landing between the two
+        // cannot leave the fresh temp file behind. If the create fails, the
+        // guard releases the slot without the path ever having been ours.
+        let _pending_temp = pnpm_fs::track_temp_file(&tmp);
 
         let mut file = match OpenOptions::new()
             .write(true)
@@ -300,9 +304,6 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
             }
             Err(error) => return Err(SaveLockfileError::WriteFile(error)),
         };
-        // Held until the rename publishes the temp file or an error path
-        // removes it, so an interrupt in between cannot leave it behind.
-        let _pending_temp = pnpm_fs::track_temp_file(&tmp);
 
         if let Err(error) = fill_temp_file(&mut file, content, target) {
             drop(file);
