@@ -462,6 +462,19 @@ mod minimum_release_age_exclude_prune {
     }
 
     #[test]
+    fn rewrites_a_narrowed_version_union_with_double_quotes_when_workspace_manifest_uses_double_quotes()
+     {
+        let original = "trustPolicy: \"no-downgrade\"\nminimumReleaseAgeExclude:\n  - \"@scope/foo@1.0.0 || 2.0.0\"\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("@scope/foo", &["2.0.0"])])));
+        assert_eq!(
+            out.as_deref(),
+            Some(
+                "trustPolicy: \"no-downgrade\"\nminimumReleaseAgeExclude:\n  - \"@scope/foo@2.0.0\"\n",
+            ),
+        );
+    }
+
+    #[test]
     fn keeps_a_union_entry_verbatim_when_every_version_is_resolved() {
         let original = "minimumReleaseAgeExclude:\n  - foo@2.0.0 || 1.0.0\n";
         let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0", "2.0.0"])])));
@@ -586,6 +599,17 @@ mod trust_policy_exclude_prune {
         let original = "trustPolicyExclude:\n  - foo@1.0.0 || 2.0.0\n";
         let out = run_trust_cleanup(Some(original), Some(&resolved(&[("foo", &["2.0.0"])])));
         assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n  - foo@2.0.0\n"));
+    }
+
+    #[test]
+    fn rewrites_a_narrowed_version_union_with_double_quotes_when_workspace_manifest_uses_double_quotes()
+     {
+        let original = "trustPolicy: \"no-downgrade\"\ntrustPolicyExclude:\n  - \"@scope/foo@1.0.0 || 2.0.0\"\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[("@scope/foo", &["2.0.0"])])));
+        assert_eq!(
+            out.as_deref(),
+            Some("trustPolicy: \"no-downgrade\"\ntrustPolicyExclude:\n  - \"@scope/foo@2.0.0\"\n",),
+        );
     }
 
     #[test]
@@ -772,4 +796,5 @@ mod dependencies;
 
 mod integrity;
 
+mod render;
 mod scalar_aliases;

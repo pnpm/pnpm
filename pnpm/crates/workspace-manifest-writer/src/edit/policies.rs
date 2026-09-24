@@ -159,11 +159,12 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
         .to_vec();
 
     let text = manifest.document.text();
+    let quote_style = render::detect_quote_style(text);
     match locate_sequence(text, &[block]) {
         Inline::Flow(collection) => {
             let rendered: Vec<String> = items
                 .iter()
-                .map(|item| render::render_value(item))
+                .map(|item| render::render_value_with_quotes(item, quote_style))
                 .collect();
             manifest.document.set_text(flow::set_items(text, &collection, &rendered));
             *decoded(manifest) = Some(items.to_vec());
@@ -176,19 +177,24 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
         Inline::Block => {}
     }
 
-    if let Some(new_text) = reconcile_sequence_items(text, block, &current, items) {
+    if let Some(new_text) = reconcile_sequence_items(text, block, &current, items, quote_style) {
         manifest.document.set_text(new_text);
         *decoded(manifest) = Some(items.to_vec());
         return true;
     }
 
-    replace_exclude_sequence(manifest, block, items);
+    replace_exclude_sequence(manifest, block, items, quote_style);
     *decoded(manifest) = Some(items.to_vec());
     true
 }
 
-fn replace_exclude_sequence(manifest: &mut Manifest, block: &str, items: &[String]) {
-    let rendered = render_top_level_sequence(block, items);
+fn replace_exclude_sequence(
+    manifest: &mut Manifest,
+    block: &str,
+    items: &[String],
+    quote_style: render::QuoteStyle,
+) {
+    let rendered = render_top_level_sequence(block, items, quote_style);
     if let Some(span) = top_level_span(manifest.document.text(), block) {
         manifest.document.set_text(replace_top_level_block(
             manifest.document.text(),

@@ -670,3 +670,55 @@ fn prune_allow_builds_keeps_keys_with_no_provable_package_name() {
     let out = run_prune_allow_builds(Some(original), &[]);
     assert_eq!(out.as_deref(), Some(original));
 }
+
+#[test]
+fn minimum_release_age_exclude_uses_double_quotes_when_workspace_has_double_quoted_scalars() {
+    let original = "packages:\n  - \"packages/*\"\ntrustPolicy: \"no-downgrade\"\n";
+    let out = run_age_excludes(Some(original), &["@better-auth/core@1.7.3", "foo@1.0.0"])
+        .expect("written");
+    assert_eq!(
+        out,
+        "packages:\n  - \"packages/*\"\nminimumReleaseAgeExclude:\n  - \"@better-auth/core@1.7.3\"\n  - foo@1.0.0\ntrustPolicy: \"no-downgrade\"\n",
+    );
+}
+
+#[test]
+fn minimum_release_age_exclude_keeps_existing_double_quotes_and_appends_double_quoted_entry() {
+    let original = "minimumReleaseAgeExclude:\n  - \"@better-auth/core@1.7.3\"\n";
+    let out = run_age_excludes(
+        Some(original),
+        &["@better-auth/core@1.7.3", "@scope/other@3.0.0", "new-pkg@2.0.0"],
+    )
+    .expect("written");
+    assert_eq!(
+        out,
+        "minimumReleaseAgeExclude:\n  - \"@better-auth/core@1.7.3\"\n  - \"@scope/other@3.0.0\"\n  - new-pkg@2.0.0\n",
+    );
+}
+
+#[test]
+fn minimum_release_age_exclude_uses_single_quotes_when_workspace_has_single_quoted_scalars() {
+    let original = "packages:\n  - 'packages/*'\ntrustPolicy: 'no-downgrade'\n";
+    let out = run_age_excludes(Some(original), &["@better-auth/core@1.7.3"]).expect("written");
+    assert_eq!(
+        out,
+        "packages:\n  - 'packages/*'\nminimumReleaseAgeExclude:\n  - '@better-auth/core@1.7.3'\ntrustPolicy: 'no-downgrade'\n",
+    );
+}
+
+#[test]
+fn minimum_release_age_exclude_falls_back_to_single_quotes_when_ambiguous_or_unquoted() {
+    let ambiguous = "packages:\n  - \"packages/*\"\ncatalog:\n  foo: '1.0.0'\n";
+    let out = run_age_excludes(Some(ambiguous), &["@better-auth/core@1.7.3"]).expect("written");
+    assert_eq!(
+        out,
+        "packages:\n  - \"packages/*\"\ncatalog:\n  foo: '1.0.0'\nminimumReleaseAgeExclude:\n  - '@better-auth/core@1.7.3'\n",
+    );
+
+    let unquoted = "packages:\n  - packages/*\n";
+    let out = run_age_excludes(Some(unquoted), &["@better-auth/core@1.7.3"]).expect("written");
+    assert_eq!(
+        out,
+        "packages:\n  - packages/*\nminimumReleaseAgeExclude:\n  - '@better-auth/core@1.7.3'\n",
+    );
+}
