@@ -3,7 +3,7 @@ use super::{
     saved_dependency_specifier, test_add,
 };
 use crate::add::{
-    manifest::{persist_selected_manifests, prepare_selected_manifests},
+    finish::persist_selected_manifests, manifest::prepare_selected_manifests,
     specifier::workspace_save_specifier,
 };
 use pnpm_config::{Config, LinkWorkspacePackages, SaveWorkspaceProtocol};

@@ -13,7 +13,7 @@ import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { PreferredVersions, ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { AllowedDeprecatedVersions, PackageExtension, PackageVulnerabilityAudit, PeerDependencyRules, ProjectRootDir, ReadPackageHook, RegistryConfig, RegistryContext, RemoteSideEffectsCacheSettings, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
+import type { AllowedDeprecatedVersions, PackageExtension, PackageVulnerabilityAudit, PeerDependencyIssues, PeerDependencyRules, ProjectManifest, ProjectRootDir, ReadPackageHook, RegistryConfig, RegistryContext, RemoteSideEffectsCacheSettings, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 
 import { pnpmPkgJson } from '../pnpmPkgJson.js'
 import type { ReporterFunction } from '../types.js'
@@ -289,6 +289,19 @@ export interface StrictInstallOptions extends RegistryContext {
    */
   pnprServer?: string
   remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+  beforeLifecycleScripts?: (result: BeforeLifecycleScriptsResult) => Promise<void>
+}
+
+export interface BeforeLifecycleScriptsResult {
+  updatedProjects: Array<{
+    originalManifest?: ProjectManifest
+    manifest: ProjectManifest
+    peerDependencyIssues?: PeerDependencyIssues
+    rootDir: ProjectRootDir
+  }>
+  updatedCatalogs?: Catalogs
+  newLockfile?: LockfileObject
+  resolutionPolicyViolations?: ResolutionPolicyViolation[]
 }
 
 export type InstallOptions =

@@ -23,6 +23,7 @@ import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   addDependenciesToPackage,
+  type BeforeLifecycleScriptsResult,
   type DryRunInstallResult,
   install,
   type InstallOptions,
@@ -368,6 +369,38 @@ export async function recursive (
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies of any of the projects.')
     }
+    let manifestsSaved = false
+    const saveManifests = async ({
+      updatedProjects,
+      updatedCatalogs,
+      newLockfile,
+      resolutionPolicyViolations,
+    }: BeforeLifecycleScriptsResult) => {
+      if (manifestsSaved) return
+      manifestsSaved = true
+      if (opts.save !== false && !opts.dryRun) {
+        // Only pick entries when we'll actually persist. Otherwise the
+        // info log would claim entries were added that the workspace
+        // manifest never saw, and the next install would re-prompt or
+        // fail verification.
+        const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations ?? [])
+        const promises: Array<Promise<void>> = updatedProjects
+          .filter(({ rootDir }) => manifestsByPath[rootDir] != null)
+          .map(async ({ originalManifest, manifest, rootDir }) => {
+            return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
+          })
+        promises.push(updateWorkspaceManifest(opts.workspaceDir, {
+          updatedCatalogs,
+          catalogPrune: opts.catalogPrune,
+          resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
+          minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
+          trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
+          allProjects,
+          ...policyUpdates,
+        }))
+        await Promise.all(promises)
+      }
+    }
     const {
       updatedCatalogs,
       updatedProjects: mutatedPkgs,
@@ -379,27 +412,14 @@ export async function recursive (
       ...installOpts,
       storeController: store.ctrl,
       resolutionVerifiers: store.resolutionVerifiers,
+      beforeLifecycleScripts: saveManifests,
     })
-    if (opts.save !== false && !opts.dryRun) {
-      // Only pick entries when we'll actually persist. Otherwise the
-      // info log would claim entries were added that the workspace
-      // manifest never saw, and the next install would re-prompt or
-      // fail verification.
-      const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
-      const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
-        return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
-      })
-      promises.push(updateWorkspaceManifest(opts.workspaceDir, {
-        updatedCatalogs,
-        catalogPrune: opts.catalogPrune,
-        resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
-        minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
-        trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
-        allProjects,
-        ...policyUpdates,
-      }))
-      await Promise.all(promises)
-    }
+    await saveManifests({
+      updatedProjects: mutatedPkgs,
+      updatedCatalogs,
+      newLockfile,
+      resolutionPolicyViolations,
+    })
     await handleIgnoredBuilds(opts, ignoredBuilds)
     return { passed: true, updatedCatalogs, dryRunResult }
   }

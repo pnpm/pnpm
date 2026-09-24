@@ -3,11 +3,9 @@ use super::{
     workspace_packages_for_add,
 };
 use crate::{
-    CatalogDecision, DIRECT_GROUPS, InstallError,
-    catalog_cleanup::{
-        post_install_prune, write_workspace_catalogs, write_workspace_catalogs_selected,
-    },
-    emit_initial_package_manifest, package_manifest_prefix,
+    CatalogDecision, DIRECT_GROUPS,
+    catalog_cleanup::{write_workspace_catalogs, write_workspace_catalogs_selected},
+    emit_initial_package_manifest,
 };
 use futures_util::{StreamExt, stream::FuturesOrdered};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
@@ -15,7 +13,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, SaveWorkspaceProtocol};
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::PreferredVersions;
 use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
@@ -34,23 +32,6 @@ pub(super) async fn prepare_selected_add<Reporter: self::Reporter>(
     )
     .map_err(AddError::WriteWorkspaceManifest)?;
     Ok(prepared)
-}
-pub(super) fn finish_selected_add<Reporter: self::Reporter>(
-    add: AddOptions<'_>,
-    manifest: &PackageManifest,
-    projects: &mut [pnpm_workspace::Project],
-    indices: &[usize],
-    workspace_dir: &std::path::Path,
-    ignored_builds: Option<InstallError>,
-) -> Result<(), AddError> {
-    persist_selected_manifests::<Reporter>(projects, indices)?;
-
-    post_install_prune(add.config, Some(workspace_dir), manifest)
-        .map_err(AddError::WriteWorkspaceManifest)?;
-    if let Some(ignored_builds) = ignored_builds {
-        return Err(AddError::Install(ignored_builds));
-    }
-    Ok(())
 }
 pub(super) async fn prepare_single_add<Reporter: self::Reporter>(
     add: AddOptions<'_>,
@@ -375,26 +356,6 @@ pub(super) fn merge_catalogs(target: &mut Catalogs, updates: &Catalogs) {
             catalog.insert(dependency.clone(), specifier.clone());
         }
     }
-}
-pub(super) fn persist_selected_manifests<Reporter: self::Reporter>(
-    projects: &mut [pnpm_workspace::Project],
-    selected_indices: &[usize],
-) -> Result<(), AddError> {
-    for &index in selected_indices {
-        persist_manifest::<Reporter>(&mut projects[index].manifest)?;
-    }
-    Ok(())
-}
-pub(super) fn persist_manifest<Reporter: self::Reporter>(
-    manifest: &mut PackageManifest,
-) -> Result<(), AddError> {
-    let updated = manifest.save_and_get_written_value().map_err(AddError::SaveManifest)?;
-    let prefix = package_manifest_prefix(manifest);
-    Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
-        level: LogLevel::Debug,
-        message: PackageManifestMessage::Updated { prefix, updated },
-    }));
-    Ok(())
 }
 /// Write an added dependency's catalog entry when the decision moves it into a
 /// catalog, and hand back the specifier the manifest records.
