@@ -272,33 +272,37 @@ pub(super) fn first_project_missing_modules_dir(
 /// The hoisted linker places a sibling's dependencies in the root modules
 /// directory too, so both are probed there.
 pub(super) fn direct_dependency_link_dangling(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
-    let &OptimisticRepeatInstallCheck {
-        workspace_root,
-        config,
-        project_manifests,
-        layout: crate::RepeatInstallLayout { node_linker, included, .. },
-        ..
-    } = check;
-    let groups = included_groups(included);
-    project_manifests
+    let groups = included_groups(check.layout.included);
+    check.project_manifests
         .iter()
         .any(|(root_dir, manifest)| {
-            let is_root = lexical_normalize(root_dir) == lexical_normalize(workspace_root);
-            let own_modules_dir =
-                (!is_root).then(|| sibling_modules_dir(config, root_dir, manifest));
-            let root_modules_dir = (is_root || node_linker == NodeLinker::Hoisted).then_some(
-                config.modules_dir.as_path(),
-            );
-            manifest
-                .dependencies(groups.iter().copied())
-                .any(|(alias, _)| {
-                    own_modules_dir
-                        .iter()
-                        .map(PathBuf::as_path)
-                        .chain(root_modules_dir)
-                        .any(|modules_dir| is_dangling_link(&modules_dir.join(alias)))
+            project_modules_dirs(check, root_dir, manifest)
+                .iter()
+                .any(|modules_dir| {
+                    manifest
+                        .dependencies(groups.iter().copied())
+                        .any(|(alias, _)| is_dangling_link(&modules_dir.join(alias)))
                 })
         })
+}
+
+/// The modules directories the linker may place a project's direct
+/// dependencies in.
+fn project_modules_dirs(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    root_dir: &Path,
+    manifest: &PackageManifest,
+) -> Vec<PathBuf> {
+    let config = check.config;
+    if lexical_normalize(root_dir) == lexical_normalize(check.workspace_root) {
+        return vec![config.modules_dir.clone()];
+    }
+    let own = sibling_modules_dir(config, root_dir, manifest);
+    if check.layout.node_linker == NodeLinker::Hoisted {
+        vec![own, config.modules_dir.clone()]
+    } else {
+        vec![own]
+    }
 }
 
 fn is_dangling_link(path: &Path) -> bool {
