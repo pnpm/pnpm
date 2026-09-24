@@ -1,5 +1,7 @@
 //! Inspect GitHub Actions dependencies and update their commit pins while preserving workflow formatting.
 
+pub use release_age::ReleaseAge;
+
 use edits::{apply_workflow_edits, planned_edits};
 use futures_util::{StreamExt, stream};
 use node_semver::{Range as SemverRange, Version};
@@ -7,8 +9,7 @@ use pnpm_matcher::{Matcher, create_matcher};
 use pnpm_network::{redact_and_sanitize, redact_url_for_display};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_resolving_git_resolver::{GitCommandRunner, RealGitRunner, get_repo_refs};
-pub use release_age::ReleaseAge;
-use release_age::{GitTagDates, TagDateReader, TagDates};
+use release_age::{GitTagDates, ReleaseAgeCheck, ReleaseDates};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     ops::Range,
@@ -88,14 +89,6 @@ struct PlannedUpdate {
     current: RepoVersion,
     latest: RepoVersion,
     wanted: RepoVersion,
-}
-
-/// The `minimumReleaseAge` policy together with the source of the tag dates
-/// it judges.
-#[derive(Clone, Copy)]
-struct ReleaseAgeCheck<'a> {
-    policy: &'a ReleaseAge,
-    dates: &'a dyn TagDateReader,
 }
 
 const GIT_CONCURRENCY: usize = 8;
@@ -200,90 +193,16 @@ async fn create_plan<Reporter: self::Reporter, Runner: GitCommandRunner + Sync>(
         .map(|action| action.repo.clone())
         .collect::<BTreeSet<_>>();
     let mut refs_by_repo = versions_by_repo::<Reporter, Runner>(repos, server_url, runner).await;
-    let dates_by_repo = match release_age {
-        Some(check) => {
-            tag_dates_by_repo::<Reporter>(&actions, &mut refs_by_repo, server_url, check).await
-        }
-        None => HashMap::new(),
-    };
-    let admits = |action: &ActionReference, candidate: &RepoVersion| {
-        release_age.is_none_or(|check| {
-            check.policy.exempts([&action.name, &action.repo], &candidate.version)
-                || check.policy.admits(
-                    dates_by_repo
-                        .get(&action.repo)
-                        .and_then(|dates| dates.get(&candidate.tag))
-                        .copied(),
-                )
-        })
-    };
+    let release_dates =
+        ReleaseDates::read::<Reporter>(release_age, &actions, &mut refs_by_repo, server_url).await;
     let mut plans = Vec::new();
     for action in actions {
         let Some(versions) = refs_by_repo.get(&action.repo) else { continue };
-        if let Some(plan) = plan_action_update(action, versions, admits)? {
+        if let Some(plan) = plan_action_update(action, versions, &release_dates)? {
             plans.push(plan);
         }
     }
     Ok(plans)
-}
-
-/// The creation dates of the tags newer than the version an action is on, in
-/// every repository with such an action. A repository whose dates cannot be
-/// read is dropped from `refs_by_repo` with a warning, so none of its
-/// versions is offered without its age being known.
-async fn tag_dates_by_repo<Reporter: self::Reporter>(
-    actions: &[ActionReference],
-    refs_by_repo: &mut HashMap<String, Vec<RepoVersion>>,
-    server_url: &str,
-    check: ReleaseAgeCheck<'_>,
-) -> HashMap<String, TagDates> {
-    let mut tags_by_repo = BTreeMap::<String, BTreeSet<String>>::new();
-    for action in actions {
-        let Some(versions) = refs_by_repo.get(&action.repo) else { continue };
-        let Some(current) = find_current(action, versions) else { continue };
-        let tags = versions
-            .iter()
-            .filter(|candidate| {
-                candidate.version > current.version
-                    && (!current.version.pre_release.is_empty()
-                        || candidate.version.pre_release.is_empty())
-                    && !check.policy.exempts([&action.name, &action.repo], &candidate.version)
-            })
-            .map(|candidate| candidate.tag.clone());
-        tags_by_repo
-            .entry(action.repo.clone())
-            .or_default()
-            .extend(tags);
-    }
-    let results = stream::iter(
-        tags_by_repo
-            .into_iter()
-            .filter(|(_, tags)| !tags.is_empty()),
-    )
-    .map(|(repo, tags)| async move {
-        let url = format!("{server_url}/{repo}.git");
-        let tags = tags.into_iter().collect::<Vec<_>>();
-        let dates = check.dates.read_tag_dates(&url, &tags).await;
-        (repo, dates)
-    })
-    .buffer_unordered(GIT_CONCURRENCY)
-    .collect::<Vec<_>>()
-    .await;
-    let mut dates_by_repo = HashMap::new();
-    for (repo, dates) in results {
-        match dates {
-            Ok(dates) => {
-                dates_by_repo.insert(repo, dates);
-            }
-            Err(error) => {
-                global_warn::<Reporter>(redact_and_sanitize(&format!(
-                    r#"Skipping the GitHub Actions from "{repo}": cannot read the release dates that minimumReleaseAge needs: {error}"#,
-                )));
-                refs_by_repo.remove(&repo);
-            }
-        }
-    }
-    dates_by_repo
 }
 
 /// Each repository's tagged versions, skipping (with a warning) the ones
@@ -323,7 +242,7 @@ async fn versions_by_repo<Reporter: self::Reporter, Runner: GitCommandRunner + S
 fn plan_action_update(
     action: ActionReference,
     versions: &[RepoVersion],
-    admits: impl Fn(&ActionReference, &RepoVersion) -> bool,
+    release_dates: &ReleaseDates<'_>,
 ) -> miette::Result<Option<PlannedUpdate>> {
     let Some(current) = find_current(&action, versions) else { return Ok(None) };
     let wanted_range = SemverRange::parse(format!("^{}", current.version))
@@ -338,7 +257,8 @@ fn plan_action_update(
         .filter(|candidate| {
             (!current.version.pre_release.is_empty()
                 || candidate.version.pre_release.is_empty())
-                && (candidate.version <= current.version || admits(&action, candidate))
+                && (candidate.version <= current.version
+                    || release_dates.admits(&action, candidate))
         })
         .collect::<Vec<_>>();
     let Some(latest) = candidates.last() else { return Ok(None) };

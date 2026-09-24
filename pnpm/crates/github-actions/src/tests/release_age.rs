@@ -73,7 +73,7 @@ fn workflow(root: &Path) -> std::path::PathBuf {
     fs::write(
         &workflow,
         format!(
-            "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@{SHA_V4_1_0} # v4.1.0\n"
+            "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@{SHA_V4_1_0} # v4.1.0\n",
         ),
     )
     .expect("workflow");

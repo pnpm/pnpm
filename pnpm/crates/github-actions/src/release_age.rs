@@ -4,11 +4,15 @@
 //! can be read: the tagger date of an annotated tag, the committer date of a
 //! lightweight one.
 
+use crate::{ActionReference, GIT_CONCURRENCY, RepoVersion, find_current, global_warn};
 use chrono::{DateTime, Utc};
+use futures_util::{StreamExt, stream};
 use node_semver::Version;
 use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
+use pnpm_network::redact_and_sanitize;
+use pnpm_reporter::Reporter;
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, BTreeSet, HashMap},
     future::Future,
     io::Write,
     path::Path,
@@ -26,23 +30,148 @@ pub struct ReleaseAge {
 }
 
 impl ReleaseAge {
-    pub(crate) fn exempts(&self, names: [&str; 2], version: &Version) -> bool {
+    fn exempts(&self, action: &ActionReference, version: &Version) -> bool {
         let Some(exclude) = &self.exclude else { return false };
-        names
+        [&action.name, &action.repo]
             .into_iter()
             .any(|name| match exclude.matches(name) {
                 PolicyMatch::No => false,
                 PolicyMatch::AnyVersion => true,
-                PolicyMatch::ExactVersions(versions) => versions
-                    .iter()
-                    .any(|excluded| {
-                        Version::parse(excluded).is_ok_and(|excluded| &excluded == version)
-                    }),
+                PolicyMatch::ExactVersions(versions) => lists_version(&versions, version),
             })
     }
 
-    pub(crate) fn admits(&self, created_at: Option<i64>) -> bool {
+    fn admits(&self, created_at: Option<i64>) -> bool {
         created_at.is_some_and(|created_at| created_at <= self.published_by.timestamp())
+    }
+
+    /// Whether `candidate` is a version newer than `current` whose age the
+    /// policy has to judge.
+    fn judges(
+        &self,
+        action: &ActionReference,
+        current: &RepoVersion,
+        candidate: &RepoVersion,
+    ) -> bool {
+        candidate.version > current.version
+            && (!current.version.pre_release.is_empty()
+                || candidate.version.pre_release.is_empty())
+            && !self.exempts(action, &candidate.version)
+    }
+}
+
+fn lists_version(versions: &[String], version: &Version) -> bool {
+    versions
+        .iter()
+        .filter_map(|listed| Version::parse(listed).ok())
+        .any(|listed| &listed == version)
+}
+
+/// The `minimumReleaseAge` policy together with the source of the tag dates
+/// it judges.
+#[derive(Clone, Copy)]
+pub(crate) struct ReleaseAgeCheck<'a> {
+    pub(crate) policy: &'a ReleaseAge,
+    pub(crate) dates: &'a dyn TagDateReader,
+}
+
+impl<'a> ReleaseAgeCheck<'a> {
+    /// The creation dates of the tags newer than the version an action is
+    /// on, in every repository with such an action. A repository whose dates
+    /// cannot be read is dropped from `refs_by_repo` with a warning, so none
+    /// of its versions is offered without its age being known.
+    async fn read_dates<Reporter: self::Reporter>(
+        self,
+        actions: &[ActionReference],
+        refs_by_repo: &mut HashMap<String, Vec<RepoVersion>>,
+        server_url: &str,
+    ) -> ReleaseDates<'a> {
+        let tags_by_repo = self.tags_to_date(actions, refs_by_repo);
+        let results = stream::iter(tags_by_repo)
+            .map(|(repo, tags)| async move {
+                let url = format!("{server_url}/{repo}.git");
+                let dates = self.dates.read_tag_dates(&url, &tags).await;
+                (repo, dates)
+            })
+            .buffer_unordered(GIT_CONCURRENCY)
+            .collect::<Vec<_>>()
+            .await;
+        let mut by_repo = HashMap::new();
+        for (repo, dates) in results {
+            match dates {
+                Ok(dates) => {
+                    by_repo.insert(repo, dates);
+                }
+                Err(error) => {
+                    global_warn::<Reporter>(redact_and_sanitize(&format!(
+                        r#"Skipping the GitHub Actions from "{repo}": cannot read the release dates that minimumReleaseAge needs: {error}"#,
+                    )));
+                    refs_by_repo.remove(&repo);
+                }
+            }
+        }
+        ReleaseDates { policy: Some(self.policy), by_repo }
+    }
+
+    fn tags_to_date(
+        &self,
+        actions: &[ActionReference],
+        refs_by_repo: &HashMap<String, Vec<RepoVersion>>,
+    ) -> BTreeMap<String, Vec<String>> {
+        let mut tags_by_repo = BTreeMap::<String, BTreeSet<String>>::new();
+        for action in actions {
+            let Some(versions) = refs_by_repo.get(&action.repo) else { continue };
+            let Some(current) = find_current(action, versions) else { continue };
+            let tags = versions
+                .iter()
+                .filter(|candidate| self.policy.judges(action, &current, candidate))
+                .map(|candidate| candidate.tag.clone());
+            tags_by_repo
+                .entry(action.repo.clone())
+                .or_default()
+                .extend(tags);
+        }
+        tags_by_repo
+            .into_iter()
+            .filter(|(_, tags)| !tags.is_empty())
+            .map(|(repo, tags)| (repo, tags.into_iter().collect()))
+            .collect()
+    }
+}
+
+/// The tag dates a [`ReleaseAgeCheck`] read, and which versions they let
+/// through.
+pub(crate) struct ReleaseDates<'a> {
+    policy: Option<&'a ReleaseAge>,
+    by_repo: HashMap<String, TagDates>,
+}
+
+impl<'a> ReleaseDates<'a> {
+    /// The dates `check` reads, or no restriction without a policy. See
+    /// [`ReleaseAgeCheck::read_dates`].
+    pub(crate) async fn read<Reporter: self::Reporter>(
+        check: Option<ReleaseAgeCheck<'a>>,
+        actions: &[ActionReference],
+        refs_by_repo: &mut HashMap<String, Vec<RepoVersion>>,
+        server_url: &str,
+    ) -> Self {
+        match check {
+            Some(check) => check.read_dates::<Reporter>(actions, refs_by_repo, server_url).await,
+            None => Self { policy: None, by_repo: HashMap::new() },
+        }
+    }
+
+    /// Whether `candidate`, a version newer than the one `action` is on, may
+    /// be offered.
+    pub(crate) fn admits(&self, action: &ActionReference, candidate: &RepoVersion) -> bool {
+        let Some(policy) = self.policy else { return true };
+        policy.exempts(action, &candidate.version)
+            || policy.admits(
+                self.by_repo
+                    .get(&action.repo)
+                    .and_then(|dates| dates.get(&candidate.tag))
+                    .copied(),
+            )
     }
 }
 
