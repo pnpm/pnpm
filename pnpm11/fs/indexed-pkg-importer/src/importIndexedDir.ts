@@ -34,8 +34,6 @@ export interface ImportIndexedDirOptions {
    */
   safeToSkip?: boolean
   resolvedFrom?: ResolvedFrom
-  isStaged?: boolean
-  stagedJunctions?: Array<{ dest: string, target: string }>
 }
 
 // What one call to importIndexedDir is importing, threaded to the helpers that
@@ -75,17 +73,21 @@ export function importIndexedDir (
   // handling (EEXIST dedup, ENOENT sanitized-filename retry, etc.) and
   // atomically swaps in a complete directory.
   // keepModulesDir needs the staging path to preserve the existing node_modules.
-  if (!opts.keepModulesDir && tryExclusiveImport(importer, newDir, filenames, opts)) {
+  if (!opts.keepModulesDir && tryExclusiveImport(importer, newDir, filenames, symlinkDirs(opts, newDir, newDir))) {
     return
   }
   // Staging path: create in temp dir, then atomically rename.
   // The dir rename is itself atomic, so individual file atomicity is not
   // needed here — use importFile for everything.
   const stage = pathTemp(newDir)
-  const stagedJunctions: Array<{ dest: string, target: string }> = []
   try {
     makeEmptyDirSync(stage, { recursive: true })
-    tryImportIndexedDir({ importFile: importer.importFile, importFileAtomic: importer.importFile }, stage, filenames, { ...opts, isStaged: true, stagedJunctions })
+    tryImportIndexedDir(
+      { importFile: importer.importFile, importFileAtomic: importer.importFile },
+      stage,
+      filenames,
+      symlinkDirs(opts, stage, newDir)
+    )
     if (opts.keepModulesDir) {
       // Keeping node_modules is needed only when the hoisted node linker is used.
       moveOrMergeModulesDirs(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
@@ -104,43 +106,6 @@ export function importIndexedDir (
       rimrafSync(stage)
     } catch {} // eslint-disable-line:no-empty
     throw renameErr
-  }
-  if (stagedJunctions.length > 0) {
-    try {
-      for (const { dest, target } of stagedJunctions) {
-        const rel = path.relative(stage, dest)
-        const finalDest = path.join(newDir, rel)
-        const finalTarget = path.isAbsolute(target) ? target : path.resolve(path.dirname(finalDest), target)
-        if (escapesDir(newDir, finalTarget)) {
-          throw new Error(`Directory junction target "${target}" escapes package root "${newDir}"`)
-        }
-        try {
-          fs.unlinkSync(finalDest)
-        } catch (err: unknown) {
-          try {
-            fs.rmdirSync(finalDest)
-          } catch (rmdirErr: unknown) {
-            if (
-              (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') &&
-              (!util.types.isNativeError(rmdirErr) || !('code' in rmdirErr) || rmdirErr.code !== 'ENOENT')
-            ) {
-              throw err
-            }
-          }
-        }
-        fs.mkdirSync(finalTarget, { recursive: true })
-        fs.symlinkSync(finalTarget, finalDest, 'junction')
-      }
-      const packageJsonSrc = filenames.get('package.json')
-      if (packageJsonSrc !== undefined) {
-        importEntry(importer.importFileAtomic, packageJsonSrc, path.join(newDir, 'package.json'), opts, newDir)
-      }
-    } catch (err: unknown) {
-      try {
-        rimrafSync(newDir)
-      } catch {} // eslint-disable-line:no-empty
-      throw err
-    }
   }
 }
 
@@ -167,7 +132,7 @@ function importIntoSharedDir (dirImport: IndexedDirImport): void {
   }
   if (created) {
     try {
-      tryImportIndexedDir(importer, newDir, filenames, dirImport.opts)
+      tryImportIndexedDir(importer, newDir, filenames)
       return
     } catch (err: unknown) {
       if (retryWithFixedFileMap(err, dirImport)) return
@@ -189,7 +154,7 @@ function importIntoSharedDir (dirImport: IndexedDirImport): void {
 // entry. Files the package does not declare are left alone: a build output
 // belongs to whoever put it there, and a slot other installs are reading is
 // not somewhere to delete from speculatively.
-function repairIndexedDir ({ importer, newDir, filenames, opts }: IndexedDirImport): void {
+function repairIndexedDir ({ importer, newDir, filenames }: IndexedDirImport): void {
   makeFileMapDirs(newDir, filenames, { clearBlockers: true })
   let packageJsonSrc: string | undefined
   for (const [f, src] of filenames) {
@@ -197,53 +162,18 @@ function repairIndexedDir ({ importer, newDir, filenames, opts }: IndexedDirImpo
       packageJsonSrc = src
       continue
     }
-    replaceFileIfDifferent(importer.importFile, src, path.join(newDir, f), opts)
+    replaceFileIfDifferent(importer.importFile, src, path.join(newDir, f))
   }
   if (packageJsonSrc !== undefined) {
-    replaceFileIfDifferent(importer.importFile, packageJsonSrc, path.join(newDir, 'package.json'), opts)
+    replaceFileIfDifferent(importer.importFile, packageJsonSrc, path.join(newDir, 'package.json'))
   }
 }
 
 // Swap the file in through a temp sibling: a reader sees either the old dirent
 // or the new one, and the rename replaces what the linking tiers would have
 // refused to overwrite.
-function replaceFileIfDifferent (
-  importFile: ImportFile,
-  src: string,
-  dest: string,
-  opts?: ImportIndexedDirOptions
-): void {
+function replaceFileIfDifferent (importFile: ImportFile, src: string, dest: string): void {
   if (mismatchReason(dest, src) === undefined) return
-  if (opts?.resolvedFrom !== 'store') {
-    let srcStat: fs.Stats | undefined
-    try {
-      srcStat = fs.lstatSync(src)
-    } catch (err: unknown) {
-      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
-    }
-    if (srcStat?.isSymbolicLink()) {
-      const tmp = pathTemp(dest)
-      try {
-        copySymlink(src, tmp)
-      } catch (err) {
-        try {
-          fs.unlinkSync(tmp)
-        } catch {} // eslint-disable-line:no-empty
-        throw err
-      }
-      try {
-        clearDirBlockingFile(dest)
-        renameFileWithRetry(tmp, dest)
-      } catch (err) {
-        try {
-          fs.unlinkSync(tmp)
-        } catch {} // eslint-disable-line:no-empty
-        if (mismatchReason(dest, src) === undefined) return
-        throw err
-      }
-      return
-    }
-  }
   const tmp = pathTemp(dest)
   try {
     importFile(src, tmp)
@@ -371,7 +301,7 @@ function tryExclusiveImport (
   importer: Importer,
   newDir: string,
   filenames: Map<string, string>,
-  opts?: ImportIndexedDirOptions
+  links?: SymlinkDirs
 ): boolean {
   fs.mkdirSync(path.dirname(newDir), { recursive: true })
   try {
@@ -386,7 +316,7 @@ function tryExclusiveImport (
   // back to staging, so the next attempt — including this process's own method
   // fallbacks (clone → hardlink → copy) — can fast-path again.
   try {
-    tryImportIndexedDir(importer, newDir, filenames, opts)
+    tryImportIndexedDir(importer, newDir, filenames, links)
     return true
   } catch {
     try {
@@ -421,29 +351,15 @@ function fileMatches (dir: string, f: string, src: string): boolean {
 // settles it without a read; the copy tier compares size first, then content.
 function mismatchReason (target: string, src: string): string | undefined {
   try {
-    let srcStat: fs.Stats | fs.BigIntStats | undefined
-    try {
-      srcStat = fs.lstatSync(src, { bigint: true })
-    } catch {}
     const targetStat = fs.lstatSync(target, { bigint: true })
-    if (srcStat?.isSymbolicLink()) {
-      if (!targetStat.isSymbolicLink()) return 'is not a symlink'
-      const targetLink = fs.readlinkSync(target)
-      const srcLink = fs.readlinkSync(src)
-      if (targetLink === srcLink) return undefined
-      const resolvedTarget = path.resolve(path.dirname(target), targetLink)
-      const resolvedSrc = path.resolve(path.dirname(src), srcLink)
-      if (resolvedTarget === resolvedSrc) return undefined
-      return 'has a different symlink target'
-    }
     if (!targetStat.isFile()) return 'is not a regular file'
-    const srcRegularStat = gfs.statSync(src, { bigint: true })
+    const srcStat = gfs.statSync(src, { bigint: true })
     const hasSameFileIdentity = targetStat.ino !== 0n &&
       targetStat.dev !== 0n &&
-      targetStat.ino === srcRegularStat.ino &&
-      targetStat.dev === srcRegularStat.dev
+      targetStat.ino === srcStat.ino &&
+      targetStat.dev === srcStat.dev
     if (hasSameFileIdentity) return undefined
-    if (targetStat.size !== srcRegularStat.size) return 'has a different size'
+    if (targetStat.size !== srcStat.size) return 'has a different size'
     if (!filesHaveEqualContents(target, src)) return 'has different content'
     return undefined
   } catch {
@@ -506,80 +422,86 @@ function tryImportIndexedDir (
   { importFile, importFileAtomic }: Importer,
   newDir: string,
   filenames: Map<string, string>,
-  opts?: ImportIndexedDirOptions
+  links?: SymlinkDirs
 ): void {
   makeFileMapDirs(newDir, filenames)
   // Write package.json last so it acts as a completion marker.
   // pkgExistsAtTargetDir() checks for package.json to decide if a package
   // is already imported — writing it last ensures a crash mid-import won't
   // leave a partially-populated directory that appears fully imported.
-  // When staged, package.json placement is deferred until after the
-  // directory rename and after staged Windows junctions are rewritten.
   let packageJsonSrc: string | undefined
   for (const [f, src] of filenames) {
     if (f === 'package.json') {
       packageJsonSrc = src
       continue
     }
-    importEntry(importFile, src, path.join(newDir, f), opts, newDir)
+    importEntry(importFile, src, path.join(newDir, f), links)
   }
-  const hasStagedJunctions = (opts?.stagedJunctions?.length ?? 0) > 0
-  if (packageJsonSrc !== undefined && !hasStagedJunctions) {
-    importEntry(importFileAtomic, packageJsonSrc, path.join(newDir, 'package.json'), opts, newDir)
+  if (packageJsonSrc !== undefined) {
+    importEntry(importFileAtomic, packageJsonSrc, path.join(newDir, 'package.json'), links)
   }
 }
 
-function importEntry (importFile: ImportFile, src: string, dest: string, opts?: ImportIndexedDirOptions, pkgDir?: string): void {
-  if (opts?.resolvedFrom !== 'store') {
-    let stat: fs.Stats | undefined
-    try {
-      stat = fs.lstatSync(src)
-    } catch (err: unknown) {
-      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
-    }
-    if (stat?.isSymbolicLink()) {
-      copySymlink(src, dest, opts, pkgDir)
-      return
-    }
-  }
+// Where an import of a local directory writes its entries, which it needs
+// to recreate the directory's symlinks.
+interface SymlinkDirs {
+  // The directory the entries are written into.
+  writtenDir: string
+  // The directory writtenDir ends up at. A Windows junction holds an
+  // absolute target, so it has to point into this one.
+  finalDir: string
+}
+
+// Only a local directory has symlinks to preserve. The store holds regular
+// files, so other imports skip the lstat per file.
+function symlinkDirs (opts: ImportIndexedDirOptions, writtenDir: string, finalDir: string): SymlinkDirs | undefined {
+  return opts.resolvedFrom === 'local-dir' ? { writtenDir, finalDir } : undefined
+}
+
+function importEntry (importFile: ImportFile, src: string, dest: string, links?: SymlinkDirs): void {
+  if (links != null && fs.lstatSync(src).isSymbolicLink() && copyInternalSymlink(src, dest, links)) return
   importFile(src, dest)
 }
 
-function copySymlink (src: string, dest: string, opts?: ImportIndexedDirOptions, pkgDir?: string): void {
+// Recreate the symlink at src as dest when its target stays inside the
+// package, and report whether it did. A link that points outside the package
+// is imported as the file it points to.
+function copyInternalSymlink (src: string, dest: string, links: SymlinkDirs): boolean {
   let target = fs.readlinkSync(src)
   if (path.isAbsolute(target)) {
     target = path.relative(path.dirname(src), target)
   }
-  let type: fs.symlink.Type | undefined
-  if (process.platform === 'win32') {
-    try {
-      const stat = fs.statSync(src)
-      type = stat.isDirectory() ? 'dir' : 'file'
-    } catch {
-      type = 'file'
-    }
+  const resolved = path.resolve(path.dirname(dest), target)
+  if (escapesDir(links.writtenDir, resolved)) return false
+  if (process.platform !== 'win32') {
+    fs.symlinkSync(target, dest)
+    return true
   }
+  const isDir = isDirectory(src)
   try {
-    fs.symlinkSync(target, dest, type)
+    fs.symlinkSync(target, dest, isDir ? 'dir' : 'file')
   } catch (err: unknown) {
-    if (process.platform === 'win32' && type === 'dir') {
-      const resolved = path.isAbsolute(target)
-        ? target
-        : path.resolve(path.dirname(dest), target)
-      if (pkgDir && escapesDir(pkgDir, resolved)) {
-        throw new Error(`Directory junction target "${target}" escapes package root "${pkgDir}"`, { cause: err })
-      }
-      try {
-        fs.mkdirSync(resolved, { recursive: true })
-        fs.symlinkSync(resolved, dest, 'junction')
-        if (opts?.stagedJunctions) {
-          opts.stagedJunctions.push({ dest, target })
-        }
-        return
-      } catch {}
-    }
+    // Creating a symlink on Windows needs a privilege that a junction does
+    // not, and a file has no junction to fall back to.
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EPERM') throw err
+    if (!isDir) return false
+    fs.symlinkSync(path.join(links.finalDir, path.relative(links.writtenDir, resolved)), dest, 'junction')
+  }
+  return true
+}
+
+function isDirectory (file: string): boolean {
+  try {
+    return fs.statSync(file).isDirectory()
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
+}
+
+function escapesDir (rootDir: string, targetPath: string): boolean {
+  const rel = path.relative(rootDir, targetPath)
+  return rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)
 }
 
 // Sorting shortest-first means the recursive mkdir for a deeper directory
@@ -662,9 +584,4 @@ function mergeModulesDirs (src: string, dest: string): void {
   for (const file of filesToMove) {
     renameEvenAcrossDevices(path.join(src, file), path.join(dest, file))
   }
-}
-
-function escapesDir (rootDir: string, targetPath: string): boolean {
-  const rel = path.relative(rootDir, targetPath)
-  return rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)
 }

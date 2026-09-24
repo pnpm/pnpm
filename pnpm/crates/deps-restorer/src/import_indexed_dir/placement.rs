@@ -18,15 +18,22 @@ use std::{
 /// means the recursive mkdir for a deeper dir always finds its ancestor
 /// already on disk, so each call costs one `mkdirat` instead of walking
 /// up.
+///
+/// `symlinks_final_dir` is `None` to import every entry as a file. With
+/// `Some`, an entry whose source is a symlink is recreated as one, and
+/// the value names the directory `dir_path` is finally moved to, which a
+/// staged import writes elsewhere first.
 pub(super) fn populate_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     placement: Placement,
-    preserve_symlinks: bool,
+    symlinks_final_dir: Option<&Path>,
 ) -> Result<(), ImportIndexedDirError> {
     create_indexed_dirs(dir_path, cas_paths, placement)?;
+    let symlinks =
+        symlinks_final_dir.map(|final_dir| SymlinkRoots { written_dir: dir_path, final_dir });
 
     // Link every other file first, then place the marker last, so an
     // interrupted import leaves a directory the next install recognises
@@ -46,8 +53,7 @@ pub(super) fn populate_dir<Reporter: self::Reporter>(
                         import_method,
                         store_path,
                         &dir_path.join(cleaned_entry),
-                        preserve_symlinks,
-                        dir_path,
+                        symlinks,
                     )
                 })
         })?;
@@ -59,8 +65,7 @@ pub(super) fn populate_dir<Reporter: self::Reporter>(
             import_method,
             &cas_paths[marker],
             &dir_path.join(marker),
-            preserve_symlinks,
-            dir_path,
+            symlinks,
         )?;
     }
     Ok(())
@@ -148,13 +153,12 @@ pub(super) fn place_entry<Reporter: self::Reporter>(
     import_method: PackageImportMethod,
     store_path: &Path,
     target: &Path,
-    preserve_symlinks: bool,
-    pkg_root: &Path,
+    symlinks: Option<SymlinkRoots<'_>>,
 ) -> Result<(), ImportIndexedDirError> {
-    if preserve_symlinks
-        && fs::symlink_metadata(store_path).is_ok_and(|meta| meta.file_type().is_symlink())
+    if let Some(roots) = symlinks
+        && is_symlink(store_path)
     {
-        return place_symlink_entry(placement, store_path, target, pkg_root);
+        return place_symlink_entry(placement, store_path, target, roots);
     }
     match placement {
         Placement::Fresh => {
@@ -171,6 +175,23 @@ pub(super) fn place_entry<Reporter: self::Reporter>(
     }
 }
 
+/// Where [`populate_dir`] writes a package whose symlinks it preserves.
+#[derive(Clone, Copy)]
+pub(super) struct SymlinkRoots<'a> {
+    /// The directory the entries are written into.
+    written_dir: &'a Path,
+    /// The directory `written_dir` ends up at. A Windows junction holds
+    /// an absolute target, so it has to point into this one.
+    final_dir: &'a Path,
+}
+
+fn is_symlink(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink())
+}
+
+/// The target to give the recreated link at `target`: the source link's
+/// own, with an absolute one made relative to the source link. Refuses a
+/// target that leads out of `pkg_root`.
 fn validate_symlink_target(
     store_path: &Path,
     target: &Path,
@@ -206,17 +227,23 @@ fn place_symlink_entry(
     placement: Placement,
     store_path: &Path,
     target: &Path,
-    pkg_root: &Path,
+    roots: SymlinkRoots<'_>,
 ) -> Result<(), ImportIndexedDirError> {
-    let link_target = validate_symlink_target(store_path, target, pkg_root)?;
+    let link_target = validate_symlink_target(store_path, target, roots.written_dir)?;
     if placement == Placement::Repair && file_matches_store_entry(target, store_path) {
         return Ok(());
     }
     clear_dir_blocking_file::<Host>(target)?;
     let temp = super::staging::pick_stage_path(target);
     let is_dir = fs::metadata(store_path).is_ok_and(|meta| meta.is_dir());
-    if let Err(error) = pnpm_fs::create_symlink(&link_target, &temp, is_dir) {
-        let _ = fs::remove_file(&temp);
+    let created = if is_dir {
+        let final_target = final_link_target(target, &link_target, roots);
+        pnpm_fs::symlink_dir_with_contents(&final_target, &link_target, &temp)
+    } else {
+        create_file_link(&link_target, store_path, &temp)
+    };
+    if let Err(error) = created {
+        let _ = pnpm_fs::remove_dirent(&temp);
         return Err(ImportIndexedDirError::LinkFile(crate::link_file::LinkFileError::Import {
             from: store_path.to_path_buf(),
             to: target.to_path_buf(),
@@ -224,6 +251,36 @@ fn place_symlink_entry(
         }));
     }
     commit_symlink_placement(&temp, target, store_path)
+}
+
+/// A file symlink has no junction to fall back to, so a process Windows
+/// refuses symlinks gets a copy of the linked file.
+fn create_file_link(link_target: &Path, store_path: &Path, temp: &Path) -> io::Result<()> {
+    let result = pnpm_fs::create_symlink(link_target, temp, false);
+    #[cfg(windows)]
+    {
+        if let Err(error) = &result
+            && error.raw_os_error() == Some(ERROR_PRIVILEGE_NOT_HELD)
+        {
+            return fs::copy(store_path, temp).map(drop);
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = store_path;
+    result
+}
+
+#[cfg(windows)]
+const ERROR_PRIVILEGE_NOT_HELD: i32 = 1314;
+
+/// The absolute path `link_target` resolves to from `target` once the
+/// written directory has moved to its final place.
+fn final_link_target(target: &Path, link_target: &Path, roots: SymlinkRoots<'_>) -> PathBuf {
+    let link_dir = target.parent().unwrap_or(roots.written_dir);
+    let rel_dir = link_dir
+        .strip_prefix(roots.written_dir)
+        .unwrap_or(Path::new(""));
+    pnpm_fs::lexical_normalize(&roots.final_dir.join(rel_dir).join(link_target))
 }
 
 fn commit_symlink_placement(
@@ -234,11 +291,11 @@ fn commit_symlink_placement(
     match pnpm_fs::rename_with_retry(temp, target) {
         Ok(()) => Ok(()),
         Err(_) if file_matches_store_entry(target, store_path) => {
-            let _ = fs::remove_file(temp);
+            let _ = pnpm_fs::remove_dirent(temp);
             Ok(())
         }
         Err(error) => {
-            let _ = fs::remove_file(temp);
+            let _ = pnpm_fs::remove_dirent(temp);
             Err(ImportIndexedDirError::PlaceFile {
                 from: temp.to_path_buf(),
                 to: target.to_path_buf(),
@@ -258,13 +315,12 @@ pub(super) fn place_marker<Reporter: self::Reporter>(
     import_method: PackageImportMethod,
     store_path: &Path,
     target: &Path,
-    preserve_symlinks: bool,
-    pkg_root: &Path,
+    symlinks: Option<SymlinkRoots<'_>>,
 ) -> Result<(), ImportIndexedDirError> {
-    if preserve_symlinks
-        && fs::symlink_metadata(store_path).is_ok_and(|meta| meta.file_type().is_symlink())
+    if let Some(roots) = symlinks
+        && is_symlink(store_path)
     {
-        return place_symlink_entry(placement, store_path, target, pkg_root);
+        return place_symlink_entry(placement, store_path, target, roots);
     }
     if placement == Placement::Repair {
         clear_dir_blocking_file::<Host>(target)?;

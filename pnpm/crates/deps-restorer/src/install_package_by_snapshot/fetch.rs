@@ -103,6 +103,7 @@ pub(super) fn fetch_directory_resolution(
         directory,
         include_only_package_files,
         resolve_symlinks: false,
+        preserve_symlinks: true,
         allow_path_escape: false,
     }
     .run()

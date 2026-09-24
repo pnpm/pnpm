@@ -4,7 +4,7 @@ use tempfile::tempdir;
 
 #[cfg(unix)]
 #[test]
-fn confined_all_files_fetcher_keeps_symlink_sources_without_resolve_symlinks() {
+fn confined_all_files_fetcher_keeps_symlink_sources_only_when_preserving() {
     use std::os::unix::fs::symlink;
 
     let dir = tempdir().unwrap();
@@ -21,6 +21,7 @@ fn confined_all_files_fetcher_keeps_symlink_sources_without_resolve_symlinks() {
         directory: root.clone(),
         include_only_package_files: false,
         resolve_symlinks: false,
+        preserve_symlinks: true,
         allow_path_escape: false,
     }
     .run()
@@ -28,10 +29,23 @@ fn confined_all_files_fetcher_keeps_symlink_sources_without_resolve_symlinks() {
 
     assert_eq!(output.files_map.get("link.txt"), Some(&root.join("link.txt")));
 
+    let output_kept = DirectoryFetcher {
+        directory: root.clone(),
+        include_only_package_files: false,
+        resolve_symlinks: false,
+        preserve_symlinks: false,
+        allow_path_escape: false,
+    }
+    .run()
+    .unwrap();
+
+    assert_eq!(output_kept.files_map.get("link.txt"), Some(&root.join("real.txt")));
+
     let output_resolved = DirectoryFetcher {
         directory: root.clone(),
         include_only_package_files: false,
         resolve_symlinks: true,
+        preserve_symlinks: false,
         allow_path_escape: false,
     }
     .run()
@@ -55,6 +69,7 @@ fn confined_package_files_fetcher_packs_a_linked_root() {
         directory: root_link,
         include_only_package_files: true,
         resolve_symlinks: false,
+        preserve_symlinks: false,
         allow_path_escape: false,
     }
     .run()

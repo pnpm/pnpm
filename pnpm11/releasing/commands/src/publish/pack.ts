@@ -617,8 +617,7 @@ async function packPkg (opts: {
       pack.entry({ mode: 0o644, mtime, name: entry.name }, entry.content)
       continue
     }
-    const stat = fs.lstatSync(entry.source)
-    if (stat.isSymbolicLink()) {
+    if (!isManifestEntry(entry.name) && fs.lstatSync(entry.source).isSymbolicLink()) {
       let linkname = fs.readlinkSync(entry.source)
       if (path.isAbsolute(linkname)) {
         linkname = path.relative(path.dirname(entry.source), linkname)

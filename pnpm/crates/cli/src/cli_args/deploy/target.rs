@@ -228,6 +228,7 @@ pub(super) fn copy_project(
         directory: src.to_path_buf(),
         include_only_package_files,
         resolve_symlinks: false,
+        preserve_symlinks: true,
         allow_path_escape: false,
     }
     .run()

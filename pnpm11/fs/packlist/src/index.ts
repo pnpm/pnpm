@@ -56,6 +56,11 @@ class PackWalker extends npmPacklist.Walker {
     super.injectRules(filename, rules, callback)
   }
 
+  // npm-packlist walks each subdirectory with a walker of its own class.
+  override walker (entry: string, opts: Record<string, unknown>, callback: () => void): void {
+    new PackWalker(this.tree, this.walkerOpt(entry, opts)).on('done', callback).start()
+  }
+
   override onstat (opts: npmPacklist.StatOptions, callback: () => void): void {
     if (opts.st.isSymbolicLink()) {
       ignoreWalkOnstat.call(this, opts, callback)
@@ -183,7 +188,10 @@ function isInternalFileOrSymlink (pkgDir: string, relFile: string): boolean {
   if (!lstat.isSymbolicLink()) {
     return true
   }
-  const linkTarget = fs.readlinkSync(absPath)
+  let linkTarget = fs.readlinkSync(absPath)
+  if (path.isAbsolute(linkTarget)) {
+    linkTarget = path.relative(path.dirname(absPath), linkTarget)
+  }
   const relPosix = process.platform === 'win32' ? relFile.replace(/\\/g, '/') : relFile
   const posixTarget = linkTarget.replace(/\\/g, '/')
   if (path.posix.isAbsolute(posixTarget)) {

@@ -302,20 +302,67 @@ function linkAdoptingExisting (src: string, dest: string): void {
 
 const linkingImporter = { importFile: linkAdoptingExisting, importFileAtomic: linkAdoptingExisting }
 
-test('importIndexedDir() preserves symlink to internal directory with leading dots in name under junction fallback', async () => {
+test('importIndexedDir() recreates the internal symlinks of a local directory', async () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  fs.mkdirSync(path.join(src, 'sub'), { recursive: true })
+  fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(src, 'real.txt'), 'real')
+  fs.writeFileSync(path.join(src, 'sub/nested.txt'), 'nested')
+  fs.writeFileSync(path.join(tmp, 'outside.txt'), 'outside')
+  fs.symlinkSync('real.txt', path.join(src, 'file-link'), 'file')
+  fs.symlinkSync(path.join(src, 'real.txt'), path.join(src, 'absolute-link'), 'file')
+  fs.symlinkSync('sub', path.join(src, 'dir-link'), 'dir')
+  fs.symlinkSync('../outside.txt', path.join(src, 'outside-link'), 'file')
+
+  const newDir = path.join(tmp, 'dest')
+  const filenames = new Map([
+    ['package.json', path.join(src, 'package.json')],
+    ['real.txt', path.join(src, 'real.txt')],
+    ['sub/nested.txt', path.join(src, 'sub/nested.txt')],
+    ['file-link', path.join(src, 'file-link')],
+    ['absolute-link', path.join(src, 'absolute-link')],
+    ['dir-link', path.join(src, 'dir-link')],
+    ['outside-link', path.join(src, 'outside-link')],
+  ])
+  importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, newDir, filenames, { resolvedFrom: 'local-dir' })
+
+  expect(fs.readlinkSync(path.join(newDir, 'file-link'))).toBe('real.txt')
+  expect(fs.readlinkSync(path.join(newDir, 'absolute-link'))).toBe('real.txt')
+  expect(fs.readFileSync(path.join(newDir, 'dir-link/nested.txt'), 'utf8')).toBe('nested')
+  expect(fs.lstatSync(path.join(newDir, 'dir-link')).isSymbolicLink()).toBe(true)
+  expect(fs.lstatSync(path.join(newDir, 'outside-link')).isFile()).toBe(true)
+  expect(fs.readFileSync(path.join(newDir, 'outside-link'), 'utf8')).toBe('outside')
+})
+
+test('importIndexedDir() imports a symlink from the store as a file', async () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'real.txt'), 'real')
+  fs.symlinkSync('real.txt', path.join(src, 'file-link'), 'file')
+
+  const newDir = path.join(tmp, 'dest')
+  importIndexedDir(
+    { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
+    newDir,
+    new Map([['file-link', path.join(src, 'file-link')]]),
+    { resolvedFrom: 'remote' }
+  )
+
+  expect(fs.lstatSync(path.join(newDir, 'file-link')).isFile()).toBe(true)
+})
+
+test.each([
+  ['directly', { resolvedFrom: 'local-dir' as const }],
+  ['through a staging directory', { resolvedFrom: 'local-dir' as const, keepModulesDir: true }],
+])('importIndexedDir() falls back to a junction pointing into the imported directory when imported %s', async (_, opts) => {
   const tmp = tempDir()
   const src = path.join(tmp, 'src')
   fs.mkdirSync(path.join(src, '..generated'), { recursive: true })
   fs.writeFileSync(path.join(src, '..generated/gen.txt'), 'generated content')
   fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
-  try {
-    fs.symlinkSync('..generated', path.join(src, 'gen-link'), 'dir')
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'EPERM' || err.code === 'EACCES')) {
-      return
-    }
-    throw err
-  }
+  fs.symlinkSync('..generated', path.join(src, 'gen-link'), 'dir')
 
   const newDir = path.join(tmp, 'dest')
   const filenames = new Map([
@@ -327,7 +374,7 @@ test('importIndexedDir() preserves symlink to internal directory with leading do
   const originalPlatform = process.platform
   const realSymlinkSync = fs.symlinkSync.bind(fs)
   const symlinkSpy = jest.spyOn(fs, 'symlinkSync').mockImplementation((target, dest, type) => {
-    if (type === 'dir' && typeof dest === 'string' && dest.includes(tmp)) {
+    if (type === 'dir') {
       const err = new Error('EPERM: operation not permitted, symlink') as NodeJS.ErrnoException
       err.code = 'EPERM'
       throw err
@@ -337,18 +384,12 @@ test('importIndexedDir() preserves symlink to internal directory with leading do
 
   try {
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
-    importIndexedDir(
-      { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
-      newDir,
-      filenames,
-      { resolvedFrom: 'local-dir' }
-    )
+    importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, newDir, filenames, opts)
   } finally {
     symlinkSpy.mockRestore()
     Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
   }
 
-  expect(fs.existsSync(path.join(newDir, 'gen-link'))).toBe(true)
+  expect(fs.readlinkSync(path.join(newDir, 'gen-link'))).toBe(path.join(newDir, '..generated'))
   expect(fs.readFileSync(path.join(newDir, 'gen-link/gen.txt'), 'utf8')).toBe('generated content')
 })
-

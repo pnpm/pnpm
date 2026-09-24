@@ -386,6 +386,9 @@ fn is_internal_symlink(pkg_dir: &Path, symlink_path: &Path) -> bool {
         return false;
     };
     let parent = symlink_path.parent().unwrap_or(pkg_dir);
+    if !target.is_absolute() && relative_target_leaves_package(pkg_dir, parent, &target) {
+        return false;
+    }
     let resolved = if target.is_absolute() { target } else { parent.join(&target) };
     let normalized = pnpm_fs::lexical_normalize(&resolved);
     let normalized_pkg_dir = pnpm_fs::lexical_normalize(pkg_dir);
@@ -399,6 +402,31 @@ fn is_internal_symlink(pkg_dir: &Path, symlink_path: &Path) -> bool {
         }
     }
     true
+}
+
+/// Whether the relative link text `target`, read from a link in `link_dir`,
+/// steps above `pkg_dir` at any point. A link such as `../pkg/file` that
+/// leaves the package and comes back through its directory's name resolves
+/// inside it on disk, but not once the package is extracted under another
+/// name.
+fn relative_target_leaves_package(pkg_dir: &Path, link_dir: &Path, target: &Path) -> bool {
+    let mut depth = link_dir
+        .strip_prefix(pkg_dir)
+        .map_or(0, |rel| rel.components().count());
+    for component in target.components() {
+        match component {
+            Component::ParentDir => {
+                let Some(parent_depth) = depth.checked_sub(1) else {
+                    return true;
+                };
+                depth = parent_depth;
+            }
+            Component::Normal(_) => depth += 1,
+            Component::CurDir => {}
+            Component::RootDir | Component::Prefix(_) => return true,
+        }
+    }
+    false
 }
 
 /// Pass 3: force-include `main` / `bin` paths, which always ship regardless of

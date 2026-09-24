@@ -303,7 +303,7 @@ fn import_into_shared_dir<Reporter: self::Reporter>(
             dir_path,
             cas_paths,
             Placement::Fresh,
-            preserve_symlinks,
+            preserve_symlinks.then_some(dir_path),
         );
     }
     if all_files_match(dir_path, cas_paths) {
@@ -315,7 +315,7 @@ fn import_into_shared_dir<Reporter: self::Reporter>(
         dir_path,
         cas_paths,
         Placement::Repair,
-        preserve_symlinks,
+        preserve_symlinks.then_some(dir_path),
     )
 }
 
@@ -362,7 +362,7 @@ fn import_absent_dir<Reporter: self::Reporter>(
             dir_path,
             cas_paths,
             Placement::Fresh,
-            preserve_symlinks,
+            preserve_symlinks.then_some(dir_path),
         )
     }
 }
@@ -385,7 +385,7 @@ fn repair_incomplete_dir<Reporter: self::Reporter>(
             dir_path,
             cas_paths,
             Placement::for_target(safe_to_skip),
-            preserve_symlinks,
+            preserve_symlinks.then_some(dir_path),
         )
         .inspect(|()| remove_quarantine_from_native_binaries(dir_path, cas_paths))
     }
@@ -410,7 +410,7 @@ fn replace_non_dir<Reporter: self::Reporter>(
         dir_path,
         cas_paths,
         Placement::Fresh,
-        preserve_symlinks,
+        preserve_symlinks.then_some(dir_path),
     )
 }
 

@@ -1,4 +1,4 @@
-use super::super::walker::{walk_all_files, walk_package_files};
+use super::super::walker::{Symlinks, walk_all_files, walk_package_files};
 use pretty_assertions::assert_eq;
 use std::{collections::BTreeMap, fs, path::Path};
 use tempfile::tempdir;
@@ -50,7 +50,7 @@ fn walk_all_files_recurses_and_returns_relative_paths() {
     touch(root, "lib/inner.js");
     touch(root, "lib/nested/deep.js");
 
-    let out = walk_all_files(root, false, true).unwrap();
+    let out = walk_all_files(root, Symlinks::Keep, true).unwrap();
     let rels: BTreeMap<_, _> = collect_rels(root, out);
 
     assert_eq!(
@@ -72,7 +72,7 @@ fn walk_all_files_skips_node_modules_at_root_and_nested() {
     touch(root, "node_modules/foo/index.js");
     touch(root, "lib/node_modules/bar/index.js");
 
-    let out = walk_all_files(root, false, true).unwrap();
+    let out = walk_all_files(root, Symlinks::Keep, true).unwrap();
     let rels: BTreeMap<_, _> = collect_rels(root, out);
 
     assert_eq!(rels.keys().cloned().collect::<Vec<_>>(), vec!["index.js".to_string()]);
@@ -81,7 +81,7 @@ fn walk_all_files_skips_node_modules_at_root_and_nested() {
 #[test]
 fn walk_all_files_on_empty_directory_returns_empty_map() {
     let dir = tempdir().unwrap();
-    let out = walk_all_files(dir.path(), false, true).unwrap();
+    let out = walk_all_files(dir.path(), Symlinks::Keep, true).unwrap();
     assert!(out.is_empty());
 }
 
@@ -95,7 +95,7 @@ fn walk_all_files_terminates_on_symlink_cycle() {
     touch(root, "real.txt");
     symlink(root, root.join("loop")).unwrap();
 
-    let out = walk_all_files(root, false, true).unwrap();
+    let out = walk_all_files(root, Symlinks::Keep, true).unwrap();
     let rels: BTreeMap<_, _> = collect_rels(root, out);
 
     assert!(rels.contains_key("real.txt"), "direct children must still be walked: {rels:?}");
@@ -116,7 +116,7 @@ fn walk_all_files_skips_broken_symlink_without_resolve_symlinks() {
     touch(root, "real.txt");
     symlink(root.join("missing.txt"), root.join("dangling")).unwrap();
 
-    let out = walk_all_files(root, false, true).unwrap();
+    let out = walk_all_files(root, Symlinks::Keep, true).unwrap();
     let rels: BTreeMap<_, _> = collect_rels(root, out);
 
     assert_eq!(rels.keys().cloned().collect::<Vec<_>>(), vec!["real.txt".to_string()]);
@@ -132,7 +132,7 @@ fn walk_all_files_skips_broken_symlink_with_resolve_symlinks() {
     touch(root, "real.txt");
     symlink(root.join("missing.txt"), root.join("dangling")).unwrap();
 
-    let out = walk_all_files(root, true, true).unwrap();
+    let out = walk_all_files(root, Symlinks::Resolve, true).unwrap();
     let rels: BTreeMap<_, _> = collect_rels(root, out);
 
     assert_eq!(rels.keys().cloned().collect::<Vec<_>>(), vec!["real.txt".to_string()]);
@@ -150,7 +150,7 @@ fn walk_all_files_resolves_symlinks_when_requested() {
     fs::write(&target, b"hello").unwrap();
     symlink(&target, root.join("link.txt")).unwrap();
 
-    let out = walk_all_files(root, true, true).unwrap();
+    let out = walk_all_files(root, Symlinks::Resolve, true).unwrap();
     assert_eq!(out.len(), 1);
     let src = out.get("link.txt").expect("link.txt entry");
     assert_eq!(
@@ -172,7 +172,7 @@ fn walk_all_files_keeps_symlink_path_without_resolve_symlinks() {
     fs::write(&target, b"hello").unwrap();
     symlink(&target, root.join("link.txt")).unwrap();
 
-    let out = walk_all_files(root, false, true).unwrap();
+    let out = walk_all_files(root, Symlinks::Keep, true).unwrap();
     let src = out.get("link.txt").expect("link.txt entry");
     assert_eq!(src, &root.join("link.txt"));
 }
@@ -188,7 +188,7 @@ fn walk_all_files_rejects_symlink_escape_when_confined() {
     touch(outside.path(), "secret.txt");
     symlink(outside.path(), root.join("outside")).unwrap();
 
-    let err = walk_all_files(root, false, false).expect_err("outside symlink should fail");
+    let err = walk_all_files(root, Symlinks::Keep, false).expect_err("outside symlink should fail");
     assert!(
         err.to_string().contains("resolves outside source directory"),
         "unexpected error: {err}",
@@ -207,7 +207,8 @@ fn walk_all_files_rejects_nested_junction_escape_when_confined() {
     let link = root.join("outside");
     junction::create(&outside, &link).unwrap();
 
-    let err = walk_all_files(&root, false, false).expect_err("outside junction should fail");
+    let err =
+        walk_all_files(&root, Symlinks::Keep, false).expect_err("outside junction should fail");
     pnpm_fs::remove_symlink_dir(&link).unwrap();
     assert!(
         err.to_string().contains("resolves outside source directory"),
@@ -225,7 +226,7 @@ fn walk_all_files_confines_a_linked_root_to_its_real_path() {
     let root_link = dir.path().join("root-link");
     pnpm_fs::symlink_dir(&real_root, &root_link).unwrap();
 
-    let out = walk_all_files(&root_link, false, false).unwrap();
+    let out = walk_all_files(&root_link, Symlinks::Keep, false).unwrap();
     let real_root = fs::canonicalize(&real_root).unwrap();
     let expected = BTreeMap::from([("index.js".to_string(), "index.js".to_string())]);
     assert_eq!(collect_rels(&real_root, out), expected);
@@ -244,7 +245,8 @@ fn walk_all_files_rejects_escape_from_a_linked_root_when_confined() {
     let root_link = dir.path().join("root-link");
     pnpm_fs::symlink_dir(&real_root, &root_link).unwrap();
 
-    let err = walk_all_files(&root_link, false, false).expect_err("outside symlink should fail");
+    let err =
+        walk_all_files(&root_link, Symlinks::Keep, false).expect_err("outside symlink should fail");
     assert!(
         err.to_string().contains("resolves outside source directory"),
         "unexpected error: {err}",
@@ -253,7 +255,7 @@ fn walk_all_files_rejects_escape_from_a_linked_root_when_confined() {
 
 #[cfg(unix)]
 #[test]
-fn walk_all_files_keeps_confined_symlink_sources_without_resolve_symlinks() {
+fn walk_all_files_keeps_confined_symlink_sources_only_when_preserving() {
     use std::os::unix::fs::symlink;
 
     let dir = tempdir().unwrap();
@@ -261,13 +263,14 @@ fn walk_all_files_keeps_confined_symlink_sources_without_resolve_symlinks() {
     touch(&root, "real.txt");
     symlink(root.join("real.txt"), root.join("link.txt")).unwrap();
 
-    let out = walk_all_files(&root, false, false).unwrap();
-    let src = out.get("link.txt").expect("link.txt entry");
-    assert_eq!(src, &root.join("link.txt"));
+    let out = walk_all_files(&root, Symlinks::Preserve, false).unwrap();
+    assert_eq!(out.get("link.txt"), Some(&root.join("link.txt")));
 
-    let out_resolved = walk_all_files(&root, true, false).unwrap();
-    let src_resolved = out_resolved.get("link.txt").expect("link.txt entry");
-    assert_eq!(src_resolved, &root.join("real.txt"));
+    let out_kept = walk_all_files(&root, Symlinks::Keep, false).unwrap();
+    assert_eq!(out_kept.get("link.txt"), Some(&root.join("real.txt")));
+
+    let out_resolved = walk_all_files(&root, Symlinks::Resolve, false).unwrap();
+    assert_eq!(out_resolved.get("link.txt"), Some(&root.join("real.txt")));
 }
 
 #[test]
@@ -304,4 +307,22 @@ fn walk_package_files_works_without_a_manifest() {
     let rels: Vec<_> = out.keys().cloned().collect();
 
     assert_eq!(rels, vec!["index.js".to_string()]);
+}
+
+#[cfg(unix)]
+#[test]
+fn walk_all_files_lists_a_preserved_directory_link_as_one_entry() {
+    use std::os::unix::fs::symlink;
+
+    let dir = tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    touch(&root, "sub/nested.txt");
+    symlink("sub", root.join("link")).unwrap();
+
+    let preserved = walk_all_files(&root, Symlinks::Preserve, false).unwrap();
+    assert_eq!(preserved.get("link"), Some(&root.join("link")));
+    assert!(!preserved.contains_key("link/nested.txt"));
+
+    let kept = walk_all_files(&root, Symlinks::Keep, false).unwrap();
+    assert!(!kept.contains_key("link"));
 }

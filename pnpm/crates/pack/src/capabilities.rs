@@ -96,7 +96,8 @@ impl FsIsExecutable for Host {
 
 impl FsFileLen for Host {
     fn file_len(path: &Path) -> io::Result<u64> {
-        std::fs::symlink_metadata(path).map(|metadata| metadata.len())
+        std::fs::symlink_metadata(path)
+            .map(|metadata| if metadata.file_type().is_symlink() { 0 } else { metadata.len() })
     }
 }
 

@@ -97,6 +97,8 @@ declare module 'npm-packlist' {
       requiredFiles: string[]
       tree: PacklistTree
       onstat (opts: StatOptions, callback: () => void): void
+      walker (entry: string, opts: Record<string, unknown>, callback: () => void): void
+      walkerOpt (entry: string, opts: Record<string, unknown>): Record<string, unknown>
       on (event: 'done', listener: (files: string[]) => void): this
       on (event: 'error', listener: (err: unknown) => void): this
       start (): this

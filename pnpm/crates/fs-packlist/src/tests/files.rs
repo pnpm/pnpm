@@ -468,6 +468,19 @@ fn includes_internal_symlinks_and_excludes_escaping_symlinks() {
     std::os::unix::fs::symlink("sub", root.join("symlink-dir")).unwrap();
     std::os::unix::fs::symlink(outside.path().join("secret.txt"), root.join("symlink-outside"))
         .unwrap();
+    let dir_name = root
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap();
+    std::os::unix::fs::symlink(format!("../{dir_name}/real.txt"), root.join("symlink-reentering"))
+        .unwrap();
+    std::os::unix::fs::symlink(
+        format!("../../{dir_name}/real.txt"),
+        root.join("sub/nested-reentering"),
+    )
+    .unwrap();
+    std::os::unix::fs::symlink("../real.txt", root.join("sub/nested-link")).unwrap();
 
     let manifest = json!({
         "name": "x",
@@ -481,6 +494,7 @@ fn includes_internal_symlinks_and_excludes_escaping_symlinks() {
         vec![
             "package.json".to_string(),
             "real.txt".into(),
+            "sub/nested-link".into(),
             "sub/nested.txt".into(),
             "symlink-dir".into(),
             "symlink-file.txt".into(),

@@ -1,7 +1,6 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import util from 'node:util'
 
 import { beforeAll, describe, expect, jest, test } from '@jest/globals'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
@@ -1618,35 +1617,22 @@ function linkIsolated (name: string, version: string, dependencies: Record<strin
   }
 }
 
-let canSymlink = true
-const probe = path.join(process.cwd(), `symlink-probe-${process.pid}`)
-try {
-  fs.symlinkSync(process.cwd(), probe, 'dir')
-} catch (err: unknown) {
-  if (util.types.isNativeError(err) && 'code' in err && (err.code === 'EPERM' || err.code === 'EACCES')) {
-    canSymlink = false
-  } else {
-    throw err
-  }
-}
-if (canSymlink) {
-  fs.unlinkSync(probe)
-}
-const testWithSymlinks = canSymlink ? test : test.skip
-
 // cspell:ignore onentry linkpath
-testWithSymlinks('pack: preserves internal symlinks in package tarball and excludes external symlinks', async () => {
+test('pack: preserves internal symlinks in package tarball and excludes external symlinks', async () => {
   prepare({
     name: 'test-pack-symlinks',
     version: '1.0.0',
-    files: ['real-file.txt', 'symlink-file.txt', 'sub', 'symlink-dir', 'symlink-outside'],
+    files: ['real-file.txt', 'symlink-file.txt', 'sub', 'symlink-dir', 'symlink-outside', 'symlink-absolute', 'symlink-reentering'],
   })
 
   fs.writeFileSync('real-file.txt', 'hello from real file')
   fs.mkdirSync('sub')
   fs.writeFileSync(path.join('sub', 'nested.txt'), 'nested content')
-  fs.symlinkSync('real-file.txt', 'symlink-file.txt')
+  fs.symlinkSync('real-file.txt', 'symlink-file.txt', 'file')
   fs.symlinkSync('sub', 'symlink-dir', 'dir')
+  fs.symlinkSync('nested.txt', path.join('sub', 'nested-link.txt'), 'file')
+  fs.symlinkSync(path.resolve('real-file.txt'), 'symlink-absolute', 'file')
+  fs.symlinkSync(path.join('..', path.basename(process.cwd()), 'real-file.txt'), 'symlink-reentering', 'file')
 
   const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'outside-'))
   try {
@@ -1685,8 +1671,10 @@ testWithSymlinks('pack: preserves internal symlinks in package tarball and exclu
     expect(dirLinkEntry?.type).toBe('SymbolicLink')
     expect(dirLinkEntry?.linkname).toBe('sub')
 
-    const outsideEntry = entries.find((e) => e.name === 'package/symlink-outside')
-    expect(outsideEntry).toBeUndefined()
+    expect(entries.find((e) => e.name === 'package/sub/nested-link.txt')).toMatchObject({ type: 'SymbolicLink', linkname: 'nested.txt' })
+    expect(entries.find((e) => e.name === 'package/symlink-absolute')).toMatchObject({ type: 'SymbolicLink', linkname: 'real-file.txt' })
+    expect(entries.find((e) => e.name === 'package/symlink-outside')).toBeUndefined()
+    expect(entries.find((e) => e.name === 'package/symlink-reentering')).toBeUndefined()
   } finally {
     fs.rmSync(outsideDir, { recursive: true, force: true })
   }

@@ -30,12 +30,26 @@ const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
 /// the rest of pacquet's CAS plumbing).
 pub(crate) type FilesMap = HashMap<String, PathBuf>;
 
+/// What [`walk_all_files`] lists for a symlink it meets.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Symlinks {
+    /// The link's real path, and the contents of a linked directory.
+    Resolve,
+    /// The link's own path, and the contents of a linked directory. A
+    /// confined walk lists the real path instead, so the source it
+    /// approved is the one read.
+    Keep,
+    /// The link's own path, as one entry even when it links a directory,
+    /// for a caller that recreates the link.
+    Preserve,
+}
+
 /// Recursive walk of `dir`, skipping `node_modules` at any depth and
-/// dropping entries whose `stat` (or `realpath` under `resolve_symlinks`)
+/// dropping entries whose `stat` (or `realpath` under [`Symlinks::Resolve`])
 /// fails with `ENOENT`.
 pub(crate) fn walk_all_files(
     dir: &Path,
-    resolve_symlinks: bool,
+    symlinks: Symlinks,
     allow_path_escape: bool,
 ) -> Result<FilesMap, DirectoryFetcherError> {
     let mut out = FilesMap::new();
@@ -46,7 +60,7 @@ pub(crate) fn walk_all_files(
     // linked `dir` mid-walk would otherwise feed entries that are
     // ordinary files, and so never checked against the root at all.
     let root = confined_root.as_deref().unwrap_or(dir);
-    walk_all_inner(root, "", resolve_symlinks, confined_root.as_deref(), &mut visited, &mut out)?;
+    walk_all_inner(root, "", symlinks, confined_root.as_deref(), &mut visited, &mut out)?;
     Ok(out)
 }
 
@@ -65,7 +79,7 @@ fn is_linked_entry(metadata: &Metadata) -> bool {
 fn walk_all_inner(
     dir: &Path,
     rel_prefix: &str,
-    resolve_symlinks: bool,
+    symlinks: Symlinks,
     confined_root: Option<&Path>,
     visited: &mut HashSet<PathBuf>,
     out: &mut FilesMap,
@@ -102,11 +116,11 @@ fn walk_all_inner(
         let Some(rel) = walked_relative_path(&entry, rel_prefix) else {
             continue;
         };
-        let Some(resolved) = resolve_entry(&entry.path(), resolve_symlinks, confined_root)? else {
+        let Some(resolved) = resolve_entry(&entry.path(), symlinks, confined_root)? else {
             continue;
         };
         if resolved.metadata.is_dir() {
-            walk_all_inner(&resolved.path, &rel, resolve_symlinks, confined_root, visited, out)?;
+            walk_all_inner(&resolved.path, &rel, symlinks, confined_root, visited, out)?;
         } else {
             out.insert(rel, resolved.path);
         }
@@ -133,7 +147,7 @@ fn walked_relative_path(entry: &fs::DirEntry, rel_prefix: &str) -> Option<String
 
 struct ResolvedEntry {
     /// The path to use as the source for hardlinking / CAS-write.
-    /// Under `resolve_symlinks`, this is the realpath; otherwise it's
+    /// Under [`Symlinks::Resolve`], this is the realpath; otherwise it's
     /// the lstat'd path the caller handed in.
     path: PathBuf,
     metadata: Metadata,
@@ -142,14 +156,16 @@ struct ResolvedEntry {
 /// Stat a single entry.
 fn resolve_entry(
     path: &Path,
-    resolve_symlinks: bool,
+    symlinks: Symlinks,
     confined_root: Option<&Path>,
 ) -> Result<Option<ResolvedEntry>, DirectoryFetcherError> {
     if let Some(root) = confined_root {
-        return resolve_confined_entry(path, root, resolve_symlinks);
+        return resolve_confined_entry(path, root, symlinks);
     }
-    if resolve_symlinks {
-        return resolve_followed_entry(path);
+    match symlinks {
+        Symlinks::Resolve => return resolve_followed_entry(path),
+        Symlinks::Preserve => return lstat_entry(path),
+        Symlinks::Keep => {}
     }
     // Use `fs::metadata` (Rust's `stat`, not `lstat`): it follows symlinks
     // for the *type* decision but reports a broken symlink's ENOENT, which
@@ -166,7 +182,7 @@ fn resolve_entry(
 fn resolve_confined_entry(
     path: &Path,
     root: &Path,
-    resolve_symlinks: bool,
+    symlinks: Symlinks,
 ) -> Result<Option<ResolvedEntry>, DirectoryFetcherError> {
     let Some(lstat) = stat_or_skip(path, |path| fs::symlink_metadata(path))? else {
         return Ok(None);
@@ -183,13 +199,19 @@ fn resolve_confined_entry(
             directory: root.to_path_buf(),
         });
     }
-    if !resolve_symlinks {
+    if symlinks == Symlinks::Preserve {
         return Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: lstat }));
     }
     let Some(metadata) = stat_or_skip(&real, |path| fs::metadata(path))? else {
         return Ok(None);
     };
     Ok(Some(ResolvedEntry { path: real, metadata }))
+}
+
+/// An entry as it is, without following a link.
+fn lstat_entry(path: &Path) -> Result<Option<ResolvedEntry>, DirectoryFetcherError> {
+    let metadata = stat_or_skip(path, |path| fs::symlink_metadata(path))?;
+    Ok(metadata.map(|metadata| ResolvedEntry { path: path.to_path_buf(), metadata }))
 }
 
 /// Resolve an entry through its link target, skipping a broken symlink.
@@ -242,12 +264,13 @@ fn skip_broken_symlink<Entry>(path: &Path) -> Option<Entry> {
 pub(crate) fn resolve_paths_in_directory(
     directory: &Path,
     files_map: &mut FilesMap,
+    symlinks: Symlinks,
 ) -> Result<(), DirectoryFetcherError> {
     let root = canonicalize_path(directory)?;
     for path in files_map.values_mut() {
         let original = path.clone();
-        let is_symlink =
-            fs::symlink_metadata(&original).is_ok_and(|meta| meta.file_type().is_symlink());
+        let is_symlink = symlinks == Symlinks::Preserve
+            && fs::symlink_metadata(&original).is_ok_and(|meta| meta.file_type().is_symlink());
         let resolved = canonicalize_path(&original)?;
         if !resolved.starts_with(&root) {
             return Err(DirectoryFetcherError::PathOutsideDirectory {

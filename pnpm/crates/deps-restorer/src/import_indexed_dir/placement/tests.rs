@@ -1,6 +1,7 @@
 use super::{
-    FsRemoveDirAll, FsRemoveNonDirDirent, Placement, clear_dir_blocking_file,
-    clear_dirent_blocking_dir, dir_fits_at, entries_by_target_dir, file_fits_at, populate_dir,
+    FsRemoveDirAll, FsRemoveNonDirDirent, Placement, SymlinkRoots, clear_dir_blocking_file,
+    clear_dirent_blocking_dir, dir_fits_at, entries_by_target_dir, file_fits_at, final_link_target,
+    populate_dir,
 };
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
@@ -81,6 +82,7 @@ fn a_directory_has_one_writer_at_a_time() {
         &target,
         &cas_paths,
         Placement::Fresh,
+        None,
     )
     .unwrap();
 
@@ -257,4 +259,17 @@ fn a_file_still_standing_fails_the_clearing() {
 
     clear_dirent_blocking_dir::<LeavesTheBlocker>(root.path(), "nested")
         .expect_err("the blocker is still in the way");
+}
+
+#[test]
+fn final_link_target_points_into_the_final_directory() {
+    let roots = SymlinkRoots { written_dir: Path::new("/stage"), final_dir: Path::new("/pkg") };
+    assert_eq!(
+        final_link_target(Path::new("/stage/lib/link"), Path::new("../sub"), roots),
+        PathBuf::from("/pkg/sub"),
+    );
+    assert_eq!(
+        final_link_target(Path::new("/stage/link"), Path::new("sub/dir"), roots),
+        PathBuf::from("/pkg/sub/dir"),
+    );
 }

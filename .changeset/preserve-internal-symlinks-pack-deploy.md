@@ -6,4 +6,4 @@
 "pacquet": patch
 ---
 
-`pnpm pack` and `pnpm deploy` now preserve internal symlinks in package outputs, while excluding symlinks pointing outside the package [pnpm/pnpm#8208](https://github.com/pnpm/pnpm/issues/8208).
+`pnpm pack`, `pnpm deploy`, and installs of local directory dependencies now keep symlinks that point to files or directories inside the package. `pnpm pack` leaves out symlinks that point outside the package [#8208](https://github.com/pnpm/pnpm/issues/8208).
