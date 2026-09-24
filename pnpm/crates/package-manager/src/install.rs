@@ -50,11 +50,12 @@ use pnpm_executor::{
     RunPostinstallHooks, run_project_lifecycle_stages,
 };
 use pnpm_lockfile::{
-    LazyLockfile, Lockfile, LockfileEntries, MaybeLazyLockfile, PnpmfileChecksumCheck,
+    LazyLockfile, Lockfile, LockfileEntries, MaybeLazyLockfile, PkgName, PnpmfileChecksumCheck,
     StalenessReason, VersionPart, satisfies_package_manifest,
 };
 use pnpm_lockfile_verification::{
-    VerifyLockfileResolutionsOptions, record_lockfile_verified, verify_lockfile_resolutions,
+    ReplacedEntries, VerifyLockfileResolutionsOptions, record_lockfile_verified,
+    verify_lockfile_resolutions,
 };
 use pnpm_modules_yaml::{
     Clock, Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
@@ -150,6 +151,7 @@ async fn verify_lockfile_eagerly<Reporter: pnpm_reporter::Reporter>(
             concurrency: None,
             lockfile_path,
             cache_dir: Some(cache_dir),
+            replaced: None,
         },
     )
     .await
@@ -171,6 +173,9 @@ pub struct LockfileVerificationGate(
     tokio::task::JoinHandle<Result<(), pnpm_lockfile_verification::VerifyError>>,
 );
 
+/// Owned form of [`ReplacedEntries`], for the spawned gate.
+pub(crate) type IsReplaced = Arc<dyn Fn(&PkgName, &str) -> bool + Send + Sync>;
+
 pub(crate) fn untracked_read_package_hook_may_have_changed(
     recorded: Option<bool>,
     current: Option<bool>,
@@ -186,6 +191,7 @@ impl LockfileVerificationGate {
         verifiers: &[Arc<dyn ResolutionVerifier>],
         lockfile_path: Option<&Path>,
         cache_dir: &Path,
+        replaced: Option<IsReplaced>,
     ) -> Option<Self> {
         if verifiers.is_empty() {
             return None;
@@ -202,6 +208,7 @@ impl LockfileVerificationGate {
                     concurrency: None,
                     lockfile_path: lockfile_path.as_deref(),
                     cache_dir: Some(&cache_dir),
+                    replaced: replaced.as_deref().map(ReplacedEntries),
                 },
             )
             .await
