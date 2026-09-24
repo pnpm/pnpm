@@ -347,7 +347,8 @@ impl InstallPackageBySnapshot<'_> {
                 is_mutable: slot.source_is_mutable,
                 force: false,
                 build_marker: None,
-                needs_build: requires_build_from_cas_paths(cas_paths),
+                needs_build: requires_build_from_cas_paths(cas_paths)
+                    || crate::snapshot_has_patch(slot.package_key),
             },
             layout: self.ctx.linker.layout,
             cas_paths,

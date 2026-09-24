@@ -16,7 +16,7 @@ use pnpm_config::{Config, PackageImportMethod};
 use pnpm_deps_restorer::{
     ImportIndexedDirOpts, SkippedSnapshots, VirtualStoreLayout, create_symlink_layout,
     import_indexed_dir, install_package_from_registry::extract_tarball,
-    safe_join_modules_dir::safe_join_modules_dir,
+    requires_build_from_cas_paths, safe_join_modules_dir::safe_join_modules_dir,
 };
 use pnpm_lockfile::{
     LockfileResolution, PackageKey, PkgName, SnapshotDepRef, is_git_hosted_tarball_url,
@@ -228,6 +228,12 @@ impl SlotJob {
         shared: &Shared,
         cas_paths: &HashMap<String, PathBuf>,
     ) -> Result<(), String> {
+        // A package with a build ahead of it must not share inodes with the
+        // store. The link phase imports it with `clone-or-copy` and marks it
+        // for the build, and a completed slot here would make it skip that.
+        if requires_build_from_cas_paths(cas_paths) {
+            return Ok(());
+        }
         std::fs::create_dir_all(&self.virtual_node_modules_dir).map_err(|error| error.to_string())?;
         import_indexed_dir::<Reporter>(
             &shared.logged_methods,
