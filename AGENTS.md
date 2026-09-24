@@ -395,7 +395,7 @@ Use `.agents/skills/pull-requests/scripts/resolve-pr-conflicts.sh` to resolve PR
 ./.agents/skills/pull-requests/scripts/resolve-pr-conflicts.sh <PR_NUMBER>
 ```
 
-The script force-fetches the base branch (avoiding stale refs), rebases, auto-resolves `pnpm-lock.yaml` conflicts via `pnpm install`, force-pushes, and verifies GitHub sees the PR as mergeable. For non-lockfile conflicts it will pause and list the files that need manual resolution.
+The script force-fetches the base branch (avoiding stale refs), rebases, auto-resolves `pnpm-lock.yaml` conflicts via `pnpm install`, force-pushes, and verifies GitHub sees the PR as mergeable. For non-lockfile conflicts it will pause and list the files that need manual resolution; finish those with `<PR_NUMBER> --continue`, which resumes that paused rebase in place. Pass `--no-push` to stop after the rebase and print the push command instead of running it.
 
 ## Agent Skills
 
