@@ -156,7 +156,6 @@ fn process_diff_line(
         changed_dirs.insert(dir, change_type);
     }
 }
-
 fn get_changed_dirs_since_commit(
     commit: &str,
     opts: &GetChangedProjectsOptions<'_>,
@@ -200,8 +199,16 @@ fn git_diff_names(
     manifest_path: &Path,
 ) -> Result<String, FilterError> {
     let mut cmd = Command::new("git");
-    cmd.args(["diff", "--name-only", "--no-relative", "--end-of-options", commit, "--"])
-        .arg(working_dir);
+    cmd.args([
+        "diff",
+        "--name-only",
+        "--no-relative",
+        "--no-renames",
+        "--end-of-options",
+        commit,
+        "--",
+    ])
+    .arg(working_dir);
     if working_dir != workspace_dir {
         cmd.arg(manifest_path);
     }
