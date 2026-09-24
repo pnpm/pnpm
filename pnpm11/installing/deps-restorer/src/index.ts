@@ -315,13 +315,17 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const skipPostImportLinking = opts.virtualStoreOnly === true
 
   const skipped = opts.skipped || new Set<DepPath>()
+  const currentEngine = {
+    ...opts.currentEngine,
+    nodeVersion: findRootRuntimeNodeVersion(wantedLockfile) ?? opts.currentEngine.nodeVersion,
+  }
   const filterOpts = {
     include: opts.include,
     registriesByScope: opts.registriesByScope,
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     skipped,
     skipRuntimes: opts.skipRuntimes,
-    currentEngine: opts.currentEngine,
+    currentEngine,
     ...installabilityUnderForce(opts),
     failOnMissingDependencies: true,
     lockfileDir,
@@ -415,8 +419,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     requiredDepPaths,
     skipped,
     virtualStoreDir,
-    nodeVersion: opts.currentEngine.nodeVersion,
-    pnpmVersion: opts.currentEngine.pnpmVersion,
+    nodeVersion: currentEngine.nodeVersion,
+    pnpmVersion: currentEngine.pnpmVersion,
     supportedArchitectures: opts.supportedArchitectures,
     omitResolvedProgress: opts.omitResolvedProgress,
     includeUnchangedDeps: (!equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) ||
@@ -1180,6 +1184,22 @@ async function workspaceHoistPointsToProject (projectId: ProjectId, aliases: Rec
       throw error
     }
   }))).some(Boolean)
+}
+
+/**
+ * The Node.js version the root project's `node` runtime dependency is locked
+ * to. That is the Node.js pnpm installs for the project, so `engines.node` is
+ * checked against it rather than against the lower bound of the
+ * `devEngines.runtime` range.
+ */
+function findRootRuntimeNodeVersion (lockfile: LockfileObject): string | undefined {
+  const rootImporter = lockfile.importers['.' as ProjectId]
+  if (rootImporter == null) return undefined
+  for (const depType of DEPENDENCIES_FIELDS) {
+    const ref = rootImporter[depType]?.node
+    if (ref?.startsWith('runtime:')) return ref.slice('runtime:'.length)
+  }
+  return undefined
 }
 
 function lockfileRemovesPackages (currentLockfile: LockfileObject | null, wantedLockfile: LockfileObject): boolean {

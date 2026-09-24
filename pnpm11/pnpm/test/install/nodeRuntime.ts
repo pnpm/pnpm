@@ -115,3 +115,31 @@ test('devEngines.runtime range without download does not replace running Node.js
   project.has('dependency')
 })
 
+
+test('optional dependencies are checked against the Node.js version locked for a devEngines.runtime range', async () => {
+  const project = prepare({
+    optionalDependencies: {
+      dependency: 'file:dependency',
+    },
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '^24.0.0',
+        onFail: 'download',
+      },
+    },
+  })
+  fs.mkdirSync('dependency')
+  fs.writeFileSync('dependency/package.json', JSON.stringify({
+    name: 'dependency',
+    version: '1.0.0',
+    engines: {
+      node: '>=24.1.0',
+    },
+  }))
+
+  await execPnpm(['install', '--lockfile-only'])
+  await execPnpm(['install', '--frozen-lockfile', '--no-runtime'])
+
+  expect(project.readModulesManifest()?.skipped).toStrictEqual([])
+})
