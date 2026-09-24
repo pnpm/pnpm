@@ -1,4 +1,4 @@
-use super::{remove_pending_temp_files, track_temp_file};
+use super::{MAX_STORED_PATH, PendingTempFile, remove_pending_temp_files, track_temp_file};
 use std::fs;
 
 #[test]
@@ -39,4 +39,16 @@ fn released_slot_is_reused() {
 
     assert!(first.exists(), "released slot must not be unlinked: {first:?}");
     assert!(!second.exists(), "reused slot must be unlinked: {second:?}");
+}
+
+#[test]
+fn a_path_longer_than_the_slot_buffer_stays_untracked() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut long = dir.path().to_path_buf();
+    while long.as_os_str().len() < MAX_STORED_PATH {
+        long.push("x".repeat(200));
+    }
+
+    let guard: PendingTempFile = track_temp_file(&long);
+    assert!(guard.entry.is_none(), "an over-long path gets no slot: {long:?}");
 }
