@@ -234,10 +234,8 @@ fn install_handler_for(index: usize, signal: libc::c_int) {
 /// Pass the signal on to the disposition this handler replaced, unlinking
 /// the pending temp files only on the path that ends the process: the
 /// default dies by the signal, so it gets the cleanup first, while a
-/// handler installed earlier — `pnpm-executor`'s interrupt relay — may keep
-/// pnpm alive waiting for children, and unlinking now would pull temp files
-/// out from under writes that keep running. The relay's own exit path calls
-/// [`remove_pending_temp_files`] when it ends the process.
+/// handler installed earlier may keep the process alive, and unlinking now
+/// would pull temp files out from under writes that keep running.
 ///
 /// Everything up to the chained call is async-signal-safe: atomic loads and
 /// `unlink`.
