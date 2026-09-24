@@ -731,3 +731,124 @@ async fn store_peek_bypassed_when_update_checksums_is_true() {
     );
     mock.assert_async().await;
 }
+
+#[test]
+fn normalize_tarball_url_strips_default_ports() {
+    use crate::normalize_tarball_url;
+    let cases = [
+        (
+            "https://registry.example.com:443/package.tgz",
+            "https://registry.example.com/package.tgz",
+        ),
+        ("http://registry.example.com:80/package.tgz", "http://registry.example.com/package.tgz"),
+        (
+            "https://registry.example.com:8443/package.tgz",
+            "https://registry.example.com:8443/package.tgz",
+        ),
+        (
+            "http://registry.example.com:8080/package.tgz",
+            "http://registry.example.com:8080/package.tgz",
+        ),
+        ("https://registry.example.com/package.tgz", "https://registry.example.com/package.tgz"),
+        ("http://registry.example.com/package.tgz", "http://registry.example.com/package.tgz"),
+        (
+            "https://artifactory:443/api/npm/npm-virtual/uuid/-/uuid-9.0.1.tgz",
+            "https://artifactory/api/npm/npm-virtual/uuid/-/uuid-9.0.1.tgz",
+        ),
+        ("invalid-url", "invalid-url"),
+    ];
+    for (input, expected) in cases {
+        assert_eq!(normalize_tarball_url(input), expected, "failed for input {input}");
+    }
+}
+
+#[tokio::test]
+async fn resolve_strips_default_ports_from_tarball_urls() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let body = json!({
+        "name": "port-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "port-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry.npmjs.org:443/port-pkg/-/port-pkg-1.0.0.tgz"
+                }
+            }
+        }
+    });
+    let mock = server
+        .mock("GET", "/port-pkg")
+        .with_status(200)
+        .with_body(body.to_string())
+        .create_async()
+        .await;
+    let (resolver, _tempdir) = build_resolver(&registry);
+    let wanted = WantedDependency {
+        alias: Some("port-pkg".to_string()),
+        bare_specifier: Some("1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions::default();
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    let LockfileResolution::Tarball(tarball) = &result.resolution else {
+        panic!("expected tarball resolution");
+    };
+    assert_eq!(tarball.tarball, "https://registry.npmjs.org/port-pkg/-/port-pkg-1.0.0.tgz");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn resolve_strips_port_80_from_http_tarball_urls() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let body = json!({
+        "name": "http-port-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "http-port-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "http://registry.example.com:80/http-port-pkg/-/http-port-pkg-1.0.0.tgz"
+                }
+            }
+        }
+    });
+    let mock = server
+        .mock("GET", "/http-port-pkg")
+        .with_status(200)
+        .with_body(body.to_string())
+        .create_async()
+        .await;
+    let (resolver, _tempdir) = build_resolver(&registry);
+    let wanted = WantedDependency {
+        alias: Some("http-port-pkg".to_string()),
+        bare_specifier: Some("1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions::default();
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    let LockfileResolution::Tarball(tarball) = &result.resolution else {
+        panic!("expected tarball resolution");
+    };
+    assert_eq!(
+        tarball.tarball,
+        "http://registry.example.com/http-port-pkg/-/http-port-pkg-1.0.0.tgz",
+    );
+    mock.assert_async().await;
+}

@@ -341,6 +341,13 @@ pub(crate) fn prefixed_calculated_specifier(
         })
 }
 
+/// Strip default ports (80 for HTTP, 443 for HTTPS) from a tarball URL,
+/// falling back to the original URL if parsing fails.
+#[must_use]
+pub fn normalize_tarball_url(url: &str) -> String {
+    reqwest::Url::parse(url).map_or_else(|_| url.to_string(), |parsed| parsed.to_string())
+}
+
 /// Emit the tarball URL already supplied by the picker, which the install path
 /// consumes directly without reconstructing a registry resolution.
 pub(super) fn picked_tarball_resolution(
@@ -350,7 +357,7 @@ pub(super) fn picked_tarball_resolution(
     let integrity = dist_integrity(&picked.dist)?;
     let revision = tarball_revision(picked, integrity.as_ref(), registry)?;
     let resolution = LockfileResolution::Tarball(TarballResolution {
-        tarball: picked.dist.tarball.clone(),
+        tarball: normalize_tarball_url(&picked.dist.tarball),
         integrity,
         revision,
         git_hosted: None,
