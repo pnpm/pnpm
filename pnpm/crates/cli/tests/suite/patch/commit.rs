@@ -72,6 +72,44 @@ fn patch_commit_writes_an_applicable_patch_for_a_deleted_file() {
     drop((root, mock_instance));
 }
 
+/// Dropping a file's last line along with the newline before it makes `git diff` print the new
+/// last line as context marked `\ No newline at end of file`, with the deletion after it.
+#[test]
+fn patch_commit_writes_an_applicable_patch_when_the_last_line_loses_its_newline() {
+    let (root, workspace, npmrc_info) = setup_installed();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
+    let original = fs::read_to_string(edit_dir.join("index.js")).expect("read index.js");
+    let (edited, _) = original
+        .trim_end_matches('\n')
+        .rsplit_once('\n')
+        .expect("index.js has several lines");
+    fs::write(edit_dir.join("index.js"), edited).expect("edit index.js");
+
+    pacquet(
+        &workspace,
+        ["patch-commit", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+    )
+    .assert()
+    .success();
+
+    let patch =
+        fs::read_to_string(workspace.join("patches/is-positive@1.0.0.patch")).expect("patch file");
+    assert!(patch.contains("\n\\ No newline at end of file\n-"), "patch: {patch}");
+    let installed = fs::read_to_string(workspace.join("node_modules/is-positive/index.js"))
+        .expect("read patched index.js");
+    assert_eq!(installed, format!("{edited}\n"));
+
+    fs::remove_dir_all(&edit_dir).expect("remove edit dir");
+    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    let reapplied = fs::read_to_string(edit_dir.join("index.js")).expect("read reapplied index.js");
+    assert_eq!(reapplied, format!("{edited}\n"));
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn patch_commit_bare_name_writes_apply_to_all_key() {
     let (root, workspace, npmrc_info) = setup_installed();
