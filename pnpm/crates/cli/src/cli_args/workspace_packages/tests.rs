@@ -38,3 +38,10 @@ fn first_complete_manifest_wins_over_a_later_complete_manifest() {
 
     assert_eq!(map["pkg-b"].version, "1.0.0");
 }
+
+#[test]
+fn name_only_manifest_is_kept_with_an_empty_version() {
+    let map = build_workspace_package_manifest_map(&[project("/workspace/b", "pkg-b", None)]);
+
+    assert_eq!(map["pkg-b"].version, "");
+}

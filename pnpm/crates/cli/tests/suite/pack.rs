@@ -8,7 +8,10 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    diagnostics::assert_diagnostic_contains,
+};
 use serde_json::json;
 use std::{fmt::Write, fs, path::Path};
 
@@ -688,5 +691,45 @@ fn pack_json_prints_structured_errors_without_lifecycle_scripts() {
         stdout,
         "{\n  \"error\": {\n    \"code\": \"ERR_PNPM_PACKAGE_VERSION_NOT_FOUND\",\n    \"message\": \"Package version is not defined in the package.json.\"\n  }\n}\n",
     );
+    drop(root);
+}
+
+/// A `workspace:` peer is not installed into `node_modules`, so the
+/// version comes from the workspace package itself. When that package
+/// has no `version`, pack names the missing field.
+#[test]
+fn pack_reports_a_workspace_peer_without_a_version() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    for (dir, manifest) in [
+        (
+            "packages/pkg-a",
+            json!({
+                "name": "pkg-a",
+                "version": "1.0.0",
+                "peerDependencies": { "pkg-b": "workspace:*" },
+            }),
+        ),
+        ("packages/pkg-b", json!({ "name": "pkg-b" })),
+    ] {
+        let dir = workspace.join(dir);
+        fs::create_dir_all(&dir).expect("create package dir");
+        fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
+    }
+
+    let output = pacquet
+        .with_args(["--filter", "pkg-a", "pack"])
+        .output()
+        .expect("run pack");
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+    assert!(!output.status.success(), "pack must fail:\n{stderr}");
+    assert_diagnostic_contains(&stderr, "ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL");
+    assert_diagnostic_contains(
+        &stderr,
+        r#"Cannot resolve workspace protocol of dependency "pkg-b" because its package.json has no "version" field."#,
+    );
+    assert_diagnostic_contains(&stderr, r#"Add a "version" field to the package.json of "pkg-b"."#);
+
     drop(root);
 }
