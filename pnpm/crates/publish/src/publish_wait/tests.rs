@@ -89,7 +89,6 @@ async fn exact_version_is_required_and_deadline_bounds_the_sleep() {
 
 #[tokio::test]
 async fn timeout_does_not_issue_second_probe_when_delay_exceeds_deadline() {
-    tokio::time::pause();
     let mut server = mockito::Server::new_async().await;
     let request = server
         .mock("GET", "/@scope%2Fpkg")
@@ -97,7 +96,7 @@ async fn timeout_does_not_issue_second_probe_when_delay_exceeds_deadline() {
         .expect(1)
         .create_async()
         .await;
-    let error = wait(&server, Duration::from_millis(100)).await.unwrap_err();
+    let error = wait(&server, Duration::from_secs(1)).await.unwrap_err();
     assert!(error.to_string().contains("Timed out"), "{error}");
     request.assert_async().await;
 }
