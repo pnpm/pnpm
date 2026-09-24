@@ -36,7 +36,7 @@ fn entries_are_grouped_by_the_directory_they_land_in() {
             BTreeSet::from(["README.md"]),
             BTreeSet::from(["lib/index.js", "lib/util.js"]),
             BTreeSet::from(["lib/esm/index.js"]),
-        ])
+        ]),
     );
 }
 
