@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
@@ -85,4 +86,26 @@ test('updateWorkspaceState()', async () => {
       [path.resolve('packages/d')]: {},
     },
   }))
+})
+
+test('updateWorkspaceState() does not throw when cache file writing fails', async () => {
+  preparePackages([])
+  const workspaceDir = process.cwd()
+  const cacheFile = path.join(workspaceDir, 'node_modules/.pnpm/.workspace-state.json')
+  await fs.promises.mkdir(cacheFile, { recursive: true })
+
+  await expect(updateWorkspaceState({
+    pnpmfiles: [],
+    workspaceDir,
+    allProjects: [],
+    filteredInstall: false,
+    settings: {
+      autoInstallPeers: true,
+      dedupeDirectDeps: true,
+      excludeLinksFromLockfile: false,
+      preferWorkspacePackages: false,
+      linkWorkspacePackages: false,
+      injectWorkspacePackages: false,
+    },
+  })).resolves.toBeUndefined()
 })

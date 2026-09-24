@@ -221,7 +221,7 @@ pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
         context.tree.workspace_root,
         (context.write.synthesized_from_current, context.write.fast_updated, context.write.save),
     )?;
-    refresh_up_to_date_workspace(&context);
+    refresh_up_to_date_workspace::<Reporter>(&context);
     Reporter::emit(&LogEvent::Summary(SummaryLog {
         level: LogLevel::Debug,
         prefix: context.projects.prefix.to_string(),
@@ -240,7 +240,9 @@ pub(super) fn enforce_recorded_build_policy(
     }
     Ok(())
 }
-pub(super) fn refresh_up_to_date_workspace(context: &UpToDateInstall<'_, '_>) {
+pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
+    context: &UpToDateInstall<'_, '_>,
+) {
     let state = build_workspace_state::<Host>(
         context.tree.workspace_root,
         context.tree.config,
@@ -258,6 +260,9 @@ pub(super) fn refresh_up_to_date_workspace(context: &UpToDateInstall<'_, '_>) {
             ?error,
             "Failed to write the workspace state",
         );
+        pnpm_reporter::emit_global_warning::<Reporter>(&format!(
+            "Failed to write the workspace state: {error}",
+        ));
     }
 }
 pub(super) async fn verify_up_to_date_lockfile<Reporter: self::Reporter + 'static>(

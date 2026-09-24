@@ -1,4 +1,6 @@
 ---
+"@pnpm/workspace.state": patch
+"pnpm": patch
 "pacquet": patch
 ---
 
