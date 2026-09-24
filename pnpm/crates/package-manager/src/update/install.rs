@@ -194,6 +194,8 @@ pub(super) fn update_install<'i>(
     }
 }
 
+/// Build the install-projects inputs for `update_install`, keeping the
+/// caller within the lint's function-length budget.
 fn update_install_projects(
     dependency_groups: Vec<DependencyGroup>,
     supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
