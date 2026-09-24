@@ -220,3 +220,37 @@ fn checksum_order_invariance_outer_keys() {
     extender2.apply(&mut m2);
     assert_eq!(m1, m2);
 }
+
+#[test]
+fn ranged_selectors_do_not_match_manifest_without_version() {
+    let mut extensions = IndexMap::new();
+    extensions.insert("foo@<2".to_string(), extension(&[("a", "1")]));
+    extensions.insert("foo@*".to_string(), extension(&[("b", "1")]));
+    extensions.insert("foo@^1.0.0".to_string(), extension(&[("c", "1")]));
+    extensions.insert("foo".to_string(), extension(&[("bare", "1")]));
+    let extender = PackageExtender::new(&extensions).expect("valid selectors in test fixtures");
+
+    let mut manifest = json!({ "name": "foo" });
+    extender.apply(&mut manifest);
+
+    assert_eq!(
+        manifest,
+        json!({
+            "name": "foo",
+            "dependencies": { "bare": "1" },
+        }),
+    );
+}
+
+#[test]
+fn genuine_zero_version_matches_less_than_and_star_selectors() {
+    let mut extensions = IndexMap::new();
+    extensions.insert("foo@<2".to_string(), extension(&[("a", "1")]));
+    extensions.insert("foo@*".to_string(), extension(&[("b", "1")]));
+    let extender = PackageExtender::new(&extensions).expect("valid selectors in test fixtures");
+
+    let mut manifest = json!({ "name": "foo", "version": "0.0.0" });
+    extender.apply(&mut manifest);
+
+    assert_eq!(manifest.get("dependencies").unwrap(), &json!({ "a": "1", "b": "1" }));
+}

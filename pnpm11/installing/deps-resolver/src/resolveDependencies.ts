@@ -2272,6 +2272,9 @@ async function resolveDependency (
     if (ctx.readPackageHook != null && !pkgResponse.body.hooked) {
       pkg = await ctx.readPackageHook(pkg)
     }
+    if (!pkg.version) {
+      pkg.version = '0.0.0'
+    }
     if (pkg.peerDependencies && pkg.dependencies) {
       if (ctx.autoInstallPeers) {
         pkg = {
@@ -2538,7 +2541,7 @@ export function getManifestFromResponse (
 ): PackageManifest {
   if (pkgResponse.body.manifest) return pkgResponse.body.manifest
 
-  if (currentPkg?.name && currentPkg?.version) {
+  if (currentPkg?.name && currentPkg?.version && currentPkg.version !== '0.0.0') {
     return {
       name: currentPkg.name,
       version: currentPkg.version,
@@ -2546,8 +2549,7 @@ export function getManifestFromResponse (
   }
   return {
     name: wantedDependency.alias ? wantedDependency.alias : wantedDependency.bareSpecifier.split('/').pop()!,
-    version: '0.0.0',
-  }
+  } as PackageManifest
 }
 
 /**

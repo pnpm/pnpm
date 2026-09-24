@@ -3,8 +3,10 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { hashObject as _hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
+import type { CustomResolver } from '@pnpm/hooks.types'
 import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { PackageExtension, ProjectId, ProjectManifest, ProjectRootDir, ReadPackageHook } from '@pnpm/types'
 
 import {
@@ -605,3 +607,71 @@ test('manifests are not patched by extensions from the compatibility database wh
   const lockfile = project.readLockfile()
   expect(lockfile.packages['debug@4.0.0'].peerDependenciesMeta).toBeUndefined()
 })
+
+test('manifests without version do not match ranged packageExtensions selectors', async () => {
+  const project = prepareEmpty()
+
+  const trackingResolver: CustomResolver = {
+    canResolve: (descriptor) => {
+      return descriptor.alias === '@pnpm.e2e/dep-of-pkg-with-1-dep'
+    },
+    resolve: async () => {
+      return {
+        id: '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+        resolution: {
+          integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0'),
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz`,
+        },
+      }
+    },
+  }
+
+  const packageExtensions: Record<string, PackageExtension> = {
+    '@pnpm.e2e/dep-of-pkg-with-1-dep@<2': {
+      dependencies: {
+        '@pnpm.e2e/bar': '100.1.0',
+      },
+    },
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': {
+      dependencies: {
+        '@pnpm.e2e/foobar': '100.0.0',
+      },
+    },
+  }
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'],
+    testDefaults({
+      customResolvers: [trackingResolver],
+      packageExtensions,
+    })
+  )
+
+  {
+    const lockfile = project.readLockfile()
+    const snapshot = lockfile.snapshots['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']
+    // Ranged selector (@<2) must not match synthesized version
+    expect(snapshot.dependencies?.['@pnpm.e2e/bar']).toBeUndefined()
+    // Bare selector must match
+    expect(snapshot.dependencies?.['@pnpm.e2e/foobar']).toBe('100.0.0')
+  }
+
+  // Second install with existing lockfile (where currentPkg.version is synthesized 0.0.0)
+  await addDependenciesToPackage(
+    manifest,
+    [],
+    testDefaults({
+      customResolvers: [trackingResolver],
+      packageExtensions,
+    })
+  )
+
+  {
+    const lockfile = project.readLockfile()
+    const snapshot = lockfile.snapshots['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']
+    expect(snapshot.dependencies?.['@pnpm.e2e/bar']).toBeUndefined()
+    expect(snapshot.dependencies?.['@pnpm.e2e/foobar']).toBe('100.0.0')
+  }
+})
+

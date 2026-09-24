@@ -145,7 +145,7 @@ mod fallback_manifest {
                 &wanted(Some("no-manifest"), Some("file:./no-manifest-1.0.0.tgz")),
                 None,
             ),
-            serde_json::json!({ "name": "no-manifest", "version": "0.0.0" }),
+            serde_json::json!({ "name": "no-manifest" }),
         );
     }
 
@@ -156,7 +156,7 @@ mod fallback_manifest {
                 &wanted(None, Some("https://example.com/no-manifest-1.0.0.tgz")),
                 None,
             ),
-            serde_json::json!({ "name": "no-manifest-1.0.0.tgz", "version": "0.0.0" }),
+            serde_json::json!({ "name": "no-manifest-1.0.0.tgz" }),
         );
     }
 
@@ -199,7 +199,18 @@ mod fallback_manifest {
                 &wanted(Some("sub"), Some("file:./sub")),
                 Some(&current_pkg(Some("sub"), None)),
             ),
-            serde_json::json!({ "name": "sub", "version": "0.0.0" }),
+            serde_json::json!({ "name": "sub" }),
+        );
+    }
+
+    #[test]
+    fn a_synthesized_zero_version_in_current_pkg_is_omitted() {
+        assert_eq!(
+            super::super::workspace_resolution::fallback_manifest(
+                &wanted(Some("sub"), Some("file:./sub")),
+                Some(&current_pkg(Some("sub"), Some("0.0.0"))),
+            ),
+            serde_json::json!({ "name": "sub" }),
         );
     }
 }
