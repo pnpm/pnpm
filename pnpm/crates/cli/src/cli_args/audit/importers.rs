@@ -13,7 +13,8 @@ use std::borrow::Cow;
 /// The lockfile narrowed to the importers of the projects that `--filter`,
 /// `--filter-prod`, or `--workspace-root` selected, or the whole lockfile
 /// when no selector narrows the run. `None` when the selectors matched no
-/// project, after printing pnpm's notice for it.
+/// project, after printing pnpm's notice for it. A selected project without
+/// an importer entry is an error: auditing the rest would report it clean.
 pub(super) fn select_audited_importers<'lockfile>(
     state: &State,
     lockfile: &'lockfile Lockfile,
@@ -27,6 +28,15 @@ pub(super) fn select_audited_importers<'lockfile>(
         let workspace_dir = notice_workspace_dir(state.config, state.project_dir());
         println!("{}", no_projects_matched_message(workspace_dir));
         return Ok(None);
+    }
+    let mut missing: Vec<&str> = selected
+        .iter()
+        .map(String::as_str)
+        .filter(|importer_id| !lockfile.importers.contains_key(*importer_id))
+        .collect();
+    if !missing.is_empty() {
+        missing.sort_unstable();
+        return Err(AuditError::MissingImporters { importer_ids: missing.join(", ") }.into());
     }
     let mut narrowed = lockfile.clone();
     narrowed.importers.retain(|importer_id, _| selected.contains(importer_id));

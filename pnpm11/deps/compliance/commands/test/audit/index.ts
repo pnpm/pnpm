@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import fs from 'node:fs'
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
@@ -618,6 +619,23 @@ describe('audit in a workspace', () => {
 
   test('audits every project without --filter', async () => {
     expect(await auditedPackageNames([])).toStrictEqual(['lodash', 'minimist'])
+  })
+
+  test('fails when a selected project has no entry in the lockfile', async () => {
+    const workspaceDir = f.prepare('workspace-has-vulnerabilities')
+    fs.mkdirSync(path.join(workspaceDir, 'packages/c'))
+    fs.writeFileSync(path.join(workspaceDir, 'packages/c/package.json'), JSON.stringify({ name: 'workspace-audit-c', version: '1.0.0' }))
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'workspace-audit-c' }])
+
+    await expect(audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      workspaceDir,
+      rootProjectManifestDir: workspaceDir,
+      filter: ['workspace-audit-c'],
+      selectedProjectsGraph,
+    })).rejects.toMatchObject({ code: 'ERR_PNPM_AUDIT_MISSING_IMPORTERS' })
   })
 })
 

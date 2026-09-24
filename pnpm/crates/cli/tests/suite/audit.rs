@@ -718,6 +718,32 @@ fn audit_filter_matching_no_project_skips_the_audit() {
     mock.assert();
 }
 
+#[test]
+fn audit_filter_fails_when_a_selected_project_is_missing_from_the_lockfile() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(&mut registry, "{}").expect(0).create();
+    write_two_project_audit_workspace(&workspace, &registry.url());
+    let project_dir = workspace.join("packages/project-c");
+    fs::create_dir_all(&project_dir).expect("create project dir");
+    fs::write(project_dir.join("package.json"), r#"{"name":"project-c","version":"1.0.0"}"#)
+        .expect("write project package.json");
+
+    let output = pacquet
+        .arg("audit")
+        .arg("--filter")
+        .arg("project-c")
+        .output()
+        .expect("run pacquet audit");
+
+    assert_failure(&output);
+    assert!(stderr(&output).contains("ERR_PNPM_AUDIT_MISSING_IMPORTERS"), "{}", stderr(&output));
+    assert!(stderr(&output).contains("packages/project-c"), "{}", stderr(&output));
+    mock.assert();
+}
+
 /// Build a fresh single-shot `pacquet` command bound to `workspace`, for
 /// multi-step tests (install, then audit) that can't reuse the one-shot
 /// command from [`CommandTempCwd`].
