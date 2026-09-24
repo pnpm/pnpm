@@ -110,25 +110,6 @@ async fn run_snapshot_install_with_session(
     workspace_root: &std::path::Path,
 ) -> Result<super::InstalledPackage, InstallPackageBySnapshotError> {
     let package_key: PackageKey = "foo@1.0.0".parse().expect("parse key");
-    run_snapshot_install_with_key_and_session(
-        &package_key,
-        config,
-        metadata,
-        session,
-        tarball_mem_cache,
-        workspace_root,
-    )
-    .await
-}
-
-async fn run_snapshot_install_with_key_and_session(
-    package_key: &PackageKey,
-    config: &'static Config,
-    metadata: &pnpm_lockfile::PackageMetadata,
-    session: &std::sync::Arc<crate::CustomFetcherSession>,
-    tarball_mem_cache: Option<&std::sync::Arc<pnpm_tarball::MemCache>>,
-    workspace_root: &std::path::Path,
-) -> Result<super::InstalledPackage, InstallPackageBySnapshotError> {
     let layout = crate::VirtualStoreLayout::legacy(workspace_root.join("vstore"), 120);
     let allow_build_policy = crate::AllowBuildPolicy::new(
         std::collections::HashSet::default(),
@@ -175,7 +156,7 @@ async fn run_snapshot_install_with_key_and_session(
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pnpm_reporter::SilentReporter>(package_key, metadata, &snapshot)
+    .run::<pnpm_reporter::SilentReporter>(&package_key, metadata, &snapshot)
     .await
 }
 
