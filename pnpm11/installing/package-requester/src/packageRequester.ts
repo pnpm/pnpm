@@ -877,5 +877,8 @@ function copyManifest (manifest: DependencyManifest): DependencyManifest {
       copy.peerDependenciesMeta[peerName] = { ...peerMeta }
     }
   }
+  if (manifest.engines != null) {
+    copy.engines = { ...manifest.engines }
+  }
   return copy
 }

@@ -1881,3 +1881,48 @@ test('readPackageHook receives an isolated copy of manifest so mutations do not 
   expect(secondResponse.body.manifest?.devDependencies?.['mutated-dep']).toBeUndefined()
 })
 
+test('readPackageHook mutating engines in-place does not pollute shared manifest for subsequent requests', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const requestPackage = createPackageRequester({
+    engineStrict: false,
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+
+  await requestPackage(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+      readPackageHook: (pkg) => {
+        if (pkg.engines) {
+          pkg.engines.node = '99.99.99'
+        }
+        return pkg
+      },
+    }
+  )
+
+  const secondResponse = await requestPackage(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }
+  )
+
+  expect(secondResponse.body.manifest?.engines?.node).not.toBe('99.99.99')
+})
+
