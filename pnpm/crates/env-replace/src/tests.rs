@@ -64,6 +64,33 @@ fn variable_wins_over_default_when_set() {
 }
 
 #[test]
+fn uses_dash_default_when_variable_unset() {
+    assert_eq!(replace_clean::<NoEnv>("${MISSING-fallback}"), "fallback");
+}
+
+#[test]
+fn uses_empty_when_variable_empty_with_dash_default() {
+    struct EmptyEnv;
+    impl EnvVar for EmptyEnv {
+        fn var(name: &str) -> Option<String> {
+            (name == "EMPTY").then(String::new)
+        }
+    }
+    assert_eq!(replace_clean::<EmptyEnv>("${EMPTY-fallback}"), "");
+}
+
+#[test]
+fn variable_wins_over_dash_default_when_set() {
+    struct EnvWithPort;
+    impl EnvVar for EnvWithPort {
+        fn var(name: &str) -> Option<String> {
+            (name == "PORT").then(|| "8080".to_owned())
+        }
+    }
+    assert_eq!(replace_clean::<EnvWithPort>("${PORT-3000}"), "8080");
+}
+
+#[test]
 fn passthrough_when_no_placeholder() {
     assert_eq!(replace_clean::<NoEnv>("plain string"), "plain string");
 }

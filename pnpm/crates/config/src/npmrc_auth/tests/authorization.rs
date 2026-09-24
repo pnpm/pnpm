@@ -694,6 +694,53 @@ fn json_global_value_configures_auth_and_env_wins_on_conflict() {
     assert_eq!(default_auth_token(&auth, "//other.example/"), Some(Some("yaml-other")));
 }
 
+#[test]
+fn json_auth_expands_environment_variables_in_auth_token() {
+    struct EnvWithSecrets;
+    impl EnvVar for EnvWithSecrets {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "GLOBAL_TOKEN" => Some("secret-global".to_string()),
+                "pnpm_config__auth" => Some(
+                    serde_json::json!({
+                        "https://env.example": {
+                            "@": { "authToken": "${ENV_TOKEN:-fallback-env}" },
+                            "@scoped": { "authToken": "${UNSET_VAR-dash-env}" },
+                            "@missing": { "authToken": "${MISSING_ENV}" },
+                        }
+                    })
+                    .to_string(),
+                ),
+                _ => None,
+            }
+        }
+    }
+    let global = serde_json::json!({
+        "https://global.example": {
+            "@": { "authToken": "${GLOBAL_TOKEN}" },
+            "@scoped": { "authToken": "${UNSET_VAR:-fallback-global}" },
+            "@dash": { "authToken": "${UNSET_VAR-dash-global}" },
+            "@missing": { "authToken": "${MISSING_GLOBAL}" },
+        }
+    });
+    let auth = NpmrcAuth::from_json_sources::<EnvWithSecrets>(Some(&global)).expect("valid _auth");
+    assert_eq!(default_auth_token(&auth, "//global.example/"), Some(Some("secret-global")));
+    assert_eq!(
+        scoped_auth_token(&auth, "//global.example/", "@scoped"),
+        Some(Some("fallback-global")),
+    );
+    assert_eq!(scoped_auth_token(&auth, "//global.example/", "@dash"), Some(Some("dash-global")));
+    assert_eq!(scoped_auth_token(&auth, "//global.example/", "@missing"), Some(Some("")));
+    assert_eq!(default_auth_token(&auth, "//env.example/"), Some(Some("fallback-env")));
+    assert_eq!(scoped_auth_token(&auth, "//env.example/", "@scoped"), Some(Some("dash-env")));
+    assert_eq!(scoped_auth_token(&auth, "//env.example/", "@missing"), Some(Some("")));
+    let expected_warnings = [
+        r#"Failed to replace env in config: ${MISSING_GLOBAL} in .npmrc key "_authToken""#,
+        r#"Failed to replace env in config: ${MISSING_ENV} in .npmrc key "_authToken""#,
+    ];
+    assert_eq!(auth.warnings.as_slice(), expected_warnings);
+}
+
 // Regression test for pnpm/pnpm#12480: from_project_ini warns and drops
 // auth env vars (correct default); from_ini trusts them (used when
 // PNPM_CONFIG_NPMRC_AUTH_FILE explicitly points at the project .npmrc).

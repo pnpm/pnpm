@@ -157,23 +157,35 @@ fn placeholder_at(bytes: &[u8], index: usize) -> Option<Placeholder> {
     Some(Placeholder { end, backslashes })
 }
 
-/// Substitute one `${NAME}` or `${NAME:-default}`, recording a name that
-/// neither the environment nor a default resolves.
+/// Substitute one `${NAME}`, `${NAME-default}`, or `${NAME:-default}`,
+/// recording a name that neither the environment nor a default resolves.
 fn expand_placeholder<Sys: EnvVar>(
     placeholder: &str,
     output: &mut String,
     unresolved: &mut Vec<String>,
 ) {
     let inside = &placeholder[2..placeholder.len() - 1];
-    let (var_name, default) = match inside.find(":-") {
-        Some(separator) => (&inside[..separator], Some(&inside[separator + 2..])),
-        None => (inside, None),
-    };
-    let value = Sys::var(var_name).filter(|value| !value.is_empty());
-    match (value, default) {
-        (Some(value), _) => output.push_str(&value),
-        (None, Some(default)) => output.push_str(default),
-        (None, None) => unresolved.push(placeholder.to_owned()),
+    if let Some(separator) = inside.find(":-") {
+        let var_name = &inside[..separator];
+        let default = &inside[separator + 2..];
+        match Sys::var(var_name).filter(|value| !value.is_empty()) {
+            Some(value) => output.push_str(&value),
+            None => output.push_str(default),
+        }
+    } else if let Some(separator) = inside.find('-')
+        && separator > 0
+    {
+        let var_name = &inside[..separator];
+        let default = &inside[separator + 1..];
+        match Sys::var(var_name) {
+            Some(value) => output.push_str(&value),
+            None => output.push_str(default),
+        }
+    } else {
+        match Sys::var(inside).filter(|value| !value.is_empty()) {
+            Some(value) => output.push_str(&value),
+            None => unresolved.push(placeholder.to_owned()),
+        }
     }
 }
 

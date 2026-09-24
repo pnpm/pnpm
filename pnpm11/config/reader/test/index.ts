@@ -3084,6 +3084,77 @@ test('pnpm_config__auth env wins over global yaml _auth on the same key', async 
   expect(config.authConfig['//json-test.example/:_authToken']).toBe('env-token')
 })
 
+test('_auth from global config yaml expands environment variables in authToken', async () => {
+  prepareEmpty()
+
+  const { config, warnings } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://json-test.example': {
+          '@': { authToken: '${MY_TOKEN}' },
+          '@with-default': { authToken: '${UNSET_VAR:-default-token}' },
+          '@with-dash': { authToken: '${UNSET_DASH-dash-token}' },
+          '@missing': { authToken: '${MISSING_VAR}' },
+        },
+      },
+    },
+    {
+      env: {
+        ...env,
+        MY_TOKEN: 'secret-token',
+      },
+    }
+  )
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBe('secret-token')
+  expect(config.authConfig['//json-test.example/:@with-default:_authToken']).toBe('default-token')
+  expect(config.authConfig['//json-test.example/:@with-dash:_authToken']).toBe('dash-token')
+  expect(config.authConfig['//json-test.example/:@missing:_authToken']).toBe('')
+  expect(warnings).toEqual(expect.arrayContaining([
+    expect.stringContaining('Failed to replace env in config: ${MISSING_VAR} in .npmrc key "_authToken"'),
+  ]))
+})
+
+test('pnpm_config__auth env var expands environment variables in authToken', async () => {
+  prepareEmpty()
+
+  const originalXdg = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = path.resolve('xdg-config')
+  try {
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      env: {
+        ...env,
+        MY_AUTH_TOKEN: 'env-var-token',
+        pnpm_config__auth: JSON.stringify({
+          'https://json-test.example': {
+            '@': { authToken: '${MY_AUTH_TOKEN}' },
+            '@fallback': { authToken: '${UNSET_TOKEN:-fb-tok}' },
+            '@missing': { authToken: '${MISSING_TOKEN}' },
+          },
+        }),
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.authConfig['//json-test.example/:_authToken']).toBe('env-var-token')
+    expect(config.authConfig['//json-test.example/:@fallback:_authToken']).toBe('fb-tok')
+    expect(config.authConfig['//json-test.example/:@missing:_authToken']).toBe('')
+    expect(warnings).toEqual(expect.arrayContaining([
+      expect.stringContaining('Failed to replace env in config: ${MISSING_TOKEN} in .npmrc key "_authToken"'),
+    ]))
+  } finally {
+    if (originalXdg != null) {
+      process.env.XDG_CONFIG_HOME = originalXdg
+    } else {
+      delete process.env.XDG_CONFIG_HOME
+    }
+  }
+})
+
 test('a malformed global yaml _auth value aborts the load', async () => {
   prepareEmpty()
 
@@ -6059,25 +6130,35 @@ test('no warning when PNPM_CONFIG_NPMRC_AUTH_FILE is the literal relative ".npmr
 
   fs.writeFileSync('.npmrc', '//registry.npmjs.org/:_authToken=${MY_TOKEN}\n', 'utf8')
 
-  const { config, warnings } = await getConfig({
-    cliOptions: {},
-    env: {
-      ...env,
-      MY_TOKEN: 'secret',
-      // The exact shape reported in pnpm/pnpm#12480 — a relative path,
-      // resolved against the cwd, that lands on the project .npmrc.
-      PNPM_CONFIG_NPMRC_AUTH_FILE: '.npmrc',
-    },
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })
+  const originalXdg = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = path.resolve('xdg-config')
+  try {
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      env: {
+        ...env,
+        MY_TOKEN: 'secret',
+        // The exact shape reported in pnpm/pnpm#12480 — a relative path,
+        // resolved against the cwd, that lands on the project .npmrc.
+        PNPM_CONFIG_NPMRC_AUTH_FILE: '.npmrc',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
 
-  const authWarnings = warnings.filter((w) => w.includes('Ignored project-level auth setting'))
-  expect(authWarnings).toHaveLength(0)
-  // The trusted project .npmrc must expand the auth env placeholder.
-  expect(config.authConfig['//registry.npmjs.org/:_authToken']).toBe('secret')
+    const authWarnings = warnings.filter((w) => w.includes('Ignored project-level auth setting'))
+    expect(authWarnings).toHaveLength(0)
+    // The trusted project .npmrc must expand the auth env placeholder.
+    expect(config.authConfig['//registry.npmjs.org/:_authToken']).toBe('secret')
+  } finally {
+    if (originalXdg != null) {
+      process.env.XDG_CONFIG_HOME = originalXdg
+    } else {
+      delete process.env.XDG_CONFIG_HOME
+    }
+  }
 })
 
 test('warning stays when PNPM_CONFIG_NPMRC_AUTH_FILE is a relative path that does not resolve to the project .npmrc', async () => {

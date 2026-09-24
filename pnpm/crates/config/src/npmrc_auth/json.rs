@@ -2,6 +2,7 @@ use super::{
     BTreeSet, Config, DEFAULT_REGISTRY_SCOPE, EnvVar, IndexMap, NpmrcAuth, apply_creds_field,
     is_package_scope, nerf_dart, normalize_registry_url, split_creds_key,
 };
+use pnpm_env_replace::env_replace_lossy;
 
 /// What the config files — the `.npmrc` files as much as the yamls —
 /// declared about registry routing, as opposed to what the cascade merely
@@ -164,14 +165,14 @@ impl NpmrcAuth {
     /// The env var exists because GitHub Actions / bash / zsh drop env var
     /// names containing `/`, `:`, or `.`, breaking the
     /// `pnpm_config_//host/:_authToken=…` form on CI (pnpm/pnpm#12314).
-    /// Values are used as-is — no `${VAR}` re-expansion, which would let
-    /// repo-controlled env vars leak into them.
+    /// Environment variables (`${VAR}` / `${VAR-fallback}` / `${VAR:-fallback}`)
+    /// in `authToken` values are expanded from the trusted environment.
     pub fn from_json_sources<Sys: EnvVar>(
         global_value: Option<&serde_json::Value>,
     ) -> Result<Self, serde_json::Error> {
         let mut auth = NpmrcAuth::default();
         if let Some(global_value) = global_value {
-            auth.apply_json_auth(
+            auth.apply_json_auth::<Sys>(
                 serde_json::from_value(global_value.clone())?,
                 JsonAuthOrigin::File,
             );
@@ -182,7 +183,7 @@ impl NpmrcAuth {
             .filter(|value| !value.is_empty())
             .or_else(|| Sys::var("PNPM_CONFIG__AUTH").filter(|value| !value.is_empty()));
         if let Some(value) = env_value {
-            auth.apply_json_auth(serde_json::from_str(&value)?, JsonAuthOrigin::Env);
+            auth.apply_json_auth::<Sys>(serde_json::from_str(&value)?, JsonAuthOrigin::Env);
         }
         Ok(auth)
     }
@@ -191,10 +192,16 @@ impl NpmrcAuth {
     /// object applied after the global one overrides on conflict): each
     /// entry becomes a `//host/:_authToken` credential and an inferred
     /// registry route (see [`crate::npmrc_auth::NpmrcRoutes::json_env`]).
-    fn apply_json_auth(&mut self, parsed: JsonAuth, origin: JsonAuthOrigin) {
+    fn apply_json_auth<Sys: EnvVar>(&mut self, parsed: JsonAuth, origin: JsonAuthOrigin) {
         for (registry, scopes) in parsed.0 {
             for (scope, creds) in scopes {
-                self.apply_json_entry(&registry, scope, creds.auth_token, origin);
+                let (auth_token, unresolved) = env_replace_lossy::<Sys>(&creds.auth_token);
+                for placeholder in unresolved {
+                    self.warnings.push(format!(
+                        r#"Failed to replace env in config: {placeholder} in .npmrc key "_authToken""#,
+                    ));
+                }
+                self.apply_json_entry(&registry, scope, auth_token, origin);
             }
         }
     }
