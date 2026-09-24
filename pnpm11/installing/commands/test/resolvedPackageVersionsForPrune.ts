@@ -2,11 +2,20 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
-import { getWantedLockfileName } from '@pnpm/lockfile.fs'
+import { expect, jest, test } from '@jest/globals'
 import type { DepPath } from '@pnpm/types'
 
-import { resolvedPackageVersionsForPrune, resolvedPackageVersionsOfProjectLockfiles } from '../src/resolvedPackageVersionsForPrune.js'
+const actualLockfileFs = await import('@pnpm/lockfile.fs')
+
+const mockReadWantedLockfile = jest.fn(actualLockfileFs.readWantedLockfile)
+
+jest.unstable_mockModule('@pnpm/lockfile.fs', () => ({
+  ...actualLockfileFs,
+  readWantedLockfile: mockReadWantedLockfile,
+}))
+
+const { resolvedPackageVersionsForPrune, resolvedPackageVersionsOfProjectLockfiles } =
+  await import('../src/resolvedPackageVersionsForPrune.js')
 
 const newLockfile = {
   importers: {},
@@ -57,40 +66,53 @@ test('no versions when a project has no lockfile', async () => {
 })
 
 test('the versions recorded in a branch lockfile when useGitBranchLockfile is enabled', async () => {
-  await withWorkspaceDir(async (workspaceDir) => {
-    const branchLockfileName = await getWantedLockfileName({ useGitBranchLockfile: true })
-    if (branchLockfileName === 'pnpm-lock.yaml') return
-    const projectDir = path.join(workspaceDir, 'a')
-    fs.mkdirSync(projectDir)
-    fs.writeFileSync(
-      path.join(projectDir, branchLockfileName),
-      'lockfileVersion: \'9.0\'\nimporters:\n  .: {}\npackages:\n  foo@3.0.0:\n    resolution: {integrity: AAA}\nsnapshots:\n  foo@3.0.0: {}\n'
-    )
-
-    expect(await resolvedPackageVersionsOfProjectLockfiles({ useGitBranchLockfile: true }, [projectDir]))
-      .toEqual(new Map([['foo', new Set(['3.0.0'])]]))
+  mockReadWantedLockfile.mockImplementationOnce(async (dir, opts) => {
+    expect(opts).toMatchObject({
+      ignoreIncompatible: true,
+      useGitBranchLockfile: true,
+    })
+    return {
+      importers: {},
+      lockfileVersion: '9.0',
+      packages: {
+        ['foo@3.0.0' as DepPath]: { resolution: { integrity: 'AAA' } },
+      },
+      snapshots: {
+        ['foo@3.0.0' as DepPath]: {},
+      },
+    }
   })
+
+  expect(await resolvedPackageVersionsOfProjectLockfiles({ useGitBranchLockfile: true }, ['/some/project']))
+    .toEqual(new Map([['foo', new Set(['3.0.0'])]]))
 })
 
 test('the versions recorded across branch lockfiles when mergeGitBranchLockfiles is enabled', async () => {
-  await withWorkspaceDir(async (workspaceDir) => {
-    const projectDir = path.join(workspaceDir, 'a')
-    fs.mkdirSync(projectDir)
-    fs.writeFileSync(
-      path.join(projectDir, 'pnpm-lock.yaml'),
-      'lockfileVersion: \'9.0\'\nimporters:\n  .: {}\npackages:\n  foo@1.0.0:\n    resolution: {integrity: AAA}\nsnapshots:\n  foo@1.0.0: {}\n'
-    )
-    fs.writeFileSync(
-      path.join(projectDir, 'pnpm-lock.feature.yaml'),
-      'lockfileVersion: \'9.0\'\nimporters:\n  .: {}\npackages:\n  bar@2.0.0:\n    resolution: {integrity: BBB}\nsnapshots:\n  bar@2.0.0: {}\n'
-    )
-
-    expect(await resolvedPackageVersionsOfProjectLockfiles({ useGitBranchLockfile: true, mergeGitBranchLockfiles: true }, [projectDir]))
-      .toEqual(new Map([
-        ['foo', new Set(['1.0.0'])],
-        ['bar', new Set(['2.0.0'])],
-      ]))
+  mockReadWantedLockfile.mockImplementationOnce(async (dir, opts) => {
+    expect(opts).toMatchObject({
+      ignoreIncompatible: true,
+      useGitBranchLockfile: true,
+      mergeGitBranchLockfiles: true,
+    })
+    return {
+      importers: {},
+      lockfileVersion: '9.0',
+      packages: {
+        ['foo@1.0.0' as DepPath]: { resolution: { integrity: 'AAA' } },
+        ['bar@2.0.0' as DepPath]: { resolution: { integrity: 'BBB' } },
+      },
+      snapshots: {
+        ['foo@1.0.0' as DepPath]: {},
+        ['bar@2.0.0' as DepPath]: {},
+      },
+    }
   })
+
+  expect(await resolvedPackageVersionsOfProjectLockfiles({ useGitBranchLockfile: true, mergeGitBranchLockfiles: true }, ['/some/project']))
+    .toEqual(new Map([
+      ['foo', new Set(['1.0.0'])],
+      ['bar', new Set(['2.0.0'])],
+    ]))
 })
 
 async function withWorkspaceDir (fn: (workspaceDir: string) => Promise<void>): Promise<void> {
