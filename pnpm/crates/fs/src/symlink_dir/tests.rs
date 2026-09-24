@@ -477,6 +477,13 @@ fn windows_locked_occupant_error_names_the_directory() {
     let message = error.to_string();
     assert!(message.contains(&format!("{link:?}")), "the error must name the directory: {message}");
     assert!(message.contains("in use by another process"), "the error must say why: {message}");
+    let os_error = std::error::Error::source(&error)
+        .and_then(|source| source.downcast_ref::<std::io::Error>())
+        .and_then(std::io::Error::raw_os_error);
+    assert!(
+        matches!(os_error, Some(5 | 32 | 33)),
+        "the rename error must stay the source: {os_error:?}"
+    );
     assert!(started.elapsed() < std::time::Duration::from_secs(10), "took {:?}", started.elapsed());
     assert!(held_file.is_file(), "the occupant must stay in place");
 }

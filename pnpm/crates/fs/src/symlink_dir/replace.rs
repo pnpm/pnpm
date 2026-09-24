@@ -85,15 +85,15 @@ pub(super) fn clear_symlink_occupant(
     )))
 }
 
-/// An occupant that stayed locked through the rename's retry budget.
+/// An occupant that stayed locked through the rename's retry budget. The
+/// rename's own error stays reachable as the source.
 #[derive(Debug, Display, Error)]
 #[display(
-    "Could not move {path:?} out of the way: {source}. A file in it is probably in use \
-     by another process, such as a dev server or an editor. Stop that process and try again."
+    "Could not move {path:?} out of the way. A file in it is probably in use by another \
+     process, such as a dev server or an editor. Stop that process and try again."
 )]
 pub(super) struct OccupantInUseError {
     path: PathBuf,
-    #[error(not(source))]
     source: io::Error,
 }
 
