@@ -17,10 +17,11 @@ use std::collections::HashMap;
 /// a single [`DependencyGroup`] cannot carry the placement (pnpm/pnpm#9572).
 ///
 /// `optionalDependencies` is the one overriding group: a dependency it lists
-/// is optional whichever other groups list it, and npm reads that entry as
-/// the whole truth about the version, so a `dependencies` entry for it is not
-/// recorded. A `devDependencies` entry is kept alongside, because dropping it
-/// is what made `--dev` skip a dependency the project builds with.
+/// is optional whichever other groups list it, so it is recorded there alone.
+/// The other groups are independent declarations — a project that runs *and*
+/// builds with a dependency lists it in `dependencies` and `devDependencies`,
+/// and dropping the `devDependencies` entry is what made `--dev` materialize
+/// nothing for it.
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ImporterGroups(u8);
 
@@ -36,12 +37,15 @@ const DECLARATION_ORDER: [DependencyGroup; 3] =
     [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional];
 
 impl ImporterGroups {
-    pub(crate) fn insert(&mut self, group: DependencyGroup) {
-        self.0 |= 1 << group_bit(group);
+    /// The groups one alias belongs to when only `group` declares it.
+    fn only(group: DependencyGroup) -> Self {
+        let mut groups = Self::default();
+        groups.insert(group);
+        groups
     }
 
-    pub(crate) fn remove(&mut self, group: DependencyGroup) {
-        self.0 &= !(1 << group_bit(group));
+    pub(crate) fn insert(&mut self, group: DependencyGroup) {
+        self.0 |= 1 << group_bit(group);
     }
 
     pub(crate) fn contains(self, group: DependencyGroup) -> bool {
@@ -86,7 +90,7 @@ pub(crate) fn manifest_alias_to_declared(
     }
     for (_, groups) in declared.values_mut() {
         if groups.contains(DependencyGroup::Optional) {
-            groups.remove(DependencyGroup::Prod);
+            *groups = ImporterGroups::only(DependencyGroup::Optional);
         }
     }
     declared

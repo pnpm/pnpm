@@ -157,7 +157,7 @@ fn check_dependency_fields(
             folded_peers,
             is_ignored_optional,
         );
-        let allowed = manifest_field_allowed(required.clone(), manifest, field);
+        let allowed = manifest_field_allowed(required.clone(), manifest, &manifest_optional, field);
         let importer_field = importer.get_map_by_group(field);
         check_field_specs(&required, importer_field, field)?;
         check_field_extras(&allowed, importer_field, field)?;
@@ -204,17 +204,24 @@ fn manifest_field_specs<'a>(
 
 /// The entries a field may also record beyond the required ones: for
 /// `devDependencies`, every entry the manifest declares there. A dependency
-/// that is also a prod (or optional) dependency is not required under
-/// `devDependencies`, but recording it under both is what pacquet writes —
-/// both importer sections declare the dependency the manifest declares, so
-/// neither shape may be reported as an extra (pnpm/pnpm#9572).
+/// that is also a prod dependency is not required under `devDependencies`, but
+/// recording it under both is what pacquet writes — both importer sections
+/// declare the dependency the manifest declares, so neither shape may be
+/// reported as an extra (pnpm/pnpm#9572). A dependency the manifest declares
+/// as optional belongs to `optionalDependencies` alone, so it is not allowed
+/// here either.
 fn manifest_field_allowed<'a>(
     mut allowed: BTreeMap<&'a str, &'a str>,
     manifest: &'a PackageManifest,
+    manifest_optional: &BTreeMap<&'a str, &'a str>,
     field: DependencyGroup,
 ) -> BTreeMap<&'a str, &'a str> {
     if matches!(field, DependencyGroup::Dev) {
-        allowed.extend(manifest.dependencies([DependencyGroup::Dev]));
+        allowed.extend(
+            manifest
+                .dependencies([DependencyGroup::Dev])
+                .filter(|(name, _)| !manifest_optional.contains_key(*name)),
+        );
     }
     allowed
 }

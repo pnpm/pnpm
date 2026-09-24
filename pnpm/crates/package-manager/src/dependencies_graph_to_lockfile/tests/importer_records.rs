@@ -149,6 +149,48 @@ fn a_dep_declared_in_prod_and_dev_records_both_importer_sections() {
     assert!(importer.optional_dependencies.is_none(), "no optional deps declared");
 }
 #[test]
+fn a_dep_declared_optional_is_recorded_only_as_optional() {
+    // `optionalDependencies` is the one overriding group, so an alias it lists
+    // is recorded there and nowhere else — matching the precedence the
+    // validator and pnpm 11 both apply.
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "duplicated": "^1.0.0" },
+        "devDependencies": { "duplicated": "^1.0.0" },
+        "optionalDependencies": { "duplicated": "^1.0.0" },
+    }));
+
+    let duplicated = make_node(
+        "duplicated",
+        "1.0.0",
+        json!({ "name": "duplicated", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::default(),
+    );
+    let mut graph = DependenciesGraph::default();
+    graph.insert(duplicated.dep_path.clone(), duplicated);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("duplicated".to_string(), DepPath::from("duplicated@1.0.0".to_string()));
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ));
+
+    let importer = lockfile.root_project().expect("root importer");
+    let key = PkgName::parse("duplicated").unwrap();
+    assert!(importer.dependencies.is_none(), "optional wins over prod");
+    assert!(importer.dev_dependencies.is_none(), "optional wins over dev");
+    assert!(
+        importer.optional_dependencies
+            .as_ref()
+            .expect("optional deps")
+            .contains_key(&key),
+    );
+}
+#[test]
 fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
     let (_tmp, manifest) = write_manifest(json!({
         "name": "fixture",
