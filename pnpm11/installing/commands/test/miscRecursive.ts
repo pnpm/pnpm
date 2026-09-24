@@ -160,6 +160,55 @@ test('recursive install prunes trustPolicyExclude against the lockfile of every 
     .toStrictEqual(['is-positive@1.0.0', 'is-negative@1.0.0'])
 })
 
+test('recursive install prunes undecided allowBuilds against the lockfile of every project in a workspace with many lockfiles', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+  const allowBuilds = {
+    'is-positive': 'set this to true or false',
+    'is-negative': false,
+    'is-odd': 'set this to true or false',
+  }
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project-1', 'project-2'],
+    allowBuilds,
+  })
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    allowBuilds,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: false,
+    workspaceDir: process.cwd(),
+  })
+
+  expect(readYamlFileSync<{ allowBuilds?: Record<string, boolean | string> }>('pnpm-workspace.yaml').allowBuilds)
+    .toStrictEqual({
+      'is-positive': 'set this to true or false',
+      'is-negative': false,
+    })
+})
+
 test('filtered recursive install keeps minimumReleaseAgeExclude in a workspace with many lockfiles', async () => {
   preparePackages([
     {

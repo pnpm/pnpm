@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { UNDECIDED_ALLOW_BUILD } from '@pnpm/building.policy'
 import { mergeCatalogs } from '@pnpm/catalogs.config'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { CommandHandler } from '@pnpm/cli.command'
@@ -598,10 +599,15 @@ export async function recursive (
     // Only a run that installed every workspace project leaves no lockfile
     // behind its manifest; a filtered or partly skipped run prunes nothing.
     const everyProjectInstalled = allProjects.every(({ rootDir }) => result[rootDir]?.status === 'passed')
+    const needsResolvedPackageVersions = Boolean(
+      opts.minimumReleaseAgeExcludePrune ||
+      opts.trustPolicyExcludePrune ||
+      Object.values(opts.allowBuilds ?? {}).includes(UNDECIDED_ALLOW_BUILD)
+    )
     await updateWorkspaceManifest(opts.workspaceDir, {
       updatedCatalogs,
       catalogPrune: opts.catalogPrune,
-      resolvedPackageVersions: everyProjectInstalled && !opts.dryRun
+      resolvedPackageVersions: everyProjectInstalled && !opts.dryRun && needsResolvedPackageVersions
         ? await resolvedPackageVersionsOfProjectLockfiles(opts, allProjects.map(({ rootDir }) => rootDir))
         : undefined,
       minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
