@@ -146,6 +146,13 @@ pub(super) async fn plan_fresh_materialization<'l, 'a: 'l, Reporter: self::Repor
         engine_name.clone(),
         deferred_engine_name.as_ref(),
     );
+    let installability_host = pnpm_deps_restorer::materialization_plan::with_locked_runtime_node(
+        installability_host.as_ref(),
+        install.drivers.config,
+        &lockfiles.built.importers,
+    );
+    let host_node =
+        installability_host.as_ref().map(pnpm_deps_restorer::materialization_plan::HostNode::from);
     let skipped = compute_fresh_skip_set::<Reporter>(
         install,
         lockfiles,
@@ -204,11 +211,6 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
         .keys()
         .cloned()
         .collect();
-    let locked_runtime_host = pnpm_deps_restorer::materialization_plan::with_locked_runtime_node(
-        installability_host,
-        install.drivers.config,
-        &lockfiles.initial.importers,
-    );
     pnpm_deps_restorer::materialization_plan::compute_skip_set::<Reporter>(
         pnpm_deps_restorer::materialization_plan::SkipSetInputs {
             closure: pnpm_deps_restorer::SkipSetClosure {
@@ -224,7 +226,7 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
             requester: install.projects.requester,
             importers: &lockfiles.initial.importers,
 
-            installability_host: locked_runtime_host.as_ref(),
+            installability_host,
             // The fresh path has just re-resolved the graph, so the
             // previous run's verdicts may no longer hold.
             seed: SkippedSnapshots::new(),

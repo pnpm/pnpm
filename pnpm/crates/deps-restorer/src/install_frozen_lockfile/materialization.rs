@@ -188,38 +188,18 @@ impl<'a> InstallFrozenLockfile<'a> {
                 host.engine_name,
                 host_node.as_ref(),
             );
-            let groups = inputs.groups();
-            let locked_runtime_host = crate::materialization_plan::with_locked_runtime_node(
+            let installability_host = crate::materialization_plan::with_locked_runtime_node(
                 installability_host.as_ref(),
                 inputs.drivers.config,
                 &inputs.lockfiles.wanted.importers,
             );
-
-            let skipped = crate::materialization_plan::compute_skip_set::<Reporter>(
-                crate::materialization_plan::SkipSetInputs {
-                    closure: crate::SkipSetClosure {
-                        lockfile: inputs.lockfiles.wanted,
-                        root: inputs.projects.workspace_root,
-                        importer_ids: &inputs.lockfiles.wanted.importers
-                            .keys()
-                            .cloned()
-                            .collect(),
-                        groups,
-                    },
-                    entries: inputs.entries(),
-                    requester: inputs.projects.requester,
-                    importers: &inputs.lockfiles.wanted.importers,
-
-                    installability_host: locked_runtime_host.as_ref(),
-                    seed: seed_skip_set(inputs.drivers.config, seed_skipped),
-                    // The frozen path always installs the groups it was
-                    // given, so `--no-optional` needs no further
-                    // qualification here.
-                    exclude_optional: !groups.included.optional_dependencies,
-                    skip_runtimes: inputs.platform.skip_runtimes,
-                },
-            )
-            .map_err(InstallFrozenLockfileError::Installability)?;
+            let skipped = compute_frozen_skip_set::<Reporter>(
+                &inputs,
+                installability_host.as_ref(),
+                seed_skipped,
+            )?;
+            let host_node =
+                installability_host.as_ref().map(crate::materialization_plan::HostNode::from);
             Ok(SkipSetPlan { skipped, engine_name, host_node })
         }
     }
@@ -363,6 +343,39 @@ fn build_directories<'a>(
         logged_methods: ctx.logged_methods,
         link_options: ctx.linker.bin_options,
     }
+}
+
+fn compute_frozen_skip_set<Reporter: self::Reporter>(
+    inputs: &super::FrozenInputs<'_>,
+    installability_host: Option<&crate::InstallabilityHost>,
+    seed_skipped: Option<Vec<String>>,
+) -> Result<SkippedSnapshots, InstallFrozenLockfileError> {
+    let groups = inputs.groups();
+    crate::materialization_plan::compute_skip_set::<Reporter>(
+        crate::materialization_plan::SkipSetInputs {
+            closure: crate::SkipSetClosure {
+                lockfile: inputs.lockfiles.wanted,
+                root: inputs.projects.workspace_root,
+                importer_ids: &inputs.lockfiles.wanted.importers
+                    .keys()
+                    .cloned()
+                    .collect(),
+                groups,
+            },
+            entries: inputs.entries(),
+            requester: inputs.projects.requester,
+            importers: &inputs.lockfiles.wanted.importers,
+
+            installability_host,
+            seed: seed_skip_set(inputs.drivers.config, seed_skipped),
+            // The frozen path always installs the groups it was
+            // given, so `--no-optional` needs no further
+            // qualification here.
+            exclude_optional: !groups.included.optional_dependencies,
+            skip_runtimes: inputs.platform.skip_runtimes,
+        },
+    )
+    .map_err(InstallFrozenLockfileError::Installability)
 }
 
 fn report_host_detection_wait(phase_start: std::time::Instant, needs_installability_check: bool) {
