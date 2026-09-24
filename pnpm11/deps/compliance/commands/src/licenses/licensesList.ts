@@ -58,10 +58,11 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
 
   const manifest = await readProjectManifestOnly(opts.dir)
 
+  const lockfileDir = opts.lockfileDir ?? opts.dir
   const includedImporterIds = opts.selectedProjectsGraph
     ? Object.keys(opts.selectedProjectsGraph)
-      .map((path) => getLockfileImporterId(opts.lockfileDir ?? opts.dir, path))
-    : undefined
+      .map((path) => getLockfileImporterId(lockfileDir, path))
+    : [getLockfileImporterId(lockfileDir, opts.dir)]
 
   const storeDir = await getStorePath({
     pkgRoot: opts.dir,

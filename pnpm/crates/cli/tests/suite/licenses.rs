@@ -228,3 +228,84 @@ fn licenses_reads_global_store_metadata_with_a_manifest_selected_runtime() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn licenses_lists_only_the_project_in_the_current_directory() {
+    let workspace = tempfile::tempdir().expect("create workspace");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages:\n  - foo\n  - bar\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.path().join("package.json"), json!({ "private": true }).to_string())
+        .expect("write root package.json");
+    for (project, dependency) in [("foo", "alpha"), ("bar", "zeta")] {
+        let project_dir = workspace.path().join(project);
+        fs::create_dir_all(&project_dir).expect("create project directory");
+        fs::write(
+            project_dir.join("package.json"),
+            json!({ "name": project, "dependencies": { dependency: "1.0.0" } }).to_string(),
+        )
+        .expect("write project package.json");
+        let package_dir = workspace
+            .path()
+            .join(format!("node_modules/.pnpm/{dependency}@1.0.0/node_modules/{dependency}"));
+        fs::create_dir_all(&package_dir).expect("create package directory");
+        fs::write(
+            package_dir.join("package.json"),
+            json!({ "name": dependency, "version": "1.0.0", "license": "MIT" }).to_string(),
+        )
+        .expect("write package manifest");
+    }
+    fs::write(
+        workspace.path().join("pnpm-lock.yaml"),
+        r"
+lockfileVersion: '9.0'
+importers:
+  .: {}
+  foo:
+    dependencies:
+      alpha:
+        specifier: 1.0.0
+        version: 1.0.0
+  bar:
+    dependencies:
+      zeta:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  alpha@1.0.0:
+    resolution: {integrity: sha512-alpha}
+  zeta@1.0.0:
+    resolution: {integrity: sha512-zeta}
+snapshots:
+  alpha@1.0.0: {}
+  zeta@1.0.0: {}
+",
+    )
+    .expect("write lockfile");
+
+    let listed_names = |args: &[&str]| -> Vec<String> {
+        let output = pacquet_in(&workspace.path().join("bar"))
+            .args(args)
+            .output()
+            .expect("run licenses");
+        assert!(
+            output.status.success(),
+            "licenses should succeed: {}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+        let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
+        report["MIT"]
+            .as_array()
+            .expect("MIT group")
+            .iter()
+            .map(|package| {
+                package["name"]
+                    .as_str()
+                    .expect("package name")
+                    .to_string()
+            })
+            .collect()
+    };
+
+    assert_eq!(listed_names(&["licenses", "list", "--json"]), ["zeta"]);
+    assert_eq!(listed_names(&["--recursive", "licenses", "list", "--json"]), ["alpha", "zeta"]);
+}
