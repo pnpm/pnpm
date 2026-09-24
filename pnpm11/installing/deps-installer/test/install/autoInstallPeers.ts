@@ -788,7 +788,11 @@ test('a removal override keeps an optional peer from being supplied by a sibling
   ])
 })
 
-function installOptionalPeerUserNextToSibling (opts: { projectDeps: Record<string, string>, rootDeps?: Record<string, string> }) {
+function installOptionalPeerUserNextToSibling (opts: {
+  projectDeps: Record<string, string>
+  rootDeps?: Record<string, string>
+  siblingDeps?: Record<string, string>
+}) {
   const allProjects: Array<{ buildIndex: number, manifest: PackageManifest, rootDir: ProjectRootDir }> = [
     {
       buildIndex: 0,
@@ -807,7 +811,7 @@ function installOptionalPeerUserNextToSibling (opts: { projectDeps: Record<strin
       manifest: {
         name: 'project2',
         version: '1.0.0',
-        dependencies: {
+        dependencies: opts.siblingDeps ?? {
           '@pnpm.e2e/y-v2-peer-user': '1.0.0',
           '@pnpm/y': '2.0.0',
         },
@@ -854,6 +858,16 @@ test('an optional peer is supplied by a sibling workspace package whose own peer
   const lockfile = project.readLockfile()
   expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user']?.version)
     .toBe('1.0.0(@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@2.0.0))')
+})
+
+test('an optional peer is not supplied from the lockfile by a package whose own peers the project provides at a rejected version', async () => {
+  const project = prepareEmpty()
+  await installOptionalPeerUserNextToSibling({ projectDeps: { '@pnpm/y': '2.0.0' } })
+  await installOptionalPeerUserNextToSibling({ projectDeps: { '@pnpm/y': '1.0.0' }, siblingDeps: { '@pnpm/y': '2.0.0' } })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user']?.version).toBe('1.0.0')
+  expect(Object.keys(lockfile.snapshots)).not.toContain('@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@1.0.0)')
 })
 
 test('a locked optional peer version is not rewritten when a sibling workspace package declares a lower version', async () => {

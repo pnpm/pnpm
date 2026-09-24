@@ -2,8 +2,9 @@ use super::{
     Arc, BTreeMap, DirectDep, HashMap, HashSet, HoistMissingScope, HoistPeersOptions,
     ImporterHoistState, MissingPeerInfo, ParentPkgAliases, PeerDiscoveryResult, PeerHoistDiscovery,
     RequiredRound, ResolveImporterError, Resolver, WantedSpec, WorkspaceRootDep,
-    apply_hoist_missing_scope, extend_tree, get_hoistable_optional_peers_with_locked_versions,
-    hoist_peers, index_missing_names, partition_missing_peers, peers_accept_provided_versions,
+    apply_hoist_missing_scope, declared_peer_ranges, extend_tree,
+    get_hoistable_optional_peers_with_locked_versions, hoist_peers, index_missing_names,
+    partition_missing_peers, peers_accept_provided_versions,
 };
 
 impl ImporterHoistState {
@@ -342,11 +343,10 @@ impl ImporterHoistState {
         let provided_peer_versions = self.hoisted_provider_peer_versions();
         let workspace = self.ctx.workspace();
         let accepts_candidate = |name: &str, version: &str| {
-            workspace
-                .inspect_package(&format!("{name}@{version}"), |package| {
-                    peers_accept_provided_versions(package, &provided_peer_versions)
+            declared_peer_ranges(workspace, name, version)
+                .is_none_or(|ranges| {
+                    peers_accept_provided_versions(&ranges, &provided_peer_versions)
                 })
-                .unwrap_or(true)
         };
         get_hoistable_optional_peers_with_locked_versions(
             &self.dependencies.all_missing_optional_peers,

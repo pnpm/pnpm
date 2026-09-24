@@ -649,6 +649,62 @@ fn optional_peer_is_supplied_by_a_sibling_whose_peers_the_importer_accepts() {
     );
 }
 
+/// The provider is left only in the wanted lockfile, so the lockfile is
+/// what describes its peers.
+#[test]
+fn optional_peer_is_not_supplied_from_the_lockfile_by_a_package_whose_peers_the_importer_rejects() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/has-optional-y-v2-peer-user": "1.0.0", "@pnpm/y": "2.0.0" },
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/y-v2-peer-user": "1.0.0", "@pnpm/y": "2.0.0" },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    fs::write(
+        workspace.join("pkg-a/package.json"),
+        serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/has-optional-y-v2-peer-user": "1.0.0", "@pnpm/y": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write pkg-a/package.json");
+    fs::write(
+        workspace.join("pkg-b/package.json"),
+        serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm/y": "2.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write pkg-b/package.json");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(
+        importer_version(&lockfile, "pkg-a", "@pnpm.e2e/has-optional-y-v2-peer-user"),
+        "1.0.0",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// Regression for [#13325](https://github.com/pnpm/pnpm/issues/13325):
 /// with `autoInstallPeers: false`, an optional peer that a sibling
 /// importer's resolution makes available must not turn into a direct

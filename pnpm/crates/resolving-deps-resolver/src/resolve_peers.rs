@@ -32,12 +32,16 @@
 
 pub(crate) use context::SharedChain;
 pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
+pub(crate) use provider_peers::{
+    declared_peer_ranges, peers_accept_provided_versions, resolved_version,
+};
 pub(crate) use walker::{MissingNames, index_missing_names};
 
 mod cache;
 mod context;
 mod discovery;
 mod finalize;
+mod provider_peers;
 mod walker;
 
 use crate::{
@@ -45,14 +49,13 @@ use crate::{
     dedupe_peer_dependents::dedupe_peer_dependents,
     dependencies_graph::{DependenciesGraph, PeerDependencyIssues},
     node_id::NodeId,
-    resolved_tree::{DirectDep, ResolvedPackage, ResolvedTree},
+    resolved_tree::{DirectDep, ResolvedTree},
 };
 use context::{
     ChainSuffixMemo, CurrentProviderSource, ParentRefs, importer_relative_link_dep_path,
 };
 use discovery::PeerDiscoveryCaches;
 use pnpm_deps_path::DepPath;
-use pnpm_resolving_resolver_base::get_peer_version_range;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::BTreeMap,
@@ -561,31 +564,6 @@ fn build_node_ids_by_previous_dep_path(
         }
     }
     map
-}
-
-/// The version `package` installs as, the one a peer range is checked against.
-pub(crate) fn resolved_version(package: &ResolvedPackage) -> String {
-    context::pkg_name_version(&package.result).1
-}
-
-/// Whether each peer `package` declares accepts the version that
-/// `provided_versions` maps its name to. A peer with no entry passes.
-pub(crate) fn peers_accept_provided_versions(
-    package: &ResolvedPackage,
-    provided_versions: &HashMap<String, String>,
-) -> bool {
-    package.peer_dependencies
-        .iter()
-        .all(|(peer_name, peer)| {
-            provided_versions
-                .get(peer_name)
-                .is_none_or(|version| {
-                    context::satisfies_with_prereleases(
-                        version,
-                        &get_peer_version_range(&peer.version),
-                    )
-                })
-        })
 }
 
 #[cfg(test)]

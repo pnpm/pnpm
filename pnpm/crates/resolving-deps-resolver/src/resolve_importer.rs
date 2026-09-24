@@ -52,7 +52,7 @@ use crate::{
     },
     resolve_peers::{
         HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery, ResolvePeersOptions,
-        ResolvePeersResult, apply_hoist_missing_scope, index_missing_names,
+        ResolvePeersResult, apply_hoist_missing_scope, declared_peer_ranges, index_missing_names,
         peers_accept_provided_versions, resolve_peers, resolved_version,
     },
     resolved_tree::ResolvedTree,

@@ -522,7 +522,7 @@ export async function resolveRootDependencies (
           allMissingOptionalPeers,
           ctx.allPreferredVersions,
           workspaceRootDeps,
-          (name, version) => peersAcceptProvidedVersions(ctx.resolvedPkgsById[`${name}@${version}` as PkgResolutionId], providedPeerVersions)
+          (name, version) => peersAcceptProvidedVersions(getCandidatePeerRanges(ctx, name, version), providedPeerVersions)
         )
         if (Object.keys(optionalDependencies).length) {
           hasNewMissingPeers = true
@@ -618,17 +618,40 @@ function getDirectDepVersions (
 }
 
 /**
+ * The peer ranges an optional peer candidate declares. A candidate is found by
+ * name and version, since a package resolved from a named registry has a
+ * different ID. One seeded only from the wanted lockfile has no resolved
+ * package yet, so the lockfile describes its peers instead.
+ */
+function getCandidatePeerRanges (
+  ctx: Pick<ResolutionContext, 'resolvedPkgsById' | 'wantedLockfile'>,
+  name: string,
+  version: string
+): Record<string, string> | undefined {
+  const resolvedPackage = ctx.resolvedPkgsById[`${name}@${version}` as PkgResolutionId] ??
+    Object.values(ctx.resolvedPkgsById).find((pkg) => pkg.name === name && pkg.version === version)
+  if (resolvedPackage != null) {
+    return Object.fromEntries(Object.entries(resolvedPackage.peerDependencies).map(([peerName, { version: range }]) => [peerName, range]))
+  }
+  const pkgId = `${name}@${version}`
+  for (const [depPath, pkgSnapshot] of Object.entries(ctx.wantedLockfile.packages ?? {})) {
+    if (dp.removeSuffix(depPath) === pkgId) return pkgSnapshot.peerDependencies ?? {}
+  }
+  return undefined
+}
+
+/**
  * An optional peer provider taken from elsewhere in the graph resolves its own
  * peers from the importer it is hoisted to. When the importer already has one
  * of those peers at a version outside the provider's range, hoisting the
  * provider creates a peer conflict the importer never asked for.
  */
 function peersAcceptProvidedVersions (
-  resolvedPackage: ResolvedPackage | undefined,
+  peerRanges: Record<string, string> | undefined,
   providedVersions: Map<string, string>
 ): boolean {
-  if (resolvedPackage == null) return true
-  for (const [peerName, { version: range }] of Object.entries(resolvedPackage.peerDependencies)) {
+  if (peerRanges == null) return true
+  for (const [peerName, range] of Object.entries(peerRanges)) {
     const providedVersion = providedVersions.get(peerName)
     if (providedVersion != null && !semverUtils.satisfiesWithPrereleases(providedVersion, getPeerVersionRange(range), true)) {
       return false
