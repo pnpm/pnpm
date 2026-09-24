@@ -284,4 +284,52 @@ test('root-level list with symlinked workspace directory remains recursive (pnpm
   }
 })
 
+test('configured filter applies when listing from workspace subdirectory (pnpm/pnpm#14494)', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      location: 'packages/foo',
+      package: {
+        name: 'foo',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' },
+      },
+    },
+    {
+      location: 'packages/bar',
+      package: {
+        name: 'bar',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/hello-world-js-bin': '1.0.0' },
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+  })
+  await execPnpm(['install'])
+
+  const initialCwd = process.cwd()
+  try {
+    process.chdir('packages/foo')
+    const { stdout } = execPnpmSync(['ls', '--json'], {
+      env: {
+        pnpm_config_filter: 'bar',
+      },
+    })
+    const projects = JSON.parse(stdout.toString())
+    expect(projects).toHaveLength(1)
+    expect(projects[0].name).toBe('bar')
+  } finally {
+    process.chdir(initialCwd)
+  }
+})
+
 
