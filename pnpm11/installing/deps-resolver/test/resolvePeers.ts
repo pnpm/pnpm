@@ -2287,7 +2287,6 @@ test('linked workspace package respects resolvePeersFromWorkspaceRoot setting', 
     },
   ]
 
-  // With resolvePeersFromWorkspaceRoot: false (or unset), root does not satisfy linked peer
   const withoutRoot = await resolvePeers({
     allPeerDepNames: new Set(['foo']),
     dependenciesTree,
@@ -2303,7 +2302,6 @@ test('linked workspace package respects resolvePeersFromWorkspaceRoot setting', 
   expect(withoutRoot.peerDependencyIssuesByProjects['packages/app']).toBeDefined()
   expect(withoutRoot.peerDependencyIssuesByProjects['packages/app'].missing).toHaveProperty('foo')
 
-  // With resolvePeersFromWorkspaceRoot: true, root satisfies linked peer
   const withRoot = await resolvePeers({
     allPeerDepNames: new Set(['foo']),
     dependenciesTree,
