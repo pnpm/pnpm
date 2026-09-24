@@ -122,14 +122,18 @@ export async function main (inputArgv: string[]): Promise<void> {
         const pm = context.wantedPackageManager
         if (pm.onFail !== 'ignore') {
           const printingVersion = cmd == null && cliOptions.version === true
-          if (pm.name === 'pnpm' && pm.onFail === 'download' && !isExecutedByCorepack()) {
+          if (cliOptions.global) {
+            // Global state belongs to the pnpm the user invoked, not to the
+            // project, so a global command never switches to the pinned pnpm.
+            if (!isRunningPnpmPinned(pm)) {
+              globalWarn('Using --global skips the package manager check for this project')
+            }
+          } else if (pm.name === 'pnpm' && pm.onFail === 'download' && !isExecutedByCorepack()) {
             // Corepack owns version switching; pnpm only switches versions when
             // the user is running pnpm directly.
             await tolerateWhenPrintingVersion(printingVersion, async () => {
               await switchCliVersion(config, context)
             })
-          } else if (cliOptions.global) {
-            globalWarn('Using --global skips the package manager check for this project')
           } else {
             // checkPackageManager and syncEnvLockfile run regardless of how pnpm
             // was invoked. Different developers on the same project may use
@@ -489,6 +493,11 @@ function shouldSkipPmHandling (cmd: string | null, cliParams: string[], location
   if (skipPackageManagerCheckForCommand.has(cmd)) return true
   if (cmd === 'help' && cliParams[0] != null && skipPackageManagerCheckForCommand.has(cliParams[0])) return true
   return false
+}
+
+function isRunningPnpmPinned (pm: EngineDependency): boolean {
+  if (pm.name !== 'pnpm' || packageManager.name !== 'pnpm') return false
+  return !pm.version || semver.satisfies(packageManager.version, pm.version, { includePrerelease: true })
 }
 
 function checkPackageManager (pm: EngineDependency, opts: { underCorepack: boolean }): void {

@@ -591,6 +591,43 @@ fn a_global_command_warns_instead_of_failing_the_package_manager_check() {
     );
 }
 
+/// Global state belongs to the pnpm the user invoked, so a pnpm pin with
+/// `onFail: "download"` does not switch a global command to the pinned
+/// version (pnpm/pnpm#14531). The pin names a version that does not exist,
+/// so a switch attempt would fail the command.
+#[test]
+fn a_global_command_does_not_switch_to_the_pinned_pnpm() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_dev_engines_package_manager(&workspace, "pnpm", "0.0.1", Some("download"));
+
+    let output = run(pacquet, root.path(), &["list", "--global"]);
+
+    assert_success(&output);
+    assert_contains(
+        &output_text(&output),
+        "Using --global skips the package manager check for this project",
+    );
+}
+
+#[test]
+fn a_global_command_does_not_warn_when_the_running_pnpm_satisfies_the_pin() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_dev_engines_package_manager(
+        &workspace,
+        "pnpm",
+        pnpm_config::PNPM_VERSION,
+        Some("download"),
+    );
+
+    let output = run(pacquet, root.path(), &["list", "--global"]);
+
+    assert_success(&output);
+    assert!(
+        !output_text(&output).contains("skips the package manager check"),
+        "a satisfied pin has no check to skip",
+    );
+}
+
 /// `exec` is the cheapest command that still goes through the pre-command
 /// checks; the dependency verification it would otherwise run is unrelated.
 const EXEC_NODE_VERSION: [&str; 4] =

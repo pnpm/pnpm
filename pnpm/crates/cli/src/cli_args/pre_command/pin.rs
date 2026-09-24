@@ -57,15 +57,19 @@ fn resolve_package_manager_pin(
             ReadEnvLockfile::NotYet,
         )?));
     }
+    // Global state belongs to the pnpm the user invoked, not to the project,
+    // so a global command never switches to the pinned pnpm (pnpm/pnpm#14531).
+    if input.global {
+        if !running_pnpm_is_pinned(pm) {
+            global_warn(
+                input.emit(config),
+                "Using --global skips the package manager check for this project",
+            );
+        }
+        return Ok(PinOutcome::Sync(None));
+    }
     if switch_wanted && !process_state.executed_by_corepack {
         return switch_or_sync(resolution, root_manifest, on_fail);
-    }
-    if input.global {
-        global_warn(
-            input.emit(config),
-            "Using --global skips the package manager check for this project",
-        );
-        return Ok(PinOutcome::Sync(None));
     }
     check_package_manager(pm, on_fail, process_state, input.emit(config))?;
     Ok(PinOutcome::Sync(env_lockfile_sync(
@@ -75,6 +79,11 @@ fn resolve_package_manager_pin(
         on_fail,
         ReadEnvLockfile::NotYet,
     )?))
+}
+
+fn running_pnpm_is_pinned(pm: &WantedPackageManager) -> bool {
+    pm.name == "pnpm"
+        && pm.version.as_deref().is_none_or(|wanted| version_satisfies(PNPM_VERSION, wanted))
 }
 
 /// pnpm's `checkPackageManager`. `on_fail` is already resolved against the

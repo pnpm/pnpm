@@ -4,6 +4,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import isWindows from 'is-windows'
+import PATH_NAME from 'path-name'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -74,6 +75,30 @@ test('install should not fail for packageManager field with hash', async () => {
 
   const { status } = execPnpmSync(['install'])
   expect(status).toBe(0)
+})
+
+test('a global command does not warn about a pnpm pin that the running pnpm satisfies', async () => {
+  const pnpmVersion = execPnpmSync(['--version']).stdout.toString().trim()
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: pnpmVersion,
+        onFail: 'download',
+      },
+    },
+  })
+
+  const pnpmHome = path.resolve('pnpm')
+  const env = {
+    PNPM_HOME: pnpmHome,
+    [PATH_NAME]: `${path.join(pnpmHome, 'bin')}${path.delimiter}${process.env[PATH_NAME]}`,
+  }
+
+  const { status, stderr } = execPnpmSync(['root', '--global'], { env })
+
+  expect(status).toBe(0)
+  expect(stderr.toString()).not.toContain('skips the package manager check')
 })
 
 test('install should not fail for packageManager field with url', async () => {
