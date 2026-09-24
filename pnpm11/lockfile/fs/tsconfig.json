@@ -25,6 +25,9 @@
       "path": "../../deps/path"
     },
     {
+      "path": "../../fs/graceful-fs"
+    },
+    {
       "path": "../../network/git-utils"
     },
     {

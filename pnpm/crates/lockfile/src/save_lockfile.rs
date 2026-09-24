@@ -332,8 +332,12 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
     })))
 }
 
+/// Rename the temp file over `target`. On Windows, another process holding
+/// `target` open without delete sharing (an editor, an indexer, antivirus)
+/// fails the rename until it lets go, so transient lock errors are retried
+/// with the policy of [`pnpm_fs::rename_with_retry`].
 fn commit_temp_file(tmp: PathBuf, target: &Path) -> Result<(), SaveLockfileError> {
-    fs::rename(&tmp, target)
+    pnpm_fs::rename_with_retry(&tmp, target)
         .map_err(|error| {
             // Best-effort cleanup so a failed rename doesn't leak temp
             // files in the virtual store.

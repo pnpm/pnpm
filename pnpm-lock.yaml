@@ -7111,6 +7111,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/fs.graceful-fs':
+        specifier: workspace:*
+        version: link:../../fs/graceful-fs
       '@pnpm/lockfile.merger':
         specifier: workspace:*
         version: link:../merger
