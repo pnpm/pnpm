@@ -326,7 +326,7 @@ snapshots:{snapshots}
             paths
                 .iter()
                 .any(|path| path.starts_with(importer)),
-            "no path from {importer}",
+            "no path from {importer}; recorded paths: {paths:?}",
         );
     }
 }
@@ -708,9 +708,12 @@ snapshots:{dev_snapshots}
         all_dependencies(),
     );
     let info = path_info(&index, "vuln", "1.0.0");
-    assert!(info.paths.contains(&"z-prod>vuln".to_string()));
-    dbg!(info.dev);
-    assert!(!info.dev);
+    assert!(
+        info.paths.contains(&"z-prod>vuln".to_string()),
+        "paths do not contain z-prod>vuln; recorded paths: {:?}",
+        info.paths,
+    );
+    assert!(!info.dev, "expected non-dev finding");
     assert_eq!(path_info(&index, "vuln", "2.0.0").paths, vec!["z-prod>parent>vuln"]);
     assert_eq!(path_info(&index, "nested", "1.0.0").paths, vec!["z-prod>vuln>nested"]);
 }
