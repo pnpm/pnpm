@@ -71,10 +71,23 @@ pub fn detect_node_version() -> Option<String> {
 /// and on macOS concurrent launches of one binary serialize, so under
 /// the per-project concurrency every probe waited on the others.
 fn detect_node_version_raw() -> Option<String> {
-    use std::sync::OnceLock;
+    static CACHED: ProbeOnce = ProbeOnce::new();
+    CACHED.get_or_probe(spawn_node_version_probe)
+}
 
-    static CACHED: OnceLock<Option<String>> = OnceLock::new();
-    CACHED.get_or_init(spawn_node_version_probe).clone()
+/// A probe result that is computed at most once. Callers that arrive
+/// while the first probe is still running wait for its answer instead
+/// of probing themselves.
+struct ProbeOnce(std::sync::OnceLock<Option<String>>);
+
+impl ProbeOnce {
+    const fn new() -> Self {
+        Self(std::sync::OnceLock::new())
+    }
+
+    fn get_or_probe(&self, probe: impl FnOnce() -> Option<String>) -> Option<String> {
+        self.0.get_or_init(probe).clone()
+    }
 }
 
 fn spawn_node_version_probe() -> Option<String> {
