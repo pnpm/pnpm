@@ -1,5 +1,4 @@
 import path from 'node:path'
-import util from 'node:util'
 
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
@@ -125,19 +124,13 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
 
 /**
  * The package an `npm:` alias points at and the selector it asks for, read
- * the way the npm resolver reads them. A spec the resolver does not claim,
- * or whose registry revision it rejects, comes back with `depName` and the
- * spec unchanged.
+ * the way the npm resolver reads them. A spec the resolver does not claim
+ * comes back with `depName` and the spec unchanged. Throws what
+ * `parseBareSpecifier` throws, such as for a registry revision the resolver
+ * rejects.
  */
 function parseRegistrySpec (depName: string, npmSpec: string): { depName: string, rawSpec: string } {
-  let parsed: ReturnType<typeof parseBareSpecifier> = null
-  try {
-    parsed = parseBareSpecifier(npmSpec, depName, 'latest', '')
-  } catch (err: unknown) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ERR_PNPM_INVALID_REVISION_SPEC') {
-      throw err
-    }
-  }
+  const parsed = parseBareSpecifier(npmSpec, depName, 'latest', '')
   return parsed ? { depName: parsed.name, rawSpec: parsed.fetchSpec } : { depName, rawSpec: npmSpec }
 }
 
