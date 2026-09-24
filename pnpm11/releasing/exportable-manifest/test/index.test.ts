@@ -567,8 +567,6 @@ test('throws CANNOT_RESOLVE_WORKSPACE_PROTOCOL when node_modules and workspacePa
   })
 })
 
-// pnpm/pnpm#4164: the same error used to claim the dependency was not
-// installed when the package was present but had no version field.
 test('reports a missing version field on a workspace dependency instead of "not installed"', async () => {
   const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-no-version-dep-'))
   const depDir = path.join(projectDir, 'node_modules', 'pkg-b')
@@ -586,6 +584,7 @@ test('reports a missing version field on a workspace dependency instead of "not 
   await expect(createExportableManifest(projectDir, manifest, { catalogs: {} })).rejects.toMatchObject({
     code: 'ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
     message: expect.stringContaining('has no "version" field'),
+    hint: 'Add a "version" field to the package.json of "pkg-b".',
   })
 })
 
@@ -623,5 +622,87 @@ test('reports a missing version on a scoped peerDependency from workspacePackage
   })).rejects.toMatchObject({
     code: 'ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
     message: expect.stringContaining('has no "version" field'),
+  })
+})
+
+test('reports a missing name when the installed manifest has only a version', async () => {
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-no-name-dep-'))
+  const depDir = path.join(projectDir, 'node_modules', 'pkg-b')
+  fs.mkdirSync(depDir, { recursive: true })
+  fs.writeFileSync(path.join(depDir, 'package.json'), JSON.stringify({ version: '1.0.0' }))
+
+  await expect(createExportableManifest(projectDir, {
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: {
+      'pkg-b': 'workspace:*',
+    },
+  }, {
+    catalogs: {},
+    workspacePackages: [
+      { manifest: { name: 'pkg-b' }, rootDir: '/root/b' },
+    ],
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+    message: expect.stringContaining('has no "name" field'),
+  })
+})
+
+test('a versioned workspace package replaces an earlier name-only entry', async () => {
+  const exported = await createExportableManifest('/nonexistent-project-dir', {
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: {
+      'pkg-b': 'workspace:*',
+    },
+  }, {
+    catalogs: {},
+    workspacePackages: [
+      { manifest: { name: 'pkg-b' }, rootDir: '/root/b-incomplete' },
+      { manifest: { name: 'pkg-b', version: '2.0.0' }, rootDir: '/root/b' },
+    ],
+  })
+
+  expect(exported.dependencies).toStrictEqual({
+    'pkg-b': '2.0.0',
+  })
+})
+
+test('the first complete workspace package wins over a later complete entry', async () => {
+  const exported = await createExportableManifest('/nonexistent-project-dir', {
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: {
+      'pkg-b': 'workspace:*',
+    },
+  }, {
+    catalogs: {},
+    workspacePackages: [
+      { manifest: { name: 'pkg-b', version: '1.0.0' }, rootDir: '/root/b-first' },
+      { manifest: { name: 'pkg-b', version: '2.0.0' }, rootDir: '/root/b-second' },
+    ],
+  })
+
+  expect(exported.dependencies).toStrictEqual({
+    'pkg-b': '1.0.0',
+  })
+})
+
+test('the missing version hint uses the workspace package name for an alias', async () => {
+  await expect(createExportableManifest('/nonexistent-project-dir', {
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: {
+      alias: 'workspace:pkg-b@*',
+    },
+  }, {
+    catalogs: {},
+    workspacePackages: [
+      { manifest: { name: 'pkg-b' }, rootDir: '/root/b' },
+    ],
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+    message: expect.stringContaining('has no "version" field'),
+    hint: 'Add a "version" field to the package.json of "pkg-b".',
   })
 })

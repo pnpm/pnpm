@@ -10,18 +10,20 @@ pub fn build_workspace_package_manifest_map(
     let mut map = HashMap::new();
     for project in projects {
         let manifest = project.manifest.value();
-        // Name-only projects stay in the map with an empty version so a
-        // missing `version` is reported as such instead of "not installed".
         if let Some(name) = manifest.get("name").and_then(|val| val.as_str()) {
             let version = manifest
                 .get("version")
                 .and_then(|val| val.as_str())
                 .unwrap_or("");
-            map.entry(name.to_string())
+            let entry = map
+                .entry(name.to_string())
                 .or_insert_with(|| WorkspacePackageManifest {
                     name: name.to_string(),
                     version: version.to_string(),
                 });
+            if entry.version.is_empty() && !version.is_empty() {
+                entry.version = version.to_string();
+            }
         }
     }
     map
@@ -60,4 +62,48 @@ pub fn create_publish_pack_manifest_options(
         before_packing_hooks: before_packing_hooks.to_vec(),
         workspace_packages,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use pnpm_package_manifest::PackageManifest;
+    use pnpm_workspace::Project;
+    use serde_json::json;
+
+    use super::build_workspace_package_manifest_map;
+
+    fn project(root_dir: &str, name: &str, version: Option<&str>) -> Project {
+        let root_dir = PathBuf::from(root_dir);
+        let mut manifest = json!({ "name": name });
+        if let Some(version) = version {
+            manifest["version"] = json!(version);
+        }
+        Project {
+            root_dir: root_dir.clone(),
+            manifest: PackageManifest::from_value(root_dir.join("package.json"), manifest),
+            dependency_manifest: None,
+        }
+    }
+
+    #[test]
+    fn versioned_manifest_replaces_an_earlier_name_only_manifest() {
+        let map = build_workspace_package_manifest_map(&[
+            project("/workspace/incomplete", "pkg-b", None),
+            project("/workspace/complete", "pkg-b", Some("2.0.0")),
+        ]);
+
+        assert_eq!(map["pkg-b"].version, "2.0.0");
+    }
+
+    #[test]
+    fn first_complete_manifest_wins_over_a_later_complete_manifest() {
+        let map = build_workspace_package_manifest_map(&[
+            project("/workspace/first", "pkg-b", Some("1.0.0")),
+            project("/workspace/second", "pkg-b", Some("2.0.0")),
+        ]);
+
+        assert_eq!(map["pkg-b"].version, "1.0.0");
+    }
 }

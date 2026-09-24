@@ -191,9 +191,9 @@ function buildWorkspaceManifestGetter (
   const byName = new Map<string, ProjectManifest>()
   const addManifest = (val: unknown) => {
     const manifest = extractManifest(val)
-    // Keep name-only manifests so a missing version is reported as such
-    // instead of as "not installed".
-    if (manifest?.name && !byName.has(manifest.name)) {
+    if (!manifest?.name) return
+    const existing = byName.get(manifest.name)
+    if (!existing || (!existing.version && manifest.version)) {
       byName.set(manifest.name, manifest)
     }
   }
