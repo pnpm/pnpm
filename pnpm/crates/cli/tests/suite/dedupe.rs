@@ -353,6 +353,7 @@ fn dedupe_is_stable_when_an_npm_alias_satisfies_a_transitive_range() {
     let installed = fs::read_to_string(&lockfile_path).expect("read installed lockfile");
     eprintln!("installed lockfile:\n{installed}");
     let parents = snapshot_entries(&read_lockfile(&lockfile_path), "@pnpm.e2e/pkg-with-1-dep");
+    assert_eq!(parents.len(), 1, "the lockfile holds one pkg-with-1-dep snapshot");
     let child: PkgName = "@pnpm.e2e/dep-of-pkg-with-1-dep".parse().expect("parse package name");
     let edge = parents[0].1.dependencies
         .as_ref()
