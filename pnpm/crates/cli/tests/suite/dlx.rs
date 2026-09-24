@@ -179,10 +179,7 @@ fn dlx_does_not_reuse_the_cache_across_node_majors() {
     let fake_node = fake_node_dir.join("node");
     std::fs::write(
         &fake_node,
-        format!(
-            "#!/bin/sh\nif [ \"$1\" = --version ]; then echo \"v$FAKE_NODE_VERSION\"; exit 0; fi\nexec '{}' \"$@\"\n",
-            real_node.display(),
-        ),
+        "#!/bin/sh\nif [ \"$1\" = --version ]; then echo \"v$FAKE_NODE_VERSION\"; exit 0; fi\nexec \"$REAL_NODE\" \"$@\"\n",
     )
     .expect("write fake node");
     std::fs::set_permissions(&fake_node, std::fs::Permissions::from_mode(0o755))
@@ -207,6 +204,7 @@ fn dlx_does_not_reuse_the_cache_across_node_majors() {
             .without_ambient_pnpm_config()
             .with_env("PATH", &path)
             .with_env("FAKE_NODE_VERSION", node_version)
+            .with_env("REAL_NODE", &real_node)
             .arg("dlx")
             .arg(format!("--package=file:{}", fixture.display()))
             .args(["node", "-e", ""])

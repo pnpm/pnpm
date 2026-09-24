@@ -191,9 +191,9 @@ pub(super) fn create_cache_key(
         args.push(json!({ "allowBuild": sorted_allow }));
     }
     args.extend(architecture_key_inputs(supported_architectures));
-    if let Some(engine) = engine {
-        args.push(json!({ "engine": engine }));
-    }
+    // `null` when no `node` is found, which still differs from a key that
+    // records no engine at all.
+    args.push(json!({ "engine": engine }));
     create_short_hash(&serde_json::to_string(&args).expect("serialize cache key inputs"))
 }
 
