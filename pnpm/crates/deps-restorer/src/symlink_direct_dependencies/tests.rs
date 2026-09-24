@@ -13,7 +13,7 @@ use pnpm_testing_utils::fs::is_symlink_or_junction;
 use std::{collections::HashMap, fs, path::PathBuf, sync::Mutex};
 use tempfile::tempdir;
 
-fn group_ids(groups: Vec<super::ImporterTaskGroup<'_>>) -> Vec<Vec<&str>> {
+fn group_ids(groups: Vec<super::task_groups::ImporterTaskGroup<'_>>) -> Vec<Vec<&str>> {
     groups
         .into_iter()
         .map(|group| group.importer_ids)
