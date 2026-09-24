@@ -301,9 +301,9 @@ function parseCatalogDep (depName: string, specifier: string): { catalogName: st
 // shallow clone or unrelated histories) and with 128 for an invalid
 // `<since>`. Both fall back to diffing `<since>` itself, which reports the
 // bad revision.
-async function getMergeBase (commit: string, workingDir: string): Promise<string> {
+async function getMergeBase (commit: string, workspaceDir: string): Promise<string> {
   try {
-    const { stdout } = await execa('git', ['merge-base', '--end-of-options', commit, 'HEAD'], { cwd: workingDir })
+    const { stdout } = await execa('git', ['merge-base', '--end-of-options', commit, 'HEAD'], { cwd: workspaceDir })
     return (stdout as string).trim() || commit
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
