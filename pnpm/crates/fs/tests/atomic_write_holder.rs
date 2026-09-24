@@ -70,7 +70,7 @@ fn wait_for_temp_file(dir: &Path, writer: &mut Child) {
                 .try_wait()
                 .expect("poll the writer")
                 .is_none(),
-            "the writer exited before staging a temp file"
+            "the writer exited before staging a temp file",
         );
         assert!(Instant::now() < deadline, "the writer staged no temp file in 30s");
         thread::sleep(Duration::from_millis(2));
