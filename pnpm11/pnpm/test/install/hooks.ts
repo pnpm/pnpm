@@ -363,6 +363,87 @@ test('ignore .pnpmfile.cjs during update when --ignore-pnpmfile is used', async 
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
 })
 
+const ADD_IS_POSITIVE_PNPMFILE = `
+  'use strict'
+  module.exports = {
+    hooks: {
+      readPackage (pkg) {
+        if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
+          pkg.dependencies['is-positive'] = '1.0.0'
+        }
+        return pkg
+      }
+    }
+  }
+`
+
+function readPackageHookApplied (): boolean {
+  const { packages } = readYamlFileSync<LockfileFile>('pnpm-lock.yaml')
+  return Object.keys(packages ?? {}).some((key) => key.startsWith('is-positive@'))
+}
+
+// https://github.com/pnpm/pnpm/issues/10944
+test('--ignore-pnpmfile installs an up-to-date lockfile as it is', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+  fs.writeFileSync('.pnpmfile.cjs', ADD_IS_POSITIVE_PNPMFILE, 'utf8')
+
+  await execPnpm(['install', '--lockfile-only'])
+  expect(readPackageHookApplied()).toBe(true)
+  const lockfile = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+  expect(lockfile).toContain('pnpmfileChecksum:')
+
+  for (const args of [
+    ['install', '--lockfile-only', '--ignore-pnpmfile'],
+    ['install', '--frozen-lockfile', '--lockfile-only', '--ignore-pnpmfile'],
+    ['fetch', '--ignore-pnpmfile'],
+    ['install', '--frozen-lockfile', '--ignore-pnpmfile'],
+    ['install', '--ignore-pnpmfile'],
+  ]) {
+    await execPnpm(args) // eslint-disable-line no-await-in-loop
+    expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfile)
+  }
+
+  await execPnpm(['install', '--frozen-lockfile', '--lockfile-only'])
+})
+
+// A run that does resolve reuses none of the snapshots the pnpmfile shaped and
+// records no checksum, since the graph it writes lacks the hooks' effects.
+test('--ignore-pnpmfile records no pnpmfileChecksum when it resolves', async () => {
+  prepare()
+  fs.writeFileSync('.pnpmfile.cjs', ADD_IS_POSITIVE_PNPMFILE, 'utf8')
+  const installWithThePnpmfile = async () => {
+    await execPnpm(['install', '--lockfile-only'])
+    expect(readYamlFileSync<LockfileFile>('pnpm-lock.yaml').pnpmfileChecksum).toBeTruthy()
+    expect(readPackageHookApplied()).toBe(true)
+  }
+
+  const writeManifest = (specifier: string) => {
+    fs.writeFileSync('package.json', JSON.stringify({ dependencies: { '@pnpm.e2e/pkg-with-1-dep': specifier } }), 'utf8')
+  }
+
+  // `install` resolves once the manifest changes, while `update` and `dedupe`
+  // always do.
+  for (const [command, specifier] of [['update', '100.0.0'], ['dedupe', '100.0.0'], ['install', '^100.0.0']]) {
+    writeManifest('100.0.0')
+    await installWithThePnpmfile() // eslint-disable-line no-await-in-loop
+    writeManifest(specifier)
+
+    await execPnpm([command, '--lockfile-only', '--ignore-pnpmfile']) // eslint-disable-line no-await-in-loop
+    expect(readYamlFileSync<LockfileFile>('pnpm-lock.yaml').pnpmfileChecksum).toBeUndefined()
+    expect(readPackageHookApplied()).toBe(false)
+
+    const frozenInstall = execPnpmSync(['install', '--frozen-lockfile', '--lockfile-only'])
+    expect(frozenInstall.status).toBe(1)
+    expect(frozenInstall.stdout.toString()).toContain('ERR_PNPM_LOCKFILE_CONFIG_MISMATCH')
+
+    await installWithThePnpmfile() // eslint-disable-line no-await-in-loop
+  }
+})
+
 test('pnpmfile: pass log function to readPackage hook', async () => {
   const project = prepare()
 

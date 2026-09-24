@@ -202,6 +202,11 @@ pub(super) async fn synthesize_lockfile_from_current(
 
 /// Whether the fast update may run for this install. It cannot preserve
 /// subtrees when an unchecksummed `readPackage` hook may have changed them.
+/// Nor can it run when `ignorePnpmfile` leaves the pnpmfile unloaded and
+/// the lockfile records a `pnpmfileChecksum`: the freshness gates leave
+/// that checksum uncompared, so the rewrite would keep it over edits the
+/// pnpmfile never saw. Such a run resolves instead, and records no
+/// checksum (<https://github.com/pnpm/pnpm/issues/10944>).
 async fn may_fast_update_with_hooks(
     install: InstallView<'_>,
     mode: &RunMode,
@@ -213,6 +218,12 @@ async fn may_fast_update_with_hooks(
         return Ok(false);
     }
     let Some(lockfile) = lockfile else { return Ok(false) };
+    if install.context.config.ignore_pnpmfile
+        && loaded.pnpmfile_hook.is_none()
+        && lockfile.pnpmfile_checksum.is_some()
+    {
+        return Ok(false);
+    }
     let current = pnpm_hooks::untracked_read_package_hook(loaded.pnpmfile_hook.as_ref())
         .await
         .map_err(InstallError::ReadPackageHook)?;
