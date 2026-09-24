@@ -555,6 +555,16 @@ module.exports = {{
         .success();
     dependency_version(&workspace);
 
+    // A fresh resolve reads the delegated archive the store already holds, so
+    // it needs no network.
+    fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).unwrap();
+    pacquet_at(&workspace)
+        .with_args(["install", "--offline", "--ignore-scripts"])
+        .assert()
+        .success();
+    dependency_version(&workspace);
+
     drop((root, mock_instance));
 }
 
