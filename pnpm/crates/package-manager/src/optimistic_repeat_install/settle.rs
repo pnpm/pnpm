@@ -264,6 +264,51 @@ pub(super) fn first_project_missing_modules_dir(
         })
 }
 
+/// Whether a direct dependency's entry in its project's modules directory is
+/// a link whose target no longer exists. Nothing the fast path records moves
+/// when a link is broken or retargeted outside pnpm, and the full install
+/// relinks it. A missing entry is not a broken link: skipped optional and
+/// excluded dependencies have none, and a healthy entry costs one `stat`.
+/// The hoisted linker places a sibling's dependencies in the root modules
+/// directory too, so both are probed there.
+pub(super) fn direct_dependency_link_dangling(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
+    let groups = included_groups(check.layout.included);
+    check.project_manifests
+        .iter()
+        .any(|(root_dir, manifest)| {
+            project_modules_dirs(check, root_dir, manifest)
+                .iter()
+                .any(|modules_dir| {
+                    manifest
+                        .dependencies(groups.iter().copied())
+                        .any(|(alias, _)| is_dangling_link(&modules_dir.join(alias)))
+                })
+        })
+}
+
+/// The modules directories the linker may place a project's direct
+/// dependencies in.
+fn project_modules_dirs(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    root_dir: &Path,
+    manifest: &PackageManifest,
+) -> Vec<PathBuf> {
+    let config = check.config;
+    if lexical_normalize(root_dir) == lexical_normalize(check.workspace_root) {
+        return vec![config.modules_dir.clone()];
+    }
+    let own = sibling_modules_dir(config, root_dir, manifest);
+    if check.layout.node_linker == NodeLinker::Hoisted {
+        vec![own, config.modules_dir.clone()]
+    } else {
+        vec![own]
+    }
+}
+
+fn is_dangling_link(path: &Path) -> bool {
+    fs::metadata(path).is_err() && fs::symlink_metadata(path).is_ok()
+}
+
 /// The modules directory an isolated install creates for the workspace
 /// project at `root_dir`.
 fn sibling_modules_dir(config: &Config, root_dir: &Path, manifest: &PackageManifest) -> PathBuf {

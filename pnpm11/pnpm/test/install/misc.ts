@@ -886,3 +886,46 @@ test('adding a dependency succeeds after deleting offline package source', async
   expect(lockfile.packages['is-positive@1.0.0']).toBeDefined()
 })
 
+test('a repeat install relinks a direct dependency whose link points to a missing target', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install'])
+
+  const directLink = path.resolve('node_modules/is-positive')
+  fs.rmSync(directLink)
+  fs.symlinkSync(path.resolve('node_modules/.pnpm/is-positive@0.0.0'), directLink, 'junction')
+
+  await execPnpm(['install'])
+
+  expect((await readPackageJsonFromDir(directLink)).version).toBe('1.0.0')
+})
+
+test('a repeat hoisted install relinks a workspace project dependency whose root link points to a missing target', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      name: 'project',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project'], nodeLinker: 'hoisted' })
+
+  await execPnpm(['install'])
+
+  const rootEntry = path.resolve('node_modules/is-positive')
+  fs.rmSync(rootEntry, { recursive: true })
+  fs.symlinkSync(path.resolve('node_modules/.missing/is-positive'), rootEntry, 'junction')
+
+  await execPnpm(['install'])
+
+  expect((await readPackageJsonFromDir(rootEntry)).version).toBe('1.0.0')
+})

@@ -9,7 +9,7 @@ import {
   tryReadProjectManifest,
 } from '@pnpm/cli.utils'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
-import { checkDepsStatus } from '@pnpm/deps.status'
+import { checkDepsStatus, findDanglingDirectDependencyLink } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
@@ -210,7 +210,11 @@ export async function installDeps (
       ignoreFilteredInstallCache: true,
       treatLocalFileDepsAsOutdated: true,
     })
-    if (upToDate && await restoreWantedLockfileIfMissing(wantedLockfileToRestore, opts)) {
+    if (
+      upToDate &&
+      await findDanglingDirectDependencyLink(opts) == null &&
+      await restoreWantedLockfileIfMissing(wantedLockfileToRestore, opts)
+    ) {
       if (opts.hooks?.customResolvers?.some(r => r.shouldRefreshResolution)) {
         logger.warn({
           message: 'shouldRefreshResolution hooks were skipped because optimisticRepeatInstall is enabled.',

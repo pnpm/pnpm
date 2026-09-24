@@ -90,6 +90,40 @@ fn reinstalls_missing_packages_during_headless_install() {
     drop((root, mock_instance));
 }
 
+/// A direct dependency whose link was pointed at a missing target outside
+/// pnpm leaves every manifest, lockfile, and state file untouched, so the
+/// optimistic repeat install must notice the dangling link itself and relink
+/// it instead of reporting the tree up to date.
+#[test]
+fn repeat_install_relinks_a_dangling_direct_dependency() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet
+        .with_args(["add", "is-positive@1.0.0"])
+        .assert()
+        .success();
+
+    let direct_link = workspace.join("node_modules/is-positive");
+    pnpm_fs::remove_dirent(&direct_link).expect("remove the direct-dep link");
+    pnpm_fs::symlink_dir(&workspace.join("node_modules/.pnpm/is-positive@0.0.0"), &direct_link)
+        .expect("point the direct-dep link at a missing target");
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(version_of(&workspace, "node_modules/is-positive"), "1.0.0");
+
+    drop((root, mock_instance));
+}
+
 /// TS: `repeat install with no inner lockfile should not rewrite
 /// packages in node_modules` (`deps-installer lockfile.ts:547`).
 #[test]
