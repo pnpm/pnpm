@@ -7,7 +7,8 @@ use pnpm_cmd_shim::{
 use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use std::{
-    io,
+    collections::HashSet,
+    fs, io,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -218,4 +219,32 @@ pub(super) fn paths_eq(lhs: &Path, rhs: &Path) -> bool {
     // Lexical comparison is enough; both paths come from the same
     // `node_modules` walk and don't go through canonicalisation.
     lhs == rhs
+}
+
+/// The command names in `bins_dir`, with the Windows shim and executable
+/// extensions stripped in any case. A missing directory has none.
+pub(super) fn existing_commands(bins_dir: &Path) -> HashSet<String> {
+    let Ok(entries) = fs::read_dir(bins_dir) else { return HashSet::new() };
+    entries
+        .filter_map(|entry| {
+            entry
+                .ok()?
+                .file_name()
+                .into_string()
+                .ok()
+        })
+        .map(|name| command_name(&name).to_owned())
+        .collect()
+}
+fn command_name(file_name: &str) -> &str {
+    match file_name.rsplit_once('.') {
+        Some((command, extension))
+            if ["cmd", "ps1", "exe"]
+                .iter()
+                .any(|shim| extension.eq_ignore_ascii_case(shim)) =>
+        {
+            command
+        }
+        _ => file_name,
+    }
 }

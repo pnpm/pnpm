@@ -1,4 +1,4 @@
-use super::{build_has_bin_set, pkg_dir_under, read_package};
+use super::{build_has_bin_set, existing_commands, pkg_dir_under, read_package};
 use crate::PackageManifests;
 use pnpm_cmd_shim::{
     BinOrigin, Host, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache,
@@ -430,33 +430,6 @@ fn read_location_bin_sources(
             Err(error) => Some(Err(error)),
         })
         .collect()
-}
-/// The command names in `bins_dir`, with the Windows shim and executable
-/// extensions stripped in any case. A missing directory has none.
-fn existing_commands(bins_dir: &Path) -> HashSet<String> {
-    let Ok(entries) = fs::read_dir(bins_dir) else { return HashSet::new() };
-    entries
-        .filter_map(|entry| {
-            entry
-                .ok()?
-                .file_name()
-                .into_string()
-                .ok()
-        })
-        .map(|name| command_name(&name).to_owned())
-        .collect()
-}
-fn command_name(file_name: &str) -> &str {
-    match file_name.rsplit_once('.') {
-        Some((command, extension))
-            if ["cmd", "ps1", "exe"]
-                .iter()
-                .any(|shim| extension.eq_ignore_ascii_case(shim)) =>
-        {
-            command
-        }
-        _ => file_name,
-    }
 }
 /// Top-level bin link that mixes direct-dep candidates and hoisted
 /// (`publicly_hoisted_aliases_with_bins`) candidates in a single
