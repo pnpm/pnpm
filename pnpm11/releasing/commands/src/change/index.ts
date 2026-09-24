@@ -13,6 +13,7 @@ import {
   describeCheckedIntents,
   indexProjectRefs,
   type IntentBumpType,
+  privateProjectDirs,
   readChangeIntents,
   readLedger,
   type ReleasePlan,
@@ -26,7 +27,6 @@ import { safeExeca as execa } from 'execa'
 import { renderHelp } from 'render-help'
 import { valid } from 'semver'
 
-import { privateProjectDirs } from '../privateProjects.js'
 import { publishedNameByManifestName } from '../publishedNames.js'
 import { resolveUnpublishedDirs, type UnpublishedProbeOptions } from '../resolveUnpublishedDirs.js'
 

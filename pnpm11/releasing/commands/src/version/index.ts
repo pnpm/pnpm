@@ -10,6 +10,7 @@ import {
   type ApplyReleasePlanOptions,
   assembleReleasePlan,
   changelogStorage,
+  privateProjectDirs,
   readChangeIntents,
   readLedger,
   toProjectDir,
@@ -21,7 +22,6 @@ import { renderHelp } from 'render-help'
 import { inc, valid } from 'semver'
 
 import { renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
-import { privateOnlyProjectNames, privateProjectDirs } from '../privateProjects.js'
 import { changelogHasSection, fetchPublishedChangelog } from '../publish/previousChangelog.js'
 import { publishedNameByManifestName } from '../publishedNames.js'
 import { type CheckVersionPublished, resolveUnpublishedDirs } from '../resolveUnpublishedDirs.js'
@@ -258,7 +258,7 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     projects,
     allIntents: intents,
     versioning: opts.versioning,
-    verifyPublished: buildVerifyPublished(opts, publishedNames, privateOnlyProjectNames(projects)),
+    verifyPublished: buildVerifyPublished(opts, publishedNames),
   }
 
   if (plan.releases.length === 0) {
@@ -294,14 +294,12 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
  * the release must be published and its tarball's CHANGELOG.md must already
  * carry the composed section. Any error resolving that (offline, transient
  * failure) counts as "not confirmed" so the intent — still the only prose —
- * is kept. A name only private projects carry is never confirmed, so its
- * intents stay. `undefined` in `repository` storage, where the committed
- * changelog makes the ledger alone sufficient.
+ * is kept. `undefined` in `repository` storage, where the committed changelog
+ * makes the ledger alone sufficient.
  */
-function buildVerifyPublished (opts: VersionHandlerOptions, publishedNames: ReadonlyMap<string, string>, privateNames: ReadonlySet<string>): ApplyReleasePlanOptions['verifyPublished'] {
+function buildVerifyPublished (opts: VersionHandlerOptions, publishedNames: ReadonlyMap<string, string>): ApplyReleasePlanOptions['verifyPublished'] {
   if (changelogStorage(opts.versioning) !== 'registry') return undefined
   return async (name, version, section) => {
-    if (privateNames.has(name)) return false
     try {
       // The parked section is keyed by the manifest name, which is what the
       // ledger joins on; the registry only knows the published one.

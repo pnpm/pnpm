@@ -50,7 +50,6 @@ struct PlannedWorkspaceRelease {
     projects: Vec<pnpm_versioning::WorkspaceProject>,
     intents: Vec<pnpm_versioning::ChangeIntent>,
     published_names: HashMap<String, String>,
-    private_dirs: HashSet<String>,
     unfiltered: bool,
 }
 
@@ -60,7 +59,6 @@ struct WorkspaceReleaseInputs {
     workspace_projects: Vec<pnpm_workspace::Project>,
     projects: Vec<pnpm_versioning::WorkspaceProject>,
     published_names: HashMap<String, String>,
-    private_dirs: HashSet<String>,
 }
 
 async fn plan_workspace_release(
@@ -77,7 +75,6 @@ async fn plan_workspace_release(
         projects: inputs.projects,
         intents: inputs.intents,
         published_names: inputs.published_names,
-        private_dirs: inputs.private_dirs,
         unfiltered: filter.is_none(),
     })
 }
@@ -107,9 +104,8 @@ async fn assemble_workspace_release_plan(
         &assemble(HashSet::new())?,
         &changelog::ReleaseRegistryOptions {
             config,
-            workspace_dir,
             published_names: &inputs.published_names,
-            private_dirs: &inputs.private_dirs,
+            private_dirs: &pnpm_versioning::private_project_dirs(&inputs.projects, workspace_dir),
         },
     )
     .await?;
@@ -125,14 +121,12 @@ fn workspace_release_inputs(
     let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
     let engine_projects = to_engine_projects(&projects);
     let published_names = changelog::published_names(&projects);
-    let private_dirs = changelog::private_project_dirs(&projects, workspace_dir);
     Ok(WorkspaceReleaseInputs {
         intents,
         ledger,
         workspace_projects: projects,
         projects: engine_projects,
         published_names,
-        private_dirs,
     })
 }
 
@@ -142,16 +136,7 @@ impl PlannedWorkspaceRelease {
         config: &Config,
         workspace_dir: &Path,
     ) -> miette::Result<HashSet<String>> {
-        confirmed_published_versions(
-            &changelog::ReleaseRegistryOptions {
-                config,
-                workspace_dir,
-                published_names: &self.published_names,
-                private_dirs: &self.private_dirs,
-            },
-            &self.projects,
-        )
-        .await
+        confirmed_published_versions(config, workspace_dir, &self.published_names).await
     }
 
     pub(super) async fn apply(

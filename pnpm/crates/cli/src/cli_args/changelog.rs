@@ -13,8 +13,8 @@ use pnpm_network::{ThrottledClient, encode_package_name, redact_url_credentials}
 use pnpm_registry::Package;
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use pnpm_versioning::{
-    ChangelogStorage, ReleasePlan, WorkspaceProject, changelog_storage, list_pending_changelogs,
-    read_pending_changelog, render_changelog, to_project_dir,
+    ChangelogStorage, ReleasePlan, changelog_storage, list_pending_changelogs,
+    read_pending_changelog, render_changelog,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -25,11 +25,9 @@ use tar::Archive;
 
 const CHANGELOG_ENTRY: &str = "package/CHANGELOG.md";
 
-/// The inputs [`unpublished_release_dirs`] and [`confirmed_published_versions`]
-/// share.
+/// The inputs [`unpublished_release_dirs`] probes the registry with.
 pub struct ReleaseRegistryOptions<'a> {
     pub config: &'a Config,
-    pub workspace_dir: &'a Path,
     pub published_names: &'a HashMap<String, String>,
     pub private_dirs: &'a HashSet<String>,
 }
@@ -73,26 +71,23 @@ pub async fn compose_registry_changelog(
 /// release (which has a section but no consumed intents, hence no ledger entry)
 /// is confirmed too. Every parked file belongs to an as-yet-unpublished
 /// release, so the cost is bounded by the release backlog, not by history. The
-/// checks run concurrently. A section named only by private projects is never
-/// confirmed, so its intents stay. Empty in `repository` storage.
+/// checks run concurrently. Empty in `repository` storage.
 pub async fn confirmed_published_versions(
-    options: &ReleaseRegistryOptions<'_>,
-    projects: &[WorkspaceProject],
+    config: &Config,
+    workspace_dir: &Path,
+    published_names: &HashMap<String, String>,
 ) -> miette::Result<HashSet<String>> {
-    if changelog_storage(Some(&options.config.versioning)) != ChangelogStorage::Registry {
+    if changelog_storage(Some(&config.versioning)) != ChangelogStorage::Registry {
         return Ok(HashSet::new());
     }
-    let private_names = private_only_names(projects, options.workspace_dir, options.private_dirs);
-    let checks = list_pending_changelogs(options.workspace_dir)?
+    let checks = list_pending_changelogs(workspace_dir)?
         .into_iter()
-        .filter(|(name, _)| !private_names.contains(name))
         .map(|(name, version)| async move {
-            let section = read_pending_changelog(options.workspace_dir, &name, &version).ok()??;
+            let section = read_pending_changelog(workspace_dir, &name, &version).ok()??;
             // The parked file is keyed by the manifest name, which is what the
             // ledger joins on; the registry only knows the published one.
-            let probe = options.published_names.get(&name).map_or(name.as_str(), String::as_str);
-            let changelog =
-                fetch_changelog(options.config, probe, VersionPick::Exact(&version)).await?;
+            let probe = published_names.get(&name).map_or(name.as_str(), String::as_str);
+            let changelog = fetch_changelog(config, probe, VersionPick::Exact(&version)).await?;
             changelog
                 .contains(section.trim())
                 .then(|| format!("{name}@{version}"))
@@ -101,54 +96,6 @@ pub async fn confirmed_published_versions(
         .into_iter()
         .flatten()
         .collect())
-}
-
-/// The manifest names that only private projects carry. Parked changelogs are
-/// keyed by manifest name, so a name that a public project shares still gets
-/// its confirmation probe.
-fn private_only_names(
-    projects: &[WorkspaceProject],
-    workspace_dir: &Path,
-    private_dirs: &HashSet<String>,
-) -> HashSet<String> {
-    let (private, public): (Vec<_>, Vec<_>) = projects
-        .iter()
-        .partition(|project| {
-            private_dirs.contains(&to_project_dir(workspace_dir, &project.root_dir))
-        });
-    let public_names: HashSet<&String> = public
-        .iter()
-        .filter_map(|project| project.name.as_ref())
-        .collect();
-    private
-        .into_iter()
-        .filter_map(|project| project.name.clone())
-        .filter(|name| !public_names.contains(name))
-        .collect()
-}
-
-/// The workspace-relative dirs of the projects marked `"private": true`.
-///
-/// A private project is never published, so a registry probe on its behalf is
-/// futile and would read as "unpublished". Mirrors the TypeScript
-/// `privateProjectDirs`.
-pub fn private_project_dirs(
-    projects: &[pnpm_workspace::Project],
-    workspace_dir: &Path,
-) -> HashSet<String> {
-    projects
-        .iter()
-        .filter(|project| is_private(project))
-        .map(|project| to_project_dir(workspace_dir, &project.root_dir))
-        .collect()
-}
-
-fn is_private(project: &pnpm_workspace::Project) -> bool {
-    project.manifest
-        .value()
-        .get("private")
-        .and_then(serde_json::Value::as_bool)
-        == Some(true)
 }
 
 /// Manifest name → published name, for every workspace project that renames
@@ -369,6 +316,3 @@ pub fn published_name(manifest: &serde_json::Value) -> Option<&str> {
         .as_str()
         .filter(|name| !name.is_empty())
 }
-
-#[cfg(test)]
-mod tests;

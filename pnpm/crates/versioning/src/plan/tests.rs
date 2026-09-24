@@ -20,6 +20,7 @@ use crate::{
 fn make_project(name: &str, version: &str, deps: &[(&str, &str)]) -> WorkspaceProject {
     WorkspaceProject {
         root_dir: PathBuf::from(format!("/ws/{name}")),
+        private: false,
         name: Some(name.to_string()),
         version: Some(version.to_string()),
         prod_dependencies: deps
@@ -113,12 +114,14 @@ fn twins() -> [WorkspaceProject; 2] {
     [
         WorkspaceProject {
             root_dir: PathBuf::from("/ws/pnpm11/pnpm"),
+            private: false,
             name: Some("pnpm".to_string()),
             version: Some("11.0.0".to_string()),
             prod_dependencies: Vec::new(),
         },
         WorkspaceProject {
             root_dir: PathBuf::from("/ws/pnpm/npm/pnpm"),
+            private: false,
             name: Some("pnpm".to_string()),
             version: Some("12.0.0".to_string()),
             prod_dependencies: Vec::new(),
@@ -129,6 +132,7 @@ fn twins() -> [WorkspaceProject; 2] {
 fn project_at(name: &str, version: &str, dir: &str) -> WorkspaceProject {
     WorkspaceProject {
         root_dir: PathBuf::from(format!("/ws/{dir}")),
+        private: false,
         name: Some(name.to_string()),
         version: Some(version.to_string()),
         prod_dependencies: Vec::new(),

@@ -1,9 +1,6 @@
 pub use report::render_release_plan;
 
-use crate::cli_args::{
-    changelog::{private_project_dirs, published_names},
-    recursive::discover_workspace_projects,
-};
+use crate::cli_args::{changelog::published_names, recursive::discover_workspace_projects};
 use clap::Args;
 use derive_more::{Display, Error};
 use dialoguer::{Input, MultiSelect};
@@ -169,7 +166,8 @@ impl ChangeArgs {
         match self.params[0].as_str() {
             "status" => {
                 let names = published_names(projects);
-                let private_dirs = private_project_dirs(projects, workspace_dir);
+                let private_dirs =
+                    pnpm_versioning::private_project_dirs(engine_projects, workspace_dir);
                 let output = render_status(report::RenderStatusOptions {
                     workspace_dir,
                     projects: engine_projects,
@@ -441,6 +439,7 @@ pub fn to_engine_projects(projects: &[Project]) -> Vec<WorkspaceProject> {
             }
             WorkspaceProject {
                 root_dir: project.root_dir.clone(),
+                private: manifest.get("private").and_then(serde_json::Value::as_bool) == Some(true),
                 name: manifest
                     .get("name")
                     .and_then(|name| name.as_str())

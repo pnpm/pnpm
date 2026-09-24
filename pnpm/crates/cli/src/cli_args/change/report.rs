@@ -31,7 +31,6 @@ pub(super) async fn render_status(options: RenderStatusOptions<'_>) -> miette::R
         &assemble(HashSet::new())?,
         &ReleaseRegistryOptions {
             config: options.config,
-            workspace_dir: options.workspace_dir,
             published_names: options.published_names,
             private_dirs: options.private_dirs,
         },

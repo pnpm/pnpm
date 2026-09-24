@@ -7,7 +7,6 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use mockito::Matcher;
 use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
 use std::{fs, path::Path, process::Command};
 
@@ -112,7 +111,7 @@ fn private_package_bumps_without_a_registry_release_probe() {
 }
 
 #[test]
-fn private_only_release_makes_no_registry_requests() {
+fn private_release_commits_its_changelog_and_collects_its_intent() {
     let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init().add_mocked_registry();
     setup_mock_workspace(&workspace);
     let pkg_dir = workspace.join("packages").join("app");
@@ -127,27 +126,25 @@ fn private_only_release_makes_no_registry_requests() {
         pnpm_probing(&workspace)
             .with_args(["change", "--bump", "minor", "--summary", "A deployable feature.", "app"]),
     );
-    let status = stdout_of(pnpm_probing(&workspace).with_args(["change", "status"]));
-    assert!(status.contains("app: 0.5.0 → 0.6.0"), "unexpected: {status}");
-
     let applied = stdout_of(pnpm_probing(&workspace).with_args(["version", "-r"]));
     assert!(applied.contains("app: 0.5.0 → 0.6.0"), "unexpected: {applied}");
 
-    let mut registry = mockito::Server::new();
-    let no_registry_requests = registry
-        .mock("GET", Matcher::Any)
-        .expect(0)
-        .create();
-    fs::write(workspace.join(".npmrc"), format!("registry={}/\n", registry.url()))
-        .expect("write npmrc");
-    let second = pnpm_probing(&workspace)
-        .with_args(["version", "-r"])
-        .output()
-        .expect("run pnpm");
-    assert!(second.status.success(), "{}", String::from_utf8_lossy(&second.stderr));
-    no_registry_requests.assert();
-    // The intent a private release can never have confirmed published stays
-    // on disk, so only the ledger keeps the second run from bumping again.
+    let changelog = fs::read_to_string(pkg_dir.join("CHANGELOG.md")).expect("read changelog");
+    assert!(changelog.contains("A deployable feature."), "unexpected: {changelog}");
+    assert!(!workspace.join(".changeset/changelogs").exists(), "a private section was parked");
+    let leftover_intents: Vec<_> = fs::read_dir(workspace.join(".changeset"))
+        .expect("read .changeset")
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".md")
+        })
+        .collect();
+    assert!(leftover_intents.is_empty(), "unexpected: {leftover_intents:?}");
+
+    stdout_of(pnpm_probing(&workspace).with_args(["version", "-r"]));
     assert_eq!(manifest_version(&workspace, "app"), "0.6.0");
 
     drop(root);

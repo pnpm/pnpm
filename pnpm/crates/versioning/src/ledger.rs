@@ -83,6 +83,16 @@ impl<'de> Deserialize<'de> for LedgerEntry {
 }
 
 impl LedgerEntry {
+    /// The released project's workspace-relative dir. `None` for an entry
+    /// written before entries recorded it.
+    #[must_use]
+    pub fn dir(&self) -> Option<&str> {
+        match self {
+            LedgerEntry::Ids(_) => None,
+            LedgerEntry::Attributed { dir, .. } => Some(dir),
+        }
+    }
+
     #[must_use]
     pub fn intent_ids(&self) -> &[String] {
         match self {
