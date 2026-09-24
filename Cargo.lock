@@ -6396,6 +6396,7 @@ version = "0.0.1"
 dependencies = [
  "indexmap 2.14.0",
  "node-semver",
+ "pnpm-catalogs-protocol-parser",
  "pnpm-catalogs-resolver",
  "pnpm-catalogs-types",
  "pnpm-fs",

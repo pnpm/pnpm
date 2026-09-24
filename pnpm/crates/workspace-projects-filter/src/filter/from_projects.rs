@@ -5,7 +5,7 @@ use super::{
 use crate::parse_project_selector::{ProjectSelector, parse_project_selector};
 use indexmap::IndexSet;
 use pnpm_workspace_projects_graph::{
-    CreateProjectsGraphOptions, GraphProject, create_projects_graph,
+    CreateProjectsGraphOptions, GraphProject, WorkspaceCatalogs, create_projects_graph,
 };
 use std::path::PathBuf;
 
@@ -57,11 +57,7 @@ where
     if !prod_selectors.is_empty() {
         let prod_graph = create_projects_graph(
             projects.clone(),
-            &CreateProjectsGraphOptions {
-                ignore_dev_deps: true,
-                link_workspace_packages: opts.link_workspace_packages,
-                ..CreateProjectsGraphOptions::default()
-            },
+            &CreateProjectsGraphOptions { ignore_dev_deps: true, ..graph_options(opts) },
         )
         .graph;
         let result = filter_workspace_projects(&prod_graph, &prod_selectors, &walk_opts)?;
@@ -70,20 +66,23 @@ where
     }
 
     if !all_selectors.is_empty() {
-        let graph = create_projects_graph(
-            projects,
-            &CreateProjectsGraphOptions {
-                link_workspace_packages: opts.link_workspace_packages,
-                ..CreateProjectsGraphOptions::default()
-            },
-        )
-        .graph;
+        let graph = create_projects_graph(projects, &graph_options(opts)).graph;
         let result = filter_workspace_projects(&graph, &all_selectors, &walk_opts)?;
         selected.extend(result.selected_projects);
         unmatched_filters.extend(result.unmatched_filters);
     }
 
     Ok(FilteredProjects { selected_projects: selected.into_iter().collect(), unmatched_filters })
+}
+
+fn graph_options(opts: &FilterProjectsOptions) -> CreateProjectsGraphOptions<'_> {
+    CreateProjectsGraphOptions {
+        link_workspace_packages: opts.link_workspace_packages,
+        catalogs: opts.catalogs
+            .as_ref()
+            .map(|catalogs| WorkspaceCatalogs { catalogs, workspace_dir: &opts.workspace_dir }),
+        ..CreateProjectsGraphOptions::default()
+    }
 }
 
 fn workspace_filter_options(opts: &FilterProjectsOptions) -> FilterWorkspaceProjectsOptions {
@@ -99,13 +98,7 @@ fn select_all_projects<Pkg: GraphProject + Clone>(
     projects: Vec<Pkg>,
     opts: &FilterProjectsOptions,
 ) -> FilteredProjects {
-    let result = create_projects_graph(
-        projects,
-        &CreateProjectsGraphOptions {
-            link_workspace_packages: opts.link_workspace_packages,
-            ..CreateProjectsGraphOptions::default()
-        },
-    );
+    let result = create_projects_graph(projects, &graph_options(opts));
     FilteredProjects {
         selected_projects: result.graph.keys().cloned().collect(),
         unmatched_filters: Vec::new(),

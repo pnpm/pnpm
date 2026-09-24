@@ -1,6 +1,8 @@
 use super::{
-    TestPkg, WorkspaceFilter, filter_projects, filter_projects_options, graph_project, project_dirs,
+    FilterProjectsOptions, TestPkg, WorkspaceFilter, filter_projects, filter_projects_options,
+    graph_project, project_dirs,
 };
+use pnpm_catalogs_types::Catalogs;
 use std::path::PathBuf;
 
 #[test]
@@ -80,4 +82,26 @@ fn filter_projects_unions_prod_selection_before_all_selection() {
     )
     .unwrap();
     assert_eq!(project_dirs(&result), ["/ws/b", "/ws/a"]);
+}
+
+#[test]
+fn filter_projects_follows_catalog_dependencies() {
+    let projects =
+        vec![graph_project("/ws/a", "a", &[("b", "catalog:")]), graph_project("/ws/b", "b", &[])];
+    let opts = FilterProjectsOptions {
+        catalogs: Some(Catalogs::from([(
+            "default".to_string(),
+            [("b".to_string(), "workspace:*".to_string())].into(),
+        )])),
+        ..filter_projects_options()
+    };
+    for follow_prod_deps_only in [false, true] {
+        let result = filter_projects(
+            projects.clone(),
+            &[WorkspaceFilter { filter: "a...".to_string(), follow_prod_deps_only }],
+            &opts,
+        )
+        .unwrap();
+        assert_eq!(project_dirs(&result), ["/ws/a", "/ws/b"]);
+    }
 }

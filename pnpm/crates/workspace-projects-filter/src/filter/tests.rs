@@ -83,6 +83,7 @@ fn filter_projects_options() -> FilterProjectsOptions {
         workspace_dir: PathBuf::from("/ws"),
         test_pattern: Vec::new(),
         changed_files_ignore_pattern: Vec::new(),
+        catalogs: None,
     }
 }
 

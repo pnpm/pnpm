@@ -4,6 +4,7 @@ use crate::{
 };
 use indexmap::IndexMap;
 use node_semver::{Range, Version};
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_resolver::{
     CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
 };
@@ -265,6 +266,7 @@ fn resolve_catalog_spec(
     lookups: &Lookups,
 ) -> Option<String> {
     let catalogs = lookups.catalogs?;
+    parse_catalog_protocol(raw_spec)?;
     let wanted =
         WantedDependency { alias: dep_name.to_string(), bare_specifier: raw_spec.to_string() };
     let anchor = CatalogAnchor::Reanchor {
