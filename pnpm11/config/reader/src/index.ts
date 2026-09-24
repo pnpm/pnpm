@@ -619,29 +619,36 @@ export async function getConfig (opts: {
     explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string'
       ? { default: normalizeRegistryUrl(pnpmConfig.registry) }
       : undefined
-  const baseRegistries = {
-    ...registriesFromNpmrc,
-    // The global config file's `_auth` only fills in what nothing declares:
-    // it is where a `pnpm login` stores a credential, and holding one is not
-    // a statement about where packages come from. `registriesFromNpmrc`
-    // carries the builtin default as well as what the `.npmrc` files
-    // declared, so only the latter are restated above the fallback.
-    ...npmrcResult.jsonAuth.fallbackRegistries,
+  // The global config file's `_auth` only fills in what nothing declares:
+  // it is where a `pnpm login` stores a credential, and holding one is not
+  // a statement about where packages come from. `registriesFromNpmrc`
+  // carries the builtin default as well as what the `.npmrc` files
+  // declared, so only the latter are restated above the fallback.
+  const { default: fallbackDefault, ...fallbackScopedRegistries } = npmrcResult.jsonAuth.fallbackRegistries
+  const declaredRegistries = {
     ...npmrcResult.declaredRegistries,
     ...globalYamlRegistries,
     ...workspaceManifestRegistries,
   }
-  const isScopedRegistry = (url: string): boolean => {
-    const normalized = normalizeRegistryUrl(url)
-    return Object.entries(baseRegistries).some(
-      ([scope, scopedUrl]) => scope !== 'default' && typeof scopedUrl === 'string' && normalizeRegistryUrl(scopedUrl) === normalized
-    )
+  const scopedRegistryUrls = new Set(
+    Object.entries({ ...registriesFromNpmrc, ...declaredRegistries })
+      .filter(([scope]) => scope !== 'default')
+      .map(([, url]) => normalizeRegistryUrl(url))
+  )
+  // An `@` credential in `_auth` for a registry a config file assigns to a
+  // scope authenticates that registry; it does not make it the default.
+  const isScopedRegistry = (url: string): boolean => scopedRegistryUrls.has(normalizeRegistryUrl(url))
+  const baseRegistries = {
+    ...registriesFromNpmrc,
+    ...(fallbackDefault != null && !isScopedRegistry(fallbackDefault) ? { default: fallbackDefault } : {}),
+    ...fallbackScopedRegistries,
+    ...declaredRegistries,
   }
   const envDefaultCandidates = (npmrcResult.jsonAuth.defaultCandidates ?? [])
     .filter(url => !isScopedRegistry(url))
   const resolvedEnvRegistries = { ...npmrcResult.jsonAuth.registries }
   delete resolvedEnvRegistries.default
-  const declaredDefaultUrl = declaredDefault?.default ?? npmrcResult.declaredRegistries.default
+  const declaredDefaultUrl = declaredDefault?.default ?? declaredRegistries.default
   if (envDefaultCandidates.length > 0) {
     if (declaredDefaultUrl != null && envDefaultCandidates.length > 1) {
       const match = envDefaultCandidates.find(url => normalizeRegistryUrl(url) === declaredDefaultUrl)

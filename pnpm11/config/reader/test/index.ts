@@ -2943,7 +2943,6 @@ test('pnpm_config__auth preserves declared default when multiple unscoped regist
   expect(config.registriesByScope.default).toBe('https://nexus.abc.de/repository/npm-public/')
 })
 
-
 test('pnpm_config__auth env scoped registry wins over pnpm-workspace.yaml scoped registry', async () => {
   prepareEmpty()
 
@@ -3412,6 +3411,26 @@ test('a scope declared in the global config beats its own _auth file', async () 
 
   expect(config.registriesByScope['@org']).toBe('https://global-org.example/')
   expect(config.authConfig['//private.example/:@org:_authToken']).toBe('stored-org-token')
+})
+
+test('an _auth file credential for a scoped registry does not become the default registry', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: { 'https://hosted.example/': { scopes: ['@abc'] } },
+  })
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://hosted.example': {
+        '@': { authToken: 'stored-token' },
+      },
+    },
+  }, { workspaceDir: process.cwd() })
+
+  expect(config.registry).toBe('https://registry.npmjs.org/')
+  expect(config.registriesByScope.default).toBe('https://registry.npmjs.org/')
+  expect(config.registriesByScope['@abc']).toBe('https://hosted.example/')
+  expect(config.authConfig['//hosted.example/:_authToken']).toBe('stored-token')
 })
 
 test('an uncontested _auth file route reaches the package-manager registries too', async () => {

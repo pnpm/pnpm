@@ -140,3 +140,35 @@ pub fn json_env_preserves_declared_default_when_multiple_unscoped_registries_pre
         Some("https://nexus.abc.de/repository/npm-public/"),
     );
 }
+
+/// An `@` credential in the global `config.yaml` `_auth` for a registry the
+/// workspace assigns to a scope does not make that registry the default.
+#[test]
+pub fn global_config_auth_for_scoped_registry_does_not_become_default() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    std::fs::create_dir_all(&config_dir).expect("create config dir");
+    write_file(
+        &config_dir.join("config.yaml"),
+        "_auth:\n  \"https://hosted.example\":\n    \"@\":\n      authToken: stored-token\n",
+    );
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join("pnpm-workspace.yaml"),
+        "registries:\n  'https://hosted.example/':\n    scopes: ['@abc']\n",
+    );
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.registry, "https://registry.npmjs.org/");
+    assert_eq!(
+        config.registries_by_scope.get("@abc").map(String::as_str),
+        Some("https://hosted.example/"),
+    );
+    assert_eq!(
+        config.auth_headers.for_url("https://hosted.example/@abc/pkg").as_deref(),
+        Some("Bearer stored-token"),
+    );
+}
