@@ -1,6 +1,6 @@
 //! Environment-variable substitution for pnpm-style `${VAR}` placeholders.
 //!
-//! Occurrences of `${VAR}` (with optional `${VAR:-default}` fallback) are
+//! Occurrences of `${VAR}` (with optional `${VAR-default}` or `${VAR:-default}` fallback) are
 //! replaced with the value the [`EnvVar`] capability returns for `VAR`.
 //! Backslashes immediately preceding the `$` escape the placeholder so
 //! it is left as-is.
@@ -63,7 +63,7 @@ impl EnvVar for SystemEnv {
     }
 }
 
-/// Replace every `${VAR}` (or `${VAR:-default}`) placeholder in `text` with
+/// Replace `${VAR}`, `${VAR-default}`, and `${VAR:-default}` placeholders with
 /// the value [`Sys::var`] returns. Placeholders that have no value and no
 /// default become `""` (the literal `${...}` never reaches the caller) and
 /// are recorded in the returned `Vec` so the caller can surface each one as
@@ -157,7 +157,7 @@ fn placeholder_at(bytes: &[u8], index: usize) -> Option<Placeholder> {
     Some(Placeholder { end, backslashes })
 }
 
-/// Substitute one `${NAME}` or `${NAME:-default}`, recording a name that
+/// Substitute one environment placeholder, recording a name that
 /// neither the environment nor a default resolves.
 fn expand_placeholder<Sys: EnvVar>(
     placeholder: &str,
@@ -165,11 +165,15 @@ fn expand_placeholder<Sys: EnvVar>(
     unresolved: &mut Vec<String>,
 ) {
     let inside = &placeholder[2..placeholder.len() - 1];
-    let (var_name, default) = match inside.find(":-") {
-        Some(separator) => (&inside[..separator], Some(&inside[separator + 2..])),
-        None => (inside, None),
+    let (var_name, default, default_on_empty) = match inside.split_once('-') {
+        Some((name, default)) => match name.strip_suffix(':') {
+            Some(name) => (name, Some(default), true),
+            None => (name, Some(default), false),
+        },
+        None => (inside, None, false),
     };
-    let value = Sys::var(var_name).filter(|value| !value.is_empty());
+    let value = Sys::var(var_name)
+        .filter(|value| !value.is_empty() || (default.is_some() && !default_on_empty));
     match (value, default) {
         (Some(value), _) => output.push_str(&value),
         (None, Some(default)) => output.push_str(default),

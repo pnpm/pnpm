@@ -152,6 +152,9 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     registries: envJsonAuth.registries,
     fallbackRegistries: globalConfigJsonAuth.registries,
   }
+  for (const [key, value] of Object.entries(jsonAuth.auth)) {
+    jsonAuth.auth[key] = substituteEnv(value, env, { warnings, key, context: ' in _auth.authToken' })
+  }
 
   // Read pnpm builtin rc + inline defaults
   const pnpmBuiltinConfig: Record<string, unknown> = {
@@ -605,10 +608,10 @@ function rescopeUnscopedCreds (
 // an auth value would be sent verbatim as a bearer token. Resolvable
 // placeholders and `${VAR-default}` / `${VAR:-default}` fallbacks elsewhere
 // in the same string still expand normally.
-function substituteEnv (value: string, env: Record<string, string | undefined>, opts: { warnings: string[], key: string }): string {
+function substituteEnv (value: string, env: Record<string, string | undefined>, opts: { warnings: string[], key: string, context?: string }): string {
   const { warnings, key } = opts
   const authKey = AUTH_VALUE_KEYS.find(name => key === name || key.endsWith(`:${name}`))
-  const context = authKey ? ` in .npmrc key "${authKey}"` : ''
+  const context = opts.context ?? (authKey ? ` in .npmrc key "${authKey}"` : '')
   const { value: substituted, unresolved } = envReplaceLossy(value, env)
   for (const placeholder of unresolved) {
     warnings.push(`Failed to replace env in config: ${placeholder}${context}`)

@@ -1,6 +1,6 @@
 use super::{
     BTreeSet, Config, DEFAULT_REGISTRY_SCOPE, EnvVar, IndexMap, NpmrcAuth, apply_creds_field,
-    is_package_scope, nerf_dart, normalize_registry_url, split_creds_key,
+    env_replace_lossy, is_package_scope, nerf_dart, normalize_registry_url, split_creds_key,
 };
 
 /// What the config files — the `.npmrc` files as much as the yamls —
@@ -164,8 +164,8 @@ impl NpmrcAuth {
     /// The env var exists because GitHub Actions / bash / zsh drop env var
     /// names containing `/`, `:`, or `.`, breaking the
     /// `pnpm_config_//host/:_authToken=…` form on CI (pnpm/pnpm#12314).
-    /// Values are used as-is — no `${VAR}` re-expansion, which would let
-    /// repo-controlled env vars leak into them.
+    /// Only credential values expand environment placeholders; registry and
+    /// scope keys keep their validated routing semantics.
     pub fn from_json_sources<Sys: EnvVar>(
         global_value: Option<&serde_json::Value>,
     ) -> Result<Self, serde_json::Error> {
@@ -184,7 +184,26 @@ impl NpmrcAuth {
         if let Some(value) = env_value {
             auth.apply_json_auth(serde_json::from_str(&value)?, JsonAuthOrigin::Env);
         }
+        auth.expand_json_auth_tokens::<Sys>();
         Ok(auth)
+    }
+
+    fn expand_json_auth_tokens<Sys: EnvVar>(&mut self) {
+        for creds in self.creds_by_scope_by_uri.values_mut().flat_map(|scopes| scopes.values_mut())
+        {
+            let Some(token) = creds.auth_token.as_mut() else {
+                continue;
+            };
+            let (expanded, unresolved) = env_replace_lossy::<Sys>(token);
+            *token = expanded;
+            self.warnings.extend(
+                unresolved
+                    .into_iter()
+                    .map(|placeholder| {
+                        format!("Failed to replace env in config: {placeholder} in _auth.authToken")
+                    }),
+            );
+        }
     }
 
     /// Fold a parsed [`JsonAuth`] into `self` (last-write-wins, so the env

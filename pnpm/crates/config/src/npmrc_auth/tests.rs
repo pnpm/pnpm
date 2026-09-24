@@ -100,3 +100,5 @@ mod reporting;
 mod security;
 
 mod streaming;
+
+mod json_env_expansion;
