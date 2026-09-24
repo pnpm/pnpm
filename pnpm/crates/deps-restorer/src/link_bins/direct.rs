@@ -150,15 +150,11 @@ impl<'a> PrefetchedBinLookup<'a> {
         self
     }
 
-    fn is_build_pending(
-        &self,
-        snapshot_key: Option<&PackageKey>,
-        source: &PackageBinSource,
-    ) -> bool {
+    fn is_build_pending(&self, snapshot_key: Option<&PackageKey>) -> bool {
         let (Some(scheduled), Some(key)) = (self.scheduled_builds, snapshot_key) else {
             return false;
         };
-        scheduled.includes(key, &source.manifest)
+        scheduled.includes(key)
     }
 
     #[must_use]
@@ -204,12 +200,8 @@ pub fn link_direct_dep_bins_prefetched(
                 PrefetchedBin::Source(source) => Some(Ok(source)),
                 PrefetchedBin::ReadFromDisk => read_dep_bin_source(modules_dir, name, target),
             };
-            source.map(|source| {
-                source.map(|source| {
-                    let build_pending = lookup.is_build_pending(snapshot_key.as_ref(), &source);
-                    source.with_build_pending(build_pending)
-                })
-            })
+            let build_pending = lookup.is_build_pending(snapshot_key.as_ref());
+            source.map(|source| source.map(|source| source.with_build_pending(build_pending)))
         })
         .collect::<Result<_, _>>()?;
     if bin_sources.is_empty() {

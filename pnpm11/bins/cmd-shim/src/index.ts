@@ -160,9 +160,11 @@ export function isShimPointingAt (shimContent: string, src: string): boolean {
 }
 
 /**
- * Whether the shim was written while its target was missing. Its runtime was
- * then inferred from the target's extension, so it should be rewritten once
- * the target exists and its shebang can be read.
+ * Whether the shell shim `shimContent`, as written by {@link cmdShim}, was
+ * written while its target was missing. Its runtime was then inferred from the
+ * target's extension, so it should be rewritten once the target exists and its
+ * shebang can be read. Content without the marker line, including a shim from
+ * an older cmd-shim, counts as written for an existing target.
  */
 export function isShimForMissingTarget (shimContent: string): boolean {
   return shimContent.includes(`${TARGET_MISSING_MARKER}\n`)

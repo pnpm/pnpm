@@ -1,5 +1,8 @@
 use super::{
-    super::{BuildModules, allow_build_policy::AllowBuildPolicy, deferred_builds},
+    super::{
+        BuildModules, ScheduledBuilds, ScheduledBuildsInputs, allow_build_policy::AllowBuildPolicy,
+        deferred_builds,
+    },
     TEST_LOGGED_METHODS, create_buildable_pkg, key, policy_from_specs, root_importers,
 };
 #[cfg(unix)]
@@ -16,6 +19,35 @@ use pretty_assertions::assert_eq;
 use std::sync::Mutex;
 use std::{collections::HashMap, fs};
 use tempfile::tempdir;
+
+/// Only a materialized snapshot whose build `allowBuilds` allows is scheduled,
+/// and nothing is once scripts are ignored.
+#[test]
+fn scheduled_builds_are_materialized_and_allowed() {
+    let allowed = key("allowed", "1.0.0");
+    let denied = key("denied", "1.0.0");
+    let unlisted = key("unlisted", "1.0.0");
+    let not_materialized = key("not-materialized", "1.0.0");
+    let materialized = [allowed.clone(), denied.clone(), unlisted.clone()];
+    let policy = policy_from_specs(
+        [("allowed", true), ("denied", false), ("not-materialized", true)],
+        false,
+    );
+    let inputs = |ignore_scripts| ScheduledBuildsInputs {
+        materialized_snapshots: Some(&materialized),
+        packages: None,
+        allow_build_policy: &policy,
+        ignore_scripts,
+    };
+
+    let scheduled = ScheduledBuilds::new(inputs(false)).expect("builds follow the link phase");
+    assert!(scheduled.includes(&allowed));
+    assert!(!scheduled.includes(&denied));
+    assert!(!scheduled.includes(&unlisted));
+    assert!(!scheduled.includes(&not_materialized));
+
+    assert!(ScheduledBuilds::new(inputs(true)).is_none(), "ignored scripts schedule nothing");
+}
 
 #[test]
 fn deferred_builds_uses_only_the_supplied_snapshots() {

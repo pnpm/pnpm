@@ -195,18 +195,21 @@ fn build_has_bin_set(
     Some(
         packages
             .iter()
-            .filter(|(_, meta)| {
-                meta.has_bin == Some(true)
-                    || matches!(
-                        meta.resolution,
-                        LockfileResolution::Binary(_) | LockfileResolution::Variations(_),
-                    )
-                    || (meta.has_bin.is_none()
-                        && matches!(meta.resolution, LockfileResolution::Directory(_)))
-            })
+            .filter(|(_, meta)| may_have_bin(meta))
             .map(|(key, _)| key.clone())
             .collect(),
     )
+}
+
+/// Whether a lockfile package row may declare a bin. See
+/// [`build_has_bin_set`] for the rows it counts.
+pub(crate) fn may_have_bin(meta: &PackageMetadata) -> bool {
+    meta.has_bin == Some(true)
+        || matches!(
+            meta.resolution,
+            LockfileResolution::Binary(_) | LockfileResolution::Variations(_),
+        )
+        || (meta.has_bin.is_none() && matches!(meta.resolution, LockfileResolution::Directory(_)))
 }
 
 /// Pre-compute the set of package keys that ship dependencies inside their

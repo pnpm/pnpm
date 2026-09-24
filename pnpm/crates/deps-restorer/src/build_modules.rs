@@ -6,8 +6,8 @@ pub use allow_build_policy::{
     parse_allow_build_selector,
 };
 pub(crate) use build_one_snapshot::build_one_snapshot;
-pub use build_requirements::ScheduledBuilds;
 pub(crate) use build_requirements::deferred_builds;
+pub use build_requirements::{ScheduledBuilds, ScheduledBuildsInputs};
 pub use slots::parse_name_version_from_key;
 pub(crate) use slots::{
     PkgRoots, bin_dirs_in_all_parent_dirs, discard_failed_global_virtual_store_slot,
