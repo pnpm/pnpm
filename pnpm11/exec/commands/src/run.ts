@@ -191,6 +191,7 @@ export type RunOpts =
   | 'nodeExperimentalPackageMap'
   | 'pnpmHomeDir'
   | 'preferSymlinkedExecutables'
+  | 'loglevel'
   | 'reporter'
   | 'scriptShell'
   | 'scriptsPrependNodePath'
@@ -321,7 +322,7 @@ so you may run "pnpm -w run ${scriptName}"`,
     rootModulesDir: await realpathMissing(path.dirname(wdBinDir)),
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,
-    silent: opts.reporter === 'silent',
+    silent: suppressesScriptEcho(opts),
     shellEmulator: opts.shellEmulator,
     stdio: (specifiedScripts.length > 1 && concurrency > 1) ? 'pipe' : 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
@@ -549,4 +550,12 @@ function getSpecifiedScripts (scripts: PackageScripts, scriptName: string): stri
   }
 
   return []
+}
+
+/**
+ * The `$ <script>` echo is info-level output, so it is dropped under the
+ * silent reporter and when `loglevel` is `warn` or `error`.
+ */
+export function suppressesScriptEcho (opts: Pick<Config, 'loglevel' | 'reporter'>): boolean {
+  return opts.reporter === 'silent' || opts.loglevel === 'error' || opts.loglevel === 'warn'
 }

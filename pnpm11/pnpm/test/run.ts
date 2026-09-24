@@ -174,6 +174,42 @@ test('silent run does not print verifyDepsBeforeRun install output', async () =>
   expect(result.stdout.toString().trim()).toBe('hi')
 })
 
+test.each(['warn', 'error'])('run with --loglevel=%s prints neither the command nor the verifyDepsBeforeRun install output', (loglevel) => {
+  prepare({
+    scripts: {
+      hi: 'echo hi',
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    verifyDepsBeforeRun: 'install',
+  })
+
+  const result = execPnpmSync([`--loglevel=${loglevel}`, 'run', 'hi'], {
+    expectSuccess: true,
+    omitEnvDefaults: ['pnpm_config_silent'],
+  })
+
+  expect(result.stdout.toString().trim()).toBe('hi')
+  expect(result.stderr.toString()).toBe('')
+})
+
+test('recursive run with --loglevel=error does not print the command', () => {
+  preparePackages([{
+    name: 'project',
+    scripts: {
+      hi: 'echo hi',
+    },
+  }])
+
+  const result = execPnpmSync(['--loglevel=error', '-r', '--workspace-concurrency=1', '--config.verify-deps-before-run=false', 'run', 'hi'], {
+    expectSuccess: true,
+    omitEnvDefaults: ['pnpm_config_silent'],
+  })
+
+  expect(result.stdout.toString().trim()).toBe('hi')
+  expect(result.stderr.toString()).toBe('')
+})
+
 testOnPosix('pnpm run with preferSymlinkedExecutables true', async () => {
   prepare({
     scripts: {

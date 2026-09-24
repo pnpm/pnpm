@@ -4,7 +4,7 @@
 //! for one, error out, or warn. pnpm's counterpart is
 //! `runDepsStatusCheck` in `exec/commands`.
 
-use super::reporter::ReporterType;
+use super::reporter::{ReporterType, quiet_loglevel_arg};
 use derive_more::{Display, Error};
 use dialoguer::Confirm;
 use miette::{Diagnostic, IntoDiagnostic};
@@ -201,6 +201,9 @@ fn spawn_install(
         ReporterType::Silent => {
             command.arg("--reporter=silent");
         }
+    }
+    if let Some(loglevel) = quiet_loglevel_arg() {
+        command.arg(loglevel);
     }
     let status = command.status().into_diagnostic()?;
     if !status.success() {

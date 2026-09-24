@@ -36,7 +36,7 @@ import { getExecutionDuration, writeRecursiveSummary } from './exec.js'
 import { existsInDir } from './existsInDir.js'
 import { throwOrFilterHiddenScripts } from './hiddenScripts.js'
 import { tryBuildRegExpFromCommand } from './regexpCommand.js'
-import { getRunScriptCommands, runScript, type RunScriptOptions } from './run.js'
+import { getRunScriptCommands, runScript, type RunScriptOptions, suppressesScriptEcho } from './run.js'
 import { taskRunExecutionSettings, TaskRunStateContext } from './taskRunState.js'
 export type RecursiveRunOpts = Pick<Config,
 | 'bin'
@@ -55,7 +55,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'nodeOptions'
 | 'modulesDir'
 > & Pick<ConfigContext, 'rootProjectManifest' | 'allProjectsGraph' | 'prodAllProjectsGraph' | 'prodOnlySelectedProjectDirs'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
-Partial<Pick<Config, 'extendNodePath' | 'extraBinPaths' | 'extraEnv' | 'preferSymlinkedExecutables' | 'bail' | 'dryRun' | 'ignoreWorkspaceCycles' | 'reporter' | 'reverse' | 'sort' | 'tasks' | 'workspaceConcurrency'>> &
+Partial<Pick<Config, 'extendNodePath' | 'extraBinPaths' | 'extraEnv' | 'preferSymlinkedExecutables' | 'bail' | 'dryRun' | 'ignoreWorkspaceCycles' | 'loglevel' | 'reporter' | 'reverse' | 'sort' | 'tasks' | 'workspaceConcurrency'>> &
 {
   ifPresent?: boolean
   json?: boolean
@@ -238,7 +238,7 @@ export async function runRecursive (
             rootModulesDir: await realpathMissing(path.dirname(wdBinDir)),
             scriptsPrependNodePath: opts.scriptsPrependNodePath,
             scriptShell: opts.scriptShell,
-            silent: opts.reporter === 'silent',
+            silent: suppressesScriptEcho(opts),
             shellEmulator: opts.shellEmulator,
             stdio,
             unsafePerm: true, // when running scripts explicitly, assume that they're trusted.

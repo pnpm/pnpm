@@ -23,6 +23,7 @@ const INSTALL_LOCK_ABANDONED_MS = 30 * 60_000
 
 export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions {
   dir: string
+  loglevel?: Config['loglevel']
   reporter?: Config['reporter']
   verifyDepsBeforeRun?: VerifyDepsBeforeRun
 }
@@ -113,7 +114,7 @@ async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]
       if (!needsInstall(upToDate, opts)) return
       command = ['install', ...createInstallArgs(workspaceState?.settings)]
     }
-    runPnpmCli(command, { cwd: opts.dir, reporter: opts.reporter })
+    runPnpmCli(command, { cwd: opts.dir, loglevel: opts.loglevel, reporter: opts.reporter })
   } finally {
     await lock?.release()
   }
