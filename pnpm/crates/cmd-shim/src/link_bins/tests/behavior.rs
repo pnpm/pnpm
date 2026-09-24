@@ -459,3 +459,27 @@ fn own_bin_with_only_exe_target_is_linked() {
 
     assert!(own_bins.join("tool.cmd").exists(), "own .bin shims a target that exists as .exe");
 }
+
+/// Removing the shim of a missing own bin `tool` also removes `tool.cmd`, so
+/// that must not delete the shim of a bin named `tool.cmd`.
+#[cfg(windows)]
+#[test]
+fn own_missing_bin_removal_keeps_a_bin_named_like_its_cmd_sibling() {
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("tool");
+    create_dir_all(pkg.join("bin")).unwrap();
+    write_file(pkg.join("bin/cli.js"), "console.log('cli')\n").unwrap();
+    let manifest =
+        json!({"name": "tool", "bin": {"tool": "bin/missing.js", "tool.cmd": "bin/cli.js"}});
+    let own_bins = pkg.join("node_modules/.bin");
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg, Arc::new(manifest))],
+        &own_bins,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    let shim = read_to_string(own_bins.join("tool.cmd")).unwrap();
+    assert!(shim.contains("cli.js"), "the tool.cmd bin keeps its shim:\n{shim}");
+}

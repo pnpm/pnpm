@@ -423,11 +423,13 @@ where
 
     let paths = linking_paths::LinkingPaths::new(bins_dir, options)?;
 
+    let to_link = remove_own_missing_bins::<Sys>(chosen, bins_dir, &paths.bins_dir)?;
+
     // Each shim's read-shebang + write-file + chmod sequence is independent
     // across bin names. There is no shared state, so drive them on rayon.
     // The hot path is per-package-bin; without parallelism the per-shim
     // file I/O serialised across the whole `chosen` map.
-    chosen
+    to_link
         .par_iter()
         .try_for_each(|(command, pkg)| {
             // On Unix the symlink branch never writes a shim, so no bin
@@ -439,16 +441,11 @@ where
                 shim_node_path(pkg, paths.project_node_path.as_deref(), &paths.extra_node_paths)
             };
             let pkg_name = package_name(pkg);
-            let probe_path = target_probe_path(pkg, &command.path);
-            let shim_path = paths.bins_dir.join(&command.name);
-            if unlink_own_missing_bin::<Sys>(&pkg.location, bins_dir, &probe_path, &shim_path)? {
-                return Ok(());
-            }
             write_shim::<Sys>(
                 ShimSpec {
                     target_path: &paths.target(&command.path, options.relocatable_root.as_deref())?,
-                    probe_path: &probe_path,
-                    shim_path: &shim_path,
+                    probe_path: &target_probe_path(pkg, &command.path),
+                    shim_path: &paths.bins_dir.join(&command.name),
                     node_path: &node_path,
                     options,
                     make_powershell_shim: wants_powershell_shim(pkg_name),
@@ -550,6 +547,6 @@ use executable::{
 mod discovery;
 
 mod linking_paths;
-use linking_paths::{shim_node_path, target_probe_path, unlink_own_missing_bin};
+use linking_paths::{remove_own_missing_bins, shim_node_path, target_probe_path};
 
 mod relocatable;

@@ -2,7 +2,9 @@ use super::{
     FsReadHead, LinkBinsError, LinkBinsOptions, PackageBinSource, bin_node_paths, remove_bin,
     shim_writer::with_extension_appended,
 };
+use crate::bin_resolver::Command;
 use pnpm_fs::{is_subdir, realpath_missing};
+use rayon::prelude::*;
 use std::{
     borrow::Cow,
     ffi::OsStr,
@@ -171,31 +173,47 @@ pub(super) fn target_probe_path(pkg: &PackageBinSource, target: &Path) -> PathBu
         .unwrap_or_else(|| target.to_path_buf())
 }
 
-/// Remove the shim at `shim_path` and report `true` when `bins_dir` is the
-/// `node_modules/.bin` of the package at `location` and the bin's target is
-/// missing.
+/// Remove the shims of the `chosen` bins that [`is_own_missing_bin`] rejects,
+/// and return the rest for linking.
+///
+/// Every removal finishes before the caller writes a shim: on Windows the
+/// siblings of a removed bin `tool` include `tool.cmd`, which may be the shim
+/// of another bin.
+pub(super) fn remove_own_missing_bins<'packages, Sys: FsReadHead>(
+    chosen: Vec<(Command, &'packages PackageBinSource)>,
+    bins_dir: &Path,
+    shims_dir: &Path,
+) -> Result<Vec<(Command, &'packages PackageBinSource)>, LinkBinsError> {
+    let (missing_own, to_link): (Vec<_>, Vec<_>) = chosen
+        .into_par_iter()
+        .partition(|(command, pkg)| is_own_missing_bin::<Sys>(pkg, bins_dir, &command.path));
+    missing_own
+        .par_iter()
+        .try_for_each(|(command, _)| {
+            let shim_path = shims_dir.join(&command.name);
+            remove_bin(&shim_path)
+                .map_err(|error| LinkBinsError::RemoveStaleBin { path: shim_path, error })
+        })?;
+    Ok(to_link)
+}
+
+/// Whether `bins_dir` is the `node_modules/.bin` of `pkg` and the bin's
+/// `target` is missing.
 ///
 /// A package's own bins are on `PATH` while its lifecycle scripts run, and
 /// those scripts may be what creates a missing target: the `node` package's
 /// preinstall runs `node` to download `bin/node`, which must not resolve to a
 /// shim of `bin/node` itself. So a package's own bin is linked there only once
-/// its target exists, while dependents get the shim right away (the target
-/// may be built after install). A shim an earlier install left there is
-/// removed for the same reason.
-pub(super) fn unlink_own_missing_bin<Sys: FsReadHead>(
-    location: &Path,
+/// its target exists, and a shim an earlier install left there is removed,
+/// while dependents get the shim right away (the target may be built after
+/// install).
+fn is_own_missing_bin<Sys: FsReadHead>(
+    pkg: &PackageBinSource,
     bins_dir: &Path,
-    probe_path: &Path,
-    shim_path: &Path,
-) -> Result<bool, LinkBinsError> {
-    if location.join("node_modules").join(".bin") != bins_dir
-        || !target_is_missing::<Sys>(probe_path)
-    {
-        return Ok(false);
-    }
-    remove_bin(shim_path)
-        .map_err(|error| LinkBinsError::RemoveStaleBin { path: shim_path.to_path_buf(), error })?;
-    Ok(true)
+    target: &Path,
+) -> bool {
+    pkg.location.join("node_modules").join(".bin") == bins_dir
+        && target_is_missing::<Sys>(&target_probe_path(pkg, target))
 }
 
 /// Whether neither `path` nor, for an extensionless `path` on Windows, its

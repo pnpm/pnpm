@@ -165,7 +165,11 @@ async function _linkBins (
 
   await fs.mkdir(binsDir, { recursive: true })
 
-  const results = await Promise.allSettled(allCmds.map(async cmd => linkBin(cmd, binsDir, opts)))
+  // Removals finish before any shim is written: on Windows the siblings of a
+  // removed bin `tool` include `tool.cmd`, which may be another bin's shim.
+  const isMissingOwnBin = await Promise.all(allCmds.map(async (cmd) => isOwnBinsDir(cmd.pkgDir, binsDir) && isOwnBinTargetMissing(cmd.path)))
+  await Promise.all(allCmds.filter((_, i) => isMissingOwnBin[i]).map(async (cmd) => removeBin(path.join(binsDir, cmd.name))))
+  const results = await Promise.allSettled(allCmds.filter((_, i) => !isMissingOwnBin[i]).map(async cmd => linkBin(cmd, binsDir, opts)))
 
   // We want to create all commands that we can create before throwing an exception
   for (const result of results) {
@@ -299,17 +303,6 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // below, which all return without touching the .ps1 sibling.
   if (!cmd.makePowerShellShim) {
     await rimraf(`${externalBinPath}.ps1`)
-  }
-  // A package's own bins are on PATH while its lifecycle scripts run, and
-  // those scripts may be what creates a missing target. The `node` package's
-  // preinstall calls `node` to download bin/node, which must not resolve to
-  // a shim of bin/node itself. Other packages get the shim (see cmd-shim).
-  if (isOwnBinsDir(cmd.pkgDir, binsDir) && await isOwnBinTargetMissing(cmd.path)) {
-    await Promise.all([
-      rimraf(externalBinPath),
-      ...(IS_WINDOWS ? ['.cmd', '.ps1', getExeExtension()].map((ext) => rimraf(`${externalBinPath}${ext}`)) : []),
-    ])
-    return
   }
   // Skip if the existing bin already references the correct target.
   // This avoids redundant I/O on warm installs and EACCES on read-only stores.
@@ -504,11 +497,26 @@ async function haveEqualContents (pathA: string, pathB: string): Promise<boolean
   }
 }
 
+async function removeBin (binPath: string): Promise<void> {
+  await Promise.all([
+    rimraf(binPath),
+    ...(IS_WINDOWS ? ['.cmd', '.ps1', getExeExtension()].map(async (ext) => rimraf(`${binPath}${ext}`)) : []),
+  ])
+}
+
 function isOwnBinsDir (pkgDir: string, binsDir: string): boolean {
   return path.resolve(pkgDir, 'node_modules', '.bin') === path.resolve(binsDir)
 }
 
-// A target without an extension is run directly, and Windows then finds its .exe.
+/**
+ * A package's own bins are on PATH while its lifecycle scripts run, and those
+ * scripts may be what creates a missing target. The `node` package's
+ * preinstall calls `node` to download bin/node, which must not resolve to a
+ * shim of bin/node itself. So a package's own bin is not linked into its own
+ * .bin while the target is missing. Other packages get the shim (see
+ * cmd-shim). A target without an extension is run directly, and Windows then
+ * finds its .exe.
+ */
 async function isOwnBinTargetMissing (target: string): Promise<boolean> {
   if (!await isMissing(target)) return false
   return !IS_WINDOWS || path.extname(target) !== '' || isMissing(`${target}${getExeExtension()}`)

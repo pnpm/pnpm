@@ -859,6 +859,20 @@ testOnWindows("linkBinsOfPackages() links a package's own bin whose target exist
   expect(fs.readdirSync(ownBinsDir)).toEqual(getExpectedBins(['tool']))
 })
 
+testOnWindows("linkBinsOfPackages() keeps a bin named like the .cmd sibling of a package's own missing bin", async () => {
+  const pkgDir = temporaryDirectory()
+  const ownBinsDir = path.join(pkgDir, 'node_modules', '.bin')
+  fs.mkdirSync(path.join(pkgDir, 'bin'))
+  fs.writeFileSync(path.join(pkgDir, 'bin', 'cli.js'), 'console.log(\'cli\')\n')
+
+  await linkBinsOfPackages([{
+    location: pkgDir,
+    manifest: { name: 'tool', version: '1.0.0', bin: { tool: 'bin/missing.js', 'tool.cmd': 'bin/cli.js' } },
+  }], ownBinsDir)
+
+  expect(fs.readFileSync(path.join(ownBinsDir, 'tool.cmd'), 'utf8')).toMatch('cli.js')
+})
+
 testOnWindows('linkBins() should remove an existing .exe file from the target directory', async () => {
   const binTarget = temporaryDirectory()
   fs.writeFileSync(path.join(binTarget, 'simple.exe'), '', 'utf8')
