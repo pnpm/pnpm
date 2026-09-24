@@ -1,10 +1,12 @@
+import path from 'node:path'
+
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { getPackagesForListing, list, listForPackages, type PackageDependencyHierarchy, searchForPackages } from '@pnpm/deps.inspection.list'
 import { PnpmError } from '@pnpm/error'
 import { findGlobalInstallDirs, listGlobalPackages } from '@pnpm/global.commands'
-import type { Finder, IncludedDependencies } from '@pnpm/types'
+import type { Finder, IncludedDependencies, Project } from '@pnpm/types'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -162,6 +164,7 @@ export async function handler (
     })
   }
   const workspaceProjectDirs = opts.allProjects?.map(({ rootDir }) => rootDir)
+  const workspaceProjectPublishDirs = getWorkspaceProjectPublishDirs(opts.allProjects ?? [])
   if (opts.recursive && (opts.selectedProjectsGraph != null)) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     return listRecursive(pkgs, params, {
@@ -171,6 +174,7 @@ export async function handler (
       checkWantedLockfileOnly: opts.lockfileOnly,
       onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
       workspaceProjectDirs,
+      workspaceProjectPublishDirs,
     })
   }
   return render([opts.dir], params, {
@@ -181,7 +185,23 @@ export async function handler (
     checkWantedLockfileOnly: opts.lockfileOnly,
     onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
     workspaceProjectDirs,
+    workspaceProjectPublishDirs,
   })
+}
+
+/**
+ * Dependents link a project with `publishConfig.directory` through that
+ * directory unless `publishConfig.linkDirectory` is false.
+ */
+function getWorkspaceProjectPublishDirs (projects: Project[]): Record<string, string> {
+  const publishDirs: Record<string, string> = {}
+  for (const { rootDir, manifest } of projects) {
+    const publishConfig = manifest.publishConfig
+    if (publishConfig?.directory != null && publishConfig.linkDirectory !== false) {
+      publishDirs[path.resolve(rootDir, publishConfig.directory)] = rootDir
+    }
+  }
+  return publishDirs
 }
 
 export async function render (
@@ -217,6 +237,7 @@ interface RenderOptions {
   json?: boolean
   onlyProjects?: boolean
   workspaceProjectDirs?: string[]
+  workspaceProjectPublishDirs?: Record<string, string>
   parseable?: boolean
   modulesDir?: string
   resolvePeersFromWorkspaceRoot?: boolean
@@ -237,6 +258,7 @@ function getListOptions (opts: RenderOptions) {
     long: opts.long,
     onlyProjects: opts.onlyProjects,
     workspaceProjectDirs: opts.workspaceProjectDirs,
+    workspaceProjectPublishDirs: opts.workspaceProjectPublishDirs,
     reportAs: determineReportAs(opts),
     showExtraneous: false,
     showSummary: true,

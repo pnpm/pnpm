@@ -76,6 +76,7 @@ export async function searchForPackages (
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
     workspaceProjectDirs?: string[]
+    workspaceProjectPublishDirs?: Record<string, string>
     registriesByScope?: RegistriesByScope
     registriesByPrefix?: Record<string, string>
     resolvePeersFromWorkspaceRoot?: boolean
@@ -95,6 +96,7 @@ export async function searchForPackages (
       checkWantedLockfileOnly: opts.checkWantedLockfileOnly,
       onlyProjects: opts.onlyProjects,
       workspaceProjectDirs: opts.workspaceProjectDirs,
+      workspaceProjectPublishDirs: opts.workspaceProjectPublishDirs,
       registriesByScope: opts.registriesByScope,
       registriesByPrefix: opts.registriesByPrefix,
       resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
@@ -129,6 +131,7 @@ export async function listForPackages (
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
     workspaceProjectDirs?: string[]
+    workspaceProjectPublishDirs?: Record<string, string>
     reportAs?: 'parseable' | 'tree' | 'json'
     registriesByScope?: RegistriesByScope
     registriesByPrefix?: Record<string, string>
@@ -164,6 +167,7 @@ export interface ListOptions {
   include?: { [dependenciesField in DependenciesField]: boolean }
   onlyProjects?: boolean
   workspaceProjectDirs?: string[]
+  workspaceProjectPublishDirs?: Record<string, string>
   reportAs?: 'parseable' | 'tree' | 'json'
   registriesByScope?: RegistriesByScope
   registriesByPrefix?: Record<string, string>
@@ -214,6 +218,7 @@ export async function getPackagesForListing (
           checkWantedLockfileOnly: maybeOpts?.checkWantedLockfileOnly,
           onlyProjects: maybeOpts?.onlyProjects,
           workspaceProjectDirs: maybeOpts?.workspaceProjectDirs,
+          workspaceProjectPublishDirs: maybeOpts?.workspaceProjectPublishDirs,
           registriesByScope: opts.registriesByScope,
           registriesByPrefix: opts.registriesByPrefix,
           resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,

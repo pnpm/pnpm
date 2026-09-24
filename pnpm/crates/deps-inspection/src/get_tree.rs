@@ -182,7 +182,10 @@ fn materialize_edge(inputs: MaterializeEdge<'_>) {
         rewrite_link_version_dir: Some(opts.rewrite_link_version_dir.clone()),
         parent_dir: inputs.parent_dir.map(Path::to_path_buf),
     };
-    let (package_info, _) = get_pkg_info(opts.env, edge, &edge_ctx);
+    let (mut package_info, _) = get_pkg_info(opts.env, edge, &edge_ctx);
+    if let Some(project_dir) = listed_project_dir(opts, edge) {
+        package_info.package.path = project_dir;
+    }
     let search_match = opts.search.map(|search| {
         search.matches(
             &edge.alias,
@@ -221,6 +224,19 @@ fn materialize_edge(inputs: MaterializeEdge<'_>) {
     }
 
     record_materialized_edge(package_info, subtree, search_match.as_ref(), opts, result);
+}
+
+/// With `only_projects`, the directory a project is listed at: its own, also
+/// when it is linked through its publish directory.
+fn listed_project_dir(opts: &GetTreeOptions<'_>, edge: &GraphEdge) -> Option<String> {
+    let Some(TreeNodeId::Importer(importer_id)) = &edge.target else {
+        return None;
+    };
+    if !opts.only_projects {
+        return None;
+    }
+    let project_dir = super::build::safe_importer_dir(&opts.env.layout.lockfile_dir, importer_id)?;
+    Some(project_dir.to_string_lossy().into_owned())
 }
 
 fn record_materialized_edge(

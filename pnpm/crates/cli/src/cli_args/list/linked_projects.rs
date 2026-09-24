@@ -11,6 +11,7 @@ use crate::cli_args::{
     recursive::discover_workspace_projects,
 };
 use pnpm_config::Config;
+use pnpm_fs::lexical_normalize;
 use pnpm_workspace::Project;
 use std::{
     collections::{HashMap, HashSet},
@@ -23,15 +24,17 @@ use std::{
 type BoxedResult<'a, Output> = Pin<Box<dyn Future<Output = miette::Result<Output>> + Send + 'a>>;
 
 pub(super) struct SharedLinkedProjects {
-    workspace_project_dirs: Arc<HashSet<PathBuf>>,
+    /// The workspace project each directory that dependents link to belongs
+    /// to.
+    linked_project_dirs: Arc<HashMap<PathBuf, PathBuf>>,
     /// A linked project met again at the same depth is marked deduped
     /// instead of walked again.
     expanded: Mutex<HashMap<(PathBuf, MaxDepth), u64>>,
 }
 
 impl SharedLinkedProjects {
-    fn new(workspace_project_dirs: Arc<HashSet<PathBuf>>) -> Self {
-        SharedLinkedProjects { workspace_project_dirs, expanded: Mutex::default() }
+    fn new(linked_project_dirs: Arc<HashMap<PathBuf, PathBuf>>) -> Self {
+        SharedLinkedProjects { linked_project_dirs, expanded: Mutex::default() }
     }
 
     fn previously_expanded(&self, key: &(PathBuf, MaxDepth)) -> Option<u64> {
@@ -96,7 +99,7 @@ impl ListArgs {
         Box::pin(async move {
             let shared = match &request.linked_projects {
                 Some(shared) => Arc::clone(shared),
-                None => Arc::new(SharedLinkedProjects::new(self.workspace_project_dirs(config)?)),
+                None => Arc::new(SharedLinkedProjects::new(self.linked_project_dirs(config)?)),
             };
             for (project_dir, hierarchy) in hierarchies {
                 let mut ancestors = request.linked_project_ancestors.clone();
@@ -133,27 +136,24 @@ impl ListArgs {
         config: &Config,
     ) -> miette::Result<Vec<Project>> {
         let (projects, _) = discover_workspace_projects(workspace_root, config)?;
-        let dirs = projects
-            .iter()
-            .map(|project| project.root_dir.clone())
-            .collect();
-        let _ = self.workspace_project_dirs.set(Arc::new(dirs));
+        let _ = self.linked_project_dirs.set(Arc::new(linked_project_dirs(&projects)));
         Ok(projects)
     }
 
-    fn workspace_project_dirs(&self, config: &Config) -> miette::Result<Arc<HashSet<PathBuf>>> {
-        if let Some(dirs) = self.workspace_project_dirs.get() {
+    fn linked_project_dirs(
+        &self,
+        config: &Config,
+    ) -> miette::Result<Arc<HashMap<PathBuf, PathBuf>>> {
+        if let Some(dirs) = self.linked_project_dirs.get() {
             return Ok(Arc::clone(dirs));
         }
         let dirs = match &config.workspace_dir {
-            Some(workspace_dir) => discover_workspace_projects(workspace_dir, config)?
-                .0
-                .into_iter()
-                .map(|project| project.root_dir)
-                .collect(),
-            None => HashSet::new(),
+            Some(workspace_dir) => {
+                linked_project_dirs(&discover_workspace_projects(workspace_dir, config)?.0)
+            }
+            None => HashMap::new(),
         };
-        Ok(Arc::clone(self.workspace_project_dirs.get_or_init(|| Arc::new(dirs))))
+        Ok(Arc::clone(self.linked_project_dirs.get_or_init(|| Arc::new(dirs))))
     }
 
     fn expand_linked_project_nodes<'a>(
@@ -190,12 +190,14 @@ impl ListArgs {
         &self,
         walk: &LinkedProjects<'_>,
         mut node: DependencyNode,
-        project_dir: &Path,
+        linked_dir: &Path,
         level: u64,
     ) -> miette::Result<Option<DependencyNode>> {
-        if !walk.shared.workspace_project_dirs.contains(project_dir) {
+        let Some(project_dir) = walk.shared.linked_project_dirs.get(linked_dir) else {
             return Ok(None);
-        }
+        };
+        let project_dir = project_dir.as_path();
+        node.package.path = project_dir.to_string_lossy().into_owned();
         if walk.ancestors.contains(project_dir) {
             node.status.circular = true;
             return Ok(keep_searched(node, walk));
@@ -220,7 +222,7 @@ impl ListArgs {
         };
         node.dependencies =
             self.load_linked_project_dependencies(walk.config, project_dir, &request).await?;
-        rewrite_link_versions(&mut node.dependencies, walk.rewrite_link_version_dir);
+        rewrite_link_versions(&mut node.dependencies, project_dir, walk.rewrite_link_version_dir);
         walk.shared.record_expanded(key, count_nodes(&node.dependencies));
         Ok(keep_searched(node, walk))
     }
@@ -281,17 +283,46 @@ fn depth_below(depth: MaxDepth, level: u64) -> Option<MaxDepth> {
     }
 }
 
-/// Express the `link:` versions of `nodes` relative to the listed
-/// project, as the tree of a shared lockfile does.
-fn rewrite_link_versions(nodes: &mut [DependencyNode], rewrite_link_version_dir: &Path) {
+/// Express the `link:` versions of `nodes`, relative to `linked_project_dir`,
+/// relative to the listed project, as the tree of a shared lockfile does.
+fn rewrite_link_versions(
+    nodes: &mut [DependencyNode],
+    linked_project_dir: &Path,
+    rewrite_link_version_dir: &Path,
+) {
     for node in nodes {
-        if node.package.version.starts_with("link:") {
-            let path = Path::new(&node.package.path);
-            let relative = pathdiff::diff_paths(path, rewrite_link_version_dir)
-                .unwrap_or_else(|| path.to_path_buf());
+        if let Some(link_target) = node.package.version.strip_prefix("link:") {
+            let path = lexical_normalize(&linked_project_dir.join(link_target));
+            let relative = pathdiff::diff_paths(&path, rewrite_link_version_dir).unwrap_or(path);
             node.package.version =
                 format!("link:{}", relative.to_string_lossy().replace('\\', "/"));
         }
-        rewrite_link_versions(&mut node.dependencies, rewrite_link_version_dir);
+        rewrite_link_versions(&mut node.dependencies, linked_project_dir, rewrite_link_version_dir);
     }
+}
+
+/// The workspace project each directory that dependents link to belongs to:
+/// its own directory, and its publish directory when it sets
+/// `publishConfig.directory` without `publishConfig.linkDirectory: false`.
+/// A project's own directory wins over a publish directory pointing at it.
+fn linked_project_dirs(projects: &[Project]) -> HashMap<PathBuf, PathBuf> {
+    let mut dirs: HashMap<PathBuf, PathBuf> = projects
+        .iter()
+        .map(|project| (project.root_dir.clone(), project.root_dir.clone()))
+        .collect();
+    for project in projects {
+        let publish_config = project.manifest.value().get("publishConfig");
+        let publish_directory = publish_config
+            .and_then(|publish_config| publish_config.get("directory"))
+            .and_then(serde_json::Value::as_str);
+        let links_publish_directory = publish_config
+            .and_then(|publish_config| publish_config.get("linkDirectory"))
+            .and_then(serde_json::Value::as_bool)
+            != Some(false);
+        if links_publish_directory && let Some(publish_directory) = publish_directory {
+            dirs.entry(lexical_normalize(&project.root_dir.join(publish_directory)))
+                .or_insert_with(|| project.root_dir.clone());
+        }
+    }
+    dirs
 }
