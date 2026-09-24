@@ -80,11 +80,9 @@ pub(super) fn is_platform_verifier_available() -> bool {
 /// return value to `core-foundation`'s `wrap_under_create_rule`, which
 /// asserts the reference is non-NULL and panics with "Attempted to create a
 /// NULL object" otherwise. A framework that will not hand out a policy is
-/// one of the shapes an unusable platform verifier takes — the first
-/// resolve of a cold `pnpr` hit it (pnpm/pnpm#14461), leaving the process
-/// panicking on a worker thread — so the probe asks the C API directly and
-/// reads the NULL as "no platform verifier", which is what sends the client
-/// builder to [`TrustRoots::Bundled`] instead.
+/// one of the shapes an unusable platform verifier takes, so the probe asks
+/// the C API directly and reads the NULL as "no platform verifier", which
+/// sends the client builder to [`TrustRoots::Bundled`].
 ///
 /// `std::panic::catch_unwind` around the panicking call would not do:
 /// releases are built with `panic = "abort"`, which turns the unwind into
