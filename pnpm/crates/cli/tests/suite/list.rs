@@ -295,7 +295,7 @@ fn listing_packages_of_a_project_with_an_external_lockfile() {
     assert_eq!(
         output,
         format!(
-            "{LEGEND}\n\npkg@1.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} {PKG}@100.0.0\n\n1 package in 2 projects\n"
+            "{LEGEND}\n\npkg@1.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} {PKG}@100.0.0\n\n1 package\n"
         ),
     );
 }
