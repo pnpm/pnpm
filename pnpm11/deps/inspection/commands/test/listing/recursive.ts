@@ -144,6 +144,58 @@ project-2@1.0.0 ${path.resolve('project-2')}
 1 package`)
 })
 
+test('recursive list --only-projects prints a selected project without project dependencies', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-2': 'workspace:*',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: true,
+  })
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  const listProjects = async (namePattern: string, params: string[] = []) => list.handler({
+    ...DEFAULT_OPTS,
+    cliOptions: { 'only-projects': true },
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    parseable: true,
+    recursive: true,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern }]),
+  }, params)
+
+  expect(await listProjects('project-2')).toBe(path.resolve('project-2'))
+  expect(await listProjects('project-1')).toBe(`${path.resolve('project-1')}
+${path.resolve('project-2')}`)
+  expect(await listProjects('project-2', ['project-1'])).toBe('')
+})
+
 test('recursive list --only-projects follows projects with dedicated lockfiles', async () => {
   preparePackages([
     {

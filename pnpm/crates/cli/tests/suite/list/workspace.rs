@@ -483,6 +483,28 @@ fn list_only_projects_shows_only_projects() {
     assert_eq!(output, nested_projects_tree(&workspace));
 }
 
+#[test]
+fn list_only_projects_prints_a_selected_project_without_project_dependencies() {
+    let (_root, workspace, _registry) = setup_registry();
+    write_nested_projects_workspace(&workspace, "");
+    run_ok(&workspace, &["install"]);
+    let project_path = |name: &str| canonical(&workspace.join("packages").join(name));
+
+    let output =
+        run_ok(&workspace, &["--filter", "@scope/c", "list", "--parseable", "--only-projects"]);
+    assert_eq!(output, format!("{}\n", project_path("c")));
+
+    let output =
+        run_ok(&workspace, &["--filter", "@scope/b", "list", "--parseable", "--only-projects"]);
+    assert_eq!(output, format!("{}\n{}\n", project_path("b"), project_path("c")));
+
+    let output = run_ok(
+        &workspace,
+        &["--filter", "@scope/c", "list", "@scope/b", "--parseable", "--only-projects"],
+    );
+    assert_eq!(output, "");
+}
+
 /// With a dedicated lockfile per project, the projects linked from the
 /// listed one are walked through their own lockfiles.
 #[test]

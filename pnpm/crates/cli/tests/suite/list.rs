@@ -173,6 +173,21 @@ fn list_json_with_package_arg_omits_unsaved_dependencies() {
     drop(root);
 }
 
+#[test]
+fn list_only_projects_omits_unsaved_dependencies() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_project_with_extraneous_dep(&workspace);
+
+    let output = run_ok(&workspace, &["list", "--only-projects", "--parseable"]);
+    assert_eq!(output, format!("{}\n", canonical(&workspace)));
+
+    let output = run_ok(&workspace, &["list", "--only-projects", "--json"]);
+    let roots: Vec<Value> = serde_json::from_str(&output).expect("parse list JSON");
+    assert_eq!(roots[0].get("unsavedDependencies"), None, "{output}");
+
+    drop(root);
+}
+
 // --- ports of the TypeScript listing command tests ---------------------------
 //
 // Sources: pnpm11/deps/inspection/commands/test/listing/{index.ts,json.ts,
