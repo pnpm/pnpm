@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 fn invalid_project_names_report_format_neutral_diagnostic() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("package.json"), r#"{"name":"parent"}"#).unwrap();
-    for basename in ["package.json", "package.json5", "package.yaml"] {
+    for basename in ["package.json", "package.json5", "package.yaml", "package.yml"] {
         let project = root
             .path()
             .join(format!("project-{basename}"));

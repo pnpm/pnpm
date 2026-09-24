@@ -96,6 +96,29 @@ fn recursive_pkg_edits_yaml_workspace_projects() {
     drop(root);
 }
 
+#[test]
+fn add_saves_package_yml_without_creating_package_json() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let path = workspace.join("package.yml");
+    fs::write(&path, "name: fixture\nversion: 1.0.0\n").unwrap();
+    command(&pacquet)
+        .args(["add", "@pnpm.e2e/foo@1.0.0", "--lockfile-only"])
+        .assert()
+        .success();
+    assert_eq!(
+        PackageManifest::from_path(path).unwrap().value()["dependencies"],
+        json!({"@pnpm.e2e/foo":"1.0.0"}),
+    );
+    assert!(!workspace.join("package.json").exists());
+    drop((root, npmrc_info));
+}
+
 fn command(template: &Command) -> Command {
     Command::new(template.get_program())
         .without_ambient_pnpm_config()

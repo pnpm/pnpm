@@ -255,7 +255,9 @@ impl PackageManifest {
 
 fn is_yaml_path(path: &Path) -> bool {
     path.file_name()
-        .is_some_and(|name| name.eq_ignore_ascii_case("package.yaml"))
+        .is_some_and(|name| {
+            name.eq_ignore_ascii_case("package.yaml") || name.eq_ignore_ascii_case("package.yml")
+        })
 }
 
 fn is_json5_path(path: &Path) -> bool {

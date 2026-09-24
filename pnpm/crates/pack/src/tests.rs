@@ -19,12 +19,13 @@ use tempfile::{TempDir, tempdir};
 /// files the caller writes. `ignore_scripts` defaults to `true` so the
 /// happy-path tests don't shell out to `node`.
 fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
+    fixture_with_manifest("package.json", manifest)
+}
+
+fn fixture_with_manifest(manifest_name: &str, manifest: &Value) -> (TempDir, PackOptions) {
     let dir = tempdir().unwrap();
-    std::fs::write(
-        dir.path().join("package.json"),
-        serde_json::to_string_pretty(manifest).unwrap(),
-    )
-    .unwrap();
+    std::fs::write(dir.path().join(manifest_name), serde_json::to_string_pretty(manifest).unwrap())
+        .unwrap();
     let opts = PackOptions {
         dir: dir.path().to_path_buf(),
         workspace_dir: None,
@@ -345,6 +346,25 @@ fn packs_a_basic_package_to_a_tarball() {
     let mut names = tarball_entry_names(&tarball);
     names.sort();
     assert_eq!(names, vec!["package/index.js".to_string(), "package/package.json".into()]);
+}
+
+#[test]
+fn packs_a_package_yml_manifest_as_package_json() {
+    let (dir, opts) =
+        fixture_with_manifest("package.yml", &json!({ "name": "foo", "version": "1.2.3" }));
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+
+    assert_eq!(result.contents, vec!["package.json".to_string()]);
+    let tarball = dir.path().join("foo-1.2.3.tgz");
+    let names = tarball_entry_names(&tarball);
+    assert!(names.contains(&"package/package.json".to_string()));
+    assert!(!names.contains(&"package/package.yml".to_string()));
+    let manifest = tarball_entry_content(&tarball, "package/package.json")
+        .expect("the tarball carries a manifest");
+    let manifest: serde_json::Value = serde_json::from_str(&manifest).unwrap();
+    assert_eq!(manifest["name"], json!("foo"));
+    assert_eq!(manifest["version"], json!("1.2.3"));
 }
 
 #[test]

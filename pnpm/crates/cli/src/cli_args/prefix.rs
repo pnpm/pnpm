@@ -26,8 +26,14 @@ pub enum PrefixError {
 
 /// The markers that make a directory an npm project, as pnpm's
 /// `findLocalPrefix` counts them.
-const NPM_PROJECT_MARKERS: &[&str] =
-    &["node_modules", "package.json", "package.json5", "package.yaml", "pnpm-workspace.yaml"];
+const NPM_PROJECT_MARKERS: &[&str] = &[
+    "node_modules",
+    "package.json",
+    "package.json5",
+    "package.yaml",
+    "package.yml",
+    "pnpm-workspace.yaml",
+];
 
 /// [`NPM_PROJECT_MARKERS`] plus the manifests pnpm v12 manages beyond
 /// `package.json` — a Cargo or Python package without a `package.json` is
@@ -37,6 +43,7 @@ const PROJECT_MARKERS: &[&str] = &[
     "package.json",
     "package.json5",
     "package.yaml",
+    "package.yml",
     "pnpm-workspace.yaml",
     "Cargo.toml",
     "pyproject.toml",

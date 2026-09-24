@@ -8,6 +8,16 @@ use miette::Diagnostic;
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use std::path::{Path, PathBuf};
 
+pub(crate) fn manifest_precedence(path: &Path) -> usize {
+    path.file_name()
+        .and_then(|name| {
+            PROJECT_MANIFEST_BASENAMES
+                .iter()
+                .position(|candidate| name.eq_ignore_ascii_case(candidate))
+        })
+        .unwrap_or(usize::MAX)
+}
+
 /// Error type of [`read_exact_project_manifest`].
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -25,7 +35,10 @@ pub enum ReadProjectManifestError {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum ReadProjectManifestOnlyError {
-    #[display("No package.json, package.json5, or package.yaml was found in {:?}", project_dir.display())]
+    #[display(
+        "No package.json, package.json5, package.yaml, or package.yml was found in {:?}",
+        project_dir.display()
+    )]
     #[diagnostic(code(ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND))]
     NoImporterManifestFound { project_dir: PathBuf },
 
@@ -95,7 +108,7 @@ pub fn read_exact_project_manifest(
         .map(|name| name.to_string_lossy().to_ascii_lowercase())
         .unwrap_or_default();
     match basename.as_str() {
-        "package.json" | "package.json5" | "package.yaml" => {
+        "package.json" | "package.json5" | "package.yaml" | "package.yml" => {
             PackageManifest::from_path(manifest_path.to_path_buf())
                 .map_err(ReadProjectManifestError::Read)
         }

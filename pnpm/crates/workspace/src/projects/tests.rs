@@ -23,6 +23,12 @@ fn make_yaml_project(root: &std::path::Path, rel: &str, name: &str) {
     fs::write(dir.join("package.yaml"), format!("name: {name}\nversion: 0.0.1\n")).unwrap();
 }
 
+fn make_yml_project(root: &std::path::Path, rel: &str, name: &str) {
+    let dir = root.join(rel);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("package.yml"), format!("name: {name}\nversion: 0.0.1\n")).unwrap();
+}
+
 fn find_project_names(root: &Path, patterns: &[&str]) -> Vec<String> {
     find_workspace_projects(
         root,
@@ -285,10 +291,10 @@ fn wax_metacharacters_use_generic_semantics() {
 }
 
 #[test]
-fn expands_packages_glob_to_package_yaml() {
+fn expands_packages_glob_to_package_yml() {
     let tmp = TempDir::new().unwrap();
     make_project(tmp.path(), ".", "root");
-    make_yaml_project(tmp.path(), "packages/alpha", "alpha");
+    make_yml_project(tmp.path(), "packages/alpha", "alpha");
 
     let projects = find_workspace_projects(
         tmp.path(),
@@ -315,14 +321,19 @@ fn expands_packages_glob_to_package_yaml() {
 }
 
 #[test]
-fn direct_package_patterns_support_both_manifest_formats() {
+fn direct_package_patterns_support_all_manifest_formats() {
     let tmp = TempDir::new().unwrap();
     make_project(tmp.path(), ".", "root");
     make_project(tmp.path(), "packages/alpha", "alpha");
     make_yaml_project(tmp.path(), "packages/beta", "beta");
+    make_yml_project(tmp.path(), "packages/gamma", "gamma");
 
-    let names = find_project_names(tmp.path(), &["packages/alpha", "packages/beta"]);
-    assert_eq!(names, vec!["root".to_string(), "alpha".to_string(), "beta".to_string()]);
+    let names =
+        find_project_names(tmp.path(), &["packages/alpha", "packages/beta", "packages/gamma"]);
+    assert_eq!(
+        names,
+        vec!["root".to_string(), "alpha".to_string(), "beta".to_string(), "gamma".to_string(),],
+    );
 }
 
 #[test]
@@ -388,6 +399,34 @@ fn package_json_wins_when_both_manifest_files_exist() {
         })
         .collect();
     assert_eq!(names, vec!["root".to_string(), "json-alpha".to_string()]);
+}
+
+#[test]
+fn package_yaml_wins_over_package_yml() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_yaml_project(tmp.path(), "packages/alpha", "yaml-alpha");
+    make_yml_project(tmp.path(), "packages/alpha", "yml-alpha");
+
+    let projects = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["packages/*".to_string()]),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    let names: Vec<String> = projects
+        .iter()
+        .map(|project| {
+            project.manifest.value()["name"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        })
+        .collect();
+    assert_eq!(names, vec!["root".to_string(), "yaml-alpha".to_string()]);
 }
 
 #[test]

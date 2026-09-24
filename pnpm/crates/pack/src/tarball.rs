@@ -2,9 +2,9 @@
 //!
 //! Every entry is stamped with a fixed mtime so the archive is
 //! reproducible, executable bins get mode `0o755` and everything else
-//! `0o644`, and any `package.json` / `package.json5` / `package.yaml`
-//! entry is replaced by the serialized publish manifest under the name
-//! `package/package.json`.
+//! `0o644`, and any `package.json` / `package.json5` / `package.yaml` /
+//! `package.yml` entry is replaced by the serialized publish manifest under
+//! the name `package/package.json`.
 //!
 //! The archive is streamed into the caller-provided `writer` (the
 //! [`FsAtomicWrite`](crate::capabilities::FsAtomicWrite) temp file) rather

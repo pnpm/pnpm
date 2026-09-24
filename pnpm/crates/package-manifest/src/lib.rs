@@ -51,7 +51,7 @@ pub enum BundleDependencies {
 /// (freshly scaffolded or in-memory).
 const DEFAULT_INDENT: &str = "  ";
 
-/// Content of a `package.json`, `package.json5`, or `package.yaml` manifest and its path.
+/// Content of a `package.json`, `package.json5`, `package.yaml`, or `package.yml` manifest and its path.
 /// JSON5 numbers must be finite and values may be nested at most 128 levels.
 ///
 /// Carries the source file's formatting (indentation unit, final-newline

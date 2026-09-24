@@ -93,7 +93,7 @@ pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
 /// path reports it with far more context.
 ///
 /// [`pnpm_workspace::try_read_project_manifest`] decides between
-/// `package.json`, `package.json5`, and `package.yaml`, the same way the
+/// `package.json`, `package.json5`, `package.yaml`, and `package.yml`, the same way the
 /// install pipeline does, so a pin recorded from the pre-command checks is
 /// the one the install reads.
 pub(crate) fn read_root_manifest(root_dir: &Path) -> Option<Value> {

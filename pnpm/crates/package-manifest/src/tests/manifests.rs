@@ -37,7 +37,7 @@ fn new_manifests_use_normal_file_creation_permissions() {
         return;
     }
     let dir = tempdir().unwrap();
-    for basename in ["package.json", "package.yaml"] {
+    for basename in ["package.json", "package.yaml", "package.yml"] {
         let path = dir.path().join(basename);
         PackageManifest::init(&path, InitOptions::default()).unwrap();
         let actual = std::fs::metadata(path)

@@ -201,7 +201,8 @@ impl State {
 }
 
 /// `package.json` loads (or is scaffolded) as usual, but when it is
-/// absent an existing alternate manifest base name (`package.yaml`)
+/// absent an existing alternate manifest base name (`package.yaml` or
+/// `package.yml`)
 /// must be loaded rather than shadowed by a scaffolded `package.json`
 /// and saved in its original format.
 ///

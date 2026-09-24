@@ -6,7 +6,8 @@ use std::{
 };
 
 /// Supported project manifests in precedence order.
-pub const PROJECT_MANIFEST_BASENAMES: &[&str] = &["package.json", "package.json5", "package.yaml"];
+pub const PROJECT_MANIFEST_BASENAMES: &[&str] =
+    &["package.json", "package.json5", "package.yaml", "package.yml"];
 
 /// Select the existing project manifest, or the JSON path for a new project.
 #[must_use]

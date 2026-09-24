@@ -19,7 +19,8 @@ pub use membership::{belongs_to_workspace, is_workspace_project_dir, needs_packa
 use crate::{
     directory_patterns::{negated_directory_pattern, normalize_directory_pattern},
     project_manifest::{
-        PROJECT_MANIFEST_BASENAMES, ReadProjectManifestError, read_exact_project_manifest,
+        PROJECT_MANIFEST_BASENAMES, ReadProjectManifestError, manifest_precedence,
+        read_exact_project_manifest,
     },
 };
 use derive_more::{Display, Error};
@@ -329,14 +330,8 @@ fn merge_pattern_manifests(
     Ok(merged.into_inner().expect("merge lock never poisoned"))
 }
 
-/// Group the manifests by the root directory they belong to, in `rootDir`
-/// order.
-///
-/// A root's candidates stay in manifest-precedence order — `package.json`
-/// before `package.yaml`, because the sort is stable and ties keep the set's
-/// full-path order — and share one read task, so "first readable manifest
-/// wins" holds under concurrency: a candidate that vanishes mid-run hands its
-/// root to the next candidate, never to a skipped root.
+/// Group manifest candidates by root directory in path order, preserving
+/// precedence so a failed read can fall through to the next format.
 fn group_manifests_by_root(
     manifest_paths: BTreeSet<PathBuf>,
     workspace_root: &Path,
@@ -345,7 +340,10 @@ fn group_manifests_by_root(
     sorted.sort_by(|left, right| {
         let dir_left = left.parent().unwrap_or_else(|| Path::new(""));
         let dir_right = right.parent().unwrap_or_else(|| Path::new(""));
-        dir_left.cmp(dir_right)
+        dir_left
+            .cmp(dir_right)
+            .then_with(|| manifest_precedence(left).cmp(&manifest_precedence(right)))
+            .then_with(|| left.cmp(right))
     });
     let mut root_groups: Vec<(PathBuf, Vec<PathBuf>)> = Vec::new();
     for manifest_path in sorted {

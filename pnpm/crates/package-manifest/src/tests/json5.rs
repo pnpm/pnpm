@@ -8,7 +8,7 @@ use tempfile::tempdir;
 
 #[test]
 fn project_manifests_reject_non_object_roots() {
-    for filename in ["package.json", "package.json5", "package.yaml"] {
+    for filename in ["package.json", "package.json5", "package.yaml", "package.yml"] {
         for source in ["[]", "42", "true", r#""fixture""#] {
             let dir = tempdir().unwrap();
             let path = dir.path().join(filename);
@@ -16,7 +16,7 @@ fn project_manifests_reject_non_object_roots() {
             let error =
                 PackageManifest::from_path(path.clone()).err().expect("reject non-object root");
             eprintln!("ERROR: {error}");
-            let expected_code = if filename == "package.yaml" {
+            let expected_code = if matches!(filename, "package.yaml" | "package.yml") {
                 "ERR_PNPM_PACKAGE_MANIFEST_INVALID_ATTRIBUTE"
             } else {
                 "ERR_PNPM_INVALID_MANIFEST"

@@ -87,12 +87,12 @@ fn strict_read_errors_when_missing() {
 #[test]
 fn read_exact_rejects_other_basenames() {
     let tmp = TempDir::new().unwrap();
-    let path = tmp.path().join("package.yml");
-    fs::write(&path, "name: alpha\n").unwrap();
+    let path = tmp.path().join("package.toml");
+    fs::write(&path, "name = 'alpha'\n").unwrap();
     match read_exact_project_manifest(&path) {
         Ok(_) => panic!("expected UnsupportedName"),
         Err(ReadProjectManifestError::UnsupportedName { basename }) => {
-            assert_eq!(basename, "package.yml");
+            assert_eq!(basename, "package.toml");
         }
         Err(err) => panic!("unexpected error: {err}"),
     }
@@ -117,6 +117,21 @@ fn read_exact_accepts_package_json() {
 fn read_exact_accepts_package_yaml() {
     let tmp = TempDir::new().unwrap();
     let path = tmp.path().join("package.yaml");
+    fs::write(&path, "name: beta\nversion: 0.1.0\n").unwrap();
+    let manifest = read_exact_project_manifest(&path).unwrap();
+    assert_eq!(
+        manifest
+            .value()
+            .get("name")
+            .and_then(|v| v.as_str()),
+        Some("beta"),
+    );
+}
+
+#[test]
+fn read_exact_accepts_package_yml() {
+    let tmp = TempDir::new().unwrap();
+    let path = tmp.path().join("package.yml");
     fs::write(&path, "name: beta\nversion: 0.1.0\n").unwrap();
     let manifest = read_exact_project_manifest(&path).unwrap();
     assert_eq!(
