@@ -5,6 +5,7 @@ import path from 'node:path'
 import { beforeEach, expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { prepareEmpty } from '@pnpm/prepare'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
@@ -96,4 +97,43 @@ test('import warns about a dependency with several yarn patches', async () => {
   expect(globalWarn).toHaveBeenCalledWith(
     '"is-positive" has several Yarn patches, and pnpm applies one patch per dependency. "is-positive" was imported without the patches.'
   )
+})
+
+test('import converts the yarn patches of workspace projects', async () => {
+  prepareEmpty()
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - packages/*\n')
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'root',
+    dependencies: { 'is-positive': `patch:is-positive@npm%3A1.0.0#~/${PATCH_PATH}` },
+  }))
+  fs.mkdirSync(path.dirname(PATCH_PATH), { recursive: true })
+  fs.copyFileSync(IS_POSITIVE_PATCH, PATCH_PATH)
+  fs.mkdirSync('packages/foo', { recursive: true })
+  fs.writeFileSync('packages/foo/package.json', JSON.stringify({
+    name: 'foo',
+    devDependencies: {
+      positive: 'patch:positive@npm%3Ais-positive@1.0.0#./foo.patch::locator=foo%40workspace%3Apackages%2Ffoo',
+    },
+  }))
+  fs.copyFileSync(IS_POSITIVE_PATCH, 'packages/foo/foo.patch')
+  fs.writeFileSync('yarn.lock', YARN_LOCKFILE)
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+  await importCommand.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+    lockfileDir: process.cwd(),
+    dir: process.cwd(),
+  }, [])
+
+  expect(readManifest().dependencies['is-positive']).toBe('1.0.0')
+  expect(JSON.parse(fs.readFileSync('packages/foo/package.json', 'utf8')).devDependencies.positive).toBe('npm:is-positive@1.0.0')
+  expect(readYamlFileSync<{ patchedDependencies: Record<string, string> }>('pnpm-workspace.yaml').patchedDependencies)
+    .toStrictEqual({ 'is-positive@1.0.0': PATCH_PATH })
+  const lockfile = assertProject(process.cwd()).readLockfile()
+  expect(lockfile.importers['packages/foo'].devDependencies?.positive.version).toMatch(/^is-positive@1\.0\.0\(patch_hash=/)
+  expect(globalWarn).not.toHaveBeenCalled()
 })
