@@ -44,6 +44,30 @@ fn clean_removes_packages_and_pnpm_entries_but_preserves_non_pnpm_dotfiles() {
     drop(root);
 }
 
+/// A `node_modules` holding nothing but what `clean` removes is removed
+/// itself ([pnpm/pnpm#13390](https://github.com/pnpm/pnpm/issues/13390)).
+#[test]
+fn clean_removes_the_modules_dir_it_empties() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+
+    let node_modules = workspace.join("node_modules");
+    seed_package(&node_modules, "lodash");
+    fs::create_dir_all(node_modules.join(".pnpm")).expect("create .pnpm");
+    fs::write(node_modules.join(".modules.yaml"), "").expect("write .modules.yaml");
+
+    let output = pacquet
+        .with_args(["clean"])
+        .output()
+        .expect("run pacquet clean");
+    assert!(output.status.success(), "pacquet clean should succeed");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Removing node_modules"), "expected Removing node_modules: {stdout}");
+    assert!(!node_modules.exists(), "the emptied node_modules should be removed");
+
+    drop(root);
+}
+
 /// The real isolated-linker layout: `node_modules/<name>` is a link
 /// (symlink or junction) into `.pnpm`. `.pnpm` sorts before the package
 /// names, so by the time `clean` reaches the link it dangles — removal

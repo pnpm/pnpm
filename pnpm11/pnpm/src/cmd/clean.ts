@@ -98,6 +98,7 @@ async function cleanProjectDir (opts: { modulesDir: string, removeLockfile?: boo
     printRemoving(fullModulesDir)
     await removeModulesDirContents(fullModulesDir)
   }
+  await removeDirIfEmpty(fullModulesDir)
   if (opts.removeLockfile) {
     const lockfilePath = path.join(dir, 'pnpm-lock.yaml')
     if (await pathExists(lockfilePath)) {
@@ -132,6 +133,20 @@ async function removeModulesDirContents (modulesDir: string): Promise<void> {
     if (item[0] === '.' && !PNPM_HIDDEN_ENTRIES.has(item)) return
     await rimraf(path.join(modulesDir, item))
   }))
+}
+
+const DIR_KEPT_ERROR_CODES = new Set(['ENOENT', 'ENOTDIR', 'ENOTEMPTY', 'EEXIST'])
+
+async function removeDirIfEmpty (dir: string): Promise<void> {
+  try {
+    // A modules dir that is a symlink or junction is not ours to remove.
+    if (!(await fs.lstat(dir)).isDirectory()) return
+    await fs.rmdir(dir)
+  } catch (err: unknown) {
+    const { code } = err as NodeJS.ErrnoException
+    if (code != null && DIR_KEPT_ERROR_CODES.has(code)) return
+    throw err
+  }
 }
 
 async function getProjectDirs (

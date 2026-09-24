@@ -3,7 +3,10 @@ use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_fs::{is_subdir, relative_path, remove_dirent};
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::{
+    io::ErrorKind,
+    path::{Path, PathBuf},
+};
 
 /// `pnpm clean` / `pnpm purge`: safely remove the `node_modules`
 /// directories of the current project (or every project in the workspace)
@@ -54,16 +57,20 @@ pub(super) fn run(ctx: &RunCtx<'_>, config: &Config, remove_lockfile: bool) -> m
         vec![ctx.locations.dir.to_path_buf()]
     };
     for dir in &dirs {
-        let full_modules_dir = dir.join(modules_leaf);
-        if has_contents_to_remove(&full_modules_dir) {
-            print_removing(&cwd, &full_modules_dir);
-            remove_modules_dir_contents(&full_modules_dir)?;
-        }
+        clean_modules_dir(&cwd, &dir.join(modules_leaf))?;
     }
     if remove_lockfile {
         remove_workspace_lockfile(&cwd, root_dir)?;
     }
     remove_external_virtual_store(&cwd, config, root_dir, modules_leaf)
+}
+
+fn clean_modules_dir(cwd: &Path, modules_dir: &Path) -> miette::Result<()> {
+    if has_contents_to_remove(modules_dir) {
+        print_removing(cwd, modules_dir);
+        remove_modules_dir_contents(modules_dir)?;
+    }
+    remove_dir_if_empty(modules_dir)
 }
 
 fn remove_workspace_lockfile(cwd: &Path, root_dir: &Path) -> miette::Result<()> {
@@ -132,6 +139,23 @@ fn remove_modules_dir_contents(modules_dir: &Path) -> miette::Result<()> {
         remove_path(&entry.path())?;
     }
     Ok(())
+}
+
+/// Remove `dir` once nothing is left in it. A modules dir that still holds
+/// a preserved dotfile stays, and one that is a symlink or junction is left
+/// to its owner.
+fn remove_dir_if_empty(dir: &Path) -> miette::Result<()> {
+    let is_real_dir = std::fs::symlink_metadata(dir).is_ok_and(|metadata| metadata.is_dir());
+    if !is_real_dir {
+        return Ok(());
+    }
+    std::fs::remove_dir(dir)
+        .or_else(|error| match error.kind() {
+            ErrorKind::NotFound | ErrorKind::DirectoryNotEmpty | ErrorKind::NotADirectory => Ok(()),
+            _ => Err(error),
+        })
+        .into_diagnostic()
+        .wrap_err_with(|| format!("removing {}", dir.display()))
 }
 
 fn remove_path(path: &Path) -> miette::Result<()> {

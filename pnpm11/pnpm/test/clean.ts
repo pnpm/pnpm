@@ -46,6 +46,19 @@ test('pnpm clean removes pnpm entries and packages but preserves non-pnpm hidden
   expect(fs.existsSync('node_modules/.cache/some-file')).toBe(true)
 })
 
+test('pnpm clean removes node_modules once it is empty', () => {
+  tempDir()
+  fs.writeFileSync('package.json', '{}', 'utf8')
+  fs.mkdirSync('node_modules/.pnpm', { recursive: true })
+  fs.writeFileSync('node_modules/.modules.yaml', 'storeDir: /tmp/store')
+  fs.mkdirSync('node_modules/lodash')
+
+  const result = execPnpmSync(['clean'])
+  expect(result.status).toBe(0)
+
+  expect(fs.existsSync('node_modules')).toBe(false)
+})
+
 test('pnpm clean handles missing node_modules gracefully', () => {
   tempDir()
   fs.writeFileSync('package.json', '{}', 'utf8')
