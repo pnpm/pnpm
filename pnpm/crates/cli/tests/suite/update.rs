@@ -865,7 +865,7 @@ fn update_moves_a_dependency_off_a_locked_version_the_registry_no_longer_serves(
         packages
             .iter()
             .any(|key| key.starts_with(&format!("{DEP}@"))),
-        "{packages:?}"
+        "{packages:?}",
     );
 
     drop((root, anchor));
