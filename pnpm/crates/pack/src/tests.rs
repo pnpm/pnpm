@@ -602,23 +602,7 @@ fn out_and_pack_destination_together_is_rejected() {
 }
 
 #[test]
-fn bundled_dependencies_without_hoisted_is_rejected() {
-    let (_dir, opts) = fixture(&json!({
-        "name": "foo",
-        "version": "1.0.0",
-        "bundledDependencies": ["bar"],
-    }));
-    assert!(matches!(
-        api::<SilentReporter, Host>(&opts),
-        Err(PackError::BundledDependenciesWithoutHoisted { field: "bundledDependencies", .. })
-    ));
-}
-
-#[test]
 fn bundle_dependencies_false_is_allowed_without_hoisted() {
-    // pnpm gates on truthiness (`if (bundledDependencies)`), so an
-    // explicit `false` must pack cleanly under the default non-hoisted
-    // linker instead of tripping the guard.
     let (_dir, opts) = fixture(&json!({
         "name": "foo",
         "version": "1.0.0",
@@ -626,6 +610,23 @@ fn bundle_dependencies_false_is_allowed_without_hoisted() {
         "bundledDependencies": false,
     }));
     assert!(api::<SilentReporter, Host>(&opts).is_ok());
+}
+
+#[test]
+fn bundled_dependencies_with_pnp_are_rejected() {
+    let (_dir, mut opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "bundledDependencies": [],
+    }));
+    opts.manifest.node_linker = NodeLinker::Pnp;
+    assert!(matches!(
+        api::<SilentReporter, Host>(&opts),
+        Err(PackError::BundledDependenciesWithPnp {
+            field: "bundledDependencies",
+            node_linker: "pnp",
+        })
+    ));
 }
 
 #[test]

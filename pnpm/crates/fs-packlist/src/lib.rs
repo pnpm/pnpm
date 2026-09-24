@@ -30,9 +30,9 @@
 //!    dependency. A bundled package pulls in its own `dependencies`
 //!    and `optionalDependencies` too, so the whole closure ships.
 //!    Each name is resolved with the node module-resolution walk-up
-//!    (nested `node_modules/` first, then ancestor `node_modules/`),
-//!    which is what lets a hoisted transitive dep at the root
-//!    `node_modules/` be found and spliced in under its real path.
+//!    from the parent's real directory (nested `node_modules/` first,
+//!    then ancestor `node_modules/`), and packed where Node resolves
+//!    it from the parent's packed location.
 //!    Port of [`npm-bundled`](https://github.com/npm/npm-bundled).
 //!
 //! One intentional divergence from npm-packlist:
@@ -50,7 +50,7 @@ use pnpm_diagnostics::miette::{self, Diagnostic};
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use serde_json::Value;
 use std::{
-    collections::{BTreeSet, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     ffi::OsStr,
     fs,
     path::{Component, Path, PathBuf},
@@ -107,6 +107,9 @@ pub fn packlist(pkg_dir: &Path, manifest: &Value) -> Result<Vec<String>, Packlis
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PacklistOptions<'a> {
     pub workspace_dir: Option<&'a Path>,
+    /// Project directory whose `node_modules` holds the bundled dependencies
+    /// when `pkg_dir` is a subdirectory of it, such as `publishConfig.directory`.
+    pub bundled_dependencies_dir: Option<&'a Path>,
 }
 
 /// Variant of [`packlist`] that lets callers pass workspace context.
@@ -115,14 +118,45 @@ pub struct PacklistOptions<'a> {
 /// files between the workspace root and the package, matching npm-packlist's
 /// `prefix` / `workspaces` behavior. Callers without workspace context keep
 /// the safer package-only walk.
+///
+/// Returns only the files that live at their packed path under `pkg_dir`.
+/// A bundled dependency resolved through an isolated `node_modules` layout is
+/// packed at a different path than it is read from; [`packlist_with_sources`]
+/// returns those too.
 pub fn packlist_with_options(
     pkg_dir: &Path,
     manifest: &Value,
     options: PacklistOptions<'_>,
 ) -> Result<Vec<String>, PacklistError> {
-    let mut out: BTreeSet<String> = collect_own_files(pkg_dir, manifest, options.workspace_dir)?;
-    collect_bundled_files(pkg_dir, manifest, &mut out)?;
-    Ok(out.into_iter().collect())
+    Ok(packlist_with_sources(pkg_dir, manifest, options)?
+        .into_iter()
+        .filter(|(file, source)| *source == pkg_dir.join(file))
+        .map(|(file, _)| file)
+        .collect())
+}
+
+/// Map each packed path to the file it is read from.
+///
+/// Bundled dependencies resolve from `pkg_dir` upward, and never above the
+/// workspace root when `pkg_dir` is a workspace package, or above
+/// [`PacklistOptions::bundled_dependencies_dir`] (default `pkg_dir`) otherwise.
+pub fn packlist_with_sources(
+    pkg_dir: &Path,
+    manifest: &Value,
+    options: PacklistOptions<'_>,
+) -> Result<BTreeMap<String, PathBuf>, PacklistError> {
+    let workspace_dir =
+        options.workspace_dir.filter(|workspace_dir| pkg_dir.starts_with(workspace_dir));
+    let mut out = collect_own_files(pkg_dir, manifest, workspace_dir)?
+        .into_iter()
+        .map(|file| {
+            let source = pkg_dir.join(&file);
+            (file, source)
+        })
+        .collect();
+    let boundary = workspace_dir.or(options.bundled_dependencies_dir).unwrap_or(pkg_dir);
+    collect_bundled_files(pkg_dir, manifest, boundary, &mut out)?;
+    Ok(out)
 }
 
 /// Collect the forward-slash relative paths for a single package's own

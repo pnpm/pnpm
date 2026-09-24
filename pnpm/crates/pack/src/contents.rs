@@ -5,10 +5,12 @@ use super::{
 
 /// Map each packed path to `package/<path>` → absolute source, in
 /// packlist order.
-pub(super) fn build_files_map(dir: &Path, files: &[String]) -> indexmap::IndexMap<String, PathBuf> {
+pub(super) fn build_files_map(
+    files: std::collections::BTreeMap<String, PathBuf>,
+) -> indexmap::IndexMap<String, PathBuf> {
     files
-        .iter()
-        .map(|file| (format!("package/{file}"), dir.join(file)))
+        .into_iter()
+        .map(|(file, source)| (format!("package/{file}"), source))
         .collect()
 }
 
