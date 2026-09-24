@@ -10,25 +10,6 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
-function prepareLinkTargets () {
-  const project = prepare({ name: 'project', version: '1.0.0' })
-  process.chdir('..')
-  writePackageSync('linked-foo', { name: 'linked-foo', version: '1.0.0' })
-  writePackageSync('linked-bar', { name: 'linked-bar', version: '1.0.0' })
-  process.chdir('project')
-  return project
-}
-
-function commandOpts (overrides?: Record<string, string>) {
-  return {
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    overrides,
-    rootProjectManifest: loadJsonFileSync<{ name: string }>('package.json'),
-    rootProjectManifestDir: process.cwd(),
-  }
-}
-
 test('unlink <pkg> removes the dependency that link added to package.json', async () => {
   const project = prepareLinkTargets()
 
@@ -121,3 +102,22 @@ test('unlink --dry-run does not change package.json or pnpm-workspace.yaml', asy
     dependencies: { 'linked-foo': 'link:../linked-foo' },
   })
 })
+
+function prepareLinkTargets () {
+  const project = prepare({ name: 'project', version: '1.0.0' })
+  process.chdir('..')
+  writePackageSync('linked-foo', { name: 'linked-foo', version: '1.0.0' })
+  writePackageSync('linked-bar', { name: 'linked-bar', version: '1.0.0' })
+  process.chdir('project')
+  return project
+}
+
+function commandOpts (overrides?: Record<string, string>) {
+  return {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    overrides,
+    rootProjectManifest: loadJsonFileSync<{ name: string }>('package.json'),
+    rootProjectManifestDir: process.cwd(),
+  }
+}
