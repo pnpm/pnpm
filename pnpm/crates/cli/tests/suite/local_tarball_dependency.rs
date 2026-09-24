@@ -430,6 +430,72 @@ fn local_tarball_without_a_bundled_manifest_installs_under_its_alias() {
     drop((root, mock_instance));
 }
 
+/// A package without manifest / synthesized version must not match
+/// ranged packageExtensions selectors (such as `@<2` or `@*`), but
+/// bare selectors without a range can still apply.
+///
+/// Covers <https://github.com/pnpm/pnpm/issues/15007>.
+#[test]
+fn no_manifest_tarball_does_not_match_ranged_package_extensions() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(workspace.join("no-manifest-1.0.0.tgz"), tarball_without_manifest())
+        .expect("write tarball");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": { "no-manifest": "file:./no-manifest-1.0.0.tgz" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packageExtensions:\n  'no-manifest@<2':\n    dependencies:\n      is-positive: '1.0.0'\n  'no-manifest@*':\n    dependencies:\n      is-negative: '1.0.0'\n  'no-manifest':\n    peerDependencies:\n      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0'\n    peerDependenciesMeta:\n      '@pnpm.e2e/dep-of-pkg-with-1-dep':\n        optional: true\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("no-manifest@file:no-manifest-1.0.0.tgz:"),
+        "the alias must key the tarball in packages: and snapshots::\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains("version: 0.0.0"),
+        "a package with no manifest is recorded at version 0.0.0:\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains("is-positive"),
+        "ranged selector @<2 must not match synthesized version:\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains("is-negative"),
+        "ranged selector @* must not match synthesized version:\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains("@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        "bare selector must match package without manifest:\n{lockfile}",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// An entry at the archive root has no top-level directory to strip, so
 /// it is keyed by its own name. pnpm 11 installs such an archive, and
 /// rejecting it here instead fails the whole install with

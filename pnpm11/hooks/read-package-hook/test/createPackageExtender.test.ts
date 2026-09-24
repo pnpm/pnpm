@@ -120,3 +120,66 @@ test('createPackageExtender() should works for odd names', () => {
     },
   })
 })
+
+test('createPackageExtender() does not match ranged selectors when version is undefined', () => {
+  const extender = createPackageExtender({
+    'foo@<2': {
+      dependencies: {
+        a: '1',
+      },
+    },
+    'foo@*': {
+      dependencies: {
+        b: '1',
+      },
+    },
+    'foo@^1.0.0': {
+      dependencies: {
+        c: '1',
+      },
+    },
+    foo: {
+      dependencies: {
+        bare: '1',
+      },
+    },
+  })
+  expect(
+    extender({
+      name: 'foo',
+    } as never)
+  ).toStrictEqual({
+    name: 'foo',
+    dependencies: {
+      bare: '1',
+    },
+  })
+})
+
+test('createPackageExtender() matches genuine 0.0.0 with less-than and star selectors', () => {
+  const extender = createPackageExtender({
+    'foo@<2': {
+      dependencies: {
+        a: '1',
+      },
+    },
+    'foo@*': {
+      dependencies: {
+        b: '1',
+      },
+    },
+  })
+  expect(
+    extender({
+      name: 'foo',
+      version: '0.0.0',
+    } as never)
+  ).toStrictEqual({
+    name: 'foo',
+    version: '0.0.0',
+    dependencies: {
+      a: '1',
+      b: '1',
+    },
+  })
+})
