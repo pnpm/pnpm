@@ -45,12 +45,10 @@ export interface AppliedRelease {
   newVersion: string
 }
 
-/**
- * A private project is never published, so no tarball can ever carry its
- * prose: its releases use `repository` storage whatever is configured.
- */
 export async function applyReleasePlan (plan: ReleasePlan, opts: ApplyReleasePlanOptions): Promise<AppliedRelease[]> {
   const storage = changelogStorage(opts.versioning)
+  // A private project is never published, so no tarball can ever carry its
+  // prose: its releases use `repository` storage whatever is configured.
   const privateDirs = privateProjectDirs(opts.projects, opts.workspaceDir)
   const storageOf = (dir: string): VersioningChangelogStorage => privateDirs.has(dir) ? 'repository' : storage
 

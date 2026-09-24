@@ -13,7 +13,6 @@ export type UnpublishedProbeOptions = PreviousChangelogOptions & {
   networkConcurrency?: number
   /** Manifest name → published name, from `publishedNameByManifestName`. */
   publishedNames?: ReadonlyMap<string, string>
-  /** Private project dirs, from `privateProjectDirs`. */
   privateDirs?: ReadonlySet<string>
 }
 

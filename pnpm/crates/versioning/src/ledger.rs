@@ -83,8 +83,8 @@ impl<'de> Deserialize<'de> for LedgerEntry {
 }
 
 impl LedgerEntry {
-    /// The released project's workspace-relative dir. `None` for an entry
-    /// written before entries recorded it.
+    /// The released project's workspace-relative dir, as recorded. `None` for
+    /// a bare id list, which names no dir.
     #[must_use]
     pub fn dir(&self) -> Option<&str> {
         match self {
