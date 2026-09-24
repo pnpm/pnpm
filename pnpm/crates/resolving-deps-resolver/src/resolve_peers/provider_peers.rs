@@ -39,36 +39,52 @@ impl<'workspace> CandidatePeerRanges<'workspace> {
         if let Some(ranges) = self.workspace.inspect_package(&pkg_id, peer_ranges_of) {
             return Some(ranges);
         }
-        if let Some(ranges) = self.by_name_version().get(&pkg_id) {
-            return Some(ranges.clone());
-        }
-        let key = pkg_id.parse::<pnpm_lockfile::PkgNameVerPeer>().ok()?;
-        let metadata = self.workspace
-            .wanted_lockfile()?
-            .packages
-            .as_ref()?
-            .get(&key)?;
-        Some(
-            metadata.peer_dependencies
-                .iter()
-                .flatten()
-                .map(|(peer_name, range)| (peer_name.clone(), range.clone()))
-                .collect(),
-        )
+        self.by_name_version()
+            .get(&pkg_id)
+            .cloned()
     }
 
     fn by_name_version(&self) -> &HashMap<String, PeerRanges> {
         self.by_name_version.get_or_init(|| {
             let mut index = HashMap::default();
+            if let Some(packages) = self.workspace
+                .wanted_lockfile()
+                .and_then(|lockfile| lockfile.packages.as_ref())
+            {
+                for (key, metadata) in packages {
+                    let version = lockfile_entry_version(key, metadata);
+                    index.insert(format!("{}@{version}", key.name), lockfile_peer_ranges(metadata));
+                }
+            }
             self.workspace.for_each_package(|package| {
                 let (name, version) = context::pkg_name_version(&package.result);
-                index
-                    .entry(format!("{name}@{version}"))
-                    .or_insert_with(|| peer_ranges_of(package));
+                index.insert(format!("{name}@{version}"), peer_ranges_of(package));
             });
             index
         })
     }
+}
+
+fn lockfile_entry_version(
+    key: &pnpm_lockfile::PkgNameVerPeer,
+    metadata: &pnpm_lockfile::PackageMetadata,
+) -> String {
+    if let Some(v) = &metadata.version {
+        return v.clone();
+    }
+    match key.suffix.version() {
+        pnpm_lockfile::VersionPart::Semver(v)
+        | pnpm_lockfile::VersionPart::RegistryQualified { version: v, .. } => v.to_string(),
+        pnpm_lockfile::VersionPart::File(v) | pnpm_lockfile::VersionPart::NonSemver(v) => v.clone(),
+    }
+}
+
+fn lockfile_peer_ranges(metadata: &pnpm_lockfile::PackageMetadata) -> PeerRanges {
+    metadata.peer_dependencies
+        .iter()
+        .flatten()
+        .map(|(peer_name, range)| (peer_name.clone(), range.clone()))
+        .collect()
 }
 
 fn peer_ranges_of(package: &ResolvedPackage) -> PeerRanges {

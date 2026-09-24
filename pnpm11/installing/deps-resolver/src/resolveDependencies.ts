@@ -636,7 +636,10 @@ function createCandidatePeerRangesLookup (
     if (byNameVersion == null) {
       byNameVersion = new Map()
       for (const [depPath, pkgSnapshot] of Object.entries(ctx.wantedLockfile.packages ?? {})) {
-        byNameVersion.set(dp.removeSuffix(depPath), pkgSnapshot.peerDependencies ?? {})
+        const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+        if (pkgName && pkgVersion) {
+          byNameVersion.set(`${pkgName}@${pkgVersion}`, pkgSnapshot.peerDependencies ?? {})
+        }
       }
       for (const pkg of Object.values(ctx.resolvedPkgsById)) {
         byNameVersion.set(`${pkg.name}@${pkg.version}`, getPeerRanges(pkg))
