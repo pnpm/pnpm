@@ -1,8 +1,8 @@
 use super::{
-    Arc, BTreeMap, DirectDep, HashMap, HashSet, HoistMissingScope, HoistPeersOptions,
-    ImporterHoistState, MissingPeerInfo, ParentPkgAliases, PeerDiscoveryResult, PeerHoistDiscovery,
-    RequiredRound, ResolveImporterError, Resolver, WantedSpec, WorkspaceRootDep,
-    apply_hoist_missing_scope, declared_peer_ranges, extend_tree,
+    Arc, BTreeMap, CandidatePeerRanges, DirectDep, HashMap, HashSet, HoistMissingScope,
+    HoistPeersOptions, ImporterHoistState, MissingPeerInfo, ParentPkgAliases, PeerDiscoveryResult,
+    PeerHoistDiscovery, RequiredRound, ResolveImporterError, Resolver, WantedSpec,
+    WorkspaceRootDep, apply_hoist_missing_scope, extend_tree,
     get_hoistable_optional_peers_with_locked_versions, hoist_peers, index_missing_names,
     partition_missing_peers, peers_accept_provided_versions,
 };
@@ -342,8 +342,10 @@ impl ImporterHoistState {
         );
         let provided_peer_versions = self.hoisted_provider_peer_versions();
         let workspace = self.ctx.workspace();
+        let peer_ranges = CandidatePeerRanges::new(workspace);
         let accepts_candidate = |name: &str, version: &str| {
-            declared_peer_ranges(workspace, name, version)
+            peer_ranges
+                .get(name, version)
                 .is_none_or(|ranges| {
                     peers_accept_provided_versions(&ranges, &provided_peer_versions)
                 })

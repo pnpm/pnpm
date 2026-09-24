@@ -33,7 +33,7 @@
 pub(crate) use context::SharedChain;
 pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
 pub(crate) use provider_peers::{
-    declared_peer_ranges, peers_accept_provided_versions, resolved_version,
+    CandidatePeerRanges, peers_accept_provided_versions, resolved_version,
 };
 pub(crate) use walker::{MissingNames, index_missing_names};
 

@@ -51,8 +51,8 @@ use crate::{
         importer_direct_wanted_specs, record_changed_direct_deps, unwrap_package_name,
     },
     resolve_peers::{
-        HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery, ResolvePeersOptions,
-        ResolvePeersResult, apply_hoist_missing_scope, declared_peer_ranges, index_missing_names,
+        CandidatePeerRanges, HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery,
+        ResolvePeersOptions, ResolvePeersResult, apply_hoist_missing_scope, index_missing_names,
         peers_accept_provided_versions, resolve_peers, resolved_version,
     },
     resolved_tree::ResolvedTree,

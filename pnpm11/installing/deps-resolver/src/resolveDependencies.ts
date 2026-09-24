@@ -509,6 +509,7 @@ export async function resolveRootDependencies (
       return allMissingOptionalPeers
     }))
     let hasNewMissingPeers = false
+    const getCandidatePeerRanges = createCandidatePeerRangesLookup(ctx)
     await Promise.all(allMissingOptionalPeersByImporters.map(async (allMissingOptionalPeers, index) => {
       const { preferredVersions, parentPkgAliases, options } = importers[index]
       if (Object.keys(allMissingOptionalPeers).length && ctx.allPreferredVersions) {
@@ -522,7 +523,7 @@ export async function resolveRootDependencies (
           allMissingOptionalPeers,
           ctx.allPreferredVersions,
           workspaceRootDeps,
-          (name, version) => peersAcceptProvidedVersions(getCandidatePeerRanges(ctx, name, version), providedPeerVersions)
+          (name, version) => peersAcceptProvidedVersions(getCandidatePeerRanges(name, version), providedPeerVersions)
         )
         if (Object.keys(optionalDependencies).length) {
           hasNewMissingPeers = true
@@ -618,26 +619,35 @@ function getDirectDepVersions (
 }
 
 /**
- * The peer ranges an optional peer candidate declares. A candidate is found by
- * name and version, since a package resolved from a named registry has a
- * different ID. One seeded only from the wanted lockfile has no resolved
- * package yet, so the lockfile describes its peers instead.
+ * Looks up the peer ranges an optional peer candidate declares. A candidate is
+ * found by name and version, since a package resolved from a named registry
+ * has a different ID. One seeded only from the wanted lockfile has no resolved
+ * package yet, so the lockfile describes its peers instead. The name and
+ * version index is built on the first miss, once per hoisting round.
  */
-function getCandidatePeerRanges (
-  ctx: Pick<ResolutionContext, 'resolvedPkgsById' | 'wantedLockfile'>,
-  name: string,
-  version: string
-): Record<string, string> | undefined {
-  const resolvedPackage = ctx.resolvedPkgsById[`${name}@${version}` as PkgResolutionId] ??
-    Object.values(ctx.resolvedPkgsById).find((pkg) => pkg.name === name && pkg.version === version)
-  if (resolvedPackage != null) {
-    return Object.fromEntries(Object.entries(resolvedPackage.peerDependencies).map(([peerName, { version: range }]) => [peerName, range]))
+function createCandidatePeerRangesLookup (
+  ctx: Pick<ResolutionContext, 'resolvedPkgsById' | 'wantedLockfile'>
+): (name: string, version: string) => Record<string, string> | undefined {
+  let byNameVersion: Map<string, Record<string, string>> | undefined
+  return (name, version) => {
+    const pkgId = `${name}@${version}`
+    const resolvedPackage = ctx.resolvedPkgsById[pkgId as PkgResolutionId]
+    if (resolvedPackage != null) return getPeerRanges(resolvedPackage)
+    if (byNameVersion == null) {
+      byNameVersion = new Map()
+      for (const [depPath, pkgSnapshot] of Object.entries(ctx.wantedLockfile.packages ?? {})) {
+        byNameVersion.set(dp.removeSuffix(depPath), pkgSnapshot.peerDependencies ?? {})
+      }
+      for (const pkg of Object.values(ctx.resolvedPkgsById)) {
+        byNameVersion.set(`${pkg.name}@${pkg.version}`, getPeerRanges(pkg))
+      }
+    }
+    return byNameVersion.get(pkgId)
   }
-  const pkgId = `${name}@${version}`
-  for (const [depPath, pkgSnapshot] of Object.entries(ctx.wantedLockfile.packages ?? {})) {
-    if (dp.removeSuffix(depPath) === pkgId) return pkgSnapshot.peerDependencies ?? {}
-  }
-  return undefined
+}
+
+function getPeerRanges (resolvedPackage: ResolvedPackage): Record<string, string> {
+  return Object.fromEntries(Object.entries(resolvedPackage.peerDependencies).map(([peerName, { version: range }]) => [peerName, range]))
 }
 
 /**

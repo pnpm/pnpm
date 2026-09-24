@@ -15,16 +15,9 @@ impl WorkspaceTreeCtx {
         lock_recoverable(&self.tree.packages).get(pkg_id).map(inspect)
     }
 
-    /// Runs `inspect` on a recorded package that `matches` accepts, if any.
-    pub(crate) fn inspect_matching_package<Output>(
-        &self,
-        matches: impl Fn(&crate::ResolvedPackage) -> bool,
-        inspect: impl FnOnce(&crate::ResolvedPackage) -> Output,
-    ) -> Option<Output> {
-        lock_recoverable(&self.tree.packages)
-            .values()
-            .find(|package| matches(package))
-            .map(inspect)
+    /// Calls `visit` on every recorded package.
+    pub(crate) fn for_each_package(&self, visit: impl FnMut(&crate::ResolvedPackage)) {
+        lock_recoverable(&self.tree.packages).values().for_each(visit);
     }
 
     pub(crate) fn duplicate_versions(&self) -> pnpm_resolving_resolver_base::PreferredVersions {
