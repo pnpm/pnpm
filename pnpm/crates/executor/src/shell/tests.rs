@@ -1,6 +1,6 @@
-use super::{ScriptShellError, SelectedShell, select_shell};
+use super::{ScriptShellError, SelectedShell, missing_script_shell, select_shell};
 use pretty_assertions::assert_eq;
-use std::{ffi::OsString, path::Path};
+use std::{ffi::OsString, io, path::Path};
 
 fn os(text: &str) -> OsString {
     OsString::from(text)
@@ -52,6 +52,34 @@ fn custom_script_shell_wins_on_both_platforms() {
 }
 
 #[test]
+fn spawn_not_found_is_blamed_on_the_configured_script_shell() {
+    let cwd = tempfile::tempdir().expect("tempdir");
+    let shell = Path::new("/usr/bin/no-such-shell");
+    let error = io::Error::from(io::ErrorKind::NotFound);
+    match missing_script_shell(Some(shell), error, cwd.path()) {
+        Ok(ScriptShellError::NotFound { path, .. }) => assert_eq!(path, "/usr/bin/no-such-shell"),
+        other => panic!("unexpected result: {other:?}"),
+    }
+}
+
+#[test]
+fn spawn_not_found_is_not_blamed_on_the_shell_when_the_cwd_is_missing() {
+    let cwd = tempfile::tempdir().expect("tempdir");
+    let missing_cwd = cwd.path().join("missing");
+    let error = io::Error::from(io::ErrorKind::NotFound);
+    let result = missing_script_shell(Some(Path::new("bash")), error, &missing_cwd);
+    assert!(result.is_err(), "got {result:?}");
+}
+
+#[test]
+fn spawn_not_found_without_a_configured_script_shell_is_kept() {
+    let cwd = tempfile::tempdir().expect("tempdir");
+    let error = io::Error::from(io::ErrorKind::NotFound);
+    let result = missing_script_shell(None, error, cwd.path());
+    assert!(result.is_err(), "got {result:?}");
+}
+
+#[test]
 fn batch_file_script_shell_rejected_on_windows() {
     for ext in [".cmd", ".CMD", ".bat", ".BAT"] {
         let path = format!(r"C:\tools\shell-mock{ext}");
@@ -60,6 +88,7 @@ fn batch_file_script_shell_rejected_on_windows() {
             ScriptShellError::BatchFileOnWindows { path: got } => {
                 assert_eq!(got, path, "error path must echo input");
             }
+            other => panic!("unexpected error: {other:?}"),
         }
     }
 }

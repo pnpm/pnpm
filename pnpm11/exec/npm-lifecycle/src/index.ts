@@ -12,8 +12,9 @@ import uidNumber from 'uid-number'
 
 import { extendPath } from './extendPath.js'
 import { makePackageManagerEnv } from './makePackageManagerEnv.js'
+import { missingScriptShellError, SCRIPT_SHELL_NOT_FOUND } from './missingScriptShell.js'
 import { relaySignals, reserveSignalRelay, type SignalRelayReservation, spawnsInOwnProcessGroup } from './signals.js'
-import { type LifecycleChildProcess, spawn } from './spawn.js'
+import { type LifecycleChildProcess, spawn, type SpawnError } from './spawn.js'
 
 export { makePackageManagerEnv } from './makePackageManagerEnv.js'
 export type { ProcessGroupWatchdog, RelaySignalsOptions, SignalRelay, SignalTarget } from './signals.js'
@@ -463,8 +464,8 @@ function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void
     }, (err: LifecycleError) => procError(raiseError ?? err))
   }
 
-  proc.on('error', (err: LifecycleError) => {
-    finish(spawnObserverFailed ? spawnObserverError : err)
+  proc.on('error', (err: SpawnError) => {
+    finish(spawnObserverFailed ? spawnObserverError : missingScriptShellError(err, opts.scriptShell, run.wd) ?? err)
   })
   proc.on('close', (code: number | null, signal: NodeJS.Signals | null) => {
     opts.log.silly('lifecycle', logId(pkg, stage), 'Returned: code:', code, ' signal:', signal)
@@ -514,7 +515,7 @@ function createProcError (run: ScriptRun, cb: Callback): (er?: LifecycleError | 
     if (er) {
       opts.log.info('lifecycle', logId(pkg, stage), `Failed to exec ${stage} script`)
       er.message = `${pkg._id} ${stage}: \`${cmd}\`\n${er.message}`
-      if (er.code !== 'EPERM') {
+      if (er.code !== 'EPERM' && er.code !== SCRIPT_SHELL_NOT_FOUND) {
         er.code = 'ELIFECYCLE'
       }
       fs.stat(opts.dir, (statError) => {

@@ -859,3 +859,42 @@ fn run_resolves_commands_from_the_configured_modules_dir() {
 
     drop(root);
 }
+
+#[test]
+fn run_with_a_missing_script_shell_names_it() {
+    for streamed in [false, true] {
+        let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let manifest =
+            json!({ "name": "test", "version": "0.0.0", "scripts": { "build": "echo built" } })
+                .to_string();
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+        let missing_shell = workspace.join("no-such-shell");
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!("scriptShell: '{}'\n", missing_shell.display()),
+        )
+        .expect("write pnpm-workspace.yaml");
+
+        if streamed {
+            pacquet.args(["--recursive", "--include-workspace-root", "--stream"]);
+        }
+        let output = pacquet
+            .with_args(["run", "build"])
+            .output()
+            .expect("spawn pacquet run");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // miette wraps the report at the terminal width, splitting the temp path.
+        let unwrapped: String = stderr
+            .chars()
+            .filter(|&c| !c.is_whitespace() && c != '│')
+            .collect();
+        assert!(!output.status.success(), "streamed: {streamed}, got: {output:?}");
+        assert!(
+            unwrapped.contains("TheconfiguredscriptShellwasnotfound")
+                && unwrapped.contains(&missing_shell.display().to_string()),
+            "streamed: {streamed}, the error must name the configured scriptShell, got: {stderr}",
+        );
+
+        drop(root);
+    }
+}

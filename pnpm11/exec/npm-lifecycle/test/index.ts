@@ -172,6 +172,31 @@ skipOnWindows('exit with error on INT signal from child', async () => {
   expect(log.silly).toHaveBeenCalledWith('lifecycle', 'undefined~signal-int:', 'Returned: code:', null, ' signal:', 'SIGINT')
 })
 
+test('a scriptShell that does not exist is named in the error', async () => {
+  const scriptShell = path.join(temporaryDirectory(), 'no-such-shell')
+
+  const running = lifecycle(countTo10Manifest, 'postinstall', countTo10, {
+    stdio: 'pipe',
+    log: makeLog(),
+    dir: countTo10,
+    scriptShell,
+  })
+
+  await expect(running).rejects.toHaveProperty('code', 'ERR_PNPM_SCRIPT_SHELL_NOT_FOUND')
+  await expect(running).rejects.toThrow(`The configured scriptShell was not found: ${scriptShell}`)
+})
+
+skipOnWindows('a command missing inside an existing scriptShell is not blamed on the shell', async () => {
+  const running = lifecycle({ scripts: { postinstall: 'no-such-command-7562' } }, 'postinstall', countTo10, {
+    stdio: 'pipe',
+    log: makeLog(),
+    dir: countTo10,
+    scriptShell: '/bin/sh',
+  })
+
+  await expect(running).rejects.toHaveProperty('code', 'ELIFECYCLE')
+})
+
 test('makeEnv', () => {
   const pkg = {
     name: 'myPackage',

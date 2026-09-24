@@ -3,6 +3,7 @@ use miette::Diagnostic;
 use std::{
     env,
     ffi::OsString,
+    io,
     path::{Path, PathBuf},
 };
 
@@ -23,6 +24,18 @@ pub enum ScriptShellError {
     )]
     #[diagnostic(code(ERR_PNPM_INVALID_SCRIPT_SHELL_WINDOWS))]
     BatchFileOnWindows { path: String },
+
+    #[display(
+        "The configured scriptShell was not found: {path}. \
+         Set scriptShell in pnpm-workspace.yaml to the path of an existing shell executable, \
+         or unset it to use the default shell."
+    )]
+    #[diagnostic(code(ERR_PNPM_SCRIPT_SHELL_NOT_FOUND))]
+    NotFound {
+        path: String,
+        #[error(source)]
+        source: io::Error,
+    },
 }
 
 /// The result of [`select_shell`]: a program path plus the leading
@@ -92,6 +105,25 @@ pub fn select_shell(
 fn is_windows_batch_file(path: &Path) -> bool {
     let lowered = path.to_string_lossy().to_ascii_lowercase();
     lowered.ends_with(".cmd") || lowered.ends_with(".bat")
+}
+
+/// Blame a failed spawn on the configured `scriptShell` when the program
+/// was not found. A missing working directory fails the spawn with the
+/// same error kind, so the shell is blamed only when `cwd` exists.
+pub(crate) fn missing_script_shell(
+    script_shell: Option<&Path>,
+    error: io::Error,
+    cwd: &Path,
+) -> Result<ScriptShellError, io::Error> {
+    match script_shell {
+        Some(path) if error.kind() == io::ErrorKind::NotFound && cwd.is_dir() => {
+            Ok(ScriptShellError::NotFound {
+                path: path.to_string_lossy().into_owned(),
+                source: error,
+            })
+        }
+        _ => Err(error),
+    }
 }
 
 #[cfg(test)]
