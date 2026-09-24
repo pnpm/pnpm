@@ -131,4 +131,9 @@ pub struct InstallMaterializationArgs {
     /// read-only store.
     #[clap(long = "no-frozen-store", overrides_with = "frozen_store")]
     pub no_frozen_store: bool,
+    /// Package names allowed to run lifecycle (build) scripts during this
+    /// install, appended to `allowBuilds`. Prefix a name with `!` to deny
+    /// its scripts instead. May be repeated.
+    #[clap(long = "allow-build")]
+    pub allow_build: Vec<String>,
 }

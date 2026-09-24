@@ -320,6 +320,8 @@ fn install_with_config<'a>(
             // borrow of `cfg` across the `&mut` `updateConfig` pass.
             let config_root = derive_config_root(&mut *cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
+            let allow_build_root = cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone());
+            apply_allow_build(cfg, args.allow_build(), &allow_build_root)?;
             let update_check = match update_check_policy {
                 UpdateCheckPolicy::Run => update_notifier::spawn(cfg, reporter_emit(reporter)),
                 UpdateCheckPolicy::Skip => None,

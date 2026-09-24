@@ -355,7 +355,7 @@ fn workspace_selectors(
 /// `settings_dir`'s `pnpm-workspace.yaml`, and enable them for this
 /// install. `settings_dir` is the workspace root, or the project
 /// directory outside a workspace. Mirrors pnpm's `add` handler; shared by
-/// the workspace and `--global` add paths.
+/// the `add` and `install` commands (including `--global` add paths).
 pub(crate) fn apply_allow_build(
     config: &mut Config,
     allow_build: &[String],

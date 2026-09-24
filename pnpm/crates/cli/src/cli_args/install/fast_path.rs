@@ -112,12 +112,13 @@ impl InstallArgs {
     /// at the project on disk. Every flag here either asks for work the
     /// fast path cannot do, or describes an install whose verdict a
     /// single-directory probe cannot reach.
-    fn fast_path_is_eligible(&self, config: &pnpm_config::Config) -> bool {
+    pub(super) fn fast_path_is_eligible(&self, config: &pnpm_config::Config) -> bool {
         if self.effective_frozen_lockfile(config)
             || self.lockfile.only
             || self.lockfile.fix
             || self.materialization.force
             || self.materialization.verify_deps_before_run_install
+            || !self.materialization.allow_build.is_empty()
         {
             return false;
         }
