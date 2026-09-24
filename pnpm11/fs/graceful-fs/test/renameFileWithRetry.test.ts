@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
-import { renameFileWithRetry } from '@pnpm/fs.graceful-fs'
+import { renameFileWithRetry, renameFileWithRetryAsync } from '@pnpm/fs.graceful-fs'
 
 const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
 const privilegesScript = path.join(import.meta.dirname, 'processPrivileges.ps1')
@@ -78,6 +78,42 @@ test('a WSL rename recovers from a Windows file lock', () => {
 
   renameFileWithRetry('source', 'destination')
   expect(rename).toHaveBeenCalledTimes(2)
+})
+
+test.each(['EPERM', 'EACCES', 'EBUSY'])('async rename: %s uses its bounded Windows retry budget', async (code) => {
+  Object.defineProperty(process, 'platform', { value: 'win32' })
+  let elapsed = 0
+  jest.spyOn(Date, 'now').mockImplementation(() => elapsed)
+  jest.spyOn(globalThis, 'setTimeout').mockImplementation(((callback: () => void, delay: number) => {
+    elapsed += delay
+    callback()
+    return 0
+  }) as typeof setTimeout)
+  const error = Object.assign(new Error('rename failed'), { code })
+  jest.spyOn(fs.promises, 'rename').mockRejectedValue(error)
+
+  await expect(renameFileWithRetryAsync('source', 'destination')).rejects.toThrow(error)
+  expect(elapsed).toBe(code === 'EBUSY' ? 60_000 : 1_000)
+})
+
+test('async rename recovers from a temporary permission error', async () => {
+  Object.defineProperty(process, 'platform', { value: 'win32' })
+  const rename = jest.spyOn(fs.promises, 'rename')
+    .mockRejectedValueOnce(Object.assign(new Error('denied'), { code: 'EPERM' }))
+    .mockResolvedValue()
+
+  await renameFileWithRetryAsync('source', 'destination')
+  expect(rename).toHaveBeenCalledTimes(2)
+})
+
+test('async rename returns Unix permission errors immediately', async () => {
+  Object.defineProperty(process, 'platform', { value: 'linux' })
+  jest.spyOn(os, 'release').mockReturnValue('6.8.0-45-generic')
+  const error = Object.assign(new Error('denied'), { code: 'EACCES' })
+  const rename = jest.spyOn(fs.promises, 'rename').mockRejectedValue(error)
+
+  await expect(renameFileWithRetryAsync('source', 'destination')).rejects.toThrow(error)
+  expect(rename).toHaveBeenCalledTimes(1)
 })
 
 test('Unix permission errors are returned immediately', () => {

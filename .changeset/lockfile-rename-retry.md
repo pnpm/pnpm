@@ -1,4 +1,5 @@
 ---
+"@pnpm/fs.graceful-fs": patch
 "@pnpm/lockfile.fs": patch
 "pnpm": patch
 "pacquet": patch

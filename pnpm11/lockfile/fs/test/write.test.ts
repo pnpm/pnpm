@@ -469,19 +469,14 @@ test('writeWantedLockfile() retries a Windows rename blocked by a transient lock
   const projectPath = temporaryDirectory()
   await writeWantedLockfile(projectPath, { ...upToDateLockfile, importers: {} })
   const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
-  const lockError = () => Object.assign(new Error('operation not permitted, rename'), { code: 'EPERM' })
-  const renameSync = jest.spyOn(fs, 'renameSync').mockImplementationOnce(() => {
-    throw lockError()
-  })
-  const rename = jest.spyOn(fs.promises, 'rename').mockImplementationOnce(async () => {
-    throw lockError()
-  })
+  const rename = jest.spyOn(fs.promises, 'rename').mockRejectedValueOnce(
+    Object.assign(new Error('operation not permitted, rename'), { code: 'EPERM' })
+  )
   Object.defineProperty(process, 'platform', { value: 'win32' })
   try {
     await writeWantedLockfile(projectPath, upToDateLockfile)
   } finally {
     Object.defineProperty(process, 'platform', platform)
-    renameSync.mockRestore()
     rename.mockRestore()
   }
 
