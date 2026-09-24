@@ -637,7 +637,7 @@ async fn resolve_pnpm_version_forces_full_metadata_for_no_downgrade_despite_regi
         .expect("a matching pnpm version resolves");
     assert_eq!(
         resolved.version, "1.0.0",
-        "the downgrade must be skipped even with registrySupportsTimeField"
+        "the downgrade must be skipped even with registrySupportsTimeField",
     );
 }
 
