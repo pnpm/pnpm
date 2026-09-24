@@ -675,7 +675,7 @@ test('allProjectsAreUpToDate(): returns false if a workspace dependency targets 
       importers: {
         ['bar' as ProjectId]: {
           dependencies: {
-            alias: 'baz@file:../baz',
+            alias: 'baz@file:baz',
           },
           specifiers: {
             alias: 'workspace:foo@^1.0.0',
@@ -691,6 +691,11 @@ test('allProjectsAreUpToDate(): returns false if a workspace dependency targets 
         },
         ['baz' as ProjectId]: {
           specifiers: {},
+        },
+      },
+      packages: {
+        ['baz@file:baz' as DepPath]: {
+          resolution: { directory: 'baz', type: 'directory' },
         },
       },
       lockfileVersion: LOCKFILE_VERSION,
