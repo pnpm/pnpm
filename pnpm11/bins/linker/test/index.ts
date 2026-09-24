@@ -46,6 +46,8 @@ const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
 
 const testOnWindows = IS_WINDOWS ? test : test.skip
 const testOnPosix = IS_WINDOWS ? test.skip : test
+// Root reads through a directory whose permissions deny access.
+const testOnPosixAsNonRoot = IS_WINDOWS || process.getuid?.() === 0 ? test.skip : test
 
 function getExpectedBins (bins: string[]) {
   const expectedBins = [...bins]
@@ -859,7 +861,7 @@ testOnWindows("linkBinsOfPackages() links a package's own bin whose target exist
   expect(fs.readdirSync(ownBinsDir)).toEqual(getExpectedBins(['tool']))
 })
 
-testOnPosix("linkBinsOfPackages() links a package's other own bins when probing one of them fails", async () => {
+testOnPosixAsNonRoot("linkBinsOfPackages() links a package's other own bins when probing one of them fails", async () => {
   const pkgDir = temporaryDirectory()
   const ownBinsDir = path.join(pkgDir, 'node_modules', '.bin')
   const lockedDir = path.join(pkgDir, 'locked')
