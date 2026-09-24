@@ -14,6 +14,8 @@ mod resolution;
 
 mod lockfile;
 
+mod modules_dir;
+
 mod workspace;
 
 mod installation;
