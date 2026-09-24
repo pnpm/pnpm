@@ -18,7 +18,7 @@ import {
   runLifecycleHook,
   type RunLifecycleHookOptions,
 } from '@pnpm/exec.lifecycle'
-import type { DependencyManifest, PackageScripts, ProjectManifest } from '@pnpm/types'
+import type { DependencyManifest, PackageScripts, ProjectManifest, ProjectsGraph } from '@pnpm/types'
 import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
 import pLimit from 'p-limit'
 import { pick } from 'ramda'
@@ -248,6 +248,10 @@ export async function handler (
 
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
+      if (fallsBackToExec(opts, scriptName)) {
+        // exec must not repeat the dependency verification above.
+        return exec({ implicitlyFellbackFromRun: true, ...opts, verifyDepsBeforeRun: false }, params)
+      }
       return runRecursive(params, opts)
     }
     dir = Object.keys(opts.selectedProjectsGraph)[0]
@@ -505,6 +509,27 @@ function getRunScriptStages (
   if (scripts[pre] && !main.includes(pre)) stages.unshift({ name: pre, command: scripts[pre] })
   if (scripts[post] && !main.includes(post)) stages.push({ name: post, command: scripts[post] })
   return stages
+}
+
+/**
+ * Whether a recursive `pnpm <command>` shorthand hands the command to `exec`,
+ * as the single-project shorthand does when no selected project has a script
+ * by that name. `test` and `start` have defaults of their own when the script
+ * is missing, so they are never handed to `exec` as binaries.
+ */
+function fallsBackToExec (opts: RunOpts & { recursive: true }, scriptName: string): boolean {
+  return Boolean(opts.fallbackCommandUsed) &&
+    scriptName !== 'test' &&
+    scriptName !== 'start' &&
+    !opts.ifPresent &&
+    !opts.dryRun &&
+    !someSelectedProjectHasScript(opts.selectedProjectsGraph, scriptName)
+}
+
+function someSelectedProjectHasScript (selectedProjectsGraph: ProjectsGraph, scriptName: string): boolean {
+  return Object.values(selectedProjectsGraph).some(({ package: { manifest } }) =>
+    getSpecifiedScriptWithoutStartCommand(manifest.scripts ?? {}, scriptName).length > 0
+  )
 }
 
 function renderCommands (commands: string[][]): string {

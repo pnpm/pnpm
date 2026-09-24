@@ -51,7 +51,7 @@ use pnpm_workspace_task_scheduler::{
 };
 use script_budget::{ScriptBudget, ScriptPermit, run_script_budget};
 use selection::{
-    RunReporting, build_run_task_graph, check_a_project_has_the_script,
+    RunReporting, a_project_has_the_script, build_run_task_graph, check_a_project_has_the_script,
     filter_hidden_requested_scripts, print_run_dry_run, print_selected_project_commands,
     report_run_outcome, resume_task_graph, run_concurrency, run_process_tracker,
     run_state_settings,
@@ -106,6 +106,14 @@ pub enum RecursiveRunError {
     ScriptNameRequired,
 }
 
+pub enum RecursiveRunOutcome {
+    Done,
+    /// No selected project has a script the name matches, and the caller
+    /// asked to fall back to `exec` instead of failing. Returned before
+    /// anything is dispatched.
+    NoMatchingScript,
+}
+
 /// Run `args.command` across the `--filter`-selected workspace projects,
 /// in task-graph dependency order. `dir` is the canonicalized working
 /// directory; the workspace root (and the directory the summary is written
@@ -116,7 +124,8 @@ pub fn run_recursive(
     config: &Config,
     dir: &Path,
     reporter: ReporterType,
-) -> miette::Result<()> {
+    fallback_to_exec: bool,
+) -> miette::Result<RecursiveRunOutcome> {
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
 
     let (projects, patterns) = discover_workspace_projects(workspace_root, config)?;
@@ -128,7 +137,8 @@ pub fn run_recursive(
     )?;
     let graph = &selection.selected;
     let Some(script_name) = args.script_name() else {
-        return print_selected_project_commands(graph, &projects, workspace_root);
+        print_selected_project_commands(graph, &projects, workspace_root)?;
+        return Ok(RecursiveRunOutcome::Done);
     };
     let emit = reporter_emit(reporter);
     let silent = matches!(reporter, ReporterType::Ndjson | ReporterType::Silent);
@@ -136,7 +146,7 @@ pub fn run_recursive(
     // An empty `--filter` selection is a no-op (exit 0); an empty
     // workspace instead falls through to the no-script error below.
     if !projects.is_empty() && graph.is_empty() {
-        return Ok(());
+        return Ok(RecursiveRunOutcome::Done);
     }
 
     let run = RecursiveRun {
@@ -152,6 +162,7 @@ pub fn run_recursive(
             silent,
             script_name,
             all_packages_selected: graph.len() == projects.len(),
+            fallback_to_exec,
         },
     };
     run.run_and_report()
@@ -188,6 +199,15 @@ pub(crate) struct RecursiveScript<'a> {
     silent: bool,
     script_name: &'a str,
     all_packages_selected: bool,
+    /// Whether a name no selected project has a script for is handed to
+    /// `exec`, as the `pnpm <command>` shorthand does.
+    fallback_to_exec: bool,
+}
+
+enum Prepared {
+    Run(Box<PreparedRun>),
+    DryRun,
+    NoMatchingScript,
 }
 
 /// The task graph ready to schedule, with the run-state journal started.
@@ -207,9 +227,11 @@ struct RunResults {
 }
 
 impl RecursiveRun<'_, '_> {
-    fn run_and_report(&self) -> miette::Result<()> {
-        let Some(prepared) = self.prepare()? else {
-            return Ok(());
+    fn run_and_report(&self) -> miette::Result<RecursiveRunOutcome> {
+        let prepared = match self.prepare()? {
+            Prepared::Run(prepared) => *prepared,
+            Prepared::DryRun => return Ok(RecursiveRunOutcome::Done),
+            Prepared::NoMatchingScript => return Ok(RecursiveRunOutcome::NoMatchingScript),
         };
         let projects_to_verify = prepared.task_graph
             .values()
@@ -233,14 +255,18 @@ impl RecursiveRun<'_, '_> {
             },
             &results.statuses,
             results.first_failure,
-        )
+        )?;
+        Ok(RecursiveRunOutcome::Done)
     }
 
     /// Build, resume and sequence the task graph, then start the run-state
-    /// journal. `None` once a dry run has printed the graph instead.
-    fn prepare(&self) -> miette::Result<Option<PreparedRun>> {
+    /// journal.
+    fn prepare(&self) -> miette::Result<Prepared> {
         // Compiled once for the whole run, not per project or task.
         let full_task_graph = self.task_graph()?;
+        if self.falls_back_to_exec(&full_task_graph) {
+            return Ok(Prepared::NoMatchingScript);
+        }
         let extra_env: HashMap<String, String> = self.config.extra_env_with_node_options();
         let state_settings = run_state_settings(self.config, &extra_env);
         let task_run_state_context = TaskRunStateContext::new(
@@ -258,20 +284,11 @@ impl RecursiveRun<'_, '_> {
             &full_task_graph,
             self.script.script_name,
         )?;
-        // Also the cycle check: a cyclic graph cannot be scheduled, and
-        // sequenced into an arbitrary order it would succeed or fail by luck.
-        let sequenced_tasks = sequence_tasks(
-            &mut task_graph,
-            &SequenceTasksOptions {
-                workspace_dir: self.workspace_root,
-                ignore_cycles: self.config.ignore_workspace_cycles,
-                emit: self.script.emit,
-            },
-        )?;
+        let sequenced_tasks = self.sequence(&mut task_graph)?;
 
         if self.args.dry_run {
             print_run_dry_run(self.args, &task_graph, &sequenced_tasks, self.workspace_root)?;
-            return Ok(None);
+            return Ok(Prepared::DryRun);
         }
 
         self.validate_requested_scripts(&mut task_graph)?;
@@ -280,7 +297,34 @@ impl RecursiveRun<'_, '_> {
             &full_task_graph,
             &task_graph,
         ))?;
-        Ok(Some(PreparedRun { task_graph, sequenced_tasks, extra_env, task_run_state }))
+        Ok(Prepared::Run(Box::new(PreparedRun {
+            task_graph,
+            sequenced_tasks,
+            extra_env,
+            task_run_state,
+        })))
+    }
+
+    /// Also the cycle check: a cyclic graph cannot be scheduled, and
+    /// sequenced into an arbitrary order it would succeed or fail by luck.
+    fn sequence(&self, task_graph: &mut TaskGraph) -> miette::Result<Vec<TaskKey>> {
+        Ok(sequence_tasks(
+            task_graph,
+            &SequenceTasksOptions {
+                workspace_dir: self.workspace_root,
+                ignore_cycles: self.config.ignore_workspace_cycles,
+                emit: self.script.emit,
+            },
+        )?)
+    }
+
+    /// Decided on the graph as built, before the run-only resume and
+    /// sequencing, which do not apply to `exec`.
+    fn falls_back_to_exec(&self, task_graph: &TaskGraph) -> bool {
+        self.script.fallback_to_exec
+            && !self.args.if_present
+            && !self.args.dry_run
+            && !a_project_has_the_script(task_graph)
     }
 
     fn validate_requested_scripts(&self, task_graph: &mut TaskGraph) -> miette::Result<()> {

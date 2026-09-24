@@ -31,6 +31,7 @@ use pnpm_package_manager::{
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::{ReadProjectManifestOnlyError, read_project_manifest_only};
 use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, TaskCompletion, schedule_graph};
+use recursive::RecursiveRunOutcome;
 use regex::Regex;
 use serde_json::Value;
 use std::{
@@ -277,7 +278,30 @@ impl RunArgs {
         dir: &Path,
         reporter: ReporterType,
     ) -> miette::Result<()> {
-        recursive::run_recursive(self, config, dir, reporter)
+        recursive::run_recursive(self, config, dir, reporter, false).map(drop)
+    }
+
+    /// Like [`Self::run_recursive`], but when no selected project has a
+    /// script the name matches, the command is handed to a recursive
+    /// `exec` over the same selection.
+    pub async fn run_recursive_fallback(
+        &self,
+        config: &Config,
+        dir: &Path,
+        reporter: ReporterType,
+    ) -> miette::Result<()> {
+        match recursive::run_recursive(self, config, dir, reporter, true)? {
+            RecursiveRunOutcome::Done => Ok(()),
+            RecursiveRunOutcome::NoMatchingScript => {
+                ExecArgs {
+                    command: self.script.clone(),
+                    shell_mode: false,
+                    workspace: self.workspace.clone(),
+                }
+                .run_recursive(config, dir, reporter)
+                .await
+            }
+        }
     }
 }
 
