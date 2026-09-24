@@ -430,7 +430,7 @@ fn replaced_update_targets_are_none_when_a_locked_version_may_survive() {
     assert!(
         unlimited
             .replaced_update_targets(&lockfile, Some(&selected))
-            .is_none()
+            .is_none(),
     );
 
     assert_eq!(replaces(&UpdateSeedPolicy::KeepAll, &lockfile, "foo"), None);
