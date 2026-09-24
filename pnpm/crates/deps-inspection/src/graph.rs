@@ -249,7 +249,7 @@ fn importer_by_publish_directory(lockfile: &Lockfile, linked_importer_id: &str) 
             let links_publish_directory = importer.link_directory != Some(false)
                 && normalize_importer_path(importer_id.as_str(), publish_directory).as_deref()
                     == Some(linked_importer_id);
-            links_publish_directory.then(|| importer_id.to_string())
+            links_publish_directory.then(|| importer_id.clone())
         })
 }
 
