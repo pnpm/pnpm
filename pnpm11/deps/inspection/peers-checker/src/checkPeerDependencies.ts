@@ -321,17 +321,14 @@ function checkLinkedDependenciesPeers (
         const peerRange = getPeerVersionRange(rawPeerRange)
         const isOptional = manifest.peerDependenciesMeta?.[peerName]?.optional === true
 
-        // 1. Check consuming importer
         let foundRef = importer.dependencies?.[peerName] ?? importer.devDependencies?.[peerName] ?? importer.optionalDependencies?.[peerName]
         let foundBaseDir = importerDir
 
-        // 2. Check linked importer
         if (!foundRef && linkedImporter) {
           foundRef = linkedImporter.dependencies?.[peerName] ?? linkedImporter.devDependencies?.[peerName] ?? linkedImporter.optionalDependencies?.[peerName]
           foundBaseDir = canonicalTargetDir
         }
 
-        // 3. Check root importer
         if (!foundRef && rootImporter && importerId !== '.') {
           foundRef = rootImporter.dependencies?.[peerName] ?? rootImporter.devDependencies?.[peerName] ?? rootImporter.optionalDependencies?.[peerName]
           foundBaseDir = lockfileDir

@@ -10,7 +10,7 @@ import type {
 
 import type { NodeId } from '../lib/nextNodeId.js'
 import type { ChildrenMap, DependenciesTreeNode, PeerDependencies } from '../lib/resolveDependencies.js'
-import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers.js'
+import { type PartialResolvedPackage, type ProjectToResolve, resolvePeers } from '../lib/resolvePeers.js'
 
 test('resolve peer dependencies of cyclic dependencies', async () => {
   const fooPkg = {
@@ -2230,4 +2230,91 @@ test('linked workspace package with satisfied peer dependencies from dependent',
     resolvedImporters: {},
   })
   expect(peerDependencyIssuesByProjects['packages/app']).toBeUndefined()
+})
+
+test('linked workspace package respects resolvePeersFromWorkspaceRoot setting', async () => {
+  const dependenciesTree = new Map([
+    ['>foo@2.0.0>' as NodeId, {
+      children: {},
+      installable: true,
+      resolvedPackage: {
+        id: 'foo@2.0.0' as PkgResolutionId,
+        name: 'foo',
+        version: '2.0.0',
+        pkgIdWithPatchHash: 'foo@2.0.0' as PkgIdWithPatchHash,
+        depPath: 'foo@2.0.0' as DepPath,
+        peerDependencies: {},
+      },
+      depth: 0,
+    }],
+  ])
+  const projects: ProjectToResolve[] = [
+    {
+      directNodeIdsByAlias: new Map([
+        ['foo', '>foo@2.0.0>' as NodeId],
+      ]),
+      id: '.',
+      rootDir: '/workspace' as ProjectRootDir,
+      topParents: [],
+    },
+    {
+      directNodeIdsByAlias: new Map(),
+      id: 'packages/app',
+      rootDir: '/workspace/packages/app' as ProjectRootDir,
+      topParents: [],
+      linkedDependencies: [
+        {
+          alias: 'lib',
+          name: 'lib',
+          version: '1.0.0',
+          dev: false,
+          optional: false,
+          isLinkedDependency: true as const,
+          resolution: {
+            directory: '/workspace/packages/lib',
+            type: 'directory',
+          },
+          pkgId: 'link:packages/lib' as PkgResolutionId,
+          pkg: {
+            name: 'lib',
+            version: '1.0.0',
+            peerDependencies: {
+              foo: '^2.0.0',
+            },
+          },
+        },
+      ],
+    },
+  ]
+
+  // With resolvePeersFromWorkspaceRoot: false (or unset), root does not satisfy linked peer
+  const withoutRoot = await resolvePeers({
+    allPeerDepNames: new Set(['foo']),
+    dependenciesTree,
+    projects,
+    virtualStoreDir: '',
+    lockfileDir: '/workspace',
+    virtualStoreDirMaxLength: 120,
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(['.', 'packages/app', 'packages/lib']),
+    resolvedImporters: {},
+    resolvePeersFromWorkspaceRoot: false,
+  })
+  expect(withoutRoot.peerDependencyIssuesByProjects['packages/app']).toBeDefined()
+  expect(withoutRoot.peerDependencyIssuesByProjects['packages/app'].missing).toHaveProperty('foo')
+
+  // With resolvePeersFromWorkspaceRoot: true, root satisfies linked peer
+  const withRoot = await resolvePeers({
+    allPeerDepNames: new Set(['foo']),
+    dependenciesTree,
+    projects,
+    virtualStoreDir: '',
+    lockfileDir: '/workspace',
+    virtualStoreDirMaxLength: 120,
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(['.', 'packages/app', 'packages/lib']),
+    resolvedImporters: {},
+    resolvePeersFromWorkspaceRoot: true,
+  })
+  expect(withRoot.peerDependencyIssuesByProjects['packages/app']).toBeUndefined()
 })

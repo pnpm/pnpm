@@ -256,15 +256,12 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
                 fallbackSatisfied = true
               }
             }
-            if (!fallbackSatisfied) {
-              const rootProject = opts.projects.find((p) => p.id === '.')
-              if (rootProject && id !== '.') {
-                const rootNodeId = rootProject.directNodeIdsByAlias.get(peerName)
-                if (rootNodeId) {
-                  const rootNode = opts.dependenciesTree.get(rootNodeId)
-                  if (rootNode && semverUtils.satisfiesWithPrereleases(rootNode.resolvedPackage.version, peerVersionRange, true)) {
-                    fallbackSatisfied = true
-                  }
+            if (!fallbackSatisfied && workspaceRootProject && id !== '.') {
+              const rootNodeId = workspaceRootProject.directNodeIdsByAlias.get(peerName)
+              if (rootNodeId) {
+                const rootNode = opts.dependenciesTree.get(rootNodeId)
+                if (rootNode && semverUtils.satisfiesWithPrereleases(rootNode.resolvedPackage.version, peerVersionRange, true)) {
+                  fallbackSatisfied = true
                 }
               }
             }
