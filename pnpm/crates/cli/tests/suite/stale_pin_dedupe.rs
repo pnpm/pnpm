@@ -178,9 +178,8 @@ fn does_not_refresh_an_aliased_transitive_dependency() {
 fn dedupe_does_not_refresh_a_pin_onto_an_aliased_direct_dependency() {
     // `latest` is an `npm:` alias of the package the direct dependency
     // names. The transitive `^100.0.0` edge re-picks during a dedupe, so the
-    // refresh must not lift it onto the alias's version: the preferred
-    // versions settle it on the direct dependency, and repeated runs used to
-    // alternate between the two (https://github.com/pnpm/pnpm/issues/15588).
+    // refresh must leave it to the preferred versions, which settle it on the
+    // direct dependency (https://github.com/pnpm/pnpm/issues/15588).
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;

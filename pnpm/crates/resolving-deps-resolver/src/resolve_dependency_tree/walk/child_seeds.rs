@@ -183,14 +183,14 @@ pub(super) fn child_wanted(
     };
     let mut prior =
         scope.prior_children_snapshot.and_then(|snapshot| prior_child_key(snapshot, name, range));
-    if let Some(higher) = prior
-        .as_ref()
-        .filter(|key| keeps_locked_version(ctx, &wanted, key, depth))
-        .and_then(|key| key.suffix.version_semver().cloned())
-        .zip(range.parse::<node_semver::Range>().ok())
-        .and_then(|(pinned, parsed)| {
-            higher_direct_dep_version(scope.direct_versions.as_deref(), name, &pinned, &parsed)
-        })
+    if let Some(key) = prior.as_ref()
+        && let Some(higher) = key.suffix
+            .version_semver()
+            .zip(range.parse::<node_semver::Range>().ok())
+            .and_then(|(pinned, parsed)| {
+                higher_direct_dep_version(scope.direct_versions.as_deref(), name, pinned, &parsed)
+            })
+        && keeps_locked_version(ctx, &wanted, key, depth)
     {
         wanted.bare_specifier = Some(higher.to_string());
         prior = None;
