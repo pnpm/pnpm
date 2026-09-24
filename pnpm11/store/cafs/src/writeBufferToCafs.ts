@@ -3,6 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 import workerThreads from 'node:worker_threads'
 
+import { withFileLockRetry } from '@pnpm/fs.graceful-fs'
 import { renameOverwriteSync } from 'rename-overwrite'
 
 import { type Integrity, verifyFileIntegrity } from './checkPkgFilesIntegrity.js'
@@ -153,20 +154,25 @@ function overwriteFileInPlace (
  * readonly attribute that mode maps to on Windows refuses a write open
  * with EPERM. The caller restores the returned `modeToRestore` after
  * writing — the repair changes the file's content, not its protection.
+ *
+ * The opens run under the store's transient-lock retry policy:
+ * antivirus and indexer scans briefly hold just-written Windows paths
+ * open, failing an unlucky open with EPERM/EACCES that clears moments
+ * later.
  */
 function openForOverwrite (
   fileDest: string,
   mode: number
 ): { fd: number, modeToRestore?: number } | null {
   try {
-    return { fd: fs.openSync(fileDest, IN_PLACE_OPEN) }
+    return { fd: withFileLockRetry(() => fs.openSync(fileDest, IN_PLACE_OPEN)) }
   } catch {
     if ((mode & 0o200) !== 0) return null
   }
   let fd: number
   try {
     fs.chmodSync(fileDest, mode | 0o200)
-    fd = fs.openSync(fileDest, IN_PLACE_OPEN)
+    fd = withFileLockRetry(() => fs.openSync(fileDest, IN_PLACE_OPEN))
   } catch {
     try {
       fs.chmodSync(fileDest, mode)

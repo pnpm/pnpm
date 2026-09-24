@@ -1,4 +1,4 @@
-use crate::rename_with_retry;
+use crate::{rename_with_retry, retry::retry_transient_file_locks};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::{
@@ -469,11 +469,17 @@ pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> b
 /// attribute that maps to on Windows refuses a write open with
 /// `ERROR_ACCESS_DENIED`. The repair changes the file's content, not
 /// its protection, so the saved permissions go back on afterwards.
+///
+/// The opens run under [`retry_transient_file_locks`]: antivirus and
+/// indexer scans briefly hold just-written Windows paths open, failing
+/// an unlucky open with an access-denied error that clears moments
+/// later.
 fn open_for_overwrite(
     file_path: &Path,
     options: &OpenOptions,
 ) -> Option<(File, Option<fs::Permissions>)> {
-    if let Ok(file) = retry_on_fd_pressure(|| options.open(file_path)) {
+    let open = || retry_transient_file_locks(|| retry_on_fd_pressure(|| options.open(file_path)));
+    if let Ok(file) = open() {
         return Some((file, None));
     }
     let meta = fs::symlink_metadata(file_path).ok()?;
@@ -481,7 +487,7 @@ fn open_for_overwrite(
         return None;
     }
     fs::set_permissions(file_path, make_writable(&meta.permissions())).ok()?;
-    if let Ok(file) = retry_on_fd_pressure(|| options.open(file_path)) {
+    if let Ok(file) = open() {
         return Some((file, Some(meta.permissions())));
     }
     // Best-effort restore; the repair falls back to temp+rename.
