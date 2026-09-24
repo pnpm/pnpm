@@ -76,10 +76,12 @@ pub(crate) fn converts_yarn_workspaces(
 ///
 /// An existing `pnpm-workspace.yaml` is never replaced, whether it was
 /// there before the check or appeared while this one was being written;
-/// `cfg` then follows that file. Inside a workspace, without a usable
-/// pattern, under `--ignore-workspace`, or with a `lockfileDir` other than
-/// `dir`, nothing is created and [`warn_about_workspaces_field`] applies
-/// instead.
+/// `cfg` then follows that file. A pattern that is absolute or lexically
+/// crosses out of `dir` fails the conversion with an error naming it,
+/// before anything is written or activated. Inside a workspace, without a
+/// usable pattern, under `--ignore-workspace`, or with a `lockfileDir`
+/// other than `dir`, nothing is created and
+/// [`warn_about_workspaces_field`] applies instead.
 pub(crate) fn create_workspace_yaml_from_yarn_workspaces(
     cfg: &mut Config,
     dir: &Path,
@@ -96,6 +98,7 @@ pub(crate) fn create_workspace_yaml_from_yarn_workspaces(
     if existing_workspace_manifest(&path)?.is_some() {
         return adopt_existing_workspace(cfg, dir, root_manifest);
     }
+    reject_patterns_outside_the_project(&patterns)?;
     let text = render_workspace_manifest(&patterns)
         .into_diagnostic()
         .wrap_err_with(|| format!("render {}", path.display()))?;
@@ -239,6 +242,63 @@ fn yarn_workspace_patterns(manifest: Option<&Value>) -> Vec<String> {
         .filter(|pattern| !pattern.is_empty())
         .map(str::to_owned)
         .collect()
+}
+
+/// Reject the patterns the generated manifest is about to receive, before
+/// any of them is written into it or activated through `cfg`. The
+/// `workspaces` field is repository input the user may never have aimed
+/// at pnpm, so a pattern that reaches outside the project directory fails
+/// the conversion instead of pulling outside projects into this install's
+/// dependency materialization, lockfile changes, and lifecycle scripts.
+fn reject_patterns_outside_the_project(patterns: &[String]) -> miette::Result<()> {
+    for pattern in patterns {
+        let Some(reason) = root_escape_reason(pattern) else {
+            continue;
+        };
+        return Err(miette::miette!(
+            code = "ERR_PNPM_WORKSPACE_PATTERN_ESCAPES_ROOT",
+            help = "Move those projects inside the project directory, or create a \
+                    \"pnpm-workspace.yaml\" listing the patterns pnpm should follow.",
+            "Cannot create \"pnpm-workspace.yaml\" from the \"workspaces\" field in package.json: \
+             the pattern {pattern:?} {reason}",
+        ));
+    }
+    Ok(())
+}
+
+/// Why `pattern` cannot select a project inside the project directory:
+/// it is an absolute path, or its lexical walk crosses the directory's
+/// parent. Both separators count on every platform, so a Windows-style
+/// pattern cannot slip through on Unix, and a `!`-prefixed pattern is
+/// judged by the body the workspace reader will act on. Traversal that
+/// stays inside, as in `packages/../apps/*`, is kept.
+fn root_escape_reason(pattern: &str) -> Option<&'static str> {
+    const ABSOLUTE: &str =
+        "is an absolute path, but workspace patterns are relative to the project directory";
+    const TRAVERSAL: &str = "reaches outside the project directory";
+    let body = pattern.strip_prefix('!').unwrap_or(pattern);
+    if body.starts_with('/') || body.starts_with('\\') || is_windows_drive_prefix(body) {
+        return Some(ABSOLUTE);
+    }
+    let mut depth: i32 = 0;
+    for component in body.split(['/', '\\']) {
+        match component {
+            "" | "." => {}
+            ".." => {
+                depth -= 1;
+                if depth < 0 {
+                    return Some(TRAVERSAL);
+                }
+            }
+            _ => depth += 1,
+        }
+    }
+    None
+}
+
+/// Whether the pattern opens with a Windows drive prefix such as `C:`.
+fn is_windows_drive_prefix(pattern: &str) -> bool {
+    matches!(pattern.as_bytes(), [letter, b':', ..] if letter.is_ascii_alphabetic())
 }
 
 /// Ignores order and repeats.

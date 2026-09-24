@@ -81,6 +81,45 @@ fn an_up_to_date_standalone_install_still_converts() {
 }
 
 #[test]
+fn a_workspaces_field_reaching_outside_the_root_is_rejected_without_touching_anything() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let outside = root.path().join("outside");
+    fs::create_dir_all(&outside).expect("create project outside the repository");
+    fs::write(outside.join("package.json"), r#"{"name":"outside","version":"1.0.0"}"#)
+        .expect("write outside manifest");
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["../outside/*"]}"#,
+    );
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert!(!output.status.success(), "the conversion must fail\nstdout:\n{}\nstderr:\n{}", stdout(&output), stderr(&output));
+    let printed = stderr(&output);
+    assert!(
+        printed.contains("ERR_PNPM_WORKSPACE_PATTERN_ESCAPES_ROOT"),
+        "the error is reported:\n{printed}",
+    );
+    assert!(printed.contains("../outside/*"), "the error names the pattern:\n{printed}");
+    assert!(
+        !workspace.join("pnpm-workspace.yaml").exists(),
+        "no workspace yaml may be generated",
+    );
+    assert!(
+        !workspace.join("pnpm-lock.yaml").exists(),
+        "no lockfile may be written",
+    );
+    assert!(
+        !outside.join("node_modules").exists(),
+        "the outside project must stay untouched",
+    );
+    assert_eq!(
+        fs::read_to_string(outside.join("package.json")).expect("outside manifest kept"),
+        r#"{"name":"outside","version":"1.0.0"}"#,
+    );
+}
+
+#[test]
 fn a_workspaces_field_edited_after_conversion_warns_about_the_difference() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     write_manifest(

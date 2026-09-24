@@ -1,6 +1,6 @@
 use super::{
     create_workspace_yaml_from_yarn_workspaces, declares_yarn_workspaces,
-    publish_new_workspace_manifest, same_patterns, workspaces_field_differs,
+    publish_new_workspace_manifest, root_escape_reason, same_patterns, workspaces_field_differs,
 };
 use crate::cli_args::package_manager::read_root_manifest_json;
 use std::{fs, path::Path};
@@ -329,4 +329,95 @@ fn a_lockfile_dir_at_the_project_still_converts() {
             .is_file(),
     );
     assert_eq!(config.workspace_dir.as_deref(), Some(project.path()));
+}
+
+#[test]
+fn pattern_checks_reject_only_paths_leaving_the_project_directory() {
+    let escapes = |pattern: &str| root_escape_reason(pattern).is_some();
+    assert!(escapes("../outside/*"));
+    assert!(escapes("..\\outside\\*"), "both separators count");
+    assert!(escapes(".."));
+    assert!(escapes("packages/../.."));
+    assert!(escapes("/etc/*"), "absolute path");
+    assert!(escapes("C:/outside/*"), "windows drive");
+    assert!(escapes("!../outside/*"), "a negation is judged by its body");
+    assert!(!escapes("packages/*"));
+    assert!(!escapes("./packages/*"));
+    assert!(!escapes("packages/../apps/*"), "traversal that stays inside is kept");
+    assert!(!escapes("**"));
+    assert!(!escapes("!examples/**"));
+}
+
+#[test]
+fn an_escaping_pattern_fails_the_conversion_before_anything_is_written() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let mut config = pnpm_config::Config::default();
+    let root_manifest = serde_json::json!({"workspaces": ["../outside/*"]});
+
+    let error = create_workspace_yaml_from_yarn_workspaces(
+        &mut config,
+        dir.path(),
+        Some(&root_manifest),
+    )
+    .expect_err("a root-escaping pattern must not convert");
+
+    assert_eq!(
+        error.code().map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_WORKSPACE_PATTERN_ESCAPES_ROOT"),
+    );
+    assert!(error.to_string().contains("../outside/*"), "names the pattern: {error}");
+    assert!(!dir.path().join("pnpm-workspace.yaml").exists());
+    assert_eq!(config.workspace_dir, None);
+}
+
+#[test]
+fn backslash_and_absolute_patterns_fail_the_conversion_too() {
+    for pattern in ["..\\outside\\*", "/outside/*", "C:/outside/*"] {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let mut config = pnpm_config::Config::default();
+        let root_manifest = serde_json::json!({"workspaces": [pattern]});
+
+        let result = create_workspace_yaml_from_yarn_workspaces(
+            &mut config,
+            dir.path(),
+            Some(&root_manifest),
+        );
+
+        assert!(result.is_err(), "{pattern} must be rejected");
+        assert!(
+            !dir.path().join("pnpm-workspace.yaml").exists(),
+            "{pattern} must not be written",
+        );
+    }
+}
+
+#[test]
+fn interior_traversal_that_stays_inside_still_converts() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let mut config = pnpm_config::Config::default();
+    let root_manifest = serde_json::json!({"workspaces": ["packages/../apps/*"]});
+
+    create_workspace_yaml_from_yarn_workspaces(&mut config, dir.path(), Some(&root_manifest))
+        .expect("the pattern never leaves the project directory");
+
+    assert_eq!(
+        fs::read_to_string(dir.path().join("pnpm-workspace.yaml")).expect("read manifest"),
+        "packages:\n  - packages/../apps/*\n",
+    );
+    assert_eq!(config.workspace_dir.as_deref(), Some(dir.path()));
+}
+
+#[test]
+fn an_escaping_pattern_in_an_adopted_manifest_is_not_an_error() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let mut config = pnpm_config::Config::default();
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - apps/*\n")
+        .expect("publish manifest");
+    let root_manifest = serde_json::json!({"workspaces": ["../outside/*"]});
+
+    create_workspace_yaml_from_yarn_workspaces(&mut config, dir.path(), Some(&root_manifest))
+        .expect("the field is never activated, so its escaping pattern stays irrelevant");
+
+    assert_eq!(config.workspace_package_patterns, Some(vec!["apps/*".to_owned()]));
+    assert!(workspaces_field_differs(&config, dir.path(), Some(&root_manifest)));
 }
