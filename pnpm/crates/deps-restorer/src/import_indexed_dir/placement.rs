@@ -64,13 +64,12 @@ pub(super) fn populate_dir<Reporter: self::Reporter>(
 /// Every group is placed by one worker, entry after entry. Creating a
 /// dirent takes the parent directory's lock on every filesystem pnpm
 /// runs on, so workers linking into the same directory only queue on
-/// each other, and the kernel spends CPU arbitrating the queue: linking
-/// the 88k files of a 995-package warm install with one rayon task per
-/// file cost 15 s of system time on Linux against 3 s with one task per
-/// directory (pnpm v11's per-package loop: 2 s), and pnpm/pnpm#15439
-/// reports the per-file fan-out taking five times pnpm v11's wall time
-/// on NTFS. Directories are independent, so a package spread over many
-/// of them still imports in parallel.
+/// each other while the kernel spends CPU arbitrating the queue.
+/// Measured on a 995-package warm install (88k files, hardlinks, 32
+/// CPUs, btrfs): one task per file costs 15 s of system time, one task
+/// per directory 3 s, pnpm v11's serial per-package loop 2 s.
+/// Directories are independent, so a package spread over many of them
+/// still imports in parallel.
 fn entries_by_target_dir<'a>(
     cas_paths: &'a HashMap<String, PathBuf>,
     marker: Option<&str>,
