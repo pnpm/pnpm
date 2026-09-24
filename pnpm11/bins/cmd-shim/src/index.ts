@@ -233,7 +233,7 @@ async function searchScriptRuntime (target: string, opts: InternalOptions): Prom
   try {
     data = await opts.fs_.readFile(target, 'utf8') as string
   } catch (err) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+    if (!isMissingPathError(err)) throw err
     // The target may be created after linking, for instance by a build step,
     // so the shim is written with the runtime inferred from the path alone.
     if (isWindows && await exists(`${target}${getExeExtension()}`, opts)) {
@@ -278,9 +278,14 @@ async function exists (file: string, opts: InternalOptions): Promise<boolean> {
   try {
     await opts.fs_.stat(file)
     return true
-  } catch {
-    return false
+  } catch (err) {
+    if (isMissingPathError(err)) return false
+    throw err
   }
+}
+
+function isMissingPathError (err: unknown): boolean {
+  return util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')
 }
 
 export function getExeExtension (): string {

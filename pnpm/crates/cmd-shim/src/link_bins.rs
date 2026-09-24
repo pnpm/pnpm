@@ -440,14 +440,15 @@ where
             };
             let pkg_name = package_name(pkg);
             let probe_path = target_probe_path(pkg, &command.path);
-            if is_own_bins_dir(&pkg.location, bins_dir) && target_is_missing::<Sys>(&probe_path) {
+            let shim_path = paths.bins_dir.join(&command.name);
+            if unlink_own_missing_bin::<Sys>(&pkg.location, bins_dir, &probe_path, &shim_path)? {
                 return Ok(());
             }
             write_shim::<Sys>(
                 ShimSpec {
                     target_path: &paths.target(&command.path, options.relocatable_root.as_deref())?,
                     probe_path: &probe_path,
-                    shim_path: &paths.bins_dir.join(&command.name),
+                    shim_path: &shim_path,
                     node_path: &node_path,
                     options,
                     make_powershell_shim: wants_powershell_shim(pkg_name),
@@ -549,6 +550,6 @@ use executable::{
 mod discovery;
 
 mod linking_paths;
-use linking_paths::{is_own_bins_dir, shim_node_path, target_is_missing, target_probe_path};
+use linking_paths::{shim_node_path, target_probe_path, unlink_own_missing_bin};
 
 mod relocatable;

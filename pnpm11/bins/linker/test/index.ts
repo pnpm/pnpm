@@ -840,6 +840,11 @@ test("linkBinsOfPackages() does not link a package's missing bin into its own .b
   await linkBinsOfPackages([pkg], ownBinsDir)
 
   expect(fs.readdirSync(ownBinsDir)).toEqual(getExpectedBins(['meow']))
+
+  fs.rmSync(binSource)
+  await linkBinsOfPackages([pkg], ownBinsDir)
+
+  expect(fs.readdirSync(ownBinsDir)).toEqual([])
 })
 
 testOnWindows('linkBins() should remove an existing .exe file from the target directory', async () => {

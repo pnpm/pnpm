@@ -432,4 +432,8 @@ fn missing_bin_target_is_linked_for_dependents_only() {
     write_file(pkg.join("dist/tool.js"), "console.log('built')\n").unwrap();
     link_bins_of_packages::<Host>(&[source()], &own_bins, &LinkBinsOptions::default()).unwrap();
     assert!(own_bins.join("tool").exists(), "own .bin gets the shim once the target exists");
+
+    std::fs::remove_file(pkg.join("dist/tool.js")).unwrap();
+    link_bins_of_packages::<Host>(&[source()], &own_bins, &LinkBinsOptions::default()).unwrap();
+    assert!(!own_bins.join("tool").exists(), "own .bin drops a shim whose target is gone");
 }

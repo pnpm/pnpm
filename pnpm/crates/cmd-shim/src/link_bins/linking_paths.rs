@@ -1,4 +1,6 @@
-use super::{FsReadHead, LinkBinsError, LinkBinsOptions, PackageBinSource, bin_node_paths};
+use super::{
+    FsReadHead, LinkBinsError, LinkBinsOptions, PackageBinSource, bin_node_paths, remove_bin,
+};
 use pnpm_fs::{is_subdir, realpath_missing};
 use std::{
     borrow::Cow,
@@ -168,21 +170,36 @@ pub(super) fn target_probe_path(pkg: &PackageBinSource, target: &Path) -> PathBu
         .unwrap_or_else(|| target.to_path_buf())
 }
 
-/// Whether `bins_dir` is the `node_modules/.bin` of the package at `location`.
+/// Remove the shim at `shim_path` and report `true` when `bins_dir` is the
+/// `node_modules/.bin` of the package at `location` and the bin's target is
+/// missing.
 ///
 /// A package's own bins are on `PATH` while its lifecycle scripts run, and
 /// those scripts may be what creates a missing target: the `node` package's
 /// preinstall runs `node` to download `bin/node`, which must not resolve to a
 /// shim of `bin/node` itself. So a package's own bin is linked there only once
 /// its target exists, while dependents get the shim right away (the target
-/// may be built after install).
-pub(super) fn is_own_bins_dir(location: &Path, bins_dir: &Path) -> bool {
-    location.join("node_modules").join(".bin") == bins_dir
+/// may be built after install). A shim an earlier install left there is
+/// removed for the same reason.
+pub(super) fn unlink_own_missing_bin<Sys: FsReadHead>(
+    location: &Path,
+    bins_dir: &Path,
+    probe_path: &Path,
+    shim_path: &Path,
+) -> Result<bool, LinkBinsError> {
+    if location.join("node_modules").join(".bin") != bins_dir
+        || !target_is_missing::<Sys>(probe_path)
+    {
+        return Ok(false);
+    }
+    remove_bin(shim_path)
+        .map_err(|error| LinkBinsError::RemoveStaleBin { path: shim_path.to_path_buf(), error })?;
+    Ok(true)
 }
 
-pub(super) fn target_is_missing<Sys: FsReadHead>(path: &Path) -> bool {
+fn target_is_missing<Sys: FsReadHead>(path: &Path) -> bool {
     matches!(
         Sys::read_head(path, 0, &mut [0u8; 1]),
-        Err(error) if error.kind() == io::ErrorKind::NotFound,
+        Err(error) if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory),
     )
 }

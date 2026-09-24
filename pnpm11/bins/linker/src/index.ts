@@ -304,7 +304,12 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // those scripts may be what creates a missing target. The `node` package's
   // preinstall calls `node` to download bin/node, which must not resolve to
   // a shim of bin/node itself. Other packages get the shim (see cmd-shim).
-  if (isOwnBinsDir(cmd.pkgDir, binsDir) && !existsSync(cmd.path)) {
+  if (isOwnBinsDir(cmd.pkgDir, binsDir) && await isMissing(cmd.path)) {
+    await Promise.all([
+      rimraf(externalBinPath),
+      rimraf(`${externalBinPath}.cmd`),
+      rimraf(`${externalBinPath}.ps1`),
+    ])
     return
   }
   // Skip if the existing bin already references the correct target.
@@ -502,6 +507,16 @@ async function haveEqualContents (pathA: string, pathB: string): Promise<boolean
 
 function isOwnBinsDir (pkgDir: string, binsDir: string): boolean {
   return path.resolve(pkgDir, 'node_modules', '.bin') === path.resolve(binsDir)
+}
+
+async function isMissing (file: string): Promise<boolean> {
+  try {
+    await fs.stat(file)
+    return false
+  } catch (err: any) { // eslint-disable-line
+    if (err.code === 'ENOENT' || err.code === 'ENOTDIR') return true
+    throw err
+  }
 }
 
 async function canSymlinkExecutable (file: string): Promise<boolean> {
