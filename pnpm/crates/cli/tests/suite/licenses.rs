@@ -282,22 +282,30 @@ snapshots:
     )
     .expect("write lockfile");
 
-    let output = pacquet_in(&workspace.path().join("bar"))
-        .args(["licenses", "list", "--json"])
-        .output()
-        .expect("run licenses");
-    assert!(
-        output.status.success(),
-        "licenses should succeed: {}",
-        String::from_utf8_lossy(&output.stderr),
-    );
+    let listed_names = |args: &[&str]| -> Vec<String> {
+        let output = pacquet_in(&workspace.path().join("bar"))
+            .args(args)
+            .output()
+            .expect("run licenses");
+        assert!(
+            output.status.success(),
+            "licenses should succeed: {}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+        let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
+        report["MIT"]
+            .as_array()
+            .expect("MIT group")
+            .iter()
+            .map(|package| {
+                package["name"]
+                    .as_str()
+                    .expect("package name")
+                    .to_string()
+            })
+            .collect()
+    };
 
-    let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
-    let names: Vec<&str> = report["MIT"]
-        .as_array()
-        .expect("MIT group")
-        .iter()
-        .map(|package| package["name"].as_str().expect("package name"))
-        .collect();
-    assert_eq!(names, ["zeta"]);
+    assert_eq!(listed_names(&["licenses", "list", "--json"]), ["zeta"]);
+    assert_eq!(listed_names(&["--recursive", "licenses", "list", "--json"]), ["alpha", "zeta"]);
 }
