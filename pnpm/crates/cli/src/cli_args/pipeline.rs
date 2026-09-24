@@ -182,7 +182,7 @@ pub fn run_pipeline(
     let (name, requested_tasks) = run.requested_tasks()?;
 
     let (projects, _) = discover_workspace_projects(run.workspace_root, config)?;
-    let graph = build_full_graph(&projects, config);
+    let graph = build_full_graph(&projects, config)?;
 
     let base = pipeline_base(invocation, config);
     let selection = select_affected_projects(&SelectAffectedOptions {

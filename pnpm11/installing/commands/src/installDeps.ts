@@ -311,6 +311,7 @@ export async function installDeps (
       }
 
       const allProjectsGraph: ProjectsGraph = opts.allProjectsGraph ?? createProjectsGraph(allProjects, {
+        catalogs: opts.catalogs,
         linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
       }).graph
 
@@ -554,6 +555,7 @@ export async function installDeps (
         parentDir: dir,
       },
     ], {
+      catalogs: opts.catalogs,
       workspaceDir: opts.workspaceDir,
     })
     await recursiveInstallThenUpdateWorkspaceState(allProjects, [], {

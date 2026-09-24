@@ -5,6 +5,7 @@ use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_workspace::read_workspace_manifest;
+use pnpm_workspace_projects_graph::WorkspaceCatalogs;
 
 /// The hook-injected set when an `updateConfig` pnpmfile provided one
 /// ([`Config::catalogs`] is `Some`), otherwise the `catalog:` /
@@ -24,4 +25,16 @@ pub(crate) fn configured_catalogs(config: &Config) -> miette::Result<Catalogs> {
     get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
         .into_diagnostic()
         .wrap_err("read the workspace catalogs")
+}
+
+/// `catalogs` paired with the workspace directory their relative paths
+/// are measured from, for building the workspace project graph. `None`
+/// outside a workspace.
+pub(crate) fn workspace_catalogs<'a>(
+    config: &'a Config,
+    catalogs: &'a Catalogs,
+) -> Option<WorkspaceCatalogs<'a>> {
+    config.workspace_dir
+        .as_deref()
+        .map(|workspace_dir| WorkspaceCatalogs { catalogs, workspace_dir })
 }

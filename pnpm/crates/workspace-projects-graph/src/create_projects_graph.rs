@@ -4,15 +4,22 @@ use crate::{
 };
 use indexmap::IndexMap;
 use node_semver::{Range, Version};
+use pnpm_catalogs_resolver::{
+    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+};
+use pnpm_catalogs_types::Catalogs;
 use pnpm_fs::lexical_normalize;
 use pnpm_workspace_range_resolver::resolve_workspace_range;
 use pnpm_workspace_spec::WorkspaceSpec;
 use rayon::prelude::*;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 /// Options for [`create_projects_graph()`].
 #[derive(Debug, Default, Clone, Copy)]
-pub struct CreateProjectsGraphOptions {
+pub struct CreateProjectsGraphOptions<'a> {
     /// Exclude `devDependencies` from edge computation. Set when building
     /// the `--filter-prod` graph so dependency walks follow production
     /// deps only.
@@ -20,6 +27,17 @@ pub struct CreateProjectsGraphOptions {
     /// Whether workspace packages are linked. The tri-state mirrors the
     /// `linkWorkspacePackages` setting.
     pub link_workspace_packages: Option<bool>,
+    /// The catalogs a `catalog:` specifier resolves through. Without
+    /// them, a `catalog:` dependency adds no edge.
+    pub catalogs: Option<WorkspaceCatalogs<'a>>,
+}
+
+/// The workspace's catalogs, and the directory their relative paths are
+/// measured from.
+#[derive(Debug, Clone, Copy)]
+pub struct WorkspaceCatalogs<'a> {
+    pub catalogs: &'a Catalogs,
+    pub workspace_dir: &'a Path,
 }
 
 /// A dependency that named a workspace sibling but whose version range
@@ -54,7 +72,7 @@ pub struct CreateProjectsGraphResult<Pkg> {
 #[must_use]
 pub fn create_projects_graph<Pkg>(
     projects: Vec<Pkg>,
-    opts: &CreateProjectsGraphOptions,
+    opts: &CreateProjectsGraphOptions<'_>,
 ) -> CreateProjectsGraphResult<Pkg>
 where
     Pkg: GraphProject,
@@ -70,6 +88,7 @@ where
         by_name: &by_name,
         by_dir: &by_dir,
         link_workspace_packages: opts.link_workspace_packages,
+        catalogs: opts.catalogs,
     };
     let (all_edges, unmatched) = resolve_all_edges(&fields.dependency_lists, &lookups);
 
@@ -189,6 +208,7 @@ struct Lookups<'a> {
     by_name: &'a HashMap<String, Vec<usize>>,
     by_dir: &'a HashMap<PathBuf, usize>,
     link_workspace_packages: Option<bool>,
+    catalogs: Option<WorkspaceCatalogs<'a>>,
 }
 
 /// How a non-`workspace:` specifier is matched against siblings.
@@ -210,6 +230,8 @@ fn resolve_edge(
     lookups: &Lookups,
     unmatched: &mut Vec<Unmatched>,
 ) -> Option<PathBuf> {
+    let catalog_spec = resolve_catalog_spec(importer, dep_name, raw_spec, lookups);
+    let raw_spec = catalog_spec.as_deref().unwrap_or(raw_spec);
     let is_workspace_spec = raw_spec.starts_with("workspace:");
     let (effective_name, effective_spec) = if is_workspace_spec {
         let spec = WorkspaceSpec::parse(raw_spec)?;
@@ -231,6 +253,27 @@ fn resolve_edge(
             resolve_by_name_version(&effective_name, &effective_spec, false, lookups, unmatched)
         }
         SpecKind::Skip => None,
+    }
+}
+
+/// The catalog entry a `catalog:` specifier names, with a local path
+/// re-anchored from the workspace directory to the importer's.
+fn resolve_catalog_spec(
+    importer: usize,
+    dep_name: &str,
+    raw_spec: &str,
+    lookups: &Lookups,
+) -> Option<String> {
+    let catalogs = lookups.catalogs?;
+    let wanted =
+        WantedDependency { alias: dep_name.to_string(), bare_specifier: raw_spec.to_string() };
+    let anchor = CatalogAnchor::Reanchor {
+        workspace_dir: catalogs.workspace_dir,
+        consumer_dir: Some(&lookups.node_keys[importer]),
+    };
+    match resolve_from_catalog(catalogs.catalogs, &wanted, anchor) {
+        CatalogResolutionResult::Found(found) => Some(found.resolution.specifier),
+        CatalogResolutionResult::Misconfiguration(_) | CatalogResolutionResult::Unused => None,
     }
 }
 

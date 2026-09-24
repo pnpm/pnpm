@@ -10328,6 +10328,9 @@ importers:
       '@pnpm/catalogs.protocol-parser':
         specifier: workspace:*
         version: link:../../catalogs/protocol-parser
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../../config/matcher
@@ -10398,6 +10401,12 @@ importers:
 
   pnpm11/workspace/projects-graph:
     dependencies:
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
         version: 2.0.0

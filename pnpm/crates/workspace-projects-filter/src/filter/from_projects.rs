@@ -60,6 +60,7 @@ where
             &CreateProjectsGraphOptions {
                 ignore_dev_deps: true,
                 link_workspace_packages: opts.link_workspace_packages,
+                ..CreateProjectsGraphOptions::default()
             },
         )
         .graph;
@@ -72,8 +73,8 @@ where
         let graph = create_projects_graph(
             projects,
             &CreateProjectsGraphOptions {
-                ignore_dev_deps: false,
                 link_workspace_packages: opts.link_workspace_packages,
+                ..CreateProjectsGraphOptions::default()
             },
         )
         .graph;
@@ -101,8 +102,8 @@ fn select_all_projects<Pkg: GraphProject + Clone>(
     let result = create_projects_graph(
         projects,
         &CreateProjectsGraphOptions {
-            ignore_dev_deps: false,
             link_workspace_packages: opts.link_workspace_packages,
+            ..CreateProjectsGraphOptions::default()
         },
     );
     FilteredProjects {

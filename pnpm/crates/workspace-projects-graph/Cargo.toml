@@ -11,6 +11,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+pnpm-catalogs-resolver = { workspace = true }
+pnpm-catalogs-types = { workspace = true }
 pnpm-fs = { workspace = true }
 pnpm-workspace-range-resolver = { workspace = true }
 pnpm-workspace-spec = { workspace = true }

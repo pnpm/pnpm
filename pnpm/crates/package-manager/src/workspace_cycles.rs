@@ -12,7 +12,7 @@ use pnpm_deps_restorer::{PathNode, graph_sequencer};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_workspace::{GraphPkg, Project};
 use pnpm_workspace_projects_graph::{
-    CreateProjectsGraphOptions, ProjectGraph, create_projects_graph,
+    CreateProjectsGraphOptions, ProjectGraph, WorkspaceCatalogs, create_projects_graph,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -74,6 +74,7 @@ pub fn install_scope_cycles(
     config: &Config,
     projects: &[Project],
     selected_dirs: Option<&HashSet<PathBuf>>,
+    catalogs: Option<WorkspaceCatalogs<'_>>,
 ) -> Option<Vec<Vec<PathBuf>>> {
     if projects.len() < 2 {
         return None;
@@ -87,6 +88,7 @@ pub fn install_scope_cycles(
             link_workspace_packages: Some(
                 config.link_workspace_packages != LinkWorkspacePackages::Off,
             ),
+            catalogs,
             ..CreateProjectsGraphOptions::default()
         },
     )

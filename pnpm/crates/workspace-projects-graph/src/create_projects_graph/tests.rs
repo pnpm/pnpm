@@ -1,6 +1,8 @@
 use crate::{
     base_project::{BaseProject, GraphProject},
-    create_projects_graph::{CreateProjectsGraphOptions, Unmatched, create_projects_graph},
+    create_projects_graph::{
+        CreateProjectsGraphOptions, Unmatched, WorkspaceCatalogs, create_projects_graph,
+    },
 };
 use indexmap::IndexMap;
 use std::path::{Path, PathBuf};
@@ -159,8 +161,10 @@ fn strict_link_workspace_packages_rejects_plain_version() {
         project("/ws/a", "a", "1.0.0", &[("b", "2.0.0")]),
         project("/ws/b", "b", "2.0.0", &[]),
     ];
-    let opts =
-        CreateProjectsGraphOptions { ignore_dev_deps: false, link_workspace_packages: Some(false) };
+    let opts = CreateProjectsGraphOptions {
+        link_workspace_packages: Some(false),
+        ..CreateProjectsGraphOptions::default()
+    };
     let result = create_projects_graph(projects, &opts);
     assert_eq!(edges(&result.graph, "/ws/a"), Vec::<String>::new());
     assert_eq!(
@@ -175,8 +179,10 @@ fn strict_link_workspace_packages_still_links_workspace_specs() {
         project("/ws/a", "a", "1.0.0", &[("b", "workspace:*")]),
         project("/ws/b", "b", "2.0.0", &[]),
     ];
-    let opts =
-        CreateProjectsGraphOptions { ignore_dev_deps: false, link_workspace_packages: Some(false) };
+    let opts = CreateProjectsGraphOptions {
+        link_workspace_packages: Some(false),
+        ..CreateProjectsGraphOptions::default()
+    };
     let result = create_projects_graph(projects, &opts);
     assert_eq!(edges(&result.graph, "/ws/a"), vec!["/ws/b".to_string()]);
     assert!(result.unmatched.is_empty());
@@ -199,15 +205,16 @@ fn ignore_dev_deps_drops_dev_only_edges() {
     importer.dev = vec![("b".to_string(), "workspace:*".to_string())];
     let projects = vec![importer, project("/ws/b", "b", "2.0.0", &[])];
 
-    let with_dev = create_projects_graph(
-        vec_clone(&projects),
-        &CreateProjectsGraphOptions { ignore_dev_deps: false, link_workspace_packages: None },
-    );
+    let with_dev =
+        create_projects_graph(vec_clone(&projects), &CreateProjectsGraphOptions::default());
     assert_eq!(edges(&with_dev.graph, "/ws/a"), vec!["/ws/b".to_string()]);
 
     let without_dev = create_projects_graph(
         projects,
-        &CreateProjectsGraphOptions { ignore_dev_deps: true, link_workspace_packages: None },
+        &CreateProjectsGraphOptions {
+            ignore_dev_deps: true,
+            ..CreateProjectsGraphOptions::default()
+        },
     );
     assert_eq!(edges(&without_dev.graph, "/ws/a"), Vec::<String>::new());
 }
@@ -231,6 +238,46 @@ fn dependency_on_unknown_name_is_silently_skipped() {
     let projects = vec![project("/ws/a", "a", "1.0.0", &[("z", "1.0.0")])];
     let result = create_projects_graph(projects, &CreateProjectsGraphOptions::default());
     assert_eq!(edges(&result.graph, "/ws/a"), Vec::<String>::new());
+    assert!(result.unmatched.is_empty());
+}
+
+#[test]
+fn catalog_specs_resolve_through_the_workspace_catalogs() {
+    let projects = vec![
+        project(
+            "/ws/packages/a",
+            "a",
+            "1.0.0",
+            &[("b", "catalog:"), ("c", "catalog:tools"), ("d", "catalog:"), ("e", "catalog:")],
+        ),
+        project("/ws/packages/b", "b", "2.0.0", &[]),
+        project("/ws/packages/c", "c", "3.0.0", &[]),
+        project("/ws/packages/d", "d", "4.0.0", &[]),
+    ];
+    let catalogs = pnpm_catalogs_types::Catalogs::from([
+        (
+            "default".to_string(),
+            [
+                ("b".to_string(), "workspace:*".to_string()),
+                ("d".to_string(), "link:./packages/d".to_string()),
+            ]
+            .into(),
+        ),
+        ("tools".to_string(), [("c".to_string(), "^3.0.0".to_string())].into()),
+    ]);
+    let opts = CreateProjectsGraphOptions {
+        catalogs: Some(WorkspaceCatalogs { catalogs: &catalogs, workspace_dir: Path::new("/ws") }),
+        ..CreateProjectsGraphOptions::default()
+    };
+    let result = create_projects_graph(projects, &opts);
+    assert_eq!(
+        edges(&result.graph, "/ws/packages/a"),
+        vec![
+            "/ws/packages/b".to_string(),
+            "/ws/packages/c".to_string(),
+            "/ws/packages/d".to_string(),
+        ],
+    );
     assert!(result.unmatched.is_empty());
 }
 

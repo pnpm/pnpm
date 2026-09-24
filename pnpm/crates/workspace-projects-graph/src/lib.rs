@@ -12,7 +12,8 @@
 
 pub use base_project::{BaseProject, GraphProject};
 pub use create_projects_graph::{
-    CreateProjectsGraphOptions, CreateProjectsGraphResult, Unmatched, create_projects_graph,
+    CreateProjectsGraphOptions, CreateProjectsGraphResult, Unmatched, WorkspaceCatalogs,
+    create_projects_graph,
 };
 pub use graph::{ProjectGraph, ProjectGraphNode};
 pub use pnpm_fs::lexical_normalize;

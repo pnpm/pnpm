@@ -1,3 +1,4 @@
+import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import type { SupportedArchitectures } from '@pnpm/types'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
@@ -30,6 +31,7 @@ export async function filterProjectsBySelectorObjectsFromDir (
     allProjects,
     projectSelectors,
     {
+      catalogs: getCatalogsFromWorkspaceManifest(workspaceManifest),
       linkWorkspacePackages: opts?.linkWorkspacePackages,
       workspaceDir,
       changedFilesIgnorePattern: opts?.changedFilesIgnorePattern,

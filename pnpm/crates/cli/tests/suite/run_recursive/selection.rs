@@ -837,3 +837,28 @@ fn recursive_run_diff_selector_selects_changed_projects() {
 
     drop(root);
 }
+
+/// A dependency declared as `catalog:` whose catalog entry is
+/// `workspace:*` is a workspace edge: `--filter app...` selects the
+/// sibling it names and runs it first (`pnpm/pnpm#15587`).
+#[test]
+fn filtered_run_follows_workspace_catalog_entries() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut app = build_appends_run_order("app");
+    app["dependencies"] = json!({ "math": "catalog:" });
+    write_workspace(&workspace, &[("app", app), ("math", build_appends_run_order("math"))]);
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut manifest = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    manifest.push_str("catalog:\n  math: workspace:*\n");
+    fs::write(&workspace_yaml, manifest).expect("write pnpm-workspace.yaml");
+
+    pacquet
+        .with_args(["--filter", "app...", "--workspace-concurrency=1", "run", "build"])
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "math\napp\n");
+
+    drop(root);
+}

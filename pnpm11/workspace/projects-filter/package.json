@@ -33,6 +33,7 @@
   "dependencies": {
     "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.protocol-parser": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/workspace.projects-graph": "workspace:*",

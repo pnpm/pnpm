@@ -892,3 +892,47 @@ test('create package graph respects workspace alias syntax', async () => {
     },
   })
 })
+
+test('create graph with dependencies resolved through catalogs', () => {
+  const result = createProjectsGraph([
+    {
+      rootDir: BAR1_PATH,
+      manifest: {
+        name: 'bar',
+        version: '1.0.0',
+        dependencies: {
+          foo: 'catalog:',
+          'is-positive': 'catalog:',
+        },
+        devDependencies: {
+          baz: 'catalog:tools',
+        },
+      },
+    },
+    {
+      rootDir: FOO1_PATH,
+      manifest: {
+        name: 'foo',
+      },
+    },
+    {
+      rootDir: BAR2_PATH,
+      manifest: {
+        name: 'baz',
+        version: '2.0.0',
+      },
+    },
+  ], {
+    catalogs: {
+      default: {
+        foo: 'workspace:*',
+        'is-positive': '1.0.0',
+      },
+      tools: {
+        baz: '^2.0.0',
+      },
+    },
+  })
+  expect(result.unmatched).toStrictEqual([])
+  expect(result.graph[BAR1_PATH].dependencies.sort()).toStrictEqual([BAR2_PATH, FOO1_PATH].sort())
+})
