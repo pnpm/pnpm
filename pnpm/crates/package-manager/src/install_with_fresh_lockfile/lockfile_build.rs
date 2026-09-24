@@ -38,8 +38,8 @@ pub(super) async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>
 ) -> Result<Lockfile, InstallWithFreshLockfileError> {
     // Keeps the recorded checksum, as `crate::current_pnpmfile_checksum` does.
     let pnpmfile_checksum = if install.drivers.config.ignore_pnpmfile {
-        install.lockfiles.merge_wanted
-            .or(install.lockfiles.wanted)
+        install.lockfiles.wanted
+            .or(install.lockfiles.merge_wanted)
             .and_then(|lockfile| lockfile.pnpmfile_checksum.clone())
     } else {
         pnpmfile_checksum(resolved.hooks.after_all_resolved_hook.as_ref()).await
