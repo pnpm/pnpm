@@ -130,6 +130,38 @@ fn manifest_package_id(manifest: Option<&Value>) -> Option<String> {
     Some(format!("{name}@{version}"))
 }
 
+async fn resolve_archive_metadata(
+    resolutions: (&LockfileResolution, &LockfileResolution),
+    tarball: &FetchedTarball,
+    package_id: &str,
+) -> Result<ResolvedTarballMetadata, InstallPackageBySnapshotError> {
+    let (resolution, source) = resolutions;
+    let subdir = match source {
+        LockfileResolution::Tarball(resolution) if resolution.is_git_hosted() => {
+            resolution.path.as_deref()
+        }
+        _ => None,
+    };
+    let manifest = match subdir {
+        Some(subdir) => pnpm_tarball::read_subdir_manifest(&tarball.files_map, subdir)
+            .await
+            .map_err(InstallPackageBySnapshotError::DownloadTarball)?,
+        None => tarball.manifest.clone(),
+    }
+    .map(Arc::new);
+    let commit_addressed = matches!(
+        resolution,
+        LockfileResolution::Tarball(resolution)
+            if pnpm_lockfile::is_git_hosted_tarball_url(&resolution.tarball),
+    );
+    let resolution = if commit_addressed {
+        resolution.clone()
+    } else {
+        decode_resolution(serde_json::json!(resolution), Some(&tarball.integrity), package_id)?
+    };
+    Ok(ResolvedTarballMetadata { resolution, manifest })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,8 +218,7 @@ mod tests {
         header.set_cksum();
         builder.append(&header, manifest.as_bytes()).unwrap();
         let tar_bytes = builder.into_inner().unwrap();
-        let mut encoder =
-            flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
         use std::io::Write as _;
         encoder.write_all(&tar_bytes).unwrap();
         encoder.finish().unwrap()
@@ -213,13 +244,7 @@ mod tests {
                 retry_opts: RetryOpts { retries: 0, ..Default::default() },
                 offline: true,
             },
-            package: TarballPackage {
-                integrity,
-                unpacked_size: None,
-                file_count: None,
-                url,
-                id,
-            },
+            package: TarballPackage { integrity, unpacked_size: None, file_count: None, url, id },
             store: ArchiveStoreContext {
                 dir: &config.store_dir,
                 index: None,
@@ -256,7 +281,9 @@ mod tests {
             tarball_url: format!("file:{}", tarball_path.display()),
             integrity: integrity.clone(),
         });
-        let session = CustomFetcherSession::new(vec![fetcher.clone()]);
+        let session = CustomFetcherSession::new(vec![
+            Arc::clone(&fetcher) as Arc<dyn pnpm_hooks::CustomFetcher>
+        ]);
 
         let config = leaked_config(&dir.path().join("store"));
         let http_client = pnpm_network::ThrottledClient::default();
@@ -304,7 +331,6 @@ mod tests {
         );
     }
 }
-
 async fn fetch_source<Reporter: self::Reporter>(
     download: &IngestTarballToStore<'_>,
     source: &LockfileResolution,
