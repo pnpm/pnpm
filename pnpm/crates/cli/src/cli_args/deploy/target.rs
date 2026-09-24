@@ -228,6 +228,7 @@ pub(super) fn copy_project(
         directory: src.to_path_buf(),
         include_only_package_files,
         resolve_symlinks: false,
+        preserve_symlinks: true,
         allow_path_escape: false,
     }
     .run()
@@ -239,7 +240,11 @@ pub(super) fn copy_project(
         PackageImportMethod::CloneOrCopy,
         dest,
         &output.files_map,
-        ImportIndexedDirOpts { force: true, ..ImportIndexedDirOpts::default() },
+        ImportIndexedDirOpts {
+            force: true,
+            preserve_symlinks: true,
+            ..ImportIndexedDirOpts::default()
+        },
     )
     .map_err(miette::Report::new)
     .wrap_err("copy project files")

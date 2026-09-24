@@ -279,7 +279,8 @@ fn collect_walked_files(
 ) -> Result<(), PacklistError> {
     for entry in builder.build() {
         let entry = entry.map_err(|err| io_error(pkg_dir, into_io(err)))?;
-        if !entry.file_type().is_some_and(|file_type| file_type.is_file()) {
+        if !entry.file_type().is_some_and(|file_type| is_packable(pkg_dir, entry.path(), file_type))
+        {
             continue;
         }
         let rel = relative_forward_slash(pkg_dir, entry.path());
@@ -348,7 +349,7 @@ fn collect_root_files_matching(
             pkg_dir: pkg_dir.display().to_string(),
             source,
         })?;
-        if !entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
+        if !is_admissible_root_file(pkg_dir, &entry) {
             continue;
         }
         let name = entry
@@ -618,4 +619,6 @@ fn into_io(err: ignore::Error) -> std::io::Error {
 }
 
 mod bundled;
+mod symlinks;
 use bundled::collect_bundled_files;
+use symlinks::{is_admissible_root_file, is_packable};

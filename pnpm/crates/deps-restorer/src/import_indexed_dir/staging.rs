@@ -54,6 +54,7 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     keep_modules_dir: bool,
+    preserve_symlinks: bool,
 ) -> Result<(), ImportIndexedDirError> {
     let paths = StagePaths::new(dir_path);
 
@@ -66,6 +67,7 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
         &paths.stage,
         cas_paths,
         Placement::Fresh,
+        preserve_symlinks.then_some(dir_path),
     ) {
         let _ = fs::remove_dir_all(&paths.stage);
         return Err(error);

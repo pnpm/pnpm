@@ -28,6 +28,7 @@ fn run_in_all_files_mode_returns_manifest_and_filesmap() {
         directory: root.to_path_buf(),
         include_only_package_files: false,
         resolve_symlinks: false,
+        preserve_symlinks: false,
         allow_path_escape: true,
     }
     .run()
@@ -62,6 +63,7 @@ fn run_flags_requires_build_when_install_script_present() {
         directory: root.to_path_buf(),
         include_only_package_files: false,
         resolve_symlinks: false,
+        preserve_symlinks: false,
         allow_path_escape: true,
     }
     .run()
@@ -83,6 +85,7 @@ fn run_flags_requires_build_when_binding_gyp_present() {
         directory: root.to_path_buf(),
         include_only_package_files: false,
         resolve_symlinks: false,
+        preserve_symlinks: false,
         allow_path_escape: true,
     }
     .run()
@@ -108,6 +111,7 @@ fn run_returns_none_manifest_for_bit_workspace_directory_without_package_json() 
         directory: root.to_path_buf(),
         include_only_package_files: false,
         resolve_symlinks: false,
+        preserve_symlinks: false,
         allow_path_escape: true,
     }
     .run()
@@ -131,6 +135,7 @@ fn run_in_package_files_mode_honors_files_field() {
         directory: root.to_path_buf(),
         include_only_package_files: true,
         resolve_symlinks: false,
+        preserve_symlinks: false,
         allow_path_escape: true,
     }
     .run()

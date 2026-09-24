@@ -4,11 +4,11 @@ use tempfile::tempdir;
 
 #[cfg(unix)]
 #[test]
-fn confined_all_files_fetcher_rewrites_symlink_sources_to_real_paths() {
+fn confined_all_files_fetcher_keeps_symlink_sources_only_when_preserving() {
     use std::os::unix::fs::symlink;
 
     let dir = tempdir().unwrap();
-    let root = dir.path();
+    let root = fs::canonicalize(dir.path()).unwrap();
     fs::write(
         root.join("package.json"),
         r#"{ "name": "x", "version": "0.0.0", "files": ["link.txt"] }"#,
@@ -18,18 +18,40 @@ fn confined_all_files_fetcher_rewrites_symlink_sources_to_real_paths() {
     symlink(root.join("real.txt"), root.join("link.txt")).unwrap();
 
     let output = DirectoryFetcher {
-        directory: root.to_path_buf(),
+        directory: root.clone(),
         include_only_package_files: false,
         resolve_symlinks: false,
+        preserve_symlinks: true,
         allow_path_escape: false,
     }
     .run()
     .unwrap();
 
-    assert_eq!(
-        output.files_map.get("link.txt"),
-        Some(&fs::canonicalize(root.join("real.txt")).unwrap()),
-    );
+    assert_eq!(output.files_map.get("link.txt"), Some(&root.join("link.txt")));
+
+    let output_kept = DirectoryFetcher {
+        directory: root.clone(),
+        include_only_package_files: false,
+        resolve_symlinks: false,
+        preserve_symlinks: false,
+        allow_path_escape: false,
+    }
+    .run()
+    .unwrap();
+
+    assert_eq!(output_kept.files_map.get("link.txt"), Some(&root.join("real.txt")));
+
+    let output_resolved = DirectoryFetcher {
+        directory: root.clone(),
+        include_only_package_files: false,
+        resolve_symlinks: true,
+        preserve_symlinks: false,
+        allow_path_escape: false,
+    }
+    .run()
+    .unwrap();
+
+    assert_eq!(output_resolved.files_map.get("link.txt"), Some(&root.join("real.txt")));
 }
 
 #[cfg(any(unix, windows))]
@@ -47,6 +69,7 @@ fn confined_package_files_fetcher_packs_a_linked_root() {
         directory: root_link,
         include_only_package_files: true,
         resolve_symlinks: false,
+        preserve_symlinks: false,
         allow_path_escape: false,
     }
     .run()

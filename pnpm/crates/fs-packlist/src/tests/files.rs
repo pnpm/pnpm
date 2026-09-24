@@ -451,3 +451,53 @@ fn files_field_exclusions_are_not_anchored() {
 
     assert_eq!(out, vec!["lib/index.js".to_string(), "package.json".into()]);
 }
+
+#[cfg(unix)]
+#[test]
+fn includes_internal_symlinks_and_excludes_escaping_symlinks() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "real.txt");
+    touch(root, "sub/nested.txt");
+
+    let outside = tempdir().unwrap();
+    touch(outside.path(), "secret.txt");
+
+    std::os::unix::fs::symlink("real.txt", root.join("symlink-file.txt")).unwrap();
+    std::os::unix::fs::symlink("sub", root.join("symlink-dir")).unwrap();
+    std::os::unix::fs::symlink(outside.path().join("secret.txt"), root.join("symlink-outside"))
+        .unwrap();
+    let dir_name = root
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap();
+    std::os::unix::fs::symlink(format!("../{dir_name}/real.txt"), root.join("symlink-reentering"))
+        .unwrap();
+    std::os::unix::fs::symlink(
+        format!("../../{dir_name}/real.txt"),
+        root.join("sub/nested-reentering"),
+    )
+    .unwrap();
+    std::os::unix::fs::symlink("../real.txt", root.join("sub/nested-link")).unwrap();
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec![
+            "package.json".to_string(),
+            "real.txt".into(),
+            "sub/nested-link".into(),
+            "sub/nested.txt".into(),
+            "symlink-dir".into(),
+            "symlink-file.txt".into(),
+        ],
+    );
+}

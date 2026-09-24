@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { beforeAll, describe, expect, jest, test } from '@jest/globals'
@@ -1615,3 +1616,67 @@ function linkIsolated (name: string, version: string, dependencies: Record<strin
     fs.symlinkSync(packageDir, path.resolve('node_modules', name), 'junction')
   }
 }
+
+// cspell:ignore onentry linkpath
+test('pack: preserves internal symlinks in package tarball and excludes external symlinks', async () => {
+  prepare({
+    name: 'test-pack-symlinks',
+    version: '1.0.0',
+    files: ['real-file.txt', 'symlink-file.txt', 'sub', 'symlink-dir', 'symlink-outside', 'symlink-absolute', 'symlink-reentering'],
+  })
+
+  fs.writeFileSync('real-file.txt', 'hello from real file')
+  fs.mkdirSync('sub')
+  fs.writeFileSync(path.join('sub', 'nested.txt'), 'nested content')
+  fs.symlinkSync('real-file.txt', 'symlink-file.txt', 'file')
+  fs.symlinkSync('sub', 'symlink-dir', 'dir')
+  fs.symlinkSync('nested.txt', path.join('sub', 'nested-link.txt'), 'file')
+  fs.symlinkSync(path.resolve('real-file.txt'), 'symlink-absolute', 'file')
+  fs.symlinkSync(path.join('..', path.basename(process.cwd()), 'real-file.txt'), 'symlink-reentering', 'file')
+
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'outside-'))
+  try {
+    fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'secret')
+    fs.symlinkSync(path.join(outsideDir, 'secret.txt'), 'symlink-outside')
+
+    await pack.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: process.cwd(),
+      extraBinPaths: [],
+    })
+
+    const tarballName = 'test-pack-symlinks-1.0.0.tgz'
+    expect(fs.existsSync(tarballName)).toBe(true)
+
+    const entries: Array<{ name: string, type: string, linkname?: string }> = []
+    await tar.t({
+      file: tarballName,
+      onentry: (entry) => {
+        entries.push({
+          name: entry.path,
+          type: entry.type,
+          linkname: (entry as unknown as { linkpath?: string }).linkpath,
+        })
+      },
+    })
+
+    const fileLinkEntry = entries.find((e) => e.name === 'package/symlink-file.txt')
+    expect(fileLinkEntry).toBeDefined()
+    expect(fileLinkEntry?.type).toBe('SymbolicLink')
+    expect(fileLinkEntry?.linkname).toBe('real-file.txt')
+
+    const dirLinkEntry = entries.find((e) => e.name === 'package/symlink-dir')
+    expect(dirLinkEntry).toBeDefined()
+    expect(dirLinkEntry?.type).toBe('SymbolicLink')
+    expect(dirLinkEntry?.linkname).toBe('sub')
+
+    expect(entries.find((e) => e.name === 'package/sub/nested-link.txt')).toMatchObject({ type: 'SymbolicLink', linkname: 'nested.txt' })
+    expect(entries.find((e) => e.name === 'package/symlink-absolute')).toMatchObject({ type: 'SymbolicLink', linkname: 'real-file.txt' })
+    expect(entries.find((e) => e.name === 'package/symlink-outside')).toBeUndefined()
+    expect(entries.find((e) => e.name === 'package/symlink-reentering')).toBeUndefined()
+  } finally {
+    fs.rmSync(outsideDir, { recursive: true, force: true })
+  }
+})
+

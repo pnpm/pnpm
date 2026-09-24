@@ -29,8 +29,12 @@ const ALTERNATE_MANIFEST_NAMES = ['package.yaml', 'package.json5']
  * also applies them to a package root that has only a `package.yaml` or
  * `package.json5` manifest, and always includes those manifests like
  * `package.json`.
+ *
+ * npm-packlist also drops every symlink. This walker keeps them, including
+ * symlinks named in `files`, and leaves it to packlistWithSources to exclude the
+ * ones that point outside the package.
  */
-class AlternateManifestWalker extends npmPacklist.Walker {
+class PackWalker extends npmPacklist.Walker {
   override onReaddir (entries: string[]): void {
     if (
       this.isPackage &&
@@ -47,11 +51,52 @@ class AlternateManifestWalker extends npmPacklist.Walker {
 
   override injectRules (filename: string | symbol, rules: string[], callback?: () => void): void {
     if (rules.includes('!/package.json')) {
-      rules = [...rules, ...ALTERNATE_MANIFEST_NAMES.map((name) => `!/${name}`)]
+      rules = [...this.symlinkedFilesRules(), ...rules, ...ALTERNATE_MANIFEST_NAMES.map((name) => `!/${name}`)]
     }
     super.injectRules(filename, rules, callback)
   }
+
+  // npm-packlist walks each subdirectory with a walker of its own class.
+  override walker (entry: string, opts: Record<string, unknown>, callback: () => void): void {
+    new PackWalker(this.tree, this.walkerOpt(entry, opts)).on('done', callback).start()
+  }
+
+  override onstat (opts: npmPacklist.StatOptions, callback: () => void): void {
+    if (opts.st.isSymbolicLink()) {
+      ignoreWalkOnstat.call(this, opts, callback)
+      return
+    }
+    super.onstat(opts, callback)
+  }
+
+  // npm-packlist makes a `files` entry strictly required only when it is a
+  // regular file, so a symlink it names would otherwise be left out.
+  private symlinkedFilesRules (): string[] {
+    const files = this.tree.package.files
+    if (!Array.isArray(files)) return []
+    const rules: string[] = []
+    for (let file of files as string[]) {
+      if (file.startsWith('!')) continue
+      if (file.startsWith('./')) file = file.slice(1)
+      let stat: fs.Stats
+      try {
+        stat = fs.lstatSync(path.join(this.path, file))
+      } catch (err: unknown) {
+        if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) continue
+        throw err
+      }
+      if (stat.isSymbolicLink()) {
+        rules.push(`!${file}`)
+        this.requiredFiles.push(file.startsWith('/') ? file.slice(1) : file)
+      }
+    }
+    return rules
+  }
 }
+
+// ignore-walk's onstat, which npm-packlist overrides to skip everything that
+// is neither a file nor a directory.
+const ignoreWalkOnstat = (Object.getPrototypeOf(npmPacklist.Walker.prototype) as npmPacklist.Walker).onstat
 
 interface PlacedPackage {
   // Package names from the packed root down to this package.
@@ -116,13 +161,64 @@ export async function packlistWithSources (pkgDir: string, opts?: PacklistOption
     ? { prefix: workspaceDir, workspaces: [resolvedPkgDir] }
     : undefined
   const walkedFiles = await new Promise<string[]>((resolve, reject) => {
-    new AlternateManifestWalker(tree, { ...packlistOpts, isPackage: true })
+    new PackWalker(tree, { ...packlistOpts, isPackage: true })
       .on('done', resolve)
       .on('error', reject)
       .start()
   })
-  const files = walkedFiles.map((file) => file.replace(/^\.[/\\]/, ''))
+  const files = walkedFiles
+    .map((file) => file.replace(/^\.[/\\]/, ''))
+    .filter((file) => isInternalFileOrSymlink(resolvedPkgDir, file))
   return mapToPackedPaths(resolvedPkgDir, files, packedDirs)
+}
+
+function isEscapingRelativePath (rel: string): boolean {
+  return rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)
+}
+
+function isInternalFileOrSymlink (pkgDir: string, relFile: string): boolean {
+  const absPath = path.join(pkgDir, relFile)
+  let lstat: fs.Stats
+  try {
+    lstat = fs.lstatSync(absPath)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
+  if (!lstat.isSymbolicLink()) {
+    return true
+  }
+  let linkTarget = fs.readlinkSync(absPath)
+  if (path.isAbsolute(linkTarget)) {
+    linkTarget = path.relative(path.dirname(absPath), linkTarget)
+  }
+  const relPosix = process.platform === 'win32' ? relFile.replace(/\\/g, '/') : relFile
+  const posixTarget = linkTarget.replace(/\\/g, '/')
+  if (path.posix.isAbsolute(posixTarget)) {
+    return false
+  }
+  const normalizedArchive = path.posix.normalize(path.posix.join(path.posix.dirname(relPosix), posixTarget))
+  if (normalizedArchive === '..' || normalizedArchive.startsWith('../')) {
+    return false
+  }
+  const resolvedTarget = path.resolve(path.dirname(absPath), linkTarget)
+  const relToPkg = path.relative(pkgDir, resolvedTarget)
+  if (isEscapingRelativePath(relToPkg)) {
+    return false
+  }
+  try {
+    const realTarget = fs.realpathSync(absPath)
+    const realPkgDir = fs.realpathSync(pkgDir)
+    const relReal = path.relative(realPkgDir, realTarget)
+    if (isEscapingRelativePath(relReal)) {
+      return false
+    }
+  } catch (err: unknown) {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+      throw err
+    }
+  }
+  return true
 }
 
 function mapToPackedPaths (pkgDir: string, files: string[], packedDirs: Map<TreeNode, string[]>): Map<string, string> {

@@ -49,6 +49,24 @@ fn copy_entry(src: &Path, dst: &Path, metadata: &fs::Metadata) -> io::Result<()>
     fs::copy(src, dst).map(drop)
 }
 
+/// Create a symlink at `dst` pointing to `target`.
+pub fn create_symlink(target: &Path, dst: &Path, is_dir: bool) -> io::Result<()> {
+    #[cfg(windows)]
+    {
+        let target = crate::to_native_separators(target);
+        let dst = crate::to_native_separators(dst);
+        if is_dir {
+            return std::os::windows::fs::symlink_dir(&target, &dst);
+        }
+        std::os::windows::fs::symlink_file(&target, &dst)
+    }
+    #[cfg(unix)]
+    {
+        let _ = is_dir;
+        std::os::unix::fs::symlink(target, dst)
+    }
+}
+
 /// Recreate `src`'s link at `dst`. Windows types its links at creation
 /// time, so a directory link has to be recreated with `symlink_dir`;
 /// the target is not resolved either way, so a dangling link survives
@@ -58,17 +76,12 @@ fn copy_symlink(src: &Path, dst: &Path, file_type: fs::FileType) -> io::Result<(
     #[cfg(windows)]
     {
         use std::os::windows::fs::FileTypeExt;
-        let target = crate::to_native_separators(&target);
-        let dst = crate::to_native_separators(dst);
-        if file_type.is_symlink_dir() {
-            return std::os::windows::fs::symlink_dir(&target, &dst);
-        }
-        std::os::windows::fs::symlink_file(&target, &dst)
+        create_symlink(&target, dst, file_type.is_symlink_dir())
     }
     #[cfg(unix)]
     {
         let _ = file_type;
-        std::os::unix::fs::symlink(target, dst)
+        create_symlink(&target, dst, false)
     }
 }
 

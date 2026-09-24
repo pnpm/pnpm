@@ -245,6 +245,7 @@ fn load_inode_map(dir: &Path) -> Result<InodeMap, PatchError> {
         directory: dir.to_path_buf(),
         include_only_package_files: false,
         resolve_symlinks: false,
+        preserve_symlinks: false,
         allow_path_escape: false,
     }
     .run()
