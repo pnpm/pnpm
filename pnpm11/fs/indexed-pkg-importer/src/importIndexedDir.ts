@@ -483,7 +483,9 @@ function importEntry (importFile: ImportFile, src: string, dest: string, links?:
 function copyInternalSymlink (src: string, dest: string, links: SymlinkDirs): boolean {
   let target = fs.readlinkSync(src)
   if (path.isAbsolute(target)) {
-    target = path.relative(path.dirname(src), target)
+    // The link text can reach the package through another path than src,
+    // such as a symlinked workspace, so compare real paths.
+    target = path.relative(realpathOrSelf(path.dirname(src)), realpathOrSelf(target))
   }
   const resolved = path.resolve(path.dirname(dest), target)
   if (escapesDir(links.writtenDir, resolved)) return false
@@ -505,6 +507,15 @@ function copyInternalSymlink (src: string, dest: string, links: SymlinkDirs): bo
     fs.symlinkSync(path.join(links.finalDir, path.relative(links.writtenDir, resolved)), dest, 'junction')
   }
   return true
+}
+
+function realpathOrSelf (file: string): string {
+  try {
+    return fs.realpathSync(file)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return file
+    throw err
+  }
 }
 
 function isDirectory (file: string): boolean {

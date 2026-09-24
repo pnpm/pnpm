@@ -344,6 +344,29 @@ test('importIndexedDir() recreates the internal symlinks of a local directory', 
   expect(fs.existsSync(path.join(newDir, 'left-out-dir-link'))).toBe(false)
 })
 
+test('importIndexedDir() relativizes an absolute symlink that reaches the package through a linked root', async () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'real.txt'), 'real')
+  const rootLink = path.join(tmp, 'src-link')
+  fs.symlinkSync(src, rootLink, 'dir')
+  fs.symlinkSync(path.join(rootLink, 'real.txt'), path.join(src, 'link.txt'), 'file')
+
+  const newDir = path.join(tmp, 'dest')
+  importIndexedDir(
+    { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
+    newDir,
+    new Map([
+      ['real.txt', path.join(src, 'real.txt')],
+      ['link.txt', path.join(src, 'link.txt')],
+    ]),
+    { resolvedFrom: 'local-dir' }
+  )
+
+  expect(fs.readlinkSync(path.join(newDir, 'link.txt'))).toBe('real.txt')
+})
+
 test('importIndexedDir() imports a symlink from the store as a file', async () => {
   const tmp = tempDir()
   const src = path.join(tmp, 'src')
