@@ -5583,6 +5583,7 @@ name = "pnpm-network"
 version = "0.0.1"
 dependencies = [
  "bytes",
+ "core-foundation",
  "derive_more",
  "futures-util",
  "miette 7.6.0",
@@ -5593,6 +5594,7 @@ dependencies = [
  "reqwest",
  "rustls",
  "security-framework",
+ "security-framework-sys",
  "tokio",
  "tracing",
  "webpki-root-certs",
