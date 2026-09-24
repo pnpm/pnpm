@@ -2273,19 +2273,15 @@ async function resolveDependency (
       pkg = await ctx.readPackageHook(pkg)
     }
     if (pkg.peerDependencies && pkg.dependencies) {
-      if (ctx.autoInstallPeers) {
-        pkg = {
-          ...pkg,
-          dependencies: omit(Object.keys(pkg.peerDependencies), pkg.dependencies),
-        }
-      } else {
-        pkg = {
-          ...pkg,
-          dependencies: omit(
-            Object.keys(pkg.peerDependencies).filter((peerDep) => options.parentPkgAliases[peerDep]),
-            pkg.dependencies
-          ),
-        }
+      const { peerDependenciesMeta } = pkg
+      const isAutoInstalledPeer = (peerDep: string): boolean =>
+        ctx.autoInstallPeers && peerDependenciesMeta?.[peerDep]?.optional !== true
+      pkg = {
+        ...pkg,
+        dependencies: omit(
+          Object.keys(pkg.peerDependencies).filter((peerDep) => isAutoInstalledPeer(peerDep) || options.parentPkgAliases[peerDep]),
+          pkg.dependencies
+        ),
       }
     }
     if (pkg.engines?.runtime != null) {
