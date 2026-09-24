@@ -545,11 +545,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   }
 
   if (rootProjectManifest && rootProjectManifestDir) {
-    // Links in node_modules may be absolute (junctions on Windows), so they
-    // keep pointing at the old location after the project is moved. State
-    // files written before the project path was recorded have no projects.
-    const recordedProjectDirs = Object.keys(workspaceState.projects)
-    if (recordedProjectDirs.length > 0 && !recordedProjectDirs.some(dir => path.relative(dir, rootProjectManifestDir) === '')) {
+    if (recordedInAnotherDirectory(workspaceState, rootProjectManifestDir)) {
       return {
         upToDate: false,
         issue: 'The project directory has changed since last install',
@@ -1071,4 +1067,15 @@ function resolvesToSameTarget (rootDir: string, rootVersion: string, projectDir:
   if (rootLink !== projectLink) return false
   if (!rootLink) return rootVersion === version
   return path.resolve(rootDir, rootVersion.slice('link:'.length)) === path.resolve(projectDir, version.slice('link:'.length))
+}
+
+/**
+ * `projectsToRecordInWorkspaceState` in `@pnpm/installing.commands` explains
+ * why a moved project needs a real install. A state file without a recorded
+ * project is never reported as recorded elsewhere.
+ */
+function recordedInAnotherDirectory (workspaceState: WorkspaceState, projectDir: string): boolean {
+  const recordedProjectDirs = Object.keys(workspaceState.projects)
+  return recordedProjectDirs.length > 0 &&
+    !recordedProjectDirs.some(dir => path.relative(dir, projectDir) === '')
 }
