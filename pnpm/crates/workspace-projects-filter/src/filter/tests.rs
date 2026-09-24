@@ -680,6 +680,7 @@ mod changed_packages {
         let workspace = TempDir::new().expect("create tempdir");
         let workspace_dir = workspace.path();
         init_repo(workspace_dir);
+        git(workspace_dir, &["config", "diff.renames", "true"]);
 
         let pkg_1_dir = workspace_dir.join("package-1");
         let pkg_2_dir = workspace_dir.join("package-2");

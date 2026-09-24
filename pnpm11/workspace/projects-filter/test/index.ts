@@ -527,6 +527,7 @@ test('select changed packages when a file is moved between packages', async () =
   await execa('git', ['init', '--initial-branch=main'], { cwd: workspaceDir })
   await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: workspaceDir })
   await execa('git', ['config', 'user.name', 'xyz'], { cwd: workspaceDir })
+  await execa('git', ['config', 'diff.renames', 'true'], { cwd: workspaceDir })
   await execa('git', ['commit', '--allow-empty', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
 
   const pkg1Dir = path.join(workspaceDir, 'package-1') as ProjectRootDir
