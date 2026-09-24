@@ -1045,7 +1045,7 @@ fn shim_execution_skips_node_modules_and_relative_path_entries_when_command_p_se
 
 /// A shim generated on Windows runs under both MSYS/Cygwin and WSL, which
 /// read different path forms, so the install shell must not pick one. MSYS
-/// reroots a `/mnt/c/...` value under its own install directory before the
+/// moves a `/mnt/c/...` value under its own install directory before the
 /// native `node` sees it (pnpm/pnpm#3360).
 #[cfg(unix)]
 #[test]
@@ -1096,7 +1096,7 @@ fn a_unix_sh_shim_keeps_its_node_path_block() {
 }
 
 /// Git Bash starts the native Windows `node`, so a shim must hand it the
-/// Windows form of `NODE_PATH`, not a `/mnt/c/...` path MSYS reroots under the
+/// Windows form of `NODE_PATH`, not a `/mnt/c/...` path MSYS moves under the
 /// Git install directory (pnpm/pnpm#3360).
 #[cfg(windows)]
 #[test]

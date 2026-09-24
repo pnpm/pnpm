@@ -547,7 +547,7 @@ export PATH="${opts.prependToPath}:$PATH"
   }
   if (shNodePath && isWindows) {
     // Cygwin and MSYS start the native Windows node, which reads the win32
-    // form; MSYS would reroot a /mnt/c path under its own install directory.
+    // form; MSYS would move a /mnt/c path under its own install directory.
     // WSL reads the /mnt form. The shim picks one when it runs, so the result
     // doesn't depend on the shell that installed it.
     sh += `\

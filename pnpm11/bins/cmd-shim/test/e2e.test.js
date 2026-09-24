@@ -61,7 +61,7 @@ describeOnWindows('sh shim wrapping a .cmd target invoked from Git Bash', () => 
 
 describeOnWindows('sh shim NODE_PATH invoked from Git Bash', () => {
   // Regression for pnpm/pnpm#3360: a shim written outside MSYS used to bake
-  // NODE_PATH as /mnt/c/..., which MSYS rewrites to a path under the Git
+  // NODE_PATH as /mnt/c/..., which MSYS turns into a path under the Git
   // install directory before node starts. The shim now passes the Windows form.
   const bash = process.env.PROGRAMFILES
     ? path.join(process.env.PROGRAMFILES, 'Git', 'bin', 'bash.exe')

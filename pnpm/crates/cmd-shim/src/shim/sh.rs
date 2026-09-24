@@ -85,7 +85,7 @@ struct QuotedTarget {
 /// A shim generated on Windows (`windows_host`) runs under shells that disagree
 /// on the path form, so it picks one when it runs: Cygwin and MSYS start the
 /// native Windows `node`, which reads `;`-separated Windows paths (MSYS would
-/// otherwise reroot `/mnt/c/...` under its own install directory), while WSL
+/// otherwise move `/mnt/c/...` under its own install directory), while WSL
 /// reads the `/mnt` form.
 pub(super) fn write_sh_node_path(sh: &mut String, node_path: &[String], windows_host: bool) {
     let NodePathEnvVar { win32, posix } = normalize_node_path_env_var(node_path, windows_host);
