@@ -47,6 +47,10 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
     config.registry = format!("{}/", registry.url());
     config.fetch_retry_mintimeout = 1;
     config.fetch_retry_maxtimeout = 1;
+    // The default cache dir is shared by every test. Another test's mock can
+    // get the same port and leave this package's metadata there, and an
+    // exact version found in cached metadata never reaches the registry.
+    config.cache_dir = dirs.path().join("cache");
     config.enable_global_virtual_store = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
