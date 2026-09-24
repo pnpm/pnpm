@@ -460,12 +460,15 @@ As a workaround, add the following to pnpm-workspace.yaml:
   return undefined
 }
 
-// With a global virtual store, virtualStoreDir names that shared store, which
-// the self-contained deploy must not write into.
+// A global virtual store or an absolute virtualStoreDir is shared with the
+// source workspace, and the self-contained deploy must not write into it.
 function configuredVirtualStoreDir (
   opts: Pick<DeployOptions, 'enableGlobalVirtualStore' | 'virtualStoreDir'>
 ): string | undefined {
-  return opts.enableGlobalVirtualStore ? undefined : opts.virtualStoreDir
+  if (opts.enableGlobalVirtualStore || opts.virtualStoreDir == null || path.isAbsolute(opts.virtualStoreDir)) {
+    return undefined
+  }
+  return opts.virtualStoreDir
 }
 
 function deployVirtualStoreDir (

@@ -128,3 +128,42 @@ fn deploy_keeps_the_default_virtual_store_when_virtual_store_dir_names_the_globa
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn deploy_keeps_the_default_virtual_store_when_virtual_store_dir_is_absolute() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_app_with_foo(&workspace);
+    let shared_virtual_store =
+        dunce::canonicalize(&workspace).unwrap().join("shared-virtual-store");
+    append_workspace_yaml_key(
+        &workspace,
+        "virtualStoreDir",
+        shared_virtual_store.to_str().unwrap(),
+    );
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("deploy");
+    assert_foo_resolves_through(&deploy_dir, "node_modules/.pnpm");
+    assert!(
+        !fs::read_to_string(deploy_dir.join("pnpm-workspace.yaml"))
+            .unwrap()
+            .contains("virtualStoreDir"),
+    );
+
+    drop((root, mock_instance));
+}

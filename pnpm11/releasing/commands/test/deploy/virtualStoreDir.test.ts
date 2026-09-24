@@ -86,3 +86,39 @@ test('deploy keeps the default virtual store when virtualStoreDir names the glob
   )
   expect(fs.existsSync('global-virtual-store')).toBe(false)
 })
+
+test('deploy keeps the default virtual store when virtualStoreDir is absolute', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+    virtualStoreDir: path.resolve('shared-virtual-store'),
+  }
+
+  await install.handler({ ...opts, allProjectsGraph, selectedProjectsGraph: allProjectsGraph })
+  await deploy.handler({
+    ...opts,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+  }, ['deploy'])
+
+  expect(fs.realpathSync('deploy/node_modules/is-positive')).toBe(
+    fs.realpathSync('deploy/node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')
+  )
+  expect(fs.readFileSync('deploy/pnpm-workspace.yaml', 'utf8')).not.toContain('virtualStoreDir')
+})

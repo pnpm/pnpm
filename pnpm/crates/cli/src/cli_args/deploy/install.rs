@@ -94,13 +94,13 @@ pub(super) fn legacy_deploy_preferred_versions<ReporterT: Reporter>(
     }
 }
 
-/// With a global virtual store, `virtualStoreDir` names that shared store,
-/// which the self-contained deploy must not write into.
+/// A global virtual store or an absolute `virtualStoreDir` is shared with
+/// the source workspace, and the self-contained deploy must not write into it.
 pub(super) fn configured_virtual_store_dir(config: &Config) -> Option<&str> {
     config.explicit_settings
         .get("virtualStoreDir")
         .and_then(serde_json::Value::as_str)
-        .filter(|_| !config.enable_global_virtual_store)
+        .filter(|raw| !config.enable_global_virtual_store && !Path::new(raw).is_absolute())
 }
 
 fn deploy_virtual_store_dir(base_config: &Config, deploy_dir: &Path) -> PathBuf {
