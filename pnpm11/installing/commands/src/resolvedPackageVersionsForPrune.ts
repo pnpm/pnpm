@@ -35,11 +35,10 @@ export async function resolvedPackageVersionsOfProjectLockfiles (
   projectDirs: string[]
 ): Promise<Map<string, Set<string>> | undefined> {
   if (opts.lockfile === false || projectDirs.length === 0) return undefined
-  const lockfiles = await Promise.all(
-    projectDirs.map(async (projectDir) => readWantedLockfile(projectDir, { ignoreIncompatible: true }))
-  )
   const resolved = new Map<string, Set<string>>()
-  for (const lockfile of lockfiles) {
+  for (const projectDir of projectDirs) {
+    // eslint-disable-next-line no-await-in-loop
+    const lockfile = await readWantedLockfile(projectDir, { ignoreIncompatible: true })
     if (lockfile == null) return undefined
     for (const [name, versions] of resolvedPackageVersionsFromLockfile(lockfile)) {
       const merged = resolved.get(name)
