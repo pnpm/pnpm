@@ -159,6 +159,38 @@ describe('writeBufferToCafs', () => {
     expect(fs.readFileSync(linkedCopy, 'utf8')).toBe('abc')
   })
 
+  it('should repair a write-protected file in place, restoring its mode', () => {
+    const storeDir = temporaryDirectory()
+    const fileDest = 'abc'
+    const buffer = Buffer.from('abc')
+    const fullFileDest = path.join(storeDir, fileDest)
+    const digest = crypto.hash('sha512', buffer, 'hex')
+    const integrity = { digest, algorithm: 'sha512' }
+    const locker = new Map<string, number>()
+
+    writeBufferToCafs(locker, storeDir, buffer, fileDest, 420, integrity)
+    locker.clear()
+
+    const linkedCopy = path.join(storeDir, '_linked-copy')
+    fs.linkSync(fullFileDest, linkedCopy)
+    const inodeBefore = fs.statSync(fullFileDest).ino
+
+    // Store files can be write-protected: tar entries keep modes like
+    // 0444, and on Windows the mode maps to the readonly attribute.
+    // Corrupt the file, then protect it, the way such a blob would be
+    // found modified.
+    fs.writeFileSync(linkedCopy, 'hacked')
+    fs.chmodSync(fullFileDest, 0o444)
+
+    writeBufferToCafs(locker, storeDir, buffer, fileDest, 420, integrity)
+
+    expect(fs.statSync(fullFileDest).ino).toBe(inodeBefore)
+    expect(fs.readFileSync(fullFileDest, 'utf8')).toBe('abc')
+    expect(fs.readFileSync(linkedCopy, 'utf8')).toBe('abc')
+    // The write protection is restored after the repair
+    expect(fs.statSync(fullFileDest).mode & 0o222).toBe(0)
+  })
+
   it('should fall back to replacing the dirent when the corrupt path is not a regular file', () => {
     const storeDir = temporaryDirectory()
     const fileDest = 'abc'

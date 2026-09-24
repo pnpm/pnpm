@@ -94,12 +94,13 @@ fn cas_repair_preserves_inode_for_same_length_corruption() {
     assert_eq!(fs::read(&linked).unwrap(), b"original");
 }
 
-/// A non-writable corrupt blob cannot be overwritten in place; the
-/// repair falls back to the atomic rename, which swaps the inode but
-/// still leaves correct content at the path.
+/// A write-protected corrupt blob — tar entries keep modes like 0o444,
+/// and the readonly attribute that maps to on Windows — is repaired in
+/// place too: the repair lifts the write protection for the rewrite and
+/// restores the original mode, keeping the inode (pnpm/pnpm#3445).
 #[cfg(unix)]
 #[test]
-fn cas_repair_of_read_only_blob_falls_back_to_rename() {
+fn cas_repair_of_read_only_blob_preserves_inode_and_restores_mode() {
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
     let tmp = tempdir().unwrap();
@@ -109,11 +110,18 @@ fn cas_repair_of_read_only_blob_falls_back_to_rename() {
     let mut permissions = fs::metadata(&path).unwrap().permissions();
     permissions.set_mode(0o444);
     fs::set_permissions(&path, permissions).unwrap();
+    let ino_before = fs::metadata(&path).unwrap().ino();
 
-    ensure_cas_file(&path, b"original", None).expect("rename fallback repair");
+    ensure_cas_file(&path, b"original", None).expect("in-place repair of a read-only blob");
 
     assert_eq!(fs::read(&path).unwrap(), b"original");
-    eprintln!("inode after fallback: {}", fs::metadata(&path).unwrap().ino());
+    assert_eq!(fs::metadata(&path).unwrap().ino(), ino_before, "inode must survive repair");
+    let mode = fs::metadata(&path)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(mode, 0o444, "write protection must be restored");
 }
 
 #[test]

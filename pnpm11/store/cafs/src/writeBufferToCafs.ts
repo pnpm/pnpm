@@ -102,11 +102,12 @@ const IN_PLACE_OPEN = fs.constants.O_WRONLY | fs.constants.O_TRUNC |
  * the same inode — so every hard link to it (in other projects'
  * node_modules) sees the restored content too. Returns false when the
  * repair should instead fall back to {@link writeFileAtomic}'s
- * temp+rename: the dirent is not a regular file, the file cannot be
- * opened for writing (read-only mode, ETXTBSY from a running
- * executable), the write failed, or the freshly written content does
- * not verify — the last covers a concurrent process still mid-write on
- * the same path, whose interleaved writes the rename then replaces.
+ * temp+rename: the dirent is not a regular file, the file refuses the
+ * write open even after its write protection is lifted (a running
+ * executable, another owner's file), the write failed, or the freshly
+ * written content does not verify — the last covers a concurrent
+ * process still mid-write on the same path, whose interleaved writes
+ * the rename then replaces.
  *
  * In-place overwrite is not atomic: a concurrent reader can observe
  * torn content for the duration of the write. The file was already
@@ -121,25 +122,60 @@ function overwriteFileInPlace (
 ): boolean {
   const stats = fs.lstatSync(fileDest, { throwIfNoEntry: false })
   if (!stats?.isFile()) return false
-  let fd: number
+  const opened = openForOverwrite(fileDest, stats.mode)
+  if (opened == null) return false
   try {
-    fd = fs.openSync(fileDest, IN_PLACE_OPEN)
-  } catch {
-    return false
-  }
-  try {
-    fs.writeFileSync(fd, buffer)
+    fs.writeFileSync(opened.fd, buffer)
   } catch {
     return false
   } finally {
     try {
-      fs.closeSync(fd)
+      fs.closeSync(opened.fd)
     } catch {
       // Best-effort close; a close failure after a successful write is
       // caught by the verification below.
     }
+    if (opened.modeToRestore !== undefined) {
+      try {
+        fs.chmodSync(fileDest, opened.modeToRestore)
+      } catch {
+        // Best-effort restore; the next repair retries.
+      }
+    }
   }
   return verifyFileIntegrity(fileDest, integrity)
+}
+
+/**
+ * Opens a store file for truncate-and-rewrite. When the first open is
+ * refused and the file lacks its owner-write bit, lifts the write
+ * protection and retries: tar entries keep modes like 0444, and the
+ * readonly attribute that mode maps to on Windows refuses a write open
+ * with EPERM. The caller restores the returned `modeToRestore` after
+ * writing — the repair changes the file's content, not its protection.
+ */
+function openForOverwrite (
+  fileDest: string,
+  mode: number
+): { fd: number, modeToRestore?: number } | null {
+  try {
+    return { fd: fs.openSync(fileDest, IN_PLACE_OPEN) }
+  } catch {
+    if ((mode & 0o200) !== 0) return null
+  }
+  let fd: number
+  try {
+    fs.chmodSync(fileDest, mode | 0o200)
+    fd = fs.openSync(fileDest, IN_PLACE_OPEN)
+  } catch {
+    try {
+      fs.chmodSync(fileDest, mode)
+    } catch {
+      // Best-effort restore; the repair falls back to temp+rename either way.
+    }
+    return null
+  }
+  return { fd, modeToRestore: mode }
 }
 
 export function optimisticRenameOverwrite (temp: string, fileDest: string): void {

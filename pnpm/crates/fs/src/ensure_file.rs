@@ -430,12 +430,12 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
 ///
 /// Returns `false` when in-place overwrite is refused and the caller
 /// should fall back to an atomic temp+rename: the target is not a
-/// regular file at open time, it is not writable by us (read-only mode
-/// bits, `ETXTBSY` from a running executable), or the write failed.
-/// Every such state is one the rename handles correctly, and a
-/// persistent failure (e.g. `ENOSPC`) re-surfaces with proper context
-/// when the fallback attempts its own write, so no error detail is lost
-/// by collapsing these into `false`.
+/// regular file, it refuses the write open even after its write
+/// protection is lifted (a running executable's `ETXTBSY`, another
+/// owner's file), or the write failed. Every such state is one the
+/// rename handles correctly, and a persistent failure (e.g. `ENOSPC`)
+/// re-surfaces with proper context when the fallback attempts its own
+/// write, so no error detail is lost by collapsing these into `false`.
 ///
 /// In-place overwrite is not atomic: a concurrent reader can observe
 /// torn content for the duration of the write. The file was already
@@ -450,8 +450,63 @@ pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> b
         use std::os::unix::fs::OpenOptionsExt;
         options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
     }
-    let Ok(mut file) = retry_on_fd_pressure(|| options.open(file_path)) else { return false };
-    io::copy(reader, &mut file).is_ok()
+    let Some((mut file, restore_permissions)) = open_for_overwrite(file_path, &options) else {
+        return false;
+    };
+    let written = io::copy(reader, &mut file).is_ok();
+    drop(file);
+    if let Some(permissions) = restore_permissions {
+        // Best-effort restore; the next repair retries.
+        let _ = fs::set_permissions(file_path, permissions);
+    }
+    written
+}
+
+/// Open a store blob for truncate-and-rewrite, returning the handle and
+/// the permissions to restore after writing. When the first open is
+/// refused and the blob is write-protected, lift the protection and
+/// retry: tar entries keep modes like `0o444`, and the readonly
+/// attribute that maps to on Windows refuses a write open with
+/// `ERROR_ACCESS_DENIED`. The repair changes the file's content, not
+/// its protection, so the saved permissions go back on afterwards.
+fn open_for_overwrite(
+    file_path: &Path,
+    options: &OpenOptions,
+) -> Option<(File, Option<fs::Permissions>)> {
+    if let Ok(file) = retry_on_fd_pressure(|| options.open(file_path)) {
+        return Some((file, None));
+    }
+    let meta = fs::symlink_metadata(file_path).ok()?;
+    if !meta.file_type().is_file() || !meta.permissions().readonly() {
+        return None;
+    }
+    fs::set_permissions(file_path, make_writable(&meta.permissions())).ok()?;
+    if let Ok(file) = retry_on_fd_pressure(|| options.open(file_path)) {
+        return Some((file, Some(meta.permissions())));
+    }
+    // Best-effort restore; the repair falls back to temp+rename.
+    let _ = fs::set_permissions(file_path, meta.permissions());
+    None
+}
+
+/// Grant write permission, disturbing nothing else: on Unix by adding
+/// the owner-write bit to the mode — a blanket `set_readonly(false)`
+/// would make the file world-writable — and on Windows by clearing the
+/// readonly attribute, the only permission Windows tracks.
+#[cfg(unix)]
+fn make_writable(permissions: &fs::Permissions) -> fs::Permissions {
+    use std::os::unix::fs::PermissionsExt;
+    fs::Permissions::from_mode(permissions.mode() | 0o200)
+}
+
+#[cfg(windows)]
+// The lint guards the Unix world-writable side effect; on Windows
+// clearing the readonly attribute is the exact operation.
+#[allow(clippy::permissions_set_readonly_false)]
+fn make_writable(permissions: &fs::Permissions) -> fs::Permissions {
+    let mut writable = permissions.clone();
+    writable.set_readonly(false);
+    writable
 }
 
 /// Write `content` to a unique temporary path next to `file_path` and
