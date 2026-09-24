@@ -9,7 +9,7 @@ import { readProjectManifest } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, getDefaultWorkspaceConcurrency, getWorkspaceConcurrency, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import { PnpmError } from '@pnpm/error'
-import { packlist } from '@pnpm/fs.packlist'
+import { packlistWithSources } from '@pnpm/fs.packlist'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
 import { logger } from '@pnpm/logger'
 import { createExportableManifest, type ExportedManifest, readReadmeFile, type WorkspacePackageLookup } from '@pnpm/releasing.exportable-manifest'
@@ -421,11 +421,13 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     publishedName,
     publishedVersion: publishManifest.version,
   })
-  const files = await packlist(dir, {
+  const sources = await packlistWithSources(dir, {
     manifest: publishManifest as Record<string, unknown>,
     workspaceDir: opts.workspaceDir,
+    bundledDependenciesDir: opts.dir,
   })
-  const filesMap = Object.fromEntries(files.map((file) => [`package/${normalizeBundledPath(file)}`, path.join(dir, file)]))
+  const files = Array.from(sources.keys())
+  const filesMap = Object.fromEntries(Array.from(sources, ([file, source]) => [`package/${file}`, source]))
   for (const name of Object.keys(filesMap)) {
     if (isManifestEntry(name)) delete filesMap[name]
   }
@@ -635,14 +637,6 @@ async function packPkg (opts: {
 type PackedEntry =
   | { name: string, source: string }
   | { name: string, content: string }
-
-function normalizeBundledPath (file: string): string {
-  let relativePath = file
-  while (relativePath.startsWith('../')) {
-    relativePath = relativePath.slice(3)
-  }
-  return relativePath.startsWith('node_modules/') ? relativePath : file
-}
 
 /**
  * Every tar entry under the name it is packed as, ordered for compression.

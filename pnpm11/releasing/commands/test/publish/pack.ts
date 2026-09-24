@@ -302,6 +302,84 @@ test.each([false, true])('pack: does not bundle ancestor dependencies beyond its
   expect(files.some(file => file.includes('outside-'))).toBe(false)
 })
 
+test('pack: bundles dependencies of an isolated bundled dependency', async () => {
+  prepare({
+    name: 'app',
+    version: '0.0.0',
+    dependencies: { top: '1.0.0' },
+    bundledDependencies: ['top'],
+  })
+  linkIsolated('nested', '1.0.0', {}, { linkFromProject: false })
+  linkIsolated('top', '1.0.0', { nested: '1.0.0' })
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    nodeLinker: 'isolated',
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  await tar.x({ file: 'app-0.0.0.tgz' })
+  expect(fs.readFileSync('package/node_modules/top/index.js', 'utf8')).toBe('top@1.0.0')
+  expect(fs.readFileSync('package/node_modules/nested/index.js', 'utf8')).toBe('nested@1.0.0')
+  expect(fs.existsSync('package/node_modules/.pnpm')).toBe(false)
+})
+
+test('pack: nests an isolated transitive bundle under a conflicting root dependency', async () => {
+  prepare({
+    name: 'app',
+    version: '0.0.0',
+    dependencies: { nested: '2.0.0', top: '1.0.0' },
+    bundledDependencies: ['top'],
+  })
+  linkIsolated('nested', '1.0.0', {}, { linkFromProject: false })
+  linkIsolated('nested', '2.0.0')
+  linkIsolated('top', '1.0.0', { nested: '1.0.0' })
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    nodeLinker: 'isolated',
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  await tar.x({ file: 'app-0.0.0.tgz' })
+  expect(fs.readFileSync('package/node_modules/top/node_modules/nested/index.js', 'utf8')).toBe('nested@1.0.0')
+  expect(fs.existsSync('package/node_modules/nested')).toBe(false)
+})
+
+test('pack: bundles a dependency from the publish directory node_modules', async () => {
+  prepare({
+    name: 'app',
+    version: '0.0.0',
+    publishConfig: { directory: 'dist' },
+  })
+  const manifest = { name: 'app', version: '0.0.0', bundledDependencies: ['dep'] }
+  fs.mkdirSync('dist/node_modules/dep', { recursive: true })
+  fs.writeFileSync('dist/package.json', JSON.stringify(manifest), 'utf8')
+  for (const dir of ['dist/node_modules/dep', 'node_modules/dep']) {
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'dep', version: '1.0.0' }), 'utf8')
+    fs.writeFileSync(path.join(dir, 'index.js'), `from ${dir}`, 'utf8')
+  }
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    nodeLinker: 'isolated',
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  await tar.x({ file: 'app-0.0.0.tgz' })
+  expect(fs.readFileSync('package/node_modules/dep/index.js', 'utf8')).toBe('from dist/node_modules/dep')
+})
+
 test('pack rejects bundled dependencies with the PnP linker', async () => {
   prepare({
     name: 'bundled-deps-with-pnp-linker',
@@ -1454,3 +1532,20 @@ test('pack: recursive pack with filter', async () => {
   expect(output).not.toContain('package: is-positive')
   expect(output).not.toContain('package: i-am-private')
 })
+
+// Lays out name@version the way the isolated linker does: the package in its
+// own .pnpm slot, each dependency linked next to it, and name linked from the
+// project's node_modules.
+function linkIsolated (name: string, version: string, dependencies: Record<string, string> = {}, opts?: { linkFromProject: boolean }): void {
+  const slot = path.resolve(`node_modules/.pnpm/${name}@${version}/node_modules`)
+  const packageDir = path.join(slot, name)
+  fs.mkdirSync(packageDir, { recursive: true })
+  fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name, version, dependencies }), 'utf8')
+  fs.writeFileSync(path.join(packageDir, 'index.js'), `${name}@${version}`, 'utf8')
+  for (const [dependency, dependencyVersion] of Object.entries(dependencies)) {
+    fs.symlinkSync(path.resolve(`node_modules/.pnpm/${dependency}@${dependencyVersion}/node_modules/${dependency}`), path.join(slot, dependency), 'junction')
+  }
+  if (opts?.linkFromProject !== false) {
+    fs.symlinkSync(packageDir, path.resolve('node_modules', name), 'junction')
+  }
+}

@@ -1,101 +1,221 @@
 use super::{
-    BTreeMap, HashSet, PacklistError, Path, PathBuf, Value, VecDeque, collect_own_files, fs,
-    normalize_workspace_bundle_path, relative_forward_slash, safe_read_package_json_from_dir,
+    BTreeMap, HashMap, HashSet, OsStr, PacklistError, Path, PathBuf, Value, VecDeque,
+    collect_own_files, fs, safe_read_package_json_from_dir,
 };
 
 /// Cap on `bundleDependencies` closure depth. Real packages bundle
 /// at most a handful of levels (most published packages bundle zero;
-/// the rare ones bundle one or two). The visited-set already makes
-/// the walk terminate; this cap is belt-and-braces against a
+/// the rare ones bundle one or two). Reusing a package that is already
+/// visible makes the walk terminate; this cap is belt-and-braces against a
 /// pathological tree that keeps resolving fresh canonical paths
 /// (e.g. a deep chain of `dependencies` that never repeats).
 pub(super) const MAX_BUNDLE_DEPTH: u32 = 32;
 
-/// One unit of `bundleDependencies`-closure work: resolve `name`
-/// starting the node module-resolution walk-up at `from_dir`, then
-/// splice the resolved package's files into the output.
+/// One unit of `bundleDependencies`-closure work: resolve `name` for the
+/// already-placed package `parent`, then splice the resolved package's files
+/// into the output.
 struct BundleTask {
     name: String,
-    from_dir: PathBuf,
+    parent: usize,
     depth: u32,
 }
 
-/// Build the `bundleDependencies` closure for `root` and splice each
-/// bundled package's files into `out` under the package's real path
-/// relative to `root` (e.g. `node_modules/<name>/...`).
+/// A package the closure has placed in the packed tree.
+struct PlacedPackage {
+    /// Package names from the packed root down to this package, so
+    /// `["a", "b"]` is packed at `node_modules/a/node_modules/b`.
+    packed: Vec<String>,
+    /// Real directory, where the Node resolution walk for its dependencies starts.
+    real_dir: PathBuf,
+}
+
+/// Where the closure may look for packages and what it has placed so far.
+struct BundleWalk<'a> {
+    pkg_dir: &'a Path,
+    real_pkg_dir: &'a Path,
+    boundary: &'a Path,
+    /// Names the packed root depends on without bundling them at the top.
+    /// A transitive bundle is not hoisted over them.
+    root_dependency_names: HashSet<String>,
+    placed: Vec<PlacedPackage>,
+    /// Real directory of the package at each packed location.
+    slots: HashMap<Vec<String>, PathBuf>,
+}
+
+/// Build the `bundleDependencies` closure for the package at `pkg_dir` and
+/// splice each bundled package's files into `out`, keyed by its location in
+/// the packed tree and mapped to the file it is read from.
 ///
 /// Mirrors [`npm-bundled`](https://github.com/npm/npm-bundled): seed
 /// from the root manifest's bundle list, then transitively pull in
 /// every reachable dependency. Once a package is bundled, its own
-/// `dependencies` and `optionalDependencies` are bundled too — that
-/// is how the closure reaches a hoisted transitive dep sitting at the
-/// root `node_modules/`. `devDependencies` are never followed.
+/// `dependencies` and `optionalDependencies` are bundled too.
+/// `devDependencies` are never followed.
 ///
-/// The `visited` set is keyed on the canonicalised resolved directory,
-/// so a diamond (two bundled deps sharing a transitive dep) processes
-/// the shared package once and a `dependencies` cycle terminates
-/// instead of looping forever.
+/// Each dependency resolves the way Node resolves it at runtime: from the
+/// parent's real directory, walking up through ancestor `node_modules`
+/// directories to `boundary`. The isolated linker keeps a package's
+/// dependencies next to its real directory rather than under the link, so the
+/// resolved directory can sit anywhere under `boundary`. The packed location is
+/// therefore chosen separately, so that Node resolves the same package from the
+/// parent's packed location: the on-disk location when that already works,
+/// otherwise the top-level `node_modules`, otherwise the parent's own
+/// `node_modules`. A package already visible from the parent at the same real
+/// directory is not packed again, which also ends dependency cycles.
 pub(super) fn collect_bundled_files(
-    root: &Path,
+    pkg_dir: &Path,
     root_manifest: &Value,
-    workspace_dir: Option<&Path>,
+    boundary: &Path,
     out: &mut BTreeMap<String, PathBuf>,
 ) -> Result<(), PacklistError> {
-    // Canonical form of the package root, used to reject any bundled
-    // dependency whose real path escapes the tree (see the symlink check
-    // in the loop below). `None` if `root` itself can't be canonicalised,
-    // in which case the escape check falls back to a lexical comparison.
-    let canonical_root = fs::canonicalize(root).ok();
-    let mut visited: HashSet<PathBuf> = HashSet::new();
+    let Some(real_pkg_dir) = fs::canonicalize(pkg_dir).ok() else { return Ok(()) };
+    let Some(boundary) = fs::canonicalize(boundary).ok() else { return Ok(()) };
+    let mut walk = BundleWalk {
+        pkg_dir,
+        real_pkg_dir: &real_pkg_dir,
+        boundary: &boundary,
+        root_dependency_names: dependency_names(root_manifest).into_iter().collect(),
+        placed: vec![PlacedPackage { packed: Vec::new(), real_dir: real_pkg_dir.clone() }],
+        slots: HashMap::new(),
+    };
     let mut queue: VecDeque<BundleTask> = root_bundle_dep_names(root_manifest)
         .into_iter()
-        .map(|name| BundleTask { name, from_dir: root.to_path_buf(), depth: 0 })
+        .map(|name| BundleTask { name, parent: 0, depth: 0 })
         .collect();
 
     while let Some(task) = queue.pop_front() {
-        let Some(admitted) = admitted_bundle(&task, root, workspace_dir, canonical_root.as_deref())
-        else {
+        let Some(admitted) = admitted_bundle(&task, &walk) else {
             continue;
         };
-        let AdmittedBundle { dir: dep_dir, dedup_key } = admitted;
-        if !visited.insert(dedup_key) {
+        let parent = &walk.placed[task.parent];
+        let Some(packed) = walk.packed_location(&task.name, &parent.packed, &admitted) else {
             continue;
-        }
-        let prefix = relative_forward_slash(root, &dep_dir);
-        let dep_manifest = safe_read_package_json_from_dir(&dep_dir)
-            .ok()
-            .flatten()
-            .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
-        for rel in collect_own_files(&dep_dir, &dep_manifest, None)? {
-            out.insert(
-                normalize_workspace_bundle_path(format!("{prefix}/{rel}")),
-                dep_dir.join(rel),
-            );
-        }
-        for name in nested_bundle_dep_names(&dep_manifest) {
-            queue.push_back(BundleTask { name, from_dir: dep_dir.clone(), depth: task.depth + 1 });
+        };
+        let dep_manifest = walk.pack(packed, admitted, out)?;
+        let placed = walk.placed.len() - 1;
+        for name in dependency_names(&dep_manifest) {
+            queue.push_back(BundleTask { name, parent: placed, depth: task.depth + 1 });
         }
     }
     Ok(())
 }
 
+impl BundleWalk<'_> {
+    /// Splice the files of `dependency` into `out` at `packed`, and return its
+    /// manifest.
+    fn pack(
+        &mut self,
+        packed: Vec<String>,
+        dependency: AdmittedBundle,
+        out: &mut BTreeMap<String, PathBuf>,
+    ) -> Result<Value, PacklistError> {
+        let AdmittedBundle { dir, real_dir } = dependency;
+        let dir = dir
+            .strip_prefix(self.real_pkg_dir)
+            .map_or_else(|_| dir.clone(), |rel| self.pkg_dir.join(rel));
+        let prefix = packed_dir(&packed);
+        let manifest = safe_read_package_json_from_dir(&dir)
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
+        for rel in collect_own_files(&dir, &manifest, None)? {
+            out.insert(format!("{prefix}/{rel}"), dir.join(rel));
+        }
+        self.slots.insert(packed.clone(), real_dir.clone());
+        self.placed.push(PlacedPackage { packed, real_dir });
+        Ok(manifest)
+    }
+
+    /// The packed location for `dependency`, required from the package packed
+    /// at `parent`. `None` when a package at the same real directory is already
+    /// visible from `parent`, or when no location can make it visible.
+    fn packed_location(
+        &self,
+        name: &str,
+        parent: &[String],
+        dependency: &AdmittedBundle,
+    ) -> Option<Vec<String>> {
+        let mut visible_free_slots = Vec::new();
+        for depth in (0..=parent.len()).rev() {
+            let mut slot = parent[..depth].to_vec();
+            slot.push(name.to_string());
+            match self.slots.get(&slot) {
+                Some(real_dir) if *real_dir == dependency.real_dir => return None,
+                Some(_) => break,
+                None => visible_free_slots.push(slot),
+            }
+        }
+        let on_disk = packed_names(self.real_pkg_dir, &dependency.real_dir);
+        if let Some(slot) = on_disk.filter(|slot| visible_free_slots.contains(slot)) {
+            return Some(slot);
+        }
+        let top_level = vec![name.to_string()];
+        let may_hoist = parent.is_empty() || !self.root_dependency_names.contains(name);
+        if may_hoist && visible_free_slots.contains(&top_level) {
+            return Some(top_level);
+        }
+        let own = visible_free_slots.into_iter().next();
+        if own.is_none() {
+            tracing::warn!(
+                target: "pacquet::fs_packlist",
+                bundle_name = %name,
+                "bundled dependency is shadowed by a different package of the same name; skipping",
+            );
+        }
+        own
+    }
+}
+
+/// `node_modules/<a>/node_modules/<b>` for the packed location `["a", "b"]`.
+fn packed_dir(packed: &[String]) -> String {
+    let mut dir = String::new();
+    for name in packed {
+        if !dir.is_empty() {
+            dir.push('/');
+        }
+        dir.push_str("node_modules/");
+        dir.push_str(name);
+    }
+    dir
+}
+
+/// The packed location that mirrors `dir`'s place under `pkg_dir`, when `dir`
+/// is `pkg_dir/node_modules/<a>/node_modules/<b>/...`.
+fn packed_names(pkg_dir: &Path, dir: &Path) -> Option<Vec<String>> {
+    let rel = dir.strip_prefix(pkg_dir).ok()?;
+    let mut segments = rel
+        .components()
+        .map(|component| component.as_os_str().to_str());
+    let mut names = Vec::new();
+    while let Some(segment) = segments.next() {
+        if segment? != "node_modules" {
+            return None;
+        }
+        let name = segments.next()??;
+        if name.starts_with('.') {
+            return None;
+        }
+        if name.starts_with('@') {
+            names.push(format!("{name}/{}", segments.next()??));
+        } else {
+            names.push(name.to_string());
+        }
+    }
+    (!names.is_empty()).then_some(names)
+}
+
 /// The directory one bundled dependency resolves to, once it has passed every
-/// check that keeps the closure inside the package tree. `None` for an entry
-/// the walk refuses or cannot resolve, which is warned about here.
+/// check that keeps the closure inside the resolution boundary. `None` for an
+/// entry the walk refuses or cannot resolve, which is warned about here.
 ///
 /// A malicious manifest could carry `bundleDependencies: ["../../etc"]` or an
 /// absolute path, so the name must be a single safe segment before it reaches
 /// a join. That only screens the name: a `node_modules/<name>` symlink
 /// pointing at a sibling or an absolute host path passes it yet resolves
-/// outside the tree, and walking that would splice host files into the
+/// outside the boundary, and walking that would splice host files into the
 /// published set. The fetcher imports untrusted git-hosted packages, so this
 /// matters.
-fn admitted_bundle(
-    task: &BundleTask,
-    root: &Path,
-    workspace_dir: Option<&Path>,
-    canonical_root: Option<&Path>,
-) -> Option<AdmittedBundle> {
+fn admitted_bundle(task: &BundleTask, walk: &BundleWalk<'_>) -> Option<AdmittedBundle> {
     if task.depth > MAX_BUNDLE_DEPTH {
         tracing::warn!(
             target: "pacquet::fs_packlist",
@@ -113,24 +233,23 @@ fn admitted_bundle(
         );
         return None;
     }
-    let Some(dep_dir) = resolve_bundled_dependency(&task.name, &task.from_dir, root, workspace_dir)
-    else {
+    let from_dir = &walk.placed[task.parent].real_dir;
+    let Some(dep_dir) = resolve_bundled_dependency(&task.name, from_dir, walk.boundary) else {
         tracing::debug!(
             target: "pacquet::fs_packlist",
             bundle_name = %task.name,
-            from_dir = %task.from_dir.display(),
+            from_dir = %from_dir.display(),
             "bundleDependencies entry not resolvable under node_modules/; skipping",
         );
         return None;
     };
-    // `fs::canonicalize` resolves symlinks, giving both the escape check its
-    // real target and the walk its dedup key: a symlink loop shows up as an
-    // already-visited path. `None` on failure (permission denied, say), and
-    // both then degrade — the check to a lexical comparison, the dedup to the
-    // raw path.
-    let canonical_dep = fs::canonicalize(&dep_dir).ok();
-    if escapes_package_tree(&dep_dir, root, workspace_dir, canonical_root, canonical_dep.as_deref())
-    {
+    // `fs::canonicalize` resolves symlinks, giving the containment check the
+    // real target. A dependency whose real path cannot be read cannot be
+    // proven to stay inside the boundary, so it is refused.
+    let real_dir = fs::canonicalize(&dep_dir)
+        .ok()
+        .filter(|real| real.starts_with(walk.boundary));
+    let Some(real_dir) = real_dir else {
         tracing::warn!(
             target: "pacquet::fs_packlist",
             bundle_name = %task.name,
@@ -138,80 +257,35 @@ fn admitted_bundle(
             "bundled dependency resolves outside the package tree; refusing",
         );
         return None;
-    }
-    let dedup_key = canonical_dep.unwrap_or_else(|| dep_dir.clone());
-    Some(AdmittedBundle { dir: dep_dir, dedup_key })
+    };
+    Some(AdmittedBundle { dir: dep_dir, real_dir })
 }
 
 /// A bundled dependency the walk accepted.
 struct AdmittedBundle {
+    /// The `node_modules/<name>` entry the resolution walk found.
     dir: PathBuf,
-    /// The real path, which the walk dedups on.
-    dedup_key: PathBuf,
-}
-
-/// Whether a bundled dependency's real path lies outside the package root.
-fn escapes_package_tree(
-    dep_dir: &Path,
-    root: &Path,
-    workspace_dir: Option<&Path>,
-    canonical_root: Option<&Path>,
-    canonical_dep: Option<&Path>,
-) -> bool {
-    let Some(canonical_root) = canonical_root else {
-        // Root itself won't canonicalise (pathological): fall back to a
-        // best-effort lexical check.
-        return dep_dir.strip_prefix(root).is_err();
-    };
-    // Root resolved but the dependency's real path didn't: we cannot prove it
-    // stays inside the tree, so fail closed. A genuine dependency always
-    // canonicalises here — `resolve_bundled_dependency` already stat'd its
-    // `package.json` through the same path.
-    let Some(canonical_dep) = canonical_dep else {
-        return true;
-    };
-    if canonical_dep.starts_with(canonical_root) {
-        return false;
-    }
-    workspace_dir
-        .and_then(|workspace_dir| workspace_dir.canonicalize().ok())
-        .is_none_or(|workspace_dir| canonical_dep.strip_prefix(workspace_dir).is_err())
+    /// Its real path, which placement compares on.
+    real_dir: PathBuf,
 }
 
 /// Resolve a bundled dependency `name` to its directory using the
 /// node module-resolution walk-up: check `from_dir/node_modules/name`,
-/// then climb to each ancestor's `node_modules/`, stopping at `root`.
-/// A workspace package may then fall back to the workspace root's hoisted
-/// `node_modules`. Returns the first directory that contains a `package.json`.
-///
-/// Climbing past the workspace root is refused so a dependency never resolves
-/// to a sibling on the host.
-fn resolve_bundled_dependency(
-    name: &str,
-    from_dir: &Path,
-    root: &Path,
-    workspace_dir: Option<&Path>,
-) -> Option<PathBuf> {
-    let mut current = from_dir.to_path_buf();
+/// then climb to each ancestor's `node_modules/`, stopping at `boundary`.
+/// Returns the first directory that contains a `package.json`.
+fn resolve_bundled_dependency(name: &str, from_dir: &Path, boundary: &Path) -> Option<PathBuf> {
+    let mut current = from_dir;
     loop {
-        let candidate = current.join("node_modules").join(name);
-        if candidate.join("package.json").is_file() {
-            return Some(candidate);
+        if current.file_name() != Some(OsStr::new("node_modules")) {
+            let candidate = current.join("node_modules").join(name);
+            if candidate.join("package.json").is_file() {
+                return Some(candidate);
+            }
         }
-        if current == root {
-            return workspace_dir
-                .filter(|workspace_dir| *workspace_dir != root)
-                .map(|workspace_dir| workspace_dir.join("node_modules").join(name))
-                .filter(|candidate| candidate.join("package.json").is_file());
-        }
-        if workspace_dir.is_some_and(|workspace_dir| current == workspace_dir) {
+        if current == boundary {
             return None;
         }
-        let parent = current.parent()?;
-        if parent == current {
-            return None;
-        }
-        current = parent.to_path_buf();
+        current = current.parent()?;
     }
 }
 
@@ -283,7 +357,7 @@ fn root_bundle_dep_names(manifest: &Value) -> Vec<String> {
 /// (already-bundled packages don't re-gate their deps). `peer`- and
 /// `dev`-dependencies are deliberately excluded — they are not part of
 /// the published closure. Mirrors `npm-bundled`'s `getDeps`.
-fn nested_bundle_dep_names(manifest: &Value) -> Vec<String> {
+fn dependency_names(manifest: &Value) -> Vec<String> {
     let mut names = Vec::new();
     for field in ["dependencies", "optionalDependencies"] {
         if let Some(map) = manifest.get(field).and_then(Value::as_object) {

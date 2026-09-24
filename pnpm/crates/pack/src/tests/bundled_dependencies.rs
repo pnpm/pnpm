@@ -1,7 +1,8 @@
 use super::{
     Host, NodeLinker, SilentReporter, api, fixture, install_module, json, tarball_entry_content,
 };
-use std::fs;
+use pnpm_fs::symlink_dir;
+use std::{fs, path::Path};
 
 /// `pack` bundles dependencies listed in `bundleDependencies`.
 /// Covers the `fs-packlist` `bundleDependencies` recursion and the
@@ -54,7 +55,6 @@ fn bundles_every_dependency_when_bundle_dependencies_is_true() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn bundles_workspace_dependency_with_the_isolated_linker() {
     let (dir, mut opts) = fixture(&json!({
@@ -68,8 +68,7 @@ fn bundles_workspace_dependency_with_the_isolated_linker() {
         .unwrap();
     fs::write(workspace_dep.join("index.js"), "module.exports = 42").unwrap();
     fs::create_dir_all(dir.path().join("node_modules")).unwrap();
-    std::os::unix::fs::symlink(&workspace_dep, dir.path().join("node_modules/workspace-dep"))
-        .unwrap();
+    symlink_dir(&workspace_dep, &dir.path().join("node_modules/workspace-dep")).unwrap();
 
     opts.workspace_dir = Some(dir.path().to_path_buf());
 
@@ -136,7 +135,6 @@ fn bundles_resolved_workspace_files_despite_local_shadow_paths() {
     }
 }
 
-#[cfg(unix)]
 #[test]
 fn bundles_isolated_workspace_dependencies_from_the_project_when_publishing_a_subdirectory() {
     let (dir, mut opts) = fixture(&json!({ "name": "workspace", "version": "0.0.0" }));
@@ -158,7 +156,7 @@ fn bundles_isolated_workspace_dependencies_from_the_project_when_publishing_a_su
         .unwrap();
     fs::write(dependency.join("index.js"), "module.exports = 42").unwrap();
     fs::create_dir_all(app.join("node_modules")).unwrap();
-    std::os::unix::fs::symlink(&dependency, app.join("node_modules/workspace-dep")).unwrap();
+    symlink_dir(&dependency, &app.join("node_modules/workspace-dep")).unwrap();
     opts.dir = app;
     opts.workspace_dir = Some(dir.path().to_path_buf());
 
@@ -172,6 +170,120 @@ fn bundles_isolated_workspace_dependencies_from_the_project_when_publishing_a_su
         Some("module.exports = 42"),
     );
     assert_eq!(result.published_manifest["dependencies"]["workspace-dep"], json!("1.0.0"));
+}
+
+/// Lay out `name@version` the way the isolated linker does: the package in
+/// its own `.pnpm` slot, each dependency linked next to it, and `name` linked
+/// from `project`'s `node_modules`.
+fn link_isolated(project: &Path, name: &str, version: &str, dependencies: &[(&str, &str)]) {
+    let slot = project.join(format!("node_modules/.pnpm/{name}@{version}/node_modules"));
+    let package = slot.join(name);
+    fs::create_dir_all(&package).unwrap();
+    let manifest = json!({
+        "name": name,
+        "version": version,
+        "dependencies": dependencies
+            .iter()
+            .map(|(dependency, version)| (dependency.to_string(), json!(version)))
+            .collect::<serde_json::Map<_, _>>(),
+    });
+    fs::write(package.join("package.json"), manifest.to_string()).unwrap();
+    fs::write(package.join("index.js"), format!("{name}@{version}")).unwrap();
+    for (dependency, version) in dependencies {
+        let target = project
+            .join(format!("node_modules/.pnpm/{dependency}@{version}/node_modules"))
+            .join(dependency);
+        symlink_dir(&target, &slot.join(dependency)).unwrap();
+    }
+    let link = project.join("node_modules").join(name);
+    if !link.exists() {
+        symlink_dir(&package, &link).unwrap();
+    }
+}
+
+#[test]
+fn bundles_dependencies_of_an_isolated_bundled_dependency() {
+    let (dir, opts) = fixture(&json!({
+        "name": "app",
+        "version": "0.0.0",
+        "dependencies": { "top": "1.0.0" },
+        "bundleDependencies": ["top"],
+    }));
+    link_isolated(dir.path(), "nested", "1.0.0", &[]);
+    fs::remove_file(dir.path().join("node_modules/nested")).unwrap();
+    link_isolated(dir.path(), "top", "1.0.0", &[("nested", "1.0.0")]);
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+
+    let tarball = opts.dir.join(&result.tarball_path);
+    assert_eq!(
+        tarball_entry_content(&tarball, "package/node_modules/top/index.js").as_deref(),
+        Some("top@1.0.0"),
+    );
+    assert_eq!(
+        tarball_entry_content(&tarball, "package/node_modules/nested/index.js").as_deref(),
+        Some("nested@1.0.0"),
+    );
+    assert!(
+        !result.contents
+            .iter()
+            .any(|file| file.contains(".pnpm")),
+        "{:?}",
+        result.contents,
+    );
+}
+
+#[test]
+fn nests_an_isolated_transitive_bundle_under_a_conflicting_root_dependency() {
+    let (dir, opts) = fixture(&json!({
+        "name": "app",
+        "version": "0.0.0",
+        "dependencies": { "nested": "2.0.0", "top": "1.0.0" },
+        "bundleDependencies": ["top"],
+    }));
+    link_isolated(dir.path(), "nested", "1.0.0", &[]);
+    fs::remove_file(dir.path().join("node_modules/nested")).unwrap();
+    link_isolated(dir.path(), "nested", "2.0.0", &[]);
+    link_isolated(dir.path(), "top", "1.0.0", &[("nested", "1.0.0")]);
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+
+    let tarball = opts.dir.join(&result.tarball_path);
+    assert_eq!(
+        tarball_entry_content(&tarball, "package/node_modules/top/node_modules/nested/index.js")
+            .as_deref(),
+        Some("nested@1.0.0"),
+    );
+    assert_eq!(tarball_entry_content(&tarball, "package/node_modules/nested/index.js"), None);
+}
+
+#[test]
+fn bundles_dependency_from_the_publish_directory_node_modules() {
+    let (dir, opts) = fixture(&json!({
+        "name": "app",
+        "version": "0.0.0",
+        "publishConfig": { "directory": "dist" },
+    }));
+    let dist = dir.path().join("dist");
+    fs::create_dir_all(&dist).unwrap();
+    fs::write(
+        dist.join("package.json"),
+        r#"{"name":"app","version":"0.0.0","bundleDependencies":["dep"]}"#,
+    )
+    .unwrap();
+    install_module(&dist, "dep", "1.0.0", &[("index.js", "from dist")]);
+    install_module(dir.path(), "dep", "1.0.0", &[("index.js", "from project")]);
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+
+    assert_eq!(
+        tarball_entry_content(
+            &opts.dir.join(result.tarball_path),
+            "package/node_modules/dep/index.js"
+        )
+        .as_deref(),
+        Some("from dist"),
+    );
 }
 
 /// `pack` bundles transitive dependencies of bundled dependencies

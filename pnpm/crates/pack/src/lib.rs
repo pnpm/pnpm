@@ -52,7 +52,7 @@ use pnpm_fs::lexical_normalize;
 use pnpm_fs_packlist::{PacklistError, PacklistOptions, packlist_with_sources};
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks};
 use pnpm_package_manifest::{
-    PackageManifestError, is_truthy, project_manifest_path, safe_read_project_manifest_from_dir,
+    PackageManifestError, project_manifest_path, safe_read_project_manifest_from_dir,
 };
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
@@ -451,32 +451,6 @@ fn publish_config_directory(manifest: &Value) -> Option<&str> {
         .filter(|directory| !directory.is_empty())
 }
 
-fn prevent_bundled_dependencies_with_pnp(
-    node_linker: NodeLinker,
-    manifest: &Value,
-) -> Result<(), PackError> {
-    if node_linker != NodeLinker::Pnp {
-        return Ok(());
-    }
-    for field in ["bundledDependencies", "bundleDependencies"] {
-        if manifest.get(field).is_some_and(is_truthy) {
-            return Err(PackError::BundledDependenciesWithPnp {
-                field,
-                node_linker: node_linker_str(node_linker),
-            });
-        }
-    }
-    Ok(())
-}
-
-fn node_linker_str(node_linker: NodeLinker) -> &'static str {
-    match node_linker {
-        NodeLinker::Isolated => "isolated",
-        NodeLinker::Hoisted => "hoisted",
-        NodeLinker::Pnp => "pnp",
-    }
-}
-
 mod output;
 
 use output::{
@@ -492,6 +466,9 @@ use contents::{
 
 mod lifecycle;
 use lifecycle::apply_before_packing;
+
+mod node_linker;
+use node_linker::prevent_bundled_dependencies_with_pnp;
 
 impl PackManifestOptions {
     async fn export<Reporter: self::Reporter>(
