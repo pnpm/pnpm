@@ -51,14 +51,14 @@ export function filterPeerDependencyIssues (
         continue
       }
       filteredMissing[peerName] = issues
-      if (intersections[peerName] != null) {
+      if (Object.hasOwn(intersections, peerName)) {
         filteredIntersections[peerName] = intersections[peerName]
       }
     }
     newPeerDependencyIssuesByProjects[projectId] = {
       bad: {},
       missing: filteredMissing,
-      conflicts: conflicts.filter((peerName) => filteredMissing[peerName] != null),
+      conflicts: conflicts.filter((peerName) => Object.hasOwn(filteredMissing, peerName)),
       intersections: filteredIntersections,
     }
     for (const [peerName, issues] of Object.entries(bad)) {
