@@ -1,4 +1,4 @@
-use super::{build_has_bin_set, existing_commands, pkg_dir_under, read_package};
+use super::{build_has_bin_set, existing_commands, pkg_dir_under, read_location_bin_sources};
 use crate::PackageManifests;
 use pnpm_cmd_shim::{
     BinOrigin, Host, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache,
@@ -416,20 +416,6 @@ pub fn link_new_bins_from_locations(
     let bins_dir = modules_dir.join(".bin");
     let existing = existing_commands(&bins_dir)?;
     link_bins_of_packages_with_excludes::<Host>(&bin_sources, &bins_dir, &existing, link_options)
-}
-fn read_location_bin_sources(
-    locations: &[PathBuf],
-) -> Result<Vec<PackageBinSource>, LinkBinsError> {
-    locations
-        .par_iter()
-        .filter_map(|location| match read_package::<Host>(location) {
-            // The locations are already the symlink-resolved package
-            // dirs, so they double as `resolved_location`.
-            Ok(Some(source)) => Some(Ok(source.with_resolved_location(location.clone()))),
-            Ok(None) => None,
-            Err(error) => Some(Err(error)),
-        })
-        .collect()
 }
 /// Top-level bin link that mixes direct-dep candidates and hoisted
 /// (`publicly_hoisted_aliases_with_bins`) candidates in a single

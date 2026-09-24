@@ -6,7 +6,7 @@ pub use direct::{
 };
 
 mod scan;
-use scan::{existing_commands, read_package, run_with_readdir};
+use scan::{existing_commands, read_location_bin_sources, read_package, run_with_readdir};
 
 mod direct;
 

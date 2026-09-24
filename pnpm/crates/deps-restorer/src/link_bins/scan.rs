@@ -1,7 +1,7 @@
 use super::LinkVirtualStoreBinsError;
 use pnpm_cmd_shim::{
     FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-    FsSetExecutable, FsWalkFiles, FsWrite, LinkBinsError, LinkBinsOptions, PackageBinSource,
+    FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions, PackageBinSource,
     link_bins_of_packages,
 };
 use pnpm_package_manifest::parse_manifest_bytes;
@@ -251,4 +251,21 @@ fn command_name(file_name: &str) -> &str {
         }
         _ => file_name,
     }
+}
+
+/// The bin sources of the packages at `locations`, which are already the
+/// symlink-resolved package directories.
+pub(super) fn read_location_bin_sources(
+    locations: &[PathBuf],
+) -> Result<Vec<PackageBinSource>, LinkBinsError> {
+    locations
+        .par_iter()
+        .filter_map(|location| match read_package::<Host>(location) {
+            // The locations are already the symlink-resolved package
+            // dirs, so they double as `resolved_location`.
+            Ok(Some(source)) => Some(Ok(source.with_resolved_location(location.clone()))),
+            Ok(None) => None,
+            Err(error) => Some(Err(error)),
+        })
+        .collect()
 }
