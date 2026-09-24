@@ -187,14 +187,8 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     if verifiers.is_empty() {
         return Ok(());
     }
-    let mut cache_inputs = cache_inputs;
-    if let Some(ReplacedEntries(is_replaced)) = opts.replaced {
-        let entries = candidates.len();
-        candidates.retain(|candidate| !is_replaced(&candidate.name, &candidate.version));
-        if candidates.len() < entries {
-            cache_inputs = None;
-        }
-    }
+    let skipped_replaced = skip_replaced(&mut candidates, opts.replaced);
+    let cache_inputs = cache_inputs.filter(|_| !skipped_replaced);
     if candidates.is_empty() {
         // Persist the success so the next install can stat-only the
         // lockfile. An empty fan-out is still a successful run.
@@ -210,6 +204,15 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         return Ok(());
     }
     Err(build_verification_error(violations))
+}
+
+/// Drop the candidates `replaced` matches, returning whether any was
+/// dropped.
+fn skip_replaced(candidates: &mut Vec<Candidate>, replaced: Option<ReplacedEntries<'_>>) -> bool {
+    let Some(ReplacedEntries(is_replaced)) = replaced else { return false };
+    let entries = candidates.len();
+    candidates.retain(|candidate| !is_replaced(&candidate.name, &candidate.version));
+    candidates.len() < entries
 }
 
 /// Run the verifiers over every candidate, reporting the run's start and,
