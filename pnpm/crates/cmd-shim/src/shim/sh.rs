@@ -178,7 +178,8 @@ while [ -n "$rest" ]; do
     /*) helper_path=${helper_path:+$helper_path:}$dir ;;
   esac
 done
-PATH=$helper_path
+# An empty PATH searches the current directory.
+PATH=${helper_path:-/}
 link="$0"
 # `${link%/*}` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.

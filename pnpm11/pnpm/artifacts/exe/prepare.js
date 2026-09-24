@@ -64,7 +64,8 @@ while [ -n "$rest" ]; do
     /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
   esac
 done
-PATH=$helper_path
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
 self=$0
 # MSYS and Cygwin can launch this with a native Windows path, which has no slash
 # for \`\${self%/*}\` to strip. Only a drive letter or a UNC prefix marks one; a

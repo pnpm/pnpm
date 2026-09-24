@@ -322,6 +322,15 @@ describeOnPosix('sh shim resolves its helpers off the caller\'s PATH', () => {
       'tsc-output',
       'the shim took a helper from an empty entry of PATH'
     )
+    // Nothing survives the filter here, and an empty PATH would search the
+    // current directory, which holds the decoys.
+    fs.mkdirSync(path.join(nodeModulesBin, 'node-dir'))
+    fs.symlinkSync(process.execPath, path.join(nodeModulesBin, 'node-dir', 'node'))
+    assert.notEqual(
+      run('node-dir', nodeModulesBin),
+      'hijacked',
+      'the shim took a helper from the current directory'
+    )
   })
 })
 

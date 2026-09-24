@@ -145,6 +145,7 @@ describe('placeholder bin', () => {
     const hijackDir = path.join(fixture.dir, 'hijack')
     fs.mkdirSync(path.join(hijackDir, 'bin'), { recursive: true })
     fs.writeFileSync(path.join(hijackDir, 'bin', 'pnpm.mjs'), 'console.log("hijacked")\n')
+    fs.writeFileSync(path.join(hijackDir, 'pnpm'), '')
     const decoyDir = path.join(fixture.dir, 'decoy')
     fs.mkdirSync(decoyDir, { recursive: true })
     writeDecoy(path.join(decoyDir, 'readlink'), path.join(hijackDir, 'pnpm'))
@@ -165,6 +166,22 @@ describe('placeholder bin', () => {
       assert.equal(result.status, 0, result.stderr)
       assert.match(result.stdout, FAKE_BINARY_OUTPUT, `readlink came from the PATH entry ${entry}`)
     }
+  })
+
+  // Without a readlink the walk stops on the symlink's own directory, which
+  // holds no entry point of ours. `command -p` is rewritten as above.
+  it('refuses to run when no readlink resolves its symlink', { skip: HAS_A_SHELL }, async () => {
+    const fixture = createFixture()
+    fs.writeFileSync(fixture.placeholder, fs.readFileSync(fixture.placeholder, 'utf8').replaceAll('command -p ', 'command '))
+    const link = path.join(fixture.dir, 'pnpm-link')
+    fs.symlinkSync(path.relative(fixture.dir, fixture.placeholder), link)
+    const nodeOnly = path.join(fixture.dir, 'node-only')
+    fs.mkdirSync(nodeOnly)
+    fs.symlinkSync(process.execPath, path.join(nodeOnly, 'node'))
+
+    const result = await run('/bin/sh', [link, '--version'], { env: { PATH: nodeOnly } })
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /could not resolve .* to a regular file/)
   })
 
   it('hands over to the entry point when no platform package is installed', { skip: HAS_A_SHELL }, async () => {

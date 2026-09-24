@@ -1026,4 +1026,18 @@ fn shim_execution_skips_node_modules_and_relative_path_entries_when_command_p_se
         "tsc-output",
         "the shim took a helper from an empty entry of PATH",
     );
+    // Nothing survives the filter here, and an empty `PATH` would search the
+    // current directory, which holds the decoys.
+    let node_dir = node_modules_bin.join("node-dir");
+    std::fs::create_dir_all(&node_dir).unwrap();
+    let node = std::env::split_paths(&callers_path)
+        .map(|dir| dir.join("node"))
+        .find(|node| node.is_file())
+        .expect("node on PATH");
+    std::os::unix::fs::symlink(node, node_dir.join("node")).unwrap();
+    assert_ne!(
+        run("node-dir".to_owned(), &node_modules_bin),
+        "hijacked",
+        "the shim took a helper from the current directory",
+    );
 }
