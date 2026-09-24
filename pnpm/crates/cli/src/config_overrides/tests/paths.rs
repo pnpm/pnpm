@@ -232,7 +232,7 @@ fn store_dir_override_expands_quoted_home_path() {
         }
     }
 
-    let mut config = Config::default();
+    let mut config = Config { store_dir_placement_skipped: true, ..Config::default() };
     apply_store_dir_override::<FakeHome>(
         &mut config,
         std::path::Path::new("~/quoted-store"),
@@ -248,6 +248,7 @@ fn store_dir_override_expands_quoted_home_path() {
         config.explicit_settings.get("storeDir"),
         Some(&serde_json::Value::String("~/quoted-store".to_string())),
     );
+    assert!(!config.store_dir_placement_skipped, "a pinned store needs no placement");
 }
 
 #[test]

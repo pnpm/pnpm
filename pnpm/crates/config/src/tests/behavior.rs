@@ -466,7 +466,17 @@ pub fn skip_store_dir_resolution_avoids_link_probe() {
     let mut config = Config::new();
     config.skip_store_dir_resolution = true;
     let loaded = config
+        .clone()
         .current::<PanickingLinkProbeHost>(project.path())
         .expect("config loads without probing store dir");
     assert!(loaded.skip_store_dir_resolution);
+    assert!(loaded.store_dir_placement_skipped);
+
+    let pinned = tempdir().expect("pinned project tempdir");
+    fs::write(pinned.path().join("pnpm-workspace.yaml"), "storeDir: ''\n")
+        .expect("write pnpm-workspace.yaml");
+    let loaded = config
+        .current::<PanickingLinkProbeHost>(pinned.path())
+        .expect("config loads with a pinned store dir");
+    assert!(!loaded.store_dir_placement_skipped);
 }

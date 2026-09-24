@@ -18,6 +18,7 @@ fn unplaced_config() -> Config {
     let mut config = Config::new();
     config.store_dir = StoreDir::new("/home-volume/pnpm/store");
     config.skip_store_dir_resolution = true;
+    config.store_dir_placement_skipped = true;
     config
 }
 
@@ -34,16 +35,17 @@ fn an_unplaced_store_moves_to_the_project_volume() {
     assert_eq!(config.store_dir, StoreDir::new(mount.join(".pnpm-store")));
     assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
     assert!(!config.skip_store_dir_resolution);
+    assert!(!config.store_dir_placement_skipped);
 }
 
 #[test]
-fn a_pinned_store_stays() {
+fn a_store_the_load_placed_stays() {
     let tmp = tempdir().expect("create tempdir");
     let project = tmp.path().join("mount/project");
     fs::create_dir_all(&project).expect("create project dir");
 
     let mut config = unplaced_config();
-    config.explicit_settings.insert("storeDir".to_string(), "/home-volume/pnpm/store".into());
+    config.store_dir_placement_skipped = false;
     config.place_skipped_store_dir::<MountVolume>(&project);
 
     assert_eq!(config.store_dir, StoreDir::new("/home-volume/pnpm/store"));

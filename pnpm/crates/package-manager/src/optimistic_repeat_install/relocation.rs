@@ -182,7 +182,7 @@ fn validated_moved_lockfile<'a>(
 ) -> Result<&'a Lockfile, &'static str> {
     // A command that opens no store, such as `pnpm run`, loads its config
     // without placing the store, and the recorded one is compared below.
-    let placed_config = check.config.skip_store_dir_resolution.then(|| {
+    let placed_config = check.config.store_dir_placement_skipped.then(|| {
         let mut config = check.config.clone();
         config.place_skipped_store_dir::<pnpm_config::Host>(check.workspace_root);
         config
