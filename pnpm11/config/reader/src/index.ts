@@ -998,6 +998,7 @@ export async function getConfig (opts: {
 
   if (pnpmConfig.nodeVersion == null && pnpmConfig.enginePinManifest != null) {
     pnpmConfig.nodeVersion = getNodeVersionFromEnginesRuntime(pnpmConfig.enginePinManifest)
+    pnpmConfig.nodeVersionFromEnginesRuntime = pnpmConfig.nodeVersion != null
   }
 
   applyRemoteSideEffectsCacheEnv(pnpmConfig, env)
@@ -1005,7 +1006,7 @@ export async function getConfig (opts: {
   const {
     hooks, finders,
     allProjects, selectedProjectsGraph, allProjectsGraph, prodAllProjectsGraph, prodOnlySelectedProjectDirs,
-    rootProjectManifest, rootProjectManifestDir, enginePinManifest,
+    rootProjectManifest, rootProjectManifestDir, enginePinManifest, nodeVersionFromEnginesRuntime,
     cliOptions: ctxCliOptions,
     explicitlySetKeys: ctxExplicitlySetKeys,
     packageManager: ctxPackageManager, wantedPackageManager,
@@ -1014,7 +1015,7 @@ export async function getConfig (opts: {
   const context: ConfigContext = {
     hooks, finders,
     allProjects, selectedProjectsGraph, allProjectsGraph, prodAllProjectsGraph, prodOnlySelectedProjectDirs,
-    rootProjectManifest, rootProjectManifestDir, enginePinManifest,
+    rootProjectManifest, rootProjectManifestDir, enginePinManifest, nodeVersionFromEnginesRuntime,
     cliOptions: ctxCliOptions,
     explicitlySetKeys: ctxExplicitlySetKeys,
     packageManager: ctxPackageManager, wantedPackageManager,
@@ -1606,6 +1607,7 @@ const CONFIG_CONTEXT_KEYS = [
   'rootProjectManifest',
   'rootProjectManifestDir',
   'enginePinManifest',
+  'nodeVersionFromEnginesRuntime',
   'cliOptions',
   'explicitlySetKeys',
   'packageManager',

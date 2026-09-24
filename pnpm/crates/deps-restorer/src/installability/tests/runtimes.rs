@@ -1,8 +1,8 @@
-use super::{host, importer_dep_map, no_importers, snapshot_key, synthetic_metadata};
+use super::{host, no_importers, snapshot_key, synthetic_metadata};
 use crate::installability::{
     InstallabilityHost, SkippedSnapshots, any_installability_constraint, compute_skipped_snapshots,
 };
-use pnpm_lockfile::{ProjectSnapshot, SnapshotEntry};
+use pnpm_lockfile::SnapshotEntry;
 use pnpm_reporter::{LogEvent, SkippedOptionalReason};
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
@@ -80,34 +80,4 @@ fn detect_with_overrides_node_version_and_engine_strict() {
 
     // Without a version override, `engine_strict` still layers on detection.
     assert!(InstallabilityHost::detect_with(true, None).engine_strict);
-}
-#[test]
-fn engines_are_checked_against_the_locked_node_runtime_of_the_root_project() {
-    recording_reporter!();
-    let key = snapshot_key("needs-newer-node@1.0.0");
-    let mut snapshots = HashMap::new();
-    snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
-    let mut packages = HashMap::new();
-    packages.insert(
-        key.clone(),
-        synthetic_metadata(Some(&[("node", ">=22.12.0")]), None, None, None),
-    );
-    let importer = ProjectSnapshot {
-        dev_dependencies: importer_dep_map(&["node@runtime:22.23.3"]),
-        optional_dependencies: importer_dep_map(&["needs-newer-node@1.0.0"]),
-        ..Default::default()
-    };
-    let importers = std::iter::once((".".to_string(), importer)).collect();
-
-    let skipped = compute_skipped_snapshots::<RecordingReporter>(
-        &importers,
-        &snapshots,
-        &packages,
-        &host("22.0.0", "linux", "x64"),
-        "/proj",
-        SkippedSnapshots::new(),
-    )
-    .unwrap();
-
-    assert!(!skipped.contains(&key));
 }

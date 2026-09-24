@@ -220,6 +220,7 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
             importers: &lockfiles.initial.importers,
 
             installability_host,
+            explicit_node_version: install.drivers.config.node_version.is_some(),
             // The fresh path has just re-resolved the graph, so the
             // previous run's verdicts may no longer hold.
             seed: SkippedSnapshots::new(),

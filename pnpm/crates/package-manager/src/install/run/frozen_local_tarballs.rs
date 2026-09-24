@@ -62,6 +62,7 @@ async fn compute_frozen_skip_set(
             requester: &workspace.prefix,
             importers: &lockfile.importers,
             installability_host: host.as_ref(),
+            explicit_node_version: settled.install.context.config.node_version.is_some(),
             seed,
             exclude_optional: !settled.mode.included.optional_dependencies,
             skip_runtimes: settled.install.execution.skip_runtimes,

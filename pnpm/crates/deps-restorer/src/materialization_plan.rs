@@ -11,7 +11,7 @@
 
 use crate::{
     InstallabilityHost, SkippedSnapshots, add_direct_runtime_skips, compute_skipped_snapshots,
-    extend_skipped_with_dependency_closure,
+    extend_skipped_with_dependency_closure, find_root_runtime_node_version,
     install_frozen_lockfile::{find_runtime_node_major, parse_major_from_version},
 };
 use pnpm_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
@@ -174,6 +174,10 @@ pub struct SkipSetInputs<'a> {
     /// `None` when installability checks are bypassed — see
     /// [`detect_installability_host`].
     pub installability_host: Option<&'a InstallabilityHost>,
+    /// Whether `nodeVersion` is set in the config. Otherwise `engines.node`
+    /// is checked against the Node.js version the root project's runtime
+    /// dependency is locked to, when it has one.
+    pub explicit_node_version: bool,
     /// Skips carried in from the previous install's
     /// `.modules.yaml.skipped`, so a package already known to be
     /// incompatible is not re-checked and does not re-emit
@@ -206,21 +210,25 @@ pub struct SkipSetInputs<'a> {
 pub fn compute_skip_set<Reporter: pnpm_reporter::Reporter>(
     inputs: SkipSetInputs<'_>,
 ) -> Result<SkippedSnapshots, Box<InstallabilityError>> {
-    let mut skipped =
-        match (inputs.entries.snapshots, inputs.entries.packages, inputs.installability_host) {
-            (Some(snapshots), Some(packages), Some(host)) => compute_skipped_snapshots::<Reporter>(
-                inputs.importers,
-                snapshots,
-                packages,
-                host,
-                inputs.requester,
-                inputs.seed,
-            )?,
-            // Constraint-free lockfile: keep the seed verbatim, so a
-            // snapshot recorded as skipped previously survives the
-            // constraint having since been removed from the lockfile.
-            _ => inputs.seed,
-        };
+    let locked_runtime_host = inputs.installability_host
+        .filter(|_| !inputs.explicit_node_version)
+        .zip(find_root_runtime_node_version(inputs.importers))
+        .map(|(host, node_version)| InstallabilityHost { node_version, ..host.clone() });
+    let host = locked_runtime_host.as_ref().or(inputs.installability_host);
+    let mut skipped = match (inputs.entries.snapshots, inputs.entries.packages, host) {
+        (Some(snapshots), Some(packages), Some(host)) => compute_skipped_snapshots::<Reporter>(
+            inputs.importers,
+            snapshots,
+            packages,
+            host,
+            inputs.requester,
+            inputs.seed,
+        )?,
+        // Constraint-free lockfile: keep the seed verbatim, so a
+        // snapshot recorded as skipped previously survives the
+        // constraint having since been removed from the lockfile.
+        _ => inputs.seed,
+    };
 
     // The lockfile's `optional` flag is set only when a snapshot is
     // reachable *exclusively* through optional edges, so a dependency

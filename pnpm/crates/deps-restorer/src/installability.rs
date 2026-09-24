@@ -31,6 +31,7 @@ use pnpm_lockfile::{
     SnapshotEntry,
 };
 use pnpm_package_is_installable::{InstallabilityError, InstallabilityOptions, SkipReason};
+use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{
     LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
     SkippedOptionalReason,
@@ -348,15 +349,12 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     // cached per peer-stripped `metadata_key` (see [`cached_check`]);
     // the per-snapshot loop then only needs to apply the
     // optional / engine-strict dispatch.
-    let root_runtime_node_version = root_runtime_node_version(importers);
     let base_options = InstallabilityOptions {
         engine_strict: host.engine_strict,
         // Cache-shared check: `optional` is applied per dispatch
         // below, not inside `check_package`.
         optional: false,
-        current_node_version: root_runtime_node_version
-            .as_deref()
-            .unwrap_or(host.node_version.as_str()),
+        current_node_version: host.node_version.as_str(),
         pnpm_version: None,
         current_os: host.os,
         current_cpu: host.cpu,
@@ -557,27 +555,23 @@ fn add_runtime_skips_from(
     }
 }
 
-/// The Node.js version the root project's `node@runtime:` dependency is
-/// locked to. That is the Node.js pnpm installs for the project, so
-/// `engines.node` is checked against it rather than against the lower
-/// bound of the `devEngines.runtime` range.
-fn root_runtime_node_version(importers: &HashMap<String, ProjectSnapshot>) -> Option<String> {
-    let root = importers.get(Lockfile::ROOT_IMPORTER_KEY)?;
-    [
-        root.dependencies.as_ref(),
-        root.dev_dependencies.as_ref(),
-        root.optional_dependencies.as_ref(),
-    ]
-    .into_iter()
-    .flatten()
-    .flat_map(|dep_map| dep_map.iter())
-    .filter(|(alias, _)| alias.scope.is_none() && alias.bare == "node")
-    .find_map(|(_, spec)| {
-        let ver_peer = spec.version.ver_peer()?;
-        (ver_peer.prefix() == Prefix::Runtime)
-            .then(|| ver_peer.version_semver().map(ToString::to_string))
-            .flatten()
-    })
+/// The Node.js version the root project's `node` runtime dependency is
+/// locked to: the Node.js pnpm installs for the project.
+#[must_use]
+pub fn find_root_runtime_node_version(
+    importers: &HashMap<String, ProjectSnapshot>,
+) -> Option<String> {
+    importers
+        .get(Lockfile::ROOT_IMPORTER_KEY)?
+        .dependencies_by_groups([
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+        ])
+        .filter(|(alias, _)| alias.scope.is_none() && alias.bare == "node")
+        .filter_map(|(_, spec)| spec.version.ver_peer())
+        .filter(|ver_peer| ver_peer.prefix() == Prefix::Runtime)
+        .find_map(|ver_peer| ver_peer.version_semver().map(ToString::to_string))
 }
 
 /// `None` = compatible. `Some(err)` = incompatible, with the

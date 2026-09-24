@@ -207,7 +207,13 @@ fn hoisted_walker_options<'a>(
         installability: crate::HoistedInstallability {
             engine_strict: config.effective_engine_strict(),
             current_node_version: inputs.host_node
-                .map(|host| host.version.clone())
+                .map(|host| {
+                    config.node_version
+                        .is_none()
+                        .then(|| crate::find_root_runtime_node_version(&lockfile.importers))
+                        .flatten()
+                        .unwrap_or_else(|| host.version.clone())
+                })
                 .unwrap_or_default(),
             current_os: pnpm_graph_hasher::host_platform().to_string(),
             current_cpu: pnpm_graph_hasher::host_arch().to_string(),

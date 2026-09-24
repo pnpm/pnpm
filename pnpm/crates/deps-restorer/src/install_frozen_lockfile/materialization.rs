@@ -206,6 +206,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                     importers: &inputs.lockfiles.wanted.importers,
 
                     installability_host: installability_host.as_ref(),
+                    explicit_node_version: inputs.drivers.config.node_version.is_some(),
                     seed: seed_skip_set(inputs.drivers.config, seed_skipped),
                     // The frozen path always installs the groups it was
                     // given, so `--no-optional` needs no further

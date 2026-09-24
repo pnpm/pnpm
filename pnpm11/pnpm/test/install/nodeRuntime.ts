@@ -115,7 +115,6 @@ test('devEngines.runtime range without download does not replace running Node.js
   project.has('dependency')
 })
 
-
 test('optional dependencies are checked against the Node.js version locked for a devEngines.runtime range', async () => {
   const project = prepare({
     optionalDependencies: {
@@ -142,4 +141,36 @@ test('optional dependencies are checked against the Node.js version locked for a
   await execPnpm(['install', '--frozen-lockfile', '--no-runtime'])
 
   expect(project.readModulesManifest()?.skipped).toStrictEqual([])
+})
+
+test('an explicit nodeVersion takes priority over the Node.js version locked for devEngines.runtime', async () => {
+  const project = prepare({
+    dependencies: {
+      dependency: 'file:dependency',
+    },
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '^24.0.0',
+        onFail: 'download',
+      },
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    engineStrict: true,
+    nodeVersion: '20.0.0',
+  })
+  fs.mkdirSync('dependency')
+  fs.writeFileSync('dependency/package.json', JSON.stringify({
+    name: 'dependency',
+    version: '1.0.0',
+    engines: {
+      node: '<21',
+    },
+  }))
+
+  await execPnpm(['install', '--lockfile-only'])
+  await execPnpm(['install', '--frozen-lockfile', '--no-runtime'])
+
+  project.has('dependency')
 })
