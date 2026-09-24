@@ -1,5 +1,7 @@
-use super::super::{OutdatedInWorkspace, OutdatedPackage};
-use super::dependency_type_label;
+use super::{
+    super::{OutdatedInWorkspace, OutdatedPackage},
+    dependency_type_label,
+};
 use std::collections::HashMap;
 
 /// JSON output is keyed by package name. A name that occurs more than once in
