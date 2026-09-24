@@ -13,7 +13,6 @@ import { rimraf } from '@zkochan/rimraf'
 import { pick } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 import { renderHelp } from 'render-help'
-import { temporaryDirectory } from 'tempy'
 
 import { extractPublishManifestFromPacked, isTarballPath } from './extractManifestFromPacked.js'
 import { optionsWithOtpEnv } from './otpEnv.js'
@@ -275,6 +274,8 @@ export async function publish (
   // Otherwise, npm would publish the package with the package.json file
   // from the current working directory, ignoring the package.json file
   // that was generated and packed to the tarball.
+  // tempy resolves os.tmpdir() when loaded, which throws if that directory is missing.
+  const { temporaryDirectory } = await import('tempy')
   const packDestination = temporaryDirectory()
   let publishedManifest: ExportedManifest | undefined
   let publishSummary: PublishSummary | undefined

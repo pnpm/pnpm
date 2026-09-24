@@ -13,7 +13,6 @@ import { rimraf } from '@zkochan/rimraf'
 import npmFetch from 'npm-registry-fetch'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
-import { temporaryDirectory } from 'tempy'
 
 import { createPublishSummary, type PublishSummary } from '../tarball/publishSummary.js'
 import * as pack from './pack.js'
@@ -143,6 +142,8 @@ async function packPkgForBatch (project: Project, opts: BatchPublishOptions): Pr
   }
   // The tarball is packed into a temporary directory and read into memory right away — the
   // request body carries it base64-encoded, so nothing needs to stay on disk.
+  // tempy resolves os.tmpdir() when loaded, which throws if that directory is missing.
+  const { temporaryDirectory } = await import('tempy')
   const packDestination = temporaryDirectory()
   try {
     const packResult = await pack.api({
