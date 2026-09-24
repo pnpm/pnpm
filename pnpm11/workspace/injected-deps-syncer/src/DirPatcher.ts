@@ -4,7 +4,7 @@ import util from 'node:util'
 
 import { fetchFromDir, type FetchFromDirOptions } from '@pnpm/fetching.directory-fetcher'
 import { renameFileWithRetry } from '@pnpm/fs.graceful-fs'
-import { fastPathTemp } from 'path-temp'
+import { pathTemp } from 'path-temp'
 
 export const DIR: unique symbol = Symbol('Path is a directory')
 
@@ -112,15 +112,13 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
   }
 
   /**
-   * Copy through a temp sibling, so that whoever reads the target sees either
-   * what it held before or the whole copy. The rename replaces a symlink at the
-   * target without following it.
+   * Copy through a temp sibling, so that a reader of the target never sees a
+   * partial copy. The rename replaces a symlink at the target without following
+   * it.
    */
   async function copyIntoPlace (sourcePath: string, targetPath: string): Promise<void> {
-    const tempPath = fastPathTemp(targetPath)
-    // A temp file is named after the thread that writes it, so only an
-    // interrupted run can leave one behind for this one to trip over.
-    await fs.promises.rm(tempPath, { force: true })
+    // A random name, since concurrent syncs share the thread that writes it.
+    const tempPath = pathTemp(path.dirname(targetPath))
     try {
       await fs.promises.copyFile(sourcePath, tempPath, fs.constants.COPYFILE_EXCL)
       renameFileWithRetry(tempPath, targetPath)
