@@ -1,6 +1,6 @@
 use super::{
     AddRequest, Context, GlobalError, GlobalPackageInfo, HashMap, IntoDiagnostic, Path, PathBuf,
-    fs, is_plain_version_spec, is_valid_old_npm_package_name, lexical_normalize,
+    fs, is_plain_version_spec, is_valid_old_npm_package_name, lexical_normalize, local_file_path,
     parse_wanted_dependency, safe_read_package_json_from_dir, tool_install_selector,
 };
 
@@ -86,6 +86,24 @@ pub(super) fn update_selectors(
             }
         })
         .collect()
+}
+
+/// The warning `update -g` prints for a group it skips because the `file:`
+/// source one of its dependencies was installed from is gone. Reinstalling the
+/// group would fail with `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`, and the group
+/// still works from what it installed, so the other groups are updated instead.
+pub(super) fn missing_file_source_warning(pkg: &GlobalPackageInfo) -> Option<String> {
+    let (alias, source) = pkg.dependencies
+        .iter()
+        .find_map(|(alias, spec)| {
+            let source = local_file_path(spec, &pkg.install_dir)?;
+            matches!(source.try_exists(), Ok(false)).then_some((alias, source))
+        })?;
+    Some(format!(
+        r#"Skipped updating {} because "{}" no longer exists. Reinstall {alias} from an existing location, or remove it with "pnpm remove -g {alias}"."#,
+        pkg.aliases().join(", "),
+        source.display(),
+    ))
 }
 
 pub(super) fn replacement_aliases(aliases: &[String]) -> Vec<String> {

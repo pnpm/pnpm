@@ -65,6 +65,7 @@ use pnpm_package_manifest::{DependencyGroup, safe_read_package_json_from_dir};
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, PnpmLog, Reporter, SummaryLog};
+use pnpm_resolving_local_resolver::local_file_path;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 
 use remove::{
@@ -72,8 +73,9 @@ use remove::{
     collect_existing_global_installs, snapshot_global_package,
 };
 use selectors::{
-    SelectorGroup, groups_matching_params, infer_local_package_alias, replacement_aliases,
-    should_replace_existing_package, split_into_groups, tool_install_selectors, update_selectors,
+    SelectorGroup, groups_matching_params, infer_local_package_alias, missing_file_source_warning,
+    replacement_aliases, should_replace_existing_package, split_into_groups,
+    tool_install_selectors, update_selectors,
 };
 
 use shims::{
@@ -278,6 +280,10 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     };
     let mut changed = false;
     for pkg in &to_update {
+        if let Some(warning) = missing_file_source_warning(pkg) {
+            warn_global::<Reporter>(&warning);
+            continue;
+        }
         changed |= target.update_group::<Reporter>(
             pkg,
             latest,
