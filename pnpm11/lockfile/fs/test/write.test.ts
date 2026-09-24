@@ -583,8 +583,14 @@ await writeWantedLockfileAtomic(process.env.LOCKFILE_PATH, 'key: ' + 'x'.repeat(
   // is still building the write's payload — would pass without exercising
   // the cleanup, as there would be no temp file to remove.
   const exited = once(child, 'exit')
-  await waitForTempFile(1000)
-  child.kill('SIGINT')
+  try {
+    await waitForTempFile(1000)
+  } finally {
+    // Reap the child even when staging failed, so a failed test does not
+    // leave a 400MB write running.
+    child.kill('SIGINT')
+    await exited
+  }
 
   const [, signal] = await exited
   expect(signal).toBe('SIGINT')
