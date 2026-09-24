@@ -1037,6 +1037,15 @@ pub struct Config {
     /// allowBuilds settings to resolve either.
     pub workspace_dir: Option<PathBuf>,
 
+    /// Target workspace directory where workspace-level configuration changes
+    /// (such as `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`) should be written.
+    ///
+    /// When an isolated sub-install runs (e.g. provisioning an engine into a
+    /// temporary directory), `workspace_dir` points to the temporary directory
+    /// to isolate discovery, while `target_workspace_dir` points back to the
+    /// user's actual workspace directory.
+    pub target_workspace_dir: Option<PathBuf>,
+
     /// Raw `patchedDependencies` from `pnpm-workspace.yaml`: keys are
     /// `name[@version]`, values are patch file paths (relative to
     /// `workspace_dir` or absolute). Consumed by
