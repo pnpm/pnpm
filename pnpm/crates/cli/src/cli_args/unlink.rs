@@ -33,8 +33,8 @@ impl UnlinkArgs {
     /// Revert what `pnpm link` wrote: strip the matching `link:` overrides
     /// from `config` (in memory) and from `pnpm-workspace.yaml`, and drop the
     /// `link:` dependencies that point at the same directories from the
-    /// current project's manifest and from those of the projects a `-r` /
-    /// `--filter` run selects. Returns whether the caller should reinstall.
+    /// manifests of the projects this run reinstalls. Returns whether the
+    /// caller should reinstall.
     ///
     /// Mirrors pnpm: when no overrides are configured it prints "Nothing to
     /// unlink" and returns `false` so the caller stops; otherwise it removes
@@ -108,26 +108,23 @@ impl UnlinkArgs {
     }
 }
 
-/// The current project's manifest, then those of the projects a `-r` /
-/// `--filter` run selects.
+/// The manifests of the projects a `-r` / `--filter` run selects, or the
+/// current project's manifest outside such a run.
 fn selected_manifest_paths(
     config: &Config,
     prefix: &Path,
     manifest_path: &Path,
     recursive_sort: bool,
 ) -> miette::Result<Vec<PathBuf>> {
-    let mut paths = vec![manifest_path.to_path_buf()];
-    if let Some(selection) =
+    let Some(selection) =
         select_workspace_projects(config, prefix, manifest_path, recursive_sort, false)?
-    {
-        paths.extend(
-            selection.selected_dirs
-                .iter()
-                .map(|dir| project_manifest_path(dir))
-                .filter(|path| path != manifest_path),
-        );
-    }
-    Ok(paths)
+    else {
+        return Ok(vec![manifest_path.to_path_buf()]);
+    };
+    Ok(selection.selected_dirs
+        .iter()
+        .map(|dir| project_manifest_path(dir))
+        .collect())
 }
 
 fn link_target_dir(base_dir: &Path, specifier: &str) -> PathBuf {

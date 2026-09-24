@@ -585,3 +585,39 @@ fn failed_selection_keeps_link_override() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn filtered_unlink_keeps_link_dependency_of_unselected_project() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let root_manifest = serde_json::json!({
+        "name": "root",
+        "private": true,
+        "dependencies": { "linked-foo": "link:linked-foo" },
+    });
+    write_manifest(&workspace, &root_manifest);
+    add_overrides(
+        &workspace,
+        "packages:\n  - 'packages/*'\noverrides:\n  linked-foo: link:linked-foo\n",
+    );
+    let member = workspace.join("packages").join("app");
+    fs::create_dir_all(&member).expect("create member dir");
+    write_manifest(
+        &member,
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "linked-foo": "link:../../linked-foo" },
+        }),
+    );
+    write_local_package(&workspace, "linked-foo", "linked-foo");
+
+    run_pnpm(&workspace, &["--filter", "app", "unlink"]);
+
+    assert_eq!(read_manifest(&workspace), root_manifest);
+    assert_eq!(read_manifest(&member), serde_json::json!({ "name": "app", "version": "1.0.0" }));
+
+    drop((root, mock_instance));
+}
