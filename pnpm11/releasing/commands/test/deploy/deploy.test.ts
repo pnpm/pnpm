@@ -834,6 +834,45 @@ test('deploy with node-linker=hoisted', async () => {
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })
 
+// https://github.com/pnpm/pnpm/issues/9671
+test('legacy deploy with node-linker=hoisted puts the direct dependency versions at the top level', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/has-peer-c-in-deps': '1.0.0',
+        '@pnpm.e2e/peer-c': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    forceLegacyDeploy: true,
+    recursive: true,
+    selectedProjectsGraph,
+    nodeLinker: 'hoisted',
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  expect(loadJsonFileSync<{ version: string }>('deploy/node_modules/@pnpm.e2e/peer-c/package.json').version).toBe('1.0.0')
+  expect(loadJsonFileSync<{ version: string }>('deploy/node_modules/@pnpm.e2e/has-peer-c-in-deps/node_modules/@pnpm.e2e/peer-c/package.json').version).toBe('2.0.0')
+  expect(fs.existsSync('project-1/node_modules')).toBeFalsy()
+})
+
 // Similar to the test above making sure pnpm deploy works with
 // node-linker=hoisted, but we should also make sure not to link projects not in
 // the dependency graph of the deployed package.

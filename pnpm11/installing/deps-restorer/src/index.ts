@@ -409,6 +409,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     allowBuild,
     importerIds,
     lockfileDir,
+    rootImporterId: opts.nodeLinker === 'hoisted'
+      ? await findImporterOwningRootModulesDir(selectedProjects, importerIds, rootModulesDir)
+      : undefined,
     requiredDepPaths,
     skipped,
     virtualStoreDir,
@@ -1002,6 +1005,21 @@ async function symlinkDirectDependencies (
     }
   }
   return linkDirectDeps(projectsToLink, { dedupe: Boolean(dedupe) })
+}
+
+// pnpm deploy points the deployed project's node_modules at the root one and
+// leaves the root project out of the install.
+async function findImporterOwningRootModulesDir (
+  projects: Array<Pick<Project, 'id' | 'modulesDir' | 'rootDir'>>,
+  importerIds: ProjectId[],
+  rootModulesDir: string
+): Promise<ProjectId | undefined> {
+  if (importerIds.includes('.' as ProjectId)) return undefined
+  for (const { id, modulesDir, rootDir } of projects) {
+    // eslint-disable-next-line no-await-in-loop
+    if (await realpathMissing(pathAbsolute(modulesDir, rootDir)) === rootModulesDir) return id
+  }
+  return undefined
 }
 
 async function linkBinsOfImporter (
