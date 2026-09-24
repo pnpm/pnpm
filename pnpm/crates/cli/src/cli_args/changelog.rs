@@ -25,8 +25,8 @@ use tar::Archive;
 
 const CHANGELOG_ENTRY: &str = "package/CHANGELOG.md";
 
-/// What a release's registry checks need: the registry config, the names each
-/// project is published under, and the private projects they skip.
+/// The inputs [`unpublished_release_dirs`] and [`confirmed_published_versions`]
+/// share.
 pub struct ReleaseRegistryOptions<'a> {
     pub config: &'a Config,
     pub workspace_dir: &'a Path,
@@ -73,7 +73,8 @@ pub async fn compose_registry_changelog(
 /// release (which has a section but no consumed intents, hence no ledger entry)
 /// is confirmed too. Every parked file belongs to an as-yet-unpublished
 /// release, so the cost is bounded by the release backlog, not by history. The
-/// checks run concurrently. Empty in `repository` storage.
+/// checks run concurrently. A section named only by private projects is never
+/// confirmed, so its intents stay. Empty in `repository` storage.
 pub async fn confirmed_published_versions(
     options: &ReleaseRegistryOptions<'_>,
     projects: &[WorkspaceProject],
@@ -128,11 +129,9 @@ fn private_only_names(
 
 /// The workspace-relative dirs of the projects marked `"private": true`.
 ///
-/// A private project is never published, so every registry probe a release
-/// makes on its behalf is both futile and a failure the release would have to
-/// treat as "unpublished". [`unpublished_release_dirs`] and
-/// [`confirmed_published_versions`] skip these dirs instead. Mirrors the
-/// TypeScript `privateProjectDirs`.
+/// A private project is never published, so a registry probe on its behalf is
+/// futile and would read as "unpublished". Mirrors the TypeScript
+/// `privateProjectDirs`.
 pub fn private_project_dirs(
     projects: &[pnpm_workspace::Project],
     workspace_dir: &Path,
@@ -144,7 +143,6 @@ pub fn private_project_dirs(
         .collect()
 }
 
-/// Whether the manifest opts out of publication with `"private": true`.
 fn is_private(project: &pnpm_workspace::Project) -> bool {
     project.manifest
         .value()
@@ -176,8 +174,9 @@ pub fn published_names(projects: &[pnpm_workspace::Project]) -> HashMap<String, 
 /// `AssembleReleasePlanOptions::unpublished_dirs`. Probe failures propagate.
 /// A release is keyed by its manifest name, so [`published_names`] translates it
 /// for the probe; without that a renamed project reads as never published and
-/// debuts at its manifest version on every release. Mirrors the TypeScript
-/// `resolveUnpublishedDirs`.
+/// debuts at its manifest version on every release. A release in
+/// `private_dirs` is never probed and counts as published. Mirrors the
+/// TypeScript `resolveUnpublishedDirs`.
 pub async fn unpublished_release_dirs(
     plan: &ReleasePlan,
     options: &ReleaseRegistryOptions<'_>,

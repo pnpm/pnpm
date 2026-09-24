@@ -25,8 +25,6 @@ fn a_name_only_private_projects_carry_is_private() {
     assert_eq!(names, HashSet::from(["app".to_string()]));
 }
 
-/// Parked changelogs are keyed by manifest name, so skipping a name a public
-/// project shares would leave that project's release unconfirmed forever.
 #[test]
 fn a_name_a_public_project_shares_is_not_private() {
     let workspace_dir = Path::new("/workspace");

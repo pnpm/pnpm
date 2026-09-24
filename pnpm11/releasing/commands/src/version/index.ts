@@ -294,14 +294,13 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
  * the release must be published and its tarball's CHANGELOG.md must already
  * carry the composed section. Any error resolving that (offline, transient
  * failure) counts as "not confirmed" so the intent — still the only prose —
- * is kept. `undefined` in `repository` storage, where the committed changelog
- * makes the ledger alone sufficient.
+ * is kept. A name only private projects carry is never confirmed, so its
+ * intents stay. `undefined` in `repository` storage, where the committed
+ * changelog makes the ledger alone sufficient.
  */
 function buildVerifyPublished (opts: VersionHandlerOptions, publishedNames: ReadonlyMap<string, string>, privateNames: ReadonlySet<string>): ApplyReleasePlanOptions['verifyPublished'] {
   if (changelogStorage(opts.versioning) !== 'registry') return undefined
   return async (name, version, section) => {
-    // A private project never reaches the registry, so there is nothing to
-    // confirm there: skip the request and keep the prose in the repository.
     if (privateNames.has(name)) return false
     try {
       // The parked section is keyed by the manifest name, which is what the

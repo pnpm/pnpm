@@ -111,10 +111,6 @@ fn private_package_bumps_without_a_registry_release_probe() {
     drop(root);
 }
 
-/// The changelog-confirmation pass a release makes after applying the plan
-/// probes the registry for every parked section. A private package is never
-/// published, so the pass skips its sections instead of spending a request
-/// on a question with a foregone answer.
 #[test]
 fn private_only_release_makes_no_registry_requests() {
     let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init().add_mocked_registry();

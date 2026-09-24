@@ -14,8 +14,6 @@ test('privateOnlyProjectNames() returns the names only private projects carry', 
   ])).toEqual(new Set(['app']))
 })
 
-// Parked changelogs are keyed by manifest name, so skipping a name a public
-// project shares would leave that project's release unconfirmed forever.
 test('privateOnlyProjectNames() leaves out a name a public project shares', () => {
   expect(privateOnlyProjectNames([
     project('apps/app', { name: 'app', private: true }),

@@ -13,7 +13,7 @@ export type UnpublishedProbeOptions = PreviousChangelogOptions & {
   networkConcurrency?: number
   /** Manifest name → published name, from `publishedNameByManifestName`. */
   publishedNames?: ReadonlyMap<string, string>
-  /** Private project dirs, from `privateProjectDirs`; never probed. */
+  /** Private project dirs, from `privateProjectDirs`. */
   privateDirs?: ReadonlySet<string>
 }
 
@@ -22,7 +22,8 @@ export type UnpublishedProbeOptions = PreviousChangelogOptions & {
  *
  * A release is keyed by its manifest name, so `publishedNames` translates it
  * for the probe; without that a renamed project reads as never published and
- * debuts at its manifest version on every release.
+ * debuts at its manifest version on every release. A release in `privateDirs`
+ * is never probed and counts as published.
  */
 export async function resolveUnpublishedDirs (plan: ReleasePlan, opts: UnpublishedProbeOptions): Promise<Set<string>> {
   const releases = plan.releases.filter((release) => !opts.privateDirs?.has(release.dir))

@@ -3,10 +3,8 @@ import { toProjectDir, type WorkspaceProject } from '@pnpm/releasing.versioning'
 /**
  * The workspace-relative dirs of the projects marked `"private": true`.
  *
- * A private project is never published, so every registry probe a release
- * makes on its behalf is both futile and a failure the release would have to
- * read as "not published". {@link resolveUnpublishedDirs} and the
- * publication check behind `verifyPublished` skip these projects instead.
+ * A private project is never published, so a registry probe on its behalf is
+ * futile and would read as "not published".
  */
 export function privateProjectDirs (projects: WorkspaceProject[], workspaceDir: string): Set<string> {
   return new Set(projects.filter(isPrivate).map((project) => toProjectDir(workspaceDir, project.rootDir)))
