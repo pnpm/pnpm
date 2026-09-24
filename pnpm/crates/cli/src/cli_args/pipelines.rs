@@ -186,6 +186,10 @@ struct DedicatedProjectRuns<'a> {
     projects: DedicatedProjects,
     require_lockfile: bool,
     http_client: Option<Arc<ThrottledClient>>,
+    /// Whether the command may write the workspace manifest, so that the
+    /// exclude-list prune each project's install skipped runs once all of
+    /// them succeeded. See [`prune_after_dedicated_installs`].
+    prune_excludes: bool,
 }
 
 impl DedicatedProjectRuns<'_> {
@@ -229,11 +233,28 @@ impl DedicatedProjectRuns<'_> {
             .continue_on_failure(!self.config.bail),
         )
         .await;
-        first_error
-            .into_inner()
-            .expect("dedicated install error lock is not poisoned")
-            .map_or(Ok(()), Err)
+        if let Some(error) =
+            first_error.into_inner().expect("dedicated install error lock is not poisoned")
+        {
+            return Err(error);
+        }
+        if self.prune_excludes {
+            prune_after_dedicated_installs(config)?;
+        }
+        Ok(())
     }
+}
+
+/// The `minimumReleaseAgeExcludePrune` / `trustPolicyExcludePrune` pass
+/// of a `sharedWorkspaceLockfile: false` workspace. Each project's install
+/// skips it because its own lockfile cannot prove what a sibling resolves,
+/// so it runs once here, after every project's lockfile is written.
+fn prune_after_dedicated_installs(config: &Config) -> miette::Result<()> {
+    let Some(workspace_dir) = config.workspace_dir.as_deref() else {
+        return Ok(());
+    };
+    pnpm_package_manager::prune_against_project_lockfiles(config, workspace_dir)
+        .wrap_err("prune the workspace manifest")
 }
 
 /// The selection in build order. Sequenced over borrowed paths: cloning a

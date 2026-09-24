@@ -1,9 +1,18 @@
-use super::{post_install_prune, resolved_package_versions};
+use super::{
+    post_install_prune, prune_against_project_lockfiles, record_resolved_package_versions,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
+use pnpm_workspace_manifest_writer::ResolvedPackageVersions;
 use std::path::Path;
 use tempfile::tempdir;
+
+fn resolved_package_versions(lockfile: &Lockfile) -> ResolvedPackageVersions {
+    let mut resolved = ResolvedPackageVersions::new();
+    record_resolved_package_versions(lockfile, &mut resolved);
+    resolved
+}
 
 /// A package resolved only from a non-semver source registers its name
 /// with an empty version set, so the cleanup pass keeps its bare-name
@@ -117,5 +126,50 @@ fn prunes_against_the_shared_workspace_lockfile() {
     assert!(
         !workspace_dir.join("pnpm-workspace.yaml").exists(),
         "the pruned-to-empty manifest must be deleted",
+    );
+}
+
+/// Under per-project lockfiles each entry is checked against the union of
+/// every project's lockfile, the workspace root's included, so only the
+/// entry no lockfile records is pruned.
+#[test]
+fn prunes_against_the_union_of_the_project_lockfiles() {
+    let tmp = tempdir().expect("temp dir");
+    let workspace_dir = tmp.path();
+    std::fs::write(
+        workspace_dir.join("pnpm-workspace.yaml"),
+        "packages:\n  - pkgs/*\n\
+         minimumReleaseAgeExclude:\n  - foo@1.0.0\n  - bar@2.0.0\n  - baz@3.0.0\n  - qux@4.0.0\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    std::fs::write(workspace_dir.join("package.json"), r#"{"name":"root"}"#)
+        .expect("write root package.json");
+    std::fs::write(
+        workspace_dir.join("pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'\nsnapshots:\n  baz@3.0.0: {}\n",
+    )
+    .expect("write root pnpm-lock.yaml");
+    for (name, snapshot) in [("a", "foo@1.0.0"), ("b", "bar@2.0.0")] {
+        let project_dir = workspace_dir.join("pkgs").join(name);
+        std::fs::create_dir_all(&project_dir).expect("create project dir");
+        std::fs::write(project_dir.join("package.json"), format!(r#"{{"name":"{name}"}}"#))
+            .expect("write project package.json");
+        std::fs::write(
+            project_dir.join("pnpm-lock.yaml"),
+            format!("lockfileVersion: '9.0'\nsnapshots:\n  {snapshot}: {{}}\n"),
+        )
+        .expect("write project pnpm-lock.yaml");
+    }
+    let mut config = Config::new();
+    config.minimum_release_age_exclude_prune = true;
+    config.shared_workspace_lockfile = false;
+
+    prune_against_project_lockfiles(&config, workspace_dir).expect("cleanup runs");
+
+    assert_eq!(
+        std::fs::read_to_string(workspace_dir.join("pnpm-workspace.yaml"))
+            .expect("read pnpm-workspace.yaml"),
+        "packages:\n  - pkgs/*\n\
+         minimumReleaseAgeExclude:\n  - foo@1.0.0\n  - bar@2.0.0\n  - baz@3.0.0\n",
     );
 }

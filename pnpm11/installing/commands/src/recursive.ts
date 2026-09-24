@@ -58,7 +58,7 @@ import getVersionSelectorType from 'version-selector-type'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { type PolicyViolation, setupPolicyHandlers } from './policyHandlers.js'
-import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
+import { resolvedPackageVersionsForPrune, resolvedPackageVersionsOfProjectLockfiles } from './resolvedPackageVersionsForPrune.js'
 import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
@@ -589,9 +589,15 @@ export async function recursive (
     // info log would claim entries were added that the workspace
     // manifest never saw, mirroring the gate the shared-lockfile
     // branch + installDeps already apply.
+    const everyProjectInstalled = Object.values(result).every(({ status }) => status !== 'failure')
     await updateWorkspaceManifest(opts.workspaceDir, {
       updatedCatalogs,
       catalogPrune: opts.catalogPrune,
+      resolvedPackageVersions: everyProjectInstalled && !opts.dryRun
+        ? await resolvedPackageVersionsOfProjectLockfiles(opts, allProjects.map(({ rootDir }) => rootDir))
+        : undefined,
+      minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
+      trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
       allProjects,
       ...policyHandlers?.pickManifestUpdates(allResolutionPolicyViolations),
     })

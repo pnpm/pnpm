@@ -78,6 +78,47 @@ test('recursive add/remove', async () => {
   projects['project-2'].hasNot('is-negative')
 })
 
+test('recursive install prunes minimumReleaseAgeExclude against the lockfile of every project in a workspace with many lockfiles', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project-1', 'project-2'],
+    minimumReleaseAgeExclude: ['is-positive@1.0.0', 'is-negative@1.0.0', 'is-odd@1.0.0'],
+  })
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    dir: process.cwd(),
+    minimumReleaseAgeExcludePrune: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: false,
+    workspaceDir: process.cwd(),
+  })
+
+  expect(readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>('pnpm-workspace.yaml').minimumReleaseAgeExclude)
+    .toStrictEqual(['is-positive@1.0.0', 'is-negative@1.0.0'])
+})
+
 test('recursive add/remove in workspace with many lockfiles', async () => {
   const projects = preparePackages([
     {
