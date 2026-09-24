@@ -82,7 +82,7 @@ fn install_via_pnpr_auto_installs_the_peers_of_a_peer_only_project() {
     assert!(is_symlink_or_junction(&workspace.join("node_modules/@foo/no-deps")).unwrap());
     assert_eq!(
         workspace_importer_version(&read_workspace_lockfile(&workspace), ".", "@foo/no-deps"),
-        "1.0.0"
+        "1.0.0",
     );
 
     drop((root, mock_instance));

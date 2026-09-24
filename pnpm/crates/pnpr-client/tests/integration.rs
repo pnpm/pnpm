@@ -226,7 +226,6 @@ fn options(
         dependencies,
         dev_dependencies: BTreeMap::new(),
         optional_dependencies: BTreeMap::new(),
-        peer_dependencies: BTreeMap::new(),
         routing: pnpm_pnpr_client::RegistryRouting {
             registry: registry.to_string(),
             registries: indexmap::IndexMap::new(),
