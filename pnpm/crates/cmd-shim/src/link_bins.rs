@@ -506,14 +506,8 @@ pub fn choose_bins<'packages, Sys: FsWalkFiles>(
             }
         }
     }
-    chosen.retain(|name, _| {
-        let excluded = exclude_bins.contains(name)
-            || cfg!(windows)
-                && exclude_bins
-                    .iter()
-                    .any(|ex| ex.eq_ignore_ascii_case(name));
-        !excluded
-    });
+    let excluded = ExcludedBins::new(exclude_bins);
+    chosen.retain(|name, _| !excluded.contains(name));
     chosen.into_values().collect()
 }
 
@@ -578,6 +572,9 @@ use executable::{
 };
 
 mod discovery;
+
+mod exclusions;
+use exclusions::ExcludedBins;
 
 mod linking_paths;
 use linking_paths::{remove_bins_awaiting_target, shim_node_path, target_probe_path};
