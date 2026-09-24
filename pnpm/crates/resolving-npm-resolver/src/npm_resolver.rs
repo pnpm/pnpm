@@ -22,7 +22,7 @@ pub(crate) use package_revision::validate_revision_selector;
 
 pub(crate) use guarded_pick::{
     CandidateChecks, PickFromRegistryOptions, PickedFromRegistry, RegistryPick,
-    pick_from_registry_with_guard,
+    pick_from_registry_with_guard, warn_once_on_trust_downgrade_fallback,
 };
 
 pub(crate) use workspace_pick::{no_matching_version, swallowed_as_no_latest};
@@ -303,6 +303,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             return Ok(Some(result));
         }
 
+        warn_once_on_trust_downgrade_fallback(picked);
         self.registry_pick_result(wanted_dependency, opts, spec, registry, picked)
     }
 

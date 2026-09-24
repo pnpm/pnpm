@@ -94,4 +94,5 @@ mod registry_url;
 mod resolve_from_workspace;
 mod trust_checks;
 mod violation_codes;
+mod warn_once;
 mod workspace_pref_to_npm;

@@ -13,6 +13,9 @@ use crate::trust_checks::{TrustCheckOptions, TrustViolation, fail_if_trust_downg
 pub(crate) struct PickedFromRegistry {
     pub(crate) meta: std::sync::Arc<Package>,
     pub(crate) version: std::sync::Arc<PackageVersion>,
+    /// Newer candidates the `trustPolicy: no-downgrade` check set aside
+    /// before `version`, in the order they were picked.
+    pub(crate) trust_downgrades_skipped: Vec<String>,
 }
 
 /// Outcome of a registry pick.
@@ -112,13 +115,13 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
         }
 
         let Some(guard) = opts.checks.package_version_guard else {
-            return Ok(trust.picked(&opts.spec.name, pick_result.meta, version));
+            return Ok(trust.picked(pick_result.meta, version));
         };
 
         let PackageVersionGuardDecision::Reject { reason } =
             guard.check(&opts.spec.name, &version_str).await?
         else {
-            return Ok(trust.picked(&opts.spec.name, pick_result.meta, version));
+            return Ok(trust.picked(pick_result.meta, version));
         };
         log_guard_rejection(&opts.spec.name, &version_str, &reason);
         // Block by the *packument key*, which the next pick filters on. It
@@ -129,10 +132,14 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
         // one is still fine.
         let blocked_key = blocked_packument_key(&pick_result.meta, &version, &version_str);
         if let Some(stop) = repick_limit_reached(&mut blocked_versions, blocked_key) {
-            return exhausted(&opts, first_rejected, reason, stop.into_error());
+            return trust.exhausted(&opts, first_rejected, reason, stop.into_error());
         }
         last_rejection = Some(reason);
-        first_rejected.get_or_insert(PickedFromRegistry { meta: pick_result.meta, version });
+        first_rejected.get_or_insert(PickedFromRegistry {
+            meta: pick_result.meta,
+            version,
+            trust_downgrades_skipped: Vec::new(),
+        });
     }
 }
 
@@ -160,7 +167,7 @@ impl TrustRejections {
         meta: Arc<Package>,
     ) -> Result<RegistryPick, ResolveError> {
         if let Some(reason) = last_rejection {
-            return exhausted(opts, first_rejected, reason, all_versions_blocked);
+            return self.exhausted(opts, first_rejected, reason, all_versions_blocked);
         }
         match self.first_downgrade {
             Some(downgrade) => Err(Box::new(downgrade)),
@@ -202,46 +209,70 @@ impl TrustRejections {
     /// The accepted candidate. After a trust fallback it carries the
     /// packument from before any version was set aside, so the result
     /// reports the same `latest` it would have without the fallback.
-    fn picked(self, name: &str, meta: Arc<Package>, version: Arc<PackageVersion>) -> RegistryPick {
+    fn picked(self, meta: Arc<Package>, version: Arc<PackageVersion>) -> RegistryPick {
         let meta = match self.full_meta {
-            Some(full_meta) if !self.rejected_versions.is_empty() => {
-                warn_once_on_trust_downgrade_fallback(
-                    name,
-                    &version.version.to_string(),
-                    &self.rejected_versions,
-                );
-                full_meta
-            }
+            Some(full_meta) if !self.rejected_versions.is_empty() => full_meta,
             _ => meta,
         };
-        RegistryPick::Picked(PickedFromRegistry { meta, version })
+        RegistryPick::Picked(PickedFromRegistry {
+            meta,
+            version,
+            trust_downgrades_skipped: self.rejected_versions,
+        })
+    }
+
+    /// [`exhausted`] for a guarded pick, with a guard-rejected candidate it
+    /// keeps carrying what the trust check set aside before it.
+    fn exhausted(
+        self,
+        opts: &PickFromRegistryOptions<'_>,
+        first_rejected: Option<PickedFromRegistry>,
+        reason: String,
+        fail: impl FnOnce(String, String) -> ResolveError,
+    ) -> Result<RegistryPick, ResolveError> {
+        match exhausted(opts, first_rejected, reason, fail)? {
+            RegistryPick::Picked(picked) => Ok(self.picked(picked.meta, picked.version)),
+            no_match @ RegistryPick::NoMatchingVersion(_) => Ok(no_match),
+        }
     }
 }
 
 const MAX_WARNED_TRUST_DOWNGRADE_FALLBACKS: usize = 1024;
+const MAX_SKIPPED_VERSIONS_IN_WARNING: usize = 5;
 static WARNED_TRUST_DOWNGRADE_FALLBACKS: std::sync::LazyLock<
     std::sync::Mutex<indexmap::IndexSet<String>>,
 > = std::sync::LazyLock::new(|| std::sync::Mutex::new(indexmap::IndexSet::new()));
 
-fn warn_once_on_trust_downgrade_fallback(name: &str, picked: &str, rejected_versions: &[String]) {
-    let key = format!("{name}@{picked}<{}", rejected_versions.join(","));
-    let mut warned =
-        WARNED_TRUST_DOWNGRADE_FALLBACKS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    if warned.contains(&key) {
+/// Warns once per `name@picked` that the trust check skipped newer
+/// candidates, naming at most [`MAX_SKIPPED_VERSIONS_IN_WARNING`] of them.
+pub(crate) fn warn_once_on_trust_downgrade_fallback(picked: &PickedFromRegistry) {
+    if picked.trust_downgrades_skipped.is_empty() {
         return;
     }
-    if warned.len() >= MAX_WARNED_TRUST_DOWNGRADE_FALLBACKS {
-        warned.shift_remove_index(0);
+    let name = &picked.meta.name;
+    let picked_version = picked.version.version.to_string();
+    let key = format!("{name}@{picked_version}");
+    if !crate::warn_once::first_warning(
+        &WARNED_TRUST_DOWNGRADE_FALLBACKS,
+        key,
+        MAX_WARNED_TRUST_DOWNGRADE_FALLBACKS,
+    ) {
+        return;
     }
-    warned.insert(key);
-    let skipped = rejected_versions
+    let skipped_versions = &picked.trust_downgrades_skipped;
+    let listed = skipped_versions
         .iter()
+        .take(MAX_SKIPPED_VERSIONS_IN_WARNING)
         .map(|version| format!("{name}@{version}"))
         .collect::<Vec<_>>()
         .join(", ");
+    let skipped = match skipped_versions.len().saturating_sub(MAX_SKIPPED_VERSIONS_IN_WARNING) {
+        0 => listed,
+        more => format!("{listed} and {more} more"),
+    };
     tracing::warn!(
         target: "pnpm_resolving_npm_resolver",
-        "Skipped trust downgrades rejected by trustPolicy: {skipped}. Resolved {name}@{picked} instead.",
+        "Skipped trust downgrades rejected by trustPolicy: {skipped}. Resolved {name}@{picked_version} instead.",
     );
 }
 
