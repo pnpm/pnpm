@@ -85,7 +85,9 @@ pub enum StalenessReason {
     /// The lockfile records an importer for a workspace project that
     /// no longer exists. Only reported for an unfiltered install of the
     /// whole workspace, where the project list is the complete one.
-    #[display(r#"the lockfile records `importers["{importer_id}"]`, but no such project exists"#)]
+    #[display(
+        r#"the lockfile records `importers["{importer_id}"]`, but that project's directory or package.json is missing"#
+    )]
     RemovedImporter { importer_id: String },
 
     /// The flat union of `dependencies ∪ devDependencies ∪

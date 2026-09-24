@@ -3,7 +3,9 @@ use super::{
         Arc, ContextLog, FreshnessCheckError, FreshnessScope, InstallError, InstallRunOptions,
         Lockfile, LogEvent, LogLevel, PackageManifest, Path, PathBuf, PrepareModulesStateInputs,
         PreparedModulesState, Reporter, Stage, StageLog, SummaryLog, check_lockfile_freshness,
-        lockfile_freshness::{LockfileFreshnessInputs, UnresolvedOptionalDependency},
+        lockfile_freshness::{
+            LockfileFreshnessInputs, UnresolvedOptionalDependency, check_importer_manifests_exist,
+        },
         map_frozen_lockfile_error, prepare_modules_state, verify_lockfile_eagerly,
     },
     InstallOwned, InstallView, RunMode, Verification,
@@ -307,8 +309,9 @@ pub(super) async fn decide_frozen_path<Reporter: self::Reporter>(
         //
         // pnpm's importer-set gate sits in the auto-frozen branch of
         // `isFrozenInstallPossible`, which an explicit `--frozen-lockfile`
-        // short-circuits past, so a removed project does not fail the install
-        // there.
+        // short-circuits past, so a project removed from the workspace
+        // patterns does not fail the install there. One whose manifest is
+        // gone does.
         let freshness = LockfileFreshnessInputs {
             scope: FreshnessScope {
                 allow_missing_dependency_free_importers: false,
@@ -320,6 +323,9 @@ pub(super) async fn decide_frozen_path<Reporter: self::Reporter>(
         };
         let skipped =
             check_lockfile_freshness(lockfile, &freshness).await.map_err(InstallError::from)?;
+        if dispatch.freshness.scope.prune_stale_importers {
+            check_importer_manifests_exist(lockfile, &freshness).map_err(InstallError::from)?;
+        }
         report_unresolved_optional_dependencies::<Reporter>(&skipped);
         return Ok(true);
     }

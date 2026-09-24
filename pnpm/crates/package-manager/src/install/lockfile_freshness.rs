@@ -231,14 +231,47 @@ pub(super) fn removed_importer_id<'a>(
     lockfile: &'a Lockfile,
     manifest_freshness_inputs: &[(String, &PackageManifest)],
 ) -> Option<&'a str> {
+    unclaimed_importer_id(lockfile, manifest_freshness_inputs, |_| true)
+}
+
+fn unclaimed_importer_id<'a>(
+    lockfile: &'a Lockfile,
+    manifest_freshness_inputs: &[(String, &PackageManifest)],
+    mut matches: impl FnMut(&str) -> bool,
+) -> Option<&'a str> {
     let manifest_ids: std::collections::HashSet<&str> = manifest_freshness_inputs
         .iter()
         .map(|(id, _)| id.as_str())
         .collect();
     lockfile.importers
         .keys()
-        .find(|importer_id| !manifest_ids.contains(importer_id.as_str()))
         .map(String::as_str)
+        .find(|importer_id| !manifest_ids.contains(importer_id) && matches(importer_id))
+}
+
+/// Fail on an importer no project claims whose directory holds no project
+/// manifest. A project left out of the workspace patterns keeps its manifest
+/// and a frozen install skips it, but one whose directory or manifest is gone
+/// cannot be installed at all.
+pub(super) fn check_importer_manifests_exist(
+    lockfile: &Lockfile,
+    inputs: &LockfileFreshnessInputs<'_, '_>,
+) -> Result<(), FreshnessCheckError> {
+    if inputs.scope.ignore_manifest_check {
+        return Ok(());
+    }
+    let missing = unclaimed_importer_id(lockfile, inputs.manifests, |importer_id| {
+        let project_dir = inputs.lockfile_dir.join(importer_id);
+        !pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES
+            .iter()
+            .any(|basename| project_dir.join(basename).exists())
+    });
+    match missing {
+        Some(importer_id) => Err(FreshnessCheckError::Stale(StalenessReason::RemovedImporter {
+            importer_id: importer_id.to_string(),
+        })),
+        None => Ok(()),
+    }
 }
 
 /// Run every gate the frozen-lockfile dispatch consults before

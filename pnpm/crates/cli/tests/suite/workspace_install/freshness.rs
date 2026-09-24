@@ -236,3 +236,44 @@ fn normal_install_accepts_missing_importer_with_only_ignored_optional_dependenci
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn frozen_install_rejects_a_workspace_project_without_a_manifest() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": { "is-negative": "1.0.0" },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::remove_file(workspace.join("pkg-b/package.json")).expect("remove pkg-b/package.json");
+
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .output()
+        .expect("run frozen install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "frozen install accepted pkg-b without a manifest");
+    assert!(
+        stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE") && stderr.contains(r#"importers["pkg-b"]"#),
+        "pkg-b without a manifest returned the wrong error\nstderr:\n{stderr}",
+    );
+
+    pacquet_at(&workspace)
+        .with_args(["--filter", "pkg-a", "install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}

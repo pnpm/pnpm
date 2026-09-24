@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -91,7 +92,7 @@ function prepareWorkspace () {
   preparePackages(locations.map((name) => ({ location: name, package: { name } })))
   const install = async (
     projects: WorkspaceProject[],
-    extraOptions?: { forceFullResolution: boolean }
+    extraOptions?: { forceFullResolution?: boolean, frozenLockfile?: boolean, pruneLockfileImporters?: boolean }
   ): Promise<string[]> => {
     const options = testDefaults({
       allProjects: projects.map(({ name, dependencies }) => ({
@@ -121,6 +122,28 @@ function trackRequestedPackages (storeController: StoreController): string[] {
   }
   return requestedPackages
 }
+
+test('frozen-lockfile: installation fails if a workspace package recorded in the lockfile has no manifest', async () => {
+  const { install, readLockfile } = prepareWorkspace()
+  const survivors: WorkspaceProject[] = [
+    { name: 'project-1', dependencies: { 'is-positive': '1.0.0' } },
+  ]
+  await install([
+    ...survivors,
+    { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } },
+  ])
+
+  await install(survivors, { frozenLockfile: true })
+
+  fs.rmSync('project-2', { recursive: true })
+  await expect(install(survivors, { frozenLockfile: true })).rejects.toMatchObject({
+    code: 'ERR_PNPM_OUTDATED_LOCKFILE',
+    hint: expect.stringContaining('importers["project-2"]'),
+  })
+  expect(Object.keys(readLockfile().importers)).toStrictEqual(['project-1', 'project-2'])
+
+  await install(survivors, { frozenLockfile: true, pruneLockfileImporters: false })
+})
 
 test('dropping a workspace package a survivor links to falls back to the resolver', async () => {
   const { install } = prepareWorkspace()
