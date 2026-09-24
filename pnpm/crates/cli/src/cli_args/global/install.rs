@@ -172,6 +172,9 @@ pub(super) async fn run_group_install<Reporter: self::Reporter + 'static>(
         install.lockfile_only,
         config.supported_architectures.clone(),
         AddGroups { save_target: Some([DependencyGroup::Prod]), included: None, save_types: false },
+        // A global add installs into the global packages directory, which
+        // is also where its workspace manifest (if any) lives.
+        None,
     )
     .await?;
 

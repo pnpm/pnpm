@@ -289,6 +289,7 @@ async fn run_purge_regression_install_with_lockfile(
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -377,6 +378,7 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -493,6 +495,7 @@ async fn fresh_lockfile_only_with_overrides(
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -594,6 +597,7 @@ async fn fresh_lockfile_only_with_compatibility_db(
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -698,6 +702,7 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -800,6 +805,7 @@ async fn install_workspace_member_with_pnpmfile(
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }

@@ -95,6 +95,9 @@ impl RuntimeArgs {
             false,
             None,
             [request.dependency_group],
+            // `pnpm runtime set` records under the project's own manifest:
+            // policy excludes persist to the install's lockfile directory.
+            None,
         )
         .await?;
         if let Some(message) = runtime_shim_hint(

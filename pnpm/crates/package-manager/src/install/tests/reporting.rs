@@ -84,6 +84,7 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -214,6 +215,7 @@ async fn install_emits_pnpm_event_sequence() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -424,6 +426,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -550,6 +553,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }

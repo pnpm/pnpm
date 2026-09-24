@@ -101,6 +101,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -388,6 +389,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -483,6 +485,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -568,6 +571,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -679,6 +683,7 @@ async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }

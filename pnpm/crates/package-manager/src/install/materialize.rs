@@ -56,6 +56,10 @@ pub(super) struct MaterializationExecution<'a> {
     pub(super) take_frozen_path: bool,
     pub(super) supported_architectures:
         Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
+    /// Directory whose `pnpm-workspace.yaml` receives the policy excludes
+    /// an install persists, overriding the install's `lockfile_dir`. See
+    /// [`crate::InstallProjects::policy_excludes_dir`].
+    pub(super) policy_excludes_dir: Option<&'a Path>,
     /// A host detection spawned right after the wanted lockfile parse —
     /// see [`pnpm_deps_restorer::materialization_plan::HostDetection::spawn`].
     /// Handed to whichever install path runs.
@@ -197,6 +201,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 lockfile_dir: self.workspace.workspace_root,
                 supported_architectures: self.execution.supported_architectures,
                 is_full_install: self.install.execution.mutation.is_full_install(),
+                policy_excludes_dir: self.execution.policy_excludes_dir,
                 real_ids: self.workspace.requested_importer_ids.map(|_| {
                     self.workspace.real_importer_ids
                 }),

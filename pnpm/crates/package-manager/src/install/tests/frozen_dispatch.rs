@@ -116,6 +116,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -234,6 +235,7 @@ dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
 supported_architectures: None,
 catalogs_override: None,
 pnpmfile_hook_override: None,
+policy_excludes_dir: None,
 workspace_projects_override: None
 },
 }
@@ -372,6 +374,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -471,6 +474,7 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -533,6 +537,7 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -632,6 +637,7 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -736,6 +742,7 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -906,6 +913,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }

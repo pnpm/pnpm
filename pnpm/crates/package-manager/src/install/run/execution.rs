@@ -353,6 +353,7 @@ impl super::RunMode {
             effective_node_version: self.effective_node_version.take(),
             take_frozen_path,
             supported_architectures: owned.projects.supported_architectures.as_ref(),
+            policy_excludes_dir: owned.projects.policy_excludes_dir.as_deref(),
             early_host_detection,
             resolve_only: self.resolve_only,
             can_prompt: self.can_prompt,

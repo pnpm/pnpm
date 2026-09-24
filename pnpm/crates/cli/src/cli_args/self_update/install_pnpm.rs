@@ -344,6 +344,15 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
     let manifest_path = install_dir.join("package.json");
     let state = State::init(manifest_path, config, false)
         .wrap_err("initialize the self-update install state")?;
+    // The engine install resolves in the throwaway `install_dir`, whose
+    // manifest is deleted right after the install. Approved policy excludes
+    // (`minimumReleaseAgeExclude`, ...) must persist to the invoking
+    // project's `pnpm-workspace.yaml` instead — persisting to `install_dir`
+    // silently dropped them (pnpm/pnpm#15396). `base_config.workspace_dir`
+    // is the original project workspace: `package_manager_engine_config`
+    // only overrides store paths, and the `workspace_dir` override above
+    // applies to the cloned engine `cfg`, not to `base_config`.
+    let policy_excludes_dir = base_config.workspace_dir.as_deref();
     add_package::<Reporter, _>(
         state,
         &format!("{package_name}@{version}"),
@@ -352,6 +361,7 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
         false,
         config.supported_architectures.clone(),
         [DependencyGroup::Prod],
+        policy_excludes_dir,
     )
     .await
 }

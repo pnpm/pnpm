@@ -154,6 +154,7 @@ where
                     supported_architectures: self.projects.supported_architectures,
                     catalogs_override: self.projects.catalogs_override,
                     pnpmfile_hook_override: self.projects.pnpmfile_hook_override,
+                    policy_excludes_dir: self.projects.policy_excludes_dir,
                     workspace_projects_override: self.projects.workspace_projects_override,
                 },
                 resolution: self.resolution,

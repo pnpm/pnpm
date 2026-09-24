@@ -75,6 +75,9 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
             false,
             config.supported_architectures.clone(),
             [DependencyGroup::Prod],
+            // dlx installs into a cache directory, not a project workspace:
+            // policy excludes have nowhere durable to persist.
+            None,
         )
         .await?;
     }

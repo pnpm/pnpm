@@ -25,6 +25,18 @@ pub(crate) struct AddGroups<DependencyGroupList> {
 /// points `state` at a cache directory (via a [`Config`] whose `modules_dir`
 /// is anchored there) and saves to `dependencies` so the package's bin lands
 /// in `<cacheDir>/node_modules/.bin`.
+///
+/// `policy_excludes_dir` overrides where the install persists policy
+/// excludes (`minimumReleaseAgeExclude`, ...); `None` persists to the
+/// install's own lockfile directory. The self-updater passes the invoking
+/// project's workspace: its engine install runs in a throwaway directory
+/// whose manifest is deleted right after the install, so without this an
+/// approval at the minimum-release-age prompt would persist nowhere
+/// (pnpm/pnpm#15396).
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one flat parameter list for every axis an add needs; the engine-install caller alone sets policy_excludes_dir"
+)]
 pub(crate) async fn add_package<Reporter, DependencyGroupList>(
     state: State,
     package_name: &str,
@@ -33,6 +45,7 @@ pub(crate) async fn add_package<Reporter, DependencyGroupList>(
     lockfile_only: bool,
     supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     dependency_groups: DependencyGroupList,
+    policy_excludes_dir: Option<&Path>,
 ) -> miette::Result<()>
 where
     Reporter: self::Reporter + 'static,
@@ -47,6 +60,7 @@ where
         lockfile_only,
         supported_architectures,
         AddGroups { save_target: Some(dependency_groups), included: None, save_types: false },
+        policy_excludes_dir,
     ))
     .await
 }
@@ -129,6 +143,10 @@ impl RecordedPins {
 }
 
 /// Add packages to `state`'s manifest and install them in one operation.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one flat parameter list for every axis an add needs; the engine-install caller alone sets policy_excludes_dir"
+)]
 pub(crate) async fn add_packages<Reporter, DependencyGroupList>(
     mut state: State,
     package_names: &[String],
@@ -137,6 +155,7 @@ pub(crate) async fn add_packages<Reporter, DependencyGroupList>(
     lockfile_only: bool,
     supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     groups: AddGroups<DependencyGroupList>,
+    policy_excludes_dir: Option<&Path>,
 ) -> miette::Result<()>
 where
     Reporter: self::Reporter + 'static,
@@ -172,6 +191,7 @@ where
             included_groups: groups.included,
             save_catalog_name,
             supported_architectures,
+            policy_excludes_dir: policy_excludes_dir.map(Path::to_path_buf),
         },
     }
     .run::<Reporter>()
@@ -276,6 +296,10 @@ impl AddArgs {
                 included: Some(included_groups),
                 save_types,
             },
+            // A plain `add` installs into the project's own workspace, so
+            // the default — the install's lockfile directory — is the
+            // `pnpm-workspace.yaml` the excludes belong in.
+            None,
         )
         .await?;
         pins.report::<Reporter>();
@@ -318,6 +342,10 @@ impl AddArgs {
                 included_groups: Some(included_groups),
                 save_catalog_name,
                 supported_architectures,
+                // A filtered `add` still installs into the projects' own
+                // workspace: the install's lockfile directory is the right
+                // place for policy excludes.
+                policy_excludes_dir: None,
             },
         }
         .run_selected::<Reporter>(selection.selected_projects())

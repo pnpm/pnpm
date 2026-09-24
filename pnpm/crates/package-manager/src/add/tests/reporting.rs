@@ -103,6 +103,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
             included_groups: None,
             save_catalog_name: None,
             supported_architectures: None,
+            policy_excludes_dir: None,
         },
     }
     .run::<SilentReporter>()
@@ -248,6 +249,7 @@ async fn add_resolves_package_selectors_concurrently() {
             included_groups: None,
             save_catalog_name: None,
             supported_architectures: None,
+            policy_excludes_dir: None,
         },
     }
     .run::<RecordingReporter>()
@@ -362,6 +364,7 @@ async fn add_reports_catalog_warnings_in_selector_order() {
             included_groups: None,
             save_catalog_name: None,
             supported_architectures: None,
+            policy_excludes_dir: None,
         },
     }
     .run::<RecordingReporter>()
@@ -463,6 +466,7 @@ async fn add_reports_resolution_errors_in_selector_order() {
             included_groups: None,
             save_catalog_name: None,
             supported_architectures: None,
+            policy_excludes_dir: None,
         },
     }
     .run::<SilentReporter>()

@@ -269,6 +269,9 @@ async fn install_runtime(
         false,
         install_config.supported_architectures.clone(),
         [DependencyGroup::Prod],
+        // The runtime environment is a managed global directory, not a
+        // project workspace: policy excludes have nowhere durable to persist.
+        None,
     )
     .await
     .wrap_err("install the managed runtime")?;

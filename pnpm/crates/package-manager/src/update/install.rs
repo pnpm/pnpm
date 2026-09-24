@@ -190,6 +190,7 @@ pub(super) fn update_install<'i>(
             supported_architectures: owned.supported_architectures,
             catalogs_override: seed.catalogs_override,
             pnpmfile_hook_override: read_package_hook.map(|(hook, _)| Arc::clone(hook)),
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }

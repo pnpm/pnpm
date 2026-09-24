@@ -197,6 +197,7 @@ where
                 included_groups: self.resources.included_groups,
                 save_catalog_name: self.resources.save_catalog_name,
                 supported_architectures: self.resources.supported_architectures,
+                policy_excludes_dir: self.resources.policy_excludes_dir,
             },
             self.manifest,
         )
@@ -335,6 +336,11 @@ pub struct AddResources<DependencyGroupList> {
     /// `Install` run that follows the manifest mutation. See
     /// [`crate::InstallProjects::supported_architectures`].
     pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
+    /// Directory whose `pnpm-workspace.yaml` receives the policy excludes
+    /// the install persists, forwarded to
+    /// [`crate::InstallProjects::policy_excludes_dir`]. `None` persists to
+    /// the install's own `lockfile_dir`.
+    pub policy_excludes_dir: Option<std::path::PathBuf>,
 }
 
 fn begin<Reporter: self::Reporter>(add: AddOptions<'_>, owned: &AddOwned) {

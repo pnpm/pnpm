@@ -164,6 +164,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -267,6 +268,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -357,6 +359,7 @@ async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }

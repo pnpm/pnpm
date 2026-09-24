@@ -74,6 +74,70 @@ async fn run_install_ignores_an_ambient_workspace_manifest_above_the_install_dir
     );
 }
 
+/// An engine install that resolves immature versions must persist the
+/// approved policy excludes to the invoking project's
+/// `pnpm-workspace.yaml`, not to the throwaway install directory — whose
+/// manifest is deleted right after the install, so an approval at the
+/// prompt was silently lost (pnpm/pnpm#15396). Loose mode auto-persists
+/// without prompting, which exercises the same persistence target as the
+/// strict prompt flow from the issue.
+#[tokio::test]
+async fn run_install_persists_policy_excludes_to_the_invoking_project() {
+    let registry = TestRegistry::start();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let project_dir = temp.path().join("project");
+    fs::create_dir_all(&project_dir).expect("create project dir");
+    fs::write(
+        project_dir.join("pnpm-workspace.yaml"),
+        "minimumReleaseAge: 52560000\nminimumReleaseAgeStrict: false\n",
+    )
+    .expect("write the project workspace manifest");
+    let install_dir = temp.path().join("install");
+    fs::create_dir_all(&install_dir).expect("create install dir");
+
+    let mut cfg = Config {
+        store_dir: StoreDir::new(temp.path().join("store")),
+        cache_dir: temp.path().join("cache"),
+        // A century in minutes: every fixture packument `time` is older,
+        // so the stand-in engine package resolves as immature.
+        minimum_release_age: Some(100 * 365 * 24 * 60),
+        minimum_release_age_strict: Some(false),
+        // The invoking project's workspace, as the pre-command version
+        // switch leaves it; `run_install` re-anchors the engine clone's
+        // own `workspace_dir` at the install dir.
+        workspace_dir: Some(project_dir.clone()),
+        ..Config::default()
+    };
+    cfg.package_manager_bootstrap.registry = registry.url().to_string();
+    let config = Config::leak(cfg);
+
+    run_install::<SilentReporter>(
+        config,
+        &install_dir,
+        "@pnpm.e2e/hello-world-js-bin",
+        "1.0.0",
+        None,
+        None,
+    )
+    .await
+    .expect("install the stand-in engine package");
+
+    let workspace_manifest = fs::read_to_string(project_dir.join("pnpm-workspace.yaml"))
+        .expect("read back the project workspace manifest");
+    assert!(
+        workspace_manifest.contains("minimumReleaseAgeExclude"),
+        "the approved excludes must land in the invoking project's pnpm-workspace.yaml, got:\n{workspace_manifest}",
+    );
+    assert!(
+        workspace_manifest.contains("@pnpm.e2e/hello-world-js-bin@1.0.0"),
+        "the immature engine package must be excluded by name and version, got:\n{workspace_manifest}",
+    );
+    assert!(
+        !install_dir.join("pnpm-workspace.yaml").exists(),
+        "the throwaway install dir must not gain a workspace manifest of its own",
+    );
+}
+
 #[test]
 fn legacy_platform_dir_names() {
     assert_eq!(exe_platform_pkg_dir_name("darwin", "arm64", "unknown"), "macos-arm64");

@@ -69,6 +69,7 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -137,6 +138,7 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -234,6 +236,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -306,6 +309,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -398,6 +402,7 @@ pub(super) async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() 
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -485,6 +490,7 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -598,6 +604,7 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -731,6 +738,7 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -816,6 +824,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -926,6 +935,7 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }

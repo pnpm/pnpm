@@ -92,6 +92,7 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -163,6 +164,7 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -243,6 +245,7 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -373,6 +376,7 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -499,6 +503,7 @@ async fn root_dependency_does_not_override_peers_of_self_contained_subtree() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -606,6 +611,7 @@ async fn fresh_install_records_user_written_specifier() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -705,6 +711,7 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -763,6 +770,7 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }

@@ -52,6 +52,7 @@ fn test_add<'a>(
             included_groups: None,
             save_catalog_name: save_catalog_name.map(str::to_string),
             supported_architectures: None,
+            policy_excludes_dir: None,
         },
     )
 }
@@ -113,6 +114,7 @@ async fn add_npm_selector(selector: &str) -> Option<String> {
             included_groups: None,
             save_catalog_name: None,
             supported_architectures: None,
+            policy_excludes_dir: None,
         },
     }
     .run::<SilentReporter>()
@@ -193,6 +195,7 @@ async fn add_jsr_selector(selector: &str) -> Option<String> {
             included_groups: None,
             save_catalog_name: None,
             supported_architectures: None,
+            policy_excludes_dir: None,
         },
     }
     .run::<SilentReporter>()

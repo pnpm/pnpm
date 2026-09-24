@@ -13,9 +13,18 @@ pub(super) async fn enforce_resolution_policies<Reporter: self::Reporter + 'stat
         install.execution.policy_excludes,
         install.execution.dry_run,
     );
+    // The package-manager engine installs resolve in a throwaway directory
+    // whose workspace manifest is deleted right after the install; persist
+    // approved policy excludes to the invoking project's workspace instead
+    // (pnpm/pnpm#15396). Every plain install has `policy_excludes_dir`
+    // unset and persists to its own `lockfile_dir`, as before.
+    let policy_excludes_dir = install
+        .projects
+        .policy_excludes_dir
+        .unwrap_or(install.projects.lockfile_dir);
     crate::minimum_release_age::handle_minimum_release_age_violations::<Reporter>(
         install.drivers.config,
-        install.projects.lockfile_dir,
+        policy_excludes_dir,
         &workspace_result.merged_tree.policy_violations,
         can_prompt_now,
         policy_excludes_now,

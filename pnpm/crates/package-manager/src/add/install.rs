@@ -148,6 +148,7 @@ pub(super) fn add_install<'i>(
     install.context.emit_initial_manifest = false;
     install.context.lockfile_path = add.lockfile.path;
     install.projects.supported_architectures = owned.supported_architectures;
+    install.projects.policy_excludes_dir = owned.policy_excludes_dir;
     install.projects.catalogs_override = seed.catalogs_override;
     install
 }

@@ -54,6 +54,7 @@ where
                 supported_architectures: config.supported_architectures.clone(),
                 catalogs_override: None,
                 pnpmfile_hook_override: None,
+                policy_excludes_dir: None,
                 workspace_projects_override: None,
             },
         }

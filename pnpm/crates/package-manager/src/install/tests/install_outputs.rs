@@ -133,6 +133,7 @@ async fn should_install_dependencies() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -322,6 +323,7 @@ async fn install_prunes_surplus_virtual_store_dir() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -415,6 +417,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -522,6 +525,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -638,6 +642,7 @@ pub(super) async fn install_writes_modules_yaml() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -763,6 +768,7 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -865,6 +871,7 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }

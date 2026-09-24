@@ -227,6 +227,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }

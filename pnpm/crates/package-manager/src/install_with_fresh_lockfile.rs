@@ -163,6 +163,14 @@ pub(crate) struct FreshInstallProjects<'a> {
     /// exclusion: only a full install's `dependency_groups` carries that
     /// intent, so a partial run must not drop transitive optionals.
     pub(crate) is_full_install: bool,
+    /// Directory whose `pnpm-workspace.yaml` receives the policy excludes
+    /// (`minimumReleaseAgeExclude`, ...) an install persists, overriding
+    /// `lockfile_dir`. `None` (every plain install) persists to the
+    /// install's own `lockfile_dir`. The package-manager engine installs
+    /// resolve in a throwaway directory whose manifest is deleted right
+    /// after the install, so they point this at the invoking project's
+    /// workspace instead (pnpm/pnpm#15396).
+    pub(crate) policy_excludes_dir: Option<&'a Path>,
     pub(crate) real_ids: Option<&'a std::collections::HashSet<String>>,
     pub(crate) selected_ids: Option<&'a std::collections::HashSet<String>>,
 }

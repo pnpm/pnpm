@@ -158,6 +158,7 @@ async fn add_reuses_shared_packument_state_for_every_selector_path() {
             included_groups: None,
             save_catalog_name: None,
             supported_architectures: None,
+            policy_excludes_dir: None,
         },
     }
     .run::<SilentReporter>()
@@ -242,6 +243,7 @@ async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
                 included_groups: None,
                 save_catalog_name: None,
                 supported_architectures: None,
+            policy_excludes_dir: None,
             },
         }
         .run::<SilentReporter>(),

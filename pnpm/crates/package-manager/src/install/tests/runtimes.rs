@@ -100,6 +100,7 @@ async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -197,6 +198,7 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -280,6 +282,7 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -371,6 +374,7 @@ async fn fresh_install_honors_skip_runtimes() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -627,6 +631,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -689,6 +694,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }

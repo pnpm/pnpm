@@ -91,6 +91,7 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -197,6 +198,7 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -334,6 +336,7 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -480,6 +483,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -602,6 +606,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -727,6 +732,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -841,6 +847,7 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -956,6 +963,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }

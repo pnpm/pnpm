@@ -180,6 +180,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -451,6 +452,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -547,6 +549,7 @@ async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -702,6 +705,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }

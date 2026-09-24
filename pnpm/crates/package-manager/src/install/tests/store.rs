@@ -94,6 +94,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -174,6 +175,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }
@@ -296,6 +298,7 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
             supported_architectures: None,
             catalogs_override: None,
             pnpmfile_hook_override: None,
+            policy_excludes_dir: None,
             workspace_projects_override: None,
         },
     }

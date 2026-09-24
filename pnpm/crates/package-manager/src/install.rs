@@ -455,6 +455,14 @@ pub struct InstallProjects<DependencyGroupList> {
     /// `Some` replaces the disk lookup for the install, including custom
     /// fetchers on the frozen path. `None` loads the configured pnpmfiles.
     pub pnpmfile_hook_override: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    /// Directory whose `pnpm-workspace.yaml` receives the policy excludes
+    /// an install persists (`minimumReleaseAgeExclude`, ...). `None`
+    /// (every plain install) persists to the install's own `lockfile_dir`.
+    /// The package-manager engine installs resolve in a throwaway directory
+    /// whose workspace manifest is deleted right after the install, so they
+    /// point this at the invoking project's workspace instead — otherwise
+    /// an approval at the prompt would persist nowhere (pnpm/pnpm#15396).
+    pub policy_excludes_dir: Option<PathBuf>,
     /// Workspace importers supplied in memory by an embedder (the Node API
     /// binding) instead of discovering them from a `pnpm-workspace.yaml` on
     /// disk. `Some` bypasses the on-disk workspace-project walk entirely — the
