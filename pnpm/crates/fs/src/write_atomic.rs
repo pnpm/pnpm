@@ -47,6 +47,7 @@ fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode) -> io::Result
         fs::create_dir_all(parent)?;
     }
     let mut tmp = tempfile::NamedTempFile::new_in(dir.unwrap_or_else(|| Path::new(".")))?;
+    let _pending_temp = crate::pending_temp::track_temp_file(tmp.path());
     tmp.write_all(bytes)?;
     tmp.as_file().sync_all()?;
     // `NamedTempFile` creates with mode 0600 on Unix; persisting it over an

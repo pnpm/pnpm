@@ -300,6 +300,9 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
             }
             Err(error) => return Err(SaveLockfileError::WriteFile(error)),
         };
+        // Held until the rename publishes the temp file or an error path
+        // removes it, so an interrupt in between cannot leave it behind.
+        let _pending_temp = pnpm_fs::track_temp_file(&tmp);
 
         if let Err(error) = fill_temp_file(&mut file, content, target) {
             drop(file);

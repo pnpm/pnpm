@@ -347,6 +347,9 @@ fn open_controlling_terminal() -> Option<libc::c_int> {
 /// where the caller expects death by a signal.
 #[cfg(unix)]
 fn die_from(signal: libc::c_int) -> ! {
+    // This relay may be the handler that ends the process; temp files of
+    // in-flight atomic writes would otherwise stay behind.
+    pnpm_fs::remove_pending_temp_files();
     // SAFETY: `sigprocmask`, `signal`, `raise` and `_exit` are all
     // async-signal-safe, and the set is a stack local that outlives the
     // call. `raise` does not return once the signal is unblocked and back
