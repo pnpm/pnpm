@@ -57,7 +57,7 @@ fn spawn_not_found_is_blamed_on_the_configured_script_shell() {
     let shell = Path::new("/usr/bin/no-such-shell");
     let error = io::Error::from(io::ErrorKind::NotFound);
     match missing_script_shell(Some(shell), error, cwd.path()) {
-        Ok(ScriptShellError::NotFound { path, .. }) => assert_eq!(path, "/usr/bin/no-such-shell"),
+        Ok(ScriptShellError::NotFound { path, .. }) => assert_eq!(path, shell.to_string_lossy()),
         other => panic!("unexpected result: {other:?}"),
     }
 }
