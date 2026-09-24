@@ -1,12 +1,12 @@
 use super::{
-    EnsureFileError, create_exclusive_temp_file, ensure_cas_file, ensure_file, file_equals_bytes,
-    strip_dash_suffix, temp_path_in,
+    EnsureFileError, create_exclusive_temp_file, ensure_file, file_equals_bytes, strip_dash_suffix,
+    temp_path_in,
 };
 use std::{fs, io, path::Path};
 use tempfile::tempdir;
 
 #[cfg(unix)]
-use super::{EMFILE, ENFILE, retry_on_fd_pressure};
+use super::{EMFILE, ENFILE, ensure_cas_file, retry_on_fd_pressure};
 
 #[test]
 fn writes_a_new_file() {

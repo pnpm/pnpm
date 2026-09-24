@@ -796,6 +796,12 @@ fn force_defeats_the_up_to_date_fast_path() {
 /// inode, so every other hard-linked copy (another project's
 /// `node_modules`) is healed by the same write. Replacing the blob by
 /// rename would leave those copies corrupt.
+///
+/// The scenario needs hardlink import, forced below: with the macOS
+/// default of clone-first (APFS `clonefile`), an edit through
+/// `node_modules` breaks the copy-on-write sharing and never reaches
+/// the store blob, so there is nothing to repair and the second hard
+/// link would point at the clone, not the blob.
 #[cfg(unix)]
 #[test]
 fn force_install_repairs_tampered_store_blob_in_place() {
@@ -817,12 +823,17 @@ fn force_install_repairs_tampered_store_blob_in_place() {
 
     pacquet
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_env("PNPM_CONFIG_PACKAGE_IMPORT_METHOD", "hardlink")
         .with_arg("install")
         .assert()
         .success();
 
     let installed = workspace.join("node_modules/is-positive/index.js");
     let pristine = fs::read(&installed).expect("read installed file");
+    assert!(
+        fs::metadata(&installed).unwrap().nlink() >= 2,
+        "hardlink import must link the installed file to the store blob",
+    );
     // A second hard link stands in for another project importing the
     // same store blob; its inode is the blob's inode.
     let linked = workspace.join("linked-copy.js");
@@ -835,6 +846,7 @@ fn force_install_repairs_tampered_store_blob_in_place() {
 
     pacquet_in(&workspace)
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_env("PNPM_CONFIG_PACKAGE_IMPORT_METHOD", "hardlink")
         .with_args(["install", "--force"])
         .assert()
         .success();
