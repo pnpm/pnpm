@@ -89,8 +89,8 @@ export class FetchTimeoutError extends PnpmError {
     timeout: number | undefined,
     opts: { attempts?: number, cause: unknown }
   ) {
-    const duration = timeout == null ? '' : ` after ${timeout}ms`
-    super(code, `GET ${redactUrlForDisplay(url)}: timed out${duration} without receiving data`, {
+    const reason = timeout == null ? 'waiting for data' : `no data received for ${timeout}ms`
+    super(code, `GET ${redactUrlForDisplay(url)}: timed out, ${reason}`, {
       ...opts,
       hint: 'The registry stopped responding. If it is just slow, increase the fetchTimeout setting.',
     })

@@ -1098,7 +1098,7 @@ test.each([
       filesIndexFile,
     })).rejects.toMatchObject({
       code: 'ERR_PNPM_FETCH_TIMEOUT',
-      message: `GET ${url}: timed out after 200ms without receiving data`,
+      message: `GET ${url}: timed out, no data received for 200ms`,
     })
   } finally {
     for (const socket of sockets) socket.destroy()

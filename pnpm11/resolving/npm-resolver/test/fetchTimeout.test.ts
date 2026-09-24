@@ -58,7 +58,7 @@ test('a registry that never answers fails with a timeout error', async () => {
 
   await expect(fetchFromStalledRegistry(registry)).rejects.toMatchObject({
     code: 'ERR_PNPM_META_FETCH_FAIL',
-    message: `GET ${registry}stalled-pkg: timed out after 200ms without receiving data`,
+    message: `GET ${registry}stalled-pkg: timed out, no data received for 200ms`,
   })
 })
 
@@ -70,6 +70,6 @@ test('a metadata body that stops arriving fails with a timeout error', async () 
 
   await expect(fetchFromStalledRegistry(registry)).rejects.toMatchObject({
     code: 'ERR_PNPM_META_FETCH_FAIL',
-    message: `GET ${registry}stalled-pkg: timed out after 200ms without receiving data`,
+    message: `GET ${registry}stalled-pkg: timed out, no data received for 200ms`,
   })
 })
