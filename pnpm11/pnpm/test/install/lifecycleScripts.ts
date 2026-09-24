@@ -160,6 +160,20 @@ test('a dependency\'s own bin is not on PATH before its preinstall creates it', 
   expect(fs.existsSync('node_modules/.bin/own-bin-created-by-preinstall')).toBe(true)
 })
 
+test('a dependency\'s own bin is not on PATH before its preinstall creates it, with the hoisted node linker', () => {
+  prepare({ dependencies: { '@pnpm.e2e/own-bin-created-by-preinstall': '1.0.0' } })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: { '@pnpm.e2e/own-bin-created-by-preinstall': true },
+    nodeLinker: 'hoisted',
+  })
+
+  const result = execPnpmSync(['install'])
+
+  expect(result.stderr.toString() + result.stdout.toString()).not.toMatch('on PATH before its target exists')
+  expect(result.status).toBe(0)
+  expect(fs.existsSync('node_modules/.bin/own-bin-created-by-preinstall')).toBe(true)
+})
+
 test('the missing bin of a dependency whose build is denied is linked', () => {
   prepare({ dependencies: { '@pnpm.e2e/own-bin-created-by-preinstall': '1.0.0' } })
   writeYamlFileSync('pnpm-workspace.yaml', { allowBuilds: { '@pnpm.e2e/own-bin-created-by-preinstall': false } })

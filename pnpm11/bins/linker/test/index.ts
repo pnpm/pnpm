@@ -841,6 +841,20 @@ test('linkBinsOfPackages() rewrites a shim written for a missing target once the
   }
 })
 
+test('linkBins() holds back a bin whose target is missing when holdBackMissingTargets is set', async () => {
+  const binTarget = temporaryDirectory()
+  const binNotExistFixture = f.prepare('bin-not-exist')
+  const warn = () => {}
+
+  await linkBins(path.join(binNotExistFixture, 'node_modules'), binTarget, { holdBackMissingTargets: true, warn })
+
+  expect(fs.readdirSync(binTarget)).toEqual([])
+
+  await linkBins(path.join(binNotExistFixture, 'node_modules'), binTarget, { warn })
+
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['meow']))
+})
+
 test("linkBinsOfPackages() does not link a package's missing bin into its own .bin directory", async () => {
   const binNotExistFixture = f.prepare('bin-not-exist')
   const pkgDir = path.join(binNotExistFixture, 'node_modules', 'foo')

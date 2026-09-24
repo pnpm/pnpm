@@ -167,7 +167,7 @@ async function _linkBins (
 
   // Removals finish before any shim is written: on Windows the siblings of a
   // removed bin `tool` include `tool.cmd`, which may be another bin's shim.
-  const removals = await Promise.allSettled(allCmds.map(async (cmd) => removeBinIfOwnTargetMissing(cmd, binsDir)))
+  const removals = await Promise.allSettled(allCmds.map(async (cmd) => removeBinIfTargetAwaited(cmd, binsDir, opts)))
   const cmdsToLink = allCmds.filter((_, i) => removals[i].status === 'fulfilled' && !removals[i].value)
   const results = await Promise.allSettled(cmdsToLink.map(async cmd => linkBin(cmd, binsDir, opts)))
 
@@ -293,6 +293,13 @@ export interface LinkBinOptions {
    */
   projectModulesDir?: string
   preferSymlinkedExecutables?: boolean
+  /**
+   * Hold back every bin whose target is missing, and remove a shim an earlier
+   * install left for it, as a package's own `.bin` always does. For a pass that
+   * runs before dependency builds and is repeated after them: a build may
+   * create the target, and its scripts run with this `.bin` on PATH.
+   */
+  holdBackMissingTargets?: boolean
 }
 
 async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {
@@ -498,8 +505,17 @@ async function haveEqualContents (pathA: string, pathB: string): Promise<boolean
   }
 }
 
-async function removeBinIfOwnTargetMissing (cmd: CommandInfo, binsDir: string): Promise<boolean> {
-  if (!isOwnBinsDir(cmd.pkgDir, binsDir) || !await isOwnBinTargetMissing(cmd.path)) return false
+/**
+ * A package's own bins are on PATH while its lifecycle scripts run, and those
+ * scripts may be what creates a missing target. The `node` package's
+ * preinstall calls `node` to download bin/node, which must not resolve to a
+ * shim of bin/node itself. So a package's own bin is not linked into its own
+ * .bin while the target is missing, and neither is any bin of a pass with
+ * `holdBackMissingTargets`. Other bins get the shim (see cmd-shim).
+ */
+async function removeBinIfTargetAwaited (cmd: CommandInfo, binsDir: string, opts: LinkBinOptions): Promise<boolean> {
+  if (!opts.holdBackMissingTargets && !isOwnBinsDir(cmd.pkgDir, binsDir)) return false
+  if (!await isBinTargetMissing(cmd.path)) return false
   await removeBin(path.join(binsDir, cmd.name))
   return true
 }
@@ -515,16 +531,8 @@ function isOwnBinsDir (pkgDir: string, binsDir: string): boolean {
   return path.resolve(pkgDir, 'node_modules', '.bin') === path.resolve(binsDir)
 }
 
-/**
- * A package's own bins are on PATH while its lifecycle scripts run, and those
- * scripts may be what creates a missing target. The `node` package's
- * preinstall calls `node` to download bin/node, which must not resolve to a
- * shim of bin/node itself. So a package's own bin is not linked into its own
- * .bin while the target is missing. Other packages get the shim (see
- * cmd-shim). A target without an extension is run directly, and Windows then
- * finds its .exe.
- */
-async function isOwnBinTargetMissing (target: string): Promise<boolean> {
+// A target without an extension is run directly, and Windows then finds its .exe.
+async function isBinTargetMissing (target: string): Promise<boolean> {
   if (!await isMissing(target)) return false
   return !IS_WINDOWS || path.extname(target) !== '' || isMissing(`${target}${getExeExtension()}`)
 }
