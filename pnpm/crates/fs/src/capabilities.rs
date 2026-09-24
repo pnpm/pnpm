@@ -35,6 +35,11 @@ pub trait FsReflink {
 }
 
 /// Create a hard link from `source` to `target`, as [`fs::hard_link`].
+///
+/// The seam exists so tests can hand callers the errors only some
+/// filesystems return — `EPERM` from a FUSE mount that has no
+/// hardlinks, `EXDEV` from a target on another mount — which a temp
+/// dir on a single volume cannot reproduce.
 pub trait FsHardLink {
     fn hard_link(source: &Path, target: &Path) -> io::Result<()>;
 }
