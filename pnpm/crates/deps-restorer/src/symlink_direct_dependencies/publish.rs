@@ -13,7 +13,12 @@ pub(super) fn link_publish_modules_dir(
 ) -> Result<(), SymlinkDirectDependenciesError> {
     if let Some(publish_dir) = &project_snapshot.publish_directory
         && project_snapshot.link_directory != Some(false)
-        && modules_dir.exists()
+        && modules_dir
+            .try_exists()
+            .map_err(|source| SymlinkDirectDependenciesError::InspectModulesDir {
+                dir: modules_dir.to_path_buf(),
+                source,
+            })?
     {
         let target_dir = pnpm_fs::lexical_normalize(&project_dir.join(publish_dir));
         if !target_dir.starts_with(project_dir) || target_dir == project_dir {

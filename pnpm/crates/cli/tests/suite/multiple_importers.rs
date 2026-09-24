@@ -685,6 +685,35 @@ fn transitive_dependencies_and_bins_with_publish_config_directory() {
     );
 }
 
+/// pnpm/pnpm#8338: a project whose manifest is `package.yaml` still exposes its
+/// bins through a manifest-less publish directory.
+#[test]
+fn bins_with_publish_config_directory_of_package_yaml_project() {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project("project-1", "project-1", ManifestDeps::default());
+    let project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut project_1_manifest = read_manifest(&project_1);
+    project_1_manifest["publishConfig"] = json!({ "directory": "dist" });
+    project_1_manifest["bin"] = json!({ "project-1-bin": "./cli.js" });
+    // JSON is valid YAML.
+    fs::write(project_1.join("package.yaml"), project_1_manifest.to_string())
+        .expect("write package.yaml");
+    fs::remove_file(project_1.join("package.json")).expect("remove package.json");
+    fs::create_dir_all(project_1.join("dist")).expect("create publish directory");
+    fs::write(project_1.join("dist/cli.js"), "#!/usr/bin/env node\n").expect("write bin");
+
+    fixture.run(["install"]);
+
+    assert!(
+        project_2.join("node_modules/.bin/project-1-bin").exists(),
+        "project-1-bin should be linked into project-2/node_modules/.bin",
+    );
+}
+
 /// pnpm/pnpm#8338: transitive dependencies and bins with nested publish directory and `./` prefix.
 #[test]
 fn transitive_dependencies_and_bins_with_nested_publish_config_directory() {

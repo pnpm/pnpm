@@ -103,29 +103,42 @@ fn resolve_link_dep(
     target_to_project.get(&normalized).cloned()
 }
 
+/// Maps each project's root, and each publish directory its dependents link
+/// to, back to the project. Publish directories come from both the manifest and
+/// the lockfile importer, since the links being ordered follow the lockfile.
 fn map_targets_to_projects(
     projects: &[(PathBuf, &PackageManifest)],
     normalized_project_dirs: &[PathBuf],
+    workspace_root: &Path,
+    lockfile: &Lockfile,
 ) -> HashMap<PathBuf, PathBuf> {
     let mut target_to_project: HashMap<PathBuf, PathBuf> = HashMap::new();
     for ((project_dir, manifest), normalized_project_dir) in
         projects.iter().zip(normalized_project_dirs)
     {
         target_to_project.insert(normalized_project_dir.clone(), normalized_project_dir.clone());
-        if let Some(publish_config) = manifest.value().get("publishConfig")
-            && let Some(publish_dir) = publish_config.get("directory").and_then(|d| d.as_str())
-        {
-            let link_directory = publish_config
-                .get("linkDirectory")
-                .and_then(serde_json::Value::as_bool)
-                .unwrap_or(true);
-            if link_directory {
-                let normalized_publish = pnpm_fs::lexical_normalize(&project_dir.join(publish_dir));
-                target_to_project.insert(normalized_publish, normalized_project_dir.clone());
-            }
+        let importer_id = pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir);
+        let snapshot_publish_dir = lockfile.importers
+            .get(&importer_id)
+            .filter(|snapshot| snapshot.link_directory != Some(false))
+            .and_then(|snapshot| snapshot.publish_directory.as_deref());
+        for publish_dir in manifest_publish_dir(manifest).into_iter().chain(snapshot_publish_dir) {
+            let normalized_publish = pnpm_fs::lexical_normalize(&project_dir.join(publish_dir));
+            target_to_project.insert(normalized_publish, normalized_project_dir.clone());
         }
     }
     target_to_project
+}
+
+fn manifest_publish_dir(manifest: &PackageManifest) -> Option<&str> {
+    let publish_config = manifest.value().get("publishConfig")?;
+    let link_directory = publish_config
+        .get("linkDirectory")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(true);
+    link_directory
+        .then(|| publish_config.get("directory").and_then(serde_json::Value::as_str))
+        .flatten()
 }
 
 /// Each project's `link:` dependencies on the other projects, read off the
@@ -136,7 +149,8 @@ fn link_dependencies_from_lockfile(
     workspace_root: &Path,
     lockfile: &Lockfile,
 ) -> IndexMap<PathBuf, Vec<PathBuf>> {
-    let target_to_project = map_targets_to_projects(projects, normalized_project_dirs);
+    let target_to_project =
+        map_targets_to_projects(projects, normalized_project_dirs, workspace_root, lockfile);
     projects
         .iter()
         .zip(normalized_project_dirs)

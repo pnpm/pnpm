@@ -235,13 +235,7 @@ async function getPackageBins (
     : await safeReadPkgJson(target)
 
   if (manifest == null) {
-    let realTarget = target
-    try {
-      realTarget = await fs.realpath(target)
-    } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
-    }
-    manifest = (await safeReadParentPublishManifest(realTarget)) as DependencyManifest
+    manifest = await readLinkedPublishManifest(target) as DependencyManifest
   }
 
   if (manifest == null) {
@@ -259,6 +253,34 @@ async function getPackageBins (
   }
 
   return getPackageBinsFromManifest(manifest, target)
+}
+
+/**
+ * `target` is a dependency link, usually to a project's `publishConfig.directory`.
+ * The link's own target is tried first, so a publish directory that is itself a
+ * symlink still matches the owning project's manifest.
+ */
+async function readLinkedPublishManifest (target: string): Promise<ProjectManifest | null> {
+  const candidates = new Set<string>()
+  for (const resolve of [readLinkTarget, fs.realpath]) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      candidates.add(await resolve(target))
+    } catch (err: unknown) {
+      const code = (err as NodeJS.ErrnoException).code
+      if (code !== 'ENOENT' && code !== 'EINVAL') throw err
+    }
+  }
+  for (const candidate of candidates) {
+    // eslint-disable-next-line no-await-in-loop
+    const manifest = await safeReadParentPublishManifest(candidate)
+    if (manifest != null) return manifest
+  }
+  return null
+}
+
+async function readLinkTarget (link: string): Promise<string> {
+  return path.resolve(path.dirname(link), await fs.readlink(link))
 }
 
 async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string): Promise<CommandInfo[]> {

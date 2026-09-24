@@ -11,7 +11,9 @@ use std::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
-use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_package_manifest::{
+    PackageManifestError, safe_read_package_json_from_dir, safe_read_project_manifest_from_dir,
+};
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_resolving_resolver_base::{LatestInfo, LatestQuery, PkgResolutionId, ResolveResult};
 use pnpm_tarball::{LocalTarballMetadata, TarballError, read_local_tarball_metadata};
@@ -399,12 +401,10 @@ fn synthesize_fallback_manifest(
 fn find_parent_publish_manifest(
     fetch_spec: &Path,
 ) -> Result<Option<serde_json::Value>, ResolveLocalError> {
-    let target_path =
-        std::fs::canonicalize(fetch_spec).unwrap_or_else(|_| fetch_spec.to_path_buf());
-    let normalized_target = pnpm_fs::lexical_normalize(&target_path);
-    for parent in target_path.ancestors().skip(1) {
+    let normalized_target = pnpm_fs::lexical_normalize(fetch_spec);
+    for parent in normalized_target.ancestors().skip(1) {
         let Some(manifest) =
-            safe_read_package_json_from_dir(parent).map_err(ResolveLocalError::ReadManifest)?
+            safe_read_project_manifest_from_dir(parent).map_err(ResolveLocalError::ReadManifest)?
         else {
             continue;
         };

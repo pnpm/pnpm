@@ -108,6 +108,14 @@ pub enum SymlinkDirectDependenciesError {
         #[error(source)]
         source: SymlinkPackageError,
     },
+
+    #[display("Failed to inspect modules directory {dir:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_INSPECT_MODULES_DIR))]
+    InspectModulesDir {
+        dir: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
 }
 
 impl<DependencyGroupList> SymlinkDirectDependencies<'_, DependencyGroupList>
