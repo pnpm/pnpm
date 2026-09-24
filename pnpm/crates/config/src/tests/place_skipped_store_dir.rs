@@ -24,7 +24,7 @@ fn unplaced_config() -> Config {
 #[test]
 fn an_unplaced_store_moves_to_the_project_volume() {
     let tmp = tempdir().expect("create tempdir");
-    let mount = fs::canonicalize(tmp.path()).expect("canonicalize tempdir").join("mount");
+    let mount = dunce::canonicalize(tmp.path()).expect("canonicalize tempdir").join("mount");
     let project = mount.join("project");
     fs::create_dir_all(&project).expect("create project dir");
 
