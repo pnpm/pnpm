@@ -31,6 +31,7 @@ import type {
   PackageManifest,
   PackageVersionPolicy,
   RangeSpecStyle,
+  ReadPackageHook,
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
@@ -190,6 +191,7 @@ export interface RequestPackageOptions {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number
+  readPackageHook?: ReadPackageHook
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
@@ -232,6 +234,7 @@ export interface PackageResponse {
      * `ResolutionPolicyViolation` in `@pnpm/resolving.resolver-base`.
      */
     policyViolation?: ResolutionPolicyViolation
+    hooked?: boolean
   } & (
     {
       isLocal: true
