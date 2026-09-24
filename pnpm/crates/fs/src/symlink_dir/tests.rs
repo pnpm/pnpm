@@ -475,7 +475,10 @@ fn windows_locked_occupant_error_names_the_directory() {
 
     assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
     let message = error.to_string();
-    assert!(message.contains(&format!("{link:?}")), "the error must name the directory: {message}");
+    assert!(
+        message.contains(&format!("\"{}\"", link.display())),
+        "the error must name the directory: {message}",
+    );
     assert!(message.contains("in use by another process"), "the error must say why: {message}");
     let os_error = std::error::Error::source(&error)
         .and_then(|source| source.downcast_ref::<std::io::Error>())

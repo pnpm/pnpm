@@ -89,8 +89,9 @@ pub(super) fn clear_symlink_occupant(
 /// rename's own error stays reachable as the source.
 #[derive(Debug, Display, Error)]
 #[display(
-    "Could not move {path:?} out of the way. A file in it is probably in use by another \
-     process, such as a dev server or an editor. Stop that process and try again."
+    "Could not move \"{}\" out of the way. A file in it is probably in use by another \
+     process, such as a dev server or an editor. Stop that process and try again.",
+    path.display()
 )]
 pub(super) struct OccupantInUseError {
     path: PathBuf,
