@@ -557,17 +557,32 @@ function buildFallbackSandbox (): { sandbox: string, stubDir: string } {
   const stubDir = path.join(sandbox, 'stub')
   fs.mkdirSync(stubDir, { recursive: true })
 
+  // Use an executable binary stand-in (node) for pnpm, so on Windows cmd.exe executes
+  // an .exe via CreateProcess and regains control in the wrapper rather than transferring
+  // execution to a chained .cmd batch file.
+  const stubJs = path.join(stubDir, 'stub.cjs')
   fs.writeFileSync(
-    path.join(stubDir, 'pnpm.cmd'),
-    '@echo off\r\nif "%1"=="fail" exit /b 42\r\nif "%2"=="fail" exit /b 42\r\nif "%3"=="fail" exit /b 42\r\necho stub: %*\r\nexit /b 0\r\n'
+    stubJs,
+    `const path = require('path')
+const args = process.argv.slice(1).map((arg) => {
+  const base = path.basename(arg)
+  return ['dlx', 'fail', 'add', 'foo'].includes(base) ? base : arg
+})
+if (args.includes('fail')) {
+  process.exit(42)
+}
+console.log('stub: ' + args.join(' '))
+process.exit(0)
+`
   )
 
-  const shStub = path.join(stubDir, 'pnpm')
-  fs.writeFileSync(
-    shStub,
-    '#!/bin/sh\nif [ "$1" = "fail" ] || [ "$2" = "fail" ] || [ "$3" = "fail" ]; then\n  exit 42\nfi\necho "stub: $*"\nexit 0\n'
-  )
-  fs.chmodSync(shStub, 0o755)
+  const pnpmBin = path.join(stubDir, isWindows ? 'pnpm.exe' : 'pnpm')
+  try {
+    fs.linkSync(process.execPath, pnpmBin)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
+    fs.copyFileSync(process.execPath, pnpmBin)
+  }
 
   return { sandbox, stubDir }
 }
@@ -576,9 +591,12 @@ function getWindowsFallbackEnv (stubDir: string): NodeJS.ProcessEnv {
   const pathParts = isWindows
     ? [stubDir, POWERSHELL_DIR, SYSTEM32, process.env.PATH]
     : [stubDir, process.env.PATH]
+  const stubJs = path.join(stubDir, 'stub.cjs')
+  const prevNodeOptions = process.env.NODE_OPTIONS ?? ''
   return {
     ...process.env,
     PATH: pathParts.filter(Boolean).join(path.delimiter),
+    NODE_OPTIONS: `${prevNodeOptions} --require "${stubJs}"`.trim(),
   }
 }
 
