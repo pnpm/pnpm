@@ -8,6 +8,7 @@ import { audit } from '@pnpm/deps.compliance.commands'
 import { install } from '@pnpm/installing.commands'
 import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, DEFAULT_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
@@ -575,6 +576,48 @@ Severity: 1 high
     expect(exitCode).toBe(0)
     expect(stripAnsi(output)).toBe(`1 vulnerabilities found
 Severity: 1 info`)
+  })
+})
+
+describe('audit in a workspace', () => {
+  beforeEach(async () => {
+    await setupMockAgent()
+  })
+  afterEach(async () => {
+    await teardownMockAgent()
+  })
+
+  async function auditedPackageNames (filter: string[]): Promise<string[]> {
+    const workspaceDir = f.prepare('workspace-has-vulnerabilities')
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(
+      workspaceDir,
+      filter.map((namePattern) => ({ namePattern }))
+    )
+    let requestedPackageNames: string[] = []
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, ({ body }) => {
+        requestedPackageNames = Object.keys(JSON.parse(String(body)))
+        return {}
+      })
+    await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      workspaceDir,
+      rootProjectManifestDir: workspaceDir,
+      filter,
+      selectedProjectsGraph,
+    })
+    return requestedPackageNames.sort()
+  }
+
+  test('audits only the dependencies of the projects selected by --filter', async () => {
+    expect(await auditedPackageNames(['workspace-audit-b'])).toStrictEqual(['minimist'])
+  })
+
+  test('audits every project without --filter', async () => {
+    expect(await auditedPackageNames([])).toStrictEqual(['lodash', 'minimist'])
   })
 })
 

@@ -213,7 +213,7 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
 | 'configByUri'
 | 'virtualStoreDirMaxLength'
 | 'workspaceDir'
-> & Pick<ConfigContext,
+> & Partial<Pick<Config, 'filter' | 'filterProd' | 'workspaceRoot'>> & Pick<ConfigContext,
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
 > & InstallCommandOptions

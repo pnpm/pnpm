@@ -1,8 +1,9 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import { readEnvLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
+import { getLockfileImporterId, readEnvLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
 import type { DependenciesField } from '@pnpm/types'
+import { pickBy } from 'ramda'
 
 import type { AuditOptions } from './audit.js'
 
@@ -47,8 +48,25 @@ export async function loadAuditContext (opts: AuditOptions): Promise<AuditContex
       devDependencies: opts.dev !== false,
       optionalDependencies: opts.optional !== false,
     },
-    lockfile,
+    lockfile: selectAuditedImporters(lockfile, lockfileDir, opts),
     lockfileDir,
+  }
+}
+
+/**
+ * Narrows the lockfile to the importers of the projects selected by
+ * `--filter`, `--filter-prod`, or `--workspace-root`. Without a selector,
+ * every importer is audited.
+ */
+function selectAuditedImporters (lockfile: LockfileObject, lockfileDir: string, opts: AuditOptions): LockfileObject {
+  const hasSelector = Boolean(opts.filter?.length || opts.filterProd?.length || opts.workspaceRoot)
+  if (!hasSelector || opts.selectedProjectsGraph == null) return lockfile
+  const selectedImporterIds = new Set<string>(
+    Object.keys(opts.selectedProjectsGraph).map((projectDir) => getLockfileImporterId(lockfileDir, projectDir))
+  )
+  return {
+    ...lockfile,
+    importers: pickBy((_, importerId) => selectedImporterIds.has(importerId), lockfile.importers),
   }
 }
 
