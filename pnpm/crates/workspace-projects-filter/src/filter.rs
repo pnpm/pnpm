@@ -13,7 +13,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_matcher::create_matcher;
 use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Component, Path, PathBuf},
 };
 
@@ -127,13 +127,10 @@ fn chunk_selectors<'a>(project_selectors: &'a [ProjectSelector]) -> Vec<Selector
 
 fn apply_chunk(selected: &mut IndexSet<PathBuf>, chunk_selected: Vec<PathBuf>, exclude: bool) {
     if exclude {
-        for dir in &chunk_selected {
-            selected.shift_remove(dir);
-        }
+        let excluded: HashSet<PathBuf> = chunk_selected.into_iter().collect();
+        selected.retain(|dir| !excluded.contains(dir));
     } else {
-        for dir in chunk_selected {
-            selected.insert(dir);
-        }
+        selected.extend(chunk_selected);
     }
 }
 
