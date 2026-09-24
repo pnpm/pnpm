@@ -75,8 +75,7 @@ impl<'a> PruneStaleModules<'a> {
     /// `orphanPkgIds`), for the caller's single `pnpm:stats`
     /// `removed` emission. `0` when the orphan diff is skipped.
     pub fn run<Reporter: self::Reporter>(self) -> Result<u64, PruneDirectDepsError> {
-        let modules_dir_name: &OsStr =
-            self.config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+        let modules_dir_name: &OsStr = self.config.modules_dir_name();
         let wanted_root_deps = self.wanted_root_deps();
 
         for (importer_id, current_snapshot) in &self.current_lockfile.importers {

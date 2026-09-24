@@ -132,9 +132,7 @@ pub(super) async fn link_materialized_projects<Reporter: self::Reporter + 'stati
             }),
             inputs.manifest_links.workspace_packages,
             inputs.manifest_links.included,
-            inputs.config.modules_dir
-                .file_name()
-                .unwrap_or_else(|| std::ffi::OsStr::new("node_modules")),
+            inputs.config.modules_dir_name(),
             &crate::shim_link_options(inputs.config, inputs.node_linker),
         )
         .map_err(InstallError::LinkManifestLinkDeps)?;

@@ -381,6 +381,8 @@ mod workspace_settings_json_env_env_default;
 
 mod workspace_settings_materialization_env_vars_override;
 
+mod modules_dir_name;
+
 mod files;
 
 mod security;

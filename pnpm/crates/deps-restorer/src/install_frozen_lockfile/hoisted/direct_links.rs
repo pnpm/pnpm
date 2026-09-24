@@ -1,5 +1,5 @@
 use super::{
-    Config, HoistedLinkerError, NodeLinker, OsStr, Path, PathBuf, SymlinkDirectDependenciesError,
+    Config, HoistedLinkerError, NodeLinker, Path, PathBuf, SymlinkDirectDependenciesError,
     SymlinkPackageError,
 };
 
@@ -9,8 +9,7 @@ pub(crate) fn link_selected_hoisted_direct_dependencies(
     project_manifests: &[(PathBuf, &pnpm_package_manifest::PackageManifest)],
     direct_dependencies_by_importer_id: &crate::DirectDependenciesByImporterId,
 ) -> Result<(), HoistedLinkerError> {
-    let modules_dir_name =
-        config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+    let modules_dir_name = config.modules_dir_name();
     let root_modules_dir = pnpm_fs::lexical_normalize(&config.modules_dir);
     let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
     for (project_dir, _) in project_manifests {

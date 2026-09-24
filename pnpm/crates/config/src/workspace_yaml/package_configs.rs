@@ -61,6 +61,20 @@ impl ProjectConfig {
         self.modules_dir.as_deref().map(|raw| super::resolve(project_dir, raw))
     }
 
+    /// What [`Config::modules_dir_name`] is for the project this entry
+    /// moves the modules directory of.
+    pub(crate) fn modules_dir_name_for(
+        &self,
+        project_dir: &Path,
+    ) -> Option<std::borrow::Cow<'_, std::ffi::OsStr>> {
+        let raw = self.modules_dir.as_deref()?;
+        let modules_dir = super::resolve(project_dir, raw);
+        Some(match crate::layout::project_relative_modules_dir(raw, &modules_dir) {
+            Some(relative) => std::borrow::Cow::Borrowed(relative.as_os_str()),
+            None => std::borrow::Cow::Owned(modules_dir.file_name()?.to_os_string()),
+        })
+    }
+
     /// Overlay the settings onto `config`, resolving a relative
     /// `modulesDir` against `project_dir`.
     ///
@@ -77,6 +91,12 @@ impl ProjectConfig {
         if let Some(modules_dir) = self.modules_dir_for(project_dir) {
             config.modules_dir = modules_dir;
             config.follow_modules_dir_with_virtual_store();
+            if let Some(raw) = self.modules_dir {
+                config.explicit_settings.insert(
+                    "modulesDir".to_string(),
+                    serde_json::Value::String(raw),
+                );
+            }
         }
         if let Some(overrides) = self.overrides {
             config.overrides = (!overrides.is_empty()).then_some(overrides);

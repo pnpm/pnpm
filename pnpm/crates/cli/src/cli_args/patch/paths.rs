@@ -174,7 +174,7 @@ pub(super) fn apply_existing_patch_file(
     let Some(patch_file) = patch_file else { return Ok(()) };
     let base_dir = config.workspace_dir
         .as_deref()
-        .unwrap_or_else(|| config.modules_dir.parent().unwrap_or_else(|| Path::new(".")));
+        .unwrap_or_else(|| config.modules_dir_anchor().unwrap_or_else(|| Path::new(".")));
     let patch_file_path = checked_existing_patch_file_path(
         base_dir,
         config.patches_dir.as_deref().unwrap_or("patches"),

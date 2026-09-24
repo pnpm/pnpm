@@ -122,8 +122,7 @@ pub fn prune_direct_deps_excluded_by_groups(
     // Same per-importer `modulesDir` suffix peeling as
     // [`crate::SymlinkDirectDependencies`], so removal targets exactly
     // where the linker writes.
-    let modules_dir_name: &OsStr =
-        config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+    let modules_dir_name: &OsStr = config.modules_dir_name();
 
     for (importer_id, snapshot) in &current_lockfile.importers {
         // A malformed importer key is rejected with a typed error by
