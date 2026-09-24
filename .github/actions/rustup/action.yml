@@ -85,8 +85,12 @@ runs:
         # rust-cache keeps only the build artifacts of packages whose manifest
         # lies outside the workspace root, and pnpm vendors every crates.io
         # dependency under .pnpm/crates inside it, so with the repository root
-        # it dropped all of them and each job compiled ~950 crates. Rooted at
-        # pnpm/, the vendored crates count as dependencies again. Cargo.lock is
-        # not under that root, so it goes into the key here.
-        workspaces: pnpm -> ../target
+        # it dropped all of them and each job compiled ~950 crates. With pnpm/
+        # and pnpr/ as the roots, the two cleanups of the shared target drop
+        # the crates under each, which a fresh checkout rebuilds anyway, and
+        # keep the vendored ones. Cargo.lock is under neither root, so it goes
+        # into the key here.
+        workspaces: |
+          pnpm -> ../target
+          pnpr -> ../target
         key: ${{ hashFiles('Cargo.lock') }}
