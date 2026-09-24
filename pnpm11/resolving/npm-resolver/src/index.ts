@@ -1225,7 +1225,7 @@ function calcSpecifierForWorkspaceDep ({
     if (parsedVersion != null) {
       return calcSpecifier({ wantedDependency, spec, version, defaultRangeSpecStyle })
     }
-    if (isPartialVersion(version) && semver.validRange(version) != null) {
+    if (isPartialVersion(version)) {
       return (!wantedDependency.alias || spec.name === wantedDependency.alias) ? version : `npm:${spec.name}@${version}`
     }
   }
@@ -1244,7 +1244,7 @@ function calcSpecifierForWorkspaceDep ({
     }
     return `${prefix}^`
   }
-  if (parsedVersion == null || parsedVersion.prerelease.length) {
+  if (parsedVersion == null ? isPartialVersion(version) : parsedVersion.prerelease.length) {
     return `${prefix}${version}`
   }
   const rangeSpecStyle = (wantedDependency.prevSpecifier ? inferRangeSpecStyle(wantedDependency.prevSpecifier) : undefined) ?? defaultRangeSpecStyle
@@ -1253,19 +1253,22 @@ function calcSpecifierForWorkspaceDep ({
 }
 
 /**
- * `1`, `1.0` or `1.x`: a non-semver workspace version that still names the
- * workspace package without the `workspace:` protocol. Anything else, such as
- * `github:owner/repo`, keeps the protocol, since the next install would read
- * the bare text as a different dependency source.
+ * `1`, `1.0` or `1.x`: a non-semver workspace version that is saved exactly,
+ * with or without the `workspace:` protocol, since a `^`/`~` range over it
+ * would not match it. Any other non-semver version keeps the operator: written
+ * exactly it could mean a wildcard, a tag or an alias inside `workspace:`, or
+ * a different dependency source without it.
  */
 function isPartialVersion (version: string): boolean {
-  const parts = version.split('.')
-  return parts.length <= 3 && parts.every(isPartialVersionComponent)
+  const [major, ...minorAndPatch] = version.split('.')
+  return isVersionNumber(major) &&
+    minorAndPatch.length <= 2 &&
+    minorAndPatch.every((part) => ['x', 'X', '*'].includes(part) || isVersionNumber(part)) &&
+    semver.validRange(version) != null
 }
 
-function isPartialVersionComponent (part: string): boolean {
-  return ['x', 'X', '*', '0'].includes(part) ||
-    (part !== '' && !part.startsWith('0') && [...part].every((char) => char >= '0' && char <= '9'))
+function isVersionNumber (part: string): boolean {
+  return part === '0' || (part !== '' && !part.startsWith('0') && [...part].every((char) => char >= '0' && char <= '9'))
 }
 
 function resolveLocalPackageDir (localPackage: WorkspacePackage): string {

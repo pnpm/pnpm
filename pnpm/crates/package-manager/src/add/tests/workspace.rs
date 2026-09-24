@@ -76,10 +76,12 @@ fn a_non_semver_version_that_is_not_a_range_keeps_the_protocol() {
         "01",
         "1.01",
         "900719925474100",
+        "*",
+        "dev",
     ] {
         assert_eq!(
             workspace_save_specifier_without_protocol(version),
-            Some(format!("workspace:{version}")),
+            Some(format!("workspace:^{version}")),
         );
     }
 }

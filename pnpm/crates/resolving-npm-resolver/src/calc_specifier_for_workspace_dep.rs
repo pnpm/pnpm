@@ -90,36 +90,45 @@ fn rolling_specifier(prefix: &str, declared: DeclaredSpecifiers<'_>) -> String {
     format!("{prefix}{suffix}")
 }
 
-/// A prerelease or a version that isn't valid semver is written exactly:
-/// a `^`/`~` range over it would not match the version it was resolved
-/// from.
+/// A prerelease or a partial version such as `1` or `1.0` is written
+/// exactly: a `^`/`~` range over it would not match the version it was
+/// resolved from. Any other non-semver version keeps the operator, because
+/// written exactly it could mean something else inside `workspace:`, such
+/// as a wildcard, a tag, or an alias.
 fn is_saved_exactly(version: &str) -> bool {
-    !version
-        .parse::<node_semver::Version>()
-        .is_ok_and(|parsed| parsed.pre_release.is_empty())
+    match version.parse::<node_semver::Version>() {
+        Ok(parsed) => !parsed.pre_release.is_empty(),
+        Err(_) => is_partial_version(version),
+    }
 }
 
 /// Whether the specifier written for `version` still names the workspace
 /// package once the `workspace:` protocol is stripped from it: a semver
-/// version, or a partial one such as `1`, `1.0` or `1.x`. Anything else,
-/// such as `github:owner/repo`, keeps the protocol, since the next install
-/// would read the bare text as a different dependency source. The shape
-/// check comes first because the range parser skips alternatives it cannot
-/// read (`github:owner/repo || 1.2.3` parses); the range parse then bounds
-/// each component.
+/// version or a partial one. Anything else, such as `github:owner/repo`,
+/// keeps the protocol, since the next install would read the bare text as
+/// a different dependency source.
 #[must_use]
 pub fn can_drop_workspace_protocol(version: &str) -> bool {
-    version.parse::<node_semver::Version>().is_ok()
-        || (is_partial_version(version) && version.parse::<node_semver::Range>().is_ok())
+    version.parse::<node_semver::Version>().is_ok() || is_partial_version(version)
 }
 
+/// `1`, `1.0` or `1.x`. The shape check comes first because the range
+/// parser skips alternatives it cannot read (`github:owner/repo || 1.2.3`
+/// parses); the range parse then bounds each component.
 fn is_partial_version(version: &str) -> bool {
-    let parts: Vec<&str> = version.split('.').collect();
-    parts.len() <= 3 && parts.iter().all(|part| is_partial_version_component(part))
+    let mut parts = version.split('.');
+    let Some(major) = parts.next() else { return false };
+    let minor_and_patch: Vec<&str> = parts.collect();
+    is_version_number(major)
+        && minor_and_patch.len() <= 2
+        && minor_and_patch
+            .iter()
+            .all(|part| matches!(*part, "x" | "X" | "*") || is_version_number(part))
+        && version.parse::<node_semver::Range>().is_ok()
 }
 
-fn is_partial_version_component(part: &str) -> bool {
-    matches!(part, "x" | "X" | "*" | "0")
+fn is_version_number(part: &str) -> bool {
+    part == "0"
         || (!part.is_empty()
             && !part.starts_with('0')
             && part.bytes().all(|byte| byte.is_ascii_digit()))
