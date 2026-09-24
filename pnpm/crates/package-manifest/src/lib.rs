@@ -18,11 +18,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use blank_lines::BlankLines;
 use node_semver::{Range, Version};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;
 use tempfile::NamedTempFile;
+mod blank_lines;
 mod error;
 mod json5;
 mod project;
@@ -55,7 +57,7 @@ const DEFAULT_INDENT: &str = "  ";
 /// JSON5 numbers must be finite and values may be nested at most 128 levels.
 ///
 /// Carries the source file's formatting (indentation unit, final-newline
-/// state) and its parsed value across the read/save round-trip, so
+/// state, blank lines between JSON object members) and its parsed value across the read/save round-trip, so
 /// [`Self::save`] preserves the file's style and skips the write entirely
 /// when nothing changed — the same contract as pnpm's project-manifest
 /// reader/writer pair.
@@ -70,6 +72,8 @@ pub struct PackageManifest {
     /// One indentation level. Empty for a single-line source document,
     /// which then round-trips back to its compact form.
     indent: String,
+    /// The blank lines of a JSON source file, restored on save.
+    blank_lines: BlankLines,
     /// The manifest as the file currently encodes it (`devEngines` folded,
     /// dependency fields normalized), used to skip a save that wouldn't
     /// change the file. `None` when there is no file baseline (in-memory
@@ -130,6 +134,7 @@ impl PackageManifest {
             insert_final_newline: true,
             crlf: false,
             indent: DEFAULT_INDENT.to_string(),
+            blank_lines: BlankLines::default(),
             on_disk: None,
             empty_dependency_fields: Vec::new(),
         }
@@ -169,7 +174,8 @@ impl PackageManifest {
     /// Persist the manifest in its on-disk shape (`devEngines` folded back,
     /// dependency fields normalized) and return that shape.
     ///
-    /// Preserves JSON indentation and final-newline state, JSON5 comments,
+    /// Preserves JSON indentation, final-newline state, and blank lines
+    /// between object members, JSON5 comments,
     /// or YAML comments and existing key order. A save that changes nothing leaves the file
     /// and its modification time untouched.
     pub fn save_and_get_written_value(&mut self) -> Result<Value, PackageManifestError> {
@@ -183,7 +189,7 @@ impl PackageManifest {
             let mut contents = if self.is_json5() {
                 self.serialize_json5(&value)?
             } else {
-                serialize_with_indent(&value, &self.indent)?
+                self.blank_lines.restore(&serialize_with_indent(&value, &self.indent)?)
             };
             if self.insert_final_newline {
                 contents.push('\n');
