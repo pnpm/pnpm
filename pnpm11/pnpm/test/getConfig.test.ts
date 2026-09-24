@@ -288,6 +288,33 @@ describe('installConfigDepsAndLoadHooks', () => {
     expect(fs.existsSync('pnpmfile-was-loaded')).toBe(true)
   })
 
+  test.each(['.pnpmfile.cjs', '.pnpmfile.mjs'])('the updateConfig hook of %s runs after the ones of config dependency plugins', async (defaultPnpmfile) => {
+    prepare()
+
+    jest.mocked(resolveAndInstallConfigDeps).mockResolvedValueOnce(undefined as never)
+    for (const plugin of ['pnpm-plugin-a', 'pnpm-plugin-b']) {
+      const pluginDir = path.join('node_modules/.pnpm-config', plugin)
+      fs.mkdirSync(pluginDir, { recursive: true })
+      fs.writeFileSync(path.join(pluginDir, 'pnpmfile.cjs'), `
+        module.exports = { hooks: { updateConfig: (config) => ({ ...config, order: [...(config.order ?? []), '${plugin}'] }) } }
+      `)
+    }
+    fs.writeFileSync(defaultPnpmfile, `
+      const hooks = { updateConfig: (config) => ({ ...config, order: [...(config.order ?? []), 'project'] }) }
+      ${defaultPnpmfile.endsWith('.mjs') ? 'export { hooks }' : 'module.exports = { hooks }'}
+    `)
+
+    const { config, context } = buildBaseConfig()
+    config.ignorePnpmfile = false
+    config.configDependencies = {
+      'pnpm-plugin-b': '1.0.0+sha512-abc',
+      'pnpm-plugin-a': '1.0.0+sha512-abc',
+    }
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect((result.config as unknown as { order: string[] }).order).toStrictEqual(['pnpm-plugin-a', 'pnpm-plugin-b', 'project'])
+  })
+
   function buildPnpmfileConfig (): { config: Config, context: ConfigContext } {
     const { config, context } = buildBaseConfig()
     config.ignorePnpmfile = false

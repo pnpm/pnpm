@@ -20,6 +20,7 @@ type Cook<T extends (...args: any[]) => any> = (
 
 interface PnpmfileEntry {
   path: string
+  fallbackPath?: string
   includeInChecksum: boolean
   optional?: boolean
 }
@@ -74,30 +75,6 @@ export async function requireHooks (
       includeInChecksum: false,
     })
   }
-  const entries: PnpmfileEntryLoaded[] = []
-  const loadedFiles: string[] = []
-  if (opts.tryLoadDefaultPnpmfile) {
-    // Prefer .pnpmfile.mjs over .pnpmfile.cjs. Only load one.
-    const mjsPath = pathAbsolute('.pnpmfile.mjs', prefix)
-    const mjsResult = await requirePnpmfile(mjsPath, prefix)
-    if (mjsResult != null) {
-      loadedFiles.push(mjsPath)
-      entries.push({
-        file: mjsPath,
-        includeInChecksum: true,
-        hooks: mjsResult.pnpmfileModule?.hooks,
-        finders: mjsResult.pnpmfileModule?.finders,
-        resolvers: mjsResult.pnpmfileModule?.resolvers,
-        fetchers: mjsResult.pnpmfileModule?.fetchers,
-      })
-    } else {
-      pnpmfiles.push({
-        path: '.pnpmfile.cjs',
-        includeInChecksum: true,
-        optional: true,
-      })
-    }
-  }
   if (opts.pnpmfiles) {
     for (const pnpmfile of opts.pnpmfiles) {
       pnpmfiles.push({
@@ -106,12 +83,28 @@ export async function requireHooks (
       })
     }
   }
-  await Promise.all(pnpmfiles.map(async ({ path, includeInChecksum, optional }) => {
-    const file = pathAbsolute(path, prefix)
-    if (!loadedFiles.includes(file)) {
-      loadedFiles.push(file)
-      const requirePnpmfileResult = await requirePnpmfile(file, prefix)
+  // The default pnpmfile goes after the listed ones, which include the
+  // pnpmfiles of config dependency plugins, so that its hooks run last and can
+  // extend or override what the plugins set.
+  if (opts.tryLoadDefaultPnpmfile) {
+    // Prefer .pnpmfile.mjs over .pnpmfile.cjs. Only load one.
+    pnpmfiles.push({
+      path: '.pnpmfile.mjs',
+      fallbackPath: '.pnpmfile.cjs',
+      includeInChecksum: true,
+      optional: true,
+    })
+  }
+  const entries: PnpmfileEntryLoaded[] = []
+  const loadedFiles: string[] = []
+  // Loaded one at a time so that hooks run in the order the pnpmfiles are listed.
+  for (const { path, fallbackPath, includeInChecksum, optional } of pnpmfiles) {
+    for (const candidate of fallbackPath == null ? [path] : [path, fallbackPath]) {
+      const file = pathAbsolute(candidate, prefix)
+      if (loadedFiles.includes(file)) break
+      const requirePnpmfileResult = await requirePnpmfile(file, prefix) // eslint-disable-line no-await-in-loop
       if (requirePnpmfileResult != null) {
+        loadedFiles.push(file)
         entries.push({
           file,
           includeInChecksum,
@@ -120,11 +113,13 @@ export async function requireHooks (
           resolvers: requirePnpmfileResult.pnpmfileModule?.resolvers,
           fetchers: requirePnpmfileResult.pnpmfileModule?.fetchers,
         })
-      } else if (!optional) {
+        break
+      }
+      if (candidate === (fallbackPath ?? path) && !optional) {
         throw new PnpmError('PNPMFILE_NOT_FOUND', `pnpmfile at "${file}" is not found`)
       }
     }
-  }))
+  }
 
   const mergedFinders: Finders = {}
   const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'readPackage' | 'beforePacking' | 'preResolution' | 'afterAllResolved' | 'filterLog' | 'updateConfig'>> = {
