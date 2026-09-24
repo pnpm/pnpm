@@ -377,6 +377,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       lastValidatedTimestamp: workspaceState.lastValidatedTimestamp,
       currentPnpmfiles: opts.pnpmfile,
       previousPnpmfiles: workspaceState.pnpmfiles,
+      ignorePnpmfile: opts.ignorePnpmfile,
     })
     if (issue) {
       return { upToDate: false, issue, workspaceState }
@@ -592,6 +593,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       lastValidatedTimestamp: effectiveWantedLockfileStats.mtime.valueOf(),
       currentPnpmfiles: opts.pnpmfile,
       previousPnpmfiles: workspaceState.pnpmfiles,
+      ignorePnpmfile: opts.ignorePnpmfile,
     })
     if (issue) {
       return { upToDate: false, issue, workspaceState }
@@ -972,6 +974,7 @@ async function patchesOrHooksAreModified (opts: {
   lastValidatedTimestamp: number
   currentPnpmfiles: string[]
   previousPnpmfiles: string[]
+  ignorePnpmfile?: boolean
 }): Promise<string | undefined> {
   if (opts.patchedDependencies) {
     const allPatchStats = await Promise.all(Object.values(opts.patchedDependencies).map((patchFile) => {
@@ -983,6 +986,9 @@ async function patchesOrHooksAreModified (opts: {
     )) {
       return 'Patches were modified'
     }
+  }
+  if (opts.ignorePnpmfile) {
+    return undefined
   }
   if (!equals(opts.currentPnpmfiles, opts.previousPnpmfiles)) {
     return 'The list of pnpmfiles changed.'

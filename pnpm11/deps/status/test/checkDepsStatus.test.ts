@@ -450,6 +450,74 @@ describe('checkDepsStatus - pnpmfile modification', () => {
     expect(result.issue).toBe('pnpmfile at "pnpmfile.js" was modified')
   })
 
+  it('skips pnpmfile modification and list checks when ignorePnpmfile is true', async () => {
+    const lastValidatedTimestamp = Math.floor(Date.now() / 1000) * 1000 + 500 - 10_000
+    const beforeLastValidation = lastValidatedTimestamp - 10_000
+    const afterLastValidation = lastValidatedTimestamp + 1_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: ['pnpmfile.js'],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+    jest.mocked(fsUtils.safeStatSync).mockImplementation((filePath: string) => {
+      if (filePath === 'pnpmfile.js') {
+        return {
+          mtime: new Date(afterLastValidation),
+          mtimeMs: afterLastValidation,
+        } as Stats
+      }
+      return {
+        mtime: new Date(beforeLastValidation),
+        mtimeMs: beforeLastValidation,
+      } as Stats
+    })
+    jest.mocked(fsUtils.safeStat).mockImplementation(async () => {
+      return {
+        mtime: new Date(beforeLastValidation),
+        mtimeMs: beforeLastValidation,
+      } as Stats
+    })
+    jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => {
+      return {
+        mtime: new Date(beforeLastValidation),
+        mtimeMs: beforeLastValidation,
+      } as Stats
+    })
+    const returnEmptyLockfile = async () => ({} as LockfileObject)
+    jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(returnEmptyLockfile)
+    jest.mocked(lockfileFs.readWantedLockfile).mockImplementation(returnEmptyLockfile)
+
+    const optsWithModifiedMtime: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: mockWorkspaceState.pnpmfiles,
+      ignorePnpmfile: true,
+      ...mockWorkspaceState.settings,
+    }
+    const resultMtime = await checkDepsStatus(optsWithModifiedMtime)
+    expect(resultMtime.upToDate).toBe(true)
+    expect(resultMtime.issue).toBeUndefined()
+
+    const optsWithChangedList: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ignorePnpmfile: true,
+      ...mockWorkspaceState.settings,
+    }
+    const resultList = await checkDepsStatus(optsWithChangedList)
+    expect(resultList.upToDate).toBe(true)
+    expect(resultList.issue).toBeUndefined()
+  })
+
   it('returns upToDate: false when a patch was modified and manifests were not modified', async () => {
     const lastValidatedTimestamp = Date.now() - 10_000
     const beforeLastValidation = lastValidatedTimestamp - 10_000
