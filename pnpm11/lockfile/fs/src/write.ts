@@ -144,9 +144,12 @@ export async function writeWantedLockfileAtomic (lockfilePath: string, content: 
     await ensureLockfileIsNotSymlink(lockfilePath)
     await fs.rename(tempPath, lockfilePath)
   } finally {
-    removeTempFileOnExit()
     await tempFile?.close().catch(() => {})
     await fs.rm(tempPath, { force: true }).catch(() => {})
+    // Unregister after the removal: a signal arriving between the two
+    // finds nothing to delete, while the reverse order would leave the
+    // temp file behind.
+    removeTempFileOnExit()
   }
 }
 
