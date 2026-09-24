@@ -23,11 +23,11 @@ fn trusted_json_auth_expands_only_tokens_after_source_precedence() {
     assert_eq!(default_auth_token(&auth, "//other.example/"), Some(Some("test-token")));
     assert_eq!(
         auth.routes.json_env.get("default").map(String::as_str),
-        Some("https://registry.example/")
+        Some("https://registry.example/"),
     );
     assert_eq!(
         auth.routes.json_file.get("@org").map(String::as_str),
-        Some("https://registry.example/")
+        Some("https://registry.example/"),
     );
     assert_eq!(auth.warnings, Vec::<String>::new());
 }
