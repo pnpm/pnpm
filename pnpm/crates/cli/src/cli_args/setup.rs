@@ -232,6 +232,24 @@ const RESOLVE_SELF: &str = r#"# $0 is whatever shim or symlink the alias was lau
 # limit, so a cycle cannot hang the script. Directories come from `${self%/*}`
 # and `readlink` runs through `command -p`, so the caller's `PATH` decides
 # nothing here.
+#
+# Where no default path is compiled in, as on Nix, `command -p` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=${PATH+set}
+caller_path=${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=${rest%%:*}
+  rest=${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=${helper_path:-/}
 self=$0
 # MSYS and Cygwin can launch this with a native Windows path, which has no slash
 # for `${self%/*}` to strip. Only a drive letter or a UNC prefix marks one; a
@@ -262,7 +280,8 @@ while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
     /*) self=$link ;;
     *) self=${self%/*}/$link ;;
   esac
-done"#;
+done
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi"#;
 
 /// The `cmd.exe` and PowerShell forms of an alias, each reaching the sibling
 /// shim written for its own shell.
