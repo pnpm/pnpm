@@ -61,6 +61,7 @@ import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPru
 import { makeRunPacquet } from './runPacquet.js'
 import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 import { verifyPacquetIdentity } from './verifyPacquetIdentity.js'
+import { warnAboutNestedWorkspaceManifests } from './warnAboutNestedWorkspaceManifests.js'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -309,6 +310,7 @@ export async function installDeps (
           prefix: opts.workspaceDir,
         })
       }
+      await warnAboutNestedWorkspaceManifests(opts.workspaceDir, Object.keys(selectedProjectsGraph))
 
       const allProjectsGraph: ProjectsGraph = opts.allProjectsGraph ?? createProjectsGraph(allProjects, {
         linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),

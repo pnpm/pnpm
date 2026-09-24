@@ -96,6 +96,7 @@ mod modules_dir_with_subdirectory;
 mod multiple_importers;
 mod named_registry_install;
 mod nested_file_dependencies;
+mod nested_workspace_manifests;
 mod not_implemented;
 mod optional_dependencies;
 mod optional_peer_edges;

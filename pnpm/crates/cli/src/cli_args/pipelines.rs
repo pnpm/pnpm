@@ -358,6 +358,7 @@ fn precomputed_workspace_cycles(
 }
 
 mod install;
+mod nested_workspace_manifests;
 mod selection;
 
 mod mutation;
