@@ -102,6 +102,11 @@ fn patch_commit_writes_an_applicable_patch_when_the_last_line_loses_its_newline(
         .expect("read patched index.js");
     assert_eq!(installed, format!("{edited}\n"));
 
+    fs::remove_dir_all(&edit_dir).expect("remove edit dir");
+    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    let reapplied = fs::read_to_string(edit_dir.join("index.js")).expect("read reapplied index.js");
+    assert_eq!(reapplied, format!("{edited}\n"));
+
     drop((root, mock_instance));
 }
 
