@@ -99,3 +99,16 @@ test('a lock held on another host is taken over once it is older than the abando
   expect(lock).toBeDefined()
   await lock!.release()
 })
+
+test('a reaper lock left behind as a file does not block takeovers', async () => {
+  const lockPath = path.join(temporaryDirectory(), 'reaped.lock')
+  fs.mkdirSync(lockPath)
+  const longAgo = new Date(Date.now() - 60_000)
+  fs.utimesSync(lockPath, longAgo, longAgo)
+  fs.writeFileSync(`${lockPath}.reap`, '')
+  fs.utimesSync(`${lockPath}.reap`, longAgo, longAgo)
+
+  const lock = await DirLock.acquire(lockPath, { waitMs: 1_000, abandonedMs: 60_000 })
+  expect(lock).toBeDefined()
+  await lock!.release()
+})
