@@ -179,9 +179,14 @@ test('the staged directory is renamed into place after a WSL file lock clears', 
   const newDir = path.join(tmp, 'dest')
   // An existing target sends the import through the staging directory.
   fs.mkdirSync(newDir, { recursive: true })
-  renameOverwriteSyncMock.mockImplementationOnce(() => {
-    throw Object.assign(new Error('EACCES: permission denied, rename'), { code: 'EACCES' })
-  })
+  renameOverwriteSyncMock
+    .mockImplementationOnce(() => {
+      throw Object.assign(new Error('EACCES: permission denied, rename'), { code: 'EACCES' })
+    })
+    .mockImplementation((stage, target) => {
+      fs.rmSync(target as string, { recursive: true, force: true })
+      fs.renameSync(stage as string, target as string)
+    })
 
   importIndexedDir(
     { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
@@ -191,4 +196,5 @@ test('the staged directory is renamed into place after a WSL file lock clears', 
   )
 
   expect(renameOverwriteSyncMock).toHaveBeenCalledTimes(2)
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"pkg"}')
 })
