@@ -12,6 +12,7 @@ import {
   NoMatchingVersionError,
   RegistryResponseError,
 } from '@pnpm/resolving.npm-resolver'
+import type { PackageMetaWithTime } from '@pnpm/resolving.registry.types'
 import type { PkgResolutionId } from '@pnpm/resolving.resolver-base'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -2204,6 +2205,85 @@ test('resolveFromNpm() skips the trust check when ignoreMissingTimeField is set 
   expect(resolveResult).toStrictEqual(
     expect.objectContaining({ id: 'is-positive@3.1.0' })
   )
+})
+
+function isPositiveMetaWithTrustHistory (): PackageMetaWithTime {
+  const trustedPublisher = (version: string) => ({
+    ...isPositiveMeta.versions[version],
+    _npmUser: { name: 'GitHub Actions', trustedPublisher: { id: 'github' } },
+    dist: { ...isPositiveMeta.versions[version].dist, attestations: { provenance: { predicateType: 'https://slsa.dev/provenance/v1' } } },
+  })
+  return {
+    ...isPositiveMeta,
+    'dist-tags': { latest: '3.1.0' },
+    versions: {
+      ...isPositiveMeta.versions,
+      '3.0.0': trustedPublisher('3.0.0'),
+    },
+    time: {
+      '1.0.0': '2016-01-01T00:00:00.000Z',
+      '2.0.0': '2016-06-01T00:00:00.000Z',
+      '3.0.0': '2017-01-01T00:00:00.000Z',
+      '3.1.0': '2018-01-01T00:00:00.000Z',
+    },
+  }
+}
+
+test.each([
+  ['range', '^3.0.0'],
+  ['tag', 'latest'],
+])('resolveFromNpm() falls back past a trust downgrade under trustPolicy=no-downgrade (%s)', async (_specType, bareSpecifier) => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMetaWithTrustHistory())
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier }, { trustPolicy: 'no-downgrade' })
+
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+  expect(resolveResult!.latest).toBe('3.1.0')
+})
+
+test('resolveFromNpm() falls back past both a too-young version and a trust downgrade', async () => {
+  const meta = isPositiveMetaWithTrustHistory()
+  meta['dist-tags'].latest = '3.2.0'
+  meta.versions['3.2.0'] = { ...meta.versions['3.0.0'], version: '3.2.0' }
+  meta.time['3.2.0'] = new Date().toISOString()
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, meta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    trustPolicy: 'no-downgrade',
+    publishedBy: new Date(Date.now() - 24 * 60 * 60 * 1000),
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+})
+
+test('resolveFromNpm() fails with the trust downgrade when no other version satisfies the spec', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMetaWithTrustHistory())
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  await expect(
+    resolveFromNpm({ alias: 'is-positive', bareSpecifier: '3.1.0' }, { trustPolicy: 'no-downgrade' })
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_TRUST_DOWNGRADE' })
 })
 
 test('preferWorkspacePackages: does not engage for injected workspace packages', async () => {

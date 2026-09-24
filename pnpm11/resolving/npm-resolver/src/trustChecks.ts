@@ -1,4 +1,7 @@
+import util from 'node:util'
+
 import { PnpmError } from '@pnpm/error'
+import { filterPkgMetadataVersions } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
 import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
@@ -13,6 +16,52 @@ const TRUST_RANK = {
   trustedPublisher: 2,
   provenance: 1,
 } as const satisfies Record<TrustEvidence, number>
+
+type TrustCheckOptions = Parameters<typeof failIfTrustDowngraded>[2]
+
+export interface TrustedPick {
+  pickedPackage: PackageInRegistry
+  /** Candidates set aside as trust downgrades before `pickedPackage`, in the order they were picked. */
+  rejectedVersions: string[]
+}
+
+/**
+ * Returns `pickedPackage` when it passes {@link failIfTrustDowngraded}.
+ * Otherwise sets it aside and asks `repick` for the next candidate from the
+ * packument without it, the way `minimumReleaseAge` narrows the candidates,
+ * until one passes. Throws the first downgrade when no candidate is left.
+ *
+ * Every version is checked against the full packument: setting a version
+ * aside never removes the history that another version is compared with.
+ */
+export function pickWithoutTrustDowngrade (
+  meta: PackageMeta,
+  pickedPackage: PackageInRegistry,
+  opts: {
+    repick: (meta: PackageMeta) => PackageInRegistry | null
+    trustCheck: TrustCheckOptions
+  }
+): TrustedPick {
+  const rejectedVersions = new Set<string>()
+  let firstDowngrade: unknown
+  let candidate: PackageInRegistry | null = pickedPackage
+  while (candidate != null && !rejectedVersions.has(candidate.version)) {
+    try {
+      failIfTrustDowngraded(meta, candidate.version, opts.trustCheck)
+      return { pickedPackage: candidate, rejectedVersions: [...rejectedVersions] }
+    } catch (err: unknown) {
+      if (!isTrustDowngradeError(err)) throw err
+      firstDowngrade ??= err
+      rejectedVersions.add(candidate.version)
+    }
+    candidate = opts.repick(filterPkgMetadataVersions(meta, (version) => !rejectedVersions.has(version)))
+  }
+  throw firstDowngrade
+}
+
+function isTrustDowngradeError (err: unknown): boolean {
+  return util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_PNPM_TRUST_DOWNGRADE'
+}
 
 export function failIfTrustDowngraded (
   meta: PackageMeta,

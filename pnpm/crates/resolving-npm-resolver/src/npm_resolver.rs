@@ -30,8 +30,7 @@ mod release_policy;
 mod resolution_result;
 use release_policy::latest_allowed_by_policy;
 use resolution_result::{
-    calculated_specifier, fail_if_trust_downgraded_for_pick, is_not_found_error,
-    registry_response_status,
+    calculated_specifier, is_not_found_error, registry_response_status, trust_check_for_pick,
 };
 
 mod package_revision;
@@ -91,7 +90,7 @@ use crate::{
         pick_matching_local_version_or_null, resolve_from_local_package,
         try_resolve_from_workspace, try_resolve_from_workspace_packages,
     },
-    trust_checks::{TrustCheckOptions, fail_if_trust_downgraded},
+    trust_checks::TrustCheckOptions,
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
 };
 
@@ -245,19 +244,21 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             return Ok(Some(result));
         }
 
-        let picked = match self.pick_from_registry(&registry, &spec, opts, optional).await {
-            Ok(RegistryPick::Picked(picked)) => picked,
-            outcome => {
-                return workspace_fallback_for(
-                    outcome,
-                    wanted_dependency,
-                    &registry,
-                    workspace_packages_active,
-                    &spec,
-                    opts,
-                );
-            }
-        };
+        let trust_check = trust_check_for_pick(opts, self.cache_policy.ignore_missing_time_field);
+        let picked =
+            match self.pick_from_registry(&registry, &spec, opts, optional, trust_check).await {
+                Ok(RegistryPick::Picked(picked)) => picked,
+                outcome => {
+                    return workspace_fallback_for(
+                        outcome,
+                        wanted_dependency,
+                        &registry,
+                        workspace_packages_active,
+                        &spec,
+                        opts,
+                    );
+                }
+            };
 
         self.finish_registry_pick(
             wanted_dependency,
@@ -295,12 +296,6 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         picked: &PickedFromRegistry,
         workspace_packages_active: Option<&Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
     ) -> Result<Option<ResolveResult>, ResolveError> {
-        fail_if_trust_downgraded_for_pick(
-            opts,
-            picked,
-            self.cache_policy.ignore_missing_time_field,
-        )?;
-
         if let Some(result) =
             workspace_shadow_pick(workspace_packages_active, spec, picked, wanted_dependency, opts)
         {
@@ -365,13 +360,13 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let registry = self.registries.get("@jsr").map_or(DEFAULT_JSR_REGISTRY, String::as_str);
 
         let optional = wanted_dependency.optional.unwrap_or(false);
-        let picked = match self.pick_from_registry(registry, &jsr_spec.spec, opts, optional).await?
-        {
-            RegistryPick::Picked(picked) => picked,
-            RegistryPick::NoMatchingVersion(meta) => {
-                return Err(no_matching_version(wanted_dependency, registry, &meta));
-            }
-        };
+        let picked =
+            match self.pick_from_registry(registry, &jsr_spec.spec, opts, optional, None).await? {
+                RegistryPick::Picked(picked) => picked,
+                RegistryPick::NoMatchingVersion(meta) => {
+                    return Err(no_matching_version(wanted_dependency, registry, &meta));
+                }
+            };
 
         crate::npm_resolver::RegistryResolutionSource {
             resolved_via: JSR_REGISTRY_RESOLVED_VIA,
@@ -400,6 +395,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         spec: &RegistryPackageSpec,
         opts: &ResolveOptions,
         optional: bool,
+        trust_check: Option<TrustCheckOptions<'_>>,
     ) -> Result<RegistryPick, ResolveError> {
         let overlay_selectors =
             crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
@@ -417,6 +413,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 pick_lowest_version: opts.version.pick_lowest_version,
                 include_latest_tag: opts.refresh.update == UpdateBehavior::Latest,
                 package_version_guard: opts.policy.package_version_guard.as_ref(),
+                trust_check,
                 policy: crate::PackagePickPolicy {
                     published_by: opts.policy.published_by,
                     published_by_exclude: opts.policy.published_by_exclude.as_ref(),

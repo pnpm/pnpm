@@ -5,6 +5,7 @@ use super::{
     RegistryResponseErrorOptions, ResolveError, pick_package, redact_and_sanitize,
     registry_response_status, to_registry_url,
 };
+use crate::trust_checks::{TrustCheckOptions, TrustViolation, fail_if_trust_downgraded};
 
 /// Picker output threaded through to [`build_resolve_result`](super::resolution_result::build_resolve_result).
 /// `meta` is shared as [`Arc<Package>`] to avoid deep-cloning the
@@ -31,6 +32,11 @@ pub(crate) struct PickFromRegistryOptions<'a> {
     pub include_latest_tag: bool,
     pub package_version_guard:
         Option<&'a Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
+    /// The `trustPolicy: no-downgrade` check, when it applies to this pick.
+    /// A candidate it rejects as a trust downgrade is set aside the way a
+    /// guard rejection is, and the first downgrade is the error when no
+    /// candidate is left.
+    pub trust_check: Option<TrustCheckOptions<'a>>,
     pub policy: crate::PackagePickPolicy<'a>,
     pub request: crate::MetadataPickRequest,
 }
@@ -68,6 +74,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
     // The first candidate the guard turned down, i.e. the one the picker
     // would have returned with no guard at all.
     let mut first_rejected: Option<PickedFromRegistry> = None;
+    let mut trust_rejections = TrustRejections::default();
     loop {
         let pick_result = pick_package(ctx, opts.spec, &pick_options(&opts, &blocked_versions))
             .await
@@ -81,24 +88,45 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             // wrote.
             return match last_rejection {
                 Some(reason) => exhausted(&opts, first_rejected, reason, all_versions_blocked),
-                None => Ok(RegistryPick::NoMatchingVersion(pick_result.meta)),
+                None => match trust_rejections.first_downgrade {
+                    Some(downgrade) => Err(Box::new(downgrade)),
+                    None => Ok(RegistryPick::NoMatchingVersion(pick_result.meta)),
+                },
             };
         };
+        let version_str = version.version.to_string();
+
+        if let Some(trust_check) = &opts.trust_check {
+            // The first pick runs with nothing blocked, so its packument
+            // holds the whole publish history every candidate is judged by.
+            let full_meta =
+                trust_rejections.full_meta.get_or_insert_with(|| Arc::clone(&pick_result.meta));
+            match fail_if_trust_downgraded(full_meta, &version_str, trust_check) {
+                Ok(()) => {}
+                Err(downgrade @ TrustViolation::TrustDowngrade { .. }) => {
+                    let blocked_key =
+                        blocked_packument_key(&pick_result.meta, &version, &version_str);
+                    if repick_limit_reached(&mut blocked_versions, blocked_key).is_some() {
+                        return Err(Box::new(trust_rejections.first_downgrade.unwrap_or(
+                            downgrade,
+                        )));
+                    }
+                    trust_rejections.rejected_versions.push(version_str);
+                    trust_rejections.first_downgrade.get_or_insert(downgrade);
+                    continue;
+                }
+                Err(violation) => return Err(Box::new(violation)),
+            }
+        }
+
         let Some(guard) = opts.package_version_guard else {
-            return Ok(RegistryPick::Picked(PickedFromRegistry {
-                meta: pick_result.meta,
-                version,
-            }));
+            return Ok(trust_rejections.picked(&opts.spec.name, pick_result.meta, version));
         };
 
-        let version_str = version.version.to_string();
         let PackageVersionGuardDecision::Reject { reason } =
             guard.check(&opts.spec.name, &version_str).await?
         else {
-            return Ok(RegistryPick::Picked(PickedFromRegistry {
-                meta: pick_result.meta,
-                version,
-            }));
+            return Ok(trust_rejections.picked(&opts.spec.name, pick_result.meta, version));
         };
         log_guard_rejection(&opts.spec.name, &version_str, &reason);
         // Block by the *packument key*, which the next pick filters on. It
@@ -114,6 +142,62 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
         last_rejection = Some(reason);
         first_rejected.get_or_insert(PickedFromRegistry { meta: pick_result.meta, version });
     }
+}
+
+/// Candidates the `trustPolicy: no-downgrade` check set aside during one
+/// guarded pick.
+#[derive(Default)]
+struct TrustRejections {
+    full_meta: Option<Arc<Package>>,
+    first_downgrade: Option<TrustViolation>,
+    rejected_versions: Vec<String>,
+}
+
+impl TrustRejections {
+    /// The accepted candidate. After a trust fallback it carries the
+    /// packument from before any version was set aside, so the result
+    /// reports the same `latest` it would have without the fallback.
+    fn picked(self, name: &str, meta: Arc<Package>, version: Arc<PackageVersion>) -> RegistryPick {
+        let meta = match self.full_meta {
+            Some(full_meta) if !self.rejected_versions.is_empty() => {
+                warn_once_on_trust_downgrade_fallback(
+                    name,
+                    &version.version.to_string(),
+                    &self.rejected_versions,
+                );
+                full_meta
+            }
+            _ => meta,
+        };
+        RegistryPick::Picked(PickedFromRegistry { meta, version })
+    }
+}
+
+const MAX_WARNED_TRUST_DOWNGRADE_FALLBACKS: usize = 1024;
+static WARNED_TRUST_DOWNGRADE_FALLBACKS: std::sync::LazyLock<
+    std::sync::Mutex<indexmap::IndexSet<String>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(indexmap::IndexSet::new()));
+
+fn warn_once_on_trust_downgrade_fallback(name: &str, picked: &str, rejected_versions: &[String]) {
+    let key = format!("{name}@{picked}<{}", rejected_versions.join(","));
+    let mut warned =
+        WARNED_TRUST_DOWNGRADE_FALLBACKS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if warned.contains(&key) {
+        return;
+    }
+    if warned.len() >= MAX_WARNED_TRUST_DOWNGRADE_FALLBACKS {
+        warned.shift_remove_index(0);
+    }
+    warned.insert(key);
+    let skipped = rejected_versions
+        .iter()
+        .map(|version| format!("{name}@{version}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    tracing::warn!(
+        target: "pnpm_resolving_npm_resolver",
+        "Skipped trust downgrades rejected by trustPolicy: {skipped}. Resolved {name}@{picked} instead.",
+    );
 }
 
 /// Why the guard loop stops re-picking.
