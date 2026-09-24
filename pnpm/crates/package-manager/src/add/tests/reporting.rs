@@ -74,6 +74,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
 
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
+    config.cache_dir = dir.path().join("cache");
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
     config.registry = format!("{}/", default_registry.url());
@@ -180,6 +181,7 @@ async fn add_resolves_package_selectors_concurrently() {
     let packages = [("one", "a", 200), ("two", "b", 100), ("three", "c", 0)];
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
+    config.cache_dir = dir.path().join("cache");
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
     config.catalog_mode = pnpm_config::CatalogMode::Manual;
@@ -305,6 +307,7 @@ async fn add_reports_catalog_warnings_in_selector_order() {
     let packages = [("one", "a", 200), ("two", "b", 100), ("three", "c", 0)];
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
+    config.cache_dir = dir.path().join("cache");
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
     config.catalog_mode = pnpm_config::CatalogMode::Prefer;
@@ -413,6 +416,7 @@ async fn add_reports_resolution_errors_in_selector_order() {
     let packages = [("first", "a", 200), ("second", "b", 0)];
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
+    config.cache_dir = dir.path().join("cache");
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
     config.minimum_release_age = None;
