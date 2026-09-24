@@ -55,6 +55,7 @@ export interface DeployWorkspaceManifest {
   packages: ['.']
   patchedDependencies?: Record<string, string>
   peersSuffixMaxLength: number
+  virtualStoreDir?: string
   virtualStoreType: 'project'
 }
 

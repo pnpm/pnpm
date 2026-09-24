@@ -1,8 +1,8 @@
 use super::{
     Arc, Config, Context, DeployArgs, DeployInstallMode, DirectSpecs, LazyLockfile, Lockfile,
-    NodeLinker, NodeLinkerArg, Path, PreferredVersions, Reporter, State, WantedLockfileSelection,
-    deployed_workspace_projects, get_preferred_versions_from_lockfile_and_manifests,
-    resolve_bool_override, warn,
+    NodeLinker, NodeLinkerArg, Path, PathBuf, PreferredVersions, Reporter, State,
+    WantedLockfileSelection, deployed_workspace_projects,
+    get_preferred_versions_from_lockfile_and_manifests, resolve_bool_override, warn,
 };
 
 /// The lockfile a shared deploy generates records no
@@ -94,6 +94,27 @@ pub(super) fn legacy_deploy_preferred_versions<ReporterT: Reporter>(
     }
 }
 
+/// The `virtualStoreDir` a deploy honours, as configured. With a global
+/// virtual store it names that shared store, which the self-contained
+/// deploy must not write into.
+pub(super) fn configured_virtual_store_dir(config: &Config) -> Option<&str> {
+    config.explicit_settings
+        .get("virtualStoreDir")
+        .and_then(serde_json::Value::as_str)
+        .filter(|_| !config.enable_global_virtual_store)
+}
+
+/// The deploy directory is the deploy install's lockfile directory, so a
+/// configured `virtualStoreDir` resolves against it as it resolves against
+/// the source lockfile directory in an install: a relative value lands in
+/// the deploy directory, an absolute one stays where it points.
+fn deploy_virtual_store_dir(base_config: &Config, deploy_dir: &Path) -> PathBuf {
+    match configured_virtual_store_dir(base_config) {
+        Some(raw) => deploy_dir.join(raw),
+        None => deploy_dir.join("node_modules").join(".pnpm"),
+    }
+}
+
 pub(super) fn create_deploy_install_config(
     base_config: &Config,
     deploy_dir: &Path,
@@ -101,7 +122,7 @@ pub(super) fn create_deploy_install_config(
 ) -> Config {
     let mut deploy_config = base_config.clone();
     deploy_config.modules_dir = deploy_dir.join("node_modules");
-    deploy_config.virtual_store_dir = deploy_dir.join("node_modules").join(".pnpm");
+    deploy_config.virtual_store_dir = deploy_virtual_store_dir(base_config, deploy_dir);
     // The deploy directory owns the lockfile this install runs against —
     // the generated one for a shared deploy, its own resolution for the
     // legacy path. A `lockfileDir` pinning the *source* workspace's

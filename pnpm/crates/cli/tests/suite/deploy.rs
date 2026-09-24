@@ -998,3 +998,5 @@ mod peers;
 mod target;
 
 mod dependency_groups;
+
+mod virtual_store;
