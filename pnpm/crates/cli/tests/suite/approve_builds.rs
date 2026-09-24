@@ -214,6 +214,7 @@ fn non_interactive_install_does_not_scaffold_allow_builds() {
     let before = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
 
     pacquet(&workspace)
+        .with_env("CI", "false")
         .with_arg("install")
         .assert()
         .success();
