@@ -1,0 +1,80 @@
+/// <reference path="../../../__typings__/index.d.ts" />
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { beforeEach, expect, jest, test } from '@jest/globals'
+import { assertProject } from '@pnpm/assert-project'
+import { prepareEmpty } from '@pnpm/prepare'
+import { readYamlFileSync } from 'read-yaml-file'
+
+import { DEFAULT_OPTS } from './utils/index.js'
+
+const originalModule = await import('@pnpm/logger')
+jest.unstable_mockModule('@pnpm/logger', () => ({
+  ...originalModule,
+  globalWarn: jest.fn(),
+}))
+const { globalWarn } = await import('@pnpm/logger')
+const { importCommand } = await import('@pnpm/installing.commands')
+
+const IS_POSITIVE_PATCH = path.join(import.meta.dirname, '../../deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch')
+
+const PATCH_PATH = '.yarn/patches/is-positive-npm-1.0.0-0a1b2c3d4e.patch'
+
+const YARN_LOCKFILE = `__metadata:
+  version: 8
+  cacheKey: 10c0
+
+"is-positive@npm:1.0.0":
+  version: 1.0.0
+  resolution: "is-positive@npm:1.0.0"
+  languageName: node
+  linkType: hard
+`
+
+beforeEach(() => {
+  jest.mocked(globalWarn).mockClear()
+})
+
+function prepareYarnProject (): void {
+  prepareEmpty()
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'root',
+    dependencies: { 'is-positive': `patch:is-positive@npm%3A1.0.0#~/${PATCH_PATH}` },
+  }))
+  fs.writeFileSync('yarn.lock', YARN_LOCKFILE)
+}
+
+function readManifest (): { dependencies: Record<string, string> } {
+  return JSON.parse(fs.readFileSync('package.json', 'utf8'))
+}
+
+test('import converts a yarn patch into patchedDependencies', async () => {
+  prepareYarnProject()
+  fs.mkdirSync(path.dirname(PATCH_PATH), { recursive: true })
+  fs.copyFileSync(IS_POSITIVE_PATCH, PATCH_PATH)
+
+  await importCommand.handler({ ...DEFAULT_OPTS, dir: process.cwd() }, [])
+
+  expect(readManifest().dependencies['is-positive']).toBe('1.0.0')
+  expect(readYamlFileSync<{ patchedDependencies: Record<string, string> }>('pnpm-workspace.yaml').patchedDependencies)
+    .toStrictEqual({ 'is-positive@1.0.0': PATCH_PATH })
+  const lockfile = assertProject(process.cwd()).readLockfile()
+  expect(Object.keys(lockfile.patchedDependencies ?? {})).toStrictEqual(['is-positive@1.0.0'])
+  expect(lockfile.importers['.'].dependencies?.['is-positive'].version).toMatch(/^1\.0\.0\(patch_hash=/)
+  expect(globalWarn).not.toHaveBeenCalled()
+})
+
+test('import warns about a missing yarn patch file', async () => {
+  prepareYarnProject()
+
+  await importCommand.handler({ ...DEFAULT_OPTS, dir: process.cwd() }, [])
+
+  expect(readManifest().dependencies['is-positive']).toBe('1.0.0')
+  expect(fs.existsSync('pnpm-workspace.yaml')).toBe(false)
+  const lockfile = assertProject(process.cwd()).readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['is-positive'].version).toBe('1.0.0')
+  expect(globalWarn).toHaveBeenCalledWith(
+    `The patch file ${path.resolve(PATCH_PATH)} of "is-positive" does not exist. "is-positive" was imported without the patch.`
+  )
+})

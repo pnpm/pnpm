@@ -1,0 +1,58 @@
+use super::YarnPatchSpecifier;
+use pretty_assertions::assert_eq;
+
+fn parse(specifier: &str) -> (String, String, String) {
+    let patch = YarnPatchSpecifier::parse(specifier).expect("a patch: specifier");
+    (patch.specifier, patch.patch_key, patch.patch_path)
+}
+
+fn owned(specifier: &str, patch_key: &str, patch_path: &str) -> (String, String, String) {
+    (specifier.to_string(), patch_key.to_string(), patch_path.to_string())
+}
+
+#[test]
+fn parses_a_yarn_4_patch_of_a_registry_version() {
+    assert_eq!(
+        parse(
+            "patch:jest-runtime@npm%3A29.7.0#~/.yarn/patches/jest-runtime-npm-29.7.0-120fa64128.patch"
+        ),
+        owned(
+            "29.7.0",
+            "jest-runtime@29.7.0",
+            "~/.yarn/patches/jest-runtime-npm-29.7.0-120fa64128.patch",
+        ),
+    );
+}
+
+#[test]
+fn parses_a_scoped_patch_with_yarn_3_parameters() {
+    assert_eq!(
+        parse(
+            "patch:@scope/pkg@npm%3A%5E1.2.0#./.yarn/patches/pkg.patch::version=1.2.3&hash=abc&locator=root%40workspace%3A."
+        ),
+        owned("^1.2.0", "@scope/pkg@^1.2.0", "./.yarn/patches/pkg.patch"),
+    );
+}
+
+#[test]
+fn keys_an_aliased_patch_by_the_real_package() {
+    assert_eq!(
+        parse("patch:foo@npm%3A@scope/bar@1.0.0#~/foo.patch"),
+        owned("npm:@scope/bar@1.0.0", "@scope/bar@1.0.0", "~/foo.patch"),
+    );
+}
+
+#[test]
+fn keys_a_non_registry_patch_by_name() {
+    assert_eq!(
+        parse("patch:foo@https%3A//example.com/foo.tgz#~/foo.patch"),
+        owned("https://example.com/foo.tgz", "foo", "~/foo.patch"),
+    );
+}
+
+#[test]
+fn ignores_other_protocols() {
+    assert_eq!(YarnPatchSpecifier::parse("npm:foo@1.0.0"), None);
+    assert_eq!(YarnPatchSpecifier::parse("^1.0.0"), None);
+    assert_eq!(YarnPatchSpecifier::parse("patch:foo"), None);
+}
