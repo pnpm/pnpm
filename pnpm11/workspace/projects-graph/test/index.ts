@@ -953,6 +953,7 @@ test('create graph with dependencies declared through npm aliases', () => {
           'baz-file': 'npm:baz@file:../bar@2',
           'baz-link': 'npm:baz@link:../bar@2',
           'baz-path': 'npm:baz@../bar@2',
+          'foo-bad-revision': 'npm:foo@1.2.0+r01',
         },
       },
     },
