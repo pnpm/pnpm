@@ -1800,6 +1800,7 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
     siblingDevBarVersion?: string
     include?: IncludedDependencies
     modulesDir?: string
+    packageConfigs?: CheckDepsStatusOptions['packageConfigs']
     /** The modules directory the sibling has, if any. */
     siblingModulesDir?: string
   }
@@ -1814,6 +1815,7 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
     siblingDevBarVersion,
     include,
     modulesDir,
+    packageConfigs,
     siblingModulesDir,
   }: DedupedSibling) {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-dedupe-'))
@@ -1902,6 +1904,7 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
         pnpmfile: [],
         include,
         modulesDir,
+        packageConfigs,
         ...mockWorkspaceState.settings,
       }
       return await checkDepsStatus(opts)
@@ -1920,6 +1923,17 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
 
   it('is up to date when the sibling has the custom modules directory', async () => {
     const result = await checkWithDedupe({ dedupeDirectDeps: false, modulesDir: 'vendor', siblingModulesDir: 'vendor' })
+    expect(result.issue).toBeUndefined()
+    expect(result.upToDate).toBe(true)
+  })
+
+  it('is up to date when the sibling has the modules directory its packageConfigs entry names', async () => {
+    const result = await checkWithDedupe({
+      dedupeDirectDeps: false,
+      modulesDir: 'vendor',
+      packageConfigs: { 'pkg-a': { modulesDir: 'deps' } },
+      siblingModulesDir: 'deps',
+    })
     expect(result.issue).toBeUndefined()
     expect(result.upToDate).toBe(true)
   })

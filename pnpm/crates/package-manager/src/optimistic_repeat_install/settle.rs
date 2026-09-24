@@ -240,8 +240,7 @@ pub(super) fn first_project_missing_modules_dir(
     project_manifests
         .iter()
         .find_map(|(root_dir, manifest)| {
-            let root_project_dir = workspace_dir_of(config, root_dir);
-            let is_root = *root_dir == root_project_dir;
+            let is_root = lexical_normalize(root_dir) == lexical_normalize(workspace_root);
             let installed = !manifest_has_runtime_deps(manifest)
                 || modules_dir_exists(node_linker, is_root, root_modules_dir_exists, || {
                     sibling_modules_dir(config, root_dir, manifest)
@@ -254,7 +253,7 @@ pub(super) fn first_project_missing_modules_dir(
                         &included_groups(included),
                         DedupeImporters {
                             lockfile_root: workspace_root,
-                            root_dir: &root_project_dir,
+                            root_dir: workspace_root,
                             sibling_dir: root_dir,
                         },
                     ));
@@ -389,13 +388,4 @@ fn resolves_to_same_target(
         (None, None) => root_dep.version == dep.version,
         _ => false,
     }
-}
-/// Recover the workspace root from `config.modules_dir`. The root
-/// importer's `root_dir` equals `config.modules_dir.parent()` because
-/// `config.modules_dir` is `<workspace_root>/node_modules`. Used by
-/// [`modules_dirs_present`] to tell root from sibling — a brittle
-/// shape but it matches how the install path itself derives
-/// `config.modules_dir`.
-pub(super) fn workspace_dir_of(config: &Config, fallback: &Path) -> PathBuf {
-    config.modules_dir.parent().map_or_else(|| fallback.to_path_buf(), Path::to_path_buf)
 }
