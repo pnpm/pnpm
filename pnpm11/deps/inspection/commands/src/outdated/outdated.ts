@@ -245,6 +245,8 @@ export async function handler (
         compatible: opts.compatible,
         dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         match: params.length > 0 ? createMatcher(params.map(normalizeGitHubActionSelector)) : undefined,
+        minimumReleaseAge: opts.minimumReleaseAge,
+        minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
         serverUrl: opts.updateConfig?.githubActionsServer,
       }),
   ])

@@ -1,11 +1,16 @@
 import fs from 'node:fs/promises'
 import { isIP } from 'node:net'
+import os from 'node:os'
 import path from 'node:path'
 import util from 'node:util'
 
+import { getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { PnpmError, redactAndSanitize, redactUrlForDisplay } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
+import { nonInteractiveGitEnv } from '@pnpm/network.git-utils'
 import { getRepoRefs } from '@pnpm/resolving.git-resolver'
+import type { PackageVersionPolicy } from '@pnpm/types'
+import { safeExeca as execa } from 'execa'
 import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
 import semver from 'semver'
@@ -24,6 +29,20 @@ export interface GitHubActionsOptions {
   dir: string
   match?: (name: string) => boolean
   readRepoRefs?: (repo: string) => Promise<Record<string, string>>
+  /**
+   * Reads the creation dates of tags of a repository. Defaults to fetching
+   * the tags without their trees.
+   */
+  readTagDates?: (repo: string, tags: string[]) => Promise<Record<string, Date>>
+  /**
+   * Versions tagged fewer than this many minutes ago are not offered.
+   */
+  minimumReleaseAge?: number
+  /**
+   * Actions exempt from `minimumReleaseAge`, matched against the action and
+   * repository names.
+   */
+  minimumReleaseAgeExclude?: string[]
   /**
    * The base URL of the GitHub server hosting the action repositories.
    * Defaults to the `GITHUB_SERVER_URL` environment variable, or
@@ -175,8 +194,9 @@ async function createUpdatePlan (opts: GitHubActionsOptions): Promise<PlannedUpd
   const selected = opts.match == null ? actions : actions.filter((action) => opts.match!(action.name) || opts.match!(action.repo))
   const serverUrl = resolveServerUrl(opts.serverUrl)
   const readRepoRefs = opts.readRepoRefs ?? (async (repo: string) => getRepoRefs(`${serverUrl}/${repo}.git`, null))
+  const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
   const refsByRepo = new Map<string, Promise<RepoVersion[]>>()
-  return (await Promise.all(selected.map(async (action): Promise<PlannedUpdate | null> => {
+  const resolved = await Promise.all(selected.map(async (action) => {
     let versionsPromise = refsByRepo.get(action.repo)
     if (versionsPromise == null) {
       versionsPromise = limitRepoReads(async () => {
@@ -192,17 +212,108 @@ async function createUpdatePlan (opts: GitHubActionsOptions): Promise<PlannedUpd
       refsByRepo.set(action.repo, versionsPromise)
     }
     const versions = await versionsPromise
-    const current = findCurrentVersion(action, versions)
+    return { action, versions, current: findCurrentVersion(action, versions) }
+  }))
+  const exempt = (action: ActionReference, candidate: RepoVersion) =>
+    publishedByExclude != null && isExempt(publishedByExclude, action, candidate.version)
+  const datesByRepo = publishedBy == null
+    ? new Map<string, Record<string, Date> | null>()
+    : await readTagDatesByRepo(resolved, exempt, opts.readTagDates ?? (async (repo, tags) => readTagDates(`${serverUrl}/${repo}.git`, tags)))
+  return resolved.map(({ action, versions, current }): PlannedUpdate | null => {
     if (current == null) return null
+    const dates = datesByRepo.get(action.repo)
+    if (dates === null) return null
+    const admits = (candidate: RepoVersion) => publishedBy == null ||
+      semver.lte(candidate.version, current.version) ||
+      exempt(action, candidate) ||
+      (dates?.[candidate.tag] != null && dates[candidate.tag] <= publishedBy)
     const stable = versions.filter(({ version }) => version.prerelease.length === 0)
-    const candidates = current.version.prerelease.length === 0 ? stable : versions
+    const candidates = (current.version.prerelease.length === 0 ? stable : versions).filter(admits)
     const latest = candidates.at(-1)
     const wanted = candidates
       .filter(({ version }) => semver.satisfies(version, `^${current.version.version}`))
       .at(-1)
     if (latest == null || wanted == null) return null
     return { action, current, latest, wanted }
-  }))).filter((plan): plan is PlannedUpdate => plan != null)
+  }).filter((plan): plan is PlannedUpdate => plan != null)
+}
+
+/**
+ * The creation dates of the tags newer than the version an action is on, per
+ * repository. A repository whose dates cannot be read maps to `null` and is
+ * skipped with a warning, so none of its versions is offered without its age
+ * being known.
+ */
+async function readTagDatesByRepo (
+  resolved: Array<{ action: ActionReference, versions: RepoVersion[], current: RepoVersion | null }>,
+  exempt: (action: ActionReference, candidate: RepoVersion) => boolean,
+  read: (repo: string, tags: string[]) => Promise<Record<string, Date>>
+): Promise<Map<string, Record<string, Date> | null>> {
+  const tagsByRepo = new Map<string, Set<string>>()
+  for (const { action, versions, current } of resolved) {
+    if (current == null) continue
+    const tags = tagsByRepo.get(action.repo) ?? new Set<string>()
+    for (const candidate of versions) {
+      if (
+        semver.gt(candidate.version, current.version) &&
+        (current.version.prerelease.length > 0 || candidate.version.prerelease.length === 0) &&
+        !exempt(action, candidate)
+      ) tags.add(candidate.tag)
+    }
+    tagsByRepo.set(action.repo, tags)
+  }
+  const entries = await Promise.all([...tagsByRepo].filter(([, tags]) => tags.size > 0).map(async ([repo, tags]) => limitRepoReads(async (): Promise<[string, Record<string, Date> | null]> => {
+    try {
+      return [repo, await read(repo, [...tags].sort())]
+    } catch (err: unknown) {
+      globalWarn(redactAndSanitize(`Skipping the GitHub Actions from "${repo}": cannot read the release dates that minimumReleaseAge needs: ${util.types.isNativeError(err) ? err.message : String(err)}`))
+      return [repo, null]
+    }
+  })))
+  return new Map(entries)
+}
+
+function isExempt (exclude: PackageVersionPolicy, action: ActionReference, version: semver.SemVer): boolean {
+  return [action.name, action.repo].some((name) => {
+    const match = exclude(name)
+    return Array.isArray(match) ? match.some((excluded) => semver.eq(excluded, version, { loose: true })) : match
+  })
+}
+
+/**
+ * `git ls-remote` lists tags without dates, so the tags are fetched shallowly
+ * and without trees into a scratch repository, where each one's creation
+ * date can be read: the tagger date of an annotated tag, the committer date of
+ * a lightweight one.
+ *
+ * Whoever creates a tag or commit sets these dates, and the server does not
+ * check them, so a backdated tag passes. Unlike a registry's publish time,
+ * they hold back only releases that carry their real date.
+ */
+async function readTagDates (repoUrl: string, tags: string[]): Promise<Record<string, Date>> {
+  const scratch = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-github-actions-'))
+  try {
+    const env = await nonInteractiveGitEnv()
+    await execa('git', ['init', '--quiet', '--bare'], { cwd: scratch, env })
+    const input = tags.map((tag) => `refs/tags/${tag}:refs/tags/${tag}\n`).join('')
+    const fetchArgs = ['fetch', '--quiet', '--depth=1', '--filter=tree:0', '--no-tags', '--no-write-fetch-head', '--stdin', repoUrl]
+    try {
+      await execa('git', fetchArgs, { cwd: scratch, env, input })
+    } catch {
+      // One retry, like `git ls-remote`.
+      await execa('git', fetchArgs, { cwd: scratch, env, input })
+    }
+    const { stdout } = await execa('git', ['for-each-ref', '--format=%(creatordate:unix) %(refname:strip=2)', 'refs/tags'], { cwd: scratch, env })
+    const dates: Record<string, Date> = {}
+    for (const line of (stdout as string).split('\n')) {
+      const separator = line.indexOf(' ')
+      const seconds = Number(line.slice(0, separator))
+      if (separator > 0 && Number.isInteger(seconds)) dates[line.slice(separator + 1)] = new Date(seconds * 1000)
+    }
+    return dates
+  } finally {
+    await fs.rm(scratch, { force: true, recursive: true })
+  }
 }
 
 async function discoverActions (dir: string): Promise<ActionReference[]> {

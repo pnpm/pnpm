@@ -169,6 +169,7 @@ async fn updates_workflow_files_without_reformatting_them() {
         None,
         "https://github.com",
         &FakeGitRunner,
+        None,
     )
     .await
     .expect("update actions");
@@ -207,6 +208,7 @@ async fn follows_self_repository_references_to_local_actions() {
         None,
         "https://github.com",
         &FakeGitRunner,
+        None,
     )
     .await
     .expect("outdated");
@@ -235,6 +237,7 @@ async fn compatible_outdated_stays_on_the_current_compatibility_line() {
         None,
         "https://github.com",
         &FakeGitRunner,
+        None,
     )
     .await
     .expect("default outdated");
@@ -244,6 +247,7 @@ async fn compatible_outdated_stays_on_the_current_compatibility_line() {
         None,
         "https://github.com",
         &FakeGitRunner,
+        None,
     )
     .await
     .expect("compatible outdated");
@@ -267,6 +271,7 @@ async fn keeps_pre_one_updates_caret_compatible_unless_latest_is_requested() {
         None,
         "https://github.com",
         &PreOneGitRunner,
+        None,
     )
     .await
     .expect("compatible outdated");
@@ -278,6 +283,7 @@ async fn keeps_pre_one_updates_caret_compatible_unless_latest_is_requested() {
         None,
         "https://github.com",
         &PreOneGitRunner,
+        None,
     )
     .await
     .expect("compatible update");
@@ -293,6 +299,7 @@ async fn keeps_pre_one_updates_caret_compatible_unless_latest_is_requested() {
         None,
         "https://github.com",
         &PreOneGitRunner,
+        None,
     )
     .await
     .expect("latest update");
@@ -321,6 +328,7 @@ async fn rejects_workflow_symlinks_outside_the_project() {
         None,
         "https://github.com",
         &FakeGitRunner,
+        None,
     )
     .await
     else {
@@ -351,6 +359,7 @@ async fn reports_local_action_lookup_errors() {
         None,
         "https://github.com",
         &FakeGitRunner,
+        None,
     )
     .await
     else {
@@ -378,6 +387,7 @@ async fn does_not_mutate_an_external_hardlink_target() {
         None,
         "https://github.com",
         &FakeGitRunner,
+        None,
     )
     .await
     .expect("update actions");
@@ -431,6 +441,7 @@ async fn reads_refs_from_the_configured_server_and_uses_it_in_homepages() {
         None,
         "https://github.example.com",
         &runner,
+        None,
     )
     .await
     .expect("outdated actions");
@@ -490,6 +501,7 @@ async fn skips_repositories_whose_refs_cannot_be_read_and_warns() {
         None,
         "https://github.com",
         &PartiallyBrokenGitRunner,
+        None,
     )
     .await
     .expect("outdated actions");
@@ -516,9 +528,14 @@ async fn skips_repositories_whose_refs_cannot_be_read_and_warns() {
 async fn rejects_a_server_url_that_is_not_http() {
     let root = tempfile::tempdir().expect("temp directory");
 
-    let Err(error) =
-        super::find_outdated::<SilentReporter>(root.path(), false, None, Some("ext::sh -c date"))
-            .await
+    let Err(error) = super::find_outdated::<SilentReporter>(
+        root.path(),
+        false,
+        None,
+        Some("ext::sh -c date"),
+        None,
+    )
+    .await
     else {
         panic!("non-http server URL must be rejected");
     };
@@ -527,4 +544,5 @@ async fn rejects_a_server_url_that_is_not_http() {
 }
 
 mod concurrent_edits;
+mod release_age;
 mod server_urls;

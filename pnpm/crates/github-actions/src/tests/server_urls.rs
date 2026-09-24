@@ -47,6 +47,7 @@ async fn homepages_do_not_expose_server_credentials() {
         None,
         "https://user:secret@github.example.com",
         &FakeGitRunner,
+        None,
     )
     .await
     .expect("outdated");
