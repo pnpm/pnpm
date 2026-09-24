@@ -47,43 +47,6 @@ impl CustomFetcherSession {
         Self { picker: CustomFetcherPicker::new(fetchers), completed: Mutex::new(HashMap::new()) }
     }
 
-    fn find_completed(
-        &self,
-        package_id: &str,
-        locked: Option<&Integrity>,
-        original: &LockfileResolution,
-        opts: &Value,
-    ) -> Option<Arc<FetchedTarball>> {
-        let integrity = locked?;
-        let integrity_str = integrity.to_string();
-        let completed = self.completed.lock().unwrap();
-        if let Some(tarball) = completed
-            .get(&(package_id.to_owned(), integrity_str.clone()))
-            .cloned()
-        {
-            return Some(tarball);
-        }
-        if let LockfileResolution::Tarball(tarball) = original
-            && tarball.tarball != package_id
-            && let Some(hit) = completed
-                .get(&(tarball.tarball.clone(), integrity_str.clone()))
-                .cloned()
-        {
-            return Some(hit);
-        }
-        let pkg = opts.get("pkg")?;
-        let name = pkg.get("name")?.as_str()?;
-        let version = pkg.get("version")?.as_str()?;
-        let name_ver_id = format!("{name}@{version}");
-        (name_ver_id != package_id)
-            .then(|| {
-                completed
-                    .get(&(name_ver_id, integrity_str))
-                    .cloned()
-            })
-            .flatten()
-    }
-
     pub(crate) async fn fetch<Reporter: self::Reporter>(
         &self,
         download: IngestTarballToStore<'_>,
@@ -92,13 +55,19 @@ impl CustomFetcherSession {
     ) -> Result<CustomFetchOutcome, InstallPackageBySnapshotError> {
         let package_id = download.package.id;
         let locked = original.checkable_integrity();
-        if let Some(tarball) = self.find_completed(package_id, locked, original, &opts) {
-            return Ok(CustomFetchOutcome::Fetched { resolution: original.clone(), tarball });
-        }
         let download = IngestTarballToStore {
             package: pnpm_tarball::TarballPackage { integrity: locked, ..download.package },
             ..download
         };
+        if let Some(integrity) = locked
+            && let Some(tarball) = self.completed
+                .lock()
+                .unwrap()
+                .get(&(package_id.to_owned(), integrity.to_string()))
+                .cloned()
+        {
+            return Ok(CustomFetchOutcome::Fetched { resolution: original.clone(), tarball });
+        }
         let selection = self.picker
             .pick_fetcher(package_id, &serde_json::json!(original))
             .await
@@ -122,19 +91,6 @@ impl CustomFetcherSession {
         )
         .await?;
         decode_fetch_outcome(result, verified, selected_resolution, locked, package_id)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn register_completed_for_test(
-        &self,
-        package_id: &str,
-        integrity: &ssri::Integrity,
-        tarball: Arc<FetchedTarball>,
-    ) {
-        self.completed
-            .lock()
-            .unwrap()
-            .insert((package_id.to_owned(), integrity.to_string()), tarball);
     }
 }
 
