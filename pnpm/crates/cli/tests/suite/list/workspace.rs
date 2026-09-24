@@ -240,6 +240,32 @@ fn list_is_recursive_by_default_inside_workspace() {
 }
 
 #[test]
+fn list_inside_workspace_package_scopes_to_current_project() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", json!({ "name": "project-1", "version": "1.0.0" })),
+            ("project-2", json!({ "name": "project-2", "version": "1.0.0" })),
+        ],
+    );
+
+    let output =
+        run_ok(&workspace.join("packages/project-1"), &["list", "--depth", "-1", "--json"]);
+    let packages: Vec<Value> = serde_json::from_str(&output).expect("parse list JSON");
+    assert_eq!(packages.len(), 1);
+    assert_eq!(packages[0]["name"], "project-1");
+
+    let recursive_output =
+        run_ok(&workspace.join("packages/project-1"), &["list", "-r", "--depth", "-1", "--json"]);
+    let recursive_packages: Vec<Value> =
+        serde_json::from_str(&recursive_output).expect("parse recursive list JSON");
+    assert_eq!(recursive_packages.len(), 3);
+
+    drop(root);
+}
+
+#[test]
 fn recursive_list_depth_minus_one_json_keeps_project_only_output_with_package_params() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(

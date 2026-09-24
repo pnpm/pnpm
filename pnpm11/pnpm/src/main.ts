@@ -257,9 +257,14 @@ export async function main (inputArgv: string[]): Promise<void> {
     }
   }
 
+  const isWorkspaceSubdirectory = typeof workspaceDir === 'string' &&
+    path.resolve(config.dir) !== path.resolve(workspaceDir)
+  const isListCommand = cmd === 'list' || cmd === 'll'
+
   if (
     cmd != null && recursiveByDefaultCommands.has(cmd) &&
-    typeof workspaceDir === 'string'
+    typeof workspaceDir === 'string' &&
+    !(isListCommand && isWorkspaceSubdirectory)
   ) {
     cliOptions['recursive'] = true
     config.recursive = true
@@ -270,6 +275,7 @@ export async function main (inputArgv: string[]): Promise<void> {
   }
 
   if (cliOptions['recursive']) {
+    config.recursive = true
     const wsDir = workspaceDir ?? process.cwd()
 
     config.filter = config.filter ?? []

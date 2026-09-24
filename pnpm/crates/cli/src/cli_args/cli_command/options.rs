@@ -157,8 +157,13 @@ impl CliArgs {
         if !self.workspace.recursive
             && !self.paths.ignore_workspace
             && self.command.recursive_by_default()
-            && pnpm_workspace::find_workspace_dir(&dir).is_ok_and(|dir| dir.is_some())
+            && let Ok(Some(workspace_dir)) = pnpm_workspace::find_workspace_dir(&dir)
         {
+            if matches!(self.command, CliCommand::List(_) | CliCommand::Ll(_))
+                && dir != resolve_real_dir(&workspace_dir)
+            {
+                return;
+            }
             self.workspace.recursive = true;
         }
     }

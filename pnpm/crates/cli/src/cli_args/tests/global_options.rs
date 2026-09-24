@@ -432,6 +432,34 @@ fn recursive_by_default_command_is_promoted_inside_workspace() {
 }
 
 #[test]
+fn list_stays_non_recursive_in_workspace_subdirectory() {
+    let workspace = tempfile::tempdir().expect("creates workspace");
+    std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages:\n  - 'packages/*'\n")
+        .expect("writes workspace manifest");
+    let pkg_dir = workspace.path().join("packages/pkg");
+    std::fs::create_dir_all(&pkg_dir).expect("creates package dir");
+    std::fs::write(pkg_dir.join("package.json"), r#"{"name": "pkg", "version": "1.0.0"}"#)
+        .expect("writes package.json");
+
+    for command in ["list", "ll"] {
+        let mut parsed = CliArgs::try_parse_from([
+            "pacquet",
+            "--dir",
+            pkg_dir.to_str().expect("UTF-8 path"),
+            command,
+        ])
+        .expect("parses");
+
+        parsed.promote_recursive_by_default();
+
+        assert!(
+            !parsed.workspace.recursive,
+            "{command} should not be promoted to recursive in a workspace subdirectory",
+        );
+    }
+}
+
+#[test]
 fn color_accepts_modes_and_boolean_spellings() {
     for (value, expected) in [
         ("always", ColorMode::Always),
