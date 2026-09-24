@@ -1,13 +1,17 @@
 use super::YarnPatchSpecifier;
 use pretty_assertions::assert_eq;
 
-fn parse(specifier: &str) -> (String, String, String) {
+fn parse(specifier: &str) -> (String, String, Vec<String>) {
     let patch = YarnPatchSpecifier::parse(specifier).expect("a patch: specifier");
-    (patch.specifier, patch.patch_key, patch.patch_path)
+    (patch.specifier, patch.patch_key, patch.patch_paths)
 }
 
-fn owned(specifier: &str, patch_key: &str, patch_path: &str) -> (String, String, String) {
-    (specifier.to_string(), patch_key.to_string(), patch_path.to_string())
+fn owned(specifier: &str, patch_key: &str, patch_paths: &[&str]) -> (String, String, Vec<String>) {
+    let patch_paths = patch_paths
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    (specifier.to_string(), patch_key.to_string(), patch_paths)
 }
 
 #[test]
@@ -19,7 +23,7 @@ fn parses_a_yarn_4_patch_of_a_registry_version() {
         owned(
             "29.7.0",
             "jest-runtime@29.7.0",
-            "~/.yarn/patches/jest-runtime-npm-29.7.0-120fa64128.patch",
+            &["~/.yarn/patches/jest-runtime-npm-29.7.0-120fa64128.patch"],
         ),
     );
 }
@@ -30,7 +34,7 @@ fn parses_a_scoped_patch_with_yarn_3_parameters() {
         parse(
             "patch:@scope/pkg@npm%3A%5E1.2.0#./.yarn/patches/pkg.patch::version=1.2.3&hash=abc&locator=root%40workspace%3A."
         ),
-        owned("^1.2.0", "@scope/pkg@^1.2.0", "./.yarn/patches/pkg.patch"),
+        owned("^1.2.0", "@scope/pkg@^1.2.0", &["./.yarn/patches/pkg.patch"]),
     );
 }
 
@@ -38,7 +42,7 @@ fn parses_a_scoped_patch_with_yarn_3_parameters() {
 fn keys_an_aliased_patch_by_the_real_package() {
     assert_eq!(
         parse("patch:foo@npm%3A@scope/bar@1.0.0#~/foo.patch"),
-        owned("npm:@scope/bar@1.0.0", "@scope/bar@1.0.0", "~/foo.patch"),
+        owned("npm:@scope/bar@1.0.0", "@scope/bar@1.0.0", &["~/foo.patch"]),
     );
 }
 
@@ -46,7 +50,21 @@ fn keys_an_aliased_patch_by_the_real_package() {
 fn keys_a_non_registry_patch_by_name() {
     assert_eq!(
         parse("patch:foo@https%3A//example.com/foo.tgz#~/foo.patch"),
-        owned("https://example.com/foo.tgz", "foo", "~/foo.patch"),
+        owned("https://example.com/foo.tgz", "foo", &["~/foo.patch"]),
+    );
+}
+
+#[test]
+fn splits_several_patches_and_skips_yarn_builtins() {
+    assert_eq!(
+        parse(
+            "patch:typescript@npm%3A5.0.0#optional!builtin<compat/typescript>&./a.patch&./b.patch"
+        ),
+        owned("5.0.0", "typescript@5.0.0", &["./a.patch", "./b.patch"]),
+    );
+    assert_eq!(
+        parse("patch:resolve@npm%3A1.22.0#builtin<compat/resolve>"),
+        owned("1.22.0", "resolve@1.22.0", &[]),
     );
 }
 

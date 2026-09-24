@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { writeSettings } from '@pnpm/config.writer'
 import { globalWarn } from '@pnpm/logger'
@@ -19,10 +20,11 @@ export interface YarnPatchSpecifier {
   /** The `patchedDependencies` key selecting the patched package. */
   patchKey: string
   /**
-   * The patch file path as Yarn recorded it. A `~/` prefix is relative to the
-   * Yarn project root, any other path to the declaring project.
+   * The patch file paths as Yarn recorded them, without Yarn's builtin
+   * compatibility patches. A `~/` prefix is relative to the Yarn project root,
+   * any other path to the declaring project.
    */
-  patchPath: string
+  patchPaths: string[]
 }
 
 export function parseYarnPatchSpecifier (specifier: string): YarnPatchSpecifier | undefined {
@@ -31,15 +33,22 @@ export function parseYarnPatchSpecifier (specifier: string): YarnPatchSpecifier 
   if (source == null) return undefined
   const [name, range] = splitDescriptor(source) ?? []
   if (name == null || range == null) return undefined
+  const patchPaths = selector.split('&').filter((patchPath) => !isBuiltinPatch(patchPath))
   if (!range.startsWith('npm:')) {
-    return { specifier: range, patchKey: getPatchKey(name, range), patchPath: selector }
+    return { specifier: range, patchKey: getPatchKey(name, range), patchPaths }
   }
   const npmRange = range.slice('npm:'.length)
   const [target, targetRange] = splitDescriptor(npmRange) ?? []
   if (target != null && targetRange != null) {
-    return { specifier: range, patchKey: getPatchKey(target, targetRange), patchPath: selector }
+    return { specifier: range, patchKey: getPatchKey(target, targetRange), patchPaths }
   }
-  return { specifier: npmRange, patchKey: getPatchKey(name, npmRange), patchPath: selector }
+  return { specifier: npmRange, patchKey: getPatchKey(name, npmRange), patchPaths }
+}
+
+// Yarn's builtin patches, such as `optional!builtin<compat/typescript>`, adapt
+// packages to Plug'n'Play and have no file.
+function isBuiltinPatch (patchPath: string): boolean {
+  return patchPath.replace(/^optional!/, '').startsWith('builtin<')
 }
 
 function splitDescriptor (descriptor: string): [string, string] | undefined {
@@ -66,10 +75,7 @@ export interface ImportYarnPatchesOptions {
 }
 
 /**
- * Replaces every `patch:` specifier in the projects' manifests with the
- * specifier of the package it patches, and records each patch file that exists
- * in the `patchedDependencies` of pnpm-workspace.yaml. An entry already in
- * `patchedDependencies` is kept.
+ * An entry already in `patchedDependencies` wins over a converted patch.
  *
  * @returns the `patchedDependencies` to import with, with absolute patch file
  * paths, or `undefined` when no patch was recorded.
@@ -80,18 +86,24 @@ export async function importYarnPatches (opts: ImportYarnPatchesOptions): Promis
     .filter(({ patches }) => patches.length > 0)
   await Promise.all(patchedProjects.map(({ project }) => project.writeProjectManifest(project.manifest)))
   const recorded: Record<string, string> = {}
-  for (const { project, patches } of patchedProjects) {
-    for (const [alias, patch] of patches) {
-      const patchFile = patch.patchPath.startsWith('~/')
-        ? path.join(opts.yarnRootDir, patch.patchPath.slice(2))
-        : path.resolve(project.rootDir, patch.patchPath)
-      if (!fs.statSync(patchFile, { throwIfNoEntry: false })?.isFile()) {
-        globalWarn(`The patch file ${patchFile} of "${alias}" does not exist. "${alias}" was imported without the patch.`)
-        continue
-      }
-      if (opts.patchedDependencies?.[patch.patchKey] == null) {
-        recorded[patch.patchKey] ??= patchFile
-      }
+  const patchFiles = patchedProjects.flatMap(({ project, patches }) => patches.map(([alias, patch]) => ({
+    alias,
+    patch,
+    patchFile: patch.patchPaths.length === 1 ? resolvePatchFile(patch.patchPaths[0], opts.yarnRootDir, project.rootDir) : undefined,
+  })))
+  const patchFileExists = await Promise.all(patchFiles.map(({ patchFile }) => patchFile != null && isFile(patchFile)))
+  for (const [index, { alias, patch, patchFile }] of patchFiles.entries()) {
+    if (patch.patchPaths.length > 1) {
+      globalWarn(`"${alias}" has several Yarn patches, and pnpm applies one patch per dependency. "${alias}" was imported without the patches.`)
+      continue
+    }
+    if (patchFile == null) continue
+    if (!patchFileExists[index]) {
+      globalWarn(`The patch file ${patchFile} of "${alias}" does not exist. "${alias}" was imported without the patch.`)
+      continue
+    }
+    if (opts.patchedDependencies?.[patch.patchKey] == null) {
+      recorded[patch.patchKey] ??= patchFile
     }
   }
   if (Object.keys(recorded).length === 0) return undefined
@@ -106,6 +118,19 @@ export async function importYarnPatches (opts: ImportYarnPatchesOptions): Promis
   return Object.fromEntries(
     Object.entries(patchedDependencies).map(([key, patchFile]) => [key, path.resolve(opts.workspaceDir, patchFile)])
   )
+}
+
+function resolvePatchFile (patchPath: string, yarnRootDir: string, projectDir: string): string {
+  return patchPath.startsWith('~/') ? path.join(yarnRootDir, patchPath.slice(2)) : path.resolve(projectDir, patchPath)
+}
+
+async function isFile (filePath: string): Promise<boolean> {
+  try {
+    return (await fs.promises.stat(filePath)).isFile()
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
 }
 
 function replacePatchSpecifiers (manifest: ProjectManifest): Array<[string, YarnPatchSpecifier]> {

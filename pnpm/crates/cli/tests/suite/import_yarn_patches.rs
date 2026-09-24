@@ -142,3 +142,45 @@ fn import_warns_about_a_missing_yarn_patch_file() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn import_warns_about_a_dependency_with_several_yarn_patches() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let specifier =
+        "patch:is-positive@npm%3A1.0.0#optional!builtin<compat/is-positive>&./a.patch&./b.patch";
+    let manifest = json!({ "name": "root", "dependencies": { "is-positive": specifier } });
+    write_file(&workspace, "package.json", &manifest.to_string());
+    write_file(&workspace, "a.patch", IS_POSITIVE_PATCH);
+    write_file(&workspace, "b.patch", MARKER_PATCH);
+    write_file(&workspace, "yarn.lock", YARN_LOCKFILE);
+
+    let output = pacquet
+        .with_arg("import")
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert!(
+        stdout.contains(
+            r#""is-positive" has several Yarn patches, and pnpm applies one patch per dependency."#
+        ),
+        "stdout:\n{stdout}",
+    );
+    let manifest = read_manifest(&workspace.join("package.json"));
+    assert_eq!(manifest["dependencies"]["is-positive"], "1.0.0");
+    let workspace_yaml = read_text(&workspace.join("pnpm-workspace.yaml"));
+    assert!(
+        !workspace_yaml.contains("patchedDependencies"),
+        "pnpm-workspace.yaml:\n{workspace_yaml}",
+    );
+
+    drop((root, mock_instance));
+}

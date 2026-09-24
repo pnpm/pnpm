@@ -20,16 +20,22 @@ pub(super) struct YarnPatchSpecifier {
     pub specifier: String,
     /// The `patchedDependencies` key selecting the patched package.
     pub patch_key: String,
-    /// The patch file path as Yarn recorded it. A `~/` prefix is relative
-    /// to the Yarn project root, any other path to the declaring project.
-    pub patch_path: String,
+    /// The patch file paths as Yarn recorded them, without Yarn's builtin
+    /// compatibility patches. A `~/` prefix is relative to the Yarn project
+    /// root, any other path to the declaring project.
+    pub patch_paths: Vec<String>,
 }
 
 impl YarnPatchSpecifier {
     /// `None` when `specifier` does not use the `patch:` protocol.
     pub(super) fn parse(specifier: &str) -> Option<Self> {
-        let (source, patch_path) = specifier.strip_prefix("patch:")?.split_once('#')?;
-        let patch_path = patch_path.split_once("::").map_or(patch_path, |(path, _)| path);
+        let (source, selector) = specifier.strip_prefix("patch:")?.split_once('#')?;
+        let selector = selector.split_once("::").map_or(selector, |(selector, _)| selector);
+        let patch_paths = selector
+            .split('&')
+            .filter(|path| !is_builtin_patch(path))
+            .map(str::to_string)
+            .collect();
         let source = percent_decode_str(source).decode_utf8_lossy();
         let (name, range) = split_descriptor(&source)?;
         let (specifier, patch_key) = match range.strip_prefix("npm:") {
@@ -41,14 +47,22 @@ impl YarnPatchSpecifier {
             },
             None => (range.to_string(), patch_key(name, range)),
         };
-        Some(YarnPatchSpecifier { specifier, patch_key, patch_path: patch_path.to_string() })
+        Some(YarnPatchSpecifier { specifier, patch_key, patch_paths })
     }
+}
 
-    fn patch_file_path(&self, yarn_root: &Path, project_dir: &Path) -> PathBuf {
-        match self.patch_path.strip_prefix("~/") {
-            Some(path) => yarn_root.join(path),
-            None => project_dir.join(&self.patch_path),
-        }
+/// Yarn's builtin patches, such as `optional!builtin<compat/typescript>`,
+/// adapt packages to Plug'n'Play and have no file.
+fn is_builtin_patch(path: &str) -> bool {
+    path.strip_prefix("optional!")
+        .unwrap_or(path)
+        .starts_with("builtin<")
+}
+
+fn patch_file_path(patch_path: &str, yarn_root: &Path, project_dir: &Path) -> PathBuf {
+    match patch_path.strip_prefix("~/") {
+        Some(path) => yarn_root.join(path),
+        None => project_dir.join(patch_path),
     }
 }
 
@@ -62,19 +76,36 @@ fn patch_key(name: &str, range: &str) -> String {
     if Range::parse(range).is_ok() { format!("{name}@{range}") } else { name.to_string() }
 }
 
+/// A Yarn patch of a dependency that was imported without it.
+#[derive(Debug)]
+pub(super) enum DroppedPatch {
+    Missing { alias: String, patch_file: PathBuf },
+    Several { alias: String },
+}
+
+impl DroppedPatch {
+    fn warning(&self) -> String {
+        match self {
+            DroppedPatch::Missing { alias, patch_file } => format!(
+                r#"The patch file {} of "{alias}" does not exist. "{alias}" was imported without the patch."#,
+                patch_file.display(),
+            ),
+            DroppedPatch::Several { alias } => format!(
+                r#""{alias}" has several Yarn patches, and pnpm applies one patch per dependency. "{alias}" was imported without the patches."#,
+            ),
+        }
+    }
+}
+
 /// The result of [`convert_yarn_patches`].
 #[derive(Debug, Default)]
 pub(super) struct ConvertedYarnPatches {
     /// Whether any manifest was rewritten.
     pub manifests_changed: bool,
-    /// Patch files that do not exist, keyed by the dependency declaring them.
-    pub missing_patch_files: Vec<(String, PathBuf)>,
+    pub dropped: Vec<DroppedPatch>,
 }
 
-/// Replace every `patch:` specifier in `manifests` with the specifier of
-/// the package it patches, saving each changed manifest, and add each
-/// patch file that exists to `patched_dependencies` as a path relative to
-/// `workspace_dir`. An entry already in `patched_dependencies` is kept.
+/// An entry already in `patched_dependencies` wins over a converted patch.
 pub(super) fn convert_yarn_patches(
     manifests: &mut [PackageManifest],
     yarn_root: &Path,
@@ -98,9 +129,17 @@ pub(super) fn convert_yarn_patches(
             .wrap_err_with(|| format!("saving {}", manifest.path().display()))?;
         converted.manifests_changed = true;
         for (alias, patch) in patches {
-            let patch_file = patch.patch_file_path(yarn_root, &project_dir);
+            let patch_path = match patch.patch_paths.as_slice() {
+                [] => continue,
+                [patch_path] => patch_path,
+                _ => {
+                    converted.dropped.push(DroppedPatch::Several { alias });
+                    continue;
+                }
+            };
+            let patch_file = patch_file_path(patch_path, yarn_root, &project_dir);
             if !patch_file.is_file() {
-                converted.missing_patch_files.push((alias, patch_file));
+                converted.dropped.push(DroppedPatch::Missing { alias, patch_file });
                 continue;
             }
             patched_dependencies
@@ -133,10 +172,8 @@ fn workspace_relative_path(path: &Path, workspace_dir: &Path) -> String {
     relative.to_string_lossy().replace('\\', "/")
 }
 
-/// Convert the `patch:` specifiers of the imported projects and return the
-/// state to import with: `state` itself when no manifest used the
-/// protocol, otherwise one reloaded from the rewritten manifests with the
-/// converted patches in its `patchedDependencies`.
+/// The state to import with. A manifest rewritten on disk needs a state
+/// that reads it again.
 pub(super) fn import_yarn_patches<Reporter: self::Reporter>(
     state: State,
     yarn_root: &Path,
@@ -154,11 +191,8 @@ pub(super) fn import_yarn_patches<Reporter: self::Reporter>(
     let mut patched_dependencies = config.patched_dependencies.clone().unwrap_or_default();
     let converted =
         convert_yarn_patches(&mut manifests, yarn_root, &workspace_dir, &mut patched_dependencies)?;
-    for (alias, patch_file) in &converted.missing_patch_files {
-        pnpm_reporter::emit_global_warning::<Reporter>(&format!(
-            r#"The patch file {} of "{alias}" does not exist. "{alias}" was imported without the patch."#,
-            patch_file.display(),
-        ));
+    for dropped in &converted.dropped {
+        pnpm_reporter::emit_global_warning::<Reporter>(&dropped.warning());
     }
     if !converted.manifests_changed {
         return Ok(state);

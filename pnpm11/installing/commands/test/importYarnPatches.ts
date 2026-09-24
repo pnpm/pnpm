@@ -78,3 +78,22 @@ test('import warns about a missing yarn patch file', async () => {
     `The patch file ${path.resolve(PATCH_PATH)} of "is-positive" does not exist. "is-positive" was imported without the patch.`
   )
 })
+
+test('import warns about a dependency with several yarn patches', async () => {
+  prepareEmpty()
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'root',
+    dependencies: { 'is-positive': 'patch:is-positive@npm%3A1.0.0#optional!builtin<compat/is-positive>&./a.patch&./b.patch' },
+  }))
+  fs.writeFileSync('yarn.lock', YARN_LOCKFILE)
+  fs.copyFileSync(IS_POSITIVE_PATCH, 'a.patch')
+  fs.copyFileSync(IS_POSITIVE_PATCH, 'b.patch')
+
+  await importCommand.handler({ ...DEFAULT_OPTS, dir: process.cwd() }, [])
+
+  expect(readManifest().dependencies['is-positive']).toBe('1.0.0')
+  expect(fs.existsSync('pnpm-workspace.yaml')).toBe(false)
+  expect(globalWarn).toHaveBeenCalledWith(
+    '"is-positive" has several Yarn patches, and pnpm applies one patch per dependency. "is-positive" was imported without the patches.'
+  )
+})
