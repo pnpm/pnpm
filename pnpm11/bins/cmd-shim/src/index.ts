@@ -137,15 +137,20 @@ export async function cmdShim (src: string, to: string, opts?: Options): Promise
 /**
  * Try to create shims.
  *
- * Resolves even when shim creation fails.
+ * Does nothing when `src` is missing (on Windows, when `src.exe` is missing
+ * too), and resolves even when shim creation fails.
  *
  * @param src Path to program (executable or script).
  * @param to Path to shims.
  * Don't add an extension if you will create multiple types of shims.
  * @param opts Options.
  */
-export function cmdShimIfExists (src: string, to: string, opts?: Options): Promise<void> {
-  return cmdShim(src, to, opts).catch(() => {})
+export async function cmdShimIfExists (src: string, to: string, opts?: Options): Promise<void> {
+  const opts_ = ingestOptions(opts)
+  try {
+    if (!await exists(src, opts_) && !(isWindows && await exists(`${src}${getExeExtension()}`, opts_))) return
+    await cmdShim_(src, to, opts_)
+  } catch {}
 }
 
 /**
