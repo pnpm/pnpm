@@ -265,8 +265,9 @@ fn applies_zero_context_insertions_after_deletion_and_replacement_shifts() {
     assert_eq!(after, expected);
 }
 
-/// Only a marker on a context line is dropped. The markers on a deleted and
-/// an inserted line carry the final newline change and stay.
+/// The markers on a deleted and an inserted line carry the final newline
+/// change. Lines that only look like the marker, such as those of a `.patch`
+/// file shipped inside a package, are file content.
 #[test]
 fn drops_only_the_no_newline_markers_that_follow_context() {
     let patch = text_block_fnl! {
@@ -275,11 +276,21 @@ fn drops_only_the_no_newline_markers_that_follow_context() {
         r"\ No newline at end of file"
         "-two"
         "-"
-        "@@ -5,2 +3,2 @@"
+        "@@ -5,3 +3,2 @@"
         " five"
-        "-six"
+        ""
         r"\ No newline at end of file"
-        "+SIX"
+        "-"
+        "@@ -9,2 +8,2 @@"
+        " nine"
+        "-ten"
+        r"\ No newline at end of file"
+        "+TEN"
+        r"\ No newline at end of file"
+        "@@ -12,2 +12,3 @@"
+        r" \ No newline at end of file"
+        r"+\ No newline at end of file"
+        r" \ No newline at end of file"
         r"\ No newline at end of file"
     };
     let expected = text_block_fnl! {
@@ -287,12 +298,20 @@ fn drops_only_the_no_newline_markers_that_follow_context() {
         " one"
         "-two"
         "-"
-        "@@ -5,2 +3,2 @@"
+        "@@ -5,3 +3,2 @@"
         " five"
-        "-six"
+        ""
+        "-"
+        "@@ -9,2 +8,2 @@"
+        " nine"
+        "-ten"
         r"\ No newline at end of file"
-        "+SIX"
+        "+TEN"
         r"\ No newline at end of file"
+        "@@ -12,2 +12,3 @@"
+        r" \ No newline at end of file"
+        r"+\ No newline at end of file"
+        r" \ No newline at end of file"
     };
     assert_eq!(drop_context_no_newline_markers(patch.to_string()), expected);
 }

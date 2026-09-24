@@ -97,10 +97,9 @@ fn patch_commit_writes_an_applicable_patch_when_the_last_line_loses_its_newline(
 
     let patch =
         fs::read_to_string(workspace.join("patches/is-positive@1.0.0.patch")).expect("patch file");
-    eprintln!("PATCH:\n{patch}");
     assert!(patch.contains("\n\\ No newline at end of file\n-"), "patch: {patch}");
-    let installed =
-        fs::read_to_string(workspace.join("node_modules/is-positive/index.js")).unwrap();
+    let installed = fs::read_to_string(workspace.join("node_modules/is-positive/index.js"))
+        .expect("read patched index.js");
     assert_eq!(installed, format!("{edited}\n"));
 
     drop((root, mock_instance));

@@ -28,15 +28,14 @@ const MAX_FUZZING_OFFSET: isize = 20;
 const NO_NEWLINE_MARKER: &str = r"\ No newline at end of file";
 
 /// Remove each `\ No newline at end of file` marker that follows a context
-/// line.
-///
-/// `pnpm patch-commit` diffs with `--ignore-cr-at-eol`, which counts a line
-/// that only lost its final newline as unchanged. When the lines after it
-/// were deleted, git prints it as context carrying the marker and then the
-/// deletions. [`diffy`] accepts nothing but the end of the hunk after a
-/// marked context line, so it rejects that patch with "expected end of
-/// hunk". `patch-package` ignores the marker on a context line, and so does
-/// [`apply`], so dropping it loses nothing the applier reads.
+/// line, leaving every other line untouched.
+//
+// `pnpm patch-commit` diffs with `--ignore-cr-at-eol`, which counts a line
+// that only lost its final newline as unchanged, so git prints it as context
+// carrying the marker, followed by the deletions after it. `diffy` rejects
+// anything but the end of the hunk after a marked context line. Both
+// `patch-package` and `apply` ignore that marker, so dropping it loses
+// nothing.
 pub(super) fn drop_context_no_newline_markers(text: String) -> String {
     if !text.contains(NO_NEWLINE_MARKER) {
         return text;

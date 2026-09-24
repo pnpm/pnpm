@@ -157,10 +157,7 @@ fn applies_a_zero_context_insertion_without_a_newline_to_an_empty_file() {
     assert_eq!(applied_hunk("", hunk), "added");
 }
 
-/// `pnpm patch-commit` diffs with `--ignore-cr-at-eol`, which counts a line
-/// that only lost its newline as unchanged. When the lines after it were
-/// deleted, git prints it as context carrying the no-newline marker, followed
-/// by the deletions. pnpm 11 applies such a patch and keeps the final newline.
+/// `pnpm patch-commit` writes this shape, and pnpm 11 applies it.
 #[test]
 fn applies_deletions_after_a_context_line_marked_without_a_newline() {
     let original = text_block_fnl! {
