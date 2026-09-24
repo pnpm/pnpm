@@ -8,9 +8,30 @@
 
 use std::{fs, io, path::Path};
 
-/// A line in an INI file (.npmrc or auth.ini).
+/// The line ending for a line in an INI file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LineEnding {
+    /// Unix line ending (`\n`).
+    Lf,
+    /// Windows line ending (`\r\n`).
+    CrLf,
+    /// No trailing line ending (e.g. final line without a trailing newline).
+    None,
+}
+
+impl LineEnding {
+    /// Return the string representation of this line ending.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Lf => "\n",
+            Self::CrLf => "\r\n",
+            Self::None => "",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum IniLine {
+enum LineKind {
     /// A comment line, empty line, or unrecognized line, preserved verbatim.
     Raw(String),
     /// A `key=value` configuration entry.
@@ -22,53 +43,60 @@ pub enum IniLine {
     },
 }
 
-/// A parsed INI document preserving comments, blank lines, and repeated keys.
+/// A line in an INI file (.npmrc or auth.ini).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IniLine {
+    kind: LineKind,
+    terminator: LineEnding,
+}
+
+impl IniLine {
+    fn key(&self) -> Option<&str> {
+        match &self.kind {
+            LineKind::Entry { key, .. } => Some(key.as_str()),
+            LineKind::Raw(_) => None,
+        }
+    }
+
+    #[cfg(test)]
+    fn value(&self) -> Option<&str> {
+        match &self.kind {
+            LineKind::Entry { value, .. } => Some(value.as_str()),
+            LineKind::Raw(_) => None,
+        }
+    }
+}
+
+/// A parsed INI document preserving comments, blank lines, repeated keys, and line terminators.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IniDocument {
     lines: Vec<IniLine>,
-    newline: &'static str,
+    default_ending: LineEnding,
     has_bom: bool,
 }
 
 impl Default for IniDocument {
     fn default() -> Self {
-        Self { lines: Vec::new(), newline: "\n", has_bom: false }
+        Self { lines: Vec::new(), default_ending: LineEnding::Lf, has_bom: false }
     }
 }
 
 impl IniDocument {
     /// Parse `text` into an [`IniDocument`], recording every line and
-    /// preserving comments, blank lines, and repeated keys.
+    /// preserving comments, blank lines, repeated keys, and line terminators.
     pub fn parse(text: &str) -> Self {
         let (has_bom, text_without_bom) = match text.strip_prefix('\u{feff}') {
             Some(stripped) => (true, stripped),
             None => (false, text),
         };
-        let newline = if text_without_bom.contains("\r\n") { "\r\n" } else { "\n" };
-        let lines = text_without_bom
-            .lines()
-            .map(Self::parse_line)
+        let default_ending =
+            if text_without_bom.contains("\r\n") { LineEnding::CrLf } else { LineEnding::Lf };
+        let lines = split_line_terminators(text_without_bom)
+            .into_iter()
+            .map(|(content, terminator)| IniLine { kind: parse_line_kind(content), terminator })
             .collect();
 
-        Self { lines, newline, has_bom }
-    }
-
-    fn parse_line(line: &str) -> IniLine {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with([';', '#']) {
-            return IniLine::Raw(line.to_string());
-        }
-        if let Some((raw_key, raw_value)) = line.split_once('=') {
-            let key = raw_key.trim();
-            if !key.is_empty() {
-                return IniLine::Entry {
-                    key: key.to_string(),
-                    value: raw_value.trim().to_string(),
-                    raw: Some(line.to_string()),
-                };
-            }
-        }
-        IniLine::Raw(line.to_string())
+        Self { lines, default_ending, has_bom }
     }
 
     /// Read `path` into an [`IniDocument`]. A missing file produces an empty document;
@@ -98,11 +126,11 @@ impl IniDocument {
             output.push('\u{feff}');
         }
         for line in &self.lines {
-            match line {
-                IniLine::Raw(raw) => {
+            match &line.kind {
+                LineKind::Raw(raw) => {
                     output.push_str(raw);
                 }
-                IniLine::Entry { key, value, raw } => {
+                LineKind::Entry { key, value, raw } => {
                     if let Some(raw) = raw {
                         output.push_str(raw);
                     } else {
@@ -112,7 +140,7 @@ impl IniDocument {
                     }
                 }
             }
-            output.push_str(self.newline);
+            output.push_str(line.terminator.as_str());
         }
         output
     }
@@ -123,10 +151,7 @@ impl IniDocument {
         self.lines
             .iter()
             .rev()
-            .find_map(|line| match line {
-                IniLine::Entry { key: k, value, .. } if k == key => Some(value.as_str()),
-                _ => None,
-            })
+            .find_map(|line| if line.key() == Some(key) { line.value() } else { None })
     }
 
     /// Return all values for `key` in document order.
@@ -134,38 +159,55 @@ impl IniDocument {
     pub fn get_all(&self, key: &str) -> Vec<&str> {
         self.lines
             .iter()
-            .filter_map(|line| match line {
-                IniLine::Entry { key: k, value, .. } if k == key => Some(value.as_str()),
-                _ => None,
-            })
+            .filter_map(|line| if line.key() == Some(key) { line.value() } else { None })
             .collect()
     }
 
     /// Remove all entries matching `key`. Returns `true` if at least one entry was removed.
     pub fn delete(&mut self, key: &str) -> bool {
         let before = self.lines.len();
-        self.lines.retain(|line| match line {
-            IniLine::Entry { key: k, .. } => k != key,
-            IniLine::Raw(_) => true,
-        });
+        self.lines.retain(|line| line.key() != Some(key));
         self.lines.len() != before
     }
 
     fn replace_existing_key(&mut self, key: &str, values: &[String], first_index: usize) {
+        let old_terminator = self.lines[first_index].terminator;
         let new_entries: Vec<IniLine> = values
             .iter()
-            .map(|val| IniLine::Entry { key: key.to_string(), value: val.clone(), raw: None })
+            .enumerate()
+            .map(|(index, value)| {
+                let terminator =
+                    if index + 1 == values.len() { old_terminator } else { self.default_ending };
+                IniLine {
+                    kind: LineKind::Entry { key: key.to_string(), value: value.clone(), raw: None },
+                    terminator,
+                }
+            })
             .collect();
 
         self.lines.splice(first_index..=first_index, new_entries);
 
         let mut index = first_index + values.len();
         while index < self.lines.len() {
-            if matches!(&self.lines[index], IniLine::Entry { key: k, .. } if k == key) {
+            if self.lines[index].key() == Some(key) {
                 self.lines.remove(index);
             } else {
                 index += 1;
             }
+        }
+    }
+
+    fn append_new_key(&mut self, key: &str, values: &[String]) {
+        if let Some(last_line) = self.lines.last_mut()
+            && last_line.terminator == LineEnding::None
+        {
+            last_line.terminator = self.default_ending;
+        }
+        for value in values {
+            self.lines.push(IniLine {
+                kind: LineKind::Entry { key: key.to_string(), value: value.clone(), raw: None },
+                terminator: self.default_ending,
+            });
         }
     }
 
@@ -183,21 +225,12 @@ impl IniDocument {
 
         let first_index = self.lines
             .iter()
-            .position(|line| match line {
-                IniLine::Entry { key: k, .. } => k == key,
-                IniLine::Raw(_) => false,
-            });
+            .position(|line| line.key() == Some(key));
 
         if let Some(index) = first_index {
             self.replace_existing_key(key, values, index);
         } else {
-            for val in values {
-                self.lines.push(IniLine::Entry {
-                    key: key.to_string(),
-                    value: val.clone(),
-                    raw: None,
-                });
-            }
+            self.append_new_key(key, values);
         }
     }
 
@@ -206,11 +239,48 @@ impl IniDocument {
     pub fn entries(&self) -> impl Iterator<Item = (&str, &str)> {
         self.lines
             .iter()
-            .filter_map(|line| match line {
-                IniLine::Entry { key, value, .. } => Some((key.as_str(), value.as_str())),
-                IniLine::Raw(_) => None,
+            .filter_map(|line| match &line.kind {
+                LineKind::Entry { key, value, .. } => Some((key.as_str(), value.as_str())),
+                LineKind::Raw(_) => None,
             })
     }
+}
+
+fn split_line_terminators(mut text: &str) -> Vec<(&str, LineEnding)> {
+    let mut lines = Vec::new();
+    while !text.is_empty() {
+        if let Some(pos) = text.find('\n') {
+            let (content, terminator) = if pos > 0 && text.as_bytes()[pos - 1] == b'\r' {
+                (&text[..pos - 1], LineEnding::CrLf)
+            } else {
+                (&text[..pos], LineEnding::Lf)
+            };
+            lines.push((content, terminator));
+            text = &text[pos + 1..];
+        } else {
+            lines.push((text, LineEnding::None));
+            break;
+        }
+    }
+    lines
+}
+
+fn parse_line_kind(content: &str) -> LineKind {
+    let trimmed = content.trim();
+    if trimmed.is_empty() || trimmed.starts_with([';', '#']) {
+        return LineKind::Raw(content.to_string());
+    }
+    if let Some((raw_key, raw_value)) = content.split_once('=') {
+        let key = raw_key.trim();
+        if !key.is_empty() {
+            return LineKind::Entry {
+                key: key.to_string(),
+                value: raw_value.trim().to_string(),
+                raw: Some(content.to_string()),
+            };
+        }
+    }
+    LineKind::Raw(content.to_string())
 }
 
 /// Read `path` into an [`IniDocument`]. A missing file produces an empty document;

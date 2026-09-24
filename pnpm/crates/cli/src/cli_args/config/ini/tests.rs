@@ -96,3 +96,52 @@ fn entries_iterates_in_document_order() {
     let entries: Vec<(&str, &str)> = doc.entries().collect();
     assert_eq!(entries, vec![("ca", "certA"), ("ca", "certB"), ("registry", "https://reg/")]);
 }
+
+#[test]
+fn parse_and_serialize_preserves_mixed_line_endings() {
+    let input = "key1=val1\r\n# comment\nkey2=val2\r\nkey3=val3";
+    let doc = IniDocument::parse(input);
+    assert_eq!(doc.serialize(), input);
+
+    let mut modified = doc;
+    modified.set("key2", &["val2_updated".to_string()]);
+    let expected = "key1=val1\r\n# comment\nkey2=val2_updated\r\nkey3=val3";
+    assert_eq!(modified.serialize(), expected);
+}
+
+#[test]
+fn parse_and_serialize_preserves_file_without_trailing_newline() {
+    let input = "# comment\nkey1=val1\nkey2=val2";
+    let doc = IniDocument::parse(input);
+    assert_eq!(doc.serialize(), input);
+}
+
+#[test]
+fn set_existing_key_preserves_file_without_trailing_newline() {
+    let input = "key1=val1\nkey2=val2";
+    let mut doc = IniDocument::parse(input);
+    doc.set("key2", &["val2_updated".to_string()]);
+    let expected = "key1=val1\nkey2=val2_updated";
+    assert_eq!(doc.serialize(), expected);
+
+    doc.set("key1", &["val1_updated".to_string()]);
+    let expected2 = "key1=val1_updated\nkey2=val2_updated";
+    assert_eq!(doc.serialize(), expected2);
+}
+
+#[test]
+fn set_new_key_on_file_without_trailing_newline_appends_terminator() {
+    let input = "key1=val1\nkey2=val2";
+    let mut doc = IniDocument::parse(input);
+    doc.set("key3", &["val3".to_string()]);
+    let expected = "key1=val1\nkey2=val2\nkey3=val3\n";
+    assert_eq!(doc.serialize(), expected);
+}
+
+#[test]
+fn delete_key_preserves_file_without_trailing_newline() {
+    let input = "key1=val1\nkey2=val2";
+    let mut doc = IniDocument::parse(input);
+    assert!(doc.delete("key1"));
+    assert_eq!(doc.serialize(), "key2=val2");
+}
