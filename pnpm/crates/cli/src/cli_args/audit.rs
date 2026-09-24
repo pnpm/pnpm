@@ -24,14 +24,7 @@ pub(crate) use version_ranges::{
 
 use crate::{
     State,
-    cli_args::{
-        install::resolve_bool_override,
-        recursive::{
-            no_projects_matched_message, notice_workspace_dir, selected_workspace_importer_ids,
-            selectors_narrow_the_run,
-        },
-        sanitize::sanitize_inline,
-    },
+    cli_args::{install::resolve_bool_override, sanitize::sanitize_inline},
 };
 use advisories::{
     audit, correct_inferred_patched_versions, filter_ignored_advisories, parse_audit_level,
@@ -41,6 +34,7 @@ use chrono::{DateTime, Utc};
 use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
 use dialoguer::MultiSelect;
+use importers::{select_audited_importers, signature_packages};
 
 use miette::{Diagnostic, IntoDiagnostic};
 use node_semver::{Range, Version};
@@ -64,7 +58,6 @@ use pnpm_resolving_resolver_base::{
 
 use serde::{Deserialize, Serialize};
 use std::{
-    borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
     io::Write,
     path::Path,
@@ -74,6 +67,7 @@ use std::{
 };
 
 mod fix;
+mod importers;
 mod paths;
 mod render;
 mod report;
@@ -403,71 +397,6 @@ fn audit_outcome(report: &AuditReport, audit_level: ConfigAuditLevel) -> AuditOu
     } else {
         AuditOutcome::Clean
     }
-}
-
-/// The lockfile narrowed to the importers of the projects that `--filter`,
-/// `--filter-prod`, or `--workspace-root` selected, or the whole lockfile
-/// when no selector narrows the run. `None` when the selectors matched no
-/// project, after printing pnpm's notice for it.
-fn select_audited_importers<'lockfile>(
-    state: &State,
-    lockfile: &'lockfile Lockfile,
-) -> miette::Result<Option<Cow<'lockfile, Lockfile>>> {
-    if !selectors_narrow_the_run(state.config) {
-        return Ok(Some(Cow::Borrowed(lockfile)));
-    }
-    let selected =
-        selected_workspace_importer_ids(state.config, state.project_dir(), state.lockfile_dir())?;
-    if selected.is_empty() {
-        let workspace_dir = notice_workspace_dir(state.config, state.project_dir());
-        println!("{}", no_projects_matched_message(workspace_dir));
-        return Ok(None);
-    }
-    let mut narrowed = lockfile.clone();
-    narrowed.importers.retain(|importer_id, _| selected.contains(importer_id));
-    Ok(Some(Cow::Owned(narrowed)))
-}
-
-/// Every installed package version the lockfile and env lockfile record,
-/// with the registry that serves it. `None` when the selectors matched no
-/// project.
-fn signature_packages(
-    state: &State,
-    include: Include,
-    lockfile_dir: &std::path::Path,
-) -> miette::Result<Option<Vec<signatures::SignaturePackage>>> {
-    let lockfile = state.lockfile
-        .get()
-        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-    let Some(lockfile) = lockfile else {
-        return Err(AuditError::NoLockfile.into());
-    };
-    let Some(lockfile) = select_audited_importers(state, lockfile)? else {
-        return Ok(None);
-    };
-    let lockfile = lockfile.as_ref();
-    let env_lockfile = EnvLockfile::read(lockfile_dir)
-        .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))?;
-    let audit_request = lockfile_to_audit_request(lockfile, env_lockfile.as_ref(), include);
-    let registries: HashMap<String, String> = state.config
-        .resolved_registries()
-        .into_iter()
-        .collect();
-    Ok(Some(
-        audit_request.request
-            .iter()
-            .flat_map(|(name, versions)| {
-                let registry = pick_registry_for_package(&registries, name, None);
-                versions
-                    .iter()
-                    .map(move |version| signatures::SignaturePackage {
-                        name: name.clone(),
-                        registry: registry.clone(),
-                        version: version.clone(),
-                    })
-            })
-            .collect(),
-    ))
 }
 
 /// Write one command result to stdout, appending the newline it lacks. Mirrors
