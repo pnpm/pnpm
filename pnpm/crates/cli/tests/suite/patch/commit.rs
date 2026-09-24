@@ -1,6 +1,7 @@
 use super::{
     AddMockedRegistry, CommandTempCwd, fs, pacquet, setup_installed,
-    setup_installed_workspace_project, write_patch_edit,
+    setup_installed_workspace_project, setup_installed_workspace_project_with_yaml,
+    write_patch_edit,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -121,6 +122,46 @@ fn patch_commit_workspace_project_shared_lockfile_updates_root_manifest_and_rein
 
     let installed = fs::read_to_string(app_dir.join("node_modules/is-positive/index.js")).unwrap();
     assert!(installed.contains("patched workspace"), "installed: {installed}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn patch_commands_in_a_workspace_project_with_its_own_lockfile() {
+    let (root, workspace, app_dir, npmrc_info) =
+        setup_installed_workspace_project_with_yaml("sharedWorkspaceLockfile: false\n");
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    assert!(app_dir.join("pnpm-lock.yaml").is_file(), "the project should have its own lockfile");
+
+    pacquet(&app_dir, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    let edit_dir = app_dir.join("node_modules/.pnpm_patches/is-positive@1.0.0");
+    write_patch_edit(&edit_dir, "patched dedicated");
+
+    pacquet(
+        &app_dir,
+        ["patch-commit", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+    )
+    .assert()
+    .success();
+
+    let patch =
+        fs::read_to_string(workspace.join("patches/is-positive@1.0.0.patch")).expect("patch file");
+    assert!(patch.contains("patched dedicated"), "patch: {patch}");
+
+    let installed_path = app_dir.join("node_modules/is-positive/index.js");
+    let installed = fs::read_to_string(&installed_path).unwrap();
+    assert!(installed.contains("patched dedicated"), "installed: {installed}");
+
+    pacquet(&app_dir, ["patch-remove", "is-positive@1.0.0", "--reporter=silent"])
+        .assert()
+        .success();
+
+    let installed = fs::read_to_string(&installed_path).unwrap();
+    assert!(!installed.contains("patched dedicated"), "installed: {installed}");
+    assert!(
+        !workspace.join("node_modules/.pnpm").exists(),
+        "the reinstalls should stay in the project's own modules directory",
+    );
 
     drop((root, mock_instance));
 }
