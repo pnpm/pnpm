@@ -170,7 +170,7 @@ fn holds_whole_value(content: &str, entry: &str) -> bool {
     let Some(value) = content.trim_start().strip_prefix('-') else {
         return false;
     };
-    yaml_serde::from_str::<String>(value).is_ok_and(|parsed| parsed == entry)
+    yaml_serde::from_str::<String>(value.trim_start()).is_ok_and(|parsed| parsed == entry)
 }
 
 /// The first line of the run of comment and blank lines immediately ahead of

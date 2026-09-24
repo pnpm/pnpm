@@ -551,6 +551,13 @@ mod minimum_release_age_exclude_prune {
     }
 
     #[test]
+    fn prunes_entries_with_zero_indentation_and_tab_separation() {
+        let original = "minimumReleaseAgeExclude:\n-\tfoo@1.0.0\n-\tbar@2.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
+        assert_eq!(out.as_deref(), Some("minimumReleaseAgeExclude:\n-\tfoo@1.0.0\n"));
+    }
+
+    #[test]
     fn prunes_entries_with_zero_indentation_and_preserves_comments() {
         let original = "minimumReleaseAgeExcludePrune: true\nminimumReleaseAgeExclude:\n# header\n- foo@1.0.0 # kept\n- bar@2.0.0 # pruned\npackages:\n  - '*'\n";
         let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));

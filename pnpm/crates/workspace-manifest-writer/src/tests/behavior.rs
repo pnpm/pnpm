@@ -309,6 +309,21 @@ fn minimum_release_age_exclude_add_preserves_zero_indentation() {
 }
 
 #[test]
+fn minimum_release_age_exclude_add_preserves_zero_indentation_with_tabs() {
+    let added = ["bar@2.0.0".to_string()];
+    let out = run_with(
+        Some("minimumReleaseAgeExclude:\n-\tfoo@1.0.0\n"),
+        &UpdateWorkspaceManifestOptions {
+            added_minimum_release_age_excludes: &added,
+            ..Default::default()
+        },
+    )
+    .expect("written");
+
+    assert_eq!(out, "minimumReleaseAgeExclude:\n-\tfoo@1.0.0\n- bar@2.0.0\n");
+}
+
+#[test]
 fn minimum_release_age_exclude_add_preserves_four_space_indentation() {
     let added = ["bar@2.0.0".to_string()];
     let out = run_with(

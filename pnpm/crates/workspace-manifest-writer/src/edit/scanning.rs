@@ -181,7 +181,9 @@ pub(super) fn structural_indent(content: &str) -> Option<usize> {
 /// Whether a structural line carries a block-sequence item (`- value`).
 pub(super) fn is_sequence_item_line(content: &str) -> bool {
     let trimmed = content.trim_start();
-    trimmed == "-" || trimmed.starts_with("- ")
+    trimmed
+        .strip_prefix('-')
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with(' ') || rest.starts_with('\t'))
 }
 
 /// Whether a line starts a top-level mapping key.
