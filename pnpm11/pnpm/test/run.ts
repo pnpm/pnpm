@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { killProcessGroup, prepare, preparePackages } from '@pnpm/prepare'
+import { endsWithin, killProcessGroup, prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -556,20 +556,6 @@ setInterval(() => {}, 1000)
     }
   }
 })
-
-/** Whether `pid` is gone before `timeout` passes. A process that has just died counts until it is reaped. */
-async function endsWithin (pid: number, timeout: number): Promise<boolean> {
-  const deadline = Date.now() + timeout
-  while (Date.now() < deadline) {
-    try {
-      process.kill(pid, 0)
-    } catch {
-      return true
-    }
-    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
-  }
-  return false
-}
 
 async function withDeadline<T> (promise: Promise<T>, timeout: number): Promise<T> {
   let timer: NodeJS.Timeout | undefined

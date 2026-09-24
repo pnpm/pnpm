@@ -37,7 +37,7 @@ fn foreground_children_share_the_terminal_process_group_only_at_a_terminal() {
 }
 
 /// Dropping the watchdog unreleased closes its pipe the way pnpm's death
-/// does, and the group it watched is killed.
+/// does.
 #[test]
 fn a_watchdog_dropped_unreleased_kills_the_group() {
     let mut leader = spawn_group_leader();
@@ -52,7 +52,6 @@ fn a_watchdog_dropped_unreleased_kills_the_group() {
     );
 }
 
-/// A released watchdog ends without touching the group.
 #[test]
 fn a_released_watchdog_leaves_the_group_alone() {
     let mut leader = spawn_group_leader();

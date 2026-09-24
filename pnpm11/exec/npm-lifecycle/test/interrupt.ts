@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, expect, test } from '@jest/globals'
-import { killProcessGroup } from '@pnpm/prepare'
+import { endsWithin, killProcessGroup } from '@pnpm/prepare'
 
 const fixture = path.join(import.meta.dirname, 'fixtures', 'interrupt')
 const runScript = path.join(fixture, 'run.mjs')
@@ -74,20 +74,6 @@ skipOnWindows('killing the runner\'s process group kills the script behind its s
     if (script != null) killProcess(script)
   }
 })
-
-/** Whether `pid` is gone before `timeout` passes. A process that has just died counts until it is reaped. */
-async function endsWithin (pid: number, timeout: number): Promise<boolean> {
-  const deadline = Date.now() + timeout
-  while (Date.now() < deadline) {
-    try {
-      process.kill(pid, 0)
-    } catch {
-      return true
-    }
-    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
-  }
-  return false
-}
 
 function killProcess (pid: number): void {
   try {

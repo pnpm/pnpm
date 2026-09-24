@@ -97,3 +97,20 @@ export function killProcessGroup (pid: number): void {
     }
   }
 }
+
+/**
+ * Whether the process `pid` is gone before `timeout` milliseconds pass. A
+ * process that has just died still counts until it is reaped.
+ */
+export async function endsWithin (pid: number, timeout: number): Promise<boolean> {
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    try {
+      process.kill(pid, 0)
+    } catch {
+      return true
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
+  }
+  return false
+}
