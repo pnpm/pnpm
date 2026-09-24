@@ -42,23 +42,28 @@ impl CustomFetcherSession {
         };
         let metadata =
             resolve_archive_metadata((&resolution, source), &tarball, download.package.id).await?;
-        self.record_completed_identities(&download, (&resolution, source), &metadata, tarball);
+        self.record_completed_identities(
+            download.package.id,
+            (&resolution, source),
+            &metadata,
+            tarball,
+        );
         Ok(metadata)
     }
 
+    /// Files the fetch under the resolution-time id and under the
+    /// `name@version` its manifest declares. A resolver that reports no
+    /// `name@version` leaves the resolution-time id a URL, while the install
+    /// pass looks the fetch up by the lockfile key, which is derived from
+    /// that manifest.
     fn record_completed_identities(
         &self,
-        download: &IngestTarballToStore<'_>,
+        package_id: &str,
         resolutions: (&LockfileResolution, &LockfileResolution),
         metadata: &ResolvedTarballMetadata,
         tarball: Arc<FetchedTarball>,
     ) {
-        self.cache_resolved_tarball(download.package.id, resolutions, Arc::clone(&tarball));
-        if !download.package.url.is_empty()
-            && download.package.url != download.package.id
-        {
-            self.cache_resolved_tarball(download.package.url, resolutions, Arc::clone(&tarball));
-        }
+        self.cache_resolved_tarball(package_id, resolutions, Arc::clone(&tarball));
         let Some(manifest) = &metadata.manifest else { return };
         let (Some(name), Some(version)) = (
             manifest.get("name").and_then(Value::as_str),
@@ -66,11 +71,9 @@ impl CustomFetcherSession {
         ) else {
             return;
         };
-        let canonical_id = format!("{name}@{version}");
-        if canonical_id != download.package.id
-            && canonical_id != download.package.url
-        {
-            self.cache_resolved_tarball(&canonical_id, resolutions, tarball);
+        let name_ver = format!("{name}@{version}");
+        if name_ver != package_id {
+            self.cache_resolved_tarball(&name_ver, resolutions, tarball);
         }
     }
 
