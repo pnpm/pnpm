@@ -46,7 +46,12 @@ import type {
   WantedDependency,
 } from '@pnpm/store.controller-types'
 import { gitHostedStoreIndexKey, pickStoreIndexKey } from '@pnpm/store.index'
-import type { DependencyManifest, DepPath, SupportedArchitectures } from '@pnpm/types'
+import {
+  DEPENDENCIES_OR_PEER_FIELDS,
+  type DependencyManifest,
+  type DepPath,
+  type SupportedArchitectures,
+} from '@pnpm/types'
 import {
   calcMaxWorkers,
   readPkgFromCafs as _readPkgFromCafs,
@@ -257,6 +262,15 @@ async function resolveAndFetch (
     }
   }
 
+  let hooked = false
+  if (options.readPackageHook != null && manifest != null) {
+    const hookedManifest = await options.readPackageHook(copyManifest(manifest))
+    if (hookedManifest != null) {
+      manifest = hookedManifest as DependencyManifest
+    }
+    hooked = true
+  }
+
   const { engineStrict, includeIncompatiblePackages } = installabilityUnderForce(ctx)
   let isInstallable: boolean | null | undefined = (
     includeIncompatiblePackages ||
@@ -300,6 +314,7 @@ async function resolveAndFetch (
         publishedAt,
         alias,
         policyViolation,
+        hooked,
       },
     }
   }
@@ -363,6 +378,13 @@ async function resolveAndFetch (
   }
   // Check installability now that we have the manifest (for git/tarball packages without registry metadata)
   if (isInstallable === undefined && manifest != null) {
+    if (options.readPackageHook != null && !hooked) {
+      const hookedManifest = await options.readPackageHook(copyManifest(manifest))
+      if (hookedManifest != null) {
+        manifest = hookedManifest as DependencyManifest
+      }
+      hooked = true
+    }
     isInstallable = packageIsInstallable(id, manifest, {
       engineStrict,
       lockfileDir: options.lockfileDir,
@@ -386,6 +408,7 @@ async function resolveAndFetch (
       publishedAt,
       alias,
       policyViolation,
+      hooked,
     },
     fetching,
     filesIndexFile: fetchResult.filesIndexFile,
@@ -839,4 +862,23 @@ async function fetcher (
     })
     throw err
   }
+}
+
+function copyManifest (manifest: DependencyManifest): DependencyManifest {
+  const copy: DependencyManifest = { ...manifest }
+  for (const depsField of DEPENDENCIES_OR_PEER_FIELDS) {
+    if (manifest[depsField] != null) {
+      copy[depsField] = { ...manifest[depsField] }
+    }
+  }
+  if (manifest.peerDependenciesMeta != null) {
+    copy.peerDependenciesMeta = {}
+    for (const [peerName, peerMeta] of Object.entries(manifest.peerDependenciesMeta)) {
+      copy.peerDependenciesMeta[peerName] = { ...peerMeta }
+    }
+  }
+  if (manifest.engines != null) {
+    copy.engines = { ...manifest.engines }
+  }
+  return copy
 }

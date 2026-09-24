@@ -696,3 +696,34 @@ module.exports = {
   projects['project-2'].has('is-positive')
   projects['project-2'].hasNot('is-negative')
 })
+
+test('engine-strict=true respects readPackage hook relaxing engines', async () => {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/for-legacy-node': '1.0.0',
+    },
+  })
+
+  // Without the hook, install fails under --engine-strict because @pnpm.e2e/for-legacy-node requires node 0.10
+  const failedInstall = execPnpmSync(['install', '--engine-strict'])
+  expect(failedInstall.status).toBe(1)
+  expect(failedInstall.stdout.toString()).toContain('ERR_PNPM_UNSUPPORTED_ENGINE')
+
+  // With readPackage hook relaxing engines to '*', install succeeds under --engine-strict
+  fs.writeFileSync('.pnpmfile.cjs', `
+module.exports = {
+  hooks: {
+    readPackage (pkg) {
+      if (pkg.name === '@pnpm.e2e/for-legacy-node') {
+        pkg.engines = { ...pkg.engines, node: '*' }
+      }
+      return pkg
+    },
+  },
+}
+`, 'utf8')
+
+  await execPnpm(['install', '--engine-strict'])
+
+  project.has('@pnpm.e2e/for-legacy-node')
+})

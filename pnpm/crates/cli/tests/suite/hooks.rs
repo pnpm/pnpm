@@ -1069,3 +1069,48 @@ fn update_config_can_rewrite_registry_routing() {
 
     drop((root, mock_instance));
 }
+
+/// A `readPackage` hook that relaxes `engines` allows an install to succeed under
+/// `engine-strict=true` even when the package originally declared incompatible engines.
+#[test]
+fn engine_strict_respects_read_package_hook_relaxing_engines() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/for-legacy-node": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    // Without a hook, install fails under --engine-strict because @pnpm.e2e/for-legacy-node requires node 0.10
+    pacquet_in(&workspace)
+        .with_args(["install", "--engine-strict"])
+        .assert()
+        .failure();
+
+    // With readPackage hook relaxing engines to '*', install succeeds under --engine-strict
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"module.exports = {
+  hooks: {
+    readPackage (pkg) {
+      if (pkg.name === '@pnpm.e2e/for-legacy-node') {
+        pkg.engines = { ...pkg.engines, node: '*' };
+      }
+      return pkg;
+    }
+  }
+};
+",
+    )
+    .expect("write pnpmfile");
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--engine-strict"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
