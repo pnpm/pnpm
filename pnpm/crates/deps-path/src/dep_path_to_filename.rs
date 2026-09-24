@@ -22,7 +22,7 @@ pub fn dep_path_to_filename(dep_path: &str, max_length_without_hash: usize) -> S
     if trailing > 0 {
         filename.truncate(kept);
         filename.extend(std::iter::repeat_n('+', trailing));
-        return hash_suffix_virtual_store_name(filename, max_length_without_hash);
+        return hash_suffix_virtual_store_name(&filename, max_length_without_hash);
     }
     shorten_virtual_store_name(filename, max_length_without_hash)
 }

@@ -140,20 +140,20 @@ pub fn shorten_virtual_store_name(filename: String, max_length: usize) -> String
     if !needs_shortening {
         return filename;
     }
-    hash_suffix_virtual_store_name(filename, max_length)
+    hash_suffix_virtual_store_name(&filename, max_length)
 }
 
 /// The shortened form of [`shorten_virtual_store_name`], applied
 /// unconditionally: the first `max_length - 33` bytes of `filename`
 /// followed by `_` and the [`create_short_hash`] of the full `filename`.
 #[must_use]
-pub fn hash_suffix_virtual_store_name(filename: String, max_length: usize) -> String {
+pub fn hash_suffix_virtual_store_name(filename: &str, max_length: usize) -> String {
     let cap = max_length.saturating_sub(33);
     let mut boundary = cap.min(filename.len());
     while !filename.is_char_boundary(boundary) {
         boundary -= 1;
     }
-    let hash = create_short_hash(&filename);
+    let hash = create_short_hash(filename);
     format!("{}_{}", &filename[..boundary], hash)
 }
 

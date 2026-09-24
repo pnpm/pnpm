@@ -81,7 +81,7 @@ fn trailing_dots_and_spaces_are_escaped() {
     );
     assert_eq!(
         dep_path_to_filename("pkg@file:.", 120),
-        "pkg@file++_af438b120e771c4877c21269718fda92"
+        "pkg@file++_af438b120e771c4877c21269718fda92",
     );
     assert_eq!(
         dep_path_to_filename("pkg@file:../dir ", 120),
