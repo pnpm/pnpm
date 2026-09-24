@@ -321,6 +321,7 @@ impl CliArgs {
             &mut cfg,
             &ProjectSelectors {
                 recursive: self.workspace.recursive,
+                recursive_from_command_line: self.workspace.recursive_from_command_line,
                 recursive_by_default_command: setup.recursive_by_default,
                 filter: &self.workspace.selection.filter,
                 filter_prod: &self.workspace.selection.filter_prod,

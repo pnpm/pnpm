@@ -256,6 +256,7 @@ pub(super) fn apply_location_overrides(
 /// `.failIfNoMatch`.
 pub(super) struct ProjectSelectors<'a> {
     pub(super) recursive: bool,
+    pub(super) recursive_from_command_line: bool,
     pub(super) recursive_by_default_command: bool,
     pub(super) filter: &'a [String],
     pub(super) filter_prod: &'a [String],
@@ -267,7 +268,9 @@ pub(super) fn apply_project_selectors(cfg: &mut Config, selectors: &ProjectSelec
     cfg.recursive = selectors.recursive;
     cfg.filter = selectors.filter.to_vec();
     cfg.filter_prod = selectors.filter_prod.to_vec();
-    if selectors.recursive_by_default_command
+    if selectors.recursive_from_command_line {
+        cfg.recursive_install = true;
+    } else if selectors.recursive_by_default_command
         && cfg.recursive
         && !cfg.recursive_install
         && cfg.filter.is_empty()

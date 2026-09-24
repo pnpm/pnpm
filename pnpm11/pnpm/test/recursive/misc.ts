@@ -496,3 +496,44 @@ test('set recursive-install to false would install as --filter {.}...', async ()
 
   projects['project-2'].has('is-negative')
 })
+
+test('set recursive-install to false in workspace config would still allow recursive install with -r', async () => {
+  const projects = preparePackages([
+    {
+      location: 'workspace/project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'workspace/project-2',
+      package: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+  ])
+
+  process.chdir('workspace')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**'],
+    recursiveInstall: false,
+    dedupePeerDependents: false,
+  })
+
+  process.chdir('project-1')
+  await execPnpm(['install', '-r'])
+
+  projects['project-1'].has('is-positive')
+  projects['project-2'].has('is-negative')
+})
+

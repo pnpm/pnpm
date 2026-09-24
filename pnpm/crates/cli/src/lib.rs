@@ -142,18 +142,24 @@ fn run_cli() -> miette::Result<()> {
     run_cli_command(args, &config_overrides, builtin_command_forced)
 }
 
-/// Parse argv, recording whether `--dir` came from the command line.
+/// Parse argv, recording whether `--dir` or `-r` came from the command line.
 fn parse_cli_args(command: clap::Command, argv: Vec<OsString>) -> Result<CliArgs, clap::Error> {
     command
         .try_get_matches_from(argv)
         .and_then(|matches| {
             let dir_from_command_line =
                 matches.value_source("dir") == Some(clap::parser::ValueSource::CommandLine);
+            let recursive_from_command_line =
+                matches.value_source("recursive") == Some(clap::parser::ValueSource::CommandLine);
             CliArgs::from_arg_matches(&matches)
                 .map(|args| CliArgs {
                     paths: crate::cli_args::cli_command::CliPathArgs {
                         dir_from_command_line,
                         ..args.paths
+                    },
+                    workspace: crate::cli_args::cli_command::CliWorkspaceArgs {
+                        recursive_from_command_line,
+                        ..args.workspace
                     },
                     ..args
                 })
