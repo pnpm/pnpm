@@ -280,3 +280,79 @@ fn preserve_symlinks_imports_a_link_to_a_left_out_file_as_that_file() {
     assert!(fs::symlink_metadata(target.join("link.txt")).unwrap().is_file());
     assert_eq!(fs::read(target.join("link.txt")).unwrap(), b"content");
 }
+
+#[cfg(unix)]
+#[test]
+fn preserve_symlinks_leaves_out_a_directory_link_to_a_left_out_directory() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("src");
+    write_source(&src_root, "sub/nested.txt", b"nested");
+    let link = src_root.join("dir-link");
+    symlink("sub", &link).unwrap();
+    let cas = cas_map(&[("dir-link", link)]);
+
+    let target = tmp.path().join("target");
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts { preserve_symlinks: true, ..ImportIndexedDirOpts::default() },
+    )
+    .expect("import with preserve_symlinks should succeed");
+
+    assert!(fs::symlink_metadata(target.join("dir-link")).is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn preserve_symlinks_relativizes_an_absolute_link_through_a_linked_root() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("src");
+    let real_file = write_source(&src_root, "real.txt", b"content");
+    let root_link = tmp.path().join("src-link");
+    symlink(&src_root, &root_link).unwrap();
+    let link_file = src_root.join("link.txt");
+    symlink(root_link.join("real.txt"), &link_file).unwrap();
+    let cas = cas_map(&[("real.txt", real_file), ("link.txt", link_file)]);
+
+    let target = tmp.path().join("target");
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts { preserve_symlinks: true, ..ImportIndexedDirOpts::default() },
+    )
+    .expect("import with preserve_symlinks should succeed");
+
+    assert_eq!(fs::read_link(target.join("link.txt")).unwrap(), std::path::Path::new("real.txt"));
+}
+
+#[cfg(windows)]
+#[test]
+fn preserve_symlinks_recreates_an_internal_junction() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("src");
+    let nested = write_source(&src_root, "sub/nested.txt", b"nested");
+    let link = src_root.join("dir-link");
+    junction::create(src_root.join("sub"), &link).unwrap();
+    let cas = cas_map(&[("sub/nested.txt", nested), ("dir-link", link)]);
+
+    let target = tmp.path().join("target");
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts { preserve_symlinks: true, ..ImportIndexedDirOpts::default() },
+    )
+    .expect("import with preserve_symlinks should succeed");
+
+    assert!(pnpm_fs::is_symlink_or_junction(&target.join("dir-link")).unwrap());
+    assert_eq!(fs::read(target.join("dir-link/nested.txt")).unwrap(), b"nested");
+}

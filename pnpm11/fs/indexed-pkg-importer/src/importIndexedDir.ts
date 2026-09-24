@@ -477,8 +477,9 @@ function importEntry (importFile: ImportFile, src: string, dest: string, links?:
 }
 
 // Recreate the symlink at src as dest when its target stays inside the
-// package, and report whether it did. A link that points outside the package,
-// or at a file the import leaves out, is imported as the file it points to.
+// package, and report whether the entry is handled. A link that points outside
+// the package, or at a file the import leaves out, is imported as the file it
+// points to. A link to a directory the import leaves out is left out too.
 function copyInternalSymlink (src: string, dest: string, links: SymlinkDirs): boolean {
   let target = fs.readlinkSync(src)
   if (path.isAbsolute(target)) {
@@ -486,8 +487,9 @@ function copyInternalSymlink (src: string, dest: string, links: SymlinkDirs): bo
   }
   const resolved = path.resolve(path.dirname(dest), target)
   if (escapesDir(links.writtenDir, resolved)) return false
-  const importsTarget = links.imported.has(path.relative(links.writtenDir, resolved).split(path.sep).join('/'))
-  if (!importsTarget && !isDirectory(src)) return false
+  if (!links.imported.has(path.relative(links.writtenDir, resolved).split(path.sep).join('/'))) {
+    return isDirectory(src)
+  }
   if (process.platform !== 'win32') {
     fs.symlinkSync(target, dest)
     return true

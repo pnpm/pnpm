@@ -35,8 +35,21 @@ pub(super) fn imported_paths(cas_paths: &HashMap<String, PathBuf>) -> HashSet<&s
     imported
 }
 
+/// Whether `path` is a symlink or, on Windows, a junction, which
+/// [`fs::FileType::is_symlink`] does not report.
 pub(super) fn is_symlink(path: &Path) -> bool {
-    fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink())
+    let Ok(metadata) = fs::symlink_metadata(path) else {
+        return false;
+    };
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+        if metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+            return pnpm_fs::is_symlink_or_junction(path).unwrap_or(false);
+        }
+    }
+    metadata.file_type().is_symlink()
 }
 
 /// The target to give the recreated link at `target`: the source link's
@@ -47,7 +60,7 @@ fn validate_symlink_target(
     target: &Path,
     pkg_root: &Path,
 ) -> Result<PathBuf, ImportIndexedDirError> {
-    let link_target = fs::read_link(store_path)
+    let link_target = pnpm_fs::read_symlink_dir(store_path)
         .map(|link| relative_to_link(store_path, link))
         .map_err(|error| {
             ImportIndexedDirError::LinkFile(crate::link_file::LinkFileError::Import {
@@ -69,20 +82,22 @@ fn validate_symlink_target(
 }
 
 /// `link`, a link target read from `link_path`, with an absolute one made
-/// relative to the link's directory.
+/// relative to the link's directory. Both sides are canonicalized first:
+/// the directory fetcher lists links under the canonical package root,
+/// while the link text may reach the same place through another path.
 fn relative_to_link(link_path: &Path, link: PathBuf) -> PathBuf {
-    if link.is_absolute()
-        && let Some(parent) = link_path.parent()
-        && let Some(rel) = pathdiff::diff_paths(&link, parent)
-    {
-        return rel;
-    }
-    link
+    let (true, Some(parent)) = (link.is_absolute(), link_path.parent()) else {
+        return link;
+    };
+    let parent = fs::canonicalize(parent).unwrap_or_else(|_| parent.to_path_buf());
+    let link = fs::canonicalize(&link).unwrap_or(link);
+    pathdiff::diff_paths(&link, &parent).unwrap_or(link)
 }
 
-/// Recreate the symlink at `store_path` as `target`, reporting whether it
-/// did. A file link whose target the import leaves out is left for the
-/// caller to import as a file.
+/// Recreate the symlink at `store_path` as `target`, reporting whether the
+/// entry is handled. A link whose target the import leaves out is not
+/// recreated: a file link is left for the caller to import as a file, and
+/// a directory link is left out.
 pub(super) fn place_symlink_entry(
     placement: Placement,
     store_path: &Path,
@@ -91,8 +106,8 @@ pub(super) fn place_symlink_entry(
 ) -> Result<bool, ImportIndexedDirError> {
     let link_target = validate_symlink_target(store_path, target, roots.written_dir)?;
     let is_dir = fs::metadata(store_path).is_ok_and(|meta| meta.is_dir());
-    if !is_dir && !imports_link_target(target, &link_target, roots) {
-        return Ok(false);
+    if !imports_link_target(target, &link_target, roots) {
+        return Ok(is_dir);
     }
     if placement == Placement::Repair && file_matches_store_entry(target, store_path) {
         return Ok(true);
@@ -182,7 +197,8 @@ fn commit_symlink_placement(
 }
 
 pub(super) fn symlink_matches_store_entry(target: &Path, store_path: &Path) -> bool {
-    let (Ok(target_link), Ok(store_link)) = (fs::read_link(target), fs::read_link(store_path))
+    let (Ok(target_link), Ok(store_link)) =
+        (pnpm_fs::read_symlink_dir(target), pnpm_fs::read_symlink_dir(store_path))
     else {
         return false;
     };

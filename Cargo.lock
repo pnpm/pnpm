@@ -4935,6 +4935,7 @@ dependencies = [
  "futures-util",
  "indexmap 2.14.0",
  "insta",
+ "junction 2.0.0",
  "libc",
  "miette 7.6.0",
  "mockito",
