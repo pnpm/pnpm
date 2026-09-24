@@ -394,3 +394,5 @@ mod reporting;
 mod dependencies;
 
 mod integrity;
+
+mod json_env_multiple_registries;

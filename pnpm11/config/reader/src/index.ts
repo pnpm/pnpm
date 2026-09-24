@@ -619,7 +619,7 @@ export async function getConfig (opts: {
     explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string'
       ? { default: normalizeRegistryUrl(pnpmConfig.registry) }
       : undefined
-  pnpmConfig.registriesByScope = {
+  const baseRegistries = {
     ...registriesFromNpmrc,
     // The global config file's `_auth` only fills in what nothing declares:
     // it is where a `pnpm login` stores a credential, and holding one is not
@@ -630,10 +630,34 @@ export async function getConfig (opts: {
     ...npmrcResult.declaredRegistries,
     ...globalYamlRegistries,
     ...workspaceManifestRegistries,
+  }
+  const isScopedRegistry = (url: string): boolean => {
+    const normalized = normalizeRegistryUrl(url)
+    return Object.entries(baseRegistries).some(
+      ([scope, scopedUrl]) => scope !== 'default' && typeof scopedUrl === 'string' && normalizeRegistryUrl(scopedUrl) === normalized
+    )
+  }
+  const envDefaultCandidates = (npmrcResult.jsonAuth.defaultCandidates ?? [])
+    .filter(url => !isScopedRegistry(url))
+  const resolvedEnvRegistries = { ...npmrcResult.jsonAuth.registries }
+  delete resolvedEnvRegistries.default
+  const declaredDefaultUrl = declaredDefault?.default ?? npmrcResult.declaredRegistries.default
+  if (envDefaultCandidates.length > 0) {
+    if (declaredDefaultUrl != null && envDefaultCandidates.length > 1) {
+      const match = envDefaultCandidates.find(url => normalizeRegistryUrl(url) === declaredDefaultUrl)
+      if (match) {
+        resolvedEnvRegistries.default = match
+      }
+    } else {
+      resolvedEnvRegistries.default = envDefaultCandidates[envDefaultCandidates.length - 1]
+    }
+  }
+  pnpmConfig.registriesByScope = {
+    ...baseRegistries,
     ...declaredDefault,
     // The `_auth` env var is the operator's channel — a CI runner pointed at
     // a mandated proxy — so its routes win over what any file declares.
-    ...npmrcResult.jsonAuth.registries,
+    ...resolvedEnvRegistries,
     // CLI per-scope registries last, so `--@scope:registry=...` wins over
     // both yaml and `_auth` ("CLI > _auth env > yaml > _auth file").
     ...cliScopedRegistries,

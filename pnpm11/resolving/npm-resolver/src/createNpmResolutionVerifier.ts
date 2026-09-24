@@ -1112,7 +1112,19 @@ function pickRegistryForVersion (
     // scheme or `%2f` encoding still routes to its registry instead of
     // falling back (and then failing closed against the wrong packument).
     const normalized = canonicalTarballUrl(tarballUrl)
-    for (const prefix of namedRegistryPrefixes) {
+    const candidatePrefixes = [
+      ...namedRegistryPrefixes,
+      ...Object.entries(registriesByScope)
+        .filter((entry): entry is [string, string] => entry[0] !== 'default' && typeof entry[1] === 'string')
+        .map(([, url]) => url),
+    ].sort((a, b) => {
+      const diff = canonicalTarballUrl(b).length - canonicalTarballUrl(a).length
+      return diff !== 0 ? diff : a.localeCompare(b)
+    })
+    const seen = new Set<string>()
+    for (const prefix of candidatePrefixes) {
+      if (seen.has(prefix)) continue
+      seen.add(prefix)
       if (normalized.startsWith(canonicalTarballUrl(prefix))) return prefix
     }
   }

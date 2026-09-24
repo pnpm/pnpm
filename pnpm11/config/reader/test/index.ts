@@ -2860,6 +2860,90 @@ test('pnpm_config__auth env default registry wins over pnpm-workspace.yaml defau
   expect(config.registry).toBe('https://my-npm-proxy.example/')
 })
 
+test('pnpm_config__auth preserves default registry when multiple registries and scoped registries configured (pnpm/pnpm#15530)', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      'https://nexus.abc.de/repository/npm-hosted/': { scopes: ['@abc'] },
+      'https://nexus.abc.de/repository/mode2-npm-hosted/': { scopes: ['@pong'] },
+    },
+  })
+  fs.writeFileSync('.npmrc', 'registry=https://nexus.abc.de/repository/npm-public/\n')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://nexus.abc.de/repository/npm-public/': { '@': { authToken: 'token-public' } },
+        'https://nexus.abc.de/repository/npm-hosted/': { '@': { authToken: 'token-abc' } },
+        'https://nexus.abc.de/repository/mode2-npm-hosted/': { '@': { authToken: 'token-pong' } },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registry).toBe('https://nexus.abc.de/repository/npm-public/')
+  expect(config.registriesByScope.default).toBe('https://nexus.abc.de/repository/npm-public/')
+  expect(config.registriesByScope['@abc']).toBe('https://nexus.abc.de/repository/npm-hosted/')
+  expect(config.registriesByScope['@pong']).toBe('https://nexus.abc.de/repository/mode2-npm-hosted/')
+  expect(config.authConfig['//nexus.abc.de/repository/npm-public/:_authToken']).toBe('token-public')
+  expect(config.authConfig['//nexus.abc.de/repository/npm-hosted/:_authToken']).toBe('token-abc')
+  expect(config.authConfig['//nexus.abc.de/repository/mode2-npm-hosted/:_authToken']).toBe('token-pong')
+})
+
+test('pnpm_config__auth scoped-only registries do not overwrite default registry', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      'https://nexus.abc.de/repository/mode2-npm-hosted/': { scopes: ['@pong'] },
+    },
+  })
+  fs.writeFileSync('.npmrc', 'registry=https://nexus.abc.de/repository/npm-public/\n')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://nexus.abc.de/repository/mode2-npm-hosted/': { '@': { authToken: 'token-pong' } },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registry).toBe('https://nexus.abc.de/repository/npm-public/')
+  expect(config.registriesByScope.default).toBe('https://nexus.abc.de/repository/npm-public/')
+  expect(config.registriesByScope['@pong']).toBe('https://nexus.abc.de/repository/mode2-npm-hosted/')
+})
+
+test('pnpm_config__auth preserves declared default when multiple unscoped registries present', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', 'registry=https://nexus.abc.de/repository/npm-public/\n')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://nexus.abc.de/repository/npm-public/': { '@': { authToken: 'tok-1' } },
+        'https://other.example.com/': { '@': { authToken: 'tok-2' } },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registry).toBe('https://nexus.abc.de/repository/npm-public/')
+  expect(config.registriesByScope.default).toBe('https://nexus.abc.de/repository/npm-public/')
+})
+
+
 test('pnpm_config__auth env scoped registry wins over pnpm-workspace.yaml scoped registry', async () => {
   prepareEmpty()
 

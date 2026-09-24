@@ -133,6 +133,9 @@ pub(crate) struct NpmrcRoutes {
     /// Applied after workspace yaml by
     /// [`NpmrcAuth::apply_json_env_registries`].
     pub json_env: BTreeMap<String, String>,
+    /// Candidates for the default registry route from `_auth` env var.
+    /// Collected when `"@"` is used in registry entries.
+    pub json_env_default_candidates: Vec<String>,
     /// The same routes inferred from the `_auth` of the global config
     /// **file**. That file is the user's own store rather than a mandate —
     /// it is where `pnpm login` puts a credential — so a `registry` or
@@ -393,6 +396,11 @@ impl NpmrcRoutes {
         }
         for (scope, registry) in lower.json_env {
             self.json_env.entry(scope).or_insert(registry);
+        }
+        for candidate in lower.json_env_default_candidates {
+            if !self.json_env_default_candidates.contains(&candidate) {
+                self.json_env_default_candidates.push(candidate);
+            }
         }
         for (scope, registry) in lower.json_file {
             self.json_file.entry(scope).or_insert(registry);

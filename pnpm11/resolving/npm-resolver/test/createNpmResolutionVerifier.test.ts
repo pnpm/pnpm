@@ -934,3 +934,107 @@ test('createNpmResolutionVerifier() still flags a version absent from fetched me
 
   expect(result).toMatchObject({ ok: false, code: 'TARBALL_URL_MISMATCH' })
 })
+
+test('createNpmResolutionVerifier() routes packument fetch to matching configured registry for tarball URL', async () => {
+  const meta = {
+    name: 'unscoped-pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'unscoped-pkg',
+        version: '1.0.0',
+        dist: { tarball: 'https://hosted.example.com/unscoped-pkg/-/unscoped-pkg-1.0.0.tgz', shasum: 'aa' },
+      },
+    },
+    modified: '2020-01-01T00:00:00.000Z',
+  }
+  const pool = getMockAgent().get('https://hosted.example.com')
+  pool.intercept({ path: '/unscoped-pkg', method: 'GET' }).reply(200, meta).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    registriesByScope: {
+      default: 'https://nonexistent.example.invalid/',
+      '@scoped': 'https://scoped.example.invalid/',
+      hosted: 'https://hosted.example.com/',
+    },
+  }))
+  const result = await verifier.verify(
+    {
+      integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+      tarball: 'https://hosted.example.com/unscoped-pkg/-/unscoped-pkg-1.0.0.tgz',
+    } as unknown as Resolution,
+    { name: 'unscoped-pkg', version: '1.0.0' }
+  )
+
+  expect(result).toMatchObject({ ok: true })
+})
+
+test('createNpmResolutionVerifier() queries private scoped registry and rejects mismatched default registry tarball', async () => {
+  const meta = {
+    name: '@private/pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: '@private/pkg',
+        version: '1.0.0',
+        dist: { tarball: 'https://private.example.com/@private/pkg/-/pkg-1.0.0.tgz', shasum: 'aa' },
+      },
+    },
+    modified: '2020-01-01T00:00:00.000Z',
+  }
+  const slash = '%2F'
+  const pool = getMockAgent().get('https://private.example.com')
+  pool.intercept({ path: `/@private${slash}pkg`, method: 'GET' }).reply(200, meta).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    registriesByScope: {
+      default: 'https://public.example.com/',
+      '@private': 'https://private.example.com/',
+    },
+  }))
+  const result = await verifier.verify(
+    {
+      integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+      tarball: 'https://public.example.com/@private/pkg/-/pkg-1.0.0.tgz',
+    } as unknown as Resolution,
+    { name: '@private/pkg', version: '1.0.0' }
+  )
+
+  expect(result).toMatchObject({ ok: false, code: 'TARBALL_URL_MISMATCH' })
+})
+
+test('createNpmResolutionVerifier() routes to more specific scoped registry when a broad named registry contains it', async () => {
+  const meta = {
+    name: '@corp/pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: '@corp/pkg',
+        version: '1.0.0',
+        dist: { tarball: 'https://registry.example.com/npm/corp/@corp/pkg/-/pkg-1.0.0.tgz', shasum: 'aa' },
+      },
+    },
+    modified: '2020-01-01T00:00:00.000Z',
+  }
+  const slash = '%2F'
+  const pool = getMockAgent().get('https://registry.example.com')
+  pool.intercept({ path: `/npm/corp/@corp${slash}pkg`, method: 'GET' }).reply(200, meta).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    registriesByScope: {
+      default: 'https://public.example.com/',
+      broad: 'https://registry.example.com/npm/',
+      '@corp': 'https://registry.example.com/npm/corp/',
+    },
+  }))
+  const result = await verifier.verify(
+    {
+      integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+      tarball: 'https://registry.example.com/npm/corp/@corp/pkg/-/pkg-1.0.0.tgz',
+    } as unknown as Resolution,
+    { name: '@corp/pkg', version: '1.0.0' }
+  )
+
+  expect(result).toMatchObject({ ok: true })
+})
+
