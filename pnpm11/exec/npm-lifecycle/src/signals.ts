@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -8,7 +9,10 @@ export interface SignalTarget {
 }
 
 export interface RelaySignalsOptions {
-  /** The child leads a process group of its own, which is what pnpm signals. */
+  /**
+   * The child leads a process group of its own. pnpm signals that group, and
+   * a watchdog kills it if pnpm dies before it is done with the child.
+   */
   ownProcessGroup: boolean
   /** Raise pnpm's interrupt after every relay in the active group settles. */
   raiseOnInterrupt?: boolean
@@ -42,6 +46,8 @@ export interface SignalRelay {
    * always do, the last of them ending pnpm itself. An interrupted group
    * settles together with its pending raise, so callers cannot dispatch
    * replacement work while the other children are still shutting down.
+   * The group's watchdog is released once the wait is over, so whatever
+   * the child left running in the group is not ended by pnpm's own exit.
    */
   settle: () => Promise<void>
 }
@@ -77,10 +83,12 @@ export function reserveSignalRelay (): SignalRelayReservation {
  *
  * A SIGTERM is passed on. A SIGINT is passed on unless a terminal delivered
  * it, in which case the child has it already; a second SIGINT becomes a
- * SIGTERM. A child with a process group of its own is signalled as a group.
+ * SIGTERM. A child with a process group of its own is signalled as a group,
+ * and that group is watched until `settle` so it does not outlive pnpm.
  */
 export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): SignalRelay {
   const group = joinRelayGroup()
+  const watchdog = opts.ownProcessGroup && child.pid != null ? watchProcessGroup(child.pid) : undefined
   const installedAfterInterrupt = group.interrupted
   let interruptedBy: NodeJS.Signals | null = null
   let relayed = false
@@ -167,6 +175,7 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
       } catch {
         // The group cannot be observed, so there is nothing to wait on.
       } finally {
+        watchdog?.release()
         process.removeListener('SIGTERM', onTerm)
         process.removeListener('SIGINT', onEscalate)
         process.removeListener('SIGINT', onInterrupt)
@@ -247,6 +256,54 @@ export function hasControllingTerminal (): boolean {
   }
   fs.closeSync(tty)
   return true
+}
+
+/**
+ * What the watchdog runs, with the process group to kill as `$1`. A line on
+ * standard input releases it; end of input without one means pnpm is gone.
+ * It ignores the signals pnpm relays, so a signal sent to every process pnpm
+ * started does not take it down before the group it watches.
+ *
+ * `kill -9 -<pgid>` is the one spelling dash, bash, zsh and busybox sh all
+ * take: dash refuses `--` after a signal given by number, and busybox refuses
+ * `--` altogether.
+ */
+const WATCHDOG_SCRIPT = "trap '' INT TERM HUP; read -r _ || kill -9 -$1"
+
+/** A sh that kills a process group if pnpm dies before releasing it. */
+export interface ProcessGroupWatchdog {
+  /** Tell the watchdog that pnpm is done with the group. */
+  release: () => void
+}
+
+/**
+ * Stand watch over the process group led by `leader`.
+ *
+ * A child in a process group of its own is out of reach of whatever signals
+ * pnpm's group. A SIGKILL aimed at that group, which is how Playwright's
+ * webServer stops the command it started, ends pnpm and leaves the script
+ * running, holding the caller's pipes open
+ * (https://github.com/pnpm/pnpm/issues/15555). The signal cannot be relayed,
+ * so a sh in a group of its own reads a pipe only pnpm writes to, and kills
+ * the group if the pipe ends before pnpm has released it. Without a sh to run
+ * there is no watchdog, and the group is on its own.
+ */
+export function watchProcessGroup (leader: number): ProcessGroupWatchdog {
+  const watchdog = spawn('sh', ['-c', WATCHDOG_SCRIPT, 'sh', String(leader)], {
+    // A session of its own keeps it out of a kill aimed at pnpm's group.
+    detached: true,
+    stdio: ['pipe', 'ignore', 'ignore'],
+  })
+  watchdog.on('error', () => {})
+  watchdog.unref()
+  const lifeline = watchdog.stdin!
+  // A watchdog that died already cannot be told, and needs no telling.
+  lifeline.on('error', () => {})
+  return {
+    release: () => {
+      lifeline.end('\n')
+    },
+  }
 }
 
 /**

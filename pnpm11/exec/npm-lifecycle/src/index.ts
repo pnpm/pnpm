@@ -16,8 +16,8 @@ import { relaySignals, reserveSignalRelay, type SignalRelayReservation, spawnsIn
 import { type LifecycleChildProcess, spawn } from './spawn.js'
 
 export { makePackageManagerEnv } from './makePackageManagerEnv.js'
-export type { RelaySignalsOptions, SignalRelay, SignalTarget } from './signals.js'
-export { hasControllingTerminal, relaySignals, reserveSignalRelay, spawnsInOwnProcessGroup, waitForProcessGroup } from './signals.js'
+export type { ProcessGroupWatchdog, RelaySignalsOptions, SignalRelay, SignalTarget } from './signals.js'
+export { hasControllingTerminal, relaySignals, reserveSignalRelay, spawnsInOwnProcessGroup, waitForProcessGroup, watchProcessGroup } from './signals.js'
 export type { LifecycleChildProcess } from './spawn.js'
 
 export interface LifecycleLog {
