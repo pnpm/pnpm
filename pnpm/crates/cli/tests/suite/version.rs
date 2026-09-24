@@ -351,21 +351,24 @@ fn a_global_command_does_not_record_the_minimum_release_age_exclude_in_the_proje
         .expect("find the pnpm binary")
         .with_current_dir(&workspace)
         .without_ambient_pnpm_config();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
     let path = std::env::join_paths(
-        std::iter::once(root.path().join("pnpm-home"))
+        std::iter::once(global_bin)
             .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())),
     )
     .expect("join PATH");
     let output = test_command(command, root.path())
+        .env("PNPM_HOME", &pnpm_home)
         .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
         .env("PATH", path)
         .args(["root", "-g"])
         .output()
         .expect("run pacquet root -g");
-    dbg!(&output);
+    assert!(output.status.success(), "pacquet root -g should succeed");
     let global_dir = String::from_utf8_lossy(&output.stdout);
-    // Only pnpm 9 prints this layout, so the global command did switch.
-    assert!(Path::new(global_dir.trim_end()).ends_with("global/5/node_modules"), "{global_dir}");
+    let expected = format!("global/{}", pnpm_config::GLOBAL_LAYOUT_VERSION);
+    assert!(Path::new(global_dir.trim_end()).ends_with(&expected), "{global_dir}");
     assert_eq!(fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml"), yaml);
 
     drop((root, mock_instance));
