@@ -22,8 +22,10 @@ export type FindDanglingDirectDependencyLinkOptions = Pick<Config, 'lockfileDir'
  * dependencies in the root modules directory too, so both are probed there.
  */
 export async function findDanglingDirectDependencyLink (opts: FindDanglingDirectDependencyLinkOptions): Promise<string | undefined> {
-  const projects: Array<{ rootDir: string, manifest: ProjectManifest }> = opts.allProjects ??
-    (opts.rootProjectManifest == null ? [] : [{ rootDir: opts.rootProjectManifestDir, manifest: opts.rootProjectManifest }])
+  const projects: Array<{ rootDir: string, manifest: ProjectManifest }> = [...(opts.allProjects ?? [])]
+  if (opts.rootProjectManifest != null && !projects.some(({ rootDir }) => rootDir === opts.rootProjectManifestDir)) {
+    projects.push({ rootDir: opts.rootProjectManifestDir, manifest: opts.rootProjectManifest })
+  }
   const modulesDirOf = createProjectModulesDirResolver(opts)
   const rootModulesDir = path.resolve(opts.rootProjectManifestDir, modulesDirOf(opts.rootProjectManifest?.name) ?? 'node_modules')
   const fields = DEPENDENCIES_FIELDS.filter((field) => opts.include?.[field] !== false)
