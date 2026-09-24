@@ -5428,6 +5428,9 @@ name = "pnpm-lockfile-preferred-versions"
 version = "0.0.1"
 dependencies = [
  "node-semver",
+ "pnpm-catalogs-protocol-parser",
+ "pnpm-catalogs-resolver",
+ "pnpm-catalogs-types",
  "pnpm-lockfile",
  "pnpm-package-manifest",
  "pnpm-resolving-resolver-base",

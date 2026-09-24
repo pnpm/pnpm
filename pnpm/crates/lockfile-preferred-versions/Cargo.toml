@@ -11,6 +11,9 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+pnpm-catalogs-protocol-parser = { workspace = true }
+pnpm-catalogs-resolver = { workspace = true }
+pnpm-catalogs-types = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }

@@ -26,7 +26,9 @@ use pnpm_lockfile::{
     ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
     TarballResolution, VersionPart, WantedLockfileSelection,
 };
-use pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
+use pnpm_lockfile_preferred_versions::{
+    DirectSpecs, get_preferred_versions_from_lockfile_and_manifests,
+};
 use pnpm_package_manager::{
     ImportIndexedDirOpts, apply_deploy_manifest_hook, import_indexed_dir, manifest_has_bin,
 };

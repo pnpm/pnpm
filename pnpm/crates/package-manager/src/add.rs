@@ -388,7 +388,10 @@ impl AddResolveInputs<'_, '_> {
                 self.add.lockfile.document.and_then(|lockfile| {
                     lockfile.snapshots.as_ref()
                 }),
-                &[manifest],
+                pnpm_lockfile_preferred_versions::DirectSpecs {
+                    manifests: &[manifest],
+                    catalogs: self.catalogs,
+                },
             )
         })
     }
