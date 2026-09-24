@@ -816,7 +816,8 @@ test("linkBins() creates a bin that points to a path that doesn't exist yet", as
   const binSource = path.join(binNotExistFixture, 'node_modules', 'foo', 'dist', 'not-exist.js')
   fs.mkdirSync(path.dirname(binSource), { recursive: true })
   fs.writeFileSync(binSource, 'console.log(\'built\')\n')
-  const result = spawnSync(path.join(binTarget, IS_WINDOWS ? `meow${CMD_EXTENSION}` : 'meow'), { shell: IS_WINDOWS })
+  const shim = path.join(binTarget, IS_WINDOWS ? `meow${CMD_EXTENSION}` : 'meow')
+  const result = spawnSync(IS_WINDOWS ? `"${shim}"` : shim, { shell: IS_WINDOWS })
   expect(result.stdout.toString()).toMatch('built')
 })
 
