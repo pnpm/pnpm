@@ -20,7 +20,7 @@ pub struct FetchArgs {
 
 impl FetchArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
-        fetch_locked_package_manager(state.config, state.lockfile_dir()).await?;
+        fetch_locked_package_manager::<Reporter>(state.config, state.lockfile_dir()).await?;
         let lockfile_path = state.lockfile_path();
         let mut fetch_config = (*state.config).clone();
         fetch_config.virtual_store_only = true;

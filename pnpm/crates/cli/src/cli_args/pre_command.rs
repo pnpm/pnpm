@@ -298,7 +298,7 @@ fn switch_or_sync(
 /// when a command in the project would switch to it. `pnpm fetch` reads only
 /// the lockfile, and a later `pnpm install --offline` that switches to the
 /// pinned pnpm finds it there instead of in the registry (pnpm/pnpm#11808).
-pub(crate) async fn fetch_locked_package_manager(
+pub(crate) async fn fetch_locked_package_manager<Reporter: pnpm_reporter::Reporter + 'static>(
     config: &'static Config,
     env_root: &Path,
 ) -> miette::Result<()> {
@@ -308,14 +308,15 @@ pub(crate) async fn fetch_locked_package_manager(
         return Ok(());
     };
     assert_release_is_installable(&version)?;
-    Box::pin(install_engine_from_env::<SilentReporter>(
-        config,
-        PackageManager::Pnpm,
-        &env,
-        &version,
-    ))
-    .await
-    .wrap_err_with(|| format!("fetch pnpm v{version}, which the lockfile pins"))?;
+    let engine =
+        Box::pin(install_engine_from_env::<Reporter>(config, PackageManager::Pnpm, &env, &version))
+            .await
+            .wrap_err_with(|| format!("fetch pnpm v{version}, which the lockfile pins"))?;
+    if engine.private_install.is_some() {
+        miette::bail!(
+            "could not install pnpm v{version} into the shared store because another process held the install lock",
+        );
+    }
     Ok(())
 }
 
