@@ -1,5 +1,5 @@
 use crate::{State, cli_args::recursive::discover_workspace_projects};
-use indexmap::IndexMap;
+use indexmap::{IndexMap, map::Entry};
 use miette::{Context, IntoDiagnostic};
 use node_semver::Range;
 use percent_encoding::percent_decode_str;
@@ -76,11 +76,12 @@ fn patch_key(name: &str, range: &str) -> String {
     if Range::parse(range).is_ok() { format!("{name}@{range}") } else { name.to_string() }
 }
 
-/// A Yarn patch of a dependency that was imported without it.
+/// A Yarn patch that import did not apply.
 #[derive(Debug)]
 pub(super) enum DroppedPatch {
     Missing { alias: String, patch_file: PathBuf },
     Several { alias: String },
+    Conflicting { alias: String, patch_file: String, patch_key: String, kept: String },
 }
 
 impl DroppedPatch {
@@ -92,6 +93,9 @@ impl DroppedPatch {
             ),
             DroppedPatch::Several { alias } => format!(
                 r#""{alias}" has several Yarn patches, and pnpm applies one patch per dependency. "{alias}" was imported without the patches."#,
+            ),
+            DroppedPatch::Conflicting { alias, patch_file, patch_key, kept } => format!(
+                r#"The Yarn patch {patch_file} of "{alias}" was not applied, because "{patch_key}" already uses the patch {kept}."#,
             ),
         }
     }
@@ -105,7 +109,8 @@ pub(super) struct ConvertedYarnPatches {
     pub dropped: Vec<DroppedPatch>,
 }
 
-/// An entry already in `patched_dependencies` wins over a converted patch.
+/// An entry already in `patched_dependencies`, or recorded earlier, wins
+/// over a converted patch with the same key.
 pub(super) fn convert_yarn_patches(
     manifests: &mut [PackageManifest],
     yarn_root: &Path,
@@ -129,7 +134,7 @@ pub(super) fn convert_yarn_patches(
             .wrap_err_with(|| format!("saving {}", manifest.path().display()))?;
         converted.manifests_changed = true;
         for (alias, patch) in patches {
-            let patch_file = single_patch_file(alias, &patch.patch_paths, yarn_root, &project_dir);
+            let patch_file = single_patch_file(&alias, &patch.patch_paths, yarn_root, &project_dir);
             let patch_file = match patch_file {
                 Ok(patch_file) => patch_file,
                 Err(dropped) => {
@@ -138,9 +143,9 @@ pub(super) fn convert_yarn_patches(
                 }
             };
             let Some(patch_file) = patch_file else { continue };
-            patched_dependencies
-                .entry(patch.patch_key)
-                .or_insert_with(|| workspace_relative_path(&patch_file, workspace_dir));
+            let patch_file = workspace_relative_path(&patch_file, workspace_dir);
+            let conflict = record_patch(patched_dependencies, patch.patch_key, patch_file, alias);
+            converted.dropped.extend(conflict);
         }
     }
     Ok(converted)
@@ -149,7 +154,7 @@ pub(super) fn convert_yarn_patches(
 /// The one patch file pnpm can apply, or `None` when Yarn listed only
 /// builtin patches.
 fn single_patch_file(
-    alias: String,
+    alias: &str,
     patch_paths: &[String],
     yarn_root: &Path,
     project_dir: &Path,
@@ -157,13 +162,34 @@ fn single_patch_file(
     let patch_path = match patch_paths {
         [] => return Ok(None),
         [patch_path] => patch_path,
-        _ => return Err(DroppedPatch::Several { alias }),
+        _ => return Err(DroppedPatch::Several { alias: alias.to_string() }),
     };
     let patch_file = patch_file_path(patch_path, yarn_root, project_dir);
     if !patch_file.is_file() {
-        return Err(DroppedPatch::Missing { alias, patch_file });
+        return Err(DroppedPatch::Missing { alias: alias.to_string(), patch_file });
     }
     Ok(Some(patch_file))
+}
+
+fn record_patch(
+    patched_dependencies: &mut IndexMap<String, String>,
+    patch_key: String,
+    patch_file: String,
+    alias: String,
+) -> Option<DroppedPatch> {
+    match patched_dependencies.entry(patch_key) {
+        Entry::Vacant(entry) => {
+            entry.insert(patch_file);
+            None
+        }
+        Entry::Occupied(entry) if *entry.get() == patch_file => None,
+        Entry::Occupied(entry) => Some(DroppedPatch::Conflicting {
+            alias,
+            patch_file,
+            patch_key: entry.key().clone(),
+            kept: entry.get().clone(),
+        }),
+    }
 }
 
 fn replace_patch_specifiers(manifest: &mut Value) -> Vec<(String, YarnPatchSpecifier)> {

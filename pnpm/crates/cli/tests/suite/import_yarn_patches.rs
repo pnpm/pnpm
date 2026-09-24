@@ -184,3 +184,47 @@ fn import_warns_about_a_dependency_with_several_yarn_patches() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn import_warns_about_a_conflicting_yarn_patch() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    append_workspace_yaml_key(&workspace, "packages", r#"["packages/*"]"#);
+    let root_specifier = format!("patch:is-positive@npm%3A1.0.0#~/{ROOT_PATCH_PATH}");
+    let root_manifest =
+        json!({ "name": "root", "dependencies": { "is-positive": root_specifier } });
+    write_file(&workspace, "package.json", &root_manifest.to_string());
+    write_file(&workspace, ROOT_PATCH_PATH, IS_POSITIVE_PATCH);
+    let foo_manifest = json!({
+        "name": "foo",
+        "dependencies": { "is-positive": "patch:is-positive@npm%3A1.0.0#./foo.patch" },
+    });
+    write_file(&workspace, "packages/foo/package.json", &foo_manifest.to_string());
+    write_file(&workspace, "packages/foo/foo.patch", MARKER_PATCH);
+    write_file(&workspace, "yarn.lock", YARN_LOCKFILE);
+
+    let output = pacquet
+        .with_arg("import")
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let warning = format!(
+        r#"The Yarn patch packages/foo/foo.patch of "is-positive" was not applied, because "is-positive@1.0.0" already uses the patch {ROOT_PATCH_PATH}."#,
+    );
+    assert!(stdout.contains(&warning), "stdout:\n{stdout}");
+    let workspace_yaml = read_text(&workspace.join("pnpm-workspace.yaml"));
+    assert!(
+        workspace_yaml.contains(&format!("is-positive@1.0.0: {ROOT_PATCH_PATH}")),
+        "pnpm-workspace.yaml:\n{workspace_yaml}",
+    );
+
+    drop((root, mock_instance));
+}

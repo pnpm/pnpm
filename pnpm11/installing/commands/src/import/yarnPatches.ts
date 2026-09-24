@@ -75,7 +75,8 @@ export interface ImportYarnPatchesOptions {
 }
 
 /**
- * An entry already in `patchedDependencies` wins over a converted patch.
+ * An entry already in `patchedDependencies`, or recorded earlier, wins over a
+ * converted patch with the same key.
  *
  * @returns the `patchedDependencies` to import with, with absolute patch file
  * paths, or `undefined` when no patch was recorded.
@@ -102,8 +103,11 @@ export async function importYarnPatches (opts: ImportYarnPatchesOptions): Promis
       globalWarn(`The patch file ${patchFile} of "${alias}" does not exist. "${alias}" was imported without the patch.`)
       continue
     }
-    if (opts.patchedDependencies?.[patch.patchKey] == null) {
-      recorded[patch.patchKey] ??= patchFile
+    const kept = opts.patchedDependencies?.[patch.patchKey] ?? recorded[patch.patchKey]
+    if (kept == null) {
+      recorded[patch.patchKey] = patchFile
+    } else if (path.resolve(opts.workspaceDir, kept) !== patchFile) {
+      globalWarn(`The Yarn patch ${toWorkspacePath(patchFile, opts.workspaceDir)} of "${alias}" was not applied, because "${patch.patchKey}" already uses the patch ${toWorkspacePath(kept, opts.workspaceDir)}.`)
     }
   }
   if (Object.keys(recorded).length === 0) return undefined
@@ -150,9 +154,10 @@ function replacePatchSpecifiers (manifest: ProjectManifest): Array<[string, Yarn
 
 function relativizePatchFiles (patchedDependencies: Record<string, string>, workspaceDir: string): Record<string, string> {
   return Object.fromEntries(
-    Object.entries(patchedDependencies).map(([key, patchFile]) => [
-      key,
-      path.isAbsolute(patchFile) ? normalizePath(path.relative(workspaceDir, patchFile)) : patchFile,
-    ])
+    Object.entries(patchedDependencies).map(([key, patchFile]) => [key, toWorkspacePath(patchFile, workspaceDir)])
   )
+}
+
+function toWorkspacePath (patchFile: string, workspaceDir: string): string {
+  return path.isAbsolute(patchFile) ? normalizePath(path.relative(workspaceDir, patchFile)) : patchFile
 }

@@ -99,7 +99,7 @@ test('import warns about a dependency with several yarn patches', async () => {
   )
 })
 
-test('import converts the yarn patches of workspace projects', async () => {
+test('import converts the yarn patches of workspace projects and warns about a conflicting patch', async () => {
   prepareEmpty()
   fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - packages/*\n')
   fs.writeFileSync('package.json', JSON.stringify({
@@ -135,5 +135,7 @@ test('import converts the yarn patches of workspace projects', async () => {
     .toStrictEqual({ 'is-positive@1.0.0': PATCH_PATH })
   const lockfile = assertProject(process.cwd()).readLockfile()
   expect(lockfile.importers['packages/foo'].devDependencies?.positive.version).toMatch(/^is-positive@1\.0\.0\(patch_hash=/)
-  expect(globalWarn).not.toHaveBeenCalled()
+  expect(globalWarn).toHaveBeenCalledWith(
+    `The Yarn patch packages/foo/foo.patch of "positive" was not applied, because "is-positive@1.0.0" already uses the patch ${PATCH_PATH}.`
+  )
 })
