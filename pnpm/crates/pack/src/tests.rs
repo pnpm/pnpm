@@ -1218,3 +1218,76 @@ fn install_module(dir: &Path, name: &str, version: &str, extra: &[(&str, &str)])
 }
 
 mod bundled_dependencies;
+
+#[test]
+fn bin_with_crlf_shebang_is_rejected() {
+    use miette::Diagnostic;
+    let (dir, opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "bin": { "foo": "bin/foo.js" }
+    }));
+    touch(dir.path(), "bin/foo.js", "#!/usr/bin/env node\r\nconsole.log(1);\n");
+
+    let Err(err) = api::<SilentReporter, Host>(&opts) else {
+        panic!("expected BinCrlf error");
+    };
+    assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_BIN_CRLF");
+    let PackError::BinCrlf { path } = err else {
+        panic!("expected BinCrlf error");
+    };
+    assert_eq!(path, "bin/foo.js");
+}
+
+#[test]
+fn bin_with_lf_shebang_and_crlf_body_is_accepted() {
+    let (dir, opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "bin": { "foo": "bin/foo.js" }
+    }));
+    touch(dir.path(), "bin/foo.js", "#!/usr/bin/env node\nconsole.log(1);\r\n");
+
+    assert!(api::<SilentReporter, Host>(&opts).is_ok());
+}
+
+#[test]
+fn bin_without_shebang_is_accepted() {
+    let (dir, opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "bin": { "foo": "bin/foo.js" }
+    }));
+    touch(dir.path(), "bin/foo.js", "console.log(1);\r\n");
+
+    assert!(api::<SilentReporter, Host>(&opts).is_ok());
+}
+
+#[test]
+fn bin_with_bom_and_crlf_shebang_is_rejected() {
+    let (dir, opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "bin": "bin/foo.js"
+    }));
+    touch(dir.path(), "bin/foo.js", "\u{feff}#!/usr/bin/env node\r\nconsole.log(1);\n");
+
+    let Err(PackError::BinCrlf { path }) = api::<SilentReporter, Host>(&opts) else {
+        panic!("expected BinCrlf error");
+    };
+    assert_eq!(path, "bin/foo.js");
+}
+
+#[test]
+fn excluded_executable_file_with_crlf_shebang_is_accepted() {
+    let (dir, opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "files": ["index.js"],
+        "publishConfig": { "executableFiles": ["ignored-bin.js"] }
+    }));
+    touch(dir.path(), "index.js", "console.log(1);\n");
+    touch(dir.path(), "ignored-bin.js", "#!/usr/bin/env node\r\nconsole.log(1);\n");
+
+    assert!(api::<SilentReporter, Host>(&opts).is_ok());
+}
