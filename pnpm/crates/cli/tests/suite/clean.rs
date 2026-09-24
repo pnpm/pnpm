@@ -68,6 +68,32 @@ fn clean_removes_the_modules_dir_it_empties() {
     drop(root);
 }
 
+/// A `node_modules` that is a symlink or junction is emptied but not
+/// unlinked: the link belongs to whoever created it.
+#[test]
+fn clean_keeps_a_linked_modules_dir_it_empties() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+
+    let modules_target = root.path().join("modules-target");
+    seed_package(&modules_target, "lodash");
+    let node_modules = workspace.join("node_modules");
+    pnpm_fs::symlink_dir(&modules_target, &node_modules).expect("link node_modules");
+
+    let output = pacquet
+        .with_args(["clean"])
+        .output()
+        .expect("run pacquet clean");
+    assert!(output.status.success(), "pacquet clean should succeed");
+
+    assert!(!modules_target.join("lodash").exists(), "lodash package should be removed");
+    assert!(
+        pnpm_fs::is_symlink_or_junction(&node_modules).expect("inspect node_modules"),
+        "the linked node_modules should remain a link",
+    );
+
+    drop(root);
+}
+
 /// The real isolated-linker layout: `node_modules/<name>` is a link
 /// (symlink or junction) into `.pnpm`. `.pnpm` sorts before the package
 /// names, so by the time `clean` reaches the link it dangles — removal

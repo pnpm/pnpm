@@ -1,7 +1,7 @@
 use super::{dispatch::RunCtx, recursive::discover_workspace_projects};
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_fs::{is_subdir, relative_path, remove_dirent};
+use pnpm_fs::{is_subdir, is_symlink_or_junction, relative_path, remove_dirent};
 use serde_json::Value;
 use std::{
     io::ErrorKind,
@@ -145,8 +145,7 @@ fn remove_modules_dir_contents(modules_dir: &Path) -> miette::Result<()> {
 /// a preserved dotfile stays, and one that is a symlink or junction is left
 /// to its owner.
 fn remove_dir_if_empty(dir: &Path) -> miette::Result<()> {
-    let is_real_dir = std::fs::symlink_metadata(dir).is_ok_and(|metadata| metadata.is_dir());
-    if !is_real_dir {
+    if !matches!(is_symlink_or_junction(dir), Ok(false)) {
         return Ok(());
     }
     std::fs::remove_dir(dir)
