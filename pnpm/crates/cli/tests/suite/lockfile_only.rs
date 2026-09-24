@@ -499,8 +499,7 @@ fn computes_the_integrity_of_an_unpinned_tarball() {
 
 /// A registry that advertises a tarball URL with an explicit default port
 /// (e.g. `:443` for HTTPS or `:80` for HTTP) must have the default port
-/// stripped before saving the tarball URL to the lockfile (regression of
-/// pnpm/pnpm#10273, tracked by pnpm/pnpm#15539).
+/// stripped before saving the tarball URL to the lockfile.
 #[test]
 fn strips_default_ports_from_registry_tarball_urls_in_lockfile() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
