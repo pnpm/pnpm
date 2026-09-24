@@ -256,9 +256,11 @@ async function getPackageBins (
 }
 
 /**
- * `target` is a dependency link, usually to a project's `publishConfig.directory`.
- * The link's own target is tried first, so a publish directory that is itself a
- * symlink still matches the owning project's manifest.
+ * Returns the manifest of the project whose `publishConfig.directory` the
+ * dependency link `target` points to, or `null` when there is no such project
+ * or `target` does not exist. The link is matched both by its own target and
+ * by its real path, so a publish directory that is itself a symlink matches.
+ * Other filesystem errors and unreadable manifests are thrown.
  */
 async function readLinkedPublishManifest (target: string): Promise<ProjectManifest | null> {
   const candidates = new Set<string>()
