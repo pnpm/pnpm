@@ -1,6 +1,6 @@
 use super::{
-    DEFAULT_INDENT, InitOptions, NamedTempFile, PackageManifest, PackageManifestError, Path,
-    PathBuf, Serialize, Value, Write, convert_engines_runtime_to_dependencies, fs, io,
+    BlankLines, DEFAULT_INDENT, InitOptions, NamedTempFile, PackageManifest, PackageManifestError,
+    Path, PathBuf, Serialize, Value, Write, convert_engines_runtime_to_dependencies, fs, io,
 };
 
 const DEPENDENCY_FIELDS: [&str; 4] =
@@ -214,12 +214,18 @@ impl PackageManifest {
         convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
         convert_engines_runtime_to_dependencies(&mut value, "engines", "dependencies");
         let crlf = file_contents.contains("\r\n");
+        let blank_lines = if is_yaml_path(&path) || is_json5_path(&path) {
+            BlankLines::default()
+        } else {
+            BlankLines::detect(contents)
+        };
         Ok(PackageManifest {
             path,
             value,
             insert_final_newline: contents.ends_with('\n'),
             crlf,
             indent: detect_indent(contents).to_string(),
+            blank_lines,
             on_disk: Some(on_disk),
             empty_dependency_fields,
         })
