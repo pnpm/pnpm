@@ -167,16 +167,16 @@ pub(crate) fn post_install_prune(
 }
 
 /// The post-install exclude prune for a workspace with a lockfile per project
-/// (`sharedWorkspaceLockfile: false`), run once after a command has
-/// installed its selected projects one by one, never while any of them is
-/// still installing.
+/// (`sharedWorkspaceLockfile: false`). The caller runs it once, after a
+/// command has installed every workspace project, never while any of them
+/// is still installing and never after a filtered run, whose unselected
+/// projects' lockfiles may lag behind their manifests.
 ///
 /// Every workspace project's lockfile is read back and their resolved
 /// versions are merged, so an entry is pruned only when no lockfile in the
-/// workspace records it: the same proof one shared lockfile gives, whose
-/// importers for unselected projects also stay as they were. A project
-/// with no lockfile has recorded nothing to prove with, so the pass no-ops
-/// rather than drop an entry that project may need.
+/// workspace records it. A project with no lockfile has recorded nothing
+/// to prove with, so the pass no-ops rather than drop an entry that
+/// project may need.
 pub fn prune_against_project_lockfiles(
     config: &Config,
     workspace_dir: &Path,

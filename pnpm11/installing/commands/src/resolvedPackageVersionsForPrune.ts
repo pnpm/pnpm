@@ -25,7 +25,7 @@ export function resolvedPackageVersionsForPrune (
 
 /**
  * The versions the lockfiles of a workspace with a lockfile per project record
- * together, read back once every selected project is installed, or
+ * together, read back once every workspace project is installed, or
  * `undefined` when the pass must not run. An entry is then pruned only when no
  * project's lockfile records it. A project without a lockfile has recorded
  * nothing to prove with, so it disables the pass.

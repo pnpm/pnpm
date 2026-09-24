@@ -173,3 +173,36 @@ fn prunes_against_the_union_of_the_project_lockfiles() {
          minimumReleaseAgeExclude:\n  - foo@1.0.0\n  - bar@2.0.0\n  - baz@3.0.0\n",
     );
 }
+
+/// A project with no lockfile has recorded nothing, so no entry can be
+/// proven unresolved and the pass leaves the list alone.
+#[test]
+fn skips_the_pass_when_a_project_has_no_lockfile() {
+    let tmp = tempdir().expect("temp dir");
+    let workspace_dir = tmp.path();
+    let workspace_yaml = "packages:\n  - pkgs/*\nminimumReleaseAgeExclude:\n  - foo@1.0.0\n";
+    std::fs::write(workspace_dir.join("pnpm-workspace.yaml"), workspace_yaml)
+        .expect("write pnpm-workspace.yaml");
+    for name in ["a", "b"] {
+        let project_dir = workspace_dir.join("pkgs").join(name);
+        std::fs::create_dir_all(&project_dir).expect("create project dir");
+        std::fs::write(project_dir.join("package.json"), format!(r#"{{"name":"{name}"}}"#))
+            .expect("write project package.json");
+    }
+    std::fs::write(
+        workspace_dir.join("pkgs/a/pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'\nsnapshots:\n  bar@2.0.0: {}\n",
+    )
+    .expect("write project pnpm-lock.yaml");
+    let mut config = Config::new();
+    config.minimum_release_age_exclude_prune = true;
+    config.shared_workspace_lockfile = false;
+
+    prune_against_project_lockfiles(&config, workspace_dir).expect("cleanup runs");
+
+    assert_eq!(
+        std::fs::read_to_string(workspace_dir.join("pnpm-workspace.yaml"))
+            .expect("read pnpm-workspace.yaml"),
+        workspace_yaml,
+    );
+}

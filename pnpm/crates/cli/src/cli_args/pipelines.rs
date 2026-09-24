@@ -138,12 +138,18 @@ pub(crate) struct DedicatedProjects {
     /// from the manifests the selection already parsed. Empty when the
     /// setting is unset, which is the only thing the names feed.
     names: HashMap<PathBuf, String>,
+    /// Whether the selection is every workspace project, so that the run
+    /// leaves no project's lockfile behind its manifest.
+    covers_workspace: bool,
 }
 
 impl DedicatedProjects {
     fn new(config: &Config, selection: InstallFamilySelection) -> Self {
         let names = project_names(config, &selection.projects);
-        DedicatedProjects { dependencies: selection.project_dependencies, names }
+        let covers_workspace = selection.projects
+            .iter()
+            .all(|project| selection.selected_dirs.contains(&project.root_dir));
+        DedicatedProjects { dependencies: selection.project_dependencies, names, covers_workspace }
     }
 
     fn is_empty(&self) -> bool {
@@ -188,7 +194,8 @@ struct DedicatedProjectRuns<'a> {
     http_client: Option<Arc<ThrottledClient>>,
     /// Whether the command may write the workspace manifest, so that the
     /// exclude-list prune each project's install skipped runs once all of
-    /// them succeeded. See [`prune_after_dedicated_installs`].
+    /// them succeeded and they cover the workspace. See
+    /// [`prune_after_dedicated_installs`].
     prune_excludes: bool,
 }
 
@@ -199,7 +206,7 @@ impl DedicatedProjectRuns<'_> {
         RunFuture: Future<Output = miette::Result<()>> + Send,
     {
         self.run_projects(run).await?;
-        if self.prune_excludes {
+        if self.prune_excludes && self.projects.covers_workspace {
             prune_after_dedicated_installs(self.config)?;
         }
         Ok(())
@@ -255,7 +262,9 @@ impl DedicatedProjectRuns<'_> {
 /// The `minimumReleaseAgeExcludePrune` / `trustPolicyExcludePrune` pass
 /// of a `sharedWorkspaceLockfile: false` workspace. Each project's install
 /// skips it because its own lockfile cannot prove what a sibling resolves,
-/// so it runs once here, after every project's lockfile is written.
+/// so it runs once here, after a run that installed every project. A
+/// filtered run skips it: an unselected project's lockfile may lag behind
+/// its manifest.
 fn prune_after_dedicated_installs(config: &Config) -> miette::Result<()> {
     let Some(workspace_dir) = config.workspace_dir.as_deref() else {
         return Ok(());

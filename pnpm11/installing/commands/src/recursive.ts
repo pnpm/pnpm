@@ -589,7 +589,9 @@ export async function recursive (
     // info log would claim entries were added that the workspace
     // manifest never saw, mirroring the gate the shared-lockfile
     // branch + installDeps already apply.
-    const everyProjectInstalled = Object.values(result).every(({ status }) => status !== 'failure')
+    // Only a run that installed every workspace project leaves no lockfile
+    // behind its manifest; a filtered or partly skipped run prunes nothing.
+    const everyProjectInstalled = allProjects.every(({ rootDir }) => result[rootDir]?.status === 'passed')
     await updateWorkspaceManifest(opts.workspaceDir, {
       updatedCatalogs,
       catalogPrune: opts.catalogPrune,

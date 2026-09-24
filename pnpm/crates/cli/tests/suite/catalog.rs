@@ -878,19 +878,22 @@ fn recursive_update_prunes_the_minimum_release_age_excludes_across_per_project_l
     drop((root, anchor));
 }
 
-/// A project that has never been installed has no lockfile to prove what
-/// it resolves, so a run that installs only its sibling prunes nothing.
+/// A filtered run leaves the unselected projects' lockfiles as they were,
+/// possibly behind their manifests, so it prunes nothing even when every
+/// project has a lockfile.
 #[test]
-fn filtered_install_keeps_the_excludes_while_a_project_has_no_lockfile() {
+fn filtered_install_keeps_the_excludes_under_per_project_lockfiles() {
     let (root, workspace, anchor) = setup();
     per_project_lockfile_workspace_with_stale_exclude(&workspace);
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+    append_workspace_yaml(&workspace, "  - '@pnpm.e2e/foobar@100.0.0'\n");
 
     run_ok(&workspace, &["--filter", "a", "install", "--lockfile-only"]);
 
     let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
     assert!(
         workspace_yaml.contains("@pnpm.e2e/foobar@100.0.0"),
-        "no entry may be pruned while a project has no lockfile:\n{workspace_yaml}",
+        "a filtered run must not prune:\n{workspace_yaml}",
     );
     drop((root, anchor));
 }
