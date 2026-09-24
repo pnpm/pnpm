@@ -789,3 +789,43 @@ fn legacy_deploy_keeps_the_workspace_branch_lockfiles() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn legacy_deploy_with_dedicated_lockfile_writes_no_workspace_state() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, false);
+    append_workspace_yaml_key(&workspace, "sharedWorkspaceLockfile", false);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let workspace_state_path = workspace.join("node_modules/.pnpm-workspace-state-v1.json");
+    let workspace_state = fs::read_to_string(&workspace_state_path).unwrap();
+
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "legacy-deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("legacy-deploy");
+    assert!(deploy_dir.join("node_modules/lib").exists());
+    assert!(
+        !deploy_dir.join("node_modules/.pnpm-workspace-state-v1.json").exists(),
+        "legacy deploy must not record a workspace state in the deploy directory",
+    );
+    assert_eq!(
+        fs::read_to_string(&workspace_state_path).unwrap(),
+        workspace_state,
+        "legacy deploy must not rewrite the source workspace state",
+    );
+
+    drop((root, mock_instance));
+}

@@ -468,11 +468,7 @@ struct InstallRunOptions<'install, 'selection> {
     rebuild: Option<RebuildOptions>,
     selection: Option<WorkspaceInstallSelection<'selection>>,
     root_manifest_as_workspace_root: bool,
-    /// pnpm's `saveLockfile`: whether the resolved graph may be written
-    /// to `<workspace_root>/pnpm-lock.yaml`. `false` for an install
-    /// whose resolution belongs to a project other than the one that
-    /// owns that lockfile, so the run must leave it untouched.
-    save_lockfile: bool,
+    save: InstallSaveOptions,
     /// pnpm's `lockfileCheck`: the caller restores the lockfile and diffs
     /// it once the install returns, so the run must leave nothing else on
     /// disk changed either. Only `pacquet dedupe --check` sets it.
@@ -481,6 +477,21 @@ struct InstallRunOptions<'install, 'selection> {
     /// from the process environment, so tests can exercise both branches.
     prompt_eligibility_override: Option<bool>,
     manifests: InstallManifestOptions<'install>,
+}
+
+/// The workspace files the run may write besides the installed modules.
+#[derive(Clone, Copy)]
+struct InstallSaveOptions {
+    /// pnpm's `saveLockfile`: whether the resolved graph may be written
+    /// to `<workspace_root>/pnpm-lock.yaml`. `false` for an install
+    /// whose resolution belongs to a project other than the one that
+    /// owns that lockfile, so the run must leave it untouched.
+    lockfile: bool,
+    /// Whether the run may record itself in
+    /// `node_modules/.pnpm-workspace-state-v1.json`. `false` for an install
+    /// whose importers are not the workspace's projects, so that state
+    /// keeps describing the workspace's last install.
+    workspace_state: bool,
 }
 
 #[derive(Default)]
@@ -510,7 +521,7 @@ impl Default for InstallRunOptions<'_, '_> {
             rebuild: None,
             selection: None,
             root_manifest_as_workspace_root: false,
-            save_lockfile: true,
+            save: InstallSaveOptions { lockfile: true, workspace_state: true },
             lockfile_check: false,
             prompt_eligibility_override: None,
             manifests: crate::install::InstallManifestOptions {

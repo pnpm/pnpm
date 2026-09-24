@@ -166,6 +166,68 @@ test('legacy deploy injects workspace dependencies that the shared lockfile link
   )
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/15352
+test('legacy deploy leaves the workspace state of the source workspace untouched', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+  ])
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+  const workspaceStatePath = path.resolve('node_modules/.pnpm-workspace-state-v1.json')
+  const workspaceStateBeforeDeploy = fs.readFileSync(workspaceStatePath, 'utf8')
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    forceLegacyDeploy: true,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  expect(fs.existsSync('deploy/node_modules/project-2')).toBeTruthy()
+  expect(fs.readFileSync(workspaceStatePath, 'utf8')).toBe(workspaceStateBeforeDeploy)
+})
+
 test('native deploy creates a dedicated lockfile from linked workspace dependencies', async () => {
   preparePackages([
     {

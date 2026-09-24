@@ -180,6 +180,12 @@ export type InstallDepsOptions = Pick<Config,
   interactiveUpdate?: boolean
   includeOnlyPackageFiles?: boolean
   pruneLockfileImporters?: boolean
+  /**
+   * Set to `false` for an install whose projects are not the workspace's own,
+   * such as the legacy `pnpm deploy`. The workspace state file then keeps
+   * describing the workspace's last install.
+   */
+  saveWorkspaceState?: boolean
   rebuildHandler?: CommandHandler
   pnpmfile: string[]
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
@@ -462,7 +468,7 @@ export async function installDeps (
         }),
       ])
     }
-    if (!opts.lockfileOnly) {
+    if (shouldSaveWorkspaceState(opts)) {
       await updateWorkspaceState({
         allProjects,
         settings: withUpdatedCatalogs(opts, updatedCatalogs),
@@ -548,7 +554,7 @@ export async function installDeps (
       }
     )
   } else {
-    if (!opts.lockfileOnly) {
+    if (shouldSaveWorkspaceState(opts)) {
       await updateWorkspaceState({
         allProjects,
         settings: withUpdatedCatalogs(opts, updatedCatalogs),
@@ -571,12 +577,12 @@ function selectProjectByDir (projects: Project[], searchedDir: string): Projects
 async function recursiveInstallThenUpdateWorkspaceState (
   allProjects: Project[],
   params: string[],
-  opts: RecursiveOptions & WorkspaceStateSettings,
+  opts: RecursiveOptions & WorkspaceStateSettings & Pick<InstallDepsOptions, 'saveWorkspaceState'>,
   cmdFullName: CommandFullName,
   updatedCatalogs?: Catalogs
 ): Promise<DryRunInstallResult | undefined> {
   const recursiveResult = await recursive(allProjects, params, opts, cmdFullName)
-  if (!opts.lockfileOnly) {
+  if (shouldSaveWorkspaceState(opts)) {
     await updateWorkspaceState({
       allProjects,
       settings: withUpdatedCatalogs(opts, updatedCatalogs, recursiveResult.updatedCatalogs),
@@ -587,6 +593,10 @@ async function recursiveInstallThenUpdateWorkspaceState (
     })
   }
   return recursiveResult.dryRunResult
+}
+
+function shouldSaveWorkspaceState (opts: Pick<InstallDepsOptions, 'lockfileOnly' | 'saveWorkspaceState'>): boolean {
+  return !opts.lockfileOnly && opts.saveWorkspaceState !== false
 }
 
 /**
