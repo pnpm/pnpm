@@ -789,11 +789,12 @@ test('a removal override keeps an optional peer from being supplied by a sibling
 })
 
 function installOptionalPeerUserNextToSibling (opts: { projectDeps: Record<string, string>, rootDeps?: Record<string, string> }) {
-  const allProjects = [
+  const allProjects: Array<{ buildIndex: number, manifest: PackageManifest, rootDir: ProjectRootDir }> = [
     {
       buildIndex: 0,
       manifest: {
         name: 'project1',
+        version: '1.0.0',
         dependencies: {
           '@pnpm.e2e/has-optional-y-v2-peer-user': '1.0.0',
           ...opts.projectDeps,
@@ -805,6 +806,7 @@ function installOptionalPeerUserNextToSibling (opts: { projectDeps: Record<strin
       buildIndex: 0,
       manifest: {
         name: 'project2',
+        version: '1.0.0',
         dependencies: {
           '@pnpm.e2e/y-v2-peer-user': '1.0.0',
           '@pnpm/y': '2.0.0',
@@ -816,7 +818,7 @@ function installOptionalPeerUserNextToSibling (opts: { projectDeps: Record<strin
   if (opts.rootDeps != null) {
     allProjects.push({
       buildIndex: 0,
-      manifest: { name: 'root', dependencies: opts.rootDeps },
+      manifest: { name: 'root', version: '1.0.0', dependencies: opts.rootDeps },
       rootDir: process.cwd() as ProjectRootDir,
     })
   }
