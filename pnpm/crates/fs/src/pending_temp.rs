@@ -6,16 +6,16 @@
 //! manager's `SIGTERM` — takes the process down without running destructors,
 //! so a temp file caught mid-write would stay behind in the project
 //! ([pnpm/pnpm#1418](https://github.com/pnpm/pnpm/issues/1418)). Writers
-//! register each staged temp file with [`track_temp_file`], lockfile writes
-//! with [`track_lockfile_temp_file`]; the handler this module installs
-//! unlinks whatever is still pending before the signal ends the process.
+//! register each staged temp file with [`track_temp_file`]; the handler this
+//! module installs unlinks whatever is still pending before the signal ends
+//! the process.
 //!
 //! The handler chains to the disposition it replaced rather than assuming
 //! the default: `pnpm-executor`'s interrupt relay may have been installed
 //! first and may keep the process alive while children settle, so the
 //! handler unlinks only when the process is about to die — before the
 //! reset-and-raise for the default disposition, or in the relay's own exit
-//! path, which cleans this registry in turn. Unlinking while the relay
+//! path through [`die_from_signal`]. Unlinking while the relay
 //! keeps waiting would pull temp files out from under writes that keep
 //! running. An interrupt thus both reaches the children pnpm started and
 //! removes the temp files, whichever order the two handlers were installed
@@ -50,37 +50,19 @@ type StoredPath = std::ffi::CString;
 #[cfg(not(unix))]
 type StoredPath = std::path::PathBuf;
 
-/// How many temp files general atomic writes may register over the process
-/// lifetime before new writes stay untracked. Each registration leaks its
-/// stored path — the signal handler may still be reading a previously
-/// published pointer, so the memory behind it is never reused — and the cap
-/// keeps that leak bounded. Past the cap a write keeps its pre-registry
-/// behavior: an interrupt leaves the temp file behind. Lockfile writes draw
-/// from [`MAX_TRACKED_LOCKFILE_WRITES`] instead.
-const MAX_TRACKED_WRITES: usize = 4096;
-
-/// Registrations taken so far, against [`MAX_TRACKED_WRITES`].
-static REGISTRATIONS: AtomicUsize = AtomicUsize::new(0);
-
-/// How many lockfile temp files a process may register over its lifetime.
-/// Reserved for lockfile writes so general writes cannot starve them: a
-/// large install stages one general atomic write per package, while the
-/// stranded lockfile this module exists for (pnpm/pnpm#1418) is saved a
-/// handful of times per command, so a small reserved budget covers any
-/// realistic process.
-const MAX_TRACKED_LOCKFILE_WRITES: usize = 64;
-
-/// Lockfile registrations taken so far, against
-/// [`MAX_TRACKED_LOCKFILE_WRITES`].
-static LOCKFILE_REGISTRATIONS: AtomicUsize = AtomicUsize::new(0);
+/// How many cleanup walks are running. A released path is freed only while
+/// this is zero; otherwise a walk may still hold its pointer, and the path
+/// is leaked instead. All accesses are `SeqCst`, so a walk that starts after
+/// a release has seen zero here reads the released slot as empty.
+static ACTIVE_WALKS: AtomicUsize = AtomicUsize::new(0);
 
 /// One staged temp file: the path to unlink on interrupt, or null while the
 /// slot is free.
 ///
 /// Entries form a list the signal handler walks, so they are leaked rather
-/// than freed, and a released slot is reused by the next write. The handler
-/// then only reads atomics and unlinks, which is async-signal-safe, while
-/// the list itself has no fixed size.
+/// than freed, and a released slot is reused by the next write, so the list
+/// grows only to the peak number of concurrent writes. The handler then only
+/// touches atomics and unlinks, which is async-signal-safe.
 struct Entry {
     path: AtomicPtr<StoredPath>,
     next: AtomicPtr<Entry>,
@@ -96,84 +78,63 @@ pub struct PendingTempFile {
 
 impl Drop for PendingTempFile {
     fn drop(&mut self) {
-        if let Some(entry) = self.entry {
-            entry.path.store(ptr::null_mut(), Ordering::Release);
+        let Some(entry) = self.entry else {
+            return;
+        };
+        let released = entry.path.swap(ptr::null_mut(), Ordering::SeqCst);
+        if ACTIVE_WALKS.load(Ordering::SeqCst) == 0 {
+            // SAFETY: `released` came from the `Box::into_raw` in
+            // `track_temp_file`, only this guard releases it, and no walk
+            // holds it: see `ACTIVE_WALKS`.
+            drop(unsafe { Box::from_raw(released) });
         }
     }
 }
 
 /// Register `path` as a temp file to unlink if the process is interrupted,
-/// until the returned guard is dropped. Draws from the general budget;
-/// lockfile writes use [`track_lockfile_temp_file`] instead.
+/// until the returned guard is dropped.
 #[must_use]
 pub fn track_temp_file(path: &Path) -> PendingTempFile {
-    track_in(path, &REGISTRATIONS, MAX_TRACKED_WRITES)
-}
-
-/// Register the lockfile's `path` as a temp file to unlink if the process is
-/// interrupted. Draws from a budget reserved for lockfile writes, so general
-/// atomic writes that exhaust their own cap cannot leave the lockfile — the
-/// file pnpm/pnpm#1418 is about — untracked.
-#[must_use]
-pub fn track_lockfile_temp_file(path: &Path) -> PendingTempFile {
-    track_in(path, &LOCKFILE_REGISTRATIONS, MAX_TRACKED_LOCKFILE_WRITES)
-}
-
-fn track_in(path: &Path, used: &AtomicUsize, cap: usize) -> PendingTempFile {
     install_handler();
     let Some(stored) = store_path(path) else {
         return PendingTempFile { entry: None };
     };
-    if !take_budget(used, cap) {
-        return PendingTempFile { entry: None };
-    }
-    PendingTempFile { entry: Some(claim_entry(Box::leak(Box::new(stored)))) }
-}
-
-/// Take one registration from `used`, refusing once the process has hit
-/// `cap`.
-fn take_budget(used: &AtomicUsize, cap: usize) -> bool {
-    used.fetch_add(1, Ordering::Relaxed) < cap
+    PendingTempFile { entry: Some(claim_entry(Box::into_raw(Box::new(stored)))) }
 }
 
 /// Unlink every temp file still registered.
 ///
-/// Async-signal-safe: the walk only reads atomics and unlinks. Called from
-/// this module's own handler on the path that ends the process, and by
-/// `pnpm-executor`'s relay when it is the handler that ends the process.
+/// Async-signal-safe: the walk only touches atomics and unlinks. Called
+/// from this module's own handler on the path that ends the process, and
+/// through [`die_from_signal`] by `pnpm-executor`'s relay when it is the
+/// handler that ends the process.
 pub fn remove_pending_temp_files() {
+    ACTIVE_WALKS.fetch_add(1, Ordering::SeqCst);
     let mut next = HEAD.load(Ordering::Acquire);
     // SAFETY: every pointer in the list came from the `Box::leak` in
-    // `push_entry` and is never freed, so it stays dereferenceable. The same
-    // holds for the stored paths, which `track_temp_file` leaks, so a
-    // pointer the handler read before a slot was released still names a
-    // valid, never-reused path.
+    // `push_entry` and is never freed, so it stays dereferenceable.
     while let Some(entry) = unsafe { next.as_ref() } {
-        let path = entry.path.load(Ordering::Acquire);
-        // SAFETY: as above; a non-null stored path is a leaked `StoredPath`
-        // that stays dereferenceable for the life of the process.
+        let path = entry.path.load(Ordering::SeqCst);
+        // SAFETY: a non-null stored path came from `track_temp_file`, and
+        // `ACTIVE_WALKS` keeps it from being freed until this walk ends.
         if let Some(stored) = unsafe { path.as_ref() } {
             unlink_stored(stored);
         }
         next = entry.next.load(Ordering::Acquire);
     }
+    ACTIVE_WALKS.fetch_sub(1, Ordering::SeqCst);
 }
 
 /// Take the first free slot for `stored`, or extend the list with one. A
 /// slot is claimed with a single compare-and-swap, so the handler either
 /// still reads null or reads the published path, never a half-claimed slot.
-fn claim_entry(stored: &'static StoredPath) -> &'static Entry {
+fn claim_entry(stored: *mut StoredPath) -> &'static Entry {
     let mut next = HEAD.load(Ordering::Acquire);
     // SAFETY: as in `remove_pending_temp_files`, list entries are leaked and
     // stay dereferenceable for the life of the process.
     while let Some(entry) = unsafe { next.as_ref() } {
         if entry.path
-            .compare_exchange(
-                ptr::null_mut(),
-                ptr::from_ref(stored).cast_mut(),
-                Ordering::AcqRel,
-                Ordering::Acquire,
-            )
+            .compare_exchange(ptr::null_mut(), stored, Ordering::SeqCst, Ordering::Acquire)
             .is_ok()
         {
             return entry;
@@ -186,9 +147,9 @@ fn claim_entry(stored: &'static StoredPath) -> &'static Entry {
 /// Add an entry for `stored` at the head of the list. `path` is set before
 /// the head swings, so a handler walking the list concurrently either
 /// misses the new entry entirely or reads a complete one.
-fn push_entry(stored: &'static StoredPath) -> &'static Entry {
+fn push_entry(stored: *mut StoredPath) -> &'static Entry {
     let entry: &'static Entry = Box::leak(Box::new(Entry {
-        path: AtomicPtr::new(ptr::from_ref(stored).cast_mut()),
+        path: AtomicPtr::new(stored),
         next: AtomicPtr::new(ptr::null_mut()),
     }));
     let mut head = HEAD.load(Ordering::Acquire);
@@ -220,8 +181,8 @@ fn store_path(path: &Path) -> Option<StoredPath> {
 
 #[cfg(unix)]
 fn unlink_stored(path: &StoredPath) {
-    // SAFETY: `path` is a leaked C string that stays valid for the life of
-    // the process, and `unlink` is async-signal-safe.
+    // SAFETY: `path` is a valid C string for the duration of the walk, and
+    // `unlink` is async-signal-safe.
     unsafe {
         libc::unlink(path.as_ptr());
     }
@@ -288,8 +249,7 @@ extern "C" fn clean_temp_files(signal: libc::c_int) {
     };
     let previous = PREVIOUS[index].load(Ordering::Acquire);
     if previous == libc::SIG_DFL {
-        remove_pending_temp_files();
-        die_from(signal);
+        die_from_signal(signal);
     }
     if previous == libc::SIG_IGN {
         // Never installed over an ignored signal, so unreachable; treating
@@ -305,14 +265,17 @@ extern "C" fn clean_temp_files(signal: libc::c_int) {
     handler(signal);
 }
 
-/// End the process as `signal` would have ended it without this module.
+/// Unlink the pending temp files, then end the process as `signal` would
+/// have ended it without a handler. For a signal handler that decides the
+/// process dies.
 ///
-/// The signal is unblocked first because a handler runs with its own
+/// Async-signal-safe. The signal is unblocked first because a handler runs with its own
 /// signal blocked: `raise` would otherwise leave it pending until the
 /// handler returned, and the `_exit` below would report a plain exit code
 /// where the caller expects death by a signal.
 #[cfg(unix)]
-fn die_from(signal: libc::c_int) -> ! {
+pub fn die_from_signal(signal: libc::c_int) -> ! {
+    remove_pending_temp_files();
     // SAFETY: `sigprocmask`, `signal`, `raise` and `_exit` are all
     // async-signal-safe, and the set is a stack local that outlives the
     // call. `raise` does not return once the signal is unblocked and back

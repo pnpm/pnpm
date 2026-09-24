@@ -188,7 +188,7 @@ pub fn exit_like(exit: ScriptExit) -> ! {
     if let ScriptExit::Process(status) = exit
         && let Some(signal) = status.signal()
     {
-        die_from(signal);
+        pnpm_fs::die_from_signal(signal);
     }
     std::process::exit(exit.code().unwrap_or(1));
 }
@@ -251,7 +251,7 @@ extern "C" fn relay_signal(signal: libc::c_int) {
     // Nothing left to wait for, or every child has had its interrupt and
     // its `SIGTERM` and sat through both.
     if !reached || !still_listening {
-        die_from(signal);
+        pnpm_fs::die_from_signal(signal);
     }
 }
 
@@ -337,32 +337,6 @@ fn open_controlling_terminal() -> Option<libc::c_int> {
         libc::open(c"/dev/tty".as_ptr(), libc::O_RDONLY | libc::O_NOCTTY | libc::O_CLOEXEC)
     };
     (tty >= 0).then_some(tty)
-}
-
-/// End pnpm as `signal` would have ended it without this module.
-///
-/// The signal is unblocked first because a handler runs with its own
-/// signal blocked: `raise` would otherwise leave it pending until the
-/// handler returned, and the `_exit` below would report a plain exit code
-/// where the caller expects death by a signal.
-#[cfg(unix)]
-fn die_from(signal: libc::c_int) -> ! {
-    // This relay may be the handler that ends the process; temp files of
-    // in-flight atomic writes would otherwise stay behind.
-    pnpm_fs::remove_pending_temp_files();
-    // SAFETY: `sigprocmask`, `signal`, `raise` and `_exit` are all
-    // async-signal-safe, and the set is a stack local that outlives the
-    // call. `raise` does not return once the signal is unblocked and back
-    // at its default disposition; `_exit` covers the impossible case.
-    unsafe {
-        let mut unblocked: libc::sigset_t = std::mem::zeroed();
-        libc::sigemptyset(&raw mut unblocked);
-        libc::sigaddset(&raw mut unblocked, signal);
-        libc::signal(signal, libc::SIG_DFL);
-        libc::sigprocmask(libc::SIG_UNBLOCK, &raw const unblocked, std::ptr::null_mut());
-        libc::raise(signal);
-        libc::_exit(128 + signal);
-    }
 }
 
 #[cfg(windows)]
