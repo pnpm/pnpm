@@ -124,8 +124,9 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
 
 /**
  * The package an `npm:` alias points at and the selector it asks for, read
- * the way the npm resolver reads them. A spec the resolver does not claim
- * passes through unchanged.
+ * the way the npm resolver reads them. Never throws: a spec the resolver
+ * does not claim or cannot parse comes back with `depName` and the spec
+ * unchanged.
  */
 function parseRegistrySpec (depName: string, npmSpec: string): { depName: string, rawSpec: string } {
   let parsed: ReturnType<typeof parseBareSpecifier> = null

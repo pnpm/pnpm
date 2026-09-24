@@ -233,26 +233,28 @@ fn resolve_edge(
 ) -> Option<PathBuf> {
     let catalog_spec = resolve_catalog_spec(importer, dep_name, raw_spec, lookups);
     let raw_spec = catalog_spec.as_deref().unwrap_or(raw_spec);
-    let is_workspace_spec = raw_spec.starts_with("workspace:");
-    let (effective_name, effective_spec) = if is_workspace_spec {
+    if raw_spec.starts_with("workspace:") {
         let spec = WorkspaceSpec::parse(raw_spec)?;
-        (spec.alias.unwrap_or_else(|| dep_name.to_string()), spec.version)
-    } else {
-        let (name, spec) = npm_alias_target(dep_name, raw_spec);
-        (name.to_string(), spec.to_string())
-    };
-
-    if is_workspace_spec {
-        if let SpecKind::Directory(path) = classify(&effective_spec) {
+        let name = spec.alias.as_deref().unwrap_or(dep_name);
+        if let SpecKind::Directory(path) = classify(&spec.version) {
             return resolve_directory(importer, path, lookups);
         }
-        return resolve_by_name_version(&effective_name, &effective_spec, true, lookups, unmatched);
+        return resolve_by_name_version(name, &spec.version, true, lookups, unmatched);
     }
 
-    match classify(&effective_spec) {
+    if let Some((name, selector)) = npm_alias_target(dep_name, raw_spec) {
+        return match classify(selector) {
+            SpecKind::VersionOrRange => {
+                resolve_by_name_version(name, selector, false, lookups, unmatched)
+            }
+            SpecKind::Directory(_) | SpecKind::Skip => None,
+        };
+    }
+
+    match classify(raw_spec) {
         SpecKind::Directory(path) => resolve_directory(importer, path, lookups),
         SpecKind::VersionOrRange => {
-            resolve_by_name_version(&effective_name, &effective_spec, false, lookups, unmatched)
+            resolve_by_name_version(dep_name, raw_spec, false, lookups, unmatched)
         }
         SpecKind::Skip => None,
     }
@@ -261,17 +263,17 @@ fn resolve_edge(
 /// The package an `npm:` alias points at and the selector it asks for,
 /// split the way the npm resolver splits them: the last `@` past the
 /// first character separates `<name>@<selector>`, and without one the
-/// body is a selector for `dep_name` itself. A bare `npm:<name>` thus
-/// yields a package name as the selector, which no version or range
-/// matches. Any other specifier is returned unchanged.
-fn npm_alias_target<'a>(dep_name: &'a str, raw_spec: &'a str) -> (&'a str, &'a str) {
-    let Some(aliased) = raw_spec.strip_prefix("npm:") else {
-        return (dep_name, raw_spec);
-    };
-    match aliased.rfind('@') {
+/// body is a selector for `dep_name` itself. `None` for a specifier that
+/// is not an `npm:` alias.
+///
+/// The npm resolver claims only a version, range or tag as the selector,
+/// so a caller must not read a path-shaped selector as a directory.
+fn npm_alias_target<'a>(dep_name: &'a str, raw_spec: &'a str) -> Option<(&'a str, &'a str)> {
+    let aliased = raw_spec.strip_prefix("npm:")?;
+    Some(match aliased.rfind('@') {
         Some(index) if index >= 1 => (&aliased[..index], &aliased[index + 1..]),
         _ => (dep_name, aliased),
-    }
+    })
 }
 
 /// The catalog entry a `catalog:` specifier names, with a local path
