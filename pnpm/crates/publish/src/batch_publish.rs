@@ -159,12 +159,11 @@ fn group_packed_pkg(
         .get("name")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    let publish_config_registry = crate::publish_options::manifest_registry(manifest);
     let registry = find_registry_info(
         name,
         &opts.registry.default,
         &opts.registry.scoped,
-        publish_config_registry,
+        crate::publish_options::publish_config_registry(manifest, name),
     )?;
     let summary = package.summary();
     let document = build_publish_document(

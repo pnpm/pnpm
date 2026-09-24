@@ -3,7 +3,8 @@ use std::{collections::HashSet, path::PathBuf};
 use futures_util::{StreamExt, TryStreamExt, stream};
 use pnpm_config::Config;
 use pnpm_publish::{
-    PublishNetwork, PublishPackedPkgOptions, find_registry_info, wait_for_published_packages,
+    PublishNetwork, PublishPackedPkgOptions, find_registry_info, publish_config_registry,
+    wait_for_published_packages,
 };
 use pnpm_reporter::Reporter;
 
@@ -34,10 +35,7 @@ impl PublishArgs {
                         name,
                         &config.registry,
                         &config.registries_by_scope,
-                        manifest
-                            .get("publishConfig")
-                            .and_then(|value| value.get("registry"))
-                            .and_then(serde_json::Value::as_str),
+                        publish_config_registry(manifest, name),
                     )?;
                     wait_for_published_packages::<Reporter>(
                         &[(name, version)],

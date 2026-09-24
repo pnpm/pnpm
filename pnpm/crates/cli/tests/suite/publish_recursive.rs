@@ -791,6 +791,65 @@ fn recursive_publish_filter_uses_workspace_root_npmrc_registry() {
     drop(root);
 }
 
+/// Both the already-published probe and the `PUT` go to the registry that
+/// `publishConfig["@scope:registry"]` names, not to the `.npmrc` one for the
+/// same scope.
+#[test]
+fn recursive_publish_uses_the_publish_config_scoped_registry() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut npmrc_scoped_registry = mockito::Server::new();
+    let mut publish_registry = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({
+                "name": "@scope/project-1",
+                "version": "1.0.0",
+                "publishConfig": { "@scope:registry": format!("{}/", publish_registry.url()) },
+            }),
+        )],
+    );
+    fs::write(
+        workspace.join(".npmrc"),
+        format!("@scope:registry={}/\n", npmrc_scoped_registry.url()),
+    )
+    .expect("write .npmrc");
+
+    let wrong_probe = npmrc_scoped_registry
+        .mock("GET", Matcher::Any)
+        .expect(0)
+        .create();
+    let wrong_put = npmrc_scoped_registry
+        .mock("PUT", Matcher::Any)
+        .expect(0)
+        .create();
+    let probe = publish_registry
+        .mock("GET", Matcher::Any)
+        .with_status(404)
+        .expect(1)
+        .create();
+    let put = publish_registry
+        .mock("PUT", "/@scope%2fproject-1")
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    clear_ci(pacquet)
+        .with_arg("-r")
+        .with_arg("publish")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+
+    wrong_probe.assert();
+    wrong_put.assert();
+    probe.assert();
+    put.assert();
+    drop(root);
+}
+
 #[test]
 fn recursive_publish_resolves_workspace_protocol_without_node_modules() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

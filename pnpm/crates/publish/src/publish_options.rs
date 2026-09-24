@@ -54,10 +54,11 @@ pub struct PublishUnsupportedRegistryProtocolError {
     pub registry_url: String,
 }
 
-/// Find the target registry for a package. The manifest's
-/// `publishConfig.registry` wins, then a scoped registry for the package's
-/// scope, then the default registry. Credential / TLS resolution is handled by
-/// pacquet's shared [`pnpm_network::AuthHeaders`] at request time.
+/// Find the target registry for a package. The registry the manifest's
+/// `publishConfig` sets (see [`publish_config_registry`]) wins, then a scoped
+/// registry for the package's scope, then the default registry. Credential /
+/// TLS resolution is handled by pacquet's shared [`pnpm_network::AuthHeaders`]
+/// at request time.
 pub fn find_registry_info(
     name: &str,
     default_registry: &str,
@@ -201,11 +202,15 @@ pub struct ResolvedPublishOptions {
     pub auth_token_override: Option<String>,
 }
 
-pub(crate) fn manifest_registry(manifest: &Value) -> Option<&str> {
-    manifest
-        .get("publishConfig")
-        .and_then(|config| config.get("registry"))
+/// The registry `manifest`'s `publishConfig` sets for publishing it as `name`:
+/// the `@scope:registry` entry for the scope of `name`, else
+/// `publishConfig.registry`. npm lets that scoped entry win the same way.
+pub fn publish_config_registry<'a>(manifest: &'a Value, name: &str) -> Option<&'a str> {
+    let publish_config = manifest.get("publishConfig")?;
+    scope_of(name)
+        .and_then(|scope| publish_config.get(format!("@{scope}:registry")))
         .and_then(Value::as_str)
+        .or_else(|| publish_config.get("registry").and_then(Value::as_str))
 }
 
 /// Build the registry / auth / access options for publishing `manifest`. When
@@ -220,7 +225,6 @@ where
     Sys: EnvVar + Clock + OidcFetch,
     Reporter: self::Reporter,
 {
-    let publish_config_registry = manifest_registry(manifest);
     let name = manifest
         .get("name")
         .and_then(Value::as_str)
@@ -229,7 +233,7 @@ where
         name,
         input.default_registry,
         input.scoped_registries,
-        publish_config_registry,
+        publish_config_registry(manifest, name),
     )?;
 
     let access = resolve_access(input.access, manifest);

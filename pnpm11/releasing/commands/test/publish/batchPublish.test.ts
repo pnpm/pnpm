@@ -194,6 +194,30 @@ test('batch publish runs completed group postpublish scripts before a later regi
   }
 })
 
+test('batch publish sends a package to the registry its publishConfig sets for its scope', async () => {
+  const npmrcScopedRegistry = await createRegistryStub()
+  try {
+    preparePackages([
+      {
+        name: '@scope/batch-scoped-registry',
+        version: '1.0.0',
+        publishConfig: { '@scope:registry': registry.url },
+      },
+    ])
+
+    await publish.handler({
+      ...batchPublishOpts(),
+      ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+      registriesByScope: { default: npmrcScopedRegistry.url, '@scope': npmrcScopedRegistry.url },
+    }, [])
+
+    expect(registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')).toHaveLength(1)
+    expect(npmrcScopedRegistry.received.filter(({ method }) => method === 'PUT')).toHaveLength(0)
+  } finally {
+    await npmrcScopedRegistry.close()
+  }
+})
+
 test('batch publish accepts one scope credential for every package', async () => {
   preparePackages([
     {
