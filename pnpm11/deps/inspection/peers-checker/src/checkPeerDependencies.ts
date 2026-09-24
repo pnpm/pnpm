@@ -350,8 +350,14 @@ function checkLinkedDependenciesPeers (
         if (foundRef.startsWith('link:')) {
           try {
             const linkedDepDir = path.resolve(foundBaseDir, foundRef.slice(5))
-            const linkedDepManifest = JSON.parse(fs.readFileSync(path.join(linkedDepDir, 'package.json'), 'utf8'))
-            foundVersion = linkedDepManifest.version
+            const canonicalLinkedDepDir = fs.realpathSync(linkedDepDir)
+            if (
+              canonicalLinkedDepDir === canonicalLockfileDir ||
+              canonicalLinkedDepDir.startsWith(canonicalLockfileDir + path.sep)
+            ) {
+              const linkedDepManifest = JSON.parse(fs.readFileSync(path.join(canonicalLinkedDepDir, 'package.json'), 'utf8'))
+              foundVersion = linkedDepManifest.version
+            }
           } catch {
             foundVersion = undefined
           }

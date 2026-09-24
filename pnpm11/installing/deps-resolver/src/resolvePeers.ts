@@ -249,11 +249,11 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
                   fallbackSatisfied = true
                 }
               }
-            }
-            if (!fallbackSatisfied) {
-              const fallbackVersion = linkedDependency.pkg.dependencies?.[peerName] ?? linkedDependency.pkg.devDependencies?.[peerName]
-              if (fallbackVersion && semverUtils.satisfiesWithPrereleases(fallbackVersion, peerVersionRange, true)) {
-                fallbackSatisfied = true
+              if (!fallbackSatisfied && linkedProject.linkedDependencies) {
+                const nestedLinked = linkedProject.linkedDependencies.find((l) => l.alias === peerName)
+                if (nestedLinked && semverUtils.satisfiesWithPrereleases(nestedLinked.version, peerVersionRange, true)) {
+                  fallbackSatisfied = true
+                }
               }
             }
             if (!fallbackSatisfied && workspaceRootProject && id !== '.') {
