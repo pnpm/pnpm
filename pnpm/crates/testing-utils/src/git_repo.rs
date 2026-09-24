@@ -49,8 +49,8 @@ impl GitRepoFixture {
         let bare_path = bare.to_string_lossy();
         // What `git remote add origin <bare>` would write.
         let origin = [
-            ("remote \"origin\"", "url", &*bare_path),
-            ("remote \"origin\"", "fetch", "+refs/heads/*:refs/remotes/origin/*"),
+            (r#"remote "origin""#, "url", &*bare_path),
+            (r#"remote "origin""#, "fetch", "+refs/heads/*:refs/remotes/origin/*"),
         ];
         override_global_config(&work.join(".git"), &[&IDENTITY[..], &origin].concat());
 
