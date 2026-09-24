@@ -269,9 +269,8 @@ fn finish_apply<Reporter: self::Reporter>(
 
     // Refreshing the root here would hide stale bins in unselected projects
     // from the next install.
-    if !(inputs.prior.tree_moved && inputs.projects.filtered_install)
-        && !deploys_outside_workspace_root(&inputs)
-    {
+    let hides_stale_bins = inputs.prior.tree_moved && inputs.projects.filtered_install;
+    if !(hides_stale_bins || deploys_outside_workspace_root(&inputs)) {
         write_applied_workspace_state(&inputs)?;
     }
 
