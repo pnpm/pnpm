@@ -275,7 +275,7 @@ fn sibling_modules_dir(config: &Config, root_dir: &Path, manifest: &PackageManif
 }
 
 /// The root importer uses `config.modules_dir`; under the isolated linker
-/// each sibling has its own, the directory `sibling_modules_dir` names.
+/// each sibling has its own, which the last argument computes.
 fn modules_dir_exists(
     node_linker: NodeLinker,
     is_root: bool,
