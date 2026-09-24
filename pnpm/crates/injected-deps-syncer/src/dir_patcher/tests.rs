@@ -1,4 +1,4 @@
-use super::{DirPatcher, InodeMap, Value, extend_files_map, file_id};
+use super::{DirPatcher, FileEntry, InodeMap, Value, extend_files_map, file_id};
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::os::unix::fs::FileTypeExt as _;
@@ -44,13 +44,18 @@ fn extend_files_map_names_every_ancestor() {
         .expect("build inode map");
 
     let index_js = dir.path().join("distribution/index.js");
-    let id = file_id(&index_js, &fs::metadata(&index_js).expect("stat")).expect("file id");
+    let meta = fs::metadata(&index_js).expect("stat");
+    let entry = FileEntry {
+        id: file_id(&index_js, &meta).expect("file id"),
+        size: meta.len(),
+        modified: meta.modified().ok(),
+    };
     assert_eq!(
         map,
         InodeMap::from([
             (".".to_string(), Value::Dir),
             ("distribution".to_string(), Value::Dir),
-            ("distribution/index.js".to_string(), Value::File(id)),
+            ("distribution/index.js".to_string(), Value::File(entry)),
         ]),
     );
 }
@@ -161,6 +166,12 @@ impl pnpm_fs::FsHardLink for CrossDeviceHardLink {
     }
 }
 
+impl pnpm_fs::FsReflink for CrossDeviceHardLink {
+    fn reflink(_source: &std::path::Path, _target: &std::path::Path) -> std::io::Result<()> {
+        Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
+    }
+}
+
 struct RawOsCrossDeviceHardLink;
 
 impl pnpm_fs::FsHardLink for RawOsCrossDeviceHardLink {
@@ -171,6 +182,12 @@ impl pnpm_fs::FsHardLink for RawOsCrossDeviceHardLink {
         return Err(std::io::Error::from_raw_os_error(17));
         #[cfg(not(any(unix, windows)))]
         return Err(std::io::Error::from(std::io::ErrorKind::CrossesDevices));
+    }
+}
+
+impl pnpm_fs::FsReflink for RawOsCrossDeviceHardLink {
+    fn reflink(_source: &std::path::Path, _target: &std::path::Path) -> std::io::Result<()> {
+        Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
     }
 }
 
@@ -217,4 +234,28 @@ fn sync_falls_back_to_copy_on_raw_os_cross_device_error() {
         .expect("apply patch with raw os cross device error");
 
     assert_eq!(fs::read_to_string(target.join("main.js")).expect("read copied file"), "content");
+}
+
+#[test]
+fn sync_repeatedly_does_not_recopy_unchanged_fallback_files() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("lib/index.js"), "built");
+    fs::create_dir_all(&target).expect("create target");
+
+    let source_map = super::load_inode_map(&source).expect("source inode map");
+    let target_map = super::load_inode_map(&target).expect("target inode map");
+    let patch = super::diff_dir(&target_map, &source_map);
+    super::apply_patch_with_link::<CrossDeviceHardLink>(&patch, &source, &target)
+        .expect("initial sync");
+
+    let source_map = super::load_inode_map(&source).expect("source inode map");
+    let target_map = super::load_inode_map(&target).expect("target inode map");
+    let repeated_patch = super::diff_dir(&target_map, &source_map);
+    assert!(
+        repeated_patch.changes.is_empty(),
+        "repeated sync should produce no changes for unchanged files, got: {:?}",
+        repeated_patch.changes,
+    );
+    assert!(repeated_patch.removed.is_empty());
 }

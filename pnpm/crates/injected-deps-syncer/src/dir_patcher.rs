@@ -22,6 +22,39 @@ pub struct FileId {
     pub inode: u64,
 }
 
+/// A file entry in an [`InodeMap`].
+///
+/// Holds the file's filesystem identity ([`FileId`]) as well as its size and
+/// modification time. Equality checks prioritize matching hardlink identity,
+/// but also recognize unchanged fallback copies across filesystems when size
+/// and modification time match.
+#[derive(Debug, Clone, Copy, Eq)]
+pub struct FileEntry {
+    pub id: FileId,
+    pub size: u64,
+    pub modified: Option<std::time::SystemTime>,
+}
+
+impl PartialEq for FileEntry {
+    fn eq(&self, other: &Self) -> bool {
+        if self.id == other.id {
+            return true;
+        }
+        if self.size == other.size {
+            let (Some(t1), Some(t2)) = (self.modified, other.modified) else {
+                return false;
+            };
+            let diff = if t1 > t2 {
+                t1.duration_since(t2).unwrap_or_default()
+            } else {
+                t2.duration_since(t1).unwrap_or_default()
+            };
+            return diff <= std::time::Duration::from_secs(2);
+        }
+        false
+    }
+}
+
 /// What a path in an [`InodeMap`] holds.
 ///
 /// A file carries its identity rather than its content, because that is
@@ -31,7 +64,7 @@ pub struct FileId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Value {
     Dir,
-    File(FileId),
+    File(FileEntry),
 }
 
 /// Relative path → inode type, for every file and directory in a tree.
@@ -174,7 +207,7 @@ pub fn apply_patch(
     apply_patch_with_link::<Host>(patch, source_dir, target_dir)
 }
 
-pub(crate) fn apply_patch_with_link<Sys: FsHardLink>(
+pub(crate) fn apply_patch_with_link<Sys: FsHardLink + FsReflink>(
     patch: &DirDiff,
     source_dir: &Path,
     target_dir: &Path,
@@ -191,7 +224,7 @@ pub(crate) fn apply_patch_with_link<Sys: FsHardLink>(
     Ok(())
 }
 
-fn apply_change_with_link<Sys: FsHardLink>(
+fn apply_change_with_link<Sys: FsHardLink + FsReflink>(
     change: &Change,
     source_dir: &Path,
     target_dir: &Path,
@@ -211,7 +244,7 @@ fn apply_change_with_link<Sys: FsHardLink>(
                 match Sys::hard_link(&source_path, &target_path) {
                     Ok(()) => Ok(()),
                     Err(error) if is_cross_device(&error) => {
-                        copy_file_fallback(&source_path, &target_path)
+                        copy_file_fallback::<Sys>(&source_path, &target_path)
                     }
                     Err(error) => Err(PatchError::Link {
                         source: source_path.clone(),
@@ -224,17 +257,23 @@ fn apply_change_with_link<Sys: FsHardLink>(
     }
 }
 
-fn copy_file_fallback(source: &Path, target: &Path) -> Result<(), PatchError> {
-    if Host::reflink(source, target).is_ok() {
-        return Ok(());
+fn copy_file_fallback<Sys: FsReflink>(source: &Path, target: &Path) -> Result<(), PatchError> {
+    let source_meta = fs::metadata(source)
+        .map_err(|error| PatchError::Stat { path: source.to_path_buf(), error })?;
+    if Sys::reflink(source, target).is_err() {
+        fs::copy(source, target)
+            .map_err(|error| PatchError::Link {
+                source: source.to_path_buf(),
+                target: target.to_path_buf(),
+                error,
+            })?;
     }
-    fs::copy(source, target)
-        .map(|_| ())
-        .map_err(|error| PatchError::Link {
-            source: source.to_path_buf(),
-            target: target.to_path_buf(),
-            error,
-        })
+    if let (Ok(modified), Ok(file)) =
+        (source_meta.modified(), fs::File::options().write(true).open(target))
+    {
+        let _ = file.set_times(fs::FileTimes::new().set_modified(modified));
+    }
+    Ok(())
 }
 
 /// The target may hold an inode that [`extend_files_map`] skips — a
@@ -297,7 +336,11 @@ pub fn extend_files_map(files_map: &HashMap<String, PathBuf>) -> Result<InodeMap
             continue;
         };
         let value = if metadata.is_file() {
-            Value::File(file_id(real_path, &metadata)?)
+            Value::File(FileEntry {
+                id: file_id(real_path, &metadata)?,
+                size: metadata.len(),
+                modified: metadata.modified().ok(),
+            })
         } else if metadata.is_dir() {
             Value::Dir
         } else {
