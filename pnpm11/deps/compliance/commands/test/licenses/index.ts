@@ -140,6 +140,7 @@ test('pnpm licenses: paths point at the packages placed by the hoisted linker', 
   const { output, exitCode } = await licenses.handler({
     ...DEFAULT_OPTS,
     dir: workspaceDir,
+    nodeLinker: 'hoisted',
     pnpmHomeDir: '',
     long: false,
     json: true,

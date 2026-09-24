@@ -1,7 +1,4 @@
-import path from 'node:path'
-
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
-import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot, packageIdFromSnapshot } from '@pnpm/lockfile.utils'
@@ -143,7 +140,7 @@ export async function lockfileToLicenseNodeTree (
     include?: { [dependenciesField in DependenciesField]: boolean }
     includedImporterIds?: ProjectId[]
     resolvePeersFromWorkspaceRoot?: boolean
-  } & Omit<LicenseExtractOptions, 'storeIndex' | 'depTypes' | 'hoistedLocations'>
+  } & Omit<LicenseExtractOptions, 'storeIndex' | 'depTypes'>
 ): Promise<LicenseNodeTree> {
   const importerWalkers = lockfileWalkerGroupImporterSteps(
     lockfile,
@@ -151,7 +148,6 @@ export async function lockfileToLicenseNodeTree (
     { include: opts.include, resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot }
   )
   const depTypes = detectDepTypes(lockfile, opts)
-  const modules = await readModulesManifest(path.resolve(opts.dir, opts.modulesDir ?? 'node_modules'))
   const storeIndex = new StoreIndex(opts.storeDir)
   const dependencies = Object.fromEntries(
     await Promise.all(
@@ -162,7 +158,7 @@ export async function lockfileToLicenseNodeTree (
           virtualStoreDir: opts.virtualStoreDir,
           virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
           modulesDir: opts.modulesDir,
-          hoistedLocations: modules?.hoistedLocations,
+          hoistedLocations: opts.hoistedLocations,
           dir: opts.dir,
           registriesByScope: opts.registriesByScope,
           registriesByPrefix: opts.registriesByPrefix,

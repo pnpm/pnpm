@@ -1,5 +1,5 @@
 use miette::IntoDiagnostic;
-use pnpm_config::Config;
+use pnpm_config::{Config, NodeLinker};
 use pnpm_deps_restorer::VirtualStoreLayout;
 use pnpm_lockfile::PackageKey;
 use pnpm_modules_yaml::{Host, read_modules_manifest};
@@ -25,11 +25,14 @@ impl PackageDirs {
         lockfile_dir: &Path,
         layout: VirtualStoreLayout,
     ) -> miette::Result<Self> {
-        let hoisted_locations =
+        let hoisted_locations = if config.node_linker == NodeLinker::Hoisted {
             read_modules_manifest::<Host>(&lockfile_dir.join(config.modules_dir_name()))
                 .into_diagnostic()?
                 .and_then(|modules| modules.hoisted_locations)
-                .unwrap_or_default();
+                .unwrap_or_default()
+        } else {
+            BTreeMap::new()
+        };
         Ok(Self { layout, lockfile_dir: lockfile_dir.to_path_buf(), hoisted_locations })
     }
 

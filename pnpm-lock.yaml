@@ -3013,6 +3013,9 @@ importers:
       '@pnpm/installing.commands':
         specifier: workspace:*
         version: link:../../../installing/commands
+      '@pnpm/installing.modules-yaml':
+        specifier: workspace:*
+        version: link:../../../installing/modules-yaml
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../../lockfile/fs
@@ -3146,9 +3149,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../../core/error
-      '@pnpm/installing.modules-yaml':
-        specifier: workspace:*
-        version: link:../../../installing/modules-yaml
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../../../lockfile/detect-dep-types

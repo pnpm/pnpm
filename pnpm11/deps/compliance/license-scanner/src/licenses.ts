@@ -80,6 +80,11 @@ export async function findDependencyLicenses (opts: {
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
   modulesDir?: string
+  /**
+   * Lockfile-relative directories keyed by dependency path, recorded by a
+   * `nodeLinker: hoisted` install, which leaves the virtual store empty.
+   */
+  hoistedLocations?: Record<string, string[]>
   registriesByScope: RegistriesByScope
   registriesByPrefix?: Record<string, string>
   wantedLockfile: LockfileObject | null
@@ -97,6 +102,7 @@ export async function findDependencyLicenses (opts: {
   const licenseNodeTree = await lockfileToLicenseNodeTree(opts.wantedLockfile, {
     dir: opts.lockfileDir,
     modulesDir: opts.modulesDir,
+    hoistedLocations: opts.hoistedLocations,
     storeDir: opts.storeDir,
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,

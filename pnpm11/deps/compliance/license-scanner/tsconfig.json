@@ -28,9 +28,6 @@
       "path": "../../../core/types"
     },
     {
-      "path": "../../../installing/modules-yaml"
-    },
-    {
       "path": "../../../lockfile/detect-dep-types"
     },
     {

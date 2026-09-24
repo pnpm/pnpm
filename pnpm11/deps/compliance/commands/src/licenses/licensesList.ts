@@ -5,6 +5,7 @@ import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { findDependencyLicenses } from '@pnpm/deps.compliance.license-scanner'
 import { PnpmError } from '@pnpm/error'
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { getStorePath } from '@pnpm/store.path'
 
@@ -29,6 +30,7 @@ export type LicensesCommandOptions = {
 | 'storeDir'
 | 'virtualStoreDir'
 | 'modulesDir'
+| 'nodeLinker'
 | 'pnpmHomeDir'
 | 'supportedArchitectures'
 | 'virtualStoreDirMaxLength'
@@ -70,6 +72,10 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
     pnpmHomeDir: opts.pnpmHomeDir,
   })
 
+  const modules = opts.nodeLinker === 'hoisted'
+    ? await readModulesManifest(path.resolve(lockfileDir, opts.modulesDir ?? 'node_modules'))
+    : null
+
   const licensePackages = await findDependencyLicenses({
     include,
     lockfileDir: opts.lockfileDir ?? opts.dir,
@@ -77,6 +83,7 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
     virtualStoreDir: opts.virtualStoreDir ?? path.join(opts.modulesDir ?? 'node_modules', '.pnpm'),
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     modulesDir: opts.modulesDir,
+    hoistedLocations: modules?.hoistedLocations,
     registriesByScope: opts.registriesByScope,
     registriesByPrefix: opts.registriesByPrefix,
     wantedLockfile: lockfile,
