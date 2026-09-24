@@ -1,9 +1,12 @@
-use super::{PackageManifest, PackageManifestError, Path, Value, json};
+use super::{Map, PackageManifest, PackageManifestError, Path, Value, json};
 
 /// What `pnpm init` records in the manifest it scaffolds, beyond the fields
 /// every scaffold carries.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct InitOptions<'a> {
+    /// Create a package.json file with the bare minimum of required fields.
+    pub bare: bool,
+
     /// Record the package as an ES module (`"type": "module"`). The
     /// `commonjs` alternative leaves the field out, since that is what Node
     /// assumes when it is absent. The `initType` setting.
@@ -35,9 +38,11 @@ pub struct InitAuthor<'a> {
     pub url: Option<&'a str>,
 }
 
-impl PackageManifest {
-    pub(super) fn create_init_package_json(name: &str, options: InitOptions<'_>) -> Value {
-        let mut manifest = json!({
+fn scaffold_manifest(name: &str, bare: bool) -> Value {
+    if bare {
+        json!({})
+    } else {
+        json!({
             "name": name,
             "version": "1.0.0",
             "description": "",
@@ -48,26 +53,36 @@ impl PackageManifest {
             "keywords": [],
             "author": "",
             "license": "ISC"
-        });
+        })
+    }
+}
+
+fn apply_pinned_pnpm_version(fields: &mut Map<String, Value>, version: &str) {
+    // The pin is written twice on purpose: pnpm reads
+    // `devEngines.packageManager`, corepack reads only the legacy
+    // `packageManager` field. The two must agree — pnpm warns and
+    // ignores the legacy field when they disagree — and corepack
+    // rejects everything but an exact version, so neither carries a
+    // range.
+    fields.insert(
+        "devEngines".to_string(),
+        json!({
+            "packageManager": {
+                "name": "pnpm",
+                "version": version,
+                "onFail": "download",
+            },
+        }),
+    );
+    fields.insert("packageManager".to_string(), json!(format!("pnpm@{version}")));
+}
+
+impl PackageManifest {
+    pub(super) fn create_init_package_json(name: &str, options: InitOptions<'_>) -> Value {
+        let mut manifest = scaffold_manifest(name, options.bare);
         let fields = manifest.as_object_mut().expect("the scaffold is a JSON object");
         if let Some(version) = options.pinned_pnpm_version {
-            // The pin is written twice on purpose: pnpm reads
-            // `devEngines.packageManager`, corepack reads only the legacy
-            // `packageManager` field. The two must agree — pnpm warns and
-            // ignores the legacy field when they disagree — and corepack
-            // rejects everything but an exact version, so neither carries a
-            // range.
-            fields.insert(
-                "devEngines".to_string(),
-                json!({
-                    "packageManager": {
-                        "name": "pnpm",
-                        "version": version,
-                        "onFail": "download",
-                    },
-                }),
-            );
-            fields.insert("packageManager".to_string(), json!(format!("pnpm@{version}")));
+            apply_pinned_pnpm_version(fields, version);
         }
         if options.es_module {
             fields.insert("type".to_string(), json!("module"));

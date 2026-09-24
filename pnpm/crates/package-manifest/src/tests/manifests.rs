@@ -74,6 +74,7 @@ fn init_package_json_content_with_every_init_option() {
     let manifest = PackageManifest::create_init_package_json(
         "test",
         InitOptions {
+            bare: false,
             es_module: true,
             pinned_pnpm_version: Some("11.22.0"),
             author: InitAuthor {
@@ -86,6 +87,41 @@ fn init_package_json_content_with_every_init_option() {
         },
     );
     assert_snapshot!(serde_json::to_string_pretty(&manifest).unwrap());
+}
+
+#[test]
+fn test_init_package_json_content_bare() {
+    let manifest = PackageManifest::create_init_package_json(
+        "test",
+        InitOptions {
+            bare: true,
+            es_module: true,
+            pinned_pnpm_version: Some("12.6.0"),
+            ..InitOptions::default()
+        },
+    );
+    assert_eq!(
+        manifest,
+        json!({
+            "devEngines": {
+                "packageManager": {
+                    "name": "pnpm",
+                    "version": "12.6.0",
+                    "onFail": "download",
+                },
+            },
+            "packageManager": "pnpm@12.6.0",
+            "type": "module",
+        }),
+    );
+    assert_eq!(manifest.get("name"), None);
+    assert_eq!(manifest.get("version"), None);
+    assert_eq!(manifest.get("description"), None);
+    assert_eq!(manifest.get("main"), None);
+    assert_eq!(manifest.get("scripts"), None);
+    assert_eq!(manifest.get("keywords"), None);
+    assert_eq!(manifest.get("author"), None);
+    assert_eq!(manifest.get("license"), None);
 }
 
 #[test]
