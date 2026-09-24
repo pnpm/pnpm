@@ -489,6 +489,30 @@ impl Config {
         self.resolve_default_store_dir::<Sys>(start_dir);
     }
 
+    /// Place the store of a config loaded with
+    /// [`skip_store_dir_resolution`](Self::skip_store_dir_resolution) where a
+    /// store consumer's load from `start_dir` would have placed it. A pinned
+    /// `storeDir` stays.
+    pub fn place_skipped_store_dir<Sys>(&mut self, start_dir: &Path)
+    where
+        Sys: GetHomeDir + LinkProbe,
+    {
+        let pinned = self.explicit_settings
+            .get("storeDir")
+            .is_some_and(|store_dir| store_dir.as_str() != Some(""));
+        if !std::mem::take(&mut self.skip_store_dir_resolution) || pinned {
+            return;
+        }
+        self.resolve_default_store_dir::<Sys>(start_dir);
+        let virtual_store_dir_explicit = self.explicit_settings.contains_key("virtualStoreDir");
+        let global_virtual_store_dir_explicit =
+            self.explicit_settings.contains_key("globalVirtualStoreDir");
+        self.apply_global_virtual_store_derivation(
+            virtual_store_dir_explicit,
+            global_virtual_store_dir_explicit,
+        );
+    }
+
     pub(super) fn resolve_default_store_dir<Sys: GetHomeDir + LinkProbe>(
         &mut self,
         start_dir: &Path,
