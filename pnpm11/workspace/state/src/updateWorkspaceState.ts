@@ -19,11 +19,11 @@ export interface UpdateWorkspaceStateOptions {
 }
 
 export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): Promise<void> {
+  logger.debug({ msg: 'updating workspace state' })
+  const workspaceState = createWorkspaceState(opts)
+  const workspaceStateJSON = JSON.stringify(workspaceState, undefined, 2) + '\n'
+  const cacheFile = getFilePath(opts.workspaceDir)
   try {
-    logger.debug({ msg: 'updating workspace state' })
-    const workspaceState = createWorkspaceState(opts)
-    const workspaceStateJSON = JSON.stringify(workspaceState, undefined, 2) + '\n'
-    const cacheFile = getFilePath(opts.workspaceDir)
     await fs.promises.mkdir(path.dirname(cacheFile), { recursive: true })
     await writeFileAtomic(cacheFile, workspaceStateJSON)
   } catch (err: unknown) {
