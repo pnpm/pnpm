@@ -233,3 +233,49 @@ fn add_in_a_member_does_not_run_prepare_scripts() {
 
     drop((root, anchor));
 }
+
+#[test]
+fn add_in_a_member_saves_manifest_when_root_postinstall_fails() {
+    let (root, workspace, anchor) = installed_workspace(&["a"]);
+
+    let root_pkg_json = workspace.join("package.json");
+    let mut root_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&root_pkg_json).unwrap()).unwrap();
+    root_manifest["scripts"]["postinstall"] = serde_json::json!("exit 1");
+    fs::write(&root_pkg_json, root_manifest.to_string()).unwrap();
+
+    let pkg_a_dir = workspace.join("packages").join("a");
+    pacquet(&workspace, ["--filter", "a", "add", "@pnpm.e2e/foo"]).assert().failure();
+
+    let a_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(pkg_a_dir.join("package.json")).unwrap()).unwrap();
+    assert!(
+        a_manifest["dependencies"]["@pnpm.e2e/foo"].is_string(),
+        "package.json must be saved even if postinstall fails",
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn add_in_a_member_saves_manifest_when_root_postinstall_fails_without_filter() {
+    let (root, workspace, anchor) = installed_workspace(&["a"]);
+
+    let root_pkg_json = workspace.join("package.json");
+    let mut root_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&root_pkg_json).unwrap()).unwrap();
+    root_manifest["scripts"]["postinstall"] = serde_json::json!("exit 1");
+    fs::write(&root_pkg_json, root_manifest.to_string()).unwrap();
+
+    let pkg_a_dir = workspace.join("packages").join("a");
+    pacquet(&pkg_a_dir, ["add", "@pnpm.e2e/foo"]).assert().failure();
+
+    let a_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(pkg_a_dir.join("package.json")).unwrap()).unwrap();
+    assert!(
+        a_manifest["dependencies"]["@pnpm.e2e/foo"].is_string(),
+        "package.json must be saved even if postinstall fails",
+    );
+
+    drop((root, anchor));
+}

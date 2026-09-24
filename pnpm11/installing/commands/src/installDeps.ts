@@ -26,12 +26,13 @@ import { globalInfo, logger } from '@pnpm/logger'
 import { applyRuntimeOnFailOverride, filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
-import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
+import type { PreferredVersions, ResolutionPolicyViolation, VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type {
   IncludedDependencies,
   PackageVulnerabilityAudit,
   Project,
+  ProjectManifest,
   ProjectRootDir,
   ProjectsGraph,
   VulnerabilitySeverity,
@@ -448,26 +449,55 @@ export async function installDeps (
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const { updatedCatalogs, updatedProject, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModulesInSingleProject(mutatedProject, installOpts)
-    if (opts.save !== false && !opts.dryRun) {
-      // Only pick entries when we'll actually persist. Otherwise the
-      // info log would claim we added entries the workspace manifest
-      // never saw, and the next install would re-prompt or fail
-      // verification.
-      const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
-      await Promise.all([
-        writeProjectManifest(updatedProject.manifest),
-        updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
-          updatedCatalogs,
-          catalogPrune: opts.catalogPrune,
-          resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
-          minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
-          trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
-          allProjects: opts.allProjects,
-          ...policyUpdates,
-        }),
-      ])
+    let manifestsSaved = false
+    const saveManifests = async ({
+      updatedProject,
+      updatedCatalogs,
+      newLockfile,
+      resolutionPolicyViolations,
+    }: {
+      updatedProject?: { manifest: ProjectManifest }
+      updatedCatalogs?: Catalogs
+      newLockfile?: LockfileObject
+      resolutionPolicyViolations?: ResolutionPolicyViolation[]
+    }) => {
+      if (manifestsSaved) return
+      manifestsSaved = true
+      if (opts.save !== false && !opts.dryRun && updatedProject) {
+        // Only pick entries when we'll actually persist. Otherwise the
+        // info log would claim we added entries the workspace manifest
+        // never saw, and the next install would re-prompt or fail
+        // verification.
+        const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations ?? [])
+        await Promise.all([
+          writeProjectManifest(updatedProject.manifest),
+          updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+            updatedCatalogs,
+            catalogPrune: opts.catalogPrune,
+            resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
+            minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
+            trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
+            allProjects: opts.allProjects,
+            ...policyUpdates,
+          }),
+        ])
+      }
     }
+    const { updatedCatalogs, updatedProject, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModulesInSingleProject(mutatedProject, {
+      ...installOpts,
+      beforeLifecycleScripts: async (res) => saveManifests({
+        updatedProject: res.updatedProjects[0],
+        updatedCatalogs: res.updatedCatalogs,
+        newLockfile: res.newLockfile,
+        resolutionPolicyViolations: res.resolutionPolicyViolations,
+      }),
+    })
+    await saveManifests({
+      updatedProject,
+      updatedCatalogs,
+      newLockfile,
+      resolutionPolicyViolations,
+    })
     if (shouldSaveWorkspaceState(opts)) {
       await updateWorkspaceState({
         allProjects,

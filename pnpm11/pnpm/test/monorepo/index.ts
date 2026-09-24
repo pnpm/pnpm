@@ -2202,3 +2202,70 @@ test('a dedicated lockfile links a workspace package that matches a semver range
   expect(fs.existsSync('packages/pkg-a/node_modules/custom-pkg-b')).toBe(true)
   expect(fs.lstatSync('packages/pkg-a/node_modules/custom-pkg-b').isSymbolicLink()).toBe(true)
 })
+
+test('package.json is updated when adding a dependency with --filter even if postinstall fails', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        scripts: {
+          postinstall: 'exit 1',
+        },
+      },
+    },
+    {
+      location: 'packages/pkg-a',
+      package: {
+        name: 'pkg-a',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+  })
+
+  await expect(execPnpm(['--filter', 'pkg-a', 'add', 'is-positive@1.0.0'])).rejects.toThrow()
+
+  const pkgAManifest = await readPackageJsonFromDir('packages/pkg-a')
+  expect(pkgAManifest.dependencies?.['is-positive']).toBe('1.0.0')
+})
+
+test('package.json is updated when adding a dependency in member dir even if root postinstall fails', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        scripts: {
+          postinstall: 'exit 1',
+        },
+      },
+    },
+    {
+      location: 'packages/pkg-a',
+      package: {
+        name: 'pkg-a',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+  })
+
+  const monorepoRoot = process.cwd()
+  try {
+    process.chdir('packages/pkg-a')
+    await expect(execPnpm(['add', 'is-positive@1.0.0'])).rejects.toThrow()
+  } finally {
+    process.chdir(monorepoRoot)
+  }
+
+  const pkgAManifest = await readPackageJsonFromDir('packages/pkg-a')
+  expect(pkgAManifest.dependencies?.['is-positive']).toBe('1.0.0')
+})
+
