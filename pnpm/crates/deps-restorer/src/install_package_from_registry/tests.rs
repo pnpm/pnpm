@@ -70,6 +70,7 @@ fn create_config(
         shamefully_hoist: false,
         store_dir: StoreDir::new(store_dir),
         skip_store_dir_resolution: false,
+        store_dir_placement_skipped: false,
         state_dir: store_dir.join("state"),
         modules_dir: modules_dir.to_path_buf(),
         macos_backup: Default::default(),

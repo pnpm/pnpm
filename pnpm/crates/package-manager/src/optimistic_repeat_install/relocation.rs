@@ -180,7 +180,14 @@ pub(super) fn prove_move(
 fn validated_moved_lockfile<'a>(
     check: &'a OptimisticRepeatInstallCheck<'_>,
 ) -> Result<&'a Lockfile, &'static str> {
-    let config = check.config;
+    // A command that opens no store, such as `pnpm run`, loads its config
+    // without placing the store, and the recorded one is compared below.
+    let placed_config = check.config.store_dir_placement_skipped.then(|| {
+        let mut config = check.config.clone();
+        config.place_skipped_store_dir::<pnpm_config::Host>(check.workspace_root);
+        config
+    });
+    let config = placed_config.as_ref().unwrap_or(check.config);
     let node_linker = check.layout.node_linker;
     let modules = pnpm_modules_yaml::read_modules_layout::<Host>(&config.modules_dir)
         .ok()

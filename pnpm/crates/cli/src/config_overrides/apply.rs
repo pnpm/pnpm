@@ -26,6 +26,7 @@ where
     }
     let resolved = resolve_store_dir::<Sys>(store_dir, &workspace_dir)?;
     config.store_dir = StoreDir::from(lexical_normalize(&resolved));
+    config.store_dir_placement_skipped = false;
     if let Some(store_dir) = store_dir.to_str() {
         config.explicit_settings.insert(
             "storeDir".to_string(),

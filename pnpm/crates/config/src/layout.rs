@@ -489,11 +489,33 @@ impl Config {
         self.resolve_default_store_dir::<Sys>(start_dir);
     }
 
+    /// Place a store the load left unplaced
+    /// ([`store_dir_placement_skipped`](Self::store_dir_placement_skipped))
+    /// where a store consumer's load from `start_dir` would have placed it.
+    pub fn place_skipped_store_dir<Sys>(&mut self, start_dir: &Path)
+    where
+        Sys: GetHomeDir + LinkProbe,
+    {
+        if !std::mem::take(&mut self.store_dir_placement_skipped) {
+            return;
+        }
+        self.skip_store_dir_resolution = false;
+        self.resolve_default_store_dir::<Sys>(start_dir);
+        let virtual_store_dir_explicit = self.explicit_settings.contains_key("virtualStoreDir");
+        let global_virtual_store_dir_explicit =
+            self.explicit_settings.contains_key("globalVirtualStoreDir");
+        self.apply_global_virtual_store_derivation(
+            virtual_store_dir_explicit,
+            global_virtual_store_dir_explicit,
+        );
+    }
+
     pub(super) fn resolve_default_store_dir<Sys: GetHomeDir + LinkProbe>(
         &mut self,
         start_dir: &Path,
     ) {
         if self.skip_store_dir_resolution {
+            self.store_dir_placement_skipped = true;
             return;
         }
         let Some(home_dir) = Sys::home_dir() else {

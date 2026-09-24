@@ -383,6 +383,8 @@ mod workspace_settings_materialization_env_vars_override;
 
 mod modules_dir_name;
 
+mod place_skipped_store_dir;
+
 mod files;
 
 mod security;

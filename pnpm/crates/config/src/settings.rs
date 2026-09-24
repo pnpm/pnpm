@@ -261,6 +261,12 @@ pub struct Config {
     /// with this disabled to select a store on the project's volume.
     pub skip_store_dir_resolution: bool,
 
+    /// Whether [`skip_store_dir_resolution`](Self::skip_store_dir_resolution)
+    /// left the default store unplaced, still on the home volume.
+    /// [`Config::place_skipped_store_dir`] places it. A pinned store is never
+    /// marked.
+    pub store_dir_placement_skipped: bool,
+
     /// Whether macOS Time Machine may back up newly created pnpm directories.
     /// Set `macosBackup.excludeModulesDir` or `macosBackup.excludeStoreDir` to `true` in
     /// the global pnpm configuration to exclude them with `tmutil`.
