@@ -44,7 +44,7 @@ export class DirLock {
       const state = await inspectLock(lockPath, opts.abandonedMs)
       if (state.kind === 'unusable') return undefined
       // Released since the `mkdir` attempt: retry at once.
-      if (state.kind === 'vanished' && Date.now() < deadline) continue
+      if (state.kind === 'vanished') continue
       // eslint-disable-next-line no-await-in-loop
       if (state.kind === 'stale' && await removeIfStillStale(lockPath, state.owner, opts.abandonedMs)) continue
       if (Date.now() >= deadline) return undefined

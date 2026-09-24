@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
+import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -133,5 +134,26 @@ test('a lock whose holder cannot be signaled is taken over once older than the a
     await lock!.release()
   } finally {
     killSpy.mockRestore()
+  }
+})
+
+test('a lock that vanished between create and inspect is acquired with waitMs: 0', async () => {
+  const lockPath = path.join(temporaryDirectory(), 'vanished.lock')
+  fs.mkdirSync(lockPath)
+  let removed = false
+  const origLstat = fsp.lstat
+  const lstatSpy = jest.spyOn(fsp, 'lstat').mockImplementation(async (...args) => {
+    if (!removed && args[0] === lockPath) {
+      removed = true
+      fs.rmdirSync(lockPath)
+    }
+    return origLstat(...args)
+  })
+  try {
+    const lock = await DirLock.acquire(lockPath, { waitMs: 0, abandonedMs: 60_000 })
+    expect(lock).toBeDefined()
+    await lock!.release()
+  } finally {
+    lstatSpy.mockRestore()
   }
 })

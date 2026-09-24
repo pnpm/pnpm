@@ -159,7 +159,7 @@ test('concurrent runs on a stale workspace start one install (#14551)', async ()
   writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm([...CONFIG, 'install'])
-  fs.rmSync('installs.log')
+  fs.rmSync('installs.log', { force: true })
 
   project.root.writePackageJson({ ...root, dependencies: { project: 'workspace:*' } })
   const runs = Array.from({ length: 4 }, () => spawnPnpm([...CONFIG, 'hello']))
