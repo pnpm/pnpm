@@ -1,8 +1,9 @@
-use super::{LinkBinsError, LinkBinsOptions, PackageBinSource, bin_node_paths};
+use super::{FsReadHead, LinkBinsError, LinkBinsOptions, PackageBinSource, bin_node_paths};
 use pnpm_fs::{is_subdir, realpath_missing};
 use std::{
     borrow::Cow,
     ffi::OsStr,
+    io,
     path::{Path, PathBuf},
 };
 
@@ -148,4 +149,40 @@ fn resolve_extra(entry: &str, root: &Path, physical_root: &Path) -> String {
     } else {
         entry.to_string()
     }
+}
+
+/// The target's symlink-resolved path, which doubles as the memo key for
+/// the per-target probes: importers that reach one virtual-store file
+/// through different symlinks share it. Without a resolved location, the
+/// literal path still dedupes within whatever scope the caller gave the
+/// cache.
+pub(super) fn target_probe_path(pkg: &PackageBinSource, target: &Path) -> PathBuf {
+    pkg.resolved_location
+        .as_ref()
+        .and_then(|resolved| {
+            target
+                .strip_prefix(&pkg.location)
+                .ok()
+                .map(|bin_rel_path| resolved.join(bin_rel_path))
+        })
+        .unwrap_or_else(|| target.to_path_buf())
+}
+
+/// Whether `bins_dir` is the `node_modules/.bin` of the package at `location`.
+///
+/// A package's own bins are on `PATH` while its lifecycle scripts run, and
+/// those scripts may be what creates a missing target: the `node` package's
+/// preinstall runs `node` to download `bin/node`, which must not resolve to a
+/// shim of `bin/node` itself. So a package's own bin is linked there only once
+/// its target exists, while dependents get the shim right away (the target
+/// may be built after install).
+pub(super) fn is_own_bins_dir(location: &Path, bins_dir: &Path) -> bool {
+    location.join("node_modules").join(".bin") == bins_dir
+}
+
+pub(super) fn target_is_missing<Sys: FsReadHead>(path: &Path) -> bool {
+    matches!(
+        Sys::read_head(path, 0, &mut [0u8; 1]),
+        Err(error) if error.kind() == io::ErrorKind::NotFound,
+    )
 }

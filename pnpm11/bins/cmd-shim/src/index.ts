@@ -124,7 +124,7 @@ function ingestOptions (opts?: Options): InternalOptions {
  * @param to Path to shims.
  * Don't add an extension if you will create multiple types of shims.
  * @param opts Options.
- * @throws If `src` is missing.
+ * A missing `src` gets a shim whose runtime is inferred from its extension.
  */
 export async function cmdShim (src: string, to: string, opts?: Options): Promise<void> {
   const opts_ = ingestOptions(opts)
@@ -134,7 +134,7 @@ export async function cmdShim (src: string, to: string, opts?: Options): Promise
 /**
  * Try to create shims.
  *
- * Resolves even when shim creation fails, including when `src` is missing.
+ * Resolves even when shim creation fails.
  *
  * @param src Path to program (executable or script).
  * @param to Path to shims.
@@ -229,39 +229,57 @@ interface RuntimeInfo {
 }
 
 async function searchScriptRuntime (target: string, opts: InternalOptions): Promise<RuntimeInfo> {
+  let data: string
   try {
-    const data = await opts.fs_.readFile(target, 'utf8')
-
-    // First, check if the bin is a #! of some sort.
-    const firstLine = (data as string).trim().split(/\r*\n/)[0]
-    const shebang = firstLine.match(shebangExpr)
-    if (!shebang) {
-      // If not, infer script type from its extension.
-      // If the inference fails, it's something that'll be compiled, or some other
-      // sort of script, and just call it directly.
-      const targetExtension = path.extname(target).toLowerCase()
-      // undefined if extension is unknown but it's converted to null.
-      const program = extensionToProgramMap.get(targetExtension) || null
-      // CMD requires executing batch files with the `/C` flag
-      const additionalArgs = program === 'cmd' ? '/C' : ''
-      return {
-        program,
-        additionalArgs,
-      }
-    }
-    return {
-      program: shebang[1],
-      additionalArgs: shebang[2],
-    }
+    data = await opts.fs_.readFile(target, 'utf8') as string
   } catch (err) {
-    if (!isWindows || !util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
-    if (await opts.fs_.stat(`${target}${getExeExtension()}`)) {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+    // The target may be created after linking, for instance by a build step,
+    // so the shim is written with the runtime inferred from the path alone.
+    if (isWindows && await exists(`${target}${getExeExtension()}`, opts)) {
       return {
         program: null,
         additionalArgs: '',
       }
     }
-    throw err
+    return runtimeFromExtension(target)
+  }
+
+  // First, check if the bin is a #! of some sort.
+  const firstLine = data.trim().split(/\r*\n/)[0]
+  const shebang = firstLine.match(shebangExpr)
+  if (!shebang) {
+    return runtimeFromExtension(target)
+  }
+  return {
+    program: shebang[1],
+    additionalArgs: shebang[2],
+  }
+}
+
+/**
+ * Infer the script type from the target's extension. If the inference fails,
+ * it's something that'll be compiled, or some other sort of script, and is
+ * called directly.
+ */
+function runtimeFromExtension (target: string): RuntimeInfo {
+  const targetExtension = path.extname(target).toLowerCase()
+  // undefined if extension is unknown but it's converted to null.
+  const program = extensionToProgramMap.get(targetExtension) || null
+  // CMD requires executing batch files with the `/C` flag
+  const additionalArgs = program === 'cmd' ? '/C' : ''
+  return {
+    program,
+    additionalArgs,
+  }
+}
+
+async function exists (file: string, opts: InternalOptions): Promise<boolean> {
+  try {
+    await opts.fs_.stat(file)
+    return true
+  } catch {
+    return false
   }
 }
 

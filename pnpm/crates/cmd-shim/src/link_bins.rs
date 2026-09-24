@@ -439,20 +439,10 @@ where
                 shim_node_path(pkg, paths.project_node_path.as_deref(), &paths.extra_node_paths)
             };
             let pkg_name = package_name(pkg);
-            // The target's symlink-resolved path doubles as the memo key
-            // for the per-target probes: importers that reach one
-            // virtual-store file through different symlinks share it.
-            // Without a resolved location, the literal path still dedupes
-            // within whatever scope the caller gave the cache.
-            let probe_path = pkg.resolved_location
-                .as_ref()
-                .and_then(|resolved| {
-                    command.path
-                        .strip_prefix(&pkg.location)
-                        .ok()
-                        .map(|bin_rel_path| resolved.join(bin_rel_path))
-                })
-                .unwrap_or_else(|| command.path.clone());
+            let probe_path = target_probe_path(pkg, &command.path);
+            if is_own_bins_dir(&pkg.location, bins_dir) && target_is_missing::<Sys>(&probe_path) {
+                return Ok(());
+            }
             write_shim::<Sys>(
                 ShimSpec {
                     target_path: &paths.target(&command.path, options.relocatable_root.as_deref())?,
@@ -559,6 +549,6 @@ use executable::{
 mod discovery;
 
 mod linking_paths;
-use linking_paths::shim_node_path;
+use linking_paths::{is_own_bins_dir, shim_node_path, target_is_missing, target_probe_path};
 
 mod relocatable;

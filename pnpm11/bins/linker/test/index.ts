@@ -798,7 +798,7 @@ test('linkBins() fix window shebang line', async () => {
   }
 })
 
-test("linkBins() emits global warning when bin points to path that doesn't exist", async () => {
+test("linkBins() creates a bin that points to a path that doesn't exist yet", async () => {
   const binTarget = temporaryDirectory()
   const binNotExistFixture = f.prepare('bin-not-exist')
 
@@ -807,10 +807,39 @@ test("linkBins() emits global warning when bin points to path that doesn't exist
     warn: () => {},
   })
 
-  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins([]))
-  expect(
-    globalWarn
-  ).toHaveBeenCalled()
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['meow']))
+  expect(globalWarn).not.toHaveBeenCalled()
+  if (IS_WINDOWS) {
+    expect(fs.readFileSync(path.join(binTarget, `meow${CMD_EXTENSION}`), 'utf8')).toMatch('node')
+  }
+
+  const binSource = path.join(binNotExistFixture, 'node_modules', 'foo', 'dist', 'not-exist.js')
+  fs.mkdirSync(path.dirname(binSource), { recursive: true })
+  fs.writeFileSync(binSource, 'console.log(\'built\')\n')
+  const result = spawnSync(path.join(binTarget, IS_WINDOWS ? `meow${CMD_EXTENSION}` : 'meow'), { shell: IS_WINDOWS })
+  expect(result.stdout.toString()).toMatch('built')
+})
+
+test("linkBinsOfPackages() does not link a package's missing bin into its own .bin directory", async () => {
+  const binNotExistFixture = f.prepare('bin-not-exist')
+  const pkgDir = path.join(binNotExistFixture, 'node_modules', 'foo')
+  const ownBinsDir = path.join(pkgDir, 'node_modules', '.bin')
+  const pkg = {
+    location: pkgDir,
+    manifest: JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf8')),
+  }
+
+  await linkBinsOfPackages([pkg], ownBinsDir)
+
+  expect(fs.readdirSync(ownBinsDir)).toEqual([])
+
+  const binSource = path.join(pkgDir, 'dist', 'not-exist.js')
+  fs.mkdirSync(path.dirname(binSource), { recursive: true })
+  fs.writeFileSync(binSource, 'console.log(\'built\')\n')
+
+  await linkBinsOfPackages([pkg], ownBinsDir)
+
+  expect(fs.readdirSync(ownBinsDir)).toEqual(getExpectedBins(['meow']))
 })
 
 testOnWindows('linkBins() should remove an existing .exe file from the target directory', async () => {
@@ -864,7 +893,7 @@ describe('enable prefer-symlinked-executables', () => {
     }
   })
 
-  test("linkBins() emits global warning when bin points to path that doesn't exist", async () => {
+  test("linkBins() creates a bin that points to a path that doesn't exist yet", async () => {
     const binTarget = temporaryDirectory()
     const binNotExistFixture = f.prepare('bin-not-exist')
 
@@ -874,16 +903,8 @@ describe('enable prefer-symlinked-executables', () => {
       preferSymlinkedExecutables: true,
     })
 
-    if (IS_WINDOWS) {
-      // cmdShim
-      expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins([]))
-    } else {
-      // it will fix symlink file permission
-      expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['meow']))
-    }
-    expect(
-      globalWarn
-    ).toHaveBeenCalled()
+    expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['meow']))
+    expect(globalWarn).not.toHaveBeenCalled()
   })
 })
 

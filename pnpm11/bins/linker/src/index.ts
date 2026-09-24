@@ -139,6 +139,7 @@ async function getCommandsToLink (
 }
 
 interface CommandInfo extends Command {
+  pkgDir: string
   pkgName: string
   pkgVersion: string
   /**
@@ -261,6 +262,7 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
   }
   return cmds.map((cmd) => ({
     ...cmd,
+    pkgDir,
     pkgName: manifest.name,
     pkgVersion: manifest.version,
     makePowerShellShim: manifest.name !== 'pnpm',
@@ -297,6 +299,13 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // below, which all return without touching the .ps1 sibling.
   if (!cmd.makePowerShellShim) {
     await rimraf(`${externalBinPath}.ps1`)
+  }
+  // A package's own bins are on PATH while its lifecycle scripts run, and
+  // those scripts may be what creates a missing target. The `node` package's
+  // preinstall calls `node` to download bin/node, which must not resolve to
+  // a shim of bin/node itself. Other packages get the shim (see cmd-shim).
+  if (isOwnBinsDir(cmd.pkgDir, binsDir) && !existsSync(cmd.path)) {
+    return
   }
   // Skip if the existing bin already references the correct target.
   // This avoids redundant I/O on warm installs and EACCES on read-only stores.
@@ -371,7 +380,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null && await canSymlinkExecutable(cmd.path)) {
     try {
       await symlinkDir(cmd.path, externalBinPath)
-      await ensureExecutableIfNeeded(cmd.path, 0o755)
+      await ensureExecutableIfNeeded(cmd.path, 0o755, { allowMissing: true })
     } catch (err: any) { // eslint-disable-line
       if (err.code !== 'ENOENT' && err.code !== 'EISDIR') {
         throw err
@@ -412,7 +421,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // ensure that bin are executable and not containing
   // windows line-endings(CRLF) on the hashbang line
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
-    await ensureExecutableIfNeeded(cmd.path, 0o755)
+    await ensureExecutableIfNeeded(cmd.path, 0o755, { allowMissing: true })
   }
 }
 
@@ -489,6 +498,10 @@ async function haveEqualContents (pathA: string, pathB: string): Promise<boolean
     await fhA.close().catch(() => {})
     await fhB.close().catch(() => {})
   }
+}
+
+function isOwnBinsDir (pkgDir: string, binsDir: string): boolean {
+  return path.resolve(pkgDir, 'node_modules', '.bin') === path.resolve(binsDir)
 }
 
 async function canSymlinkExecutable (file: string): Promise<boolean> {

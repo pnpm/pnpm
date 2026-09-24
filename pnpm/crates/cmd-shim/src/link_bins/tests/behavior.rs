@@ -406,3 +406,30 @@ fn existing_bins_pointing_at_the_target_survive_flag_changes() {
         assert_eq!(std::fs::symlink_metadata(&bin).unwrap().ino(), inode);
     }
 }
+
+/// A bin whose target is built after install still gets its shim in a
+/// dependent's `.bin`, but not in the package's own `.bin`, where it would
+/// shadow the command its own lifecycle scripts run to create the target.
+#[test]
+fn missing_bin_target_is_linked_for_dependents_only() {
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("node_modules/tool");
+    create_dir_all(&pkg).unwrap();
+    let manifest = json!({"name": "tool", "bin": {"tool": "dist/tool.js"}});
+    let source = || PackageBinSource::new(pkg.clone(), Arc::new(manifest.clone()));
+    let dependent_bins = tmp.path().join("node_modules/.bin");
+    let own_bins = pkg.join("node_modules/.bin");
+
+    for bins in [&dependent_bins, &own_bins] {
+        link_bins_of_packages::<Host>(&[source()], bins, &LinkBinsOptions::default()).unwrap();
+    }
+
+    let shim = read_to_string(dependent_bins.join("tool")).unwrap();
+    assert!(shim.contains("exec node "), "shim must run the missing .js target with node:\n{shim}");
+    assert!(!own_bins.join("tool").exists(), "own .bin must not shim a missing target");
+
+    create_dir_all(pkg.join("dist")).unwrap();
+    write_file(pkg.join("dist/tool.js"), "console.log('built')\n").unwrap();
+    link_bins_of_packages::<Host>(&[source()], &own_bins, &LinkBinsOptions::default()).unwrap();
+    assert!(own_bins.join("tool").exists(), "own .bin gets the shim once the target exists");
+}
