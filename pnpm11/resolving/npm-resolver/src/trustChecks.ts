@@ -17,7 +17,7 @@ const TRUST_RANK = {
   provenance: 1,
 } as const satisfies Record<TrustEvidence, number>
 
-type TrustCheckOptions = Parameters<typeof failIfTrustDowngraded>[2]
+export type TrustCheckOptions = NonNullable<Parameters<typeof failIfTrustDowngraded>[2]>
 
 /**
  * Upper bound on trust downgrades set aside for one pick. Each one re-runs the
