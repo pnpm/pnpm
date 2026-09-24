@@ -9,7 +9,9 @@ pub use dir_lock::DirLock;
 pub use ensure_file::*;
 pub use is_subdir::is_subdir;
 pub use lexical_normalize::{lexical_normalize, lexical_normalize_posix};
-pub use pending_temp::{PendingTempFile, remove_pending_temp_files, track_temp_file};
+pub use pending_temp::{
+    PendingTempFile, remove_pending_temp_files, track_lockfile_temp_file, track_temp_file,
+};
 pub use realpath_missing::realpath_missing;
 pub use relative_path::{join_slash_separated_path, push_slash_separated_path, relative_path};
 pub use remove_dirent::remove_dirent;

@@ -6,9 +6,9 @@
 //! manager's `SIGTERM` — takes the process down without running destructors,
 //! so a temp file caught mid-write would stay behind in the project
 //! ([pnpm/pnpm#1418](https://github.com/pnpm/pnpm/issues/1418)). Writers
-//! register each staged temp file with [`track_temp_file`]; the handler this
-//! module installs unlinks whatever is still pending before the signal ends
-//! the process.
+//! register each staged temp file with [`track_temp_file`], lockfile writes
+//! with [`track_lockfile_temp_file`]; the handler this module installs
+//! unlinks whatever is still pending before the signal ends the process.
 //!
 //! The handler chains to the disposition it replaced rather than assuming
 //! the default: `pnpm-executor`'s interrupt relay may have been installed
@@ -50,16 +50,29 @@ type StoredPath = std::ffi::CString;
 #[cfg(not(unix))]
 type StoredPath = std::path::PathBuf;
 
-/// How many temp files a process may register over its lifetime before new
-/// writes stay untracked. Each registration leaks its stored path — the
-/// signal handler may still be reading a previously published pointer, so
-/// the memory behind it is never reused — and the cap keeps that leak
-/// bounded. Past the cap a write keeps its pre-registry behavior: an
-/// interrupt leaves the temp file behind.
+/// How many temp files general atomic writes may register over the process
+/// lifetime before new writes stay untracked. Each registration leaks its
+/// stored path — the signal handler may still be reading a previously
+/// published pointer, so the memory behind it is never reused — and the cap
+/// keeps that leak bounded. Past the cap a write keeps its pre-registry
+/// behavior: an interrupt leaves the temp file behind. Lockfile writes draw
+/// from [`MAX_TRACKED_LOCKFILE_WRITES`] instead.
 const MAX_TRACKED_WRITES: usize = 4096;
 
 /// Registrations taken so far, against [`MAX_TRACKED_WRITES`].
 static REGISTRATIONS: AtomicUsize = AtomicUsize::new(0);
+
+/// How many lockfile temp files a process may register over its lifetime.
+/// Reserved for lockfile writes so general writes cannot starve them: a
+/// large install stages one general atomic write per package, while the
+/// stranded lockfile this module exists for (pnpm/pnpm#1418) is saved a
+/// handful of times per command, so a small reserved budget covers any
+/// realistic process.
+const MAX_TRACKED_LOCKFILE_WRITES: usize = 64;
+
+/// Lockfile registrations taken so far, against
+/// [`MAX_TRACKED_LOCKFILE_WRITES`].
+static LOCKFILE_REGISTRATIONS: AtomicUsize = AtomicUsize::new(0);
 
 /// One staged temp file: the path to unlink on interrupt, or null while the
 /// slot is free.
@@ -90,23 +103,37 @@ impl Drop for PendingTempFile {
 }
 
 /// Register `path` as a temp file to unlink if the process is interrupted,
-/// until the returned guard is dropped.
+/// until the returned guard is dropped. Draws from the general budget;
+/// lockfile writes use [`track_lockfile_temp_file`] instead.
 #[must_use]
 pub fn track_temp_file(path: &Path) -> PendingTempFile {
+    track_in(path, &REGISTRATIONS, MAX_TRACKED_WRITES)
+}
+
+/// Register the lockfile's `path` as a temp file to unlink if the process is
+/// interrupted. Draws from a budget reserved for lockfile writes, so general
+/// atomic writes that exhaust their own cap cannot leave the lockfile — the
+/// file pnpm/pnpm#1418 is about — untracked.
+#[must_use]
+pub fn track_lockfile_temp_file(path: &Path) -> PendingTempFile {
+    track_in(path, &LOCKFILE_REGISTRATIONS, MAX_TRACKED_LOCKFILE_WRITES)
+}
+
+fn track_in(path: &Path, used: &AtomicUsize, cap: usize) -> PendingTempFile {
     install_handler();
     let Some(stored) = store_path(path) else {
         return PendingTempFile { entry: None };
     };
-    if !take_budget(&REGISTRATIONS) {
+    if !take_budget(used, cap) {
         return PendingTempFile { entry: None };
     }
     PendingTempFile { entry: Some(claim_entry(Box::leak(Box::new(stored)))) }
 }
 
 /// Take one registration from `used`, refusing once the process has hit
-/// [`MAX_TRACKED_WRITES`].
-fn take_budget(used: &AtomicUsize) -> bool {
-    used.fetch_add(1, Ordering::Relaxed) < MAX_TRACKED_WRITES
+/// `cap`.
+fn take_budget(used: &AtomicUsize, cap: usize) -> bool {
+    used.fetch_add(1, Ordering::Relaxed) < cap
 }
 
 /// Unlink every temp file still registered.

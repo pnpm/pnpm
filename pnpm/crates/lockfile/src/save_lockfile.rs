@@ -288,7 +288,7 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
         // cannot leave the fresh temp file behind. A failed create means
         // the path was never ours, so the guard releases the slot without
         // unlinking anything.
-        let pending_temp = pnpm_fs::track_temp_file(&tmp);
+        let pending_temp = pnpm_fs::track_lockfile_temp_file(&tmp);
 
         let mut file = match OpenOptions::new()
             .write(true)

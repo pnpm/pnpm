@@ -1,4 +1,7 @@
-use super::{MAX_TRACKED_WRITES, remove_pending_temp_files, take_budget, track_temp_file};
+use super::{
+    MAX_TRACKED_LOCKFILE_WRITES, MAX_TRACKED_WRITES, remove_pending_temp_files, take_budget,
+    track_lockfile_temp_file, track_temp_file,
+};
 use std::{
     fs,
     sync::{Mutex, atomic::AtomicUsize},
@@ -59,7 +62,35 @@ fn registrations_stop_at_the_cap() {
     // A local counter stands in for the process-global one, which the other
     // tests in this binary share.
     let used = AtomicUsize::new(0);
-    let taken = (0..=MAX_TRACKED_WRITES).filter(|_| take_budget(&used)).count();
+    let taken = (0..=MAX_TRACKED_WRITES).filter(|_| take_budget(&used, MAX_TRACKED_WRITES)).count();
 
     assert_eq!(taken, MAX_TRACKED_WRITES, "the budget grants exactly the cap");
+}
+
+#[test]
+fn lockfile_temp_file_is_unlinked_by_cleanup() {
+    let _lock = LOCK.lock().expect("registry test lock");
+    let dir = tempfile::tempdir().expect("tempdir");
+    let temp = dir.path().join(".pnpm-lock.yaml.123.4.tmp");
+    fs::write(&temp, "partial lockfile").expect("stage temp file");
+
+    let _guard = track_lockfile_temp_file(&temp);
+    remove_pending_temp_files();
+
+    assert!(!temp.exists(), "registered lockfile temp file should be unlinked: {temp:?}");
+}
+
+#[test]
+fn lockfile_budget_is_separate_from_the_general_cap() {
+    // Local counters stand in for the process-global ones, which the other
+    // tests in this binary share: exhausting a real budget would leave the
+    // other tests' registrations untracked.
+    let general = AtomicUsize::new(MAX_TRACKED_WRITES);
+    let lockfile = AtomicUsize::new(0);
+
+    assert!(!take_budget(&general, MAX_TRACKED_WRITES), "the general budget is spent");
+    assert!(
+        take_budget(&lockfile, MAX_TRACKED_LOCKFILE_WRITES),
+        "lockfile writes draw from a reserved budget general writes cannot spend",
+    );
 }
