@@ -326,7 +326,7 @@ snapshots:{snapshots}
             paths
                 .iter()
                 .any(|path| path.starts_with(importer)),
-            "no path from {importer}"
+            "no path from {importer}",
         );
     }
 }
@@ -842,7 +842,7 @@ fn fan_out(count: usize, child: &str, child_version: &str) -> (String, String) {
             .unwrap();
         write!(
             snapshots,
-            "\n  parent-{i}@1.0.0:\n    dependencies:\n      {child}: '{child_version}'"
+            "\n  parent-{i}@1.0.0:\n    dependencies:\n      {child}: '{child_version}'",
         )
         .unwrap();
     }
