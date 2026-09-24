@@ -327,6 +327,64 @@ fn outdated_recursive_aggregates_workspace_dependents() {
 }
 
 #[test]
+fn outdated_recursive_json_preserves_distinct_entries_for_same_package() {
+    let (root, workspace, anchor) = setup();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    write_manifest(&workspace, "{}");
+
+    let app_a = workspace.join("packages/app-a");
+    fs::create_dir_all(&app_a).expect("create app-a");
+    fs::write(
+        app_a.join("package.json"),
+        format!(
+            r#"{{ "name": "app-a", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write app-a package.json");
+
+    let app_b = workspace.join("packages/app-b");
+    fs::create_dir_all(&app_b).expect("create app-b");
+    fs::write(
+        app_b.join("package.json"),
+        format!(
+            r#"{{ "name": "app-b", "version": "1.0.0", "devDependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write app-b package.json");
+
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["outdated", "--recursive", "--format", "json"])
+        .output()
+        .expect("run recursive outdated");
+
+    assert_eq!(output.status.code(), Some(1));
+    let value: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("recursive outdated should emit valid JSON");
+
+    let prod_key = format!("{DEP}@100.1.0");
+    let dev_key = format!("{DEP}@100.1.0 (dev)");
+
+    assert!(value.get(&prod_key).is_some(), "expected prod key {prod_key} in {value}");
+    assert!(value.get(&dev_key).is_some(), "expected dev key {dev_key} in {value}");
+
+    assert_eq!(value[&prod_key]["dependencyType"], "dependencies");
+    assert_eq!(value[&dev_key]["dependencyType"], "devDependencies");
+
+    let prod_dependents =
+        value[&prod_key]["dependentPackages"].as_array().expect("prod dependents");
+    assert_eq!(prod_dependents.len(), 1);
+    assert_eq!(prod_dependents[0]["name"], "app-a");
+
+    let dev_dependents = value[&dev_key]["dependentPackages"].as_array().expect("dev dependents");
+    assert_eq!(dev_dependents.len(), 1);
+    assert_eq!(dev_dependents[0]["name"], "app-b");
+
+    drop((root, anchor));
+}
+
+#[test]
 fn outdated_recursive_reads_dedicated_project_lockfiles() {
     let (root, workspace, anchor) = setup();
     fs::write(

@@ -1,8 +1,6 @@
-#[cfg(unix)]
-use super::render_recursive_json;
 use super::{
     DependentProject, OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage, render_json,
-    render_recursive_table, sort_outdated,
+    render_recursive_json, render_recursive_table, sort_outdated,
 };
 use crate::cli_args::outdated::{
     query::current_versions_from_importer,
@@ -358,4 +356,69 @@ fn recursive_json_replaces_invalid_utf8_in_locations() {
     let value: serde_json::Value =
         serde_json::from_str(&render_recursive_json(&[entry], false)).expect("valid JSON");
     assert_eq!(value["foo"]["dependentPackages"][0]["location"], "packages/�-app");
+}
+
+#[test]
+fn recursive_json_preserves_multiple_entries_for_same_package() {
+    let entries = vec![
+        OutdatedInWorkspace {
+            package: pkg("is-negative", "1.0.0", "2.1.0", DependencyGroup::Prod),
+            dependents: vec![DependentProject {
+                name: "project-2".to_string(),
+                location: PathBuf::from("/path/to/project-2"),
+            }],
+        },
+        OutdatedInWorkspace {
+            package: pkg("is-negative", "1.0.0", "2.1.0", DependencyGroup::Dev),
+            dependents: vec![DependentProject {
+                name: "project-3".to_string(),
+                location: PathBuf::from("/path/to/project-3"),
+            }],
+        },
+        OutdatedInWorkspace {
+            package: pkg("is-positive", "1.0.0", "3.1.0", DependencyGroup::Prod),
+            dependents: vec![
+                DependentProject {
+                    name: "project-1".to_string(),
+                    location: PathBuf::from("/path/to/project-1"),
+                },
+                DependentProject {
+                    name: "project-3".to_string(),
+                    location: PathBuf::from("/path/to/project-3"),
+                },
+            ],
+        },
+        OutdatedInWorkspace {
+            package: pkg("is-positive", "2.0.0", "3.1.0", DependencyGroup::Prod),
+            dependents: vec![DependentProject {
+                name: "project-2".to_string(),
+                location: PathBuf::from("/path/to/project-2"),
+            }],
+        },
+        OutdatedInWorkspace {
+            package: pkg("single-dep", "1.0.0", "2.0.0", DependencyGroup::Prod),
+            dependents: vec![DependentProject {
+                name: "project-1".to_string(),
+                location: PathBuf::from("/path/to/project-1"),
+            }],
+        },
+    ];
+
+    let value: serde_json::Value =
+        serde_json::from_str(&render_recursive_json(&entries, false)).expect("valid JSON");
+
+    assert!(value.get("single-dep").is_some());
+    assert_eq!(value["single-dep"]["current"], "1.0.0");
+
+    assert!(value.get("is-negative@1.0.0").is_some());
+    assert_eq!(value["is-negative@1.0.0"]["dependencyType"], "dependencies");
+
+    assert!(value.get("is-negative@1.0.0 (dev)").is_some());
+    assert_eq!(value["is-negative@1.0.0 (dev)"]["dependencyType"], "devDependencies");
+
+    assert!(value.get("is-positive@1.0.0").is_some());
+    assert_eq!(value["is-positive@1.0.0"]["current"], "1.0.0");
+
+    assert!(value.get("is-positive@2.0.0").is_some());
+    assert_eq!(value["is-positive@2.0.0"]["current"], "2.0.0");
 }

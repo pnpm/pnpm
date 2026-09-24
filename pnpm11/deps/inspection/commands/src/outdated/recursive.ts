@@ -16,6 +16,7 @@ import chalk from 'chalk'
 import { isEmpty, sortWith } from 'ramda'
 
 import {
+  createOutdatedJSONKeyGetter,
   getCellWidth,
   hasUnmatchedPackageParams,
   type OutdatedCommandOptions,
@@ -211,9 +212,12 @@ function renderOutdatedJSON (
   outdatedMap: Record<string, OutdatedInWorkspace>,
   opts: { long?: boolean }
 ): string {
-  const outdatedPackagesJSON: Record<string, OutdatedPackageInWorkspaceJSONOutput> = sortOutdatedPackages(Object.values(outdatedMap))
+  const outdatedPackages = Object.values(outdatedMap)
+  const getOutdatedJSONKey = createOutdatedJSONKeyGetter(outdatedPackages)
+  const outdatedPackagesJSON: Record<string, OutdatedPackageInWorkspaceJSONOutput> = sortOutdatedPackages(outdatedPackages)
     .reduce((acc, outdatedPkg) => {
-      acc[outdatedPkg.packageName] = {
+      const key = getOutdatedJSONKey(outdatedPkg)
+      acc[key] = {
         current: outdatedPkg.current,
         latest: outdatedPkg.latestManifest?.version,
         wanted: outdatedPkg.wanted,
@@ -222,7 +226,7 @@ function renderOutdatedJSON (
         dependentPackages: outdatedPkg.dependentPkgs.map(({ manifest, location }) => ({ name: manifest.name!, location })),
       }
       if (opts.long) {
-        acc[outdatedPkg.packageName].latestManifest = outdatedPkg.latestManifest
+        acc[key].latestManifest = outdatedPkg.latestManifest
       }
       return acc
     }, {} as Record<string, OutdatedPackageInWorkspaceJSONOutput>)

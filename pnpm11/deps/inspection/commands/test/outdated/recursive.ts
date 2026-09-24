@@ -164,7 +164,20 @@ Dependent: project-2
 
     expect(exitCode).toBe(1)
     expect(stripAnsi(output as unknown as string)).toBe(JSON.stringify({
-      'is-negative': {
+      'is-negative@1.0.0': {
+        current: '1.0.0',
+        latest: '2.1.0',
+        wanted: '1.0.0',
+        isDeprecated: false,
+        dependencyType: 'dependencies',
+        dependentPackages: [
+          {
+            name: 'project-2',
+            location: path.resolve('project-2'),
+          },
+        ],
+      },
+      'is-negative@1.0.0 (dev)': {
         current: '1.0.0',
         latest: '2.1.0',
         wanted: '1.0.0',
@@ -177,7 +190,24 @@ Dependent: project-2
           },
         ],
       },
-      'is-positive': {
+      'is-positive@1.0.0': {
+        current: '1.0.0',
+        latest: '3.1.0',
+        wanted: '1.0.0',
+        isDeprecated: false,
+        dependencyType: 'dependencies',
+        dependentPackages: [
+          {
+            name: 'project-1',
+            location: path.resolve('project-1'),
+          },
+          {
+            name: 'project-3',
+            location: path.resolve('project-3'),
+          },
+        ],
+      },
+      'is-positive@2.0.0': {
         current: '2.0.0',
         latest: '3.1.0',
         wanted: '2.0.0',
