@@ -59,6 +59,19 @@ test('pnpm clean removes node_modules once it is empty', () => {
   expect(fs.existsSync('node_modules')).toBe(false)
 })
 
+test('pnpm clean keeps a linked node_modules it empties', () => {
+  tempDir()
+  fs.writeFileSync('package.json', '{}', 'utf8')
+  fs.mkdirSync('modules-target/lodash', { recursive: true })
+  fs.symlinkSync(path.resolve('modules-target'), 'node_modules', 'junction')
+
+  const result = execPnpmSync(['clean'])
+  expect(result.status).toBe(0)
+
+  expect(fs.existsSync('modules-target/lodash')).toBe(false)
+  expect(fs.lstatSync('node_modules').isSymbolicLink()).toBe(true)
+})
+
 test('pnpm clean handles missing node_modules gracefully', () => {
   tempDir()
   fs.writeFileSync('package.json', '{}', 'utf8')
