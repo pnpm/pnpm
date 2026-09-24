@@ -436,3 +436,9 @@ test('barePathIsUnambiguous recognizes only path-prefixed specifiers', () => {
     expect([specifier, barePathIsUnambiguous(specifier)]).toEqual([specifier, false])
   }
 })
+
+test('resolveFromLocalPath claims a forward-slash separated path', async () => {
+  const result = await resolveFromLocalPath({}, { bareSpecifier: 'some/local/dir' }, { projectDir: import.meta.dirname })
+  expect(result?.manifest?.name).toBe('dir')
+})
+
