@@ -355,27 +355,43 @@ fn set_auth_setting(
 /// Read the INI file, set or delete `key`, and write it back. A delete of an
 /// absent key is a no-op (no write). Mirrors the INI arms of `configSet`.
 fn write_ini_setting(config_path: &Path, key: &str, value: &Value) -> miette::Result<()> {
-    let mut settings = ini::read(config_path)
+    let mut doc = ini::read(config_path)
         .map_err(miette::Report::msg)
         .map_err(|err| err.wrap_err(format!("reading {}", config_path.display())))?;
     if value.is_null() {
-        if settings.shift_remove(key).is_none() {
+        if !doc.delete(key) {
             return Ok(());
         }
     } else {
-        let value_string = ini_value_string(value);
-        // A control character (notably a newline) in the value would split into
-        // extra `key=value` lines when the INI file is re-parsed, injecting
-        // settings the user never set. Refuse rather than corrupt the file.
-        if has_control_char(key) || has_control_char(&value_string) {
-            return Err(ConfigError::SetIniControlCharacter.into());
-        }
-        settings.insert(key.to_string(), value_string);
+        let values = collect_ini_values(key, value)?;
+        doc.set(key, &values);
     }
-    ini::write(config_path, &settings)
+    ini::write(config_path, &doc)
         .map_err(miette::Report::msg)
         .map_err(|err| err.wrap_err(format!("writing {}", config_path.display())))?;
     Ok(())
+}
+
+fn validate_ini_string(key: &str, value: &str) -> Result<(), ConfigError> {
+    if has_control_char(key) || has_control_char(value) {
+        return Err(ConfigError::SetIniControlCharacter);
+    }
+    Ok(())
+}
+
+fn collect_ini_values(key: &str, value: &Value) -> Result<Vec<String>, ConfigError> {
+    if let Value::Array(items) = value {
+        let mut values = Vec::with_capacity(items.len());
+        for item in items {
+            let formatted = ini_value_string(item);
+            validate_ini_string(key, &formatted)?;
+            values.push(formatted);
+        }
+        return Ok(values);
+    }
+    let formatted = ini_value_string(value);
+    validate_ini_string(key, &formatted)?;
+    Ok(vec![formatted])
 }
 
 /// Whether `text` holds a control character. The INI writer splices `text`

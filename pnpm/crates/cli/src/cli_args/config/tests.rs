@@ -24,7 +24,12 @@ fn read_yaml(path: &Path) -> Option<Value> {
 }
 
 fn read_ini(path: &Path) -> IndexMap<String, String> {
-    ini::read(path).expect("read ini")
+    let doc = ini::read(path).expect("read ini");
+    let mut map = IndexMap::new();
+    for (key, value) in doc.entries() {
+        map.insert(key.to_string(), value.to_string());
+    }
+    map
 }
 
 // --- config set: INI routing -----------------------------------------------
@@ -490,6 +495,119 @@ fn delete_auth_key_set_and_unset() {
     .unwrap();
     config_set(&config, tmp.path(), flags(true, None, false), "registry", None).unwrap();
     assert!(read_ini(&config_dir.join("auth.ini")).is_empty());
+}
+
+#[test]
+fn set_unrelated_key_preserves_repeated_ca_and_comments() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial = "# Corporate CA certificates\nca=certificate-A\nca=certificate-B\n\n; Registry config\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "registry",
+        Some("https://registry.example.com/".to_string()),
+    )
+    .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Corporate CA certificates"));
+    assert!(text.contains("; Registry config"));
+    assert!(text.contains("ca=certificate-A"));
+    assert!(text.contains("ca=certificate-B"));
+    assert!(text.contains("registry=https://registry.example.com/"));
+    assert!(!text.contains("registry=https://registry.npmjs.org/"));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), vec!["certificate-A", "certificate-B"]);
+    assert_eq!(doc.get("registry"), Some("https://registry.example.com/"));
+}
+
+#[test]
+fn delete_key_preserves_repeated_ca_and_comments() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial = "# Corporate CA certificates\nca=certificate-A\nca=certificate-B\n\n; Registry config\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "registry",
+        None,
+    )
+    .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Corporate CA certificates"));
+    assert!(text.contains("; Registry config"));
+    assert!(text.contains("ca=certificate-A"));
+    assert!(text.contains("ca=certificate-B"));
+    assert!(!text.contains("registry="));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), vec!["certificate-A", "certificate-B"]);
+    assert_eq!(doc.get("registry"), None);
+}
+
+#[test]
+fn delete_repeated_key_removes_all_occurrences_and_preserves_comments() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial = "# Corporate CA certificates\nca=certificate-A\nca=certificate-B\n\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(&config, tmp.path(), flags(false, Some(ConfigLocation::Project), false), "ca", None)
+        .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Corporate CA certificates"));
+    assert!(!text.contains("ca="));
+    assert!(text.contains("registry=https://registry.npmjs.org/"));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), Vec::<&str>::new());
+    assert_eq!(doc.get("registry"), Some("https://registry.npmjs.org/"));
+}
+
+#[test]
+fn set_ca_array_json_writes_repeated_keys_preserving_comments() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial =
+        "# Corporate CA certificates\nca=old-cert\n\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), true),
+        "ca",
+        Some(r#"["cert-1", "cert-2"]"#.to_string()),
+    )
+    .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Corporate CA certificates"));
+    assert!(text.contains("ca=cert-1"));
+    assert!(text.contains("ca=cert-2"));
+    assert!(!text.contains("ca=old-cert"));
+    assert!(text.contains("registry=https://registry.npmjs.org/"));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), vec!["cert-1", "cert-2"]);
 }
 
 #[test]
