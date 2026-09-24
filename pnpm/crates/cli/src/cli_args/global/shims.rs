@@ -13,7 +13,7 @@ use super::{
 /// names only count when actually installed through the `runtime:`
 /// protocol, so an npm package that happens to be called `node` is not
 /// elevated.
-pub(super) fn link_global_bins(
+pub(crate) fn link_global_bins(
     config: &Config,
     pkgs: &[PackageBinSource],
     dependencies: &[(String, String)],

@@ -9,6 +9,7 @@
 pub use builds::approve_global_builds;
 pub use remove::handle_global_remove;
 pub use selectors::{has_pnpm_cli_dependency, selects_pnpm_cli};
+pub(crate) use shims::link_global_bins;
 
 mod activation;
 
@@ -78,7 +79,7 @@ use selectors::{
 
 use shims::{
     ReplacedGlobalBinPlan, bin_names_of_other_groups, check_virtual_shim_conflicts,
-    link_global_bins, plan_replaced_global_bins, restore_virtual_shims, unprotected_bin_names,
+    plan_replaced_global_bins, restore_virtual_shims, unprotected_bin_names,
     virtual_shims_to_restore,
 };
 use std::{

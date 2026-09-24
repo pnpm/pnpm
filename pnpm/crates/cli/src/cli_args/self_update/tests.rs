@@ -1,6 +1,6 @@
 use super::{
-    global_bin::refresh_global_shims, install_pnpm, is_installed_globally, join_messages,
-    version_lt,
+    global_bin::{link_engine_bins, refresh_global_shims},
+    install_pnpm, is_installed_globally, join_messages, version_lt,
 };
 use crate::{
     cli_args::self_update::project_pin::{
@@ -237,6 +237,58 @@ fn self_update_to_pnpm_without_native_shims_leaves_the_global_shims_alone() {
     refresh_global_shims(&global_bin, &installed, "12.2.1").unwrap();
 
     assert_eq!(fs::read(node).unwrap(), b"old shim engine");
+}
+
+/// `pnpm setup` installs pnpm as a context-aware shim. A self-update must
+/// keep it one, aimed at the new engine, without writing the direct
+/// `.cmd` / `.ps1` / `sh` shims beside it (see pnpm/pnpm#15567).
+#[test]
+fn self_update_keeps_the_setup_pnpm_shim_context_aware() {
+    let root = tempfile::tempdir().unwrap();
+    let global_bin = root.path().join("bin");
+    let old_target = root.path().join("old-install/node_modules/pnpm/pnpm");
+    let old_engine = root.path().join("old-engine");
+    fs::write(&old_engine, b"old shim engine").unwrap();
+    install_native_shim_from(&old_engine, &global_bin, "pnpm", &ShimTarget::Installed(old_target))
+        .unwrap();
+
+    let install_dir = root.path().join("new-install");
+    let executable = install_pnpm::pnpm_executable_path(&install_dir, "pnpm");
+    let package_dir = executable.parent().unwrap();
+    fs::create_dir_all(package_dir).unwrap();
+    fs::write(&executable, b"new shim engine").unwrap();
+    let bin_file = executable
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap();
+    fs::write(
+        package_dir.join("package.json"),
+        serde_json::json!({ "name": "pnpm", "version": "12.7.0", "bin": { "pnpm": bin_file } })
+            .to_string(),
+    )
+    .unwrap();
+    fs::write(install_dir.join("package.json"), r#"{"dependencies":{"pnpm":"12.7.0"}}"#).unwrap();
+    let installed = install_pnpm::InstallPnpmResult {
+        install_dir,
+        package_name: "pnpm",
+        already_existed: false,
+    };
+    let config = pnpm_config::Config {
+        config_dir: Some(root.path().join("config")),
+        ..pnpm_config::Config::default()
+    };
+
+    link_engine_bins(&config, &global_bin, &installed, "12.7.0").unwrap();
+
+    assert_eq!(
+        native_shim_target(&global_bin, "pnpm").unwrap(),
+        Some(ShimTarget::Installed(executable)),
+    );
+    let shim = global_bin.join(format!("pnpm{}", std::env::consts::EXE_SUFFIX));
+    assert_eq!(fs::read(shim).unwrap(), b"new shim engine");
+    assert!(!global_bin.join("pnpm.cmd").exists());
+    assert!(!global_bin.join("pnpm.ps1").exists());
 }
 
 /// The engine is a native binary, so building a runnable and a non-runnable one

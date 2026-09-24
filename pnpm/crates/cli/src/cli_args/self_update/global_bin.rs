@@ -1,6 +1,6 @@
 use super::{SelfUpdateError, install_pnpm};
+use crate::cli_args::global::link_global_bins;
 use miette::{Context, IntoDiagnostic};
-use pnpm_cmd_shim::{Host as CmdShimHost, LinkBinsOptions, link_bins_of_packages_with_excludes};
 use pnpm_config::Config;
 use pnpm_fs::force_symlink_dir;
 use pnpm_global::{create_global_cache_key, get_hash_link, read_installed_packages};
@@ -18,17 +18,7 @@ pub(super) fn link_into_global_bin(
     let global_pkg_dir = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
     let _global_bin_lock = crate::cli_args::global_bin_lock::acquire_global_bin_lock(&global_bin)?;
 
-    refresh_global_shims(&global_bin, installed, version)?;
-
-    let pkgs = read_installed_packages(&installed.install_dir);
-    link_bins_of_packages_with_excludes::<CmdShimHost>(
-        &pkgs,
-        &global_bin,
-        &HashSet::new(),
-        &LinkBinsOptions::default(),
-    )
-    .map_err(miette::Report::new)
-    .wrap_err("link the updated pnpm bins")?;
+    link_engine_bins(config, &global_bin, installed, version)?;
 
     let aliases = vec![installed.package_name.to_string()];
     let cache_hash = create_global_cache_key(&aliases, &registries_for_cache_key(config));
@@ -37,6 +27,21 @@ pub(super) fn link_into_global_bin(
         .into_diagnostic()
         .wrap_err("link the global pnpm install directory")?;
     Ok(())
+}
+
+/// Link the engine's bins in the shape `pnpm add -g` gives them, so the
+/// `pnpm` that `pnpm setup` installed as a context-aware shim stays one and
+/// dispatches to the new engine.
+pub(super) fn link_engine_bins(
+    config: &Config,
+    global_bin: &Path,
+    installed: &install_pnpm::InstallPnpmResult,
+    version: &str,
+) -> miette::Result<()> {
+    let pkgs = read_installed_packages(&installed.install_dir);
+    link_global_bins(config, &pkgs, &[], global_bin, &HashSet::new())
+        .wrap_err("link the updated pnpm bins")?;
+    refresh_global_shims(global_bin, installed, version)
 }
 
 pub(super) fn refresh_global_shims(
