@@ -50,26 +50,50 @@ struct PlannedWorkspaceRelease {
     projects: Vec<pnpm_versioning::WorkspaceProject>,
     intents: Vec<pnpm_versioning::ChangeIntent>,
     published_names: HashMap<String, String>,
+    private_dirs: HashSet<String>,
     unfiltered: bool,
+}
+
+struct WorkspaceReleaseInputs {
+    intents: Vec<pnpm_versioning::ChangeIntent>,
+    ledger: pnpm_versioning::Ledger,
+    workspace_projects: Vec<pnpm_workspace::Project>,
+    projects: Vec<pnpm_versioning::WorkspaceProject>,
+    published_names: HashMap<String, String>,
+    private_dirs: HashSet<String>,
 }
 
 async fn plan_workspace_release(
     config: &Config,
     workspace_dir: &Path,
 ) -> miette::Result<PlannedWorkspaceRelease> {
-    let intents = read_change_intents(workspace_dir)?;
-    let ledger = read_ledger(workspace_dir)?;
-    let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
-    let engine_projects = to_engine_projects(&projects);
-    let published_names = changelog::published_names(&projects);
+    let inputs = workspace_release_inputs(config, workspace_dir)?;
+    let filter = filtered_project_dirs(&inputs.workspace_projects, config, workspace_dir)?;
+    let plan =
+        assemble_workspace_release_plan(config, workspace_dir, &inputs, filter.clone()).await?;
 
-    let filter = filtered_project_dirs(&projects, config, workspace_dir)?;
+    Ok(PlannedWorkspaceRelease {
+        plan,
+        projects: inputs.projects,
+        intents: inputs.intents,
+        published_names: inputs.published_names,
+        private_dirs: inputs.private_dirs,
+        unfiltered: filter.is_none(),
+    })
+}
+
+async fn assemble_workspace_release_plan(
+    config: &Config,
+    workspace_dir: &Path,
+    inputs: &WorkspaceReleaseInputs,
+    filter: Option<HashSet<String>>,
+) -> miette::Result<pnpm_versioning::ReleasePlan> {
     let assemble = |unpublished_dirs: HashSet<String>| {
         assemble_release_plan(
-            &engine_projects,
+            &inputs.projects,
             workspace_dir,
-            &intents,
-            &ledger,
+            &inputs.intents,
+            &inputs.ledger,
             Some(&config.versioning),
             &AssembleReleasePlanOptions {
                 filter: filter.clone(),
@@ -79,48 +103,77 @@ async fn plan_workspace_release(
             },
         )
     };
-    let unpublished_dirs =
-        unpublished_release_dirs(config, &assemble(HashSet::new())?, &published_names).await?;
-    let plan = assemble(unpublished_dirs)?;
+    let unpublished_dirs = unpublished_release_dirs(
+        &assemble(HashSet::new())?,
+        &changelog::ReleaseRegistryOptions {
+            config,
+            workspace_dir,
+            published_names: &inputs.published_names,
+            private_dirs: &inputs.private_dirs,
+        },
+    )
+    .await?;
+    Ok(assemble(unpublished_dirs)?)
+}
 
-    Ok(PlannedWorkspaceRelease {
-        plan,
-        projects: engine_projects,
+fn workspace_release_inputs(
+    config: &Config,
+    workspace_dir: &Path,
+) -> miette::Result<WorkspaceReleaseInputs> {
+    let intents = read_change_intents(workspace_dir)?;
+    let ledger = read_ledger(workspace_dir)?;
+    let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
+    let engine_projects = to_engine_projects(&projects);
+    let published_names = changelog::published_names(&projects);
+    let private_dirs = changelog::private_project_dirs(&projects, workspace_dir);
+    Ok(WorkspaceReleaseInputs {
         intents,
+        ledger,
+        workspace_projects: projects,
+        projects: engine_projects,
         published_names,
-        unfiltered: filter.is_none(),
+        private_dirs,
     })
 }
 
 impl PlannedWorkspaceRelease {
+    async fn confirmed_published_versions(
+        &self,
+        config: &Config,
+        workspace_dir: &Path,
+    ) -> miette::Result<HashSet<String>> {
+        confirmed_published_versions(
+            &changelog::ReleaseRegistryOptions {
+                config,
+                workspace_dir,
+                published_names: &self.published_names,
+                private_dirs: &self.private_dirs,
+            },
+            &self.projects,
+        )
+        .await
+    }
+
     pub(super) async fn apply(
         self,
         args: &VersionArgs,
         config: &Config,
         workspace_dir: &Path,
     ) -> miette::Result<()> {
-        let Self {
-            plan,
-            projects: engine_projects,
-            intents,
-            published_names,
-            unfiltered,
-        } = self;
-        if plan.releases.is_empty() {
+        if self.plan.releases.is_empty() {
             // A full (unfiltered) run garbage-collects the intent files an
             // empty plan leaves behind: declined ("none"-only) intents and
             // files a merge resurrected after every named package had already
             // consumed them. A filtered run must not — "nothing pending in
             // this scope" is no reason to delete prose belonging to packages
             // outside the filter.
-            if !args.dry_run && unfiltered {
-                let confirmed =
-                    confirmed_published_versions(config, workspace_dir, &published_names).await?;
+            if !args.dry_run && self.unfiltered {
+                let confirmed = self.confirmed_published_versions(config, workspace_dir).await?;
                 apply_release_plan(
-                    &plan,
+                    &self.plan,
                     workspace_dir,
-                    &engine_projects,
-                    &intents,
+                    &self.projects,
+                    &self.intents,
                     Some(&config.versioning),
                     &confirmed,
                 )?;
@@ -129,12 +182,17 @@ impl PlannedWorkspaceRelease {
             return Ok(());
         }
         if args.dry_run {
-            println!("{}", render_release_plan(&plan));
+            println!("{}", render_release_plan(&self.plan));
             return Ok(());
         }
 
-        let confirmed =
-            confirmed_published_versions(config, workspace_dir, &published_names).await?;
+        let confirmed = self.confirmed_published_versions(config, workspace_dir).await?;
+        let Self {
+            plan,
+            projects: engine_projects,
+            intents,
+            ..
+        } = self;
         let applied = apply_release_plan(
             &plan,
             workspace_dir,

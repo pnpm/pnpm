@@ -26,6 +26,7 @@ import { safeExeca as execa } from 'execa'
 import { renderHelp } from 'render-help'
 import { valid } from 'semver'
 
+import { privateProjectDirs } from '../privateProjects.js'
 import { publishedNameByManifestName } from '../publishedNames.js'
 import { resolveUnpublishedDirs, type UnpublishedProbeOptions } from '../resolveUnpublishedDirs.js'
 
@@ -268,7 +269,8 @@ async function renderStatus (workspaceDir: string, opts: ChangeCommandOptions): 
     versioning: opts.versioning,
   }
   const publishedNames = publishedNameByManifestName(baseArgs.projects)
-  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames })
+  const privateDirs = privateProjectDirs(baseArgs.projects, workspaceDir)
+  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames, privateDirs })
   const plan = assembleReleasePlan({ ...baseArgs, unpublishedDirs })
   if (plan.releases.length === 0) {
     return 'No pending changes.'

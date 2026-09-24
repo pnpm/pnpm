@@ -21,6 +21,7 @@ import { renderHelp } from 'render-help'
 import { inc, valid } from 'semver'
 
 import { renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
+import { privateProjectDirs, privateProjectNames } from '../privateProjects.js'
 import { changelogHasSection, fetchPublishedChangelog } from '../publish/previousChangelog.js'
 import { publishedNameByManifestName } from '../publishedNames.js'
 import { type CheckVersionPublished, resolveUnpublishedDirs } from '../resolveUnpublishedDirs.js'
@@ -248,7 +249,8 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     enforceWorkspaceProtocol: true,
   }
   const publishedNames = publishedNameByManifestName(projects)
-  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames })
+  const privateDirs = privateProjectDirs(projects, workspaceDir)
+  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames, privateDirs })
   const plan = assembleReleasePlan({ ...baseArgs, unpublishedDirs })
 
   const applyOpts: ApplyReleasePlanOptions = {
@@ -256,7 +258,7 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     projects,
     allIntents: intents,
     versioning: opts.versioning,
-    verifyPublished: buildVerifyPublished(opts, publishedNames),
+    verifyPublished: buildVerifyPublished(opts, publishedNames, privateProjectNames(projects)),
   }
 
   if (plan.releases.length === 0) {
@@ -295,9 +297,12 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
  * is kept. `undefined` in `repository` storage, where the committed changelog
  * makes the ledger alone sufficient.
  */
-function buildVerifyPublished (opts: VersionHandlerOptions, publishedNames: ReadonlyMap<string, string>): ApplyReleasePlanOptions['verifyPublished'] {
+function buildVerifyPublished (opts: VersionHandlerOptions, publishedNames: ReadonlyMap<string, string>, privateNames: ReadonlySet<string>): ApplyReleasePlanOptions['verifyPublished'] {
   if (changelogStorage(opts.versioning) !== 'registry') return undefined
   return async (name, version, section) => {
+    // A private project never reaches the registry, so there is nothing to
+    // confirm there: skip the request and keep the prose in the repository.
+    if (privateNames.has(name)) return false
     try {
       // The parked section is keyed by the manifest name, which is what the
       // ledger joins on; the registry only knows the published one.

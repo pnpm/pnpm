@@ -13,8 +13,8 @@ use pnpm_network::{ThrottledClient, encode_package_name, redact_url_credentials}
 use pnpm_registry::Package;
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use pnpm_versioning::{
-    ChangelogStorage, ReleasePlan, changelog_storage, list_pending_changelogs,
-    read_pending_changelog, render_changelog,
+    ChangelogStorage, ReleasePlan, WorkspaceProject, changelog_storage, list_pending_changelogs,
+    read_pending_changelog, render_changelog, to_project_dir,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -24,6 +24,15 @@ use std::{
 use tar::Archive;
 
 const CHANGELOG_ENTRY: &str = "package/CHANGELOG.md";
+
+/// What a release's registry checks need: the registry config, the names each
+/// project is published under, and the private projects they skip.
+pub struct ReleaseRegistryOptions<'a> {
+    pub config: &'a Config,
+    pub workspace_dir: &'a Path,
+    pub published_names: &'a HashMap<String, String>,
+    pub private_dirs: &'a HashSet<String>,
+}
 
 /// Caps the previous tarball we buffer and decompress to compose the changelog.
 /// The bytes come from a registry/proxy, so an unbounded read or a highly
@@ -66,21 +75,29 @@ pub async fn compose_registry_changelog(
 /// release, so the cost is bounded by the release backlog, not by history. The
 /// checks run concurrently. Empty in `repository` storage.
 pub async fn confirmed_published_versions(
-    config: &Config,
-    workspace_dir: &Path,
-    published_names: &HashMap<String, String>,
+    options: &ReleaseRegistryOptions<'_>,
+    projects: &[WorkspaceProject],
 ) -> miette::Result<HashSet<String>> {
-    if changelog_storage(Some(&config.versioning)) != ChangelogStorage::Registry {
+    if changelog_storage(Some(&options.config.versioning)) != ChangelogStorage::Registry {
         return Ok(HashSet::new());
     }
-    let checks = list_pending_changelogs(workspace_dir)?
+    let private_names: HashSet<String> = projects
+        .iter()
+        .filter(|project| {
+            options.private_dirs.contains(&to_project_dir(options.workspace_dir, &project.root_dir))
+        })
+        .filter_map(|project| project.name.clone())
+        .collect();
+    let checks = list_pending_changelogs(options.workspace_dir)?
         .into_iter()
+        .filter(|(name, _)| !private_names.contains(name))
         .map(|(name, version)| async move {
-            let section = read_pending_changelog(workspace_dir, &name, &version).ok()??;
+            let section = read_pending_changelog(options.workspace_dir, &name, &version).ok()??;
             // The parked file is keyed by the manifest name, which is what the
             // ledger joins on; the registry only knows the published one.
-            let probe = published_names.get(&name).map_or(name.as_str(), String::as_str);
-            let changelog = fetch_changelog(config, probe, VersionPick::Exact(&version)).await?;
+            let probe = options.published_names.get(&name).map_or(name.as_str(), String::as_str);
+            let changelog =
+                fetch_changelog(options.config, probe, VersionPick::Exact(&version)).await?;
             changelog
                 .contains(section.trim())
                 .then(|| format!("{name}@{version}"))
@@ -89,6 +106,33 @@ pub async fn confirmed_published_versions(
         .into_iter()
         .flatten()
         .collect())
+}
+
+/// The workspace-relative dirs of the projects marked `"private": true`.
+///
+/// A private project is never published, so every registry probe a release
+/// makes on its behalf is both futile and a failure the release would have to
+/// treat as "unpublished". [`unpublished_release_dirs`] and
+/// [`confirmed_published_versions`] skip these dirs instead. Mirrors the
+/// TypeScript `privateProjectDirs`.
+pub fn private_project_dirs(
+    projects: &[pnpm_workspace::Project],
+    workspace_dir: &Path,
+) -> HashSet<String> {
+    projects
+        .iter()
+        .filter(|project| is_private(project))
+        .map(|project| to_project_dir(workspace_dir, &project.root_dir))
+        .collect()
+}
+
+/// Whether the manifest opts out of publication with `"private": true`.
+fn is_private(project: &pnpm_workspace::Project) -> bool {
+    project.manifest
+        .value()
+        .get("private")
+        .and_then(serde_json::Value::as_bool)
+        == Some(true)
 }
 
 /// Manifest name → published name, for every workspace project that renames
@@ -117,9 +161,8 @@ pub fn published_names(projects: &[pnpm_workspace::Project]) -> HashMap<String, 
 /// debuts at its manifest version on every release. Mirrors the TypeScript
 /// `resolveUnpublishedDirs`.
 pub async fn unpublished_release_dirs(
-    config: &Config,
     plan: &ReleasePlan,
-    published_names: &HashMap<String, String>,
+    options: &ReleaseRegistryOptions<'_>,
 ) -> miette::Result<HashSet<String>> {
     // Debug-only test seam, compiled out of release builds: the engine tests
     // advance manifests without publishing, so they force "all published".
@@ -127,17 +170,26 @@ pub async fn unpublished_release_dirs(
     if std::env::var_os("PACQUET_ASSUME_VERSIONS_PUBLISHED").is_some() {
         return Ok(HashSet::new());
     }
-    // One client for the batch; its per-origin semaphore bounds the fan-out.
-    let client = build_registry_client(config)?;
-    let checks = plan.releases
+    let releases: Vec<_> = plan.releases
         .iter()
+        .filter(|release| !options.private_dirs.contains(&release.dir))
+        .collect();
+    if releases.is_empty() {
+        return Ok(HashSet::new());
+    }
+    // One client for the batch; its per-origin semaphore bounds the fan-out.
+    let client = build_registry_client(options.config)?;
+    let checks = releases
+        .into_iter()
         .map(|release| {
             let client = &client;
-            let probe =
-                published_names.get(&release.name).map_or(release.name.as_str(), String::as_str);
+            let probe = options.published_names
+                .get(&release.name)
+                .map_or(release.name.as_str(), String::as_str);
             async move {
                 let published =
-                    is_version_published(client, config, probe, &release.version.current).await?;
+                    is_version_published(client, options.config, probe, &release.version.current)
+                        .await?;
                 Ok::<_, miette::Report>((release.dir.clone(), published))
             }
         });
