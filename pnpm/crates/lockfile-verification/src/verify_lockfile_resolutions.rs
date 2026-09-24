@@ -180,14 +180,10 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         CacheOutcome::Miss(precomputed) => precomputed,
     };
 
-    let (mut candidates, shape_violations) = collect_candidates(lockfile);
-    if !shape_violations.is_empty() {
-        return Err(build_verification_error(shape_violations));
-    }
+    let (candidates, skipped_replaced) = collect_candidates_to_verify(lockfile, opts.replaced)?;
     if verifiers.is_empty() {
         return Ok(());
     }
-    let skipped_replaced = skip_replaced(&mut candidates, opts.replaced);
     let cache_inputs = cache_inputs.filter(|_| !skipped_replaced);
     if candidates.is_empty() {
         // Persist the success so the next install can stat-only the
@@ -206,13 +202,22 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     Err(build_verification_error(violations))
 }
 
-/// Drop the candidates `replaced` matches, returning whether any was
-/// dropped.
-fn skip_replaced(candidates: &mut Vec<Candidate>, replaced: Option<ReplacedEntries<'_>>) -> bool {
-    let Some(ReplacedEntries(is_replaced)) = replaced else { return false };
+/// The lockfile entries the policy verifiers check, after the offline
+/// shape check passes. Entries `replaced` matches are left out, and the
+/// returned flag tells whether any was.
+fn collect_candidates_to_verify(
+    lockfile: &Lockfile,
+    replaced: Option<ReplacedEntries<'_>>,
+) -> Result<(Vec<Candidate>, bool), VerifyError> {
+    let (mut candidates, shape_violations) = collect_candidates(lockfile);
+    if !shape_violations.is_empty() {
+        return Err(build_verification_error(shape_violations));
+    }
+    let Some(ReplacedEntries(is_replaced)) = replaced else { return Ok((candidates, false)) };
     let entries = candidates.len();
     candidates.retain(|candidate| !is_replaced(&candidate.name, &candidate.version));
-    candidates.len() < entries
+    let skipped_replaced = candidates.len() < entries;
+    Ok((candidates, skipped_replaced))
 }
 
 /// Run the verifiers over every candidate, reporting the run's start and,
