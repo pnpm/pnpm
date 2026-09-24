@@ -85,6 +85,13 @@ fn optional_placeholder_expands_without_being_recorded() {
 }
 
 #[test]
+fn malformed_optional_placeholder_is_recorded() {
+    let (value, unresolved) = env_replace_lossy::<NoEnv>("${?}${A??}");
+    assert_eq!(value, "");
+    assert_eq!(unresolved, vec!["${?}".to_owned(), "${A??}".to_owned()]);
+}
+
+#[test]
 fn passthrough_when_no_placeholder() {
     assert_eq!(replace_clean::<NoEnv>("plain string"), "plain string");
 }
@@ -247,6 +254,7 @@ fn dash_default_distinguishes_missing_and_empty_variables() {
     for (template, expected) in [
         ("${SET-fallback}", "value"),
         ("${MISSING-fallback}", "fallback"),
+        ("${MISSING-?}", "?"),
         ("${EMPTY-fallback}", ""),
         ("${SET:-fallback}", "value"),
         ("${MISSING:-fallback}", "fallback"),
