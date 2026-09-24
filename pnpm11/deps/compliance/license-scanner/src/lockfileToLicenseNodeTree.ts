@@ -149,7 +149,7 @@ export async function lockfileToLicenseNodeTree (
     { include: opts.include, resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot }
   )
   const depTypes = detectDepTypes(lockfile, opts)
-  const hoistedLocations = opts.hoistedLocations && withCollapsedPeerVariants(opts.hoistedLocations)
+  const hoistedLocations = opts.hoistedLocations && withCollapsedVariants(opts.hoistedLocations)
   const storeIndex = new StoreIndex(opts.storeDir)
   const dependencies = Object.fromEntries(
     await Promise.all(
@@ -191,12 +191,12 @@ export async function lockfileToLicenseNodeTree (
 }
 
 /**
- * The hoisted linker collapses the peer variants of one package version
- * onto the first dependency path it meets, so `hoistedLocations` records
- * only that one. Key its locations by the path without the suffix too,
- * for the variants it left out.
+ * The hoisted linker collapses the peer and patch variants of one package
+ * version onto the first dependency path it meets, so `hoistedLocations`
+ * records only that one. Key its locations by the path without the peer
+ * and patch suffixes too, for the variants it left out.
  */
-function withCollapsedPeerVariants (hoistedLocations: Record<string, string[]>): Record<string, string[]> {
+function withCollapsedVariants (hoistedLocations: Record<string, string[]>): Record<string, string[]> {
   const result = { ...hoistedLocations }
   for (const [depPath, locations] of Object.entries(hoistedLocations)) {
     result[removeSuffix(depPath)] ??= locations
