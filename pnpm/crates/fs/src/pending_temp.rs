@@ -20,6 +20,14 @@
 //! This handler chains to whatever disposition it replaced for the same
 //! reason, unlinking only before the reset-and-raise of the default one.
 
+#![cfg_attr(
+    not(unix),
+    allow(
+        rustdoc::broken_intra_doc_links,
+        reason = "`die_from_signal` only exists on unix, so the links to it only resolve there"
+    )
+)]
+
 use std::{
     path::Path,
     ptr,
