@@ -98,6 +98,72 @@ impl pnpm_hooks::CustomFetcher for LocalArchiveFetcher {
     }
 }
 
+/// Stands in for a `canFetch` that caches a machine-local lookup on the
+/// resolution it is handed, which the JS adapter carries forward to `fetch`.
+struct ScratchWritingFetcher;
+
+/// The same, for a fetcher that ends up declining the package.
+struct DecliningScratchWritingFetcher;
+
+fn with_scratch_field(mut resolution: serde_json::Value) -> serde_json::Value {
+    if let Some(object) = resolution.as_object_mut() {
+        object.insert("_localCache".to_owned(), json!("/home/someone/cache"));
+    }
+    resolution
+}
+
+#[async_trait::async_trait]
+impl pnpm_hooks::CustomFetcher for ScratchWritingFetcher {
+    async fn can_fetch(
+        &self,
+        _id: &str,
+        _resolution: serde_json::Value,
+    ) -> Result<bool, pnpm_hooks::HookError> {
+        Ok(true)
+    }
+    async fn can_fetch_with_resolution(
+        &self,
+        _id: &str,
+        resolution: serde_json::Value,
+    ) -> Result<(bool, serde_json::Value), pnpm_hooks::HookError> {
+        Ok((true, with_scratch_field(resolution)))
+    }
+    async fn fetch(
+        &self,
+        _id: &str,
+        _resolution: serde_json::Value,
+        _opts: serde_json::Value,
+    ) -> Result<serde_json::Value, pnpm_hooks::HookError> {
+        Ok(json!({"delegate": {"tarball": "file:./repo.tgz"}}))
+    }
+}
+
+#[async_trait::async_trait]
+impl pnpm_hooks::CustomFetcher for DecliningScratchWritingFetcher {
+    async fn can_fetch(
+        &self,
+        _id: &str,
+        _resolution: serde_json::Value,
+    ) -> Result<bool, pnpm_hooks::HookError> {
+        Ok(false)
+    }
+    async fn can_fetch_with_resolution(
+        &self,
+        _id: &str,
+        resolution: serde_json::Value,
+    ) -> Result<(bool, serde_json::Value), pnpm_hooks::HookError> {
+        Ok((false, with_scratch_field(resolution)))
+    }
+    async fn fetch(
+        &self,
+        _id: &str,
+        _resolution: serde_json::Value,
+        _opts: serde_json::Value,
+    ) -> Result<serde_json::Value, pnpm_hooks::HookError> {
+        unreachable!("a declining fetcher is never asked to fetch")
+    }
+}
+
 #[tokio::test]
 async fn custom_fetcher_reads_git_subdirectory_without_adding_integrity() {
     let dir = tempdir().unwrap();
@@ -144,6 +210,111 @@ async fn custom_fetcher_reads_git_subdirectory_without_adding_integrity() {
     assert_eq!(result.package.manifest.unwrap()["name"], json!("root"));
 }
 
+/// A custom resolution names no archive of its own, so the fetcher that claims
+/// it is the only route to the manifest the dependency walk reads the package's
+/// children from. <https://github.com/pnpm/pnpm/issues/15552>
+#[tokio::test]
+async fn custom_fetcher_reads_a_manifest_for_a_custom_resolution() {
+    let dir = tempdir().unwrap();
+    std::fs::write(dir.path().join("repo.tgz"), tarball_with_a_dependency("vendored")).unwrap();
+    let mut result = result_without_manifest("vendored");
+    // The custom-resolver adapter learns neither a name nor a version from a
+    // resolution it does not understand, so the read is named by the resolver's id.
+    result.package.name_ver = None;
+    let resolution = LockfileResolution::Custom(
+        serde_json::from_value(json!({
+            "type": "custom:vendored", "name": "vendored", "version": "1.0.0",
+        }))
+        .unwrap(),
+    );
+    result.resolution = resolution.clone();
+    let mut resolver = resolver_with_prefetch(
+        dir.path(),
+        Box::new(FixedResolver { result: result.clone() }),
+        false,
+    );
+    Arc::get_mut(&mut resolver.ctx).unwrap().policy.custom_session =
+        Some(Arc::new(pnpm_deps_restorer::CustomFetcherSession::new(vec![Arc::new(
+            LocalArchiveFetcher { path: None },
+        )])));
+    resolver.populate_missing_tarball_metadata(&mut result, dir.path()).await.unwrap();
+    assert_eq!(result.package.manifest.unwrap()["dependencies"]["ms"], json!("2.1.2"));
+    // The fetcher owns what identifies a custom resolution, so the read records
+    // neither the archive's hash nor its own URL over it.
+    assert_eq!(dbg!(result.resolution), resolution);
+}
+
+/// A `canFetch` hook may leave scratch fields on the resolution it is handed.
+/// `decode_resolution` drops those only from a resolution with no `type`, and
+/// `CustomResolution::extra` accepts any key, so taking the fetcher's copy of a
+/// custom resolution would commit a fetcher's private state to the lockfile.
+#[tokio::test]
+async fn a_custom_resolution_keeps_no_scratch_field_a_fetcher_left_on_it() {
+    let dir = tempdir().unwrap();
+    std::fs::write(dir.path().join("repo.tgz"), tarball_with_a_dependency("vendored")).unwrap();
+    let mut result = result_without_manifest("vendored");
+    result.package.name_ver = None;
+    let resolution = LockfileResolution::Custom(
+        serde_json::from_value(json!({"type": "custom:vendored"})).unwrap(),
+    );
+    result.resolution = resolution.clone();
+    let mut resolver = resolver_with_prefetch(
+        dir.path(),
+        Box::new(FixedResolver { result: result.clone() }),
+        false,
+    );
+    Arc::get_mut(&mut resolver.ctx).unwrap().policy.custom_session = Some(Arc::new(
+        pnpm_deps_restorer::CustomFetcherSession::new(vec![Arc::new(ScratchWritingFetcher)]),
+    ));
+    resolver.populate_missing_tarball_metadata(&mut result, dir.path()).await.unwrap();
+    assert_eq!(result.package.manifest.unwrap()["dependencies"]["ms"], json!("2.1.2"));
+    assert_eq!(dbg!(result.resolution), resolution);
+}
+
+/// Fetchers are configured but none claims the package. The read cannot reach
+/// an archive, and the round trip through every `canFetch` must not become the
+/// resolution the lockfile records.
+#[tokio::test]
+async fn a_declined_custom_resolution_is_recorded_as_the_resolver_wrote_it() {
+    let dir = tempdir().unwrap();
+    let mut result = result_without_manifest("vendored");
+    result.package.name_ver = None;
+    let resolution = LockfileResolution::Custom(
+        serde_json::from_value(json!({"type": "custom:vendored"})).unwrap(),
+    );
+    result.resolution = resolution.clone();
+    let mut resolver = resolver_with_prefetch(
+        dir.path(),
+        Box::new(FixedResolver { result: result.clone() }),
+        false,
+    );
+    Arc::get_mut(&mut resolver.ctx).unwrap().policy.custom_session =
+        Some(Arc::new(pnpm_deps_restorer::CustomFetcherSession::new(vec![Arc::new(
+            DecliningScratchWritingFetcher,
+        )])));
+    resolver.populate_missing_tarball_metadata(&mut result, dir.path()).await.unwrap();
+    assert!(result.package.manifest.is_none());
+    assert_eq!(dbg!(result.resolution), resolution);
+}
+
+/// Without a fetcher to claim it, nothing can read a custom resolution's
+/// archive, and a read of the resolution's own shape would fetch the wrong one.
+#[tokio::test]
+async fn a_custom_resolution_is_left_alone_when_no_fetcher_is_configured() {
+    let dir = tempdir().unwrap();
+    let mut result = result_without_manifest("vendored");
+    result.resolution = LockfileResolution::Custom(
+        serde_json::from_value(json!({"type": "custom:vendored"})).unwrap(),
+    );
+    let resolver = resolver_with_prefetch(
+        dir.path(),
+        Box::new(FixedResolver { result: result.clone() }),
+        false,
+    );
+    resolver.populate_missing_tarball_metadata(&mut result, dir.path()).await.unwrap();
+    assert!(result.package.manifest.is_none());
+}
+
 #[tokio::test]
 async fn unpinned_git_manifest_recovery_publishes_the_install_cache_key() {
     let dir = tempdir().unwrap();
@@ -181,4 +352,53 @@ async fn evicted_archive_cache_entry_does_not_abort_manifest_recovery() {
         false,
     );
     assert!(resolver.ctx.mem_cache.is_empty());
+}
+
+/// A fetcher that hands a package back to the registry, whose URL the install
+/// pass builds from the lockfile key.
+struct RegistryDelegatingFetcher;
+
+#[async_trait::async_trait]
+impl pnpm_hooks::CustomFetcher for RegistryDelegatingFetcher {
+    async fn can_fetch(
+        &self,
+        _id: &str,
+        _resolution: serde_json::Value,
+    ) -> Result<bool, pnpm_hooks::HookError> {
+        Ok(true)
+    }
+    async fn fetch(
+        &self,
+        _id: &str,
+        _resolution: serde_json::Value,
+        _opts: serde_json::Value,
+    ) -> Result<serde_json::Value, pnpm_hooks::HookError> {
+        let integrity = ssri::Integrity::from(b"archive").to_string();
+        Ok(json!({"delegate": {"integrity": integrity}}))
+    }
+}
+
+/// A custom resolution names no URL, and before the lockfile key exists there
+/// is none to derive for a registry delegate, so the read has nothing to fetch.
+/// It must leave the package to the install pass rather than fail the install.
+#[tokio::test]
+async fn a_registry_delegate_for_a_custom_resolution_is_left_to_the_install_pass() {
+    let dir = tempdir().unwrap();
+    let mut result = result_without_manifest("vendored");
+    result.package.name_ver = None;
+    let resolution = LockfileResolution::Custom(
+        serde_json::from_value(json!({"type": "custom:vendored"})).unwrap(),
+    );
+    result.resolution = resolution.clone();
+    let mut resolver = resolver_with_prefetch(
+        dir.path(),
+        Box::new(FixedResolver { result: result.clone() }),
+        false,
+    );
+    Arc::get_mut(&mut resolver.ctx).unwrap().policy.custom_session = Some(Arc::new(
+        pnpm_deps_restorer::CustomFetcherSession::new(vec![Arc::new(RegistryDelegatingFetcher)]),
+    ));
+    resolver.populate_missing_tarball_metadata(&mut result, dir.path()).await.unwrap();
+    assert!(result.package.manifest.is_none());
+    assert_eq!(dbg!(result.resolution), resolution);
 }

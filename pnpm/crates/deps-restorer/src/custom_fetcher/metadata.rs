@@ -117,12 +117,18 @@ async fn resolve_archive_metadata(
         None => tarball.manifest.clone(),
     }
     .map(Arc::new);
-    let commit_addressed = matches!(
-        resolution,
-        LockfileResolution::Tarball(resolution)
-            if pnpm_lockfile::is_git_hosted_tarball_url(&resolution.tarball),
-    );
-    let resolution = if commit_addressed {
+    // A commit-addressed archive is anchored by its SHA, and a custom
+    // resolution by whatever identity its fetcher defines. Neither is named by
+    // the hash the bytes happen to yield, so recording that hash would replace
+    // an identity pacquet does not own.
+    let self_addressed = match resolution {
+        LockfileResolution::Tarball(resolution) => {
+            pnpm_lockfile::is_git_hosted_tarball_url(&resolution.tarball)
+        }
+        LockfileResolution::Custom(_) => true,
+        _ => false,
+    };
+    let resolution = if self_addressed {
         resolution.clone()
     } else {
         decode_resolution(serde_json::json!(resolution), Some(&tarball.integrity), package_id)?
