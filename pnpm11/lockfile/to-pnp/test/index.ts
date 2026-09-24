@@ -1,9 +1,12 @@
 // cspell:ignore haspeer
+import fs from 'node:fs'
+import { createRequire } from 'node:module'
+import os from 'node:os'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import { dependenciesGraphToPackageMap, lockfileToPackageMap, lockfileToPackageRegistry } from '@pnpm/lockfile.to-pnp'
+import { dependenciesGraphToPackageMap, lockfileToPackageMap, lockfileToPackageRegistry, writePnpFile } from '@pnpm/lockfile.to-pnp'
 import type { DepPath, ProjectId, RegistriesByScope } from '@pnpm/types'
 
 test('lockfileToPackageRegistry', () => {
@@ -102,7 +105,7 @@ test('lockfileToPackageRegistry', () => {
               ['dep2', ['foo', '2.0.0']],
               ['qar', '2.0.0'],
             ],
-            packageLocation: './importer1',
+            packageLocation: './importer1/',
           },
         ],
       ],
@@ -117,7 +120,7 @@ test('lockfileToPackageRegistry', () => {
               ['importer2', 'importer2'],
               ['importer1', 'importer1'],
             ],
-            packageLocation: './importer2',
+            packageLocation: './importer2/',
           },
         ],
       ],
@@ -666,7 +669,7 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
               ['haspeer', 'virtual:2.0.0(peer@1.0.0)#2.0.0'],
               ['peer', '1.0.0'],
             ],
-            packageLocation: './importer',
+            packageLocation: './importer/',
           },
         ],
       ],
@@ -731,4 +734,57 @@ test('lockfileToPackageRegistry rejects a package name with path-traversal', () 
       registriesByScope: { default: 'https://registry.npmjs.org/' } as RegistriesByScope,
     })
   ).toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
+})
+
+const workspaceLockfile: LockfileObject = {
+  importers: {
+    ['packages/a' as ProjectId]: {
+      dependencies: {
+        b: 'link:../b',
+      },
+      specifiers: {},
+    },
+    ['packages/b' as ProjectId]: {
+      specifiers: {},
+    },
+  },
+  lockfileVersion: '9.0',
+}
+
+test('writePnpFile resolves a workspace dependency from a nested workspace package', async () => {
+  const lockfileDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'to-pnp-')))
+  for (const [dir, name] of [['packages/a', 'a'], ['packages/b', 'b']]) {
+    fs.mkdirSync(path.join(lockfileDir, dir), { recursive: true })
+    fs.writeFileSync(path.join(lockfileDir, dir, 'package.json'), JSON.stringify({ name, version: '1.0.0' }))
+    fs.writeFileSync(path.join(lockfileDir, dir, 'index.js'), '')
+  }
+  await writePnpFile(workspaceLockfile, {
+    importerNames: { 'packages/a': 'a', 'packages/b': 'b' },
+    lockfileDir,
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    virtualStoreDir: path.join(lockfileDir, 'node_modules/.pnpm'),
+    virtualStoreDirMaxLength: 120,
+  })
+  const pnpPath = path.join(lockfileDir, '.pnp.cjs')
+  const pnpApi = createRequire(pnpPath)(pnpPath) as { resolveRequest: (request: string, issuer: string) => string | null }
+
+  expect(pnpApi.resolveRequest('b', path.join(lockfileDir, 'packages/a/index.js')))
+    .toBe(path.join(lockfileDir, 'packages/b/index.js'))
+})
+
+test('lockfileToPackageRegistry writes workspace dependency locators with forward slashes', () => {
+  const joinSpy = jest.spyOn(path, 'join').mockImplementation(path.win32.join)
+  try {
+    const packageRegistry = lockfileToPackageRegistry(workspaceLockfile, {
+      importerNames: { 'packages/a': 'a', 'packages/b': 'b' },
+      lockfileDir: process.cwd(),
+      registriesByScope: { default: 'https://registry.npmjs.org/' },
+      virtualStoreDir: path.resolve('node_modules/.pnpm'),
+      virtualStoreDirMaxLength: 120,
+    })
+    expect(Array.from(packageRegistry.get('a')!.get('packages/a')!.packageDependencies))
+      .toStrictEqual([['a', 'packages/a'], ['b', 'packages/b']])
+  } finally {
+    joinSpy.mockRestore()
+  }
 })
