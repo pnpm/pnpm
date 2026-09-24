@@ -90,10 +90,13 @@ async function checkDependency (
     }
     const depPath = refToRelative(lockfileRef, depName)
     const pkgSnapshot = depPath == null ? undefined : ctx.lockfilePackages?.[depPath]
+    if (pkgSnapshot == null) {
+      return outdated(`The lockfile has no package entry for local directory dependency "${depName}" (${lockfileRef})`)
+    }
     if (!ctx.skipLocalDirectoryDependencies && !await isLocalFileDepUpdated(ctx.lockfileDir, pkgSnapshot, ctx.manifestsByDir, ctx.workspaceDir)) {
       return outdated(`The dependencies of local directory dependency "${depName}" do not match the lockfile`)
     }
-    return isWorkspaceRange && pkgSnapshot != null
+    return isWorkspaceRange
       ? checkInjectedWorkspacePackage(ctx, { depName, currentSpec, pkgSnapshot })
       : UP_TO_DATE
   }

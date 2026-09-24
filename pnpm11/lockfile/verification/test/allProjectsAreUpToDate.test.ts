@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import type { LockfileObject, PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
-import { allProjectsAreUpToDate, findPackageTarballIntegrityMismatch, resolveLocalTarballPath } from '@pnpm/lockfile.verification'
+import { allProjectsAreUpToDate, checkLinkedPackagesAreUpToDate, findPackageTarballIntegrityMismatch, resolveLocalTarballPath } from '@pnpm/lockfile.verification'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, DepPath, ProjectId, ProjectRootDir } from '@pnpm/types'
@@ -1954,4 +1954,37 @@ test('allProjectsAreUpToDate(): works with injected workspace dependency with a 
     lockfileDir: process.cwd(),
   }
   expect(await allProjectsAreUpToDate(projects, opts)).toBeTruthy()
+})
+
+test('checkLinkedPackagesAreUpToDate(): reports an injected dependency without a package entry even when skipping local directory dependencies', async () => {
+  expect(await checkLinkedPackagesAreUpToDate({
+    linkWorkspacePackages: true,
+    manifestsByDir: {},
+    lockfilePackages: {},
+    lockfileDir: '',
+    skipLocalDirectoryDependencies: true,
+  }, {
+    dir: 'bar',
+    manifest: {
+      dependencies: {
+        foo: 'workspace:^1.0.0',
+      },
+      dependenciesMeta: {
+        foo: {
+          injected: true,
+        },
+      },
+    },
+    snapshot: {
+      dependencies: {
+        foo: 'file:foo',
+      },
+      specifiers: {
+        foo: 'workspace:^1.0.0',
+      },
+    },
+  })).toStrictEqual({
+    upToDate: false,
+    detailedReason: 'The lockfile has no package entry for local directory dependency "foo" (file:foo)',
+  })
 })
