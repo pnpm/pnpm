@@ -139,3 +139,20 @@ test('import converts the yarn patches of workspace projects and warns about a c
     `The Yarn patch packages/foo/foo.patch of "positive" was not applied, because "is-positive@1.0.0" already uses the patch ${PATCH_PATH}.`
   )
 })
+
+test('import keeps a configured patch when the yarn patch file is missing', async () => {
+  prepareYarnProject()
+  fs.mkdirSync('patches')
+  fs.copyFileSync(IS_POSITIVE_PATCH, 'patches/is-positive.patch')
+
+  await importCommand.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    patchedDependencies: { 'is-positive@1.0.0': path.resolve('patches/is-positive.patch') },
+  }, [])
+
+  expect(readManifest().dependencies['is-positive']).toBe('1.0.0')
+  const lockfile = assertProject(process.cwd()).readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['is-positive'].version).toMatch(/^1\.0\.0\(patch_hash=/)
+  expect(globalWarn).not.toHaveBeenCalled()
+})

@@ -99,11 +99,13 @@ export async function importYarnPatches (opts: ImportYarnPatchesOptions): Promis
       continue
     }
     if (patchFile == null) continue
+    const kept = opts.patchedDependencies?.[patch.patchKey] ?? recorded[patch.patchKey]
     if (!patchFileExists[index]) {
-      globalWarn(`The patch file ${patchFile} of "${alias}" does not exist. "${alias}" was imported without the patch.`)
+      if (kept == null) {
+        globalWarn(`The patch file ${patchFile} of "${alias}" does not exist. "${alias}" was imported without the patch.`)
+      }
       continue
     }
-    const kept = opts.patchedDependencies?.[patch.patchKey] ?? recorded[patch.patchKey]
     if (kept == null) {
       recorded[patch.patchKey] = patchFile
     } else if (path.resolve(opts.workspaceDir, kept) !== patchFile) {

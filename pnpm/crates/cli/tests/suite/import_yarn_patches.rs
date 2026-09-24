@@ -228,3 +228,38 @@ fn import_warns_about_a_conflicting_yarn_patch() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn import_keeps_a_configured_patch_when_the_yarn_patch_file_is_missing() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    append_workspace_yaml_key(
+        &workspace,
+        "patchedDependencies",
+        "{ is-positive@1.0.0: patches/is-positive.patch }",
+    );
+    write_file(&workspace, "patches/is-positive.patch", IS_POSITIVE_PATCH);
+    let specifier = format!("patch:is-positive@npm%3A1.0.0#~/{ROOT_PATCH_PATH}");
+    let manifest = json!({ "name": "root", "dependencies": { "is-positive": specifier } });
+    write_file(&workspace, "package.json", &manifest.to_string());
+    write_file(&workspace, "yarn.lock", YARN_LOCKFILE);
+
+    let output = pacquet
+        .with_arg("import")
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert!(!stdout.contains("was imported without the patch"), "stdout:\n{stdout}");
+    let lockfile = read_text(&workspace.join("pnpm-lock.yaml"));
+    assert!(lockfile.contains("version: 1.0.0(patch_hash="), "pnpm-lock.yaml:\n{lockfile}");
+
+    drop((root, mock_instance));
+}

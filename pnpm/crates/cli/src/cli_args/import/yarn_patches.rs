@@ -138,6 +138,11 @@ pub(super) fn convert_yarn_patches(
             let patch_file = single_patch_file(&alias, &patch.patch_paths, yarn_root, &project_dir);
             let patch_file = match patch_file {
                 Ok(patch_file) => patch_file,
+                Err(DroppedPatch::Missing { .. })
+                    if patched_dependencies.contains_key(&patch.patch_key) =>
+                {
+                    continue;
+                }
                 Err(dropped) => {
                     converted.dropped.push(dropped);
                     continue;
