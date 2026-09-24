@@ -271,7 +271,7 @@ pub(super) fn run_root_hook(
     config: &Config,
     workspace_root: &Path,
     run: fn(&RunPostinstallHooks<'_>) -> Result<bool, LifecycleScriptError>,
-) -> Result<(), InstallError> {
+) -> Result<bool, InstallError> {
     run_project_stages(
         config,
         workspace_root,
@@ -279,6 +279,7 @@ pub(super) fn run_root_hook(
         config.extra_env_with_node_options(),
         run,
     )
+    .map_err(InstallError::PreResolutionLifecycleScript)
 }
 
 /// Run `stages` for the project at `project_dir`, with the workspace root
@@ -289,7 +290,7 @@ fn run_project_stages(
     project_dir: &Path,
     mut extra_env: HashMap<String, String>,
     stages: impl FnOnce(&RunPostinstallHooks<'_>) -> Result<bool, LifecycleScriptError>,
-) -> Result<(), InstallError> {
+) -> Result<bool, LifecycleScriptError> {
     let root_modules_dir = project_dir.join(config.modules_dir_name());
     let bin_dir = root_modules_dir.join(".bin");
     config.prepend_project_node_path::<pnpm_config::Host>(
@@ -323,8 +324,6 @@ fn run_project_stages(
 
         optional: false,
     })
-    .map(drop)
-    .map_err(InstallError::ProjectLifecycleScript)
 }
 
 /// What every project's lifecycle run shares: the bin links come first, so
@@ -375,6 +374,8 @@ impl ProjectScriptRunner<'_> {
             self.extra_env.clone(),
             |opts| run_project_lifecycle_stages::<Reporter>(opts, stages),
         )
+        .map(drop)
+        .map_err(InstallError::ProjectLifecycleScript)
     }
 }
 

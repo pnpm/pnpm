@@ -2901,6 +2901,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       peerDependencyIssues: peerDependencyIssuesByProjects[id],
       rootDir,
     }))
+    await opts.verifyLockfile?.()
     await opts.beforeLifecycleScripts?.({
       updatedProjects,
       updatedCatalogs,
