@@ -365,7 +365,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     stage: 'importing_started',
   })
 
-  const initialImporterIds = (opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted')
+  const initialImporterIds = opts.ignorePackageManifest === true
     ? Object.keys(wantedLockfile.importers) as ProjectId[]
     : selectedProjects.map(({ id }) => id)
   const { lockfile: filteredLockfile, selectedImporterIds: importerIds, requiredDepPaths } = filterLockfileByImportersAndEngine(wantedLockfile, initialImporterIds, filterOpts)

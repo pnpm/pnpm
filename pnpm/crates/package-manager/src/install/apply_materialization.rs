@@ -58,8 +58,6 @@ fn select_apply_state<'a>(inputs: &'a ApplyMaterializationInputs<'_, '_>) -> Mat
         workspace_root: &inputs.projects.workspace_root,
         groups: applied_groups(inputs),
         install_skipped: &inputs.materialized.install_skipped,
-        node_linker: inputs.projects.node_linker,
-
         is_inconsistent: inputs.prior.is_inconsistent,
     })
 }

@@ -52,11 +52,7 @@ impl InstallShape {
                 install.drivers.config,
                 install.execution.node_linker,
             ),
-            // A hoisted linker shares one tree, so a partial selection still
-            // materializes every importer. A group filter narrows the graph
-            // under either linker.
-            materializes_subset: (partial_selection && !is_hoisted)
-                || install.resolve_widened_groups(),
+            materializes_subset: partial_selection || install.resolve_widened_groups(),
             verify_filtered_repair: matches!(update_seed_policy, UpdateSeedPolicy::FixLockfile)
                 && partial_selection,
             include_transitive_optional_dependencies: include_transitive_optional_dependencies(

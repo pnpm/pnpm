@@ -294,22 +294,13 @@ fn closure_importer_ids(
                 })
         })
 }
-/// The importers a selected install materializes. A hoisted linker shares one
-/// tree, so it still materializes every importer.
+/// The importers a selected install materializes.
 pub(super) fn materialization_importer_ids(
     selected_importer_ids: Option<&HashSet<String>>,
-    is_hoisted: bool,
-    built_lockfile: &Lockfile,
+    _is_hoisted: bool,
+    _built_lockfile: &Lockfile,
 ) -> Option<HashSet<String>> {
     let selected_importer_ids = selected_importer_ids?;
-    if is_hoisted {
-        return Some(
-            built_lockfile.importers
-                .keys()
-                .cloned()
-                .collect(),
-        );
-    }
     Some(selected_importer_ids.clone())
 }
 /// The host the installability checks run against, resolved from the
@@ -368,12 +359,9 @@ pub(super) fn log_layout_phase(config: &Config, phase_start: std::time::Instant)
 }
 /// The importers whose own project manifests anchor the link phase.
 pub(super) fn project_anchor_importer_ids(
-    selected_importer_ids: Option<&HashSet<String>>,
-    is_hoisted: bool,
+    _selected_importer_ids: Option<&HashSet<String>>,
+    _is_hoisted: bool,
     materialization_importer_ids: &HashSet<String>,
 ) -> HashSet<String> {
-    match selected_importer_ids {
-        Some(selected_importer_ids) if is_hoisted => selected_importer_ids.clone(),
-        _ => materialization_importer_ids.clone(),
-    }
+    materialization_importer_ids.clone()
 }

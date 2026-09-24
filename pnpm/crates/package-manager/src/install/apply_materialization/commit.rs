@@ -1,5 +1,5 @@
 use super::super::{
-    Config, Host, InstallError, InstallWithFreshLockfileError, Lockfile, Modules, NodeLinker,
+    Config, Host, InstallError, InstallWithFreshLockfileError, Lockfile, Modules,
     PROJECT_LIFECYCLE_STAGES, PackageManifest, Path, PathBuf, SystemTime, build_modules_manifest,
     current_contains_dep_path, merge_filtered_modules_metadata, merge_pending_builds,
     project_requires_lifecycle_scripts, write_modules_manifest,
@@ -119,7 +119,6 @@ pub(super) fn merge_committed_modules_metadata(
         retain_current_ignored_builds(next_modules, previous, current, policy);
     }
     if inputs.prior.filtered_install
-        && !matches!(inputs.tree.node_linker, NodeLinker::Hoisted)
         && !inputs.prior.is_inconsistent
         && let (Some(previous), Some(current), Some(selected)) =
             (inputs.prior.metadata, inputs.lockfiles.materialized, inputs.lockfiles.selected)

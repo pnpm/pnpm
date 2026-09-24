@@ -9,7 +9,6 @@ pub(super) struct SelectMaterializedStateInputs<'a> {
     pub(super) workspace_root: &'a Path,
     pub(super) groups: crate::GroupSelection,
     pub(super) install_skipped: &'a crate::SkippedSnapshots,
-    pub(super) node_linker: NodeLinker,
     pub(super) is_inconsistent: bool,
 }
 pub(super) struct MaterializedState<'a> {
@@ -59,7 +58,6 @@ pub(super) fn project_anchor_importers(
     wanted_lockfile: Option<&Lockfile>,
 ) -> HashSet<String> {
     match inputs.projects.requested_ids {
-        Some(requested) if matches!(inputs.node_linker, NodeLinker::Hoisted) => requested.clone(),
         Some(requested) => wanted_lockfile.map_or_else(
             || requested.clone(),
             |wanted| {
@@ -80,9 +78,7 @@ pub(super) fn materialized_current_lockfile(
     inputs: &SelectMaterializedStateInputs<'_>,
     wanted: &Lockfile,
 ) -> Lockfile {
-    if matches!(inputs.node_linker, NodeLinker::Hoisted)
-        || (inputs.projects.requested_ids.is_none() && inputs.projects.ignore_manifest_check)
-    {
+    if inputs.projects.requested_ids.is_none() && inputs.projects.ignore_manifest_check {
         crate::filter_lockfile_for_current(wanted, &inputs.groups, inputs.install_skipped)
     } else {
         crate::merge_filtered_current_lockfile(
