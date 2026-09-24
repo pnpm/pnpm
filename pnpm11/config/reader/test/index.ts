@@ -3059,6 +3059,63 @@ test('_auth from the global config yaml configures registry auth and routing', a
   expect(config.registriesByScope['@org']).toBe('https://json-test.example/')
 })
 
+describe.each(['environment', 'global config'] as const)('_auth token environment expansion from %s', (source) => {
+  test.each([
+    ['${TOKEN}', { TOKEN: 'secret-token' }, 'secret-token'],
+    ['prefix-${TOKEN}-suffix', { TOKEN: 'secret-token' }, 'prefix-secret-token-suffix'],
+    ['${MISSING-fallback}', {}, 'fallback'],
+    ['${TOKEN:-fallback}', { TOKEN: '' }, 'fallback'],
+    ['${TOKEN-fallback}', { TOKEN: '' }, ''],
+    ['\\${TOKEN}', { TOKEN: 'secret-token' }, '${TOKEN}'],
+  ])('expands %s for default and scoped credentials', async (authToken, tokenEnv, expected) => {
+    prepareEmpty()
+    const auth = {
+      'https://json-test.example': {
+        '@': { authToken },
+        '@org': { authToken },
+      },
+    }
+    const { config, warnings } = await getConfigWithGlobalYaml(
+      source === 'global config' ? { _auth: auth } : {},
+      { env: { ...tokenEnv, ...(source === 'environment' ? { pnpm_config__auth: JSON.stringify(auth) } : {}) } }
+    )
+
+    expect(config.authConfig['//json-test.example/:_authToken']).toBe(expected)
+    expect(config.authConfig['//json-test.example/:@org:_authToken']).toBe(expected)
+    expect(config.registriesByScope.default).toBe('https://json-test.example/')
+    expect(config.registriesByScope['@org']).toBe('https://json-test.example/')
+    expect(warnings).toEqual([])
+  })
+
+  test.each([undefined, ''])('warns safely about unresolved tokens when the value is %s', async (token) => {
+    prepareEmpty()
+    const auth = {
+      'https://json-test.example': {
+        '@': { authToken: '${TOKEN}' },
+        '@org': { authToken: '${SECRET}-${TOKEN}' },
+      },
+    }
+    const { config, warnings } = await getConfigWithGlobalYaml(
+      source === 'global config' ? { _auth: auth } : {},
+      {
+        env: {
+          TOKEN: token,
+          SECRET: 'do-not-log-this-token',
+          ...(source === 'environment' ? { pnpm_config__auth: JSON.stringify(auth) } : {}),
+        },
+      }
+    )
+
+    expect(config.authConfig['//json-test.example/:_authToken']).toBe('')
+    expect(config.authConfig['//json-test.example/:@org:_authToken']).toBe('do-not-log-this-token-')
+    expect(warnings).toEqual([
+      'Failed to replace env in config: ${TOKEN} in _auth.authToken',
+      'Failed to replace env in config: ${TOKEN} in _auth.authToken',
+    ])
+    expect(warnings.join(' ')).not.toContain('do-not-log-this-token')
+  })
+})
+
 test('pnpm_config__auth env wins over global yaml _auth on the same key', async () => {
   prepareEmpty()
 
