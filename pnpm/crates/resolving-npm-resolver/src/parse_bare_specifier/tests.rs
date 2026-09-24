@@ -240,7 +240,7 @@ fn workspace_protocol_specifier_declines() {
 }
 
 /// pnpm/pnpm#14817: a lenient range parse drops the protocol-prefixed
-/// comparator set of a union and keeps the rest, which let the npm resolver
+/// member of these unions and keeps the rest, so the npm resolver would
 /// claim a `runtime:` union for the registry package of the same name.
 #[test]
 fn protocol_prefixed_range_union_declines() {

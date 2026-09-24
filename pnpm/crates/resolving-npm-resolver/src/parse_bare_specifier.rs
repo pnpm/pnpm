@@ -51,10 +51,6 @@ pub fn parse_bare_specifier(
         None => (alias.map(str::to_string), bare_specifier.to_string()),
     };
 
-    // The range parser drops a union member it cannot parse, so without
-    // this check `runtime:^22.0.0 || ^24.0.0` would pass as the npm range
-    // `^24.0.0`. A colon in a later member keeps the npm reading, so a
-    // merged peer range like `^1.0.0 || workspace:^2.0.0` still resolves.
     if let Some(name) = name.as_ref()
         && !name.is_empty()
         && !first_member_has_colon(&bare)
@@ -87,6 +83,11 @@ pub fn parse_bare_specifier(
 /// Whether the first member of a version selector contains a colon, as a
 /// protocol-prefixed selector like `runtime:^22.0.0 || ^24.0.0` does. No npm
 /// version, range, or dist-tag contains one.
+///
+/// The range parser drops a union member it cannot parse, so it reads that
+/// example as the npm range `^24.0.0`. A colon in a later member does not
+/// count, because merged peer ranges are joined with `||` and
+/// `^1.0.0 || workspace:^2.0.0` still resolves `^1.0.0` from the registry.
 fn first_member_has_colon(selector: &str) -> bool {
     selector
         .split_once(':')
