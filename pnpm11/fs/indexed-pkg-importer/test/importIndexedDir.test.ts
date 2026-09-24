@@ -314,6 +314,8 @@ test('importIndexedDir() recreates the internal symlinks of a local directory', 
   fs.symlinkSync(path.join(src, 'real.txt'), path.join(src, 'absolute-link'), 'file')
   fs.symlinkSync('sub', path.join(src, 'dir-link'), 'dir')
   fs.symlinkSync('../outside.txt', path.join(src, 'outside-link'), 'file')
+  fs.writeFileSync(path.join(src, 'left-out.txt'), 'left out')
+  fs.symlinkSync('left-out.txt', path.join(src, 'left-out-link'), 'file')
 
   const newDir = path.join(tmp, 'dest')
   const filenames = new Map([
@@ -324,6 +326,7 @@ test('importIndexedDir() recreates the internal symlinks of a local directory', 
     ['absolute-link', path.join(src, 'absolute-link')],
     ['dir-link', path.join(src, 'dir-link')],
     ['outside-link', path.join(src, 'outside-link')],
+    ['left-out-link', path.join(src, 'left-out-link')],
   ])
   importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, newDir, filenames, { resolvedFrom: 'local-dir' })
 
@@ -333,6 +336,8 @@ test('importIndexedDir() recreates the internal symlinks of a local directory', 
   expect(fs.lstatSync(path.join(newDir, 'dir-link')).isSymbolicLink()).toBe(true)
   expect(fs.lstatSync(path.join(newDir, 'outside-link')).isFile()).toBe(true)
   expect(fs.readFileSync(path.join(newDir, 'outside-link'), 'utf8')).toBe('outside')
+  expect(fs.lstatSync(path.join(newDir, 'left-out-link')).isFile()).toBe(true)
+  expect(fs.readFileSync(path.join(newDir, 'left-out-link'), 'utf8')).toBe('left out')
 })
 
 test('importIndexedDir() imports a symlink from the store as a file', async () => {

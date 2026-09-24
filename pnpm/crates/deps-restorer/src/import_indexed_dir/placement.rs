@@ -10,7 +10,9 @@ use std::{
     path::{Path, PathBuf},
     sync::atomic::AtomicU8,
 };
-use symlinks::{SymlinkRoots, is_symlink, place_symlink_entry, symlink_matches_store_entry};
+use symlinks::{
+    SymlinkRoots, imported_paths, is_symlink, place_symlink_entry, symlink_matches_store_entry,
+};
 
 /// Make the parent dir set, then import the entries of `cas_paths`, one
 /// task per target directory. Mirrors pnpm v11's `tryImportIndexedDir`:
@@ -33,8 +35,10 @@ pub(super) fn populate_dir<Reporter: self::Reporter>(
     symlinks_final_dir: Option<&Path>,
 ) -> Result<(), ImportIndexedDirError> {
     create_indexed_dirs(dir_path, cas_paths, placement)?;
-    let symlinks =
-        symlinks_final_dir.map(|final_dir| SymlinkRoots { written_dir: dir_path, final_dir });
+    let imported = symlinks_final_dir.map(|_| imported_paths(cas_paths));
+    let symlinks = symlinks_final_dir
+        .zip(imported.as_ref())
+        .map(|(final_dir, imported)| SymlinkRoots { written_dir: dir_path, final_dir, imported });
 
     // Link every other file first, then place the marker last, so an
     // interrupted import leaves a directory the next install recognises
@@ -158,8 +162,9 @@ fn place_entry<Reporter: self::Reporter>(
 ) -> Result<(), ImportIndexedDirError> {
     if let Some(roots) = symlinks
         && is_symlink(store_path)
+        && place_symlink_entry(placement, store_path, target, roots)?
     {
-        return place_symlink_entry(placement, store_path, target, roots);
+        return Ok(());
     }
     match placement {
         Placement::Fresh => {
@@ -190,8 +195,9 @@ fn place_marker<Reporter: self::Reporter>(
 ) -> Result<(), ImportIndexedDirError> {
     if let Some(roots) = symlinks
         && is_symlink(store_path)
+        && place_symlink_entry(placement, store_path, target, roots)?
     {
-        return place_symlink_entry(placement, store_path, target, roots);
+        return Ok(());
     }
     if placement == Placement::Repair {
         clear_dir_blocking_file::<Host>(target)?;

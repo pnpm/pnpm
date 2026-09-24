@@ -3,6 +3,7 @@
 use super::{ImportIndexedDirError, Placement, clear_dir_blocking_file, file_matches_store_entry};
 use pnpm_fs::Host;
 use std::{
+    collections::{HashMap, HashSet},
     fs, io,
     path::{Path, PathBuf},
 };
@@ -16,6 +17,22 @@ pub(super) struct SymlinkRoots<'a> {
     /// The directory `written_dir` ends up at. A Windows junction holds
     /// an absolute target, so it has to point into this one.
     pub(super) final_dir: &'a Path,
+    /// The imported entries and their directories, relative to the
+    /// package, as [`imported_paths`] lists them.
+    pub(super) imported: &'a HashSet<&'a str>,
+}
+
+/// Every key of `cas_paths` and each directory above it, the package root
+/// included as `""`.
+pub(super) fn imported_paths(cas_paths: &HashMap<String, PathBuf>) -> HashSet<&str> {
+    let mut imported = HashSet::from([""]);
+    for entry in cas_paths.keys() {
+        let mut path = entry.as_str();
+        while !path.is_empty() && imported.insert(path) {
+            path = path.rsplit_once('/').map_or("", |(parent, _)| parent);
+        }
+    }
+    imported
 }
 
 pub(super) fn is_symlink(path: &Path) -> bool {
@@ -30,7 +47,8 @@ fn validate_symlink_target(
     target: &Path,
     pkg_root: &Path,
 ) -> Result<PathBuf, ImportIndexedDirError> {
-    let mut link_target = fs::read_link(store_path)
+    let link_target = fs::read_link(store_path)
+        .map(|link| relative_to_link(store_path, link))
         .map_err(|error| {
             ImportIndexedDirError::LinkFile(crate::link_file::LinkFileError::Import {
                 from: store_path.to_path_buf(),
@@ -38,12 +56,6 @@ fn validate_symlink_target(
                 error,
             })
         })?;
-    if link_target.is_absolute()
-        && let Some(parent) = store_path.parent()
-        && let Some(rel) = pathdiff::diff_paths(&link_target, parent)
-    {
-        link_target = rel;
-    }
     let dest_dir = target.parent().unwrap_or(pkg_root);
     let resolved =
         if link_target.is_absolute() { link_target.clone() } else { dest_dir.join(&link_target) };
@@ -56,19 +68,37 @@ fn validate_symlink_target(
     Ok(link_target)
 }
 
+/// `link`, a link target read from `link_path`, with an absolute one made
+/// relative to the link's directory.
+fn relative_to_link(link_path: &Path, link: PathBuf) -> PathBuf {
+    if link.is_absolute()
+        && let Some(parent) = link_path.parent()
+        && let Some(rel) = pathdiff::diff_paths(&link, parent)
+    {
+        return rel;
+    }
+    link
+}
+
+/// Recreate the symlink at `store_path` as `target`, reporting whether it
+/// did. A file link whose target the import leaves out is left for the
+/// caller to import as a file.
 pub(super) fn place_symlink_entry(
     placement: Placement,
     store_path: &Path,
     target: &Path,
     roots: SymlinkRoots<'_>,
-) -> Result<(), ImportIndexedDirError> {
+) -> Result<bool, ImportIndexedDirError> {
     let link_target = validate_symlink_target(store_path, target, roots.written_dir)?;
+    let is_dir = fs::metadata(store_path).is_ok_and(|meta| meta.is_dir());
+    if !is_dir && !imports_link_target(target, &link_target, roots) {
+        return Ok(false);
+    }
     if placement == Placement::Repair && file_matches_store_entry(target, store_path) {
-        return Ok(());
+        return Ok(true);
     }
     clear_dir_blocking_file::<Host>(target)?;
     let temp = super::super::staging::pick_stage_path(target);
-    let is_dir = fs::metadata(store_path).is_ok_and(|meta| meta.is_dir());
     let created = if is_dir {
         let final_target = final_link_target(target, &link_target, roots);
         pnpm_fs::symlink_dir_with_contents(&final_target, &link_target, &temp)
@@ -83,7 +113,18 @@ pub(super) fn place_symlink_entry(
             error,
         }));
     }
-    commit_symlink_placement(&temp, target, store_path)
+    commit_symlink_placement(&temp, target, store_path).map(|()| true)
+}
+
+fn imports_link_target(target: &Path, link_target: &Path, roots: SymlinkRoots<'_>) -> bool {
+    let written_dir = pnpm_fs::lexical_normalize(roots.written_dir);
+    let link_dir = target.parent().unwrap_or(roots.written_dir);
+    let resolved = pnpm_fs::lexical_normalize(&link_dir.join(link_target));
+    resolved
+        .strip_prefix(&written_dir)
+        .ok()
+        .and_then(Path::to_str)
+        .is_some_and(|rel| roots.imported.contains(rel.replace('\\', "/").as_str()))
 }
 
 /// A file symlink has no junction to fall back to, so a process Windows
@@ -145,14 +186,5 @@ pub(super) fn symlink_matches_store_entry(target: &Path, store_path: &Path) -> b
     else {
         return false;
     };
-    if target_link == store_link {
-        return true;
-    }
-    if store_link.is_absolute()
-        && let Some(parent) = store_path.parent()
-        && let Some(rel) = pathdiff::diff_paths(&store_link, parent)
-    {
-        return target_link == rel;
-    }
-    false
+    target_link == relative_to_link(store_path, store_link)
 }

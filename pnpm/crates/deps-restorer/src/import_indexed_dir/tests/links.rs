@@ -253,3 +253,30 @@ fn preserve_symlinks_rejects_escaping_symlink() {
         "destination link must not be created",
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn preserve_symlinks_imports_a_link_to_a_left_out_file_as_that_file() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("src");
+    fs::create_dir_all(&src_root).unwrap();
+    write_source(&src_root, "real.txt", b"content");
+    let link_file = src_root.join("link.txt");
+    symlink("real.txt", &link_file).unwrap();
+    let cas = cas_map(&[("link.txt", link_file)]);
+
+    let target = tmp.path().join("target");
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts { preserve_symlinks: true, ..ImportIndexedDirOpts::default() },
+    )
+    .expect("import with preserve_symlinks should succeed");
+
+    assert!(fs::symlink_metadata(target.join("link.txt")).unwrap().is_file());
+    assert_eq!(fs::read(target.join("link.txt")).unwrap(), b"content");
+}

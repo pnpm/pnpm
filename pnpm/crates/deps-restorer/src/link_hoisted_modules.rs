@@ -31,7 +31,7 @@ use pnpm_cmd_shim::{
     Host, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache,
     collect_packages_in_modules_dir, link_bins_of_packages_cached,
 };
-use pnpm_lockfile::PkgIdWithPatchHash;
+use pnpm_lockfile::{LockfileResolution, PkgIdWithPatchHash};
 use pnpm_reporter::{
     LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog, StatsMessage,
 };
@@ -408,11 +408,7 @@ fn import_node<Reporter: self::Reporter>(
             opts.import.method,
             &node.dir,
             cas_paths,
-            ImportIndexedDirOpts {
-                force: true,
-                keep_modules_dir: true,
-                ..ImportIndexedDirOpts::default()
-            },
+            hoisted_import_opts(node),
         )
         .map_err(LinkHoistedModulesError::ImportIndexedDir)?;
     }
@@ -432,6 +428,18 @@ fn import_node<Reporter: self::Reporter>(
     }));
 
     Ok(true)
+}
+
+/// A hoisted package replaces whatever is at its directory but keeps the
+/// nested `node_modules` other nodes were hoisted into. A directory
+/// dependency keeps its own symlinks.
+fn hoisted_import_opts(node: &DependenciesGraphNode) -> ImportIndexedDirOpts {
+    ImportIndexedDirOpts {
+        force: true,
+        keep_modules_dir: true,
+        preserve_symlinks: matches!(node.package.resolution, LockfileResolution::Directory(_)),
+        ..ImportIndexedDirOpts::default()
+    }
 }
 
 #[cfg(test)]

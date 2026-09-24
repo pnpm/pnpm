@@ -6,7 +6,7 @@ use super::{
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fs, io,
     path::{Path, PathBuf},
     sync::{Mutex, PoisonError, atomic::AtomicU8},
@@ -263,7 +263,12 @@ fn a_file_still_standing_fails_the_clearing() {
 
 #[test]
 fn final_link_target_points_into_the_final_directory() {
-    let roots = SymlinkRoots { written_dir: Path::new("/stage"), final_dir: Path::new("/pkg") };
+    let imported = HashSet::new();
+    let roots = SymlinkRoots {
+        written_dir: Path::new("/stage"),
+        final_dir: Path::new("/pkg"),
+        imported: &imported,
+    };
     assert_eq!(
         final_link_target(Path::new("/stage/lib/link"), Path::new("../sub"), roots),
         PathBuf::from("/pkg/sub"),

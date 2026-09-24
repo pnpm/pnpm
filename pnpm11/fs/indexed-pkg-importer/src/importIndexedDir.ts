@@ -73,7 +73,7 @@ export function importIndexedDir (
   // handling (EEXIST dedup, ENOENT sanitized-filename retry, etc.) and
   // atomically swaps in a complete directory.
   // keepModulesDir needs the staging path to preserve the existing node_modules.
-  if (!opts.keepModulesDir && tryExclusiveImport(importer, newDir, filenames, symlinkDirs(opts, newDir, newDir))) {
+  if (!opts.keepModulesDir && tryExclusiveImport(importer, newDir, filenames, symlinkDirs(opts, filenames, { writtenDir: newDir, finalDir: newDir }))) {
     return
   }
   // Staging path: create in temp dir, then atomically rename.
@@ -86,7 +86,7 @@ export function importIndexedDir (
       { importFile: importer.importFile, importFileAtomic: importer.importFile },
       stage,
       filenames,
-      symlinkDirs(opts, stage, newDir)
+      symlinkDirs(opts, filenames, { writtenDir: stage, finalDir: newDir })
     )
     if (opts.keepModulesDir) {
       // Keeping node_modules is needed only when the hoisted node linker is used.
@@ -450,12 +450,25 @@ interface SymlinkDirs {
   // The directory writtenDir ends up at. A Windows junction holds an
   // absolute target, so it has to point into this one.
   finalDir: string
+  // The imported files and their directories, relative to the package.
+  imported: Set<string>
 }
 
 // Only a local directory has symlinks to preserve. The store holds regular
 // files, so other imports skip the lstat per file.
-function symlinkDirs (opts: ImportIndexedDirOptions, writtenDir: string, finalDir: string): SymlinkDirs | undefined {
-  return opts.resolvedFrom === 'local-dir' ? { writtenDir, finalDir } : undefined
+function symlinkDirs (
+  opts: ImportIndexedDirOptions,
+  filenames: Map<string, string>,
+  dirs: Pick<SymlinkDirs, 'writtenDir' | 'finalDir'>
+): SymlinkDirs | undefined {
+  if (opts.resolvedFrom !== 'local-dir') return undefined
+  const imported = new Set<string>([''])
+  for (const f of filenames.keys()) {
+    for (let entry = f; entry !== '' && !imported.has(entry); entry = path.posix.dirname(entry).replace(/^\.$/, '')) {
+      imported.add(entry)
+    }
+  }
+  return { ...dirs, imported }
 }
 
 function importEntry (importFile: ImportFile, src: string, dest: string, links?: SymlinkDirs): void {
@@ -464,8 +477,8 @@ function importEntry (importFile: ImportFile, src: string, dest: string, links?:
 }
 
 // Recreate the symlink at src as dest when its target stays inside the
-// package, and report whether it did. A link that points outside the package
-// is imported as the file it points to.
+// package, and report whether it did. A link that points outside the package,
+// or at a file the import leaves out, is imported as the file it points to.
 function copyInternalSymlink (src: string, dest: string, links: SymlinkDirs): boolean {
   let target = fs.readlinkSync(src)
   if (path.isAbsolute(target)) {
@@ -473,6 +486,8 @@ function copyInternalSymlink (src: string, dest: string, links: SymlinkDirs): bo
   }
   const resolved = path.resolve(path.dirname(dest), target)
   if (escapesDir(links.writtenDir, resolved)) return false
+  const importsTarget = links.imported.has(path.relative(links.writtenDir, resolved).split(path.sep).join('/'))
+  if (!importsTarget && !isDirectory(src)) return false
   if (process.platform !== 'win32') {
     fs.symlinkSync(target, dest)
     return true

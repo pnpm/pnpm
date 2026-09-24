@@ -1113,6 +1113,8 @@ fn peer_variants_of_one_version_share_the_root_slot() {
     }
 }
 
+mod local_symlinks;
+
 mod repeat_install;
 
 mod scripts;
