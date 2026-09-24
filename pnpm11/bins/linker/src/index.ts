@@ -508,7 +508,7 @@ function isOwnBinsDir (pkgDir: string, binsDir: string): boolean {
   return path.resolve(pkgDir, 'node_modules', '.bin') === path.resolve(binsDir)
 }
 
-// An extensionless target is run directly, and Windows then finds its .exe.
+// A target without an extension is run directly, and Windows then finds its .exe.
 async function isOwnBinTargetMissing (target: string): Promise<boolean> {
   if (!await isMissing(target)) return false
   return !IS_WINDOWS || path.extname(target) !== '' || isMissing(`${target}${getExeExtension()}`)
