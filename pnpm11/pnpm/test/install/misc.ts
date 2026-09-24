@@ -48,8 +48,10 @@ test('install relinks dependencies after the project directory is moved', async 
   // point at absolute paths that break when the project is moved.
   fs.unlinkSync('node_modules/is-positive')
   fs.symlinkSync(path.resolve('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'), 'node_modules/is-positive', 'junction')
+  const projectDir = process.cwd()
   const movedDir = path.resolve('../moved-project')
-  fs.renameSync(process.cwd(), movedDir)
+  process.chdir('..')
+  fs.renameSync(projectDir, movedDir)
   process.chdir(movedDir)
   expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(false)
 
