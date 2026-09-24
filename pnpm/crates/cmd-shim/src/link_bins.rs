@@ -506,8 +506,16 @@ pub fn choose_bins<'packages, Sys: FsWalkFiles>(
             }
         }
     }
-    for excluded in exclude_bins {
-        chosen.remove(excluded);
+    if cfg!(windows) {
+        chosen.retain(|name, _| {
+            !exclude_bins
+                .iter()
+                .any(|ex| ex.eq_ignore_ascii_case(name))
+        });
+    } else {
+        for excluded in exclude_bins {
+            chosen.remove(excluded);
+        }
     }
     chosen.into_values().collect()
 }

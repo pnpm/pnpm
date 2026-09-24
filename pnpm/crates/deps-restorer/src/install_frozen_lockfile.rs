@@ -245,6 +245,15 @@ impl From<HoistedLinkerError> for InstallFrozenLockfileError {
             HoistedLinkerError::WritePackageMap(error) => {
                 InstallFrozenLockfileError::WritePackageMap(error)
             }
+            HoistedLinkerError::PruneWorkspaceHoists(error) => {
+                InstallFrozenLockfileError::PruneStaleModules(error)
+            }
+            HoistedLinkerError::HoistSymlink(error) => {
+                InstallFrozenLockfileError::HoistSymlink(error)
+            }
+            HoistedLinkerError::HoistLinkBins(error) => {
+                InstallFrozenLockfileError::HoistLinkBins(error)
+            }
         }
     }
 }

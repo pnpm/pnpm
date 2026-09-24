@@ -93,6 +93,46 @@ pub(crate) fn hoisted_workspace_packages_present(
         })
 }
 
+/// The hoisted linker's `hoist-workspace-packages` links in the root
+/// `node_modules`: a project the setting and patterns select has a
+/// directory at its name, reached through its own link or the package that
+/// holds the name, and a project they do not select is not linked.
+pub(crate) fn hoisted_linker_workspace_links_intact(
+    config: &Config,
+    workspace_root: &Path,
+    projects: &[(std::path::PathBuf, &pnpm_package_manifest::PackageManifest)],
+) -> bool {
+    let candidates = pnpm_deps_restorer::workspace_packages_for_hoist(workspace_root, projects);
+    if candidates.is_empty() {
+        return true;
+    }
+    let private = pnpm_matcher::create_matcher(
+        config.hoist_pattern
+            .as_deref()
+            .unwrap_or(&[]),
+    );
+    let public = pnpm_matcher::create_matcher(
+        config.public_hoist_pattern
+            .as_deref()
+            .unwrap_or(&[]),
+    );
+    candidates
+        .iter()
+        .all(|(name, (_, project_dir))| {
+            let Ok(destination) = crate::safe_join_modules_dir::safe_join_workspace_modules_dir(
+                &config.modules_dir,
+                name,
+            ) else {
+                return true;
+            };
+            if config.hoist_workspace_packages && (public.matches(name) || private.matches(name)) {
+                destination.is_dir()
+            } else {
+                !workspace_link_points_to(&destination, project_dir)
+            }
+        })
+}
+
 fn workspace_link_points_to(destination: &Path, project_dir: &Path) -> bool {
     let Ok(target) = pnpm_fs::read_symlink_dir(destination) else { return false };
     let target = if target.is_relative() {

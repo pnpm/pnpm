@@ -16,7 +16,9 @@
 
 use crate::{
     hoist::HoistedDependencies,
-    prune_direct_deps::{PruneDirectDepsError, confined_modules_dir, remove_direct_dep_link},
+    prune_direct_deps::{
+        PruneDirectDepsError, confined_modules_dir, is_real_dir, remove_direct_dep_link,
+    },
     symlink_direct_dependencies::{importer_root_dir, validate_importer_id},
 };
 use pnpm_config::Config;
@@ -123,8 +125,11 @@ impl<'a> PruneStaleModules<'a> {
             self.prior_hoisted_dependencies,
         )?;
         prune_workspace_hoists(
-            self.config,
-            self.workspace_root,
+            &WorkspaceHoistDirs {
+                workspace_root: self.workspace_root,
+                private: &self.config.virtual_store_dir.join("node_modules"),
+                public: &self.config.modules_dir,
+            },
             self.current_lockfile,
             self.prior_hoisted_dependencies,
             self.wanted_hoisted_dependencies,
@@ -151,17 +156,26 @@ impl<'a> PruneStaleModules<'a> {
     }
 }
 
-fn prune_workspace_hoists(
-    config: &Config,
-    workspace_root: &Path,
+/// Where [`prune_workspace_hoists`] looks for each kind of workspace
+/// hoist link. Both are confined to `workspace_root`.
+pub(crate) struct WorkspaceHoistDirs<'a> {
+    pub workspace_root: &'a Path,
+    pub private: &'a Path,
+    pub public: &'a Path,
+}
+
+/// Unlink the workspace-project hoists `prior_hoisted_dependencies`
+/// records that `wanted_hoisted_dependencies` does not. Entries keyed by
+/// a package of `current_lockfile` are regular hoists and stay.
+pub(crate) fn prune_workspace_hoists(
+    dirs: &WorkspaceHoistDirs<'_>,
     current_lockfile: &Lockfile,
     prior_hoisted_dependencies: Option<&HoistedDependencies>,
     wanted_hoisted_dependencies: Option<&HoistedDependencies>,
 ) -> Result<(), PruneDirectDepsError> {
     let Some(prior) = prior_hoisted_dependencies else { return Ok(()) };
-    let private_dir = config.virtual_store_dir.join("node_modules");
-    let private_dir = confined_modules_dir(&private_dir, workspace_root);
-    let public_dir = confined_modules_dir(&config.modules_dir, workspace_root);
+    let private_dir = confined_modules_dir(dirs.private, dirs.workspace_root);
+    let public_dir = confined_modules_dir(dirs.public, dirs.workspace_root);
     for (project_id, aliases) in prior {
         if project_id
             .parse()
@@ -200,8 +214,20 @@ fn prune_workspace_project_hoists(
         };
         let Some(target_dir) = target_dir else { continue };
         remove_direct_dep_link(target_dir, alias)?;
+        remove_emptied_scope_dir(target_dir, alias);
     }
     Ok(())
+}
+
+/// Remove the `@scope` directory of a scoped `alias` once its last link is
+/// gone. The removal fails, and keeps the directory, while other scoped
+/// packages are in it.
+fn remove_emptied_scope_dir(target_dir: &Path, alias: &str) {
+    let Some((scope, _)) = alias.split_once('/') else { return };
+    let scope_dir = target_dir.join(scope);
+    if is_real_dir(&scope_dir) {
+        let _ = std::fs::remove_dir(scope_dir);
+    }
 }
 
 /// Unlink every direct dep of one importer that the wanted lockfile no

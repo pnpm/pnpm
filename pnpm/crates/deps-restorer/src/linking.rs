@@ -73,6 +73,11 @@ impl From<HoistedLinkerError> for LinkPhaseError {
                 LinkPhaseError::SymlinkDirectDependencies(error)
             }
             HoistedLinkerError::WritePackageMap(error) => LinkPhaseError::WritePackageMap(error),
+            HoistedLinkerError::PruneWorkspaceHoists(error) => {
+                LinkPhaseError::PruneStaleModules(error)
+            }
+            HoistedLinkerError::HoistSymlink(error) => LinkPhaseError::HoistSymlink(error),
+            HoistedLinkerError::HoistLinkBins(error) => LinkPhaseError::HoistLinkBins(error),
         }
     }
 }
@@ -362,8 +367,10 @@ fn write_project_links<Reporter: self::Reporter>(
         .map_err(LinkPhaseError::LinkBins)?;
     }
 
+    let mut hoisted_dependencies = links.hoisted_dependencies;
+    hoisted_dependencies.extend(hoisted.hoisted_dependencies);
     Ok(LinkPhaseOutput {
-        hoisted_dependencies: links.hoisted_dependencies,
+        hoisted_dependencies,
         hoisted_locations: hoisted.hoisted_locations,
         hoisted_pkg_roots_by_key: hoisted.hoisted_pkg_roots_by_key,
         hoisted_build_snapshots: hoisted.hoisted_build_snapshots,

@@ -135,7 +135,15 @@ async function getCommandsToLink (
       pkgs.map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location))
     ))
       .filter((cmds: Command[]) => cmds.length)
-  ).filter((cmd) => !excludeBins.has(cmd.name))
+  ).filter((cmd) => {
+    if (IS_WINDOWS) {
+      for (const excluded of excludeBins) {
+        if (excluded.toLowerCase() === cmd.name.toLowerCase()) return false
+      }
+      return true
+    }
+    return !excludeBins.has(cmd.name)
+  })
 }
 
 interface CommandInfo extends Command {

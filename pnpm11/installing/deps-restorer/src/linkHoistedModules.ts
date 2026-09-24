@@ -133,7 +133,7 @@ async function tryRemoveDir (dir: string): Promise<void> {
   }
 }
 
-async function removeOrphanBins (pkgDir: string): Promise<void> {
+export async function removeOrphanBins (pkgDir: string): Promise<void> {
   const binsDir = path.join(getModulesDir(pkgDir), '.bin')
   let binsDirStats: fs.Stats
   try {
