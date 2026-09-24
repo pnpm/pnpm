@@ -38,6 +38,33 @@ pub fn copy_file_exclusive(
         })
 }
 
+/// Copy `source_path` to `target_path`, so that a reader of the target
+/// sees either what it held before or the whole copy, never a part.
+///
+/// The bytes go into a temp sibling that [`copy_file_exclusive`]
+/// creates, which is then renamed over the target. The rename replaces
+/// whatever the target holds, a symlink included, without following
+/// it. A failure removes the temp file; a crash can leave one behind,
+/// under a name nothing else uses.
+pub fn copy_file_atomic(source_path: &Path, target_path: &Path) -> io::Result<()> {
+    let dir = target_path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let temp = tempfile::Builder::new()
+        .make_in(dir, |temp_path| copy_file_exclusive(source_path, temp_path, |_| Ok(())))?;
+    let mut pending = Some(temp.into_temp_path());
+    crate::retry::retry_transient_file_locks(|| {
+        let temporary = pending.take().expect("temporary path retained after a failed persist");
+        temporary
+            .persist(target_path)
+            .map_err(|error| {
+                pending = Some(error.path);
+                error.error
+            })
+    })
+}
+
 /// Whether `path` still names the file `created` refers to.
 ///
 /// Unix reads the identity straight out of the two stat results;

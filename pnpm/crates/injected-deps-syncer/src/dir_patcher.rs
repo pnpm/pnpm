@@ -90,7 +90,7 @@ pub enum PatchError {
         error: io::Error,
     },
 
-    #[display("Failed to hardlink {source:?} to {target:?}: {error}")]
+    #[display("Failed to hardlink or copy {source:?} to {target:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_INJECTED_DEPS_SYNC_LINK))]
     Link {
         source: PathBuf,
@@ -225,7 +225,7 @@ fn apply_change_with_link<Sys: FsHardLink>(
 fn link_or_copy<Sys: FsHardLink>(source_path: &Path, target_path: &Path) -> io::Result<()> {
     match Sys::hard_link(source_path, target_path) {
         Err(error) if is_cross_device(&error) => {
-            pnpm_fs::copy_file_exclusive(source_path, target_path, |_| Ok(()))
+            pnpm_fs::copy_file_atomic(source_path, target_path)
         }
         result => result,
     }

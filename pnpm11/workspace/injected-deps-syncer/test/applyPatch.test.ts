@@ -254,6 +254,7 @@ test('falls back to copy when link fails with EXDEV', async () => {
   }, path.resolve('source'), path.resolve('target'))
 
   expect(fs.readFileSync('target/file.txt', 'utf8')).toBe('hello world')
+  expect(fs.readdirSync('target')).toStrictEqual(['file.txt'])
 })
 
 // Creating a file symlink needs extra privileges on Windows.

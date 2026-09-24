@@ -10165,6 +10165,9 @@ importers:
       '@pnpm/fetching.directory-fetcher':
         specifier: workspace:*
         version: link:../../fetching/directory-fetcher
+      '@pnpm/fs.graceful-fs':
+        specifier: workspace:*
+        version: link:../../fs/graceful-fs
       '@pnpm/installing.modules-yaml':
         specifier: workspace:*
         version: link:../../installing/modules-yaml
@@ -10184,6 +10187,9 @@ importers:
         specifier: 'catalog:'
         version: 3.0.2
       normalize-path:
+        specifier: 'catalog:'
+        version: 3.0.0
+      path-temp:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:

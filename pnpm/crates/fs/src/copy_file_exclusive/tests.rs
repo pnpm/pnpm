@@ -1,6 +1,6 @@
-use super::copy_file_exclusive;
 #[cfg(unix)]
 use super::path_still_names;
+use super::{copy_file_atomic, copy_file_exclusive};
 use std::{fs, io};
 use tempfile::TempDir;
 
@@ -88,4 +88,50 @@ fn path_still_names_rejects_a_replaced_dirent() {
 
     fs::remove_file(&path).unwrap();
     assert!(!path_still_names(&created, &path), "a path that names nothing has nothing to remove");
+}
+
+#[test]
+fn copy_file_atomic_replaces_the_target_and_leaves_no_temp_file() {
+    let dir = TempDir::new().unwrap();
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    fs::write(&source, "new").unwrap();
+    fs::write(&target, "old").unwrap();
+
+    copy_file_atomic(&source, &target).unwrap();
+
+    assert_eq!(fs::read_to_string(&target).unwrap(), "new");
+    let names: Vec<_> = fs::read_dir(dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert_eq!(names.len(), 2, "only the source and the target remain: {names:?}");
+}
+
+#[test]
+#[cfg(unix)]
+fn copy_file_atomic_replaces_a_symlink_without_following_it() {
+    let dir = TempDir::new().unwrap();
+    let (source, target, victim) =
+        (dir.path().join("source"), dir.path().join("target"), dir.path().join("victim"));
+    fs::write(&source, "content").unwrap();
+    fs::write(&victim, "untouched").unwrap();
+    std::os::unix::fs::symlink(&victim, &target).unwrap();
+
+    copy_file_atomic(&source, &target).unwrap();
+
+    let target_type = fs::symlink_metadata(&target).unwrap().file_type();
+    assert!(!target_type.is_symlink(), "the symlink is replaced, not followed");
+    assert_eq!(fs::read_to_string(&target).unwrap(), "content");
+    assert_eq!(fs::read_to_string(&victim).unwrap(), "untouched");
+}
+
+#[test]
+fn copy_file_atomic_leaves_no_temp_file_when_the_source_is_missing() {
+    let dir = TempDir::new().unwrap();
+    let target = dir.path().join("target");
+
+    let error = copy_file_atomic(&dir.path().join("missing"), &target).unwrap_err();
+
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 0, "no temp file survives");
 }
