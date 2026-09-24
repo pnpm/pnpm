@@ -72,7 +72,23 @@ pub fn link_direct_dep_bins(
         .iter()
         .map(|name| (name.as_str(), None))
         .collect();
-    link_named_dep_bins(modules_dir, &deps, link_options)
+    link_named_dep_bins(modules_dir, &deps, link_options, false)
+}
+/// [`link_direct_dep_bins`] for a project's `.bin` under the hoisted
+/// linker, whose post-build relink always links that directory again.
+/// Every bin whose target is missing is held back until then, so a
+/// dependency's lifecycle scripts cannot reach a shim of a file they have
+/// yet to create. See [`PackageBinSource::build_pending`].
+pub fn link_direct_dep_bins_before_builds(
+    modules_dir: &Path,
+    dep_names: &[String],
+    link_options: &LinkBinsOptions,
+) -> Result<(), LinkBinsError> {
+    let deps: Vec<(&str, Option<&Path>)> = dep_names
+        .iter()
+        .map(|name| (name.as_str(), None))
+        .collect();
+    link_named_dep_bins(modules_dir, &deps, link_options, true)
 }
 /// Resolve the hoist pass's `(alias, snapshot key)` bin list into the
 /// `(alias, slot package dir)` pairs [`link_direct_dep_bins_resolved`]
@@ -103,7 +119,7 @@ pub fn link_direct_dep_bins_resolved(
         .iter()
         .map(|(name, target)| (name.as_str(), Some(target.as_path())))
         .collect();
-    link_named_dep_bins(modules_dir, &deps, link_options)
+    link_named_dep_bins(modules_dir, &deps, link_options, false)
 }
 /// One direct dep of [`link_direct_dep_bins_prefetched`]'s importer:
 /// the alias under `node_modules/`, the symlink's destination, and the
@@ -286,6 +302,7 @@ pub(super) fn link_named_dep_bins(
     modules_dir: &Path,
     deps: &[(&str, Option<&Path>)],
     link_options: &LinkBinsOptions,
+    build_pending: bool,
 ) -> Result<(), LinkBinsError> {
     // Swallow only `NotFound`: a direct-dep symlink target can
     // legitimately be missing right after a partial pacquet run, or
@@ -313,7 +330,8 @@ pub(super) fn link_named_dep_bins(
                     return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
                 }
             };
-            let mut source = PackageBinSource::new(location, Arc::new(manifest));
+            let mut source = PackageBinSource::new(location, Arc::new(manifest))
+                .with_build_pending(build_pending);
             if let Some(resolved) = resolved {
                 source = source.with_resolved_location(resolved.to_path_buf());
             }

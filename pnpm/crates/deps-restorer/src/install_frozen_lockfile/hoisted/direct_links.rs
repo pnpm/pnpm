@@ -59,7 +59,7 @@ impl HoistedLinkScope<'_> {
                 linked_names.push(alias.clone());
             }
         }
-        crate::link_direct_dep_bins(&self.modules_dir, &linked_names, link_options)
+        crate::link_direct_dep_bins_before_builds(&self.modules_dir, &linked_names, link_options)
             .map_err(|source| {
                 HoistedLinkerError::SymlinkDirectDependencies(
                     SymlinkDirectDependenciesError::LinkBins(source),
