@@ -46,7 +46,7 @@ test('a lock whose holder process has ended is taken over at once', async () => 
   await lock!.release()
 })
 
-test('a lock directory its holder died before claiming is taken over', async () => {
+test('a lock directory whose holder died before writing its owner file is taken over', async () => {
   const lockPath = path.join(temporaryDirectory(), 'ownerless.lock')
   fs.mkdirSync(lockPath)
   const longAgo = new Date(Date.now() - 60_000)
@@ -76,4 +76,26 @@ test('waiters taking over one ended holder\'s lock end up with one holder', asyn
     const locks = await Promise.all(Array.from({ length: 4 }, async () => DirLock.acquire(lockPath, OPTS)))
     expect(locks.filter(Boolean)).toHaveLength(1)
   }
+})
+
+test('a live holder on this host keeps its lock past the abandonment age', async () => {
+  const lockPath = path.join(temporaryDirectory(), 'long.lock')
+  fs.mkdirSync(lockPath)
+  fs.writeFileSync(path.join(lockPath, 'owner'), `${os.hostname()}:${process.ppid}:0:live`)
+  const longAgo = new Date(Date.now() - 60_000)
+  fs.utimesSync(lockPath, longAgo, longAgo)
+
+  expect(await DirLock.acquire(lockPath, { waitMs: 0, abandonedMs: 1_000 })).toBeUndefined()
+})
+
+test('a lock held on another host is taken over once it is older than the abandonment age', async () => {
+  const lockPath = path.join(temporaryDirectory(), 'remote.lock')
+  fs.mkdirSync(lockPath)
+  fs.writeFileSync(path.join(lockPath, 'owner'), `not-${os.hostname()}:1:0:remote`)
+  const longAgo = new Date(Date.now() - 60_000)
+  fs.utimesSync(lockPath, longAgo, longAgo)
+
+  const lock = await DirLock.acquire(lockPath, { waitMs: 0, abandonedMs: 1_000 })
+  expect(lock).toBeDefined()
+  await lock!.release()
 })

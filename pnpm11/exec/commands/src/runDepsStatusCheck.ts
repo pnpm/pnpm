@@ -124,8 +124,8 @@ async function installLockPath (root: string): Promise<string> {
   const lockDir = path.join(os.tmpdir(), uid == null ? INSTALL_LOCK_NAMESPACE : `${INSTALL_LOCK_NAMESPACE}-${uid}`)
   await fs.mkdir(lockDir, { recursive: true, mode: 0o700 })
   const stats = await fs.lstat(lockDir)
-  if (!stats.isDirectory() || (uid != null && stats.uid !== uid)) {
-    throw new Error(`${lockDir} is not a directory owned by the current user`)
+  if (!stats.isDirectory() || (uid != null && (stats.uid !== uid || (stats.mode & 0o077) !== 0))) {
+    throw new Error(`${lockDir} is not a private directory of the current user`)
   }
   return path.join(lockDir, `${createHexHash(await realpathMissing(root))}.lock`)
 }

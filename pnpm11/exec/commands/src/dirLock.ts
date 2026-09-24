@@ -20,8 +20,9 @@ export interface DirLockOptions {
 
 /**
  * A cross-process advisory lock: creating a directory is atomic, so the winner
- * of the `mkdir` race holds it. A lock whose holder process on this host has
- * ended, or that is older than `abandonedMs`, is taken over.
+ * of the `mkdir` race holds it. A lock is taken over once its holder, another
+ * process on this host, has ended; any other holder's lock once it is older
+ * than `abandonedMs`.
  */
 export class DirLock {
   private readonly lockPath: string
@@ -94,8 +95,16 @@ async function inspectLock (lockPath: string, abandonedMs: number): Promise<Lock
   if (stats.isSymbolicLink() || !stats.isDirectory()) return { kind: 'unusable' }
   const owner = await readOwner(lockPath)
   const age = Date.now() - stats.mtimeMs
-  const stale = age > abandonedMs ||
-    (owner == null ? age > OWNERLESS_ABANDONED_MS : isHeldByEndedProcess(owner))
+  const localPid = owner == null ? undefined : localOwnerPid(owner)
+  let stale: boolean
+  if (owner == null) {
+    stale = age > OWNERLESS_ABANDONED_MS
+  } else if (localPid != null && localPid !== process.pid) {
+    // Another process on this host proves its liveness, so its age does not matter.
+    stale = hasEnded(localPid)
+  } else {
+    stale = age > abandonedMs
+  }
   return stale ? { kind: 'stale', owner } : { kind: 'live' }
 }
 
@@ -133,10 +142,13 @@ async function readOwner (lockPath: string): Promise<string | undefined> {
   }
 }
 
-function isHeldByEndedProcess (owner: string): boolean {
+function localOwnerPid (owner: string): number | undefined {
   const [hostname, pidText] = owner.split(':')
   const pid = Number(pidText)
-  if (hostname !== os.hostname() || !Number.isInteger(pid) || pid <= 0 || pid === process.pid) return false
+  return hostname === os.hostname() && Number.isInteger(pid) && pid > 0 ? pid : undefined
+}
+
+function hasEnded (pid: number): boolean {
   try {
     process.kill(pid, 0)
     return false
