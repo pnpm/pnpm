@@ -130,11 +130,11 @@ fn set_existing_key_preserves_file_without_trailing_newline() {
 }
 
 #[test]
-fn set_new_key_on_file_without_trailing_newline_appends_terminator() {
+fn set_new_key_on_file_without_trailing_newline() {
     let input = "key1=val1\nkey2=val2";
     let mut doc = IniDocument::parse(input);
     doc.set("key3", &["val3".to_string()]);
-    let expected = "key1=val1\nkey2=val2\nkey3=val3\n";
+    let expected = "key1=val1\nkey2=val2\nkey3=val3";
     assert_eq!(doc.serialize(), expected);
 }
 
@@ -144,4 +144,45 @@ fn delete_key_preserves_file_without_trailing_newline() {
     let mut doc = IniDocument::parse(input);
     assert!(doc.delete("key1"));
     assert_eq!(doc.serialize(), "key2=val2");
+}
+
+#[test]
+fn set_replaces_existing_bracketed_array_keys() {
+    let input = "# CAs\nca[]=certA\nca[]=certB\n\nregistry=https://reg/\n";
+    let mut doc = IniDocument::parse(input);
+    doc.set("ca", &["certC".to_string()]);
+    let expected = "# CAs\nca=certC\n\nregistry=https://reg/\n";
+    assert_eq!(doc.serialize(), expected);
+    assert_eq!(doc.get("ca"), Some("certC"));
+    assert_eq!(doc.get_all("ca"), vec!["certC"]);
+}
+
+#[test]
+fn delete_removes_both_bracketed_and_unbracketed_keys() {
+    let input = "ca=certA\nca[]=certB\nregistry=https://reg/\n";
+    let mut doc = IniDocument::parse(input);
+    assert!(doc.delete("ca"));
+    let expected = "registry=https://reg/\n";
+    assert_eq!(doc.serialize(), expected);
+    assert_eq!(doc.get_all("ca"), Vec::<&str>::new());
+}
+
+#[test]
+fn set_array_preserves_existing_bracketed_keys() {
+    let input = "ca[]=certOld1\nca[]=certOld2\nother=val\n";
+    let mut doc = IniDocument::parse(input);
+    doc.set_array("ca", &["certNew1".to_string(), "certNew2".to_string()]);
+    let expected = "ca[]=certNew1\nca[]=certNew2\nother=val\n";
+    assert_eq!(doc.serialize(), expected);
+    assert_eq!(doc.get_all("ca"), vec!["certNew1", "certNew2"]);
+}
+
+#[test]
+fn set_array_appends_bracketed_keys_for_new_entry() {
+    let input = "registry=https://reg/\n";
+    let mut doc = IniDocument::parse(input);
+    doc.set_array("ca", &["cert1".to_string(), "cert2".to_string()]);
+    let expected = "registry=https://reg/\nca[]=cert1\nca[]=cert2\n";
+    assert_eq!(doc.serialize(), expected);
+    assert_eq!(doc.get_all("ca"), vec!["cert1", "cert2"]);
 }

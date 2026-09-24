@@ -58,6 +58,10 @@ impl IniLine {
         }
     }
 
+    fn matches_key(&self, target_key: &str) -> bool {
+        self.key().is_some_and(|line_key| keys_match(line_key, target_key))
+    }
+
     #[cfg(test)]
     fn value(&self) -> Option<&str> {
         match &self.kind {
@@ -65,6 +69,12 @@ impl IniLine {
             LineKind::Raw(_) => None,
         }
     }
+}
+
+fn keys_match(key_a: &str, key_b: &str) -> bool {
+    let normalized_a = key_a.strip_suffix("[]").unwrap_or(key_a);
+    let normalized_b = key_b.strip_suffix("[]").unwrap_or(key_b);
+    normalized_a == normalized_b
 }
 
 /// A parsed INI document preserving comments, blank lines, repeated keys, and line terminators.
@@ -151,7 +161,7 @@ impl IniDocument {
         self.lines
             .iter()
             .rev()
-            .find_map(|line| if line.key() == Some(key) { line.value() } else { None })
+            .find_map(|line| if line.matches_key(key) { line.value() } else { None })
     }
 
     /// Return all values for `key` in document order.
@@ -159,19 +169,28 @@ impl IniDocument {
     pub fn get_all(&self, key: &str) -> Vec<&str> {
         self.lines
             .iter()
-            .filter_map(|line| if line.key() == Some(key) { line.value() } else { None })
+            .filter_map(|line| if line.matches_key(key) { line.value() } else { None })
             .collect()
     }
 
     /// Remove all entries matching `key`. Returns `true` if at least one entry was removed.
     pub fn delete(&mut self, key: &str) -> bool {
         let before = self.lines.len();
-        self.lines.retain(|line| line.key() != Some(key));
+        self.lines.retain(|line| !line.matches_key(key));
         self.lines.len() != before
     }
 
-    fn replace_existing_key(&mut self, key: &str, values: &[String], first_index: usize) {
+    fn replace_existing_key(
+        &mut self,
+        key: &str,
+        values: &[String],
+        first_index: usize,
+        is_array: bool,
+    ) {
         let old_terminator = self.lines[first_index].terminator;
+        let existing_key = self.lines[first_index].key().unwrap_or(key);
+        let write_key = resolve_replace_key(key, existing_key, is_array);
+
         let new_entries: Vec<IniLine> = values
             .iter()
             .enumerate()
@@ -179,7 +198,11 @@ impl IniDocument {
                 let terminator =
                     if index + 1 == values.len() { old_terminator } else { self.default_ending };
                 IniLine {
-                    kind: LineKind::Entry { key: key.to_string(), value: value.clone(), raw: None },
+                    kind: LineKind::Entry {
+                        key: write_key.clone(),
+                        value: value.clone(),
+                        raw: None,
+                    },
                     terminator,
                 }
             })
@@ -189,7 +212,7 @@ impl IniDocument {
 
         let mut index = first_index + values.len();
         while index < self.lines.len() {
-            if self.lines[index].key() == Some(key) {
+            if self.lines[index].matches_key(key) {
                 self.lines.remove(index);
             } else {
                 index += 1;
@@ -197,16 +220,26 @@ impl IniDocument {
         }
     }
 
-    fn append_new_key(&mut self, key: &str, values: &[String]) {
-        if let Some(last_line) = self.lines.last_mut()
+    fn append_new_key(&mut self, key: &str, values: &[String], is_array: bool) {
+        let had_no_trailing_newline = if let Some(last_line) = self.lines.last_mut()
             && last_line.terminator == LineEnding::None
         {
             last_line.terminator = self.default_ending;
-        }
-        for value in values {
+            true
+        } else {
+            false
+        };
+        let write_key = resolve_append_key(key, is_array);
+        for (index, value) in values.iter().enumerate() {
+            let is_last = index + 1 == values.len();
+            let terminator = if is_last && had_no_trailing_newline {
+                LineEnding::None
+            } else {
+                self.default_ending
+            };
             self.lines.push(IniLine {
-                kind: LineKind::Entry { key: key.to_string(), value: value.clone(), raw: None },
-                terminator: self.default_ending,
+                kind: LineKind::Entry { key: write_key.clone(), value: value.clone(), raw: None },
+                terminator,
             });
         }
     }
@@ -218,6 +251,16 @@ impl IniDocument {
     ///   with the new value(s), and any subsequent occurrences of `key` are removed.
     /// - If `key` does not exist, the new entry (or entries) are appended at the end.
     pub fn set(&mut self, key: &str, values: &[String]) {
+        let is_array = values.len() > 1 || key.ends_with("[]");
+        self.set_with_kind(key, values, is_array);
+    }
+
+    /// Set `key` explicitly as an array of values.
+    pub fn set_array(&mut self, key: &str, values: &[String]) {
+        self.set_with_kind(key, values, true);
+    }
+
+    fn set_with_kind(&mut self, key: &str, values: &[String], is_array: bool) {
         if values.is_empty() {
             self.delete(key);
             return;
@@ -225,12 +268,12 @@ impl IniDocument {
 
         let first_index = self.lines
             .iter()
-            .position(|line| line.key() == Some(key));
+            .position(|line| line.matches_key(key));
 
         if let Some(index) = first_index {
-            self.replace_existing_key(key, values, index);
+            self.replace_existing_key(key, values, index, is_array);
         } else {
-            self.append_new_key(key, values);
+            self.append_new_key(key, values, is_array);
         }
     }
 
@@ -281,6 +324,20 @@ fn parse_line_kind(content: &str) -> LineKind {
         }
     }
     LineKind::Raw(content.to_string())
+}
+
+fn resolve_replace_key(key: &str, existing_key: &str, is_array: bool) -> String {
+    if key.ends_with("[]") {
+        key.to_string()
+    } else if is_array && existing_key.ends_with("[]") {
+        existing_key.to_string()
+    } else {
+        key.to_string()
+    }
+}
+
+fn resolve_append_key(key: &str, is_array: bool) -> String {
+    if is_array && !key.ends_with("[]") { format!("{key}[]") } else { key.to_string() }
 }
 
 /// Read `path` into an [`IniDocument`]. A missing file produces an empty document;

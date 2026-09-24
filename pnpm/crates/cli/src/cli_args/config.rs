@@ -362,6 +362,9 @@ fn write_ini_setting(config_path: &Path, key: &str, value: &Value) -> miette::Re
         if !doc.delete(key) {
             return Ok(());
         }
+    } else if let Value::Array(_) = value {
+        let values = collect_ini_values(key, value)?;
+        doc.set_array(key, &values);
     } else {
         let values = collect_ini_values(key, value)?;
         doc.set(key, &values);

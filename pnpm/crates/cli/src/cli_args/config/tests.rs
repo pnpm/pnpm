@@ -611,6 +611,34 @@ fn set_ca_array_json_writes_repeated_keys_preserving_comments() {
 }
 
 #[test]
+fn set_ca_replaces_existing_bracketed_ca_lines() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial = "# Corporate CA certificates\nca[]=certificate-A\nca[]=certificate-B\n\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "ca",
+        Some("certificate-C".to_string()),
+    )
+    .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Corporate CA certificates"));
+    assert!(text.contains("ca=certificate-C"));
+    assert!(!text.contains("ca[]="));
+    assert!(text.contains("registry=https://registry.npmjs.org/"));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), vec!["certificate-C"]);
+}
+
+#[test]
 fn delete_missing_params_errors() {
     // No key → NoParams. Exercised through the param-splitting shape the
     // dispatch uses.
