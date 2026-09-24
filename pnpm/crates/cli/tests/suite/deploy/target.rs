@@ -322,3 +322,112 @@ fn deploy_respects_package_import_method() {
 
     drop((root, mock_instance));
 }
+
+#[cfg(unix)]
+#[test]
+fn deploy_preserves_internal_symlinks() {
+    use std::os::unix::fs::symlink;
+
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    write_project(
+        &workspace,
+        "app-with-symlinks",
+        &serde_json::json!({
+            "name": "app-with-symlinks",
+            "version": "1.0.0",
+        }),
+    );
+    let project = workspace.join("packages/app-with-symlinks");
+    fs::write(project.join("real-file.txt"), "hello from real file").unwrap();
+    fs::create_dir_all(project.join("sub")).unwrap();
+    fs::write(project.join("sub/nested.txt"), "nested content").unwrap();
+    symlink("real-file.txt", project.join("symlink-file.txt")).unwrap();
+    symlink("sub", project.join("symlink-dir")).unwrap();
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app-with-symlinks", "deploy", "deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("deploy");
+    let file_symlink = deploy_dir.join("symlink-file.txt");
+    let dir_symlink = deploy_dir.join("symlink-dir");
+
+    assert!(file_symlink.is_symlink(), "file symlink must be preserved");
+    assert_eq!(fs::read_link(&file_symlink).unwrap(), std::path::Path::new("real-file.txt"));
+    assert_eq!(fs::read_to_string(&file_symlink).unwrap(), "hello from real file");
+
+    assert!(dir_symlink.is_symlink(), "directory symlink must be preserved");
+    assert_eq!(fs::read_link(&dir_symlink).unwrap(), std::path::Path::new("sub"));
+    assert_eq!(fs::read_to_string(dir_symlink.join("nested.txt")).unwrap(), "nested content");
+
+    drop((root, mock_instance));
+}
+
+#[cfg(unix)]
+#[test]
+fn deploy_all_files_preserves_internal_symlinks() {
+    use std::os::unix::fs::symlink;
+
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
+    workspace_yaml.push_str("deployAllFiles: true\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+    write_project(
+        &workspace,
+        "app-with-symlinks",
+        &serde_json::json!({
+            "name": "app-with-symlinks",
+            "version": "1.0.0",
+        }),
+    );
+    let project = workspace.join("packages/app-with-symlinks");
+    fs::write(project.join("real-file.txt"), "hello from real file").unwrap();
+    fs::create_dir_all(project.join("sub")).unwrap();
+    fs::write(project.join("sub/nested.txt"), "nested content").unwrap();
+    symlink("real-file.txt", project.join("symlink-file.txt")).unwrap();
+    symlink("sub", project.join("symlink-dir")).unwrap();
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app-with-symlinks", "deploy", "deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("deploy");
+    let file_symlink = deploy_dir.join("symlink-file.txt");
+    let dir_symlink = deploy_dir.join("symlink-dir");
+
+    assert!(file_symlink.is_symlink(), "file symlink must be preserved");
+    assert_eq!(fs::read_link(&file_symlink).unwrap(), std::path::Path::new("real-file.txt"));
+    assert_eq!(fs::read_to_string(&file_symlink).unwrap(), "hello from real file");
+
+    assert!(dir_symlink.is_symlink(), "directory symlink must be preserved");
+    assert_eq!(fs::read_link(&dir_symlink).unwrap(), std::path::Path::new("sub"));
+    assert_eq!(fs::read_to_string(dir_symlink.join("nested.txt")).unwrap(), "nested content");
+
+    drop((root, mock_instance));
+}

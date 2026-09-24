@@ -301,3 +301,54 @@ function linkAdoptingExisting (src: string, dest: string): void {
 }
 
 const linkingImporter = { importFile: linkAdoptingExisting, importFileAtomic: linkAdoptingExisting }
+
+test('importIndexedDir() preserves symlink to internal directory with leading dots in name under junction fallback', async () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  fs.mkdirSync(path.join(src, '..generated'), { recursive: true })
+  fs.writeFileSync(path.join(src, '..generated/gen.txt'), 'generated content')
+  fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
+  try {
+    fs.symlinkSync('..generated', path.join(src, 'gen-link'), 'dir')
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'EPERM' || err.code === 'EACCES')) {
+      return
+    }
+    throw err
+  }
+
+  const newDir = path.join(tmp, 'dest')
+  const filenames = new Map([
+    ['package.json', path.join(src, 'package.json')],
+    ['..generated/gen.txt', path.join(src, '..generated/gen.txt')],
+    ['gen-link', path.join(src, 'gen-link')],
+  ])
+
+  const originalPlatform = process.platform
+  const realSymlinkSync = fs.symlinkSync.bind(fs)
+  const symlinkSpy = jest.spyOn(fs, 'symlinkSync').mockImplementation((target, dest, type) => {
+    if (type === 'dir' && typeof dest === 'string' && dest.includes(tmp)) {
+      const err = new Error('EPERM: operation not permitted, symlink') as NodeJS.ErrnoException
+      err.code = 'EPERM'
+      throw err
+    }
+    return realSymlinkSync(target, dest, type)
+  })
+
+  try {
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    importIndexedDir(
+      { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
+      newDir,
+      filenames,
+      { resolvedFrom: 'local-dir' }
+    )
+  } finally {
+    symlinkSpy.mockRestore()
+    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+  }
+
+  expect(fs.existsSync(path.join(newDir, 'gen-link'))).toBe(true)
+  expect(fs.readFileSync(path.join(newDir, 'gen-link/gen.txt'), 'utf8')).toBe('generated content')
+})
+

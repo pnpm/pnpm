@@ -1,5 +1,7 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
+import util from 'node:util'
 
 import { beforeAll, describe, expect, jest, test } from '@jest/globals'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
@@ -1615,3 +1617,78 @@ function linkIsolated (name: string, version: string, dependencies: Record<strin
     fs.symlinkSync(packageDir, path.resolve('node_modules', name), 'junction')
   }
 }
+
+let canSymlink = true
+const probe = path.join(process.cwd(), `symlink-probe-${process.pid}`)
+try {
+  fs.symlinkSync(process.cwd(), probe, 'dir')
+} catch (err: unknown) {
+  if (util.types.isNativeError(err) && 'code' in err && (err.code === 'EPERM' || err.code === 'EACCES')) {
+    canSymlink = false
+  } else {
+    throw err
+  }
+}
+if (canSymlink) {
+  fs.unlinkSync(probe)
+}
+const testWithSymlinks = canSymlink ? test : test.skip
+
+// cspell:ignore onentry linkpath
+testWithSymlinks('pack: preserves internal symlinks in package tarball and excludes external symlinks', async () => {
+  prepare({
+    name: 'test-pack-symlinks',
+    version: '1.0.0',
+    files: ['real-file.txt', 'symlink-file.txt', 'sub', 'symlink-dir', 'symlink-outside'],
+  })
+
+  fs.writeFileSync('real-file.txt', 'hello from real file')
+  fs.mkdirSync('sub')
+  fs.writeFileSync(path.join('sub', 'nested.txt'), 'nested content')
+  fs.symlinkSync('real-file.txt', 'symlink-file.txt')
+  fs.symlinkSync('sub', 'symlink-dir', 'dir')
+
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'outside-'))
+  try {
+    fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'secret')
+    fs.symlinkSync(path.join(outsideDir, 'secret.txt'), 'symlink-outside')
+
+    await pack.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: process.cwd(),
+      extraBinPaths: [],
+    })
+
+    const tarballName = 'test-pack-symlinks-1.0.0.tgz'
+    expect(fs.existsSync(tarballName)).toBe(true)
+
+    const entries: Array<{ name: string, type: string, linkname?: string }> = []
+    await tar.t({
+      file: tarballName,
+      onentry: (entry) => {
+        entries.push({
+          name: entry.path,
+          type: entry.type,
+          linkname: (entry as unknown as { linkpath?: string }).linkpath,
+        })
+      },
+    })
+
+    const fileLinkEntry = entries.find((e) => e.name === 'package/symlink-file.txt')
+    expect(fileLinkEntry).toBeDefined()
+    expect(fileLinkEntry?.type).toBe('SymbolicLink')
+    expect(fileLinkEntry?.linkname).toBe('real-file.txt')
+
+    const dirLinkEntry = entries.find((e) => e.name === 'package/symlink-dir')
+    expect(dirLinkEntry).toBeDefined()
+    expect(dirLinkEntry?.type).toBe('SymbolicLink')
+    expect(dirLinkEntry?.linkname).toBe('sub')
+
+    const outsideEntry = entries.find((e) => e.name === 'package/symlink-outside')
+    expect(outsideEntry).toBeUndefined()
+  } finally {
+    fs.rmSync(outsideDir, { recursive: true, force: true })
+  }
+})
+

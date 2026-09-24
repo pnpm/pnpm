@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
@@ -26,6 +27,21 @@ jest.unstable_mockModule('@pnpm/logger', () => {
 const { globalWarn } = await import('@pnpm/logger')
 const { deploy } = await import('@pnpm/releasing.commands')
 const testOnNonWindows = process.platform === 'win32' ? test.skip : test
+let canSymlink = true
+const probe = path.join(process.cwd(), `symlink-probe-${process.pid}`)
+try {
+  fs.symlinkSync(process.cwd(), probe, 'dir')
+} catch (err: unknown) {
+  if (util.types.isNativeError(err) && 'code' in err && (err.code === 'EPERM' || err.code === 'EACCES')) {
+    canSymlink = false
+  } else {
+    throw err
+  }
+}
+if (canSymlink) {
+  fs.unlinkSync(probe)
+}
+const testWithSymlinks = canSymlink ? test : test.skip
 
 beforeEach(async () => {
   jest.mocked(globalWarn).mockClear()
@@ -1277,3 +1293,49 @@ test('deploy does not preserve the inject workspace packages settings in the loc
   expect(packageKeys.some((key) => key.startsWith('is-odd@'))).toBeFalsy()
   expect(lockfile.settings).not.toHaveProperty('injectWorkspacePackages')
 })
+
+testWithSymlinks('deploy: preserves internal symlinks in deployed package', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        private: true,
+      },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+
+  fs.writeFileSync('project/real-file.txt', 'hello from real file')
+  fs.mkdirSync('project/sub')
+  fs.writeFileSync('project/sub/nested.txt', 'nested content')
+  fs.symlinkSync('real-file.txt', 'project/symlink-file.txt')
+  fs.symlinkSync('sub', 'project/symlink-dir', 'dir')
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: false,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['dist'])
+
+  expect(fs.lstatSync('dist/symlink-file.txt').isSymbolicLink()).toBe(true)
+  expect(path.resolve('dist', fs.readlinkSync('dist/symlink-file.txt'))).toBe(path.resolve('dist', 'real-file.txt'))
+  expect(fs.readFileSync('dist/symlink-file.txt', 'utf8')).toBe('hello from real file')
+
+  expect(fs.lstatSync('dist/symlink-dir').isSymbolicLink()).toBe(true)
+  expect(path.resolve('dist', fs.readlinkSync('dist/symlink-dir'))).toBe(path.resolve('dist', 'sub'))
+  expect(fs.readFileSync('dist/symlink-dir/nested.txt', 'utf8')).toBe('nested content')
+})
+

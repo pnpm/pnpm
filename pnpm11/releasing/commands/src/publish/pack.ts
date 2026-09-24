@@ -471,8 +471,8 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     if (isManifestEntry(name)) {
       return Buffer.byteLength(JSON.stringify(publishManifest, null, 2))
     }
-    const stat = await fs.promises.stat(source)
-    return stat.size
+    const stat = await fs.promises.lstat(source)
+    return stat.isSymbolicLink() ? 0 : stat.size
   }))
   const injectedSize = Object.values(injectedEntries).reduce((acc, content) => acc + Buffer.byteLength(content), 0)
   const unpackedSize = sizes.reduce((acc, size) => acc + size, 0) + injectedSize
@@ -615,6 +615,27 @@ async function packPkg (opts: {
   for (const entry of compressionOrderedEntries(filesMap, injectedEntries)) {
     if ('content' in entry) {
       pack.entry({ mode: 0o644, mtime, name: entry.name }, entry.content)
+      continue
+    }
+    const stat = fs.lstatSync(entry.source)
+    if (stat.isSymbolicLink()) {
+      let linkname = fs.readlinkSync(entry.source)
+      if (path.isAbsolute(linkname)) {
+        linkname = path.relative(path.dirname(entry.source), linkname)
+      }
+      if (process.platform === 'win32') {
+        linkname = linkname.replace(/\\/g, '/')
+      }
+      const archiveDir = path.posix.dirname(entry.name)
+      const posixTarget = linkname.replace(/\\/g, '/')
+      if (path.posix.isAbsolute(posixTarget)) {
+        continue
+      }
+      const resolvedArchive = path.posix.normalize(path.posix.join(archiveDir, posixTarget))
+      if (resolvedArchive !== 'package' && !resolvedArchive.startsWith('package/')) {
+        continue
+      }
+      pack.entry({ mode: 0o777, mtime, name: entry.name, type: 'symlink', linkname })
       continue
     }
     const isExecutable = bins.some((bin) => path.relative(bin, entry.source) === '') || isFileExecutable(entry.source)

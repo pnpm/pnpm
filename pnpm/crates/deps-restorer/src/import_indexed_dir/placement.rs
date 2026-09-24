@@ -24,6 +24,7 @@ pub(super) fn populate_dir<Reporter: self::Reporter>(
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     placement: Placement,
+    preserve_symlinks: bool,
 ) -> Result<(), ImportIndexedDirError> {
     create_indexed_dirs(dir_path, cas_paths, placement)?;
 
@@ -45,6 +46,8 @@ pub(super) fn populate_dir<Reporter: self::Reporter>(
                         import_method,
                         store_path,
                         &dir_path.join(cleaned_entry),
+                        preserve_symlinks,
+                        dir_path,
                     )
                 })
         })?;
@@ -56,6 +59,8 @@ pub(super) fn populate_dir<Reporter: self::Reporter>(
             import_method,
             &cas_paths[marker],
             &dir_path.join(marker),
+            preserve_symlinks,
+            dir_path,
         )?;
     }
     Ok(())
@@ -143,7 +148,14 @@ pub(super) fn place_entry<Reporter: self::Reporter>(
     import_method: PackageImportMethod,
     store_path: &Path,
     target: &Path,
+    preserve_symlinks: bool,
+    pkg_root: &Path,
 ) -> Result<(), ImportIndexedDirError> {
+    if preserve_symlinks
+        && fs::symlink_metadata(store_path).is_ok_and(|meta| meta.file_type().is_symlink())
+    {
+        return place_symlink_entry(placement, store_path, target, pkg_root);
+    }
     match placement {
         Placement::Fresh => {
             import_into_fresh_target::<Reporter>(logged_methods, import_method, store_path, target)
@@ -158,6 +170,84 @@ pub(super) fn place_entry<Reporter: self::Reporter>(
         }
     }
 }
+
+fn validate_symlink_target(
+    store_path: &Path,
+    target: &Path,
+    pkg_root: &Path,
+) -> Result<PathBuf, ImportIndexedDirError> {
+    let mut link_target = fs::read_link(store_path)
+        .map_err(|error| {
+            ImportIndexedDirError::LinkFile(crate::link_file::LinkFileError::Import {
+                from: store_path.to_path_buf(),
+                to: target.to_path_buf(),
+                error,
+            })
+        })?;
+    if link_target.is_absolute()
+        && let Some(parent) = store_path.parent()
+        && let Some(rel) = pathdiff::diff_paths(&link_target, parent)
+    {
+        link_target = rel;
+    }
+    let dest_dir = target.parent().unwrap_or(pkg_root);
+    let resolved =
+        if link_target.is_absolute() { link_target.clone() } else { dest_dir.join(&link_target) };
+    if !pnpm_fs::is_subdir(pkg_root, &resolved) {
+        return Err(ImportIndexedDirError::SymlinkTargetEscapes {
+            target: link_target,
+            root: pkg_root.to_path_buf(),
+        });
+    }
+    Ok(link_target)
+}
+
+fn place_symlink_entry(
+    placement: Placement,
+    store_path: &Path,
+    target: &Path,
+    pkg_root: &Path,
+) -> Result<(), ImportIndexedDirError> {
+    let link_target = validate_symlink_target(store_path, target, pkg_root)?;
+    if placement == Placement::Repair && file_matches_store_entry(target, store_path) {
+        return Ok(());
+    }
+    clear_dir_blocking_file::<Host>(target)?;
+    let temp = super::staging::pick_stage_path(target);
+    let is_dir = fs::metadata(store_path).is_ok_and(|meta| meta.is_dir());
+    if let Err(error) = pnpm_fs::create_symlink(&link_target, &temp, is_dir) {
+        let _ = fs::remove_file(&temp);
+        return Err(ImportIndexedDirError::LinkFile(crate::link_file::LinkFileError::Import {
+            from: store_path.to_path_buf(),
+            to: target.to_path_buf(),
+            error,
+        }));
+    }
+    commit_symlink_placement(&temp, target, store_path)
+}
+
+fn commit_symlink_placement(
+    temp: &Path,
+    target: &Path,
+    store_path: &Path,
+) -> Result<(), ImportIndexedDirError> {
+    match pnpm_fs::rename_with_retry(temp, target) {
+        Ok(()) => Ok(()),
+        Err(_) if file_matches_store_entry(target, store_path) => {
+            let _ = fs::remove_file(temp);
+            Ok(())
+        }
+        Err(error) => {
+            let _ = fs::remove_file(temp);
+            Err(ImportIndexedDirError::PlaceFile {
+                from: temp.to_path_buf(),
+                to: target.to_path_buf(),
+                error,
+            })
+        }
+    }
+}
+
 /// The completion marker is always placed atomically, in either
 /// placement, so no reader observes it half-written. A repair adds the
 /// clearing pass, since the marker path may hold a directory in a tree
@@ -168,7 +258,14 @@ pub(super) fn place_marker<Reporter: self::Reporter>(
     import_method: PackageImportMethod,
     store_path: &Path,
     target: &Path,
+    preserve_symlinks: bool,
+    pkg_root: &Path,
 ) -> Result<(), ImportIndexedDirError> {
+    if preserve_symlinks
+        && fs::symlink_metadata(store_path).is_ok_and(|meta| meta.file_type().is_symlink())
+    {
+        return place_symlink_entry(placement, store_path, target, pkg_root);
+    }
     if placement == Placement::Repair {
         clear_dir_blocking_file::<Host>(target)?;
     }
@@ -326,13 +423,20 @@ pub(super) fn all_files_match(dir_path: &Path, cas_paths: &HashMap<String, PathB
 /// way pnpm's `allFilesMatch` does.
 pub(super) fn file_matches_store_entry(target: &Path, store_path: &Path) -> bool {
     let (Ok(target_meta), Ok(store_meta)) =
-        (fs::symlink_metadata(target), fs::metadata(store_path))
+        (fs::symlink_metadata(target), fs::symlink_metadata(store_path))
     else {
         return false;
     };
+    if store_meta.file_type().is_symlink() {
+        return target_meta.file_type().is_symlink()
+            && symlink_matches_store_entry(target, store_path);
+    }
     if !target_meta.is_file() {
         return false;
     }
+    let Ok(store_meta) = fs::metadata(store_path) else {
+        return false;
+    };
     // Unix carries the file's identity in the stat results already.
     // Windows keeps it behind an open handle, which `same-file` opens —
     // worth two handles to spare a hardlinked package a full read on the
@@ -350,6 +454,23 @@ pub(super) fn file_matches_store_entry(target: &Path, store_path: &Path) -> bool
     }
     target_meta.len() == store_meta.len()
         && files_have_equal_contents(target, store_path).unwrap_or(false)
+}
+
+fn symlink_matches_store_entry(target: &Path, store_path: &Path) -> bool {
+    let (Ok(target_link), Ok(store_link)) = (fs::read_link(target), fs::read_link(store_path))
+    else {
+        return false;
+    };
+    if target_link == store_link {
+        return true;
+    }
+    if store_link.is_absolute()
+        && let Some(parent) = store_path.parent()
+        && let Some(rel) = pathdiff::diff_paths(&store_link, parent)
+    {
+        return target_link == rel;
+    }
+    false
 }
 /// Byte-compare two files without buffering either one.
 ///

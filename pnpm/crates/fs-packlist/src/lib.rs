@@ -279,7 +279,13 @@ fn collect_walked_files(
 ) -> Result<(), PacklistError> {
     for entry in builder.build() {
         let entry = entry.map_err(|err| io_error(pkg_dir, into_io(err)))?;
-        if !entry.file_type().is_some_and(|file_type| file_type.is_file()) {
+        let Some(file_type) = entry.file_type() else {
+            continue;
+        };
+        if !file_type.is_file() && !file_type.is_symlink() {
+            continue;
+        }
+        if file_type.is_symlink() && !is_internal_symlink(pkg_dir, entry.path()) {
             continue;
         }
         let rel = relative_forward_slash(pkg_dir, entry.path());
@@ -311,6 +317,19 @@ fn walked_file_is_excluded(rel: &str, selection: &FileSelection<'_>) -> bool {
 /// Pass 2: scan the root for always-included names (README, LICENSE, etc.)
 /// that `.npmignore` might have removed from pass 1. npm-packlist guarantees
 /// these survive `.npmignore`.
+fn is_admissible_root_file(pkg_dir: &Path, entry: &fs::DirEntry) -> bool {
+    let Ok(file_type) = entry.file_type() else {
+        return false;
+    };
+    if file_type.is_file() {
+        return true;
+    }
+    if file_type.is_symlink() {
+        return is_internal_symlink(pkg_dir, &entry.path());
+    }
+    false
+}
+
 fn collect_always_included_at_root(
     pkg_dir: &Path,
     out: &mut BTreeSet<String>,
@@ -348,7 +367,7 @@ fn collect_root_files_matching(
             pkg_dir: pkg_dir.display().to_string(),
             source,
         })?;
-        if !entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
+        if !is_admissible_root_file(pkg_dir, &entry) {
             continue;
         }
         let name = entry
@@ -360,6 +379,26 @@ fn collect_root_files_matching(
         }
     }
     Ok(())
+}
+
+fn is_internal_symlink(pkg_dir: &Path, symlink_path: &Path) -> bool {
+    let Ok(target) = fs::read_link(symlink_path) else {
+        return false;
+    };
+    let parent = symlink_path.parent().unwrap_or(pkg_dir);
+    let resolved = if target.is_absolute() { target } else { parent.join(&target) };
+    let normalized = pnpm_fs::lexical_normalize(&resolved);
+    let normalized_pkg_dir = pnpm_fs::lexical_normalize(pkg_dir);
+    if !normalized.starts_with(&normalized_pkg_dir) {
+        return false;
+    }
+    if let Ok(real_target) = fs::canonicalize(symlink_path) {
+        let canonical_pkg = pkg_dir.canonicalize().unwrap_or_else(|_| pkg_dir.to_path_buf());
+        if !real_target.starts_with(&canonical_pkg) {
+            return false;
+        }
+    }
+    true
 }
 
 /// Pass 3: force-include `main` / `bin` paths, which always ship regardless of
