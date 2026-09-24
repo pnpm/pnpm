@@ -173,7 +173,11 @@ fn plan_pin_action(
 ) -> miette::Result<PreCommandAction> {
     match outcome {
         PinOutcome::Switch(target) => {
-            let config = load_pre_command_config(switch, config_overrides, dir, true)?;
+            let mut config = load_pre_command_config(switch, config_overrides, dir, true)?;
+            // Without a workspace, the approvals of the pinned pnpm's install
+            // go to the project, as a regular install's do.
+            config.target_workspace_dir =
+                Some(config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf()));
             Ok(PreCommandAction::Switch(SwitchPlan { config, target }))
         }
         PinOutcome::Sync(Some(sync)) => {
