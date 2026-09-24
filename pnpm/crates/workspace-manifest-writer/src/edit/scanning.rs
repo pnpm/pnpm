@@ -178,6 +178,19 @@ pub(super) fn structural_indent(content: &str) -> Option<usize> {
     Some(indent)
 }
 
+/// Whether a structural line carries a block-sequence item (`- value`).
+pub(super) fn is_sequence_item_line(content: &str) -> bool {
+    let trimmed = content.trim_start();
+    trimmed == "-" || trimmed.starts_with("- ")
+}
+
+/// Whether a line starts a top-level mapping key.
+pub(super) fn is_top_level_key(content: &str) -> bool {
+    structural_indent(content) == Some(0)
+        && !is_sequence_item_line(content)
+        && line_key(content).is_some()
+}
+
 /// The mapping-key a structural line declares (`key:` or `key: value`), if any.
 ///
 /// The key/value delimiter is the first `:` that ends the line or is followed
@@ -370,7 +383,7 @@ pub(super) fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
     // closing bracket behind when the block is replaced or removed.
     let body_start = inline_value_last_line(text, &all, key_idx).unwrap_or(key_idx) + 1;
     let next_key_idx = (body_start..all.len())
-        .find(|&idx| structural_indent(all[idx].content) == Some(0))
+        .find(|&idx| is_top_level_key(all[idx].content))
         .unwrap_or(all.len());
     let block_end_idx = leading_comment_start(&all, body_start, next_key_idx);
     let block_end = all
@@ -383,8 +396,7 @@ pub(super) fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
 pub(super) fn top_level_key_line(all: &[Line<'_>], key: &str) -> Option<usize> {
     all.iter()
         .position(|line| {
-            structural_indent(line.content) == Some(0)
-                && line_key(line.content).as_deref() == Some(key)
+            is_top_level_key(line.content) && line_key(line.content).as_deref() == Some(key)
         })
 }
 

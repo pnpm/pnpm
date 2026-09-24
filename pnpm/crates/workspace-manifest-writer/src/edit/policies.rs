@@ -1,7 +1,8 @@
 use super::{
-    Inline, Manifest, flow, insert_top_level_block, locate, locate_sequence, mapping_keys,
-    reconcile_sequence_items, remove_mapping_entries, remove_top_level_block, render,
-    render_top_level_sequence, replace_top_level_block, top_level_span, upsert_sequence_entry,
+    Inline, Manifest, detect_sequence_indent, flow, insert_top_level_block, locate,
+    locate_sequence, mapping_keys, reconcile_sequence_items, remove_mapping_entries,
+    remove_top_level_block, render, render_top_level_sequence, replace_top_level_block,
+    top_level_span, upsert_sequence_entry,
 };
 
 /// Set the ignore list to `ghsas` (the complete desired list) in whichever
@@ -194,7 +195,8 @@ fn replace_exclude_sequence(
     items: &[String],
     quote_style: render::QuoteStyle,
 ) {
-    let rendered = render_top_level_sequence(block, items, quote_style);
+    let indent = detect_sequence_indent(manifest.document.text(), Some(block));
+    let rendered = render_top_level_sequence(block, items, quote_style, indent);
     if let Some(span) = top_level_span(manifest.document.text(), block) {
         manifest.document.set_text(replace_top_level_block(
             manifest.document.text(),

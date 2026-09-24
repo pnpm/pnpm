@@ -896,6 +896,40 @@ fn prunes_the_trust_policy_excludes() {
     drop((root, anchor));
 }
 
+/// Regression test for [pnpm/pnpm#15571](https://github.com/pnpm/pnpm/issues/15571).
+#[test]
+fn install_prunes_minimum_release_age_excludes_with_zero_indentation() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "1.0.0" }}"#));
+    append_workspace_yaml(
+        &workspace,
+        &format!(
+            "minimumReleaseAgeExcludePrune: true\n\
+             minimumReleaseAgeExclude:\n\
+             - '{FOO}@1.0.0'\n\
+             - '@pnpm.e2e/bar@100.0.0'\n",
+        ),
+    );
+
+    run_ok(&workspace, &["install"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(&format!("- '{FOO}@1.0.0'")),
+        "surviving entry must be kept with zero indentation:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains(&format!("  - '{FOO}@1.0.0'")),
+        "must not insert two-space indentation when zero indentation was used:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/bar"),
+        "the exclude for an absent package must be dropped:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
 /// Regression test for [pnpm#13715](https://github.com/pnpm/pnpm/issues/13715).
 #[test]
 fn add_moves_a_catalog_locked_on_another_version() {
