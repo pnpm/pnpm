@@ -98,7 +98,7 @@ fn a_workspaces_field_reaching_outside_the_root_is_rejected_without_touching_any
         !output.status.success(),
         "the conversion must fail\nstdout:\n{}\nstderr:\n{}",
         stdout(&output),
-        stderr(&output)
+        stderr(&output),
     );
     let printed = stderr(&output);
     assert!(
@@ -106,9 +106,9 @@ fn a_workspaces_field_reaching_outside_the_root_is_rejected_without_touching_any
         "the error is reported:\n{printed}",
     );
     assert!(printed.contains("../outside/*"), "the error names the pattern:\n{printed}");
-    assert!(!workspace.join("pnpm-workspace.yaml").exists(), "no workspace yaml may be generated",);
-    assert!(!workspace.join("pnpm-lock.yaml").exists(), "no lockfile may be written",);
-    assert!(!outside.join("node_modules").exists(), "the outside project must stay untouched",);
+    assert!(!workspace.join("pnpm-workspace.yaml").exists(), "no workspace yaml may be generated");
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "no lockfile may be written");
+    assert!(!outside.join("node_modules").exists(), "the outside project must stay untouched");
     assert_eq!(
         fs::read_to_string(outside.join("package.json")).expect("outside manifest kept"),
         r#"{"name":"outside","version":"1.0.0"}"#,

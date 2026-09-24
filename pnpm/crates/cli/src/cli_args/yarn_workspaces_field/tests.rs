@@ -335,7 +335,7 @@ fn a_lockfile_dir_at_the_project_still_converts() {
 fn pattern_checks_reject_only_paths_leaving_the_project_directory() {
     let escapes = |pattern: &str| root_escape_reason(pattern).is_some();
     assert!(escapes("../outside/*"));
-    assert!(escapes("..\\outside\\*"), "both separators count");
+    assert!(escapes(r"..\outside\*"), "both separators count");
     assert!(escapes(".."));
     assert!(escapes("packages/../.."));
     assert!(escapes("/etc/*"), "absolute path");
@@ -369,14 +369,14 @@ fn an_escaping_pattern_fails_the_conversion_before_anything_is_written() {
     assert!(
         !dir.path()
             .join("pnpm-workspace.yaml")
-            .exists()
+            .exists(),
     );
     assert_eq!(config.workspace_dir, None);
 }
 
 #[test]
 fn backslash_and_absolute_patterns_fail_the_conversion_too() {
-    for pattern in ["..\\outside\\*", "/outside/*", "C:/outside/*"] {
+    for pattern in [r"..\outside\*", "/outside/*", "C:/outside/*"] {
         let dir = tempfile::tempdir().expect("create temp dir");
         let mut config = pnpm_config::Config::default();
         let root_manifest = serde_json::json!({"workspaces": [pattern]});
