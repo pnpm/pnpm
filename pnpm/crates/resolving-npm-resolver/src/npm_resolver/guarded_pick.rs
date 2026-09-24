@@ -30,6 +30,14 @@ pub(crate) struct PickFromRegistryOptions<'a> {
     pub preferred_version_selectors: Option<&'a pnpm_resolving_resolver_base::VersionSelectors>,
     pub pick_lowest_version: bool,
     pub include_latest_tag: bool,
+    pub checks: CandidateChecks<'a>,
+    pub policy: crate::PackagePickPolicy<'a>,
+    pub request: crate::MetadataPickRequest,
+}
+
+/// Checks that can set a picked candidate aside so the picker tries the
+/// next matching version.
+pub(crate) struct CandidateChecks<'a> {
     pub package_version_guard:
         Option<&'a Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
     /// The `trustPolicy: no-downgrade` check, when it applies to this pick.
@@ -37,8 +45,18 @@ pub(crate) struct PickFromRegistryOptions<'a> {
     /// guard rejection is, and the first downgrade is the error when no
     /// candidate is left.
     pub trust_check: Option<TrustCheckOptions<'a>>,
-    pub policy: crate::PackagePickPolicy<'a>,
-    pub request: crate::MetadataPickRequest,
+}
+
+impl<'a> CandidateChecks<'a> {
+    pub(crate) fn new(
+        policy: &'a pnpm_resolving_resolver_base::ResolutionPolicyOptions,
+        trust_check: Option<TrustCheckOptions<'a>>,
+    ) -> Self {
+        CandidateChecks {
+            package_version_guard: policy.package_version_guard.as_ref(),
+            trust_check,
+        }
+    }
 }
 
 /// Upper bound on guard rejections for one package before the resolver
@@ -74,59 +92,33 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
     // The first candidate the guard turned down, i.e. the one the picker
     // would have returned with no guard at all.
     let mut first_rejected: Option<PickedFromRegistry> = None;
-    let mut trust_rejections = TrustRejections::default();
+    let mut trust = TrustRejections::default();
     loop {
         let pick_result = pick_package(ctx, opts.spec, &pick_options(&opts, &blocked_versions))
             .await
             .map_err(|err| map_pick_error(ctx, &opts, err))?;
 
         let Some(version) = pick_result.picked_package else {
-            // No candidate left. With no prior guard rejection this is the
-            // ordinary "no matching version" outcome; once the guard has
-            // rejected every match, the guard's own policy decides, and a
-            // failure names the guard rather than blaming the range the user
-            // wrote.
-            return match last_rejection {
-                Some(reason) => exhausted(&opts, first_rejected, reason, all_versions_blocked),
-                None => match trust_rejections.first_downgrade {
-                    Some(downgrade) => Err(Box::new(downgrade)),
-                    None => Ok(RegistryPick::NoMatchingVersion(pick_result.meta)),
-                },
-            };
+            return trust.no_candidate_left(
+                &opts,
+                last_rejection,
+                first_rejected,
+                pick_result.meta,
+            );
         };
         let version_str = version.version.to_string();
-
-        if let Some(trust_check) = &opts.trust_check {
-            // The first pick runs with nothing blocked, so its packument
-            // holds the whole publish history every candidate is judged by.
-            let full_meta =
-                trust_rejections.full_meta.get_or_insert_with(|| Arc::clone(&pick_result.meta));
-            match fail_if_trust_downgraded(full_meta, &version_str, trust_check) {
-                Ok(()) => {}
-                Err(downgrade @ TrustViolation::TrustDowngrade { .. }) => {
-                    let blocked_key =
-                        blocked_packument_key(&pick_result.meta, &version, &version_str);
-                    if repick_limit_reached(&mut blocked_versions, blocked_key).is_some() {
-                        return Err(Box::new(trust_rejections.first_downgrade.unwrap_or(
-                            downgrade,
-                        )));
-                    }
-                    trust_rejections.rejected_versions.push(version_str);
-                    trust_rejections.first_downgrade.get_or_insert(downgrade);
-                    continue;
-                }
-                Err(violation) => return Err(Box::new(violation)),
-            }
+        if trust.set_aside(&opts, &pick_result.meta, &version, &mut blocked_versions)? {
+            continue;
         }
 
-        let Some(guard) = opts.package_version_guard else {
-            return Ok(trust_rejections.picked(&opts.spec.name, pick_result.meta, version));
+        let Some(guard) = opts.checks.package_version_guard else {
+            return Ok(trust.picked(&opts.spec.name, pick_result.meta, version));
         };
 
         let PackageVersionGuardDecision::Reject { reason } =
             guard.check(&opts.spec.name, &version_str).await?
         else {
-            return Ok(trust_rejections.picked(&opts.spec.name, pick_result.meta, version));
+            return Ok(trust.picked(&opts.spec.name, pick_result.meta, version));
         };
         log_guard_rejection(&opts.spec.name, &version_str, &reason);
         // Block by the *packument key*, which the next pick filters on. It
@@ -154,6 +146,59 @@ struct TrustRejections {
 }
 
 impl TrustRejections {
+    /// The guarded pick's answer once the picker has no candidate left. With
+    /// no prior rejection this is the ordinary "no matching version" outcome.
+    /// Once the guard has rejected every match, the guard's own policy
+    /// decides, and a failure names the guard rather than blaming the range
+    /// the user wrote. Once only the trust check has, its first downgrade is
+    /// the error.
+    fn no_candidate_left(
+        self,
+        opts: &PickFromRegistryOptions<'_>,
+        last_rejection: Option<String>,
+        first_rejected: Option<PickedFromRegistry>,
+        meta: Arc<Package>,
+    ) -> Result<RegistryPick, ResolveError> {
+        if let Some(reason) = last_rejection {
+            return exhausted(opts, first_rejected, reason, all_versions_blocked);
+        }
+        match self.first_downgrade {
+            Some(downgrade) => Err(Box::new(downgrade)),
+            None => Ok(RegistryPick::NoMatchingVersion(meta)),
+        }
+    }
+
+    /// Runs the trust check on `version` and reports whether it was set
+    /// aside. A check failure other than a downgrade, or reaching the
+    /// re-pick cap, is an error.
+    fn set_aside(
+        &mut self,
+        opts: &PickFromRegistryOptions<'_>,
+        meta: &Arc<Package>,
+        version: &Arc<PackageVersion>,
+        blocked_versions: &mut std::collections::HashSet<String>,
+    ) -> Result<bool, ResolveError> {
+        let Some(trust_check) = &opts.checks.trust_check else {
+            return Ok(false);
+        };
+        // The first pick runs with nothing blocked, so its packument holds
+        // the whole publish history every candidate is judged by.
+        let full_meta = self.full_meta.get_or_insert_with(|| Arc::clone(meta));
+        let version_str = version.version.to_string();
+        let downgrade = match fail_if_trust_downgraded(full_meta, &version_str, trust_check) {
+            Ok(()) => return Ok(false),
+            Err(downgrade @ TrustViolation::TrustDowngrade { .. }) => downgrade,
+            Err(violation) => return Err(Box::new(violation)),
+        };
+        let blocked_key = blocked_packument_key(meta, version, &version_str);
+        if repick_limit_reached(blocked_versions, blocked_key).is_some() {
+            return Err(Box::new(self.first_downgrade.take().unwrap_or(downgrade)));
+        }
+        self.rejected_versions.push(version_str);
+        self.first_downgrade.get_or_insert(downgrade);
+        Ok(true)
+    }
+
     /// The accepted candidate. After a trust fallback it carries the
     /// packument from before any version was set aside, so the result
     /// reports the same `latest` it would have without the fallback.
@@ -268,7 +313,7 @@ pub(super) fn exhausted(
     reason: String,
     fail: impl FnOnce(String, String) -> ResolveError,
 ) -> Result<RegistryPick, ResolveError> {
-    let accepts_rejected = opts.package_version_guard.is_some_and(|guard| {
+    let accepts_rejected = opts.checks.package_version_guard.is_some_and(|guard| {
         guard.exhaustion_policy() == GuardExhaustionPolicy::AcceptRejected
     });
     match first_rejected.filter(|_| accepts_rejected) {

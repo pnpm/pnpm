@@ -21,7 +21,8 @@ pub(crate) use resolution_result::{RegistryResolutionSource, ResolvedSpecifier};
 pub(crate) use package_revision::validate_revision_selector;
 
 pub(crate) use guarded_pick::{
-    PickFromRegistryOptions, PickedFromRegistry, RegistryPick, pick_from_registry_with_guard,
+    CandidateChecks, PickFromRegistryOptions, PickedFromRegistry, RegistryPick,
+    pick_from_registry_with_guard,
 };
 
 pub(crate) use workspace_pick::{no_matching_version, swallowed_as_no_latest};
@@ -412,8 +413,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 preferred_version_selectors: base_selectors,
                 pick_lowest_version: opts.version.pick_lowest_version,
                 include_latest_tag: opts.refresh.update == UpdateBehavior::Latest,
-                package_version_guard: opts.policy.package_version_guard.as_ref(),
-                trust_check,
+                checks: crate::npm_resolver::CandidateChecks::new(&opts.policy, trust_check),
                 policy: crate::PackagePickPolicy {
                     published_by: opts.policy.published_by,
                     published_by_exclude: opts.policy.published_by_exclude.as_ref(),

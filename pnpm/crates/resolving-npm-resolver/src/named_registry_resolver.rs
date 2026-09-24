@@ -206,8 +206,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
                 preferred_version_selectors: base_selectors,
                 pick_lowest_version: opts.version.pick_lowest_version,
                 include_latest_tag: opts.refresh.update == UpdateBehavior::Latest,
-                package_version_guard: opts.policy.package_version_guard.as_ref(),
-                trust_check: None,
+                checks: crate::npm_resolver::CandidateChecks::new(&opts.policy, None),
                 policy: crate::PackagePickPolicy {
                     published_by: opts.policy.published_by,
                     published_by_exclude: opts.policy.published_by_exclude.as_ref(),
