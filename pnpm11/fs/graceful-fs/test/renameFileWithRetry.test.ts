@@ -67,8 +67,22 @@ test('rename recovers from a temporary permission error', () => {
   expect(rename).toHaveBeenCalledTimes(2)
 })
 
+test('a WSL rename recovers from a Windows file lock', () => {
+  Object.defineProperty(process, 'platform', { value: 'linux' })
+  jest.spyOn(os, 'release').mockReturnValue('5.15.167.4-microsoft-standard-WSL2')
+  const rename = jest.spyOn(fs, 'renameSync')
+    .mockImplementationOnce(() => {
+      throw Object.assign(new Error('denied'), { code: 'EACCES' })
+    })
+    .mockImplementation(() => {})
+
+  renameFileWithRetry('source', 'destination')
+  expect(rename).toHaveBeenCalledTimes(2)
+})
+
 test('Unix permission errors are returned immediately', () => {
   Object.defineProperty(process, 'platform', { value: 'linux' })
+  jest.spyOn(os, 'release').mockReturnValue('6.8.0-45-generic')
   const error = Object.assign(new Error('denied'), { code: 'EACCES' })
   const rename = jest.spyOn(fs, 'renameSync').mockImplementation(() => {
     throw error

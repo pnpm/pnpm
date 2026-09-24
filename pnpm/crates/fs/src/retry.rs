@@ -1,19 +1,16 @@
-use std::{fs, io, path::Path};
+use std::{
+    fs, io,
+    path::Path,
+    time::{Duration, Instant},
+};
 
-#[cfg(any(windows, test))]
-use std::time::{Duration, Instant};
-
-#[cfg(any(windows, test))]
 const RETRY_BUDGET: Duration = Duration::from_mins(1);
-#[cfg(any(windows, test))]
 const PERMISSION_DENIED_RETRY_BUDGET: Duration = Duration::from_secs(1);
 /// How long a removal waits out access denied. Windows also reports access
 /// denied for an executable that a running process has loaded, so this
 /// covers a program under `node_modules` that is shutting down, while a
 /// restrictive ACL still fails the removal within seconds.
-#[cfg(any(windows, test))]
 const REMOVAL_PERMISSION_DENIED_RETRY_BUDGET: Duration = Duration::from_secs(5);
-#[cfg(any(windows, test))]
 const RETRY_BACKOFF_CAP: Duration = Duration::from_millis(100);
 
 pub(crate) const ERROR_SHARING_VIOLATION: i32 = 32;
@@ -29,7 +26,8 @@ pub(crate) const ERROR_LOCK_VIOLATION: i32 = 33;
 /// permanent ACL, read-only, or destination-type conflicts.
 /// On Unix the operation runs exactly once: the equivalent error kinds
 /// there usually mean a permanent permissions or mount-point problem, so
-/// retrying would only delay the failure.
+/// retrying would only delay the failure. WSL is the exception: a Windows
+/// drive mounted there keeps Windows locking.
 pub fn rename_with_retry(src: &Path, dst: &Path) -> io::Result<()> {
     retry_transient_file_locks(|| {
         let result = fs::rename(src, dst);
@@ -93,38 +91,31 @@ pub fn symlink_metadata_with_retry(path: &Path) -> io::Result<fs::Metadata> {
 pub(crate) fn retry_transient_file_locks<Value>(
     operation: impl FnMut() -> io::Result<Value>,
 ) -> io::Result<Value> {
-    #[cfg(windows)]
-    {
+    if file_locks_are_transient() {
         retry_fs_operation(operation, is_transient_file_lock_error)
-    }
-    #[cfg(not(windows))]
-    {
+    } else {
         let mut operation = operation;
         operation()
     }
 }
 
 /// Run a removal with the retry policy of [`rename_with_retry`], except that
-/// permission errors get the longer removal budget on Windows.
+/// permission errors get the longer removal budget.
 pub(crate) fn retry_transient_removal_locks<Value>(
     operation: impl FnMut() -> io::Result<Value>,
 ) -> io::Result<Value> {
-    #[cfg(windows)]
-    {
+    if file_locks_are_transient() {
         retry_fs_operation_within(
             operation,
             is_transient_file_lock_error,
             REMOVAL_PERMISSION_DENIED_RETRY_BUDGET,
         )
-    }
-    #[cfg(not(windows))]
-    {
+    } else {
         let mut operation = operation;
         operation()
     }
 }
 
-#[cfg(any(windows, test))]
 fn retry_fs_operation<Func, Value, Classify>(
     operation: Func,
     is_transient: Classify,
@@ -136,7 +127,6 @@ where
     retry_fs_operation_within(operation, is_transient, PERMISSION_DENIED_RETRY_BUDGET)
 }
 
-#[cfg(any(windows, test))]
 fn retry_fs_operation_within<Func, Value, Classify>(
     operation: Func,
     is_transient: Classify,
@@ -159,7 +149,6 @@ where
     )
 }
 
-#[cfg(any(windows, test))]
 struct RetryTiming<Elapsed, Sleep> {
     budget: Duration,
     /// The budget once any attempt fails with a permission error other than
@@ -169,7 +158,6 @@ struct RetryTiming<Elapsed, Sleep> {
     sleep: Sleep,
 }
 
-#[cfg(any(windows, test))]
 fn retry_fs_operation_with_timing<Func, Value, Classify, Elapsed, Sleep>(
     mut operation: Func,
     is_transient: Classify,
@@ -203,7 +191,6 @@ where
 /// Sleep out one backoff, capped to what is left of the budget. Reports
 /// whether the budget still allows another attempt — checked both before the
 /// sleep and after it, since the sleep itself consumes budget.
-#[cfg(any(windows, test))]
 fn wait_for_retry<Elapsed, Sleep>(
     timing: &mut RetryTiming<Elapsed, Sleep>,
     backoff: Duration,
@@ -229,11 +216,49 @@ where
 /// [`ERROR_LOCK_VIOLATION`] (an open or delete refused by another handle's
 /// share mode), or `ERROR_BUSY`. The sharing and lock violations have no
 /// [`io::ErrorKind`] of their own, so they are matched by raw OS error.
-/// Always `false` on Unix.
+/// Under WSL the same locks surface as `EACCES`/`EPERM` or `EBUSY`. Always
+/// `false` on other Unix systems.
 pub(crate) fn is_transient_file_lock_error(error: &io::Error) -> bool {
-    cfg!(windows)
+    file_locks_are_transient()
         && (matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ResourceBusy)
-            || matches!(error.raw_os_error(), Some(ERROR_SHARING_VIOLATION | ERROR_LOCK_VIOLATION)))
+            || (cfg!(windows)
+                && matches!(
+                    error.raw_os_error(),
+                    Some(ERROR_SHARING_VIOLATION | ERROR_LOCK_VIOLATION),
+                )))
+}
+
+/// Whether filesystem errors may come from another process's transient
+/// Windows file lock. True on Windows and under WSL, where a Windows drive
+/// mounted at `/mnt/<letter>` keeps Windows locking: a rename or removal
+/// blocked by an antivirus or indexer handle fails with `EACCES` there.
+fn file_locks_are_transient() -> bool {
+    #[cfg(windows)]
+    {
+        true
+    }
+    #[cfg(target_os = "linux")]
+    {
+        static UNDER_WSL: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        *UNDER_WSL.get_or_init(|| {
+            fs::read_to_string("/proc/sys/kernel/osrelease")
+                .is_ok_and(|release| is_wsl_kernel_release(&release))
+        })
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
+    {
+        false
+    }
+}
+
+/// WSL kernels identify themselves in their release string, e.g.
+/// `5.15.167.4-microsoft-standard-WSL2` or `4.4.0-19041-Microsoft` (WSL 1).
+#[cfg_attr(
+    not(any(target_os = "linux", test)),
+    expect(dead_code, reason = "only Linux can run under WSL")
+)]
+fn is_wsl_kernel_release(release: &str) -> bool {
+    release.to_ascii_lowercase().contains("microsoft")
 }
 
 #[cfg(test)]

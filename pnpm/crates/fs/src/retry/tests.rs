@@ -1,9 +1,10 @@
 use super::{
     ERROR_LOCK_VIOLATION, ERROR_SHARING_VIOLATION, PERMISSION_DENIED_RETRY_BUDGET,
     REMOVAL_PERMISSION_DENIED_RETRY_BUDGET, RetryTiming, create_dir_all_with_retry,
-    create_dir_with_retry, is_transient_file_lock_error, metadata_with_retry,
-    remove_dir_all_with_retry, remove_dir_with_retry, rename_with_retry, retry_fs_operation,
-    retry_fs_operation_with_timing, symlink_metadata_with_retry,
+    create_dir_with_retry, file_locks_are_transient, is_transient_file_lock_error,
+    is_wsl_kernel_release, metadata_with_retry, remove_dir_all_with_retry, remove_dir_with_retry,
+    rename_with_retry, retry_fs_operation, retry_fs_operation_with_timing,
+    symlink_metadata_with_retry,
 };
 use std::{cell::Cell, fs, io, time::Duration};
 use tempfile::tempdir;
@@ -72,10 +73,10 @@ fn stops_retrying_at_the_budget_deadline() {
 }
 
 #[test]
-fn transient_file_lock_error_classifier_is_windows_specific() {
+fn transient_file_lock_error_classifier_follows_the_host() {
     for kind in [io::ErrorKind::PermissionDenied, io::ErrorKind::ResourceBusy] {
         let error = io::Error::from(kind);
-        assert_eq!(is_transient_file_lock_error(&error), cfg!(windows), "{kind:?}");
+        assert_eq!(is_transient_file_lock_error(&error), file_locks_are_transient(), "{kind:?}");
     }
 
     for code in [ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION] {
@@ -92,6 +93,16 @@ fn transient_file_lock_error_classifier_is_windows_specific() {
         io::ErrorKind::Other,
     ] {
         assert!(!is_transient_file_lock_error(&io::Error::from(kind)), "{kind:?}");
+    }
+}
+
+#[test]
+fn wsl_kernels_are_recognized_by_their_release() {
+    for release in ["5.15.167.4-microsoft-standard-WSL2", "4.4.0-19041-Microsoft\n"] {
+        assert!(is_wsl_kernel_release(release), "{release}");
+    }
+    for release in ["6.8.0-45-generic", "6.10.14-linuxkit", "6.1.0-rpi7-rpi-v8"] {
+        assert!(!is_wsl_kernel_release(release), "{release}");
     }
 }
 

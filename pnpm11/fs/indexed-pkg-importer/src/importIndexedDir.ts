@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import gfs, { lstatWithRetry, renameFileWithRetry, unlinkWithRetry } from '@pnpm/fs.graceful-fs'
+import gfs, { lstatWithRetry, renameFileWithRetry, unlinkWithRetry, withFileLockRetry } from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import type { ResolvedFrom } from '@pnpm/store.controller-types'
 import { rimrafSync } from '@zkochan/rimraf'
@@ -95,7 +95,11 @@ export function importIndexedDir (
     throw err
   }
   try {
-    renameOverwriteSync(stage, newDir)
+    // rename-overwrite retries Windows lock errors (EPERM, EBUSY) but not the
+    // EACCES that the same locks produce on a Windows drive mounted into WSL.
+    withFileLockRetry(() => {
+      renameOverwriteSync(stage, newDir)
+    })
   } catch (renameErr: unknown) {
     try {
       rimrafSync(stage)

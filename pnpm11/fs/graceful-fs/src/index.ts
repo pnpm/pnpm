@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import util, { promisify } from 'node:util'
 
 import gfs from 'graceful-fs'
@@ -55,6 +56,7 @@ function withEagainRetry<T extends unknown[], R> (
 
 /**
  * Renames `src` over `dest`, retrying Windows EBUSY errors for up to a minute.
+ * Windows drives mounted into WSL get the same retries.
  * EPERM and EACCES have a one-second budget because they can also indicate
  * permanent permission or destination conflicts. Other errors are thrown
  * right away.
@@ -91,7 +93,11 @@ export function unlinkWithRetry (target: string): void {
   })
 }
 
-function withFileLockRetry<T> (operation: () => T): T {
+/**
+ * Runs a filesystem operation with the retry policy of
+ * {@link renameFileWithRetry}.
+ */
+export function withFileLockRetry<T> (operation: () => T): T {
   const startedAt = Date.now()
   let backoffMs = 0
   let budgetMs = FILE_LOCK_RETRY_BUDGET_MS
@@ -111,8 +117,15 @@ function withFileLockRetry<T> (operation: () => T): T {
 }
 
 function isTransientFileLockError (err: unknown): err is NodeJS.ErrnoException {
-  return process.platform === 'win32' &&
+  return (process.platform === 'win32' || isWsl()) &&
     util.types.isNativeError(err) &&
     'code' in err &&
     (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EBUSY')
+}
+
+// A Windows drive mounted into WSL (/mnt/c) keeps Windows file locking, so an
+// antivirus or indexer handle fails a rename there with EACCES. WSL kernels
+// carry "microsoft" in their release, e.g. 5.15.167.4-microsoft-standard-WSL2.
+function isWsl (): boolean {
+  return process.platform === 'linux' && os.release().toLowerCase().includes('microsoft')
 }

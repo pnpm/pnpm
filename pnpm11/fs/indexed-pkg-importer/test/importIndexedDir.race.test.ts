@@ -1,7 +1,8 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
-import { beforeEach, expect, jest, test } from '@jest/globals'
+import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import { tempDir } from '@pnpm/prepare'
 
 // Mock renameOverwriteSync so we can verify it's called (or not called)
@@ -14,8 +15,15 @@ jest.unstable_mockModule('rename-overwrite', () => ({
 
 const { importIndexedDir } = await import('../src/importIndexedDir.js')
 
+const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
+
 beforeEach(() => {
   renameOverwriteSyncMock.mockReset()
+})
+
+afterEach(() => {
+  jest.restoreAllMocks()
+  Object.defineProperty(process, 'platform', platform)
 })
 
 test('safeToSkip skips when target already exists (content-addressed)', () => {
@@ -159,4 +167,28 @@ test('safeToSkip creates dir when target does not exist', () => {
   importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, newDir, filenames, { safeToSkip: true })
 
   expect(fs.existsSync(path.join(newDir, 'index.js'))).toBe(true)
+})
+
+test('the staged directory is renamed into place after a WSL file lock clears', () => {
+  Object.defineProperty(process, 'platform', { value: 'linux' })
+  jest.spyOn(os, 'release').mockReturnValue('5.15.167.4-microsoft-standard-WSL2')
+  const tmp = tempDir()
+  const srcPkgJson = path.join(tmp, 'src', 'package.json')
+  fs.mkdirSync(path.dirname(srcPkgJson), { recursive: true })
+  fs.writeFileSync(srcPkgJson, '{"name":"pkg"}')
+  const newDir = path.join(tmp, 'dest')
+  // An existing target sends the import through the staging directory.
+  fs.mkdirSync(newDir, { recursive: true })
+  renameOverwriteSyncMock.mockImplementationOnce(() => {
+    throw Object.assign(new Error('EACCES: permission denied, rename'), { code: 'EACCES' })
+  })
+
+  importIndexedDir(
+    { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
+    newDir,
+    new Map([['package.json', srcPkgJson]]),
+    {}
+  )
+
+  expect(renameOverwriteSyncMock).toHaveBeenCalledTimes(2)
 })
