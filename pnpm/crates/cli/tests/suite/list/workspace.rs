@@ -483,7 +483,6 @@ fn list_only_projects_shows_only_projects() {
     assert_eq!(output, nested_projects_tree(&workspace));
 }
 
-/// A selected project is listed even when it links no other project.
 #[test]
 fn list_only_projects_prints_a_selected_project_without_project_dependencies() {
     let (_root, workspace, _registry) = setup_registry();

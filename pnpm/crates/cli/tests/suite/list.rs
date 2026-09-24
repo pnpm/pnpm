@@ -173,8 +173,6 @@ fn list_json_with_package_arg_omits_unsaved_dependencies() {
     drop(root);
 }
 
-/// An extraneous package is not a workspace project, so `--only-projects`
-/// leaves it out of every report.
 #[test]
 fn list_only_projects_omits_unsaved_dependencies() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
