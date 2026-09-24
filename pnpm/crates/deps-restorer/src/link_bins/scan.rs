@@ -223,18 +223,22 @@ pub(super) fn paths_eq(lhs: &Path, rhs: &Path) -> bool {
 
 /// The command names in `bins_dir`, with the Windows shim and executable
 /// extensions stripped in any case. A missing directory has none.
-pub(super) fn existing_commands(bins_dir: &Path) -> HashSet<String> {
-    let Ok(entries) = fs::read_dir(bins_dir) else { return HashSet::new() };
-    entries
-        .filter_map(|entry| {
-            entry
-                .ok()?
-                .file_name()
-                .into_string()
-                .ok()
-        })
-        .map(|name| command_name(&name).to_owned())
-        .collect()
+pub(super) fn existing_commands(bins_dir: &Path) -> Result<HashSet<String>, LinkBinsError> {
+    let read_error = |error| LinkBinsError::ReadModulesDir { dir: bins_dir.to_path_buf(), error };
+    let entries = match fs::read_dir(bins_dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(HashSet::new()),
+        Err(error) => return Err(read_error(error)),
+    };
+    let mut commands = HashSet::new();
+    for entry in entries {
+        let file_name = entry.map_err(read_error)?.file_name();
+        // A manifest's command names are UTF-8, so no other name can clash.
+        if let Some(name) = file_name.to_str() {
+            commands.insert(command_name(name).to_owned());
+        }
+    }
+    Ok(commands)
 }
 fn command_name(file_name: &str) -> &str {
     match file_name.rsplit_once('.') {

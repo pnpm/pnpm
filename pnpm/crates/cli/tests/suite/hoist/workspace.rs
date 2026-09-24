@@ -958,6 +958,104 @@ fn hoisted_node_linker_workspace_link_yields_to_a_new_dependency() {
     drop((root, mock_instance));
 }
 
+/// Under `nodeLinker: hoisted`, installing only a non-root project still
+/// links it and the bins no hoisted package provides into the root.
+#[test]
+fn hoisted_node_linker_links_a_filtered_project_into_root() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    write_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\nnodeLinker: hoisted\n");
+    let app_dir = workspace.join("packages/app");
+    fs::create_dir_all(&app_dir).expect("mkdir packages/app");
+    fs::write(
+        app_dir.join("package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "bin": { "app-cli": "./cli.js", "hello-world-js-bin": "./cli.js" },
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/app/package.json");
+    fs::write(app_dir.join("cli.js"), "#!/usr/bin/env node\n").expect("write packages/app/cli.js");
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "app", "install"])
+        .assert()
+        .success();
+
+    let app_link = workspace.join("node_modules/app");
+    assert_eq!(fs::canonicalize(&app_link).unwrap(), fs::canonicalize(&app_dir).unwrap());
+    assert!(workspace.join("node_modules/.bin/app-cli").exists());
+    let dependency_shim = workspace.join("node_modules/.bin/hello-world-js-bin");
+    assert!(
+        !shim_runs_from(&dependency_shim, &app_dir),
+        "the package must keep {dependency_shim:?}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Under `nodeLinker: hoisted`, a root `link:` dependency takes its name
+/// after the workspace pass, so a project of that name is not linked or
+/// recorded there, and its bins stay out of the root `.bin`.
+#[test]
+fn hoisted_node_linker_leaves_a_name_to_a_root_link_dependency() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "private": true,
+            "dependencies": { "foo": "link:packages/bar" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+    write_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\nnodeLinker: hoisted\n");
+    let foo_dir = workspace.join("packages/foo");
+    let bar_dir = workspace.join("packages/bar");
+    for dir in [&foo_dir, &bar_dir] {
+        fs::create_dir_all(dir).expect("mkdir project");
+    }
+    fs::write(
+        foo_dir.join("package.json"),
+        serde_json::json!({ "name": "foo", "version": "1.0.0", "bin": { "foo-cli": "./cli.js" } })
+            .to_string(),
+    )
+    .expect("write packages/foo/package.json");
+    fs::write(foo_dir.join("cli.js"), "#!/usr/bin/env node\n").expect("write packages/foo/cli.js");
+    fs::write(
+        bar_dir.join("package.json"),
+        serde_json::json!({ "name": "bar", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/bar/package.json");
+
+    pacquet_in(&workspace)
+        .with_args(["install"])
+        .assert()
+        .success();
+
+    let foo_link = workspace.join("node_modules/foo");
+    assert_eq!(fs::canonicalize(&foo_link).unwrap(), fs::canonicalize(&bar_dir).unwrap());
+    assert!(!workspace.join("node_modules/.bin/foo-cli").exists());
+    let modules_yaml = fs::read_to_string(workspace.join("node_modules/.modules.yaml")).unwrap();
+    assert!(!modules_yaml.contains("packages/foo"), "{modules_yaml}");
+
+    drop((root, mock_instance));
+}
+
 /// Whether the command shim at `shim` runs a file of the package at
 /// `package_dir`, whether the shim is a symlink or a generated script.
 fn shim_runs_from(shim: &std::path::Path, package_dir: &std::path::Path) -> bool {

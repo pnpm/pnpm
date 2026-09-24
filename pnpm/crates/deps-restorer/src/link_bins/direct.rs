@@ -414,7 +414,7 @@ pub fn link_new_bins_from_locations(
         return Ok(());
     }
     let bins_dir = modules_dir.join(".bin");
-    let existing = existing_commands(&bins_dir);
+    let existing = existing_commands(&bins_dir)?;
     link_bins_of_packages_with_excludes::<Host>(&bin_sources, &bins_dir, &existing, link_options)
 }
 fn read_location_bin_sources(

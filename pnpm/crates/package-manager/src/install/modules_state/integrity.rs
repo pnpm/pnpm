@@ -101,6 +101,7 @@ pub(crate) fn hoisted_workspace_packages_present(
 /// link, which [`frozen_tree_intact`] probes.
 pub(crate) fn hoisted_linker_workspace_links_intact(
     current: &Lockfile,
+    included: pnpm_modules_yaml::IncludedDependencies,
     config: &Config,
     workspace_root: &Path,
     projects: &[(std::path::PathBuf, &pnpm_package_manifest::PackageManifest)],
@@ -109,7 +110,7 @@ pub(crate) fn hoisted_linker_workspace_links_intact(
     if candidates.is_empty() {
         return true;
     }
-    let root_dependencies = root_dependency_aliases(current);
+    let root_dependencies = root_dependency_aliases(current, included);
     let private = pnpm_matcher::create_matcher(
         config.hoist_pattern
             .as_deref()
@@ -140,17 +141,15 @@ pub(crate) fn hoisted_linker_workspace_links_intact(
         })
 }
 
-fn root_dependency_aliases(lockfile: &Lockfile) -> std::collections::HashSet<String> {
+fn root_dependency_aliases(
+    lockfile: &Lockfile,
+    included: pnpm_modules_yaml::IncludedDependencies,
+) -> std::collections::HashSet<String> {
+    let groups = pnpm_deps_restorer::selected_groups(included);
     lockfile
         .root_project()
         .into_iter()
-        .flat_map(|root| {
-            root.dependencies_by_groups([
-                pnpm_package_manifest::DependencyGroup::Prod,
-                pnpm_package_manifest::DependencyGroup::Dev,
-                pnpm_package_manifest::DependencyGroup::Optional,
-            ])
-        })
+        .flat_map(|root| root.dependencies_by_groups(groups.iter().copied()))
         .map(|(alias, _)| alias.to_string())
         .collect()
 }

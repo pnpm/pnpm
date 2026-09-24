@@ -525,7 +525,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
             '.': new Map(Object.entries(directDependenciesByImporterId['.'] ?? {})),
           },
           graph,
-          hoistedWorkspacePackages: opts.hoistWorkspacePackages ? getHoistedWorkspacePackages(opts.allProjects) : undefined,
+          // The root's linked dependencies take their names after this pass.
+          hoistedWorkspacePackages: opts.hoistWorkspacePackages
+            ? getHoistedWorkspacePackages(opts.allProjects, getRootDependencyAliases(filteredLockfile, opts.include))
+            : undefined,
           privateHoistedModulesDir: rootModulesDir,
           privateHoistPattern: opts.hoistPattern ?? [],
           publicHoistedModulesDir: rootModulesDir,
@@ -1218,10 +1221,24 @@ async function readCommandNames (binsDir: string): Promise<Set<string>> {
   }))
 }
 
-function getHoistedWorkspacePackages (projects: Record<string, Project>): Record<ProjectId, HoistedWorkspaceProject> {
+function getRootDependencyAliases (lockfile: LockfileObject, include: IncludedDependencies): string[] {
+  const root = lockfile.importers['.' as ProjectId]
+  if (root == null) return []
+  return Object.keys({
+    ...(include.dependencies ? root.dependencies : {}),
+    ...(include.devDependencies ? root.devDependencies : {}),
+    ...(include.optionalDependencies ? root.optionalDependencies : {}),
+  })
+}
+
+function getHoistedWorkspacePackages (
+  projects: Record<string, Project>,
+  reservedAliases: string[] = []
+): Record<ProjectId, HoistedWorkspaceProject> {
+  const reserved = new Set(reservedAliases.map((alias) => alias.toLowerCase()))
   const hoistedWorkspacePackages = {} as Record<ProjectId, HoistedWorkspaceProject>
   for (const project of Object.values(projects)) {
-    if (project.manifest.name && project.id !== '.') {
+    if (project.manifest.name && project.id !== '.' && !reserved.has(project.manifest.name.toLowerCase())) {
       hoistedWorkspacePackages[project.id] = {
         dir: project.rootDir,
         name: project.manifest.name,

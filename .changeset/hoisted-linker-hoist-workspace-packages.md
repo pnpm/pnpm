@@ -1,4 +1,5 @@
 ---
+"@pnpm/bins.linker": patch
 "@pnpm/installing.deps-restorer": patch
 "pnpm": patch
 "pacquet": patch

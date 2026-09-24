@@ -334,12 +334,14 @@ fn link_hoisted_workspace_packages(
         inputs.projects.walker_lockfile_dir,
         inputs.projects.manifests,
     );
+    let root_links = root_dependency_aliases(inputs);
     let hoists = crate::hoist_workspace_packages_to_root(
         &workspace_packages,
         walked.direct_dependencies_by_importer_id
             .get(".")
             .into_iter()
-            .flat_map(|root_deps| root_deps.keys().map(String::as_str)),
+            .flat_map(|root_deps| root_deps.keys().map(String::as_str))
+            .chain(root_links.iter().map(String::as_str)),
         &create_matcher(
             config.hoist_pattern
                 .as_deref()
@@ -353,6 +355,20 @@ fn link_hoisted_workspace_packages(
     );
     link_workspace_hoists(inputs, hoists.aliases, link_options)?;
     Ok(hoists.hoisted_dependencies)
+}
+
+/// The aliases of the root project's dependencies. Its `link:`
+/// dependencies are not in the root hierarchy and take their names after
+/// the workspace pass, so they must be reserved before it.
+fn root_dependency_aliases(inputs: &HoistedLinkerInputs<'_>) -> Vec<String> {
+    inputs.projects.importers
+        .get(Lockfile::ROOT_IMPORTER_KEY)
+        .into_iter()
+        .flat_map(|root| {
+            root.dependencies_by_groups(inputs.projects.dependency_groups.iter().copied())
+        })
+        .map(|(alias, _)| alias.to_string())
+        .collect()
 }
 
 /// Symlink each placed project into the root `node_modules` and shim the

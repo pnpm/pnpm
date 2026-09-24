@@ -1468,3 +1468,67 @@ test('hoistWorkspacePackages with the hoisted node linker links the project bins
   expect(fs.readdirSync('node_modules/.bin')).toContain('app-cli')
   expect(fs.readFileSync('node_modules/.bin/hello-world-js-bin', 'utf8')).toContain('@pnpm.e2e/hello-world-js-bin')
 })
+
+test('hoistWorkspacePackages: false removes the workspace links and bins of the hoisted node linker', async () => {
+  const rootManifest = { name: 'root', version: '1.0.0' }
+  const appManifest = { name: 'app', version: '1.0.0', bin: { 'app-cli': 'cli.js' } }
+  const projects = preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'app', package: appManifest },
+  ])
+  fs.writeFileSync('app/cli.js', '#!/usr/bin/env node\n')
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: appManifest, rootDir: path.resolve('app') as ProjectRootDir },
+  ]
+  const mutatedProjects: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
+
+  await mutateModules(mutatedProjects, testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    nodeLinker: 'hoisted',
+  }))
+  expect(await resolveLinkTarget(path.resolve('node_modules/app'))).toBe(path.resolve('app'))
+  expect(fs.readdirSync('node_modules/.bin')).toContain('app-cli')
+
+  await mutateModules(mutatedProjects, testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: false,
+    nodeLinker: 'hoisted',
+  }))
+
+  expect(fs.existsSync('node_modules/app')).toBe(false)
+  expect(fs.readdirSync('node_modules/.bin').filter((name) => name.startsWith('app-cli'))).toStrictEqual([])
+  expect(projects['root'].readModulesManifest()?.hoistedDependencies).toStrictEqual({})
+})
+
+test('hoistWorkspacePackages with the hoisted node linker leaves a name to the root project\'s linked dependency', async () => {
+  const rootManifest = { name: 'root', version: '1.0.0', dependencies: { foo: 'link:bar' } }
+  const fooManifest = { name: 'foo', version: '1.0.0', bin: { 'foo-cli': 'cli.js' } }
+  const barManifest = { name: 'bar', version: '1.0.0' }
+  const projects = preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'foo', package: fooManifest },
+    { location: 'bar', package: barManifest },
+  ])
+  fs.writeFileSync('foo/cli.js', '#!/usr/bin/env node\n')
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: fooManifest, rootDir: path.resolve('foo') as ProjectRootDir },
+    { buildIndex: 0, manifest: barManifest, rootDir: path.resolve('bar') as ProjectRootDir },
+  ]
+
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    nodeLinker: 'hoisted',
+  }))
+
+  expect(await resolveLinkTarget(path.resolve('node_modules/foo'))).toBe(path.resolve('bar'))
+  expect(await resolveLinkTarget(path.resolve('node_modules/bar'))).toBe(path.resolve('bar'))
+  expect(projects['root'].readModulesManifest()?.hoistedDependencies).toStrictEqual({ bar: { bar: 'private' } })
+  expect(fs.existsSync('node_modules/.bin/foo-cli')).toBe(false)
+})
