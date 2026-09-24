@@ -449,6 +449,38 @@ fn windows_rename_failure_with_missing_destination_is_not_reusable() {
     assert!(!staging.exists(), "the staged junction must be cleaned up");
 }
 
+/// An editor or dev server holding a file under a directory installed by
+/// another package manager keeps that directory from being moved aside.
+#[cfg(windows)]
+#[test]
+fn windows_locked_occupant_error_names_the_directory() {
+    use std::os::windows::fs::OpenOptionsExt as _;
+
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    fs::create_dir_all(&target).expect("create target");
+    fs::create_dir_all(&link).expect("create occupant dir");
+    let held_file = link.join("index.d.ts");
+    fs::write(&held_file, "").expect("seed occupant file");
+    // Permit normal reads and writes, but omit FILE_SHARE_DELETE.
+    let _handle = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0x1 | 0x2)
+        .open(&held_file)
+        .expect("hold the occupant file");
+
+    let started = std::time::Instant::now();
+    let error = force_symlink_dir(&target, &link).expect_err("a held occupant cannot be moved");
+
+    assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
+    let message = error.to_string();
+    assert!(message.contains(&format!("{link:?}")), "the error must name the directory: {message}");
+    assert!(message.contains("in use by another process"), "the error must say why: {message}");
+    assert!(started.elapsed() < std::time::Duration::from_secs(10), "took {:?}", started.elapsed());
+    assert!(held_file.is_file(), "the occupant must stay in place");
+}
+
 #[cfg(windows)]
 #[test]
 fn windows_same_drive_symlink_target_stays_relative() {

@@ -2,6 +2,8 @@ use super::{
     ForceSymlinkOutcome, Path, force_symlink_inner, fs, io, is_transient_file_lock_error,
     remove_dir_all_with_retry, rename_with_retry, retry_transient_file_locks,
 };
+use derive_more::{Display, Error};
+use std::path::PathBuf;
 
 /// The one-shot recoveries [`force_symlink_inner`] has already spent on a
 /// link. Each bounds a recursion that must not repeat a step which did not help
@@ -74,13 +76,34 @@ pub(super) fn clear_symlink_occupant(
         if rename_err.kind() == io::ErrorKind::NotFound {
             return Ok(None);
         }
-        return Err(rename_err);
+        return Err(describe_locked_occupant(link, rename_err));
     }
     Ok(Some(format!(
         "Symlink wanted name was occupied by directory or file. \
          Old entity moved: {parent:?}{sep}{basename} => {ignore_name}",
         sep = std::path::MAIN_SEPARATOR,
     )))
+}
+
+/// An occupant that stayed locked through the rename's retry budget.
+#[derive(Debug, Display, Error)]
+#[display(
+    "Could not move {path:?} out of the way: {source}. A file in it is probably in use \
+     by another process, such as a dev server or an editor. Stop that process and try again."
+)]
+pub(super) struct OccupantInUseError {
+    path: PathBuf,
+    #[error(not(source))]
+    source: io::Error,
+}
+
+/// Keep the error kind of a Windows file-lock failure, but say which directory
+/// is held and what usually holds it.
+pub(super) fn describe_locked_occupant(link: &Path, error: io::Error) -> io::Error {
+    if !is_transient_file_lock_error(&error) {
+        return error;
+    }
+    io::Error::new(error.kind(), OccupantInUseError { path: link.to_path_buf(), source: error })
 }
 
 /// Remove a regular file or directory that's occupying a symlink
