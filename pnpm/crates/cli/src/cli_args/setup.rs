@@ -14,6 +14,7 @@ use path_extender::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderReport,
 };
 use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir};
+use pnpm_fs::write_atomic;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use std::{fs, path::Path, process::Command};
 
@@ -187,7 +188,9 @@ fn create_shell_script(target_dir: &Path, name: &str, subcommand: &str) -> std::
     // Windows can also run shell scripts via mingw / cygwin, so write the
     // POSIX script unconditionally.
     let script_path = target_dir.join(name);
-    fs::write(&script_path, posix_alias_script(name, subcommand))?;
+    // Replaced by a rename, never truncated: the name can already be a hardlink
+    // of the running pnpm executable, and Linux refuses that open with ETXTBSY.
+    write_atomic(&script_path, posix_alias_script(name, subcommand).as_bytes())?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -272,21 +275,22 @@ fn write_windows_alias_wrappers(
     // theirs. Through `call` the forwarded arguments would take a second round of
     // `%`-expansion, and the exit code is the shim's either way, since this is the
     // last command this script runs. `%~dp0` already ends in a backslash.
-    fs::write(
-        target_dir.join(format!("{name}.cmd")),
-        format!("@echo off\r\n\"%~dp0pnpm.cmd\"{subcommand} %*\r\n"),
+    write_atomic(
+        &target_dir.join(format!("{name}.cmd")),
+        format!("@echo off\r\n\"%~dp0pnpm.cmd\"{subcommand} %*\r\n").as_bytes(),
     )?;
     // Also `pnpm.cmd`, not `pnpm.ps1`: the bin linker omits the PowerShell shim
     // for a package named `pnpm` (see `wants_powershell_shim`), so the sibling
     // `.ps1` may not exist while the `.cmd` always does. `$basedir` is spelled the
     // way the generated `.ps1` shims spell it, so this works on PowerShell 2.0.
-    fs::write(
-        target_dir.join(format!("{name}.ps1")),
+    write_atomic(
+        &target_dir.join(format!("{name}.ps1")),
         format!(
             "$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n\
              & \"$basedir\\pnpm.cmd\"{subcommand} @args\n\
              exit $LastExitCode\n",
-        ),
+        )
+        .as_bytes(),
     )
 }
 
