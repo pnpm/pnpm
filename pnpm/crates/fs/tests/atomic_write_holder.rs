@@ -47,28 +47,19 @@ fn a_sigint_mid_write_removes_the_staged_temp_file() {
     assert!(leftovers.is_empty(), "the interrupt left temp files behind: {leftovers:?}");
 }
 
-/// Poll until the writer's staged temp file holds content. Existence alone
-/// is not enough: the file becomes visible at creation, but the writer
-/// registers it with the interrupt cleanup only afterwards, so an interrupt
-/// in between kills the process with nothing registered and leaves the file
-/// behind. Content means the write underneath has started, which follows
-/// the registration.
+/// Poll until the writer's staged temp file exists. The writer registers
+/// the file before creating it, so an interrupt from here on must find it.
 fn wait_for_temp_file(dir: &Path, writer: &mut Child) {
     let deadline = Instant::now() + Duration::from_secs(30);
     loop {
         let staged = fs::read_dir(dir)
             .expect("list the project directory")
             .filter_map(Result::ok)
-            .filter(|entry| {
+            .any(|entry| {
                 entry
                     .file_name()
                     .to_string_lossy()
                     .starts_with(".tmp")
-            })
-            .any(|entry| {
-                entry
-                    .metadata()
-                    .is_ok_and(|metadata| metadata.len() > 0)
             });
         if staged {
             return;

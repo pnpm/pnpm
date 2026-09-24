@@ -39,6 +39,19 @@ enum InheritMode {
     No,
 }
 
+/// Create `path` exclusively, readable only by its owner on Unix: the mode
+/// `NamedTempFile` would have given it.
+fn create_private_file(path: &Path) -> io::Result<fs::File> {
+    let mut options = fs::OpenOptions::new();
+    options
+        .read(true)
+        .write(true)
+        .create_new(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    options.open(path)
+}
+
 fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode) -> io::Result<()> {
     let dir = path
         .parent()
@@ -46,11 +59,15 @@ fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode) -> io::Result
     if let Some(parent) = dir {
         fs::create_dir_all(parent)?;
     }
-    let mut tmp = tempfile::NamedTempFile::new_in(dir.unwrap_or_else(|| Path::new(".")))?;
-    // `NamedTempFile` picks its random name as it creates the file, so the
-    // registration can only follow the create; a signal in between still
-    // leaves the temp file behind.
-    let _pending_temp = crate::pending_temp::track_temp_file(tmp.path());
+    // Registered before the create, so no interrupt finds the temp file
+    // unregistered. A colliding random name is retried under a new one,
+    // whose registration replaces the old.
+    let mut _pending_temp = None;
+    let mut tmp = tempfile::Builder::new()
+        .make_in(dir.unwrap_or_else(|| Path::new(".")), |path| {
+            _pending_temp = Some(crate::pending_temp::track_temp_file(path));
+            create_private_file(path)
+        })?;
     tmp.write_all(bytes)?;
     tmp.as_file().sync_all()?;
     // `NamedTempFile` creates with mode 0600 on Unix; persisting it over an
