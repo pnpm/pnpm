@@ -434,7 +434,10 @@ describe('Windows fallback wrappers', () => {
           timeout: 10_000,
           env: getWindowsFallbackEnv(stubDir),
         })
-        expect(result.status).toBe(42)
+        expect({ status: result.status, stderr: result.stderr }).toEqual({
+          status: 42,
+          stderr: '',
+        })
       } finally {
         fs.rmSync(sandbox, { recursive: true, force: true })
       }
@@ -449,9 +452,10 @@ describe('Windows fallback wrappers', () => {
           timeout: 10_000,
           env: getWindowsFallbackEnv(stubDir),
         })
-        expect({ status: result.status, stdout: result.stdout.trim() }).toEqual({
+        expect({ status: result.status, stdout: result.stdout.trim(), stderr: result.stderr }).toEqual({
           status: 0,
           stdout: expected,
+          stderr: '',
         })
       } finally {
         fs.rmSync(sandbox, { recursive: true, force: true })
@@ -467,7 +471,10 @@ describe('Windows fallback wrappers', () => {
           timeout: 10_000,
           env: getWindowsFallbackEnv(stubDir),
         })
-        expect(result.status).toBe(42)
+        expect({ status: result.status, stderr: result.stderr }).toEqual({
+          status: 42,
+          stderr: '',
+        })
       } finally {
         fs.rmSync(sandbox, { recursive: true, force: true })
       }
@@ -482,9 +489,10 @@ describe('Windows fallback wrappers', () => {
           timeout: 10_000,
           env: getWindowsFallbackEnv(stubDir),
         })
-        expect({ status: result.status, stdout: result.stdout.trim() }).toEqual({
+        expect({ status: result.status, stdout: result.stdout.trim(), stderr: result.stderr }).toEqual({
           status: 0,
           stdout: expected,
+          stderr: '',
         })
       } finally {
         fs.rmSync(sandbox, { recursive: true, force: true })
@@ -591,7 +599,7 @@ function getWindowsFallbackEnv (stubDir: string): NodeJS.ProcessEnv {
   const pathParts = isWindows
     ? [stubDir, POWERSHELL_DIR, SYSTEM32, process.env.PATH]
     : [stubDir, process.env.PATH]
-  const stubJs = path.join(stubDir, 'stub.cjs')
+  const stubJs = path.join(stubDir, 'stub.cjs').replace(/\\/g, '/')
   const prevNodeOptions = process.env.NODE_OPTIONS ?? ''
   return {
     ...process.env,
