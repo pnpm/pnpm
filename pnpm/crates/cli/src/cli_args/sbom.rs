@@ -9,7 +9,8 @@ use crate::{
         install::resolve_bool_override,
         recursive::{
             AutoExcludeRoot, discover_workspace_projects, no_projects_matched_message,
-            notice_workspace_dir, select_recursive_projects, selected_importer_ids,
+            notice_workspace_dir, select_recursive_projects, selected_workspace_importer_ids,
+            selectors_narrow_the_run,
         },
     },
 };
@@ -52,7 +53,7 @@ use walk::{
 };
 use workspace::{
     merged_dedicated_lockfile_state, required_sbom_lockfile, select_importer_ids,
-    selectors_narrow_the_run, sorted_importer_ids,
+    sorted_importer_ids,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]

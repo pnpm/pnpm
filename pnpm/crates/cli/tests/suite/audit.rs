@@ -671,6 +671,79 @@ fn audit_rejects_unknown_subcommands() {
     assert!(stderr(&output).contains("Unknown audit subcommand: unknown"));
 }
 
+#[test]
+fn audit_filter_audits_only_the_selected_projects() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(&mut registry, "{}")
+        .match_body(Matcher::Json(serde_json::json!({ "minimist": ["1.2.0"] })))
+        .create();
+    write_two_project_audit_workspace(&workspace, &registry.url());
+
+    let output = pacquet
+        .arg("audit")
+        .arg("--filter")
+        .arg("project-b")
+        .output()
+        .expect("run pacquet audit");
+
+    assert_success(&output);
+    mock.assert();
+}
+
+#[test]
+fn audit_filter_matching_no_project_skips_the_audit() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(&mut registry, "{}").expect(0).create();
+    write_two_project_audit_workspace(&workspace, &registry.url());
+
+    let output = pacquet
+        .arg("audit")
+        .arg("--filter")
+        .arg("no-such-project")
+        .output()
+        .expect("run pacquet audit");
+
+    assert_success(&output);
+    assert!(
+        stdout(&output).starts_with("No projects matched the filters in "),
+        "stdout:\n{}",
+        stdout(&output),
+    );
+    mock.assert();
+}
+
+#[test]
+fn audit_filter_fails_when_a_selected_project_is_missing_from_the_lockfile() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(&mut registry, "{}").expect(0).create();
+    write_two_project_audit_workspace(&workspace, &registry.url());
+    let project_dir = workspace.join("packages/project-c");
+    fs::create_dir_all(&project_dir).expect("create project dir");
+    fs::write(project_dir.join("package.json"), r#"{"name":"project-c","version":"1.0.0"}"#)
+        .expect("write project package.json");
+
+    let output = pacquet
+        .arg("audit")
+        .arg("--filter")
+        .arg("project-c")
+        .output()
+        .expect("run pacquet audit");
+
+    assert_failure(&output);
+    assert!(stderr(&output).contains("ERR_PNPM_AUDIT_MISSING_IMPORTERS"), "{}", stderr(&output));
+    assert!(stderr(&output).contains("packages/project-c"), "{}", stderr(&output));
+    mock.assert();
+}
+
 /// Build a fresh single-shot `pacquet` command bound to `workspace`, for
 /// multi-step tests (install, then audit) that can't reuse the one-shot
 /// command from [`CommandTempCwd`].
@@ -801,6 +874,60 @@ snapshots:
   dev-vulnerable@1.0.0: {}
 
   optional-vulnerable@1.0.0: {}
+",
+    )
+    .expect("write lockfile");
+}
+
+/// A workspace whose `project-a` depends on `lodash` and `project-b` on
+/// `minimist`, so a request body shows which projects were audited.
+fn write_two_project_audit_workspace(workspace: &Path, registry_url: &str) {
+    fs::write(workspace.join(".npmrc"), format!("registry={registry_url}/\n"))
+        .expect("write .npmrc");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "fetchRetries: 0\npackages:\n  - packages/*\n",
+    )
+    .expect("write workspace manifest");
+    fs::write(workspace.join("package.json"), r#"{"name":"root","private":true}"#)
+        .expect("write package.json");
+    for (project, dependency, version) in
+        [("project-a", "lodash", "1.0.0"), ("project-b", "minimist", "1.2.0")]
+    {
+        let project_dir = workspace.join("packages").join(project);
+        fs::create_dir_all(&project_dir).expect("create project dir");
+        fs::write(
+            project_dir.join("package.json"),
+            format!(r#"{{"name":"{project}","version":"1.0.0","dependencies":{{"{dependency}":"{version}"}}}}"#),
+        )
+        .expect("write project package.json");
+    }
+    fs::write(
+        workspace.join("pnpm-lock.yaml"),
+        r"
+lockfileVersion: '9.0'
+
+importers:
+
+  .: {}
+
+  packages/project-a:
+    dependencies:
+      lodash:
+        specifier: '1.0.0'
+        version: '1.0.0'
+
+  packages/project-b:
+    dependencies:
+      minimist:
+        specifier: '1.2.0'
+        version: '1.2.0'
+
+snapshots:
+
+  lodash@1.0.0: {}
+
+  minimist@1.2.0: {}
 ",
     )
     .expect("write lockfile");

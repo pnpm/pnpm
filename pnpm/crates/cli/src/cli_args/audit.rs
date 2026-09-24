@@ -34,6 +34,7 @@ use chrono::{DateTime, Utc};
 use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
 use dialoguer::MultiSelect;
+use importers::{select_audited_importers, signature_packages};
 
 use miette::{Diagnostic, IntoDiagnostic};
 use node_semver::{Range, Version};
@@ -66,6 +67,7 @@ use std::{
 };
 
 mod fix;
+mod importers;
 mod paths;
 mod render;
 mod report;
@@ -301,10 +303,10 @@ impl AuditArgs {
         self.run_signatures(state).await
     }
 
-    /// Fetch the audit report. `None` when a registry error was swallowed
-    /// per `--ignore-registry-errors`, matching pnpm's catch around the
-    /// `audit()` call; under `--json` the empty report has already been
-    /// printed by then.
+    /// Fetch the audit report. `None` when the selectors matched no project,
+    /// or when a registry error was swallowed per `--ignore-registry-errors`,
+    /// matching pnpm's catch around the `audit()` call; under `--json` the
+    /// empty report has already been printed by then.
     ///
     /// Takes `state` by shared reference so the `--fix update` path can
     /// re-borrow it mutably once the report is in hand.
@@ -321,6 +323,10 @@ impl AuditArgs {
         let Some(lockfile) = lockfile else {
             return Err(AuditError::NoLockfile.into());
         };
+        let Some(lockfile) = select_audited_importers(state, lockfile)? else {
+            return Ok(None);
+        };
+        let lockfile = lockfile.as_ref();
         let env_lockfile = EnvLockfile::read(lockfile_dir)
             .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))?;
         match audit(
@@ -354,7 +360,9 @@ impl AuditArgs {
         let include = self.dependency_options.include(state.config);
         let lockfile_dir = state.lockfile_dir().to_path_buf();
 
-        let packages = signature_packages(&state, include, &lockfile_dir)?;
+        let Some(packages) = signature_packages(&state, include, &lockfile_dir)? else {
+            return Ok(AuditOutcome::Clean);
+        };
         if packages.is_empty() {
             return Err(AuditError::NoPackages.into());
         }
@@ -389,41 +397,6 @@ fn audit_outcome(report: &AuditReport, audit_level: ConfigAuditLevel) -> AuditOu
     } else {
         AuditOutcome::Clean
     }
-}
-
-/// Every installed package version the lockfile and env lockfile record,
-/// with the registry that serves it.
-fn signature_packages(
-    state: &State,
-    include: Include,
-    lockfile_dir: &std::path::Path,
-) -> miette::Result<Vec<signatures::SignaturePackage>> {
-    let lockfile = state.lockfile
-        .get()
-        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-    let Some(lockfile) = lockfile else {
-        return Err(AuditError::NoLockfile.into());
-    };
-    let env_lockfile = EnvLockfile::read(lockfile_dir)
-        .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))?;
-    let audit_request = lockfile_to_audit_request(lockfile, env_lockfile.as_ref(), include);
-    let registries: HashMap<String, String> = state.config
-        .resolved_registries()
-        .into_iter()
-        .collect();
-    Ok(audit_request.request
-        .iter()
-        .flat_map(|(name, versions)| {
-            let registry = pick_registry_for_package(&registries, name, None);
-            versions
-                .iter()
-                .map(move |version| signatures::SignaturePackage {
-                    name: name.clone(),
-                    registry: registry.clone(),
-                    version: version.clone(),
-                })
-        })
-        .collect())
 }
 
 /// Write one command result to stdout, appending the newline it lacks. Mirrors

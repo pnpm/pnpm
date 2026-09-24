@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import fs from 'node:fs'
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
@@ -8,6 +9,7 @@ import { audit } from '@pnpm/deps.compliance.commands'
 import { install } from '@pnpm/installing.commands'
 import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, DEFAULT_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
@@ -575,6 +577,102 @@ Severity: 1 high
     expect(exitCode).toBe(0)
     expect(stripAnsi(output)).toBe(`1 vulnerabilities found
 Severity: 1 info`)
+  })
+})
+
+describe('audit in a workspace', () => {
+  beforeEach(async () => {
+    await setupMockAgent()
+  })
+  afterEach(async () => {
+    await teardownMockAgent()
+  })
+
+  async function auditedPackageNames (filter: string[]): Promise<string[]> {
+    const workspaceDir = f.prepare('workspace-has-vulnerabilities')
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(
+      workspaceDir,
+      filter.map((namePattern) => ({ namePattern }))
+    )
+    let requestedPackageNames: string[] = []
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, ({ body }) => {
+        requestedPackageNames = Object.keys(JSON.parse(String(body)))
+        return {}
+      })
+    await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      workspaceDir,
+      rootProjectManifestDir: workspaceDir,
+      filter,
+      selectedProjectsGraph,
+    })
+    return requestedPackageNames.sort()
+  }
+
+  test('audits only the dependencies of the projects selected by --filter', async () => {
+    expect(await auditedPackageNames(['workspace-audit-b'])).toStrictEqual(['minimist'])
+  })
+
+  test('audits every project without --filter', async () => {
+    expect(await auditedPackageNames([])).toStrictEqual(['lodash', 'minimist'])
+  })
+
+  test('audit signatures checks only the projects selected by --filter', async () => {
+    const workspaceDir = f.prepare('workspace-has-vulnerabilities')
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'workspace-audit-b' }])
+    const key = createSigningKey()
+    mockRegistryKey(AUDIT_REGISTRY, key)
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/minimist', method: 'GET' })
+      .reply(200, {
+        name: 'minimist',
+        time: { '1.2.0': '2023-01-01T00:00:00.000Z' },
+        versions: {
+          '1.2.0': {
+            dist: {
+              integrity: 'sha512-test-integrity',
+              signatures: [{ keyid: key.keyid, sig: key.sign('minimist@1.2.0', 'sha512-test-integrity') }],
+              tarball: `${AUDIT_REGISTRY}minimist/-/minimist-1.2.0.tgz`,
+            },
+            name: 'minimist',
+            version: '1.2.0',
+          },
+        },
+      })
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      workspaceDir,
+      rootProjectManifestDir: workspaceDir,
+      filter: ['workspace-audit-b'],
+      selectedProjectsGraph,
+    }, ['signatures'])
+
+    expect(exitCode).toBe(0)
+    expect(stripAnsi(output)).toContain('audited 1 package')
+  })
+
+  test('fails when a selected project has no entry in the lockfile', async () => {
+    const workspaceDir = f.prepare('workspace-has-vulnerabilities')
+    fs.mkdirSync(path.join(workspaceDir, 'packages/c'))
+    fs.writeFileSync(path.join(workspaceDir, 'packages/c/package.json'), JSON.stringify({ name: 'workspace-audit-c', version: '1.0.0' }))
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'workspace-audit-c' }])
+
+    await expect(audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      workspaceDir,
+      rootProjectManifestDir: workspaceDir,
+      filter: ['workspace-audit-c'],
+      selectedProjectsGraph,
+    })).rejects.toMatchObject({ code: 'ERR_PNPM_AUDIT_MISSING_IMPORTERS' })
   })
 })
 
