@@ -245,6 +245,8 @@ export function depPathToFilename (depPath: string, maxLengthWithoutHash: number
       .replace(/\)$/, '')
       .replace(/\)\(|\(|\)/g, '_')
   }
+  // Windows strips trailing dots and spaces from path segments.
+  filename = filename.replace(/[. ]+$/, (trailing) => '+'.repeat(trailing.length))
   if (filename.length > maxLengthWithoutHash || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
     return `${filename.substring(0, maxLengthWithoutHash - 33)}_${createShortHash(filename)}`
   }

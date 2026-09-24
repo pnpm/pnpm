@@ -197,6 +197,14 @@ test('refToRelative() reconstructs registry-qualified dep paths', () => {
   expect(refToRelative('@acme/private@gh:2.1.0', 'aliased')).toBe('@acme/private@gh:2.1.0')
 })
 
+test('depPathToFilename() escapes trailing dots and spaces', () => {
+  expect(depPathToFilename('parent-pkg@file:..', 120)).toBe('parent-pkg@file+++')
+  expect(depPathToFilename('pkg@file:.', 120)).toBe('pkg@file++')
+  expect(depPathToFilename('pkg@file:../dir ', 120)).toBe('pkg@file+..+dir+')
+  expect(depPathToFilename('foo@1.0.0(pkg@file:..)', 120)).toBe('foo@1.0.0_pkg@file+++')
+  expect(depPathToFilename('pkg@file:../project-2', 120)).toBe('pkg@file+..+project-2')
+})
+
 test('depPathToFilename() escapes registry-qualified dep paths', () => {
   expect(depPathToFilename('foo@work:1.0.0', 120)).toBe('foo@work+1.0.0')
 })

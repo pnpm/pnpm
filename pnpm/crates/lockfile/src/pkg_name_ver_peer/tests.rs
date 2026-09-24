@@ -102,6 +102,9 @@ fn to_virtual_store_name() {
         "project-1@file:project-1(is-positive@1.0.0)",
         "project-1@file+project-1_is-positive@1.0.0",
     );
+
+    // Windows strips trailing dots from path segments (pnpm/pnpm#8101).
+    case("parent-pkg@file:..", "parent-pkg@file+++");
 }
 
 #[test]

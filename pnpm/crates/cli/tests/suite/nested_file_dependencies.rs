@@ -145,3 +145,65 @@ fn nested_file_dep_of_a_workspace_project_matches_the_pnpm_lockfile() {
 
     drop((root, mock_instance));
 }
+
+/// The layout from pnpm/pnpm#8101: a project depends on the directory
+/// above it, so the dep path ends in `file:..`. Windows strips trailing
+/// dots from path segments, so the virtual-store directory has to
+/// escape them.
+#[test]
+fn file_dep_on_the_parent_directory_gets_a_windows_safe_slot() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        mock_instance, store_dir, cache_dir, ..
+    } = npmrc_info;
+
+    let parent = workspace.join("parent");
+    let project = parent.join("quick-start");
+    write_manifest(
+        &parent,
+        &serde_json::json!({ "name": "parent-pkg", "version": "1.0.0", "files": ["index.js"] }),
+    );
+    fs::write(parent.join("index.js"), "module.exports = 'parent'\n").expect("write index.js");
+    write_manifest(
+        &project,
+        &serde_json::json!({
+            "name": "quick-start",
+            "version": "1.0.0",
+            "private": true,
+            "dependencies": { "parent-pkg": "file:../" },
+        }),
+    );
+    fs::write(project.join(".npmrc"), format!("registry={}\n", mock_instance.url()))
+        .expect("write .npmrc");
+    fs::write(
+        project.join("pnpm-workspace.yaml"),
+        format!(
+            "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\n",
+            serde_json::to_string(&store_dir).expect("serialize the store dir"),
+            serde_json::to_string(&cache_dir).expect("serialize the cache dir"),
+        ),
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    pacquet
+        .with_current_dir(&project)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let installed =
+        project.join("node_modules/.pnpm/parent-pkg@file+++/node_modules/parent-pkg/index.js");
+    assert!(installed.is_file(), "parent-pkg should be installed at {}", installed.display());
+    assert!(
+        project.join("node_modules/parent-pkg/index.js").is_file(),
+        "node_modules/parent-pkg should link to the virtual-store slot",
+    );
+
+    drop((root, mock_instance));
+}

@@ -72,3 +72,12 @@ fn single_byte_input_does_not_panic() {
     assert_eq!(dep_path_to_filename("/", 120), "");
     assert_eq!(dep_path_to_filename("a", 120), "a");
 }
+
+#[test]
+fn trailing_dots_and_spaces_are_escaped() {
+    assert_eq!(dep_path_to_filename("parent-pkg@file:..", 120), "parent-pkg@file+++");
+    assert_eq!(dep_path_to_filename("pkg@file:.", 120), "pkg@file++");
+    assert_eq!(dep_path_to_filename("pkg@file:../dir ", 120), "pkg@file+..+dir+");
+    assert_eq!(dep_path_to_filename("foo@1.0.0(pkg@file:..)", 120), "foo@1.0.0_pkg@file+++");
+    assert_eq!(dep_path_to_filename("pkg@file:../project-2", 120), "pkg@file+..+project-2");
+}

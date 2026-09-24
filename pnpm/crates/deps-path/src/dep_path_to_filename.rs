@@ -13,6 +13,13 @@ pub fn dep_path_to_filename(dep_path: &str, max_length_without_hash: usize) -> S
             .replace(")(", "_")
             .replace(['(', ')'], "_");
     }
+    // Windows strips trailing dots and spaces from path segments.
+    let kept = filename
+        .trim_end_matches(['.', ' '])
+        .len();
+    let trailing = filename.len() - kept;
+    filename.truncate(kept);
+    filename.extend(std::iter::repeat_n('+', trailing));
     shorten_virtual_store_name(filename, max_length_without_hash)
 }
 
