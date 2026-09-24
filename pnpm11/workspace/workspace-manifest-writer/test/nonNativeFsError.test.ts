@@ -35,7 +35,7 @@ test('updateWorkspaceManifest creates a missing file when the fs error is not a 
   const dir = tempDir(false)
   await updateWorkspaceManifest(dir, {
     fileName: GLOBAL_CONFIG_YAML_FILENAME,
-    updatedFields: { storeDir: '/store' },
+    updatedFields: { overrides: { foo: '1.0.0' } },
   })
-  expect(readYamlFileSync(path.join(dir, GLOBAL_CONFIG_YAML_FILENAME))).toStrictEqual({ storeDir: '/store' })
+  expect(readYamlFileSync(path.join(dir, GLOBAL_CONFIG_YAML_FILENAME))).toStrictEqual({ overrides: { foo: '1.0.0' } })
 })
