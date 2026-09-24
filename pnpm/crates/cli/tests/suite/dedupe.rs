@@ -1,6 +1,7 @@
-use crate::_utils::{importer_version, read_lockfile};
+use crate::_utils::{importer_version, read_lockfile, snapshot_entries};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpm_lockfile::PkgName;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     command_env::CommandTestExt,
@@ -351,9 +352,14 @@ fn dedupe_is_stable_when_an_npm_alias_satisfies_a_transitive_range() {
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let installed = fs::read_to_string(&lockfile_path).expect("read installed lockfile");
     eprintln!("installed lockfile:\n{installed}");
-    let edge = "\n  '@pnpm.e2e/pkg-with-1-dep@100.0.0':\n    dependencies:\n      \
-                '@pnpm.e2e/dep-of-pkg-with-1-dep': 100.0.0\n";
-    assert!(installed.contains(edge), "the transitive edge takes the direct dependency's version");
+    let parents = snapshot_entries(&read_lockfile(&lockfile_path), "@pnpm.e2e/pkg-with-1-dep");
+    let child: PkgName = "@pnpm.e2e/dep-of-pkg-with-1-dep".parse().expect("parse package name");
+    let edge = parents[0].1.dependencies
+        .as_ref()
+        .and_then(|dependencies| dependencies.get(&child))
+        .expect("the parent snapshot depends on the child")
+        .to_string();
+    assert_eq!(edge, "100.0.0", "the transitive edge takes the direct dependency's version");
     for _ in 0..2 {
         pacquet_at(&workspace)
             .with_args(["dedupe", "--lockfile-only"])
