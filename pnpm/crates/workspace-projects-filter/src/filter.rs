@@ -254,7 +254,8 @@ fn changed_selector_projects<Pkg: BaseProject>(
         projects_graph.keys().cloned().collect(),
         diff,
         &GetChangedProjectsOptions {
-            workspace_dir: selector.parent_dir.as_deref().unwrap_or(&opts.workspace_dir),
+            workspace_dir: &opts.workspace_dir,
+            working_dir: selector.parent_dir.as_deref(),
             test_pattern: &opts.test_pattern,
             changed_files_ignore_pattern: &opts.changed_files_ignore_pattern,
             project_dependencies: Some(&project_dependencies),

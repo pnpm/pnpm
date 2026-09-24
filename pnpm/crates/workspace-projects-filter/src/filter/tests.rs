@@ -940,6 +940,32 @@ mod changed_packages {
 
         let empty: [String; 0] = [];
         assert_eq!(selected(&graph, &[diff_selector("HEAD")], &opts), empty);
+
+        // Selector with parent_dir selects pkg-a when scoped to pkg-a
+        fs::write(
+            workspace_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/*'\ncatalog:\n  foo: ^1.2.0\ncatalogs:\n  react18:\n    react: ^18.0.0\n",
+        ).expect("update workspace manifest");
+
+        let pkg_a_str = path_of(&pkg_a_dir);
+        assert_eq!(
+            selected(
+                &graph,
+                &[ProjectSelector { parent_dir: Some(pkg_a_dir), ..diff_selector("HEAD") }],
+                &opts,
+            ),
+            [pkg_a_str],
+        );
+
+        // Selector scoped to pkg-b does not select pkg-a or pkg-b
+        assert_eq!(
+            selected(
+                &graph,
+                &[ProjectSelector { parent_dir: Some(pkg_b_dir), ..diff_selector("HEAD") }],
+                &opts,
+            ),
+            empty,
+        );
     }
 }
 

@@ -963,4 +963,35 @@ catalogs:
 
     expect(Object.keys(selectedProjectsGraph)).toStrictEqual([])
   }
+
+  // Test selector with parentDir and catalog change
+  await fs.promises.writeFile(
+    path.join(workspaceDir, 'pnpm-workspace.yaml'),
+    `packages:
+  - 'packages/*'
+catalog:
+  foo: ^1.2.0
+catalogs:
+  react18:
+    react: ^18.0.0
+`
+  )
+
+  {
+    const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, [{
+      diff: 'HEAD',
+      parentDir: pkgADir,
+    }], { workspaceDir })
+
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkgADir])
+  }
+
+  {
+    const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, [{
+      diff: 'HEAD',
+      parentDir: pkgBDir,
+    }], { workspaceDir })
+
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([])
+  }
 })

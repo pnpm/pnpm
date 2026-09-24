@@ -21,6 +21,7 @@ interface ChangedDir {
 
 export interface GetChangedProjectsOptions {
   workspaceDir: string
+  workingDir?: string
   testPattern?: string[]
   changedFilesIgnorePattern?: string[]
   allProjects?: Array<{ rootDir: ProjectRootDir, manifest: BaseManifest }>
@@ -31,6 +32,7 @@ export async function getChangedProjects (
   commit: string,
   opts: GetChangedProjectsOptions
 ): Promise<[ProjectRootDir[], ProjectRootDir[]]> {
+  const workingDir = opts.workingDir ?? opts.workspaceDir
 
   // .git is a directory in regular repos, but a file in worktrees. The
   // nearest entry of either kind wins, so a worktree checked out inside
@@ -42,10 +44,11 @@ export async function getChangedProjects (
 
   const { changedDirs: rawChangedDirs, workspaceManifestChanged } = await getChangedDirsSinceCommit(
     commit,
-    opts.workspaceDir,
+    workingDir,
     repoRoot,
     opts.testPattern ?? [],
-    opts.changedFilesIgnorePattern ?? []
+    opts.changedFilesIgnorePattern ?? [],
+    opts.workspaceDir
   )
 
   const changedDirs = rawChangedDirs
@@ -72,6 +75,7 @@ export async function getChangedProjects (
       projectChangeTypes,
       projectDirs,
       repoRoot,
+      workingDir,
       workspaceDir: opts.workspaceDir,
     })
   }
@@ -91,12 +95,18 @@ export async function getChangedProjects (
   return [changedProjects, ignoreDependentForPkgs]
 }
 
+function isSubdir (parent: string, child: string): boolean {
+  const rel = path.relative(parent, child)
+  return !rel.startsWith('..') && !path.isAbsolute(rel)
+}
+
 async function applyCatalogChangesToProjects (params: {
   allProjects?: Array<{ rootDir: ProjectRootDir, manifest: BaseManifest }>
   commit: string
   projectChangeTypes: Map<ProjectRootDir, ChangeType | undefined>
   projectDirs: ProjectRootDir[]
   repoRoot: string
+  workingDir: string
   workspaceDir: string
 }): Promise<void> {
   const relManifestPath = path.relative(params.repoRoot, path.join(params.workspaceDir, 'pnpm-workspace.yaml')).replaceAll('\\', '/')
@@ -109,33 +119,34 @@ async function applyCatalogChangesToProjects (params: {
       `${params.commit}:${relManifestPath}`,
     ], { cwd: params.workspaceDir })
     prevManifestContent = result.stdout as string
-  } catch {
-    // If pnpm-workspace.yaml didn't exist in that commit, prevManifestContent remains empty
+  } catch (err: unknown) {
+    const stderr = (err as { stderr?: string }).stderr ?? ''
+    if (stderr.includes('does not exist in') || stderr.includes('exists on disk, but not in')) {
+      prevManifestContent = ''
+    } else {
+      throw err
+    }
   }
 
   let currManifestContent = ''
   try {
     currManifestContent = await fs.promises.readFile(path.join(params.workspaceDir, 'pnpm-workspace.yaml'), 'utf8')
-  } catch {
-    // If pnpm-workspace.yaml was removed, currManifestContent remains empty
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+      currManifestContent = ''
+    } else {
+      throw err
+    }
   }
 
   type Catalogs = ReturnType<typeof getCatalogsFromWorkspaceManifest>
   let prevCatalogs: Catalogs = {}
   let currCatalogs: Catalogs = {}
-  try {
-    if (prevManifestContent) {
-      prevCatalogs = getCatalogsFromWorkspaceManifest(yaml.parse(prevManifestContent))
-    }
-  } catch {
-    // Ignore parse errors
+  if (prevManifestContent) {
+    prevCatalogs = getCatalogsFromWorkspaceManifest(yaml.parse(prevManifestContent))
   }
-  try {
-    if (currManifestContent) {
-      currCatalogs = getCatalogsFromWorkspaceManifest(yaml.parse(currManifestContent))
-    }
-  } catch {
-    // Ignore parse errors
+  if (currManifestContent) {
+    currCatalogs = getCatalogsFromWorkspaceManifest(yaml.parse(currManifestContent))
   }
 
   const changedCatalogs = getChangedCatalogEntries(prevCatalogs, currCatalogs)
@@ -143,6 +154,9 @@ async function applyCatalogChangesToProjects (params: {
 
   const projects = await loadProjects(params.projectDirs, params.allProjects)
   for (const project of projects) {
+    if (params.workingDir !== params.workspaceDir && !isSubdir(params.workingDir, project.rootDir)) {
+      continue
+    }
     if (params.projectChangeTypes.get(project.rootDir) === 'source') continue
     if (projectUsesChangedCatalogs(project.manifest, changedCatalogs)) {
       params.projectChangeTypes.set(project.rootDir, 'source')
@@ -160,17 +174,21 @@ async function loadProjects (
   }
   return Promise.all(
     projectDirs.map(async (rootDir) => {
+      let manifestContent = ''
       try {
-        const manifestContent = await fs.promises.readFile(path.join(rootDir, 'package.json'), 'utf8')
-        return {
-          rootDir,
-          manifest: JSON.parse(manifestContent) as BaseManifest,
+        manifestContent = await fs.promises.readFile(path.join(rootDir, 'package.json'), 'utf8')
+      } catch (err: unknown) {
+        if (util.types.isNativeError(err) && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+          return {
+            rootDir,
+            manifest: {} as BaseManifest,
+          }
         }
-      } catch {
-        return {
-          rootDir,
-          manifest: {} as BaseManifest,
-        }
+        throw err
+      }
+      return {
+        rootDir,
+        manifest: JSON.parse(manifestContent) as BaseManifest,
       }
     })
   )
@@ -256,21 +274,29 @@ async function getChangedDirsSinceCommit (
   workingDir: string,
   repoRoot: string,
   testPattern: string[],
-  changedFilesIgnorePattern: string[]
+  changedFilesIgnorePattern: string[],
+  workspaceDir: string
 ): Promise<{ changedDirs: ChangedDir[], workspaceManifestChanged: boolean }> {
+  const workspaceManifestPath = path.resolve(workspaceDir, 'pnpm-workspace.yaml')
+  const relWorkspaceManifest = path.relative(repoRoot, workspaceManifestPath).replaceAll('\\', '/')
+  const diffPaths = workingDir === workspaceDir
+    ? [workingDir]
+    : [workingDir, relWorkspaceManifest]
+
   let diff!: string
   try {
     diff = (
       await execa('git', [
         'diff',
         '--name-only',
+        '--no-relative',
         // Keeps an option-like `<since>` (`--output=...`) from being
         // parsed as a git option — git rejects it as a bad revision.
         '--end-of-options',
         commit,
         '--',
-        workingDir,
-      ], { cwd: workingDir })
+        ...diffPaths,
+      ], { cwd: workspaceDir })
     ).stdout as string
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
@@ -294,13 +320,13 @@ async function getChangedDirsSinceCommit (
     })
     : allChangedFiles
 
-  const workspaceManifestPath = path.resolve(workingDir, 'pnpm-workspace.yaml')
   let workspaceManifestChanged = false
 
   for (const changedFile of changedFiles) {
     if (!changedFile) continue
     if (path.resolve(repoRoot, changedFile) === workspaceManifestPath) {
       workspaceManifestChanged = true
+      if (workingDir !== workspaceDir) continue
     }
     const dir = path.dirname(changedFile)
 

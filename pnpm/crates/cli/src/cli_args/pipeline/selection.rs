@@ -217,6 +217,7 @@ fn select_changed_projects(
         &merge_base,
         &GetChangedProjectsOptions {
             workspace_dir: options.workspace_root,
+            working_dir: None,
             test_pattern: &options.config.test_pattern,
             changed_files_ignore_pattern: &options.config.changed_files_ignore_pattern,
             project_dependencies: Some(&project_dependencies),
