@@ -377,12 +377,16 @@ where
 /// [`link_bins_of_packages`] with a caller-scoped [`ShimTargetCache`],
 /// for callers that link many `node_modules/.bin` dirs against the
 /// same underlying packages in one pass.
+///
+/// Returns whether it held back a bin whose target is missing (see
+/// [`PackageBinSource::build_pending`]), so the caller can link `bins_dir`
+/// again once the builds ran.
 pub fn link_bins_of_packages_cached<Sys>(
     packages: &[PackageBinSource],
     bins_dir: &Path,
     options: &LinkBinsOptions,
     cache: &ShimTargetCache,
-) -> Result<(), LinkBinsError>
+) -> Result<bool, LinkBinsError>
 where
     Sys: FsReadToString
         + FsReadHead
@@ -414,6 +418,7 @@ where
         + FsEnsureExecutableBits,
 {
     link_bins_impl::<Sys>(packages, bins_dir, exclude_bins, options, &ShimTargetCache::default())
+        .map(|_| ())
 }
 
 fn link_bins_impl<Sys>(
@@ -422,7 +427,7 @@ fn link_bins_impl<Sys>(
     exclude_bins: &HashSet<String>,
     options: &LinkBinsOptions,
     cache: &ShimTargetCache,
-) -> Result<(), LinkBinsError>
+) -> Result<bool, LinkBinsError>
 where
     Sys: FsReadToString
         + FsReadHead
@@ -434,8 +439,9 @@ where
 {
     let chosen = choose_bins::<Sys>(packages, exclude_bins);
     if chosen.is_empty() {
-        return Ok(());
+        return Ok(false);
     }
+    let chosen_count = chosen.len();
 
     let bin_dir = Sys::create_dir_all_reporting(bins_dir)
         .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?;
@@ -475,7 +481,7 @@ where
             )
         })?;
 
-    Ok(())
+    Ok(to_link.len() < chosen_count)
 }
 
 /// The bins `packages` provide, minus `exclude_bins`, each paired with the

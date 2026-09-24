@@ -259,15 +259,39 @@ fn lifecycle_scripts_run_before_linking_bins() {
 /// fixture's `preinstall` fails if any shim of its bin is on `PATH`.
 #[test]
 fn own_bin_is_not_on_path_before_preinstall_creates_it() {
-    install_own_bin_created_by_preinstall(None);
+    install_own_bin_created_by_preinstall(None, "1.0.0", &[ROOT_BIN]);
 }
 
 #[test]
 fn own_bin_is_not_on_path_before_preinstall_creates_it_with_hoisted_linker() {
-    install_own_bin_created_by_preinstall(Some("hoisted"));
+    install_own_bin_created_by_preinstall(Some("hoisted"), "1.0.0", &[ROOT_BIN]);
 }
 
-fn install_own_bin_created_by_preinstall(node_linker: Option<&str>) {
+/// The hoisted linker nests version 1.0.0 under the package that depends on
+/// it, because the project root holds 2.0.0. Its `preinstall` then also has
+/// the parent's `node_modules/.bin` on `PATH`.
+#[test]
+fn own_bin_is_not_on_path_before_preinstall_creates_it_when_nested_by_hoisted_linker() {
+    install_own_bin_created_by_preinstall(
+        Some("hoisted"),
+        "2.0.0",
+        &[
+            ROOT_BIN,
+            "node_modules/@pnpm.e2e/nests-own-bin-created-by-preinstall/node_modules/.bin/own-bin-created-by-preinstall",
+        ],
+    );
+}
+
+const ROOT_BIN: &str = "node_modules/.bin/own-bin-created-by-preinstall";
+
+/// Install `@pnpm.e2e/own-bin-created-by-preinstall` at `version`, plus the
+/// package that nests its 1.0.0 when `version` is another one, and check
+/// that every bin in `expected_bins` is linked afterwards.
+fn install_own_bin_created_by_preinstall(
+    node_linker: Option<&str>,
+    version: &str,
+    expected_bins: &[&str],
+) {
     let CommandTempCwd {
         pacquet,
         root,
@@ -276,12 +300,14 @@ fn install_own_bin_created_by_preinstall(node_linker: Option<&str>) {
         ..
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let mut dependencies =
+        serde_json::json!({ "@pnpm.e2e/own-bin-created-by-preinstall": version });
+    if version != "1.0.0" {
+        dependencies["@pnpm.e2e/nests-own-bin-created-by-preinstall"] = "1.0.0".into();
+    }
     fs::write(
         workspace.join("package.json"),
-        serde_json::json!({
-            "dependencies": { "@pnpm.e2e/own-bin-created-by-preinstall": "1.0.0" },
-        })
-        .to_string(),
+        serde_json::json!({ "dependencies": dependencies }).to_string(),
     )
     .expect("write package.json");
     if let Some(node_linker) = node_linker {
@@ -294,8 +320,9 @@ fn install_own_bin_created_by_preinstall(node_linker: Option<&str>) {
         .assert()
         .success();
 
-    let bin = workspace.join("node_modules/.bin/own-bin-created-by-preinstall");
-    assert!(bin.exists(), "the project gets the bin once preinstall created it");
+    for bin in expected_bins {
+        assert!(workspace.join(bin).exists(), "{bin} is linked once preinstall created it");
+    }
 
     drop((root, mock_instance));
 }

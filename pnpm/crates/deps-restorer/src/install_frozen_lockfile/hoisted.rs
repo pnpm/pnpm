@@ -43,6 +43,8 @@ pub struct HoistedLinkerOutput {
     /// `CreateVirtualStore`'s materialized list for the hoisted linker,
     /// whose snapshots all survive its skip filter.
     pub hoisted_build_snapshots: Option<Vec<PackageKey>>,
+    /// See [`crate::link_hoisted_modules()`]'s return value.
+    pub held_back_bins_dirs: Vec<crate::HeldBackBinsDir>,
 }
 
 /// Inputs to [`run_hoisted_linker`]. Bundled so the two install
@@ -112,7 +114,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     let build_present = inputs.prior.build_present_packages;
     let unbuilt = inputs.prior.unbuilt_builds;
     let walked = walk_hoisted_graph(inputs, &lockfile, skipped)?;
-    link_hoisted::<Reporter>(inputs, &lockfile, &walked, skipped)?;
+    let held_back_bins_dirs = link_hoisted::<Reporter>(inputs, &lockfile, &walked, skipped)?;
     // A present package leaves the build set unless everything is being
     // rebuilt or the previous install left it unbuilt (ignored or
     // pending): that one is judged by the build policy again, as it
@@ -133,6 +135,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
         hoisted_pkg_roots_by_key: Some(pkg_roots),
         hoisted_build_snapshots: Some(build_snapshots),
         hoisted_locations: walked.hoisted_locations,
+        held_back_bins_dirs,
     })
 }
 
@@ -235,7 +238,7 @@ fn link_hoisted<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     walked: &crate::hoisted_dep_graph::LockfileToDepGraphResult,
     skipped: &SkippedSnapshots,
-) -> Result<(), HoistedLinkerError> {
+) -> Result<Vec<crate::HeldBackBinsDir>, HoistedLinkerError> {
     let config = inputs.config;
     // Empty CAS index → linker would refuse every non-optional node.
     // Only happens when the install has no snapshots, in which case
@@ -251,7 +254,7 @@ fn link_hoisted<Reporter: self::Reporter>(
         inputs.materialization.requires_build_by_snapshot,
         config.force,
     );
-    link_hoisted_modules::<Reporter>(&LinkHoistedModulesOpts {
+    let held_back_bins_dirs = link_hoisted_modules::<Reporter>(&LinkHoistedModulesOpts {
         import: crate::PackageImportOptions {
             method: config.package_import_method,
             logged_methods: inputs.materialization.logged_methods,
@@ -280,7 +283,7 @@ fn link_hoisted<Reporter: self::Reporter>(
     crate::report_direct_dependency_changes::report_direct_dependency_changes::<Reporter>(
         inputs, lockfile, skipped,
     );
-    Ok(())
+    Ok(held_back_bins_dirs)
 }
 
 fn update_hoisted_package_map(

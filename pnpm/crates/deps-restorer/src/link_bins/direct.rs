@@ -72,18 +72,19 @@ pub fn link_direct_dep_bins(
         .iter()
         .map(|name| (name.as_str(), None))
         .collect();
-    link_named_dep_bins(modules_dir, &deps, link_options, false)
+    link_named_dep_bins(modules_dir, &deps, link_options, false).map(|_| ())
 }
-/// [`link_direct_dep_bins`] for a project's `.bin` under the hoisted
-/// linker, whose post-build relink always links that directory again.
-/// Every bin whose target is missing is held back until then, so a
-/// dependency's lifecycle scripts cannot reach a shim of a file they have
-/// yet to create. See [`PackageBinSource::build_pending`].
+/// [`link_direct_dep_bins`] for a `.bin` under the hoisted linker that is
+/// linked again after the builds. Every bin whose target is missing is held
+/// back until then, so a dependency's lifecycle scripts cannot reach a shim of
+/// a file they have yet to create. See [`PackageBinSource::build_pending`].
+///
+/// Returns whether a bin was held back.
 pub fn link_direct_dep_bins_before_builds(
     modules_dir: &Path,
     dep_names: &[String],
     link_options: &LinkBinsOptions,
-) -> Result<(), LinkBinsError> {
+) -> Result<bool, LinkBinsError> {
     let deps: Vec<(&str, Option<&Path>)> = dep_names
         .iter()
         .map(|name| (name.as_str(), None))
@@ -119,7 +120,7 @@ pub fn link_direct_dep_bins_resolved(
         .iter()
         .map(|(name, target)| (name.as_str(), Some(target.as_path())))
         .collect();
-    link_named_dep_bins(modules_dir, &deps, link_options, false)
+    link_named_dep_bins(modules_dir, &deps, link_options, false).map(|_| ())
 }
 /// One direct dep of [`link_direct_dep_bins_prefetched`]'s importer:
 /// the alias under `node_modules/`, the symlink's destination, and the
@@ -229,6 +230,7 @@ pub fn link_direct_dep_bins_prefetched(
         link_options,
         &lookup.shim_cache,
     )
+    .map(|_| ())
 }
 /// What the prefetched facts say about one direct dependency's bins.
 pub(super) enum PrefetchedBin {
@@ -303,7 +305,7 @@ pub(super) fn link_named_dep_bins(
     deps: &[(&str, Option<&Path>)],
     link_options: &LinkBinsOptions,
     build_pending: bool,
-) -> Result<(), LinkBinsError> {
+) -> Result<bool, LinkBinsError> {
     // Swallow only `NotFound`: a direct-dep symlink target can
     // legitimately be missing right after a partial pacquet run, or
     // be an in-progress install. Every other IO error (permission
@@ -339,9 +341,14 @@ pub(super) fn link_named_dep_bins(
         })
         .collect::<Result<_, _>>()?;
     if bin_sources.is_empty() {
-        return Ok(());
+        return Ok(false);
     }
-    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), link_options)
+    link_bins_of_packages_cached::<Host>(
+        &bin_sources,
+        &modules_dir.join(".bin"),
+        link_options,
+        &ShimTargetCache::default(),
+    )
 }
 /// Link bins from resolved direct-dependency locations without requiring
 /// importer symlinks. This is the `symlink: false` counterpart of

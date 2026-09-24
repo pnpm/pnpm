@@ -23,8 +23,7 @@ mod dir_clone;
 
 use crate::{
     DepHierarchy, DependenciesGraph, DependenciesGraphNode, ImportIndexedDirError,
-    ImportIndexedDirOpts, import_indexed_dir, link_direct_dep_bins,
-    prune_direct_deps::remove_dep_bins,
+    ImportIndexedDirOpts, import_indexed_dir, prune_direct_deps::remove_dep_bins,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -131,23 +130,29 @@ pub enum LinkHoistedModulesError {
 /// 3. **Per-`node_modules` bin link.** After a level's children
 ///    are all done, `<parent>/node_modules/.bin` is populated
 ///    from the just-imported direct children's `package.json`.
+///
+/// Returns the nested `node_modules` directories whose `.bin` held back a bin,
+/// for the build phase to link again.
 pub fn link_hoisted_modules<Reporter: self::Reporter>(
     opts: &LinkHoistedModulesOpts<'_>,
-) -> Result<(), LinkHoistedModulesError> {
+) -> Result<Vec<HeldBackBinsDir>, LinkHoistedModulesError> {
     let removed = remove_orphans(opts.graph, opts.prev_graph, opts.confine_root);
 
     // Drive each importer's hierarchy in parallel — workspace
     // installs (Slice 9) will have multiple importers; the
     // single-importer case has one and rayon's overhead is
     // negligible.
-    let added: u64 = opts.hierarchy
+    let LinkedLevel {
+        imported: added,
+        held_back_bins_dirs,
+    } = opts.hierarchy
         .par_iter()
         .map(|(parent_dir, deps_hierarchy)| {
             link_all_pkgs_in_order::<Reporter>(deps_hierarchy, parent_dir, true, opts)
         })
-        .collect::<Result<Vec<u64>, _>>()?
+        .collect::<Result<Vec<LinkedLevel>, _>>()?
         .into_iter()
-        .sum();
+        .fold(LinkedLevel::default(), LinkedLevel::merge);
 
     // The hoisted linker owns both of the install's `pnpm:stats`
     // emissions: pnpm emits `removed` from `linkHoistedModules` and the
@@ -166,7 +171,7 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
         message: StatsMessage::Removed { prefix: opts.import.requester.to_owned(), removed },
     }));
 
-    Ok(())
+    Ok(held_back_bins_dirs)
 }
 
 /// Phase 1: rimraf every directory that was in the previous
@@ -252,53 +257,77 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
     parent_dir: &Path,
     is_project_root: bool,
     opts: &LinkHoistedModulesOpts<'_>,
-) -> Result<u64, LinkHoistedModulesError> {
+) -> Result<LinkedLevel, LinkHoistedModulesError> {
     // Phase 2: import this level's packages + recurse into each
     // one's children. `par_iter` is sufficient — the side effects
-    // are on disk and target disjoint directories. Returns how many
-    // packages this subtree imported.
-    let imported: u64 = hierarchy.0
+    // are on disk and target disjoint directories.
+    let mut linked = hierarchy.0
         .par_iter()
         .map(|(dir, sub_hierarchy)| {
             let node = opts.graph
                 .get(dir)
                 .ok_or_else(|| LinkHoistedModulesError::MissingGraphNode { dir: dir.clone() })?;
             let here = u64::from(import_node::<Reporter>(node, opts)?);
-            Ok(here + link_all_pkgs_in_order::<Reporter>(sub_hierarchy, dir, false, opts)?)
+            let below = link_all_pkgs_in_order::<Reporter>(sub_hierarchy, dir, false, opts)?;
+            Ok(LinkedLevel { imported: here, held_back_bins_dirs: Vec::new() }.merge(below))
         })
-        .collect::<Result<Vec<u64>, LinkHoistedModulesError>>()?
+        .collect::<Result<Vec<LinkedLevel>, LinkHoistedModulesError>>()?
         .into_iter()
-        .sum();
+        .fold(LinkedLevel::default(), LinkedLevel::merge);
 
-    link_hierarchy_bins(hierarchy, parent_dir, is_project_root, opts)?;
+    let held_back = link_hierarchy_bins(hierarchy, parent_dir, opts)?;
+    // A project's `.bin` is linked again after the builds anyway.
+    if !is_project_root {
+        linked.held_back_bins_dirs.extend(held_back);
+    }
 
-    Ok(imported)
+    Ok(linked)
+}
+
+/// A nested `node_modules` whose `.bin` held back a bin while the builds that
+/// may create its target were pending. The build phase links the bins of its
+/// `dep_names` again once they ran.
+#[derive(Debug, Clone)]
+pub struct HeldBackBinsDir {
+    pub modules_dir: PathBuf,
+    pub dep_names: Vec<String>,
+}
+
+/// What a subtree of [`link_all_pkgs_in_order`] did: how many packages it
+/// imported, and its nested `.bin` directories that held back a bin.
+#[derive(Default)]
+struct LinkedLevel {
+    imported: u64,
+    held_back_bins_dirs: Vec<HeldBackBinsDir>,
+}
+
+impl LinkedLevel {
+    fn merge(mut self, other: LinkedLevel) -> LinkedLevel {
+        self.imported += other.imported;
+        self.held_back_bins_dirs.extend(other.held_back_bins_dirs);
+        self
+    }
 }
 
 // Bundled packages are absent from the graph, so their bins need a separate filesystem pass.
+///
+/// Every `.bin` of the hoisted tree is linked again after the builds, so it
+/// holds back the bins that a build may still create, and returns the directory
+/// when it did.
 fn link_hierarchy_bins(
     hierarchy: &DepHierarchy,
     parent_dir: &Path,
-    is_project_root: bool,
     opts: &LinkHoistedModulesOpts<'_>,
-) -> Result<(), LinkHoistedModulesError> {
+) -> Result<Option<HeldBackBinsDir>, LinkHoistedModulesError> {
     let modules_dir = parent_dir.join("node_modules");
     let dep_names: Vec<String> = hierarchy.0
         .keys()
         .filter_map(|child_dir| opts.graph.get(child_dir))
         .filter_map(|node| node.alias.clone())
         .collect();
-    // A project's `.bin` is linked again after the builds, so it can hold
-    // back the bins that a build may still create.
-    let link = if is_project_root {
-        crate::link_direct_dep_bins_before_builds
-    } else {
-        link_direct_dep_bins
-    };
-    if !dep_names.is_empty() {
-        link(&modules_dir, &dep_names, opts.link_options)
+    let held_back = !dep_names.is_empty()
+        && crate::link_direct_dep_bins_before_builds(&modules_dir, &dep_names, opts.link_options)
             .map_err(LinkHoistedModulesError::LinkBins)?;
-    }
 
     // Packages the tarball ships in its own `node_modules` are not graph
     // nodes, so the pass above never sees them; their bins are reachable
@@ -315,7 +344,7 @@ fn link_hierarchy_bins(
             .map_err(LinkHoistedModulesError::LinkBins)?;
     }
 
-    Ok(())
+    Ok(held_back.then_some(HeldBackBinsDir { modules_dir, dep_names }))
 }
 
 /// Import one graph node into its target `dir`. `Ok(false)` when

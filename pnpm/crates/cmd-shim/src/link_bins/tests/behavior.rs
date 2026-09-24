@@ -4,6 +4,7 @@ use super::{
     Path, PathBuf, Value, create_dir_all, empty, json, link_bins, link_bins_of_packages, read_file,
     read_to_string, tempdir, write_file,
 };
+use crate::{ShimTargetCache, link_bins_of_packages_cached};
 #[cfg(windows)]
 use std::fs::remove_file;
 
@@ -458,6 +459,34 @@ fn missing_bin_of_a_package_with_a_pending_build_is_held_back() {
     write_file(pkg.join("dist/tool.js"), "console.log('built')\n").unwrap();
     link_bins_of_packages::<Host>(&[source()], &bins, &LinkBinsOptions::default()).unwrap();
     assert!(bins.join("tool").exists(), "the bin is linked once the build created its target");
+}
+
+/// The caller links a directory that held back a bin again after the builds,
+/// so the reporting variant says whether it did.
+#[test]
+fn reporting_variant_says_whether_a_bin_was_held_back() {
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("node_modules/tool");
+    create_dir_all(&pkg).unwrap();
+    let manifest = json!({"name": "tool", "bin": {"tool": "dist/tool.js"}});
+    let source =
+        || PackageBinSource::new(pkg.clone(), Arc::new(manifest.clone())).with_build_pending(true);
+    let bins = tmp.path().join("node_modules/.bin");
+    let link = || {
+        link_bins_of_packages_cached::<Host>(
+            &[source()],
+            &bins,
+            &LinkBinsOptions::default(),
+            &ShimTargetCache::default(),
+        )
+        .unwrap()
+    };
+
+    assert!(link(), "the missing bin is held back");
+
+    create_dir_all(pkg.join("dist")).unwrap();
+    write_file(pkg.join("dist/tool.js"), "console.log('built')\n").unwrap();
+    assert!(!link(), "nothing is held back once the target exists");
 }
 
 /// Windows finds `<target>.exe` when the shim runs an extensionless target,
