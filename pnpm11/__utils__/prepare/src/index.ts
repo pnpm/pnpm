@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
@@ -111,7 +112,10 @@ export async function endsWithin (pid: number, timeout: number): Promise<boolean
   return false
 }
 
-/** Only a process the kernel no longer knows is gone; one that refuses the probe is still there. */
+/**
+ * A process the kernel no longer knows is gone, and so is one that has exited
+ * and only waits to be reaped; one that refuses the probe is still there.
+ */
 function isRunning (pid: number): boolean {
   try {
     process.kill(pid, 0)
@@ -119,5 +123,16 @@ function isRunning (pid: number): boolean {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ESRCH') return false
     throw err
   }
-  return true
+  return !isZombie(pid)
+}
+
+/**
+ * Whether `pid` has exited and waits for a parent to reap it, as an orphan
+ * does until init takes it over.
+ */
+function isZombie (pid: number): boolean {
+  if (process.platform === 'win32') return false
+  const { error, stdout } = spawnSync('ps', ['-o', 'stat=', '-p', String(pid)], { encoding: 'utf8' })
+  if (error) throw error
+  return stdout.trimStart().startsWith('Z')
 }

@@ -14,7 +14,7 @@ use std::{
     fs, io,
     os::unix::process::ExitStatusExt,
     path::Path,
-    process::{Child, ExitStatus, Stdio},
+    process::{Child, Command, ExitStatus, Stdio},
     sync::mpsc,
     thread::{self, sleep},
     time::{Duration, Instant},
@@ -473,18 +473,30 @@ fn read_pid(path: &Path) -> libc::pid_t {
         .expect("the fixture recorded its pid")
 }
 
-/// Whether `pid` still names a process. Only a process the kernel no
-/// longer knows is gone; one that refuses the probe is still there.
+/// Whether `pid` still names a live process. One the kernel no longer
+/// knows is gone, and so is one that has exited and only waits to be
+/// reaped; one that refuses the probe is still there.
 fn is_running(pid: libc::pid_t) -> bool {
     // SAFETY: a signal of 0 only probes for the process.
-    if unsafe { libc::kill(pid, 0) } == 0 {
-        return true;
+    if unsafe { libc::kill(pid, 0) } != 0 {
+        return match io::Error::last_os_error().raw_os_error() {
+            Some(libc::ESRCH) => false,
+            Some(libc::EPERM) => true,
+            _ => panic!("probe process {pid}: {}", io::Error::last_os_error()),
+        };
     }
-    match io::Error::last_os_error().raw_os_error() {
-        Some(libc::ESRCH) => false,
-        Some(libc::EPERM) => true,
-        _ => panic!("probe process {pid}: {}", io::Error::last_os_error()),
-    }
+    !is_zombie(pid)
+}
+
+/// Whether `pid` has exited and waits for a parent to reap it. An orphan
+/// stays one until init takes it over, which the probe above cannot tell
+/// from a running process.
+fn is_zombie(pid: libc::pid_t) -> bool {
+    let state = Command::new("ps")
+        .args(["-o", "stat=", "-p", &pid.to_string()])
+        .output()
+        .expect("run ps");
+    state.stdout.trim_ascii_start().first() == Some(&b'Z')
 }
 
 /// Whether `pid` is gone before `deadline` passes.
