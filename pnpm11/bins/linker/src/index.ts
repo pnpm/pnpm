@@ -304,7 +304,8 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // those scripts may be what creates a missing target. The `node` package's
   // preinstall calls `node` to download bin/node, which must not resolve to
   // a shim of bin/node itself. Other packages get the shim (see cmd-shim).
-  if (isOwnBinsDir(cmd.pkgDir, binsDir) && await isMissing(cmd.path)) {
+  if (isOwnBinsDir(cmd.pkgDir, binsDir) && await isMissing(cmd.path) &&
+    (!IS_WINDOWS || await isMissing(`${cmd.path}${getExeExtension()}`))) {
     await Promise.all([
       rimraf(externalBinPath),
       rimraf(`${externalBinPath}.cmd`),
@@ -526,14 +527,14 @@ async function canSymlinkExecutable (file: string): Promise<boolean> {
     const stat = await fs.stat(realFile)
     return (stat.mode & 0o111) === 0o111 && !(await hasWindowsShebang(realFile))
   } catch (err: any) { // eslint-disable-line
-    if (err.code === 'ENOENT') return true
+    if (err.code === 'ENOENT' || err.code === 'ENOTDIR') return true
     throw err
   }
 }
 
 async function ensureExecutableIfNeeded (file: string, mode: number, opts?: { allowMissing?: boolean }): Promise<void> {
   const stat = await fs.stat(file).catch((err: any) => { // eslint-disable-line
-    if (opts?.allowMissing && err.code === 'ENOENT') return undefined
+    if (opts?.allowMissing && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return undefined
     throw err
   })
   if (stat == null) return

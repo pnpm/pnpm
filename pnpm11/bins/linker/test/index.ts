@@ -848,6 +848,17 @@ test("linkBinsOfPackages() does not link a package's missing bin into its own .b
   expect(fs.readdirSync(ownBinsDir)).toEqual([])
 })
 
+testOnWindows("linkBinsOfPackages() links a package's own bin whose target exists only with an .exe extension", async () => {
+  const pkgDir = temporaryDirectory()
+  const ownBinsDir = path.join(pkgDir, 'node_modules', '.bin')
+  fs.mkdirSync(path.join(pkgDir, 'bin'))
+  fs.writeFileSync(path.join(pkgDir, 'bin', 'tool.exe'), '')
+
+  await linkBinsOfPackages([{ location: pkgDir, manifest: { name: 'tool', version: '1.0.0', bin: 'bin/tool' } }], ownBinsDir)
+
+  expect(fs.readdirSync(ownBinsDir)).toEqual(getExpectedBins(['tool']))
+})
+
 testOnWindows('linkBins() should remove an existing .exe file from the target directory', async () => {
   const binTarget = temporaryDirectory()
   fs.writeFileSync(path.join(binTarget, 'simple.exe'), '', 'utf8')

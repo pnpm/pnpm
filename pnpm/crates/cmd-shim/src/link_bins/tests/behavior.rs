@@ -437,3 +437,25 @@ fn missing_bin_target_is_linked_for_dependents_only() {
     link_bins_of_packages::<Host>(&[source()], &own_bins, &LinkBinsOptions::default()).unwrap();
     assert!(!own_bins.join("tool").exists(), "own .bin drops a shim whose target is gone");
 }
+
+/// Windows finds `<target>.exe` when the shim runs an extensionless target,
+/// so an own bin with only the `.exe` present still gets its shim.
+#[cfg(windows)]
+#[test]
+fn own_bin_with_only_exe_target_is_linked() {
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("tool");
+    create_dir_all(pkg.join("bin")).unwrap();
+    write_file(pkg.join("bin/tool.exe"), "").unwrap();
+    let manifest = json!({"name": "tool", "bin": {"tool": "bin/tool"}});
+    let own_bins = pkg.join("node_modules/.bin");
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg.clone(), Arc::new(manifest))],
+        &own_bins,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    assert!(own_bins.join("tool.cmd").exists(), "own .bin shims a target that exists as .exe");
+}

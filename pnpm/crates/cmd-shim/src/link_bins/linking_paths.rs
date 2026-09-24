@@ -1,5 +1,6 @@
 use super::{
     FsReadHead, LinkBinsError, LinkBinsOptions, PackageBinSource, bin_node_paths, remove_bin,
+    shim_writer::with_extension_appended,
 };
 use pnpm_fs::{is_subdir, realpath_missing};
 use std::{
@@ -197,9 +198,15 @@ pub(super) fn unlink_own_missing_bin<Sys: FsReadHead>(
     Ok(true)
 }
 
+/// Whether neither `path` nor, on Windows, its `.exe` sibling exists. The
+/// shim runs `path` directly when it has no known script extension, and
+/// Windows then finds the `.exe`.
 fn target_is_missing<Sys: FsReadHead>(path: &Path) -> bool {
-    matches!(
-        Sys::read_head(path, 0, &mut [0u8; 1]),
-        Err(error) if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory),
-    )
+    let missing = |path: &Path| {
+        matches!(
+            Sys::read_head(path, 0, &mut [0u8; 1]),
+            Err(error) if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory),
+        )
+    };
+    missing(path) && (!cfg!(windows) || missing(&with_extension_appended(path, "exe")))
 }
