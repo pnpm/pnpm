@@ -2652,3 +2652,23 @@ test('adding unrelated dep does not churn transitivePeerDependencies', async () 
     expect(lockfileAfter.snapshots[key]).toStrictEqual(snapshot)
   }
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/8912
+test.each([true, false])('an optional peer that is also a regular dependency is installed as the dependency, with autoInstallPeers=%s', async (autoInstallPeers) => {
+  await addDistTag({ package: '@pnpm.e2e/bravo-dep', version: '1.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/has-optional-peer-also-in-deps@1.0.0'],
+    testDefaults({ autoInstallPeers })
+  )
+
+  const snapshotKey = '@pnpm.e2e/has-optional-peer-also-in-deps@1.0.0'
+  expect(project.readLockfile().snapshots[snapshotKey]?.dependencies).toStrictEqual({ '@pnpm.e2e/bravo-dep': '1.0.0' })
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+has-optional-peer-also-in-deps@1.0.0/node_modules/@pnpm.e2e/bravo-dep'))).toBeTruthy()
+
+  await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], testDefaults({ autoInstallPeers }))
+
+  expect(project.readLockfile().snapshots[snapshotKey]?.dependencies).toStrictEqual({ '@pnpm.e2e/bravo-dep': '1.0.0' })
+})
