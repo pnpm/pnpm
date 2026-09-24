@@ -2,7 +2,7 @@ import { existsSync, promises as fs } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
-import { cmdShim, getExeExtension, isShimNodePath, isShimPointingAt } from '@pnpm/bins.cmd-shim'
+import { cmdShim, getExeExtension, isShimForMissingTarget, isShimNodePath, isShimPointingAt } from '@pnpm/bins.cmd-shim'
 import { type Command, getBinsFromPackageManifest, pkgOwnsBin } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
@@ -318,6 +318,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     } else if (stat.isFile() && stat.size < CMD_SHIM_MAX_SIZE) {
       const content = await fs.readFile(externalBinPath, 'utf8')
       isCorrectlyLinked = isShimPointingAt(content, cmd.path) && isShimHardened(content) &&
+        (!isShimForMissingTarget(content) || await isMissing(cmd.path)) &&
         (
           (opts?.extraNodePaths == null && opts?.projectModulesDir == null) ||
           isShimNodePath(content, {

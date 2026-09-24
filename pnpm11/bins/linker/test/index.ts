@@ -823,6 +823,24 @@ test("linkBins() creates a bin that points to a path that doesn't exist yet", as
   expect(result.stdout.toString()).toMatch('built')
 })
 
+test('linkBinsOfPackages() rewrites a shim written for a missing target once the target exists', async () => {
+  const pkgDir = temporaryDirectory()
+  const binsDir = temporaryDirectory()
+  const pkg = { location: pkgDir, manifest: { name: 'tool', version: '1.0.0', bin: 'bin/tool' } }
+
+  await linkBinsOfPackages([pkg], binsDir)
+  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).not.toMatch(/exec node /)
+
+  fs.mkdirSync(path.join(pkgDir, 'bin'))
+  fs.writeFileSync(path.join(pkgDir, 'bin', 'tool'), '#!/usr/bin/env node\nconsole.log(\'built\')\n')
+  await linkBinsOfPackages([pkg], binsDir)
+
+  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).toMatch(/exec node +"\$basedir\//)
+  if (IS_WINDOWS) {
+    expect(fs.readFileSync(path.join(binsDir, `tool${CMD_EXTENSION}`), 'utf8')).toMatch('node')
+  }
+})
+
 test("linkBinsOfPackages() does not link a package's missing bin into its own .bin directory", async () => {
   const binNotExistFixture = f.prepare('bin-not-exist')
   const pkgDir = path.join(binNotExistFixture, 'node_modules', 'foo')

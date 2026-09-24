@@ -68,6 +68,7 @@ export interface Options {
  */
 type InternalOptions = Options & Required<Pick<Options, keyof typeof DEFAULT_OPTIONS>> & {
   fs_: FsPromises
+  isTargetMissing?: boolean
 }
 
 type FsPromises = Pick<typeof fs.promises, 'chmod' | 'mkdir' | 'readFile' | 'stat' | 'unlink' | 'writeFile'>
@@ -159,6 +160,17 @@ export function isShimPointingAt (shimContent: string, src: string): boolean {
 }
 
 /**
+ * Whether the shim was written while its target was missing. Its runtime was
+ * then inferred from the target's extension, so it should be rewritten once
+ * the target exists and its shebang can be read.
+ */
+export function isShimForMissingTarget (shimContent: string): boolean {
+  return shimContent.includes(`${TARGET_MISSING_MARKER}\n`)
+}
+
+const TARGET_MISSING_MARKER = '# cmd-shim-missing-target'
+
+/**
  * Check whether a shell shim's `NODE_PATH` starts with `first` and ends with
  * the `last` entries. An omitted `first` or `last` is not checked. When both
  * are empty, the shim must not set `NODE_PATH` at all.
@@ -228,6 +240,8 @@ function writeShimPost (target: string, opts: InternalOptions) {
 interface RuntimeInfo {
   program: string | null
   additionalArgs: string
+  /** Whether `program` was inferred from the path because the target is missing. */
+  isTargetMissing?: boolean
 }
 
 async function searchScriptRuntime (target: string, opts: InternalOptions): Promise<RuntimeInfo> {
@@ -244,7 +258,7 @@ async function searchScriptRuntime (target: string, opts: InternalOptions): Prom
         additionalArgs: '',
       }
     }
-    return runtimeFromExtension(target)
+    return { ...runtimeFromExtension(target), isTargetMissing: true }
   }
 
   // First, check if the bin is a #! of some sort.
@@ -320,6 +334,7 @@ async function writeShim (src: string, to: string, srcRuntimeInfo: RuntimeInfo, 
   opts = Object.assign({}, opts, {
     prog: srcRuntimeInfo.program,
     args: args,
+    isTargetMissing: srcRuntimeInfo.isTargetMissing,
   })
 
   await writeShimPre(to, opts)
@@ -550,6 +565,7 @@ fi
 
   // Marker used by consumers to detect whether the shim is up-to-date
   // without parsing the script content.
+  if (opts.isTargetMissing) sh += `${TARGET_MISSING_MARKER}\n`
   sh += `# ${shimTarget(src)}\n`
 
   return sh

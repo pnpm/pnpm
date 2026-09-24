@@ -7,7 +7,7 @@ snapshot.setDefaultSnapshotSerializers([
 import path from 'node:path'
 import { cmdExtension } from 'cmd-extension'
 import { fixtures, fixtures2, fs, setupFixtures } from './setup.js'
-import { cmdShim, isShimPointingAt } from '@pnpm/bins.cmd-shim'
+import { cmdShim, isShimForMissingTarget, isShimPointingAt } from '@pnpm/bins.cmd-shim'
 
 /**
  * @param {import('node:test').TestContext} t
@@ -73,6 +73,14 @@ describe('missing source', () => {
     const content = fs.readFileSync(to, 'utf8')
     assert.match(content, /\nexec "\$basedir\/missing" +"\$@"\n/)
     assert.doesNotMatch(content, /exec node/)
+  })
+
+  test('marks the shim as written for a missing target', async () => {
+    await cmdShim(path.resolve(fixtures, 'missing'), to, { createCmdFile: false, fs })
+    assert.equal(isShimForMissingTarget(fs.readFileSync(to, 'utf8')), true)
+
+    await cmdShim(path.resolve(fixtures, 'src.env'), to, { createCmdFile: false, fs })
+    assert.equal(isShimForMissingTarget(fs.readFileSync(to, 'utf8')), false)
   })
 })
 
