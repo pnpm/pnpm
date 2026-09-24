@@ -222,7 +222,7 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     // which this install of the deployed project must neither check nor replace.
     optimisticRepeatInstall: false,
     saveWorkspaceState: false,
-    virtualStoreDir: deployVirtualStoreDir(deployDir, opts),
+    virtualStoreDir: resolveDeployVirtualStoreDir(deployDir, opts),
     modulesDir: path.relative(opts.workspaceDir, path.join(deployDir, 'node_modules')),
     includeOnlyPackageFiles,
   })
@@ -399,7 +399,7 @@ async function deployFromSharedLockfile (
     allowBuilds: opts.allowBuilds,
   })
 
-  const virtualStoreDir = configuredVirtualStoreDir(opts)
+  const virtualStoreDir = getConfiguredVirtualStoreDir(opts)
   if (virtualStoreDir != null) {
     deployFiles.workspaceManifest.virtualStoreDir = virtualStoreDir
   }
@@ -431,7 +431,7 @@ async function deployFromSharedLockfile (
       dir: deployDir,
       lockfileDir: deployDir,
       workspaceDir: deployDir,
-      virtualStoreDir: deployVirtualStoreDir(deployDir, opts),
+      virtualStoreDir: resolveDeployVirtualStoreDir(deployDir, opts),
       modulesDir: undefined,
       confirmModulesPurge: false,
       frozenLockfile: true,
@@ -462,7 +462,7 @@ As a workaround, add the following to pnpm-workspace.yaml:
 
 // A global virtual store or an absolute virtualStoreDir is shared with the
 // source workspace, and the self-contained deploy must not write into it.
-function configuredVirtualStoreDir (
+function getConfiguredVirtualStoreDir (
   opts: Pick<DeployOptions, 'enableGlobalVirtualStore' | 'virtualStoreDir'>
 ): string | undefined {
   if (opts.enableGlobalVirtualStore || opts.virtualStoreDir == null || path.isAbsolute(opts.virtualStoreDir)) {
@@ -471,11 +471,11 @@ function configuredVirtualStoreDir (
   return opts.virtualStoreDir
 }
 
-function deployVirtualStoreDir (
+function resolveDeployVirtualStoreDir (
   deployDir: string,
   opts: Pick<DeployOptions, 'enableGlobalVirtualStore' | 'virtualStoreDir'>
 ): string {
-  const virtualStoreDir = configuredVirtualStoreDir(opts)
+  const virtualStoreDir = getConfiguredVirtualStoreDir(opts)
   return virtualStoreDir == null
     ? path.join(deployDir, 'node_modules/.pnpm')
     : path.resolve(deployDir, virtualStoreDir)
