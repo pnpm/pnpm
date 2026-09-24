@@ -258,3 +258,95 @@ fn node_modules_inspect_permission_denied_surfaces() {
         );
     }
 }
+
+fn cross_device_error() -> std::io::Error {
+    #[cfg(unix)]
+    return std::io::Error::from_raw_os_error(18);
+    #[cfg(windows)]
+    return std::io::Error::from_raw_os_error(17);
+}
+
+/// A filesystem provider that reports `EXDEV` on rename, simulating
+/// overlayfs when moving a directory from an inherited image layer.
+struct CrossDevice;
+
+impl pnpm_fs::FsRename for CrossDevice {
+    fn rename(_src: &std::path::Path, _dst: &std::path::Path) -> std::io::Result<()> {
+        Err(cross_device_error())
+    }
+}
+
+impl pnpm_fs::FsRemoveDirent for CrossDevice {
+    fn remove_dirent(path: &std::path::Path) -> std::io::Result<()> {
+        pnpm_fs::remove_dirent(path)
+    }
+}
+
+#[test]
+fn preserve_modules_dir_cross_device_fallback_copies_and_removes_source() {
+    let tmp = tempdir().unwrap();
+    let source = tmp.path().join("source_node_modules");
+    fs::create_dir_all(source.join("inner")).unwrap();
+    fs::write(source.join("inner/index.js"), b"// inner dep").unwrap();
+    fs::write(source.join("file.js"), b"// preserved dep").unwrap();
+
+    let destination = tmp.path().join("staged_node_modules");
+    let backup = tmp.path().join("backup_node_modules");
+
+    let preserved =
+        super::super::staging::preserve_modules_dir::<CrossDevice>(&source, &destination, &backup)
+            .expect("cross-device rename should fall back to copy and delete");
+
+    assert_eq!(preserved, super::super::PreservedModules::Directory);
+    assert_eq!(fs::read(destination.join("file.js")).unwrap(), b"// preserved dep");
+    assert_eq!(fs::read(destination.join("inner/index.js")).unwrap(), b"// inner dep");
+    assert!(!source.exists(), "source must be removed after move");
+    assert!(!backup.exists(), "backup must not be left behind on direct move");
+}
+
+#[test]
+fn preserve_modules_dir_cross_device_with_collision_merges() {
+    let tmp = tempdir().unwrap();
+    let source = tmp.path().join("source_node_modules");
+    fs::create_dir_all(source.join("existing")).unwrap();
+    fs::write(source.join("existing/keep.js"), b"survivor").unwrap();
+    fs::create_dir_all(source.join("foo")).unwrap();
+    fs::write(source.join("foo/stale.js"), b"replaced").unwrap();
+
+    let destination = tmp.path().join("staged_node_modules");
+    fs::create_dir_all(destination.join("foo")).unwrap();
+    fs::write(destination.join("foo/index.js"), b"bundled").unwrap();
+
+    let backup = tmp.path().join("backup_node_modules");
+
+    let preserved =
+        super::super::staging::preserve_modules_dir::<CrossDevice>(&source, &destination, &backup)
+            .expect("cross-device collision should merge via backup");
+
+    assert!(matches!(preserved, super::super::PreservedModules::Merged { .. }));
+    assert_eq!(fs::read(destination.join("existing/keep.js")).unwrap(), b"survivor");
+    assert_eq!(fs::read(destination.join("foo/index.js")).unwrap(), b"bundled");
+    assert!(
+        !destination.join("foo/stale.js").exists(),
+        "conflicting entries in source must not overwrite destination",
+    );
+    assert!(!source.exists(), "source must be removed after merge");
+}
+
+#[test]
+fn restore_preserved_node_modules_cross_device() {
+    let tmp = tempdir().unwrap();
+    let staged = tmp.path().join("staged_node_modules");
+    fs::create_dir_all(staged.join("inner")).unwrap();
+    fs::write(staged.join("inner/index.js"), b"// inner dep").unwrap();
+
+    let target = tmp.path().join("target_node_modules");
+    let preserved = super::super::PreservedModules::Directory;
+
+    let restored = super::super::staging::restore_preserved_node_modules::<CrossDevice>(
+        &preserved, &staged, &target,
+    );
+    assert!(restored);
+    assert_eq!(fs::read(target.join("inner/index.js")).unwrap(), b"// inner dep");
+    assert!(!staged.exists(), "staged copy must be removed after restore");
+}
