@@ -3,7 +3,7 @@
 //! resolution + subtree instead of re-resolving from the registry.
 //! See `pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md`.
 
-use node_semver::{Range, Version};
+use node_semver::Range;
 use pnpm_lockfile::{
     BundledDependencies, ImporterDepVersion, Lockfile, LockfileResolution, PkgName, PkgNameVer,
     PkgNameVerPeer, ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotDepRef,
@@ -73,10 +73,10 @@ pub(crate) fn prior_child_key(
         let range = reduce_named_registry_spec(registry_name, &key.name, bare_specifier)?
             .parse::<Range>()
             .ok()?;
-        satisfies_with_prereleases(&range, version)
+        range.satisfies(version)
     } else {
         let range = bare_specifier.parse::<Range>().ok()?;
-        satisfies_with_prereleases(&range, key.suffix.version_semver()?)
+        range.satisfies(key.suffix.version_semver()?)
     };
     satisfied.then_some(key)
 }
@@ -154,10 +154,10 @@ pub(crate) fn reusable_importer_dep(
         let range = reduce_named_registry_spec(registry_name, &key.name, bare_specifier)?
             .parse::<Range>()
             .ok()?;
-        satisfies_with_prereleases(&range, version)
+        range.satisfies(version)
     } else {
         let range = bare_specifier.parse::<Range>().ok()?;
-        satisfies_with_prereleases(&range, ver_peer.version_semver()?)
+        range.satisfies(ver_peer.version_semver()?)
     };
     if !satisfied {
         return None;
@@ -184,28 +184,6 @@ fn importer_dep<'a>(
                 .as_ref()
                 .and_then(|deps| deps.get(name))
         })
-}
-
-/// Whether `version` satisfies `range`, keeping a prerelease eligible
-/// for a range that carries none of its own by retrying with the
-/// prerelease tag stripped — the same rule peer binding applies
-/// elsewhere in this crate, and looser than the range semantics the
-/// required-peer picker needs.
-fn satisfies_with_prereleases(range: &Range, version: &Version) -> bool {
-    if range.satisfies(version) {
-        return true;
-    }
-    if !version.is_prerelease() {
-        return false;
-    }
-    let release = Version {
-        major: version.major,
-        minor: version.minor,
-        patch: version.patch,
-        pre_release: Vec::new(),
-        build: Vec::new(),
-    };
-    range.satisfies(&release)
 }
 
 /// Synthesize the [`ResolveResult`] a fresh resolve of `key` would have
