@@ -5,6 +5,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-test-config-'))
+const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-test-cache-'))
 
 try {
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => {
@@ -17,6 +18,7 @@ try {
     PNPM_CONFIG_CI: 'false',
     PNPM_CONFIG_NPMRC_AUTH_FILE: npmrcPath,
     PNPM_TEST_NPMRC_AUTH_FILE: npmrcPath,
+    XDG_CACHE_HOME: cacheDir,
     XDG_CONFIG_HOME: configDir,
   })
 
@@ -28,4 +30,5 @@ try {
   process.exitCode = result.status ?? 1
 } finally {
   fs.rmSync(configDir, { recursive: true, force: true })
+  fs.rmSync(cacheDir, { recursive: true, force: true })
 }
