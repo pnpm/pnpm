@@ -132,7 +132,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   const finishingList: FinishingResolutionPromise[] = []
   const peersCache = new Map<PkgIdWithPatchHash, PeersCacheItem[]>()
   const purePkgs = new Set<PkgIdWithPatchHash>()
-  const projectsByRootDir = new Map(opts.projects.map((p) => [p.rootDir, p]))
+  const projectsByRootDir = new Map(opts.projects.map((p) => [path.resolve(p.rootDir), p]))
   for (const { directNodeIdsByAlias, hoistedPeerProviderNodeIds, declaredDirectDependencies, explicitlyRequestedDirectDependencies, topParents, rootDir, id, linkedDependencies } of opts.projects) {
     const currentProviderSources: CurrentProviderSource[] = [{
       directNodeIdsByAlias,
@@ -238,7 +238,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
         let linkedProject = projectsByRootDir.get(linkedProjectDir)
         if (!linkedProject) {
           linkedProject = opts.projects
-            .filter((p) => p.id !== '.' && linkedProjectDir.startsWith(p.rootDir + path.sep))
+            .filter((p) => p.id !== '.' && linkedProjectDir.startsWith(path.resolve(p.rootDir) + path.sep))
             .sort((a, b) => b.rootDir.length - a.rootDir.length)[0]
         }
         for (const [peerName, peerRange] of Object.entries(linkedDependency.pkg.peerDependencies)) {
