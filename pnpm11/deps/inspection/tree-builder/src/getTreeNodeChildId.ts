@@ -41,7 +41,7 @@ export function getTreeNodeChildId (opts: GetTreeNodeChildIdOpts): TreeNodeId | 
       // A 'link:' reference may refer to a package outside of the pnpm workspace.
       // Return undefined in that case since it would be difficult to list/traverse
       // that package outside of the pnpm workspace.
-      const publishingImporterId = findImporterByPublishDirectory(opts.lockfileDir, opts.importers, childImporterId)
+      const publishingImporterId = getPublishDirectoryImporters(opts.lockfileDir, opts.importers).get(childImporterId)
       return publishingImporterId == null
         ? undefined
         : { type: 'importer', importerId: publishingImporterId }
@@ -54,20 +54,27 @@ export function getTreeNodeChildId (opts: GetTreeNodeChildIdOpts): TreeNodeId | 
   }
 }
 
+const publishDirectoryImportersCache = new WeakMap<Record<string, ProjectSnapshot>, Map<string, string>>()
+
 /**
- * The importer that dependents link through its publish directory: a project
- * with `publishConfig.directory` is linked there unless
+ * The importer each publish directory belongs to, keyed like an importer id.
+ * Dependents link a project with `publishConfig.directory` there unless
  * `publishConfig.linkDirectory` is false.
  */
-function findImporterByPublishDirectory (
+function getPublishDirectoryImporters (
   lockfileDir: string,
-  importers: Record<string, ProjectSnapshot>,
-  linkedImporterId: string
-): string | undefined {
-  return Object.keys(importers).find((importerId) => {
-    const { publishDirectory, linkDirectory } = importers[importerId]
-    return publishDirectory != null &&
-      linkDirectory !== false &&
-      getLockfileImporterId(lockfileDir, path.join(lockfileDir, importerId, publishDirectory)) === linkedImporterId
-  })
+  importers: Record<string, ProjectSnapshot>
+): Map<string, string> {
+  let publishDirectoryImporters = publishDirectoryImportersCache.get(importers)
+  if (publishDirectoryImporters == null) {
+    publishDirectoryImporters = new Map()
+    for (const [importerId, { publishDirectory, linkDirectory }] of Object.entries(importers)) {
+      if (publishDirectory != null && linkDirectory !== false) {
+        const linkedImporterId = getLockfileImporterId(lockfileDir, path.join(lockfileDir, importerId, publishDirectory))
+        publishDirectoryImporters.set(linkedImporterId, importerId)
+      }
+    }
+    publishDirectoryImportersCache.set(importers, publishDirectoryImporters)
+  }
+  return publishDirectoryImporters
 }

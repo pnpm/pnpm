@@ -85,6 +85,7 @@ pub fn build_dependency_graph(
     } else {
         PeerSatisfactionEdges::default()
     };
+    let publish_dirs = publish_directory_importers(opts.lockfile);
 
     while queue_idx < queue.len() {
         let node_id = queue[queue_idx].clone();
@@ -93,7 +94,7 @@ pub fn build_dependency_graph(
             continue;
         }
 
-        let edges = node_edges(&node_id, opts, &skipped_peer_edges);
+        let edges = node_edges(&node_id, opts, &skipped_peer_edges, &publish_dirs);
         let peers = match &node_id {
             TreeNodeId::Package(dep_path) => peer_names(opts.lockfile, dep_path),
             TreeNodeId::Importer(_) => HashSet::new(),
@@ -118,11 +119,12 @@ fn node_edges(
     node_id: &TreeNodeId,
     opts: &BuildGraphOptions<'_>,
     skipped_peer_edges: &PeerSatisfactionEdges,
+    publish_dirs: &HashMap<String, String>,
 ) -> Vec<GraphEdge> {
     match node_id {
         TreeNodeId::Importer(importer_id) => opts.lockfile.importers
             .get(importer_id.as_str())
-            .map(|importer| importer_edges(importer, importer_id, opts))
+            .map(|importer| importer_edges(importer, importer_id, opts, publish_dirs))
             .unwrap_or_default(),
         TreeNodeId::Package(dep_path) => opts.lockfile.snapshots
             .as_ref()
@@ -148,6 +150,7 @@ fn importer_edges(
     importer: &ProjectSnapshot,
     importer_id: &str,
     opts: &BuildGraphOptions<'_>,
+    publish_dirs: &HashMap<String, String>,
 ) -> Vec<GraphEdge> {
     let mut edges = Vec::new();
     let groups: [(bool, Option<&pnpm_lockfile::ResolvedDependencyMap>); 3] = [
@@ -165,7 +168,7 @@ fn importer_edges(
             let target = edge_target(
                 dep_path.as_ref(),
                 link_target.as_deref(),
-                Some(importer_id),
+                Some((importer_id, publish_dirs)),
                 opts.lockfile,
             );
             let edge = GraphEdge {
@@ -223,34 +226,37 @@ fn package_edges(
 fn edge_target(
     dep_path: Option<&PkgNameVerPeer>,
     link_target: Option<&str>,
-    parent_importer_id: Option<&str>,
+    parent_importer: Option<(&str, &HashMap<String, String>)>,
     lockfile: &Lockfile,
 ) -> Option<TreeNodeId> {
     if let Some(dep_path) = dep_path {
         return Some(TreeNodeId::Package(dep_path.clone()));
     }
     let link_target = link_target?;
-    let parent_importer_id = parent_importer_id?;
+    let (parent_importer_id, publish_dirs) = parent_importer?;
     let importer_id = normalize_importer_path(parent_importer_id, link_target)?;
     if lockfile.importers.contains_key(importer_id.as_str()) {
         return Some(TreeNodeId::Importer(importer_id));
     }
-    importer_by_publish_directory(lockfile, &importer_id).map(TreeNodeId::Importer)
+    publish_dirs
+        .get(&importer_id)
+        .cloned()
+        .map(TreeNodeId::Importer)
 }
 
-/// The importer that dependents link through its publish directory: a
-/// project with `publishConfig.directory` is linked there unless
+/// The importer each publish directory belongs to, keyed like an importer
+/// id. Dependents link a project with `publishConfig.directory` there unless
 /// `publishConfig.linkDirectory` is false.
-fn importer_by_publish_directory(lockfile: &Lockfile, linked_importer_id: &str) -> Option<String> {
+fn publish_directory_importers(lockfile: &Lockfile) -> HashMap<String, String> {
     lockfile.importers
         .iter()
-        .find_map(|(importer_id, importer)| {
+        .filter(|(_, importer)| importer.link_directory != Some(false))
+        .filter_map(|(importer_id, importer)| {
             let publish_directory = importer.publish_directory.as_deref()?;
-            let links_publish_directory = importer.link_directory != Some(false)
-                && normalize_importer_path(importer_id.as_str(), publish_directory).as_deref()
-                    == Some(linked_importer_id);
-            links_publish_directory.then(|| importer_id.clone())
+            let linked_importer_id = normalize_importer_path(importer_id, publish_directory)?;
+            Some((linked_importer_id, importer_id.clone()))
         })
+        .collect()
 }
 
 /// Lexically resolve `relative` against the importer id `base`,
