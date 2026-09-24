@@ -409,3 +409,145 @@ test('marks conflicting untracked pnpmfile hook state for resolution', () => {
     }
   ).untrackedPnpmfileReadPackageHook).toBe(true)
 })
+
+test('preserves and merges overrides, neverBuiltDependencies, patchedDependencies, settings, and catalogs', () => {
+  const ours: LockfileObject = {
+    ...simpleLockfile,
+    overrides: {
+      foo: '1.0.0',
+      bar: '2.0.0',
+    },
+    neverBuiltDependencies: ['fsevents'],
+    onlyBuiltDependencies: ['esbuild'],
+    patchedDependencies: {
+      'foo@1.0.0': 'hash-ours',
+      'baz@3.0.0': 'hash-baz',
+    },
+    packageExtensionsChecksum: 'checksum-ours',
+    settings: {
+      autoInstallPeers: true,
+      excludeLinksFromLockfile: false,
+      dedupePeers: true,
+    },
+    catalogs: {
+      default: {
+        react: {
+          specifier: '^18.0.0',
+          version: '18.2.0',
+        },
+        lodash: {
+          specifier: '^4.17.20',
+          version: '4.17.21',
+        },
+      },
+    },
+    time: {
+      foo: '2024-01-01T00:00:00.000Z',
+    },
+  }
+  const theirs: LockfileObject = {
+    ...simpleLockfile,
+    overrides: {
+      foo: '1.1.0',
+      qar: '3.0.0',
+    },
+    neverBuiltDependencies: ['node-gyp'],
+    onlyBuiltDependencies: ['sqlite3'],
+    patchedDependencies: {
+      'foo@1.0.0': 'hash-theirs',
+      'qar@2.0.0': 'hash-qar',
+    },
+    packageExtensionsChecksum: 'checksum-theirs',
+    settings: {
+      autoInstallPeers: false,
+      excludeLinksFromLockfile: true,
+      peersSuffixMaxLength: 500,
+    },
+    catalogs: {
+      default: {
+        react: {
+          specifier: '^18.3.0',
+          version: '18.3.1',
+        },
+        axios: {
+          specifier: '^1.0.0',
+          version: '1.6.0',
+        },
+      },
+      other: {
+        vue: {
+          specifier: '^3.0.0',
+          version: '3.4.0',
+        },
+      },
+    },
+    time: {
+      bar: '2024-02-01T00:00:00.000Z',
+    },
+  }
+
+  const merged = mergeLockfileChanges(ours, theirs)
+
+  expect(merged.overrides).toStrictEqual({
+    foo: '1.1.0',
+    bar: '2.0.0',
+    qar: '3.0.0',
+  })
+  expect(merged.neverBuiltDependencies).toStrictEqual(['fsevents', 'node-gyp'])
+  expect(merged.onlyBuiltDependencies).toStrictEqual(['esbuild', 'sqlite3'])
+  expect(merged.patchedDependencies).toStrictEqual({
+    'foo@1.0.0': 'hash-theirs',
+    'baz@3.0.0': 'hash-baz',
+    'qar@2.0.0': 'hash-qar',
+  })
+  expect(merged.packageExtensionsChecksum).toBe('checksum-ours')
+  expect(merged.settings).toStrictEqual({
+    autoInstallPeers: true,
+    excludeLinksFromLockfile: true,
+    dedupePeers: true,
+    peersSuffixMaxLength: 500,
+  })
+  expect(merged.catalogs).toStrictEqual({
+    default: {
+      react: {
+        specifier: '^18.3.0',
+        version: '18.3.1',
+      },
+      lodash: {
+        specifier: '^4.17.20',
+        version: '4.17.21',
+      },
+      axios: {
+        specifier: '^1.0.0',
+        version: '1.6.0',
+      },
+    },
+    other: {
+      vue: {
+        specifier: '^3.0.0',
+        version: '3.4.0',
+      },
+    },
+  })
+  expect(merged.time).toStrictEqual({
+    foo: '2024-01-01T00:00:00.000Z',
+    bar: '2024-02-01T00:00:00.000Z',
+  })
+})
+
+test('preserves foreign top-level keys', () => {
+  const ours = {
+    ...simpleLockfile,
+    bit: { depsRequiringBuild: ['ours'] },
+  } as unknown as LockfileObject
+  const theirs = {
+    ...simpleLockfile,
+    bit: { depsRequiringBuild: ['theirs'] },
+    otherTool: true,
+  } as unknown as LockfileObject
+
+  const merged = mergeLockfileChanges(ours, theirs) as unknown as Record<string, unknown>
+  expect(merged.bit).toStrictEqual({ depsRequiringBuild: ['ours'] })
+  expect(merged.otherTool).toBe(true)
+})
+
