@@ -354,7 +354,10 @@ fn check_bundled_package_name(
 /// specs (copy-shaped) this throws `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND` when the
 /// directory itself doesn't exist; for `link:` with a missing
 /// `package.json` it warns and substitutes a manifest with the
-/// directory basename and `version: '0.0.0'`.
+/// directory basename and no version: the version is unknown, so ranged
+/// `packageExtensions` and overrides selectors must not match it
+/// (<https://github.com/pnpm/pnpm/issues/15007>). The dependency resolver
+/// stamps the `0.0.0` identity default after the manifest hooks have run.
 fn synthesize_fallback_manifest(
     spec: &LocalPackageSpec,
     opts: &LocalResolverOptions,
@@ -395,7 +398,7 @@ fn synthesize_fallback_manifest(
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
-    Ok(serde_json::json!({ "name": name, "version": "0.0.0" }))
+    Ok(serde_json::json!({ "name": name }))
 }
 
 fn find_parent_publish_manifest(

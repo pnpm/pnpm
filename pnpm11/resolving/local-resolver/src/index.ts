@@ -139,8 +139,7 @@ async function resolveSpec (
       })
       localDependencyManifest = {
         name: path.basename(spec.fetchSpec),
-        version: '0.0.0',
-      }
+      } as DependencyManifest
     } else {
       switch (internalErr.code) {
         case 'ENOTDIR': {
@@ -156,8 +155,7 @@ async function resolveSpec (
           }
           localDependencyManifest = {
             name: path.basename(spec.fetchSpec),
-            version: '0.0.0',
-          }
+          } as DependencyManifest
           break
         }
         default: {
