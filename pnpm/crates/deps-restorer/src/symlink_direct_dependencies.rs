@@ -15,6 +15,7 @@ use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
     ffi::OsStr,
     path::{Path, PathBuf},
@@ -117,6 +118,7 @@ where
             policy: self.policy,
 
             dependency_groups,
+            workspace_root_real: std::fs::canonicalize(self.context.workspace_root).ok(),
 
             // One bin lookup for the whole pass: the `hasBin` gate and
             // the shim probe memo are importer-invariant.
@@ -137,6 +139,7 @@ struct ImporterPass<'a> {
     pub graph: crate::ImporterDependencyGraph<'a>,
     pub policy: crate::DirectLinkPolicy<'a>,
     dependency_groups: Vec<DependencyGroup>,
+    workspace_root_real: Option<PathBuf>,
     bin_lookup: crate::PrefetchedBinLookup<'a>,
 }
 
@@ -240,7 +243,9 @@ impl ImporterPass<'_> {
         // Safe: the task groups were built from `importers.keys()`.
         let project_snapshot = &self.graph.importers[importer_id];
         let project_dir = importer_root_dir(self.context.workspace_root, importer_id);
-        let modules_dir = project_dir.join(modules_dir_name);
+        let modules_dir =
+            importer_modules_parent(self.workspace_root_real.as_deref(), &project_dir, importer_id)
+                .join(modules_dir_name);
 
         // Only non-root importers get deduped against root: the
         // root project is linked unfiltered, then each sibling's
@@ -337,6 +342,34 @@ fn importer_task_groups<'a>(workspace_root: &Path, keys: Vec<&'a str>) -> Vec<Ve
         task_groups.push(unresolved);
     }
     task_groups
+}
+
+/// The directory an importer's modules dir is created in.
+///
+/// The OS resolves a relative symlink from the real location of the
+/// directory holding it, so the links of a project reached through a
+/// symlink under the workspace root (`packages/foo -> ../../elsewhere/foo`)
+/// are computed from its real directory. Every other project keeps its
+/// lexical path, leaving the link contents of an ordinary workspace
+/// unchanged.
+fn importer_modules_parent<'a>(
+    workspace_root_real: Option<&Path>,
+    project_dir: &'a Path,
+    importer_id: &str,
+) -> Cow<'a, Path> {
+    let Some(workspace_root_real) = workspace_root_real else {
+        return Cow::Borrowed(project_dir);
+    };
+    if importer_id == "." {
+        return Cow::Borrowed(project_dir);
+    }
+    let lexical_real = importer_id
+        .split('/')
+        .fold(workspace_root_real.to_path_buf(), |dir, segment| dir.join(segment));
+    match std::fs::canonicalize(project_dir) {
+        Ok(real) if real != lexical_real => Cow::Owned(real),
+        _ => Cow::Borrowed(project_dir),
+    }
 }
 
 /// Reject importer keys that would resolve outside the workspace root.

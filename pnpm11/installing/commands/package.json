@@ -103,7 +103,6 @@
     "js-yaml": "catalog:",
     "load-json-file": "catalog:",
     "normalize-path": "catalog:",
-    "p-filter": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
     "string-width": "catalog:",

@@ -798,3 +798,54 @@ test('installing in monorepo with shared lockfile should work on virtual drives'
 
   projects['project-1'].has('is-positive')
 })
+
+test('recursive install installs a workspace project that is a symlink to a directory outside the workspace', async () => {
+  preparePackages([
+    {
+      location: 'workspace',
+      package: { name: 'root', version: '1.0.0', private: true },
+    },
+    {
+      location: 'external/project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: { 'is-positive': '1.0.0' },
+      },
+    },
+  ])
+  fs.mkdirSync('workspace/packages')
+  await symlinkDir('external/project-1', 'workspace/packages/project-1')
+  writeYamlFileSync('workspace/pnpm-workspace.yaml', { packages: ['packages/*'] })
+  const workspaceDir = path.resolve('workspace')
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(workspaceDir, []),
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    recursive: true,
+    workspaceDir,
+  })
+
+  expect(fs.existsSync('external/project-1/node_modules/is-positive/package.json')).toBe(true)
+  const lockfile = readYamlFileSync<LockfileFile>('workspace/pnpm-lock.yaml')
+  expect(Object.keys(lockfile.importers!).sort()).toStrictEqual(['.', 'packages/project-1'])
+
+  writeJsonFileSync('external/project-1/package.json', {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: { 'is-negative': '1.0.0', 'is-positive': '1.0.0' },
+  })
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'root' }]),
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    recursive: true,
+    workspaceDir,
+  })
+
+  const lockfileAfterFilteredInstall = readYamlFileSync<LockfileFile>('workspace/pnpm-lock.yaml')
+  expect(Object.keys(lockfileAfterFilteredInstall.importers?.['packages/project-1']?.dependencies ?? {}).sort()).toStrictEqual(['is-negative', 'is-positive'])
+})

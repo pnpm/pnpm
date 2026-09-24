@@ -1133,3 +1133,51 @@ fn shared_workspace_lockfile_false_symlinks_workspace_dependencies() {
 }
 
 mod freshness;
+
+#[cfg(unix)]
+#[test]
+fn a_project_under_a_symlinked_directory_links_its_dependencies_from_the_real_directory() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+    let external = fixture.root.path().join("external");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - 'packages/**'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::create_dir_all(external.join("app")).expect("mkdir external/app");
+    fs::write(
+        external.join("app/package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write external/app/package.json");
+    std::os::unix::fs::symlink(&external, workspace.join("packages")).expect("symlink packages");
+
+    for args in [vec!["install"], vec!["install", "--frozen-lockfile"]] {
+        pacquet_at(workspace)
+            .with_args(args)
+            .assert()
+            .success();
+        let manifest = external.join("app/node_modules/@pnpm.e2e/pkg-with-1-dep/package.json");
+        assert!(manifest.is_file(), "{manifest:?} does not resolve");
+        fs::remove_dir_all(external.join("app/node_modules")).unwrap();
+        fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+    }
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert!(importer(&lockfile, "packages/app").dependencies.is_some());
+}
