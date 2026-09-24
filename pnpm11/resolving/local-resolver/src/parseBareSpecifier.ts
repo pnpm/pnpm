@@ -178,7 +178,7 @@ function fromLocal (
     if (isAbsolute(spec)) {
       normalizedBareSpecifier = `${protocol}${spec}`
     } else {
-      normalizedBareSpecifier = `${protocol}${path.relative(projectDir, fetchSpec)}`
+      normalizedBareSpecifier = `${protocol}${normalize(path.relative(projectDir, fetchSpec))}`
     }
   }
 
