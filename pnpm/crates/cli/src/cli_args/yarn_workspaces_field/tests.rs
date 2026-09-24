@@ -354,19 +354,23 @@ fn an_escaping_pattern_fails_the_conversion_before_anything_is_written() {
     let mut config = pnpm_config::Config::default();
     let root_manifest = serde_json::json!({"workspaces": ["../outside/*"]});
 
-    let error = create_workspace_yaml_from_yarn_workspaces(
-        &mut config,
-        dir.path(),
-        Some(&root_manifest),
-    )
-    .expect_err("a root-escaping pattern must not convert");
+    let error =
+        create_workspace_yaml_from_yarn_workspaces(&mut config, dir.path(), Some(&root_manifest))
+            .expect_err("a root-escaping pattern must not convert");
 
     assert_eq!(
-        error.code().map(|code| code.to_string()).as_deref(),
+        error
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_WORKSPACE_PATTERN_ESCAPES_ROOT"),
     );
     assert!(error.to_string().contains("../outside/*"), "names the pattern: {error}");
-    assert!(!dir.path().join("pnpm-workspace.yaml").exists());
+    assert!(
+        !dir.path()
+            .join("pnpm-workspace.yaml")
+            .exists()
+    );
     assert_eq!(config.workspace_dir, None);
 }
 
@@ -385,7 +389,9 @@ fn backslash_and_absolute_patterns_fail_the_conversion_too() {
 
         assert!(result.is_err(), "{pattern} must be rejected");
         assert!(
-            !dir.path().join("pnpm-workspace.yaml").exists(),
+            !dir.path()
+                .join("pnpm-workspace.yaml")
+                .exists(),
             "{pattern} must not be written",
         );
     }
