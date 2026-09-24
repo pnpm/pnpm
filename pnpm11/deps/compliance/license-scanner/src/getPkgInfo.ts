@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { resolveLicense } from '@pnpm/deps.compliance.license-resolver'
@@ -35,7 +36,10 @@ export interface GetPackageInfoOptions {
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
   dir: string
+  lockfileDir?: string
   modulesDir: string
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+  shamefullyHoist?: boolean
   /**
    * Lockfile-relative directories keyed by dependency path, recorded by a
    * `nodeLinker: hoisted` install, which leaves the virtual store empty.
@@ -73,7 +77,7 @@ export async function getPkgInfo (
       {
         storeDir: opts.storeDir,
         storeIndex: opts.storeIndex,
-        lockfileDir: opts.dir,
+        lockfileDir: opts.lockfileDir ?? opts.dir,
         supportedArchitectures: opts.supportedArchitectures,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       }
@@ -106,21 +110,62 @@ export async function getPkgInfo (
 
   // Determine the path to the package as known by the user
   const modulesDir = opts.modulesDir ?? 'node_modules'
+  const lockfileDir = opts.lockfileDir ?? opts.dir
+  const isHoisted = opts.nodeLinker === 'hoisted'
+  const isShamefullyHoist = opts.shamefullyHoist ?? false
+
+  let packageModulePath: string
+
   const virtualStoreDir = pathAbsolute(
     opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'),
-    opts.dir
+    lockfileDir
   )
-
-  const hoistedPaths = (opts.hoistedLocations?.[pkg.depPath] ?? opts.hoistedLocations?.[removeSuffix(pkg.depPath)] ?? [])
-    .map((location) => hoistedPackageDir(opts.dir, location))
-    .filter((location): location is string => location != null)
-  const hoistedDir = hoistedPaths[0]
-  const packageModulePath = hoistedDir ?? path.join(
+  const virtualStorePath = path.join(
     virtualStoreDir,
     depPathToFilename(pkg.depPath, opts.virtualStoreDirMaxLength),
     'node_modules',
     manifest.name
   )
+
+  const locations = opts.hoistedLocations?.[pkg.depPath] ??
+    opts.hoistedLocations?.[removeSuffix(pkg.depPath)] ??
+    (pkg.depPath.startsWith('/') ? opts.hoistedLocations?.[pkg.depPath.slice(1)] : opts.hoistedLocations?.[`/${pkg.depPath}`]) ??
+    []
+  const hoistedPaths = locations
+    .map((location) => hoistedPackageDir(lockfileDir, location))
+    .filter((location): location is string => location != null)
+  if (hoistedPaths.length) {
+    const resolvedDir = path.resolve(opts.dir)
+    const dirWithSep = resolvedDir.endsWith(path.sep) ? resolvedDir : resolvedDir + path.sep
+    packageModulePath =
+      hoistedPaths.find((loc) => (loc === resolvedDir || loc.startsWith(dirWithSep)) && fs.existsSync(loc)) ??
+      hoistedPaths.find((loc) => fs.existsSync(loc)) ??
+      hoistedPaths[0]
+  } else if (isHoisted) {
+    const candidateInDir = path.resolve(opts.dir, modulesDir, manifest.name)
+    const candidateInLockfileDir = path.resolve(lockfileDir, modulesDir, manifest.name)
+    if (await candidateMatchesVersion(candidateInDir, manifest.version)) {
+      packageModulePath = candidateInDir
+    } else if (await candidateMatchesVersion(candidateInLockfileDir, manifest.version)) {
+      packageModulePath = candidateInLockfileDir
+    } else if (fs.existsSync(virtualStorePath)) {
+      packageModulePath = virtualStorePath
+    } else {
+      packageModulePath = candidateInLockfileDir
+    }
+  } else if (isShamefullyHoist) {
+    const candidateInDir = path.resolve(opts.dir, modulesDir, manifest.name)
+    const candidateInLockfileDir = path.resolve(lockfileDir, modulesDir, manifest.name)
+    if (await matchesVirtualStore(candidateInDir, virtualStorePath)) {
+      packageModulePath = candidateInDir
+    } else if (await matchesVirtualStore(candidateInLockfileDir, virtualStorePath)) {
+      packageModulePath = candidateInLockfileDir
+    } else {
+      packageModulePath = virtualStorePath
+    }
+  } else {
+    packageModulePath = virtualStorePath
+  }
 
   const licenseInfo = await resolveLicense({ manifest, files })
 
@@ -161,4 +206,26 @@ function hoistedPackageDir (lockfileDir: string, location: string | undefined): 
   const relative = path.relative(lockfileDir, dir)
   if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return undefined
   return dir
+}
+
+async function matchesVirtualStore (candidate: string, expectedVirtualStorePath: string): Promise<boolean> {
+  try {
+    const [realCandidate, realExpected] = await Promise.all([
+      fs.promises.realpath(candidate),
+      fs.promises.realpath(expectedVirtualStorePath),
+    ])
+    return realCandidate === realExpected
+  } catch {
+    return false
+  }
+}
+
+async function candidateMatchesVersion (candidate: string, expectedVersion: string | undefined): Promise<boolean> {
+  if (!expectedVersion) return fs.existsSync(candidate)
+  try {
+    const manifest = await readPackageJson(path.join(candidate, 'package.json'))
+    return manifest.version === expectedVersion
+  } catch {
+    return false
+  }
 }

@@ -196,4 +196,244 @@ describe('getPkgInfo', () => {
     expect(result.path).toBe(path.join(storeDir, 'virtual-store', id, 'node_modules', 'express'))
   })
 
+  test('should resolve path from hoistedLocations when nodeLinker is hoisted', async () => {
+    const digest = '1122334455667788'
+    writeCafsFile(storeDir, digest, JSON.stringify({
+      name: 'is-positive',
+      version: '3.1.0',
+      license: 'MIT',
+    }))
+
+    const pkgId = 'is-positive@3.1.0'
+    const integrity = 'sha512-test/integrity002'
+    const filesIndex: PackageFilesIndex = {
+      algo: 'sha256',
+      files: new Map([
+        ['package.json', { digest, mode: 0o644, size: 0 }],
+      ]),
+    }
+    storeIndex.set(storeIndexKey(integrity, pkgId), filesIndex)
+
+    const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-hoisted-test-'))
+    const hoistedPkgPath = path.join(workspaceDir, 'node_modules', 'is-positive')
+    fs.mkdirSync(hoistedPkgPath, { recursive: true })
+
+    const result = await getPkgInfo(
+      {
+        name: 'is-positive',
+        version: '3.1.0',
+        id: pkgId,
+        depPath: pkgId,
+        snapshot: {
+          resolution: { integrity },
+        },
+        registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
+      },
+      {
+        ...defaultGetOpts(),
+        dir: workspaceDir,
+        lockfileDir: workspaceDir,
+        modulesDir: 'node_modules',
+        nodeLinker: 'hoisted',
+        hoistedLocations: {
+          'is-positive@3.1.0': ['node_modules/is-positive'],
+        },
+      }
+    )
+
+    expect(result.path).toBe(hoistedPkgPath)
+    expect(result.path!.includes('.pnpm')).toBeFalsy()
+
+    fs.rmSync(workspaceDir, { recursive: true, force: true })
+  })
+
+  test('should reject unsafe hoisted locations and fallback safely', async () => {
+    const digest = '3344556677889900'
+    writeCafsFile(storeDir, digest, JSON.stringify({
+      name: 'is-positive',
+      version: '3.1.0',
+      license: 'MIT',
+    }))
+
+    const pkgId = 'is-positive@3.1.0'
+    const integrity = 'sha512-test/integrity004'
+    storeIndex.set(storeIndexKey(integrity, pkgId), {
+      algo: 'sha256',
+      files: new Map([
+        ['package.json', { digest, mode: 0o644, size: 0 }],
+      ]),
+    })
+
+    const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-hoisted-unsafe-test-'))
+    const safePkgPath = path.join(workspaceDir, 'node_modules', 'is-positive')
+    fs.mkdirSync(safePkgPath, { recursive: true })
+    fs.writeFileSync(path.join(safePkgPath, 'package.json'), JSON.stringify({ name: 'is-positive', version: '3.1.0' }))
+
+    const result = await getPkgInfo(
+      {
+        name: 'is-positive',
+        version: '3.1.0',
+        id: pkgId,
+        depPath: pkgId,
+        snapshot: { resolution: { integrity } },
+        registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
+      },
+      {
+        ...defaultGetOpts(),
+        dir: workspaceDir,
+        lockfileDir: workspaceDir,
+        modulesDir: 'node_modules',
+        nodeLinker: 'hoisted',
+        hoistedLocations: {
+          'is-positive@3.1.0': ['../../outside', '..\\..\\outside', '/etc/passwd'],
+        },
+      }
+    )
+
+    expect(result.path).toBe(safePkgPath)
+
+    fs.rmSync(workspaceDir, { recursive: true, force: true })
+  })
+
+  test('should resolve path to node_modules when shamefullyHoist is enabled', async () => {
+    const digest = '2233445566778899'
+    writeCafsFile(storeDir, digest, JSON.stringify({
+      name: 'is-positive',
+      version: '3.1.0',
+      license: 'MIT',
+    }))
+
+    const pkgId = 'is-positive@3.1.0'
+    const integrity = 'sha512-test/integrity002'
+    const filesIndex: PackageFilesIndex = {
+      algo: 'sha256',
+      files: new Map([
+        ['package.json', { digest, mode: 0o644, size: 0 }],
+      ]),
+    }
+    storeIndex.set(storeIndexKey(integrity, pkgId), filesIndex)
+
+    const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-shameful-test-'))
+    const vsPkgPath = path.join(workspaceDir, 'node_modules', '.pnpm', 'is-positive@3.1.0', 'node_modules', 'is-positive')
+    fs.mkdirSync(vsPkgPath, { recursive: true })
+    const hoistedPkgPath = path.join(workspaceDir, 'node_modules', 'is-positive')
+    fs.symlinkSync(vsPkgPath, hoistedPkgPath, 'junction')
+
+    const result = await getPkgInfo(
+      {
+        name: 'is-positive',
+        version: '3.1.0',
+        id: pkgId,
+        depPath: pkgId,
+        snapshot: {
+          resolution: { integrity },
+        },
+        registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
+      },
+      {
+        ...defaultGetOpts(),
+        dir: workspaceDir,
+        lockfileDir: workspaceDir,
+        modulesDir: 'node_modules',
+        virtualStoreDir: path.join(workspaceDir, 'node_modules', '.pnpm'),
+        shamefullyHoist: true,
+      }
+    )
+
+    expect(result.path).toBe(hoistedPkgPath)
+    expect(result.path!.includes('.pnpm')).toBeFalsy()
+
+    fs.rmSync(workspaceDir, { recursive: true, force: true })
+  })
+
+  test('should resolve distinct paths for two versions of one package when shamefullyHoist is enabled', async () => {
+    const digest1 = '1111111111111111'
+    writeCafsFile(storeDir, digest1, JSON.stringify({
+      name: 'is-positive',
+      version: '1.0.0',
+      license: 'MIT',
+    }))
+
+    const digest2 = '2222222222222222'
+    writeCafsFile(storeDir, digest2, JSON.stringify({
+      name: 'is-positive',
+      version: '3.1.0',
+      license: 'MIT',
+    }))
+
+    const pkgId1 = 'is-positive@1.0.0'
+    const integrity1 = 'sha512-test/integrity001'
+    storeIndex.set(storeIndexKey(integrity1, pkgId1), {
+      algo: 'sha256',
+      files: new Map([
+        ['package.json', { digest: digest1, mode: 0o644, size: 0 }],
+      ]),
+    })
+
+    const pkgId2 = 'is-positive@3.1.0'
+    const integrity2 = 'sha512-test/integrity002'
+    storeIndex.set(storeIndexKey(integrity2, pkgId2), {
+      algo: 'sha256',
+      files: new Map([
+        ['package.json', { digest: digest2, mode: 0o644, size: 0 }],
+      ]),
+    })
+
+    const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-shameful-versions-test-'))
+    const vsPath1 = path.join(workspaceDir, 'node_modules', '.pnpm', 'is-positive@1.0.0', 'node_modules', 'is-positive')
+    const vsPath2 = path.join(workspaceDir, 'node_modules', '.pnpm', 'is-positive@3.1.0', 'node_modules', 'is-positive')
+    fs.mkdirSync(vsPath1, { recursive: true })
+    fs.mkdirSync(vsPath2, { recursive: true })
+
+    const hoistedPkgPath = path.join(workspaceDir, 'node_modules', 'is-positive')
+    fs.symlinkSync(vsPath2, hoistedPkgPath, 'junction')
+
+    const result1 = await getPkgInfo(
+      {
+        name: 'is-positive',
+        version: '1.0.0',
+        id: pkgId1,
+        depPath: pkgId1,
+        snapshot: { resolution: { integrity: integrity1 } },
+        registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
+      },
+      {
+        ...defaultGetOpts(),
+        dir: workspaceDir,
+        lockfileDir: workspaceDir,
+        modulesDir: 'node_modules',
+        virtualStoreDir: path.join(workspaceDir, 'node_modules', '.pnpm'),
+        shamefullyHoist: true,
+      }
+    )
+
+    const result2 = await getPkgInfo(
+      {
+        name: 'is-positive',
+        version: '3.1.0',
+        id: pkgId2,
+        depPath: pkgId2,
+        snapshot: { resolution: { integrity: integrity2 } },
+        registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
+      },
+      {
+        ...defaultGetOpts(),
+        dir: workspaceDir,
+        lockfileDir: workspaceDir,
+        modulesDir: 'node_modules',
+        virtualStoreDir: path.join(workspaceDir, 'node_modules', '.pnpm'),
+        shamefullyHoist: true,
+      }
+    )
+
+    expect(result2.path).toBe(hoistedPkgPath)
+    expect(result2.path!.includes('.pnpm')).toBeFalsy()
+
+    expect(result1.path).toBe(vsPath1)
+    expect(result1.path!.includes('.pnpm')).toBeTruthy()
+
+    expect(result1.path).not.toBe(result2.path)
+
+    fs.rmSync(workspaceDir, { recursive: true, force: true })
+  })
 })

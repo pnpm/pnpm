@@ -42,8 +42,11 @@ export interface LicenseExtractOptions {
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
   modulesDir?: string
-  hoistedLocations?: Record<string, string[]>
   dir: string
+  lockfileDir?: string
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+  shamefullyHoist?: boolean
+  hoistedLocations?: Record<string, string[]>
   registriesByScope: RegistriesByScope
   registriesByPrefix?: Record<string, string>
   supportedArchitectures?: SupportedArchitectures
@@ -67,7 +70,7 @@ export async function lockfileToLicenseNode (
         libc: pkgSnapshot.libc,
       }, {
         optional: pkgSnapshot.optional ?? false,
-        lockfileDir: options.dir,
+        lockfileDir: options.lockfileDir ?? options.dir,
         supportedArchitectures: options.supportedArchitectures,
       })
 
@@ -93,7 +96,10 @@ export async function lockfileToLicenseNode (
           virtualStoreDir: options.virtualStoreDir,
           virtualStoreDirMaxLength: options.virtualStoreDirMaxLength,
           dir: options.dir,
+          lockfileDir: options.lockfileDir ?? options.dir,
           modulesDir: options.modulesDir ?? 'node_modules',
+          nodeLinker: options.nodeLinker,
+          shamefullyHoist: options.shamefullyHoist,
           hoistedLocations: options.hoistedLocations,
           supportedArchitectures: options.supportedArchitectures,
         }
@@ -164,6 +170,9 @@ export async function lockfileToLicenseNodeTree (
           modulesDir: opts.modulesDir,
           hoistedLocations,
           dir: opts.dir,
+          lockfileDir: opts.lockfileDir ?? opts.dir,
+          nodeLinker: opts.nodeLinker,
+          shamefullyHoist: opts.shamefullyHoist,
           registriesByScope: opts.registriesByScope,
           registriesByPrefix: opts.registriesByPrefix,
           supportedArchitectures: opts.supportedArchitectures,

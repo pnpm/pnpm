@@ -208,7 +208,7 @@ async fn group_by_license(
 ) -> IndexMap<String, BTreeMap<String, LicenseInfo>> {
     let mut results_by_license: IndexMap<String, BTreeMap<String, LicenseInfo>> = IndexMap::new();
     for (lockfile_index, (key, kind, name, version)) in dependencies {
-        for pkg_dir in package_dirs[lockfile_index].package_dirs(&key, &name).iter() {
+        for pkg_dir in package_dirs[lockfile_index].package_dirs(&key, &name, &version).iter() {
             record_license(&mut results_by_license, kind, &name, &version, pkg_dir).await;
         }
     }

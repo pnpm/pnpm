@@ -52,7 +52,6 @@
     "@pnpm/deps.security.signatures": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
-    "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
