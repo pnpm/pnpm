@@ -371,7 +371,19 @@ function checkLinkedDependenciesPeers (
           foundVersion = extractVersion(foundRef, peerName, lockfile.packages ?? {})
         }
 
-        if (foundVersion && !satisfies(foundVersion, peerRange)) {
+        if (!foundVersion) {
+          if (!isOptional) {
+            if (!issues.missing[peerName]) issues.missing[peerName] = []
+            issues.missing[peerName].push({
+              parents: currentParents,
+              optional: isOptional,
+              wantedRange: peerRange,
+            })
+          }
+          continue
+        }
+
+        if (!satisfies(foundVersion, peerRange)) {
           if (!issues.bad[peerName]) issues.bad[peerName] = []
           issues.bad[peerName].push({
             parents: currentParents,

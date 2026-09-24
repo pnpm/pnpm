@@ -355,3 +355,55 @@ packages:
   fs.rmSync(tempDir, { recursive: true, force: true })
 })
 
+test('reports missing peer when linked peer dependency cannot be resolved', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-linked-unresolved-peer-test-'))
+  const libDir = path.join(tempDir, 'packages/lib')
+  const appDir = path.join(tempDir, 'packages/app')
+  fs.mkdirSync(libDir, { recursive: true })
+  fs.mkdirSync(appDir, { recursive: true })
+
+  fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({ name: 'root', version: '1.0.0' }))
+  fs.writeFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n')
+  fs.writeFileSync(path.join(libDir, 'package.json'), JSON.stringify({
+    name: 'lib',
+    version: '1.0.0',
+    peerDependencies: { foo: '^2.0.0' },
+  }))
+  fs.writeFileSync(path.join(appDir, 'package.json'), JSON.stringify({
+    name: 'app',
+    version: '1.0.0',
+    dependencies: { lib: 'workspace:*', foo: 'link:../nonexistent' },
+  }))
+  fs.writeFileSync(path.join(tempDir, 'pnpm-lock.yaml'), `lockfileVersion: '9.0'
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+importers:
+  packages/lib: {}
+  packages/app:
+    dependencies:
+      lib:
+        specifier: workspace:*
+        version: link:../lib
+      foo:
+        specifier: link:../nonexistent
+        version: link:../nonexistent
+packages: {}
+`)
+
+  const issues = await checkPeerDependencies([appDir], {
+    lockfileDir: tempDir,
+    checkWantedLockfileOnly: true,
+  })
+
+  const projectIssues = issues['packages/app']
+  expect(projectIssues).toBeDefined()
+  expect(projectIssues.missing).toHaveProperty('foo')
+  expect(projectIssues.missing.foo[0]).toMatchObject({
+    wantedRange: '^2.0.0',
+    parents: [{ name: 'lib', version: '1.0.0' }],
+  })
+
+  fs.rmSync(tempDir, { recursive: true, force: true })
+})
+

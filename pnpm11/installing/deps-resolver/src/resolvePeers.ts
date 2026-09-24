@@ -234,12 +234,34 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
           name: linkedDependency.name ?? linkedDependency.alias,
           version: linkedDependency.version,
         }]
-        const linkedProject = projectsByRootDir.get(path.resolve(opts.lockfileDir, linkedDependency.resolution.directory) as ProjectRootDir)
+        const linkedProjectDir = path.resolve(opts.lockfileDir, linkedDependency.resolution.directory) as ProjectRootDir
+        let linkedProject = projectsByRootDir.get(linkedProjectDir)
+        if (!linkedProject) {
+          linkedProject = opts.projects
+            .filter((p) => p.id !== '.' && linkedProjectDir.startsWith(p.rootDir + path.sep))
+            .sort((a, b) => b.rootDir.length - a.rootDir.length)[0]
+        }
         for (const [peerName, peerRange] of Object.entries(linkedDependency.pkg.peerDependencies)) {
           const peerVersionRange = getPeerVersionRange(peerRange)
           const isOptional = linkedDependency.pkg.peerDependenciesMeta?.[peerName]?.optional === true
           const resolved = pkgsByName[peerName]
           if (!resolved) {
+            const consumerLinked = linkedDependencies.find((l) => (l.alias === peerName || l.name === peerName) && l !== linkedDependency)
+            if (consumerLinked) {
+              if (!semverUtils.satisfiesWithPrereleases(consumerLinked.version, peerVersionRange, true)) {
+                if (!peerDependencyIssues.bad[peerName]) {
+                  peerDependencyIssues.bad[peerName] = []
+                }
+                peerDependencyIssues.bad[peerName].push({
+                  parents,
+                  optional: isOptional,
+                  wantedRange: peerVersionRange,
+                  foundVersion: consumerLinked.version,
+                  resolvedFrom: [],
+                })
+              }
+              continue
+            }
             let fallbackSatisfied = false
             if (linkedProject) {
               const linkedPeerNodeId = linkedProject.directNodeIdsByAlias.get(peerName)
@@ -250,7 +272,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
                 }
               }
               if (!fallbackSatisfied && linkedProject.linkedDependencies) {
-                const nestedLinked = linkedProject.linkedDependencies.find((l) => l.alias === peerName)
+                const nestedLinked = linkedProject.linkedDependencies.find((l) => l.alias === peerName || l.name === peerName)
                 if (nestedLinked && semverUtils.satisfiesWithPrereleases(nestedLinked.version, peerVersionRange, true)) {
                   fallbackSatisfied = true
                 }
@@ -261,6 +283,12 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
               if (rootNodeId) {
                 const rootNode = opts.dependenciesTree.get(rootNodeId)
                 if (rootNode && semverUtils.satisfiesWithPrereleases(rootNode.resolvedPackage.version, peerVersionRange, true)) {
+                  fallbackSatisfied = true
+                }
+              }
+              if (!fallbackSatisfied && workspaceRootProject.linkedDependencies) {
+                const rootNestedLinked = workspaceRootProject.linkedDependencies.find((l) => l.alias === peerName || l.name === peerName)
+                if (rootNestedLinked && semverUtils.satisfiesWithPrereleases(rootNestedLinked.version, peerVersionRange, true)) {
                   fallbackSatisfied = true
                 }
               }

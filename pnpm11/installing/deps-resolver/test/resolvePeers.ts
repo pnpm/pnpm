@@ -2318,3 +2318,157 @@ test('linked workspace package respects resolvePeersFromWorkspaceRoot setting', 
   })
   expect(withRoot.peerDependencyIssuesByProjects['packages/app']).toBeUndefined()
 })
+
+test('linked workspace package peer dependency satisfied by consuming project linked dependency', async () => {
+  const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>()
+  const projects: ProjectToResolve[] = [
+    {
+      directNodeIdsByAlias: new Map(),
+      id: 'packages/app',
+      rootDir: '/workspace/packages/app' as ProjectRootDir,
+      topParents: [],
+      linkedDependencies: [
+        {
+          alias: 'lib',
+          name: 'lib',
+          version: '1.0.0',
+          dev: false,
+          optional: false,
+          isLinkedDependency: true as const,
+          resolution: {
+            directory: '/workspace/packages/lib/dist',
+            type: 'directory',
+          },
+          pkgId: 'link:packages/lib/dist' as PkgResolutionId,
+          pkg: {
+            name: 'lib',
+            version: '1.0.0',
+            peerDependencies: {
+              bar: '^2.0.0',
+            },
+          },
+        },
+        {
+          alias: 'my-bar',
+          name: 'bar',
+          version: '2.1.0',
+          dev: false,
+          optional: false,
+          isLinkedDependency: true as const,
+          resolution: {
+            directory: '/workspace/packages/bar',
+            type: 'directory',
+          },
+          pkgId: 'link:packages/bar' as PkgResolutionId,
+          pkg: {
+            name: 'bar',
+            version: '2.1.0',
+          },
+        },
+      ],
+    },
+    {
+      directNodeIdsByAlias: new Map(),
+      id: 'packages/lib',
+      rootDir: '/workspace/packages/lib' as ProjectRootDir,
+      topParents: [],
+    },
+    {
+      directNodeIdsByAlias: new Map(),
+      id: 'packages/bar',
+      rootDir: '/workspace/packages/bar' as ProjectRootDir,
+      topParents: [],
+    },
+  ]
+
+  const result = await resolvePeers({
+    allPeerDepNames: new Set(['bar']),
+    dependenciesTree,
+    projects,
+    virtualStoreDir: '',
+    lockfileDir: '/workspace',
+    virtualStoreDirMaxLength: 120,
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(['packages/app', 'packages/lib', 'packages/bar']),
+    resolvedImporters: {},
+  })
+  expect(result.peerDependencyIssuesByProjects['packages/app']).toBeUndefined()
+})
+
+test('linked workspace package peer dependency satisfied by nested linked dependency of provider', async () => {
+  const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>()
+  const projects: ProjectToResolve[] = [
+    {
+      directNodeIdsByAlias: new Map(),
+      id: 'packages/app',
+      rootDir: '/workspace/packages/app' as ProjectRootDir,
+      topParents: [],
+      linkedDependencies: [
+        {
+          alias: 'lib',
+          name: 'lib',
+          version: '1.0.0',
+          dev: false,
+          optional: false,
+          isLinkedDependency: true as const,
+          resolution: {
+            directory: '/workspace/packages/lib',
+            type: 'directory',
+          },
+          pkgId: 'link:packages/lib' as PkgResolutionId,
+          pkg: {
+            name: 'lib',
+            version: '1.0.0',
+            peerDependencies: {
+              bar: '^2.0.0',
+            },
+          },
+        },
+      ],
+    },
+    {
+      directNodeIdsByAlias: new Map(),
+      id: 'packages/lib',
+      rootDir: '/workspace/packages/lib' as ProjectRootDir,
+      topParents: [],
+      linkedDependencies: [
+        {
+          alias: 'aliased-bar',
+          name: 'bar',
+          version: '2.0.0',
+          dev: false,
+          optional: false,
+          isLinkedDependency: true as const,
+          resolution: {
+            directory: '/workspace/packages/bar',
+            type: 'directory',
+          },
+          pkgId: 'link:packages/bar' as PkgResolutionId,
+          pkg: {
+            name: 'bar',
+            version: '2.0.0',
+          },
+        },
+      ],
+    },
+    {
+      directNodeIdsByAlias: new Map(),
+      id: 'packages/bar',
+      rootDir: '/workspace/packages/bar' as ProjectRootDir,
+      topParents: [],
+    },
+  ]
+
+  const result = await resolvePeers({
+    allPeerDepNames: new Set(['bar']),
+    dependenciesTree,
+    projects,
+    virtualStoreDir: '',
+    lockfileDir: '/workspace',
+    virtualStoreDirMaxLength: 120,
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(['packages/app', 'packages/lib', 'packages/bar']),
+    resolvedImporters: {},
+  })
+  expect(result.peerDependencyIssuesByProjects['packages/app']).toBeUndefined()
+})
