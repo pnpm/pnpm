@@ -198,13 +198,7 @@ fn has_local_tarball(lockfile: &pnpm_lockfile::Lockfile) -> bool {
     lockfile.packages
         .iter()
         .flat_map(|packages| packages.values())
-        .any(|package| {
-            matches!(
-                &package.resolution,
-                pnpm_lockfile::LockfileResolution::Tarball(resolution)
-                    if pnpm_lockfile::is_local_tarball_path(&resolution.tarball),
-            )
-        })
+        .any(|package| is_local_file_tarball(&package.resolution))
 }
 
 /// A `file:` tarball. Remote tarball URLs end in `.tgz` too.
