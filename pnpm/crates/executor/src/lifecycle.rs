@@ -466,6 +466,27 @@ fn spawn_in_pkg_root<'tracker>(
     Err(refusal)
 }
 
+fn spawn_error(
+    opts: &RunPostinstallHooks<'_>,
+    stage: &str,
+    pkg_root: &Path,
+    error: io::Error,
+) -> LifecycleScriptError {
+    match missing_script_shell(opts.execution.shell, error, pkg_root) {
+        Ok(source) => LifecycleScriptError::ScriptShell {
+            dep_path: opts.dep_path.to_string(),
+            stage: stage.to_string(),
+            source,
+        },
+        Err(source) => LifecycleScriptError::Spawn {
+            dep_path: opts.dep_path.to_string(),
+            stage: stage.to_string(),
+            dir: pkg_root.display().to_string(),
+            source,
+        },
+    }
+}
+
 /// Spawn `script` under `shell`, pumping the child's output to the
 /// reporter line by line, and return how it exited.
 fn run_in_shell<Reporter: self::Reporter>(
@@ -493,19 +514,7 @@ fn run_in_shell<Reporter: self::Reporter>(
         .stderr(Stdio::piped());
 
     let mut child = spawn_in_pkg_root(&mut cmd, pkg_root)
-        .map_err(|error| match missing_script_shell(opts.execution.shell, error, pkg_root) {
-            Ok(source) => LifecycleScriptError::ScriptShell {
-                dep_path: opts.dep_path.to_string(),
-                stage: stage.to_string(),
-                source,
-            },
-            Err(error) => LifecycleScriptError::Spawn {
-                dep_path: opts.dep_path.to_string(),
-                stage: stage.to_string(),
-                dir: pkg_root.display().to_string(),
-                source: error,
-            },
-        })?;
+        .map_err(|error| spawn_error(opts, stage, pkg_root, error))?;
 
     let stdout = child.child_mut().stdout.take();
     let stderr = child.child_mut().stderr.take();
