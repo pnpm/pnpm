@@ -106,7 +106,6 @@ pub enum RecursiveRunError {
     ScriptNameRequired,
 }
 
-/// What a recursive run left for its caller to do.
 pub enum RecursiveRunOutcome {
     Done,
     /// No selected project has a script the name matches, and the caller
@@ -205,10 +204,8 @@ pub(crate) struct RecursiveScript<'a> {
     fallback_to_exec: bool,
 }
 
-/// What preparing a run leads to.
 enum Prepared {
     Run(Box<PreparedRun>),
-    /// A dry run printed the graph instead.
     DryRun,
     NoMatchingScript,
 }
