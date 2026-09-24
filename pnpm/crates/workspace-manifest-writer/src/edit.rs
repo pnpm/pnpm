@@ -477,7 +477,10 @@ mod catalogs;
 mod policies;
 
 mod sequences;
-use sequences::{reconcile_sequence_items, render_top_level_sequence, upsert_sequence_entry};
+use sequences::{
+    detect_sequence_indent, reconcile_sequence_items, render_top_level_sequence,
+    upsert_sequence_entry,
+};
 
 mod allow_builds;
 use allow_builds::render_bool;
@@ -490,9 +493,9 @@ use mapping::{
 mod scanning;
 
 use scanning::{
-    Line, Mapping, TopLevelSpan, comment_start, leading_comment_start, lines, locate,
-    locate_mapping, locate_sequence, mapping_keys, structural_colon_index, structural_indent,
-    top_level_key_line, top_level_span,
+    Line, Mapping, TopLevelSpan, comment_start, is_sequence_item_line, is_top_level_block_boundary,
+    is_top_level_key, leading_comment_start, lines, locate, locate_mapping, locate_sequence,
+    mapping_keys, structural_colon_index, structural_indent, top_level_key_line, top_level_span,
 };
 
 mod spacing;

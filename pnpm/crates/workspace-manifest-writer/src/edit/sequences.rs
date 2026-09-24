@@ -1,7 +1,8 @@
 use super::{
     HashMap, Inline, Line, Range, VecDeque, blank_run_start, flow, insertion_offset,
-    leading_comment_start, lines, locate, locate_mapping, locate_sequence, render, splice,
-    structural_indent, top_level_key_line,
+    is_sequence_item_line, is_top_level_block_boundary, is_top_level_key, leading_comment_start,
+    lines, locate, locate_mapping, locate_sequence, render, splice, structural_indent,
+    top_level_key_line,
 };
 
 /// Line-level reconciliation of the block sequence `key` toward `items`,
@@ -51,7 +52,7 @@ fn item_layout(text: &str, key: &str, current: &[String]) -> Option<ItemLayout> 
     let all = lines(text);
     let key_idx = top_level_key_line(&all, key)?;
     let block_end_idx = (key_idx + 1..all.len())
-        .find(|&idx| structural_indent(all[idx].content) == Some(0))
+        .find(|&idx| is_top_level_block_boundary(all[idx].content))
         .unwrap_or(all.len());
     let (indent, item_idxs) = item_lines(&all, key_idx + 1..block_end_idx, current)?;
     let block_items_end = blank_run_start(
@@ -156,12 +157,6 @@ fn rebuild_items(
     body
 }
 
-/// Whether a structural line carries a block-sequence item (`- value`).
-fn is_sequence_item_line(content: &str) -> bool {
-    let trimmed = content.trim_start();
-    trimmed == "-" || trimmed.starts_with("- ")
-}
-
 /// Whether the sequence-item line `content` carries the whole of `entry`.
 ///
 /// A value that runs past its item line — a block scalar's body, a quoted
@@ -175,7 +170,7 @@ fn holds_whole_value(content: &str, entry: &str) -> bool {
     let Some(value) = content.trim_start().strip_prefix('-') else {
         return false;
     };
-    yaml_serde::from_str::<String>(value).is_ok_and(|parsed| parsed == entry)
+    yaml_serde::from_str::<String>(value.trim_start()).is_ok_and(|parsed| parsed == entry)
 }
 
 /// The first line of the run of comment and blank lines immediately ahead of
@@ -190,18 +185,53 @@ fn comment_run_start(all: &[Line<'_>], idx: usize) -> usize {
     start
 }
 
+/// Detect the sequence item indentation (in spaces) used under `preferred_key`
+/// or elsewhere in `text`. Defaults to 2 spaces.
+pub(super) fn detect_sequence_indent(text: &str, preferred_key: Option<&str>) -> usize {
+    let all = lines(text);
+    if let Some(key) = preferred_key
+        && let Some(key_idx) = top_level_key_line(&all, key)
+        && let Some(indent) = block_sequence_indent(&all, key_idx)
+    {
+        return indent;
+    }
+    for (idx, line) in all.iter().enumerate() {
+        if is_top_level_key(line.content)
+            && let Some(indent) = block_sequence_indent(&all, idx)
+        {
+            return indent;
+        }
+    }
+    2
+}
+
+fn block_sequence_indent(all: &[Line<'_>], key_idx: usize) -> Option<usize> {
+    let end_idx = (key_idx + 1..all.len())
+        .find(|&idx| is_top_level_block_boundary(all[idx].content))
+        .unwrap_or(all.len());
+    for line in &all[key_idx + 1..end_idx] {
+        if is_sequence_item_line(line.content) {
+            return Some(structural_indent(line.content).unwrap_or(0));
+        }
+    }
+    None
+}
+
 /// Render a top-level block whose value is a block sequence (`key:` then
-/// `  - item` lines).
+/// sequence item lines matching `indent`).
 pub(super) fn render_top_level_sequence(
     key: &str,
     items: &[String],
     quote_style: render::QuoteStyle,
+    indent: usize,
 ) -> String {
+    let indent_str = " ".repeat(indent);
     let mut block = String::new();
     block.push_str(key);
     block.push_str(":\n");
     for item in items {
-        block.push_str("  - ");
+        block.push_str(&indent_str);
+        block.push_str("- ");
         block.push_str(&render::render_value_with_quotes(item, quote_style));
         block.push('\n');
     }

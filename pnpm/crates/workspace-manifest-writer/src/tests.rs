@@ -542,6 +542,46 @@ mod minimum_release_age_exclude_prune {
         let out = run_age_cleanup(Some(original), Some(&resolved(&[])));
         assert_eq!(out.as_deref(), Some(original));
     }
+
+    #[test]
+    fn prunes_entries_with_zero_indentation() {
+        let original = "minimumReleaseAgeExclude:\n- foo@1.0.0\n- bar@2.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
+        assert_eq!(out.as_deref(), Some("minimumReleaseAgeExclude:\n- foo@1.0.0\n"));
+    }
+
+    #[test]
+    fn prunes_entries_with_zero_indentation_and_tab_separation() {
+        let original = "minimumReleaseAgeExclude:\n-\tfoo@1.0.0\n-\tbar@2.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
+        assert_eq!(out.as_deref(), Some("minimumReleaseAgeExclude:\n-\tfoo@1.0.0\n"));
+    }
+
+    #[test]
+    fn prunes_entries_with_zero_indentation_and_preserves_comments() {
+        let original = "minimumReleaseAgeExcludePrune: true\nminimumReleaseAgeExclude:\n# header\n- foo@1.0.0 # kept\n- bar@2.0.0 # pruned\npackages:\n  - '*'\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
+        assert_eq!(
+            out.as_deref(),
+            Some(
+                "minimumReleaseAgeExcludePrune: true\nminimumReleaseAgeExclude:\n# header\n- foo@1.0.0 # kept\npackages:\n  - '*'\n"
+            ),
+        );
+    }
+
+    #[test]
+    fn prunes_entries_with_four_space_indentation() {
+        let original = "minimumReleaseAgeExclude:\n    - foo@1.0.0\n    - bar@2.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
+        assert_eq!(out.as_deref(), Some("minimumReleaseAgeExclude:\n    - foo@1.0.0\n"));
+    }
+
+    #[test]
+    fn emptying_zero_indentation_block_removes_it_cleanly() {
+        let original = "packages:\n  - '*'\nminimumReleaseAgeExclude:\n- foo@1.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[])));
+        assert_eq!(out.as_deref(), Some("packages:\n  - '*'\n"));
+    }
 }
 
 /// The `trustPolicyExcludePrune` pass: entries of `trustPolicyExclude`
@@ -749,6 +789,13 @@ mod trust_policy_exclude_prune {
         let original = "trustPolicyExclude:\n  - foo@1.0.0\n\n  - bar@2.0.0\n";
         let out = run_trust_cleanup(Some(original), Some(&resolved(&[("bar", &["2.0.0"])])));
         assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n\n  - bar@2.0.0\n"));
+    }
+
+    #[test]
+    fn keeps_document_end_marker_footer_when_an_entry_is_pruned() {
+        let original = "trustPolicyExclude:\n- foo@1.0.0\n- bar@2.0.0\n...\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
+        assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n- foo@1.0.0\n...\n"));
     }
 }
 
