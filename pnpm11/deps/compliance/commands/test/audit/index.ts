@@ -621,6 +621,43 @@ describe('audit in a workspace', () => {
     expect(await auditedPackageNames([])).toStrictEqual(['lodash', 'minimist'])
   })
 
+  test('audit signatures checks only the projects selected by --filter', async () => {
+    const workspaceDir = f.prepare('workspace-has-vulnerabilities')
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'workspace-audit-b' }])
+    const key = createSigningKey()
+    mockRegistryKey(AUDIT_REGISTRY, key)
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/minimist', method: 'GET' })
+      .reply(200, {
+        name: 'minimist',
+        time: { '1.2.0': '2023-01-01T00:00:00.000Z' },
+        versions: {
+          '1.2.0': {
+            dist: {
+              integrity: 'sha512-test-integrity',
+              signatures: [{ keyid: key.keyid, sig: key.sign('minimist@1.2.0', 'sha512-test-integrity') }],
+              tarball: `${AUDIT_REGISTRY}minimist/-/minimist-1.2.0.tgz`,
+            },
+            name: 'minimist',
+            version: '1.2.0',
+          },
+        },
+      })
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      workspaceDir,
+      rootProjectManifestDir: workspaceDir,
+      filter: ['workspace-audit-b'],
+      selectedProjectsGraph,
+    }, ['signatures'])
+
+    expect(exitCode).toBe(0)
+    expect(stripAnsi(output)).toContain('audited 1 package')
+  })
+
   test('fails when a selected project has no entry in the lockfile', async () => {
     const workspaceDir = f.prepare('workspace-has-vulnerabilities')
     fs.mkdirSync(path.join(workspaceDir, 'packages/c'))
