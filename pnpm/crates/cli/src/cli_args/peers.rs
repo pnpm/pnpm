@@ -66,6 +66,7 @@ impl PeersArgs {
                 lockfile_dir,
                 &project_dirs,
                 catalogs,
+                config.resolve_peers_from_workspace_root,
             )?,
             None => IssuesByProjects::new(),
         };
