@@ -62,7 +62,8 @@ fn shared_lockfile_deploy_resolves_virtual_store_dir_against_the_deploy_dir() {
         !deploy_dir
             .join("node_modules/.pnpm")
             .join(FOO_ENTRY)
-            .exists()
+            .exists(),
+        "the default virtual store should stay empty",
     );
     let deploy_workspace_yaml = fs::read_to_string(deploy_dir.join("pnpm-workspace.yaml")).unwrap();
     assert!(
@@ -92,7 +93,8 @@ fn legacy_deploy_resolves_virtual_store_dir_against_the_deploy_dir() {
         !deploy_dir
             .join("node_modules/.pnpm")
             .join(FOO_ENTRY)
-            .exists()
+            .exists(),
+        "the default virtual store should stay empty",
     );
 
     drop((root, mock_instance));
