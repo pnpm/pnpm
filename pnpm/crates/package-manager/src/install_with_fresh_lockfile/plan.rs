@@ -204,6 +204,11 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
         .keys()
         .cloned()
         .collect();
+    let locked_runtime_host = pnpm_deps_restorer::materialization_plan::with_locked_runtime_node(
+        installability_host,
+        install.drivers.config,
+        &lockfiles.initial.importers,
+    );
     pnpm_deps_restorer::materialization_plan::compute_skip_set::<Reporter>(
         pnpm_deps_restorer::materialization_plan::SkipSetInputs {
             closure: pnpm_deps_restorer::SkipSetClosure {
@@ -219,8 +224,7 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
             requester: install.projects.requester,
             importers: &lockfiles.initial.importers,
 
-            installability_host,
-            explicit_node_version: install.drivers.config.node_version.is_some(),
+            installability_host: locked_runtime_host.as_ref(),
             // The fresh path has just re-resolved the graph, so the
             // previous run's verdicts may no longer hold.
             seed: SkippedSnapshots::new(),

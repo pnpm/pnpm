@@ -35,7 +35,11 @@ async fn compute_frozen_skip_set(
     lockfile: &pnpm_lockfile::Lockfile,
     importer_ids: &HashSet<String>,
 ) -> Result<(pnpm_deps_restorer::SkippedSnapshots, crate::GroupSelection), InstallError> {
-    let host = detect_host(settled, lockfile).await;
+    let host = pnpm_deps_restorer::materialization_plan::with_locked_runtime_node(
+        detect_host(settled, lockfile).await.as_ref(),
+        settled.install.context.config,
+        &lockfile.importers,
+    );
     let groups = crate::GroupSelection::classify(
         lockfile,
         settled.mode.included,
@@ -62,7 +66,6 @@ async fn compute_frozen_skip_set(
             requester: &workspace.prefix,
             importers: &lockfile.importers,
             installability_host: host.as_ref(),
-            explicit_node_version: settled.install.context.config.node_version.is_some(),
             seed,
             exclude_optional: !settled.mode.included.optional_dependencies,
             skip_runtimes: settled.install.execution.skip_runtimes,

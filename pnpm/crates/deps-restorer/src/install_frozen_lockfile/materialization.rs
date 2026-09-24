@@ -189,6 +189,11 @@ impl<'a> InstallFrozenLockfile<'a> {
                 host_node.as_ref(),
             );
             let groups = inputs.groups();
+            let locked_runtime_host = crate::materialization_plan::with_locked_runtime_node(
+                installability_host.as_ref(),
+                inputs.drivers.config,
+                &inputs.lockfiles.wanted.importers,
+            );
 
             let skipped = crate::materialization_plan::compute_skip_set::<Reporter>(
                 crate::materialization_plan::SkipSetInputs {
@@ -205,8 +210,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                     requester: inputs.projects.requester,
                     importers: &inputs.lockfiles.wanted.importers,
 
-                    installability_host: installability_host.as_ref(),
-                    explicit_node_version: inputs.drivers.config.node_version.is_some(),
+                    installability_host: locked_runtime_host.as_ref(),
                     seed: seed_skip_set(inputs.drivers.config, seed_skipped),
                     // The frozen path always installs the groups it was
                     // given, so `--no-optional` needs no further
