@@ -164,3 +164,17 @@ pub fn pnpmfile_selection(
         global: config.global_pnpmfile.as_deref(),
     }
 }
+
+/// The `pnpmfileChecksum` an install compares against the one `recorded` in
+/// the lockfile (see [`pnpm_hooks::current_pnpmfile_checksum`]). An install
+/// that ignores the pnpmfile cannot hash it, so it keeps the recorded value.
+pub(crate) async fn current_pnpmfile_checksum(
+    config: &pnpm_config::Config,
+    hooks: Option<&std::sync::Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    recorded: Option<&str>,
+) -> Option<String> {
+    if config.ignore_pnpmfile {
+        return recorded.map(str::to_owned);
+    }
+    pnpm_hooks::current_pnpmfile_checksum(hooks, recorded).await
+}

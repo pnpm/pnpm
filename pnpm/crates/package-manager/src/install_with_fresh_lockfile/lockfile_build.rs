@@ -36,8 +36,7 @@ pub(super) async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>
     views: LockfileViews<'_, 'a>,
     verify_filtered_repair: bool,
 ) -> Result<Lockfile, InstallWithFreshLockfileError> {
-    // An install that ignores the pnpmfile cannot hash it, so it keeps the
-    // checksum the lockfile records instead of dropping it.
+    // Keeps the recorded checksum, as `crate::current_pnpmfile_checksum` does.
     let pnpmfile_checksum = if install.drivers.config.ignore_pnpmfile {
         install.lockfiles.merge_wanted
             .or(install.lockfiles.wanted)
