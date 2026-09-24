@@ -101,6 +101,7 @@ impl ProjectScriptRunner<'_> {
                 .and_then(serde_json::Value::as_str),
             pkg_root_dir: project_dir,
             workspace_dir: Some(self.workspace_root),
+            modules_dir_name: self.config.modules_dir_name(),
             manifest_before_scripts: Some(manifest.value()),
             ignored_directories: self.config.managed_directories(),
         })

@@ -443,11 +443,11 @@ fn injected_workspace_dependency_updated_re_resolves() {
     drop((root, mock_instance));
 }
 
-fn write_workspace_with_prepare(workspace: &std::path::Path, node_linker: &str) {
+fn write_workspace_with_prepare(workspace: &std::path::Path, settings: &str) {
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         format!(
-            "packages:\n  - 'project-*'\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\nnodeLinker: {node_linker}\n",
+            "packages:\n  - 'project-*'\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\n{settings}",
         ),
     )
     .expect("write pnpm-workspace.yaml");
@@ -512,7 +512,7 @@ fn injected_copy_gets_the_output_of_the_prepare_script_run_by_install() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_workspace_with_prepare(&workspace, "isolated");
+    write_workspace_with_prepare(&workspace, "");
     pacquet
         .with_arg("install")
         .assert()
@@ -543,12 +543,33 @@ fn injected_copy_gets_the_output_of_the_prepare_script_with_the_hoisted_linker()
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_workspace_with_prepare(&workspace, "hoisted");
+    write_workspace_with_prepare(&workspace, "nodeLinker: hoisted\n");
     pacquet
         .with_arg("install")
         .assert()
         .success();
     assert_injected_copy_is_built(&workspace, &workspace.join("project-2/node_modules/project-1"));
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn injected_copy_gets_the_output_of_the_prepare_script_with_a_custom_modules_dir() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_prepare(&workspace, "modulesDir: vendor\n");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_injected_copy_is_built(&workspace, &workspace.join("project-2/vendor/project-1"));
 
     drop((root, mock_instance));
 }

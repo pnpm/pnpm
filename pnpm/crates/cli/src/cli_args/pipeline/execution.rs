@@ -345,6 +345,7 @@ fn sync_injected_deps_if_configured(
         pkg_name: manifest.get("name").and_then(Value::as_str),
         pkg_root_dir: &node.project,
         workspace_dir: config.workspace_dir.as_deref(),
+        modules_dir_name: config.modules_dir_name(),
         manifest_before_scripts: Some(manifest),
         ignored_directories: config.managed_directories(),
     })?;
