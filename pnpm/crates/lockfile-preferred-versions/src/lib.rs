@@ -26,7 +26,7 @@ use rayon::prelude::*;
 mod version_selector_type;
 
 /// The importer manifests whose direct-dependency specs seed the
-/// preferences, and the catalogs their `catalog:` specs name.
+/// preferences, and the catalogs to resolve them against.
 #[derive(Clone, Copy)]
 pub struct DirectSpecs<'a> {
     pub manifests: &'a [&'a PackageManifest],
@@ -34,16 +34,15 @@ pub struct DirectSpecs<'a> {
 }
 
 impl<'a> DirectSpecs<'a> {
-    /// Specs from `manifests`, none of which can be a usable `catalog:` spec.
+    /// Specs from `manifests` with no catalogs, so a `catalog:` spec among
+    /// them seeds nothing.
     #[must_use]
     pub fn without_catalogs(manifests: &'a [&'a PackageManifest]) -> Self {
         static NO_CATALOGS: Catalogs = Catalogs::new();
         DirectSpecs { manifests, catalogs: &NO_CATALOGS }
     }
 
-    /// The spec the resolver installs for `name`: the catalog entry a
-    /// `catalog:` spec names, otherwise `spec` itself. `None` for a
-    /// `catalog:` spec without a usable entry.
+    /// `None` for a `catalog:` spec without a usable entry.
     fn effective_spec<'spec>(&self, name: &str, spec: &'spec str) -> Option<Cow<'spec, str>> {
         if parse_catalog_protocol(spec).is_none() {
             return Some(Cow::Borrowed(spec));
