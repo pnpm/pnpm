@@ -15,7 +15,7 @@ import {
 import type { PkgResolutionId } from '@pnpm/resolving.resolver-base'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
-import type { ProjectRootDir, RegistriesByScope } from '@pnpm/types'
+import type { DependencyManifest, ProjectRootDir, RegistriesByScope } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { omit } from 'ramda'
 import { temporaryDirectory } from 'tempy'
@@ -3483,6 +3483,31 @@ test.each(['github:owner/repo', 'file:../other', 'npm:other@1', 'github:owner/re
 
   expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.normalizedBareSpecifier).toBe(`workspace:^${version}`)
+})
+
+test.each([true, false])('workspace protocol: a local package without a version resolves with saveWorkspaceProtocol=%s', async (saveWorkspaceProtocol) => {
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+    saveWorkspaceProtocol,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'workspace:*' }, {
+    calcSpecifier: true,
+    projectDir: '/home/istvan/src',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['0.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: {
+            name: 'is-positive',
+          } as DependencyManifest,
+        }],
+      ])],
+    ]),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('workspace')
 })
 
 test('peekManifestFromStore: reuses store manifest and bypasses network when package is in store', async () => {

@@ -13,9 +13,11 @@ use node_semver::{Range, Version};
 /// prereleases are excluded unless the range itself carries a
 /// prerelease tag.
 ///
-/// Versions that are not valid semver, such as `1` or `1.0`, still match
-/// the sentinel tokens when no semver version is present, and match any
-/// other range only when it is identical to them.
+/// A version identical to `range` wins over semver matches, so a saved
+/// `workspace:1` keeps pointing at a project whose version is `1` even
+/// when another copy is at `1.2.3`. Versions that are not valid semver,
+/// such as `1` or `1.0`, also match the sentinel tokens when no semver
+/// version is present.
 ///
 /// Returns the matching raw version string (one of the entries in
 /// `versions`) or `None` when nothing satisfies.
@@ -24,13 +26,13 @@ pub fn resolve_workspace_range(range: &str, versions: &[String]) -> Option<Strin
     if is_wildcard(range) {
         return max_version_including_prerelease(versions).or_else(|| max_by_utf16(versions));
     }
+    if versions
+        .iter()
+        .any(|version| version == range)
+    {
+        return Some(range.to_string());
+    }
     max_satisfying(versions, range)
-        .or_else(|| {
-            versions
-                .iter()
-                .any(|version| version == range)
-                .then(|| range.to_string())
-        })
 }
 
 /// Compares UTF-16 code units so the pick matches JavaScript's default

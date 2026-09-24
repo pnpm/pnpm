@@ -44,6 +44,7 @@ describe('resolveWorkspaceRange', () => {
     expect(resolveWorkspaceRange('1', ['1'])).toBe('1')
     expect(resolveWorkspaceRange('1.0', ['1.0', '2'])).toBe('1.0')
     expect(resolveWorkspaceRange('2', ['1'])).toBeNull()
+    expect(resolveWorkspaceRange('1', ['1', '1.2.3'])).toBe('1')
     expect(resolveWorkspaceRange('^1', ['1'])).toBeNull()
     expect(resolveWorkspaceRange('^1.0.0', ['1.0'])).toBeNull()
   })

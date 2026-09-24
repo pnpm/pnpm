@@ -1259,7 +1259,8 @@ function calcSpecifierForWorkspaceDep ({
  * exactly it could mean a wildcard, a tag or an alias inside `workspace:`, or
  * a different dependency source without it.
  */
-function isPartialVersion (version: string): boolean {
+function isPartialVersion (version: string | undefined): boolean {
+  if (version == null) return false
   const [major, ...minorAndPatch] = version.split('.')
   return isVersionNumber(major) &&
     minorAndPatch.length <= 2 &&
