@@ -40,7 +40,7 @@ test('local file', async () => {
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['link:../local-pkg'], testDefaults())
 
-  const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
+  const expectedSpecs = { 'local-pkg': 'link:../local-pkg' }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
 
   const m = project.requireModule('local-pkg')
@@ -102,7 +102,7 @@ test('local file via link:', async () => {
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['link:../local-pkg'], testDefaults())
 
-  const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
+  const expectedSpecs = { 'local-pkg': 'link:../local-pkg' }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
 
   const m = project.requireModule('local-pkg')
@@ -138,7 +138,7 @@ test('local file with symlinked node_modules', async () => {
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['link:../local-pkg'], testDefaults())
 
-  const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
+  const expectedSpecs = { 'local-pkg': 'link:../local-pkg' }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
 
   const m = project.requireModule('local-pkg')
@@ -462,7 +462,7 @@ test('re-install should update local file dependency', async () => {
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['file:../local-pkg'], testDefaults())
 
-  const expectedSpecs = { 'local-pkg': `file:..${path.sep}local-pkg` }
+  const expectedSpecs = { 'local-pkg': 'file:../local-pkg' }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
 
   const m = project.requireModule('local-pkg')
