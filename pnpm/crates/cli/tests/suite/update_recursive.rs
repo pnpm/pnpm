@@ -274,7 +274,7 @@ fn recursive_update_prod_dependencies_only() {
     anchor.set_dist_tag(FOO, "100.1.0", "latest");
     anchor.set_dist_tag(BAR, "100.1.0", "latest");
 
-    pacquet(&workspace, ["-r", "update", "--prod", "--no-optional"]).assert().success();
+    pacquet(&workspace, ["-r", "update", "--prod"]).assert().success();
 
     assert_eq!(
         lockfile_package_keys(&workspace),

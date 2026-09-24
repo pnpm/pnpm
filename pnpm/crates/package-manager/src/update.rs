@@ -336,16 +336,24 @@ pub struct UpdateVersionOptions {
     pub save: bool,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct UpdateExplicitGroups {
+    pub prod: bool,
+    pub dev: bool,
+    pub optional: bool,
+    pub no_optional: bool,
+}
+
 /// The update's owned inputs, consumed by the install it runs.
 pub struct UpdateResources {
     pub tarball_mem_cache: Arc<MemCache>,
     pub http_client_arc: Arc<ThrottledClient>,
     /// Dependency groups the update considers when choosing which direct
     /// dependencies to match, derived from
-    /// `--prod` / `--dev` / `--no-optional`. Note: the *materialized*
-    /// dependency set is always all three groups (the `node_modules`
-    /// layout is unchanged); this only narrows the update scope.
+    /// `--prod` / `--dev` / `--no-optional`.
     pub include_direct: Vec<DependencyGroup>,
+    /// Explicit dependency group flags passed on the CLI.
+    pub explicit_groups: UpdateExplicitGroups,
     /// CLI-merged `supportedArchitectures`, forwarded to the install.
     pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     /// Sink notified for each resolved tarball package, and the source of

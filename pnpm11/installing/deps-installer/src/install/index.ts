@@ -409,10 +409,6 @@ export async function mutateModules (
 
   const allowBuild = createAllowBuildFunction(opts)
 
-  if (!opts.include.dependencies && opts.include.optionalDependencies) {
-    throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
-  }
-
   const installsOnly = allMutationsAreInstalls(projects)
   // Removals, and additions the lockfile already holds a version for, may
   // take the fast lockfile update and the frozen-like install; an explicitly
@@ -430,7 +426,52 @@ export async function mutateModules (
     // so reading its manifest explicitly here.
     await safeReadProjectManifestOnly(opts.lockfileDir)
 
-  let ctx = await getContext(opts)
+  const isUpdate = Boolean(
+    (maybeOpts as { update?: boolean }).update ||
+    projects.some((project) => ('update' in project && project.update) || ('updateMatching' in project && project.updateMatching))
+  )
+  let ctx = await getContext(isUpdate ? { ...opts, include: maybeOpts.include } : opts)
+  if (isUpdate && !maybeOpts.include) {
+    const extraOpts = (opts as {
+      cliOptions?: Record<string, unknown>
+      dev?: boolean
+      production?: boolean
+      optional?: boolean
+      peer?: boolean
+    })
+    const cliOpts = extraOpts.cliOptions
+    const hasCliOpts = cliOpts != null
+    const isExplicitDev = hasCliOpts
+      ? cliOpts.dev === true
+      : (extraOpts.dev === true && extraOpts.production !== true)
+    const isExplicitProd = hasCliOpts
+      ? (cliOpts.production === true || cliOpts.prod === true)
+      : (extraOpts.production === true && extraOpts.dev !== true)
+    const isExplicitOptional = hasCliOpts
+      ? cliOpts.optional === true
+      : extraOpts.optional === true
+    const isNoOptional = hasCliOpts
+      ? (cliOpts.optional === false || (cliOpts.optional !== true && extraOpts.optional === false))
+      : extraOpts.optional === false
+    const hasPriorModules = ctx.modulesFile != null
+    opts.include = {
+      dependencies: hasPriorModules
+        ? (ctx.include.dependencies || isExplicitProd)
+        : true,
+      devDependencies: hasPriorModules
+        ? (ctx.include.devDependencies || isExplicitDev)
+        : (!isExplicitProd || isExplicitDev),
+      optionalDependencies: hasPriorModules
+        ? (Boolean(ctx.include.optionalDependencies || isExplicitOptional) && !isNoOptional)
+        : !isNoOptional,
+      ...(extraOpts.peer === true || (hasCliOpts && cliOpts.peer === true) ? { peerDependencies: true } : {}),
+    }
+    ctx.include = opts.include
+  }
+
+  if (!opts.include.dependencies && opts.include.optionalDependencies) {
+    throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
+  }
 
   const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
     extraBinPaths: opts.extraBinPaths,

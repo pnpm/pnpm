@@ -207,4 +207,8 @@ fn constrained_patch_refresh_stays_on_the_client() {
     );
     assert!(!update_args(&["--patches"]).can_delegate_patch_refresh(true, &all_groups));
     assert!(!update_args(&["--patches"]).can_delegate_patch_refresh(false, &prod_only));
+    assert!(
+        !update_args(&["--patches", "--no-optional"])
+            .can_delegate_patch_refresh(false, &all_groups),
+    );
 }
