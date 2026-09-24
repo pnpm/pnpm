@@ -1,5 +1,6 @@
 use super::child_seeds::landed_on_prior_entry;
 mod shared_workspace_resolution_cache;
+mod stale_pin_refresh;
 
 use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, RegistryResolution, TarballRevision};
 
