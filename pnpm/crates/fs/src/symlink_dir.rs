@@ -150,11 +150,10 @@ pub fn is_symlink_or_junction(link: &Path) -> io::Result<bool> {
 /// `ERROR_ACCESS_DENIED`. Wrapping the platform split here keeps
 /// callers free of `#[cfg]`.
 ///
-/// On Windows the unlink follows the retry policy of
-/// [`crate::rename_with_retry`].
+/// The unlink follows the retry policy of [`crate::rename_with_retry`].
 pub fn remove_symlink_dir(link: &Path) -> io::Result<()> {
     #[cfg(unix)]
-    return std::fs::remove_file(link);
+    return retry_transient_file_locks(|| std::fs::remove_file(link));
     #[cfg(windows)]
     return retry_transient_file_locks(|| std::fs::remove_dir(link));
 }
