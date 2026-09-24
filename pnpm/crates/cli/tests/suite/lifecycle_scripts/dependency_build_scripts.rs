@@ -259,6 +259,15 @@ fn lifecycle_scripts_run_before_linking_bins() {
 /// fixture's `preinstall` fails if any shim of its bin is on `PATH`.
 #[test]
 fn own_bin_is_not_on_path_before_preinstall_creates_it() {
+    install_own_bin_created_by_preinstall(None);
+}
+
+#[test]
+fn own_bin_is_not_on_path_before_preinstall_creates_it_with_hoisted_linker() {
+    install_own_bin_created_by_preinstall(Some("hoisted"));
+}
+
+fn install_own_bin_created_by_preinstall(node_linker: Option<&str>) {
     let CommandTempCwd {
         pacquet,
         root,
@@ -275,6 +284,9 @@ fn own_bin_is_not_on_path_before_preinstall_creates_it() {
         .to_string(),
     )
     .expect("write package.json");
+    if let Some(node_linker) = node_linker {
+        append_workspace_yaml_key(&workspace, "nodeLinker", node_linker);
+    }
     allow_builds(&workspace, &[("@pnpm.e2e/own-bin-created-by-preinstall", true)]);
 
     pacquet
