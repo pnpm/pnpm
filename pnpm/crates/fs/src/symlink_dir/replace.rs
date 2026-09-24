@@ -2,6 +2,8 @@ use super::{
     ForceSymlinkOutcome, Path, force_symlink_inner, fs, io, is_transient_file_lock_error,
     remove_dir_all_with_retry, rename_with_retry, retry_transient_file_locks,
 };
+use derive_more::{Display, Error};
+use std::path::PathBuf;
 
 /// The one-shot recoveries [`force_symlink_inner`] has already spent on a
 /// link. Each bounds a recursion that must not repeat a step which did not help
@@ -83,6 +85,29 @@ pub(super) fn clear_symlink_occupant(
     )))
 }
 
+/// A symlink occupant, or the stale `.ignored_` entry in its way, that stayed
+/// locked through its retry budget. The failed operation's own error stays
+/// reachable as the source.
+#[derive(Debug, Display, Error)]
+#[display(
+    "Could not move \"{}\" out of the way. A file in it is probably in use by another \
+     process, such as a dev server or an editor. Stop that process and try again.",
+    path.display()
+)]
+pub(super) struct OccupantInUseError {
+    path: PathBuf,
+    source: io::Error,
+}
+
+/// Keep the error kind of a Windows file-lock failure, but say which directory
+/// is held and what usually holds it.
+pub(super) fn describe_locked_occupant(path: &Path, error: io::Error) -> io::Error {
+    if !is_transient_file_lock_error(&error) {
+        return error;
+    }
+    io::Error::new(error.kind(), OccupantInUseError { path: path.to_path_buf(), source: error })
+}
+
 /// Remove a regular file or directory that's occupying a symlink
 /// slot, retrying transient Windows file locks. The `remove_file`
 /// fallback is taken only on `NotADirectory`, so a directory that stays
@@ -106,7 +131,8 @@ pub(super) fn remove_occupant(path: &Path) -> io::Result<()> {
 /// dirs, `PermissionDenied` on Windows when something holds a handle
 /// to the dest), remove the destination and retry. A transient Windows
 /// file lock on either side is treated the same way: the destination
-/// is cleared once, then the rename itself is retried.
+/// is cleared once, then the rename itself is retried. A lock that outlasts
+/// the retry budget is reported with the path that stayed locked.
 pub(super) fn rename_overwrite(src: &Path, dst: &Path) -> io::Result<()> {
     match fs::rename(src, dst) {
         Ok(()) => Ok(()),
@@ -114,8 +140,8 @@ pub(super) fn rename_overwrite(src: &Path, dst: &Path) -> io::Result<()> {
             if !rename_error_allows_destination_removal(&error) {
                 return Err(error);
             }
-            remove_occupant(dst)?;
-            rename_with_retry(src, dst)
+            remove_occupant(dst).map_err(|error| describe_locked_occupant(dst, error))?;
+            rename_with_retry(src, dst).map_err(|error| describe_locked_occupant(src, error))
         }
     }
 }
