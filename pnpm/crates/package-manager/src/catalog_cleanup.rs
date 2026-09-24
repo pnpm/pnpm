@@ -166,7 +166,7 @@ pub(crate) fn post_install_prune(
     prune_unresolved_entries(config, &workspace_dir, &resolved)
 }
 
-/// [`post_install_prune`] for a workspace with a lockfile per project
+/// The post-install exclude prune for a workspace with a lockfile per project
 /// (`sharedWorkspaceLockfile: false`), run once after a command has
 /// installed its selected projects one by one, never while any of them is
 /// still installing.

@@ -198,10 +198,22 @@ impl DedicatedProjectRuns<'_> {
         Runner: Fn(State) -> RunFuture + Sync,
         RunFuture: Future<Output = miette::Result<()>> + Send,
     {
+        self.run_projects(run).await?;
+        if self.prune_excludes {
+            prune_after_dedicated_installs(self.config)?;
+        }
+        Ok(())
+    }
+
+    async fn run_projects<Runner, RunFuture>(&self, run: Runner) -> miette::Result<()>
+    where
+        Runner: Fn(State) -> RunFuture + Sync,
+        RunFuture: Future<Output = miette::Result<()>> + Send,
+    {
         let first_error: std::sync::Mutex<Option<miette::Report>> = std::sync::Mutex::new(None);
         let config = self.config;
         let require_lockfile = self.require_lockfile;
-        let http_client = self.http_client;
+        let http_client = &self.http_client;
         let names = &self.projects.names;
         let run = &run;
         let run_node = |project_dir: PathBuf| {
@@ -233,15 +245,10 @@ impl DedicatedProjectRuns<'_> {
             .continue_on_failure(!self.config.bail),
         )
         .await;
-        if let Some(error) =
-            first_error.into_inner().expect("dedicated install error lock is not poisoned")
-        {
-            return Err(error);
-        }
-        if self.prune_excludes {
-            prune_after_dedicated_installs(config)?;
-        }
-        Ok(())
+        first_error
+            .into_inner()
+            .expect("dedicated install error lock is not poisoned")
+            .map_or(Ok(()), Err)
     }
 }
 
