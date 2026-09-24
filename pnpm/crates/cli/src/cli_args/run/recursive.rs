@@ -146,7 +146,7 @@ pub fn run_recursive(
     // An empty `--filter` selection is a no-op (exit 0); an empty
     // workspace instead falls through to the no-script error below.
     if !projects.is_empty() && graph.is_empty() {
-        if !args.json {
+        if !args.json && !silent {
             println!("{}", no_projects_matched_message(notice_workspace_dir(config, dir)));
         }
         return Ok(RecursiveRunOutcome::Done);

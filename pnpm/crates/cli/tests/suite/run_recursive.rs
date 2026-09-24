@@ -730,6 +730,32 @@ fn recursive_run_command_reports_a_filter_that_matched_nothing() {
     drop(root);
 }
 
+#[test]
+fn recursive_run_silent_suppresses_no_match_notice() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &[("project-1", build_writes_marker("project-1"))]);
+
+    for flag in ["--silent", "--reporter=ndjson"] {
+        let output = Command::cargo_bin("pnpm")
+            .expect("find pacquet binary")
+            .with_current_dir(&workspace)
+            .with_arg("-r")
+            .with_arg("--filter")
+            .with_arg("does-not-exist")
+            .with_arg(flag)
+            .with_arg("run")
+            .with_arg("build")
+            .output()
+            .expect("run pacquet");
+
+        assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(!stdout.contains("No projects matched the filters in"), "stdout: {stdout}");
+    }
+
+    drop(root);
+}
+
 /// The top-level `--if-present` spelling with a shorthand script — the
 /// shape the repo's own `test-pkgs-branch` script uses
 /// (`pnpm --workspace-concurrency=1 --no-sort --if-present <script>`) —
