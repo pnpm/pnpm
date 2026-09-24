@@ -346,6 +346,7 @@ fn sync_injected_deps_if_configured(
         pkg_root_dir: &node.project,
         workspace_dir: config.workspace_dir.as_deref(),
         modules_dir_name: config.modules_dir_name(),
+        workspace_modules_dir: &config.modules_dir,
         extend_node_path: config.extend_node_path,
         manifest_before_scripts: Some(manifest),
         ignored_directories: config.managed_directories(),

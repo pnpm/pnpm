@@ -574,6 +574,34 @@ fn injected_copy_gets_the_output_of_the_prepare_script_with_a_custom_modules_dir
     drop((root, mock_instance));
 }
 
+#[test]
+fn injected_copy_gets_the_output_of_the_prepare_script_with_a_nested_modules_dir() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_prepare(&workspace, "modulesDir: deps/vendor\n");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        workspace.join("deps/vendor/.modules.yaml").is_file(),
+        "the workspace's modules manifest should be under the nested modulesDir",
+    );
+    assert_injected_copy_is_built(
+        &workspace,
+        &workspace.join("deps/vendor/.pnpm/project-1@file+project-1/node_modules/project-1"),
+    );
+
+    drop((root, mock_instance));
+}
+
 #[cfg(unix)]
 #[test]
 fn relinked_bin_of_an_injected_copy_keeps_a_custom_modules_dir_on_node_path() {

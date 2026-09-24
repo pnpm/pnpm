@@ -81,6 +81,10 @@ pub struct SyncInjectedDeps<'a> {
     /// The name of the workspace's modules directories, `node_modules`
     /// unless `modulesDir` says otherwise.
     pub modules_dir_name: &'a std::ffi::OsStr,
+    /// The workspace root's resolved modules directory, which holds the
+    /// `.modules.yaml` that lists the injected copies. A `modulesDir` with
+    /// a path separator puts it deeper than `modules_dir_name` reaches.
+    pub workspace_modules_dir: &'a Path,
     /// pnpm's `extendNodePath`: the relinked shims put a custom modules
     /// directory on `NODE_PATH`, as the install's shims do.
     pub extend_node_path: bool,
@@ -125,7 +129,7 @@ fn sync_workspace_injected_deps(
     workspace_dir: &Path,
 ) -> Result<(), SyncInjectedDepsError> {
     let pkg_root_dir = workspace_dir.join(opts.pkg_root_dir);
-    let modules = read_workspace_modules(workspace_dir, opts.modules_dir_name)?;
+    let modules = read_workspace_modules(opts.workspace_modules_dir)?;
     let Some(injected_deps) =
         modules.as_ref().and_then(|modules| modules.injected_deps.as_ref())
     else {
@@ -171,10 +175,9 @@ fn sync_workspace_injected_deps(
 }
 
 fn read_workspace_modules(
-    workspace_dir: &Path,
-    modules_dir_name: &std::ffi::OsStr,
+    workspace_modules_dir: &Path,
 ) -> Result<Option<pnpm_modules_yaml::Modules>, SyncInjectedDepsError> {
-    read_modules_manifest::<pnpm_modules_yaml::Host>(&workspace_dir.join(modules_dir_name))
+    read_modules_manifest::<pnpm_modules_yaml::Host>(workspace_modules_dir)
         .map_err(|error| SyncInjectedDepsError::ReadModules { error })
 }
 

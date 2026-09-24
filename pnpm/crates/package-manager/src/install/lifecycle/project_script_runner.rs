@@ -9,6 +9,7 @@ use super::{
 use pnpm_deps_restorer::build_modules::exec_scripts_prepend_node_path;
 use pnpm_executor::LifecycleScriptError;
 use pnpm_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
+use std::sync::Mutex;
 
 /// Run `stages` for the project at `project_dir`, with the workspace root
 /// as `INIT_CWD` and the project's own bin dir and `NODE_PATH` in scope.
@@ -68,6 +69,9 @@ pub(super) struct ProjectScriptRunner<'a> {
     root_preinstall_ran: bool,
     extra_env: HashMap<String, String>,
     link_options: pnpm_cmd_shim::LinkBinsOptions,
+    /// Every sync relinks every project's `.bin`, and a symlinked bin is
+    /// replaced by a remove and a create, so two syncs must not overlap.
+    injected_deps_sync: Mutex<()>,
 }
 
 impl ProjectScriptRunner<'_> {
@@ -94,6 +98,8 @@ impl ProjectScriptRunner<'_> {
         // Injected copies are hardlinks of the files that existed when they
         // were materialized, so the output of a build script reaches them
         // only when they are re-synced.
+        let _sync_guard =
+            self.injected_deps_sync.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         sync_injected_deps(&SyncInjectedDeps {
             pkg_name: manifest
                 .value()
@@ -102,6 +108,7 @@ impl ProjectScriptRunner<'_> {
             pkg_root_dir: project_dir,
             workspace_dir: Some(self.workspace_root),
             modules_dir_name: self.config.modules_dir_name(),
+            workspace_modules_dir: &self.config.modules_dir,
             extend_node_path: self.config.extend_node_path,
             manifest_before_scripts: Some(manifest.value()),
             ignored_directories: self.config.managed_directories(),
@@ -155,6 +162,7 @@ impl<'a> ProjectScriptRunner<'a> {
             root_preinstall_ran,
             extra_env: project_lifecycle_extra_env(config, node_linker, workspace_root),
             link_options: crate::shim_link_options(config, node_linker),
+            injected_deps_sync: Mutex::new(()),
         }
     }
 }
