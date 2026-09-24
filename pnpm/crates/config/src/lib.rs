@@ -217,10 +217,15 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
 /// it rather than silently dropping every setting the file holds.
 fn read_npmrc_file<Sys: api::FsReadFile>(path: &Path) -> Result<Option<String>, String> {
     match Sys::read_file(path) {
-        Ok(bytes) => match String::from_utf8(bytes) {
-            Ok(text) => Ok(Some(text)),
-            Err(error) => Ok(Some(String::from_utf8_lossy(error.as_bytes()).into_owned())),
-        },
+        Ok(mut bytes) => {
+            if bytes.starts_with(b"\xEF\xBB\xBF") {
+                bytes.drain(..3);
+            }
+            match String::from_utf8(bytes) {
+                Ok(text) => Ok(Some(text)),
+                Err(error) => Ok(Some(String::from_utf8_lossy(error.as_bytes()).into_owned())),
+            }
+        }
         Err(error)
             if matches!(
                 error.kind(),
