@@ -403,6 +403,86 @@ module.exports = {{ resolvers: [{{
     drop((root, mock_instance));
 }
 
+/// A custom resolution records no location, so only the fetcher that claims it
+/// can reach the archive the package's own dependencies are declared in.
+/// Regression test for pnpm/pnpm#15552.
+#[test]
+fn custom_typed_resolver_without_manifest_installs_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let manifest = serde_json::json!({
+        "name": "custom-typed", "version": "1.0.0",
+        "dependencies": {"@pnpm.e2e/dep-of-pkg-with-1-dep": "100.1.0"},
+    });
+    let body = pnpm_testing_utils::fixtures::tarball_with_manifest(&manifest);
+    fs::create_dir_all(workspace.join("vendor")).unwrap();
+    fs::write(workspace.join("vendor/package.tgz"), &body).unwrap();
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"custom-typed":"1.0.0"}}"#)
+        .unwrap();
+    let integrity = pnpm_testing_utils::fixtures::sha512_integrity(&body);
+    let resolution = serde_json::json!({
+        "type": "custom:vendored", "name": "custom-typed", "version": "1.0.0",
+        "integrity": integrity,
+    });
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        format!(
+            r"
+module.exports = {{
+  resolvers: [{{
+    canResolve: wanted => wanted.alias === 'custom-typed',
+    resolve: () => ({{ id: 'custom-typed@1.0.0', resolution: {resolution} }}),
+  }}],
+  fetchers: [{{
+    canFetch: (id, resolution) => resolution.type === 'custom:vendored',
+    fetch: (cafs, resolution, opts, fetchers) => fetchers.localTarball(
+      cafs,
+      {{ tarball: 'file:./vendor/package.tgz', integrity: '{integrity}' }},
+      opts,
+    ),
+  }}],
+}};
+",
+        ),
+    )
+    .unwrap();
+    pacquet
+        .with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
+    let dependency_version = |workspace: &Path| {
+        pacquet_at(workspace).with_args(["exec", "node", "-e",
+            "console.log(require(require.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep/package.json', { paths: [require.resolve('custom-typed/package.json')] })).version)"])
+            .assert().success().stdout("100.1.0\n");
+    };
+    dependency_version(&workspace);
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    // The resolution stays the resolver's, so the lockfile keeps naming no
+    // location and the same fetcher claims it on the next install.
+    assert!(
+        lockfile.contains("type: custom:vendored") && !lockfile.contains("tarball:"),
+        "the custom resolution is recorded verbatim: {lockfile}",
+    );
+
+    // A frozen install has only the lockfile to work from, so an empty snapshot
+    // recorded above would silently install the package without its dependency.
+    fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--ignore-scripts"])
+        .assert()
+        .success();
+    dependency_version(&workspace);
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn custom_resolver_git_subdirectory_installs_its_manifest_and_dependencies() {
     assert_git_subdirectory_install(

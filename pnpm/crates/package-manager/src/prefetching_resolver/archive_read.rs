@@ -26,15 +26,18 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         result: &mut ResolveResult,
         lockfile_dir: &Path,
     ) -> Result<(), ResolveError> {
-        let Some((missing, tarball)) = MissingTarballMetadata::of(result) else {
+        let Some((missing, tarball)) =
+            MissingTarballMetadata::of(result, self.ctx.policy.custom_session.is_some())
+        else {
             return Ok(());
         };
         let metadata = match self.read_archive_once(result, tarball, lockfile_dir).await {
             Ok(metadata) => metadata,
             Err(err)
                 if is_missing_local_tarball(&err)
-                    && tarball.integrity.is_some()
-                    && tarball.tarball.starts_with("file:") =>
+                    && tarball.is_some_and(|tarball| {
+                        tarball.integrity.is_some() && tarball.tarball.starts_with("file:")
+                    }) =>
             {
                 return Ok(());
             }
@@ -66,22 +69,28 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     async fn read_archive_once(
         &self,
         result: &ResolveResult,
-        tarball: &pnpm_lockfile::TarballResolution,
+        tarball: Option<&pnpm_lockfile::TarballResolution>,
         lockfile_dir: &Path,
     ) -> Result<ResolvedTarballMetadata, ResolveError> {
-        let package_url =
+        // A resolution that names no archive leaves the URL to the fetcher that
+        // claims it, the way the install pass does for the same resolution.
+        let package_url = tarball.map_or_else(String::new, |tarball| {
             local_file_tarball_install_url(tarball.tarball.as_str().into(), lockfile_dir)
-                .into_owned();
+                .into_owned()
+        });
         // Scope credentials are selected from `name@version` when the
-        // resolver knows it; direct URL tarballs fall back to URL identity.
-        let package_id = result.package.name_ver
-            .as_ref()
-            .map_or_else(|| package_url.clone(), |nv| format!("{}@{}", nv.name, nv.suffix));
+        // resolver knows it; direct URL tarballs fall back to URL identity,
+        // and a resolution without one is named by the resolver's own id.
+        let package_id = match result.package.name_ver.as_ref() {
+            Some(name_ver) => format!("{}@{}", name_ver.name, name_ver.suffix),
+            None if tarball.is_some() => package_url.clone(),
+            None => result.id.as_str().to_owned(),
+        };
         let cache_key = self.tarball_metadata_cache_key(result, tarball, &package_id)?;
         let cell = Arc::clone(&self.tarball_metadata_cache.entry(cache_key).or_default());
         cell.get_or_try_init(|| async {
-            match self.ctx.policy.custom_session.as_ref() {
-                Some(session) => {
+            match (self.ctx.policy.custom_session.as_ref(), tarball) {
+                (Some(session), _) => {
                     self.read_archive_by_custom_fetcher(
                         session,
                         result,
@@ -90,7 +99,16 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                     )
                     .await
                 }
-                None => self.read_archive(tarball, &package_url, &package_id).await,
+                (None, Some(tarball)) => {
+                    self.read_archive(tarball, &package_url, &package_id).await
+                }
+                // Only a fetcher hook can read an archive the resolution does
+                // not name, and `MissingTarballMetadata::of` reports such a
+                // resolution only when one is configured.
+                (None, None) => Ok(ResolvedTarballMetadata {
+                    resolution: result.resolution.clone(),
+                    manifest: None,
+                }),
             }
         })
         .await
@@ -111,12 +129,16 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     pub(super) fn tarball_metadata_cache_key(
         &self,
         result: &ResolveResult,
-        tarball: &pnpm_lockfile::TarballResolution,
+        tarball: Option<&pnpm_lockfile::TarballResolution>,
         package_id: &str,
     ) -> Result<String, ResolveError> {
-        Ok(if self.ctx.policy.custom_session.is_some() {
-            format!("custom\t{package_id}\t{}", serde_json::to_string(&result.resolution)?)
-        } else if tarball.path.is_some() {
+        let Some(tarball) = tarball.filter(|_| self.ctx.policy.custom_session.is_none()) else {
+            return Ok(format!(
+                "custom\t{package_id}\t{}",
+                serde_json::to_string(&result.resolution)?,
+            ));
+        };
+        Ok(if tarball.path.is_some() {
             format!("subdirectory\t{}", serde_json::to_string(tarball)?)
         } else {
             match tarball.integrity.as_ref() {
@@ -248,9 +270,22 @@ struct MissingTarballMetadata {
 
 impl MissingTarballMetadata {
     /// Skip complete resolutions; commit-addressed archives need no new integrity.
-    fn of(result: &ResolveResult) -> Option<(Self, &pnpm_lockfile::TarballResolution)> {
+    ///
+    /// A custom resolution names no archive, so its manifest is only
+    /// readable through the fetcher that claims it, and its integrity is that
+    /// fetcher's to define rather than the archive's to yield.
+    fn of(
+        result: &ResolveResult,
+        custom_fetchers: bool,
+    ) -> Option<(Self, Option<&pnpm_lockfile::TarballResolution>)> {
         let LockfileResolution::Tarball(tarball) = &result.resolution else {
-            return None;
+            let recoverable = custom_fetchers
+                && matches!(result.resolution, LockfileResolution::Custom(_))
+                && result.package.manifest.is_none();
+            return recoverable.then_some((
+                MissingTarballMetadata { integrity: false, manifest: true },
+                None,
+            ));
         };
         // git-hosted tarballs are anchored by their commit SHA, not an integrity. Detect
         // them by URL, NOT by the `git_hosted` flag: the flag is tamper-prone lockfile
@@ -264,7 +299,7 @@ impl MissingTarballMetadata {
                     || result.package.manifest.is_none()),
             manifest: result.package.manifest.is_none(),
         };
-        (missing.integrity || missing.manifest).then_some((missing, tarball))
+        (missing.integrity || missing.manifest).then_some((missing, Some(tarball)))
     }
 }
 

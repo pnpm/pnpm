@@ -144,6 +144,58 @@ async fn custom_fetcher_reads_git_subdirectory_without_adding_integrity() {
     assert_eq!(result.package.manifest.unwrap()["name"], json!("root"));
 }
 
+/// A custom resolution names no archive of its own, so the fetcher that claims
+/// it is the only route to the manifest the dependency walk reads the package's
+/// children from. <https://github.com/pnpm/pnpm/issues/15552>
+#[tokio::test]
+async fn custom_fetcher_reads_a_manifest_for_a_custom_resolution() {
+    let dir = tempdir().unwrap();
+    std::fs::write(dir.path().join("repo.tgz"), tarball_with_a_dependency("vendored")).unwrap();
+    let mut result = result_without_manifest("vendored");
+    // The custom-resolver adapter learns neither a name nor a version from a
+    // resolution it does not understand, so the read is named by the resolver's id.
+    result.package.name_ver = None;
+    let resolution = LockfileResolution::Custom(
+        serde_json::from_value(json!({
+            "type": "custom:vendored", "name": "vendored", "version": "1.0.0",
+        }))
+        .unwrap(),
+    );
+    result.resolution = resolution.clone();
+    let mut resolver = resolver_with_prefetch(
+        dir.path(),
+        Box::new(FixedResolver { result: result.clone() }),
+        false,
+    );
+    Arc::get_mut(&mut resolver.ctx).unwrap().policy.custom_session =
+        Some(Arc::new(pnpm_deps_restorer::CustomFetcherSession::new(vec![Arc::new(
+            LocalArchiveFetcher { path: None },
+        )])));
+    resolver.populate_missing_tarball_metadata(&mut result, dir.path()).await.unwrap();
+    assert_eq!(result.package.manifest.unwrap()["dependencies"]["ms"], json!("2.1.2"));
+    // The fetcher owns what identifies a custom resolution, so the read records
+    // neither the archive's hash nor its own URL over it.
+    assert_eq!(dbg!(result.resolution), resolution);
+}
+
+/// Without a fetcher to claim it, nothing can read a custom resolution's
+/// archive, and a read of the resolution's own shape would fetch the wrong one.
+#[tokio::test]
+async fn a_custom_resolution_is_left_alone_when_no_fetcher_is_configured() {
+    let dir = tempdir().unwrap();
+    let mut result = result_without_manifest("vendored");
+    result.resolution = LockfileResolution::Custom(
+        serde_json::from_value(json!({"type": "custom:vendored"})).unwrap(),
+    );
+    let resolver = resolver_with_prefetch(
+        dir.path(),
+        Box::new(FixedResolver { result: result.clone() }),
+        false,
+    );
+    resolver.populate_missing_tarball_metadata(&mut result, dir.path()).await.unwrap();
+    assert!(result.package.manifest.is_none());
+}
+
 #[tokio::test]
 async fn unpinned_git_manifest_recovery_publishes_the_install_cache_key() {
     let dir = tempdir().unwrap();
