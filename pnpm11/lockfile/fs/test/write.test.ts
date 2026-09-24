@@ -1,3 +1,5 @@
+import { spawn } from 'node:child_process'
+import { once } from 'node:events'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -561,4 +563,49 @@ testOnNonWindows('writeWantedLockfile() leaves no temp file behind', async () =>
   await writeWantedLockfile(projectPath, upToDateLockfile)
 
   expect(fs.readdirSync(projectPath)).toStrictEqual([WANTED_LOCKFILE])
+})
+
+// Windows has no SIGINT delivery to a child; `kill` there is TerminateProcess,
+// against which no cleanup can run.
+testOnNonWindows('writeWantedLockfileAtomic() removes the temp file when the process dies from SIGINT mid-write', async () => {
+  const projectPath = temporaryDirectory()
+  const writeModule = path.join(import.meta.dirname, '../lib/write.js')
+  const child = spawn(process.execPath, [
+    '--input-type=module',
+    '--eval',
+    `import { writeWantedLockfileAtomic } from ${JSON.stringify(writeModule)}
+await writeWantedLockfileAtomic(process.env.LOCKFILE_PATH, 'key: ' + 'x'.repeat(400 * 1024 * 1024))`,
+  ], {
+    env: { ...process.env, LOCKFILE_PATH: path.join(projectPath, WANTED_LOCKFILE) },
+    stdio: ['ignore', 'ignore', 'inherit'],
+  })
+  // Interrupt once the temp file exists. Killing earlier — while the child
+  // is still building the write's payload — would pass without exercising
+  // the cleanup, as there would be no temp file to remove.
+  const exited = once(child, 'exit')
+  try {
+    await waitForTempFile(1000)
+  } finally {
+    // Reap the child even when staging failed, so a failed test does not
+    // leave a 400MB write running.
+    child.kill('SIGINT')
+    await exited
+  }
+
+  const [, signal] = await exited
+  expect(signal).toBe('SIGINT')
+  expect(fs.readdirSync(projectPath).filter((entry) => entry.endsWith('.tmp'))).toStrictEqual([])
+
+  function waitForTempFile (attempts: number): Promise<void> {
+    if (fs.readdirSync(projectPath).some((entry) => entry.endsWith('.tmp'))) {
+      return Promise.resolve()
+    }
+    if (child.exitCode != null || child.signalCode != null) {
+      throw new Error('the child exited before staging a temp file')
+    }
+    if (attempts === 0) {
+      throw new Error('the child staged no temp file within 5s')
+    }
+    return new Promise<void>((resolve) => setTimeout(resolve, 5)).then(() => waitForTempFile(attempts - 1))
+  }
 })

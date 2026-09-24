@@ -793,3 +793,62 @@ fn parallel_map_lowering_matches_serial_lowering() {
     );
     assert!(via_to_string.contains(decoy), "marker-shaped data must round-trip untouched");
 }
+
+/// The interrupt cleanup must see the temp file a lockfile save stages
+/// ([pnpm/pnpm#1418](https://github.com/pnpm/pnpm/issues/1418)). Running
+/// the cleanup mid-write stands in for the signal, whose delivery
+/// `pnpm-fs`'s own cross-process test covers: the unlinked temp file then
+/// fails the rename that would have published it.
+///
+/// A save that publishes before the cleanup runs lost the race rather than
+/// proving anything, so it is retried. Without the registration every save
+/// publishes and the test fails.
+#[cfg(unix)]
+#[test]
+fn interrupt_cleanup_unlinks_the_staged_lockfile() {
+    const ATTEMPTS: usize = 5;
+    for _ in 0..ATTEMPTS {
+        let dir = tempdir().expect("create tempdir");
+        let target = dir.path().join(Lockfile::FILE_NAME);
+        let writer = std::thread::spawn({
+            let target = target.clone();
+            move || super::write_atomic(&target, &vec![b'x'; 256 * 1024 * 1024])
+        });
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while !has_staged_temp_file(dir.path()) && !writer.is_finished() {
+            assert!(std::time::Instant::now() < deadline, "the save staged no temp file in 30s");
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        pnpm_fs::remove_pending_temp_files();
+
+        let result = writer.join().expect("join the writer");
+        if result.is_ok() {
+            continue;
+        }
+        assert!(
+            matches!(result, Err(SaveLockfileError::RenameFile { .. })),
+            "the cleanup should have unlinked the staged temp file, got: {result:?}",
+        );
+        assert!(!target.exists(), "nothing should have been published");
+        assert!(!has_staged_temp_file(dir.path()), "the temp file should be gone");
+        return;
+    }
+    panic!("every one of {ATTEMPTS} saves published despite the cleanup running mid-write");
+}
+
+#[cfg(unix)]
+fn has_staged_temp_file(dir: &Path) -> bool {
+    std::fs::read_dir(dir)
+        .expect("list the project directory")
+        .filter_map(Result::ok)
+        .any(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".tmp")
+                && entry
+                    .metadata()
+                    .is_ok_and(|metadata| metadata.len() > 0)
+        })
+}
