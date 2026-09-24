@@ -229,14 +229,23 @@ pub(super) fn render_dependents(entry: &OutdatedInWorkspace) -> String {
 }
 
 fn render_package_name(pkg: &OutdatedPackage) -> String {
+    match dependency_type_label(pkg) {
+        Some(label) => format!("{} {}", pkg.package_name, dimmed(&format!("({label})"))),
+        None => pkg.package_name.clone(),
+    }
+}
+
+/// The qualifier shown after a package name for anything but a production
+/// dependency.
+pub(super) fn dependency_type_label(pkg: &OutdatedPackage) -> Option<&'static str> {
     if pkg.github_action {
-        return format!("{} {}", pkg.package_name, dimmed("(github action)"));
+        return Some("github action");
     }
     match pkg.belongs_to {
-        DependencyGroup::Dev => format!("{} {}", pkg.package_name, dimmed("(dev)")),
-        DependencyGroup::Optional => format!("{} {}", pkg.package_name, dimmed("(optional)")),
-        DependencyGroup::Peer => format!("{} {}", pkg.package_name, dimmed("(peer)")),
-        DependencyGroup::Prod => pkg.package_name.clone(),
+        DependencyGroup::Dev => Some("dev"),
+        DependencyGroup::Optional => Some("optional"),
+        DependencyGroup::Peer => Some("peer"),
+        DependencyGroup::Prod => None,
     }
 }
 

@@ -23,7 +23,7 @@ import { sanitizeInline } from '@pnpm/text.sanitize'
 import type { DependenciesOrPeersField, IncludedDependencies, PackageManifest, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
-import { pick, sortWith } from 'ramda'
+import { countBy, pick, sortWith } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { outdatedRecursive } from './recursive.js'
@@ -383,19 +383,16 @@ export interface OutdatedPackageJSONOutput {
 }
 
 function renderOutdatedJSON (outdatedPackages: readonly OutdatedItem[], opts: { long?: boolean, sortBy?: 'name' }): string {
-  const packageCounts: Record<string, number> = {}
-  for (const pkg of outdatedPackages) {
-    packageCounts[pkg.packageName] = (packageCounts[pkg.packageName] ?? 0) + 1
-  }
+  const getOutdatedJSONKey = createOutdatedJSONKeyGetter(outdatedPackages)
   const outdatedPackagesJSON: Record<string, OutdatedPackageJSONOutput> = sortOutdatedPackages(outdatedPackages, { sortBy: opts.sortBy })
     .reduce((acc, outdatedPkg) => {
-      const key = getOutdatedJSONKey(outdatedPkg, packageCounts[outdatedPkg.packageName] > 1)
+      const key = getOutdatedJSONKey(outdatedPkg)
       acc[key] = {
         current: outdatedPkg.current,
         latest: outdatedPkg.latestManifest?.version,
         wanted: outdatedPkg.wanted,
         isDeprecated: Boolean(outdatedPkg.latestManifest?.deprecated),
-        dependencyType: outdatedPkg.dependencyType ?? outdatedPkg.belongsTo!,
+        dependencyType: outdatedPkg.dependencyType ?? outdatedPkg.belongsTo,
       }
       if (opts.long) {
         acc[key].latestManifest = outdatedPkg.latestManifest
@@ -438,32 +435,36 @@ export function toOutdatedWithVersionDiff<Pkg extends OutdatedPackage> (outdated
   }
 }
 
-export function renderPackageName ({ belongsTo, dependencyType, packageName }: OutdatedItem): string {
-  if (dependencyType === 'githubAction') return `${packageName} ${chalk.dim('(github action)')}`
+export function renderPackageName (outdatedPkg: OutdatedItem): string {
+  const label = getDependencyTypeLabel(outdatedPkg)
+  return label == null ? outdatedPkg.packageName : `${outdatedPkg.packageName} ${chalk.dim(`(${label})`)}`
+}
+
+/**
+ * JSON output is keyed by package name. A name that occurs more than once in
+ * the report, such as one package installed at several versions across a
+ * workspace, is keyed by name, current version, and dependency type instead,
+ * so that no entry overwrites another.
+ */
+export function createOutdatedJSONKeyGetter (outdatedPackages: readonly OutdatedItem[]): (outdatedPkg: OutdatedItem) => string {
+  const packageCounts = countBy((outdatedPkg) => outdatedPkg.packageName, outdatedPackages)
+  return (outdatedPkg) => {
+    if (packageCounts[outdatedPkg.packageName] === 1) return outdatedPkg.packageName
+    const label = getDependencyTypeLabel(outdatedPkg)
+    const suffix = label == null ? '' : ` (${label})`
+    return outdatedPkg.current
+      ? `${outdatedPkg.packageName}@${outdatedPkg.current}${suffix}`
+      : `${outdatedPkg.packageName}${suffix}`
+  }
+}
+
+function getDependencyTypeLabel ({ belongsTo, dependencyType }: OutdatedItem): string | undefined {
+  if (dependencyType === 'githubAction') return 'github action'
   switch (belongsTo) {
-    case 'devDependencies': return `${packageName} ${chalk.dim('(dev)')}`
-    case 'optionalDependencies': return `${packageName} ${chalk.dim('(optional)')}`
-    case 'peerDependencies': return `${packageName} ${chalk.dim('(peer)')}`
-    default: return packageName
-  }
-}
-
-export function getOutdatedJSONKey (outdatedPkg: OutdatedItem, hasMultiple: boolean): string {
-  if (!hasMultiple) return outdatedPkg.packageName
-  const suffix = getDependencyTypeSuffix(outdatedPkg)
-  if (outdatedPkg.current) {
-    return `${outdatedPkg.packageName}@${outdatedPkg.current}${suffix}`
-  }
-  return `${outdatedPkg.packageName}${suffix}`
-}
-
-export function getDependencyTypeSuffix (outdatedPkg: OutdatedItem): string {
-  if (outdatedPkg.dependencyType === 'githubAction') return ' (github action)'
-  switch (outdatedPkg.belongsTo) {
-    case 'devDependencies': return ' (dev)'
-    case 'optionalDependencies': return ' (optional)'
-    case 'peerDependencies': return ' (peer)'
-    default: return ''
+    case 'devDependencies': return 'dev'
+    case 'optionalDependencies': return 'optional'
+    case 'peerDependencies': return 'peer'
+    default: return undefined
   }
 }
 

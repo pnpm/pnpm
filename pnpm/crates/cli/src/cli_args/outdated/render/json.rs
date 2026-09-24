@@ -1,37 +1,40 @@
-use super::super::{DependencyGroup, OutdatedInWorkspace, OutdatedPackage};
+use super::super::{OutdatedInWorkspace, OutdatedPackage};
+use super::dependency_type_label;
+use std::collections::HashMap;
 
-fn json_key(
-    package_name: &str,
-    current: &str,
-    github_action: bool,
-    belongs_to: DependencyGroup,
-    has_multiple: bool,
-) -> String {
-    if !has_multiple {
-        return package_name.to_string();
-    }
-    let suffix = if github_action {
-        " (github action)"
-    } else {
-        match belongs_to {
-            DependencyGroup::Dev => " (dev)",
-            DependencyGroup::Optional => " (optional)",
-            DependencyGroup::Peer => " (peer)",
-            DependencyGroup::Prod => "",
+/// JSON output is keyed by package name. A name that occurs more than once in
+/// the report, such as one package installed at several versions across a
+/// workspace, is keyed by name, current version, and dependency type instead,
+/// so that no entry overwrites another.
+struct JsonKeys<'a> {
+    counts: HashMap<&'a str, usize>,
+}
+
+impl<'a> JsonKeys<'a> {
+    fn new(packages: impl Iterator<Item = &'a OutdatedPackage>) -> Self {
+        let mut counts = HashMap::new();
+        for pkg in packages {
+            *counts.entry(pkg.package_name.as_str()).or_default() += 1;
         }
-    };
-    if current.is_empty() {
-        format!("{package_name}{suffix}")
-    } else {
-        format!("{package_name}@{current}{suffix}")
+        JsonKeys { counts }
+    }
+
+    fn key(&self, pkg: &OutdatedPackage) -> String {
+        if self.counts
+            .get(pkg.package_name.as_str())
+            .is_none_or(|&count| count == 1)
+        {
+            return pkg.package_name.clone();
+        }
+        let suffix = dependency_type_label(pkg)
+            .map(|label| format!(" ({label})"))
+            .unwrap_or_default();
+        format!("{}@{}{suffix}", pkg.package_name, pkg.current)
     }
 }
 
 pub(crate) fn render_json(outdated: &[OutdatedPackage], long: bool) -> String {
-    let mut counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
-    for pkg in outdated {
-        *counts.entry(&pkg.package_name).or_default() += 1;
-    }
+    let keys = JsonKeys::new(outdated.iter());
     let mut map = serde_json::Map::new();
     for pkg in outdated {
         let dependency_type: &'static str =
@@ -51,18 +54,7 @@ pub(crate) fn render_json(outdated: &[OutdatedPackage], long: bool) -> String {
                 "homepage": pkg.metadata.homepage,
             });
         }
-        let key = json_key(
-            &pkg.package_name,
-            &pkg.current.to_string(),
-            pkg.github_action,
-            pkg.belongs_to,
-            counts
-                .get(pkg.package_name.as_str())
-                .copied()
-                .unwrap_or(0)
-                > 1,
-        );
-        map.insert(key, entry);
+        map.insert(keys.key(pkg), entry);
     }
     serde_json::to_string_pretty(&serde_json::Value::Object(map))
         .expect("serialize outdated report to JSON")
@@ -95,26 +87,10 @@ fn recursive_entry_value(entry: &OutdatedInWorkspace, long: bool) -> serde_json:
 }
 
 pub(crate) fn render_recursive_json(outdated: &[OutdatedInWorkspace], long: bool) -> String {
-    let mut counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
-    for entry in outdated {
-        *counts.entry(&entry.package.package_name).or_default() += 1;
-    }
+    let keys = JsonKeys::new(outdated.iter().map(|entry| &entry.package));
     let mut map = serde_json::Map::new();
     for entry in outdated {
-        let package = &entry.package;
-        let value = recursive_entry_value(entry, long);
-        let key = json_key(
-            &package.package_name,
-            &package.current.to_string(),
-            package.github_action,
-            package.belongs_to,
-            counts
-                .get(package.package_name.as_str())
-                .copied()
-                .unwrap_or(0)
-                > 1,
-        );
-        map.insert(key, value);
+        map.insert(keys.key(&entry.package), recursive_entry_value(entry, long));
     }
     serde_json::to_string_pretty(&serde_json::Value::Object(map))
         .expect("serialize recursive outdated report to JSON")
