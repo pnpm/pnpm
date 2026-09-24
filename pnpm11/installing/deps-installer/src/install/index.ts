@@ -3956,6 +3956,7 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
         dependencies: p.manifest.dependencies,
         devDependencies: p.manifest.devDependencies,
         optionalDependencies: p.manifest.optionalDependencies,
+        peerDependencies: p.manifest.peerDependencies,
       }))
       : undefined
 
@@ -3966,6 +3967,7 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
       dependencies: projectsList ? undefined : manifest.dependencies,
       devDependencies: projectsList ? undefined : manifest.devDependencies,
       optionalDependencies: projectsList ? undefined : manifest.optionalDependencies,
+      peerDependencies: projectsList ? undefined : manifest.peerDependencies,
       projects: projectsList,
       registry: opts.registriesByScope?.default,
       registries: toRegistryDeclarations(opts),

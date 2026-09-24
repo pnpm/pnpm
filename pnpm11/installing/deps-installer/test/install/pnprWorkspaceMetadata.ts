@@ -87,6 +87,19 @@ test("pnpr forwards a single project's name and version", async () => {
   }))
 })
 
+test("pnpr forwards a project's peer dependencies so the server can auto-install them", async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3', peerDependencies: { 'is-positive': '^1.0.0' } }
+  const options = createOptions(workspaceRoot, rootDir)
+
+  await install(manifest, options)
+
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
+    peerDependencies: { 'is-positive': '^1.0.0' },
+  }))
+})
+
 test('pnpr forwards catalogs and overrides so the server can resolve catalog references', async () => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir
@@ -141,6 +154,7 @@ test("pnpr forwards every workspace project's name and version", async () => {
       dependencies: { lib: 'workspace:*' },
       devDependencies: undefined,
       optionalDependencies: undefined,
+      peerDependencies: undefined,
     },
     {
       dir: 'packages/lib',
@@ -149,6 +163,7 @@ test("pnpr forwards every workspace project's name and version", async () => {
       dependencies: undefined,
       devDependencies: undefined,
       optionalDependencies: undefined,
+      peerDependencies: undefined,
     },
   ])
   for (const project of projects ?? []) {

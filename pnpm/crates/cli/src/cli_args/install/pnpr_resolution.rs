@@ -76,6 +76,10 @@ pub(super) fn resolve_project(
             .dependencies([DependencyGroup::Optional])
             .map(|(name, spec)| (name.to_string(), spec.to_string()))
             .collect(),
+        peer_dependencies: manifest
+            .dependencies([DependencyGroup::Peer])
+            .map(|(name, spec)| (name.to_string(), spec.to_string()))
+            .collect(),
     }
 }
 
