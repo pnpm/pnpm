@@ -17,7 +17,7 @@ export function missingScriptShellError (err: SpawnError, scriptShell: string | 
   if (!scriptShell || err.code !== 'ENOENT' || err.syscall !== `spawn ${scriptShell}`) return undefined
   if (!isDirectory(wd)) return undefined
   return new PnpmError('SCRIPT_SHELL_NOT_FOUND', `The configured scriptShell was not found: ${scriptShell}`, {
-    hint: 'Set scriptShell in pnpm-workspace.yaml to the path of an existing shell executable, or unset it to use the default shell.',
+    hint: 'Point scriptShell at an existing shell executable, or unset it to use the default shell.',
   })
 }
 

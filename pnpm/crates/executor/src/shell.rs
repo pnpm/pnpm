@@ -27,8 +27,7 @@ pub enum ScriptShellError {
 
     #[display(
         "The configured scriptShell was not found: {path}. \
-         Set scriptShell in pnpm-workspace.yaml to the path of an existing shell executable, \
-         or unset it to use the default shell."
+         Point scriptShell at an existing shell executable, or unset it to use the default shell."
     )]
     #[diagnostic(code(ERR_PNPM_SCRIPT_SHELL_NOT_FOUND))]
     NotFound {

@@ -4,7 +4,7 @@ use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::fs;
 
 #[test]
-fn a_dependency_build_script_failing_on_it_names_the_shell() {
+fn install_names_the_missing_shell_when_a_dependency_build_script_fails() {
     let CommandTempCwd {
         pacquet,
         root,
