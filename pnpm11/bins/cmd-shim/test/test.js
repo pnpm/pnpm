@@ -7,7 +7,14 @@ snapshot.setDefaultSnapshotSerializers([
 import path from 'node:path'
 import { cmdExtension } from 'cmd-extension'
 import { fixtures, fixtures2, fs, setupFixtures } from './setup.js'
-import { cmdShim, cmdShimIfExists, isShimForMissingTarget, isShimPointingAt } from '@pnpm/bins.cmd-shim'
+import {
+  cmdShim,
+  cmdShimIfExists,
+  isShimForMissingTarget,
+  isShimNodePath,
+  isShimPointingAt,
+  readShNodePath,
+} from '@pnpm/bins.cmd-shim'
 
 /**
  * @param {import('node:test').TestContext} t
@@ -319,3 +326,30 @@ describe('batch script', () => {
     await testFile(t, `${to}.ps1`)
   })
 })
+
+describe('readShNodePath & isShimNodePath', () => {
+  test('extracts posix new_node_path with single quote escapes from Windows shim', () => {
+    const shim = `
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    exe=".exe"
+    msys="true"
+  ;;
+esac
+
+if [ -n "$msys" ]; then
+  new_node_path='C:\\foo\\bar'
+  node_path_sep=';'
+else
+  new_node_path='/mnt/c/it'\\''s/path'
+  node_path_sep=':'
+fi
+if [ -z "$NODE_PATH" ]; then
+  export NODE_PATH="$new_node_path"
+fi
+`
+    assert.equal(readShNodePath(shim), "/mnt/c/it's/path")
+    assert.equal(isShimNodePath(shim, { first: "/mnt/c/it's/path" }), true)
+  })
+})
+

@@ -198,23 +198,37 @@ export function isShimNodePath (shimContent: string, expected: { first?: string,
  * as empty. Any other shim exports it in the branch that runs when the caller
  * has no `NODE_PATH` of its own.
  */
-function readShNodePath (shimContent: string): string | undefined {
+export function readShNodePath (shimContent: string): string | undefined {
+  const winStart = shimContent.indexOf('\nelse\n  new_node_path=')
+  if (winStart !== -1) {
+    const valueStart = winStart + '\nelse\n  new_node_path='.length
+    const lineEnd = shimContent.indexOf('\n', valueStart)
+    const raw = lineEnd === -1 ? shimContent.slice(valueStart) : shimContent.slice(valueStart, lineEnd)
+    return unquoteSh(raw)
+  }
   if (isWindows) {
-    const start = shimContent.indexOf('\n  new_node_path=')
-    if (start === -1) return shimContent.includes(SH_NODE_PATH_EXPORT) ? '' : undefined
-    const quoteStart = start + '\n  new_node_path='.length
-    const quote = shimContent[quoteStart]
-    const valueStart = quoteStart + 1
-    const end = shimContent.indexOf(quote, valueStart)
-    return end === -1 ? undefined : shimContent.slice(valueStart, end)
+    return shimContent.includes(SH_NODE_PATH_EXPORT) ? '' : undefined
   }
   const start = shimContent.indexOf(SH_NODE_PATH_EXPORT)
   if (start === -1) return undefined
   const valueStart = start + SH_NODE_PATH_EXPORT.length
-  return shimContent.slice(valueStart, shimContent.indexOf('"', valueStart))
+  const lineEnd = shimContent.indexOf('\n', valueStart)
+  const raw = lineEnd === -1 ? shimContent.slice(valueStart) : shimContent.slice(valueStart, lineEnd)
+  return unquoteSh(raw)
 }
 
-const SH_NODE_PATH_EXPORT = '\n  export NODE_PATH="'
+function unquoteSh (raw: string): string {
+  const trimmed = raw.trim()
+  if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
+    return trimmed.slice(1, -1).replaceAll("'\\''", "'")
+  }
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1).replaceAll('\\"', '"').replaceAll('\\\\', '\\')
+  }
+  return trimmed
+}
+
+const SH_NODE_PATH_EXPORT = '\n  export NODE_PATH='
 
 /**
  * Try to unlink, but ignore errors.

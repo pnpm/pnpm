@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { beforeEach, describe, expect, jest, test } from '@jest/globals'
-import { cmdShim } from '@pnpm/bins.cmd-shim'
+import { cmdShim, readShNodePath } from '@pnpm/bins.cmd-shim'
 import { fixtures } from '@pnpm/test-fixtures'
 import { cmdExtension as CMD_EXTENSION } from 'cmd-extension'
 import isWindows from 'is-windows'
@@ -166,8 +166,8 @@ test('linkBins() keeps or rewrites the NODE_PATH of an existing bin according to
 // A shim written on Windows keeps its posix entries in `new_node_path` and
 // picks the form it exports when it runs.
 function nodePathEntries (shim: string): string[] {
-  const posix = /^ {2}new_node_path=['"]([^'"]*)['"]$/m.exec(shim) ?? /^ {2}export NODE_PATH="([^"]*)"$/m.exec(shim)
-  return posix?.[1].split(':') ?? []
+  const value = readShNodePath(shim)
+  return value ? value.split(':') : []
 }
 
 // A shim an older pnpm wrote still points at the right target, so the warm
