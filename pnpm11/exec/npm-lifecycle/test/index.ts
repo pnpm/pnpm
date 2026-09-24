@@ -10,6 +10,7 @@ const countTo10 = path.join(fixtures, 'count-to-10')
 const countTo10Manifest = readManifest(countTo10)
 const originalKill = process.kill
 const skipOnWindows = process.platform === 'win32' ? test.skip : test
+const onlyOnWindows = process.platform === 'win32' ? test : test.skip
 
 afterEach(() => {
   process.kill = originalKill
@@ -29,6 +30,22 @@ skipOnWindows('runs scripts from .hooks directory even if no script is present i
   })
 
   expect(log.verbose).toHaveBeenCalledWith('lifecycle', 'undefined~postinstall:', 'stdout', expect.stringContaining('ran hook'))
+})
+
+onlyOnWindows('keeps a /c inside the script when scriptShell is cmd.exe', async () => {
+  const wd = temporaryDirectory()
+  fs.mkdirSync(path.join(wd, 'install'))
+  fs.writeFileSync(path.join(wd, 'install', 'can-compile.js'), 'process.stdout.write("can-compile-ran")')
+  const log = makeLog()
+
+  await lifecycle({ name: 'fake-sharp', version: '1.0.0', scripts: { install: 'node install/can-compile' } }, 'install', wd, {
+    stdio: 'pipe',
+    log,
+    dir: path.join(wd, 'node_modules'),
+    scriptShell: process.env.ComSpec ?? 'C:\\Windows\\System32\\cmd.exe',
+  })
+
+  expect(log.verbose).toHaveBeenCalledWith('lifecycle', 'undefined~install:', 'stdout', expect.stringContaining('can-compile-ran'))
 })
 
 test("reports child's output", async () => {
