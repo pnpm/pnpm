@@ -64,3 +64,20 @@ test('explicitly denied preparation installs the source without running lifecycl
   expect(result).toEqual({ shouldBeBuilt: true, pkgDir: tmp, ignoredBuild: true })
   expect(await fs.readFile(path.join(tmp, 'index.js'), 'utf8')).toBe('module.exports = 42')
 })
+
+test('prepare package runs its scripts with strictDepBuilds off', async () => {
+  const tmp = tempDir()
+  await using server = await createTestIpcServer(path.join(tmp, 'test.sock'))
+  await fs.writeFile(path.join(tmp, 'pnpm-lock.yaml'), '')
+  await fs.writeFile(path.join(tmp, 'package.json'), JSON.stringify({
+    name: 'records-strict-dep-builds',
+    version: '1.0.0',
+    scripts: {
+      prepublish: 'node -e "console.log(process.env.pnpm_config_strict_dep_builds)" | test-ipc-server-client ./test.sock',
+    },
+  }))
+  await preparePackage({ allowBuild, pkgResolutionId }, tmp, '')
+  expect(server.getLines()).toStrictEqual([
+    'false',
+  ])
+})

@@ -125,7 +125,8 @@ pub fn prepare_package<Reporter: self::Reporter>(
         extra_bin_paths.insert(0, dir.path().to_path_buf());
     }
 
-    let run_opts = opts.lifecycle_options(&dep_path, &pkg_dir, &extra_bin_paths);
+    let extra_env = prepare_env(opts.extra_env);
+    let run_opts = opts.lifecycle_options(&dep_path, &pkg_dir, &extra_bin_paths, &extra_env);
 
     run_install_and_prepublish::<Reporter>(pm, &run_opts, &manifest)?;
     remove_install_node_modules(&pkg_dir)?;
@@ -139,6 +140,7 @@ impl PreparePackageOptions<'_> {
         dep_path: &'a str,
         pkg_dir: &'a Path,
         extra_bin_paths: &'a [PathBuf],
+        extra_env: &'a HashMap<String, String>,
     ) -> RunPostinstallHooks<'a> {
         RunPostinstallHooks {
             environment: pnpm_executor::ScriptEnvironment {
@@ -147,7 +149,7 @@ impl PreparePackageOptions<'_> {
                 npm_execpath: self.scripts.npm_execpath,
                 node_gyp_path: None,
                 user_agent: self.scripts.user_agent,
-                extra_env: self.extra_env,
+                extra_env,
             },
             execution: pnpm_executor::ScriptExecutionOptions {
                 extra_bin_paths,
@@ -166,6 +168,19 @@ impl PreparePackageOptions<'_> {
             optional: false,
         }
     }
+}
+
+/// The environment the prepare scripts run with: the caller's `extra_env`
+/// with `strictDepBuilds` turned off.
+///
+/// The install that prepares the package runs in a temporary checkout,
+/// where nobody can approve the build scripts of the package's own
+/// dependencies. Those builds are skipped there, as they are without
+/// `strictDepBuilds`, rather than failing the outer install.
+fn prepare_env(extra_env: &HashMap<String, String>) -> HashMap<String, String> {
+    let mut env = extra_env.clone();
+    env.insert("pnpm_config_strict_dep_builds".to_string(), "false".to_string());
+    env
 }
 
 fn manifest_dep_path(manifest: &Value) -> String {

@@ -19,6 +19,14 @@ const PREPUBLISH_SCRIPTS = [
   'publish',
 ]
 
+// The install that prepares a git-hosted dependency runs in a temporary
+// checkout, where nobody can approve the build scripts of that dependency's
+// own dependencies. Unapproved builds are skipped there, as they are without
+// strictDepBuilds, rather than failing the outer install.
+const PREPARE_ENV = {
+  pnpm_config_strict_dep_builds: 'false',
+}
+
 export interface PreparePackageOptions {
   allowBuild?: AllowBuild
   ignoreScripts?: boolean
@@ -37,6 +45,7 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
   const pm = (await preferredPM(gitRootDir))?.name ?? 'npm'
   const execOpts: RunLifecycleHookOptions = {
     depPath: `${manifest.name}@${manifest.version}`,
+    extraEnv: PREPARE_ENV,
     pkgRoot: pkgDir,
     rootModulesDir: pkgDir, // We don't need this property but there is currently no way to not set it.
     unsafePerm: Boolean(opts.unsafePerm),
