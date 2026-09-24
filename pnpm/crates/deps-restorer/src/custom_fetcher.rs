@@ -245,9 +245,12 @@ fn decode_resolution(
 }
 
 /// `None` when the hook pointed the package at a source that carries no archive
-/// digest — a directory or a git checkout. Only a fresh install's missing-digest
-/// discovery calls this, so there is nothing to hash and nothing to verify; the
-/// install pass materializes such a resolution through its own dispatch.
+/// digest — a directory or a git checkout — or at a registry resolution while
+/// the caller has no URL for it, which is the case for a custom resolution: the
+/// install pass derives that URL from the lockfile key, which resolution time
+/// does not have yet. Only a fresh install's missing-metadata discovery calls
+/// this, so there is nothing to hash and nothing to verify; the install pass
+/// materializes such a resolution through its own dispatch.
 async fn fetch_custom_tarball<Reporter: self::Reporter>(
     download: IngestTarballToStore<'_>,
     resolution: &LockfileResolution,
@@ -258,10 +261,12 @@ async fn fetch_custom_tarball<Reporter: self::Reporter>(
             tarball: resolution.tarball.clone(),
             integrity: resolution.integrity.clone(),
         },
-        LockfileResolution::Registry(resolution) => TarballLocation {
-            tarball: download.package.url.to_owned(),
-            integrity: Some(resolution.integrity.clone()),
-        },
+        LockfileResolution::Registry(resolution) if !download.package.url.is_empty() => {
+            TarballLocation {
+                tarball: download.package.url.to_owned(),
+                integrity: Some(resolution.integrity.clone()),
+            }
+        }
         _ => return Ok(None),
     };
     fetch_location::<Reporter>(&download, location, lockfile_dir).await

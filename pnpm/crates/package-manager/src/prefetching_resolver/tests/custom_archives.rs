@@ -353,3 +353,52 @@ async fn evicted_archive_cache_entry_does_not_abort_manifest_recovery() {
     );
     assert!(resolver.ctx.mem_cache.is_empty());
 }
+
+/// A fetcher that hands a package back to the registry, whose URL the install
+/// pass builds from the lockfile key.
+struct RegistryDelegatingFetcher;
+
+#[async_trait::async_trait]
+impl pnpm_hooks::CustomFetcher for RegistryDelegatingFetcher {
+    async fn can_fetch(
+        &self,
+        _id: &str,
+        _resolution: serde_json::Value,
+    ) -> Result<bool, pnpm_hooks::HookError> {
+        Ok(true)
+    }
+    async fn fetch(
+        &self,
+        _id: &str,
+        _resolution: serde_json::Value,
+        _opts: serde_json::Value,
+    ) -> Result<serde_json::Value, pnpm_hooks::HookError> {
+        let integrity = ssri::Integrity::from(b"archive").to_string();
+        Ok(json!({"delegate": {"integrity": integrity}}))
+    }
+}
+
+/// A custom resolution names no URL, and before the lockfile key exists there
+/// is none to derive for a registry delegate, so the read has nothing to fetch.
+/// It must leave the package to the install pass rather than fail the install.
+#[tokio::test]
+async fn a_registry_delegate_for_a_custom_resolution_is_left_to_the_install_pass() {
+    let dir = tempdir().unwrap();
+    let mut result = result_without_manifest("vendored");
+    result.package.name_ver = None;
+    let resolution = LockfileResolution::Custom(
+        serde_json::from_value(json!({"type": "custom:vendored"})).unwrap(),
+    );
+    result.resolution = resolution.clone();
+    let mut resolver = resolver_with_prefetch(
+        dir.path(),
+        Box::new(FixedResolver { result: result.clone() }),
+        false,
+    );
+    Arc::get_mut(&mut resolver.ctx).unwrap().policy.custom_session = Some(Arc::new(
+        pnpm_deps_restorer::CustomFetcherSession::new(vec![Arc::new(RegistryDelegatingFetcher)]),
+    ));
+    resolver.populate_missing_tarball_metadata(&mut result, dir.path()).await.unwrap();
+    assert!(result.package.manifest.is_none());
+    assert_eq!(dbg!(result.resolution), resolution);
+}
