@@ -122,7 +122,16 @@ export async function writeWantedLockfileAtomic (lockfilePath: string, content: 
   // unpublished temp file from an exit callback, the way
   // `write-file-atomic` cleans up after itself.
   const removeTempFileOnExit = onExit(() => {
-    rmSync(tempPath, { force: true })
+    try {
+      rmSync(tempPath, { force: true })
+    } catch (error: unknown) {
+      // An error escaping the callback would turn the signal's exit into an
+      // uncaught exception and block the remaining exit callbacks.
+      logger.warn({
+        message: `Failed to remove the temporary lockfile at ${tempPath} while exiting: ${(error as Error).message}`,
+        prefix: path.dirname(lockfilePath),
+      })
+    }
   })
   let tempFile: FileHandle | undefined
   try {
