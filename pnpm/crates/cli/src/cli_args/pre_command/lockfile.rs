@@ -107,7 +107,9 @@ pub(super) fn locked_switch_source(
 /// The pnpm version the env lockfile in `env_root` records, when a command
 /// in this project would switch to it: it is not the running pnpm, version
 /// switching is on, and the recorded entries are ones the switch installs
-/// without resolving them again.
+/// without resolving them again. Entries that fail the bootstrap rules are
+/// left out: the switch re-resolves them from the registry, so installing
+/// them ahead of time would not let it run offline.
 pub(super) fn locked_package_manager_to_fetch(
     config: &Config,
     env_root: &Path,

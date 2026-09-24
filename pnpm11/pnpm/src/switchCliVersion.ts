@@ -216,7 +216,16 @@ export async function fetchLockedPackageManager (config: Config, context: Config
   ) return
   try {
     assertPackageManagerLockfileUsesRegistryResolutions(envLockfile)
-  } catch {
+  } catch (err: unknown) {
+    // Entries in another shape are re-resolved from the registry by the
+    // switch itself, so installing them here would not help it offline.
+    if (
+      !util.types.isNativeError(err) ||
+      !('code' in err) ||
+      err.code !== 'ERR_PNPM_INVALID_PACKAGE_MANAGER_LOCKFILE'
+    ) {
+      throw err
+    }
     return
   }
   assertReleaseIsInstallable(pmVersion)
