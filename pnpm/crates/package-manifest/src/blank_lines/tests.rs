@@ -47,7 +47,7 @@ fn matches_members_by_path_not_by_key() {
 fn tracks_members_inside_arrays_and_escaped_keys() {
     let source = "{\n  \"list\": [\n    {\n      \"a\": \"[,{\\\"\",\n\n      \"b\\u0063\": 1\n    }\n  ]\n}";
     let restored = round_trip(source, |_| {});
-    assert_eq!(restored, source.replace("b\\u0063", "bc"));
+    assert_eq!(restored, source.replace(r"b\u0063", "bc"));
 }
 
 #[test]

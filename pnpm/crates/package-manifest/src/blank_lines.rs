@@ -12,7 +12,7 @@ enum Segment {
 /// The blank lines a JSON document places before its object members, keyed
 /// by each member's path, so a save can put them back in front of the same
 /// members.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub(crate) struct BlankLines(HashMap<Vec<Segment>, usize>);
 
 impl BlankLines {
@@ -70,57 +70,77 @@ enum Frame {
 
 /// Every object member of a valid JSON document, in document order.
 fn members(text: &str) -> Vec<Member> {
-    let bytes = text.as_bytes();
-    let mut members = Vec::new();
-    let mut frames: Vec<Frame> = Vec::new();
-    let mut line_breaks = 0;
+    let mut scanner = Scanner { text, frames: Vec::new(), members: Vec::new(), line_breaks: 0 };
     let mut position = 0;
-    while position < bytes.len() {
-        let byte = bytes[position];
-        match byte {
+    while position < text.len() {
+        position = scanner.step(position);
+    }
+    scanner.members
+}
+
+struct Scanner<'a> {
+    text: &'a str,
+    frames: Vec<Frame>,
+    members: Vec<Member>,
+    /// Line breaks since the last token.
+    line_breaks: usize,
+}
+
+impl Scanner<'_> {
+    /// Consume the byte at `position` and return where scanning resumes.
+    fn step(&mut self, position: usize) -> usize {
+        match self.text.as_bytes()[position] {
             b'\n' => {
-                line_breaks += 1;
-                position += 1;
-                continue;
+                self.line_breaks += 1;
+                return position + 1;
             }
-            b' ' | b'\t' | b'\r' => {
-                position += 1;
-                continue;
-            }
-            b'{' => frames.push(Frame::Object { key: None, expects_key: true }),
-            b'[' => frames.push(Frame::Array { index: 0 }),
-            b'}' | b']' => {
-                frames.pop();
-            }
-            b',' => match frames.last_mut() {
-                Some(Frame::Object { expects_key, .. }) => *expects_key = true,
-                Some(Frame::Array { index }) => *index += 1,
-                None => {}
-            },
+            b' ' | b'\t' | b'\r' => return position + 1,
             b'"' => {
-                let end = string_end(bytes, position);
-                if let Some(Frame::Object { expects_key: true, .. }) = frames.last() {
-                    let raw = &text[position..end];
-                    let key =
-                        serde_json::from_str::<String>(raw).unwrap_or_else(|_| raw.to_owned());
-                    let mut path = path_of(&frames[..frames.len() - 1]);
-                    path.push(Segment::Key(key.clone()));
-                    members.push(Member { path, line_breaks, offset: position });
-                    if let Some(Frame::Object { key: current, expects_key }) = frames.last_mut() {
-                        *current = Some(key);
-                        *expects_key = false;
-                    }
-                }
-                line_breaks = 0;
-                position = end;
-                continue;
+                let end = string_end(self.text.as_bytes(), position);
+                self.string(position, end);
+                self.line_breaks = 0;
+                return end;
             }
+            b'{' => self.frames.push(Frame::Object { key: None, expects_key: true }),
+            b'[' => self.frames.push(Frame::Array { index: 0 }),
+            b'}' | b']' => {
+                self.frames.pop();
+            }
+            b',' => self.next_entry(),
             _ => {}
         }
-        line_breaks = 0;
-        position += 1;
+        self.line_breaks = 0;
+        position + 1
     }
-    members
+
+    fn next_entry(&mut self) {
+        match self.frames.last_mut() {
+            Some(Frame::Object { expects_key, .. }) => *expects_key = true,
+            Some(Frame::Array { index }) => *index += 1,
+            None => {}
+        }
+    }
+
+    /// Record the string literal at `start..end` as a member if it is a key.
+    fn string(&mut self, start: usize, end: usize) {
+        let Some((
+            Frame::Object {
+                key,
+                expects_key: expects_key @ true,
+            },
+            parents,
+        )) = self.frames.split_last_mut()
+        else {
+            return;
+        };
+        let raw = &self.text[start..end];
+        let name = serde_json::from_str::<String>(raw).unwrap_or_else(|_| raw.to_owned());
+        let mut path = path_of(parents);
+        path.push(Segment::Key(name.clone()));
+        self.members.push(Member { path, line_breaks: self.line_breaks, offset: start });
+        *key = Some(name);
+        *expects_key = false;
+    }
 }
 
 /// The byte offset just past the string literal whose opening quote is at
