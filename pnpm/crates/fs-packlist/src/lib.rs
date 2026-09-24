@@ -279,13 +279,8 @@ fn collect_walked_files(
 ) -> Result<(), PacklistError> {
     for entry in builder.build() {
         let entry = entry.map_err(|err| io_error(pkg_dir, into_io(err)))?;
-        let Some(file_type) = entry.file_type() else {
-            continue;
-        };
-        if !file_type.is_file() && !file_type.is_symlink() {
-            continue;
-        }
-        if file_type.is_symlink() && !is_internal_symlink(pkg_dir, entry.path()) {
+        if !entry.file_type().is_some_and(|file_type| is_packable(pkg_dir, entry.path(), file_type))
+        {
             continue;
         }
         let rel = relative_forward_slash(pkg_dir, entry.path());
@@ -317,19 +312,6 @@ fn walked_file_is_excluded(rel: &str, selection: &FileSelection<'_>) -> bool {
 /// Pass 2: scan the root for always-included names (README, LICENSE, etc.)
 /// that `.npmignore` might have removed from pass 1. npm-packlist guarantees
 /// these survive `.npmignore`.
-fn is_admissible_root_file(pkg_dir: &Path, entry: &fs::DirEntry) -> bool {
-    let Ok(file_type) = entry.file_type() else {
-        return false;
-    };
-    if file_type.is_file() {
-        return true;
-    }
-    if file_type.is_symlink() {
-        return is_internal_symlink(pkg_dir, &entry.path());
-    }
-    false
-}
-
 fn collect_always_included_at_root(
     pkg_dir: &Path,
     out: &mut BTreeSet<String>,
@@ -379,54 +361,6 @@ fn collect_root_files_matching(
         }
     }
     Ok(())
-}
-
-fn is_internal_symlink(pkg_dir: &Path, symlink_path: &Path) -> bool {
-    let Ok(target) = fs::read_link(symlink_path) else {
-        return false;
-    };
-    let parent = symlink_path.parent().unwrap_or(pkg_dir);
-    if !target.is_absolute() && relative_target_leaves_package(pkg_dir, parent, &target) {
-        return false;
-    }
-    let resolved = if target.is_absolute() { target } else { parent.join(&target) };
-    let normalized = pnpm_fs::lexical_normalize(&resolved);
-    let normalized_pkg_dir = pnpm_fs::lexical_normalize(pkg_dir);
-    if !normalized.starts_with(&normalized_pkg_dir) {
-        return false;
-    }
-    if let Ok(real_target) = fs::canonicalize(symlink_path) {
-        let canonical_pkg = pkg_dir.canonicalize().unwrap_or_else(|_| pkg_dir.to_path_buf());
-        if !real_target.starts_with(&canonical_pkg) {
-            return false;
-        }
-    }
-    true
-}
-
-/// Whether the relative link text `target`, read from a link in `link_dir`,
-/// steps above `pkg_dir` at any point. A link such as `../pkg/file` that
-/// leaves the package and comes back through its directory's name resolves
-/// inside it on disk, but not once the package is extracted under another
-/// name.
-fn relative_target_leaves_package(pkg_dir: &Path, link_dir: &Path, target: &Path) -> bool {
-    let mut depth = link_dir
-        .strip_prefix(pkg_dir)
-        .map_or(0, |rel| rel.components().count());
-    for component in target.components() {
-        match component {
-            Component::ParentDir => {
-                let Some(parent_depth) = depth.checked_sub(1) else {
-                    return true;
-                };
-                depth = parent_depth;
-            }
-            Component::Normal(_) => depth += 1,
-            Component::CurDir => {}
-            Component::RootDir | Component::Prefix(_) => return true,
-        }
-    }
-    false
 }
 
 /// Pass 3: force-include `main` / `bin` paths, which always ship regardless of
@@ -685,4 +619,6 @@ fn into_io(err: ignore::Error) -> std::io::Error {
 }
 
 mod bundled;
+mod symlinks;
 use bundled::collect_bundled_files;
+use symlinks::{is_admissible_root_file, is_packable};

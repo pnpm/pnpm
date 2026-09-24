@@ -1,7 +1,7 @@
 use super::{
-    FsRemoveDirAll, FsRemoveNonDirDirent, Placement, SymlinkRoots, clear_dir_blocking_file,
-    clear_dirent_blocking_dir, dir_fits_at, entries_by_target_dir, file_fits_at, final_link_target,
-    populate_dir,
+    FsRemoveDirAll, FsRemoveNonDirDirent, Placement, clear_dir_blocking_file,
+    clear_dirent_blocking_dir, dir_fits_at, entries_by_target_dir, file_fits_at, populate_dir,
+    symlinks::{SymlinkRoots, final_link_target},
 };
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
