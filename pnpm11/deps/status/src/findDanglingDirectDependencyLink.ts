@@ -25,7 +25,7 @@ export async function findDanglingDirectDependencyLink (opts: FindDanglingDirect
   const projects: Array<{ rootDir: string, manifest: ProjectManifest }> = opts.allProjects ??
     (opts.rootProjectManifest == null ? [] : [{ rootDir: opts.rootProjectManifestDir, manifest: opts.rootProjectManifest }])
   const modulesDirOf = createProjectModulesDirResolver(opts)
-  const rootModulesDir = path.resolve(opts.rootProjectManifestDir, opts.modulesDir ?? 'node_modules')
+  const rootModulesDir = path.resolve(opts.rootProjectManifestDir, modulesDirOf(opts.rootProjectManifest?.name) ?? 'node_modules')
   const fields = DEPENDENCIES_FIELDS.filter((field) => opts.include?.[field] !== false)
   const entries = projects.flatMap(({ rootDir, manifest }) => {
     const modulesDirs = [path.resolve(rootDir, modulesDirOf(manifest.name) ?? 'node_modules')]
