@@ -102,15 +102,8 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     })
     .await?;
 
-    if take_frozen_path && install.lockfile_policy.frozen && !mode.lockfile_only {
-        super::frozen_local_tarballs::verify_frozen_tarballs(settled).await?;
-    }
-    // A local tarball replaced in place keeps its specifier, so the
-    // freshness check cannot see it. Only a fresh resolve re-reads the
-    // tarball and records its new version and integrity.
     let take_frozen_path = take_frozen_path
-        && (install.lockfile_policy.frozen
-            || !super::frozen_local_tarballs::local_tarballs_changed(settled).await);
+        && super::frozen_local_tarballs::local_tarballs_keep_frozen_path(settled).await?;
 
     if take_frozen_path && mode.lockfile_only {
         finish_dispatched_lockfile::<Reporter>(
