@@ -1,8 +1,8 @@
 use super::{
     Arc, Config, Context, DeployArgs, DeployInstallMode, DirectSpecs, LazyLockfile, Lockfile,
-    NodeLinker, NodeLinkerArg, Path, PreferredVersions, Reporter, State, WantedLockfileSelection,
-    deployed_workspace_projects, get_preferred_versions_from_lockfile_and_manifests,
-    resolve_bool_override, warn,
+    NodeLinker, NodeLinkerArg, Path, PathBuf, PreferredVersions, Reporter, State,
+    WantedLockfileSelection, deployed_workspace_projects,
+    get_preferred_versions_from_lockfile_and_manifests, resolve_bool_override, warn,
 };
 
 /// The lockfile a shared deploy generates records no
@@ -94,6 +94,22 @@ pub(super) fn legacy_deploy_preferred_versions<ReporterT: Reporter>(
     }
 }
 
+/// A global virtual store or an absolute `virtualStoreDir` is shared with
+/// the source workspace, and the self-contained deploy must not write into it.
+pub(super) fn configured_virtual_store_dir(config: &Config) -> Option<&str> {
+    config.explicit_settings
+        .get("virtualStoreDir")
+        .and_then(serde_json::Value::as_str)
+        .filter(|raw| !config.enable_global_virtual_store && !Path::new(raw).is_absolute())
+}
+
+fn deploy_virtual_store_dir(base_config: &Config, deploy_dir: &Path) -> PathBuf {
+    match configured_virtual_store_dir(base_config) {
+        Some(raw) => pnpm_fs::lexical_normalize(&deploy_dir.join(raw)),
+        None => deploy_dir.join("node_modules").join(".pnpm"),
+    }
+}
+
 pub(super) fn create_deploy_install_config(
     base_config: &Config,
     deploy_dir: &Path,
@@ -101,7 +117,7 @@ pub(super) fn create_deploy_install_config(
 ) -> Config {
     let mut deploy_config = base_config.clone();
     deploy_config.modules_dir = deploy_dir.join("node_modules");
-    deploy_config.virtual_store_dir = deploy_dir.join("node_modules").join(".pnpm");
+    deploy_config.virtual_store_dir = deploy_virtual_store_dir(base_config, deploy_dir);
     // The deploy directory owns the lockfile this install runs against —
     // the generated one for a shared deploy, its own resolution for the
     // legacy path. A `lockfileDir` pinning the *source* workspace's
