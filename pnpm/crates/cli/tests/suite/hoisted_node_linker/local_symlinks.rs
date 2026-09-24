@@ -2,17 +2,14 @@ use super::{
     AddMockedRegistry, CommandExtra, CommandTempCwd, fs, write_manifest, write_workspace_yaml,
 };
 use assert_cmd::assert::OutputAssertExt;
-use std::path::Path;
+use std::{os::unix::fs::symlink, path::Path};
 
 /// A directory dependency keeps the symlinks inside it when the hoisted
 /// linker copies it into `node_modules`. A hardlink of a symlink is a
 /// symlink on Unix, so only the copy method shows a link imported as a
 /// file.
-#[cfg(unix)]
 #[test]
 fn hoisted_install_preserves_internal_symlinks_of_a_directory_dependency() {
-    use std::os::unix::fs::symlink;
-
     let CommandTempCwd {
         pacquet,
         root,
