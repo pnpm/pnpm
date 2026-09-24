@@ -802,3 +802,123 @@ fn adding_package_succeeds_after_deleting_local_tarball_source() {
 
     drop((root, mock_instance));
 }
+
+/// A tarball replaced at the same path keeps its `file:` specifier, so only
+/// its bytes tell an install that the lockfile no longer describes it.
+///
+/// Covers <https://github.com/pnpm/pnpm/issues/2437>.
+#[test]
+fn install_re_resolves_a_local_tarball_replaced_at_the_same_path() {
+    for args in [&["install"][..], &["install", "pkg-from-tarball"]] {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let tarball = workspace.join("pkg-from-tarball.tgz");
+        let write_version = |version: &str, content: &str| {
+            let manifest = format!(r#"{{"name":"pkg-from-tarball","version":"{version}"}}"#);
+            fs::write(
+                &tarball,
+                tarball_entries(&[
+                    ("package/package.json", manifest.as_bytes()),
+                    ("package/index.js", content.as_bytes()),
+                ]),
+            )
+            .expect("write tarball");
+        };
+        write_version("1.0.0", "module.exports = 'first'\n");
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({
+                "name": "root",
+                "version": "1.0.0",
+                "dependencies": { "pkg-from-tarball": "file:./pkg-from-tarball.tgz" },
+            })
+            .to_string(),
+        )
+        .expect("write package.json");
+
+        pacquet
+            .with_arg("install")
+            .assert()
+            .success();
+
+        write_version("1.0.1", "module.exports = 'second'\n");
+
+        let installed = workspace.join("node_modules/pkg-from-tarball");
+        let assert_second = |context: &str| {
+            let manifest = fs::read_to_string(installed.join("package.json"))
+                .expect("read the installed manifest");
+            assert!(manifest.contains(r#""version":"1.0.1""#), "{context}: {manifest}");
+            let index =
+                fs::read_to_string(installed.join("index.js")).expect("read the installed index");
+            assert_eq!(index, "module.exports = 'second'\n", "{context}");
+        };
+
+        crate::_utils::pacquet_in(&workspace)
+            .with_args(args)
+            .assert()
+            .success();
+        assert_second(&format!("pnpm {}", args.join(" ")));
+        let lockfile =
+            fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+        assert!(lockfile.contains("version: 1.0.1"), "the lockfile must record 1.0.1:\n{lockfile}");
+
+        fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+        crate::_utils::pacquet_in(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .assert()
+            .success();
+        assert_second("a frozen install from the warm store");
+
+        drop((root, mock_instance));
+    }
+}
+
+#[test]
+fn install_keeps_a_deleted_local_tarball_installed() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_tarball(
+        &workspace,
+        "pkg-from-tarball.tgz",
+        &serde_json::json!({ "name": "pkg-from-tarball", "version": "1.0.0" }),
+    );
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": { "pkg-from-tarball": "file:./pkg-from-tarball.tgz" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::remove_file(workspace.join("pkg-from-tarball.tgz")).expect("delete local tarball");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    crate::_utils::pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(workspace.join("node_modules/pkg-from-tarball/package.json").exists());
+
+    drop((root, mock_instance));
+}

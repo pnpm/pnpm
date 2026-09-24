@@ -488,3 +488,40 @@ fn remote_tarball_behind_an_immutable_redirect_reuses_the_warm_store() {
 
     drop((root, mock_instance));
 }
+
+/// A remote tarball URL ends in `.tgz` like a local tarball does, but has no
+/// file to compare with its recorded integrity, so it must not send a repeat
+/// install down the fresh-resolve path.
+#[test]
+fn repeat_install_of_a_remote_tarball_reuses_the_lockfile() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let tarball = format!(
+        "{}is-positive/-/is-positive-1.0.0.tgz",
+        mock_instance.url().replace("127.0.0.1", "localhost"),
+    );
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "is-positive": tarball } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    let assert = pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    assert!(
+        stdout.contains("Lockfile is up to date, resolution step is skipped"),
+        "the repeat install must reuse the lockfile:\n{stdout}",
+    );
+
+    drop((root, mock_instance));
+}
