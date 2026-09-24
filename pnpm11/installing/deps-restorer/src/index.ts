@@ -1014,13 +1014,14 @@ async function findImporterOwningRootModulesDir (
   importerIds: ProjectId[],
   rootModulesDir: string
 ): Promise<ProjectId | undefined> {
-  if (importerIds.includes('.' as ProjectId)) return undefined
-  const matches = await Promise.all(
-    projects.map(async ({ id, modulesDir, rootDir }) =>
-      (await realpathMissing(pathAbsolute(modulesDir, rootDir))) === rootModulesDir ? id : undefined
-    )
-  )
-  return matches.find((id): id is ProjectId => id != null)
+  const importerIdsSet = new Set(importerIds)
+  if (importerIdsSet.has('.' as ProjectId)) return undefined
+  for (const { id, modulesDir, rootDir } of projects) {
+    if (!importerIdsSet.has(id)) continue
+    // eslint-disable-next-line no-await-in-loop
+    if (await realpathMissing(pathAbsolute(modulesDir, rootDir)) === rootModulesDir) return id
+  }
+  return undefined
 }
 
 async function linkBinsOfImporter (
