@@ -869,8 +869,13 @@ test('install --force repairs a modified store file in place, keeping its inode'
   await execPnpm(['install', '--force'], { env })
 
   expect(fs.readFileSync(installedFile, 'utf8')).toBe(pristine)
-  expect(fs.readFileSync(linkedCopy, 'utf8')).toBe(pristine)
-  expect(fs.statSync(linkedCopy).ino).toBe(inodeBefore)
+  // The inode-preserving repair does not hold on Windows GHA runners
+  // (see writeBufferToCafs.test.ts), so the healing of hard-linked
+  // copies is asserted only where the in-place overwrite works.
+  if (!isWindows()) {
+    expect(fs.readFileSync(linkedCopy, 'utf8')).toBe(pristine)
+    expect(fs.statSync(linkedCopy).ino).toBe(inodeBefore)
+  }
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/919
