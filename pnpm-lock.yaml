@@ -6368,6 +6368,9 @@ importers:
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: link:../../bins/linker
+      '@pnpm/bins.remover':
+        specifier: workspace:*
+        version: link:../../bins/remover
       '@pnpm/building.during-install':
         specifier: workspace:*
         version: link:../../building/during-install

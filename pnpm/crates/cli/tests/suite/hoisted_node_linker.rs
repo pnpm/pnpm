@@ -688,6 +688,63 @@ fn a_nested_copy_is_removed_once_its_version_wins_the_root_slot() {
     assert!(!stale.exists(), "a stale project-local link must not survive a reinstall");
 }
 
+/// TS: `bins of a nested package are removed when the package is deduped
+/// into the root node_modules` (`hoistedNodeLinker/install.ts`).
+#[test]
+fn bins_of_a_nested_copy_are_removed_with_it() {
+    const BIN_PKG: &str = "@pnpm.e2e/hello-world-js-bin";
+    const BIN_NAME: &str = "hello-world-js-bin";
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("nodeLinker: hoisted\n");
+    fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[(BIN_PKG, "1.0.0")], ..Default::default() },
+    );
+    let project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[(BIN_PKG, "0.0.0")], ..Default::default() },
+    );
+    let project_bin_entries = || -> Vec<String> {
+        fs::read_dir(project_2.join("node_modules/.bin"))
+            .expect("read project-2 node_modules/.bin")
+            .map(|entry| {
+                entry
+                    .expect("read .bin entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .filter(|name| name.starts_with(BIN_NAME))
+            .collect()
+    };
+    fixture.run(["install"]);
+    assert_eq!(read_pkg_version(&project_2, &format!("node_modules/{BIN_PKG}")), "0.0.0");
+    assert!(!project_bin_entries().is_empty(), "the nested copy links its command");
+
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[(BIN_PKG, "1.0.0")], ..Default::default() },
+    );
+    fixture.run(["install"]);
+
+    assert!(
+        !project_2
+            .join("node_modules")
+            .join(BIN_PKG)
+            .exists(),
+        "the nested copy is deduped",
+    );
+    assert_eq!(
+        project_bin_entries(),
+        Vec::<String>::new(),
+        "no command of the removed copy survives",
+    );
+    assert_bin_linked(&fixture.workspace.join("node_modules/.bin").join(BIN_NAME));
+}
+
 /// TS: `overwriting (…@3.0.0 with …@latest)`
 /// (`hoistedNodeLinker/install.ts:61`), on registry-mock fixtures:
 /// re-adding at `@latest` replaces the on-disk hoisted directory with

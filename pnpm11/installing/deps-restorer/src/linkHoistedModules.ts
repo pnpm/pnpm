@@ -1,6 +1,9 @@
+import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { linkBins } from '@pnpm/bins.linker'
+import { removeBinsOfDependency } from '@pnpm/bins.remover'
 import {
   removalLogger,
   reportPackageImported,
@@ -101,6 +104,11 @@ export async function linkHoistedModules (
 async function tryRemoveDir (dir: string): Promise<void> {
   removalLogger.debug(dir)
   try {
+    await removeOrphanBins(dir)
+  } catch (error: unknown) {
+    logger.debug({ error, message: `Failed to remove the bins of the orphan package at "${dir}"` })
+  }
+  try {
     await rimraf(dir)
   } catch (err: any) { // eslint-disable-line
     /* Just ignoring for now. Not even logging.
@@ -111,6 +119,25 @@ async function tryRemoveDir (dir: string): Promise<void> {
     })
     */
   }
+}
+
+async function removeOrphanBins (pkgDir: string): Promise<void> {
+  const binsDir = path.join(getModulesDir(pkgDir), '.bin')
+  let binsDirStats: fs.Stats
+  try {
+    binsDirStats = await fs.promises.lstat(binsDir)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+    throw err
+  }
+  // Unlinking through a symlinked `.bin` would delete files outside the install root.
+  if (!binsDirStats.isDirectory()) return
+  await removeBinsOfDependency(pkgDir, { binsDir })
+}
+
+function getModulesDir (pkgDir: string): string {
+  const parentDir = path.dirname(pkgDir)
+  return path.basename(parentDir).startsWith('@') ? path.dirname(parentDir) : parentDir
 }
 
 async function linkAllPkgsInOrder (
