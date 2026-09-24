@@ -2273,9 +2273,6 @@ async function resolveDependency (
     }
     if (pkg.peerDependencies && pkg.dependencies) {
       const { peerDependenciesMeta } = pkg
-      // Optional peers are never auto-installed, so an optional peer that is
-      // also a regular dependency stays a dependency unless an ancestor
-      // already provides it.
       const isAutoInstalledPeer = (peerDep: string): boolean =>
         ctx.autoInstallPeers && peerDependenciesMeta?.[peerDep]?.optional !== true
       pkg = {

@@ -766,10 +766,7 @@ fn frozen_lockfile_accepts_a_peer_package_extensions_injected() {
 
 /// `@pnpm.e2e/has-optional-peer-also-in-deps` depends on
 /// `@pnpm.e2e/bravo-dep@1.0.0` and also declares it as an optional peer,
-/// the shape vite uses for `lightningcss`. Optional peers are never
-/// auto-installed, so the dependency must stay a regular one, installed
-/// with its own `1.0.0` range, through a fresh resolve and a second
-/// resolve that reuses the lockfile.
+/// the shape vite uses for `lightningcss`.
 /// Covers <https://github.com/pnpm/pnpm/issues/8912>.
 fn assert_optional_peer_also_in_deps_is_installed(auto_install_peers: bool) {
     let CommandTempCwd {
