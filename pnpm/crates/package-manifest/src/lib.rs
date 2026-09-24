@@ -200,6 +200,9 @@ impl PackageManifest {
             contents = contents.replace("\r\n", "\n").replace('\n', "\r\n");
         }
         Self::write_atomic(&self.path, &contents)?;
+        if !self.is_yaml() && !self.is_json5() {
+            self.blank_lines = BlankLines::detect(&contents);
+        }
         self.empty_dependency_fields = empty_dependency_fields(&value);
         self.on_disk = Some(value.clone());
         Ok(value)
