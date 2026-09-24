@@ -110,7 +110,7 @@ pub(super) fn configured_virtual_store_dir(config: &Config) -> Option<&str> {
 /// the deploy directory, an absolute one stays where it points.
 fn deploy_virtual_store_dir(base_config: &Config, deploy_dir: &Path) -> PathBuf {
     match configured_virtual_store_dir(base_config) {
-        Some(raw) => deploy_dir.join(raw),
+        Some(raw) => pnpm_fs::lexical_normalize(&deploy_dir.join(raw)),
         None => deploy_dir.join("node_modules").join(".pnpm"),
     }
 }
