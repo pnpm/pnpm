@@ -1,8 +1,9 @@
 use super::{
-    Config, Context, EnvLockfile, EnvLockfileSync, HashSet, LockfileResolution, PackageKey,
-    PackageManagerToSync, PackageMetadata, Path, PathBuf, PinRoots, PmOnFail, PreCommandInput,
-    PreCommandPlan, SwitchSource, Value, VersionPart, is_package_manager_resolved,
-    package_manager_to_sync, pnpm_package_to_install, version_satisfies,
+    Config, Context, EnvLockfile, EnvLockfileSync, HashSet, LockfileResolution, PNPM_VERSION,
+    PackageKey, PackageManagerToSync, PackageMetadata, Path, PathBuf, PinRoots, PmOnFail,
+    PreCommandInput, PreCommandPlan, SwitchProcessState, SwitchSource, Value, VersionPart,
+    is_package_manager_resolved, package_manager_to_sync, pnpm_package_to_install,
+    version_satisfies,
 };
 use pnpm_lockfile::SnapshotEntry;
 
@@ -103,6 +104,41 @@ pub(super) fn locked_switch_source(
     }
 }
 
+/// The pnpm version the env lockfile in `env_root` records, when a command
+/// in this project would switch to it: it is not the running pnpm, version
+/// switching is on, and the recorded entries are ones the switch installs
+/// without resolving them again.
+pub(super) fn locked_package_manager_to_fetch(
+    config: &Config,
+    env_root: &Path,
+    process_state: SwitchProcessState,
+) -> miette::Result<Option<(EnvLockfile, String)>> {
+    if process_state.package_manager_switch_disabled
+        || process_state.executed_by_corepack
+        || config.pm_on_fail.is_some_and(|on_fail| on_fail != PmOnFail::Download)
+    {
+        return Ok(None);
+    }
+    let Some(env) = read_env_lockfile(env_root)? else {
+        return Ok(None);
+    };
+    let Some(version) = env.importers
+        .get(EnvLockfile::ROOT_IMPORTER_KEY)
+        .and_then(|importer| importer.package_manager_dependencies.as_ref())
+        .and_then(|dependencies| dependencies.get("pnpm"))
+        .map(|dependency| dependency.version.clone())
+    else {
+        return Ok(None);
+    };
+    if version == PNPM_VERSION
+        || !package_manager_dependencies_are_resolved(&env, &version)
+        || assert_package_manager_lockfile_uses_registry_resolutions(&env).is_err()
+    {
+        return Ok(None);
+    }
+    Ok(Some((env, version)))
+}
+
 pub(super) fn locked_package_manager_version(
     env: &EnvLockfile,
     wanted_range: &str,
@@ -144,7 +180,7 @@ fn package_manager_dependencies_are_resolved(env: &EnvLockfile, version: &str) -
             .is_some_and(|dep| dep.version == version)
 }
 
-fn assert_package_manager_lockfile_uses_registry_resolutions(
+pub(super) fn assert_package_manager_lockfile_uses_registry_resolutions(
     env: &EnvLockfile,
 ) -> miette::Result<()> {
     let mut visited = HashSet::new();

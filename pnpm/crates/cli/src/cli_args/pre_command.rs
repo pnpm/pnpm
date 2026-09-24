@@ -47,8 +47,8 @@ use input::{
     should_skip_pm_handling,
 };
 use lockfile::{
-    ReadEnvLockfile, env_lockfile_sync, env_lockfile_sync_plan, locked_package_manager_version,
-    locked_switch_source, read_env_lockfile, switch_env_root,
+    ReadEnvLockfile, env_lockfile_sync, env_lockfile_sync_plan, locked_package_manager_to_fetch,
+    locked_package_manager_version, locked_switch_source, read_env_lockfile, switch_env_root,
 };
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pin::{PinOutcome, PinResolution, resolve_input_pin, switch_target};
@@ -292,6 +292,31 @@ fn switch_or_sync(
         SwitchSource::Resolve { .. } => ReadEnvLockfile::NotYet,
     };
     Ok(PinOutcome::Sync(env_lockfile_sync(config, root_manifest, roots, on_fail, read_lockfile)?))
+}
+
+/// Install the pnpm that the env lockfile in `env_root` pins into the store,
+/// when a command in the project would switch to it. `pnpm fetch` reads only
+/// the lockfile, and a later `pnpm install --offline` that switches to the
+/// pinned pnpm finds it there instead of in the registry (pnpm/pnpm#11808).
+pub(crate) async fn fetch_locked_package_manager(
+    config: &'static Config,
+    env_root: &Path,
+) -> miette::Result<()> {
+    let Some((env, version)) =
+        locked_package_manager_to_fetch(config, env_root, SwitchProcessState::current())?
+    else {
+        return Ok(());
+    };
+    assert_release_is_installable(&version)?;
+    Box::pin(install_engine_from_env::<SilentReporter>(
+        config,
+        PackageManager::Pnpm,
+        &env,
+        &version,
+    ))
+    .await
+    .wrap_err_with(|| format!("fetch pnpm v{version}, which the lockfile pins"))?;
+    Ok(())
 }
 
 /// Every warning here quotes the project's manifest, which is untrusted

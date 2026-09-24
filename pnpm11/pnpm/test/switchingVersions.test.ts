@@ -378,6 +378,32 @@ test('devEngines.packageManager without onFail=download does not switch version'
   expect(stdout.toString()).not.toContain('Version 9.3.0')
 })
 
+test('pnpm fetch installs the pnpm the lockfile pins, so an offline command can switch to it (#11808)', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const manifest = {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '9.3.0',
+        onFail: 'download',
+      },
+    },
+  }
+  writeJsonFileSync('package.json', manifest)
+  execPnpmSync(['help'], { env: { PNPM_HOME: pnpmHome }, expectSuccess: true })
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toContain('packageManagerDependencies')
+
+  // The lockfile-only stage of a Docker build, with a store of its own.
+  fs.rmSync('package.json')
+  const env = { PNPM_HOME: pnpmHome, pnpm_config_store_dir: path.resolve('fetched-store') }
+  execPnpmSync(['fetch'], { env, expectSuccess: true })
+
+  writeJsonFileSync('package.json', manifest)
+  const { stdout } = execPnpmSync(['help'], { env: { ...env, pnpm_config_offline: 'true' }, expectSuccess: true })
+  expect(stdout.toString()).toContain('Version 9.3.0')
+})
+
 test('throws error if pnpm binary in store is corrupt', () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
