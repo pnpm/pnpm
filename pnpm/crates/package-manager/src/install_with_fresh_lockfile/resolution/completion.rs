@@ -13,9 +13,12 @@ pub(super) async fn enforce_resolution_policies<Reporter: self::Reporter + 'stat
         install.execution.policy_excludes,
         install.execution.dry_run,
     );
+    let target_workspace_dir = install.drivers.config.target_workspace_dir
+        .as_deref()
+        .unwrap_or(install.projects.lockfile_dir);
     crate::minimum_release_age::handle_minimum_release_age_violations::<Reporter>(
         install.drivers.config,
-        install.projects.lockfile_dir,
+        target_workspace_dir,
         &workspace_result.merged_tree.policy_violations,
         can_prompt_now,
         policy_excludes_now,

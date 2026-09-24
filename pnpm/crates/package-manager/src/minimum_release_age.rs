@@ -138,6 +138,7 @@ where
     ReporterImpl: Reporter,
     Prompt: ApprovalPrompt,
 {
+    let workspace_dir = config.target_workspace_dir.as_deref().unwrap_or(workspace_dir);
     let strict = config.resolved_minimum_release_age_strict();
     if !strict && policy_excludes != PolicyExcludes::Persist {
         return Ok(());

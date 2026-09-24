@@ -163,6 +163,7 @@ fn create_config(
         user_agent: "pnpm".to_string(),
         npmrc_auth_file: None,
         workspace_dir: None,
+        target_workspace_dir: None,
         patched_dependencies: None,
         patched_dependency_hashes_override: None,
         patches_dir: None,
