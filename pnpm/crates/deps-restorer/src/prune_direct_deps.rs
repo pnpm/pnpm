@@ -193,7 +193,7 @@ pub fn confined_modules_dir(modules_dir: &Path, workspace_root: &Path) -> Option
 /// directory). Removals must not reach *through* a redirected
 /// intermediate component (`@scope/`, `.bin/`); the containment check
 /// above only vouches for the modules dir itself.
-fn is_real_dir(path: &Path) -> bool {
+pub(crate) fn is_real_dir(path: &Path) -> bool {
     fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_dir())
         && read_symlink_dir(path).is_err()
 }

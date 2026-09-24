@@ -1,13 +1,14 @@
 use super::LinkVirtualStoreBinsError;
 use pnpm_cmd_shim::{
     FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-    FsSetExecutable, FsWalkFiles, FsWrite, LinkBinsError, LinkBinsOptions, PackageBinSource,
+    FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions, PackageBinSource,
     link_bins_of_packages,
 };
 use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use std::{
-    io,
+    collections::HashSet,
+    fs, io,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -218,4 +219,56 @@ pub(super) fn paths_eq(lhs: &Path, rhs: &Path) -> bool {
     // Lexical comparison is enough; both paths come from the same
     // `node_modules` walk and don't go through canonicalisation.
     lhs == rhs
+}
+
+/// The command names in `bins_dir`. On Windows the shim and executable
+/// extensions are stripped in any case. A missing directory has none.
+pub(super) fn existing_commands(bins_dir: &Path) -> Result<HashSet<String>, LinkBinsError> {
+    let read_error = |error| LinkBinsError::ReadModulesDir { dir: bins_dir.to_path_buf(), error };
+    let entries = match fs::read_dir(bins_dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(HashSet::new()),
+        Err(error) => return Err(read_error(error)),
+    };
+    let mut commands = HashSet::new();
+    for entry in entries {
+        let file_name = entry.map_err(read_error)?.file_name();
+        // A manifest's command names are UTF-8, so no other name can clash.
+        if let Some(name) = file_name.to_str() {
+            commands.insert(command_name(name).to_owned());
+        }
+    }
+    Ok(commands)
+}
+fn command_name(file_name: &str) -> &str {
+    if !cfg!(windows) {
+        return file_name;
+    }
+    match file_name.rsplit_once('.') {
+        Some((command, extension))
+            if ["cmd", "ps1", "exe"]
+                .iter()
+                .any(|shim| extension.eq_ignore_ascii_case(shim)) =>
+        {
+            command
+        }
+        _ => file_name,
+    }
+}
+
+/// The bin sources of the packages at `locations`, which are already the
+/// symlink-resolved package directories.
+pub(super) fn read_location_bin_sources(
+    locations: &[PathBuf],
+) -> Result<Vec<PackageBinSource>, LinkBinsError> {
+    locations
+        .par_iter()
+        .filter_map(|location| match read_package::<Host>(location) {
+            // The locations are already the symlink-resolved package
+            // dirs, so they double as `resolved_location`.
+            Ok(Some(source)) => Some(Ok(source.with_resolved_location(location.clone()))),
+            Ok(None) => None,
+            Err(error) => Some(Err(error)),
+        })
+        .collect()
 }

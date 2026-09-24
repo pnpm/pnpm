@@ -1,6 +1,6 @@
 use super::{
     LinkVirtualStoreBins, LinkVirtualStoreBinsError, PrefetchedBinLookup, build_has_bin_set,
-    link_direct_dep_bins, link_direct_dep_bins_prefetched,
+    link_direct_dep_bins, link_direct_dep_bins_prefetched, link_new_bins_from_locations,
 };
 use crate::{SkippedSnapshots, VirtualStoreLayout};
 use pnpm_cmd_shim::{LinkBinsOptions, is_shim_pointing_at};
@@ -821,4 +821,52 @@ fn prefetched_bin_pass_reads_a_link_dep_from_disk() {
     .unwrap();
     let body = read_to_string(modules.join(".bin/sibling")).expect("link: dep read from disk");
     assert!(is_shim_pointing_at(&body, &modules.join(".bin/sibling"), &sibling_dir.join("cli.js")));
+}
+
+/// On Windows, a command already in `.bin` keeps its entry whatever case
+/// its shim or executable extension is written in. Elsewhere `node.EXE`
+/// is a command of its own and does not hold `node`.
+#[test]
+fn link_new_bins_from_locations_keeps_commands_with_any_windows_extension() {
+    let tmp = tempdir().unwrap();
+    let modules_dir = tmp.path().join("node_modules");
+    let bins_dir = modules_dir.join(".bin");
+    create_dir_all(&bins_dir).unwrap();
+    for existing in ["node.EXE", "shared.CMD", "other.Ps1"] {
+        write_file(bins_dir.join(existing), "existing").unwrap();
+    }
+    let project = tmp.path().join("project");
+    create_dir_all(&project).unwrap();
+    write_file(project.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let bin: serde_json::Map<String, serde_json::Value> = ["node", "shared", "other", "own"]
+        .into_iter()
+        .map(|name| (name.to_owned(), json!("cli.js")))
+        .collect();
+    write_file(project.join("package.json"), json!({ "name": "project", "bin": bin }).to_string())
+        .unwrap();
+
+    link_new_bins_from_locations(&modules_dir, &[project], &LinkBinsOptions::default()).unwrap();
+
+    let mut linked: Vec<String> = std::fs::read_dir(&bins_dir)
+        .unwrap()
+        .map(|entry| {
+            entry
+                .unwrap()
+                .file_name()
+                .into_string()
+                .unwrap()
+        })
+        .filter(|name| !["node.EXE", "shared.CMD", "other.Ps1"].contains(&name.as_str()))
+        .map(|name| {
+            name.split('.')
+                .next()
+                .unwrap()
+                .to_owned()
+        })
+        .collect();
+    linked.sort();
+    linked.dedup();
+    let expected: &[&str] =
+        if cfg!(windows) { &["own"] } else { &["node", "other", "own", "shared"] };
+    assert_eq!(linked, expected);
 }

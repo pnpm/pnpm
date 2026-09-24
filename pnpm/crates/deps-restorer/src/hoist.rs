@@ -9,9 +9,13 @@
 //! alias-list inputs that pass needs.
 
 pub use symlinks::symlink_hoisted_dependencies;
+pub use workspace_packages::{WorkspaceHoists, hoist_workspace_packages_to_root};
 
 mod symlinks;
 mod workspace_aliases;
+mod workspace_packages;
+
+use workspace_packages::{pattern_hoist_kind, place_workspace_packages};
 
 use indexmap::IndexMap;
 use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, ProjectSnapshot, SnapshotEntry};
@@ -426,28 +430,14 @@ impl<'a> HoistPass<'a> {
     /// nondeterministically (v11's graph-miss `continue` skips the
     /// claim by accident).
     fn hoist_workspace_packages(&mut self) {
-        let candidates = self.input.hoisted_workspace_packages
-            .into_iter()
-            .flatten()
-            .filter_map(|(name, (project_id, dir))| {
-                let hoist_kind = self.hoist_kind(name)?;
-                (!self.hoisted_aliases.contains(&name.to_lowercase())).then(|| {
-                    (name.clone(), project_id.clone(), dir.clone(), hoist_kind)
-                })
-            })
-            .collect::<Vec<_>>();
-        let conflicting_aliases = workspace_aliases::conflicting_aliases(
-            candidates
-                .iter()
-                .map(|(name, _, _, kind)| (name.as_str(), *kind)),
+        let input = self.input;
+        let Some(workspace_packages) = input.hoisted_workspace_packages else { return };
+        let placed = place_workspace_packages(
+            workspace_packages,
+            |alias| pattern_hoist_kind(&input.private_pattern, &input.public_pattern, alias),
+            &mut self.hoisted_aliases,
         );
-        for (name, project_id, dir, hoist_kind) in candidates {
-            let normalized_name = name.to_lowercase();
-            if conflicting_aliases.contains(&normalized_name)
-                || !self.hoisted_aliases.insert(normalized_name)
-            {
-                continue;
-            }
+        for (name, project_id, dir, hoist_kind) in placed {
             self.hoisted_workspace_aliases.push((name.clone(), hoist_kind, dir));
             self.hoisted_dependencies
                 .entry(project_id)
@@ -459,13 +449,7 @@ impl<'a> HoistPass<'a> {
     /// Which hoist target the configured patterns put `alias` in, if
     /// any.
     fn hoist_kind(&self, alias: &str) -> Option<HoistKind> {
-        if self.input.public_pattern.matches(alias) {
-            Some(HoistKind::Public)
-        } else if self.input.private_pattern.matches(alias) {
-            Some(HoistKind::Private)
-        } else {
-            None
-        }
+        pattern_hoist_kind(&self.input.private_pattern, &self.input.public_pattern, alias)
     }
 
     fn place_child(&mut self, alias: &str, child_node_id: &PackageKey) {

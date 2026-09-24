@@ -1,8 +1,9 @@
-use super::{build_has_bin_set, pkg_dir_under, read_package};
+use super::{build_has_bin_set, existing_commands, pkg_dir_under, read_location_bin_sources};
 use crate::PackageManifests;
 use pnpm_cmd_shim::{
     BinOrigin, Host, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache,
     collect_packages_in_modules_dir, link_bins_of_packages, link_bins_of_packages_cached,
+    link_bins_of_packages_with_excludes,
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{PackageKey, PackageMetadata};
@@ -394,20 +395,27 @@ pub fn link_direct_dep_bins_from_locations(
     locations: &[PathBuf],
     link_options: &LinkBinsOptions,
 ) -> Result<(), LinkBinsError> {
-    let bin_sources = locations
-        .par_iter()
-        .filter_map(|location| match read_package::<Host>(location) {
-            // The locations are already the symlink-resolved package
-            // dirs, so they double as `resolved_location`.
-            Ok(Some(source)) => Some(Ok(source.with_resolved_location(location.clone()))),
-            Ok(None) => None,
-            Err(error) => Some(Err(error)),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let bin_sources = read_location_bin_sources(locations)?;
     if bin_sources.is_empty() {
         return Ok(());
     }
     link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), link_options)
+}
+/// [`link_direct_dep_bins_from_locations`] that leaves every command
+/// already in `<modules_dir>/.bin` in place, so the packages at
+/// `locations` only add commands nothing else provides.
+pub fn link_new_bins_from_locations(
+    modules_dir: &Path,
+    locations: &[PathBuf],
+    link_options: &LinkBinsOptions,
+) -> Result<(), LinkBinsError> {
+    let bin_sources = read_location_bin_sources(locations)?;
+    if bin_sources.is_empty() {
+        return Ok(());
+    }
+    let bins_dir = modules_dir.join(".bin");
+    let existing = existing_commands(&bins_dir)?;
+    link_bins_of_packages_with_excludes::<Host>(&bin_sources, &bins_dir, &existing, link_options)
 }
 /// Top-level bin link that mixes direct-dep candidates and hoisted
 /// (`publicly_hoisted_aliases_with_bins`) candidates in a single

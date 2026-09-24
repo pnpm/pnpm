@@ -130,12 +130,13 @@ async function getCommandsToLink (
   }>,
   excludeBins: Set<string> = new Set()
 ): Promise<CommandInfo[]> {
+  const excluded = IS_WINDOWS ? new Set(Array.from(excludeBins, (name) => name.toLowerCase())) : excludeBins
   return unnest(
     (await Promise.all(
       pkgs.map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location))
     ))
       .filter((cmds: Command[]) => cmds.length)
-  ).filter((cmd) => !excludeBins.has(cmd.name))
+  ).filter((cmd) => !excluded.has(IS_WINDOWS ? cmd.name.toLowerCase() : cmd.name))
 }
 
 interface CommandInfo extends Command {

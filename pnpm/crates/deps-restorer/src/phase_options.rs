@@ -76,6 +76,7 @@ impl<'a> PriorLinkState<'a> {
     pub fn hoisted_state(self, current_lockfile: Option<&'a Lockfile>) -> PriorHoistedState<'a> {
         PriorHoistedState {
             current_lockfile,
+            hoisted_dependencies: self.hoisted_dependencies,
             current_hoisted_locations: self.hoisted_locations,
             previously_skipped: self.previously_skipped,
             unbuilt_builds: self.unbuilt_builds,
@@ -112,6 +113,9 @@ pub struct PriorHoistedState<'a> {
     /// for a directory against the wanted one. Both install paths pass
     /// it; `None` when the file is absent, which is a first install.
     pub current_lockfile: Option<&'a Lockfile>,
+    /// `hoistedDependencies` from the previous install's `.modules.yaml`:
+    /// the workspace projects it linked into the root `node_modules`.
+    pub hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
     /// `hoistedLocations` from the previous install's `.modules.yaml`,
     /// so the walker can mark packages that are already on disk. `None`
     /// on a first install.

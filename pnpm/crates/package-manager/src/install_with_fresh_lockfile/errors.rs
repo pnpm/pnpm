@@ -253,6 +253,15 @@ impl From<crate::install_frozen_lockfile::HoistedLinkerError> for InstallWithFre
             HoistedLinkerError::WritePackageMap(error) => {
                 InstallWithFreshLockfileError::WritePackageMap(error)
             }
+            HoistedLinkerError::PruneWorkspaceHoists(error) => {
+                InstallWithFreshLockfileError::PruneStaleModules(error)
+            }
+            HoistedLinkerError::HoistSymlink(error) => {
+                InstallWithFreshLockfileError::HoistSymlink(error)
+            }
+            HoistedLinkerError::HoistLinkBins(error) => {
+                InstallWithFreshLockfileError::HoistLinkBins(error)
+            }
         }
     }
 }

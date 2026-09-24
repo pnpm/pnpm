@@ -1,12 +1,12 @@
 pub use direct::{
     PrefetchedBinLookup, PrefetchedDepBin, link_direct_dep_bins,
     link_direct_dep_bins_before_builds, link_direct_dep_bins_from_locations,
-    link_direct_dep_bins_prefetched, link_direct_dep_bins_resolved, link_project_bins,
-    link_top_level_bins, resolve_hoisted_bin_deps, shim_link_options,
+    link_direct_dep_bins_prefetched, link_direct_dep_bins_resolved, link_new_bins_from_locations,
+    link_project_bins, link_top_level_bins, resolve_hoisted_bin_deps, shim_link_options,
 };
 
 mod scan;
-use scan::{read_package, run_with_readdir};
+use scan::{existing_commands, read_location_bin_sources, read_package, run_with_readdir};
 
 mod direct;
 

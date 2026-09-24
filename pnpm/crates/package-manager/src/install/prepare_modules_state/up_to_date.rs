@@ -2,9 +2,10 @@ use super::super::{
     Arc, Config, Host, InstallError, Lockfile, LogEvent, LogLevel, Path, PnpmLog, Reporter,
     ResolutionVerifier, Stage, StageLog, SummaryLog, SystemTime, build_workspace_state,
     frozen_tree_intact, gvs_build_marker_present, has_newly_allowed_ignored_builds,
-    hoisted_workspace_packages_present, map_frozen_lockfile_error, modules_consistent_with,
-    moved_tree_is_reusable, recorded_allow_builds_differ, unapproved_recorded_ignored_builds,
-    update_workspace_state, verify_lockfile_eagerly,
+    hoisted_linker_workspace_links_intact, hoisted_workspace_packages_present,
+    map_frozen_lockfile_error, modules_consistent_with, moved_tree_is_reusable,
+    recorded_allow_builds_differ, unapproved_recorded_ignored_builds, update_workspace_state,
+    verify_lockfile_eagerly,
 };
 use crate::optimistic_repeat_install::{filesystem_now_ms, materialized_shape_matches};
 
@@ -104,20 +105,24 @@ fn tree_contents_intact(
         config,
         context.tree.workspace_root,
         context.tree.node_linker,
-    ) && (
-        // The hoisted linker places workspace projects through its own
-        // hoisting tree, which `frozen_tree_intact` already probes, and
-        // never writes the isolated linker's hoist links.
-        context.tree.node_linker == pnpm_config::NodeLinker::Hoisted
-            || hoisted_workspace_packages_present(
-                current,
-                config,
-                context.tree.workspace_root,
-                context.tree.included,
-                context.recorded.projects,
-                &skipped,
-            )
-    )
+    ) && if context.tree.node_linker == pnpm_config::NodeLinker::Hoisted {
+        hoisted_linker_workspace_links_intact(
+            current,
+            context.tree.included,
+            config,
+            context.tree.workspace_root,
+            context.recorded.projects,
+        )
+    } else {
+        hoisted_workspace_packages_present(
+            current,
+            config,
+            context.tree.workspace_root,
+            context.tree.included,
+            context.recorded.projects,
+            &skipped,
+        )
+    }
 }
 
 fn bins_resolve_where_the_tree_is(context: &FrozenTreeUpToDate<'_>, current: &Lockfile) -> bool {

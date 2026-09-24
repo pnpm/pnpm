@@ -15,7 +15,7 @@ use super::{
     HoistedDepGraphError, IncludedDependencies, LinkHoistedModulesError, LinkHoistedModulesOpts,
     Lockfile, LockfileToHoistedDepGraphOptions, NodeLinker, PackageKey, Path, PathBuf, Reporter,
     SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
-    SymlinkPackageError, link_hoisted_modules, lockfile_to_hoisted_dep_graph,
+    SymlinkPackageError, create_matcher, link_hoisted_modules, lockfile_to_hoisted_dep_graph,
 };
 
 /// Internal handoff between the hoisted-linker walker/linker pass
@@ -45,6 +45,9 @@ pub struct HoistedLinkerOutput {
     pub hoisted_build_snapshots: Option<Vec<PackageKey>>,
     /// See [`crate::link_hoisted_modules()`]'s return value.
     pub held_back_bins_dirs: Vec<crate::HeldBackBinsDir>,
+    /// The workspace projects `hoist-workspace-packages` linked into the
+    /// root `node_modules`, for `.modules.yaml.hoistedDependencies`.
+    pub hoisted_dependencies: crate::HoistedDependencies,
 }
 
 /// Inputs to [`run_hoisted_linker`]. Bundled so the two install
@@ -89,6 +92,12 @@ pub enum HoistedLinkerError {
     LinkHoistedModules(#[error(source)] LinkHoistedModulesError),
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
+    #[diagnostic(transparent)]
+    PruneWorkspaceHoists(#[error(source)] crate::PruneDirectDepsError),
+    #[diagnostic(transparent)]
+    HoistSymlink(#[error(source)] SymlinkPackageError),
+    #[diagnostic(transparent)]
+    HoistLinkBins(#[error(source)] pnpm_cmd_shim::LinkBinsError),
     #[display("failed to write package map: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PACKAGE_MAP))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
@@ -114,7 +123,9 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     let build_present = inputs.prior.build_present_packages;
     let unbuilt = inputs.prior.unbuilt_builds;
     let walked = walk_hoisted_graph(inputs, &lockfile, skipped)?;
-    let held_back_bins_dirs = link_hoisted::<Reporter>(inputs, &lockfile, &walked, skipped)?;
+    unlink_prior_workspace_hoists(inputs)?;
+    let (held_back_bins_dirs, hoisted_dependencies) =
+        link_hoisted::<Reporter>(inputs, &lockfile, &walked, skipped)?;
     // A present package leaves the build set unless everything is being
     // rebuilt or the previous install left it unbuilt (ignored or
     // pending): that one is judged by the build policy again, as it
@@ -136,6 +147,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
         hoisted_build_snapshots: Some(build_snapshots),
         hoisted_locations: walked.hoisted_locations,
         held_back_bins_dirs,
+        hoisted_dependencies,
     })
 }
 
@@ -238,7 +250,7 @@ fn link_hoisted<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     walked: &crate::hoisted_dep_graph::LockfileToDepGraphResult,
     skipped: &SkippedSnapshots,
-) -> Result<Vec<crate::HeldBackBinsDir>, HoistedLinkerError> {
+) -> Result<(Vec<crate::HeldBackBinsDir>, crate::HoistedDependencies), HoistedLinkerError> {
     let config = inputs.config;
     // Empty CAS index → linker would refuse every non-optional node.
     // Only happens when the install has no snapshots, in which case
@@ -277,13 +289,112 @@ fn link_hoisted<Reporter: self::Reporter>(
         &walked.direct_dependencies_by_importer_id,
     )?;
     update_hoisted_package_map(inputs, lockfile, walked)?;
+    let hoisted_dependencies = link_hoisted_workspace_packages(inputs, walked, &link_options)?;
     link_hoisted_workspace_dependencies::<Reporter>(inputs, lockfile, skipped, &link_options)?;
     // The pass above links `link:` siblings only, so it reports only
     // those. The rest are real directories this linker wrote.
     crate::report_direct_dependency_changes::report_direct_dependency_changes::<Reporter>(
         inputs, lockfile, skipped,
     );
-    Ok(held_back_bins_dirs)
+    Ok((held_back_bins_dirs, hoisted_dependencies))
+}
+
+/// Runs before the linker writes the tree, so no package is imported at
+/// a path that is still a project's link.
+fn unlink_prior_workspace_hoists(
+    inputs: &HoistedLinkerInputs<'_>,
+) -> Result<(), HoistedLinkerError> {
+    let modules_dir = &inputs.config.modules_dir;
+    crate::prune_stale_modules::prune_workspace_hoists(
+        &crate::prune_stale_modules::WorkspaceHoistDirs {
+            workspace_root: inputs.projects.walker_lockfile_dir,
+            private: modules_dir,
+            public: modules_dir,
+        },
+        inputs.prior.current_lockfile.unwrap_or(inputs.graph.lockfile),
+        inputs.prior.hoisted_dependencies,
+        None,
+    )
+    .map_err(HoistedLinkerError::PruneWorkspaceHoists)
+}
+
+/// `hoist-workspace-packages` under this linker: every package lives in
+/// the root `node_modules`, so a project either hoist pattern selects is
+/// linked there.
+fn link_hoisted_workspace_packages(
+    inputs: &HoistedLinkerInputs<'_>,
+    walked: &crate::hoisted_dep_graph::LockfileToDepGraphResult,
+    link_options: &pnpm_cmd_shim::LinkBinsOptions,
+) -> Result<crate::HoistedDependencies, HoistedLinkerError> {
+    let config = inputs.config;
+    if !config.hoist_workspace_packages {
+        return Ok(crate::HoistedDependencies::new());
+    }
+    let workspace_packages = workspace_packages_for_hoist(
+        inputs.projects.walker_lockfile_dir,
+        inputs.projects.manifests,
+    );
+    let root_links = root_dependency_aliases(inputs);
+    let hoists = crate::hoist_workspace_packages_to_root(
+        &workspace_packages,
+        walked.direct_dependencies_by_importer_id
+            .get(".")
+            .into_iter()
+            .flat_map(|root_deps| root_deps.keys().map(String::as_str))
+            .chain(root_links.iter().map(String::as_str)),
+        &create_matcher(
+            config.hoist_pattern
+                .as_deref()
+                .unwrap_or(&[]),
+        ),
+        &create_matcher(
+            config.public_hoist_pattern
+                .as_deref()
+                .unwrap_or(&[]),
+        ),
+    );
+    link_workspace_hoists(inputs, hoists.aliases, link_options)?;
+    Ok(hoists.hoisted_dependencies)
+}
+
+/// The aliases of the root project's dependencies. Its `link:`
+/// dependencies are not in the root hierarchy and take their names after
+/// the workspace pass, so they must be reserved before it.
+fn root_dependency_aliases(inputs: &HoistedLinkerInputs<'_>) -> Vec<String> {
+    inputs.projects.importers
+        .get(Lockfile::ROOT_IMPORTER_KEY)
+        .into_iter()
+        .flat_map(|root| {
+            root.dependencies_by_groups(inputs.projects.dependency_groups.iter().copied())
+        })
+        .map(|(alias, _)| alias.to_string())
+        .collect()
+}
+
+/// Symlink each placed project into the root `node_modules` and shim the
+/// bins no hoisted package already provides into the root `.bin`.
+fn link_workspace_hoists(
+    inputs: &HoistedLinkerInputs<'_>,
+    aliases: Vec<(String, pnpm_modules_yaml::HoistKind, PathBuf)>,
+    link_options: &pnpm_cmd_shim::LinkBinsOptions,
+) -> Result<(), HoistedLinkerError> {
+    let modules_dir = &inputs.config.modules_dir;
+    crate::symlink_hoisted_dependencies(
+        &HashMap::new(),
+        &aliases,
+        &HashMap::new(),
+        inputs.graph.layout,
+        modules_dir,
+        modules_dir,
+        &std::collections::HashSet::new(),
+    )
+    .map_err(HoistedLinkerError::HoistSymlink)?;
+    let project_dirs: Vec<PathBuf> = aliases
+        .into_iter()
+        .map(|(_, _, project_dir)| project_dir)
+        .collect();
+    crate::link_new_bins_from_locations(modules_dir, &project_dirs, link_options)
+        .map_err(HoistedLinkerError::HoistLinkBins)
 }
 
 fn update_hoisted_package_map(

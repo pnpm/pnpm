@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs'
+import { promises as fs, type Stats } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
@@ -37,7 +37,7 @@ import {
 } from '@pnpm/exec.lifecycle'
 import { findCommonPathAncestor, safeJoinModulesDir, symlinkDependency, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
 import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/installing.linking.direct-dep-linker'
-import { hoist, type HoistedWorkspaceProject, pruneStaleWorkspaceHoists } from '@pnpm/installing.linking.hoist'
+import { hoist, type HoistedWorkspaceProject, hoistWorkspacePackages, pruneStaleWorkspaceHoists } from '@pnpm/installing.linking.hoist'
 import { prune, removeObsoleteDependency } from '@pnpm/installing.linking.modules-cleaner'
 import type { HoistingLimits } from '@pnpm/installing.linking.real-hoist'
 import {
@@ -97,7 +97,7 @@ import { equals, isEmpty, omit, pick, pickBy, props, union } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 
 import { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
-import { linkHoistedModules } from './linkHoistedModules.js'
+import { linkHoistedModules, removeOrphanBins } from './linkHoistedModules.js'
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph.js'
 import { reportDirectDependencyChanges } from './reportDirectDependencyChanges.js'
 export { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
@@ -485,7 +485,18 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   let linkedToRoot = 0
   let heldBackBinsDirs: string[] = []
   if (opts.nodeLinker === 'hoisted' && hierarchy && prevGraph) {
+    const hoistsWorkspacePackages = !skipPostImportLinking && opts.ignorePackageManifest !== true
+    newHoistedDependencies = hoistsWorkspacePackages ? {} : opts.hoistedDependencies
     if (!skipPostImportLinking) {
+      if (hoistsWorkspacePackages) {
+        // Unlinked before the linker writes the tree: a package that takes over
+        // a project's name keeps the modules directory of what it replaces, which
+        // through the symlink is the project's own node_modules.
+        const priorWorkspaceProjectIds = new Set(Object.keys(opts.hoistedDependencies)
+          .filter((key) => currentLockfile?.packages?.[key as DepPath] == null && wantedLockfile.packages?.[key as DepPath] == null) as ProjectId[])
+        await removeBinsOfWorkspaceHoists(opts.hoistedDependencies, priorWorkspaceProjectIds, rootModulesDir)
+        await pruneStaleWorkspaceHoists(opts.hoistedDependencies, {}, priorWorkspaceProjectIds, rootModulesDir, rootModulesDir)
+      }
       heldBackBinsDirs = await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
         allowBuild,
         depsStateCache,
@@ -505,6 +516,37 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         prefix: lockfileDir,
         stage: 'importing_done',
       })
+
+      if (hoistsWorkspacePackages) {
+        // Every package of the hoisted layout lives in the root modules
+        // directory, so a project matching either hoist pattern is linked there.
+        newHoistedDependencies = await hoistWorkspacePackages({
+          directDepsByImporterId: {
+            '.': new Map(Object.entries(directDependenciesByImporterId['.'] ?? {})),
+          },
+          graph,
+          // The root's linked dependencies take their names after this pass.
+          hoistedWorkspacePackages: opts.hoistWorkspacePackages
+            ? getHoistedWorkspacePackages(opts.allProjects, getRootDependencyAliases(filteredLockfile, opts.include))
+            : undefined,
+          privateHoistedModulesDir: rootModulesDir,
+          privateHoistPattern: opts.hoistPattern ?? [],
+          publicHoistedModulesDir: rootModulesDir,
+          publicHoistPattern: opts.publicHoistPattern ?? [],
+          virtualStoreDir,
+        })
+        await linkBinsOfPackages(
+          Object.values(opts.allProjects)
+            .filter((project) => newHoistedDependencies[project.id] != null)
+            .map((project) => ({ location: project.rootDir, manifest: project.manifest as DependencyManifest })),
+          path.join(rootModulesDir, '.bin'),
+          {
+            excludeBins: await readCommandNames(path.join(rootModulesDir, '.bin')),
+            extraNodePaths: opts.extraNodePaths,
+            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+          }
+        )
+      }
 
       linkedToRoot = await symlinkDirectDependencies({
         directDependenciesByImporterId: symlinkedDirectDependenciesByImporterId!,
@@ -596,17 +638,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         publicHoistPattern: opts.publicHoistPattern ?? [],
         virtualStoreDir,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-        hoistedWorkspacePackages: opts.hoistWorkspacePackages
-          ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
-            if (project.manifest.name && project.id !== '.') {
-              hoistedWorkspacePackages[project.id] = {
-                dir: project.rootDir,
-                name: project.manifest.name,
-              }
-            }
-            return hoistedWorkspacePackages
-          }, {} as Record<string, HoistedWorkspaceProject>)
-          : undefined,
+        hoistedWorkspacePackages: opts.hoistWorkspacePackages ? getHoistedWorkspacePackages(opts.allProjects) : undefined,
         beforeWorkspaceLinks: async (nextWorkspaceHoists: HoistedDependencies) => pruneStaleWorkspaceHoists(
           opts.hoistedDependencies,
           nextWorkspaceHoists,
@@ -1152,6 +1184,70 @@ async function getRootPackagesToLink (
 
 const limitLinking = pLimit(16)
 const limitModulesDirReads = pLimit(16)
+
+async function removeBinsOfWorkspaceHoists (hoistedDependencies: HoistedDependencies, projectIds: Set<ProjectId>, modulesDir: string): Promise<void> {
+  await Promise.all(Array.from(projectIds).flatMap((projectId) => Object.keys(hoistedDependencies[projectId] ?? {}).map(async (alias) => {
+    const link = await validateWorkspaceModulesDir(modulesDir, alias)
+    let stats: Stats
+    try {
+      stats = await fs.lstat(link)
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+      throw err
+    }
+    if (stats.isSymbolicLink()) await removeOrphanBins(link)
+  })))
+}
+
+const WINDOWS_BIN_EXTENSIONS = new Set(['.cmd', '.ps1', '.exe'])
+
+/**
+ * The commands already linked into `binsDir`, so that a workspace project's
+ * bins never replace the bins of a hoisted package. On Windows the shim and
+ * executable extensions are stripped in any case. A missing `binsDir` has no
+ * commands.
+ */
+async function readCommandNames (binsDir: string): Promise<Set<string>> {
+  let entries: string[]
+  try {
+    entries = await fs.readdir(binsDir)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return new Set()
+    throw err
+  }
+  if (process.platform !== 'win32') return new Set(entries)
+  return new Set(entries.map((entry) => {
+    const extension = path.extname(entry)
+    return WINDOWS_BIN_EXTENSIONS.has(extension.toLowerCase()) ? entry.slice(0, -extension.length) : entry
+  }))
+}
+
+function getRootDependencyAliases (lockfile: LockfileObject, include: IncludedDependencies): string[] {
+  const root = lockfile.importers['.' as ProjectId]
+  if (root == null) return []
+  return Object.keys({
+    ...(include.dependencies ? root.dependencies : {}),
+    ...(include.devDependencies ? root.devDependencies : {}),
+    ...(include.optionalDependencies ? root.optionalDependencies : {}),
+  })
+}
+
+function getHoistedWorkspacePackages (
+  projects: Record<string, Project>,
+  reservedAliases: string[] = []
+): Record<ProjectId, HoistedWorkspaceProject> {
+  const reserved = new Set(reservedAliases.map((alias) => alias.toLowerCase()))
+  const hoistedWorkspacePackages = {} as Record<ProjectId, HoistedWorkspaceProject>
+  for (const project of Object.values(projects)) {
+    if (project.manifest.name && project.id !== '.' && !reserved.has(project.manifest.name.toLowerCase())) {
+      hoistedWorkspacePackages[project.id] = {
+        dir: project.rootDir,
+        name: project.manifest.name,
+      }
+    }
+  }
+  return hoistedWorkspacePackages
+}
 
 /**
  * Whether moving from the installed state to the wanted lockfile removes any

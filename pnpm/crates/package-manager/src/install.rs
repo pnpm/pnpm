@@ -12,8 +12,8 @@ pub use lockfile_freshness::{
     WantedLockfileSatisfactionCheck, wanted_lockfile_satisfies_workspace,
 };
 pub(crate) use modules_state::{
-    frozen_tree_intact, hoisted_workspace_packages_present, modules_layout_consistent_with,
-    moved_tree_is_reusable, tree_may_move,
+    frozen_tree_intact, hoisted_linker_workspace_links_intact, hoisted_workspace_packages_present,
+    modules_layout_consistent_with, moved_tree_is_reusable, tree_may_move,
 };
 pub use run::{InstallExecution, InstallLockfilePolicy, ResolutionInputs};
 pub use workspace_state::{
