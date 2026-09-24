@@ -18,9 +18,10 @@ pub(super) fn reconcile_sequence_items(
     key: &str,
     current: &[String],
     items: &[String],
+    quote_style: render::QuoteStyle,
 ) -> Option<String> {
     let layout = item_layout(text, key, current)?;
-    let body = rebuild_items(text, &layout, current, items);
+    let body = rebuild_items(text, &layout, current, items, quote_style);
     let mut out = text.to_string();
     out.replace_range(layout.spans.first()?.0..layout.spans.last()?.1, &body);
     Some(out)
@@ -120,7 +121,13 @@ fn item_lines(
 /// The item lines of `layout` rebuilt as `items`: an entry whose value
 /// `current` already holds is copied out of `text` with the comments its span
 /// carries, and every other entry is rendered afresh.
-fn rebuild_items(text: &str, layout: &ItemLayout, current: &[String], items: &[String]) -> String {
+fn rebuild_items(
+    text: &str,
+    layout: &ItemLayout,
+    current: &[String],
+    items: &[String],
+    quote_style: render::QuoteStyle,
+) -> String {
     // First-come claim of each surviving entry's lines, like the TypeScript
     // writer's node reuse: duplicate values claim their lines in order.
     let mut unclaimed: HashMap<&str, VecDeque<usize>> = HashMap::with_capacity(current.len());
@@ -138,7 +145,7 @@ fn rebuild_items(text: &str, layout: &ItemLayout, current: &[String], items: &[S
         } else {
             body.push_str(&indent);
             body.push_str("- ");
-            body.push_str(&render::render_value(item));
+            body.push_str(&render::render_value_with_quotes(item, quote_style));
         }
         // A document that ends without a newline leaves its last span without
         // one, which would splice the entry after it onto that same line.
@@ -185,13 +192,17 @@ fn comment_run_start(all: &[Line<'_>], idx: usize) -> usize {
 
 /// Render a top-level block whose value is a block sequence (`key:` then
 /// `  - item` lines).
-pub(super) fn render_top_level_sequence(key: &str, items: &[String]) -> String {
+pub(super) fn render_top_level_sequence(
+    key: &str,
+    items: &[String],
+    quote_style: render::QuoteStyle,
+) -> String {
     let mut block = String::new();
     block.push_str(key);
     block.push_str(":\n");
     for item in items {
         block.push_str("  - ");
-        block.push_str(&render::render_value(item));
+        block.push_str(&render::render_value_with_quotes(item, quote_style));
         block.push('\n');
     }
     block

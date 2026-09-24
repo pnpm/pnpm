@@ -103,6 +103,20 @@ fn minimum_release_age_excludes_stay_a_flow_sequence() {
 }
 
 #[test]
+fn minimum_release_age_excludes_flow_sequence_uses_double_quotes_when_dominant() {
+    let out = run_age_excludes(
+        Some("trustPolicy: \"no-downgrade\"\nminimumReleaseAgeExclude: [\"@scope/foo@1.0.0\"]\n"),
+        &["@scope/foo@1.0.0", "@scope/bar@2.0.0"],
+    );
+    assert_eq!(
+        out.as_deref(),
+        Some(
+            "trustPolicy: \"no-downgrade\"\nminimumReleaseAgeExclude: [ \"@scope/foo@1.0.0\", \"@scope/bar@2.0.0\" ]\n",
+        ),
+    );
+}
+
+#[test]
 fn ignore_ghsas_stay_a_flow_sequence_under_a_block_audit_config() {
     let out = run_ignore_ghsas(
         Some("auditConfig:\n  ignoreGhsas: [GHSA-aaaa-bbbb-cccc, GHSA-dddd-eeee-ffff]\n"),

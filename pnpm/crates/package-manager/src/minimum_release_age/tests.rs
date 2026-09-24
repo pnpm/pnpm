@@ -333,6 +333,37 @@ async fn global_excludes_are_not_persisted_to_the_workspace_manifest() {
 }
 
 #[tokio::test]
+async fn excludes_match_double_quote_style_of_workspace_manifest() {
+    let dir = tempdir().expect("temp dir");
+    fs::write(
+        dir.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - \"packages/*\"\ntrustPolicy: \"no-downgrade\"\n",
+    )
+    .expect("write workspace manifest");
+    let mut config = Config::new();
+    config.minimum_release_age = Some(60);
+    let mut prompt = FakePrompt::default();
+
+    handle_minimum_release_age_violations_with::<SilentReporter, _>(
+        &config,
+        dir.path(),
+        &[violation("@better-auth/core", "1.7.3", "MINIMUM_RELEASE_AGE_VIOLATION")],
+        true,
+        PolicyExcludes::Persist,
+        &mut prompt,
+    )
+    .await
+    .expect("loose mode proceeds");
+
+    let content = fs::read_to_string(dir.path().join("pnpm-workspace.yaml"))
+        .expect("read workspace manifest");
+    assert!(
+        content.contains(r#"- "@better-auth/core@1.7.3""#),
+        "expected double quoted entry, got:\n{content}",
+    );
+}
+
+#[tokio::test]
 async fn strict_approval_without_persistence_proceeds_but_leaves_the_workspace_manifest_unchanged()
 {
     recording_reporter!(reset_events, prompt_actions);
