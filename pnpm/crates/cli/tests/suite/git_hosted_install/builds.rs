@@ -493,8 +493,9 @@ fn a_git_dependency_is_prepared_when_its_own_dependencies_have_unapproved_builds
     repo.write_file(
         "record-build.js",
         "const fs = require('fs')\n\
-         const marker = 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'\n\
-         fs.writeFileSync('dependency-was-built.txt', String(fs.existsSync(marker)))\n",
+         const dependency = 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example'\n\
+         if (!fs.existsSync(dependency + '/package.json')) throw new Error('the dependency was not installed')\n\
+         fs.writeFileSync('dependency-was-built.txt', String(fs.existsSync(dependency + '/generated-by-postinstall.js')))\n",
     );
     repo.write_file("index.js", "module.exports = 'ok'\n");
     repo.write_file("pnpm-lock.yaml", "");
