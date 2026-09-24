@@ -70,8 +70,8 @@ export async function buildDependenciesTree (
     ancestors: new Set(),
     expanded: new Map(),
     linkedProjectDirs: new Map([
-      ...(maybeOpts.workspaceProjectDirs ?? []).map((dir) => [dir, dir] as const),
       ...Object.entries(maybeOpts.workspaceProjectPublishDirs ?? {}),
+      ...(maybeOpts.workspaceProjectDirs ?? []).map((dir) => [dir, dir] as const),
     ]),
   })
 }

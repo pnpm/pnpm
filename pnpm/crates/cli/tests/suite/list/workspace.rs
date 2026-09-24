@@ -711,6 +711,58 @@ fn list_only_projects_follows_a_project_linked_through_its_publish_directory() {
     }
 }
 
+/// A project's own directory keeps listing that project even when another
+/// project publishes into it.
+#[test]
+fn list_only_projects_prefers_a_project_directory_over_a_publish_directory_into_it() {
+    let (_root, workspace, _registry) = setup_registry();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "version": "1.0.0", "dependencies": { "@scope/b": "workspace:*" } })
+            .to_string(),
+    )
+    .expect("write root package.json");
+    let mut yaml =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
+    yaml.push_str("packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write workspace yaml");
+    let packages = [
+        ("a", json!({ "name": "@scope/a", "version": "1.0.0" })),
+        ("b", json!({ "name": "@scope/b", "version": "1.0.0" })),
+        (
+            "c",
+            json!({
+                "name": "@scope/c",
+                "version": "1.0.0",
+                "dependencies": { "@scope/a": "workspace:*" },
+                "publishConfig": { "directory": "../b" },
+            }),
+        ),
+    ];
+    for (dir_name, manifest) in &packages {
+        let dir = workspace.join("packages").join(dir_name);
+        fs::create_dir_all(&dir).expect("create package dir");
+        fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
+    }
+    run_ok(&workspace, &["install"]);
+
+    let output =
+        run_ok(&workspace, &["--filter", ".", "list", "--depth", "Infinity", "--only-projects"]);
+    let dir = canonical(&workspace);
+    assert_eq!(
+        output,
+        format!(
+            "{LEGEND}\n\n\
+             root@1.0.0 {dir}\n\
+             \u{2502}\n\
+             \u{2502}   dependencies:\n\
+             \u{2514}\u{2500}\u{2500} @scope/b@link:packages/b\n\
+             \n\
+             1 package\n"
+        ),
+    );
+}
+
 fn write_nested_projects_workspace(workspace: &Path, extra_settings: &str) {
     fs::write(
         workspace.join("package.json"),

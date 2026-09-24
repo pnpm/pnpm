@@ -304,10 +304,13 @@ fn rewrite_link_versions(
 /// The workspace project each directory that dependents link to belongs to:
 /// its own directory, and its publish directory when it sets
 /// `publishConfig.directory` without `publishConfig.linkDirectory: false`.
+/// A project's own directory wins over a publish directory pointing at it.
 fn linked_project_dirs(projects: &[Project]) -> HashMap<PathBuf, PathBuf> {
-    let mut dirs = HashMap::with_capacity(projects.len());
+    let mut dirs: HashMap<PathBuf, PathBuf> = projects
+        .iter()
+        .map(|project| (project.root_dir.clone(), project.root_dir.clone()))
+        .collect();
     for project in projects {
-        dirs.insert(project.root_dir.clone(), project.root_dir.clone());
         let publish_config = project.manifest.value().get("publishConfig");
         let publish_directory = publish_config
             .and_then(|publish_config| publish_config.get("directory"))
@@ -317,10 +320,8 @@ fn linked_project_dirs(projects: &[Project]) -> HashMap<PathBuf, PathBuf> {
             .and_then(serde_json::Value::as_bool)
             != Some(false);
         if links_publish_directory && let Some(publish_directory) = publish_directory {
-            dirs.insert(
-                lexical_normalize(&project.root_dir.join(publish_directory)),
-                project.root_dir.clone(),
-            );
+            dirs.entry(lexical_normalize(&project.root_dir.join(publish_directory)))
+                .or_insert_with(|| project.root_dir.clone());
         }
     }
     dirs
