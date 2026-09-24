@@ -121,7 +121,7 @@ test('import converts the yarn patches of workspace projects', async () => {
 
   await importCommand.handler({
     ...DEFAULT_OPTS,
-    allProjects,
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
