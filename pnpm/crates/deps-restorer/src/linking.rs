@@ -120,6 +120,8 @@ pub struct LinkPhaseOutput {
     ///
     /// [`BinOrigin`]: pnpm_cmd_shim::BinOrigin
     pub publicly_hoisted_for_post_build: Vec<String>,
+    /// See [`crate::HoistedLinkerOutput::held_back_bins_dirs`].
+    pub held_back_bins_dirs: Vec<crate::HeldBackBinsDir>,
 }
 
 impl LinkPhaseOutput {
@@ -138,6 +140,7 @@ impl LinkPhaseOutput {
             hoisted_pkg_roots_by_key: None,
             hoisted_build_snapshots: None,
             publicly_hoisted_for_post_build: Vec::new(),
+            held_back_bins_dirs: Vec::new(),
         }
     }
 }
@@ -365,6 +368,7 @@ fn write_project_links<Reporter: self::Reporter>(
         hoisted_pkg_roots_by_key: hoisted.hoisted_pkg_roots_by_key,
         hoisted_build_snapshots: hoisted.hoisted_build_snapshots,
         publicly_hoisted_for_post_build: links.publicly_hoisted_with_bins,
+        held_back_bins_dirs: hoisted.held_back_bins_dirs,
     })
 }
 

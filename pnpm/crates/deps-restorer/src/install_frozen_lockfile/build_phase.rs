@@ -104,6 +104,9 @@ pub struct BuildPhaseInputs<'a> {
     pub policy: crate::BuildPhasePolicy<'a>,
     pub extra_env: &'a HashMap<String, String>,
     pub skipped: &'a SkippedSnapshots,
+    /// Nested `.bin` directories the hoisted linker held bins back in. See
+    /// [`crate::link_hoisted_modules()`].
+    pub held_back_bins_dirs: &'a [crate::HeldBackBinsDir],
 }
 
 /// Run dependency lifecycle scripts, report ignored builds, and
@@ -155,6 +158,8 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     if config.virtual_store_only {
         return Ok(build_output);
     }
+
+    link_held_back_bins(inputs)?;
 
     // Post-`BuildModules` per-importer top-level bin link
     // (pnpm/pacquet#342). Resolves direct-over-hoisted precedence and
@@ -256,6 +261,20 @@ fn build_modules<'a>(
 
         rebuild: inputs.policy.rebuild,
     }
+}
+
+/// Link the bins the hoisted linker held back in nested `.bin` directories,
+/// now that the builds that may create their targets ran.
+fn link_held_back_bins(inputs: &BuildPhaseInputs<'_>) -> Result<(), BuildPhaseError> {
+    for held_back in inputs.held_back_bins_dirs {
+        crate::link_direct_dep_bins(
+            &held_back.modules_dir,
+            &held_back.dep_names,
+            inputs.directories.link_options,
+        )
+        .map_err(BuildPhaseError::TopLevelBinLink)?;
+    }
+    Ok(())
 }
 
 /// Re-link one importer's top-level `.bin` after the build phase.

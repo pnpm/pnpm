@@ -480,14 +480,15 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
 
   let newHoistedDependencies!: HoistedDependencies
   let linkedToRoot = 0
+  let heldBackBinsDirs: string[] = []
   if (opts.nodeLinker === 'hoisted' && hierarchy && prevGraph) {
     if (!skipPostImportLinking) {
-      await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
+      heldBackBinsDirs = await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
         allowBuild,
         depsStateCache,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         force: opts.force,
-        holdBackMissingProjectBins: !opts.ignoreScripts && opts.enableModulesDir !== false && !opts.ignorePackageManifest,
+        holdBackMissingBins: !opts.ignoreScripts && opts.enableModulesDir !== false && !opts.ignorePackageManifest,
         ignoreScripts: opts.ignoreScripts,
         lockfileDir: opts.lockfileDir,
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
@@ -792,6 +793,14 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       }
     }
   }
+
+  // The bins the hoisted linker held back in nested `.bin` directories while
+  // the builds that may create their targets were pending.
+  await Promise.all(heldBackBinsDirs.map(async (binsDir) => linkBins(path.dirname(binsDir), binsDir, {
+    allowExoticManifests: true,
+    preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+    warn: (message) => logger.info({ message, prefix: path.dirname(path.dirname(binsDir)) }),
+  })))
 
   const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, injectionTargetsByDepPath)
 

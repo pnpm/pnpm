@@ -38,12 +38,13 @@ export async function linkHoistedModules (
     disableRelinkLocalDirDeps?: boolean
     force: boolean
     /**
-     * Hold back the missing-target bins of the projects' `.bin` directories.
-     * Only sound when dependency scripts may run and the projects' bins are
-     * linked again after the builds. See `holdBackMissingTargets` in
-     * `@pnpm/bins.linker`.
+     * Hold back the missing-target bins of every `.bin` directory, since a
+     * dependency's scripts may run with them on PATH. See
+     * `holdBackMissingTargets` in `@pnpm/bins.linker`. The caller links the
+     * projects' `.bin` directories and the returned nested ones again after
+     * the builds.
      */
-    holdBackMissingProjectBins: boolean
+    holdBackMissingBins: boolean
     ignoreScripts: boolean
     lockfileDir: string
     preferSymlinkedExecutables?: boolean
@@ -53,7 +54,7 @@ export async function linkHoistedModules (
     configByUri: Record<string, RegistryConfig>
     supportedArchitectures?: SupportedArchitectures
   }
-): Promise<void> {
+): Promise<string[]> {
   // TODO: remove nested node modules first
   const dirsToRemove = difference(
     Object.keys(prevGraph),
@@ -89,6 +90,7 @@ export async function linkHoistedModules (
     supportedArchitectures: opts.supportedArchitectures,
     warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
   })
+  const heldBackBinsDirs = new Set<string>()
   await Promise.all(
     Object.entries(hierarchy)
       .map(([parentDir, depsHierarchy]) => {
@@ -100,13 +102,15 @@ export async function linkHoistedModules (
         }
         return linkAllPkgsInOrder(storeController, graph, depsHierarchy, parentDir, {
           ...opts,
-          holdBackMissingTargets: opts.holdBackMissingProjectBins,
+          holdBackMissingTargets: opts.holdBackMissingBins,
+          nestedHeldBackBinsDirs: heldBackBinsDirs,
           nodeVersion,
           restorer,
           warn,
         })
       })
   )
+  return Array.from(heldBackBinsDirs)
 }
 
 async function tryRemoveDir (dir: string): Promise<void> {
@@ -159,6 +163,10 @@ async function linkAllPkgsInOrder (
     disableRelinkLocalDirDeps?: boolean
     force: boolean
     holdBackMissingTargets?: boolean
+    /** Whether `parentDir` is a package directory rather than a project root. */
+    isNested?: boolean
+    /** Receives each nested `.bin` directory that held back a bin. */
+    nestedHeldBackBinsDirs: Set<string>
     ignoreScripts: boolean
     lockfileDir: string
     preferSymlinkedExecutables?: boolean
@@ -234,13 +242,14 @@ async function linkAllPkgsInOrder (
           depNode.isBuilt = isBuilt
         })
       }
-      return linkAllPkgsInOrder(storeController, graph, deps, dir, { ...opts, holdBackMissingTargets: false })
+      return linkAllPkgsInOrder(storeController, graph, deps, dir, { ...opts, isNested: true })
     })
   )
   const modulesDir = path.join(parentDir, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
   await linkBins(modulesDir, binsDir, {
     allowExoticManifests: true,
+    heldBackBinsDirs: opts.isNested ? opts.nestedHeldBackBinsDirs : undefined,
     holdBackMissingTargets: opts.holdBackMissingTargets,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     warn: opts.warn,

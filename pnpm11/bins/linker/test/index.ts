@@ -870,9 +870,11 @@ test('linkBins() holds back a bin whose target is missing when holdBackMissingTa
   const binNotExistFixture = f.prepare('bin-not-exist')
   const warn = () => {}
 
-  await linkBins(path.join(binNotExistFixture, 'node_modules'), binTarget, { holdBackMissingTargets: true, warn })
+  const heldBackBinsDirs = new Set<string>()
+  await linkBins(path.join(binNotExistFixture, 'node_modules'), binTarget, { heldBackBinsDirs, holdBackMissingTargets: true, warn })
 
   expect(fs.readdirSync(binTarget)).toEqual([])
+  expect(Array.from(heldBackBinsDirs)).toEqual([binTarget])
 
   await linkBins(path.join(binNotExistFixture, 'node_modules'), binTarget, { warn })
 

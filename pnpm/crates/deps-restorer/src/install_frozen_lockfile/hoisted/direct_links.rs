@@ -64,6 +64,7 @@ impl HoistedLinkScope<'_> {
                     SymlinkDirectDependenciesError::LinkBins(source),
                 )
             })
+            .map(|_| ())
     }
 
     /// `Ok(true)` when the alias now resolves inside the project's own

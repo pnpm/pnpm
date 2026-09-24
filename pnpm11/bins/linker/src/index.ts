@@ -169,6 +169,7 @@ async function _linkBins (
   // removed bin `tool` include `tool.cmd`, which may be another bin's shim.
   const removals = await Promise.allSettled(allCmds.map(async (cmd) => removeBinIfTargetAwaited(cmd, binsDir, opts)))
   const cmdsToLink = allCmds.filter((_, i) => removals[i].status === 'fulfilled' && !removals[i].value)
+  if (cmdsToLink.length < allCmds.length) opts.heldBackBinsDirs?.add(binsDir)
   const results = await Promise.allSettled(cmdsToLink.map(async cmd => linkBin(cmd, binsDir, opts)))
 
   // We want to create all commands that we can create before throwing an exception
@@ -300,6 +301,11 @@ export interface LinkBinOptions {
    * create the target, and its scripts run with this `.bin` on PATH.
    */
   holdBackMissingTargets?: boolean
+  /**
+   * Receives `binsDir` when this pass holds back a bin, so the caller can link
+   * the directory again once the builds ran.
+   */
+  heldBackBinsDirs?: Set<string>
 }
 
 async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {
