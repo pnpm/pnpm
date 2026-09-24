@@ -171,22 +171,6 @@ test('pnpm update --latest updates to the newest mature version instead of the i
 
 const UNSERVED_VERSION = '100.9.9'
 
-async function installWithUnservedVersionOfDepOfPkgWith1Dep (): Promise<ProjectManifest> {
-  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults())
-  await lockUnservedVersionOfDepOfPkgWith1Dep()
-  return manifest
-}
-
-async function lockUnservedVersionOfDepOfPkgWith1Dep (): Promise<void> {
-  const lockfile = (await readWantedLockfile('.', { ignoreIncompatible: false }))!
-  const depName = '@pnpm.e2e/dep-of-pkg-with-1-dep'
-  const lockedDepPath = Object.keys(lockfile.packages!).find((depPath) => depPath.startsWith(`${depName}@`))! as DepPath
-  lockfile.packages![`${depName}@${UNSERVED_VERSION}` as DepPath] = lockfile.packages![lockedDepPath]
-  delete lockfile.packages![lockedDepPath]
-  lockfile.packages!['@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath].dependencies![depName] = UNSERVED_VERSION
-  await writeWantedLockfile('.', lockfile)
-}
-
 test('pnpm update <pkg> moves a dependency off a locked version the registry no longer serves', async () => {
   const project = prepareEmpty()
   const manifest = await installWithUnservedVersionOfDepOfPkgWith1Dep()
@@ -254,6 +238,22 @@ test('pnpm update <pkg> of some importers still verifies the locked versions of 
   const lockfile = (await readWantedLockfile('.', { ignoreIncompatible: false }))!
   expect(Object.keys(lockfile.packages!)).not.toContain(`@pnpm.e2e/dep-of-pkg-with-1-dep@${UNSERVED_VERSION}`)
 })
+
+async function installWithUnservedVersionOfDepOfPkgWith1Dep (): Promise<ProjectManifest> {
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults())
+  await lockUnservedVersionOfDepOfPkgWith1Dep()
+  return manifest
+}
+
+async function lockUnservedVersionOfDepOfPkgWith1Dep (): Promise<void> {
+  const lockfile = (await readWantedLockfile('.', { ignoreIncompatible: false }))!
+  const depName = '@pnpm.e2e/dep-of-pkg-with-1-dep'
+  const lockedDepPath = Object.keys(lockfile.packages!).find((depPath) => depPath.startsWith(`${depName}@`))! as DepPath
+  lockfile.packages![`${depName}@${UNSERVED_VERSION}` as DepPath] = lockfile.packages![lockedDepPath]
+  delete lockfile.packages![lockedDepPath]
+  lockfile.packages!['@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath].dependencies![depName] = UNSERVED_VERSION
+  await writeWantedLockfile('.', lockfile)
+}
 
 test('pnpm add without a version pins the newest version that satisfies minimumReleaseAge', async () => {
   const project = prepareEmpty()
