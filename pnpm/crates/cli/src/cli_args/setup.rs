@@ -180,10 +180,6 @@ fn create_alias_scripts(target_dir: &Path) -> std::io::Result<()> {
 /// Write one alias, `subcommand` being the shell text it appends to the pnpm
 /// call (`" dlx"` for `pnpx` and `pnx`).
 ///
-/// Every alias file is replaced by a rename, never written in place: an
-/// existing `pn`, `pnpx`, or `pnx` can be a hardlink of the running pnpm
-/// executable, and truncating it fails with `ETXTBSY`.
-///
 /// The sibling each form reaches is the bin `pnpm add -g` linked for the CLI this
 /// command just installed: a `pnpm` / `pnpm.cmd` / `pnpm.ps1` shim trio, one per
 /// shell. `link_bins` writes a bare `pnpm.exe` only for the `node` bin name, so
@@ -192,6 +188,8 @@ fn create_shell_script(target_dir: &Path, name: &str, subcommand: &str) -> std::
     // Windows can also run shell scripts via mingw / cygwin, so write the
     // POSIX script unconditionally.
     let script_path = target_dir.join(name);
+    // Replaced by a rename, never truncated: the name can already be a hardlink
+    // of the running pnpm executable, and Linux refuses that open with ETXTBSY.
     write_atomic(&script_path, posix_alias_script(name, subcommand).as_bytes())?;
     #[cfg(unix)]
     {
