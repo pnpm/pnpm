@@ -832,17 +832,49 @@ const UNSERVED_DEP_VERSION: &str = "100.9.9";
 /// Rewrite the lockfile to pin [`DEP`] at a version the registry does not
 /// serve, the state an unpublished version leaves behind.
 fn lock_unserved_version_of_dep(workspace: &Path) {
-    let locked = lockfile_package_keys(workspace)
+    let locked_key = lockfile_package_keys(workspace)
         .into_iter()
-        .find_map(|key| {
-            key.strip_prefix(&format!("{DEP}@"))
-                .map(str::to_string)
-        })
+        .find(|key| key.starts_with(&format!("{DEP}@")))
         .expect("the lockfile pins the dependency");
+    let unserved_key = format!("{DEP}@{UNSERVED_DEP_VERSION}");
     let lockfile_path = workspace.join("pnpm-lock.yaml");
-    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-    fs::write(&lockfile_path, lockfile.replace(&locked, UNSERVED_DEP_VERSION))
-        .expect("write pnpm-lock.yaml");
+    let mut lockfile: serde_json::Value =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
+            .expect("parse pnpm-lock.yaml");
+    for section in ["packages", "snapshots"] {
+        let entries = lockfile[section].as_object_mut().expect("the lockfile has the section");
+        let entry = entries.remove(&locked_key).expect("the section has the locked entry");
+        entries.insert(unserved_key.clone(), entry);
+    }
+    for snapshot in lockfile["snapshots"]
+        .as_object_mut()
+        .expect("the lockfile has snapshots")
+        .values_mut()
+    {
+        if let Some(pin) = snapshot
+            .get_mut("dependencies")
+            .and_then(|deps| deps.get_mut(DEP))
+        {
+            *pin = UNSERVED_DEP_VERSION.into();
+        }
+    }
+    for importer in lockfile["importers"]
+        .as_object_mut()
+        .expect("the lockfile has importers")
+        .values_mut()
+    {
+        if let Some(dep) = importer
+            .get_mut("dependencies")
+            .and_then(|deps| deps.get_mut(DEP))
+        {
+            dep["version"] = UNSERVED_DEP_VERSION.into();
+        }
+    }
+    fs::write(
+        &lockfile_path,
+        serde_saphyr::to_string(&lockfile).expect("serialize pnpm-lock.yaml"),
+    )
+    .expect("write pnpm-lock.yaml");
 }
 
 /// Covers <https://github.com/pnpm/pnpm/issues/9953>: `update <pkg>` moves
