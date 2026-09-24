@@ -7,10 +7,6 @@ import { privateOnlyProjectNames } from '../src/privateProjects.js'
 
 const workspaceDir = path.resolve('/workspace')
 
-function project (dir: string, manifest: { name: string, private?: boolean }): WorkspaceProject {
-  return { rootDir: path.join(workspaceDir, dir), manifest: { version: '1.0.0', ...manifest } }
-}
-
 test('privateOnlyProjectNames() returns the names only private projects carry', () => {
   expect(privateOnlyProjectNames([
     project('packages/app', { name: 'app', private: true }),
@@ -26,3 +22,7 @@ test('privateOnlyProjectNames() leaves out a name a public project shares', () =
     project('packages/app', { name: 'app' }),
   ])).toEqual(new Set())
 })
+
+function project (dir: string, manifest: { name: string, private?: boolean }): WorkspaceProject {
+  return { rootDir: path.join(workspaceDir, dir), manifest: { version: '1.0.0', ...manifest } }
+}
