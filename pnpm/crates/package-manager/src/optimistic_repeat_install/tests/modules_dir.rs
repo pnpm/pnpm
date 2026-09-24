@@ -133,3 +133,52 @@ fn a_root_with_a_multi_component_modules_dir_is_installed() {
     });
     assert_eq!(decision, Decision::UpToDate);
 }
+
+/// The root declares `foo` and an optional `bar` that was never linked;
+/// `link_foo` shapes the `foo` entry before the check runs.
+fn root_direct_dependency_decision(link_foo: impl FnOnce(&std::path::Path)) -> Decision {
+    let (dir, config, root_manifest) = setup_fresh_install_with_config(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"1.0.0"},"optionalDependencies":{"bar":"1.0.0"}"#,
+        |_| {},
+    );
+    link_foo(&config.modules_dir.join("foo"));
+
+    check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        project_manifests: &[(dir.path().to_path_buf(), &root_manifest)],
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifest_freshness: crate::ManifestFreshness::Mtime,
+    })
+}
+
+#[test]
+fn a_direct_dependency_linked_to_an_existing_target_is_installed() {
+    let decision = root_direct_dependency_decision(|link| {
+        let target = link.with_file_name(".pnpm").join("foo@1.0.0");
+        fs::create_dir_all(&target).unwrap();
+        pnpm_fs::symlink_dir(&target, link).unwrap();
+    });
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+#[test]
+fn a_direct_dependency_linked_to_a_missing_target_is_not_installed() {
+    let decision = root_direct_dependency_decision(|link| {
+        pnpm_fs::symlink_dir(&link.with_file_name(".pnpm").join("foo@1.0.0"), link).unwrap();
+    });
+    assert!(matches!(
+        decision,
+        Decision::Skipped { reason } if reason.contains("missing target"),
+    ));
+}

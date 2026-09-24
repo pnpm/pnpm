@@ -861,3 +861,20 @@ test('adding a dependency succeeds after deleting offline package source', async
   expect(lockfile.packages['is-positive@1.0.0']).toBeDefined()
 })
 
+test('a repeat install relinks a direct dependency whose link points to a missing target', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install'])
+
+  const directLink = path.resolve('node_modules/is-positive')
+  fs.rmSync(directLink)
+  fs.symlinkSync(path.resolve('node_modules/.pnpm/is-positive@0.0.0'), directLink, 'junction')
+
+  await execPnpm(['install'])
+
+  expect((await readPackageJsonFromDir(directLink)).version).toBe('1.0.0')
+})

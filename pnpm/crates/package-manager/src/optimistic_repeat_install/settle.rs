@@ -264,6 +264,38 @@ pub(super) fn first_project_missing_modules_dir(
         })
 }
 
+/// Whether a direct dependency's entry in its project's modules directory is
+/// a link whose target no longer exists. Nothing the fast path records moves
+/// when a link is broken or retargeted outside pnpm, and the full install
+/// relinks it. A missing entry is not a broken link: skipped optional and
+/// excluded dependencies have none, and a healthy entry costs one `stat`.
+pub(super) fn direct_dependency_link_dangling(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
+    let &OptimisticRepeatInstallCheck {
+        workspace_root,
+        config,
+        project_manifests,
+        layout: crate::RepeatInstallLayout { included, .. },
+        ..
+    } = check;
+    let groups = included_groups(included);
+    project_manifests
+        .iter()
+        .any(|(root_dir, manifest)| {
+            let modules_dir = if lexical_normalize(root_dir) == lexical_normalize(workspace_root) {
+                config.modules_dir.clone()
+            } else {
+                sibling_modules_dir(config, root_dir, manifest)
+            };
+            manifest
+                .dependencies(groups.iter().copied())
+                .any(|(alias, _)| is_dangling_link(&modules_dir.join(alias)))
+        })
+}
+
+fn is_dangling_link(path: &Path) -> bool {
+    fs::metadata(path).is_err() && fs::symlink_metadata(path).is_ok()
+}
+
 /// The modules directory an isolated install creates for the workspace
 /// project at `root_dir`.
 fn sibling_modules_dir(config: &Config, root_dir: &Path, manifest: &PackageManifest) -> PathBuf {

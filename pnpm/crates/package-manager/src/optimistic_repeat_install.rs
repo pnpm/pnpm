@@ -28,6 +28,9 @@
 //! fast path only when their bytes match the integrity in the lockfile.
 //! Local specs introduced through `pnpm.overrides` or package extensions
 //! remain on the full path because their resolution base is graph-dependent.
+//! A direct dependency whose link in its project's modules directory points
+//! to a missing target also takes the full path, which relinks it; nothing
+//! the timestamps cover moves when a link is broken outside pnpm.
 //!
 //! An embedder that hands the engine its project manifests in memory (the
 //! Node-API binding) has no `package.json` mtimes to key the check off: the
@@ -89,8 +92,8 @@ mod relocation;
 mod settle;
 use settle::{
     current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
-    early_repeat_verdict, first_project_missing_modules_dir, modules_dirs_present,
-    project_structure_matches, settle_repeat_install,
+    direct_dependency_link_dangling, early_repeat_verdict, first_project_missing_modules_dir,
+    modules_dirs_present, project_structure_matches, settle_repeat_install,
 };
 
 use std::{
@@ -443,6 +446,9 @@ fn settings_block_fast_path(
     }
     if !modules_dirs_present(check) {
         return Some("project has dependencies but no node_modules directory");
+    }
+    if direct_dependency_link_dangling(check) {
+        return Some("a direct dependency link points to a missing target");
     }
     None
 }
