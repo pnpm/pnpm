@@ -76,7 +76,24 @@ async fn compute_frozen_skip_set(
     .map_err(map_frozen_lockfile_error)
 }
 
-pub(super) async fn verify_frozen_tarballs(settled: Settled<'_, '_>) -> Result<(), InstallError> {
+/// Whether the frozen path the freshness check chose survives the project's
+/// local tarballs. A tarball replaced in place keeps its specifier, so the
+/// freshness check cannot see it. `--frozen-lockfile` fails on such a
+/// tarball, and any other install leaves the frozen path so that a fresh
+/// resolve re-reads the tarball and records its new version and integrity.
+pub(super) async fn local_tarballs_keep_frozen_path(
+    settled: Settled<'_, '_>,
+) -> Result<bool, InstallError> {
+    if !settled.install.lockfile_policy.frozen {
+        return Ok(!local_tarballs_changed(settled).await);
+    }
+    if !settled.mode.lockfile_only {
+        verify_frozen_tarballs(settled).await?;
+    }
+    Ok(true)
+}
+
+async fn verify_frozen_tarballs(settled: Settled<'_, '_>) -> Result<(), InstallError> {
     let lockfile =
         settled.lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
     if !has_local_tarball(lockfile) {
@@ -101,7 +118,7 @@ pub(super) async fn verify_frozen_tarballs(settled: Settled<'_, '_>) -> Result<(
 /// Whether a local tarball a project depends on was replaced since the
 /// lockfile recorded it. An install not told to keep the lockfile frozen
 /// then has to re-resolve it instead of reusing the lockfile.
-pub(super) async fn local_tarballs_changed(settled: Settled<'_, '_>) -> bool {
+async fn local_tarballs_changed(settled: Settled<'_, '_>) -> bool {
     let Some(lockfile) = settled.lockfiles.wanted.get() else { return false };
     if !has_local_tarball(lockfile) {
         return false;
