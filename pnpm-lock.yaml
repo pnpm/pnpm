@@ -3013,6 +3013,9 @@ importers:
       '@pnpm/installing.commands':
         specifier: workspace:*
         version: link:../../../installing/commands
+      '@pnpm/installing.modules-yaml':
+        specifier: workspace:*
+        version: link:../../../installing/modules-yaml
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../../lockfile/fs

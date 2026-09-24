@@ -56,6 +56,9 @@
       "path": "../../../installing/commands"
     },
     {
+      "path": "../../../installing/modules-yaml"
+    },
+    {
       "path": "../../../lockfile/fs"
     },
     {

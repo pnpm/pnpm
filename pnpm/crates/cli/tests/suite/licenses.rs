@@ -309,3 +309,111 @@ snapshots:
     assert_eq!(listed_names(&["licenses", "list", "--json"]), ["zeta"]);
     assert_eq!(listed_names(&["--recursive", "licenses", "list", "--json"]), ["alpha", "zeta"]);
 }
+
+fn hoisted_project(recorded_dep_path: &str) -> tempfile::TempDir {
+    let workspace = tempfile::tempdir().expect("create workspace");
+    fs::write(
+        workspace.path().join("package.json"),
+        json!({ "dependencies": { "alpha": "1.0.0", "peer": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.path().join("pnpm-lock.yaml"),
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      alpha:
+        specifier: 1.0.0
+        version: 1.0.0(peer@1.0.0)
+      peer:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  alpha@1.0.0:
+    resolution: {integrity: sha512-alpha}
+    peerDependencies:
+      peer: '*'
+  peer@1.0.0:
+    resolution: {integrity: sha512-peer}
+snapshots:
+  alpha@1.0.0(peer@1.0.0):
+    dependencies:
+      peer: 1.0.0
+  peer@1.0.0: {}
+",
+    )
+    .expect("write lockfile");
+    for name in ["alpha", "peer"] {
+        let package_dir = workspace
+            .path()
+            .join("node_modules")
+            .join(name);
+        fs::create_dir_all(&package_dir).expect("create package directory");
+        fs::write(
+            package_dir.join("package.json"),
+            json!({ "name": name, "version": "1.0.0", "license": "MIT" }).to_string(),
+        )
+        .expect("write package manifest");
+    }
+    fs::write(
+        workspace.path().join("node_modules/.modules.yaml"),
+        json!({
+            "layoutVersion": 5,
+            "nodeLinker": "hoisted",
+            "hoistedLocations": {
+                recorded_dep_path: ["node_modules/alpha"],
+                "peer@1.0.0": ["node_modules/peer"],
+            },
+        })
+        .to_string(),
+    )
+    .expect("write .modules.yaml");
+    workspace
+}
+
+fn listed_paths(workspace: &tempfile::TempDir) -> Value {
+    let output = pacquet_in(workspace.path())
+        .args(["licenses", "list", "--json"])
+        .output()
+        .expect("run licenses");
+    assert!(
+        output.status.success(),
+        "licenses should succeed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
+    Value::Array(
+        report["MIT"]
+            .as_array()
+            .expect("MIT group")
+            .iter()
+            .map(|package| package["paths"][0].clone())
+            .collect(),
+    )
+}
+
+#[test]
+fn licenses_reads_packages_where_the_hoisted_linker_placed_them() {
+    let workspace = hoisted_project("alpha@1.0.0(peer@1.0.0)");
+    let modules_dir =
+        dunce::canonicalize(workspace.path()).expect("canonicalize workspace").join("node_modules");
+    assert_eq!(
+        listed_paths(&workspace),
+        json!([modules_dir.join("alpha"), modules_dir.join("peer")]),
+    );
+}
+
+#[test]
+fn licenses_reads_a_collapsed_peer_variant_where_the_hoisted_linker_placed_it() {
+    let workspace = hoisted_project("alpha@1.0.0(peer@2.0.0)");
+    let modules_dir =
+        dunce::canonicalize(workspace.path()).expect("canonicalize workspace").join("node_modules");
+    assert_eq!(
+        listed_paths(&workspace),
+        json!([modules_dir.join("alpha"), modules_dir.join("peer")]),
+    );
+}
