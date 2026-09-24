@@ -108,7 +108,7 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     // tarball and records its new version and integrity.
     let take_frozen_path = take_frozen_path
         && (install.lockfile_policy.frozen
-            || !super::frozen_local_tarballs::local_tarballs_changed(settled));
+            || !super::frozen_local_tarballs::local_tarballs_changed(settled).await);
 
     if take_frozen_path && mode.lockfile_only {
         finish_dispatched_lockfile::<Reporter>(

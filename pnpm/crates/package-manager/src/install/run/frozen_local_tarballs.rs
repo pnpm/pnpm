@@ -97,16 +97,31 @@ pub(super) async fn verify_frozen_tarballs(settled: Settled<'_, '_>) -> Result<(
 /// Whether a local tarball a project depends on was replaced since the
 /// lockfile recorded it. An install not told to keep the lockfile frozen
 /// then has to re-resolve it instead of reusing the lockfile.
-pub(super) fn local_tarballs_changed(settled: Settled<'_, '_>) -> bool {
+pub(super) async fn local_tarballs_changed(settled: Settled<'_, '_>) -> bool {
     let Some(lockfile) = settled.lockfiles.wanted.get() else { return false };
     if !has_local_tarball(lockfile) {
         return false;
     }
-    let workspace_root = &settled.projects.workspace.dirs.workspace_root;
-    direct_package_keys(lockfile, &installed_importer_ids(settled, lockfile), settled.mode.included)
-        .iter()
-        .filter_map(|key| lockfile.packages.as_ref()?.get(key))
-        .any(|metadata| local_tarball_changed(workspace_root, &metadata.resolution))
+    let workspace_root = settled.projects.workspace.dirs.workspace_root.clone();
+    let resolutions: Vec<_> = direct_package_keys(
+        lockfile,
+        &installed_importer_ids(settled, lockfile),
+        settled.mode.included,
+    )
+    .iter()
+    .filter_map(|key| lockfile.packages.as_ref()?.get(key))
+    .filter(|metadata| is_local_tarball(&metadata.resolution))
+    .map(|metadata| metadata.resolution.clone())
+    .collect();
+    if resolutions.is_empty() {
+        return false;
+    }
+    tokio::task::spawn_blocking(move || {
+        use rayon::prelude::*;
+        resolutions.par_iter().any(|resolution| local_tarball_changed(&workspace_root, resolution))
+    })
+    .await
+    .expect("detect changed local tarballs task panicked")
 }
 
 /// The packages `importer_ids` depend on directly through the included
@@ -138,7 +153,7 @@ fn direct_package_keys(
         .collect()
 }
 
-/// Whether `resolution` is a local tarball whose file no longer holds the
+/// Whether the local tarball `resolution` points at no longer holds the
 /// recorded bytes. A tarball that cannot be read counts as changed and is
 /// left to the resolver.
 fn local_tarball_changed(
@@ -146,9 +161,6 @@ fn local_tarball_changed(
     resolution: &pnpm_lockfile::LockfileResolution,
 ) -> bool {
     let pnpm_lockfile::LockfileResolution::Tarball(resolution) = resolution else { return false };
-    if !pnpm_lockfile::is_local_tarball_path(&resolution.tarball) {
-        return false;
-    }
     let Some(path) =
         pnpm_resolving_local_resolver::local_tarball_path(&resolution.tarball, workspace_root)
     else {
@@ -186,13 +198,15 @@ fn has_local_tarball(lockfile: &pnpm_lockfile::Lockfile) -> bool {
     lockfile.packages
         .iter()
         .flat_map(|packages| packages.values())
-        .any(|package| {
-            matches!(
-                &package.resolution,
-                pnpm_lockfile::LockfileResolution::Tarball(resolution)
-                    if pnpm_lockfile::is_local_tarball_path(&resolution.tarball),
-            )
-        })
+        .any(|package| is_local_tarball(&package.resolution))
+}
+
+fn is_local_tarball(resolution: &pnpm_lockfile::LockfileResolution) -> bool {
+    matches!(
+        resolution,
+        pnpm_lockfile::LockfileResolution::Tarball(resolution)
+            if pnpm_lockfile::is_local_tarball_path(&resolution.tarball),
+    )
 }
 
 async fn verify_integrity(
