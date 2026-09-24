@@ -236,7 +236,7 @@ fn rename_error_allows_destination_removal_covers_occupied_and_locked_destinatio
         super::replace::rename_error_allows_destination_removal(&Error::from(
             ErrorKind::ResourceBusy
         )),
-        cfg!(windows),
+        crate::retry::file_locks_are_transient(),
     );
     assert!(!super::replace::rename_error_allows_destination_removal(&Error::from(
         ErrorKind::NotFound

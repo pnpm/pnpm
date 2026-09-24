@@ -232,7 +232,7 @@ pub(crate) fn is_transient_file_lock_error(error: &io::Error) -> bool {
 /// Windows file lock. True on Windows and under WSL, where a Windows drive
 /// mounted at `/mnt/<letter>` keeps Windows locking: a rename or removal
 /// blocked by an antivirus or indexer handle fails with `EACCES` there.
-fn file_locks_are_transient() -> bool {
+pub(crate) fn file_locks_are_transient() -> bool {
     #[cfg(windows)]
     {
         true
