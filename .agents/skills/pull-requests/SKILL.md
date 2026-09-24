@@ -123,7 +123,14 @@ verdict. `BLOCKED` is about required checks and reviews, not conflicts.
 
 Rebase with `./.agents/skills/pull-requests/scripts/resolve-pr-conflicts.sh <pr>` (documented under "Resolving
 Conflicts in GitHub PRs" in `AGENTS.md`); it resolves a `pnpm-lock.yaml` conflict
-by reinstalling and stops with the file list when a conflict needs you.
+by reinstalling and stops with the file list when a conflict needs you. Resolve
+those files, stage them, and run the same command with `--continue`, which
+resumes the paused rebase instead of checking the branch out again. Add
+`--no-push` when you want to inspect the rewritten commits before publishing
+them; it stops after the rebase and prints the push command. The rebase is
+recorded as belonging to the PR it was started for, so `--continue` refuses a
+pause that belongs to another PR — the same head branch name can belong to
+another fork — instead of force-pushing the rewritten commits to its branch.
 
 Rebase rather than merging `main` in: the branch protection on `main` requires
 linear history and merge commits are disabled, which is why the script and

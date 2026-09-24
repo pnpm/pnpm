@@ -68,6 +68,9 @@ jobs:
               - '.github/workflows/test.yml'
               - '.github/workflows/build-pnpr.yml'
               - '.github/scripts/**'
+            # Skill scripts under .agents/ ship their own *.test.sh, run by the
+            # Compile & Lint job next to the publication scripts above.
+              - '.agents/skills/**/scripts/**'
             # A pending change intent is validated by `pn lint`, which runs in
             # Compile & Lint. Nothing under .changeset/ can affect a test, so
             # it gates that job alone.
@@ -103,6 +106,7 @@ jobs:
       run: |
         .github/scripts/npm-package-publication-state.test.sh
         .github/scripts/npm-staged-publication.test.sh
+        .agents/skills/pull-requests/scripts/resolve-pr-conflicts.test.sh
         node --test .github/scripts/ts-test-scope.test.mjs .github/scripts/ts-test-chunks.test.mjs
     - name: Compile and lint TypeScript
       run: pn pipeline ts-check --include-workspace-root --full --no-cache
