@@ -9,8 +9,8 @@ import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { getStorePath } from '@pnpm/store.path'
 import type { ProjectId } from '@pnpm/types'
-import semver from 'semver'
 
+import { compareVersions } from './compareVersions.js'
 import type { LicensesCommandResult } from './LicensesCommandResult.js'
 import { renderLicences } from './outputRenderer.js'
 
@@ -114,17 +114,6 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
     pkg1.name.localeCompare(pkg2.name) || compareVersions(pkg1.version, pkg2.version)
   )
   return renderLicences(sortedLicensePackages, opts)
-}
-
-/**
- * A local package's lockfile entry may carry no version, which
- * `semver.compare` rejects.
- */
-function compareVersions (version1: string | undefined, version2: string | undefined): number {
-  const valid1 = semver.valid(version1)
-  const valid2 = semver.valid(version2)
-  if (valid1 != null && valid2 != null) return semver.compare(valid1, valid2)
-  return (version1 ?? '').localeCompare(version2 ?? '')
 }
 
 /**

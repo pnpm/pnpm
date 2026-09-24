@@ -3,8 +3,8 @@ import type { LicensePackage } from '@pnpm/deps.compliance.license-scanner'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import { groupBy, omit, pick, sortWith } from 'ramda'
-import semver from 'semver'
 
+import { compareVersions } from './compareVersions.js'
 import type { LicensesCommandResult } from './LicensesCommandResult.js'
 
 function sortLicensesPackages (licensePackages: readonly LicensePackage[]): LicensePackage[] {
@@ -77,7 +77,7 @@ function renderLicensesJson (licensePackages: readonly LicensePackage[]): string
     )
     for (const inputList of Object.values(groupedByName)) {
       if (inputList == null) continue
-      inputList.sort((a, b) => semver.compare(a.version, b.version))
+      inputList.sort((a, b) => compareVersions(a.version, b.version))
       const versions = inputList.map((item) => item.version)
       const paths = inputList.map((item) => item.path ?? null)
       const lastInputItem = inputList.at(-1)! // last item is chosen for its latest information

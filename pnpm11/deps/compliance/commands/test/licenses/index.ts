@@ -364,6 +364,53 @@ test('pnpm licenses: keeps packages with the same name and version but different
   expect(report.MIT.map(({ name }) => name)).toStrictEqual(['local'])
 })
 
+test('pnpm licenses: lists a registry package and a same-named local package from different lockfiles under one JSON entry', async () => {
+  const workspaceDir = tempDir()
+  fs.writeFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'packages:\n  - foo\n  - bar\n')
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ private: true }))
+  fs.mkdirSync(path.join(workspaceDir, 'local'))
+  fs.writeFileSync(path.join(workspaceDir, 'local', 'package.json'), JSON.stringify({ name: 'is-positive', version: '1.0.0', license: 'MIT' }))
+  const projects = [
+    { name: 'foo', spec: '3.1.0' },
+    { name: 'bar', spec: 'file:../local' },
+  ]
+  const storeDir = path.join(workspaceDir, 'store')
+  for (const { name, spec } of projects) {
+    const projectDir = path.join(workspaceDir, name)
+    fs.mkdirSync(projectDir)
+    fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name, dependencies: { 'is-positive': spec } }))
+    // eslint-disable-next-line no-await-in-loop
+    await install.handler({
+      ...DEFAULT_OPTS,
+      dir: projectDir,
+      lockfileDir: projectDir,
+      pnpmHomeDir: '',
+      storeDir,
+    })
+  }
+
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+  const { output, exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    json: true,
+    recursive: true,
+    sharedWorkspaceLockfile: false,
+    selectedProjectsGraph: Object.fromEntries(
+      Object.entries(selectedProjectsGraph).filter(([projectDir]) => projectDir !== workspaceDir)
+    ),
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  const report = JSON.parse(output) as Record<string, Array<{ name: string, versions: Array<string | null> }>>
+  expect(report.MIT.map(({ name }) => name)).toStrictEqual(['is-positive'])
+  expect(report.MIT[0].versions).toHaveLength(2)
+  expect(report.MIT[0].versions).toContain('3.1.0')
+})
+
 test('pnpm licenses: fails when lockfile is missing', async () => {
   const dir = path.resolve('./test/fixtures/invalid')
   await expect(
