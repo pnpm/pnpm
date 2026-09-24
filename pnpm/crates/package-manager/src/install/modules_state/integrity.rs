@@ -243,8 +243,6 @@ fn importer_symlinks_intact(
     skipped: &crate::SkippedSnapshots,
 ) -> bool {
     let groups = crate::prune_direct_deps::selected_groups(modules.included);
-    let modules_dir_name: &std::ffi::OsStr =
-        config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
     wanted.importers
         .iter()
         .all(|(importer_id, snapshot)| {
@@ -267,7 +265,9 @@ fn importer_symlinks_intact(
                         dir.starts_with(workspace_root)
                             && (node_linker == NodeLinker::Hoisted || *dir == importer_root)
                     })
-                    .any(|dir| direct_dep_link_resolves(&dir.join(modules_dir_name), name))
+                    .any(|dir| {
+                        direct_dep_link_resolves(&dir.join(config.modules_dir_relative()), name)
+                    })
             })
         })
 }

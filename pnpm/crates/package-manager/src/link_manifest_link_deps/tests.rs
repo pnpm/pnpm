@@ -51,7 +51,7 @@ fn links_absolute_relative_and_self_reference_specs() {
         None,
         None,
         all_dependencies(),
-        std::ffi::OsStr::new("node_modules"),
+        std::path::Path::new("node_modules"),
         &LinkBinsOptions::default(),
     )
     .expect("linking succeeds");
@@ -117,7 +117,7 @@ fn links_workspace_package_selected_by_plain_range() {
         None,
         Some(&workspace_packages),
         all_dependencies(),
-        std::ffi::OsStr::new("node_modules"),
+        std::path::Path::new("node_modules"),
         &LinkBinsOptions::default(),
     )
     .expect("linking succeeds");
@@ -159,7 +159,7 @@ fn relink_replaces_stale_symlink() {
         None,
         None,
         all_dependencies(),
-        std::ffi::OsStr::new("node_modules"),
+        std::path::Path::new("node_modules"),
         &LinkBinsOptions::default(),
     )
     .expect("relink succeeds");
@@ -213,7 +213,7 @@ fn lockfile_tracked_alias_is_skipped() {
         Some(&importers),
         None,
         all_dependencies(),
-        std::ffi::OsStr::new("node_modules"),
+        std::path::Path::new("node_modules"),
         &LinkBinsOptions::default(),
     )
     .expect("pass succeeds");
@@ -251,7 +251,7 @@ fn traversal_alias_is_rejected_without_writes() {
             None,
             None,
             all_dependencies(),
-            std::ffi::OsStr::new("node_modules"),
+            std::path::Path::new("node_modules"),
             &LinkBinsOptions::default(),
         );
         assert!(
@@ -273,10 +273,11 @@ fn traversal_alias_is_rejected_without_writes() {
 }
 
 /// A `modulesDir` override changes where the links land — the pass
-/// must follow the configured basename instead of growing a stray
-/// `node_modules/` next to the intended tree.
+/// must follow the configured path instead of growing a stray
+/// `node_modules/` next to the intended tree, and a multi-segment value
+/// must keep its segments.
 #[test]
-fn custom_modules_dir_name_is_honored() {
+fn custom_modules_dir_is_honored() {
     let dir = tempdir().unwrap();
     let project_dir = dir.path().join("project");
     let external = dir.path().join("external-pkg");
@@ -290,35 +291,34 @@ fn custom_modules_dir_name_is_honored() {
             "dependencies": { "dep": format!("link:{}", external.display()) },
         }),
     );
-    link_manifest_link_deps::<SilentReporter>(
-        dir.path(),
-        &[(project_dir.clone(), &manifest)],
-        None,
-        None,
-        all_dependencies(),
-        std::ffi::OsStr::new("custom_modules"),
-        &LinkBinsOptions::default(),
-    )
-    .expect("linking succeeds");
+    for modules_dir in ["custom_modules", "www/modules"] {
+        link_manifest_link_deps::<SilentReporter>(
+            dir.path(),
+            &[(project_dir.clone(), &manifest)],
+            None,
+            None,
+            all_dependencies(),
+            std::path::Path::new(modules_dir),
+            &LinkBinsOptions::default(),
+        )
+        .expect("linking succeeds");
 
-    assert_eq!(
-        fs::canonicalize(project_dir.join("custom_modules/dep")).unwrap(),
-        external.canonicalize().unwrap(),
-    );
+        assert_eq!(
+            fs::canonicalize(project_dir.join(modules_dir).join("dep")).unwrap(),
+            external.canonicalize().unwrap(),
+        );
+    }
     assert!(!project_dir.join("node_modules").exists(), "no stray node_modules");
 
     drop(dir);
 }
 
-/// A modules-dir name that is not a single normal component (`.`,
-/// `..`, absolute, separator-bearing, empty) is rejected before any
-/// filesystem write — joined under a project dir it would drop
-/// force-replacing symlinks outside the intended modules directory.
-/// The install call site derives the name from
-/// `Path::file_name()` (which never yields these), so this pins the
-/// helper's own contract for other callers.
+/// A modules-dir path carrying a `.` or `..` component, or no
+/// component at all, is rejected before any filesystem write — joined
+/// under a project dir it would drop force-replacing symlinks outside
+/// the intended modules directory.
 #[test]
-fn non_normal_modules_dir_name_is_rejected_without_writes() {
+fn climbing_modules_dir_is_rejected_without_writes() {
     let dir = tempdir().unwrap();
     let project_dir = dir.path().join("project");
     let external = dir.path().join("external-pkg");
@@ -333,19 +333,19 @@ fn non_normal_modules_dir_name_is_rejected_without_writes() {
         }),
     );
 
-    for name in [".", "..", "", "a/b", "/abs"] {
+    for modules_dir in [".", "..", "", "/", "a/../b", "./a"] {
         let result = link_manifest_link_deps::<SilentReporter>(
             dir.path(),
             &[(project_dir.clone(), &manifest)],
             None,
             None,
             all_dependencies(),
-            std::ffi::OsStr::new(name),
+            std::path::Path::new(modules_dir),
             &LinkBinsOptions::default(),
         );
         assert!(
-            matches!(result, Err(super::LinkManifestLinkDepsError::InvalidModulesDirName { .. })),
-            "modules dir name {name:?} must be rejected",
+            matches!(result, Err(super::LinkManifestLinkDepsError::InvalidModulesDir { .. })),
+            "modules dir {modules_dir:?} must be rejected",
         );
     }
     // Nothing was written: no symlink in the project dir, its parent,
@@ -394,7 +394,7 @@ fn bins_of_manifest_linked_deps_are_linked() {
         None,
         None,
         all_dependencies(),
-        std::ffi::OsStr::new("node_modules"),
+        std::path::Path::new("node_modules"),
         &LinkBinsOptions::default(),
     )
     .expect("linking succeeds");

@@ -33,18 +33,17 @@ pub fn package_map_path_for_execution(config: &Config, dir: &Path) -> Option<Pat
         return None;
     }
     // Installs write the map under the configured modules dir, so detect it
-    // by that dir's basename rather than the hard-coded `node_modules`.
-    let modules_dir_name =
-        config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
+    // by that dir's path rather than the hard-coded `node_modules`.
+    let modules_dir_relative = config.modules_dir_relative();
     let workspace_path = config.workspace_dir
         .as_ref()
-        .map(|dir| dir.join(modules_dir_name).join(PACKAGE_MAP_FILENAME));
+        .map(|dir| dir.join(modules_dir_relative).join(PACKAGE_MAP_FILENAME));
     if let Some(path) = workspace_path
         && path.exists()
     {
         return Some(path);
     }
-    let path = dir.join(modules_dir_name).join(PACKAGE_MAP_FILENAME);
+    let path = dir.join(modules_dir_relative).join(PACKAGE_MAP_FILENAME);
     path.exists().then_some(path)
 }
 pub(super) fn remove_node_package_map_option(node_options: &str) -> Vec<String> {

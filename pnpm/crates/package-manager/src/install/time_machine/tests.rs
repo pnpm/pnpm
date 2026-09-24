@@ -29,7 +29,7 @@ fn selects_only_missing_configured_directories() {
     };
 
     assert_eq!(
-        new_directories_to_exclude(&config, temp.path(), &[]),
+        new_directories_to_exclude(&config, &[]),
         vec![virtual_store_dir, store_dir.join(pnpm_store_dir::STORE_VERSION)],
     );
 }
@@ -48,7 +48,7 @@ fn an_embedded_virtual_store_uses_the_modules_exclusion() {
         ..Config::default()
     };
 
-    assert_eq!(new_directories_to_exclude(&config, temp.path(), &[]), vec![modules_dir]);
+    assert_eq!(new_directories_to_exclude(&config, &[]), vec![modules_dir]);
 }
 
 #[test]
@@ -67,7 +67,7 @@ fn selects_a_missing_embedded_virtual_store_under_existing_modules() {
         ..Config::default()
     };
 
-    assert_eq!(new_directories_to_exclude(&config, temp.path(), &[]), vec![virtual_store_dir]);
+    assert_eq!(new_directories_to_exclude(&config, &[]), vec![virtual_store_dir]);
 }
 
 #[test]
@@ -89,10 +89,7 @@ fn selects_missing_workspace_modules_directories() {
         ..Config::default()
     };
 
-    assert_eq!(
-        new_directories_to_exclude(&config, temp.path(), &[project_dir]),
-        vec![project_modules_dir],
-    );
+    assert_eq!(new_directories_to_exclude(&config, &[project_dir]), vec![project_modules_dir]);
 }
 
 #[test]
@@ -113,23 +110,19 @@ fn deduplicates_workspace_modules_directories() {
     };
 
     assert_eq!(
-        new_directories_to_exclude(
-            &config,
-            temp.path(),
-            &[project_dir.clone(), project_dir.clone()],
-        ),
+        new_directories_to_exclude(&config, &[project_dir.clone(), project_dir.clone()]),
         vec![project_dir.join("node_modules")],
     );
 }
 
 #[test]
-fn selects_relocated_workspace_modules_directories() {
+fn selects_multi_segment_workspace_modules_directories() {
     let temp = tempdir().unwrap();
     let workspace_root = temp.path().join("workspace");
     let project_dir = workspace_root.join("packages/child");
     fs::create_dir_all(&project_dir).unwrap();
-    let modules_dir = workspace_root.join("nested/node_modules");
-    let config = Config {
+    let modules_dir = workspace_root.join("www/modules");
+    let mut config = Config {
         modules_dir: modules_dir.clone(),
         virtual_store_dir: modules_dir.join(".pnpm"),
         macos_backup: pnpm_config::MacosBackupConfig {
@@ -138,14 +131,11 @@ fn selects_relocated_workspace_modules_directories() {
         },
         ..Config::default()
     };
+    config.explicit_settings.insert("modulesDir".to_string(), "www/modules".into());
 
     assert_eq!(
-        new_directories_to_exclude(&config, &workspace_root, std::slice::from_ref(&project_dir)),
-        vec![
-            modules_dir,
-            project_dir.join("node_modules"),
-            workspace_root.join("nested/packages/child/node_modules"),
-        ],
+        new_directories_to_exclude(&config, std::slice::from_ref(&project_dir)),
+        vec![modules_dir, project_dir.join("www/modules")],
     );
 }
 
@@ -165,7 +155,7 @@ fn normalizes_virtual_store_containment() {
     };
 
     assert_eq!(
-        new_directories_to_exclude(&config, temp.path(), &[]),
+        new_directories_to_exclude(&config, &[]),
         vec![modules_dir, temp.path().join("virtual-store")],
     );
 }
@@ -188,7 +178,7 @@ fn selects_the_effective_global_virtual_store() {
     };
 
     assert_eq!(
-        new_directories_to_exclude(&config, temp.path(), &[]),
+        new_directories_to_exclude(&config, &[]),
         vec![modules_dir, global_virtual_store_dir],
     );
 }

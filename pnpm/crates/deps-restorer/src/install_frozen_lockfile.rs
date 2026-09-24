@@ -52,7 +52,6 @@ use pnpm_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, Stag
 use pnpm_store_dir::{StoreIndexError, StoreIndexWriter};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    ffi::OsStr,
     future::Future,
     path::{Path, PathBuf},
     pin::Pin,

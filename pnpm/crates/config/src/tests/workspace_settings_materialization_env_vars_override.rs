@@ -596,6 +596,64 @@ pub fn extra_bin_paths_follow_a_configured_modules_dir() {
     );
 }
 
+/// The per-project modules dir carries the whole configured value, not
+/// just its basename, so a multi-segment `modulesDir` lands under each
+/// project instead of being flattened to its last segment.
+#[test]
+pub fn modules_dir_relative_keeps_every_configured_segment() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[]);
+
+    let config = load_with_fake_env(project.path());
+    assert_eq!(config.modules_dir_relative(), Path::new("node_modules"));
+
+    for (setting, relative) in
+        [("vendor", Path::new("vendor")), ("www/modules", Path::new("www/modules"))]
+    {
+        fs::write(
+            project.path().join("pnpm-workspace.yaml"),
+            format!("packages:\n  - .\nmodulesDir: {setting}\n"),
+        )
+        .expect("write pnpm-workspace.yaml");
+        let config = load_with_fake_env(project.path());
+        assert_eq!(config.modules_dir_relative(), relative, "modulesDir: {setting}");
+        assert_eq!(
+            config.extra_bin_paths,
+            vec![
+                project
+                    .path()
+                    .join(relative)
+                    .join(".bin")
+            ],
+            "modulesDir: {setting}",
+        );
+    }
+}
+
+/// A global install re-points `modules_dir` at its own `node_modules`
+/// without clearing the `modulesDir` setting, so the per-project joins
+/// follow the re-pointed path rather than the stale setting.
+#[test]
+pub fn modules_dir_relative_follows_a_repointed_modules_dir() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[]);
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - .\nmodulesDir: www/modules\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let mut config = load_with_fake_env(project.path());
+    assert_eq!(config.modules_dir_relative(), Path::new("www/modules"));
+
+    let global = project.path().join("global");
+    config.modules_dir = global.join("node_modules");
+    assert_eq!(config.modules_dir_relative(), Path::new("node_modules"));
+    assert_eq!(config.modules_dir_anchor(), Some(global.as_path()));
+}
+
 #[test]
 pub fn anchoring_to_a_created_workspace_matches_loading_inside_it() {
     fake_env!(load_with_fake_env);

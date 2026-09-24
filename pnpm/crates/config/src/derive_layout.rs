@@ -193,7 +193,7 @@ impl Config {
                     .then(|| pnpm_workspace::read_project_name(dir))
                     .flatten();
                 vec![
-                    dir.join(self.modules_dir_name_for(dir, root_name.as_deref()))
+                    dir.join(&*self.modules_dir_relative_for(dir, root_name.as_deref()))
                         .join(".bin"),
                 ]
             })

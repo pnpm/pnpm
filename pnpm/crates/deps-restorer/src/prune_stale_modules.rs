@@ -31,7 +31,6 @@ use pnpm_reporter::{
 };
 use std::{
     collections::{HashMap, HashSet},
-    ffi::OsStr,
     path::Path,
 };
 
@@ -75,8 +74,7 @@ impl<'a> PruneStaleModules<'a> {
     /// `orphanPkgIds`), for the caller's single `pnpm:stats`
     /// `removed` emission. `0` when the orphan diff is skipped.
     pub fn run<Reporter: self::Reporter>(self) -> Result<u64, PruneDirectDepsError> {
-        let modules_dir_name: &OsStr =
-            self.config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+        let modules_dir_relative: &Path = self.config.modules_dir_relative();
         let wanted_root_deps = self.wanted_root_deps();
 
         for (importer_id, current_snapshot) in &self.current_lockfile.importers {
@@ -91,7 +89,7 @@ impl<'a> PruneStaleModules<'a> {
             }
             let importer_dir = importer_root_dir(self.workspace_root, importer_id);
             let Some(modules_dir) =
-                confined_modules_dir(&importer_dir.join(modules_dir_name), self.workspace_root)
+                confined_modules_dir(&importer_dir.join(modules_dir_relative), self.workspace_root)
             else {
                 continue;
             };

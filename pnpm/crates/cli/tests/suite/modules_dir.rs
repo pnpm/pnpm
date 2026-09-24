@@ -517,3 +517,63 @@ fn the_hoisted_linker_installs_into_a_custom_modules_dir() {
 
     drop((root, mock_instance));
 }
+
+/// Regression test for
+/// [pnpm/pnpm#15484](https://github.com/pnpm/pnpm/issues/15484): a
+/// multi-segment `modulesDir` applies under every workspace project, so a
+/// member's dependencies land in `<member>/www/modules` on both the fresh
+/// and the frozen install path, and `bin` prints that same directory.
+/// Before the fix the fresh path anchored on `modules_dir.parent()`
+/// (`<workspace>/www`) and the frozen path kept only the last segment.
+#[test]
+fn a_multi_segment_modules_dir_applies_under_every_workspace_project() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "modulesDir", "www/modules");
+    append_workspace_yaml_key(&workspace, "packages", "['packages/*']");
+    write_manifest(&workspace, &serde_json::json!({ "name": "root", "private": true }));
+    let member = workspace.join("packages/member");
+    write_manifest(
+        &member,
+        &serde_json::json!({
+            "name": "member",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+        }),
+    );
+
+    for args in [&["install"][..], &["install", "--frozen-lockfile"]] {
+        let _ = fs::remove_dir_all(workspace.join("www"));
+        let _ = fs::remove_dir_all(member.join("www"));
+        pacquet_in(&workspace)
+            .with_args(args)
+            .assert()
+            .success();
+
+        assert!(
+            member.join("www/modules/is-positive").is_dir(),
+            "member dependency should land in its own www/modules: {args:?}",
+        );
+        assert!(!member.join("modules").exists(), "last segment only: {args:?}");
+        assert!(!workspace.join("www/packages").exists(), "importer path under www: {args:?}");
+
+        let bin = pacquet_in(&member)
+            .with_arg("bin")
+            .output()
+            .expect("run pnpm bin");
+        assert!(bin.status.success(), "{args:?}: {}", String::from_utf8_lossy(&bin.stderr));
+        // Compared as a path: the printed path joins the configured
+        // `www/modules` as one string, so on Windows it keeps forward
+        // slashes while this expected path uses backslashes.
+        let expected = dunce::canonicalize(&member)
+            .expect("canonicalize member")
+            .join("www")
+            .join("modules")
+            .join(".bin");
+        let printed = String::from_utf8_lossy(&bin.stdout);
+        assert_eq!(Path::new(printed.trim_end()), expected.as_path(), "{args:?}");
+    }
+
+    drop((root, mock_instance));
+}

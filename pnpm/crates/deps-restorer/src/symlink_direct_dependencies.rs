@@ -16,7 +16,6 @@ use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    ffi::OsStr,
     path::{Path, PathBuf},
 };
 
@@ -142,20 +141,14 @@ struct ImporterPass<'a> {
 
 impl ImporterPass<'_> {
     fn run<Reporter: self::Reporter>(&self) -> Result<(), SymlinkDirectDependenciesError> {
-        // Each importer's modules dir is `<importer_root>/<modules_dir_basename>`.
-        // The `modulesDir` setting is a directory name (a single
-        // component, default `node_modules`) applied uniformly under
-        // every importer. Pacquet stores `config.modules_dir` as a
-        // full path anchored at the workspace root, so peel off the
-        // last component to get the per-importer suffix — that way a
-        // `modulesDir: custom_modules` override in
-        // `pnpm-workspace.yaml` propagates to every importer instead
-        // of leaving the symlink stage stuck on `node_modules` while
-        // other stages (`.modules.yaml` writing, bin linking) use
-        // `config.modules_dir`.
-        let modules_dir_name: &OsStr = self.context.config.modules_dir
-            .file_name()
-            .unwrap_or_else(|| OsStr::new("node_modules"));
+        // Each importer's modules dir is
+        // `<importer_root>/<modules_dir_relative>`. Pacquet stores
+        // `config.modules_dir` as a full path anchored at the lockfile dir,
+        // so the configured value is what carries over to every importer.
+        // A `modulesDir: www/modules` override in `pnpm-workspace.yaml`
+        // then lands under each importer rather than only under the one
+        // the config was loaded in.
+        let modules_dir_relative: &Path = self.context.config.modules_dir_relative();
 
         // Sorted so the fallible upfront validation below rejects a
         // hostile lockfile on a deterministic importer. `pnpm:root`
@@ -185,7 +178,7 @@ impl ImporterPass<'_> {
                     .try_for_each(|importer_id| {
                         self.link_importer::<Reporter>(
                             importer_id,
-                            modules_dir_name,
+                            modules_dir_relative,
                             root_targets.as_ref(),
                         )
                     })
@@ -234,13 +227,13 @@ impl ImporterPass<'_> {
     fn link_importer<Reporter: self::Reporter>(
         &self,
         importer_id: &str,
-        modules_dir_name: &OsStr,
+        modules_dir_relative: &Path,
         root_targets: Option<&BTreeMap<String, PathBuf>>,
     ) -> Result<(), SymlinkDirectDependenciesError> {
         // Safe: the task groups were built from `importers.keys()`.
         let project_snapshot = &self.graph.importers[importer_id];
         let project_dir = importer_root_dir(self.context.workspace_root, importer_id);
-        let modules_dir = project_dir.join(modules_dir_name);
+        let modules_dir = project_dir.join(modules_dir_relative);
 
         // Only non-root importers get deduped against root: the
         // root project is linked unfiltered, then each sibling's

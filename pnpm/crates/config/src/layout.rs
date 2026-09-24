@@ -205,17 +205,53 @@ impl Config {
     }
 
     /// The basename of [`Config::modules_dir`], which is the directory name
-    /// an install gives every project's modules directory. It is
-    /// `node_modules` unless `modulesDir` is configured, and the joins that
-    /// build a project's modules or `.bin` path must use it rather than the
-    /// literal `node_modules`.
+    /// an install gives every project's modules directory.
     ///
-    /// Only the name carries over to a project other than the one the config
-    /// was loaded in, so a `modulesDir` holding a path separator resolves
-    /// correctly for the install but not for these joins. The same basename
-    /// assumption is already made by the install's own per-project joins.
+    /// The joins that build a project's modules or `.bin` path want
+    /// [`Self::modules_dir_relative`] instead: only the name carries over
+    /// to a project other than the one the config was loaded in, which is
+    /// wrong for a `modulesDir` holding a path separator.
     pub fn modules_dir_name(&self) -> &std::ffi::OsStr {
         self.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"))
+    }
+
+    /// The modules directory as a path every project joins onto its own
+    /// root, which is what the per-project joins use. It is the configured
+    /// `modulesDir` value, so a multi-segment value such as `www/modules`
+    /// lands under every project rather than only under the one the config
+    /// was loaded in. It is `node_modules` when `modulesDir` is unset, and
+    /// the basename of [`Config::modules_dir`] when that field was set
+    /// without the setting, as a global install does.
+    ///
+    /// The value is the setting only while [`Config::modules_dir`] still
+    /// ends with it: a global install re-points `modules_dir` at its own
+    /// `node_modules` without clearing the setting, and that path is what
+    /// the joins have to follow.
+    ///
+    /// An absolute `modulesDir` stays absolute; [`Path::join`] replaces the
+    /// project root with it.
+    #[must_use]
+    pub fn modules_dir_relative(&self) -> &Path {
+        match self.explicit_settings.get("modulesDir").and_then(serde_json::Value::as_str) {
+            Some(raw) if !raw.is_empty() && self.modules_dir.ends_with(raw) => Path::new(raw),
+            _ => Path::new(self.modules_dir_name()),
+        }
+    }
+
+    /// The directory [`Config::modules_dir`] was anchored on, which is what
+    /// a per-project modules dir is joined onto. It is the path with the
+    /// configured `modulesDir` peeled off, so it is `modules_dir`'s parent
+    /// for a single component and the lockfile dir for a multi-segment
+    /// value such as `www/modules`. [`None`] only when that leaves no
+    /// parent, as a root `modules_dir` does.
+    #[must_use]
+    pub fn modules_dir_anchor(&self) -> Option<&Path> {
+        let relative = self.modules_dir_relative();
+        self.modules_dir
+            .ancestors()
+            .nth(relative.components().count())
+            .filter(|anchor| anchor.join(relative) == self.modules_dir)
+            .or_else(|| self.modules_dir.parent())
     }
 
     /// Whether a `packageConfigs` entry can still change a project's
@@ -228,48 +264,56 @@ impl Config {
         self.package_configs.is_some() && !self.shares_one_lockfile()
     }
 
-    /// [`Self::modules_dir_name`] for one project, which the
-    /// `packageConfigs` entry naming it may point elsewhere. The name
-    /// the install gave that project.
+    /// [`Self::modules_dir_relative`] for one project, which the
+    /// `packageConfigs` entry naming it may point elsewhere. The path
+    /// the install gave that project, relative to its own root.
     ///
     /// `project_name` is what [`Self::anchor_dedicated_project`] takes,
     /// and for the same reason: callers hold a manifest they already
     /// read rather than reading one here.
     #[must_use]
-    pub fn modules_dir_name_for(
+    pub fn modules_dir_relative_for(
         &self,
         project_dir: &Path,
         project_name: Option<&str>,
-    ) -> std::borrow::Cow<'_, std::ffi::OsStr> {
-        self.applies_package_configs()
+    ) -> std::borrow::Cow<'_, Path> {
+        let dedicated = self
+            .applies_package_configs()
             .then(|| {
                 self.package_configs
                     .as_ref()?
                     .get(project_name?)?
                     .modules_dir_for(project_dir)
             })
-            .flatten()
-            .and_then(|dir| Some(std::borrow::Cow::Owned(dir.file_name()?.to_os_string())))
-            .unwrap_or_else(|| std::borrow::Cow::Borrowed(self.modules_dir_name()))
+            .flatten();
+        match dedicated {
+            Some(dir) => std::borrow::Cow::Owned(
+                dir.strip_prefix(project_dir)
+                    .unwrap_or(&dir)
+                    .to_path_buf(),
+            ),
+            None => std::borrow::Cow::Borrowed(self.modules_dir_relative()),
+        }
     }
 
-    /// Put `<project_dir>/<modules_dir_name>` first on the `NODE_PATH` of
-    /// `env`, the environment of that project's scripts and commands, when
-    /// it is a custom modules directory and the project's executables are
-    /// symlinks, which have no shim to carry the entry. The rest of
+    /// Put `<project_dir>/<modules_dir_relative>` first on the `NODE_PATH`
+    /// of `env`, the environment of that project's scripts and commands,
+    /// when it is a custom modules directory and the project's executables
+    /// are symlinks, which have no shim to carry the entry. The rest of
     /// `NODE_PATH` is the one `env` sets, or else the inherited one.
     pub fn prepend_project_node_path<Sys: EnvVar>(
         &self,
         env: &mut HashMap<String, String>,
         project_dir: &Path,
-        modules_dir_name: &std::ffi::OsStr,
+        modules_dir_relative: &Path,
     ) {
         let symlinked = cfg!(unix) && self.prefer_symlinked_executables == Some(true);
-        if !symlinked || !self.extend_node_path || modules_dir_name == "node_modules" {
+        if !symlinked || !self.extend_node_path || modules_dir_relative == Path::new("node_modules")
+        {
             return;
         }
         let project_node_path = project_dir
-            .join(modules_dir_name)
+            .join(modules_dir_relative)
             .display()
             .to_string();
         if project_node_path.contains(':') {

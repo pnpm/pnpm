@@ -22,7 +22,6 @@ use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::{DependencyGroup, parse_manifest_bytes};
 use std::{
     collections::HashSet,
-    ffi::OsStr,
     fs, io,
     path::{Path, PathBuf},
 };
@@ -119,11 +118,10 @@ pub fn prune_direct_deps_excluded_by_groups(
     // removal, a name that was skipped last install has no on-disk
     // entry, so removing it is a no-op — no skip set needed.
     let skipped = SkippedSnapshots::new();
-    // Same per-importer `modulesDir` suffix peeling as
+    // Same per-importer `modulesDir` path as
     // [`crate::SymlinkDirectDependencies`], so removal targets exactly
     // where the linker writes.
-    let modules_dir_name: &OsStr =
-        config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+    let modules_dir_relative: &Path = config.modules_dir_relative();
 
     for (importer_id, snapshot) in &current_lockfile.importers {
         // A malformed importer key is rejected with a typed error by
@@ -137,7 +135,7 @@ pub fn prune_direct_deps_excluded_by_groups(
         // through a modules dir that resolves inside the workspace
         // root, and operate on the canonicalized path so a symlink
         // swap can't redirect the removals after the check.
-        let modules_dir = importer_root_dir(workspace_root, importer_id).join(modules_dir_name);
+        let modules_dir = importer_root_dir(workspace_root, importer_id).join(modules_dir_relative);
         let Some(modules_dir) = confined_modules_dir(&modules_dir, workspace_root) else {
             continue;
         };

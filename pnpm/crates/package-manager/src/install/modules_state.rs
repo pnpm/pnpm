@@ -89,14 +89,15 @@ fn importer_bins_are_relocatable(
     project_manifests: &[(PathBuf, &PackageManifest)],
     root: &Path,
 ) -> bool {
-    let modules_dir_name: &std::ffi::OsStr =
-        config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
     bin_dir_is_relocatable(&config.modules_dir.join(".bin"), root)
         && project_manifests
             .iter()
             .filter(|(project_dir, _)| project_dir != root)
             .all(|(project_dir, _)| {
-                bin_dir_is_relocatable(&project_dir.join(modules_dir_name).join(".bin"), root)
+                bin_dir_is_relocatable(
+                    &project_dir.join(config.modules_dir_relative()).join(".bin"),
+                    root,
+                )
             })
 }
 

@@ -69,6 +69,37 @@ fn bin_prints_a_custom_modules_dir() {
     drop(root);
 }
 
+/// Regression test for
+/// [pnpm/pnpm#15484](https://github.com/pnpm/pnpm/issues/15484): a
+/// multi-segment `modulesDir` keeps every segment, so `bin` prints the
+/// path the install links the executables into instead of dropping the
+/// leading segments.
+#[test]
+fn bin_prints_a_multi_segment_modules_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "modulesDir: www/modules\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let output = pacquet
+        .with_args(["bin"])
+        .output()
+        .expect("run pacquet bin");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet bin should succeed");
+
+    // Compared as a path, not as a string: the printed path joins the
+    // configured `www/modules` as one string, so on Windows it keeps the
+    // forward slash while this expected path uses backslashes.
+    let expected = canonicalize(&workspace)
+        .join("www")
+        .join("modules")
+        .join(".bin");
+    let printed = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(Path::new(printed.trim_end()), expected.as_path());
+
+    drop(root);
+}
+
 /// `pacquet bin -g` resolves, creates, and (matching pnpm) validates the global
 /// bin dir is on `PATH` before printing. The env is pinned so the resolved path
 /// is deterministic. Unix-gated like `global.rs`: the `PATH` validation is

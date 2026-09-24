@@ -25,37 +25,37 @@ pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
     importers: Option<&HashMap<String, ProjectSnapshot>>,
     workspace_packages: Option<&WorkspacePackages>,
     included: IncludedDependencies,
-    modules_dir_name: &std::ffi::OsStr,
+    modules_dir_relative: &Path,
     link_options: &LinkBinsOptions,
 ) -> Result<(), LinkManifestLinkDepsError> {
-    // The name must be a single normal path component. The install
-    // call site derives it from `config.modules_dir.file_name()`,
-    // which by construction never yields `.`, `..`, or a separator —
-    // but this helper is public, and joined below it decides where
-    // symlinks (which force-replace squatters) land, so it enforces
-    // the contract itself rather than trusting every caller.
-    let valid_name = matches!(
-        Path::new(modules_dir_name)
+    // The path must not climb out of the project it is joined under: a `.`
+    // or `..` component would place the symlinks (which force-replace
+    // squatters) somewhere other than the intended modules directory. A
+    // multi-segment value is allowed, so a configured `www/modules` lands
+    // where the rest of the install writes.
+    let valid_dir = modules_dir_relative
+        .components()
+        .any(|component| matches!(component, std::path::Component::Normal(_)))
+        && modules_dir_relative
             .components()
-            .collect::<Vec<_>>()
-            .as_slice(),
-        [std::path::Component::Normal(_)],
-    );
-    if !valid_name {
-        return Err(LinkManifestLinkDepsError::InvalidModulesDirName {
-            modules_dir_name: modules_dir_name.to_string_lossy().into_owned(),
+            .all(|component| {
+                !matches!(component, std::path::Component::CurDir | std::path::Component::ParentDir)
+            });
+    if !valid_dir {
+        return Err(LinkManifestLinkDepsError::InvalidModulesDir {
+            modules_dir: modules_dir_relative.to_string_lossy().into_owned(),
         });
     }
     for (project_dir, manifest) in project_manifests {
         let importer_snapshot = importers.and_then(|importers| {
             importers.get(&pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir))
         });
-        // The per-project modules dir honors a `modulesDir` override
-        // the same way `SymlinkDirectDependencies` does — the caller
-        // passes `config.modules_dir`'s basename, so a
-        // `modulesDir: custom_modules` config doesn't grow a stray
-        // `node_modules/` next to the intended tree.
-        let modules_dir = project_dir.join(modules_dir_name);
+        // The per-project modules dir honors a `modulesDir` override the
+        // same way `SymlinkDirectDependencies` does — the caller passes
+        // `config.modules_dir_relative()`, so a `modulesDir:
+        // www/modules` config doesn't grow a stray `node_modules/` next
+        // to the intended tree.
+        let modules_dir = project_dir.join(modules_dir_relative);
         let project = ProjectLinks {
             project_dir,
             modules_dir: &modules_dir,
@@ -76,7 +76,7 @@ pub(crate) struct PruneManifestLinkDeps<'a> {
     pub(crate) workspace_packages: Option<&'a WorkspacePackages>,
     pub(crate) previously_included: IncludedDependencies,
     pub(crate) new_included: IncludedDependencies,
-    pub(crate) modules_dir_name: &'a std::ffi::OsStr,
+    pub(crate) modules_dir_relative: &'a Path,
     pub(crate) prunable_importer_ids: Option<&'a HashSet<String>>,
 }
 
@@ -116,7 +116,7 @@ fn prune_project_manifest_link_deps(
         .dependencies(new_groups.iter().copied())
         .map(|(alias, _)| alias)
         .collect();
-    let modules_dir = project_dir.join(options.modules_dir_name);
+    let modules_dir = project_dir.join(options.modules_dir_relative);
     let Some(modules_dir) =
         pnpm_deps_restorer::confined_modules_dir(&modules_dir, options.workspace_root)
     else {
@@ -308,15 +308,14 @@ fn resolve_link_target(project_dir: &Path, target: &str) -> PathBuf {
 /// Error type of [`link_manifest_link_deps`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum LinkManifestLinkDepsError {
-    /// The modules-dir name is not a single normal path component
-    /// (`.`, `..`, empty, absolute, or contains a separator) — joined
-    /// under a project dir it would place symlinks outside the
-    /// intended modules directory.
-    #[display("Refusing to link into invalid modules directory name {modules_dir_name:?}")]
+    /// The modules-dir path is empty, or carries a `.` or `..`
+    /// component — joined under a project dir it would place symlinks
+    /// outside the intended modules directory.
+    #[display("Refusing to link into invalid modules directory {modules_dir:?}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_INVALID_MODULES_DIR_NAME))]
-    InvalidModulesDirName {
+    InvalidModulesDir {
         #[error(not(source))]
-        modules_dir_name: String,
+        modules_dir: String,
     },
 
     /// A dependency key that is not a valid npm package name — it

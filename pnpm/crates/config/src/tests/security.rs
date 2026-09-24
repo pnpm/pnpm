@@ -1,7 +1,7 @@
 use super::{
     Config, EnvVar, HostNoHome, assert_eq, fs, load_with_project_and_user, tempdir, write_file,
 };
-use std::{collections::HashMap, ffi::OsStr, path::Path};
+use std::{collections::HashMap, path::Path};
 
 /// A `\n`-escaped inline PEM — the only way to fit a certificate on one
 /// INI line — expands to real newlines whichever spelling declared it,
@@ -82,7 +82,7 @@ pub fn prepend_project_node_path_puts_a_custom_modules_dir_first_once() {
     let mut config = Config::new();
     config.prefer_symlinked_executables = Some(true);
     let project = Path::new("/project");
-    let vendor = OsStr::new("vendor");
+    let vendor = Path::new("vendor");
 
     let mut env = HashMap::from([(
         "NODE_PATH".to_string(),
@@ -110,7 +110,7 @@ fn prepend_project_node_path_omits_paths_containing_the_path_list_delimiter() {
     config.prepend_project_node_path::<InheritedNodePath>(
         &mut env,
         Path::new("/project:other"),
-        OsStr::new("vendor"),
+        Path::new("vendor"),
     );
     assert_eq!(env["NODE_PATH"], "/inherited");
 }

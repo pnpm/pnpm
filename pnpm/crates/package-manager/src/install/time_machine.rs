@@ -9,7 +9,7 @@ use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use std::{
     collections::HashSet,
     io,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::{Command, Output},
     time::Duration,
 };
@@ -43,13 +43,12 @@ impl TimeMachineExclusions {
     pub(super) fn capture(
         config: &Config,
         execution: super::InstallExecution,
-        workspace_root: &Path,
         project_dirs: &[PathBuf],
     ) -> Self {
         if execution.lockfile_only || execution.dry_run {
             return Self::empty();
         }
-        Self(new_directories_to_exclude(config, workspace_root, project_dirs))
+        Self(new_directories_to_exclude(config, project_dirs))
     }
 
     pub(super) async fn apply<Sink: Reporter>(self) {
@@ -201,28 +200,13 @@ impl TimeMachineExclusions {
 }
 
 #[cfg(any(target_os = "macos", test))]
-fn new_directories_to_exclude(
-    config: &Config,
-    workspace_root: &Path,
-    project_dirs: &[PathBuf],
-) -> Vec<PathBuf> {
+fn new_directories_to_exclude(config: &Config, project_dirs: &[PathBuf]) -> Vec<PathBuf> {
     let mut paths = Vec::with_capacity(project_dirs.len() + 3);
     let mut seen = HashSet::with_capacity(project_dirs.len() + 3);
     if config.macos_backup.exclude_modules_dir {
         push_missing(&mut paths, &mut seen, config.modules_dir.clone());
-        let modules_dir_name =
-            config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
         for project_dir in project_dirs {
-            push_missing(&mut paths, &mut seen, project_dir.join(modules_dir_name));
-            if let (Some(symlink_root), Ok(importer_dir)) =
-                (config.modules_dir.parent(), project_dir.strip_prefix(workspace_root))
-            {
-                push_missing(
-                    &mut paths,
-                    &mut seen,
-                    symlink_root.join(importer_dir).join(modules_dir_name),
-                );
-            }
+            push_missing(&mut paths, &mut seen, project_dir.join(config.modules_dir_relative()));
         }
         let virtual_store_dir = pnpm_fs::lexical_normalize(config.effective_virtual_store_dir());
         let covered_by_new_modules_dir = paths

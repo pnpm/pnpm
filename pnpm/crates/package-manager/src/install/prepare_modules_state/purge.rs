@@ -177,9 +177,7 @@ pub(super) fn prune_excluded_direct_deps(
         workspace_packages: context.manifest_links.workspace_packages,
         previously_included,
         new_included: context.included,
-        modules_dir_name: context.config.modules_dir
-            .file_name()
-            .unwrap_or_else(|| std::ffi::OsStr::new("node_modules")),
+        modules_dir_relative: context.config.modules_dir_relative(),
         prunable_importer_ids: selected_prune_importer_ids.as_ref(),
     })
     .map_err(InstallError::PruneDirectDeps)

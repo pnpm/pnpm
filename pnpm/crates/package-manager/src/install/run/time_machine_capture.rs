@@ -44,7 +44,6 @@ pub(super) fn capture_time_machine_exclusions(
     *exclusions = super::super::TimeMachineExclusions::capture(
         config,
         execution.install.execution,
-        &execution.workspace.dirs.workspace_root,
         &project_dirs,
     );
 }

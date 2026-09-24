@@ -290,12 +290,12 @@ fn run_project_stages(
     mut extra_env: HashMap<String, String>,
     stages: impl FnOnce(&RunPostinstallHooks<'_>) -> Result<bool, LifecycleScriptError>,
 ) -> Result<(), InstallError> {
-    let root_modules_dir = project_dir.join(config.modules_dir_name());
+    let root_modules_dir = project_dir.join(config.modules_dir_relative());
     let bin_dir = root_modules_dir.join(".bin");
     config.prepend_project_node_path::<pnpm_config::Host>(
         &mut extra_env,
         project_dir,
-        config.modules_dir_name(),
+        config.modules_dir_relative(),
     );
     let dep_path = project_dir.to_string_lossy();
     stages(&RunPostinstallHooks {
@@ -349,7 +349,7 @@ impl ProjectScriptRunner<'_> {
         manifest: &PackageManifest,
         stages: &[&str],
     ) -> Result<(), InstallError> {
-        let root_modules_dir = project_dir.join(self.config.modules_dir_name());
+        let root_modules_dir = project_dir.join(self.config.modules_dir_relative());
         link_project_bins(&root_modules_dir, &direct_dep_names(manifest), &self.link_options)
             .map_err(InstallError::ProjectBinLink)?;
         let stages = if self.root_preinstall_ran
