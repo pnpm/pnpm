@@ -248,17 +248,22 @@ fn override_global_config(git_dir: &Path, extra: &[ConfigEntry<'_>]) {
         .unwrap_or_else(|err| panic!("append to {}: {err}", path.display()));
 }
 
-/// `value` as a quoted git config value. Git reads a backslash as the start
-/// of an escape sequence, so a Windows path written bare would lose its
-/// separators or fail to parse.
+/// `value` as a quoted git config value, escaped as `git config` would write
+/// it. Git reads a backslash as the start of an escape sequence, so a Windows
+/// path written bare would lose its separators or fail to parse, and a raw
+/// newline would end the value.
 fn quote_config_value(value: &str) -> String {
     let mut quoted = String::with_capacity(value.len() + 2);
     quoted.push('"');
     for character in value.chars() {
-        if matches!(character, '\\' | '"') {
-            quoted.push('\\');
+        match character {
+            '\\' | '"' => {
+                quoted.push('\\');
+                quoted.push(character);
+            }
+            '\n' => quoted.push_str(r"\n"),
+            _ => quoted.push(character),
         }
-        quoted.push(character);
     }
     quoted.push('"');
     quoted
