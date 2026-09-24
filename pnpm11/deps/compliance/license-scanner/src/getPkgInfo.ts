@@ -36,6 +36,11 @@ export interface GetPackageInfoOptions {
   virtualStoreDirMaxLength: number
   dir: string
   modulesDir: string
+  /**
+   * Lockfile-relative directories keyed by dependency path, recorded by a
+   * `nodeLinker: hoisted` install, which leaves the virtual store empty.
+   */
+  hoistedLocations?: Record<string, string[]>
   supportedArchitectures?: SupportedArchitectures
 }
 
@@ -106,13 +111,15 @@ export async function getPkgInfo (
     opts.dir
   )
 
-  // TODO: fix issue that path is only correct when using node-linked=isolated
-  const packageModulePath = path.join(
-    virtualStoreDir,
-    depPathToFilename(pkg.depPath, opts.virtualStoreDirMaxLength),
-    modulesDir,
-    manifest.name
-  )
+  const hoistedLocation = opts.hoistedLocations?.[pkg.depPath]?.[0]
+  const packageModulePath = hoistedLocation != null
+    ? path.join(opts.dir, hoistedLocation)
+    : path.join(
+      virtualStoreDir,
+      depPathToFilename(pkg.depPath, opts.virtualStoreDirMaxLength),
+      modulesDir,
+      manifest.name
+    )
 
   const licenseInfo = await resolveLicense({ manifest, files })
 

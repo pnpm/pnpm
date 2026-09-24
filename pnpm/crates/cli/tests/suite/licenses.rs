@@ -309,3 +309,66 @@ snapshots:
     assert_eq!(listed_names(&["licenses", "list", "--json"]), ["zeta"]);
     assert_eq!(listed_names(&["--recursive", "licenses", "list", "--json"]), ["alpha", "zeta"]);
 }
+
+#[test]
+fn licenses_reads_packages_where_the_hoisted_linker_placed_them() {
+    let workspace = tempfile::tempdir().expect("create workspace");
+    fs::write(
+        workspace.path().join("package.json"),
+        json!({ "dependencies": { "alpha": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.path().join("pnpm-lock.yaml"),
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      alpha:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  alpha@1.0.0:
+    resolution: {integrity: sha512-alpha}
+snapshots:
+  alpha@1.0.0: {}
+",
+    )
+    .expect("write lockfile");
+    let package_dir = workspace.path().join("node_modules/alpha");
+    fs::create_dir_all(&package_dir).expect("create package directory");
+    fs::write(
+        package_dir.join("package.json"),
+        json!({ "name": "alpha", "version": "1.0.0", "license": "MIT" }).to_string(),
+    )
+    .expect("write package manifest");
+    fs::write(
+        workspace.path().join("node_modules/.modules.yaml"),
+        json!({
+            "layoutVersion": 5,
+            "nodeLinker": "hoisted",
+            "hoistedLocations": { "alpha@1.0.0": ["node_modules/alpha"] },
+        })
+        .to_string(),
+    )
+    .expect("write .modules.yaml");
+
+    let output = pacquet_in(workspace.path())
+        .args(["licenses", "list", "--json"])
+        .output()
+        .expect("run licenses");
+    assert!(
+        output.status.success(),
+        "licenses should succeed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
+    let workspace_dir = dunce::canonicalize(workspace.path()).expect("canonicalize workspace");
+    assert_eq!(
+        report["MIT"][0]["paths"],
+        json!([workspace_dir.join("node_modules").join("alpha")]),
+    );
+}

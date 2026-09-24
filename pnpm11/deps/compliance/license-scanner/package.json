@@ -36,6 +36,7 @@
     "@pnpm/deps.compliance.license-resolver": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",

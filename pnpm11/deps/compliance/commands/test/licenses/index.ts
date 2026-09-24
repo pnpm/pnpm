@@ -124,6 +124,33 @@ test('pnpm licenses: output as json', async () => {
   expect(packagesWithMIT[0].paths[0].includes(_path)).toBeTruthy()
 })
 
+test('pnpm licenses: paths point at the packages placed by the hoisted linker', async () => {
+  const workspaceDir = tempDir()
+  f.copy('simple-licenses', workspaceDir)
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    nodeLinker: 'hoisted',
+    pnpmHomeDir: '',
+    storeDir,
+  })
+
+  const { output, exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    json: true,
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  const parsedOutput = JSON.parse(output)
+  expect(parsedOutput.MIT[0].paths).toStrictEqual([path.join(workspaceDir, 'node_modules', 'is-positive')])
+})
+
 test('pnpm licenses: path should be correct for workspaces', async () => {
   const workspaceDir = tempDir()
   f.copy('workspace-licenses', workspaceDir)

@@ -178,10 +178,11 @@ impl LicensesArgs {
             config.peer_edge_options(),
         );
         let layout = lockfile_layout(config, dir, lockfile_dir, &lockfile)?;
+        let package_dirs = PackageDirs::new(config, lockfile_dir, layout)?;
 
         let dependencies = sorted_licensed_dependencies(&lockfile, belongs_to);
 
-        let results_by_license = group_by_license(&layout, dependencies).await;
+        let results_by_license = group_by_license(&package_dirs, dependencies).await;
 
         if self.json {
             println!("{}", render_licenses_json(&results_by_license)?);
@@ -277,15 +278,12 @@ fn licensed_importer_ids(
 /// Collect each package's license, grouped by license and then by
 /// package name.
 async fn group_by_license(
-    layout: &pnpm_deps_restorer::VirtualStoreLayout,
+    package_dirs: &PackageDirs,
     dependencies: Vec<(PackageKey, BelongsTo, String, String)>,
 ) -> IndexMap<String, BTreeMap<String, LicenseInfo>> {
     let mut results_by_license: IndexMap<String, BTreeMap<String, LicenseInfo>> = IndexMap::new();
     for (key, kind, name, version) in dependencies {
-        let pkg_dir = layout
-            .slot_dir(&key)
-            .join("node_modules")
-            .join(&name);
+        let pkg_dir = package_dirs.package_dir(&key, &name);
         let details = read_license_details(&pkg_dir, &name).await;
         let path_str = pkg_dir.to_string_lossy().to_string();
 
@@ -440,3 +438,6 @@ fn render_package_name(info: &LicenseInfo) -> String {
 mod tests;
 
 mod dependencies;
+
+mod package_dirs;
+use package_dirs::PackageDirs;
