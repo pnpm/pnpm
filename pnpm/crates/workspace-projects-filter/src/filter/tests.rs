@@ -466,6 +466,64 @@ fn select_by_parent_dir_glob_and_exclude_by_pattern() {
 }
 
 #[test]
+fn exclude_broad_directory_then_reinclude_specific_package_by_name() {
+    let graph = projects_graph();
+    let result = selected(
+        &graph,
+        &[
+            ProjectSelector {
+                exclude: true,
+                parent_dir: Some(PathBuf::from("/packages")),
+                ..Default::default()
+            },
+            selector(Some("project-1")),
+        ],
+    );
+    assert_eq!(
+        result,
+        [
+            "/project-2",
+            "/project-3",
+            "/project-4",
+            "/project-5",
+            "/project-5/packages/project-6",
+            "/packages/project-1",
+        ],
+    );
+}
+
+#[test]
+fn include_all_exclude_broad_directory_then_reinclude_specific_package() {
+    let graph = projects_graph();
+    let result = selected_with_glob(
+        &graph,
+        &[
+            ProjectSelector { parent_dir: Some(PathBuf::from("/**")), ..Default::default() },
+            ProjectSelector {
+                exclude: true,
+                parent_dir: Some(PathBuf::from("/packages/**")),
+                ..Default::default()
+            },
+            ProjectSelector {
+                parent_dir: Some(PathBuf::from("/packages/project-1")),
+                ..Default::default()
+            },
+        ],
+    );
+    assert_eq!(
+        result,
+        [
+            "/project-2",
+            "/project-3",
+            "/project-4",
+            "/project-5",
+            "/project-5/packages/project-6",
+            "/packages/project-1",
+        ],
+    );
+}
+
+#[test]
 fn select_by_parent_dir_then_name_pattern() {
     let graph = projects_graph();
     let result = selected(

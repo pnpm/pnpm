@@ -13,7 +13,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_matcher::create_matcher;
 use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Component, Path, PathBuf},
 };
 
@@ -105,10 +105,41 @@ pub enum FilterError {
     },
 }
 
+struct SelectorChunk<'a> {
+    exclude: bool,
+    selectors: Vec<&'a ProjectSelector>,
+}
+
+fn chunk_selectors<'a>(project_selectors: &'a [ProjectSelector]) -> Vec<SelectorChunk<'a>> {
+    let mut chunks: Vec<SelectorChunk<'a>> = Vec::new();
+    for selector in project_selectors {
+        if let Some(last) = chunks
+            .last_mut()
+            .filter(|last| last.exclude == selector.exclude)
+        {
+            last.selectors.push(selector);
+            continue;
+        }
+        chunks.push(SelectorChunk { exclude: selector.exclude, selectors: vec![selector] });
+    }
+    chunks
+}
+
+fn apply_chunk(selected: &mut IndexSet<PathBuf>, chunk_selected: Vec<PathBuf>, exclude: bool) {
+    if exclude {
+        let excluded: HashSet<PathBuf> = chunk_selected.into_iter().collect();
+        selected.retain(|dir| !excluded.contains(dir));
+    } else {
+        selected.extend(chunk_selected);
+    }
+}
+
 /// Filter a pre-built [`ProjectGraph`] by `project_selectors`.
 ///
-/// Include selectors are unioned; exclude selectors (`!`-prefixed) are
-/// then subtracted. An empty include set means "every project".
+/// Selectors are evaluated in ordered chunks of matching polarity. When the
+/// first selector is an exclusion, selection begins with every project in the
+/// workspace; otherwise it starts empty. Subsequent inclusion selectors re-include
+/// projects that were previously excluded.
 pub fn filter_workspace_projects<Pkg>(
     projects_graph: &ProjectGraph<Pkg>,
     project_selectors: &[ProjectSelector],
@@ -117,29 +148,34 @@ pub fn filter_workspace_projects<Pkg>(
 where
     Pkg: BaseProject,
 {
-    let (exclude_selectors, include_selectors): (Vec<&ProjectSelector>, Vec<&ProjectSelector>) =
-        project_selectors.iter().partition(|selector| selector.exclude);
-
-    let include = if include_selectors.is_empty() {
-        FilterGraphResult {
-            selected: projects_graph.keys().cloned().collect(),
+    if project_selectors.is_empty() {
+        return Ok(FilteredProjects {
+            selected_projects: projects_graph.keys().cloned().collect(),
             unmatched_filters: Vec::new(),
-        }
-    } else {
-        filter_graph(projects_graph, opts, &include_selectors)?
-    };
-    let exclude = filter_graph(projects_graph, opts, &exclude_selectors)?;
+        });
+    }
 
-    let excluded: IndexSet<&PathBuf> = exclude.selected.iter().collect();
+    let chunks = chunk_selectors(project_selectors);
+    let mut selected: IndexSet<PathBuf> = if chunks.first().is_some_and(|c| c.exclude) {
+        projects_graph.keys().cloned().collect()
+    } else {
+        IndexSet::new()
+    };
+    let mut unmatched_filters = Vec::new();
+
+    for chunk in chunks {
+        let result = filter_graph(projects_graph, opts, &chunk.selectors)?;
+        unmatched_filters.extend(result.unmatched_filters);
+        apply_chunk(&mut selected, result.selected, chunk.exclude);
+    }
+
     // Keep graph members only: a `[<since>]` selector can surface a
     // changed directory that no workspace project contains (upstream
     // drops those the same way, via its final `pick`).
-    let selected_projects: Vec<PathBuf> = include.selected
+    let selected_projects: Vec<PathBuf> = selected
         .into_iter()
-        .filter(|dir| !excluded.contains(dir) && projects_graph.contains_key(dir))
+        .filter(|dir| projects_graph.contains_key(dir))
         .collect();
-    let mut unmatched_filters = include.unmatched_filters;
-    unmatched_filters.extend(exclude.unmatched_filters);
 
     Ok(FilteredProjects { selected_projects, unmatched_filters })
 }

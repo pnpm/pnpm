@@ -188,3 +188,59 @@ test('pnpm --filter "<pkg>..." run follows dependencies declared through a works
   expect(stdout).toContain('from-math')
   expect(stdout.indexOf('from-math')).toBeLessThan(stdout.indexOf('from-app'))
 })
+
+test('pnpm --recursive --filter "!./packages/**" --filter "a" run should re-include package (pnpm/pnpm#9354)', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+        scripts: {
+          which: 'node -e "console.log(\'root\')"',
+        },
+      },
+    },
+    {
+      location: 'packages/a',
+      package: {
+        name: 'a',
+        version: '1.0.0',
+        scripts: {
+          which: 'node -e "console.log(\'a\')"',
+        },
+      },
+    },
+    {
+      location: 'packages/b',
+      package: {
+        name: 'b',
+        version: '1.0.0',
+        scripts: {
+          which: 'node -e "console.log(\'b\')"',
+        },
+      },
+    },
+  ])
+
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - "packages/*"\n')
+
+  const result = execPnpmSync([
+    '--stream',
+    '--config.verify-deps-before-run=false',
+    '--recursive',
+    '--filter',
+    '!./packages/**',
+    '--filter',
+    'a',
+    'run',
+    'which',
+  ])
+  expect(result.status).toBe(0)
+
+  const stdout = result.stdout.toString()
+  expect(stdout).toContain('packages/a which$')
+  expect(stdout).not.toContain('packages/b which$')
+})
+

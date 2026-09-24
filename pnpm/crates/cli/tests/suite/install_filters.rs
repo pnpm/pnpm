@@ -811,6 +811,26 @@ fn a_filtered_install_outside_the_workspace_patterns_installs_only_that_project(
     assert!(!fixture.workspace.join("pnpm-lock.yaml").exists());
 }
 
+#[test]
+fn filtered_install_reincludes_package_after_exclusion() {
+    let fixture = WorkspaceFixture::new();
+    let pkg_a = fixture.project(
+        "pkg-a",
+        "pkg-a",
+        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+    );
+    let pkg_b = fixture.project(
+        "pkg-b",
+        "pkg-b",
+        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+    );
+
+    fixture.run(["--filter", "!./packages/**", "--filter", "pkg-a", "install"]);
+
+    assert!(has_link(&pkg_a, HELLO), "re-included package must be installed");
+    assert!(!pkg_b.join("node_modules").exists(), "excluded package must not be installed");
+}
+
 mod mutations;
 
 mod dedicated_lockfiles;
