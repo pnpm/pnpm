@@ -221,8 +221,8 @@ pub(super) fn paths_eq(lhs: &Path, rhs: &Path) -> bool {
     lhs == rhs
 }
 
-/// The command names in `bins_dir`, with the Windows shim and executable
-/// extensions stripped in any case. A missing directory has none.
+/// The command names in `bins_dir`. On Windows the shim and executable
+/// extensions are stripped in any case. A missing directory has none.
 pub(super) fn existing_commands(bins_dir: &Path) -> Result<HashSet<String>, LinkBinsError> {
     let read_error = |error| LinkBinsError::ReadModulesDir { dir: bins_dir.to_path_buf(), error };
     let entries = match fs::read_dir(bins_dir) {
@@ -241,6 +241,9 @@ pub(super) fn existing_commands(bins_dir: &Path) -> Result<HashSet<String>, Link
     Ok(commands)
 }
 fn command_name(file_name: &str) -> &str {
+    if !cfg!(windows) {
+        return file_name;
+    }
     match file_name.rsplit_once('.') {
         Some((command, extension))
             if ["cmd", "ps1", "exe"]

@@ -1203,7 +1203,7 @@ const WINDOWS_BIN_EXTENSIONS = new Set(['.cmd', '.ps1', '.exe'])
 
 /**
  * The commands already linked into `binsDir`, so that a workspace project's
- * bins never replace the bins of a hoisted package. The Windows shim and
+ * bins never replace the bins of a hoisted package. On Windows the shim and
  * executable extensions are stripped in any case. A missing `binsDir` has no
  * commands.
  */
@@ -1215,6 +1215,7 @@ async function readCommandNames (binsDir: string): Promise<Set<string>> {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return new Set()
     throw err
   }
+  if (process.platform !== 'win32') return new Set(entries)
   return new Set(entries.map((entry) => {
     const extension = path.extname(entry)
     return WINDOWS_BIN_EXTENSIONS.has(extension.toLowerCase()) ? entry.slice(0, -extension.length) : entry

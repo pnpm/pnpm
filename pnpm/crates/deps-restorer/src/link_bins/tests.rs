@@ -823,8 +823,9 @@ fn prefetched_bin_pass_reads_a_link_dep_from_disk() {
     assert!(is_shim_pointing_at(&body, &modules.join(".bin/sibling"), &sibling_dir.join("cli.js")));
 }
 
-/// A command already in `.bin` keeps its entry whatever case its Windows
-/// shim or executable extension is written in.
+/// On Windows, a command already in `.bin` keeps its entry whatever case
+/// its shim or executable extension is written in. Elsewhere `node.EXE`
+/// is a command of its own and does not hold `node`.
 #[test]
 fn link_new_bins_from_locations_keeps_commands_with_any_windows_extension() {
     let tmp = tempdir().unwrap();
@@ -865,5 +866,7 @@ fn link_new_bins_from_locations_keeps_commands_with_any_windows_extension() {
         .collect();
     linked.sort();
     linked.dedup();
-    assert_eq!(linked, ["own"]);
+    let expected: &[&str] =
+        if cfg!(windows) { &["own"] } else { &["node", "other", "own", "shared"] };
+    assert_eq!(linked, expected);
 }
