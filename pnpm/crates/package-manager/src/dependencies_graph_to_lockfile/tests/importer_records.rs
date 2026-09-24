@@ -95,6 +95,60 @@ fn dev_and_optional_direct_deps_split_into_distinct_importer_sections() {
     assert_eq!(packages[&fsevents_key].os.as_deref(), Some(["darwin".to_string()].as_slice()));
 }
 #[test]
+fn a_dep_declared_in_prod_and_dev_records_both_importer_sections() {
+    // pnpm/pnpm#9572: `is-even` is declared in `dependencies` *and*
+    // `devDependencies`. The importer used to collapse it into the prod
+    // section, and since `--dev` filters on the `devDependencies` section it
+    // then materialized nothing for it.
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "is-even": "^1.0.0" },
+        "devDependencies": { "is-even": "^1.0.0", "is-odd": "^3.0.1" },
+    }));
+
+    let is_even = make_node(
+        "is-even",
+        "1.0.0",
+        json!({ "name": "is-even", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::default(),
+    );
+    let is_odd = make_node(
+        "is-odd",
+        "3.0.1",
+        json!({ "name": "is-odd", "version": "3.0.1" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::default(),
+    );
+
+    let mut graph = DependenciesGraph::default();
+    graph.insert(is_even.dep_path.clone(), is_even);
+    graph.insert(is_odd.dep_path.clone(), is_odd);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("is-even".to_string(), DepPath::from("is-even@1.0.0".to_string()));
+    direct.insert("is-odd".to_string(), DepPath::from("is-odd@3.0.1".to_string()));
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ));
+
+    let importer = lockfile.root_project().expect("root importer");
+    let is_even_key = PkgName::parse("is-even").unwrap();
+    let prod = importer.dependencies.as_ref().expect("prod deps");
+    assert_eq!(prod[&is_even_key].specifier, "^1.0.0");
+    let dev = importer.dev_dependencies.as_ref().expect("dev deps");
+    assert_eq!(
+        dev[&is_even_key].specifier, "^1.0.0",
+        "a dev dependency is recorded in `devDependencies` even when it is also a prod dependency",
+    );
+    assert!(dev.contains_key(&PkgName::parse("is-odd").unwrap()));
+    assert!(importer.optional_dependencies.is_none(), "no optional deps declared");
+}
+#[test]
 fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
     let (_tmp, manifest) = write_manifest(json!({
         "name": "fixture",

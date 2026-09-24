@@ -239,9 +239,11 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
 }
 /// Manifest-declared dependency groups land in the matching importer
 /// section in the lockfile (packages are placed in `devDependencies`
-/// even if they are present as non-dev as well). Pacquet routes deps
-/// through `manifest_alias_to_group`, so a dep declared in
-/// `devDependencies` lands in the lockfile's `devDependencies` section.
+/// even if they are present as non-dev as well — see
+/// `a_dep_declared_in_prod_and_dev_records_both_importer_sections`).
+/// Pacquet routes deps through `manifest_alias_to_groups`, so a dep
+/// declared in `devDependencies` lands in the lockfile's `devDependencies`
+/// section.
 #[tokio::test]
 async fn fresh_install_splits_dev_and_prod_dependency_sections() {
     let mock_instance = TestRegistry::start();

@@ -223,6 +223,57 @@ fn records_an_alias_declared_in_both_prod_and_optional_as_optional() {
     );
 }
 #[test]
+fn records_an_alias_declared_in_prod_and_dev_under_both_importer_sections() {
+    // The lockfile predates the manifest repeating the alias, so `bar` sits
+    // under `dependencies` only — the shape that made `pnpm install --dev`
+    // materialize nothing for it (pnpm/pnpm#9572).
+    let manifest = manifest_from(json!({
+        "dependencies": { "bar": "^2.0.0" },
+        "devDependencies": { "bar": "^2.0.0" },
+    }));
+
+    let updated = try_fast_update_importers(
+        &parsed_lockfile(WITH_REMOVABLE_DEP),
+        &[(".".to_string(), &manifest)],
+    )
+    .expect("recording an alias under a second group needs no resolution");
+
+    let alias: PkgName = "bar".parse().expect("alias");
+    let importer = &updated.importers["."];
+    let prod = &importer.dependencies.as_ref().expect("dependencies")[&alias];
+    let dev = &importer.dev_dependencies.as_ref().expect("devDependencies")[&alias];
+    assert_eq!((prod.specifier.as_str(), prod.version.to_string().as_str()), ("^2.0.0", "2.0.0"));
+    assert_eq!(
+        (dev.specifier.as_str(), dev.version.to_string().as_str()),
+        ("^2.0.0", "2.0.0"),
+        "the dev section gets the version the prod section already locked",
+    );
+    assert_eq!(
+        importer.specifiers
+            .as_ref()
+            .expect("specifiers")
+            .get("bar")
+            .map(String::as_str),
+        Some("^2.0.0"),
+    );
+}
+#[test]
+fn stands_aside_when_an_alias_is_recorded_under_every_declared_group() {
+    let mut subject = parsed_lockfile(WITH_REMOVABLE_DEP);
+    let importer = subject.importers.get_mut(".").expect("importer");
+    let alias: PkgName = "bar".parse().expect("alias");
+    let recorded = importer.dependencies.as_ref().expect("dependencies")[&alias].clone();
+    importer.dev_dependencies.get_or_insert_default().insert(alias, recorded);
+    let manifest = manifest_from(json!({
+        "dependencies": { "foo": "^1.0.0", "bar": "^2.0.0" },
+        "devDependencies": { "bar": "^2.0.0" },
+    }));
+
+    let updated = try_fast_update_importers(&subject, &[(".".to_string(), &manifest)]);
+
+    assert!(updated.is_none(), "both groups are recorded, so the handler stands aside");
+}
+#[test]
 fn moves_several_dependencies_between_groups_in_one_pass() {
     let manifest = manifest_from(json!({
         "dependencies": { "qux": "^5.0.0" },

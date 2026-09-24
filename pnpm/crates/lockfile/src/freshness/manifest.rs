@@ -123,7 +123,9 @@ fn check_dependencies_meta(
     })
 }
 
-/// Phase 4: per-field name-set + specifier match. The auto-installed peers
+/// Phase 4: per-field name-set + specifier match. Every required manifest entry
+/// must be recorded in the importer field of the same name, and nothing the
+/// manifest may not record there may appear in it. The auto-installed peers
 /// join `dependencies`, so they count toward the prod name-set used for both
 /// the dev-field precedence filter and that field's own comparison.
 fn check_dependency_fields(
@@ -147,7 +149,7 @@ fn check_dependency_fields(
         .collect();
 
     for field in [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional] {
-        let manifest_field = manifest_field_specs(
+        let required = manifest_field_specs(
             manifest,
             field,
             &manifest_prod,
@@ -155,16 +157,19 @@ fn check_dependency_fields(
             folded_peers,
             is_ignored_optional,
         );
+        let allowed = manifest_field_allowed(required.clone(), manifest, field);
         let importer_field = importer.get_map_by_group(field);
-        check_field_specs(&manifest_field, importer_field, field)?;
-        check_field_extras(&manifest_field, importer_field, field)?;
+        check_field_specs(&required, importer_field, field)?;
+        check_field_extras(&allowed, importer_field, field)?;
     }
 
     Ok(())
 }
 
-/// One field's manifest entries after the precedence filter: a dependency
-/// listed in several fields belongs to the most specific one.
+/// One field's *required* manifest entries: a dependency listed in several
+/// fields is required under the most specific one, so a lockfile written before
+/// pacquet recorded a dependency under every declaring group stays fresh. The
+/// wider set a field may also carry is [`manifest_field_allowed`]'s.
 fn manifest_field_specs<'a>(
     manifest: &'a PackageManifest,
     field: DependencyGroup,
@@ -195,6 +200,23 @@ fn manifest_field_specs<'a>(
         );
     }
     specs
+}
+
+/// The entries a field may also record beyond the required ones: for
+/// `devDependencies`, every entry the manifest declares there. A dependency
+/// that is also a prod (or optional) dependency is not required under
+/// `devDependencies`, but recording it under both is what pacquet writes —
+/// both importer sections declare the dependency the manifest declares, so
+/// neither shape may be reported as an extra (pnpm/pnpm#9572).
+fn manifest_field_allowed<'a>(
+    mut allowed: BTreeMap<&'a str, &'a str>,
+    manifest: &'a PackageManifest,
+    field: DependencyGroup,
+) -> BTreeMap<&'a str, &'a str> {
+    if matches!(field, DependencyGroup::Dev) {
+        allowed.extend(manifest.dependencies([DependencyGroup::Dev]));
+    }
+    allowed
 }
 
 /// Every manifest entry must have a matching importer entry in the *same*

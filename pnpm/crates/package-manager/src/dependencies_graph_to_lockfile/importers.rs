@@ -2,9 +2,10 @@ use super::{
     DependenciesGraphToLockfileError, GraphToLockfileOptions, ImporterLockfileFlags,
     ImporterLockfileInput,
 };
+use crate::importer_groups::{ImporterDependencyGroups, manifest_alias_to_groups};
 use pnpm_lockfile::{
     ImporterDepVersion, LockfileResolution, ParseImporterDepVersionError, PkgName, PkgNameVerPeer,
-    PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, VersionPart,
+    PkgVerPeer, ProjectSnapshot, ResolvedDependencySpec, VersionPart,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_deps_resolver::{
@@ -98,7 +99,8 @@ pub(super) fn catalog_snapshot_version(
 /// plus the per-alias `DepPath` map the resolver produced for that
 /// importer.
 ///
-/// The manifest decides which dep group each alias lives under, and the
+/// The manifest decides which dep groups each alias lives under — an
+/// alias declared in several groups lands in each of them — and the
 /// resolver decides the resolved version (peer-suffixed when peers are
 /// involved, alias-prefixed when the alias and real name differ).
 ///
@@ -117,7 +119,7 @@ pub(super) fn build_importer(
 ) -> Result<ProjectSnapshot, DependenciesGraphToLockfileError> {
     let mut groups = ImporterDependencyGroups::default();
     let mut specifiers: HashMap<String, String> = HashMap::new();
-    let alias_to_group = manifest_alias_to_group(input.manifest);
+    let alias_to_groups = manifest_alias_to_groups(input.manifest);
     let sources = DirectEntrySources {
         manifest: input.manifest,
         graph,
@@ -130,14 +132,7 @@ pub(super) fn build_importer(
             continue;
         };
         specifiers.insert(alias.clone(), spec.specifier.clone());
-        groups.insert(
-            alias_to_group
-                .get(alias)
-                .copied()
-                .unwrap_or(DependencyGroup::Prod),
-            name_for_key,
-            spec,
-        );
+        groups.insert_alias(alias_to_groups.get(alias).copied(), name_for_key, spec);
     }
     let (publish_directory, link_directory) = manifest_publish_config(input.manifest);
     Ok(ProjectSnapshot {
@@ -206,23 +201,6 @@ pub(super) fn importer_direct_entry(
     )
     .unwrap_or(version);
     Ok(Some((name_for_key, ResolvedDependencySpec { specifier, version })))
-}
-/// One importer's direct dependencies, split by the manifest group they were
-/// declared in.
-#[derive(Default)]
-pub(super) struct ImporterDependencyGroups {
-    prod: ResolvedDependencyMap,
-    dev: ResolvedDependencyMap,
-    optional: ResolvedDependencyMap,
-}
-impl ImporterDependencyGroups {
-    fn insert(&mut self, group: DependencyGroup, name: PkgName, spec: ResolvedDependencySpec) {
-        match group {
-            DependencyGroup::Dev => self.dev.insert(name, spec),
-            DependencyGroup::Optional => self.optional.insert(name, spec),
-            DependencyGroup::Prod | DependencyGroup::Peer => self.prod.insert(name, spec),
-        };
-    }
 }
 /// The version one direct dependency records, or `None` when the entry does
 /// not belong in the importer.
@@ -323,10 +301,13 @@ pub(crate) fn manifest_publish_config(
         });
     (publish_directory, link_directory)
 }
-/// Map each direct-dep alias to the manifest group it appears in.
-/// `optionalDependencies` wins over `dependencies` wins over
-/// `devDependencies` when an alias is duplicated across groups
-/// (first-write-wins over the dependency fields).
+/// Map each direct-dep alias to the manifest group it appears in, ignoring
+/// duplicates. `optionalDependencies` wins over `dependencies` wins over
+/// `devDependencies` (first-write-wins over the dependency fields).
+///
+/// Only for callers that need one group per alias. To keep the importer's
+/// lockfile entry a faithful description of the manifest, use
+/// [`manifest_alias_to_groups`] instead.
 pub(super) fn manifest_alias_to_group(
     manifest: &PackageManifest,
 ) -> HashMap<String, DependencyGroup> {

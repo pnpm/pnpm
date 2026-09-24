@@ -9,7 +9,7 @@ mod locked_versions;
 
 use crate::{
     fast_update_compose::Drift, fast_update_lockfile::GraphEdits,
-    fast_update_settings::workspace_package_names,
+    fast_update_settings::workspace_package_names, importer_groups::ImporterGroups,
 };
 use node_semver::Range;
 use pnpm_lockfile::{
@@ -23,10 +23,10 @@ use std::{
     path::PathBuf,
 };
 
-/// Each manifest alias with its specifier and the group it is
-/// effectively declared under. Keyed by [`PkgName`] so membership tests
-/// against importer records need no per-dependency conversions.
-type ManifestDependencies<'manifest> = FxHashMap<PkgName, (&'manifest str, DependencyGroup)>;
+/// Each manifest alias with its specifier and the groups it is declared
+/// under. Keyed by [`PkgName`] so membership tests against importer
+/// records need no per-dependency conversions.
+type ManifestDependencies<'manifest> = FxHashMap<PkgName, (&'manifest str, ImporterGroups)>;
 
 /// The prepared inputs [`apply_importers_update`] replays: each
 /// importer's manifest map, built once so detection and application share
@@ -87,15 +87,15 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
 /// One manifest's declared dependencies keyed by alias, or `None` when an
 /// alias cannot be parsed.
 ///
-/// Later groups overwrite, so each alias ends at the group
-/// `satisfies_package_manifest` expects it recorded under when it appears in
-/// several: optional wins over prod, prod over dev.
+/// A dependency declared in several groups carries every one of them, because
+/// the importer record has to list it under each (pnpm/pnpm#9572). The
+/// specifier is the one `satisfies_package_manifest` compares against, so
+/// later groups overwrite: optional wins over prod, prod over dev.
 fn manifest_dependency_map(manifest: &PackageManifest) -> Option<ManifestDependencies<'_>> {
     let mut dependencies = ManifestDependencies::default();
-    for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
-        for (name, specifier) in manifest.dependencies([group]) {
-            dependencies.insert(PkgName::parse(name).ok()?, (specifier, group));
-        }
+    for (name, (specifier, groups)) in crate::importer_groups::manifest_alias_to_declared(manifest)
+    {
+        dependencies.insert(PkgName::parse(&name).ok()?, (specifier, groups));
     }
     Some(dependencies)
 }
@@ -226,10 +226,10 @@ enum AliasDivergence {
 fn alias_divergence(
     importer: &ProjectSnapshot,
     alias: &PkgName,
-    declared: (&str, DependencyGroup),
+    declared: (&str, ImporterGroups),
 ) -> AliasDivergence {
-    let (specifier, target) = declared;
-    let Some((recorded_in, dependency)) = importer_dependency(importer, alias) else {
+    let (specifier, groups) = declared;
+    let Some(dependency) = importer_dependency(importer, alias) else {
         return AliasDivergence::Diverged;
     };
     if dependency.specifier != specifier {
@@ -247,51 +247,68 @@ fn alias_divergence(
         }
         return AliasDivergence::Diverged;
     }
-    if recorded_in == target { AliasDivergence::Clean } else { AliasDivergence::Diverged }
+    // A record under only some of the declared groups still needs the ones it
+    // is missing, and only the importers path can add them without resolving
+    // (pnpm/pnpm#9572).
+    if groups.iter().all(|group| importer_records(importer, group, alias)) {
+        AliasDivergence::Clean
+    } else {
+        AliasDivergence::Diverged
+    }
 }
 
 fn importer_dependency<'a>(
     importer: &'a ProjectSnapshot,
     alias: &PkgName,
-) -> Option<(DependencyGroup, &'a ResolvedDependencySpec)> {
-    [
-        (DependencyGroup::Optional, importer.optional_dependencies.as_ref()),
-        (DependencyGroup::Prod, importer.dependencies.as_ref()),
-        (DependencyGroup::Dev, importer.dev_dependencies.as_ref()),
-    ]
-    .into_iter()
-    .find_map(|(group, dependencies)| {
-        dependencies
-            .and_then(|dependencies| dependencies.get(alias))
-            .map(|spec| (group, spec))
-    })
+) -> Option<&'a ResolvedDependencySpec> {
+    [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev]
+        .into_iter()
+        .find_map(|group| importer_group_ref(importer, group)?.get(alias))
 }
 
-/// Move the importer's record of `alias` into `target`, returning the group
-/// it was recorded under, or `None` when it is not recorded or already
-/// there.
-fn move_dependency(
+/// Whether the importer records `alias` under `group`.
+fn importer_records(importer: &ProjectSnapshot, group: DependencyGroup, alias: &PkgName) -> bool {
+    importer_group_ref(importer, group).is_some_and(|dependencies| dependencies.contains_key(alias))
+}
+
+/// Record the importer's `alias` under exactly `groups`, returning the groups
+/// it was recorded under before, or `None` when it is already exactly that.
+///
+/// A dependency the manifest declares in several groups has to be recorded
+/// under each of them, and the groups it is no longer declared under have to
+/// lose it — that is the whole edit when a lockfile predates the manifest, and
+/// it is also what moves a dependency between groups.
+fn place_dependency(
     importer: &mut ProjectSnapshot,
     alias: &PkgName,
-    target: DependencyGroup,
-) -> Option<DependencyGroup> {
-    let source = [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev]
-        .into_iter()
-        .find(|group| {
-            importer_group(importer, *group)
-                .as_ref()
-                .is_some_and(|dependencies| dependencies.contains_key(alias))
-        })?;
-    if source == target {
+    groups: ImporterGroups,
+) -> Option<ImporterGroups> {
+    let mut recorded = ImporterGroups::default();
+    for group in [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev] {
+        if importer_records(importer, group, alias) {
+            recorded.insert(group);
+        }
+    }
+    if recorded == groups {
         return None;
     }
-    let source_group = importer_group(importer, source);
-    let dependency = source_group.as_mut()?.remove(alias)?;
-    if source_group.as_ref().is_some_and(HashMap::is_empty) {
-        *source_group = None;
+    let mut dependency = None;
+    for group in [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev] {
+        let slot = importer_group(importer, group);
+        if let Some(dependencies) = slot {
+            dependency = dependency.or_else(|| dependencies.remove(alias));
+            if dependencies.is_empty() {
+                *slot = None;
+            }
+        }
     }
-    importer_group(importer, target).get_or_insert_default().insert(alias.clone(), dependency);
-    Some(source)
+    let dependency = dependency?;
+    for group in groups.iter() {
+        importer_group(importer, group)
+            .get_or_insert_default()
+            .insert(alias.clone(), dependency.clone());
+    }
+    Some(recorded)
 }
 
 fn importer_group(
@@ -302,6 +319,18 @@ fn importer_group(
         DependencyGroup::Prod => &mut importer.dependencies,
         DependencyGroup::Dev => &mut importer.dev_dependencies,
         DependencyGroup::Optional => &mut importer.optional_dependencies,
+        DependencyGroup::Peer => unreachable!("peerDependencies is not an importer group"),
+    }
+}
+
+fn importer_group_ref(
+    importer: &ProjectSnapshot,
+    group: DependencyGroup,
+) -> Option<&ResolvedDependencyMap> {
+    match group {
+        DependencyGroup::Prod => importer.dependencies.as_ref(),
+        DependencyGroup::Dev => importer.dev_dependencies.as_ref(),
+        DependencyGroup::Optional => importer.optional_dependencies.as_ref(),
         DependencyGroup::Peer => unreachable!("peerDependencies is not an importer group"),
     }
 }

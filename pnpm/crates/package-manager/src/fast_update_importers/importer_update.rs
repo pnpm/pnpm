@@ -5,11 +5,11 @@ use super::{
         LockedPick, LockedSnapshots, is_linked_from_a_survivor,
         locked_version_resolution_would_pick,
     },
-    move_dependency, remove_dependencies_absent_from,
+    place_dependency, remove_dependencies_absent_from,
 };
 use crate::{
     dependencies_graph_to_lockfile::manifest_publish_config, fast_update_lockfile::GraphEdits,
-    fast_update_settings::is_directory_dependency,
+    fast_update_settings::is_directory_dependency, importer_groups::ImporterGroups,
 };
 use node_semver::{Range, Version};
 use pnpm_lockfile::{
@@ -105,7 +105,7 @@ pub(super) fn apply_one_importer_update(
 pub(super) fn apply_importer_edge(
     importer: &mut ProjectSnapshot,
     alias: &PkgName,
-    declared: (&str, DependencyGroup),
+    declared: (&str, ImporterGroups),
     locked: LockedInputs<'_>,
     plan: &ImportersPlan<'_, '_>,
     edits: &mut GraphEdits,
@@ -128,9 +128,11 @@ pub(super) fn apply_importer_edge(
     {
         return false;
     }
-    if let Some(source) = move_dependency(importer, alias, target) {
-        edits.optional_flags_are_stale |=
-            source == DependencyGroup::Optional || target == DependencyGroup::Optional;
+    if let Some(recorded) = place_dependency(importer, alias, target) {
+        // Only a change to whether the package is optional here makes the
+        // `optional` flags of its subtree stale.
+        edits.optional_flags_are_stale |= recorded.contains(DependencyGroup::Optional)
+            != target.contains(DependencyGroup::Optional);
     }
     true
 }
@@ -223,7 +225,7 @@ pub(super) fn importer_from_locked_versions(
 ) -> Option<ProjectSnapshot> {
     let mut importer = ProjectSnapshot::default();
     let mut specifiers = HashMap::new();
-    for (alias, (specifier, group)) in manifest_dependencies {
+    for (alias, (specifier, groups)) in manifest_dependencies {
         if is_directory_dependency(&alias.to_string(), specifier, &plan.workspace_package_names) {
             return None;
         }
@@ -241,9 +243,11 @@ pub(super) fn importer_from_locked_versions(
             specifier: (*specifier).to_string(),
             version: ImporterDepVersion::Regular(pick.version.to_string().parse().ok()?),
         };
-        importer_group(&mut importer, *group)
-            .get_or_insert_default()
-            .insert(alias.clone(), dependency);
+        for group in groups.iter() {
+            importer_group(&mut importer, group)
+                .get_or_insert_default()
+                .insert(alias.clone(), dependency.clone());
+        }
         specifiers.insert(alias.to_string(), (*specifier).to_string());
     }
     importer.specifiers = Some(specifiers);
@@ -267,7 +271,7 @@ pub(super) fn importer_from_locked_versions(
 pub(super) fn add_importer_edge(
     importer: &mut ProjectSnapshot,
     alias: &PkgName,
-    declared: (&str, DependencyGroup),
+    declared: (&str, ImporterGroups),
     snapshots: Option<&LockedSnapshots>,
     time: Option<&BTreeMap<String, String>>,
     plan: &ImportersPlan<'_, '_>,
@@ -312,27 +316,34 @@ pub(super) fn insert_importer_edge(
     importer: &mut ProjectSnapshot,
     alias: &PkgName,
     specifier: &str,
-    target: DependencyGroup,
+    target: ImporterGroups,
     wanted: &Version,
     edits: &mut GraphEdits,
 ) -> bool {
     let Ok(version) = wanted.to_string().parse() else {
         return false;
     };
-    importer_group(importer, target)
-        .get_or_insert_default()
-        .insert(
-            alias.clone(),
-            ResolvedDependencySpec {
-                specifier: specifier.to_string(),
-                version: ImporterDepVersion::Regular(version),
-            },
-        );
+    if target.is_empty() {
+        return false;
+    }
+    let dependency = ResolvedDependencySpec {
+        specifier: specifier.to_string(),
+        version: ImporterDepVersion::Regular(version),
+    };
+    // Every guard above reads the manifest and the snapshots, so it holds for
+    // all of the alias's groups: record the one edge under each of them.
+    for group in target.iter() {
+        importer_group(importer, group)
+            .get_or_insert_default()
+            .insert(alias.clone(), dependency.clone());
+    }
     if let Some(specifiers) = importer.specifiers.as_mut() {
         specifiers.insert(alias.to_string(), specifier.to_string());
     }
     // A path that does not run through `optionalDependencies` clears the
     // `optional` flag of everything the new edge reaches.
-    edits.optional_flags_are_stale |= target != DependencyGroup::Optional;
+    edits.optional_flags_are_stale |= target
+        .iter()
+        .any(|group| group != DependencyGroup::Optional);
     true
 }
