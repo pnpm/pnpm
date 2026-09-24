@@ -10,8 +10,11 @@ import { barePathIsUnambiguous, isLocalFilesystemSpecifier, resolveFromLocalPath
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import normalize from 'normalize-path'
 
+import { parseLocalPath } from '../src/parseBareSpecifier.js'
+
 const require = createRequire(import.meta.dirname)
 const TEST_DIR = path.dirname(require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-local-resolver-0.1.1.tgz'))
+const testOnWindows = process.platform === 'win32' ? test : test.skip
 const testOnNonWindows = process.platform === 'win32' ? test.skip : test
 
 test('resolve directory', async () => {
@@ -109,6 +112,71 @@ test('resolve file', async () => {
     },
     resolvedVia: 'local-filesystem',
   })
+})
+
+testOnWindows('preserve a cross-root UNC tarball path without preserveAbsolutePaths', () => {
+  const uncPath = '//server/share/pnpm-local-resolver-0.1.1.tgz'
+  const projectDir = 'C:/project'
+  const spec = parseLocalPath({ bareSpecifier: uncPath }, projectDir, projectDir, { preserveAbsolutePaths: false })
+
+  expect(spec).toEqual(expect.objectContaining({
+    dependencyPath: uncPath,
+    fetchSpec: path.normalize(uncPath),
+    id: `file:${uncPath}`,
+    normalizedBareSpecifier: `file:${uncPath}`,
+  }))
+})
+
+testOnWindows('relativize a UNC tarball path on the same share', () => {
+  const uncPath = '//server/share/project/pnpm-local-resolver-0.1.1.tgz'
+  const projectDir = '//server/share/project'
+  const spec = parseLocalPath({ bareSpecifier: uncPath }, projectDir, projectDir, { preserveAbsolutePaths: false })
+
+  expect(spec).toEqual(expect.objectContaining({
+    dependencyPath: 'pnpm-local-resolver-0.1.1.tgz',
+    fetchSpec: path.normalize(uncPath),
+    id: 'file:pnpm-local-resolver-0.1.1.tgz',
+    normalizedBareSpecifier: `file:${uncPath}`,
+  }))
+})
+
+testOnWindows('relativize a UNC tarball path from the share root', () => {
+  const uncPath = '//server/share/pnpm-local-resolver-0.1.1.tgz'
+  const projectDir = '//server/share'
+  const spec = parseLocalPath({ bareSpecifier: uncPath }, projectDir, projectDir, { preserveAbsolutePaths: false })
+
+  expect(spec).toEqual(expect.objectContaining({
+    dependencyPath: 'pnpm-local-resolver-0.1.1.tgz',
+    fetchSpec: path.normalize(uncPath),
+    id: 'file:pnpm-local-resolver-0.1.1.tgz',
+    normalizedBareSpecifier: `file:${uncPath}`,
+  }))
+})
+
+testOnWindows('preserve a UNC tarball path on a different share of the same server', () => {
+  const uncPath = '//server/share2/pnpm-local-resolver-0.1.1.tgz'
+  const projectDir = '//server/share1/project'
+  const spec = parseLocalPath({ bareSpecifier: uncPath }, projectDir, projectDir, { preserveAbsolutePaths: false })
+
+  expect(spec).toEqual(expect.objectContaining({
+    dependencyPath: uncPath,
+    fetchSpec: path.normalize(uncPath),
+    id: `file:${uncPath}`,
+    normalizedBareSpecifier: `file:${uncPath}`,
+  }))
+})
+
+testOnWindows('preserve a UNC directory path on a different share of the same server', () => {
+  const uncPath = '//server/share2/package'
+  const projectDir = '//server/share1/project'
+  const spec = parseLocalPath({ bareSpecifier: uncPath }, projectDir, projectDir, { preserveAbsolutePaths: false })
+
+  expect(spec).toEqual(expect.objectContaining({
+    dependencyPath: uncPath,
+    fetchSpec: path.normalize(uncPath),
+    id: `link:${uncPath}`,
+    normalizedBareSpecifier: `link:${uncPath}`,
+  }))
 })
 
 test("resolve file when lockfile directory differs from the package's dir", async () => {
