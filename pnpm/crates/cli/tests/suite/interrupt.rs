@@ -14,7 +14,7 @@ use std::{
     fs, io,
     os::unix::process::ExitStatusExt,
     path::Path,
-    process::{Child, ChildStdout, ExitStatus, Stdio},
+    process::{Child, ExitStatus, Stdio},
     sync::mpsc,
     thread::{self, sleep},
     time::{Duration, Instant},
@@ -321,20 +321,23 @@ fn killing_the_process_group_of_pnpm_kills_the_script_behind_its_shell_too() {
             .with_stderr(Stdio::piped()),
     );
     let stdout = process.stdout.take().expect("stdout is piped");
+    let stderr = process.stderr.take().expect("stderr is piped");
     wait_for_file(&workspace.join("started.txt"), &mut process);
     let script = read_pid(&workspace.join("started.txt"));
     signal_group(&process, libc::SIGKILL);
     let status = wait_for_shutdown(&mut process);
 
     assert_eq!(status.signal(), Some(libc::SIGKILL), "the kill should have reached pnpm");
-    let closed = closes_within(stdout, SHUTDOWN_DEADLINE);
-    if !closed {
+    let stdout_closed = closes_within(stdout, SHUTDOWN_DEADLINE);
+    let stderr_closed = closes_within(stderr, SHUTDOWN_DEADLINE);
+    if !stdout_closed || !stderr_closed {
         // SAFETY: `script` is the process the test's own fixture recorded.
         unsafe {
             libc::kill(script, libc::SIGKILL);
         }
     }
-    assert!(closed, "the script kept pnpm's output pipe open after pnpm was killed");
+    assert!(stdout_closed, "the script kept pnpm's stdout pipe open after pnpm was killed");
+    assert!(stderr_closed, "the script kept pnpm's stderr pipe open after pnpm was killed");
     assert!(ends_within(script, SHUTDOWN_DEADLINE), "the script should not outlive pnpm");
 
     drop(root);
@@ -470,10 +473,18 @@ fn read_pid(path: &Path) -> libc::pid_t {
         .expect("the fixture recorded its pid")
 }
 
-/// Whether `pid` still names a process.
+/// Whether `pid` still names a process. Only a process the kernel no
+/// longer knows is gone; one that refuses the probe is still there.
 fn is_running(pid: libc::pid_t) -> bool {
     // SAFETY: a signal of 0 only probes for the process.
-    unsafe { libc::kill(pid, 0) == 0 }
+    if unsafe { libc::kill(pid, 0) } == 0 {
+        return true;
+    }
+    match io::Error::last_os_error().raw_os_error() {
+        Some(libc::ESRCH) => false,
+        Some(libc::EPERM) => true,
+        _ => panic!("probe process {pid}: {}", io::Error::last_os_error()),
+    }
 }
 
 /// Whether `pid` is gone before `deadline` passes.
@@ -488,12 +499,12 @@ fn ends_within(pid: libc::pid_t, deadline: Duration) -> bool {
     false
 }
 
-/// Whether `stdout` reaches its end before `deadline` passes, which it
+/// Whether `stream` reaches its end before `deadline` passes, which it
 /// does once no process holds it open any more.
-fn closes_within(mut stdout: ChildStdout, deadline: Duration) -> bool {
+fn closes_within(mut stream: impl io::Read + Send + 'static, deadline: Duration) -> bool {
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
-        let drained = io::copy(&mut stdout, &mut io::sink());
+        let drained = io::copy(&mut stream, &mut io::sink());
         let _ = sender.send(drained);
     });
     receiver.recv_timeout(deadline).is_ok()

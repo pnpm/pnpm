@@ -105,12 +105,19 @@ export function killProcessGroup (pid: number): void {
 export async function endsWithin (pid: number, timeout: number): Promise<boolean> {
   const deadline = Date.now() + timeout
   while (Date.now() < deadline) {
-    try {
-      process.kill(pid, 0)
-    } catch {
-      return true
-    }
+    if (!isRunning(pid)) return true
     await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
   }
   return false
+}
+
+/** Only a process the kernel no longer knows is gone; one that refuses the probe is still there. */
+function isRunning (pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ESRCH') return false
+    throw err
+  }
+  return true
 }
