@@ -270,7 +270,7 @@ fn finish_apply<Reporter: self::Reporter>(
     if inputs.completion.save_workspace_state
         && !(inputs.prior.tree_moved && inputs.projects.filtered_install)
     {
-        write_applied_workspace_state(&inputs)?;
+        write_applied_workspace_state::<Reporter>(&inputs)?;
     }
 
     let completion = report_install_completion::<Reporter>(ReportInstallCompletionInputs {
@@ -293,7 +293,7 @@ fn finish_apply<Reporter: self::Reporter>(
 }
 
 // Publish workspace freshness only after modules.yaml and the current lockfile are committed.
-fn write_applied_workspace_state(
+fn write_applied_workspace_state<Reporter: self::Reporter>(
     inputs: &ApplyMaterializationInputs<'_, '_>,
 ) -> Result<(), InstallError> {
     let phase_start = std::time::Instant::now();
@@ -317,8 +317,16 @@ fn write_applied_workspace_state(
     state.settings.auto_dedupe = (inputs.completion.config.auto_dedupe
         && inputs.materialized.fresh_lockfile.is_some())
     .then_some(true);
-    update_workspace_state(&inputs.projects.workspace_root, &state)
-        .map_err(InstallError::WriteWorkspaceState)?;
+    if let Err(error) = update_workspace_state(&inputs.projects.workspace_root, &state) {
+        tracing::warn!(
+            target: "pacquet::install",
+            ?error,
+            "Failed to write the workspace state",
+        );
+        pnpm_reporter::emit_global_warning::<Reporter>(&format!(
+            "Failed to write the workspace state: {error}",
+        ));
+    }
     tracing::info!(target: "pacquet::install::phase", phase = "apply.workspace_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
     Ok(())
