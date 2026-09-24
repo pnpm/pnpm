@@ -7,6 +7,7 @@ import { assertReleaseIsInstallable, installPnpmToStore } from '@pnpm/engine.pm.
 import { PnpmError } from '@pnpm/error'
 import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
+import type { EnvLockfile } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import spawn from 'cross-spawn'
@@ -165,27 +166,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
 
   let wantedPnpmBinDir: string
   try {
-    ;({ binDir: wantedPnpmBinDir } = await installPnpmToStore(pmVersion, {
-      envLockfile,
-      storeController: storeToUse.ctrl,
-      storeDir: storeToUse.dir,
-      registriesByScope: packageManagerConfig.registriesByScope,
-      virtualStoreDirMaxLength: config.virtualStoreDirMaxLength,
-      packageManager: { name: packageManager.name, version: packageManager.version },
-      // Network settings so the engine identity check can reach the canonical
-      // npm registry through the user's proxy / TLS configuration.
-      ca: config.ca,
-      cert: config.cert,
-      key: config.key,
-      httpProxy: config.httpProxy,
-      httpsProxy: config.httpsProxy,
-      noProxy: config.noProxy,
-      strictSsl: config.strictSsl,
-      localAddress: config.localAddress,
-      maxSockets: config.maxSockets,
-      configByUri: config.configByUri,
-      timeout: config.fetchTimeout,
-    }))
+    ;({ binDir: wantedPnpmBinDir } = await installPnpmToStore(pmVersion, installPnpmToStoreOptions(config, envLockfile, storeToUse)))
   } finally {
     await storeToUse.ctrl.close()
   }
@@ -215,6 +196,73 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
   }
 
   await exit(status ?? 0)
+}
+
+/**
+ * Install the pnpm that the env lockfile pins into the store, when a command
+ * in the project would switch to it. `pnpm fetch` reads only the lockfile, and
+ * a later `pnpm install --offline` that switches to the pinned pnpm finds it
+ * there instead of in the registry (pnpm/pnpm#11808).
+ */
+export async function fetchLockedPackageManager (config: Config, context: ConfigContext): Promise<void> {
+  if (config.pmOnFail != null && config.pmOnFail !== 'download') return
+  const envLockfile = await readEnvLockfile(context.rootProjectManifestDir)
+  const pmVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
+  if (
+    envLockfile == null ||
+    pmVersion == null ||
+    pmVersion === packageManager.version ||
+    !isPackageManagerResolved(envLockfile, pmVersion)
+  ) return
+  try {
+    assertPackageManagerLockfileUsesRegistryResolutions(envLockfile)
+  } catch (err: unknown) {
+    // Entries in another shape are re-resolved from the registry by the
+    // switch itself, so installing them here would not help it offline.
+    if (
+      !util.types.isNativeError(err) ||
+      !('code' in err) ||
+      err.code !== 'ERR_PNPM_INVALID_PACKAGE_MANAGER_LOCKFILE'
+    ) {
+      throw err
+    }
+    return
+  }
+  assertReleaseIsInstallable(pmVersion)
+  const store = await createStoreController({ ...config, ...context, ...getPackageManagerBootstrapConfig(config) })
+  try {
+    await installPnpmToStore(pmVersion, installPnpmToStoreOptions(config, envLockfile, store))
+  } finally {
+    await store.ctrl.close()
+  }
+}
+
+function installPnpmToStoreOptions (
+  config: Config,
+  envLockfile: EnvLockfile,
+  store: Awaited<ReturnType<typeof createStoreController>>
+): Parameters<typeof installPnpmToStore>[1] {
+  return {
+    envLockfile,
+    storeController: store.ctrl,
+    storeDir: store.dir,
+    registriesByScope: getPackageManagerBootstrapConfig(config).registriesByScope,
+    virtualStoreDirMaxLength: config.virtualStoreDirMaxLength,
+    packageManager: { name: packageManager.name, version: packageManager.version },
+    // Network settings so the engine identity check can reach the canonical
+    // npm registry through the user's proxy / TLS configuration.
+    ca: config.ca,
+    cert: config.cert,
+    key: config.key,
+    httpProxy: config.httpProxy,
+    httpsProxy: config.httpsProxy,
+    noProxy: config.noProxy,
+    strictSsl: config.strictSsl,
+    localAddress: config.localAddress,
+    maxSockets: config.maxSockets,
+    configByUri: config.configByUri,
+    timeout: config.fetchTimeout,
+  }
 }
 
 class VersionSwitchFail extends PnpmError {

@@ -1,7 +1,7 @@
 use super::{
     CliArgs, CliCommand, KeyIssueReporting, PackageManagerToSync, PinRoots, PreCommandInput,
     PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource, load_pre_command_config,
-    pre_command_plan_from_input, switch_target,
+    locked_package_manager_to_fetch, pre_command_plan_from_input, switch_target,
 };
 use crate::{
     boolean_negations::with_boolean_negations,
@@ -623,6 +623,55 @@ fn pre_command_plan_still_switches_when_lockfile_is_disabled() {
         panic!("expected a resolve target, got {:?}", plan.target.source);
     };
     assert_ne!(env_root.as_path(), root.path());
+}
+
+/// `pnpm fetch` has only the lockfile to go on, so it installs the pnpm the
+/// env document records whenever a command in the project would switch to
+/// it (pnpm/pnpm#11808).
+#[test]
+fn fetch_picks_the_pnpm_the_lockfile_pins_when_a_command_would_switch_to_it() {
+    let switching =
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false };
+    let root = TempDir::new().expect("tmp dir");
+    let locked = |config: &Config, process_state| {
+        locked_package_manager_to_fetch(config, root.path(), process_state)
+            .expect("read the env lockfile")
+            .map(|(_, version)| version)
+    };
+
+    assert_eq!(locked(&Config::default(), switching), None, "no lockfile");
+
+    write_lockfile(root.path(), &locked_package_manager("99.0.0", "99.0.0"));
+    assert_eq!(locked(&Config::default(), switching).as_deref(), Some("99.0.0"));
+    assert_eq!(
+        locked(
+            &Config::default(),
+            SwitchProcessState {
+                package_manager_switch_disabled: true,
+                executed_by_corepack: false
+            },
+        ),
+        None,
+        "version switching turned off",
+    );
+    assert_eq!(
+        locked(
+            &Config::default(),
+            SwitchProcessState {
+                package_manager_switch_disabled: false,
+                executed_by_corepack: true
+            },
+        ),
+        None,
+        "run by corepack",
+    );
+    for on_fail in [PmOnFail::Ignore, PmOnFail::Warn, PmOnFail::Error] {
+        let config = Config { pm_on_fail: Some(on_fail), ..Config::default() };
+        assert_eq!(locked(&config, switching), None, "pmOnFail {on_fail:?}");
+    }
+
+    write_lockfile(root.path(), &locked_package_manager(PNPM_VERSION, PNPM_VERSION));
+    assert_eq!(locked(&Config::default(), switching), None, "the running pnpm");
 }
 
 fn pin_roots(dir: &Path) -> PinRoots {

@@ -34,7 +34,7 @@ import { getConfig, installConfigDepsAndLoadHooks, isSingleSettingRead } from '.
 import type { ParsedCliArgsWithBuiltIn } from './parseCliArgs.js'
 import { parseCliArgs } from './parseCliArgs.js'
 import { initReporter, type ReporterType } from './reporter/index.js'
-import { switchCliVersion } from './switchCliVersion.js'
+import { fetchLockedPackageManager, switchCliVersion } from './switchCliVersion.js'
 import { syncEnvLockfile } from './syncEnvLockfile.js'
 
 export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
@@ -144,6 +144,8 @@ export async function main (inputArgv: string[]): Promise<void> {
             })
           }
         }
+      } else if (cmd === 'fetch' && !isExecutedByCorepack()) {
+        await fetchLockedPackageManager(config, context)
       }
       if (cmd != null && !cliOptions.global) {
         for (const runtime of getWantedRuntimes(context)) {
