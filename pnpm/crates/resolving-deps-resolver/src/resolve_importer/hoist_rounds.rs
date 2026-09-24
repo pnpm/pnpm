@@ -3,7 +3,7 @@ use super::{
     ImporterHoistState, MissingPeerInfo, ParentPkgAliases, PeerDiscoveryResult, PeerHoistDiscovery,
     RequiredRound, ResolveImporterError, Resolver, WantedSpec, WorkspaceRootDep,
     apply_hoist_missing_scope, extend_tree, get_hoistable_optional_peers_with_locked_versions,
-    hoist_peers, index_missing_names, partition_missing_peers,
+    hoist_peers, index_missing_names, partition_missing_peers, peers_accept_provided_versions,
 };
 
 impl ImporterHoistState {
@@ -337,11 +337,28 @@ impl ImporterHoistState {
             &self.selection.preferred_versions,
             self.dependencies.all_missing_optional_peers.keys().map(String::as_str),
         );
+        // A hoisted provider resolves its own peers from the importer's
+        // direct dependencies first, then from the workspace root's.
+        let mut provided_peer_versions = if self.policy.peers.resolve_peers_from_workspace_root {
+            (*self.dependencies.workspace_root_dep_versions).clone()
+        } else {
+            HashMap::default()
+        };
+        provided_peer_versions.extend(self.direct_dep_versions());
+        let workspace = self.ctx.workspace();
+        let accepts_candidate = |name: &str, version: &str| {
+            workspace
+                .inspect_package(&format!("{name}@{version}"), |package| {
+                    peers_accept_provided_versions(package, &provided_peer_versions)
+                })
+                .unwrap_or(true)
+        };
         let hoisted_optional = get_hoistable_optional_peers_with_locked_versions(
             &self.dependencies.all_missing_optional_peers,
             &hoist_preferred,
             self.hoist_root_deps(),
             &self.selection.locked_versions,
+            &accepts_candidate,
         );
         if hoisted_optional.is_empty() {
             return Ok(false);

@@ -9,6 +9,7 @@ import {
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
 import * as dp from '@pnpm/deps.path'
+import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import { PnpmError } from '@pnpm/error'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import type {
@@ -46,6 +47,7 @@ import type {
 } from '@pnpm/store.controller-types'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import { type AllowBuild, type AllowedDeprecatedVersions, DEPENDENCIES_OR_PEER_FIELDS, type DepPath, type PackageManifest, type PackageVersionPolicy, type PkgIdWithPatchHash, type RangeSpecStyle, type ReadPackageHook, type RegistryContext, type SupportedArchitectures, type TrustPolicy } from '@pnpm/types'
+import * as semverUtils from '@yarnpkg/core/semverUtils'
 import normalizePath from 'normalize-path'
 import pDefer from 'p-defer'
 import { pathExists } from 'path-exists'
@@ -412,12 +414,13 @@ export async function resolveRootDependencies (
     }
   }
   let workspaceRootDeps: HoistableRootDep[]
+  let rootImporterIndex = -1
+  let rootDepVersions = new Map<string, string>()
   if (ctx.resolvePeersFromWorkspaceRoot) {
-    const rootImporterIndex = importers.findIndex(({ options }) => options.parentIds[0] === '.')
-    workspaceRootDeps = await getHoistableRootDeps(
-      importers[rootImporterIndex],
-      pkgAddressesByImportersWithoutPeers[rootImporterIndex]?.pkgAddresses ?? []
-    )
+    rootImporterIndex = importers.findIndex(({ options }) => options.parentIds[0] === '.')
+    const rootPkgAddresses = pkgAddressesByImportersWithoutPeers[rootImporterIndex]?.pkgAddresses ?? []
+    workspaceRootDeps = await getHoistableRootDeps(importers[rootImporterIndex], rootPkgAddresses)
+    rootDepVersions = getDirectDepVersions(ctx.resolvedPkgsById, rootPkgAddresses)
   } else {
     workspaceRootDeps = []
   }
@@ -509,7 +512,18 @@ export async function resolveRootDependencies (
     await Promise.all(allMissingOptionalPeersByImporters.map(async (allMissingOptionalPeers, index) => {
       const { preferredVersions, parentPkgAliases, options } = importers[index]
       if (Object.keys(allMissingOptionalPeers).length && ctx.allPreferredVersions) {
-        const optionalDependencies = getHoistableOptionalPeers(allMissingOptionalPeers, ctx.allPreferredVersions, workspaceRootDeps)
+        // A hoisted provider resolves its own peers from the importer's direct
+        // dependencies first, then from the workspace root's.
+        const providedPeerVersions = new Map([
+          ...(index === rootImporterIndex ? [] : rootDepVersions),
+          ...getDirectDepVersions(ctx.resolvedPkgsById, pkgAddressesByImportersWithoutPeers[index].pkgAddresses),
+        ])
+        const optionalDependencies = getHoistableOptionalPeers(
+          allMissingOptionalPeers,
+          ctx.allPreferredVersions,
+          workspaceRootDeps,
+          (name, version) => peersAcceptProvidedVersions(ctx.resolvedPkgsById[`${name}@${version}` as PkgResolutionId], providedPeerVersions)
+        )
         if (Object.keys(optionalDependencies).length) {
           hasNewMissingPeers = true
           const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies })
@@ -584,6 +598,43 @@ async function getHoistableRootDeps (
     }
     return pinProjectRelativeDepToItsVersion(rootDep, rootDir)
   }))
+}
+
+/** The version each direct dependency alias resolved to. */
+function getDirectDepVersions (
+  resolvedPkgsById: ResolvedPkgsById,
+  pkgAddresses: PkgAddressOrLink[]
+): Map<string, string> {
+  const versions = new Map<string, string>()
+  for (const pkgAddress of pkgAddresses) {
+    const version = pkgAddress.isLinkedDependency
+      ? pkgAddress.version
+      : resolvedPkgsById[pkgAddress.pkgId]?.version
+    if (version != null && !versions.has(pkgAddress.alias)) {
+      versions.set(pkgAddress.alias, version)
+    }
+  }
+  return versions
+}
+
+/**
+ * An optional peer provider taken from elsewhere in the graph resolves its own
+ * peers from the importer it is hoisted to. When the importer already has one
+ * of those peers at a version outside the provider's range, hoisting the
+ * provider creates a peer conflict the importer never asked for.
+ */
+function peersAcceptProvidedVersions (
+  resolvedPackage: ResolvedPackage | undefined,
+  providedVersions: Map<string, string>
+): boolean {
+  if (resolvedPackage == null) return true
+  for (const [peerName, { version: range }] of Object.entries(resolvedPackage.peerDependencies)) {
+    const providedVersion = providedVersions.get(peerName)
+    if (providedVersion != null && !semverUtils.satisfiesWithPrereleases(providedVersion, getPeerVersionRange(range), true)) {
+      return false
+    }
+  }
+  return true
 }
 
 /**

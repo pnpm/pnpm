@@ -52,7 +52,8 @@ use crate::{
     },
     resolve_peers::{
         HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery, ResolvePeersOptions,
-        ResolvePeersResult, apply_hoist_missing_scope, index_missing_names, resolve_peers,
+        ResolvePeersResult, apply_hoist_missing_scope, index_missing_names,
+        peers_accept_provided_versions, resolve_peers, resolved_version,
     },
     resolved_tree::ResolvedTree,
 };
@@ -325,7 +326,8 @@ where
     .await?;
     // Single importer, so it *is* the workspace root.
     let root_deps = Arc::new(state.hoistable_root_deps()?);
-    state.set_workspace_root_deps(root_deps);
+    let root_dep_versions = Arc::new(state.direct_dep_versions());
+    state.set_workspace_root_deps(root_deps, root_dep_versions);
     let mut peer_discovery = PeerHoistDiscovery::new();
     loop {
         state.run_required_round(resolver, &mut peer_discovery).await?;
@@ -518,8 +520,27 @@ impl ImporterHoistState {
         .map_err(ResolveImporterError::from)
     }
 
-    pub(crate) fn set_workspace_root_deps(&mut self, deps: Arc<Vec<WorkspaceRootDep>>) {
+    pub(crate) fn set_workspace_root_deps(
+        &mut self,
+        deps: Arc<Vec<WorkspaceRootDep>>,
+        dep_versions: Arc<HashMap<String, String>>,
+    ) {
         self.dependencies.workspace_root_deps = deps;
+        self.dependencies.workspace_root_dep_versions = dep_versions;
+    }
+
+    /// `alias → version` of the importer's direct dependencies.
+    pub(crate) fn direct_dep_versions(&self) -> HashMap<String, String> {
+        let mut versions = HashMap::default();
+        for dep in &self.dependencies.direct {
+            if versions.contains_key(&dep.alias) {
+                continue;
+            }
+            if let Some(version) = self.ctx.workspace().inspect_package(&dep.id, resolved_version) {
+                versions.insert(dep.alias.clone(), version);
+            }
+        }
+        versions
     }
 
     fn peers_opts(&self) -> ResolvePeersOptions {

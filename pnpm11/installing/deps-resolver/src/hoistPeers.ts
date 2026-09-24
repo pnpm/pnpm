@@ -98,7 +98,12 @@ export function hoistPeers (
 export function getHoistableOptionalPeers (
   allMissingOptionalPeers: Record<string, string[]>,
   allPreferredVersions: PreferredVersions,
-  workspaceRootDeps: HoistableRootDep[] = []
+  workspaceRootDeps: HoistableRootDep[] = [],
+  /**
+   * Rejects a candidate that cannot be installed at the importer, such as one
+   * whose own peers the importer provides at versions outside their ranges.
+   */
+  acceptsCandidate: (name: string, version: string) => boolean = () => true
 ): Record<string, string> {
   const optionalDependencies: Record<string, string> = {}
   for (const [missingOptionalPeerName, ranges] of Object.entries(allMissingOptionalPeers)) {
@@ -125,7 +130,8 @@ export function getHoistableOptionalPeers (
         specType === 'version' &&
         (rootRange == null || semver.satisfies(version, rootRange)) &&
         ranges.every(range => semver.satisfies(version, range)) &&
-        (!maxSatisfyingVersion || semver.gt(version, maxSatisfyingVersion))
+        (!maxSatisfyingVersion || semver.gt(version, maxSatisfyingVersion)) &&
+        acceptsCandidate(missingOptionalPeerName, version)
       ) {
         maxSatisfyingVersion = version
       }

@@ -6,6 +6,15 @@ use super::{
 };
 
 impl WorkspaceTreeCtx {
+    /// Runs `inspect` on the package recorded under `pkg_id`, if any.
+    pub(crate) fn inspect_package<Output>(
+        &self,
+        pkg_id: &str,
+        inspect: impl FnOnce(&crate::ResolvedPackage) -> Output,
+    ) -> Option<Output> {
+        lock_recoverable(&self.tree.packages).get(pkg_id).map(inspect)
+    }
+
     pub(crate) fn duplicate_versions(&self) -> pnpm_resolving_resolver_base::PreferredVersions {
         self.run_preferred_versions().versions
             .iter()

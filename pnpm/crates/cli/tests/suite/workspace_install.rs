@@ -561,6 +561,94 @@ fn removal_override_prevents_optional_peer_resolution_from_a_sibling_workspace_p
     drop((root, mock_instance));
 }
 
+/// Installs `pkg-a`, which has an optional peer on a package whose own
+/// `@pnpm/y` peer wants `^2.0.0`, next to `pkg-b`, which provides that
+/// package with `@pnpm/y@2.0.0`. Returns `pkg-a`'s resolved version of
+/// the optional peer's dependent.
+fn install_optional_peer_user_next_to_sibling(
+    pkg_a_deps: &serde_json::Value,
+    root_deps: Option<&serde_json::Value>,
+) -> String {
+    let mut pkg_a_dependencies =
+        serde_json::json!({ "@pnpm.e2e/has-optional-y-v2-peer-user": "1.0.0" });
+    pkg_a_dependencies
+        .as_object_mut()
+        .expect("dependencies object")
+        .extend(
+            pkg_a_deps
+                .as_object()
+                .expect("pkg-a deps object")
+                .clone(),
+        );
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": pkg_a_dependencies,
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/y-v2-peer-user": "1.0.0", "@pnpm/y": "2.0.0" },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    if let Some(root_deps) = root_deps {
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({ "name": "root", "private": true, "dependencies": root_deps })
+                .to_string(),
+        )
+        .expect("write root package.json");
+    }
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let version = importer_version(&lockfile, "pkg-a", "@pnpm.e2e/has-optional-y-v2-peer-user");
+    drop((root, mock_instance));
+    version
+}
+
+/// Regression for [#13989](https://github.com/pnpm/pnpm/issues/13989):
+/// a sibling's package is not hoisted as an optional peer into an
+/// importer that provides one of its own peers at a version it rejects.
+#[test]
+fn optional_peer_is_not_supplied_by_a_sibling_whose_peers_the_importer_rejects() {
+    assert_eq!(
+        install_optional_peer_user_next_to_sibling(
+            &serde_json::json!({ "@pnpm/y": "1.0.0" }),
+            None
+        ),
+        "1.0.0",
+    );
+}
+
+#[test]
+fn optional_peer_is_not_supplied_by_a_sibling_whose_peers_the_workspace_root_rejects() {
+    assert_eq!(
+        install_optional_peer_user_next_to_sibling(
+            &serde_json::json!({}),
+            Some(&serde_json::json!({ "@pnpm/y": "1.0.0" })),
+        ),
+        "1.0.0",
+    );
+}
+
+#[test]
+fn optional_peer_is_supplied_by_a_sibling_whose_peers_the_importer_accepts() {
+    assert_eq!(
+        install_optional_peer_user_next_to_sibling(
+            &serde_json::json!({ "@pnpm/y": "2.0.0" }),
+            None
+        ),
+        "1.0.0(@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@2.0.0))",
+    );
+}
+
 /// Regression for [#13325](https://github.com/pnpm/pnpm/issues/13325):
 /// with `autoInstallPeers: false`, an optional peer that a sibling
 /// importer's resolution makes available must not turn into a direct
