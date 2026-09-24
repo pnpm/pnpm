@@ -278,20 +278,13 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         global_pkg_dir: &global_pkg_dir,
         global_bin_dir: &global_bin_dir,
     };
-    let mut changed = false;
-    for pkg in &to_update {
-        if let Some(warning) = missing_file_source_warning(pkg) {
-            warn_global::<Reporter>(&warning);
-            continue;
-        }
-        changed |= target.update_group::<Reporter>(
-            pkg,
-            latest,
-            range_spec_style,
-            supported_architectures.clone(),
-        )
-        .await?;
-    }
+    let changed = target.update_groups::<Reporter>(
+        &to_update,
+        latest,
+        range_spec_style,
+        supported_architectures,
+    )
+    .await?;
     emit_global_update_result::<Reporter>(&global_pkg_dir, changed);
     Ok(())
 }

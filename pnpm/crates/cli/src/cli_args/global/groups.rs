@@ -7,11 +7,11 @@ use super::{
     bin_names_of_other_groups, check_global_bin_conflicts, check_virtual_shim_conflicts,
     cleanup_replaced_global_installs, collect_existing_global_installs, create_global_cache_key,
     create_install_dir, discard_install_dir_on_error, fs, get_actual_bin_names, get_hash_link,
-    global_group_config, hash_linked_packages, link_global_bins, pins_for_downgrades,
-    plan_replaced_global_bins, prompt_approve_install_builds, read_direct_dependencies,
-    read_installed_packages, registries_with_default, replacement_aliases, restore_virtual_shims,
-    run_group_install, should_replace_existing_package, snapshot_global_package, update_selectors,
-    warn_global,
+    global_group_config, hash_linked_packages, link_global_bins, missing_file_source_warning,
+    pins_for_downgrades, plan_replaced_global_bins, prompt_approve_install_builds,
+    read_direct_dependencies, read_installed_packages, registries_with_default,
+    replacement_aliases, restore_virtual_shims, run_group_install, should_replace_existing_package,
+    snapshot_global_package, update_selectors, warn_global,
 };
 use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest};
 
@@ -88,9 +88,36 @@ impl GlobalInstallTarget<'_> {
         })
     }
 
+    /// Reinstall each of `groups` for `update -g`, skipping with a warning the
+    /// ones [`missing_file_source_warning`] reports. Returns whether any group
+    /// changed.
+    pub(super) async fn update_groups<Reporter: self::Reporter + 'static>(
+        &self,
+        groups: &[GlobalPackageInfo],
+        latest: bool,
+        range_spec_style: RangeSpecStyle,
+        supported_architectures: Option<SupportedArchitectures>,
+    ) -> miette::Result<bool> {
+        let mut changed = false;
+        for pkg in groups {
+            if let Some(warning) = missing_file_source_warning(pkg) {
+                warn_global::<Reporter>(&warning);
+                continue;
+            }
+            changed |= self.update_group::<Reporter>(
+                pkg,
+                latest,
+                range_spec_style,
+                supported_architectures.clone(),
+            )
+            .await?;
+        }
+        Ok(changed)
+    }
+
     /// Reinstall one group for `update -g` and activate it over its own
     /// previous install.
-    pub(super) async fn update_group<Reporter: self::Reporter + 'static>(
+    async fn update_group<Reporter: self::Reporter + 'static>(
         &self,
         pkg: &GlobalPackageInfo,
         latest: bool,
