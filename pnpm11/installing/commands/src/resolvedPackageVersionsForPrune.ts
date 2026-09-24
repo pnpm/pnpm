@@ -5,6 +5,8 @@ import { resolvedPackageVersionsFromLockfile } from '@pnpm/lockfile.utils'
 export interface MinimumReleaseAgeExcludePruneOptions {
   lockfile?: boolean
   sharedWorkspaceLockfile?: boolean
+  useGitBranchLockfile?: boolean
+  mergeGitBranchLockfiles?: boolean
 }
 
 /**
@@ -38,7 +40,11 @@ export async function resolvedPackageVersionsOfProjectLockfiles (
   const resolved = new Map<string, Set<string>>()
   for (const projectDir of projectDirs) {
     // eslint-disable-next-line no-await-in-loop
-    const lockfile = await readWantedLockfile(projectDir, { ignoreIncompatible: true })
+    const lockfile = await readWantedLockfile(projectDir, {
+      ignoreIncompatible: true,
+      useGitBranchLockfile: opts.useGitBranchLockfile,
+      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+    })
     if (lockfile == null) return undefined
     for (const [name, versions] of resolvedPackageVersionsFromLockfile(lockfile)) {
       const merged = resolved.get(name)

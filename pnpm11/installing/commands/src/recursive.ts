@@ -152,6 +152,8 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'ci'
 | 'sort'
 | 'strictDepBuilds'
+| 'useGitBranchLockfile'
+| 'mergeGitBranchLockfiles'
 | 'workspaceConcurrency'
   >
 > & Required<
