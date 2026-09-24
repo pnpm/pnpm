@@ -304,12 +304,10 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // those scripts may be what creates a missing target. The `node` package's
   // preinstall calls `node` to download bin/node, which must not resolve to
   // a shim of bin/node itself. Other packages get the shim (see cmd-shim).
-  if (isOwnBinsDir(cmd.pkgDir, binsDir) && await isMissing(cmd.path) &&
-    (!IS_WINDOWS || await isMissing(`${cmd.path}${getExeExtension()}`))) {
+  if (isOwnBinsDir(cmd.pkgDir, binsDir) && await isOwnBinTargetMissing(cmd.path)) {
     await Promise.all([
       rimraf(externalBinPath),
-      rimraf(`${externalBinPath}.cmd`),
-      rimraf(`${externalBinPath}.ps1`),
+      ...(IS_WINDOWS ? ['.cmd', '.ps1', getExeExtension()].map((ext) => rimraf(`${externalBinPath}${ext}`)) : []),
     ])
     return
   }
@@ -508,6 +506,12 @@ async function haveEqualContents (pathA: string, pathB: string): Promise<boolean
 
 function isOwnBinsDir (pkgDir: string, binsDir: string): boolean {
   return path.resolve(pkgDir, 'node_modules', '.bin') === path.resolve(binsDir)
+}
+
+// An extensionless target is run directly, and Windows then finds its .exe.
+async function isOwnBinTargetMissing (target: string): Promise<boolean> {
+  if (!await isMissing(target)) return false
+  return !IS_WINDOWS || path.extname(target) !== '' || isMissing(`${target}${getExeExtension()}`)
 }
 
 async function isMissing (file: string): Promise<boolean> {

@@ -198,8 +198,8 @@ pub(super) fn unlink_own_missing_bin<Sys: FsReadHead>(
     Ok(true)
 }
 
-/// Whether neither `path` nor, on Windows, its `.exe` sibling exists. The
-/// shim runs `path` directly when it has no known script extension, and
+/// Whether neither `path` nor, for an extensionless `path` on Windows, its
+/// `.exe` sibling exists. The shim runs an extensionless target directly, and
 /// Windows then finds the `.exe`.
 fn target_is_missing<Sys: FsReadHead>(path: &Path) -> bool {
     let missing = |path: &Path| {
@@ -208,5 +208,8 @@ fn target_is_missing<Sys: FsReadHead>(path: &Path) -> bool {
             Err(error) if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory),
         )
     };
-    missing(path) && (!cfg!(windows) || missing(&with_extension_appended(path, "exe")))
+    missing(path)
+        && (!cfg!(windows)
+            || path.extension().is_some()
+            || missing(&with_extension_appended(path, "exe")))
 }

@@ -451,7 +451,7 @@ fn own_bin_with_only_exe_target_is_linked() {
     let own_bins = pkg.join("node_modules/.bin");
 
     link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(pkg.clone(), Arc::new(manifest))],
+        &[PackageBinSource::new(pkg, Arc::new(manifest))],
         &own_bins,
         &LinkBinsOptions::default(),
     )
