@@ -878,6 +878,56 @@ test('select by parentDir with glob and exclude one package by pattern', async (
   expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/packages/project-0'])
 })
 
+test('exclude broad directory then re-include specific package by name (pnpm/pnpm#9354)', async () => {
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PROJECTS_GRAPH, [
+    {
+      exclude: true,
+      excludeSelf: false,
+      parentDir: '/packages',
+    },
+    {
+      excludeSelf: false,
+      namePattern: 'project-1',
+    },
+  ], { workspaceDir: process.cwd() })
+
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual([
+    '/project-2',
+    '/project-3',
+    '/project-4',
+    '/project-5',
+    '/project-5/packages/project-6',
+    '/packages/project-1',
+  ])
+})
+
+test('include all, exclude broad directory, then re-include specific package (pnpm/pnpm#9354)', async () => {
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PROJECTS_GRAPH, [
+    {
+      excludeSelf: false,
+      parentDir: '/**',
+    },
+    {
+      exclude: true,
+      excludeSelf: false,
+      parentDir: '/packages/**',
+    },
+    {
+      excludeSelf: false,
+      parentDir: '/packages/project-1',
+    },
+  ], { workspaceDir: process.cwd(), useGlobDirFiltering: true })
+
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual([
+    '/project-2',
+    '/project-3',
+    '/project-4',
+    '/project-5',
+    '/project-5/packages/project-6',
+    '/packages/project-1',
+  ])
+})
+
 test('selects projects that use catalog dependencies when catalog versions change in pnpm-workspace.yaml', async () => {
   if (isCI && isWindows()) {
     return

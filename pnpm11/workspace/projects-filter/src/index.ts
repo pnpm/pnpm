@@ -5,7 +5,7 @@ import { type BaseProject, createProjectsGraph, type ProjectGraphNode } from '@p
 import { findWorkspaceProjects, type Project } from '@pnpm/workspace.projects-reader'
 import { isSubdir } from 'is-subdir'
 import * as micromatch from 'micromatch'
-import { difference, partition, pick } from 'ramda'
+import { partition, pick } from 'ramda'
 
 import { filterProjectsBySelectorObjectsFromDir } from './filterProjectsFromDir.js'
 import { getChangedProjects } from './getChangedProjects.js'
@@ -197,21 +197,57 @@ export async function filterWorkspaceProjects<Pkg extends BaseProject> (
   selectedProjectsGraph: ProjectGraph<Pkg>
   unmatchedFilters: string[]
 }> {
-  const [excludeSelectors, includeSelectors] = partition<ProjectSelector>(
-    (selector: ProjectSelector) => selector.exclude === true,
-    projectSelectors
-  )
+  if (projectSelectors.length === 0) {
+    return {
+      selectedProjectsGraph: projectsGraph,
+      unmatchedFilters: [],
+    }
+  }
+
+  interface SelectorChunk {
+    exclude: boolean
+    selectors: ProjectSelector[]
+  }
+
+  const chunks: SelectorChunk[] = []
+  for (const selector of projectSelectors) {
+    const last = chunks[chunks.length - 1]
+    if (last && last.exclude === Boolean(selector.exclude)) {
+      last.selectors.push(selector)
+    } else {
+      chunks.push({
+        exclude: Boolean(selector.exclude),
+        selectors: [selector],
+      })
+    }
+  }
+
   const fg = _filterGraph.bind(null, projectsGraph, opts)
-  const include = includeSelectors.length === 0
-    ? { selected: Object.keys(projectsGraph), unmatchedFilters: [] }
-    : await fg(includeSelectors)
-  const exclude = await fg(excludeSelectors)
+  const selectedDirs = new Set<ProjectRootDir>(
+    chunks[0].exclude ? (Object.keys(projectsGraph) as ProjectRootDir[]) : []
+  )
+  const unmatchedFilters: string[] = []
+
+  for (const chunk of chunks) {
+    // eslint-disable-next-line no-await-in-loop
+    const result = await fg(chunk.selectors)
+    unmatchedFilters.push(...result.unmatchedFilters)
+    if (chunk.exclude) {
+      for (const dir of result.selected) {
+        selectedDirs.delete(dir)
+      }
+    } else {
+      for (const dir of result.selected) {
+        selectedDirs.add(dir)
+      }
+    }
+  }
+
+  const validDirs = Array.from(selectedDirs).filter((dir) => projectsGraph[dir] != null)
+
   return {
-    selectedProjectsGraph: pick(
-      difference(include.selected, exclude.selected) as ProjectRootDir[],
-      projectsGraph
-    ),
-    unmatchedFilters: [...include.unmatchedFilters, ...exclude.unmatchedFilters],
+    selectedProjectsGraph: pick(validDirs, projectsGraph),
+    unmatchedFilters,
   }
 }
 
