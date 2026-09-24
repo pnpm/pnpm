@@ -136,16 +136,6 @@ impl BaseProject for CaptureProject<'_> {
             .get("name")
             .and_then(|name| name.as_str())
     }
-}
-
-#[cfg(target_os = "macos")]
-impl GraphProject for CaptureProject<'_> {
-    fn manifest_version(&self) -> Option<&str> {
-        self.manifest
-            .value()
-            .get("version")
-            .and_then(|version| version.as_str())
-    }
 
     fn merged_dependencies(&self, _: bool) -> Vec<(String, String)> {
         let mut dependencies = IndexMap::new();
@@ -158,6 +148,16 @@ impl GraphProject for CaptureProject<'_> {
             dependencies.insert(name.to_string(), spec.to_string());
         }
         dependencies.into_iter().collect()
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl GraphProject for CaptureProject<'_> {
+    fn manifest_version(&self) -> Option<&str> {
+        self.manifest
+            .value()
+            .get("version")
+            .and_then(|version| version.as_str())
     }
 }
 

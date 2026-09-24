@@ -25,18 +25,18 @@ impl BaseProject for TestPkg {
     fn manifest_name(&self) -> Option<&str> {
         self.name.as_deref()
     }
-}
-
-impl GraphProject for TestPkg {
-    fn manifest_version(&self) -> Option<&str> {
-        self.version.as_deref()
-    }
     fn merged_dependencies(&self, ignore_dev_deps: bool) -> Vec<(String, String)> {
         let mut merged = self.deps.clone();
         if !ignore_dev_deps {
             merged.extend(self.dev_deps.iter().cloned());
         }
         merged
+    }
+}
+
+impl GraphProject for TestPkg {
+    fn manifest_version(&self) -> Option<&str> {
+        self.version.as_deref()
     }
 }
 
@@ -508,13 +508,13 @@ fn is_subdir_contract() {
 /// upstream's "select changed packages" suite. Each builds a real git
 /// repository in a temp directory.
 mod changed_packages {
-    use super::{TestPkg, node_at};
+    use super::{TestPkg, graph_project, node_at};
     use crate::{
         filter::{FilterError, FilterWorkspaceProjectsOptions, filter_workspace_projects},
         parse_project_selector::ProjectSelector,
     };
     use indexmap::IndexMap;
-    use pnpm_workspace_projects_graph::ProjectGraph;
+    use pnpm_workspace_projects_graph::{ProjectGraph, ProjectGraphNode};
     use std::{fs, path::Path, process::Command};
     use tempfile::TempDir;
 
@@ -812,6 +812,331 @@ mod changed_packages {
             ),
             [pkg_a_dir.to_string_lossy().into_owned()],
         );
+    }
+
+    #[test]
+    fn select_packages_with_catalog_changes() {
+        let workspace = TempDir::new().expect("create tempdir");
+        let workspace_dir = workspace.path();
+        init_repo(workspace_dir);
+
+        let pkg_a_dir = workspace_dir.join("packages").join("pkg-a");
+        let pkg_b_dir = workspace_dir.join("packages").join("pkg-b");
+        let pkg_c_dir = workspace_dir.join("packages").join("pkg-c");
+        let pkg_d_dir = workspace_dir.join("packages").join("pkg-d");
+
+        fs::create_dir_all(&pkg_a_dir).expect("create pkg-a");
+        fs::create_dir_all(&pkg_b_dir).expect("create pkg-b");
+        fs::create_dir_all(&pkg_c_dir).expect("create pkg-c");
+        fs::create_dir_all(&pkg_d_dir).expect("create pkg-d");
+
+        fs::write(
+            workspace_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/*'\ncatalog:\n  foo: ^1.0.0\ncatalogs:\n  react18:\n    react: ^18.0.0\n",
+        ).expect("write workspace manifest");
+
+        fs::write(
+            pkg_a_dir.join("package.json"),
+            r#"{"name": "pkg-a", "version": "1.0.0", "dependencies": {"foo": "catalog:"}}"#,
+        )
+        .expect("write pkg-a package.json");
+
+        fs::write(
+            pkg_b_dir.join("package.json"),
+            r#"{"name": "pkg-b", "version": "1.0.0", "dependencies": {"react": "catalog:react18"}}"#,
+        ).expect("write pkg-b package.json");
+
+        fs::write(
+            pkg_c_dir.join("package.json"),
+            r#"{"name": "pkg-c", "version": "1.0.0", "dependencies": {"bar": "^1.0.0"}}"#,
+        )
+        .expect("write pkg-c package.json");
+
+        fs::write(
+            pkg_d_dir.join("package.json"),
+            r#"{"name": "pkg-d", "version": "1.0.0", "dependencies": {"pkg-a": "workspace:*"}}"#,
+        )
+        .expect("write pkg-d package.json");
+
+        commit_all(workspace_dir);
+
+        // Update default catalog: foo -> ^1.1.0
+        fs::write(
+            workspace_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/*'\ncatalog:\n  foo: ^1.1.0\ncatalogs:\n  react18:\n    react: ^18.0.0\n",
+        ).expect("update workspace manifest");
+
+        let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+        let make_node = |root: &Path, name: &str, deps: &[(&str, &str)], graph_deps: &[&Path]| {
+            (
+                root.to_path_buf(),
+                ProjectGraphNode {
+                    package: TestPkg {
+                        root_dir: root.to_path_buf(),
+                        name: Some(name.to_string()),
+                        version: Some("1.0.0".to_string()),
+                        deps: deps
+                            .iter()
+                            .map(|(n, s)| (n.to_string(), s.to_string()))
+                            .collect(),
+                        dev_deps: Vec::new(),
+                    },
+                    dependencies: graph_deps
+                        .iter()
+                        .map(|d| d.to_path_buf())
+                        .collect(),
+                },
+            )
+        };
+
+        let (k_a, n_a) = make_node(&pkg_a_dir, "pkg-a", &[("foo", "catalog:")], &[]);
+        let (k_b, n_b) = make_node(&pkg_b_dir, "pkg-b", &[("react", "catalog:react18")], &[]);
+        let (k_c, n_c) = make_node(&pkg_c_dir, "pkg-c", &[("bar", "^1.0.0")], &[]);
+        let (k_d, n_d) = make_node(&pkg_d_dir, "pkg-d", &[("pkg-a", "workspace:*")], &[&pkg_a_dir]);
+
+        graph.insert(k_a, n_a);
+        graph.insert(k_b, n_b);
+        graph.insert(k_c, n_c);
+        graph.insert(k_d, n_d);
+
+        let opts = FilterWorkspaceProjectsOptions {
+            workspace_dir: workspace_dir.to_path_buf(),
+            ..Default::default()
+        };
+        let path_of = |dir: &Path| dir.to_string_lossy().into_owned();
+
+        // Direct diff selector detects pkg-a
+        assert_eq!(selected(&graph, &[diff_selector("HEAD")], &opts), [path_of(&pkg_a_dir)]);
+
+        // Include dependents detects pkg-a and pkg-d
+        assert_eq!(
+            selected(
+                &graph,
+                &[ProjectSelector {
+                    traversal: crate::parse_project_selector::DependencyTraversal {
+                        include_dependents: true,
+                        ..Default::default()
+                    },
+                    ..diff_selector("HEAD")
+                }],
+                &opts,
+            ),
+            [path_of(&pkg_a_dir), path_of(&pkg_d_dir)],
+        );
+
+        // Update named catalog: react18 -> react: ^18.2.0
+        fs::write(
+            workspace_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/*'\ncatalog:\n  foo: ^1.0.0\ncatalogs:\n  react18:\n    react: ^18.2.0\n",
+        ).expect("update workspace manifest");
+
+        assert_eq!(selected(&graph, &[diff_selector("HEAD")], &opts), [path_of(&pkg_b_dir)]);
+
+        // Non-catalog change in pnpm-workspace.yaml does not select packages
+        fs::write(
+            workspace_dir.join("pnpm-workspace.yaml"),
+            "# Comment only\npackages:\n  - 'packages/*'\ncatalog:\n  foo: ^1.0.0\ncatalogs:\n  react18:\n    react: ^18.0.0\n",
+        ).expect("update workspace manifest");
+
+        let empty: [String; 0] = [];
+        assert_eq!(selected(&graph, &[diff_selector("HEAD")], &opts), empty);
+
+        // Selector with parent_dir selects pkg-a when scoped to pkg-a
+        fs::write(
+            workspace_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/*'\ncatalog:\n  foo: ^1.2.0\ncatalogs:\n  react18:\n    react: ^18.0.0\n",
+        ).expect("update workspace manifest");
+
+        assert_eq!(
+            selected(
+                &graph,
+                &[ProjectSelector { parent_dir: Some(pkg_a_dir.clone()), ..diff_selector("HEAD") }],
+                &opts,
+            ),
+            [path_of(&pkg_a_dir)],
+        );
+
+        // Selector scoped to pkg-b does not select pkg-a or pkg-b
+        assert_eq!(
+            selected(
+                &graph,
+                &[ProjectSelector { parent_dir: Some(pkg_b_dir), ..diff_selector("HEAD") }],
+                &opts,
+            ),
+            empty,
+        );
+
+        // Selector scoped by glob packages/* selects pkg-a
+        assert_eq!(
+            selected(
+                &graph,
+                &[ProjectSelector {
+                    parent_dir: Some(workspace_dir.join("packages/*")),
+                    use_glob_dir_filtering: Some(true),
+                    ..diff_selector("HEAD")
+                }],
+                &opts,
+            ),
+            [path_of(&pkg_a_dir)],
+        );
+    }
+
+    #[test]
+    fn select_changed_catalogs_in_nested_workspace() {
+        let repo = TempDir::new().expect("create tempdir");
+        let repo_dir = repo.path();
+        init_repo(repo_dir);
+
+        let ws_dir = repo_dir.join("nested").join("ws");
+        let pkg_a_dir = ws_dir.join("packages").join("pkg-a");
+        let pkg_b_dir = ws_dir.join("packages").join("pkg-b");
+        fs::create_dir_all(&pkg_a_dir).expect("create pkg-a");
+        fs::create_dir_all(&pkg_b_dir).expect("create pkg-b");
+
+        fs::write(
+            ws_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/*'\ncatalog:\n  foo: ^1.0.0\n",
+        )
+        .expect("write workspace manifest");
+        fs::write(
+            pkg_a_dir.join("package.json"),
+            r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-a package.json");
+        fs::write(
+            pkg_b_dir.join("package.json"),
+            r#"{"name":"pkg-b","version":"1.0.0","dependencies":{"bar":"^1.0.0"}}"#,
+        )
+        .expect("write pkg-b package.json");
+
+        commit_all(repo_dir);
+
+        fs::write(
+            ws_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/*'\ncatalog:\n  foo: ^1.1.0\n",
+        )
+        .expect("update workspace manifest");
+
+        let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+        graph.insert(
+            pkg_a_dir.clone(),
+            ProjectGraphNode {
+                package: graph_project(
+                    &pkg_a_dir.to_string_lossy(),
+                    "pkg-a",
+                    &[("foo", "catalog:")],
+                ),
+                dependencies: Vec::new(),
+            },
+        );
+        graph.insert(
+            pkg_b_dir.clone(),
+            ProjectGraphNode {
+                package: graph_project(&pkg_b_dir.to_string_lossy(), "pkg-b", &[("bar", "^1.0.0")]),
+                dependencies: Vec::new(),
+            },
+        );
+
+        let opts = FilterWorkspaceProjectsOptions { workspace_dir: ws_dir, ..Default::default() };
+        let path_of = |dir: &Path| dir.to_string_lossy().into_owned();
+
+        assert_eq!(
+            selected(
+                &graph,
+                &[ProjectSelector { parent_dir: Some(pkg_a_dir.clone()), ..diff_selector("HEAD") }],
+                &opts,
+            ),
+            [path_of(&pkg_a_dir)],
+        );
+
+        let empty: [String; 0] = [];
+        assert_eq!(
+            selected(
+                &graph,
+                &[ProjectSelector { parent_dir: Some(pkg_b_dir), ..diff_selector("HEAD") }],
+                &opts,
+            ),
+            empty,
+        );
+    }
+
+    #[test]
+    fn select_nested_projects_matching_glob_scoped_selector() {
+        let repo = TempDir::new().expect("create tempdir");
+        let workspace_dir = repo.path();
+        init_repo(workspace_dir);
+
+        let pkg_a_dir = workspace_dir.join("packages").join("pkg-a");
+        let pkg_nested_dir = workspace_dir
+            .join("packages")
+            .join("nested")
+            .join("pkg-nested");
+        let outside_dir = workspace_dir.join("other").join("pkg-other");
+        fs::create_dir_all(&pkg_a_dir).expect("create pkg-a");
+        fs::create_dir_all(&pkg_nested_dir).expect("create pkg-nested");
+        fs::create_dir_all(&outside_dir).expect("create outside");
+
+        fs::write(
+            workspace_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/**'\n  - 'other/*'\ncatalog:\n  foo: ^1.0.0\n",
+        )
+        .expect("write workspace manifest");
+        fs::write(
+            pkg_a_dir.join("package.json"),
+            r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-a package.json");
+        fs::write(
+            pkg_nested_dir.join("package.json"),
+            r#"{"name":"pkg-nested","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-nested package.json");
+        fs::write(
+            outside_dir.join("package.json"),
+            r#"{"name":"pkg-other","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-other package.json");
+
+        commit_all(workspace_dir);
+
+        fs::write(
+            workspace_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/**'\n  - 'other/*'\ncatalog:\n  foo: ^1.1.0\n",
+        )
+        .expect("update workspace manifest");
+
+        let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+        for (dir, name) in
+            [(&pkg_a_dir, "pkg-a"), (&pkg_nested_dir, "pkg-nested"), (&outside_dir, "pkg-other")]
+        {
+            graph.insert(
+                dir.clone(),
+                ProjectGraphNode {
+                    package: graph_project(&dir.to_string_lossy(), name, &[("foo", "catalog:")]),
+                    dependencies: Vec::new(),
+                },
+            );
+        }
+
+        let opts = FilterWorkspaceProjectsOptions {
+            workspace_dir: workspace_dir.to_path_buf(),
+            ..Default::default()
+        };
+        let path_of = |dir: &Path| dir.to_string_lossy().into_owned();
+
+        let mut actual = selected(
+            &graph,
+            &[ProjectSelector {
+                parent_dir: Some(workspace_dir.join("packages/*")),
+                use_glob_dir_filtering: Some(true),
+                ..diff_selector("HEAD")
+            }],
+            &opts,
+        );
+        actual.sort();
+        let mut expected = vec![path_of(&pkg_a_dir), path_of(&pkg_nested_dir)];
+        expected.sort();
+        assert_eq!(actual, expected);
     }
 }
 
