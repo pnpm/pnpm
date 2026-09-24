@@ -1,3 +1,5 @@
+mod yarn_patches;
+
 use crate::State;
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
@@ -21,10 +23,14 @@ pub struct ImportArgs {
 
 impl ImportArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
-        let dir = state.manifest
-            .path()
-            .parent()
-            .expect("manifest path always has a parent dir");
+        let manifest_path = state.manifest.path().to_path_buf();
+        let dir = manifest_path.parent().expect("manifest path always has a parent dir");
+
+        self.warn_ignored_pnpr_server::<Reporter>(state.config);
+
+        let preferred_versions = to_preferred_versions(&read_foreign_lockfile_versions(dir)?);
+        let state = yarn_patches::import_yarn_patches::<Reporter>(state, dir)?;
+
         let lockfile_dir = state.lockfile_dir();
         let lockfile_path = state.lockfile_path();
         let env_lockfile = if state.config.wanted_lockfile_name() == Lockfile::FILE_NAME {
@@ -34,10 +40,6 @@ impl ImportArgs {
         } else {
             None
         };
-
-        self.warn_ignored_pnpr_server::<Reporter>(state.config);
-
-        let preferred_versions = to_preferred_versions(&read_foreign_lockfile_versions(dir)?);
 
         // A backup of its own keeps overlapping imports from restoring each
         // other's copy.
