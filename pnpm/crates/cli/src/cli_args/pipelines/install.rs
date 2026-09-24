@@ -2,7 +2,7 @@ use super::{
     Arc, Config, Context, DedicatedProjectRuns, InstallArgs, InstallFamily, InstallFamilyPlan,
     Path, PathBuf, Reporter, RuntimePolicy, State, ThrottledClient, dedicated_project_name,
     discover_workspace_projects, ecosystem_install, init_dedicated_project_state,
-    prepare_root_config, project_names, select_install_family,
+    prepare_root_config, project_names, prune_after_dedicated_installs, select_install_family,
 };
 
 /// The reporter-generic body of `pacquet install`: it threads one `Reporter`
@@ -175,6 +175,7 @@ async fn run_node_install<Reporter: self::Reporter + 'static>(
                 projects,
                 require_lockfile,
                 http_client: Some(Arc::clone(&http_client)),
+                prune_excludes: !args.materialization.dry_run,
             }
             .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
             .await
@@ -266,6 +267,9 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
             Some(Arc::clone(&http_client)),
         )?;
         Box::pin(args.clone().run::<Reporter>(state)).await?;
+    }
+    if !args.materialization.dry_run {
+        prune_after_dedicated_installs(cfg)?;
     }
     Ok(())
 }

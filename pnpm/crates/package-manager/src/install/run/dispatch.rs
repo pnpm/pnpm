@@ -1,7 +1,7 @@
 use super::{
     super::{
-        Arc, ContextLog, FreshnessCheckError, FreshnessScope, InstallError, InstallRunOptions,
-        Lockfile, LogEvent, LogLevel, PackageManifest, Path, PathBuf, PrepareModulesStateInputs,
+        ContextLog, FreshnessCheckError, FreshnessScope, InstallError, InstallRunOptions, Lockfile,
+        LogEvent, LogLevel, PackageManifest, PathBuf, PrepareModulesStateInputs,
         PreparedModulesState, Reporter, Stage, StageLog, SummaryLog, check_lockfile_freshness,
         lockfile_freshness::{
             LockfileFreshnessInputs, UnresolvedOptionalDependency, check_importer_manifests_exist,
@@ -15,7 +15,6 @@ use super::{
     wanted::Lockfiles,
     workspace::{InstallScope, InstallWorkspace},
 };
-use pnpm_config::Config;
 use pnpm_reporter::{SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason};
 
 /// Everything the run has settled before it dispatches.
@@ -148,18 +147,29 @@ pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'stati
         ..
     } = settled;
     let lockfile = lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
-    finish_frozen_lockfile_only::<Reporter>(
-        lockfile,
-        install.context.config,
-        LockfileOnlyFrozen {
-            workspace_root: &workspace.dirs.workspace_root,
-            prefix: &workspace.prefix,
-            resolution_verifiers: &verification.resolution_verifiers,
-            derived_lockfile_path: verification.derived_lockfile_path.as_deref(),
-            lockfile_verification_override,
-        },
-    )
-    .await?;
+    if let Some(lockfile_verification_override) = lockfile_verification_override {
+        lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
+    } else {
+        verify_lockfile_eagerly::<Reporter>(
+            lockfile,
+            &verification.resolution_verifiers,
+            verification.derived_lockfile_path.as_deref(),
+            &install.context.config.cache_dir,
+        )
+        .await?;
+    }
+    if install.context.config.lockfile {
+        lockfile
+            .save_to_path(&workspace.dirs.workspace_root.join(
+                install.context.config.wanted_lockfile_name(),
+            ))
+            .map_err(InstallError::SaveWantedLockfile)?;
+    }
+    Reporter::emit(&LogEvent::Stage(StageLog {
+        level: LogLevel::Debug,
+        prefix: workspace.prefix.clone(),
+        stage: Stage::ImportingDone,
+    }));
     Reporter::emit(&LogEvent::Summary(SummaryLog {
         level: LogLevel::Debug,
         prefix: workspace.prefix.clone(),
@@ -415,44 +425,6 @@ pub(super) async fn auto_frozen_path(
             | FreshnessCheckError::CalcPatchHashes(_)),
         ) => Err(error.into()),
     }
-}
-/// What a frozen `--lockfile-only` run still has to verify and write.
-pub(super) struct LockfileOnlyFrozen<'a, 'install> {
-    workspace_root: &'a Path,
-    prefix: &'a str,
-    resolution_verifiers: &'a [Arc<dyn super::super::ResolutionVerifier>],
-    derived_lockfile_path: Option<&'a Path>,
-    lockfile_verification_override: Option<super::super::LockfileVerificationOverride<'install>>,
-}
-/// This path materializes nothing, so there's no fetch to overlap; verify
-/// eagerly to keep the gate before the early return.
-pub(super) async fn finish_frozen_lockfile_only<Reporter: self::Reporter + 'static>(
-    lockfile: &Lockfile,
-    config: &Config,
-    finish: LockfileOnlyFrozen<'_, '_>,
-) -> Result<(), InstallError> {
-    if let Some(lockfile_verification_override) = finish.lockfile_verification_override {
-        lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
-    } else {
-        verify_lockfile_eagerly::<Reporter>(
-            lockfile,
-            finish.resolution_verifiers,
-            finish.derived_lockfile_path,
-            &config.cache_dir,
-        )
-        .await?;
-    }
-    if config.lockfile {
-        lockfile
-            .save_to_path(&finish.workspace_root.join(config.wanted_lockfile_name()))
-            .map_err(InstallError::SaveWantedLockfile)?;
-    }
-    Reporter::emit(&LogEvent::Stage(StageLog {
-        level: LogLevel::Debug,
-        prefix: finish.prefix.to_string(),
-        stage: Stage::ImportingDone,
-    }));
-    Ok(())
 }
 
 impl Verification {

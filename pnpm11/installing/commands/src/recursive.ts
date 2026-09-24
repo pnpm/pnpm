@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { UNDECIDED_ALLOW_BUILD } from '@pnpm/building.policy'
 import { mergeCatalogs } from '@pnpm/catalogs.config'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { CommandHandler } from '@pnpm/cli.command'
@@ -58,7 +59,7 @@ import getVersionSelectorType from 'version-selector-type'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { type PolicyViolation, setupPolicyHandlers } from './policyHandlers.js'
-import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
+import { resolvedPackageVersionsForPrune, resolvedPackageVersionsOfProjectLockfiles } from './resolvedPackageVersionsForPrune.js'
 import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
@@ -152,6 +153,8 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'ci'
 | 'sort'
 | 'strictDepBuilds'
+| 'useGitBranchLockfile'
+| 'mergeGitBranchLockfiles'
 | 'workspaceConcurrency'
   >
 > & Required<
@@ -441,6 +444,7 @@ export async function recursive (
     runNode: async (rootDir): Promise<TaskCompletion> => {
       try {
         if (opts.ignoredPackages?.has(rootDir)) {
+          result[rootDir] = { status: 'skipped' }
           return 'passed'
         }
         result[rootDir] = { status: 'running' }
@@ -459,7 +463,10 @@ export async function recursive (
         let currentInput = [...params]
         if (updateMatch != null) {
           currentInput = matchDependencies(updateMatch, manifest, includeDirect)
-          if (currentInput.length === 0) return 'passed'
+          if (currentInput.length === 0) {
+            result[rootDir] = { status: 'skipped' }
+            return 'passed'
+          }
         }
         if (updateToLatest && (!params || (params.length === 0))) {
           currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
@@ -589,9 +596,22 @@ export async function recursive (
     // info log would claim entries were added that the workspace
     // manifest never saw, mirroring the gate the shared-lockfile
     // branch + installDeps already apply.
+    // Only a run that installed every workspace project leaves no lockfile
+    // behind its manifest; a filtered or partly skipped run prunes nothing.
+    const everyProjectInstalled = allProjects.every(({ rootDir }) => result[rootDir]?.status === 'passed')
+    const needsResolvedPackageVersions = Boolean(
+      opts.minimumReleaseAgeExcludePrune ||
+      opts.trustPolicyExcludePrune ||
+      Object.values(opts.allowBuilds ?? {}).includes(UNDECIDED_ALLOW_BUILD)
+    )
     await updateWorkspaceManifest(opts.workspaceDir, {
       updatedCatalogs,
       catalogPrune: opts.catalogPrune,
+      resolvedPackageVersions: everyProjectInstalled && !opts.dryRun && needsResolvedPackageVersions
+        ? await resolvedPackageVersionsOfProjectLockfiles(opts, allProjects.map(({ rootDir }) => rootDir))
+        : undefined,
+      minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
+      trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
       allProjects,
       ...policyHandlers?.pickManifestUpdates(allResolutionPolicyViolations),
     })

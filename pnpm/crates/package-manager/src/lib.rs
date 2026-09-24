@@ -1,6 +1,7 @@
 pub use add::*;
 pub use build_resolution_verifiers::*;
 pub use build_snapshot::*;
+pub use catalog_cleanup::{WriteWorkspaceCatalogsError, prune_against_project_lockfiles};
 pub use catalog_mode::*;
 pub use command_lockfile::CommandLockfile;
 pub use dependencies_graph_to_lockfile::*;

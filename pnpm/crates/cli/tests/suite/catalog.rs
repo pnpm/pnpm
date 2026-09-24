@@ -852,6 +852,215 @@ fn assert_excludes_narrowed_to_foo_2(workspace: &Path) {
     );
 }
 
+/// Regression test for [pnpm/pnpm#14612](https://github.com/pnpm/pnpm/issues/14612):
+/// with a lockfile per project, the prune pass checks the entries against
+/// every project's lockfile, so an entry only a sibling resolves survives
+/// while one no project resolves is dropped.
+#[test]
+fn install_prunes_the_minimum_release_age_excludes_across_per_project_lockfiles() {
+    let (root, workspace, anchor) = setup();
+    per_project_lockfile_workspace_with_stale_exclude(&workspace);
+
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+
+    assert_excludes_pruned_across_projects(&workspace);
+    drop((root, anchor));
+}
+
+#[test]
+fn recursive_update_prunes_the_minimum_release_age_excludes_across_per_project_lockfiles() {
+    let (root, workspace, anchor) = setup();
+    per_project_lockfile_workspace_with_stale_exclude(&workspace);
+
+    run_ok(&workspace, &["update", "--recursive", "--lockfile-only"]);
+
+    assert_excludes_pruned_across_projects(&workspace);
+    drop((root, anchor));
+}
+
+/// A filtered run leaves the unselected projects' lockfiles as they were,
+/// possibly behind their manifests, so it prunes nothing even when every
+/// project has a lockfile.
+#[test]
+fn filtered_install_keeps_the_excludes_under_per_project_lockfiles() {
+    let (root, workspace, anchor) = setup();
+    per_project_lockfile_workspace_with_stale_exclude(&workspace);
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+    append_workspace_yaml(&workspace, "  - '@pnpm.e2e/foobar@100.0.0'\n");
+
+    run_ok(&workspace, &["--filter", "a", "install", "--lockfile-only"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/foobar@100.0.0"),
+        "a filtered run must not prune:\n{workspace_yaml}",
+    );
+    drop((root, anchor));
+}
+
+#[test]
+fn install_prunes_trust_policy_excludes_across_per_project_lockfiles() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(
+        &workspace,
+        &format!(
+            "packages:\n  - 'packages/*'\n\
+             sharedWorkspaceLockfile: false\n\
+             trustPolicyExcludePrune: true\n\
+             trustPolicyExclude:\n  \
+             - '{FOO}@1.0.0'\n  \
+             - '@pnpm.e2e/bar@100.0.0'\n  \
+             - '@pnpm.e2e/foobar@100.0.0'\n",
+        ),
+    );
+    for (name, dependency, version) in [("a", FOO, "1.0.0"), ("b", "@pnpm.e2e/bar", "100.0.0")] {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create the package dir");
+        fs::write(
+            project.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "dependencies": { dependency: version },
+            })
+            .to_string(),
+        )
+        .expect("write the package manifest");
+    }
+
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(&format!("{FOO}@1.0.0")),
+        "the entry project a resolves must survive:\n{workspace_yaml}",
+    );
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/bar@100.0.0"),
+        "the entry project b resolves must survive:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/foobar"),
+        "the entry no project resolves must be dropped:\n{workspace_yaml}",
+    );
+    drop((root, anchor));
+}
+
+#[test]
+fn install_prunes_undecided_allow_builds_across_per_project_lockfiles() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(
+        &workspace,
+        &format!(
+            "packages:\n  - 'packages/*'\n\
+             sharedWorkspaceLockfile: false\n\
+             allowBuilds:\n  \
+             '{FOO}': set this to true or false\n  \
+             '@pnpm.e2e/bar': set this to true or false\n  \
+             '@pnpm.e2e/foobar': set this to true or false\n",
+        ),
+    );
+    for (name, dependency, version) in [("a", FOO, "1.0.0"), ("b", "@pnpm.e2e/bar", "100.0.0")] {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create the package dir");
+        fs::write(
+            project.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "dependencies": { dependency: version },
+            })
+            .to_string(),
+        )
+        .expect("write the package manifest");
+    }
+
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(FOO),
+        "the undecided allowBuilds entry for project a must survive:\n{workspace_yaml}",
+    );
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/bar"),
+        "the undecided allowBuilds entry for project b must survive:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/foobar"),
+        "the undecided allowBuilds entry no project resolves must be dropped:\n{workspace_yaml}",
+    );
+    drop((root, anchor));
+}
+
+#[test]
+fn install_filtered_to_packages_keeps_excludes_when_root_is_unselected() {
+    let (root, workspace, anchor) = setup();
+    per_project_lockfile_workspace_with_stale_exclude(&workspace);
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+    append_workspace_yaml(&workspace, "  - '@pnpm.e2e/foobar@100.0.0'\n");
+
+    run_ok(&workspace, &["--filter", "./packages/**", "install", "--lockfile-only"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/foobar@100.0.0"),
+        "an uninstalled root project's exclude must not be pruned:\n{workspace_yaml}",
+    );
+    drop((root, anchor));
+}
+
+/// Projects `a` (on `FOO@1.0.0`) and `b` (on `@pnpm.e2e/bar@100.0.0`), each
+/// with its own lockfile, and an exclude list naming both plus a package
+/// nothing depends on.
+fn per_project_lockfile_workspace_with_stale_exclude(workspace: &Path) {
+    write_manifest(workspace, "{}");
+    append_workspace_yaml(
+        workspace,
+        &format!(
+            "packages:\n  - 'packages/*'\n\
+             sharedWorkspaceLockfile: false\n\
+             minimumReleaseAgeExcludePrune: true\n\
+             minimumReleaseAgeExclude:\n  \
+             - '{FOO}@1.0.0'\n  \
+             - '@pnpm.e2e/bar@100.0.0'\n  \
+             - '@pnpm.e2e/foobar@100.0.0'\n",
+        ),
+    );
+    for (name, dependency, version) in [("a", FOO, "1.0.0"), ("b", "@pnpm.e2e/bar", "100.0.0")] {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create the package dir");
+        fs::write(
+            project.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "dependencies": { dependency: version },
+            })
+            .to_string(),
+        )
+        .expect("write the package manifest");
+    }
+}
+
+fn assert_excludes_pruned_across_projects(workspace: &Path) {
+    let workspace_yaml = read(workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(&format!("{FOO}@1.0.0")),
+        "the entry project a resolves must survive:\n{workspace_yaml}",
+    );
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/bar@100.0.0"),
+        "the entry project b resolves must survive:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/foobar"),
+        "the entry no project resolves must be dropped:\n{workspace_yaml}",
+    );
+}
+
 /// The `trustPolicyExcludePrune` counterpart of
 /// [`prunes_the_minimum_release_age_excludes`], over `trustPolicyExclude`.
 #[test]

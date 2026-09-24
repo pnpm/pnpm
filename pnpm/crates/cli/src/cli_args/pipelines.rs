@@ -138,12 +138,25 @@ pub(crate) struct DedicatedProjects {
     /// from the manifests the selection already parsed. Empty when the
     /// setting is unset, which is the only thing the names feed.
     names: HashMap<PathBuf, String>,
+    /// Whether the selection is every workspace project, so that the run
+    /// leaves no project's lockfile behind its manifest.
+    covers_workspace: bool,
 }
 
 impl DedicatedProjects {
     fn new(config: &Config, selection: InstallFamilySelection) -> Self {
         let names = project_names(config, &selection.projects);
-        DedicatedProjects { dependencies: selection.project_dependencies, names }
+        let normalized_root = pnpm_fs::lexical_normalize(&selection.workspace_root);
+        let root_is_project =
+            pnpm_package_manifest::project_manifest_path(&normalized_root).is_file();
+        let covers_workspace = selection.projects
+            .iter()
+            .all(|project| selection.selected_dirs.contains(&project.root_dir))
+            && (!root_is_project
+                || selection.selected_dirs
+                    .iter()
+                    .any(|dir| pnpm_fs::lexical_normalize(dir) == normalized_root));
+        DedicatedProjects { dependencies: selection.project_dependencies, names, covers_workspace }
     }
 
     fn is_empty(&self) -> bool {
@@ -186,6 +199,11 @@ struct DedicatedProjectRuns<'a> {
     projects: DedicatedProjects,
     require_lockfile: bool,
     http_client: Option<Arc<ThrottledClient>>,
+    /// Whether the command may write the workspace manifest, so that the
+    /// exclude-list prune each project's install skipped runs once all of
+    /// them succeeded and they cover the workspace. See
+    /// [`prune_after_dedicated_installs`].
+    prune_excludes: bool,
 }
 
 impl DedicatedProjectRuns<'_> {
@@ -194,10 +212,22 @@ impl DedicatedProjectRuns<'_> {
         Runner: Fn(State) -> RunFuture + Sync,
         RunFuture: Future<Output = miette::Result<()>> + Send,
     {
+        self.run_projects(run).await?;
+        if self.prune_excludes && self.projects.covers_workspace {
+            prune_after_dedicated_installs(self.config)?;
+        }
+        Ok(())
+    }
+
+    async fn run_projects<Runner, RunFuture>(&self, run: Runner) -> miette::Result<()>
+    where
+        Runner: Fn(State) -> RunFuture + Sync,
+        RunFuture: Future<Output = miette::Result<()>> + Send,
+    {
         let first_error: std::sync::Mutex<Option<miette::Report>> = std::sync::Mutex::new(None);
         let config = self.config;
         let require_lockfile = self.require_lockfile;
-        let http_client = self.http_client;
+        let http_client = &self.http_client;
         let names = &self.projects.names;
         let run = &run;
         let run_node = |project_dir: PathBuf| {
@@ -234,6 +264,20 @@ impl DedicatedProjectRuns<'_> {
             .expect("dedicated install error lock is not poisoned")
             .map_or(Ok(()), Err)
     }
+}
+
+/// The `minimumReleaseAgeExcludePrune` / `trustPolicyExcludePrune` pass
+/// of a `sharedWorkspaceLockfile: false` workspace. Each project's install
+/// skips it because its own lockfile cannot prove what a sibling resolves,
+/// so it runs once here, after a run that installed every project. A
+/// filtered run skips it: an unselected project's lockfile may lag behind
+/// its manifest.
+fn prune_after_dedicated_installs(config: &Config) -> miette::Result<()> {
+    let Some(workspace_dir) = config.workspace_dir.as_deref() else {
+        return Ok(());
+    };
+    pnpm_package_manager::prune_against_project_lockfiles(config, workspace_dir)
+        .wrap_err("prune the workspace manifest")
 }
 
 /// The selection in build order. Sequenced over borrowed paths: cloning a
