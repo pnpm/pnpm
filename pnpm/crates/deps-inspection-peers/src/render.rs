@@ -21,14 +21,46 @@ pub struct BadPeerIssue {
     pub resolved_from: Vec<String>,
 }
 
+/// Each project's issues go under a heading naming that project, so the
+/// same issue reported by several workspace projects reads as one entry per
+/// project. A listing that covers only the root project keeps no heading.
 #[must_use]
 pub fn render_peer_issues(issues_by_projects: &IssuesByProjects) -> String {
-    let mut sections: Vec<String> = Vec::new();
-    for project_issues in issues_by_projects.values() {
-        push_bad_sections(project_issues, &mut sections);
-        push_missing_sections(project_issues, &mut sections);
+    let projects: Vec<(&String, Vec<String>)> = issues_by_projects
+        .iter()
+        .map(|(project_id, project_issues)| {
+            let mut sections: Vec<String> = Vec::new();
+            push_bad_sections(project_issues, &mut sections);
+            push_missing_sections(project_issues, &mut sections);
+            (project_id, sections)
+        })
+        .filter(|(_, sections)| !sections.is_empty())
+        .collect();
+    if let [(project_id, sections)] = projects.as_slice()
+        && project_id.as_str() == "."
+    {
+        return sections.join("\n\n");
     }
-    sections.join("\n\n")
+    projects
+        .iter()
+        .map(|(project_id, sections)| {
+            let body = sections
+                .iter()
+                .map(|section| indent(section))
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            format!("{}\n{}", underline(project_id), body)
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+fn indent(section: &str) -> String {
+    section
+        .lines()
+        .map(|line| format!("  {line}"))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn push_bad_sections(project_issues: &PeerIssues, sections: &mut Vec<String>) {
@@ -130,6 +162,14 @@ fn bold(text: &str) -> String {
     cleaned
         .as_ref()
         .if_supports_color(Stream::Stdout, |t| t.bold())
+        .to_string()
+}
+
+fn underline(text: &str) -> String {
+    let cleaned = sanitize(text);
+    cleaned
+        .as_ref()
+        .if_supports_color(Stream::Stdout, |t| t.underline())
         .to_string()
 }
 

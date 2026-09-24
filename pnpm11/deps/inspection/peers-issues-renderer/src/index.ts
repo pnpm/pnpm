@@ -1,30 +1,45 @@
-import type { BadPeerDependencyIssue, PeerDependencyIssuesByProjects } from '@pnpm/types'
+import type { BadPeerDependencyIssue, PeerDependencyIssues, PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'
 
 export function renderPeerIssues (issuesByProjects: PeerDependencyIssuesByProjects): string {
-  const sections: string[] = []
-
-  for (const [, { bad, missing, conflicts, intersections }] of Object.entries(issuesByProjects)) {
-    for (const [peerName, issues] of Object.entries(bad)) {
-      const header = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(peerName)}`
-      for (const [foundVersion, group] of groupByFoundVersion(issues)) {
-        const installed = `  ${chalk.cyan('Installed:')} ${chalk.dim(foundVersion)}`
-        sections.push(`${header}\n${installed}\n${formatRequiredBy(group)}`)
-      }
+  const projects: Array<[string, string[]]> = []
+  for (const [projectId, projectIssues] of Object.entries(issuesByProjects)) {
+    const sections = renderProjectSections(projectIssues)
+    if (sections.length > 0) {
+      projects.push([projectId, sections])
     }
+  }
+  if (projects.length === 1 && projects[0][0] === '.') {
+    return projects[0][1].join('\n\n')
+  }
+  return projects
+    .map(([projectId, sections]) => `${chalk.underline(projectId)}\n${sections.map(indent).join('\n\n')}`)
+    .join('\n\n')
+}
 
-    for (const [peerName, issues] of Object.entries(missing)) {
-      if (!intersections[peerName] && !conflicts.includes(peerName)) continue
-      const conflict = conflicts.includes(peerName)
-      const header = conflict
-        ? `${chalk.red('✕ conflicting peer')} ${chalk.bold(peerName)}`
-        : `${chalk.red('✕ missing peer')} ${chalk.bold(peerName)}`
-      sections.push(`${header}\n${formatRequiredBy(issues)}`)
+function renderProjectSections ({ bad, missing, conflicts, intersections }: PeerDependencyIssues): string[] {
+  const sections: string[] = []
+  for (const [peerName, issues] of Object.entries(bad)) {
+    const header = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(peerName)}`
+    for (const [foundVersion, group] of groupByFoundVersion(issues)) {
+      const installed = `  ${chalk.cyan('Installed:')} ${chalk.dim(foundVersion)}`
+      sections.push(`${header}\n${installed}\n${formatRequiredBy(group)}`)
     }
   }
 
-  if (sections.length === 0) return ''
-  return sections.join('\n\n')
+  for (const [peerName, issues] of Object.entries(missing)) {
+    if (!intersections[peerName] && !conflicts.includes(peerName)) continue
+    const conflict = conflicts.includes(peerName)
+    const header = conflict
+      ? `${chalk.red('✕ conflicting peer')} ${chalk.bold(peerName)}`
+      : `${chalk.red('✕ missing peer')} ${chalk.bold(peerName)}`
+    sections.push(`${header}\n${formatRequiredBy(issues)}`)
+  }
+  return sections
+}
+
+function indent (section: string): string {
+  return section.split('\n').map((line) => `  ${line}`).join('\n')
 }
 
 function formatRequiredBy (issues: Array<{ parents: Array<{ name: string, version: string }>, wantedRange: string }>): string {

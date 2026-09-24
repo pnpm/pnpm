@@ -399,6 +399,63 @@ fn strict_peer_dependencies_fails_on_a_linked_workspace_packages_unmet_peer() {
     drop((root, mock_instance));
 }
 
+/// pnpm/pnpm#15351: a workspace package whose peer is missing in every
+/// project that links it is reported once per project, and each report
+/// must name the project it belongs to.
+#[test]
+fn peers_check_names_the_project_of_each_issue() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nautoInstallPeers: false\n",
+    )
+    .expect("write workspace manifest");
+    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
+        .expect("write root manifest");
+    write_linked_chain_project(
+        &workspace,
+        "lib",
+        serde_json::json!({ "peerDependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+    );
+    for app in ["app-a", "app-b"] {
+        write_linked_chain_project(
+            &workspace,
+            app,
+            serde_json::json!({ "dependencies": { "lib": "workspace:*" } }),
+        );
+    }
+
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["peers", "check", "--lockfile-only"])
+        .output()
+        .expect("run pnpm peers check");
+    assert_eq!(output.status.code(), Some(1), "the lib's peer is missing: {output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    let project_report = |project: &str| {
+        format!(
+            "{project}\n  ✕ missing peer @pnpm.e2e/foo\n    Wanted:\n      100.0.0:\n        lib@1.0.0\n",
+        )
+    };
+    for project in ["packages/app-a", "packages/app-b"] {
+        assert!(stdout.contains(&project_report(project)), "stdout:\n{stdout}");
+    }
+
+    drop((root, mock_instance));
+}
+
 /// The walk stops at each `link:` edge. A linked workspace package's own
 /// linked dependencies are its obligation, and it is an importer of the same
 /// lockfile, so its own report covers them. Following the edge instead would
