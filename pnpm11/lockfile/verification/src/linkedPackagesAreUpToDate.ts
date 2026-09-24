@@ -34,6 +34,13 @@ export interface LinkedPackagesContext {
   lockfileDir: string
   workspaceDir?: string
   injectWorkspacePackages?: boolean
+  /**
+   * Skips comparing the dependencies of local directory dependencies with
+   * their lockfile snapshots. That comparison errs toward reporting a stale
+   * lockfile, which only costs a re-resolve, so a caller that fails on a
+   * stale verdict skips it.
+   */
+  skipLocalDirectoryDependencies?: boolean
 }
 
 interface ProjectToCheck {
@@ -83,11 +90,11 @@ async function checkDependency (
     }
     const depPath = refToRelative(lockfileRef, depName)
     const pkgSnapshot = depPath == null ? undefined : ctx.lockfilePackages?.[depPath]
-    if (!await isLocalFileDepUpdated(ctx.lockfileDir, pkgSnapshot, ctx.manifestsByDir, ctx.workspaceDir)) {
+    if (!ctx.skipLocalDirectoryDependencies && !await isLocalFileDepUpdated(ctx.lockfileDir, pkgSnapshot, ctx.manifestsByDir, ctx.workspaceDir)) {
       return outdated(`The dependencies of local directory dependency "${depName}" do not match the lockfile`)
     }
-    return isWorkspaceRange
-      ? checkInjectedWorkspacePackage(ctx, { depName, currentSpec, pkgSnapshot: pkgSnapshot! })
+    return isWorkspaceRange && pkgSnapshot != null
+      ? checkInjectedWorkspacePackage(ctx, { depName, currentSpec, pkgSnapshot })
       : UP_TO_DATE
   }
   const isLinked = lockfileRef.startsWith('link:')
@@ -210,12 +217,7 @@ async function isLocalFileDepUpdated (
   const workspaceRoot = workspaceDir ?? lockfileDir
   const localDepDir = path.join(lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
   const manifest = manifestsByDir?.[localDepDir] ?? await safeReadPackageJsonFromDir(localDepDir)
-  if (!manifest) {
-    // A directory without a package.json has no dependencies.
-    return fs.existsSync(localDepDir) &&
-      [pkgSnapshot.dependencies, pkgSnapshot.optionalDependencies, pkgSnapshot.peerDependencies]
-        .every((deps) => deps == null || Object.keys(deps).length === 0)
-  }
+  if (!manifest) return false
   const manifestPeerMeta = manifest.peerDependenciesMeta ?? {}
   const lockfilePeerMeta = pkgSnapshot.peerDependenciesMeta ?? {}
   for (const [name, meta] of Object.entries(manifestPeerMeta)) {
@@ -233,12 +235,8 @@ async function isLocalFileDepUpdated (
     const manifestDeps = manifest[depField] ?? {}
     const lockfileDeps = pkgSnapshot[depField] ?? {}
 
-    // Resolved peer dependencies are recorded next to the regular dependencies.
-    if (Object.keys(lockfileDeps).some(depName => !manifestDeps[depName] && !manifest.peerDependencies?.[depName])) {
+    if (Object.keys(lockfileDeps).some(depName => !manifestDeps[depName])) {
       return false
-    }
-    if (depField === 'peerDependencies') {
-      return Object.entries(manifestDeps).every(([depName, range]) => lockfileDeps[depName] === range)
     }
 
     return pEvery.default(Object.keys(manifestDeps), async (depName) => {

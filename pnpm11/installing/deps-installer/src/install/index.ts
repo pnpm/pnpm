@@ -1766,6 +1766,7 @@ Note that in CI environments, this setting is enabled by default.`,
         lockfileDir: opts.lockfileDir,
         workspaceDir: opts.workspaceDir,
         injectWorkspacePackages: opts.injectWorkspacePackages ?? ctx.wantedLockfile.settings?.injectWorkspacePackages,
+        skipLocalDirectoryDependencies: true,
       })
       const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
         autoInstallPeers: opts.autoInstallPeers,
