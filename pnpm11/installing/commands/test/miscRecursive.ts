@@ -206,6 +206,51 @@ test('filtered recursive install keeps minimumReleaseAgeExclude in a workspace w
     .toStrictEqual(['is-odd@1.0.0'])
 })
 
+test('recursive update that skips a project keeps minimumReleaseAgeExclude in a workspace with many lockfiles', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project-1', 'project-2'],
+  })
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    dir: process.cwd(),
+    minimumReleaseAgeExcludePrune: true,
+    recursive: true,
+    sharedWorkspaceLockfile: false,
+    workspaceDir: process.cwd(),
+  }
+  await install.handler({ ...opts, selectedProjectsGraph })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project-1', 'project-2'],
+    minimumReleaseAgeExclude: ['is-odd@1.0.0'],
+  })
+
+  await update.handler({ ...opts, selectedProjectsGraph }, ['is-positive'])
+
+  expect(readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>('pnpm-workspace.yaml').minimumReleaseAgeExclude)
+    .toStrictEqual(['is-odd@1.0.0'])
+})
+
 test('recursive add/remove in workspace with many lockfiles', async () => {
   const projects = preparePackages([
     {

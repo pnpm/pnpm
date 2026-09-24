@@ -443,6 +443,7 @@ export async function recursive (
     runNode: async (rootDir): Promise<TaskCompletion> => {
       try {
         if (opts.ignoredPackages?.has(rootDir)) {
+          result[rootDir] = { status: 'skipped' }
           return 'passed'
         }
         result[rootDir] = { status: 'running' }
@@ -461,7 +462,10 @@ export async function recursive (
         let currentInput = [...params]
         if (updateMatch != null) {
           currentInput = matchDependencies(updateMatch, manifest, includeDirect)
-          if (currentInput.length === 0) return 'passed'
+          if (currentInput.length === 0) {
+            result[rootDir] = { status: 'skipped' }
+            return 'passed'
+          }
         }
         if (updateToLatest && (!params || (params.length === 0))) {
           currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))

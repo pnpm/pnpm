@@ -146,9 +146,16 @@ pub(crate) struct DedicatedProjects {
 impl DedicatedProjects {
     fn new(config: &Config, selection: InstallFamilySelection) -> Self {
         let names = project_names(config, &selection.projects);
+        let normalized_root = pnpm_fs::lexical_normalize(&selection.workspace_root);
+        let root_is_project =
+            pnpm_package_manifest::project_manifest_path(&normalized_root).is_file();
         let covers_workspace = selection.projects
             .iter()
-            .all(|project| selection.selected_dirs.contains(&project.root_dir));
+            .all(|project| selection.selected_dirs.contains(&project.root_dir))
+            && (!root_is_project
+                || selection.selected_dirs
+                    .iter()
+                    .any(|dir| pnpm_fs::lexical_normalize(dir) == normalized_root));
         DedicatedProjects { dependencies: selection.project_dependencies, names, covers_workspace }
     }
 
