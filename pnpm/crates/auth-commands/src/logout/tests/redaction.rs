@@ -89,8 +89,7 @@ async fn success_message_and_warning_redact_the_registry() {
 #[tokio::test]
 async fn retry_logs_do_not_leak_the_token() {
     const TOKEN: &str = "SUPERSECRETTOKEN";
-    // A closed local port refuses the connection at once, so the single retry
-    // fires a warn log.
+    // The connect fails at once, so the single retry fires a warn log.
     let revoke_url = format!("http://{}/-/user/token/{TOKEN}", refused_local_addr());
     let retry = RetryOpts {
         retries: 1,

@@ -138,14 +138,17 @@ jobs:
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      RUST_TEST_SHARED_BUILD: ${{ matrix.shared_test_build }}
       # Main only restores compiler cache entries that main wrote.
       SCCACHE_SCOPE: ${{ github.event.pull_request.number && format('pr{0}', github.event.pull_request.number) || github.ref_name }}
     strategy:
       fail-fast: false
       matrix:
         include:
+          # Windows builds pacquet's and pnpr's tests once (see justfile).
           - os: blacksmith-8vcpu-windows-2025
             os_label: windows
+            shared_test_build: '1'
           - os: blacksmith-8vcpu-ubuntu-2404
             os_label: ubuntu
           - os: blacksmith-12vcpu-macos-latest
@@ -223,11 +226,11 @@ jobs:
         with:
           tool: cargo-nextest,sccache@0.17.0
 
-      # rust-cache saves no dependency artifacts for this workspace: the
-      # pnpm-managed crates source lives inside it, so every crate counts as a
-      # workspace member and gets pruned. sccache keys each compiler call by
-      # its inputs instead. On Windows a warm sccache build was no faster than
-      # a plain one and a cold one was slower, so it stays off there.
+      # rust-cache restores the dependencies' artifacts but prunes the crates
+      # under pnpm/ and pnpr/ (see .github/actions/rustup). sccache keys each
+      # compiler call by its inputs, so those crates still hit when unchanged.
+      # On Windows a warm sccache build was no faster than a plain one and a
+      # cold one was slower, so it stays off there.
       - name: Use sccache
         if: runner.os != 'Windows'
         shell: bash

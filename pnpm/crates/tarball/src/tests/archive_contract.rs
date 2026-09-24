@@ -113,9 +113,10 @@ async fn archive_retry_redacts_secrets_and_accepts_the_maximum_retry_budget() {
 #[tokio::test]
 async fn archive_network_errors_remove_urls_from_the_source_chain() {
     let socket = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let address = socket.local_addr().unwrap();
+    let port = socket.local_addr().unwrap().port();
     drop(socket);
-    let url = format!("http://user:password@{address}/artifact?token=secret#fragment");
+    // `0.0.0.0` fails the connect at once on Windows too, unlike a refused loopback port.
+    let url = format!("http://user:password@0.0.0.0:{port}/artifact?token=secret#fragment");
     let client = ThrottledClient::default();
     let result = crate::archive_request::request_archive::<SilentReporter>(
         &client,

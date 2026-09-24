@@ -233,13 +233,9 @@ fn redacts_inline_credentials_in_the_ping_line() {
 fn fails_on_a_network_failure() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let auth_file = empty_auth_file(root.path());
-    let socket = tokio::net::TcpSocket::new_v4().expect("create registry socket");
-    socket
-        .bind("127.0.0.1:0".parse().expect("loopback address"))
-        .expect("reserve registry port");
-    let registry = format!("http://{}/", socket.local_addr().expect("registry socket address"));
-
-    let output = run_ping(&workspace, &auth_file, Some(&registry));
+    // `0.0.0.0:1` fails the connect at once on every OS. A bound loopback port
+    // with no listener times out on macOS and takes 2 s to fail on Windows.
+    let output = run_ping(&workspace, &auth_file, Some("http://0.0.0.0:1/"));
 
     assert!(
         !output.status.success(),

@@ -615,11 +615,11 @@ fn project_with_foo_specifier(root: &std::path::Path, name: &str, specifier: &st
     }
 }
 
-// A closed port, so any dependency that reaches registry resolution fails
-// loudly instead of hitting the network. Retries are off so that failure is
-// immediate rather than a minute of backoff.
+// An address whose connect fails at once on every OS, so any dependency that
+// reaches registry resolution fails loudly instead of hitting the network.
+// Retries are off so that failure is immediate rather than a minute of backoff.
 fn unroutable_registry_config() -> Config {
-    Config { registry: "http://127.0.0.1:1/".to_string(), fetch_retries: 0, ..Config::new() }
+    Config { registry: "http://0.0.0.0:1/".to_string(), fetch_retries: 0, ..Config::new() }
 }
 
 fn project_without_foo(root: &std::path::Path, name: &str) -> Project {

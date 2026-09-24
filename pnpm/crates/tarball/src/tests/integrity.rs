@@ -3,9 +3,10 @@ use super::{
     FASTIFY_ERROR_TARBALL, FetchTarballForResolution, HashMap, IngestTarballToStore, Integrity,
     PackageFilesIndex, PrefetchIntegrityCheck, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
     SharedVerifiedFilesCache, SilentReporter, StoreDir, StoreIndex, StoreIndexWriter, TarballError,
-    ThrottledClient, assert_eq, fast_fail_client, fast_retry_opts, fetch_and_extract_with_retry,
-    incompressible_tarball, integrity, prefetch_cas_paths, read_local_tarball_metadata,
-    store_index_key, tempdir, tempdir_with_leaked_path, test_retry_opts,
+    ThrottledClient, UNREACHABLE_URL, assert_eq, fast_fail_client, fast_retry_opts,
+    fetch_and_extract_with_retry, incompressible_tarball, integrity, prefetch_cas_paths,
+    read_local_tarball_metadata, store_index_key, tempdir, tempdir_with_leaked_path,
+    test_retry_opts,
 };
 
 #[tokio::test]
@@ -145,7 +146,7 @@ async fn falls_through_when_digest_is_malformed() {
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
-            url: "http://127.0.0.1:1/unreachable.tgz",
+            url: UNREACHABLE_URL,
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {

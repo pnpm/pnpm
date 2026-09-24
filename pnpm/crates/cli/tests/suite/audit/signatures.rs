@@ -217,10 +217,10 @@ fn audit_signatures_redacts_registry_credentials_on_network_error() {
     let CommandTempCwd {
         mut pacquet, workspace, root: _root, ..
     } = CommandTempCwd::init();
-    // A registry with embedded credentials pointed at a closed port: the keys
-    // fetch fails at the transport layer, and the resulting error must not leak
-    // the `user:pass@` userinfo into stderr.
-    write_signatures_workspace(&workspace, "https://user:pass@127.0.0.1:1", "signed-pkg");
+    // A registry with embedded credentials pointed at an address whose connect
+    // fails at once: the keys fetch fails at the transport layer, and the
+    // resulting error must not leak the `user:pass@` userinfo into stderr.
+    write_signatures_workspace(&workspace, "https://user:pass@0.0.0.0:1", "signed-pkg");
 
     let output = pacquet
         .arg("audit")

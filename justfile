@@ -89,9 +89,17 @@ smoke *args:
 test-affected *args:
   node pnpm/scripts/test-affected.mjs {{args}}
 
+# With RUST_TEST_SHARED_BUILD=1, test-pacquet and test-pnpr build the whole
+# workspace once and pick their tests with a filter. Separate selections make
+# cargo unify features differently, so the pnpr step would rebuild most of the
+# dependency graph. The shared build compiles pnpr's tests with the features
+# pacquet's tests also enable.
+pnpr_tests := "package(/^pnpr/) | package(pnpm-registry-mock)"
+shared_test_build := env_var_or_default("RUST_TEST_SHARED_BUILD", "")
+
 # Run pacquet package tests only.
 test-pacquet:
-  node pnpm/scripts/run-rust-tests.mjs --workspace --exclude pnpm-registry-mock --exclude pnpr --exclude pnpr-auth --exclude pnpr-cargo --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-oci --exclude pnpr-osv --exclude pnpr-package-name --exclude pnpr-pipeline-runs --exclude pnpr-policy --exclude pnpr-pypi --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream
+  node pnpm/scripts/run-rust-tests.mjs {{ if shared_test_build == "1" { "--workspace -E 'not (" + pnpr_tests + ")'" } else { "--workspace --exclude pnpm-registry-mock --exclude pnpr --exclude pnpr-auth --exclude pnpr-cargo --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-oci --exclude pnpr-osv --exclude pnpr-package-name --exclude pnpr-pipeline-runs --exclude pnpr-policy --exclude pnpr-pypi --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream" } }}
 
 # Run pnpr package tests only.
 test-pnpr:
@@ -100,7 +108,7 @@ test-pnpr:
   # one alone would build it bare and silently skip its backend tests.
   # `pnpm-registry-mock` rides along because its tests spawn a real `pnpr`
   # child, and this is the selection that puts that binary in `target/`.
-  cargo nextest run -p pnpm-registry-mock -p pnpr -p pnpr-auth -p pnpr-cargo -p pnpr-config -p pnpr-error -p pnpr-fixtures -p pnpr-oci -p pnpr-osv -p pnpr-package-name -p pnpr-pipeline-runs -p pnpr-policy -p pnpr-pypi -p pnpr-registry -p pnpr-route -p pnpr-search -p pnpr-shared-artifacts -p pnpr-storage -p pnpr-upstream
+  cargo nextest run {{ if shared_test_build == "1" { "--workspace -E '" + pnpr_tests + "'" } else { "-p pnpm-registry-mock -p pnpr -p pnpr-auth -p pnpr-cargo -p pnpr-config -p pnpr-error -p pnpr-fixtures -p pnpr-oci -p pnpr-osv -p pnpr-package-name -p pnpr-pipeline-runs -p pnpr-policy -p pnpr-pypi -p pnpr-registry -p pnpr-route -p pnpr-search -p pnpr-shared-artifacts -p pnpr-storage -p pnpr-upstream" } }}
 
 # List expected-failing test ports
 [unix]

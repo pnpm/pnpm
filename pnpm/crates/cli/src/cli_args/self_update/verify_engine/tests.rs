@@ -423,12 +423,13 @@ async fn reports_unreachable_when_neither_registry_can_provide_a_signature() {
     let component = EngineComponent { registry: format!("{}/", mirror.url()), ..component() };
     let _mirror = mock_packument(&mut mirror, "[]").await;
 
-    // Nothing listens on the fallback address, so consulting it fails.
-    let failure = find_failure_with_fallback(&component, "http://127.0.0.1:9/")
+    // The connect to the fallback address fails at once on every OS, so
+    // consulting it fails.
+    let failure = find_failure_with_fallback(&component, "http://0.0.0.0:9/")
         .await
         .expect("failure expected");
     assert!(matches!(failure.category, FailureCategory::Unreachable));
-    assert!(failure.reason.contains("127.0.0.1:9"), "unexpected reason: {}", failure.reason);
+    assert!(failure.reason.contains("0.0.0.0:9"), "unexpected reason: {}", failure.reason);
 }
 
 #[tokio::test]

@@ -161,9 +161,10 @@ jobs:
             node_major: '22'
           - node: '24.0.0'
             node_major: '24'
-          # Garnet's post step costs about 160 s, so it runs on one chunk.
+          # Garnet's post step costs about 100 s, so it runs on one chunk:
+          # the one whose tests finish first.
           - node: '24.0.0'
-            test_chunk: '3'
+            test_chunk: '2'
             garnet: true
           - node: '26.10.0'
             node_major: '26'
