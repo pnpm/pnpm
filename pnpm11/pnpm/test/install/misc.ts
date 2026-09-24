@@ -35,6 +35,29 @@ afterAll(() => {
   for (const si of storeIndexes) si.close()
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/895 and https://github.com/pnpm/pnpm/issues/9512
+test('install relinks dependencies after the project directory is moved', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+  await execPnpm(['install'])
+
+  // Junctions, which pnpm uses on Windows without the symlink privilege,
+  // point at absolute paths that break when the project is moved.
+  fs.unlinkSync('node_modules/is-positive')
+  fs.symlinkSync(path.resolve('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'), 'node_modules/is-positive', 'junction')
+  const movedDir = path.resolve('../moved-project')
+  fs.renameSync(process.cwd(), movedDir)
+  process.chdir(movedDir)
+  expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(false)
+
+  await execPnpm(['install', '--config.confirm-modules-purge=false'])
+
+  expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
+})
+
 test('bin files are found by lifecycle scripts', () => {
   prepare({
     dependencies: {

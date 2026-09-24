@@ -41,7 +41,7 @@ import { filterProjectsBySelectorObjects } from '@pnpm/workspace.projects-filter
 import { createProjectsGraph } from '@pnpm/workspace.projects-graph'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
-import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { type ProjectsList, updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 
 import { getSaveType } from './getSaveType.js'
@@ -500,7 +500,7 @@ export async function installDeps (
     })
     if (shouldSaveWorkspaceState(opts)) {
       await updateWorkspaceState({
-        allProjects,
+        allProjects: projectsToRecordInWorkspaceState(allProjects, opts, updatedProject.manifest),
         settings: withUpdatedCatalogs(opts, updatedCatalogs),
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         pnpmfiles: opts.pnpmfile,
@@ -586,7 +586,7 @@ export async function installDeps (
   } else {
     if (shouldSaveWorkspaceState(opts)) {
       await updateWorkspaceState({
-        allProjects,
+        allProjects: projectsToRecordInWorkspaceState(allProjects, opts, updatedManifest),
         settings: withUpdatedCatalogs(opts, updatedCatalogs),
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         pnpmfiles: opts.pnpmfile,
@@ -596,6 +596,23 @@ export async function installDeps (
     }
   }
   return dryRunResult
+}
+
+/**
+ * A single-project install has no workspace projects, so it records the
+ * project itself. `checkDepsStatus` compares that path with the current one to
+ * notice a project that was moved or renamed together with its
+ * `node_modules`, whose links may point at the old location.
+ */
+function projectsToRecordInWorkspaceState (
+  allProjects: Project[],
+  opts: Pick<InstallDepsOptions, 'dir' | 'lockfileDir' | 'workspaceDir'>,
+  manifest: ProjectManifest
+): ProjectsList {
+  if (allProjects.length > 0 || opts.workspaceDir != null) return allProjects
+  const rootDir = opts.lockfileDir ?? opts.dir
+  if (path.relative(rootDir, opts.dir) !== '') return allProjects
+  return [{ rootDir: rootDir as ProjectRootDir, manifest }]
 }
 
 function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {

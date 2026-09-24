@@ -545,6 +545,17 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   }
 
   if (rootProjectManifest && rootProjectManifestDir) {
+    // Links in node_modules may be absolute (junctions on Windows), so they
+    // keep pointing at the old location after the project is moved. State
+    // files written before the project path was recorded have no projects.
+    const recordedProjectDirs = Object.keys(workspaceState.projects)
+    if (recordedProjectDirs.length > 0 && !recordedProjectDirs.some(dir => path.relative(dir, rootProjectManifestDir) === '')) {
+      return {
+        upToDate: false,
+        issue: 'The project directory has changed since last install',
+        workspaceState,
+      }
+    }
     const internalPnpmDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
     const currentLockfilePromise = readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
     const wantedLockfilePromise = readWantedLockfile(rootProjectManifestDir, {
