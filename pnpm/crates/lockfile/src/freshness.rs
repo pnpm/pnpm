@@ -241,6 +241,11 @@ pub enum StalenessReason {
         "`pnpmfileChecksum` in the lockfile ({lockfile:?}) doesn't match the current pnpmfile ({config:?})"
     )]
     PnpmfileChecksumChanged { lockfile: Option<String>, config: Option<String> },
+
+    /// A local directory or injected workspace dependency has changed
+    /// on disk (its dependencies were added, removed, or updated).
+    #[display("local dependency {name:?} at {path:?} is outdated")]
+    LocalDependencyOutdated { name: String, path: String },
 }
 
 impl StalenessReason {
@@ -285,7 +290,8 @@ impl StalenessReason {
             | StalenessReason::LinkDirectoryMismatch { .. }
             | StalenessReason::DependenciesMetaMismatch { .. }
             | StalenessReason::DepSpecifierMismatch { .. }
-            | StalenessReason::ResolutionDoesNotSatisfy { .. } => None,
+            | StalenessReason::ResolutionDoesNotSatisfy { .. }
+            | StalenessReason::LocalDependencyOutdated { .. } => None,
         }
     }
 }

@@ -3,8 +3,8 @@ use super::{
     is_sh_shim_hardened, is_shim_pointing_at, parse_shebang, parse_shebang_from_bytes,
     read_head_filled, relative_target, search_script_runtime,
     sh::{
-        SH_SHIM_CYGPATH_LINE, SH_SHIM_HARDENED_HELPER_LINE, SH_SHIM_PATH_PRINTF_LINE,
-        SH_SHIM_WSLPATH_LINE, escape_msys_cmd_switches, strip_exe_suffix,
+        SH_SHIM_CYGPATH_LINE, SH_SHIM_HARDENED_HELPER_LINE, SH_SHIM_HELPER_PATH_FILTER_LINE,
+        SH_SHIM_PATH_PRINTF_LINE, SH_SHIM_WSLPATH_LINE, escape_msys_cmd_switches, strip_exe_suffix,
     },
 };
 use crate::{
@@ -102,6 +102,10 @@ fn generate_sh_shim_header_carries_the_hardened_helper_line() {
             r"    if command -v wslpath > /dev/null 2>&1; then"
         )),
         "a shim that looks up wslpath on PATH must not count as hardened",
+    );
+    assert!(
+        !is_sh_shim_hardened(&body.replace(SH_SHIM_HELPER_PATH_FILTER_LINE, "")),
+        "a shim that resolves helpers with node_modules on PATH must not count as hardened",
     );
 }
 
@@ -971,4 +975,69 @@ fn a_shim_lets_the_targets_signal_death_reach_the_caller() {
 
     assert_eq!(status.signal(), Some(9), "the shim swallowed the signal, reporting {status:?}");
     assert_eq!(status.code(), None);
+}
+
+/// Where no default path is compiled in, as on Nix, `command -p` searches the
+/// caller's `PATH`. No test host behaves that way, so the shim's `command -p` is
+/// rewritten to the plain `command` such a shell amounts to.
+#[cfg(unix)]
+#[test]
+fn shim_execution_skips_node_modules_and_relative_path_entries_when_command_p_searches_path() {
+    let tmp = tempfile::tempdir().unwrap();
+    let bin_dir = plant_shimmed_tool(tmp.path());
+    let shim = bin_dir.join("tsc");
+    let body = std::fs::read_to_string(&shim).unwrap();
+    write_executable(&shim, &body.replace("command -p ", "command "));
+    let decoy_dir = plant_hijack_tree_and_decoys(tmp.path());
+    let callers_path = std::env::var("PATH").unwrap_or_default();
+    let run = |path: String, cwd: &Path| {
+        let output = std::process::Command::new(bin_dir.join("tsc-link"))
+            .env("PATH", path)
+            .current_dir(cwd)
+            .output()
+            .expect("run the shim");
+        String::from_utf8_lossy(&output.stdout).trim_end().to_owned()
+    };
+
+    assert_eq!(
+        run(format!("{}:{callers_path}", decoy_dir.display()), tmp.path()),
+        "hijacked",
+        "precondition: the rewritten shim resolves its helpers through PATH",
+    );
+    let node_modules_bin = tmp
+        .path()
+        .join("proj")
+        .join("node_modules")
+        .join(".bin");
+    std::fs::create_dir_all(node_modules_bin.parent().unwrap()).unwrap();
+    std::fs::rename(&decoy_dir, &node_modules_bin).unwrap();
+    assert_eq!(
+        run(format!("{}:{callers_path}", node_modules_bin.display()), tmp.path()),
+        "tsc-output",
+        "the shim took a helper from a node_modules entry of PATH",
+    );
+    assert_eq!(
+        run(format!(".bin:{callers_path}"), node_modules_bin.parent().unwrap()),
+        "tsc-output",
+        "the shim took a helper from a relative entry of PATH",
+    );
+    assert_eq!(
+        run(format!(":{callers_path}"), &node_modules_bin),
+        "tsc-output",
+        "the shim took a helper from an empty entry of PATH",
+    );
+    // Nothing survives the filter here, and an empty `PATH` would search the
+    // current directory, which holds the decoys.
+    let node_dir = node_modules_bin.join("node-dir");
+    std::fs::create_dir_all(&node_dir).unwrap();
+    let node = std::env::split_paths(&callers_path)
+        .map(|dir| dir.join("node"))
+        .find(|node| node.is_file())
+        .expect("node on PATH");
+    std::os::unix::fs::symlink(node, node_dir.join("node")).unwrap();
+    assert_ne!(
+        run("node-dir".to_owned(), &node_modules_bin),
+        "hijacked",
+        "the shim took a helper from the current directory",
+    );
 }

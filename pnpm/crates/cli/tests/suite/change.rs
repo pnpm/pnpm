@@ -86,6 +86,70 @@ fn first_release_probe_debuts_an_unpublished_version_verbatim() {
     drop(root);
 }
 
+#[test]
+fn private_package_bumps_without_a_registry_release_probe() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init().add_mocked_registry();
+    setup_mock_workspace(&workspace);
+    let pkg_dir = workspace.join("packages").join("app");
+    fs::create_dir_all(&pkg_dir).expect("create package dir");
+    fs::write(
+        pkg_dir.join("package.json"),
+        "{\"name\": \"app\", \"version\": \"0.5.0\", \"private\": true}\n",
+    )
+    .expect("write package.json");
+
+    stdout_of(
+        pnpm_probing(&workspace)
+            .with_args(["change", "--bump", "minor", "--summary", "A deployable feature.", "app"]),
+    );
+    let status = stdout_of(pnpm_probing(&workspace).with_args(["change", "status"]));
+    assert!(status.contains("app: 0.5.0 → 0.6.0"), "unexpected: {status}");
+    let preview = stdout_of(pnpm_probing(&workspace).with_args(["version", "-r", "--dry-run"]));
+    assert!(preview.contains("app: 0.5.0 → 0.6.0"), "unexpected: {preview}");
+
+    drop(root);
+}
+
+#[test]
+fn private_release_commits_its_changelog_and_collects_its_intent() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init().add_mocked_registry();
+    setup_mock_workspace(&workspace);
+    let pkg_dir = workspace.join("packages").join("app");
+    fs::create_dir_all(&pkg_dir).expect("create package dir");
+    fs::write(
+        pkg_dir.join("package.json"),
+        "{\"name\": \"app\", \"version\": \"0.5.0\", \"private\": true}\n",
+    )
+    .expect("write package.json");
+
+    stdout_of(
+        pnpm_probing(&workspace)
+            .with_args(["change", "--bump", "minor", "--summary", "A deployable feature.", "app"]),
+    );
+    let applied = stdout_of(pnpm_probing(&workspace).with_args(["version", "-r"]));
+    assert!(applied.contains("app: 0.5.0 → 0.6.0"), "unexpected: {applied}");
+
+    let changelog = fs::read_to_string(pkg_dir.join("CHANGELOG.md")).expect("read changelog");
+    assert!(changelog.contains("A deployable feature."), "unexpected: {changelog}");
+    assert!(!workspace.join(".changeset/changelogs").exists(), "a private section was parked");
+    let leftover_intents: Vec<_> = fs::read_dir(workspace.join(".changeset"))
+        .expect("read .changeset")
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".md")
+        })
+        .collect();
+    assert!(leftover_intents.is_empty(), "unexpected: {leftover_intents:?}");
+
+    stdout_of(pnpm_probing(&workspace).with_args(["version", "-r"]));
+    assert_eq!(manifest_version(&workspace, "app"), "0.6.0");
+
+    drop(root);
+}
+
 /// A project renamed by `publishConfig.name` is only on the registry under the
 /// published name — the workspace name is either absent or, as with `pacquet`,
 /// someone else's package. Probing the workspace name would read as unpublished

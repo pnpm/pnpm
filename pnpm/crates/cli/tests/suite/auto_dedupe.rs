@@ -357,3 +357,54 @@ fn auto_dedupe_discards_obsolete_versions_before_installing_their_peers() {
     );
     drop((root, npmrc_info));
 }
+
+#[test]
+fn deduplication_converges_transitive_dependencies_on_the_direct_dependency_version() {
+    let catalog = format!("catalog:\n  '{DEP}': 100.0.0\n");
+    let specs = [("100.0.0", ""), ("catalog:", catalog.as_str())];
+    let dedupe_commands: [&[&str]; 2] = [&["install", "--auto-dedupe"], &["dedupe"]];
+    let cases = specs
+        .into_iter()
+        .flat_map(|spec| dedupe_commands.map(|command| (spec, command)));
+    for ((spec, catalog), dedupe_command) in cases {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        write_settings(&workspace, format!("packages:\n  - pinned\n  - loose\n{catalog}")).unwrap();
+        let write_manifest = |project: &str, dependencies: serde_json::Value| {
+            fs::create_dir_all(workspace.join(project)).unwrap();
+            fs::write(
+                workspace.join(project).join("package.json"),
+                serde_json::json!({"name": project, "dependencies": dependencies}).to_string(),
+            )
+            .unwrap();
+        };
+        let lockfile_has_higher_version = || {
+            read_lockfile(&workspace.join("pnpm-lock.yaml")).packages
+                .unwrap()
+                .contains_key(&format!("{DEP}@100.1.0").parse().unwrap())
+        };
+        write_manifest("pinned", serde_json::json!({DEP: spec, PARENT: "100.0.0"}));
+        write_manifest("loose", serde_json::json!({DEP: "100.1.0", PARENT: "100.1.0"}));
+        pnpm_at(&workspace)
+            .with_args(["install", "--lockfile-only"])
+            .assert()
+            .success();
+        write_manifest("loose", serde_json::json!({PARENT: "100.1.0"}));
+        pnpm_at(&workspace)
+            .with_args(["install", "--lockfile-only"])
+            .assert()
+            .success();
+        assert!(lockfile_has_higher_version(), "{spec}: the lockfile keeps the transitive pin");
+        pnpm_at(&workspace)
+            .with_args(dedupe_command)
+            .with_arg("--lockfile-only")
+            .assert()
+            .success();
+        assert!(
+            !lockfile_has_higher_version(),
+            "{spec}, {dedupe_command:?}: {}",
+            fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap(),
+        );
+        drop((root, npmrc_info));
+    }
+}

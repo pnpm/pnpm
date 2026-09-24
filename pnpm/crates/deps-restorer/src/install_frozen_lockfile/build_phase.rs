@@ -160,12 +160,12 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     // (pnpm/pacquet#342). Resolves direct-over-hoisted precedence and
     // shims lifecycle-script-created bins that didn't exist at extract
     // time. Idempotent for unchanged shims. Runs after `buildModules`.
-    let modules_dir_basename = config.modules_dir_name();
+    let modules_dir_name = config.modules_dir_name();
     for (importer_id, importer_snapshot) in inputs.graph.importers {
         link_importer_top_level_bins(
             inputs,
             build_output.mutated_slots,
-            modules_dir_basename,
+            modules_dir_name,
             importer_id,
             importer_snapshot,
         )?;
@@ -262,7 +262,7 @@ fn build_modules<'a>(
 fn link_importer_top_level_bins(
     inputs: &BuildPhaseInputs<'_>,
     mutated_slots: bool,
-    modules_dir_basename: &OsStr,
+    modules_dir_name: &OsStr,
     importer_id: &str,
     importer_snapshot: &pnpm_lockfile::ProjectSnapshot,
 ) -> Result<(), BuildPhaseError> {
@@ -284,7 +284,7 @@ fn link_importer_top_level_bins(
         return Ok(());
     }
     let project_dir = importer_root_dir(inputs.directories.top_level_bin_root, importer_id);
-    let modules_dir = project_dir.join(modules_dir_basename);
+    let modules_dir = project_dir.join(modules_dir_name);
     // Same filter the symlink phase used so the post-build pass sees the
     // same candidate set (skipping installability-skipped deps avoids
     // dangling shims at a slot that was never extracted).

@@ -281,6 +281,57 @@ describeOnPosix('sh shim resolves its helpers off the caller\'s PATH', () => {
 
     runWithDecoys(tempDir, 'sh', ['tsc-link'], binDir)
   })
+
+  // Where no default path is compiled in, as on Nix, command -p searches the
+  // caller's PATH. No test host behaves that way, so the shim's command -p is
+  // rewritten to the plain command such a shell amounts to.
+  test('skips node_modules and relative PATH entries when command -p searches PATH', async () => {
+    const tempDir = temporaryDirectory()
+    const binDir = await makeShimmedTool(tempDir)
+    const shim = path.join(binDir, 'tsc')
+    writeExecutable(shim, fs.readFileSync(shim, 'utf8').replaceAll('command -p ', 'command '))
+    const decoyDir = plantHijackTreeAndDecoys(tempDir)
+    const callersPath = [path.dirname(process.execPath), process.env.PATH].join(path.delimiter)
+    const run = (PATH, cwd) => spawnSync(path.join(binDir, 'tsc-link'), [], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, PATH },
+    }).stdout.trim()
+
+    assert.equal(
+      run([decoyDir, callersPath].join(path.delimiter), tempDir),
+      'hijacked',
+      'precondition: the rewritten shim resolves its helpers through PATH'
+    )
+    const nodeModulesBin = path.join(tempDir, 'proj', 'node_modules', '.bin')
+    fs.mkdirSync(path.dirname(nodeModulesBin), { recursive: true })
+    fs.renameSync(decoyDir, nodeModulesBin)
+    assert.equal(
+      run([nodeModulesBin, callersPath].join(path.delimiter), tempDir),
+      'tsc-output',
+      'the shim took a helper from a node_modules entry of PATH'
+    )
+    assert.equal(
+      run(['.bin', callersPath].join(path.delimiter), path.dirname(nodeModulesBin)),
+      'tsc-output',
+      'the shim took a helper from a relative entry of PATH'
+    )
+    assert.equal(
+      run(['', callersPath].join(path.delimiter), nodeModulesBin),
+      'tsc-output',
+      'the shim took a helper from an empty entry of PATH'
+    )
+    // Nothing survives the filter here, and an empty PATH would search the
+    // current directory, which holds the decoys.
+    fs.mkdirSync(path.join(nodeModulesBin, 'node-dir'))
+    fs.symlinkSync(process.execPath, path.join(nodeModulesBin, 'node-dir', 'node'))
+    assert.notEqual(
+      run('node-dir', nodeModulesBin),
+      'hijacked',
+      'the shim took a helper from the current directory'
+    )
+  })
 })
 
 describeOnPosix('sh shim converts a Windows-form path', () => {

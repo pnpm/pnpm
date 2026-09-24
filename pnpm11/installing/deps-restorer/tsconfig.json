@@ -28,6 +28,9 @@
       "path": "../../bins/linker"
     },
     {
+      "path": "../../bins/remover"
+    },
+    {
       "path": "../../building/during-install"
     },
     {

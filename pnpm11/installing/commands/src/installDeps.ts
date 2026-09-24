@@ -26,12 +26,13 @@ import { globalInfo, logger } from '@pnpm/logger'
 import { applyRuntimeOnFailOverride, filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
-import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
+import type { PreferredVersions, ResolutionPolicyViolation, VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type {
   IncludedDependencies,
   PackageVulnerabilityAudit,
   Project,
+  ProjectManifest,
   ProjectRootDir,
   ProjectsGraph,
   VulnerabilitySeverity,
@@ -180,6 +181,12 @@ export type InstallDepsOptions = Pick<Config,
   interactiveUpdate?: boolean
   includeOnlyPackageFiles?: boolean
   pruneLockfileImporters?: boolean
+  /**
+   * Set to `false` for an install whose projects are not the workspace's own,
+   * such as the legacy `pnpm deploy`. The workspace state file then keeps
+   * describing the workspace's last install.
+   */
+  saveWorkspaceState?: boolean
   rebuildHandler?: CommandHandler
   pnpmfile: string[]
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
@@ -442,27 +449,56 @@ export async function installDeps (
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const { updatedCatalogs, updatedProject, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModulesInSingleProject(mutatedProject, installOpts)
-    if (opts.save !== false && !opts.dryRun) {
-      // Only pick entries when we'll actually persist. Otherwise the
-      // info log would claim we added entries the workspace manifest
-      // never saw, and the next install would re-prompt or fail
-      // verification.
-      const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
-      await Promise.all([
-        writeProjectManifest(updatedProject.manifest),
-        updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
-          updatedCatalogs,
-          catalogPrune: opts.catalogPrune,
-          resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
-          minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
-          trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
-          allProjects: opts.allProjects,
-          ...policyUpdates,
-        }),
-      ])
+    let manifestsSaved = false
+    const saveManifests = async ({
+      updatedProject,
+      updatedCatalogs,
+      newLockfile,
+      resolutionPolicyViolations,
+    }: {
+      updatedProject?: { manifest: ProjectManifest }
+      updatedCatalogs?: Catalogs
+      newLockfile?: LockfileObject
+      resolutionPolicyViolations?: ResolutionPolicyViolation[]
+    }) => {
+      if (manifestsSaved) return
+      manifestsSaved = true
+      if (opts.save !== false && !opts.dryRun && updatedProject) {
+        // Only pick entries when we'll actually persist. Otherwise the
+        // info log would claim we added entries the workspace manifest
+        // never saw, and the next install would re-prompt or fail
+        // verification.
+        const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations ?? [])
+        await Promise.all([
+          writeProjectManifest(updatedProject.manifest),
+          updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+            updatedCatalogs,
+            catalogPrune: opts.catalogPrune,
+            resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
+            minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
+            trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
+            allProjects: opts.allProjects,
+            ...policyUpdates,
+          }),
+        ])
+      }
     }
-    if (!opts.lockfileOnly) {
+    const { updatedCatalogs, updatedProject, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModulesInSingleProject(mutatedProject, {
+      ...installOpts,
+      beforeLifecycleScripts: async (res) => saveManifests({
+        updatedProject: res.updatedProjects[0],
+        updatedCatalogs: res.updatedCatalogs,
+        newLockfile: res.newLockfile,
+        resolutionPolicyViolations: res.resolutionPolicyViolations,
+      }),
+    })
+    await saveManifests({
+      updatedProject,
+      updatedCatalogs,
+      newLockfile,
+      resolutionPolicyViolations,
+    })
+    if (shouldSaveWorkspaceState(opts)) {
       await updateWorkspaceState({
         allProjects,
         settings: withUpdatedCatalogs(opts, updatedCatalogs),
@@ -548,7 +584,7 @@ export async function installDeps (
       }
     )
   } else {
-    if (!opts.lockfileOnly) {
+    if (shouldSaveWorkspaceState(opts)) {
       await updateWorkspaceState({
         allProjects,
         settings: withUpdatedCatalogs(opts, updatedCatalogs),
@@ -571,12 +607,12 @@ function selectProjectByDir (projects: Project[], searchedDir: string): Projects
 async function recursiveInstallThenUpdateWorkspaceState (
   allProjects: Project[],
   params: string[],
-  opts: RecursiveOptions & WorkspaceStateSettings,
+  opts: RecursiveOptions & WorkspaceStateSettings & Pick<InstallDepsOptions, 'saveWorkspaceState'>,
   cmdFullName: CommandFullName,
   updatedCatalogs?: Catalogs
 ): Promise<DryRunInstallResult | undefined> {
   const recursiveResult = await recursive(allProjects, params, opts, cmdFullName)
-  if (!opts.lockfileOnly) {
+  if (shouldSaveWorkspaceState(opts)) {
     await updateWorkspaceState({
       allProjects,
       settings: withUpdatedCatalogs(opts, updatedCatalogs, recursiveResult.updatedCatalogs),
@@ -587,6 +623,10 @@ async function recursiveInstallThenUpdateWorkspaceState (
     })
   }
   return recursiveResult.dryRunResult
+}
+
+function shouldSaveWorkspaceState (opts: Pick<InstallDepsOptions, 'lockfileOnly' | 'saveWorkspaceState'>): boolean {
+  return !opts.lockfileOnly && opts.saveWorkspaceState !== false
 }
 
 /**

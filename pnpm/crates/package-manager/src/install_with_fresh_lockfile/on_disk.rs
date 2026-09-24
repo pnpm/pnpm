@@ -106,9 +106,9 @@ pub(super) struct OnDiskOutput {
 }
 impl<'a> OnDiskInputs<'a> {
     /// See `linking::run_link_phase` for why this anchors on
-    /// `modules_dir.parent()` rather than the install root.
+    /// `Config::modules_dir_anchor` rather than the install root.
     fn symlink_root(&self) -> &'a Path {
-        self.ctx.config.modules_dir.parent().unwrap_or(self.ctx.workspace_root)
+        self.ctx.config.modules_dir_anchor().unwrap_or(self.ctx.workspace_root)
     }
 
     /// Materialize the virtual store. Skipped snapshots stay out of every

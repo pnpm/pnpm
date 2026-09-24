@@ -5,7 +5,7 @@ import util from 'node:util'
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
-import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
@@ -63,6 +63,7 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'modulesDir'
 | 'modulesDirsByProjectName'
 | 'nodeLinker'
+| 'packageConfigs'
 | 'patchedDependencies'
 | 'peersSuffixMaxLength'
 | 'sharedWorkspaceLockfile'
@@ -311,11 +312,12 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
 
     let statModulesDir: (project: Project) => Promise<fs.Stats | undefined>
     if (nodeLinker === 'hoisted') {
-      const statsPromise = safeStat(path.join(rootProjectManifestDir, 'node_modules'))
+      const statsPromise = safeStat(path.resolve(rootProjectManifestDir, opts.modulesDir ?? 'node_modules'))
       statModulesDir = () => statsPromise
     } else {
       const _nodeLinkerTypeGuard: 'isolated' | undefined = nodeLinker // static type assertion
-      statModulesDir = project => safeStat(path.join(project.rootDir, 'node_modules'))
+      const modulesDirOf = createProjectModulesDirResolver(opts)
+      statModulesDir = project => safeStat(path.resolve(project.rootDir, modulesDirOf(project.manifest.name) ?? 'node_modules'))
     }
 
     const allManifestStats = await Promise.all(allProjects.map(async project => {
@@ -741,6 +743,7 @@ async function assertWantedLockfileUpToDate (
   if (!await linkedPackagesAreUpToDate({
     linkWorkspacePackages: !!linkWorkspacePackages,
     lockfileDir: wantedLockfileDir,
+    workspaceDir: config.workspaceDir,
     manifestsByDir: getManifestsByDir(),
     workspacePackages: getWorkspacePackages(),
     lockfilePackages: wantedLockfile.packages,

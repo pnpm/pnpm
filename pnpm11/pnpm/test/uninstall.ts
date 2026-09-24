@@ -51,3 +51,21 @@ test('uninstall global package with its bin files', async () => {
   stat = fs.existsSync(path.resolve(globalBin, 'sh-hello-world'))
   expect(stat).toBeFalsy() // sh-hello-world is removed from .bin
 })
+
+test('remove with --trust-lockfile removes a package rejected by supply-chain policy', async () => {
+  const project = prepare()
+  await execPnpm(['add', '@pnpm/e2e.test-provenance@0.0.5', '--trust-policy=off'])
+
+  fs.writeFileSync('pnpm-workspace.yaml', 'trustPolicy: no-downgrade\n', 'utf8')
+
+  let err!: Error
+  try {
+    await execPnpm(['remove', '@pnpm/e2e.test-provenance'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err).toBeTruthy()
+
+  await execPnpm(['remove', '@pnpm/e2e.test-provenance', '--trust-lockfile'])
+  project.hasNot('@pnpm/e2e.test-provenance')
+})

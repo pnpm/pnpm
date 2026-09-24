@@ -210,12 +210,11 @@ fn new_directories_to_exclude(
     let mut seen = HashSet::with_capacity(project_dirs.len() + 3);
     if config.macos_backup.exclude_modules_dir {
         push_missing(&mut paths, &mut seen, config.modules_dir.clone());
-        let modules_dir_name =
-            config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
+        let modules_dir_name = config.modules_dir_name();
         for project_dir in project_dirs {
             push_missing(&mut paths, &mut seen, project_dir.join(modules_dir_name));
             if let (Some(symlink_root), Ok(importer_dir)) =
-                (config.modules_dir.parent(), project_dir.strip_prefix(workspace_root))
+                (config.modules_dir_anchor(), project_dir.strip_prefix(workspace_root))
             {
                 push_missing(
                     &mut paths,

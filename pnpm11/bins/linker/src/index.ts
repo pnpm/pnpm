@@ -424,6 +424,7 @@ const SH_SHIM_HARDENED_LINES = [
   String.raw`basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')` + '\n',
   '    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then\n',
   '    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then\n',
+  '    */node_modules/*|*/node_modules) ;;\n',
 ]
 
 function isShimHardened (content: string): boolean {

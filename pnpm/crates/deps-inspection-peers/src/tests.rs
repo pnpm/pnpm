@@ -740,3 +740,89 @@ fn snapshot_peer_versions_use_named_registry_semver() {
         );
     }
 }
+
+fn missing_react_issues() -> PeerIssues {
+    PeerIssues {
+        bad: BTreeMap::new(),
+        missing: BTreeMap::from([(
+            "react".to_string(),
+            vec![MissingPeerIssue {
+                parents: vec![ParentPkg {
+                    name: "@my-org/package-a".to_string(),
+                    version: "3.1.4".to_string(),
+                }],
+                optional: false,
+                wanted_range: ">=18.2.0".to_string(),
+            }],
+        )]),
+        conflicts: Vec::new(),
+        intersections: BTreeMap::from([("react".to_string(), ">=18.2.0".to_string())]),
+    }
+}
+
+/// pnpm/pnpm#15351
+#[test]
+fn render_names_the_project_of_each_issue() {
+    let issues: IssuesByProjects = BTreeMap::from([
+        ("apps/web".to_string(), missing_react_issues()),
+        ("apps/docs".to_string(), missing_react_issues()),
+    ]);
+    let rendered = super::render_peer_issues(&issues);
+    assert_eq!(
+        rendered,
+        "\
+apps/docs
+  ✕ missing peer react
+    Wanted:
+      >=18.2.0:
+        @my-org/package-a@3.1.4
+
+apps/web
+  ✕ missing peer react
+    Wanted:
+      >=18.2.0:
+        @my-org/package-a@3.1.4",
+    );
+}
+
+#[test]
+fn render_skips_projects_without_reportable_issues() {
+    let mut unreported = missing_react_issues();
+    unreported.intersections.clear();
+    let issues: IssuesByProjects = BTreeMap::from([
+        (".".to_string(), unreported),
+        ("apps/web".to_string(), missing_react_issues()),
+    ]);
+    let rendered = super::render_peer_issues(&issues);
+    assert!(rendered.starts_with("apps/web\n  ✕ missing peer react"), "{rendered}");
+    assert!(!rendered.contains("\n.\n") && !rendered.starts_with(".\n"), "{rendered}");
+}
+
+#[test]
+fn render_names_the_root_project_when_other_projects_are_listed() {
+    let issues: IssuesByProjects = BTreeMap::from([
+        (".".to_string(), missing_react_issues()),
+        (
+            "apps/web".to_string(),
+            PeerIssues { intersections: BTreeMap::new(), ..missing_react_issues() },
+        ),
+    ]);
+    let rendered = super::render_peer_issues(&issues);
+    assert!(rendered.starts_with(".\n  ✕ missing peer react"), "{rendered}");
+    assert!(!rendered.contains("apps/web"), "{rendered}");
+}
+
+#[test]
+fn render_strips_control_characters_from_the_project_heading() {
+    let issues: IssuesByProjects =
+        BTreeMap::from([("apps/\u{1b}[2J\n-web\u{202e}".to_string(), missing_react_issues())]);
+    let rendered = super::render_peer_issues(&issues);
+    assert!(rendered.starts_with("apps/[2J-web\n"), "{rendered:?}");
+}
+
+#[test]
+fn render_omits_the_heading_when_only_the_root_project_has_issues() {
+    let issues: IssuesByProjects = BTreeMap::from([(".".to_string(), missing_react_issues())]);
+    let rendered = super::render_peer_issues(&issues);
+    assert!(rendered.starts_with("✕ missing peer react\n  Wanted:"), "{rendered}");
+}

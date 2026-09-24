@@ -126,9 +126,13 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     LocalTarballIntegrity(#[error(source)] pnpm_tarball::TarballError),
 
+    /// A pre-resolution lifecycle hook (`pnpm:devPreinstall` or root
+    /// `preinstall`) failed before resolution and materialization began.
+    #[diagnostic(transparent)]
+    PreResolutionLifecycleScript(#[error(source)] LifecycleScriptError),
+
     /// A workspace project's own lifecycle script
-    /// (`pnpm:devPreinstall`, or
-    /// preinstall/install/postinstall/preprepare/prepare/postprepare)
+    /// (preinstall/install/postinstall/preprepare/prepare/postprepare)
     /// exited non-zero. Unlike a dependency build failure — which
     /// `BuildModules` can swallow for optional deps — a project script
     /// failure always fails the install, matching pnpm.

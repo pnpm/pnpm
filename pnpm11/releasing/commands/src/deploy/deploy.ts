@@ -218,6 +218,10 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     // TODO: make it work as we need to prefer packages from the lockfile during deployment.
     useLockfile: opts.nodeLinker !== 'hoisted',
     saveLockfile: false,
+    // The workspace state describes the source workspace's own install,
+    // which this install of the deployed project must neither check nor replace.
+    optimisticRepeatInstall: false,
+    saveWorkspaceState: false,
     virtualStoreDir: path.join(deployDir, 'node_modules/.pnpm'),
     modulesDir: path.relative(opts.workspaceDir, path.join(deployDir, 'node_modules')),
     includeOnlyPackageFiles,
@@ -226,9 +230,10 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
 
 async function copyProject (src: string, dest: string, opts: { includeOnlyPackageFiles: boolean }): Promise<void> {
   const { filesMap } = await fetchFromDir(src, opts)
-  const importPkg = createIndexedPkgImporter('clone-or-copy')
+  const importPkg = createIndexedPkgImporter('clone-or-copy', { disableLogging: true })
   importPkg(dest, { filesMap, force: true, resolvedFrom: 'local-dir' })
 }
+
 
 function validateDeployTarget (
   deployDir: string,

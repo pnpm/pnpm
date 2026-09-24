@@ -166,6 +166,68 @@ test('legacy deploy injects workspace dependencies that the shared lockfile link
   )
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/15352
+test('legacy deploy leaves the workspace state of the source workspace untouched', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+  ])
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+  const workspaceStatePath = path.resolve('node_modules/.pnpm-workspace-state-v1.json')
+  const workspaceStateBeforeDeploy = fs.readFileSync(workspaceStatePath, 'utf8')
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    forceLegacyDeploy: true,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  expect(fs.existsSync('deploy/node_modules/project-2')).toBeTruthy()
+  expect(fs.readFileSync(workspaceStatePath, 'utf8')).toBe(workspaceStateBeforeDeploy)
+})
+
 test('native deploy creates a dedicated lockfile from linked workspace dependencies', async () => {
   preparePackages([
     {
@@ -452,6 +514,65 @@ test('native deploy keeps an optional peer of a linked workspace package optiona
   const [, lib] = Object.entries(snapshots).find(([key]) => key.startsWith('project-2@file:'))!
   expect(lib.optionalDependencies?.['@pnpm.e2e/peer-a']).toBeDefined()
   expect(lib.dependencies?.['@pnpm.e2e/peer-a']).toBeUndefined()
+})
+
+test('deploy --prod preserves optional dependencies of referenced workspace dependencies even when declared as devDependencies elsewhere (pnpm/pnpm#8269)', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+      },
+      devDependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      optionalDependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      devDependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dev: true,
+    dir: process.cwd(),
+    production: true,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await deploy.handler({ ...opts, dev: false, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const project = assertProject(path.resolve('deploy'))
+  project.has('project-2')
+  project.hasNot('is-negative')
+  const p2Real = fs.realpathSync(path.resolve('deploy/node_modules/project-2'))
+  expect(fs.existsSync(path.join(path.dirname(p2Real), 'is-positive'))).toBe(true)
+  const pnpmDir = fs.readdirSync(path.resolve('deploy/node_modules/.pnpm'))
+  expect(pnpmDir.some((dir) => dir.includes('is-positive'))).toBe(true)
 })
 
 // --no-optional clears the optional map before the binding step, so the binder

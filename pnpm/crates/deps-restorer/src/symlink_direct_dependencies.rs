@@ -142,20 +142,7 @@ struct ImporterPass<'a> {
 
 impl ImporterPass<'_> {
     fn run<Reporter: self::Reporter>(&self) -> Result<(), SymlinkDirectDependenciesError> {
-        // Each importer's modules dir is `<importer_root>/<modules_dir_basename>`.
-        // The `modulesDir` setting is a directory name (a single
-        // component, default `node_modules`) applied uniformly under
-        // every importer. Pacquet stores `config.modules_dir` as a
-        // full path anchored at the workspace root, so peel off the
-        // last component to get the per-importer suffix — that way a
-        // `modulesDir: custom_modules` override in
-        // `pnpm-workspace.yaml` propagates to every importer instead
-        // of leaving the symlink stage stuck on `node_modules` while
-        // other stages (`.modules.yaml` writing, bin linking) use
-        // `config.modules_dir`.
-        let modules_dir_name: &OsStr = self.context.config.modules_dir
-            .file_name()
-            .unwrap_or_else(|| OsStr::new("node_modules"));
+        let modules_dir_name: &OsStr = self.context.config.modules_dir_name();
 
         // Sorted so the fallible upfront validation below rejects a
         // hostile lockfile on a deterministic importer. `pnpm:root`

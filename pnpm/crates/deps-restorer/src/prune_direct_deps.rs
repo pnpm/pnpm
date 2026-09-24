@@ -122,8 +122,7 @@ pub fn prune_direct_deps_excluded_by_groups(
     // Same per-importer `modulesDir` suffix peeling as
     // [`crate::SymlinkDirectDependencies`], so removal targets exactly
     // where the linker writes.
-    let modules_dir_name: &OsStr =
-        config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+    let modules_dir_name: &OsStr = config.modules_dir_name();
 
     for (importer_id, snapshot) in &current_lockfile.importers {
         // A malformed importer key is rejected with a typed error by
@@ -239,12 +238,15 @@ pub fn remove_direct_dep_link(modules_dir: &Path, name: &str) -> Result<(), Prun
     }
 }
 
-/// Remove the shims the package behind `link` declares from
+/// Remove the shims the package at `pkg_dir` declares from
 /// `<modules_dir>/.bin`. A missing or unparsable `package.json` (a
 /// dangling link, a broken package) yields no bins to remove — the same
 /// best-effort read as pnpm's `removeBins`.
-fn remove_dep_bins(modules_dir: &Path, link: &Path) -> Result<(), PruneDirectDepsError> {
-    let manifest_path = link.join("package.json");
+pub(crate) fn remove_dep_bins(
+    modules_dir: &Path,
+    pkg_dir: &Path,
+) -> Result<(), PruneDirectDepsError> {
+    let manifest_path = pkg_dir.join("package.json");
     let bytes = match fs::read(&manifest_path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
@@ -263,7 +265,7 @@ fn remove_dep_bins(modules_dir: &Path, link: &Path) -> Result<(), PruneDirectDep
     if !is_real_dir(&bins_dir) {
         return Ok(());
     }
-    for command in get_bins_from_package_manifest::<Host>(&manifest, link) {
+    for command in get_bins_from_package_manifest::<Host>(&manifest, pkg_dir) {
         let shim_path = bins_dir.join(&command.name);
         remove_bin(&shim_path)
             .map_err(|error| PruneDirectDepsError::RemoveBin { path: shim_path, error })?;

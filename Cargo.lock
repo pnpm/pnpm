@@ -5216,6 +5216,7 @@ dependencies = [
  "derive_more",
  "ignore",
  "pnpm-diagnostics",
+ "pnpm-fs",
  "pnpm-package-manifest",
  "serde_json",
  "tempfile",
@@ -5428,6 +5429,9 @@ name = "pnpm-lockfile-preferred-versions"
 version = "0.0.1"
 dependencies = [
  "node-semver",
+ "pnpm-catalogs-protocol-parser",
+ "pnpm-catalogs-resolver",
+ "pnpm-catalogs-types",
  "pnpm-lockfile",
  "pnpm-package-manifest",
  "pnpm-resolving-resolver-base",
@@ -5679,6 +5683,7 @@ dependencies = [
  "dunce",
  "flate2",
  "futures-util",
+ "home",
  "httpdate",
  "indexmap 2.14.0",
  "insta",

@@ -520,6 +520,19 @@ fn install_keeps_the_trust_lockfile_pair_for_clap() {
 }
 
 #[test]
+fn remove_keeps_the_trust_lockfile_pair_for_clap() {
+    for flag in ["--trust-lockfile", "--no-trust-lockfile"] {
+        let (overrides, remaining) =
+            ConfigOverrides::extract(argv(["pacquet", "remove", "foo", flag]));
+        assert_eq!(remaining, argv(["pacquet", "remove", "foo", flag]));
+
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert_eq!(config.trust_lockfile, Config::default().trust_lockfile, "{flag}");
+    }
+}
+
+#[test]
 fn a_value_taking_setting_reads_the_next_argv_token() {
     let (overrides, remaining) =
         ConfigOverrides::extract(argv(["pacquet", "--package-import-method", "copy", "install"]));

@@ -26,6 +26,7 @@ export async function allProjectsAreUpToDate (
     wantedLockfile: LockfileObject
     workspacePackages: WorkspacePackages
     lockfileDir: string
+    workspaceDir?: string
   }
 ): Promise<boolean> {
   // Projects may declare dependencies using catalog protocol specifiers. If the
@@ -47,6 +48,7 @@ export async function allProjectsAreUpToDate (
     workspacePackages: opts.workspacePackages,
     lockfilePackages: opts.wantedLockfile.packages,
     lockfileDir: opts.lockfileDir,
+    workspaceDir: opts.workspaceDir,
   })
   const _localTarballDepsAreUpToDate = localTarballDepsAreUpToDate.bind(null, {
     fileIntegrityCache: new Map(),

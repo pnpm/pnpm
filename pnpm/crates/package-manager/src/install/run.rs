@@ -70,7 +70,7 @@ where
         // in either case drops resolutions no file is left holding.
         let merge_will_be_saved = self.context.config.merge_git_branch_lockfiles
             && self.context.config.lockfile
-            && options.save_lockfile
+            && options.save.lockfile
             && !options.lockfile_check
             && !self.execution.dry_run;
         let branch_lockfiles_to_clean = merge_will_be_saved
@@ -131,7 +131,7 @@ where
         self.lockfile_policy.excludes == PolicyExcludes::Persist
             && matches!(self.execution.mutation, ProjectMutation::InstallWorkspace)
             && self.context.config.lockfile
-            && options.save_lockfile
+            && options.save.lockfile
             && !options.lockfile_check
             && !self.execution.dry_run
             && (self.context.config.minimum_release_age_exclude_prune
@@ -231,7 +231,7 @@ pub(super) struct InstallView<'a> {
 impl InstallView<'_> {
     fn should_prune_catalogs(&self, options: &InstallRunOptions<'_, '_>) -> bool {
         self.context.config.catalog_prune
-            && options.save_lockfile
+            && options.save.lockfile
             && !options.lockfile_check
             && !self.execution.dry_run
             && self.execution.mutation.is_full_install()

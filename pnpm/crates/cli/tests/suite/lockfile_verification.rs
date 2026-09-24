@@ -237,11 +237,11 @@ fn trust_lockfile_cli_flag_skips_verification() {
     drop((root, mock_instance));
 }
 
-/// `remove` declares no clap flag for `trustLockfile`; the bare spelling
-/// reaches it as a setting. The lockfile is verified after the removal is
-/// applied to it, so the provocation keeps a second rejected entry that
-/// survives the removal: without the flag the gate fires on that entry and
-/// the manifest is left alone, with the flag the removal completes.
+/// `remove` declares clap flags for `--trust-lockfile` and `--no-trust-lockfile`.
+/// The lockfile is verified after the removal is applied to it, so the
+/// provocation keeps a second rejected entry that survives the removal:
+/// without the flag the gate fires on that entry and the manifest is left
+/// alone, with the flag the removal completes.
 #[test]
 fn remove_honors_the_bare_trust_lockfile_flag() {
     let CommandTempCwd {
@@ -294,6 +294,60 @@ fn remove_honors_the_bare_trust_lockfile_flag() {
     assert_eq!(
         read_manifest(&workspace),
         serde_json::json!({ "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" } }),
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn remove_honors_no_trust_lockfile_flag_overriding_workspace_config() {
+    let CommandTempCwd {
+        pacquet: initial_install,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/foo": "100.0.0",
+            "@pnpm.e2e/hello-world-js-bin": "1.0.0",
+        },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+    let output = initial_install
+        .with_args(["install", "--ignore-scripts"])
+        .output()
+        .expect("spawn pacquet install");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
+    append_workspace_yaml_key(&workspace, "trustLockfile", true);
+
+    let output = pacquet_in(&workspace)
+        .with_args(["remove", "@pnpm.e2e/foo", "--no-trust-lockfile"])
+        .output()
+        .expect("spawn pacquet remove");
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(
+        !output.status.success() && stderr.contains("ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION"),
+        "--no-trust-lockfile must override trustLockfile: true; got:\n{stderr}",
+    );
+    assert_eq!(
+        read_manifest(&workspace),
+        package_json,
+        "a rejected removal must not touch the manifest",
+    );
+
+    let output = pacquet_in(&workspace)
+        .with_args(["remove", "@pnpm.e2e/foo"])
+        .output()
+        .expect("spawn pacquet remove");
+    assert!(
+        output.status.success(),
+        "without --no-trust-lockfile, trustLockfile: true allows removal; got:\n{}",
+        String::from_utf8_lossy(&output.stderr),
     );
 
     drop((root, mock_instance));

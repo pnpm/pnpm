@@ -25,6 +25,13 @@ use tar::Archive;
 
 const CHANGELOG_ENTRY: &str = "package/CHANGELOG.md";
 
+/// The inputs [`unpublished_release_dirs`] probes the registry with.
+pub struct ReleaseRegistryOptions<'a> {
+    pub config: &'a Config,
+    pub published_names: &'a HashMap<String, String>,
+    pub private_dirs: &'a HashSet<String>,
+}
+
 /// Caps the previous tarball we buffer and decompress to compose the changelog.
 /// The bytes come from a registry/proxy, so an unbounded read or a highly
 /// compressible ("gzip bomb") tarball could OOM release automation. A composed
@@ -114,12 +121,12 @@ pub fn published_names(projects: &[pnpm_workspace::Project]) -> HashMap<String, 
 /// `AssembleReleasePlanOptions::unpublished_dirs`. Probe failures propagate.
 /// A release is keyed by its manifest name, so [`published_names`] translates it
 /// for the probe; without that a renamed project reads as never published and
-/// debuts at its manifest version on every release. Mirrors the TypeScript
-/// `resolveUnpublishedDirs`.
+/// debuts at its manifest version on every release. A release in
+/// `private_dirs` is never probed and counts as published. Mirrors the
+/// TypeScript `resolveUnpublishedDirs`.
 pub async fn unpublished_release_dirs(
-    config: &Config,
     plan: &ReleasePlan,
-    published_names: &HashMap<String, String>,
+    options: &ReleaseRegistryOptions<'_>,
 ) -> miette::Result<HashSet<String>> {
     // Debug-only test seam, compiled out of release builds: the engine tests
     // advance manifests without publishing, so they force "all published".
@@ -127,17 +134,26 @@ pub async fn unpublished_release_dirs(
     if std::env::var_os("PACQUET_ASSUME_VERSIONS_PUBLISHED").is_some() {
         return Ok(HashSet::new());
     }
-    // One client for the batch; its per-origin semaphore bounds the fan-out.
-    let client = build_registry_client(config)?;
-    let checks = plan.releases
+    let releases: Vec<_> = plan.releases
         .iter()
+        .filter(|release| !options.private_dirs.contains(&release.dir))
+        .collect();
+    if releases.is_empty() {
+        return Ok(HashSet::new());
+    }
+    // One client for the batch; its per-origin semaphore bounds the fan-out.
+    let client = build_registry_client(options.config)?;
+    let checks = releases
+        .into_iter()
         .map(|release| {
             let client = &client;
-            let probe =
-                published_names.get(&release.name).map_or(release.name.as_str(), String::as_str);
+            let probe = options.published_names
+                .get(&release.name)
+                .map_or(release.name.as_str(), String::as_str);
             async move {
                 let published =
-                    is_version_published(client, config, probe, &release.version.current).await?;
+                    is_version_published(client, options.config, probe, &release.version.current)
+                        .await?;
                 Ok::<_, miette::Report>((release.dir.clone(), published))
             }
         });

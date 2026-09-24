@@ -291,6 +291,30 @@ exec node  "$basedir/../simple/index.js" "$@"
   expect(content).not.toContain('# outdated-path-converters')
 })
 
+// Where no default path is compiled in, as on Nix, command -p searches the
+// caller's PATH, so a shim that resolves every helper through command -p still
+// needs the node_modules entries dropped from that PATH.
+test('linkBins() replaces a shim that resolves its helpers with node_modules on PATH', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+  const target = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
+  const helperPathFilterLine = '    */node_modules/*|*/node_modules) ;;\n'
+
+  fs.mkdirSync(binTarget, { recursive: true })
+  const binLocation = path.join(binTarget, 'simple')
+  await cmdShim(target, binLocation, { createCmdFile: false, createPwshFile: false })
+  const current = fs.readFileSync(binLocation, 'utf8')
+  expect(current).toContain(helperPathFilterLine)
+  fs.writeFileSync(binLocation, `${current.replace(helperPathFilterLine, '')}# outdated-helper-path\n`, 'utf8')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  const content = fs.readFileSync(binLocation, 'utf8')
+  expect(content).toContain(helperPathFilterLine)
+  expect(content).not.toContain('# outdated-helper-path')
+})
+
 testOnPosix('linkBins() repairs a non-executable source when the existing bin references it', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()

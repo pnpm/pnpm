@@ -39,8 +39,8 @@ pub struct PackManifestOptions {
     pub catalogs_dir: Option<PathBuf>,
     /// Embed the project's `README.md` into the published manifest.
     pub embed_readme: bool,
-    /// Node linker mode; `bundledDependencies` only work under
-    /// [`NodeLinker::Hoisted`].
+    /// Node linker mode; `bundledDependencies` do not work with
+    /// [`NodeLinker::Pnp`].
     pub node_linker: NodeLinker,
     /// Keep `packageManager` and publish-lifecycle scripts in the packed
     /// manifest.

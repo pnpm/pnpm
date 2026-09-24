@@ -827,6 +827,131 @@ fn update_no_save_is_refused_when_a_pick_is_immature() {
     drop((root, anchor));
 }
 
+const UNSERVED_DEP_VERSION: &str = "100.9.9";
+
+/// Rewrite the lockfile to pin [`DEP`] at a version the registry does not
+/// serve, the state an unpublished version leaves behind.
+fn lock_unserved_version_of_dep(workspace: &Path) {
+    let locked_key = lockfile_package_keys(workspace)
+        .into_iter()
+        .find(|key| key.starts_with(&format!("{DEP}@")))
+        .expect("the lockfile pins the dependency");
+    let unserved_key = format!("{DEP}@{UNSERVED_DEP_VERSION}");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile: serde_json::Value =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
+            .expect("parse pnpm-lock.yaml");
+    for section in ["packages", "snapshots"] {
+        let entries = lockfile[section].as_object_mut().expect("the lockfile has the section");
+        let entry = entries.remove(&locked_key).expect("the section has the locked entry");
+        entries.insert(unserved_key.clone(), entry);
+    }
+    for snapshot in lockfile["snapshots"]
+        .as_object_mut()
+        .expect("the lockfile has snapshots")
+        .values_mut()
+    {
+        if let Some(pin) = snapshot
+            .get_mut("dependencies")
+            .and_then(|deps| deps.get_mut(DEP))
+        {
+            *pin = UNSERVED_DEP_VERSION.into();
+        }
+    }
+    for importer in lockfile["importers"]
+        .as_object_mut()
+        .expect("the lockfile has importers")
+        .values_mut()
+    {
+        if let Some(dep) = importer
+            .get_mut("dependencies")
+            .and_then(|deps| deps.get_mut(DEP))
+        {
+            dep["version"] = UNSERVED_DEP_VERSION.into();
+        }
+    }
+    fs::write(
+        &lockfile_path,
+        serde_saphyr::to_string(&lockfile).expect("serialize pnpm-lock.yaml"),
+    )
+    .expect("write pnpm-lock.yaml");
+}
+
+/// Covers <https://github.com/pnpm/pnpm/issues/9953>. The lockfile
+/// verification gate skips the version the update replaces.
+#[test]
+fn update_moves_a_dependency_off_a_locked_version_the_registry_no_longer_serves() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    lock_unserved_version_of_dep(&workspace);
+    set_minimum_release_age(&workspace, 1);
+
+    pacquet(&workspace, ["update", DEP]).assert().success();
+
+    let packages = lockfile_package_keys(&workspace);
+    assert!(!packages.contains(&format!("{DEP}@{UNSERVED_DEP_VERSION}")), "{packages:?}");
+    assert!(
+        packages
+            .iter()
+            .any(|key| key.starts_with(&format!("{DEP}@"))),
+        "{packages:?}",
+    );
+
+    drop((root, anchor));
+}
+
+/// `update --depth 0` does not replace every locked version of its target,
+/// so the lockfile verification gate still checks them.
+#[test]
+fn update_with_depth_limit_verifies_the_locked_versions_of_its_targets() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    lock_unserved_version_of_dep(&workspace);
+    set_minimum_release_age(&workspace, 1);
+
+    assert_unserved_dep_is_rejected(pacquet(&workspace, ["update", "--depth", "0", DEP]));
+
+    drop((root, anchor));
+}
+
+fn assert_unserved_dep_is_rejected(mut command: Command) {
+    let output = command.assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
+
+    assert!(stderr.contains("ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION"), "{stderr}");
+    assert!(stderr.contains(&format!("{DEP}@{UNSERVED_DEP_VERSION}")), "{stderr}");
+}
+
+/// A filtered update leaves the other importers' pins in place, so the
+/// lockfile verification gate still checks them.
+#[test]
+fn update_verifies_the_locked_versions_of_importers_it_does_not_update() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0" }}"#));
+    add_workspace_package(&workspace, "project-b", "1.0.0");
+    fs::write(
+        workspace.join("project-b/package.json"),
+        format!(r#"{{ "name": "project-b", "version": "1.0.0", "dependencies": {{ "{PARENT}": "100.0.0" }} }}"#),
+    )
+    .expect("write project-b/package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+    lock_unserved_version_of_dep(&workspace);
+    set_minimum_release_age(&workspace, 1);
+
+    assert_unserved_dep_is_rejected(pacquet(&workspace, ["--filter", "project-b", "update", DEP]));
+
+    pacquet(&workspace, ["update", "--recursive", DEP]).assert().success();
+    let packages = lockfile_package_keys(&workspace);
+    assert!(!packages.contains(&format!("{DEP}@{UNSERVED_DEP_VERSION}")), "{packages:?}");
+
+    drop((root, anchor));
+}
+
 /// An invalid `minimumReleaseAgeExclude` must not preempt command
 /// validation: `update <name>@<spec> --latest` still fails with the
 /// versioned-selector rejection, matching the TypeScript CLI, which

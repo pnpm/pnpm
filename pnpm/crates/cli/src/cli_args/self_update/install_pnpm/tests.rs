@@ -74,6 +74,46 @@ async fn run_install_ignores_an_ambient_workspace_manifest_above_the_install_dir
     );
 }
 
+#[tokio::test]
+async fn run_install_persists_minimum_release_age_excludes_to_target_workspace() {
+    let registry = TestRegistry::start();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let workspace_dir = temp.path().join("workspace");
+    fs::create_dir_all(&workspace_dir).expect("create workspace dir");
+    let workspace_yaml = workspace_dir.join("pnpm-workspace.yaml");
+    fs::write(&workspace_yaml, "packages:\n  - packages/*\n").expect("write workspace manifest");
+
+    let install_dir = temp.path().join("engine-slot");
+    fs::create_dir_all(&install_dir).expect("create install dir");
+
+    let mut cfg = Config {
+        store_dir: StoreDir::new(temp.path().join("store")),
+        cache_dir: temp.path().join("cache"),
+        workspace_dir: Some(workspace_dir.clone()),
+        minimum_release_age: Some(60 * 24 * 365 * 100),
+        minimum_release_age_strict: Some(false),
+        ..Config::default()
+    };
+    cfg.package_manager_bootstrap.registry = registry.url().to_string();
+    let config = Config::leak(cfg);
+
+    run_install::<SilentReporter>(
+        config,
+        &install_dir,
+        "@pnpm.e2e/hello-world-js-bin",
+        "1.0.0",
+        None,
+        None,
+    )
+    .await
+    .expect("install engine package");
+
+    assert!(!install_dir.join("pnpm-workspace.yaml").exists());
+    let manifest = fs::read_to_string(&workspace_yaml).expect("read workspace yaml");
+    assert!(manifest.contains("minimumReleaseAgeExclude:"));
+    assert!(manifest.contains("@pnpm.e2e/hello-world-js-bin@1.0.0"));
+}
+
 #[test]
 fn legacy_platform_dir_names() {
     assert_eq!(exe_platform_pkg_dir_name("darwin", "arm64", "unknown"), "macos-arm64");

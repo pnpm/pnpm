@@ -17,7 +17,7 @@ import {
   type CreateStoreControllerOptions,
 } from '@pnpm/store.connection-manager'
 import type { Project, ProjectsGraph } from '@pnpm/types'
-import { readProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+import { readProjectManifest, readProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 import * as structUtils from '@yarnpkg/core/structUtils'
@@ -28,6 +28,7 @@ import { map as mapValues } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { recursive } from '../recursive.js'
+import { type ImportedProject, importYarnPatches } from './yarnPatches.js'
 import { yarnLockFileKeyNormalizer } from './yarnUtil.js'
 
 interface NpmPackageLock {
@@ -138,6 +139,12 @@ export async function handler (
     throw new PnpmError('LOCKFILE_NOT_FOUND', 'No lockfile found')
   }
   const preferredVersions = getPreferredVersions(versionsByPackageNames)
+  const patchedDependencies = await importYarnPatches({
+    projects: await getImportedProjects(opts),
+    yarnRootDir: opts.dir,
+    workspaceDir: opts.workspaceDir ?? opts.dir,
+    patchedDependencies: opts.patchedDependencies,
+  }) ?? opts.patchedDependencies
   const lockfileDir = opts.lockfileDir ?? opts.dir
   // Resolved the way the installer resolves it, so the backed up file and the
   // file the import writes back are the same one.
@@ -167,7 +174,7 @@ export async function handler (
     if (envLockfile) {
       await writeEnvLockfile(lockfileDir, envLockfile)
     }
-    await installImportedLockfile(opts, params, preferredVersions)
+    await installImportedLockfile({ ...opts, patchedDependencies }, params, preferredVersions)
   } catch (err: unknown) {
     await fs.promises.rm(lockfilePath, { force: true })
     if (lockfileExisted) {
@@ -178,6 +185,16 @@ export async function handler (
   if (lockfileExisted) {
     await fs.promises.unlink(backupPath)
   }
+}
+
+async function getImportedProjects (opts: ImportCommandOptions): Promise<ImportedProject[]> {
+  if (opts.workspaceDir) {
+    return opts.allProjects ?? findWorkspaceProjects(opts.workspaceDir, {
+      ...opts,
+      patterns: opts.workspacePackagePatterns,
+    })
+  }
+  return [{ rootDir: opts.dir, ...await readProjectManifest(opts.dir) }]
 }
 
 async function installImportedLockfile (

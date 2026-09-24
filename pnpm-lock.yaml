@@ -3764,6 +3764,9 @@ importers:
 
   pnpm11/deps/inspection/peers-issues-renderer:
     dependencies:
+      '@pnpm/text.sanitize':
+        specifier: workspace:*
+        version: link:../../../text/sanitize
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../core/types
@@ -5111,6 +5114,9 @@ importers:
 
   pnpm11/fs/packlist:
     dependencies:
+      '@pnpm/workspace.project-manifest-reader':
+        specifier: workspace:*
+        version: link:../../workspace/project-manifest-reader
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0
@@ -6362,6 +6368,9 @@ importers:
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: link:../../bins/linker
+      '@pnpm/bins.remover':
+        specifier: workspace:*
+        version: link:../../bins/remover
       '@pnpm/building.during-install':
         specifier: workspace:*
         version: link:../../building/during-install
@@ -7262,6 +7271,12 @@ importers:
 
   pnpm11/lockfile/preferred-versions:
     dependencies:
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../utils

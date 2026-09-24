@@ -103,6 +103,7 @@ impl ConcurrentVerification<'_> {
                 concurrency: None,
                 lockfile_path,
                 cache_dir: Some(cache_dir),
+                replaced: None,
             },
         )
         .await

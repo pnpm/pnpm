@@ -2164,6 +2164,7 @@ async function resolveDependency (
         injectWorkspacePackages: ctx.injectWorkspacePackages,
         calcSpecifier,
         rangeSpecStyle: options.rangeSpecStyle,
+        readPackageHook: ctx.readPackageHook,
       })
     } catch (err: any) { // eslint-disable-line
       const wantedDependencyDetails = {
@@ -2268,7 +2269,7 @@ async function resolveDependency (
     let prepare!: boolean
     let hasBin!: boolean
     let pkg: PackageManifest = copyResolvedManifest(getManifestFromResponse(pkgResponse, wantedDependency, currentPkg))
-    if (ctx.readPackageHook != null) {
+    if (ctx.readPackageHook != null && !pkgResponse.body.hooked) {
       pkg = await ctx.readPackageHook(pkg)
     }
     if (pkg.peerDependencies && pkg.dependencies) {

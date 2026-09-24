@@ -6,6 +6,7 @@ declare const global: Global
 if (!global['pnpm__startedAt']) {
   global['pnpm__startedAt'] = Date.now()
 }
+import fs from 'node:fs'
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi, types as utilTypes } from 'node:util'
 
@@ -257,9 +258,15 @@ export async function main (inputArgv: string[]): Promise<void> {
     }
   }
 
+  const hasFilter = Boolean(config.filter?.length || config.filterProd?.length)
+  const isWorkspaceSubdirectory = typeof workspaceDir === 'string' &&
+    getRealPathSync(config.dir) !== getRealPathSync(workspaceDir)
+  const isListCommand = cmd === 'list' || cmd === 'll'
+
   if (
     cmd != null && recursiveByDefaultCommands.has(cmd) &&
-    typeof workspaceDir === 'string'
+    typeof workspaceDir === 'string' &&
+    !(isListCommand && isWorkspaceSubdirectory && !hasFilter)
   ) {
     cliOptions['recursive'] = true
     config.recursive = true
@@ -270,6 +277,7 @@ export async function main (inputArgv: string[]): Promise<void> {
   }
 
   if (cliOptions['recursive']) {
+    config.recursive = true
     const wsDir = workspaceDir ?? process.cwd()
 
     config.filter = config.filter ?? []
@@ -574,6 +582,19 @@ function failRuntimeCheck (onFail: 'error' | 'warn', message: string): void {
     throw new PnpmError('BAD_RUNTIME_VERSION', message, { hint: RUNTIME_ON_FAIL_HINT })
   }
   globalWarn(message)
+}
+
+function getRealPathSync (dir: string): string {
+  const resolved = path.resolve(dir)
+  try {
+    return fs.realpathSync.native(resolved)
+  } catch (err: unknown) {
+    throw new PnpmError(
+      'WORKSPACE_DIR_NOT_FOUND',
+      `Failed to resolve real path for "${resolved}"`,
+      { cause: err }
+    )
+  }
 }
 
 const RUNTIME_ON_FAIL_HINT = 'If you want to bypass this version check, set "runtimeOnFail" to "warn" or "ignore" (e.g. via --runtime-on-fail=ignore), or set "devEngines.runtime.onFail"/"engines.runtime.onFail" to "warn" or "ignore"'

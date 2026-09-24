@@ -4,7 +4,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_config_parse_overrides::parse_pkg_and_parent_selector;
 use pnpm_lockfile::Lockfile;
-use pnpm_package_manifest::PackageManifest;
+use pnpm_lockfile_preferred_versions::DirectSpecs;
 use pnpm_resolving_deps_resolver::{ManifestHook, UpdateTargets};
 use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions};
 use std::{
@@ -35,7 +35,7 @@ use std::{
 pub(in super::super) fn preferred_versions_seeds(
     update_seed_policy: &UpdateSeedPolicy,
     wanted_lockfile: Option<&Lockfile>,
-    importer_manifests: &BTreeMap<String, &PackageManifest>,
+    direct: DirectSpecs<'_>,
     overrides: Option<&PreferredVersions>,
     stale_override_targets: &UpdateTargets,
 ) -> (Arc<PreferredVersions>, BTreeMap<String, Arc<PreferredVersions>>) {
@@ -44,10 +44,6 @@ pub(in super::super) fn preferred_versions_seeds(
         get_preferred_versions_from_lockfile_and_manifests_excluding as from_lockfile_excluding,
     };
 
-    let manifests: Vec<&PackageManifest> = importer_manifests
-        .values()
-        .copied()
-        .collect();
     let snapshots = wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref());
     let stale = withheld_pin(stale_override_targets);
 
@@ -56,15 +52,11 @@ pub(in super::super) fn preferred_versions_seeds(
         | UpdateSeedPolicy::KeepAllResolveAll
         | UpdateSeedPolicy::FixLockfile
         | UpdateSeedPolicy::RefreshRevisions
-        | UpdateSeedPolicy::ByImporter { .. } => {
-            from_lockfile_excluding(snapshots, manifests.as_slice(), &stale)
-        }
-        UpdateSeedPolicy::DropAll { .. } => from_lockfile(None, manifests.as_slice()),
+        | UpdateSeedPolicy::ByImporter { .. } => from_lockfile_excluding(snapshots, direct, &stale),
+        UpdateSeedPolicy::DropAll { .. } => from_lockfile(None, direct),
         UpdateSeedPolicy::DropOnly { targets, .. } => {
             let withheld = withheld_pin(targets);
-            from_lockfile_excluding(snapshots, manifests.as_slice(), &|key| {
-                stale(key) || withheld(key)
-            })
+            from_lockfile_excluding(snapshots, direct, &|key| stale(key) || withheld(key))
         }
     };
 
@@ -77,7 +69,7 @@ pub(in super::super) fn preferred_versions_seeds(
 
     let mut by_importer = BTreeMap::new();
     if let UpdateSeedPolicy::ByImporter { policies, .. } = update_seed_policy {
-        by_importer = by_importer_seeds(policies, snapshots, &manifests, overrides, &stale);
+        by_importer = by_importer_seeds(policies, snapshots, direct, overrides, &stale);
     }
 
     (Arc::new(workspace_seed), by_importer)
@@ -88,7 +80,7 @@ pub(in super::super) fn preferred_versions_seeds(
 pub(super) fn by_importer_seeds(
     policies: &BTreeMap<String, ImporterUpdateSeedPolicy>,
     snapshots: Option<&HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::SnapshotEntry>>,
-    manifests: &[&PackageManifest],
+    direct: DirectSpecs<'_>,
     overrides: Option<&PreferredVersions>,
     stale: &dyn Fn(&pnpm_lockfile::PackageKey) -> bool,
 ) -> BTreeMap<String, Arc<PreferredVersions>> {
@@ -100,13 +92,13 @@ pub(super) fn by_importer_seeds(
             ImporterUpdateSeedPolicy::DropAll => Arc::clone(drop_all_seed.get_or_insert_with(|| {
                 let mut seed =
                     pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
-                        None, manifests,
+                        None, direct,
                     );
                 merge_preferred_versions(&mut seed, overrides);
                 Arc::new(seed)
             })),
             ImporterUpdateSeedPolicy::DropOnly(targets) => {
-                drop_only_seed(&mut drop_only_seeds, targets, snapshots, manifests, overrides, stale)
+                drop_only_seed(&mut drop_only_seeds, targets, snapshots, direct, overrides, stale)
             }
         };
         by_importer.insert(importer_id.clone(), seed);
@@ -117,7 +109,7 @@ pub(super) fn drop_only_seed(
     cache: &mut HashMap<UpdateTargets, Arc<PreferredVersions>>,
     targets: &UpdateTargets,
     snapshots: Option<&HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::SnapshotEntry>>,
-    manifests: &[&PackageManifest],
+    direct: DirectSpecs<'_>,
     overrides: Option<&PreferredVersions>,
     stale: &dyn Fn(&pnpm_lockfile::PackageKey) -> bool,
 ) -> Arc<PreferredVersions> {
@@ -128,7 +120,7 @@ pub(super) fn drop_only_seed(
     let mut seed =
         pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests_excluding(
             snapshots,
-            manifests,
+            direct,
             &|key| stale(key) || withheld(key),
         );
     merge_preferred_versions(&mut seed, overrides);

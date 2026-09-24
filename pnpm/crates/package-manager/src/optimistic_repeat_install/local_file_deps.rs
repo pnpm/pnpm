@@ -1,9 +1,13 @@
-//! Detecting dependency specs that point at the local filesystem.
+pub(crate) mod specs;
+pub(crate) use specs::{
+    has_local_file_override, has_local_file_package_extension, is_local_file_spec,
+    is_unambiguous_local_file_spec,
+};
+mod workspace;
 
 use super::{
-    CatalogAnchor, CatalogResolutionResult, Catalogs, Config, DependencyGroup,
-    IncludedDependencies, Lockfile, OptimisticRepeatInstallCheck, Path, PathBuf, WantedDependency,
-    resolve_from_catalog,
+    CatalogAnchor, CatalogResolutionResult, Catalogs, DependencyGroup, Lockfile,
+    OptimisticRepeatInstallCheck, Path, PathBuf, WantedDependency, resolve_from_catalog,
 };
 use pnpm_lockfile::{LockfileResolution, PkgName, is_local_tarball_path};
 use pnpm_resolving_local_resolver::local_tarball_path;
@@ -130,25 +134,53 @@ fn scan_local_tarball_deps(check: &OptimisticRepeatInstallCheck<'_>) -> LocalTar
             check.layout.included.optional_dependencies,
         ),
     ];
+    let workspace_packages = if check.config.inject_workspace_packages {
+        workspace::collect_workspace_packages(check.project_manifests)
+    } else {
+        std::collections::HashMap::new()
+    };
     let mut tarballs = Vec::new();
     for (project_dir, manifest) in check.project_manifests {
-        for (field, group, group_included) in fields {
-            if !group_included {
-                continue;
-            }
-            let scan = FieldTarballScan {
-                catalogs: check.catalogs,
-                workspace_dir: check.config.workspace_dir.as_deref(),
-                project_dir,
-                field,
-                group,
-            };
-            if !scan_field_tarballs(&scan, manifest, &mut tarballs) {
-                return LocalTarballScan::RequiresInstall;
-            }
+        if !scan_project_manifest_tarballs(
+            check,
+            &workspace_packages,
+            project_dir,
+            manifest,
+            &fields,
+            &mut tarballs,
+        ) {
+            return LocalTarballScan::RequiresInstall;
         }
     }
     LocalTarballScan::Candidates(tarballs)
+}
+
+fn scan_project_manifest_tarballs(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    workspace_packages: &workspace::WorkspacePackageMap<'_>,
+    project_dir: &Path,
+    manifest: &pnpm_package_manifest::PackageManifest,
+    fields: &[(&str, DependencyGroup, bool); 3],
+    tarballs: &mut Vec<LocalTarballDependency>,
+) -> bool {
+    for (field, group, group_included) in fields {
+        if !group_included {
+            continue;
+        }
+        let scan = FieldTarballScan {
+            catalogs: check.catalogs,
+            workspace_dir: check.config.workspace_dir.as_deref(),
+            project_dir,
+            field,
+            group: *group,
+            inject_workspace_packages: check.config.inject_workspace_packages,
+            workspace_packages,
+        };
+        if !scan_field_tarballs(&scan, manifest, tarballs) {
+            return false;
+        }
+    }
+    true
 }
 
 /// One manifest field of one project, as the tarball scan reads it.
@@ -161,6 +193,8 @@ struct FieldTarballScan<'a> {
     project_dir: &'a Path,
     field: &'a str,
     group: DependencyGroup,
+    inject_workspace_packages: bool,
+    workspace_packages: &'a workspace::WorkspacePackageMap<'a>,
 }
 
 /// `false` when a `file:` dependency in this field cannot be resolved to a
@@ -178,6 +212,16 @@ fn scan_field_tarballs(
         return true;
     };
     for (alias, spec) in deps {
+        if workspace::dependency_is_workspace_or_injected(
+            scan.workspace_packages,
+            scan.inject_workspace_packages,
+            scan.catalogs,
+            manifest.value(),
+            alias,
+            spec,
+        ) {
+            return false;
+        }
         match local_tarball_candidate(scan, alias, spec) {
             LocalTarballCandidate::Skip => {}
             LocalTarballCandidate::Unresolvable => return false,
@@ -322,128 +366,4 @@ fn recorded_tarball<'l>(
 
 fn file_matches_integrity(path: &Path, integrity: &Integrity) -> bool {
     pnpm_tarball::verify_local_file_integrity(path, integrity).is_ok()
-}
-
-/// Whether a `catalog:` spec dereferences (through the workspace
-/// catalogs) to a local file specifier. A misconfigured catalog entry
-/// returns `false`: it fails the full install with the proper error
-/// anyway, so the fast path only needs to not report up-to-date for a
-/// *valid* catalog entry holding a local path.
-pub(crate) fn catalog_resolves_to_local_file(catalogs: &Catalogs, alias: &str, spec: &str) -> bool {
-    // `resolve_from_catalog` returns `Unused` for any non-`catalog:` spec, so
-    // short-circuit before allocating the owned `WantedDependency` it needs.
-    if !spec.starts_with("catalog:") {
-        return false;
-    }
-    // Only the shape of the entry decides this, and re-anchoring a
-    // relative path never changes it, so the entry is read as written.
-    match resolve_from_catalog(
-        catalogs,
-        &WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() },
-        CatalogAnchor::AsWritten,
-    ) {
-        CatalogResolutionResult::Found(found) => is_local_file_spec(&found.resolution.specifier),
-        _ => false,
-    }
-}
-
-/// Whether any `pnpm.overrides` entry maps to a local file specifier.
-/// An override redirects every matching dependency in the graph to its
-/// specifier, so a local file override makes the installed contents
-/// depend on that directory or tarball the same way a direct local file
-/// dependency does. A parse failure returns its own distinct reason —
-/// not the local-file reason, which would misattribute the cause.
-pub(crate) fn has_local_file_override(
-    config: &Config,
-    catalogs: &Catalogs,
-) -> Result<bool, &'static str> {
-    match crate::install::parse_config_overrides(config, catalogs) {
-        Ok(Some(overrides)) => {
-            Ok(overrides.iter().any(|entry| is_local_file_spec(&entry.new_bare_specifier)))
-        }
-        Ok(None) => Ok(false),
-        Err(_) => Err("pnpm.overrides cannot be parsed"),
-    }
-}
-
-/// Whether any `packageExtensions` entry injects a dependency with a
-/// local file specifier. Package extensions are merged into matching
-/// packages' manifests by the read-package hook during the full
-/// install, so a `file:`/local-path/tarball spec added there has the
-/// same content-change blind spot as a direct local file dependency
-/// without appearing in any project manifest. Only `dependencies` and
-/// `optionalDependencies` are scanned: peer dependencies are resolved
-/// from the graph rather than fetched, so a local spec there is never
-/// installed.
-pub(crate) fn has_local_file_package_extension(
-    config: &Config,
-    included: IncludedDependencies,
-    catalogs: &Catalogs,
-) -> bool {
-    let Some(extensions) = config.package_extensions.as_ref() else {
-        return false;
-    };
-    extensions
-        .values()
-        .any(|extension| {
-            let optional = included.optional_dependencies
-                .then_some(extension.optional_dependencies.as_ref())
-                .flatten();
-            [extension.dependencies.as_ref(), optional]
-                .into_iter()
-                .flatten()
-                .any(|deps| {
-                    deps.iter()
-                        .any(|(alias, spec)| {
-                            is_local_file_spec(spec)
-                                || catalog_resolves_to_local_file(catalogs, alias, spec)
-                        })
-                })
-        })
-}
-
-/// Whether the specifier resolves to a local directory or tarball whose
-/// contents can change without any manifest or lockfile mtime moving:
-/// the `file:` protocol and path-prefixed specs (`./`, `../`, `~/`,
-/// absolute POSIX paths, and Windows drive paths including
-/// drive-relative ones like `c:dir`).
-///
-/// Deliberately narrower than the local resolver's bare-path matching:
-/// a bare path like `user/repo` is statically indistinguishable from a
-/// git shorthand at this layer, and matching it would disable the
-/// repeat-install fast path for every project with git dependencies.
-/// Such specs (and anything else carrying a protocol or URL) stay on
-/// the fast path. `catalog:` specs also return `false` here — callers
-/// dereference them through the workspace catalogs first, because a
-/// catalog entry may itself hold a local path.
-pub(crate) fn is_local_file_spec(spec: &str) -> bool {
-    if is_unambiguous_local_file_spec(spec) {
-        return true;
-    }
-    if spec.contains([':', '#']) {
-        return false;
-    }
-    is_local_tarball_path(spec)
-}
-
-fn is_unambiguous_local_file_spec(spec: &str) -> bool {
-    if spec.starts_with("file:") {
-        return true;
-    }
-    if spec.starts_with(['.', '/', '\\'])
-        || spec.starts_with("~/")
-        || spec.starts_with(r"~\")
-        || is_windows_drive_path(spec)
-    {
-        return true;
-    }
-    false
-}
-
-/// `c:/...`, `c:\...`, or drive-relative `c:foo` — a Windows drive
-/// path. No separator is required after the colon; no registry protocol
-/// is a single letter, so `[a-z]:` is unambiguous.
-pub(crate) fn is_windows_drive_path(spec: &str) -> bool {
-    let bytes = spec.as_bytes();
-    bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
 }

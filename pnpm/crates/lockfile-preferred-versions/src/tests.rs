@@ -9,7 +9,7 @@ use pnpm_resolving_resolver_base::{
 use pretty_assertions::assert_eq;
 
 use super::{
-    get_preferred_versions_from_lockfile_and_manifests,
+    DirectSpecs, get_preferred_versions_from_lockfile_and_manifests,
     get_preferred_versions_from_lockfile_and_manifests_excluding,
 };
 
@@ -48,7 +48,10 @@ fn seeds_from_manifest_only_when_no_lockfile_snapshots() {
         "devDependencies": { "baz": "latest" },
     }));
 
-    let preferred = get_preferred_versions_from_lockfile_and_manifests(None, &[&manifest]);
+    let preferred = get_preferred_versions_from_lockfile_and_manifests(
+        None,
+        DirectSpecs::without_catalogs(&[&manifest]),
+    );
 
     let foo = preferred.get("foo").expect("foo entry");
     assert_eq!(foo.len(), 1);
@@ -83,11 +86,45 @@ fn skips_manifest_specs_that_arent_versions_ranges_or_tags() {
         },
     }));
 
-    let preferred = get_preferred_versions_from_lockfile_and_manifests(None, &[&manifest]);
+    let preferred = get_preferred_versions_from_lockfile_and_manifests(
+        None,
+        DirectSpecs::without_catalogs(&[&manifest]),
+    );
 
     assert!(preferred.contains_key("good"));
     assert!(!preferred.contains_key("from-git"));
     assert!(!preferred.contains_key("from-workspace"));
+}
+
+#[test]
+fn catalog_specs_seed_the_catalog_entry_they_name() {
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "name": "root",
+        "version": "0.0.0",
+        "dependencies": {
+            "from-default": "catalog:",
+            "from-named": "catalog:tools",
+            "missing": "catalog:",
+        },
+    }));
+    let catalogs = pnpm_catalogs_types::Catalogs::from_iter([
+        ("default".to_string(), [("from-default".to_string(), "1.2.3".to_string())].into()),
+        ("tools".to_string(), [("from-named".to_string(), "^2.0.0".to_string())].into()),
+    ]);
+
+    let preferred = get_preferred_versions_from_lockfile_and_manifests(
+        None,
+        DirectSpecs { manifests: &[&manifest], catalogs: &catalogs },
+    );
+
+    let from_default = &preferred["from-default"];
+    assert_eq!(from_default.keys().collect::<Vec<_>>(), ["1.2.3"]);
+    assert_eq!(selector_type_of(&from_default["1.2.3"]), VersionSelectorType::Version);
+    assert_eq!(weight_of(&from_default["1.2.3"]), DIRECT_DEP_SELECTOR_WEIGHT);
+    let from_named = &preferred["from-named"];
+    assert_eq!(from_named.keys().collect::<Vec<_>>(), ["^2.0.0"]);
+    assert_eq!(selector_type_of(&from_named["^2.0.0"]), VersionSelectorType::Range);
+    assert!(!preferred.contains_key("missing"));
 }
 
 #[test]
@@ -96,7 +133,10 @@ fn lockfile_snapshots_seed_existing_version_selectors() {
     snapshots.insert(PackageKey::from_str("foo@1.0.0").unwrap(), SnapshotEntry::default());
     let (_tmp, empty) = fake_manifest(serde_json::json!({ "name": "root", "version": "0.0.0" }));
 
-    let preferred = get_preferred_versions_from_lockfile_and_manifests(Some(&snapshots), &[&empty]);
+    let preferred = get_preferred_versions_from_lockfile_and_manifests(
+        Some(&snapshots),
+        DirectSpecs::without_catalogs(&[&empty]),
+    );
 
     let entry = preferred
         .get("foo")
@@ -117,8 +157,10 @@ fn dual_source_match_bumps_weight() {
         "dependencies": { "foo": "1.0.0" },
     }));
 
-    let preferred =
-        get_preferred_versions_from_lockfile_and_manifests(Some(&snapshots), &[&manifest]);
+    let preferred = get_preferred_versions_from_lockfile_and_manifests(
+        Some(&snapshots),
+        DirectSpecs::without_catalogs(&[&manifest]),
+    );
 
     let entry = preferred
         .get("foo")
@@ -142,7 +184,7 @@ fn excluded_lockfile_pins_keep_preferences_from_every_manifest() {
     }));
     let preferred = get_preferred_versions_from_lockfile_and_manifests_excluding(
         Some(&snapshots),
-        &[&selected, &sibling],
+        DirectSpecs::without_catalogs(&[&selected, &sibling]),
         &|key| key.name == PkgName::from_str("foo").unwrap(),
     );
 
@@ -170,7 +212,7 @@ fn withholding_one_version_line_keeps_the_other_lines_pinned() {
 
     let preferred = get_preferred_versions_from_lockfile_and_manifests_excluding(
         Some(&snapshots),
-        &[&empty],
+        DirectSpecs::without_catalogs(&[&empty]),
         &|key| {
             key.suffix
                 .version_semver()
@@ -191,7 +233,10 @@ fn duplicate_peer_suffix_snapshots_do_not_inflate_weight() {
     snapshots.insert(PackageKey::from_str("foo@1.0.0(c@3)").unwrap(), SnapshotEntry::default());
     let (_tmp, empty) = fake_manifest(serde_json::json!({ "name": "root", "version": "0.0.0" }));
 
-    let preferred = get_preferred_versions_from_lockfile_and_manifests(Some(&snapshots), &[&empty]);
+    let preferred = get_preferred_versions_from_lockfile_and_manifests(
+        Some(&snapshots),
+        DirectSpecs::without_catalogs(&[&empty]),
+    );
 
     let entry = preferred
         .get("foo")

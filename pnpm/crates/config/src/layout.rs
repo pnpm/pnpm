@@ -204,18 +204,33 @@ impl Config {
         project_config.apply_to(self, project_dir);
     }
 
-    /// The basename of [`Config::modules_dir`], which is the directory name
-    /// an install gives every project's modules directory. It is
-    /// `node_modules` unless `modulesDir` is configured, and the joins that
-    /// build a project's modules or `.bin` path must use it rather than the
+    /// The path, relative to a project's directory, of the modules
+    /// directory an install gives every project. It is `node_modules`
+    /// unless `modulesDir` is configured, and the joins that build a
+    /// project's modules or `.bin` path must use it rather than the
     /// literal `node_modules`.
     ///
-    /// Only the name carries over to a project other than the one the config
-    /// was loaded in, so a `modulesDir` holding a path separator resolves
-    /// correctly for the install but not for these joins. The same basename
-    /// assumption is already made by the install's own per-project joins.
+    /// A relative `modulesDir` such as `www/modules` carries over whole,
+    /// joined onto every project. A value that climbs out of
+    /// the project (`..`) or is absolute cannot, so only its last
+    /// component does.
     pub fn modules_dir_name(&self) -> &std::ffi::OsStr {
-        self.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"))
+        self.explicit_settings
+            .get("modulesDir")
+            .and_then(serde_json::Value::as_str)
+            .and_then(|raw| project_relative_modules_dir(raw, &self.modules_dir))
+            .map(Path::as_os_str)
+            .or_else(|| self.modules_dir.file_name())
+            .unwrap_or_else(|| std::ffi::OsStr::new("node_modules"))
+    }
+
+    /// The directory [`Config::modules_dir`] was resolved against: the
+    /// lockfile directory, onto which the install places every importer.
+    #[must_use]
+    pub fn modules_dir_anchor(&self) -> Option<&Path> {
+        self.modules_dir
+            .ancestors()
+            .nth(Path::new(self.modules_dir_name()).components().count())
     }
 
     /// Whether a `packageConfigs` entry can still change a project's
@@ -246,10 +261,9 @@ impl Config {
                 self.package_configs
                     .as_ref()?
                     .get(project_name?)?
-                    .modules_dir_for(project_dir)
+                    .modules_dir_name_for(project_dir)
             })
             .flatten()
-            .and_then(|dir| Some(std::borrow::Cow::Owned(dir.file_name()?.to_os_string())))
             .unwrap_or_else(|| std::borrow::Cow::Borrowed(self.modules_dir_name()))
     }
 
@@ -528,4 +542,21 @@ impl Config {
             &self.virtual_store_dir
         }
     }
+}
+
+/// `raw`, the configured `modulesDir`, with a leading `./` dropped, when
+/// it names a directory inside the project and `modules_dir` is still
+/// the path resolved from it. `None` otherwise, which leaves callers
+/// with the basename of `modules_dir`.
+pub(crate) fn project_relative_modules_dir<'a>(
+    raw: &'a str,
+    modules_dir: &Path,
+) -> Option<&'a Path> {
+    let raw = Path::new(raw);
+    let relative = raw.strip_prefix(".").unwrap_or(raw);
+    let mut components = relative.components().peekable();
+    (components.peek().is_some()
+        && components.all(|component| matches!(component, std::path::Component::Normal(_)))
+        && modules_dir.ends_with(relative))
+    .then_some(relative)
 }

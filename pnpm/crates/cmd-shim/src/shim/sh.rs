@@ -162,6 +162,24 @@ const SH_SHIM_HEADER: &str = r#"#!/bin/sh
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from `${link%/*}`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, `command -p` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=${PATH+set}
+caller_path=${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=${rest%%:*}
+  rest=${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=${helper_path:-/}
 link="$0"
 # `${link%/*}` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -208,6 +226,7 @@ case `command -p uname -a` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 "#;
 
@@ -292,6 +311,10 @@ pub(super) const SH_SHIM_CYGPATH_LINE: &str = r#"    if converted=$(command -p c
 /// way as [`SH_SHIM_HARDENED_HELPER_LINE`].
 pub(super) const SH_SHIM_WSLPATH_LINE: &str = r#"    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then"#;
 
+/// The line that keeps `node_modules` entries out of the `PATH` the helpers
+/// resolve through. Pinned the same way as [`SH_SHIM_HARDENED_HELPER_LINE`].
+pub(super) const SH_SHIM_HELPER_PATH_FILTER_LINE: &str = "    */node_modules/*|*/node_modules) ;;";
+
 /// Whether an already-on-disk POSIX shim has the header a warm reinstall can
 /// leave in place.
 ///
@@ -309,6 +332,7 @@ pub fn is_sh_shim_hardened(shim_content: &str) -> bool {
         SH_SHIM_PATH_PRINTF_LINE,
         SH_SHIM_CYGPATH_LINE,
         SH_SHIM_WSLPATH_LINE,
+        SH_SHIM_HELPER_PATH_FILTER_LINE,
     ]
     .iter()
     .all(|pinned| {

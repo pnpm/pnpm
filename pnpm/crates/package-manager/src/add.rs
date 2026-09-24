@@ -12,18 +12,16 @@ mod types;
 
 mod aliasless;
 
+mod finish;
+use finish::{finish_selected_add, finish_single_add};
+
 mod manifest;
-use manifest::{
-    catalog_version_requests, finish_selected_add, persist_manifest, prepare_selected_add,
-    prepare_single_add,
-};
+use manifest::{catalog_version_requests, prepare_selected_add, prepare_single_add};
 
 use crate::{
     CatalogVersionMismatchError, CommandLockfile, InstallError, ResolvedPackages, SelectedProjects,
-    catalog_cleanup::{WriteWorkspaceCatalogsError, post_install_prune},
-    defer_ignored_builds,
-    resolve_latest::LatestPicker,
-    selected_project_indices,
+    catalog_cleanup::WriteWorkspaceCatalogsError, defer_ignored_builds,
+    resolve_latest::LatestPicker, selected_project_indices,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -215,7 +213,7 @@ where
             add.config,
             owned.save_catalog_name.as_deref(),
         );
-        let ignored_builds = add_install(
+        let install_result = add_install(
             add,
             owned,
             manifest,
@@ -230,18 +228,9 @@ where
         )
         .run::<Reporter>()
         .await
-        .pipe(defer_ignored_builds)
-        .map_err(AddError::Install)?;
+        .pipe(defer_ignored_builds);
 
-        persist_manifest::<Reporter>(manifest)?;
-
-        post_install_prune(add.config, Some(&catalog_ctx.workspace_dir), manifest)
-            .map_err(AddError::WriteWorkspaceManifest)?;
-
-        if let Some(ignored_builds) = ignored_builds {
-            return Err(AddError::Install(ignored_builds));
-        }
-        Ok(())
+        finish_single_add::<Reporter>(add, manifest, &catalog_ctx.workspace_dir, install_result)
     }
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
@@ -269,12 +258,11 @@ where
             prepared.catalogs_override,
             &prepared.catalogs,
         );
-        let ignored_builds = Box::pin(
+        let install_result = Box::pin(
             add_install(add, owned, manifest, seed).run_selected::<Reporter>(selected.selection()),
         )
         .await
-        .pipe(defer_ignored_builds)
-        .map_err(AddError::Install)?;
+        .pipe(defer_ignored_builds);
 
         finish_selected_add::<Reporter>(
             add,
@@ -282,7 +270,7 @@ where
             selected.projects,
             &selected_indices,
             &prepared.workspace_dir,
-            ignored_builds,
+            install_result,
         )
     }
 }
@@ -388,7 +376,10 @@ impl AddResolveInputs<'_, '_> {
                 self.add.lockfile.document.and_then(|lockfile| {
                     lockfile.snapshots.as_ref()
                 }),
-                &[manifest],
+                pnpm_lockfile_preferred_versions::DirectSpecs {
+                    manifests: &[manifest],
+                    catalogs: self.catalogs,
+                },
             )
         })
     }

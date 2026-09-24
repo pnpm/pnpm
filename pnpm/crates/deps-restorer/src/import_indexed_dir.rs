@@ -121,7 +121,8 @@ enum Placement {
     Repair,
 }
 
-enum PreservedModules {
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum PreservedModules {
     None,
     Directory,
     Merged { backup: PathBuf, moved_entries: Vec<OsString> },
@@ -137,9 +138,10 @@ impl PreservedModules {
     }
 }
 
-struct PreserveModulesFailure {
-    error: io::Error,
-    preserved: PreservedModules,
+#[derive(Debug)]
+pub(super) struct PreserveModulesFailure {
+    pub(super) error: io::Error,
+    pub(super) preserved: PreservedModules,
 }
 
 impl Placement {

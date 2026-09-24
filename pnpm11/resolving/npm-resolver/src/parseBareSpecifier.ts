@@ -60,7 +60,7 @@ export function parseBareSpecifier (
     name = npmAliasTarget.name
     bareSpecifier = npmAliasTarget.versionSelector ?? defaultTag
   }
-  if (name) {
+  if (name && !firstMemberHasColon(bareSpecifier)) {
     const selector = getVersionSelectorType(bareSpecifier)
     if (selector != null) {
       return {
@@ -81,6 +81,21 @@ export function parseBareSpecifier (
     }
   }
   return null
+}
+
+/**
+ * Whether the first member of a version selector contains a colon, as a
+ * protocol-prefixed selector like `runtime:^22.0.0 || ^24.0.0` does. No npm
+ * version, range, or dist-tag contains one.
+ *
+ * Loose semver parsing drops a union member it cannot parse, so it reads that
+ * example as the npm range `^24.0.0`. A colon in a later member does not
+ * count, because merged peer ranges are joined with `||` and
+ * `^1.0.0 || workspace:^2.0.0` still resolves `^1.0.0` from the registry.
+ */
+function firstMemberHasColon (selector: string): boolean {
+  const colon = selector.indexOf(':')
+  return colon !== -1 && !/[\s|]/.test(selector.slice(0, colon))
 }
 
 export interface JsrRegistryPackageSpec extends RegistryPackageSpec {

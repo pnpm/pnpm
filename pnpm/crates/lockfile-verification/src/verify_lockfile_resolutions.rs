@@ -57,6 +57,25 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
     /// (under the same or stricter policy). Omitting either field
     /// disables the cache (every call rehashes + reruns the gate).
     pub cache_dir: Option<&'a Path>,
+    /// Entries the install re-resolves instead of reusing. See
+    /// [`ReplacedEntries`].
+    pub replaced: Option<ReplacedEntries<'a>>,
+}
+
+/// Matches the lockfile entries, by name and version, that the install
+/// re-resolves instead of reusing, such as the targets of
+/// `pnpm update <pkg>`. The resolver applies the policies to whatever it
+/// picks for them, so the verifiers skip their locked versions, which the
+/// registry may no longer serve. The offline shape and alias checks still
+/// cover them. A run that skips an entry does not record the lockfile as
+/// verified.
+#[derive(Clone, Copy)]
+pub struct ReplacedEntries<'a>(pub &'a (dyn Fn(&PkgName, &str) -> bool + Send + Sync));
+
+impl std::fmt::Debug for ReplacedEntries<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ReplacedEntries(..)")
+    }
 }
 
 /// Whether a recorded verification already covers `lockfile` as it sits
@@ -161,13 +180,11 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         CacheOutcome::Miss(precomputed) => precomputed,
     };
 
-    let (candidates, shape_violations) = collect_candidates(lockfile);
-    if !shape_violations.is_empty() {
-        return Err(build_verification_error(shape_violations));
-    }
+    let (candidates, skipped_replaced) = collect_candidates_to_verify(lockfile, opts.replaced)?;
     if verifiers.is_empty() {
         return Ok(());
     }
+    let cache_inputs = cache_inputs.filter(|_| !skipped_replaced);
     if candidates.is_empty() {
         // Persist the success so the next install can stat-only the
         // lockfile. An empty fan-out is still a successful run.
@@ -183,6 +200,24 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         return Ok(());
     }
     Err(build_verification_error(violations))
+}
+
+/// The lockfile entries the policy verifiers check, after the offline
+/// shape check passes. Entries `replaced` matches are left out, and the
+/// returned flag tells whether any was.
+fn collect_candidates_to_verify(
+    lockfile: &Lockfile,
+    replaced: Option<ReplacedEntries<'_>>,
+) -> Result<(Vec<Candidate>, bool), VerifyError> {
+    let (mut candidates, shape_violations) = collect_candidates(lockfile);
+    if !shape_violations.is_empty() {
+        return Err(build_verification_error(shape_violations));
+    }
+    let Some(ReplacedEntries(is_replaced)) = replaced else { return Ok((candidates, false)) };
+    let entries = candidates.len();
+    candidates.retain(|candidate| !is_replaced(&candidate.name, &candidate.version));
+    let skipped_replaced = candidates.len() < entries;
+    Ok((candidates, skipped_replaced))
 }
 
 /// Run the verifiers over every candidate, reporting the run's start and,

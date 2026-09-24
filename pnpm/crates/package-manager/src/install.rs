@@ -50,11 +50,12 @@ use pnpm_executor::{
     RunPostinstallHooks, run_project_lifecycle_stages,
 };
 use pnpm_lockfile::{
-    LazyLockfile, Lockfile, LockfileEntries, MaybeLazyLockfile, PnpmfileChecksumCheck,
+    LazyLockfile, Lockfile, LockfileEntries, MaybeLazyLockfile, PkgName, PnpmfileChecksumCheck,
     StalenessReason, VersionPart, satisfies_package_manifest,
 };
 use pnpm_lockfile_verification::{
-    VerifyLockfileResolutionsOptions, record_lockfile_verified, verify_lockfile_resolutions,
+    ReplacedEntries, VerifyLockfileResolutionsOptions, record_lockfile_verified,
+    verify_lockfile_resolutions,
 };
 use pnpm_modules_yaml::{
     Clock, Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
@@ -150,6 +151,7 @@ async fn verify_lockfile_eagerly<Reporter: pnpm_reporter::Reporter>(
             concurrency: None,
             lockfile_path,
             cache_dir: Some(cache_dir),
+            replaced: None,
         },
     )
     .await
@@ -171,6 +173,9 @@ pub struct LockfileVerificationGate(
     tokio::task::JoinHandle<Result<(), pnpm_lockfile_verification::VerifyError>>,
 );
 
+/// Owned form of [`ReplacedEntries`], for the spawned gate.
+pub(crate) type IsReplaced = Arc<dyn Fn(&PkgName, &str) -> bool + Send + Sync>;
+
 pub(crate) fn untracked_read_package_hook_may_have_changed(
     recorded: Option<bool>,
     current: Option<bool>,
@@ -186,6 +191,7 @@ impl LockfileVerificationGate {
         verifiers: &[Arc<dyn ResolutionVerifier>],
         lockfile_path: Option<&Path>,
         cache_dir: &Path,
+        replaced: Option<IsReplaced>,
     ) -> Option<Self> {
         if verifiers.is_empty() {
             return None;
@@ -202,6 +208,7 @@ impl LockfileVerificationGate {
                     concurrency: None,
                     lockfile_path: lockfile_path.as_deref(),
                     cache_dir: Some(&cache_dir),
+                    replaced: replaced.as_deref().map(ReplacedEntries),
                 },
             )
             .await
@@ -468,11 +475,7 @@ struct InstallRunOptions<'install, 'selection> {
     rebuild: Option<RebuildOptions>,
     selection: Option<WorkspaceInstallSelection<'selection>>,
     root_manifest_as_workspace_root: bool,
-    /// pnpm's `saveLockfile`: whether the resolved graph may be written
-    /// to `<workspace_root>/pnpm-lock.yaml`. `false` for an install
-    /// whose resolution belongs to a project other than the one that
-    /// owns that lockfile, so the run must leave it untouched.
-    save_lockfile: bool,
+    save: InstallSaveOptions,
     /// pnpm's `lockfileCheck`: the caller restores the lockfile and diffs
     /// it once the install returns, so the run must leave nothing else on
     /// disk changed either. Only `pacquet dedupe --check` sets it.
@@ -481,6 +484,21 @@ struct InstallRunOptions<'install, 'selection> {
     /// from the process environment, so tests can exercise both branches.
     prompt_eligibility_override: Option<bool>,
     manifests: InstallManifestOptions<'install>,
+}
+
+/// The workspace files the run may write besides the installed modules.
+#[derive(Clone, Copy)]
+struct InstallSaveOptions {
+    /// pnpm's `saveLockfile`: whether the resolved graph may be written
+    /// to `<workspace_root>/pnpm-lock.yaml`. `false` for an install
+    /// whose resolution belongs to a project other than the one that
+    /// owns that lockfile, so the run must leave it untouched.
+    lockfile: bool,
+    /// Whether the run may record itself in
+    /// `node_modules/.pnpm-workspace-state-v1.json`. `false` for an install
+    /// whose importers are not the workspace's projects, so that state
+    /// keeps describing the workspace's last install.
+    workspace_state: bool,
 }
 
 #[derive(Default)]
@@ -510,7 +528,7 @@ impl Default for InstallRunOptions<'_, '_> {
             rebuild: None,
             selection: None,
             root_manifest_as_workspace_root: false,
-            save_lockfile: true,
+            save: InstallSaveOptions { lockfile: true, workspace_state: true },
             lockfile_check: false,
             prompt_eligibility_override: None,
             manifests: crate::install::InstallManifestOptions {

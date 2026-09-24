@@ -48,6 +48,28 @@ describe('parseBareSpecifier', () => {
     })
   })
 
+  // https://github.com/pnpm/pnpm/issues/14817
+  test.each([
+    'runtime:^22.18.0 || ^24.0.0',
+    'runtime:^22||^24',
+    'runtime:>=22.18.0 <25',
+    'runtime:rc/^23.0.0 || ^24.0.0',
+    'gh:^1.0.0 || ^2.0.0',
+    'jsr:^1.0.0 || ^2.0.0',
+    'foo/bar#semver:^1.0.0 || ^2.0.0',
+  ])('declines the protocol-prefixed range union %s', (specifier) => {
+    expect(parseBareSpecifier(specifier, 'node', DEFAULT_TAG, NPM_REGISTRY)).toBeNull()
+  })
+
+  test('keeps the npm members of a range union whose later member has a protocol', () => {
+    // Merged peer ranges are joined with `||`.
+    expect(parseBareSpecifier('^1.0.0 || workspace:^2.0.0', 'foo', DEFAULT_TAG, NPM_REGISTRY)).toStrictEqual({
+      fetchSpec: '>=1.0.0 <2.0.0-0',
+      name: 'foo',
+      type: 'range',
+    })
+  })
+
   test.each(['1.2.3+r01', '1.2.3+r9007199254740992'])(
     'rejects non-canonical registry revision spec %s',
     (specifier) => {

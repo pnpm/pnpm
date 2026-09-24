@@ -240,6 +240,7 @@ pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<C
     Ok(Box::pin(async move {
         let recursive_sort = cfg.sort;
         args.lockfile_dir.apply_to(cfg, dir);
+        args.apply_cli_config(cfg);
         let config_root = derive_config_root(&mut *cfg, dir, reporter)
             .wrap_err("derive workspace root and package manager policy")?;
         let pipeline = RemovePipeline {
