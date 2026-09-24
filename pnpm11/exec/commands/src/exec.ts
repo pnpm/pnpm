@@ -343,11 +343,15 @@ export async function handler (
           extraEnv: {
             ...extraEnv,
             PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[projectDir]?.package.manifest.name,
-            // The child inherits the PWD of pnpm's own cwd. Shells trust PWD
-            // over the physical working directory, so point it at the
-            // command's cwd: a project reached through a symlink then
-            // reports its logical path.
-            ...(process.platform !== 'win32' ? { PWD: prefix } : {}),
+            // The child inherits the PWD of pnpm's own cwd. When the command
+            // runs in that same directory the inherited value is already
+            // right and may hold the logical path through a symlink, so keep
+            // it. Otherwise point PWD at the command's cwd: shells trust PWD
+            // over the physical working directory, so a project reached
+            // through a symlink then reports its logical path. Skipped on
+            // Windows, where PWD is a POSIX convention that neither cmd.exe
+            // nor PowerShell reads.
+            ...(process.platform !== 'win32' && prefix !== process.cwd() ? { PWD: prefix } : {}),
           },
           prependPaths,
           userAgent: opts.userAgent,

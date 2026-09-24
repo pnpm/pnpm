@@ -148,6 +148,34 @@ fn recursive_exec_runs_command_in_every_project() {
     drop(root);
 }
 
+/// No symlink involved: `PWD` still points at the project directory the
+/// command runs in, not at the workspace root pacquet was invoked from
+/// ([pnpm/pnpm#1550](https://github.com/pnpm/pnpm/issues/1550)).
+#[test]
+#[cfg(unix)]
+fn recursive_exec_sets_pwd_to_each_project_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1"]);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("exec")
+        .with_args(write_exec_probe(
+            &workspace,
+            "pwd-probe.cjs",
+            "require('fs').writeFileSync('pwd.txt', process.env.PWD)\n",
+        ))
+        .assert()
+        .success();
+
+    let pwd = fs::read_to_string(workspace.join("project-1/pwd.txt")).expect("read recorded PWD");
+    let expected =
+        dunce::canonicalize(&workspace).expect("canonicalize workspace").join("project-1");
+    assert_eq!(pwd, expected.to_string_lossy().as_ref(), "PWD should be the project directory");
+
+    drop(root);
+}
+
 /// A project reached through a symlink keeps its logical path as the
 /// command's `PWD`: shells report the path the workspace lists, not the
 /// resolved target ([pnpm/pnpm#1550](https://github.com/pnpm/pnpm/issues/1550)).

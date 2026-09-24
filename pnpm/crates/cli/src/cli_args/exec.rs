@@ -219,18 +219,23 @@ fn command_in_dir(
     };
 
     cmd.current_dir(dir);
-    // The child inherits the PWD of pnpm's own cwd. Shells trust PWD over
-    // getcwd(), so point it at the command's cwd: a project reached through
-    // a symlink then reports its logical path.
-    #[cfg(unix)]
-    cmd.env("PWD", dir);
     // `updateConfig`-provided env, applied first so pnpm's own keys
-    // below (PATH, user-agent, NODE_OPTIONS) win on conflict — matching
+    // below (PATH, user-agent, NODE_OPTIONS, PWD) win on conflict — matching
     // TS `makeEnv`, which spreads `...extraEnv` into the base. Empty
     // unless an install-family command populated it.
     cmd.envs(project_extra_env(config, project, project_name.as_deref()));
     set_command_path(&mut cmd, &path);
     let init_cwd = std::env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
+    // The child inherits the PWD of pnpm's own cwd. When the command runs
+    // in that same directory the inherited value is already right and may
+    // hold the logical path through a symlink, so keep it. Otherwise point
+    // PWD at the command's cwd: shells trust PWD over getcwd(), so a
+    // project reached through a symlink then reports its logical path.
+    // POSIX-only: neither cmd.exe nor PowerShell reads PWD.
+    #[cfg(unix)]
+    if init_cwd.as_path() != dir {
+        cmd.env("PWD", dir);
+    }
     set_package_manager_env(&mut cmd, &init_cwd, &config.extra_env);
     cmd.env("npm_config_user_agent", &config.user_agent);
     // Same recursion-guard stamp as the lifecycle env builder.

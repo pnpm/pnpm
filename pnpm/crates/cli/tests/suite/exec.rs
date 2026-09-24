@@ -485,6 +485,33 @@ fn exec_shell_mode_preserves_embedded_quotes() {
     drop(root);
 }
 
+/// A non-recursive `exec` runs where pacquet was invoked, so the inherited
+/// `PWD` already names the command's cwd and may hold the logical path
+/// through a symlink: keep it rather than stamping the canonicalized cwd
+/// over it ([pnpm/pnpm#1550](https://github.com/pnpm/pnpm/issues/1550)).
+#[test]
+#[cfg(unix)]
+fn exec_keeps_inherited_pwd_when_running_in_the_invocation_dir() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let linked = root.path().join("linked");
+    std::os::unix::fs::symlink(&workspace, &linked).expect("symlink the workspace");
+
+    pacquet.current_dir(&linked);
+    pacquet.env("PWD", &linked);
+    pacquet
+        .with_arg("exec")
+        .with_arg("node")
+        .with_arg("-e")
+        .with_arg("require('fs').writeFileSync('pwd.txt', process.env.PWD)")
+        .assert()
+        .success();
+
+    let pwd = fs::read_to_string(workspace.join("pwd.txt")).expect("read recorded PWD");
+    assert_eq!(pwd, linked.to_string_lossy().as_ref(), "the inherited logical PWD should survive");
+
+    drop(root);
+}
+
 #[test]
 fn exec_preserves_a_detached_process_after_success() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
