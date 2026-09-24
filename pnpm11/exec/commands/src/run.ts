@@ -552,10 +552,7 @@ function getSpecifiedScripts (scripts: PackageScripts, scriptName: string): stri
   return []
 }
 
-/**
- * The `$ <script>` echo is info-level output, so it is dropped under the
- * silent reporter and when `loglevel` is `silent`, `error`, or `warn`.
- */
+/** The `$ <script>` echo is info-level output. */
 export function suppressesScriptEcho (opts: Pick<Config, 'loglevel' | 'reporter'>): boolean {
   return opts.reporter === 'silent' || opts.loglevel === 'silent' || opts.loglevel === 'error' || opts.loglevel === 'warn'
 }
