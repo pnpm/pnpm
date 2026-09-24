@@ -956,3 +956,130 @@ fn dedupe_warm_full_run_counts_each_reused_package_once() {
     );
     drop((root, npmrc_info));
 }
+
+/// Regression test for <https://github.com/pnpm/pnpm/issues/8867>: dedupe in a
+/// workspace with circular peer dependencies must terminate promptly and produce
+/// a clean, deduped lockfile without hanging or looping.
+#[test]
+fn dedupe_in_workspace_with_circular_peer_dependencies_terminates_promptly_and_dedupes() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nautoInstallPeers: false\n",
+    )
+    .expect("write workspace");
+
+    for (directory, dependencies) in [
+        (
+            "pkg-a",
+            serde_json::json!({
+                "@pnpm.e2e/circular-peer-host": "1.0.0",
+                "@pnpm.e2e/peer-c": "2.0.0",
+                "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.0.0",
+            }),
+        ),
+        (
+            "pkg-b",
+            serde_json::json!({
+                "@pnpm.e2e/circular-peer-host": "1.0.0",
+                "@pnpm.e2e/dep-of-pkg-with-1-dep": "^100.0.0",
+            }),
+        ),
+    ] {
+        let project = workspace.join("packages").join(directory);
+        fs::create_dir_all(&project).expect("create project");
+        fs::write(
+            project.join("package.json"),
+            serde_json::json!({
+                "name": directory,
+                "version": "1.0.0",
+                "dependencies": dependencies,
+            })
+            .to_string(),
+        )
+        .expect("write project manifest");
+    }
+
+    let pkg_b_manifest = workspace.join("packages/pkg-b/package.json");
+    fs::write(
+        &pkg_b_manifest,
+        serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/circular-peer-host": "1.0.0",
+                "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.1.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write initial pkg-b manifest");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    fs::write(
+        &pkg_b_manifest,
+        serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/circular-peer-host": "1.0.0",
+                "@pnpm.e2e/dep-of-pkg-with-1-dep": "^100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write updated pkg-b manifest");
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile_text = fs::read_to_string(&lockfile_path).expect("read initial lockfile text");
+    fs::write(&lockfile_path, lockfile_text.replace("specifier: 100.1.0", "specifier: ^100.0.0"))
+        .expect("update lockfile specifier");
+    let initial_lockfile = read_lockfile(&lockfile_path);
+    assert_eq!(
+        importer_version(&initial_lockfile, "packages/pkg-a", "@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        "100.0.0",
+    );
+    assert_eq!(
+        importer_version(&initial_lockfile, "packages/pkg-b", "@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        "100.1.0",
+    );
+
+    assert_cmd::Command::from_std(pacquet_at(&workspace))
+        .args(["dedupe", "--check", "--lockfile-only"])
+        .timeout(std::time::Duration::from_mins(1))
+        .assert()
+        .code(1);
+
+    assert_cmd::Command::from_std(pacquet_at(&workspace))
+        .args(["dedupe", "--lockfile-only"])
+        .timeout(std::time::Duration::from_mins(1))
+        .assert()
+        .success();
+
+    assert_cmd::Command::from_std(pacquet_at(&workspace))
+        .args(["dedupe", "--check", "--lockfile-only"])
+        .timeout(std::time::Duration::from_mins(1))
+        .assert()
+        .success();
+
+    let lockfile = read_lockfile(&lockfile_path);
+    let host = "@pnpm.e2e/circular-peer-host";
+    let deduped = "1.0.0(@pnpm.e2e/peer-c@2.0.0)";
+    assert_eq!(importer_version(&lockfile, "packages/pkg-a", host), deduped);
+    assert_eq!(importer_version(&lockfile, "packages/pkg-b", host), deduped);
+    assert_eq!(
+        importer_version(&lockfile, "packages/pkg-a", "@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        "100.0.0",
+    );
+    assert_eq!(
+        importer_version(&lockfile, "packages/pkg-b", "@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        "100.0.0",
+    );
+
+    drop((root, npmrc_info));
+}
