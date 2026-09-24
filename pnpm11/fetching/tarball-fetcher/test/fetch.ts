@@ -1,5 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'node:fs'
+import http from 'node:http'
+import type { AddressInfo, Socket } from 'node:net'
 import path from 'node:path'
 
 import { afterAll, afterEach, beforeAll, beforeEach, expect, jest, test } from '@jest/globals'
@@ -1061,4 +1063,45 @@ test('fail when path is not exists', async () => {
     lockfileDir: process.cwd(),
     pkg,
   })).rejects.toThrow(`Failed to prepare git-hosted package fetched from "${tarball}": Path "${path}" is not a directory`)
+})
+
+test.each([
+  ['never answers', () => {}],
+  ['stops sending the body', (res: http.ServerResponse) => {
+    res.writeHead(200, { 'content-length': '1000' })
+    res.write(Buffer.alloc(100))
+  }],
+])('a tarball download from a registry that %s fails with a timeout error', async (_, respond) => {
+  setGlobalDispatcher(originalDispatcher)
+  const sockets = new Set<Socket>()
+  const server = http.createServer((_req, res) => {
+    respond(res)
+  })
+  server.on('connection', (socket) => {
+    sockets.add(socket)
+    socket.on('close', () => sockets.delete(socket))
+  })
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/stalled.tgz`
+  const download = createDownloader(fetchFromRegistry, {
+    retry: { retries: 0 },
+    timeout: 200,
+  })
+
+  try {
+    await expect(download(url, {
+      getAuthHeaderByURI: () => undefined,
+      cafs,
+      storeIndex,
+      filesIndexFile,
+    })).rejects.toMatchObject({
+      code: 'ERR_PNPM_FETCH_TIMEOUT',
+      message: `GET ${url}: timed out, no data received for 200ms`,
+    })
+  } finally {
+    for (const socket of sockets) socket.destroy()
+    server.close()
+  }
 })

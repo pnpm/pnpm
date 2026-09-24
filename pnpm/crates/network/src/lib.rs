@@ -5,6 +5,7 @@ pub use auth::{
     redact_npm_auth_key, redact_url_credentials, redact_url_for_display,
 };
 pub use client_builder::{RedirectGuard, default_network_concurrency, native_dns_resolver};
+pub use error_chain::walk_reqwest_chain;
 pub use limited_body::{LimitedBody, read_limited_body};
 pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
 pub use retry::{
@@ -15,6 +16,7 @@ pub use token_helper::{TokenHelperOutput, TokenHelperRunner};
 pub use url_encoding::{encode_package_name, encode_uri_component, percent_decode_str};
 
 mod auth;
+mod error_chain;
 mod limited_body;
 mod priority_semaphore;
 mod proxy;

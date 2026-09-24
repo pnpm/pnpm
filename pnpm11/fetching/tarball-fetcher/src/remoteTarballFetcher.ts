@@ -3,7 +3,7 @@ import { isIP } from 'node:net'
 import util from 'node:util'
 
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import { FetchError, redactUrlForDisplay } from '@pnpm/error'
+import { FetchError, FetchTimeoutError, isFetchTimeoutError, redactUrlForDisplay } from '@pnpm/error'
 import type { FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
 import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
@@ -210,7 +210,9 @@ export function createDownloader (
           globalWarn(`Tarball download average speed ${avgKiBps} KiB/s (size ${sizeKb} KiB) is below ${fetchMinSpeedKiBps} KiB/s: ${redactUrlForDisplay(url)} (GET)`)
         }
       } catch (err: unknown) {
-        const error = util.types.isNativeError(err) ? err : new Error(String(err), { cause: err })
+        const error = isFetchTimeoutError(err)
+          ? new FetchTimeoutError('FETCH_TIMEOUT', url, gotOpts.timeout, { cause: err })
+          : util.types.isNativeError(err) ? err : new Error(String(err), { cause: err })
         Object.assign(error, {
           attempts: currentAttempt,
           resource: url,

@@ -144,7 +144,7 @@ impl FetchAttempt<'_> {
             .error_for_status()
             .map_err(|error| FetchMetadataError::Network {
                 url: redact_url_credentials(self.url),
-                error,
+                error: error.without_url(),
             })?;
 
         let etag = response_etag(&response);
@@ -155,7 +155,7 @@ impl FetchAttempt<'_> {
             .await
             .map_err(|error| FetchMetadataError::BodyRead {
                 url: redact_url_credentials(self.url),
-                error,
+                error: error.without_url(),
             })?;
 
         // Body fully buffered — release the connection and its

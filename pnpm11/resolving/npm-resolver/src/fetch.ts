@@ -6,6 +6,8 @@ import {
   FetchError,
   type FetchErrorRequest,
   type FetchErrorResponse,
+  FetchTimeoutError,
+  isFetchTimeoutError,
   PnpmError,
   redactUrlCredentials,
   redactUrlForDisplay,
@@ -191,7 +193,9 @@ export async function fetchMetadataFromFromRegistry (
           if (typeof error.message === 'string') error.message = redactUrlCredentials(error.message)
           if (typeof error.stack === 'string') error.stack = redactUrlCredentials(error.stack)
         }
-        reject(new PnpmError('META_FETCH_FAIL', redactUrlCredentials(`GET ${uri}: ${error.message as string}`), { attempts: attempt, cause: error }))
+        reject(isFetchTimeoutError(error)
+          ? new FetchTimeoutError('META_FETCH_FAIL', uri, fetchOpts.timeout, { attempts: attempt, cause: error })
+          : new PnpmError('META_FETCH_FAIL', redactUrlCredentials(`GET ${uri}: ${error.message as string}`), { attempts: attempt, cause: error }))
         return
       }
       if (response.status === 304) {
@@ -227,8 +231,9 @@ export async function fetchMetadataFromFromRegistry (
           etag: response.headers.get('etag') ?? undefined,
         })
       } catch (error: any) { // eslint-disable-line
-        const timeout = op.retry(
-          new PnpmError('BROKEN_METADATA_JSON', error.message)
+        const timeout = op.retry(isFetchTimeoutError(error)
+          ? new FetchTimeoutError('META_FETCH_FAIL', uri, fetchOpts.timeout, { attempts: attempt, cause: error })
+          : new PnpmError('BROKEN_METADATA_JSON', error.message)
         )
         if (timeout === false) {
           reject(op.mainError())
@@ -241,6 +246,11 @@ export async function fetchMetadataFromFromRegistry (
           message: error.message,
           code: error.code,
           errno: error.errno,
+          // undici wraps the actual network error in a cause property
+          cause: error.cause ? {
+            code: error.cause.code,
+            errno: error.cause.errno,
+          } : undefined,
         }
         requestRetryLogger.debug({
           attempt,
