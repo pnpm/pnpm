@@ -185,14 +185,28 @@ pub(super) fn update_install<'i>(
             http_client_arc: owned.http_client_arc,
             resolved_packages: update.resolved_packages,
         },
-        projects: crate::InstallProjects {
+        projects: update_install_projects(
             dependency_groups,
-            supported_architectures: owned.supported_architectures,
-            catalogs_override: seed.catalogs_override,
-            pnpmfile_hook_override: read_package_hook.map(|(hook, _)| Arc::clone(hook)),
-            policy_excludes_dir: None,
-            workspace_projects_override: None,
-        },
+            owned.supported_architectures,
+            seed.catalogs_override,
+            read_package_hook,
+        ),
+    }
+}
+
+fn update_install_projects(
+    dependency_groups: Vec<DependencyGroup>,
+    supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
+    catalogs_override: Option<Catalogs>,
+    read_package_hook: Option<&ReadPackageHook>,
+) -> crate::InstallProjects<Vec<DependencyGroup>> {
+    crate::InstallProjects {
+        dependency_groups,
+        supported_architectures,
+        catalogs_override,
+        pnpmfile_hook_override: read_package_hook.map(|(hook, _)| Arc::clone(hook)),
+        policy_excludes_dir: None,
+        workspace_projects_override: None,
     }
 }
 fn update_dependency_groups(

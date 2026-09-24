@@ -18,10 +18,8 @@ pub(super) async fn enforce_resolution_policies<Reporter: self::Reporter + 'stat
     // approved policy excludes to the invoking project's workspace instead
     // (pnpm/pnpm#15396). Every plain install has `policy_excludes_dir`
     // unset and persists to its own `lockfile_dir`, as before.
-    let policy_excludes_dir = install
-        .projects
-        .policy_excludes_dir
-        .unwrap_or(install.projects.lockfile_dir);
+    let policy_excludes_dir =
+        install.projects.policy_excludes_dir.unwrap_or(install.projects.lockfile_dir);
     crate::minimum_release_age::handle_minimum_release_age_violations::<Reporter>(
         install.drivers.config,
         policy_excludes_dir,

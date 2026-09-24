@@ -355,9 +355,11 @@ impl super::RunMode {
             supported_architectures: owned.projects.supported_architectures.as_ref(),
             policy_excludes_dir: owned.projects.policy_excludes_dir.as_deref(),
             early_host_detection,
-            resolve_only: self.resolve_only,
-            can_prompt: self.can_prompt,
-            save_lockfile: options.save_lockfile,
+            behavior: crate::install::materialize::MaterializationBehavior {
+                resolve_only: self.resolve_only,
+                can_prompt: self.can_prompt,
+                save_lockfile: options.save_lockfile,
+            },
             prefix,
         }
     }

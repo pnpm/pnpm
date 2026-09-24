@@ -65,10 +65,22 @@ pub(super) struct MaterializationExecution<'a> {
     /// Handed to whichever install path runs.
     pub(super) early_host_detection:
         Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
+    /// Flags describing how a materialization runs: whether it only resolves
+    /// (lockfile-only), whether it may prompt the user, and whether it
+    /// persists the lockfile. These travel together into every install
+    /// path's execution inputs (e.g. `FreshInstallExecution`), so they
+    /// form one concern instead of three loose fields.
+    pub(super) behavior: MaterializationBehavior,
+    pub(super) prefix: &'a str,
+}
+
+/// How a materialization runs: resolve-only, prompting, and lockfile
+/// persistence. Grouped so the execution inputs stay within the
+/// struct-field budget the lint config enforces.
+pub(super) struct MaterializationBehavior {
     pub(super) resolve_only: bool,
     pub(super) can_prompt: bool,
     pub(super) save_lockfile: bool,
-    pub(super) prefix: &'a str,
 }
 
 pub(super) struct MaterializationDownloads {
@@ -209,12 +221,12 @@ impl<'a> MaterializationInputs<'a, '_> {
             },
             execution: crate::install_with_fresh_lockfile::FreshInstallExecution {
                 node_linker: self.install.execution.node_linker,
-                lockfile_only: self.execution.resolve_only,
+                lockfile_only: self.execution.behavior.resolve_only,
                 skip_runtimes: self.install.execution.skip_runtimes,
                 dry_run: self.install.execution.dry_run,
-                can_prompt: self.execution.can_prompt,
+                can_prompt: self.execution.behavior.can_prompt,
                 policy_excludes: self.install.lockfile_policy.excludes,
-                save_lockfile: self.execution.save_lockfile,
+                save_lockfile: self.execution.behavior.save_lockfile,
             },
             manifests: crate::install_with_fresh_lockfile::FreshManifestOptions {
                 deploy_hook: self.resolution.deploy_manifest_hook,
