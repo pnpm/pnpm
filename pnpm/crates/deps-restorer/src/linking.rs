@@ -8,17 +8,16 @@
 //! reports.
 
 use crate::{
-    LinkVirtualStoreBins, SkippedSnapshots, SymlinkDirectDependencies, VirtualStoreLayout,
+    LinkVirtualStoreBins, SkippedSnapshots, SymlinkDirectDependencies,
     install_frozen_lockfile::{
         HoistPlan, HoistedLinkerError, HoistedLinkerInputs, collect_public_hoist_targets,
         compute_hoist_plan, run_hoisted_linker, workspace_packages_for_hoist,
     },
-    link_direct_dep_bins_resolved, link_root_component_members, symlink_hoisted_dependencies,
+    link_direct_dep_bins_resolved, link_root_component_members,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_cmd_shim::LinkBinsOptions;
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::NodeLinker;
 use pnpm_lockfile::PackageKey;
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use std::{
@@ -93,6 +92,17 @@ pub struct LinkPhaseInputs<'a> {
     pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
 }
 
+impl LinkPhaseInputs<'_> {
+    fn scheduled_builds(&self) -> Option<crate::build_modules::ScheduledBuilds<'_>> {
+        crate::build_modules::ScheduledBuilds::new(crate::build_modules::ScheduledBuildsInputs {
+            materialized_snapshots: self.graph.materialized_snapshots,
+            packages: self.graph.lockfile.packages.as_ref(),
+            allow_build_policy: self.ctx.allow_build_policy,
+            ignore_scripts: self.ctx.config.ignore_scripts,
+        })
+    }
+}
+
 /// What the link phase hands to the build phase and the caller's
 /// `.modules.yaml` writer.
 pub struct LinkPhaseOutput {
@@ -128,23 +138,6 @@ impl LinkPhaseOutput {
             hoisted_pkg_roots_by_key: None,
             hoisted_build_snapshots: None,
             publicly_hoisted_for_post_build: Vec::new(),
-        }
-    }
-}
-
-/// What [`write_hoist_links`] put on disk.
-struct HoistLinks {
-    hoisted_dependencies: crate::HoistedDependencies,
-    /// See [`LinkPhaseOutput::publicly_hoisted_for_post_build`].
-    publicly_hoisted_with_bins: Vec<String>,
-}
-
-impl HoistLinks {
-    /// The result of a run with no hoist plan to write.
-    fn none() -> Self {
-        HoistLinks {
-            hoisted_dependencies: crate::HoistedDependencies::new(),
-            publicly_hoisted_with_bins: Vec::new(),
         }
     }
 }
@@ -242,6 +235,7 @@ fn relink_importer_tree<Reporter: self::Reporter>(
     let config = inputs.ctx.config;
     prune_importer_tree::<Reporter>(inputs, hoist.plan.as_ref())?;
 
+    let scheduled_builds = inputs.scheduled_builds();
     let phase_start = std::time::Instant::now();
     SymlinkDirectDependencies {
         context: crate::ImporterLinkContext {
@@ -265,6 +259,7 @@ fn relink_importer_tree<Reporter: self::Reporter>(
 
         package_manifests: Some(inputs.packages.package_manifests),
         requires_build_by_snapshot: inputs.packages.requires_build_by_snapshot,
+        scheduled_builds: scheduled_builds.as_ref(),
     }
     .run::<Reporter>()
     .map_err(LinkPhaseError::SymlinkDirectDependencies)?;
@@ -474,43 +469,5 @@ fn public_workspace_bin_deps(plan: Option<&HoistPlan>) -> Vec<(String, PathBuf)>
     .unwrap_or_default()
 }
 
-/// Symlink the hoist plan's aliases into the private
-/// (`<virtual_store>/node_modules`) and public (`<root>/node_modules`)
-/// targets, then shim the private side's bins.
-///
-/// Enabling the global virtual store does not move the private target:
-/// pacquet leaves `virtual_store_dir` at its project-local (or
-/// yaml-pinned) value and routes the shared root through
-/// `global_virtual_store_dir` instead — see
-/// [`Config::apply_global_virtual_store_derivation`]. Only the symlink
-/// *target* under the slot dir is GVS-aware, which `layout` resolves.
-fn write_hoist_links(
-    plan: HoistPlan,
-    config: &Config,
-    layout: &VirtualStoreLayout,
-    link_options: &LinkBinsOptions,
-) -> Result<HoistLinks, LinkPhaseError> {
-    let HoistPlan { graph, result, skipped, .. } = plan;
-    let private_hoist_dir = config.virtual_store_dir.join("node_modules");
-    let public_hoist_dir = config.modules_dir.clone();
-    symlink_hoisted_dependencies(
-        &result.hoisted_dependencies_by_node_id,
-        &result.hoisted_workspace_aliases,
-        &graph,
-        layout,
-        &private_hoist_dir,
-        &public_hoist_dir,
-        &skipped,
-    )
-    .map_err(LinkPhaseError::HoistSymlink)?;
-    link_direct_dep_bins_resolved(
-        &private_hoist_dir,
-        &crate::resolve_hoisted_bin_deps(layout, &result.hoisted_aliases_with_bins),
-        link_options,
-    )
-    .map_err(LinkPhaseError::HoistLinkBins)?;
-    Ok(HoistLinks {
-        hoisted_dependencies: result.hoisted_dependencies,
-        publicly_hoisted_with_bins: result.publicly_hoisted_aliases_with_bins,
-    })
-}
+mod hoist_links;
+use hoist_links::{HoistLinks, write_hoist_links};

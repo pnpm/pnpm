@@ -60,6 +60,11 @@ pub struct PackageBinSource {
     ///
     /// [`location`]: Self::location
     pub resolved_location: Option<PathBuf>,
+    /// Whether the package's lifecycle scripts have yet to run in this
+    /// install. Such a package's bin is not linked while its target is
+    /// missing, because the scripts may create it and run with this
+    /// `.bin` on `PATH`. The linking pass after the build links it.
+    pub build_pending: bool,
 }
 
 impl PackageBinSource {
@@ -70,7 +75,13 @@ impl PackageBinSource {
     /// most tests).
     #[must_use]
     pub fn new(location: PathBuf, manifest: Arc<Value>) -> Self {
-        Self { location, manifest, origin: BinOrigin::Direct, resolved_location: None }
+        Self {
+            location,
+            manifest,
+            origin: BinOrigin::Direct,
+            resolved_location: None,
+            build_pending: false,
+        }
     }
 
     /// Tag this source with the given [`BinOrigin`]. Builder-style
@@ -88,6 +99,14 @@ impl PackageBinSource {
     #[must_use]
     pub fn with_resolved_location(mut self, resolved_location: PathBuf) -> Self {
         self.resolved_location = Some(resolved_location);
+        self
+    }
+
+    /// Mark the package's lifecycle scripts as not yet run. See
+    /// [`Self::build_pending`].
+    #[must_use]
+    pub fn with_build_pending(mut self, build_pending: bool) -> Self {
+        self.build_pending = build_pending;
         self
     }
 }
@@ -423,11 +442,13 @@ where
 
     let paths = linking_paths::LinkingPaths::new(bins_dir, options)?;
 
+    let to_link = remove_bins_awaiting_target::<Sys>(chosen, bins_dir, &paths.bins_dir)?;
+
     // Each shim's read-shebang + write-file + chmod sequence is independent
     // across bin names. There is no shared state, so drive them on rayon.
     // The hot path is per-package-bin; without parallelism the per-shim
     // file I/O serialised across the whole `chosen` map.
-    chosen
+    to_link
         .par_iter()
         .try_for_each(|(command, pkg)| {
             // On Unix the symlink branch never writes a shim, so no bin
@@ -439,24 +460,10 @@ where
                 shim_node_path(pkg, paths.project_node_path.as_deref(), &paths.extra_node_paths)
             };
             let pkg_name = package_name(pkg);
-            // The target's symlink-resolved path doubles as the memo key
-            // for the per-target probes: importers that reach one
-            // virtual-store file through different symlinks share it.
-            // Without a resolved location, the literal path still dedupes
-            // within whatever scope the caller gave the cache.
-            let probe_path = pkg.resolved_location
-                .as_ref()
-                .and_then(|resolved| {
-                    command.path
-                        .strip_prefix(&pkg.location)
-                        .ok()
-                        .map(|bin_rel_path| resolved.join(bin_rel_path))
-                })
-                .unwrap_or_else(|| command.path.clone());
             write_shim::<Sys>(
                 ShimSpec {
                     target_path: &paths.target(&command.path, options.relocatable_root.as_deref())?,
-                    probe_path: &probe_path,
+                    probe_path: &target_probe_path(pkg, &command.path),
                     shim_path: &paths.bins_dir.join(&command.name),
                     node_path: &node_path,
                     options,
@@ -559,6 +566,6 @@ use executable::{
 mod discovery;
 
 mod linking_paths;
-use linking_paths::shim_node_path;
+use linking_paths::{remove_bins_awaiting_target, shim_node_path, target_probe_path};
 
 mod relocatable;

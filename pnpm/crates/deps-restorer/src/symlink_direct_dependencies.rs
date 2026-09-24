@@ -62,6 +62,10 @@ where
     /// gating [`Self::package_manifests`] — see
     /// [`crate::link_direct_dep_bins_prefetched`].
     pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
+
+    /// The builds that run after this pass. See
+    /// [`crate::PrefetchedBinLookup::with_scheduled_builds`].
+    pub scheduled_builds: Option<&'a crate::build_modules::ScheduledBuilds<'a>>,
 }
 
 /// Error type of [`SymlinkDirectDependencies`].
@@ -124,7 +128,8 @@ where
                 self.graph.packages,
                 self.package_manifests,
                 self.requires_build_by_snapshot,
-            ),
+            )
+            .with_scheduled_builds(self.scheduled_builds),
         }
         .run::<Reporter>()
     }

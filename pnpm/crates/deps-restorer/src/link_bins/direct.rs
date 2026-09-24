@@ -72,7 +72,23 @@ pub fn link_direct_dep_bins(
         .iter()
         .map(|name| (name.as_str(), None))
         .collect();
-    link_named_dep_bins(modules_dir, &deps, link_options)
+    link_named_dep_bins(modules_dir, &deps, link_options, false)
+}
+/// [`link_direct_dep_bins`] for a project's `.bin` under the hoisted
+/// linker, whose post-build relink always links that directory again.
+/// Every bin whose target is missing is held back until then, so a
+/// dependency's lifecycle scripts cannot reach a shim of a file they have
+/// yet to create. See [`PackageBinSource::build_pending`].
+pub fn link_direct_dep_bins_before_builds(
+    modules_dir: &Path,
+    dep_names: &[String],
+    link_options: &LinkBinsOptions,
+) -> Result<(), LinkBinsError> {
+    let deps: Vec<(&str, Option<&Path>)> = dep_names
+        .iter()
+        .map(|name| (name.as_str(), None))
+        .collect();
+    link_named_dep_bins(modules_dir, &deps, link_options, true)
 }
 /// Resolve the hoist pass's `(alias, snapshot key)` bin list into the
 /// `(alias, slot package dir)` pairs [`link_direct_dep_bins_resolved`]
@@ -103,7 +119,7 @@ pub fn link_direct_dep_bins_resolved(
         .iter()
         .map(|(name, target)| (name.as_str(), Some(target.as_path())))
         .collect();
-    link_named_dep_bins(modules_dir, &deps, link_options)
+    link_named_dep_bins(modules_dir, &deps, link_options, false)
 }
 /// One direct dep of [`link_direct_dep_bins_prefetched`]'s importer:
 /// the alias under `node_modules/`, the symlink's destination, and the
@@ -133,8 +149,30 @@ pub struct PrefetchedBinLookup<'a> {
     /// file's shebang read and executable-bit fix-up run once per pass
     /// rather than once per importer.
     shim_cache: ShimTargetCache,
+    /// See [`Self::with_scheduled_builds`].
+    scheduled_builds: Option<&'a crate::build_modules::ScheduledBuilds<'a>>,
 }
 impl<'a> PrefetchedBinLookup<'a> {
+    /// Record the builds that run after this pass. The bins of a package
+    /// among them are marked [`PackageBinSource::build_pending`], so a bin
+    /// its scripts have yet to create stays off the importer's `.bin` until
+    /// the post-build relink.
+    #[must_use]
+    pub fn with_scheduled_builds(
+        mut self,
+        scheduled_builds: Option<&'a crate::build_modules::ScheduledBuilds<'a>>,
+    ) -> Self {
+        self.scheduled_builds = scheduled_builds;
+        self
+    }
+
+    fn is_build_pending(&self, snapshot_key: Option<&PackageKey>) -> bool {
+        let (Some(scheduled), Some(key)) = (self.scheduled_builds, snapshot_key) else {
+            return false;
+        };
+        scheduled.includes(key)
+    }
+
     #[must_use]
     pub fn new(
         packages: Option<&HashMap<PackageKey, PackageMetadata>>,
@@ -146,6 +184,7 @@ impl<'a> PrefetchedBinLookup<'a> {
             package_manifests,
             requires_build,
             shim_cache: ShimTargetCache::default(),
+            scheduled_builds: None,
         }
     }
 }
@@ -166,11 +205,19 @@ pub fn link_direct_dep_bins_prefetched(
     let bin_sources: Vec<PackageBinSource> = deps
         .par_iter()
         .filter_map(|(name, target, snapshot_key)| {
-            match prefetched_bin_source(modules_dir, name, target, snapshot_key.as_ref(), lookup) {
+            let source = match prefetched_bin_source(
+                modules_dir,
+                name,
+                target,
+                snapshot_key.as_ref(),
+                lookup,
+            ) {
                 PrefetchedBin::NoBins => None,
                 PrefetchedBin::Source(source) => Some(Ok(source)),
                 PrefetchedBin::ReadFromDisk => read_dep_bin_source(modules_dir, name, target),
-            }
+            };
+            let build_pending = lookup.is_build_pending(snapshot_key.as_ref());
+            source.map(|source| source.map(|source| source.with_build_pending(build_pending)))
         })
         .collect::<Result<_, _>>()?;
     if bin_sources.is_empty() {
@@ -255,6 +302,7 @@ pub(super) fn link_named_dep_bins(
     modules_dir: &Path,
     deps: &[(&str, Option<&Path>)],
     link_options: &LinkBinsOptions,
+    build_pending: bool,
 ) -> Result<(), LinkBinsError> {
     // Swallow only `NotFound`: a direct-dep symlink target can
     // legitimately be missing right after a partial pacquet run, or
@@ -282,7 +330,8 @@ pub(super) fn link_named_dep_bins(
                     return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
                 }
             };
-            let mut source = PackageBinSource::new(location, Arc::new(manifest));
+            let mut source = PackageBinSource::new(location, Arc::new(manifest))
+                .with_build_pending(build_pending);
             if let Some(resolved) = resolved {
                 source = source.with_resolved_location(resolved.to_path_buf());
             }

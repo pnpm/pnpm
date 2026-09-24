@@ -487,6 +487,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         depsStateCache,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         force: opts.force,
+        holdBackMissingProjectBins: !opts.ignoreScripts && opts.enableModulesDir !== false && !opts.ignorePackageManifest,
         ignoreScripts: opts.ignoreScripts,
         lockfileDir: opts.lockfileDir,
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,

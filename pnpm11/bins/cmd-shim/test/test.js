@@ -7,7 +7,7 @@ snapshot.setDefaultSnapshotSerializers([
 import path from 'node:path'
 import { cmdExtension } from 'cmd-extension'
 import { fixtures, fixtures2, fs, setupFixtures } from './setup.js'
-import { cmdShim, isShimPointingAt } from '@pnpm/bins.cmd-shim'
+import { cmdShim, cmdShimIfExists, isShimForMissingTarget, isShimPointingAt } from '@pnpm/bins.cmd-shim'
 
 /**
  * @param {import('node:test').TestContext} t
@@ -53,6 +53,41 @@ describe('isShimPointingAt', () => {
     const content = await fs.promises.readFile(to, 'utf8')
     // src without the last path segment — must not match
     assert.equal(isShimPointingAt(content, path.dirname(src)), false)
+  })
+})
+
+describe('missing source', () => {
+  const to = path.resolve(fixtures, 'missing.shim')
+  before(setupFixtures)
+
+  test('infers the runtime from the extension', async () => {
+    const src = path.resolve(fixtures, 'dist', 'missing.js')
+    await cmdShim(src, to, { createCmdFile: true, fs })
+    assert.match(fs.readFileSync(to, 'utf8'), /\n +exec node +"\$basedir\/dist\/missing\.js" "\$@"\n/)
+    assert.match(fs.readFileSync(`${to}${cmdExtension}`, 'utf8'), /\n +node +"%~dp0\\dist\\missing\.js" %\*/)
+  })
+
+  test('runs a source without a known extension directly', async () => {
+    const src = path.resolve(fixtures, 'missing')
+    await cmdShim(src, to, { createCmdFile: false, fs })
+    const content = fs.readFileSync(to, 'utf8')
+    assert.match(content, /\nexec "\$basedir\/missing" +"\$@"\n/)
+    assert.doesNotMatch(content, /exec node/)
+  })
+
+  test('cmdShimIfExists writes no shim', async () => {
+    const skipped = path.resolve(fixtures, 'if-exists.shim')
+    await cmdShimIfExists(path.resolve(fixtures, 'missing'), skipped, { createCmdFile: true, fs })
+    assert.equal(fs.existsSync(skipped), false)
+    assert.equal(fs.existsSync(`${skipped}${cmdExtension}`), false)
+  })
+
+  test('marks the shim as written for a missing target', async () => {
+    await cmdShim(path.resolve(fixtures, 'missing'), to, { createCmdFile: false, fs })
+    assert.equal(isShimForMissingTarget(fs.readFileSync(to, 'utf8')), true)
+
+    await cmdShim(path.resolve(fixtures, 'src.env'), to, { createCmdFile: false, fs })
+    assert.equal(isShimForMissingTarget(fs.readFileSync(to, 'utf8')), false)
   })
 })
 

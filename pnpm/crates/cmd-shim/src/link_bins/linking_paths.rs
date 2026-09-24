@@ -1,8 +1,14 @@
-use super::{LinkBinsError, LinkBinsOptions, PackageBinSource, bin_node_paths};
+use super::{
+    FsReadHead, LinkBinsError, LinkBinsOptions, PackageBinSource, bin_node_paths, remove_bin,
+    shim_writer::with_extension_appended,
+};
+use crate::bin_resolver::Command;
 use pnpm_fs::{is_subdir, realpath_missing};
+use rayon::prelude::*;
 use std::{
     borrow::Cow,
     ffi::OsStr,
+    io,
     path::{Path, PathBuf},
 };
 
@@ -149,4 +155,77 @@ fn resolve_extra(entry: &str, root: &Path, physical_root: &Path) -> String {
     } else {
         entry.to_string()
     }
+}
+
+/// The target's symlink-resolved path, which doubles as the memo key for
+/// the per-target probes: importers that reach one virtual-store file
+/// through different symlinks share it. Without a resolved location, the
+/// literal path still dedupes within whatever scope the caller gave the
+/// cache.
+pub(super) fn target_probe_path(pkg: &PackageBinSource, target: &Path) -> PathBuf {
+    pkg.resolved_location
+        .as_ref()
+        .and_then(|resolved| {
+            target
+                .strip_prefix(&pkg.location)
+                .ok()
+                .map(|bin_rel_path| resolved.join(bin_rel_path))
+        })
+        .unwrap_or_else(|| target.to_path_buf())
+}
+
+/// Remove the shims of the `chosen` bins that [`awaits_target`] holds back,
+/// and return the rest for linking.
+///
+/// Every removal finishes before the caller writes a shim: on Windows the
+/// siblings of a removed bin `tool` include `tool.cmd`, which may be the shim
+/// of another bin.
+pub(super) fn remove_bins_awaiting_target<'packages, Sys: FsReadHead>(
+    chosen: Vec<(Command, &'packages PackageBinSource)>,
+    bins_dir: &Path,
+    shims_dir: &Path,
+) -> Result<Vec<(Command, &'packages PackageBinSource)>, LinkBinsError> {
+    let (awaiting, to_link): (Vec<_>, Vec<_>) = chosen
+        .into_par_iter()
+        .partition(|(command, pkg)| awaits_target::<Sys>(pkg, bins_dir, &command.path));
+    awaiting
+        .par_iter()
+        .try_for_each(|(command, _)| {
+            let shim_path = shims_dir.join(&command.name);
+            remove_bin(&shim_path)
+                .map_err(|error| LinkBinsError::RemoveStaleBin { path: shim_path, error })
+        })?;
+    Ok(to_link)
+}
+
+/// Whether the bin's `target` is missing while a lifecycle script that may
+/// create it can still run with `bins_dir` on `PATH`.
+///
+/// A package's scripts run with its own `node_modules/.bin` and the project's
+/// `.bin` on `PATH`. The `node` package's preinstall runs `node` to download
+/// `bin/node`, which must not resolve to a shim of `bin/node` itself
+/// (pnpm/pnpm#15501). So a package's own bin is linked there only once its
+/// target exists, and so is any bin of a package whose build is still pending
+/// ([`PackageBinSource::build_pending`]). A shim an earlier install left is
+/// removed. Other dependents get the shim right away, because the target may
+/// be built after install.
+fn awaits_target<Sys: FsReadHead>(pkg: &PackageBinSource, bins_dir: &Path, target: &Path) -> bool {
+    (pkg.build_pending || pkg.location.join("node_modules").join(".bin") == bins_dir)
+        && target_is_missing::<Sys>(&target_probe_path(pkg, target))
+}
+
+/// Whether neither `path` nor, for an extensionless `path` on Windows, its
+/// `.exe` sibling exists. The shim runs an extensionless target directly, and
+/// Windows then finds the `.exe`.
+fn target_is_missing<Sys: FsReadHead>(path: &Path) -> bool {
+    let missing = |path: &Path| {
+        matches!(
+            Sys::read_head(path, 0, &mut [0u8; 1]),
+            Err(error) if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory),
+        )
+    };
+    missing(path)
+        && (!cfg!(windows)
+            || path.extension().is_some()
+            || missing(&with_extension_appended(path, "exe")))
 }

@@ -165,6 +165,7 @@ fn emits_pnpm_root_added_per_direct_dependency() {
 
         package_manifests: None,
         requires_build_by_snapshot: None,
+        scheduled_builds: None,
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -323,6 +324,7 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
 
         package_manifests: None,
         requires_build_by_snapshot: None,
+        scheduled_builds: None,
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -422,6 +424,7 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
 
         package_manifests: None,
         requires_build_by_snapshot: None,
+        scheduled_builds: None,
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -500,6 +503,7 @@ fn empty_importers_is_a_no_op() {
 
         package_manifests: None,
         requires_build_by_snapshot: None,
+        scheduled_builds: None,
     }
     .run::<SilentReporter>();
 
@@ -585,6 +589,7 @@ fn reused_symlinks_do_not_emit_pnpm_root_added() {
 
             package_manifests: None,
             requires_build_by_snapshot: None,
+            scheduled_builds: None,
         }
         .run::<RecordingReporter>()
         .expect("symlink should succeed");
@@ -708,6 +713,7 @@ fn per_importer_prefix_in_pnpm_root_events() {
 
         package_manifests: None,
         requires_build_by_snapshot: None,
+        scheduled_builds: None,
     }
     .run::<RecordingReporter>()
     .unwrap();
@@ -811,6 +817,7 @@ fn custom_modules_dir_propagates_to_each_importer() {
 
         package_manifests: None,
         requires_build_by_snapshot: None,
+        scheduled_builds: None,
     }
     .run::<SilentReporter>()
     .expect("symlink should succeed");

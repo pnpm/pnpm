@@ -143,7 +143,7 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
     let added: u64 = opts.hierarchy
         .par_iter()
         .map(|(parent_dir, deps_hierarchy)| {
-            link_all_pkgs_in_order::<Reporter>(deps_hierarchy, parent_dir, opts)
+            link_all_pkgs_in_order::<Reporter>(deps_hierarchy, parent_dir, true, opts)
         })
         .collect::<Result<Vec<u64>, _>>()?
         .into_iter()
@@ -250,6 +250,7 @@ fn try_remove_dir(dir: &Path) -> io::Result<()> {
 fn link_all_pkgs_in_order<Reporter: self::Reporter>(
     hierarchy: &DepHierarchy,
     parent_dir: &Path,
+    is_project_root: bool,
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<u64, LinkHoistedModulesError> {
     // Phase 2: import this level's packages + recurse into each
@@ -263,13 +264,13 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
                 .get(dir)
                 .ok_or_else(|| LinkHoistedModulesError::MissingGraphNode { dir: dir.clone() })?;
             let here = u64::from(import_node::<Reporter>(node, opts)?);
-            Ok(here + link_all_pkgs_in_order::<Reporter>(sub_hierarchy, dir, opts)?)
+            Ok(here + link_all_pkgs_in_order::<Reporter>(sub_hierarchy, dir, false, opts)?)
         })
         .collect::<Result<Vec<u64>, LinkHoistedModulesError>>()?
         .into_iter()
         .sum();
 
-    link_hierarchy_bins(hierarchy, parent_dir, opts)?;
+    link_hierarchy_bins(hierarchy, parent_dir, is_project_root, opts)?;
 
     Ok(imported)
 }
@@ -278,6 +279,7 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
 fn link_hierarchy_bins(
     hierarchy: &DepHierarchy,
     parent_dir: &Path,
+    is_project_root: bool,
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<(), LinkHoistedModulesError> {
     let modules_dir = parent_dir.join("node_modules");
@@ -286,8 +288,15 @@ fn link_hierarchy_bins(
         .filter_map(|child_dir| opts.graph.get(child_dir))
         .filter_map(|node| node.alias.clone())
         .collect();
+    // A project's `.bin` is linked again after the builds, so it can hold
+    // back the bins that a build may still create.
+    let link = if is_project_root {
+        crate::link_direct_dep_bins_before_builds
+    } else {
+        link_direct_dep_bins
+    };
     if !dep_names.is_empty() {
-        link_direct_dep_bins(&modules_dir, &dep_names, opts.link_options)
+        link(&modules_dir, &dep_names, opts.link_options)
             .map_err(LinkHoistedModulesError::LinkBins)?;
     }
 
