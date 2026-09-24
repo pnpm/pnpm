@@ -89,6 +89,7 @@ async fn exact_version_is_required_and_deadline_bounds_the_sleep() {
 
 #[tokio::test]
 async fn timeout_does_not_issue_second_probe_when_delay_exceeds_deadline() {
+    tokio::time::pause();
     let mut server = mockito::Server::new_async().await;
     let request = server
         .mock("GET", "/@scope%2Fpkg")
@@ -96,11 +97,28 @@ async fn timeout_does_not_issue_second_probe_when_delay_exceeds_deadline() {
         .expect(1)
         .create_async()
         .await;
-    let start = Instant::now();
     let error = wait(&server, Duration::from_millis(100)).await.unwrap_err();
-    assert!(start.elapsed() < Duration::from_secs(2), "{error}");
     assert!(error.to_string().contains("Timed out"), "{error}");
     request.assert_async().await;
+}
+
+#[tokio::test]
+async fn unrepresentable_timeout_does_not_panic() {
+    let mut server = mockito::Server::new_async().await;
+    let metadata = server
+        .mock("GET", "/@scope%2Fpkg")
+        .with_body(metadata(&format!("{}/pkg.tgz", server.url())))
+        .expect(1)
+        .create_async()
+        .await;
+    let tarball = server
+        .mock("HEAD", "/pkg.tgz")
+        .expect(1)
+        .create_async()
+        .await;
+    wait(&server, Duration::MAX).await.unwrap();
+    metadata.assert_async().await;
+    tarball.assert_async().await;
 }
 
 #[tokio::test]

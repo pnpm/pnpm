@@ -2,13 +2,11 @@
 
 pub use error::PublishWaitError;
 
-use std::{
-    collections::BTreeMap,
-    time::{Duration, Instant},
-};
+use std::{collections::BTreeMap, time::Duration};
 
 use futures_util::{StreamExt, stream};
 use pnpm_reporter::Reporter;
+use tokio::time::Instant;
 
 use crate::{
     global_log::global_info,
@@ -45,7 +43,7 @@ pub async fn wait_for_published_packages<Reporter: self::Reporter>(
         packages.len(),
         pnpm_network::redact_url_for_display(registry.as_str()),
     ));
-    let deadline = Instant::now() + timeout;
+    let deadline = Instant::now().checked_add(timeout);
     tokio::time::timeout(
         timeout,
         poll_packages(&packages, &mut pending, registry, network, deadline, timeout),
@@ -59,11 +57,11 @@ async fn poll_packages(
     pending: &mut BTreeMap<usize, String>,
     registry: &NormalizedRegistryUrl,
     network: &PublishNetwork<'_>,
-    deadline: Instant,
+    deadline: Option<Instant>,
     timeout: Duration,
 ) -> Result<(), PublishWaitError> {
     while !pending.is_empty() {
-        if Instant::now() >= deadline {
+        if deadline.is_some_and(|dl| Instant::now() >= dl) {
             return Err(PublishWaitError::timeout(pending.values().cloned(), registry, timeout));
         }
         let delay = probe_pending(packages, pending, registry, network).await?.max(POLL_INTERVAL);
@@ -71,13 +69,17 @@ async fn poll_packages(
             break;
         }
         let now = Instant::now();
-        if now
-            .checked_add(delay)
-            .is_none_or(|next| next >= deadline)
-        {
+        if deadline.is_some_and(|dl| {
+            now.checked_add(delay)
+                .is_none_or(|next| next >= dl)
+        }) {
             return Err(PublishWaitError::timeout(pending.values().cloned(), registry, timeout));
         }
-        tokio::time::sleep(delay.min(deadline.saturating_duration_since(now))).await;
+        let sleep_duration = match deadline {
+            Some(dl) => delay.min(dl.saturating_duration_since(now)),
+            None => delay,
+        };
+        tokio::time::sleep(sleep_duration).await;
     }
     Ok(())
 }
