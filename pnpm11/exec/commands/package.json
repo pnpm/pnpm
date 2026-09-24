@@ -46,6 +46,7 @@
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/deps.status": "workspace:*",
     "@pnpm/engine.runtime.commands": "workspace:*",
+    "@pnpm/engine.runtime.system-version": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.esm-node-path-loader": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
@@ -81,7 +82,6 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/engine.runtime.system-version": "workspace:*",
     "@pnpm/exec.commands": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",

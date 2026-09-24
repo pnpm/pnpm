@@ -4373,6 +4373,9 @@ importers:
       '@pnpm/engine.runtime.commands':
         specifier: workspace:*
         version: link:../../engine/runtime/commands
+      '@pnpm/engine.runtime.system-version':
+        specifier: workspace:*
+        version: link:../../engine/runtime/system-version
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
@@ -4464,9 +4467,6 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.4.1(supports-color@10.2.2)
-      '@pnpm/engine.runtime.system-version':
-        specifier: workspace:*
-        version: link:../../engine/runtime/system-version
       '@pnpm/exec.commands':
         specifier: workspace:*
         version: 'link:'

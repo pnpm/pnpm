@@ -290,6 +290,37 @@ test('dlx with cache', async () => {
   jest.mocked(systemNodeVersion.getSystemNodeVersion).mockImplementation(originalGetSystemNodeVersion)
 })
 
+test('dlx does not reuse the cache across Node.js major versions', async () => {
+  prepareEmpty()
+
+  const spy = jest.mocked(add.handler)
+  const runDlx = async (nodeVersion: string) => {
+    jest.mocked(systemNodeVersion.getSystemNodeVersion).mockReturnValue(nodeVersion)
+    spy.mockClear()
+    await dlx.handler({
+      ...DEFAULT_OPTS,
+      dir: path.resolve('project'),
+      storeDir: path.resolve('store'),
+      cacheDir: path.resolve('cache'),
+      dlxCacheMaxAge: Infinity,
+    }, ['shx@0.3.4', 'touch', 'foo'])
+  }
+
+  try {
+    await runDlx('v22.1.0')
+    expect(spy).toHaveBeenCalledTimes(1)
+
+    await runDlx('v22.2.0')
+    expect(spy).not.toHaveBeenCalled()
+
+    await runDlx('v24.0.0')
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toHaveLength(2)
+  } finally {
+    jest.mocked(systemNodeVersion.getSystemNodeVersion).mockImplementation(originalGetSystemNodeVersion)
+  }
+})
+
 test('dlx does not reuse expired cache', async () => {
   prepareEmpty()
 

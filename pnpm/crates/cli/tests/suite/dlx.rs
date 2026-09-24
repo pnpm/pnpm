@@ -162,6 +162,63 @@ fn dlx_installs_and_runs_packages_bin() {
     drop(root);
 }
 
+/// Packages built by lifecycle scripts only load on the Node.js major they
+/// were built with, so a dlx cache entry is reused within the major of the
+/// `node` on `PATH` and not across majors.
+#[cfg(unix)]
+#[test]
+fn dlx_does_not_reuse_the_cache_across_node_majors() {
+    use pnpm_testing_utils::command_env::CommandTestExt;
+    use std::{os::unix::fs::PermissionsExt, process::Command};
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let real_node = which::which("node").expect("find node");
+    let fake_node_dir = workspace.join("fake-node");
+    std::fs::create_dir(&fake_node_dir).expect("create fake node directory");
+    let fake_node = fake_node_dir.join("node");
+    std::fs::write(
+        &fake_node,
+        "#!/bin/sh\nif [ \"$1\" = --version ]; then echo \"v$FAKE_NODE_VERSION\"; exit 0; fi\nexec \"$REAL_NODE\" \"$@\"\n",
+    )
+    .expect("write fake node");
+    std::fs::set_permissions(&fake_node, std::fs::Permissions::from_mode(0o755))
+        .expect("make fake node executable");
+    let path = std::env::join_paths(
+        std::iter::once(fake_node_dir)
+            .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())),
+    )
+    .expect("join PATH");
+    let fixture = workspace.join("fixture");
+    std::fs::create_dir(&fixture).expect("create package fixture");
+    std::fs::write(
+        fixture.join("package.json"),
+        r#"{"name":"node-major-fixture","version":"1.0.0"}"#,
+    )
+    .expect("write package manifest");
+
+    for node_version in ["22.1.0", "22.2.0", "24.0.0"] {
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .without_ambient_pnpm_config()
+            .with_env("PATH", &path)
+            .with_env("FAKE_NODE_VERSION", node_version)
+            .with_env("REAL_NODE", &real_node)
+            .arg("dlx")
+            .arg(format!("--package=file:{}", fixture.display()))
+            .args(["node", "-e", ""])
+            .assert()
+            .success();
+    }
+
+    let cache_entries =
+        std::fs::read_dir(npmrc_info.cache_dir.join("dlx")).expect("read dlx cache").count();
+    assert_eq!(cache_entries, 2, "one cache entry per Node.js major");
+
+    drop(root);
+}
+
 /// The dlx cache install inherits the caller project's `overrides` (pnpm's
 /// dlx runs its install with the invoking project's already-loaded config),
 /// so a `catalog:` value in them must resolve against the caller's catalogs

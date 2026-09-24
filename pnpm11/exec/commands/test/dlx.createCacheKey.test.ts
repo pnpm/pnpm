@@ -1,5 +1,6 @@
 import { expect, test } from '@jest/globals'
 import { createShortHash } from '@pnpm/crypto.hash'
+import { engineName } from '@pnpm/engine.runtime.system-version'
 
 import { createCacheKey } from '../src/dlx.js'
 
@@ -14,7 +15,7 @@ test('creates a hash', () => {
   const expected = createShortHash(JSON.stringify([['@foo/bar', 'shx'], [
     ['@foo', 'https://example.com/npm-registry/foo/'],
     ['default', 'https://registry.npmjs.com/'],
-  ]]))
+  ], { engine: engineName() }]))
   expect(received).toBe(expected)
 })
 
@@ -59,4 +60,13 @@ test('is agnostic to supportedArchitectures values order', () => {
       os: ['darwin', 'linux', 'win32'],
     },
   }))
+})
+
+test('depends on the Node.js major version', () => {
+  const opts = {
+    packages: ['a'],
+    registriesByScope: { default: 'https://registry.npmjs.com/' },
+  }
+  expect(createCacheKey({ ...opts, nodeVersion: '22.1.0' })).toBe(createCacheKey({ ...opts, nodeVersion: 'v22.9.0' }))
+  expect(createCacheKey({ ...opts, nodeVersion: '22.1.0' })).not.toBe(createCacheKey({ ...opts, nodeVersion: '24.1.0' }))
 })
