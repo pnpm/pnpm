@@ -149,7 +149,8 @@ fn nested_file_dep_of_a_workspace_project_matches_the_pnpm_lockfile() {
 /// The layout from pnpm/pnpm#8101: a project depends on the directory
 /// above it, so the dep path ends in `file:..`. Windows strips trailing
 /// dots from path segments, so the virtual-store directory has to
-/// escape them.
+/// escape them, without landing on the slot of a same-named package at
+/// `file:++`.
 #[test]
 fn file_dep_on_the_parent_directory_gets_a_windows_safe_slot() {
     let CommandTempCwd {
@@ -165,18 +166,20 @@ fn file_dep_on_the_parent_directory_gets_a_windows_safe_slot() {
 
     let parent = workspace.join("parent");
     let project = parent.join("quick-start");
-    write_manifest(
-        &parent,
-        &serde_json::json!({ "name": "parent-pkg", "version": "1.0.0", "files": ["index.js"] }),
-    );
+    let plus = project.join("++");
+    let package =
+        serde_json::json!({ "name": "parent-pkg", "version": "1.0.0", "files": ["index.js"] });
+    write_manifest(&parent, &package);
     fs::write(parent.join("index.js"), "module.exports = 'parent'\n").expect("write index.js");
+    write_manifest(&plus, &package);
+    fs::write(plus.join("index.js"), "module.exports = 'plus'\n").expect("write index.js");
     write_manifest(
         &project,
         &serde_json::json!({
             "name": "quick-start",
             "version": "1.0.0",
             "private": true,
-            "dependencies": { "parent-pkg": "file:../" },
+            "dependencies": { "parent-pkg": "file:../", "plus-pkg": "file:./++" },
         }),
     );
     fs::write(project.join(".npmrc"), format!("registry={}\n", mock_instance.url()))
@@ -197,12 +200,25 @@ fn file_dep_on_the_parent_directory_gets_a_windows_safe_slot() {
         .assert()
         .success();
 
-    let installed =
-        project.join("node_modules/.pnpm/parent-pkg@file+++/node_modules/parent-pkg/index.js");
-    assert!(installed.is_file(), "parent-pkg should be installed at {}", installed.display());
-    assert!(
-        project.join("node_modules/parent-pkg/index.js").is_file(),
-        "node_modules/parent-pkg should link to the virtual-store slot",
+    let virtual_store = project.join("node_modules/.pnpm");
+    let read = |path: &str| {
+        fs::read_to_string(virtual_store.join(path))
+            .unwrap_or_else(|error| panic!("read {path}: {error}"))
+    };
+    assert_eq!(
+        read(
+            "parent-pkg@file+++_03a936b22c43a1cf3e318266a6921640/node_modules/parent-pkg/index.js"
+        ),
+        "module.exports = 'parent'\n",
+    );
+    assert_eq!(
+        read("parent-pkg@file+++/node_modules/parent-pkg/index.js"),
+        "module.exports = 'plus'\n",
+    );
+    assert_eq!(
+        fs::read_to_string(project.join("node_modules/parent-pkg/index.js"))
+            .expect("read node_modules/parent-pkg/index.js"),
+        "module.exports = 'parent'\n",
     );
 
     drop((root, mock_instance));

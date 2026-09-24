@@ -198,10 +198,11 @@ test('refToRelative() reconstructs registry-qualified dep paths', () => {
 })
 
 test('depPathToFilename() escapes trailing dots and spaces', () => {
-  expect(depPathToFilename('parent-pkg@file:..', 120)).toBe('parent-pkg@file+++')
-  expect(depPathToFilename('pkg@file:.', 120)).toBe('pkg@file++')
-  expect(depPathToFilename('pkg@file:../dir ', 120)).toBe('pkg@file+..+dir+')
-  expect(depPathToFilename('foo@1.0.0(pkg@file:..)', 120)).toBe('foo@1.0.0_pkg@file+++')
+  expect(depPathToFilename('parent-pkg@file:..', 120)).toBe('parent-pkg@file+++_03a936b22c43a1cf3e318266a6921640')
+  expect(depPathToFilename('pkg@file:.', 120)).toBe('pkg@file++_af438b120e771c4877c21269718fda92')
+  expect(depPathToFilename('pkg@file:../dir ', 120)).toBe('pkg@file+..+dir+_66e2dc0e992628fa370a66df00e93c72')
+  expect(depPathToFilename('foo@1.0.0(pkg@file:..)', 120)).toBe('foo@1.0.0_pkg@file+++_61847500d559aa48fd4e606d071ee28b')
+  expect(depPathToFilename('parent-pkg@file:++', 120)).toBe('parent-pkg@file+++')
   expect(depPathToFilename('pkg@file:../project-2', 120)).toBe('pkg@file+..+project-2')
 })
 

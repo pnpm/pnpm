@@ -104,7 +104,7 @@ fn to_virtual_store_name() {
     );
 
     // Windows strips trailing dots from path segments (pnpm/pnpm#8101).
-    case("parent-pkg@file:..", "parent-pkg@file+++");
+    case("parent-pkg@file:..", "parent-pkg@file+++_03a936b22c43a1cf3e318266a6921640");
 }
 
 #[test]

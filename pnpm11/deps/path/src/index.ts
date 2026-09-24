@@ -245,13 +245,15 @@ export function depPathToFilename (depPath: string, maxLengthWithoutHash: number
       .replace(/\)$/, '')
       .replace(/\)\(|\(|\)/g, '_')
   }
-  // Windows strips trailing dots and spaces from path segments.
+  // Windows strips trailing dots and spaces from path segments. The
+  // hash suffix keeps the escaped name apart from a literal `+` path.
   let end = filename.length
   while (end > 0 && (filename[end - 1] === '.' || filename[end - 1] === ' ')) end--
-  if (end < filename.length) {
+  const escapedTrailing = end < filename.length
+  if (escapedTrailing) {
     filename = filename.substring(0, end) + '+'.repeat(filename.length - end)
   }
-  if (filename.length > maxLengthWithoutHash || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
+  if (escapedTrailing || filename.length > maxLengthWithoutHash || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
     return `${filename.substring(0, maxLengthWithoutHash - 33)}_${createShortHash(filename)}`
   }
   return filename
