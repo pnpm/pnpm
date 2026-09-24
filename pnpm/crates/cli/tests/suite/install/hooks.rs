@@ -372,9 +372,8 @@ fn ignore_pnpmfile_skips_the_read_package_hook() {
     drop((root, mock_instance));
 }
 
-/// `--ignore-pnpmfile` skips the pnpmfile for one run, so it leaves the
-/// lockfile's `pnpmfileChecksum` alone instead of recording that no
-/// pnpmfile exists (<https://github.com/pnpm/pnpm/issues/10944>).
+/// `--ignore-pnpmfile` skips the pnpmfile for one run, leaving the
+/// lockfile's `pnpmfileChecksum` intact (<https://github.com/pnpm/pnpm/issues/10944>).
 #[test]
 fn ignore_pnpmfile_keeps_the_pnpmfile_checksum() {
     let CommandTempCwd {
@@ -415,7 +414,7 @@ fn ignore_pnpmfile_keeps_the_pnpmfile_checksum() {
     assert_eq!(read_lockfile(), lockfile, "install --frozen-lockfile --ignore-pnpmfile");
 
     // Dedupe re-resolves without the hook, which drops the dependency the
-    // hook injected, but the checksum still answers for the pnpmfile.
+    // hook injected, while retaining the recorded pnpmfile checksum.
     pacquet_in(&workspace)
         .with_args(["dedupe", "--lockfile-only", "--ignore-pnpmfile"])
         .assert()
