@@ -64,3 +64,17 @@ test('getHoistingLimits in "dependencies" mode additionally borders each importe
   // transitives stay nested under them.
   expect(limits!.get('packages%2Ffoo@workspace:packages/foo')).toStrictEqual(new Set(['b']))
 })
+
+test('getHoistingLimits preserves synthetic root border when root importer is omitted', () => {
+  const filteredLockfile: Pick<LockfileObject, 'importers'> = {
+    importers: {
+      ['packages/foo' as ProjectId]: {
+        dependencies: { b: '1.0.0' },
+        specifiers: { b: '1.0.0' },
+      },
+    },
+  }
+  const limits = getHoistingLimits(filteredLockfile, 'workspaces')
+  expect([...limits!.keys()]).toStrictEqual(['.@'])
+  expect(limits!.get('.@')).toStrictEqual(new Set(['packages%2Ffoo']))
+})

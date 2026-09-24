@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 
 import { expect, test } from '@jest/globals'
-import { prepare } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from '../utils/index.js'
@@ -98,3 +98,46 @@ test('the hoisted linker reports an optional dependency it stops supporting', as
 function summary (output: string, group: string = 'dependencies'): string | undefined {
   return new RegExp(`^${group}:\\n(?:[+-].*\\n?)+`, 'm').exec(output)?.[0].trim()
 }
+
+test('filter with node-linker=hoisted and shamefully-hoist=true only installs dependencies of filtered packages', async () => {
+  preparePackages([
+    {
+      location: 'project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+        devDependencies: {
+          'is-odd': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'project-2',
+      package: {
+        name: 'project-2',
+        version: '1.0.0',
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'] })
+  execPnpmSync([
+    'install',
+    '--filter',
+    'project-1...',
+    '--prod',
+    '--config.node-linker=hoisted',
+    '--config.shamefully-hoist=true',
+  ], { expectSuccess: true })
+
+  expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('node_modules/is-odd')).toBe(false)
+  expect(fs.existsSync('node_modules/is-negative')).toBe(false)
+})
+

@@ -1777,7 +1777,7 @@ Note that in CI environments, this setting is enabled by default.`,
     }
     if (frozenLockfile && !opts.lockfileOnly) {
       const fileIntegrityCache = new Map<string, Promise<string>>()
-      const importerIds = opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted'
+      const importerIds = opts.ignorePackageManifest === true
         ? Object.keys(ctx.wantedLockfile.importers) as ProjectId[]
         : projects.map(({ rootDir }) => ctx.projects[rootDir].id)
       const skipped = new Set<string>()

@@ -142,24 +142,23 @@ pub(super) async fn settle_frozen_verification<'install, Reporter: self::Reporte
 pub(super) fn frozen_project_anchor_ids(
     requested_importer_ids: Option<&HashSet<String>>,
     real_importer_ids: &HashSet<String>,
-    node_linker: NodeLinker,
+    _node_linker: NodeLinker,
     materialization: &crate::MaterializationClosure,
 ) -> HashSet<String> {
     match requested_importer_ids {
-        Some(selected) if matches!(node_linker, NodeLinker::Hoisted) => selected.clone(),
         Some(_) => materialization.importer_ids.clone(),
         None => real_importer_ids.clone(),
     }
 }
-/// The importers a frozen install materializes first. Hoisted installs share
-/// one tree and manifest-independent installs use the entire lockfile.
+/// The importers a frozen install materializes first. Manifest-independent
+/// installs use the entire lockfile.
 pub(in crate::install) fn initial_materialization_ids(
     lockfile: &Lockfile,
     requested_importer_ids: Option<&HashSet<String>>,
-    node_linker: NodeLinker,
+    _node_linker: NodeLinker,
 ) -> HashSet<String> {
     match requested_importer_ids {
-        Some(selected) if !matches!(node_linker, NodeLinker::Hoisted) => selected.clone(),
+        Some(selected) => selected.clone(),
         _ => lockfile.importers
             .keys()
             .cloned()

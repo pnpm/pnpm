@@ -555,10 +555,8 @@ fn node_major() -> u32 {
 /// TS: `install only the dependencies of the specified importer, when
 /// node-linker is hoisted` (`multipleImporters.ts:87`). The subset
 /// install lands the selected project's dependency at the workspace
-/// root, and the wanted lockfile keeps the unselected importer's
-/// entries. (Upstream leaves "the unselected dependency is absent" as a
-/// TODO — the hoisted linker materializes the full shared graph — so
-/// only the positive assertions are pinned, matching upstream.)
+/// root, the unselected dependency is absent, and the wanted lockfile keeps
+/// the unselected importer's entries.
 #[test]
 fn install_only_dependencies_of_specified_importer_with_hoisted_linker() {
     let fixture = WorkspaceFixture::new();
@@ -580,8 +578,55 @@ fn install_only_dependencies_of_specified_importer_with_hoisted_linker() {
         is_real_dir(&fixture.workspace, "node_modules/@pnpm.e2e/foo"),
         "the selected project's dependency must be hoisted to the workspace root",
     );
+    assert!(
+        !fixture.workspace.join("node_modules/@foo/no-deps").exists(),
+        "unselected project's dependency must not be installed",
+    );
     let wanted = fixture.wanted();
     assert_eq!(importer_version(&wanted, "packages/project-2", "@foo/no-deps"), "1.0.0");
+}
+
+#[test]
+fn install_filter_prod_with_hoisted_linker_and_shamefully_hoist() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("nodeLinker: hoisted\nshamefullyHoist: true\n");
+    fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps {
+            prod: &[("is-positive", "1.0.0")],
+            dev: &[("@pnpm.e2e/foo", "1.0.0")],
+            ..Default::default()
+        },
+    );
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps {
+            prod: &[("is-negative", "1.0.0")],
+            dev: &[("@foo/no-deps", "1.0.0")],
+            ..Default::default()
+        },
+    );
+
+    fixture.run(["--filter", "project-1...", "--prod", "install"]);
+
+    assert!(
+        is_real_dir(&fixture.workspace, "node_modules/is-positive"),
+        "the selected project's prod dependency must be hoisted to the workspace root",
+    );
+    assert!(
+        !fixture.workspace.join("node_modules/@pnpm.e2e/foo").exists(),
+        "selected project's dev dependency must not be installed under --prod",
+    );
+    assert!(
+        !fixture.workspace.join("node_modules/is-negative").exists(),
+        "unselected project's prod dependency must not be installed",
+    );
+    assert!(
+        !fixture.workspace.join("node_modules/@foo/no-deps").exists(),
+        "unselected project's dev dependency must not be installed",
+    );
 }
 
 /// A version that lost the root slot and later wins it must leave no

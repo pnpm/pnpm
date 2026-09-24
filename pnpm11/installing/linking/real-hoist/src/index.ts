@@ -102,6 +102,10 @@ export function getHoistingLimits (lockfile: Pick<LockfileObject, 'importers'>, 
     }
   }
 
+  if (!hoistingLimits.has('.@')) {
+    hoistingLimits.set('.@', rootHoistingLimit)
+  }
+
   return hoistingLimits
 }
 

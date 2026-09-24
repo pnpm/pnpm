@@ -137,7 +137,7 @@ test('install only the dependencies of the specified importer, when node-linker 
 
   const rootModules = assertProject(process.cwd())
   rootModules.has('is-positive')
-  // rootModules.hasNot('is-negative') // TODO: fix
+  rootModules.hasNot('is-negative')
 
   const lockfile: any = readYamlFileSync(WANTED_LOCKFILE) // eslint-disable-line
   expect(lockfile.importers?.['project-2' as ProjectId].dependencies?.['is-negative'].version).toBe('1.0.0')

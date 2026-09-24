@@ -142,13 +142,15 @@ function peerVariantLockfile (): LockfileObject {
 // per variant, where every collapsed package funnels into one.
 test('lockfileToHoistedDepGraph keeps file-dep peer variants apart', async () => {
   const dir = tempDir(false)
+  const lockfile = fileVariantLockfile()
   const opts = hoistedOpts(dir)
+  opts.importerIds = Object.keys(lockfile.importers)
   opts.storeController = {
     fetchPackage: () => ({ filesIndexFile: '' }),
     getFilesIndexFilePath: () => ({ filesIndexFile: '' }),
   } as unknown as typeof opts.storeController
 
-  const { graph } = await lockfileToHoistedDepGraph(fileVariantLockfile(), null, opts)
+  const { graph } = await lockfileToHoistedDepGraph(lockfile, null, opts)
 
   const compDirs = Object.keys(graph).filter((dir) => path.basename(dir) === 'comp')
   expect(compDirs).toHaveLength(2)

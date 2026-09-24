@@ -107,7 +107,15 @@ async function _lockfileToHoistedDepGraph (
   lockfile: LockfileObject,
   opts: LockfileToHoistedDepGraphOptions & SkipFetchingOption
 ): Promise<Omit<LockfileToDepGraphResult, 'prevGraph'>> {
-  const tree = hoist(lockfile, {
+  const importerIdsSet = opts.importerIds ? new Set(opts.importerIds) : undefined
+  const tree = hoist({
+    ...lockfile,
+    importers: importerIdsSet
+      ? Object.fromEntries(
+        Object.entries(lockfile.importers).filter(([importerId]) => importerIdsSet.has(importerId as ProjectId))
+      )
+      : lockfile.importers,
+  }, {
     hoistingLimits: opts.hoistingLimits,
     externalDependencies: opts.externalDependencies,
     autoInstallPeers: opts.autoInstallPeers,
