@@ -343,6 +343,11 @@ export async function handler (
           extraEnv: {
             ...extraEnv,
             PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[projectDir]?.package.manifest.name,
+            // The child inherits the PWD of pnpm's own cwd. Shells trust PWD
+            // over the physical working directory, so point it at the
+            // command's cwd: a project reached through a symlink then
+            // reports its logical path.
+            ...(process.platform !== 'win32' ? { PWD: prefix } : {}),
           },
           prependPaths,
           userAgent: opts.userAgent,

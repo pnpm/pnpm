@@ -214,6 +214,24 @@ test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async () => {
   expect(fs.readFileSync('foo/pkgname', 'utf8')).toBe('foo')
 })
 
+testOnPosixOnly('pnpm recursive exec sets PWD to the logical path of a project reached through a symlink', async () => {
+  preparePackages([
+    { location: 'real', package: { name: 'foo', version: '1.0.0' } },
+  ])
+  fs.symlinkSync('real', path.join(process.cwd(), 'linked'), 'dir')
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - linked\n')
+
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['node', '-e', 'require(\'fs\').writeFileSync(\'pwd.txt\', process.env.PWD, \'utf8\')'])
+
+  expect(fs.readFileSync('linked/pwd.txt', 'utf8')).toBe(path.join(process.cwd(), 'linked'))
+})
+
 test('testing the bail config with "pnpm recursive exec"', async () => {
   await using server = await createTestIpcServer()
 

@@ -219,6 +219,11 @@ fn command_in_dir(
     };
 
     cmd.current_dir(dir);
+    // The child inherits the PWD of pnpm's own cwd. Shells trust PWD over
+    // getcwd(), so point it at the command's cwd: a project reached through
+    // a symlink then reports its logical path.
+    #[cfg(unix)]
+    cmd.env("PWD", dir);
     // `updateConfig`-provided env, applied first so pnpm's own keys
     // below (PATH, user-agent, NODE_OPTIONS) win on conflict — matching
     // TS `makeEnv`, which spreads `...extraEnv` into the base. Empty
