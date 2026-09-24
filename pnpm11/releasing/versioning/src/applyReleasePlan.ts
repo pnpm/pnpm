@@ -3,10 +3,10 @@ import fs from 'node:fs/promises'
 import type { VersioningChangelogStorage, VersioningSettings } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 
-import { indexProjectRefs, type ReleasePlan, type WorkspaceProject } from './assembleReleasePlan.js'
+import { indexProjectRefs, privateProjectDirs, type ReleasePlan, type WorkspaceProject } from './assembleReleasePlan.js'
 import { composeChangelogSection, prependChangelogSection } from './changelog.js'
 import type { ChangeIntent } from './intents.js'
-import { appendToLedger, buildConsumptionIndex, type Ledger } from './ledger.js'
+import { appendToLedger, buildConsumptionIndex, type Ledger, normalizeProjectDir } from './ledger.js'
 import { listPendingChangelogs, readPendingChangelog, removePendingChangelog, writePendingChangelog } from './pendingChangelog.js'
 
 /**
@@ -47,6 +47,10 @@ export interface AppliedRelease {
 
 export async function applyReleasePlan (plan: ReleasePlan, opts: ApplyReleasePlanOptions): Promise<AppliedRelease[]> {
   const storage = changelogStorage(opts.versioning)
+  // A private project is never published, so no tarball can ever carry its
+  // prose: its releases use `repository` storage whatever is configured.
+  const privateDirs = privateProjectDirs(opts.projects, opts.workspaceDir)
+  const storageOf = (dir: string): VersioningChangelogStorage => privateDirs.has(dir) ? 'repository' : storage
 
   const applied = await Promise.all(plan.releases.map(async (release) => {
     const { manifest, writeProjectManifest } = await readProjectManifest(release.rootDir)
@@ -64,7 +68,7 @@ export async function applyReleasePlan (plan: ReleasePlan, opts: ApplyReleasePla
   // parked until publish, when it is packed into the tarball.
   await Promise.all(plan.releases.map(async (release) => {
     const section = composeChangelogSection(release)
-    if (storage === 'repository') {
+    if (storageOf(release.dir) === 'repository') {
       await prependChangelogSection(release.rootDir, release.name, section)
     } else {
       await writePendingChangelog(opts.workspaceDir, release.name, release.newVersion, section)
@@ -96,7 +100,7 @@ export async function applyReleasePlan (plan: ReleasePlan, opts: ApplyReleasePla
   const refs = indexProjectRefs(opts.projects, opts.workspaceDir)
   const consumedLedger = storage === 'repository'
     ? ledger
-    : await confirmPublished(ledger, opts)
+    : Object.assign(privateEntries(ledger, privateDirs), await confirmPublished(ledger, opts))
   const consumptionOf = buildConsumptionIndex(consumedLedger, refs.nameToDirs)
   const laneDirs = new Set<string>()
   for (const ref of Object.keys(opts.versioning?.lanes ?? {})) {
@@ -143,4 +147,19 @@ async function confirmPublished (ledger: Ledger, opts: ApplyReleasePlanOptions):
     await removePendingChangelog(opts.workspaceDir, name, version)
   }))
   return confirmed
+}
+
+/**
+ * The entries of `ledger` that belong to private projects. Their prose is
+ * committed to the repository, so they count as consumed without a registry
+ * confirmation. An entry that does not record its dir is left out.
+ */
+function privateEntries (ledger: Ledger, privateDirs: ReadonlySet<string>): Ledger {
+  const entries: Ledger = Object.create(null) as Ledger
+  for (const [key, entry] of Object.entries(ledger)) {
+    if (!Array.isArray(entry) && privateDirs.has(normalizeProjectDir(entry.dir))) {
+      entries[key] = entry
+    }
+  }
+  return entries
 }

@@ -1,4 +1,6 @@
-pub use project_refs::{ProjectRefIndex, index_project_refs, is_dir_ref, to_project_dir};
+pub use project_refs::{
+    ProjectRefIndex, index_project_refs, is_dir_ref, private_project_dirs, to_project_dir,
+};
 pub use versions::materialize_workspace_range;
 
 use std::{
@@ -28,6 +30,10 @@ pub struct WorkspaceProject {
     /// devDependencies never propagate — they are not part of the published
     /// artifact.
     pub prod_dependencies: Vec<ManifestDependency>,
+    /// The manifest's `"private": true`. A private project's releases keep
+    /// their changelog in the repository whatever the configured storage; see
+    /// [`crate::apply_release_plan`].
+    pub private: bool,
 }
 
 #[derive(Debug, Clone)]

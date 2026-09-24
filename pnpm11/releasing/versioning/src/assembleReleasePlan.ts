@@ -137,6 +137,19 @@ export function toProjectDir (workspaceDir: string, rootDir: string): string {
   return normalizeProjectDir(path.relative(workspaceDir, rootDir))
 }
 
+/**
+ * The workspace-relative dirs of the projects marked `"private": true`.
+ *
+ * A private project is never published, so a registry probe on its behalf is
+ * futile and would read as "not published", and no tarball can ever carry its
+ * changelog.
+ */
+export function privateProjectDirs (projects: WorkspaceProject[], workspaceDir: string): Set<string> {
+  return new Set(projects
+    .filter(({ manifest }) => manifest.private === true)
+    .map(({ rootDir }) => toProjectDir(workspaceDir, rootDir)))
+}
+
 export function assembleReleasePlan (opts: AssembleReleasePlanOptions): ReleasePlan {
   const refs = indexProjectRefs(opts.projects, opts.workspaceDir)
   const participants = collectParticipants(opts.projects, refs, opts)

@@ -19,6 +19,23 @@ pub fn to_project_dir(workspace_dir: &Path, root_dir: &Path) -> String {
     normalize_project_dir(&relative.to_string_lossy())
 }
 
+/// The workspace-relative dirs of the projects marked `"private": true`.
+///
+/// A private project is never published, so a registry probe on its behalf is
+/// futile and would read as "unpublished", and no tarball can ever carry its
+/// changelog. Mirrors the TypeScript `privateProjectDirs`.
+#[must_use]
+pub fn private_project_dirs(
+    projects: &[WorkspaceProject],
+    workspace_dir: &Path,
+) -> HashSet<String> {
+    projects
+        .iter()
+        .filter(|project| project.private)
+        .map(|project| to_project_dir(workspace_dir, &project.root_dir))
+        .collect()
+}
+
 /// Resolves package references — bare names, or `./`-prefixed
 /// workspace-relative directories — against the workspace. Names are
 /// aliases: one that matches several projects cannot identify any of them

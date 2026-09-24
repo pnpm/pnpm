@@ -10,6 +10,7 @@ import {
   type ApplyReleasePlanOptions,
   assembleReleasePlan,
   changelogStorage,
+  privateProjectDirs,
   readChangeIntents,
   readLedger,
   toProjectDir,
@@ -248,7 +249,8 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     enforceWorkspaceProtocol: true,
   }
   const publishedNames = publishedNameByManifestName(projects)
-  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames })
+  const privateDirs = privateProjectDirs(projects, workspaceDir)
+  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames, privateDirs })
   const plan = assembleReleasePlan({ ...baseArgs, unpublishedDirs })
 
   const applyOpts: ApplyReleasePlanOptions = {

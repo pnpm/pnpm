@@ -10,9 +10,15 @@ use crate::{
     changelog::{compose_changelog_section, prepend_changelog_section},
     error::VersioningError,
     intents::{ChangeIntent, IntentBumpType},
-    ledger::{Ledger, PackageConsumption, append_to_ledger, build_consumption_index},
+    ledger::{
+        Ledger, PackageConsumption, append_to_ledger, build_consumption_index,
+        normalize_project_dir,
+    },
     pending::{remove_pending_changelog, write_pending_changelog},
-    plan::{PlannedRelease, ProjectRefIndex, ReleasePlan, WorkspaceProject, index_project_refs},
+    plan::{
+        PlannedRelease, ProjectRefIndex, ReleasePlan, WorkspaceProject, index_project_refs,
+        private_project_dirs,
+    },
     settings::{ChangelogStorage, VersioningSettings, changelog_storage},
 };
 
@@ -38,6 +44,9 @@ pub struct AppliedRelease {
 /// section files are removed here, their prose now living in the published
 /// tarball. It is ignored in `repository` storage, where the committed
 /// changelog makes the ledger alone sufficient.
+///
+/// A private project is never published, so no tarball can ever carry its
+/// prose: its releases use `repository` storage whatever is configured.
 pub fn apply_release_plan(
     plan: &ReleasePlan,
     workspace_dir: &Path,
@@ -46,11 +55,14 @@ pub fn apply_release_plan(
     versioning: Option<&VersioningSettings>,
     confirmed_published: &HashSet<String>,
 ) -> Result<Vec<AppliedRelease>, VersioningError> {
-    let storage = changelog_storage(versioning);
+    let storage = ReleaseStorage {
+        configured: changelog_storage(versioning),
+        private_dirs: private_project_dirs(projects, workspace_dir),
+    };
 
     let applied = write_new_versions(plan)?;
     for release in &plan.releases {
-        write_changelog_section(release, workspace_dir, storage)?;
+        write_changelog_section(release, workspace_dir, storage.of(&release.dir))?;
     }
 
     let ledger = append_to_ledger(workspace_dir, &ledger_entries(plan))?;
@@ -59,13 +71,13 @@ pub fn apply_release_plan(
         all_intents,
         &refs,
         versioning,
-        &consumed_ledger(ledger, storage, confirmed_published),
+        &consumed_ledger(ledger, &storage, confirmed_published),
     )?;
 
     // A confirmed release's parked section has served its purpose — its prose
     // is now in the published tarball — so collect it regardless of whether
     // the intents behind it were also collected.
-    if storage == ChangelogStorage::Registry {
+    if storage.configured == ChangelogStorage::Registry {
         for key in confirmed_published {
             if let Some((name, version)) = split_ledger_key(key) {
                 remove_pending_changelog(workspace_dir, name, version)?;
@@ -74,6 +86,19 @@ pub fn apply_release_plan(
     }
 
     Ok(applied)
+}
+
+/// The changelog storage each release uses: the configured one, except for
+/// private projects, which always use `repository` storage.
+struct ReleaseStorage {
+    configured: ChangelogStorage,
+    private_dirs: HashSet<String>,
+}
+
+impl ReleaseStorage {
+    fn of(&self, dir: &str) -> ChangelogStorage {
+        if self.private_dirs.contains(dir) { ChangelogStorage::Repository } else { self.configured }
+    }
 }
 
 /// Stamp every released manifest with its new version.
@@ -138,16 +163,18 @@ fn ledger_entries(plan: &ReleasePlan) -> BTreeMap<String, (String, Vec<String>)>
 /// (see the function contract), so the ledger is filtered down to those.
 fn consumed_ledger(
     ledger: Ledger,
-    storage: ChangelogStorage,
+    storage: &ReleaseStorage,
     confirmed_published: &HashSet<String>,
 ) -> Ledger {
-    match storage {
-        ChangelogStorage::Repository => ledger,
-        ChangelogStorage::Registry => ledger
-            .into_iter()
-            .filter(|(key, _)| confirmed_published.contains(key))
-            .collect(),
-    }
+    ledger
+        .into_iter()
+        .filter(|(key, entry)| {
+            let entry_storage = entry
+                .dir()
+                .map_or(storage.configured, |dir| storage.of(&normalize_project_dir(dir)));
+            entry_storage == ChangelogStorage::Repository || confirmed_published.contains(key)
+        })
+        .collect()
 }
 
 /// Delete every intent file whose work is fully released.
