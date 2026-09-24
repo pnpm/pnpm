@@ -82,9 +82,10 @@ export async function handler (
 /**
  * Removes the dependencies that `pnpm link` added to the root project manifest
  * for the given `link:` overrides, in the manifest read from disk and in the
- * workspace projects the install reads. The caller writes the manifest back. `pnpm link` only writes `dependencies`, and a dependency is
- * removed only when it is a `link:` to the same directory as the override, so
- * a `link:` dependency the user declared elsewhere is kept.
+ * workspace projects the install reads. The caller writes the manifest back.
+ * `pnpm link` only writes `dependencies`, and a dependency is removed only when
+ * it is a `link:` to the same directory as the override, so a `link:`
+ * dependency the user declared elsewhere is kept.
  */
 async function removeLinkedDependencies (
   opts: install.InstallCommandOptions,
