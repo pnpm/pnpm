@@ -7,14 +7,19 @@ import { afterEach, expect, jest, test } from '@jest/globals'
 import { safeIsInnerLink } from '../src/safeIsInnerLink.js'
 
 const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
+const projectDirs: string[] = []
 
 afterEach(() => {
   jest.restoreAllMocks()
   Object.defineProperty(process, 'platform', platform)
+  for (const projectDir of projectDirs.splice(0)) {
+    fs.rmSync(projectDir, { recursive: true, force: true })
+  }
 })
 
 function createAlienModule (): { modulesDir: string, opts: Parameters<typeof safeIsInnerLink>[2] } {
   const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'safe-is-inner-link-'))
+  projectDirs.push(projectDir)
   const modulesDir = path.join(projectDir, 'node_modules')
   fs.mkdirSync(path.join(modulesDir, '@types/node'), { recursive: true })
   fs.writeFileSync(path.join(modulesDir, '@types/node/index.d.ts'), '')
