@@ -1,10 +1,12 @@
 //! Bring one directory tree in step with another by hardlinking, so an
 //! injected copy of a workspace package can be refreshed in place
-//! without re-running the installer.
+//! without re-running the installer. A target on another filesystem
+//! than its source gets copies instead.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_directory_fetcher::{DirectoryFetcher, DirectoryFetcherError};
+use pnpm_fs::{FsHardLink, Host, is_cross_device};
 use std::{
     collections::{BTreeMap, HashMap},
     fs, io,
@@ -26,7 +28,9 @@ pub struct FileId {
 /// A file carries its identity rather than its content, because that is
 /// all a hardlink comparison needs: two paths hold the same bytes
 /// exactly when they are the same file, so an unchanged file costs no
-/// filesystem work.
+/// filesystem work. A copy made because the target is on another
+/// filesystem never shares its source's identity, so every sync copies
+/// it again.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Value {
     Dir,
@@ -86,7 +90,7 @@ pub enum PatchError {
         error: io::Error,
     },
 
-    #[display("Failed to hardlink {source:?} to {target:?}: {error}")]
+    #[display("Failed to hardlink or copy {source:?} to {target:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_INJECTED_DEPS_SYNC_LINK))]
     Link {
         source: PathBuf,
@@ -170,6 +174,14 @@ pub fn apply_patch(
     source_dir: &Path,
     target_dir: &Path,
 ) -> Result<(), PatchError> {
+    apply_patch_with_link::<Host>(patch, source_dir, target_dir)
+}
+
+pub(crate) fn apply_patch_with_link<Sys: FsHardLink>(
+    patch: &DirDiff,
+    source_dir: &Path,
+    target_dir: &Path,
+) -> Result<(), PatchError> {
     for path in &patch.removed {
         remove_recursive(&target_dir.join(path))?;
     }
@@ -177,12 +189,16 @@ pub fn apply_patch(
         .iter()
         .partition(|change| change.new_value == Value::Dir);
     for change in new_dirs.into_iter().chain(new_files) {
-        apply_change(change, source_dir, target_dir)?;
+        apply_change_with_link::<Sys>(change, source_dir, target_dir)?;
     }
     Ok(())
 }
 
-fn apply_change(change: &Change, source_dir: &Path, target_dir: &Path) -> Result<(), PatchError> {
+fn apply_change_with_link<Sys: FsHardLink>(
+    change: &Change,
+    source_dir: &Path,
+    target_dir: &Path,
+) -> Result<(), PatchError> {
     let target_path = target_dir.join(&change.path);
     if change.old_value.is_some() {
         remove_recursive(&target_path)?;
@@ -195,7 +211,7 @@ fn apply_change(change: &Change, source_dir: &Path, target_dir: &Path) -> Result
         Value::File(_) => {
             let source_path = source_dir.join(&change.path);
             retry_over_blocking_inode(&target_path, || {
-                fs::hard_link(&source_path, &target_path)
+                link_or_copy::<Sys>(&source_path, &target_path)
                     .map_err(|error| PatchError::Link {
                         source: source_path.clone(),
                         target: target_path.clone(),
@@ -203,6 +219,15 @@ fn apply_change(change: &Change, source_dir: &Path, target_dir: &Path) -> Result
                     })
             })
         }
+    }
+}
+
+fn link_or_copy<Sys: FsHardLink>(source_path: &Path, target_path: &Path) -> io::Result<()> {
+    match Sys::hard_link(source_path, target_path) {
+        Err(error) if is_cross_device(&error) => {
+            pnpm_fs::copy_file_atomic(source_path, target_path)
+        }
+        result => result,
     }
 }
 

@@ -11,6 +11,7 @@ import { applyPatch, DIR, type DirDiff } from '../src/DirPatcher.js'
 const originalRm = fs.promises.rm
 const originalMkdir = fs.promises.mkdir
 const originalLink = fs.promises.link
+const originalCopyFile = fs.promises.copyFile
 
 test('waits for child removal before recursively removing its parent', async () => {
   const targetDir = path.resolve('target')
@@ -56,6 +57,7 @@ function restoreAllMocks (): void {
   fs.promises.rm = originalRm
   fs.promises.mkdir = originalMkdir
   fs.promises.link = originalLink
+  fs.promises.copyFile = originalCopyFile
 }
 
 afterEach(restoreAllMocks)
@@ -231,4 +233,54 @@ test('applies a patch on a directory', async () => {
 
   expect(fsMethods.mkdir).toHaveBeenCalledWith(path.resolve('target', 'files-to-add'), expect.anything())
   expect(fsMethods.mkdir).toHaveBeenCalledWith(path.resolve('target', 'files-to-add/a'), expect.anything())
+})
+
+test('falls back to copy when link fails with EXDEV', async () => {
+  prepareEmpty()
+
+  createFile('source/file.txt', 'hello world')
+  createDir('target')
+
+  fs.promises.link = jest.fn<typeof fs.promises.link>(async () => {
+    throw Object.assign(new Error('cross-device link not permitted'), { code: 'EXDEV' })
+  })
+
+  await applyPatch({
+    added: [
+      { path: 'file.txt', newValue: 'source/file.txt' },
+    ],
+    removed: [],
+    modified: [],
+  }, path.resolve('source'), path.resolve('target'))
+
+  expect(fs.readFileSync('target/file.txt', 'utf8')).toBe('hello world')
+  expect(fs.readdirSync('target')).toStrictEqual(['file.txt'])
+})
+
+// Creating a file symlink needs extra privileges on Windows.
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+
+testOnPosix('does not copy through a symlink that occupies the target when link fails with EXDEV', async () => {
+  prepareEmpty()
+
+  createFile('source/file.txt', 'hello world')
+  createFile('victim.txt', 'untouched')
+  createDir('target')
+  fs.symlinkSync(path.resolve('victim.txt'), path.resolve('target/file.txt'))
+
+  fs.promises.link = jest.fn<typeof fs.promises.link>(async () => {
+    throw Object.assign(new Error('cross-device link not permitted'), { code: 'EXDEV' })
+  })
+
+  await applyPatch({
+    added: [
+      { path: 'file.txt', newValue: 'source/file.txt' },
+    ],
+    removed: [],
+    modified: [],
+  }, path.resolve('source'), path.resolve('target'))
+
+  expect(fs.readFileSync('victim.txt', 'utf8')).toBe('untouched')
+  expect(fs.lstatSync('target/file.txt').isSymbolicLink()).toBe(false)
+  expect(fs.readFileSync('target/file.txt', 'utf8')).toBe('hello world')
 })

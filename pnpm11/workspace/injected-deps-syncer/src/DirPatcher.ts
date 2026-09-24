@@ -3,6 +3,8 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { fetchFromDir, type FetchFromDirOptions } from '@pnpm/fetching.directory-fetcher'
+import { renameFileWithRetry } from '@pnpm/fs.graceful-fs'
+import { pathTemp } from 'path-temp'
 
 export const DIR: unique symbol = Symbol('Path is a directory')
 
@@ -91,9 +93,38 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
       await retryOverBlockingInode(targetPath, async () => fs.promises.mkdir(targetPath, { recursive: true }))
     } else if (typeof value === 'string') {
       fs.mkdirSync(path.dirname(targetPath), { recursive: true })
-      await retryOverBlockingInode(targetPath, async () => fs.promises.link(sourcePath, targetPath))
+      await retryOverBlockingInode(targetPath, async () => linkOrCopy(sourcePath, targetPath))
     } else {
       const _: never = value // static type guard
+    }
+  }
+
+  async function linkOrCopy (sourcePath: string, targetPath: string): Promise<void> {
+    try {
+      await fs.promises.link(sourcePath, targetPath)
+    } catch (error) {
+      if (util.types.isNativeError(error) && 'code' in error && error.code === 'EXDEV') {
+        await copyIntoPlace(sourcePath, targetPath)
+        return
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Copy through a temp sibling, so that a reader of the target never sees a
+   * partial copy. The rename replaces a symlink at the target without following
+   * it.
+   */
+  async function copyIntoPlace (sourcePath: string, targetPath: string): Promise<void> {
+    // A random name, since concurrent syncs share the thread that writes it.
+    const tempPath = pathTemp(path.dirname(targetPath))
+    try {
+      await fs.promises.copyFile(sourcePath, tempPath, fs.constants.COPYFILE_EXCL)
+      renameFileWithRetry(tempPath, targetPath)
+    } catch (error) {
+      await fs.promises.rm(tempPath, { force: true })
+      throw error
     }
   }
 
