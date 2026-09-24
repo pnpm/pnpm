@@ -109,6 +109,18 @@ pub fn npmrc_with_invalid_utf8_is_still_read() {
 }
 
 #[test]
+pub fn npmrc_with_utf8_bom_parses_first_setting() {
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join(".npmrc"), b"\xef\xbb\xbfregistry=https://example.invalid/\n")
+        .expect("write .npmrc");
+
+    let config = Config::default().current::<HostNoHome>(project.path()).expect("load config");
+
+    assert_eq!(config.registry, "https://example.invalid/");
+    assert_eq!(config.npmrc_warnings, Vec::<String>::new());
+}
+
+#[test]
 pub fn unresolved_env_placeholder_keeps_the_rest_of_the_npmrc() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");

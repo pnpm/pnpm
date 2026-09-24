@@ -103,6 +103,7 @@ impl NpmrcAuth {
         npmrc_dir: &Path,
         opts: ParseOptions,
     ) -> Self {
+        let text = text.strip_prefix('\u{feff}').unwrap_or(text);
         let mut auth = NpmrcAuth::default();
         for line in text.lines() {
             let Some((raw_key, raw_value)) = split_ini_line(line) else {
