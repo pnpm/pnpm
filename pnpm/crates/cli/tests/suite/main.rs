@@ -92,6 +92,7 @@ mod loglevel;
 mod logout;
 mod minimum_release_age;
 mod modules_dir;
+mod modules_dir_with_subdirectory;
 mod multiple_importers;
 mod named_registry_install;
 mod nested_file_dependencies;

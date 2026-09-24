@@ -13,8 +13,8 @@ mod hoist_plan;
 use super::{
     AtomicU8, BTreeMap, BTreeSet, Config, DependencyGroup, Diagnostic, Display, Error, HashMap,
     HoistedDepGraphError, IncludedDependencies, LinkHoistedModulesError, LinkHoistedModulesOpts,
-    Lockfile, LockfileToHoistedDepGraphOptions, NodeLinker, OsStr, PackageKey, Path, PathBuf,
-    Reporter, SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
+    Lockfile, LockfileToHoistedDepGraphOptions, NodeLinker, PackageKey, Path, PathBuf, Reporter,
+    SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
     SymlinkPackageError, link_hoisted_modules, lockfile_to_hoisted_dep_graph,
 };
 

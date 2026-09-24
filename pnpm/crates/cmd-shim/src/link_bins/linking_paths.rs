@@ -123,8 +123,9 @@ pub(super) fn shim_node_path(
 fn project_modules_dir<'a>(bins_dir: &'a Path, options: &LinkBinsOptions) -> Option<&'a Path> {
     let name = options.project_modules_dir_name.as_deref()?;
     let modules_dir = bins_dir.parent()?;
-    (bins_dir.file_name() == Some(OsStr::new(".bin")) && modules_dir.file_name() == Some(name))
-        .then_some(modules_dir)
+    (bins_dir.file_name() == Some(OsStr::new(".bin")) && modules_dir.ends_with(name)).then_some(
+        modules_dir,
+    )
 }
 
 fn resolve(path: &Path) -> Result<PathBuf, LinkBinsError> {

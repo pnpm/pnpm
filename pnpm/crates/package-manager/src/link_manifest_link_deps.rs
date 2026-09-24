@@ -28,19 +28,14 @@ pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
     modules_dir_name: &std::ffi::OsStr,
     link_options: &LinkBinsOptions,
 ) -> Result<(), LinkManifestLinkDepsError> {
-    // The name must be a single normal path component. The install
-    // call site derives it from `config.modules_dir.file_name()`,
-    // which by construction never yields `.`, `..`, or a separator —
-    // but this helper is public, and joined below it decides where
-    // symlinks (which force-replace squatters) land, so it enforces
-    // the contract itself rather than trusting every caller.
-    let valid_name = matches!(
-        Path::new(modules_dir_name)
-            .components()
-            .collect::<Vec<_>>()
-            .as_slice(),
-        [std::path::Component::Normal(_)],
-    );
+    // The name must be a relative path of normal components, which
+    // `Config::modules_dir_name` guarantees — but this helper is public,
+    // and joined below it decides where symlinks (which force-replace
+    // squatters) land, so it enforces the contract itself rather than
+    // trusting every caller.
+    let mut components = Path::new(modules_dir_name).components().peekable();
+    let valid_name = components.peek().is_some()
+        && components.all(|component| matches!(component, std::path::Component::Normal(_)));
     if !valid_name {
         return Err(LinkManifestLinkDepsError::InvalidModulesDirName {
             modules_dir_name: modules_dir_name.to_string_lossy().into_owned(),
@@ -50,11 +45,6 @@ pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
         let importer_snapshot = importers.and_then(|importers| {
             importers.get(&pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir))
         });
-        // The per-project modules dir honors a `modulesDir` override
-        // the same way `SymlinkDirectDependencies` does — the caller
-        // passes `config.modules_dir`'s basename, so a
-        // `modulesDir: custom_modules` config doesn't grow a stray
-        // `node_modules/` next to the intended tree.
         let modules_dir = project_dir.join(modules_dir_name);
         let project = ProjectLinks {
             project_dir,

@@ -68,14 +68,14 @@ pub(crate) fn tree_may_move(config: &Config, node_linker: NodeLinker) -> bool {
 /// Whether a tree that moved with its project keeps working where it is now:
 /// [`tree_may_move`], and every importer, hoist, virtual-store slot and
 /// hoisted-package `.bin` holds only bins that name their paths relative to
-/// themselves, inside the directory holding `config.modules_dir`.
+/// themselves, inside [`Config::modules_dir_anchor`].
 pub(crate) fn moved_tree_is_reusable(
     config: &Config,
     node_linker: NodeLinker,
     project_manifests: &[(PathBuf, &PackageManifest)],
     lockfile: &Lockfile,
 ) -> bool {
-    let Some(root) = config.modules_dir.parent() else { return false };
+    let Some(root) = config.modules_dir_anchor() else { return false };
     tree_may_move(config, node_linker)
         && importer_bins_are_relocatable(config, project_manifests, root)
         && match node_linker {
@@ -89,8 +89,7 @@ fn importer_bins_are_relocatable(
     project_manifests: &[(PathBuf, &PackageManifest)],
     root: &Path,
 ) -> bool {
-    let modules_dir_name: &std::ffi::OsStr =
-        config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
+    let modules_dir_name: &std::ffi::OsStr = config.modules_dir_name();
     bin_dir_is_relocatable(&config.modules_dir.join(".bin"), root)
         && project_manifests
             .iter()
