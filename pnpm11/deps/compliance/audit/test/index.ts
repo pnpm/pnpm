@@ -147,7 +147,6 @@ describe('audit', () => {
 
   test('buildAuditPathIndex() stops reading saturated vulnerable nodes', () => {
     let vulnReads = 0
-    const importers: Record<ProjectId, { dependencies: Record<string, string>, specifiers: Record<string, string> }> = {}
     const packages: PackageSnapshots = {}
     Object.defineProperty(packages, 'vuln@1.0.0', {
       enumerable: true,
@@ -156,20 +155,37 @@ describe('audit', () => {
         return { resolution: { integrity: 'vuln-integrity' } }
       },
     })
-    for (let i = 0; i < 150; i++) {
-      importers[`.${i}` as ProjectId] = {
-        dependencies: { vuln: '1.0.0' },
-        specifiers: { vuln: '1.0.0' },
-      }
-    }
+    const { dependencies, specifiers } = addFanOutToVuln(packages, 150)
     const result = buildAuditPathIndex({
-      importers,
+      importers: { ['.' as ProjectId]: { dependencies, specifiers } },
       lockfileVersion: LOCKFILE_VERSION,
       packages,
     }, new Set(['vuln']), { depTypes: {}, optionalOnly: new Set() })
 
     expect(result['vuln']!.get('1.0.0')!.paths).toHaveLength(100)
     expect(vulnReads).toBe(101)
+  })
+
+  test('buildAuditPathIndex() records a path from every importer after the finding is saturated', () => {
+    const packages: PackageSnapshots = {
+      ['vuln@1.0.0' as DepPath]: { resolution: { integrity: 'vuln-integrity' } },
+    }
+    const { dependencies, specifiers } = addFanOutToVuln(packages, 150)
+    const result = buildAuditPathIndex({
+      importers: {
+        ['packages/a' as ProjectId]: { dependencies, specifiers },
+        ['packages/b' as ProjectId]: {
+          dependencies: { vuln: '1.0.0' },
+          specifiers: { vuln: '1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages,
+    }, new Set(['vuln']), { depTypes: {}, optionalOnly: new Set() })
+
+    const paths = result['vuln']!.get('1.0.0')!.paths
+    expect(paths).toHaveLength(101)
+    expect(paths).toContain('packages__b>vuln')
   })
 
   test('buildAuditPathIndex() classifies as optional when the only non-optional path runs through an excluded devDependency', () => {
@@ -1152,3 +1168,17 @@ describe('audit', () => {
     }
   })
 })
+
+function addFanOutToVuln (packages: PackageSnapshots, count: number): { dependencies: Record<string, string>, specifiers: Record<string, string> } {
+  const dependencies: Record<string, string> = {}
+  const specifiers: Record<string, string> = {}
+  for (let i = 0; i < count; i++) {
+    dependencies[`parent${i}`] = '1.0.0'
+    specifiers[`parent${i}`] = '1.0.0'
+    packages[`parent${i}@1.0.0` as DepPath] = {
+      dependencies: { vuln: '1.0.0' },
+      resolution: { integrity: `parent${i}-integrity` },
+    }
+  }
+  return { dependencies, specifiers }
+}
