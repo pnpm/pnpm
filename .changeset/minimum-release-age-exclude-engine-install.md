@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Approving a `minimumReleaseAge` prompt during package manager engine installation now persists the exclusions to `pnpm-workspace.yaml` [#15396](https://github.com/pnpm/pnpm/issues/15396).
+When pnpm switches to the version a project pins, the `minimumReleaseAge` approvals for that version are now added to `minimumReleaseAgeExclude` in the project's `pnpm-workspace.yaml`. A project without that file gets one. Global commands leave the project's settings unchanged [#15396](https://github.com/pnpm/pnpm/issues/15396).

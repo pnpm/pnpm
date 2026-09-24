@@ -76,6 +76,32 @@ async fn run_install_ignores_an_ambient_workspace_manifest_above_the_install_dir
 
 #[tokio::test]
 async fn run_install_persists_minimum_release_age_excludes_to_target_workspace() {
+    let (temp, workspace_yaml) = engine_install_with_immature_release(true).await;
+
+    let install_manifest = temp.path().join("engine-slot/pnpm-workspace.yaml");
+    assert!(!install_manifest.exists());
+    let manifest = fs::read_to_string(&workspace_yaml).expect("read workspace yaml");
+    assert!(manifest.contains("minimumReleaseAgeExclude:"), "{manifest}");
+    assert!(manifest.contains("@pnpm.e2e/hello-world-js-bin@1.0.0"), "{manifest}");
+}
+
+#[tokio::test]
+async fn run_install_leaves_the_caller_workspace_alone_without_a_target() {
+    let (temp, workspace_yaml) = engine_install_with_immature_release(false).await;
+
+    let manifest = fs::read_to_string(&workspace_yaml).expect("read workspace yaml");
+    assert_eq!(manifest, "packages:\n  - packages/*\n");
+    let install_manifest = fs::read_to_string(temp.path().join("engine-slot/pnpm-workspace.yaml"))
+        .expect("read the install dir's workspace yaml");
+    assert!(install_manifest.contains("@pnpm.e2e/hello-world-js-bin@1.0.0"), "{install_manifest}");
+}
+
+/// Install an immature engine package, with `minimumReleaseAgeStrict` off,
+/// on behalf of a workspace that is the install's `target_workspace_dir`
+/// when `targeted`. Returns the temp root and that workspace's manifest.
+async fn engine_install_with_immature_release(
+    targeted: bool,
+) -> (tempfile::TempDir, std::path::PathBuf) {
     let registry = TestRegistry::start();
     let temp = tempfile::tempdir().expect("tempdir");
     let workspace_dir = temp.path().join("workspace");
@@ -90,6 +116,7 @@ async fn run_install_persists_minimum_release_age_excludes_to_target_workspace()
         store_dir: StoreDir::new(temp.path().join("store")),
         cache_dir: temp.path().join("cache"),
         workspace_dir: Some(workspace_dir.clone()),
+        target_workspace_dir: targeted.then(|| workspace_dir.clone()),
         minimum_release_age: Some(60 * 24 * 365 * 100),
         minimum_release_age_strict: Some(false),
         ..Config::default()
@@ -107,11 +134,8 @@ async fn run_install_persists_minimum_release_age_excludes_to_target_workspace()
     )
     .await
     .expect("install engine package");
-
-    assert!(!install_dir.join("pnpm-workspace.yaml").exists());
-    let manifest = fs::read_to_string(&workspace_yaml).expect("read workspace yaml");
-    assert!(manifest.contains("minimumReleaseAgeExclude:"));
-    assert!(manifest.contains("@pnpm.e2e/hello-world-js-bin@1.0.0"));
+    drop(registry);
+    (temp, workspace_yaml)
 }
 
 #[test]

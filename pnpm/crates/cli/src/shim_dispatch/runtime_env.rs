@@ -98,9 +98,6 @@ pub(super) fn hardened_install_config(
         install_config.global_virtual_store_dir = global_virtual_store_dir;
     }
     install_config.node_linker = NodeLinker::Isolated;
-    install_config.target_workspace_dir = install_config.target_workspace_dir
-        .take()
-        .or_else(|| install_config.workspace_dir.clone());
     install_config.workspace_dir = Some(environment_dir.to_path_buf());
     install_config.lockfile = true;
     install_config.frozen_lockfile = Some(false);
