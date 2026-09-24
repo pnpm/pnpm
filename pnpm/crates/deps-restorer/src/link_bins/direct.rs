@@ -287,8 +287,8 @@ fn read_manifest_at(manifest_path: &Path) -> Result<Option<serde_json::Value>, L
         .map_err(|error| LinkBinsError::ParseManifest { path: manifest_path.to_path_buf(), error })
 }
 
-/// The manifest of the nearest project enclosing `target`, if that
-/// project's `publishConfig.directory` is `target`.
+/// The manifest of a project enclosing `target` whose
+/// `publishConfig.directory` is `target`.
 fn read_parent_publish_manifest(target: &Path) -> Result<Option<serde_json::Value>, LinkBinsError> {
     let normalized_target = pnpm_fs::lexical_normalize(target);
     for parent in target.ancestors().skip(1) {
@@ -298,7 +298,9 @@ fn read_parent_publish_manifest(target: &Path) -> Result<Option<serde_json::Valu
             .and_then(|cfg| cfg.get("directory"))
             .and_then(serde_json::Value::as_str)
             .is_some_and(|dir| pnpm_fs::lexical_normalize(&parent.join(dir)) == normalized_target);
-        return Ok(is_publish_dir.then_some(manifest));
+        if is_publish_dir {
+            return Ok(Some(manifest));
+        }
     }
     Ok(None)
 }
@@ -311,12 +313,13 @@ pub(super) fn read_dep_bin_source(
     name: &str,
     target: &Path,
 ) -> Option<Result<PackageBinSource, LinkBinsError>> {
-    read_dep_manifest(modules_dir, name, Some(target)).map(|result| {
-        result.map(|(location, manifest)| {
-            PackageBinSource::new(location, Arc::new(manifest))
-                .with_resolved_location(target.to_path_buf())
+    read_dep_manifest(modules_dir, name, Some(target))
+        .map(|result| {
+            result.map(|(location, manifest)| {
+                PackageBinSource::new(location, Arc::new(manifest))
+                    .with_resolved_location(target.to_path_buf())
+            })
         })
-    })
 }
 /// Reads `<modules_dir>/<name>/package.json`. A dependency linked to a
 /// `publishConfig.directory` that has no manifest of its own falls back

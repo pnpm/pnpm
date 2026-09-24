@@ -835,13 +835,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
             await linkBinsOfPackages(
               (
                 await Promise.all(
-                  directPkgDirs.map(async (dir) => {
-                    const manifest = await safeReadPublishManifest(dir)
-                    return {
-                      location: dir,
-                      manifest,
-                    }
-                  })
+                  directPkgDirs.map(async (dir) => ({
+                    location: dir,
+                    manifest: await safeReadPublishManifest(dir),
+                  }))
                 )
               )
                 .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,

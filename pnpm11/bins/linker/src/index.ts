@@ -10,7 +10,7 @@ import { globalWarn, logger } from '@pnpm/logger'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import type { DependencyManifest, EngineDependency, ProjectManifest } from '@pnpm/types'
-import { safeReadProjectManifestOnly, safeReadPublishManifest } from '@pnpm/workspace.project-manifest-reader'
+import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { rimraf } from '@zkochan/rimraf'
 import fixBin from 'bin-links/lib/fix-bin.js'
 import { isSubdir } from 'is-subdir'
@@ -241,7 +241,7 @@ async function getPackageBins (
     } catch (err: unknown) {
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
     }
-    manifest = (await safeReadPublishManifest(realTarget)) as DependencyManifest
+    manifest = (await safeReadParentPublishManifest(realTarget)) as DependencyManifest
   }
 
   if (manifest == null) {
