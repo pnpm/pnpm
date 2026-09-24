@@ -303,7 +303,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             return Ok(Some(result));
         }
 
-        warn_once_on_trust_downgrade_fallback(picked);
+        warn_once_on_trust_downgrade_fallback(&spec.name, picked);
         self.registry_pick_result(wanted_dependency, opts, spec, registry, picked)
     }
 

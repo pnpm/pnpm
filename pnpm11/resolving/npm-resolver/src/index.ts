@@ -813,7 +813,7 @@ async function resolveNpm (
     }
   }
 
-  warnOnceOnTrustDowngradeFallback(ctx, meta.name, pickedPackage.version, trustDowngradesSkipped)
+  warnOnceOnTrustDowngradeFallback(ctx, spec.name, pickedPackage.version, trustDowngradesSkipped)
   warnOnceOnHeldBackUpdate(ctx, opts, spec, meta, pickedPackage.version)
   const selectedPackage = selectPackageRevision(pickedPackage, spec, registry)
   const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId

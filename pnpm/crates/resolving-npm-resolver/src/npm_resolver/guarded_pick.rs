@@ -245,11 +245,10 @@ static WARNED_TRUST_DOWNGRADE_FALLBACKS: std::sync::LazyLock<
 
 /// Warns once per `name@picked` that the trust check skipped newer
 /// candidates, naming at most [`MAX_SKIPPED_VERSIONS_IN_WARNING`] of them.
-pub(crate) fn warn_once_on_trust_downgrade_fallback(picked: &PickedFromRegistry) {
+pub(crate) fn warn_once_on_trust_downgrade_fallback(name: &str, picked: &PickedFromRegistry) {
     if picked.trust_downgrades_skipped.is_empty() {
         return;
     }
-    let name = &picked.meta.name;
     let picked_version = picked.version.version.to_string();
     let key = format!("{name}@{picked_version}");
     if !crate::warn_once::first_warning(
