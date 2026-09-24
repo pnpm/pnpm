@@ -50,6 +50,19 @@ test('readWantedLockfile()', async () => {
   ).rejects.toMatchObject({ code: 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE' })
 })
 
+test('readWantedLockfile() reports the incompatible and supported lockfile versions', async () => {
+  const projectPath = temporaryDirectory()
+  await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), 'lockfileVersion: \'6.0\'\nimporters:\n  .:\n    specifiers: {}\n')
+
+  const error = await readWantedLockfile(projectPath, {
+    ignoreIncompatible: false,
+    wantedVersions: ['9.0'],
+  }).catch((err: unknown) => err)
+
+  expect(error).toMatchObject({ code: 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE' })
+  expect((error as Error).message).toBe(`Lockfile ${path.join(projectPath, 'pnpm-lock.yaml')} not compatible with current pnpm: it was generated with lockfileVersion 6.0, but the current pnpm version supports lockfileVersion 9.0`)
+})
+
 test('readWantedLockfile() does not include lockfile content in parse errors', async () => {
   const projectPath = temporaryDirectory()
   const secret = 'aws_secret_access_key = marker-secret'
