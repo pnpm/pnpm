@@ -2001,3 +2001,35 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
     expect(result.issue).toBe(MISSING_MODULES_DIR)
   })
 })
+
+describe('checkDepsStatus - moved project', () => {
+  beforeEach(() => {
+    jest.resetModules()
+    jest.clearAllMocks()
+  })
+
+  it('returns upToDate: false when the single project was installed in another directory', async () => {
+    const settings = {
+      excludeLinksFromLockfile: false,
+      linkWorkspacePackages: true,
+      preferWorkspacePackages: true,
+    }
+    jest.mocked(loadWorkspaceState).mockReturnValue({
+      lastValidatedTimestamp: Date.now() - 10_000,
+      pnpmfiles: [],
+      settings,
+      projects: { ['/old/project' as ProjectRootDir]: { name: 'project', version: '1.0.0' } },
+      filteredInstall: false,
+    })
+
+    const result = await checkDepsStatus({
+      rootProjectManifest: { name: 'project', version: '1.0.0' },
+      rootProjectManifestDir: '/new/project',
+      pnpmfile: [],
+      ...settings,
+    })
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The project directory has changed since last install')
+  })
+})

@@ -545,6 +545,13 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   }
 
   if (rootProjectManifest && rootProjectManifestDir) {
+    if (recordedInAnotherDirectory(workspaceState, rootProjectManifestDir)) {
+      return {
+        upToDate: false,
+        issue: 'The project directory has changed since last install',
+        workspaceState,
+      }
+    }
     const internalPnpmDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
     const currentLockfilePromise = readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
     const wantedLockfilePromise = readWantedLockfile(rootProjectManifestDir, {
@@ -1060,4 +1067,15 @@ function resolvesToSameTarget (rootDir: string, rootVersion: string, projectDir:
   if (rootLink !== projectLink) return false
   if (!rootLink) return rootVersion === version
   return path.resolve(rootDir, rootVersion.slice('link:'.length)) === path.resolve(projectDir, version.slice('link:'.length))
+}
+
+/**
+ * `projectsToRecordInWorkspaceState` in `@pnpm/installing.commands` explains
+ * why a moved project needs a real install. A state file without a recorded
+ * project is never reported as recorded elsewhere.
+ */
+function recordedInAnotherDirectory (workspaceState: WorkspaceState, projectDir: string): boolean {
+  const recordedProjectDirs = Object.keys(workspaceState.projects)
+  return recordedProjectDirs.length > 0 &&
+    !recordedProjectDirs.some(dir => path.relative(dir, projectDir) === '')
 }
