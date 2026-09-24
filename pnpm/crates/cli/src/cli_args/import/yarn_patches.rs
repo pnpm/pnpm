@@ -129,25 +129,41 @@ pub(super) fn convert_yarn_patches(
             .wrap_err_with(|| format!("saving {}", manifest.path().display()))?;
         converted.manifests_changed = true;
         for (alias, patch) in patches {
-            let patch_path = match patch.patch_paths.as_slice() {
-                [] => continue,
-                [patch_path] => patch_path,
-                _ => {
-                    converted.dropped.push(DroppedPatch::Several { alias });
+            let patch_file = single_patch_file(alias, &patch.patch_paths, yarn_root, &project_dir);
+            let patch_file = match patch_file {
+                Ok(patch_file) => patch_file,
+                Err(dropped) => {
+                    converted.dropped.push(dropped);
                     continue;
                 }
             };
-            let patch_file = patch_file_path(patch_path, yarn_root, &project_dir);
-            if !patch_file.is_file() {
-                converted.dropped.push(DroppedPatch::Missing { alias, patch_file });
-                continue;
-            }
+            let Some(patch_file) = patch_file else { continue };
             patched_dependencies
                 .entry(patch.patch_key)
                 .or_insert_with(|| workspace_relative_path(&patch_file, workspace_dir));
         }
     }
     Ok(converted)
+}
+
+/// The one patch file pnpm can apply, or `None` when Yarn listed only
+/// builtin patches.
+fn single_patch_file(
+    alias: String,
+    patch_paths: &[String],
+    yarn_root: &Path,
+    project_dir: &Path,
+) -> Result<Option<PathBuf>, DroppedPatch> {
+    let patch_path = match patch_paths {
+        [] => return Ok(None),
+        [patch_path] => patch_path,
+        _ => return Err(DroppedPatch::Several { alias }),
+    };
+    let patch_file = patch_file_path(patch_path, yarn_root, project_dir);
+    if !patch_file.is_file() {
+        return Err(DroppedPatch::Missing { alias, patch_file });
+    }
+    Ok(Some(patch_file))
 }
 
 fn replace_patch_specifiers(manifest: &mut Value) -> Vec<(String, YarnPatchSpecifier)> {
