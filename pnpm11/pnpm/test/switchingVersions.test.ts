@@ -378,7 +378,7 @@ test('devEngines.packageManager without onFail=download does not switch version'
   expect(stdout.toString()).not.toContain('Version 9.3.0')
 })
 
-test('pnpm fetch installs the pnpm the lockfile pins, so an offline command can switch to it (#11808)', async () => {
+test('pnpm fetch installs the pnpm the lockfile pins, so an offline command can switch to it (pnpm/pnpm#11808)', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const manifest = {

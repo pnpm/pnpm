@@ -182,7 +182,7 @@ fn package_manager_dependencies_are_resolved(env: &EnvLockfile, version: &str) -
             .is_some_and(|dep| dep.version == version)
 }
 
-pub(super) fn assert_package_manager_lockfile_uses_registry_resolutions(
+fn assert_package_manager_lockfile_uses_registry_resolutions(
     env: &EnvLockfile,
 ) -> miette::Result<()> {
     let mut visited = HashSet::new();
