@@ -69,6 +69,8 @@ export interface Options {
 type InternalOptions = Options & Required<Pick<Options, keyof typeof DEFAULT_OPTIONS>> & {
   fs_: FsPromises
   isTargetMissing?: boolean
+  /** Reject a missing source instead of shimming it. */
+  requireSource?: boolean
 }
 
 type FsPromises = Pick<typeof fs.promises, 'chmod' | 'mkdir' | 'readFile' | 'stat' | 'unlink' | 'writeFile'>
@@ -146,10 +148,8 @@ export async function cmdShim (src: string, to: string, opts?: Options): Promise
  * @param opts Options.
  */
 export async function cmdShimIfExists (src: string, to: string, opts?: Options): Promise<void> {
-  const opts_ = ingestOptions(opts)
   try {
-    if (!await exists(src, opts_) && !(isWindows && await exists(`${src}${getExeExtension()}`, opts_))) return
-    await cmdShim_(src, to, opts_)
+    await cmdShim_(src, to, { ...ingestOptions(opts), requireSource: true })
   } catch {}
 }
 
@@ -265,6 +265,7 @@ async function searchScriptRuntime (target: string, opts: InternalOptions): Prom
         additionalArgs: '',
       }
     }
+    if (opts.requireSource) throw err
     return { ...runtimeFromExtension(target), isTargetMissing: true }
   }
 
