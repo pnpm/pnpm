@@ -315,6 +315,7 @@ async function getChangedDirsSinceCommit (
         'diff',
         '--name-only',
         '--no-relative',
+        '--no-renames',
         // Keeps an option-like `<since>` (`--output=...`) from being
         // parsed as a git option — git rejects it as a bad revision.
         '--end-of-options',

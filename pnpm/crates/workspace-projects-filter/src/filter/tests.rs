@@ -676,6 +676,46 @@ mod changed_packages {
     }
 
     #[test]
+    fn select_changed_packages_when_file_moved_between_packages() {
+        let workspace = TempDir::new().expect("create tempdir");
+        let workspace_dir = workspace.path();
+        init_repo(workspace_dir);
+        git(workspace_dir, &["config", "diff.renames", "true"]);
+
+        let pkg_1_dir = workspace_dir.join("package-1");
+        let pkg_2_dir = workspace_dir.join("package-2");
+        touch(&pkg_1_dir.join("moved-file.js"));
+        fs::write(pkg_1_dir.join("moved-file.js"), "export const a = 1;\n")
+            .expect("write moved-file");
+        fs::create_dir_all(&pkg_2_dir).expect("create package-2");
+        commit_all(workspace_dir);
+
+        git(
+            workspace_dir,
+            &[
+                "mv",
+                &pkg_1_dir.join("moved-file.js").to_string_lossy(),
+                &pkg_2_dir.join("moved-file.js").to_string_lossy(),
+            ],
+        );
+        commit_all(workspace_dir);
+
+        let graph = graph_of(&[workspace_dir, &pkg_1_dir, &pkg_2_dir]);
+
+        let opts = FilterWorkspaceProjectsOptions {
+            workspace_dir: workspace_dir.to_path_buf(),
+            ..Default::default()
+        };
+        let path_of = |dir: &Path| dir.to_string_lossy().into_owned();
+
+        let mut actual = selected(&graph, &[diff_selector("HEAD~1")], &opts);
+        actual.sort();
+        let mut expected = vec![path_of(&pkg_1_dir), path_of(&pkg_2_dir)];
+        expected.sort();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn select_changed_packages_under_git_worktree() {
         let main_repo = TempDir::new().expect("create tempdir");
         let main_repo_dir = main_repo.path();

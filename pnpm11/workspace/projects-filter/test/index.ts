@@ -518,6 +518,71 @@ test('select changed packages', async () => {
   }
 })
 
+test('select changed packages when a file is moved between packages', async () => {
+  if (isCI && isWindows()) {
+    return
+  }
+
+  const workspaceDir = temporaryDirectory() as ProjectRootDir
+  await execa('git', ['init', '--initial-branch=main'], { cwd: workspaceDir })
+  await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: workspaceDir })
+  await execa('git', ['config', 'user.name', 'xyz'], { cwd: workspaceDir })
+  await execa('git', ['config', 'diff.renames', 'true'], { cwd: workspaceDir })
+  await execa('git', ['commit', '--allow-empty', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
+
+  const pkg1Dir = path.join(workspaceDir, 'package-1') as ProjectRootDir
+  const pkg2Dir = path.join(workspaceDir, 'package-2') as ProjectRootDir
+
+  await mkdir(pkg1Dir)
+  await mkdir(pkg2Dir)
+  fs.writeFileSync(path.join(pkg1Dir, 'moved-file.js'), 'export const a = 1;\n')
+
+  await execa('git', ['add', '.'], { cwd: workspaceDir })
+  await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
+
+  await execa('git', ['mv', path.join(pkg1Dir, 'moved-file.js'), path.join(pkg2Dir, 'moved-file.js')], { cwd: workspaceDir })
+  await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
+
+  const projectsGraph: ProjectGraph<BaseProject> = {
+    [workspaceDir]: {
+      dependencies: [],
+      package: {
+        rootDir: workspaceDir as ProjectRootDir,
+        manifest: {
+          name: 'root',
+          version: '0.0.0',
+        },
+      },
+    },
+    [pkg1Dir]: {
+      dependencies: [],
+      package: {
+        rootDir: pkg1Dir as ProjectRootDir,
+        manifest: {
+          name: 'package-1',
+          version: '0.0.0',
+        },
+      },
+    },
+    [pkg2Dir]: {
+      dependencies: [],
+      package: {
+        rootDir: pkg2Dir as ProjectRootDir,
+        manifest: {
+          name: 'package-2',
+          version: '0.0.0',
+        },
+      },
+    },
+  }
+
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, [{
+    diff: 'HEAD~1',
+  }], { workspaceDir })
+
+  expect(Object.keys(selectedProjectsGraph).sort()).toStrictEqual([pkg1Dir, pkg2Dir].sort())
+})
+
 test('select changed packages when operating under a git worktree', async () => {
   if (isCI && isWindows()) {
     return
