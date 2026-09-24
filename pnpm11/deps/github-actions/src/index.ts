@@ -285,6 +285,10 @@ function isExempt (exclude: PackageVersionPolicy, action: ActionReference, versi
  * and without trees into a scratch repository, where each one's creation
  * date can be read: the tagger date of an annotated tag, the committer date of
  * a lightweight one.
+ *
+ * Whoever creates a tag or commit sets these dates, and the server does not
+ * check them, so a backdated tag passes. Unlike a registry's publish time,
+ * they hold back only releases that carry their real date.
  */
 async function readTagDates (repoUrl: string, tags: string[]): Promise<Record<string, Date>> {
   const scratch = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-github-actions-'))

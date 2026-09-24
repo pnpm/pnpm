@@ -3,6 +3,10 @@
 //! without trees into a scratch repository, where each one's creation date
 //! can be read: the tagger date of an annotated tag, the committer date of a
 //! lightweight one.
+//!
+//! Whoever creates a tag or commit sets these dates, and the server does not
+//! check them, so a backdated tag passes. Unlike a registry's publish time,
+//! they hold back only releases that carry their real date.
 
 use crate::{ActionReference, GIT_CONCURRENCY, RepoVersion, find_current, global_warn};
 use chrono::{DateTime, Utc};
