@@ -48,15 +48,15 @@ impl BaseProject for SyntheticRef<'_> {
     fn manifest_name(&self) -> Option<&str> {
         Some(&self.0.name)
     }
+
+    fn merged_dependencies(&self, _ignore_dev_deps: bool) -> Vec<(String, String)> {
+        self.0.dependencies.clone()
+    }
 }
 
 impl GraphProject for SyntheticRef<'_> {
     fn manifest_version(&self) -> Option<&str> {
         Some("1.0.0")
-    }
-
-    fn merged_dependencies(&self, _ignore_dev_deps: bool) -> Vec<(String, String)> {
-        self.0.dependencies.clone()
     }
 }
 

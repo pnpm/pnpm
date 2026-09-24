@@ -3,6 +3,7 @@ use super::{
     HashSet, LogEvent, LogLevel, Path, PathBuf, PnpmLog, Project, ProjectGraph,
     create_projects_graph, get_changed_projects,
 };
+use pnpm_workspace_projects_graph::BaseProject;
 
 /// The identity runs are recorded under on the server: the workspace
 /// directory's name plus the same path hash that keys the local pipeline
@@ -206,6 +207,11 @@ fn select_changed_projects(
     all_dirs: &[PathBuf],
     merge_base: String,
 ) -> miette::Result<Selection> {
+    let project_dependencies: HashMap<PathBuf, Vec<(String, String)>> = options
+        .graph
+        .iter()
+        .map(|(dir, node)| (dir.clone(), node.package.merged_dependencies(false)))
+        .collect();
     let changed = get_changed_projects(
         options.graph.keys().cloned().collect(),
         &merge_base,
@@ -213,6 +219,7 @@ fn select_changed_projects(
             workspace_dir: options.workspace_root,
             test_pattern: &options.config.test_pattern,
             changed_files_ignore_pattern: &options.config.changed_files_ignore_pattern,
+            project_dependencies: Some(&project_dependencies),
         },
     )
     .map_err(miette::Report::new)?;

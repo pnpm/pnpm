@@ -10,6 +10,12 @@
   ],
   "references": [
     {
+      "path": "../../catalogs/config"
+    },
+    {
+      "path": "../../catalogs/protocol-parser"
+    },
+    {
       "path": "../../config/matcher"
     },
     {

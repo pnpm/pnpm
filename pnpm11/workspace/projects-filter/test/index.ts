@@ -764,3 +764,203 @@ test('select by parentDir with glob and exclude one package by pattern', async (
 
   expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/packages/project-0'])
 })
+
+test('selects projects that use catalog dependencies when catalog versions change in pnpm-workspace.yaml', async () => {
+  if (isCI && isWindows()) {
+    return
+  }
+
+  const workspaceDir = temporaryDirectory()
+  await execa('git', ['init', '--initial-branch=main'], { cwd: workspaceDir })
+  await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: workspaceDir })
+  await execa('git', ['config', 'user.name', 'xyz'], { cwd: workspaceDir })
+
+  const pkgADir = path.join(workspaceDir, 'packages/pkg-a') as ProjectRootDir
+  const pkgBDir = path.join(workspaceDir, 'packages/pkg-b') as ProjectRootDir
+  const pkgCDir = path.join(workspaceDir, 'packages/pkg-c') as ProjectRootDir
+  const pkgDDir = path.join(workspaceDir, 'packages/pkg-d') as ProjectRootDir
+
+  await fs.promises.mkdir(pkgADir, { recursive: true })
+  await fs.promises.mkdir(pkgBDir, { recursive: true })
+  await fs.promises.mkdir(pkgCDir, { recursive: true })
+  await fs.promises.mkdir(pkgDDir, { recursive: true })
+
+  await fs.promises.writeFile(
+    path.join(workspaceDir, 'pnpm-workspace.yaml'),
+    `packages:
+  - 'packages/*'
+catalog:
+  foo: ^1.0.0
+catalogs:
+  react18:
+    react: ^18.0.0
+`
+  )
+
+  await fs.promises.writeFile(
+    path.join(pkgADir, 'package.json'),
+    JSON.stringify({
+      name: 'pkg-a',
+      version: '1.0.0',
+      dependencies: {
+        foo: 'catalog:',
+      },
+    })
+  )
+
+  await fs.promises.writeFile(
+    path.join(pkgBDir, 'package.json'),
+    JSON.stringify({
+      name: 'pkg-b',
+      version: '1.0.0',
+      dependencies: {
+        react: 'catalog:react18',
+      },
+    })
+  )
+
+  await fs.promises.writeFile(
+    path.join(pkgCDir, 'package.json'),
+    JSON.stringify({
+      name: 'pkg-c',
+      version: '1.0.0',
+      dependencies: {
+        bar: '^1.0.0',
+      },
+    })
+  )
+
+  await fs.promises.writeFile(
+    path.join(pkgDDir, 'package.json'),
+    JSON.stringify({
+      name: 'pkg-d',
+      version: '1.0.0',
+      dependencies: {
+        'pkg-a': 'workspace:*',
+      },
+    })
+  )
+
+  await execa('git', ['add', '.'], { cwd: workspaceDir })
+  await execa('git', ['commit', '-m', 'initial commit', '--no-gpg-sign'], { cwd: workspaceDir })
+
+  // Update default catalog: foo -> ^1.1.0
+  await fs.promises.writeFile(
+    path.join(workspaceDir, 'pnpm-workspace.yaml'),
+    `packages:
+  - 'packages/*'
+catalog:
+  foo: ^1.1.0
+catalogs:
+  react18:
+    react: ^18.0.0
+`
+  )
+
+  const projectsGraph: ProjectGraph<BaseProject> = {
+    [pkgADir]: {
+      dependencies: [],
+      package: {
+        rootDir: pkgADir,
+        manifest: {
+          name: 'pkg-a',
+          version: '1.0.0',
+          dependencies: { foo: 'catalog:' },
+        },
+      },
+    },
+    [pkgBDir]: {
+      dependencies: [],
+      package: {
+        rootDir: pkgBDir,
+        manifest: {
+          name: 'pkg-b',
+          version: '1.0.0',
+          dependencies: { react: 'catalog:react18' },
+        },
+      },
+    },
+    [pkgCDir]: {
+      dependencies: [],
+      package: {
+        rootDir: pkgCDir,
+        manifest: {
+          name: 'pkg-c',
+          version: '1.0.0',
+          dependencies: { bar: '^1.0.0' },
+        },
+      },
+    },
+    [pkgDDir]: {
+      dependencies: [pkgADir],
+      package: {
+        rootDir: pkgDDir,
+        manifest: {
+          name: 'pkg-d',
+          version: '1.0.0',
+          dependencies: { 'pkg-a': 'workspace:*' },
+        },
+      },
+    },
+  }
+
+  {
+    const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, [{
+      diff: 'HEAD',
+    }], { workspaceDir })
+
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkgADir])
+  }
+
+  {
+    const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, [{
+      diff: 'HEAD',
+      includeDependents: true,
+    }], { workspaceDir })
+
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkgADir, pkgDDir])
+  }
+
+  // Also test named catalog change
+  await fs.promises.writeFile(
+    path.join(workspaceDir, 'pnpm-workspace.yaml'),
+    `packages:
+  - 'packages/*'
+catalog:
+  foo: ^1.0.0
+catalogs:
+  react18:
+    react: ^18.2.0
+`
+  )
+
+  {
+    const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, [{
+      diff: 'HEAD',
+    }], { workspaceDir })
+
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkgBDir])
+  }
+
+  // Non-catalog change in pnpm-workspace.yaml does not trigger pkg-a or pkg-b
+  await fs.promises.writeFile(
+    path.join(workspaceDir, 'pnpm-workspace.yaml'),
+    `# A comment change
+packages:
+  - 'packages/*'
+catalog:
+  foo: ^1.0.0
+catalogs:
+  react18:
+    react: ^18.0.0
+`
+  )
+
+  {
+    const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, [{
+      diff: 'HEAD',
+    }], { workspaceDir })
+
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([])
+  }
+})

@@ -286,6 +286,7 @@ fn detect_changed_dirs(
         workspace_dir,
         test_pattern: &config.test_pattern,
         changed_files_ignore_pattern: &config.changed_files_ignore_pattern,
+        project_dependencies: None,
     };
     let Ok(changed) = get_changed_projects(project_dirs, &base_commit, &opts) else {
         return HashSet::new();

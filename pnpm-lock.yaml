@@ -10307,6 +10307,12 @@ importers:
 
   pnpm11/workspace/projects-filter:
     dependencies:
+      '@pnpm/catalogs.config':
+        specifier: workspace:*
+        version: link:../../catalogs/config
+      '@pnpm/catalogs.protocol-parser':
+        specifier: workspace:*
+        version: link:../../catalogs/protocol-parser
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../../config/matcher
@@ -10337,6 +10343,9 @@ importers:
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
+      yaml:
+        specifier: 'catalog:'
+        version: 2.9.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'

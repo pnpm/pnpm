@@ -9,6 +9,9 @@ use std::path::Path;
 pub trait BaseProject {
     fn root_dir(&self) -> &Path;
     fn manifest_name(&self) -> Option<&str>;
+    fn merged_dependencies(&self, _ignore_dev_deps: bool) -> Vec<(String, String)> {
+        Vec::new()
+    }
 }
 
 /// Extends [`BaseProject`] with the manifest fields
@@ -17,11 +20,4 @@ pub trait BaseProject {
 /// dependency specifiers.
 pub trait GraphProject: BaseProject {
     fn manifest_version(&self) -> Option<&str>;
-
-    /// `(name, raw_specifier)` pairs merged across `peerDependencies`,
-    /// `devDependencies` (unless `ignore_dev_deps`),
-    /// `optionalDependencies`, and `dependencies`, in that precedence:
-    /// a later group overwrites the specifier of an earlier duplicate
-    /// while keeping the first-seen position.
-    fn merged_dependencies(&self, ignore_dev_deps: bool) -> Vec<(String, String)>;
 }
