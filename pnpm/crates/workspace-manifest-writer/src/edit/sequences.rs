@@ -1,7 +1,8 @@
 use super::{
     HashMap, Inline, Line, Range, VecDeque, blank_run_start, flow, insertion_offset,
-    is_sequence_item_line, is_top_level_key, leading_comment_start, lines, locate, locate_mapping,
-    locate_sequence, render, splice, structural_indent, top_level_key_line,
+    is_sequence_item_line, is_top_level_block_boundary, is_top_level_key, leading_comment_start,
+    lines, locate, locate_mapping, locate_sequence, render, splice, structural_indent,
+    top_level_key_line,
 };
 
 /// Line-level reconciliation of the block sequence `key` toward `items`,
@@ -51,7 +52,7 @@ fn item_layout(text: &str, key: &str, current: &[String]) -> Option<ItemLayout> 
     let all = lines(text);
     let key_idx = top_level_key_line(&all, key)?;
     let block_end_idx = (key_idx + 1..all.len())
-        .find(|&idx| is_top_level_key(all[idx].content))
+        .find(|&idx| is_top_level_block_boundary(all[idx].content))
         .unwrap_or(all.len());
     let (indent, item_idxs) = item_lines(&all, key_idx + 1..block_end_idx, current)?;
     let block_items_end = blank_run_start(
@@ -206,7 +207,7 @@ pub(super) fn detect_sequence_indent(text: &str, preferred_key: Option<&str>) ->
 
 fn block_sequence_indent(all: &[Line<'_>], key_idx: usize) -> Option<usize> {
     let end_idx = (key_idx + 1..all.len())
-        .find(|&idx| is_top_level_key(all[idx].content))
+        .find(|&idx| is_top_level_block_boundary(all[idx].content))
         .unwrap_or(all.len());
     for line in &all[key_idx + 1..end_idx] {
         if is_sequence_item_line(line.content) {

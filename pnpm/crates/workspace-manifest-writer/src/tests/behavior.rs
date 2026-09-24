@@ -331,6 +331,21 @@ fn minimum_release_age_exclude_detects_zero_indentation_from_packages() {
 }
 
 #[test]
+fn minimum_release_age_exclude_preserves_document_end_marker() {
+    let added = ["bar@2.0.0".to_string()];
+    let out = run_with(
+        Some("minimumReleaseAgeExclude:\n- foo@1.0.0\n...\n"),
+        &UpdateWorkspaceManifestOptions {
+            added_minimum_release_age_excludes: &added,
+            ..Default::default()
+        },
+    )
+    .expect("written");
+
+    assert_eq!(out, "minimumReleaseAgeExclude:\n- foo@1.0.0\n- bar@2.0.0\n...\n");
+}
+
+#[test]
 fn set_overrides_refuses_to_clobber_a_non_scalar_value() {
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);

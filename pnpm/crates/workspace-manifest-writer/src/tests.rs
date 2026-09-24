@@ -783,6 +783,13 @@ mod trust_policy_exclude_prune {
         let out = run_trust_cleanup(Some(original), Some(&resolved(&[("bar", &["2.0.0"])])));
         assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n\n  - bar@2.0.0\n"));
     }
+
+    #[test]
+    fn keeps_document_end_marker_footer_when_an_entry_is_pruned() {
+        let original = "trustPolicyExclude:\n- foo@1.0.0\n- bar@2.0.0\n...\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
+        assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n- foo@1.0.0\n...\n"));
+    }
 }
 
 fn run_prune_allow_builds(original: Option<&str>, resolved: &[&str]) -> Option<String> {

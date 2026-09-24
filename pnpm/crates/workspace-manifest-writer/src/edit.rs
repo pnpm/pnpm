@@ -493,9 +493,9 @@ use mapping::{
 mod scanning;
 
 use scanning::{
-    Line, Mapping, TopLevelSpan, comment_start, is_sequence_item_line, is_top_level_key,
-    leading_comment_start, lines, locate, locate_mapping, locate_sequence, mapping_keys,
-    structural_colon_index, structural_indent, top_level_key_line, top_level_span,
+    Line, Mapping, TopLevelSpan, comment_start, is_sequence_item_line, is_top_level_block_boundary,
+    is_top_level_key, leading_comment_start, lines, locate, locate_mapping, locate_sequence,
+    mapping_keys, structural_colon_index, structural_indent, top_level_key_line, top_level_span,
 };
 
 mod spacing;
