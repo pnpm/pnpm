@@ -332,4 +332,15 @@ test('configured filter applies when listing from workspace subdirectory (pnpm/p
   }
 })
 
+test('fails with WORKSPACE_DIR_NOT_FOUND when workspace directory does not exist', () => {
+  prepare()
+  const result = execPnpmSync(['ls'], {
+    env: {
+      NPM_CONFIG_WORKSPACE_DIR: path.resolve('non-existent-workspace-dir'),
+    },
+  })
+  expect(result.status).toBe(1)
+  expect(result.stdout.toString()).toContain('ERR_PNPM_WORKSPACE_DIR_NOT_FOUND')
+})
+
 

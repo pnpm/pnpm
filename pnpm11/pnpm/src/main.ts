@@ -588,8 +588,12 @@ function getRealPathSync (dir: string): string {
   const resolved = path.resolve(dir)
   try {
     return fs.realpathSync.native(resolved)
-  } catch {
-    return resolved
+  } catch (err: unknown) {
+    throw new PnpmError(
+      'WORKSPACE_DIR_NOT_FOUND',
+      `Failed to resolve real path for "${resolved}"`,
+      { cause: err }
+    )
   }
 }
 
