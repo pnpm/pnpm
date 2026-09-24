@@ -93,7 +93,7 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
     // `disallowWorkspaceCycles` failure must not be paid for.
     report_install_scope_cycles::<Reporter>(
         install.context.config,
-        workspace.dirs.workspace_dir.as_deref(),
+        workspace,
         selection,
         (install.execution.mutation, workspace_projects(loaded_workspace_projects, selection)),
     )?;

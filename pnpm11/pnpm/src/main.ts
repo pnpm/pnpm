@@ -311,6 +311,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     }
 
     const filterResults = await filterProjectsFromDir(wsDir, filters, {
+      catalogs: config.catalogs,
       engineStrict: config.engineStrict,
       nodeVersion: config.nodeVersion,
       patterns: config.workspacePackagePatterns,

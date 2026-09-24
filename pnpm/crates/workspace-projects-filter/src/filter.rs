@@ -9,6 +9,7 @@ use crate::{
 use derive_more::{Display, Error};
 use indexmap::IndexSet;
 use miette::Diagnostic;
+use pnpm_catalogs_types::Catalogs;
 use pnpm_matcher::create_matcher;
 use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph};
 use std::{
@@ -67,6 +68,9 @@ pub struct FilterProjectsOptions {
     pub test_pattern: Vec<String>,
     /// See [`FilterWorkspaceProjectsOptions::changed_files_ignore_pattern`].
     pub changed_files_ignore_pattern: Vec<String>,
+    /// The workspace catalogs a `catalog:` dependency resolves through,
+    /// with relative paths measured from `workspace_dir`.
+    pub catalogs: Option<Catalogs>,
 }
 
 /// Error type of the filter functions.

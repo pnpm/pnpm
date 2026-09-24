@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import npa from '@pnpm/npm-package-arg'
 import { parseBareSpecifier, workspacePrefToNpm } from '@pnpm/resolving.npm-resolver'
 import type { BaseManifest, ProjectRootDir } from '@pnpm/types'
@@ -17,6 +19,7 @@ export interface ProjectGraphNode<Pkg extends BaseProject> {
 }
 
 export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], opts?: {
+  catalogs?: Catalogs
   ignoreDevDeps?: boolean
   linkWorkspacePackages?: boolean
 }): {
@@ -45,6 +48,10 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
     return Object.entries(dependencies)
       .map(([depName, rawSpec]) => {
         let spec!: { fetchSpec: string, type: string }
+        const catalogResolution = resolveFromCatalog(opts?.catalogs ?? {}, { alias: depName, bareSpecifier: rawSpec })
+        if (catalogResolution.type === 'found') {
+          rawSpec = catalogResolution.resolution.specifier
+        }
         const isWorkspaceSpec = rawSpec.startsWith('workspace:')
         try {
           if (isWorkspaceSpec) {

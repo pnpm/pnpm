@@ -14,9 +14,11 @@ pub use unmatched::UnmatchedFilters;
 mod execution_args;
 mod unmatched;
 
+use crate::cli_args::catalogs::{configured_catalogs, workspace_catalogs};
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
+use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, LinkWorkspacePackages};
 use pnpm_package_manager::{GraphSequencerResult, graph_sequencer};
 use pnpm_workspace::{
@@ -288,7 +290,8 @@ pub fn select_recursive_projects_deferring_no_match<'a>(
     prefix: &Path,
     auto_exclude_root: AutoExcludeRoot<'_>,
 ) -> miette::Result<(RecursiveSelection<'a>, Option<UnmatchedFilters>)> {
-    let graph_options = recursive_graph_options(config);
+    let catalogs = configured_catalogs(config)?;
+    let graph_options = recursive_graph_options(config, &catalogs);
     let all = build_graph(projects, graph_options);
 
     // Routes into the selection pass whose `follow_prod_deps_only` matches: the
@@ -420,10 +423,10 @@ pub fn selected_importer_ids(
 }
 
 /// Build the workspace [`ProjectGraph`] from `projects` under `options`.
-fn build_graph(
-    projects: &[Project],
-    options: CreateProjectsGraphOptions,
-) -> ProjectGraph<GraphPkg<'_>> {
+fn build_graph<'p>(
+    projects: &'p [Project],
+    options: CreateProjectsGraphOptions<'_>,
+) -> ProjectGraph<GraphPkg<'p>> {
     create_projects_graph(
         projects
             .iter()
@@ -570,7 +573,7 @@ pub fn recursive_filter_options(config: &Config, prefix: &Path) -> FilterWorkspa
 fn production_filter_graph<'a>(
     projects: &'a [Project],
     config: &Config,
-    graph_options: CreateProjectsGraphOptions,
+    graph_options: CreateProjectsGraphOptions<'_>,
 ) -> Option<ProjectGraph<GraphPkg<'a>>> {
     if config.filter_prod.is_empty() {
         None
@@ -583,9 +586,13 @@ fn production_filter_graph<'a>(
 }
 
 /// Respect the configured linking policy when determining workspace edges.
-fn recursive_graph_options(config: &Config) -> CreateProjectsGraphOptions {
+fn recursive_graph_options<'a>(
+    config: &'a Config,
+    catalogs: &'a Catalogs,
+) -> CreateProjectsGraphOptions<'a> {
     CreateProjectsGraphOptions {
         link_workspace_packages: Some(config.link_workspace_packages != LinkWorkspacePackages::Off),
+        catalogs: workspace_catalogs(config, catalogs),
         ..CreateProjectsGraphOptions::default()
     }
 }

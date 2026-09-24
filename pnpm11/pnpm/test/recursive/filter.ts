@@ -154,3 +154,37 @@ test('pnpm --recursive --filter "!<pkg>" --include-workspace-root run should inc
   expect(stdout).toContain('. which$')
   expect(stdout).not.toContain('a which$')
 })
+
+// Regression test for https://github.com/pnpm/pnpm/issues/15587
+test('pnpm --filter "<pkg>..." run follows dependencies declared through a workspace catalog entry', async () => {
+  preparePackages([
+    {
+      location: 'math',
+      package: {
+        name: '@acme/math',
+        scripts: {
+          which: "node -e \"console.log('from-math')\"",
+        },
+      },
+    },
+    {
+      location: 'app',
+      package: {
+        name: '@acme/app',
+        dependencies: {
+          '@acme/math': 'catalog:',
+        },
+        scripts: {
+          which: "node -e \"console.log('from-app')\"",
+        },
+      },
+    },
+  ])
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - "*"\ncatalog:\n  "@acme/math": "workspace:*"\n')
+
+  const result = execPnpmSync(['--filter', '@acme/app...', 'run', 'which'])
+  expect(result.status).toBe(0)
+  const stdout = result.stdout.toString()
+  expect(stdout).toContain('from-math')
+  expect(stdout.indexOf('from-math')).toBeLessThan(stdout.indexOf('from-app'))
+})

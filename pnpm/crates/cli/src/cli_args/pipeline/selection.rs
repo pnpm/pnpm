@@ -3,6 +3,7 @@ use super::{
     HashSet, LogEvent, LogLevel, Path, PathBuf, PnpmLog, Project, ProjectGraph,
     create_projects_graph, get_changed_projects,
 };
+use crate::cli_args::catalogs::{configured_catalogs, workspace_catalogs};
 use pnpm_workspace_projects_graph::BaseProject;
 
 /// The identity runs are recorded under on the server: the workspace
@@ -25,21 +26,23 @@ pub(super) fn workspace_identity(workspace_root: &Path) -> String {
 pub(super) fn build_full_graph<'a>(
     projects: &'a [Project],
     config: &Config,
-) -> ProjectGraph<GraphPkg<'a>> {
+) -> miette::Result<ProjectGraph<GraphPkg<'a>>> {
+    let catalogs = configured_catalogs(config)?;
     let graph_options = CreateProjectsGraphOptions {
         link_workspace_packages: Some(
             config.link_workspace_packages != pnpm_config::LinkWorkspacePackages::Off,
         ),
+        catalogs: workspace_catalogs(config, &catalogs),
         ..CreateProjectsGraphOptions::default()
     };
-    create_projects_graph(
+    Ok(create_projects_graph(
         projects
             .iter()
             .map(|project| GraphPkg { project })
             .collect(),
         &graph_options,
     )
-    .graph
+    .graph)
 }
 
 /// How the run decided what to cover.

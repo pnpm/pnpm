@@ -1,3 +1,4 @@
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { createMatcher } from '@pnpm/config.matcher'
 import type { ProjectRootDir, SupportedArchitectures } from '@pnpm/types'
 import { type BaseProject, createProjectsGraph, type ProjectGraphNode } from '@pnpm/workspace.projects-graph'
@@ -47,6 +48,7 @@ export interface ReadProjectsResult {
 }
 
 export interface FilterProjectsOptions {
+  catalogs?: Catalogs
   linkWorkspacePackages?: boolean
   prefix: string
   workspaceDir: string
@@ -115,6 +117,7 @@ export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
   projects: Pkg[],
   projectSelectors: ProjectSelector[],
   opts: {
+    catalogs?: Catalogs
     linkWorkspacePackages?: boolean
     workspaceDir: string
     testPattern?: string[]
@@ -132,7 +135,7 @@ export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
 
   if ((allProjectSelectors.length > 0) || (prodProjectSelectors.length > 0)) {
     let filteredGraph: FilteredGraph<Pkg> | undefined
-    const { graph } = createProjectsGraph<Pkg>(projects, { linkWorkspacePackages: opts.linkWorkspacePackages })
+    const { graph } = createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, linkWorkspacePackages: opts.linkWorkspacePackages })
 
     if (allProjectSelectors.length > 0) {
       filteredGraph = await filterWorkspaceProjects(graph, allProjectSelectors, {
@@ -147,7 +150,7 @@ export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
     let prodGraph: ProjectGraph<Pkg> | undefined
 
     if (prodProjectSelectors.length > 0) {
-      prodGraph = createProjectsGraph<Pkg>(projects, { ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages }).graph
+      prodGraph = createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages }).graph
       prodFilteredGraph = await filterWorkspaceProjects(prodGraph, prodProjectSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
@@ -176,7 +179,7 @@ export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
       ],
     }
   } else {
-    const { graph } = createProjectsGraph<Pkg>(projects, { linkWorkspacePackages: opts.linkWorkspacePackages })
+    const { graph } = createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, linkWorkspacePackages: opts.linkWorkspacePackages })
     return { allProjectsGraph: graph, selectedProjectsGraph: graph, unmatchedFilters: [] }
   }
 }
