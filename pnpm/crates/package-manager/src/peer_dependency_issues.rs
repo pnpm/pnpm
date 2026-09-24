@@ -59,6 +59,7 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
         &importer_ids,
         &config.peer_dependency_rules,
         catalogs,
+        config.resolve_peers_from_workspace_root,
     )
     .map_err(InstallError::CatalogResolution)?
     else {

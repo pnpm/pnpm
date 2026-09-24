@@ -34,6 +34,7 @@ fn tarball_peer_versions_use_metadata_through_aliases_and_peer_suffixes() {
                 &[".".to_string()],
                 &PeerDependencyRules::default(),
                 None,
+                true,
             )
             .expect("inspect peers");
             if version == "1.0.0" {
@@ -729,7 +730,7 @@ fn snapshot_peer_versions_use_named_registry_semver() {
     ] {
         let dep_ref = reference.parse().unwrap();
         assert_eq!(
-            super::resolved_snapshot_version(
+            crate::snapshot::resolved_snapshot_version(
                 &dep_ref,
                 &"peer".parse().unwrap(),
                 &std::collections::HashMap::new(),

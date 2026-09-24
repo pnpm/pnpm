@@ -512,7 +512,7 @@ fn a_transitively_linked_packages_peer_is_reported_only_under_its_own_consumer()
 
 /// One project of the `app` -> `mid` -> `leaf` chain, named after its
 /// directory, with `extra` merged over the shared name and version.
-fn write_linked_chain_project(workspace: &std::path::Path, name: &str, extra: Value) {
+pub(super) fn write_linked_chain_project(workspace: &std::path::Path, name: &str, extra: Value) {
     let project_dir = workspace.join("packages").join(name);
     fs::create_dir_all(&project_dir).expect("create the chained project directory");
     let mut manifest = serde_json::json!({ "name": name, "version": "1.0.0" });
@@ -973,3 +973,4 @@ fn invalid_peer_dependency_specification_fails_install() {
 mod catalogs;
 
 mod named_registry;
+mod workspace_root;
