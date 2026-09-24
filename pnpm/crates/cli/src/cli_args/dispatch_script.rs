@@ -18,6 +18,7 @@ use pnpm_package_manifest::{InitAuthor, InitOptions, PackageManifest};
 pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<CommandFuture<'a>> {
     let config: &Config = (ctx.loaders.config)()?;
     let es_module = args.effective_init_type(config) == InitType::Module;
+    let bare = args.bare;
     let manifest_path = pnpm_workspace::project_manifest_path(ctx.locations.cli_dir);
     if manifest_path.exists() {
         let filename = manifest_path
@@ -41,6 +42,7 @@ pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<Comm
             None => None,
         };
         let options = InitOptions {
+            bare,
             es_module,
             pinned_pnpm_version: pinned_pnpm_version.as_deref(),
             author: InitAuthor {
