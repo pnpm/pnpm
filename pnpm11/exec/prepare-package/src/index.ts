@@ -22,9 +22,12 @@ const PREPUBLISH_SCRIPTS = [
 // The install that prepares a git-hosted dependency runs in a temporary
 // checkout, where nobody can approve the build scripts of that dependency's
 // own dependencies. Unapproved builds are skipped there, as they are without
-// strictDepBuilds, rather than failing the outer install.
+// strictDepBuilds, rather than failing the outer install. Both spellings are
+// set because pnpm reads either, and a user's own variable in the other one
+// must not win.
 const PREPARE_ENV = {
   pnpm_config_strict_dep_builds: 'false',
+  PNPM_CONFIG_STRICT_DEP_BUILDS: 'false',
 }
 
 export interface PreparePackageOptions {

@@ -73,11 +73,11 @@ test('prepare package runs its scripts with strictDepBuilds off', async () => {
     name: 'records-strict-dep-builds',
     version: '1.0.0',
     scripts: {
-      prepublish: 'node -e "console.log(process.env.pnpm_config_strict_dep_builds)" | test-ipc-server-client ./test.sock',
+      prepublish: 'node -e "console.log(process.env.pnpm_config_strict_dep_builds, process.env.PNPM_CONFIG_STRICT_DEP_BUILDS)" | test-ipc-server-client ./test.sock',
     },
   }))
   await preparePackage({ allowBuild, pkgResolutionId }, tmp, '')
   expect(server.getLines()).toStrictEqual([
-    'false',
+    'false false',
   ])
 })

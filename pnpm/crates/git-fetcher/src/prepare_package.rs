@@ -179,7 +179,11 @@ impl PreparePackageOptions<'_> {
 /// `strictDepBuilds`, rather than failing the outer install.
 fn prepare_env(extra_env: &HashMap<String, String>) -> HashMap<String, String> {
     let mut env = extra_env.clone();
-    env.insert("pnpm_config_strict_dep_builds".to_string(), "false".to_string());
+    // Both spellings: pnpm reads either, and a user's own variable in the
+    // other one must not win.
+    for key in ["pnpm_config_strict_dep_builds", "PNPM_CONFIG_STRICT_DEP_BUILDS"] {
+        env.insert(key.to_string(), "false".to_string());
+    }
     env
 }
 

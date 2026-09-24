@@ -475,7 +475,8 @@ fn explicitly_denied_git_preparation_keeps_source_and_separates_cached_builds() 
 ///
 /// The pnpm under test goes first on `PATH`, so it is also the one that
 /// prepares the dependency. The nested install runs outside this project,
-/// so its registry, store, and cache travel in the environment.
+/// so its registry, store, and cache travel in the environment. So does a
+/// `strictDepBuilds` the user set there, which must not reach it.
 #[test]
 fn a_git_dependency_is_prepared_when_its_own_dependencies_have_unapproved_builds() {
     let CommandTempCwd {
@@ -522,6 +523,7 @@ fn a_git_dependency_is_prepared_when_its_own_dependencies_have_unapproved_builds
         .with_env("PNPM_CONFIG_STORE_DIR", &npmrc_info.store_dir)
         .with_env("PNPM_CONFIG_CACHE_DIR", &npmrc_info.cache_dir)
         .with_env("PNPM_CONFIG_FROZEN_LOCKFILE", "false")
+        .with_env("PNPM_CONFIG_STRICT_DEP_BUILDS", "true")
         .with_env("PNPM_HOME", root.path().join("pnpm-home"))
         .with_env("XDG_DATA_HOME", root.path().join("data"))
         .with_env("XDG_STATE_HOME", root.path().join("state"))
