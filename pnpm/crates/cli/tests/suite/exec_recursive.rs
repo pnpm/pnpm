@@ -419,15 +419,16 @@ fn recursive_exec_diff_selector_selects_changed_projects() {
 }
 
 /// A `--filter` that matches no project is a no-op: recursive exec exits
-/// 0 and writes no summary even with `--report-summary`, matching pnpm's
-/// main-dispatch exit-0 for an empty selection — rather than erroring on
-/// `--resume-from` or emitting an empty summary.
+/// 0, prints pnpm's empty-selection notice, and writes no summary even
+/// with `--report-summary`, matching pnpm's main-dispatch exit-0 for an
+/// empty selection — rather than erroring on `--resume-from` or emitting
+/// an empty summary.
 #[test]
 fn recursive_exec_filter_no_match_is_a_noop() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["project-1", "project-2"]);
 
-    pacquet
+    let assert = pacquet
         .with_arg("-r")
         .with_arg("--filter")
         .with_arg("does-not-exist")
@@ -436,6 +437,8 @@ fn recursive_exec_filter_no_match_is_a_noop() {
         .with_args(marker_args("ran.txt"))
         .assert()
         .success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    assert!(stdout.contains("No projects matched the filters in"), "stdout: {stdout}");
 
     for name in ["project-1", "project-2"] {
         assert!(
