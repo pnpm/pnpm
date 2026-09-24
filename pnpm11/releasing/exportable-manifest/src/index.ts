@@ -191,7 +191,9 @@ function buildWorkspaceManifestGetter (
   const byName = new Map<string, ProjectManifest>()
   const addManifest = (val: unknown) => {
     const manifest = extractManifest(val)
-    if (manifest?.name && manifest?.version && !byName.has(manifest.name)) {
+    if (!manifest?.name) return
+    const existing = byName.get(manifest.name)
+    if (!existing || (!existing.version && manifest.version)) {
       byName.set(manifest.name, manifest)
     }
   }
@@ -224,14 +226,34 @@ async function readAndCheckManifest (
   getWorkspaceManifest?: (depName: string) => ProjectManifest | undefined,
   targetPkgName?: string
 ): Promise<ProjectManifest> {
-  const { manifest } = await tryReadProjectManifest(dependencyDir)
-  if (manifest?.name && manifest?.version) {
-    return manifest
+  const { manifest: dirManifest } = await tryReadProjectManifest(dependencyDir)
+  if (dirManifest?.name && dirManifest?.version) {
+    return dirManifest
   }
   const lookupName = targetPkgName ?? depName
   const workspaceManifest = getWorkspaceManifest?.(lookupName)
   if (workspaceManifest?.name && workspaceManifest?.version) {
     return workspaceManifest
+  }
+  const found = dirManifest?.name || dirManifest?.version
+    ? dirManifest
+    : workspaceManifest?.name || workspaceManifest?.version
+      ? workspaceManifest
+      : dirManifest ?? workspaceManifest
+  if (found?.name && !found.version) {
+    throw new PnpmError(
+      'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+      `Cannot resolve workspace protocol of dependency "${depName}" ` +
+        'because its package.json has no "version" field.',
+      { hint: `Add a "version" field to the package.json of "${found.name}".` }
+    )
+  }
+  if (found) {
+    throw new PnpmError(
+      'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+      `Cannot resolve workspace protocol of dependency "${depName}" ` +
+        'because its package.json has no "name" field.'
+    )
   }
   throw new PnpmError(
     'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
