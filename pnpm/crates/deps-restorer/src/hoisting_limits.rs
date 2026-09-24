@@ -26,14 +26,12 @@ pub fn get_hoisting_limits(
     // The root border accumulates the root's own direct deps plus
     // every (encoded) non-root importer id, regardless of iteration
     // order — `BTreeSet` makes the result deterministic even though
-    // `importers` is a `HashMap`. Only stored under `.@` when a root
-    // importer is present, matching upstream.
+    // `importers` is a `HashMap`. Always stored under `.@` to provide
+    // the synthetic root node's hoisting boundary, matching upstream.
     let mut root_border: BTreeSet<String> = BTreeSet::new();
-    let mut root_present = false;
 
     for (importer_id, importer) in importers {
         if importer_id == Lockfile::ROOT_IMPORTER_KEY {
-            root_present = true;
             collect_direct_dep_names(importer, &mut root_border);
             continue;
         }
@@ -51,9 +49,7 @@ pub fn get_hoisting_limits(
         );
     }
 
-    if root_present {
-        limits.insert(format!("{}@", Lockfile::ROOT_IMPORTER_KEY), root_border);
-    }
+    limits.insert(format!("{}@", Lockfile::ROOT_IMPORTER_KEY), root_border);
 
     limits
 }

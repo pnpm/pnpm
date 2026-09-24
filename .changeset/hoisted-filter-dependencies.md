@@ -1,6 +1,7 @@
 ---
 "@pnpm/installing.deps-installer": patch
 "@pnpm/installing.deps-restorer": patch
+"@pnpm/installing.linking.real-hoist": patch
 "pacquet": patch
 "pnpm": patch
 ---
