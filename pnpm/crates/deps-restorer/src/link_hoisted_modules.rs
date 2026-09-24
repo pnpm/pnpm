@@ -27,7 +27,10 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_cmd_shim::{Host, LinkBinsError, LinkBinsOptions, link_bins};
+use pnpm_cmd_shim::{
+    Host, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache,
+    collect_packages_in_modules_dir, link_bins_of_packages_cached,
+};
 use pnpm_lockfile::PkgIdWithPatchHash;
 use pnpm_reporter::{
     LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog, StatsMessage,
@@ -280,6 +283,7 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
     if !is_project_root {
         linked.held_back_bins_dirs.extend(held_back);
     }
+    linked.held_back_bins_dirs.extend(link_bundled_bins(hierarchy, opts)?);
 
     Ok(linked)
 }
@@ -329,22 +333,48 @@ fn link_hierarchy_bins(
         && crate::link_direct_dep_bins_before_builds(&modules_dir, &dep_names, opts.link_options)
             .map_err(LinkHoistedModulesError::LinkBins)?;
 
-    // Packages the tarball ships in its own `node_modules` are not graph
-    // nodes, so the pass above never sees them; their bins are reachable
-    // only from inside the bundling package.
+    Ok(held_back.then_some(HeldBackBinsDir { modules_dir, dep_names }))
+}
+
+/// Packages the tarball ships in its own `node_modules` are not graph nodes,
+/// so [`link_hierarchy_bins`] never sees them; their bins are reachable only
+/// from inside the bundling package. They are held back like graph packages'
+/// bins, and the directories that held one back are returned for the build
+/// phase to link again.
+fn link_bundled_bins(
+    hierarchy: &DepHierarchy,
+    opts: &LinkHoistedModulesOpts<'_>,
+) -> Result<Vec<HeldBackBinsDir>, LinkHoistedModulesError> {
+    let mut held_back_bins_dirs = Vec::new();
     for child_dir in hierarchy.0.keys() {
         let bundles =
             opts.graph.get(child_dir).is_some_and(|node| node.package.has_bundled_dependencies);
         if !bundles {
             continue;
         }
-        let bundled_modules_dir = child_dir.join("node_modules");
-        let bins_dir = bundled_modules_dir.join(".bin");
-        link_bins::<Host>(&bundled_modules_dir, &bins_dir, opts.link_options)
-            .map_err(LinkHoistedModulesError::LinkBins)?;
+        let modules_dir = child_dir.join("node_modules");
+        let packages: Vec<PackageBinSource> = collect_packages_in_modules_dir::<Host>(&modules_dir)
+            .map_err(LinkHoistedModulesError::LinkBins)?
+            .into_iter()
+            .map(|package| package.with_build_pending(true))
+            .collect();
+        let held_back = link_bins_of_packages_cached::<Host>(
+            &packages,
+            &modules_dir.join(".bin"),
+            opts.link_options,
+            &ShimTargetCache::default(),
+        )
+        .map_err(LinkHoistedModulesError::LinkBins)?;
+        if held_back {
+            let dep_names = packages
+                .iter()
+                .filter_map(|package| package.location.strip_prefix(&modules_dir).ok())
+                .map(|name| name.to_string_lossy().into_owned())
+                .collect();
+            held_back_bins_dirs.push(HeldBackBinsDir { modules_dir, dep_names });
+        }
     }
-
-    Ok(held_back.then_some(HeldBackBinsDir { modules_dir, dep_names }))
+    Ok(held_back_bins_dirs)
 }
 
 /// Import one graph node into its target `dir`. `Ok(false)` when

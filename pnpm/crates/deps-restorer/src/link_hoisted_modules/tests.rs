@@ -583,3 +583,63 @@ fn import_pass_emits_one_imported_event_per_node() {
         ],
     );
 }
+
+/// A bundled dependency's bin whose target is missing is held back like a
+/// graph package's bin, and its directory is returned for the post-build
+/// relink.
+#[test]
+fn bundled_bin_with_missing_target_is_held_back() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cas_root = tmp.path().join("cas");
+    let lockfile_dir = tmp.path().join("repo");
+    let outer_dir = lockfile_dir.join("node_modules").join("outer");
+
+    let mut outer = make_node("outer", "outer@1.0.0", "outer@1.0.0", outer_dir.clone());
+    outer.package.has_bundled_dependencies = true;
+    let mut graph = DependenciesGraph::new();
+    graph.insert(outer_dir.clone(), outer);
+    let mut children = BTreeMap::new();
+    children.insert(outer_dir.clone(), DepHierarchy::default());
+    let mut hierarchy = BTreeMap::new();
+    hierarchy.insert(lockfile_dir.clone(), DepHierarchy(children));
+    let mut cas_paths = CasPathsByPkgId::new();
+    cas_paths.insert(
+        PkgIdWithPatchHash::from("outer@1.0.0"),
+        plant_package(
+            &cas_root,
+            "outer@1.0.0",
+            &[
+                ("package.json", br#"{"name":"outer","version":"1.0.0"}"#),
+                (
+                    "node_modules/tool/package.json",
+                    br#"{"name":"tool","version":"1.0.0","bin":{"tool":"cli.js"}}"#,
+                ),
+            ],
+        ),
+    );
+
+    let logged = AtomicU8::new(0);
+    let held_back = link_hoisted_modules::<SilentReporter>(&LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
+        dir_clone_cache: None,
+        graph: &graph,
+        prev_graph: None,
+        hierarchy: &hierarchy,
+        cas_paths_by_pkg_id: &cas_paths,
+        link_options: &LinkBinsOptions::default(),
+        confine_root: &lockfile_dir,
+    })
+    .expect("linker succeeds");
+
+    let bundled_modules = outer_dir.join("node_modules");
+    let held_back: Vec<_> = held_back
+        .iter()
+        .map(|dir| (dir.modules_dir.clone(), dir.dep_names.clone()))
+        .collect();
+    assert_eq!(held_back, vec![(bundled_modules.clone(), vec!["tool".to_string()])]);
+    assert!(!bundled_modules.join(".bin/tool").exists(), "the missing bin is held back");
+}
