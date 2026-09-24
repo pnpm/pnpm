@@ -120,11 +120,13 @@ function ingestOptions (opts?: Options): InternalOptions {
 /**
  * Try to create shims.
  *
+ * A missing `src` gets a shim whose runtime is inferred from its extension.
+ *
  * @param src Path to program (executable or script).
  * @param to Path to shims.
  * Don't add an extension if you will create multiple types of shims.
  * @param opts Options.
- * A missing `src` gets a shim whose runtime is inferred from its extension.
+ * @throws On any other failure to read `src` or to write the shims.
  */
 export async function cmdShim (src: string, to: string, opts?: Options): Promise<void> {
   const opts_ = ingestOptions(opts)
