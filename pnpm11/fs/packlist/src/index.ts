@@ -232,8 +232,7 @@ function getNestedBundledDeps (pkg: Record<string, unknown>): string[] {
 }
 
 function resolveDependency (depName: string, fromDir: string, boundary: string): { dir: string, realDir: string } | undefined {
-  // Bundle names come from package.json; reject paths before joining them under node_modules.
-  if (typeof depName !== 'string' || !/^(?:@[^/\\]+\/)?[^/\\]+$/.test(depName) || depName.split('/').some(part => part === '.' || part === '..')) return undefined
+  if (!isSafeBundleName(depName)) return undefined
   let currentDir = fromDir
   while (true) {
     if (path.basename(currentDir) !== 'node_modules') {
@@ -256,6 +255,14 @@ function resolveDependency (depName: string, fromDir: string, boundary: string):
     if (parent === currentDir) return undefined
     currentDir = parent
   }
+}
+
+// Bundle names come from package.json, so reject paths before joining them under node_modules.
+function isSafeBundleName (name: unknown): name is string {
+  if (typeof name !== 'string' || name.includes('\\')) return false
+  const parts = name.split('/')
+  if (parts.length > 2 || (parts.length === 2 && !parts[0].startsWith('@'))) return false
+  return parts.every((part) => part !== '' && part !== '.' && part !== '..')
 }
 
 function realpathOrUndefined (dir: string): string | undefined {
