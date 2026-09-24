@@ -15,7 +15,7 @@ import {
 import type { PkgResolutionId } from '@pnpm/resolving.resolver-base'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
-import type { ProjectRootDir, RegistriesByScope } from '@pnpm/types'
+import type { DependencyManifest, ProjectRootDir, RegistriesByScope } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { omit } from 'ramda'
 import { temporaryDirectory } from 'tempy'
@@ -2877,6 +2877,58 @@ test('workspace protocol: resolution fails with deterministic ordinal ordering f
 })
 
 
+test('workspace protocol: resolution fails listing available versions that are not valid semver', async () => {
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  const projectDir = '/home/istvan/src'
+  const workspacePackages = new Map([
+    ['is-positive', new Map(['1', '2'].map((version) => [version, {
+      rootDir: `/home/istvan/src/is-positive-${version}` as ProjectRootDir,
+      manifest: {
+        name: 'is-positive',
+        version,
+      },
+    }]))],
+  ])
+
+  await expect(resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'workspace:^5.0.0' }, {
+    projectDir,
+    workspacePackages,
+  })).rejects.toThrow(`In ${path.relative(process.cwd(), projectDir)}: No matching version found for is-positive@workspace:^5.0.0 inside the workspace. Available versions: 2, 1`)
+})
+
+test.each([
+  [['10.0.0', '100', '2.0.0', '3', '\u{E000}', '\u{10000}']],
+  [['100', '\u{10000}', '2.0.0', '3', '10.0.0', '\u{E000}']],
+  [['\u{E000}', '3', '2.0.0', '100', '\u{10000}', '10.0.0']],
+])('workspace protocol: resolution fails listing semver versions before non-semver ones (insertion order: %j)', async (versions) => {
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  const projectDir = '/home/istvan/src'
+  const workspacePackages = new Map([
+    ['is-positive', new Map(versions.map((version) => [version, {
+      rootDir: `/home/istvan/src/is-positive-${version}` as ProjectRootDir,
+      manifest: {
+        name: 'is-positive',
+        version,
+      },
+    }]))],
+  ])
+
+  await expect(resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'workspace:^50.0.0' }, {
+    projectDir,
+    workspacePackages,
+  })).rejects.toThrow('Available versions: 10.0.0, 2.0.0, \u{E000}, \u{10000}, 3, 100')
+})
+
 test('workspace protocol: resolution fails if there are no local packages', async () => {
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
@@ -3305,6 +3357,158 @@ test('resolve from registry when workspace package version does not match the re
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
+test('resolve a tag from the registry when the workspace version is not valid semver', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'latest' }, {
+    projectDir: '/home/istvan/src',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: {
+            name: 'is-positive',
+            version: '1',
+          },
+        }],
+      ])],
+    ]),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
+test.each([
+  ['workspace:*', '1'],
+  ['workspace:^', '1'],
+  ['workspace:*', '1.0'],
+])('workspace protocol: %s resolves to a local package at the non-semver version %s', async (bareSpecifier, version) => {
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier }, {
+    calcSpecifier: true,
+    projectDir: '/home/istvan/src',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        [version, {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: {
+            name: 'is-positive',
+            version,
+          },
+        }],
+      ])],
+    ]),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('workspace')
+  expect(resolveResult!.id).toBe('link:is-positive')
+  expect(resolveResult!.normalizedBareSpecifier).toBe(`workspace:${version}`)
+})
+
+test.each([
+  [['1']],
+  [['1', '2']],
+  [['1.0']],
+  [['1.x']],
+])('preferWorkspacePackages: a tag resolves to a workspace version that is not valid semver (local versions: %j)', async (localVersions) => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+    saveWorkspaceProtocol: false,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'latest' }, {
+    calcSpecifier: true,
+    preferWorkspacePackages: true,
+    projectDir: '/home/istvan/src',
+    workspacePackages: new Map([
+      ['is-positive', new Map(localVersions.map((version) => [version, {
+        rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+        manifest: {
+          name: 'is-positive',
+          version,
+        },
+      }]))],
+    ]),
+  })
+
+  expect(resolveResult).toStrictEqual(
+    expect.objectContaining({
+      resolvedVia: 'workspace',
+      id: 'link:is-positive',
+    })
+  )
+  expect(resolveResult!.normalizedBareSpecifier).toBe(localVersions.at(-1))
+})
+
+test.each(['github:owner/repo', 'file:../other', 'npm:other@1', 'github:owner/repo || 1.2.3', 'file:../other || 1.2.3', '01', '1.01', '9007199254740992', '*', 'dev'])('preferWorkspacePackages: the workspace version %s is saved with the workspace protocol', async (version) => {
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+    saveWorkspaceProtocol: false,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'latest' }, {
+    calcSpecifier: true,
+    preferWorkspacePackages: true,
+    projectDir: '/home/istvan/src',
+    workspacePackages: new Map([
+      ['is-positive', new Map([[version, {
+        rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+        manifest: {
+          name: 'is-positive',
+          version,
+        },
+      }]])],
+    ]),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('workspace')
+  expect(resolveResult!.normalizedBareSpecifier).toBe(`workspace:^${version}`)
+})
+
+test.each([true, false])('workspace protocol: a local package without a version resolves with saveWorkspaceProtocol=%s', async (saveWorkspaceProtocol) => {
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+    saveWorkspaceProtocol,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'workspace:*' }, {
+    calcSpecifier: true,
+    projectDir: '/home/istvan/src',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['0.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: {
+            name: 'is-positive',
+          } as DependencyManifest,
+        }],
+      ])],
+    ]),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('workspace')
+  expect(resolveResult!.normalizedBareSpecifier).toBe('workspace:*')
 })
 
 test('peekManifestFromStore: reuses store manifest and bypasses network when package is in store', async () => {

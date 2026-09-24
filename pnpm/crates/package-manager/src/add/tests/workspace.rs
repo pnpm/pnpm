@@ -6,11 +6,16 @@ use crate::add::{
     manifest::{persist_selected_manifests, prepare_selected_manifests},
     specifier::workspace_save_specifier,
 };
-use pnpm_config::{Config, LinkWorkspacePackages};
+use pnpm_config::{Config, LinkWorkspacePackages, SaveWorkspaceProtocol};
 use pnpm_network::ThrottledClient;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::SilentReporter;
-use std::collections::HashSet;
+use pnpm_resolving_resolver_base::{WorkspacePackage, WorkspacePackages};
+use serde_json::json;
+use std::{
+    collections::{BTreeMap, HashSet},
+    path::PathBuf,
+};
 use tempfile::tempdir;
 
 #[test]
@@ -30,6 +35,57 @@ fn explicit_npm_specifier_is_not_rewritten_as_a_workspace_dependency() {
         None,
     );
 }
+fn workspace_save_specifier_without_protocol(version: &str) -> Option<String> {
+    let mut config = Config::new();
+    config.link_workspace_packages = LinkWorkspacePackages::DirectOnly;
+    config.save_workspace_protocol = SaveWorkspaceProtocol::Off;
+    let mut versions = BTreeMap::new();
+    versions.insert(
+        version.to_string(),
+        WorkspacePackage {
+            root_dir: PathBuf::from("/repo/foo"),
+            manifest: json!({ "name": "foo", "version": version }),
+        },
+    );
+    let workspace_packages: WorkspacePackages = BTreeMap::from([("foo".to_string(), versions)]);
+    workspace_save_specifier(
+        "foo",
+        None,
+        None,
+        &config,
+        RangeSpecStyle::Major,
+        Some(&workspace_packages),
+    )
+}
+
+#[test]
+fn without_the_protocol_a_non_semver_range_version_is_saved_exactly() {
+    assert_eq!(workspace_save_specifier_without_protocol("1").as_deref(), Some("1"));
+    assert_eq!(workspace_save_specifier_without_protocol("1.0").as_deref(), Some("1.0"));
+    assert_eq!(workspace_save_specifier_without_protocol("1.x").as_deref(), Some("1.x"));
+}
+
+#[test]
+fn a_non_semver_version_that_is_not_a_range_keeps_the_protocol() {
+    for version in [
+        "github:owner/repo",
+        "file:../other",
+        "npm:other@1",
+        "github:owner/repo || 1.2.3",
+        "file:../other || 1.2.3",
+        "01",
+        "1.01",
+        "900719925474100",
+        "*",
+        "dev",
+    ] {
+        assert_eq!(
+            workspace_save_specifier_without_protocol(version),
+            Some(format!("workspace:^{version}")),
+        );
+    }
+}
+
 #[tokio::test]
 async fn selected_add_prepares_and_persists_only_selected_projects() {
     let dir = tempdir().expect("create tempdir");

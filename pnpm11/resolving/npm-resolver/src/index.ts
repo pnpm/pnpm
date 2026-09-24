@@ -767,7 +767,7 @@ async function resolveNpm (
       }
     }
     const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
-    if (localVersion && (semver.gte(localVersion, pickedPackage.version) || opts.preferWorkspacePackages)) {
+    if (localVersion && (opts.preferWorkspacePackages || (semver.valid(localVersion) && semver.gte(localVersion, pickedPackage.version)))) {
       return {
         ...resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, spec, {
           wantedDependency,
@@ -1122,7 +1122,7 @@ function tryResolveFromWorkspacePackages (
     opts.update ? { name: spec.name, fetchSpec: '*', type: 'range' } : spec
   )
   if (!localVersion) {
-    const availableVersions = Array.from(workspacePkgsMatchingName.keys()).sort((a, b) => semver.rcompare(a, b) || (b < a ? -1 : b > a ? 1 : 0))
+    const availableVersions = Array.from(workspacePkgsMatchingName.keys()).sort(rcompareVersions)
     throw new PnpmError(
       'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
       `In ${path.relative(process.cwd(), opts.projectDir)}: No matching version found for ${opts.wantedDependency.alias ?? ''}@${opts.wantedDependency.bareSpecifier ?? ''} inside the workspace` +
@@ -1143,9 +1143,7 @@ export function pickMatchingLocalVersionOrNull (
 ): string | null {
   switch (spec.type) {
     case 'tag':
-      return semver.maxSatisfying(Array.from(versions.keys()), '*', {
-        includePrerelease: true,
-      })
+      return resolveWorkspaceRange('*', Array.from(versions.keys()))
     case 'version':
       if (versions.has(spec.fetchSpec)) return spec.fetchSpec
       return resolveWorkspaceRange(spec.fetchSpec, Array.from(versions.keys()))
@@ -1154,6 +1152,14 @@ export function pickMatchingLocalVersionOrNull (
     default:
       return null
   }
+}
+
+function rcompareVersions (a: string, b: string): number {
+  const aIsSemver = semver.valid(a) != null
+  const bIsSemver = semver.valid(b) != null
+  if (aIsSemver !== bIsSemver) return aIsSemver ? -1 : 1
+  const bySemver = aIsSemver ? semver.rcompare(a, b) : 0
+  return bySemver || (b < a ? -1 : b > a ? 1 : 0)
 }
 
 function resolveFromLocalPackage (
@@ -1211,14 +1217,21 @@ function calcSpecifierForWorkspaceDep ({
   wantedDependency: WantedDependency
   spec: RegistryPackageSpec
   saveWorkspaceProtocol: boolean | 'rolling' | undefined
-  version: string
+  // A workspace project may omit its version, whatever its manifest type says.
+  version: string | undefined
   defaultRangeSpecStyle?: RangeSpecStyle
 }): string {
-  if (!saveWorkspaceProtocol && !wantedDependency.bareSpecifier?.startsWith('workspace:')) {
-    return calcSpecifier({ wantedDependency, spec, version, defaultRangeSpecStyle })
+  const parsedVersion = semver.parse(version)
+  if (version != null && !saveWorkspaceProtocol && !wantedDependency.bareSpecifier?.startsWith('workspace:')) {
+    if (parsedVersion != null) {
+      return calcSpecifier({ wantedDependency, spec, version, defaultRangeSpecStyle })
+    }
+    if (isPartialVersion(version)) {
+      return (!wantedDependency.alias || spec.name === wantedDependency.alias) ? version : `npm:${spec.name}@${version}`
+    }
   }
   const prefix = (!wantedDependency.alias || spec.name === wantedDependency.alias) ? 'workspace:' : `workspace:${spec.name}@`
-  if (saveWorkspaceProtocol === 'rolling') {
+  if (saveWorkspaceProtocol === 'rolling' || version == null) {
     const specifier = wantedDependency.prevSpecifier ?? wantedDependency.bareSpecifier
     if (specifier) {
       if ([`${prefix}*`, `${prefix}^`, `${prefix}~`].includes(specifier)) return specifier
@@ -1232,12 +1245,31 @@ function calcSpecifierForWorkspaceDep ({
     }
     return `${prefix}^`
   }
-  if (semver.parse(version)?.prerelease.length) {
+  if (parsedVersion == null ? isPartialVersion(version) : parsedVersion.prerelease.length) {
     return `${prefix}${version}`
   }
   const rangeSpecStyle = (wantedDependency.prevSpecifier ? inferRangeSpecStyle(wantedDependency.prevSpecifier) : undefined) ?? defaultRangeSpecStyle
   const range = versionWithRangeSpecStyle(version, rangeSpecStyle ?? 'major')
   return `${prefix}${range}`
+}
+
+/**
+ * `1`, `1.0` or `1.x`: a non-semver workspace version that is saved exactly,
+ * with or without the `workspace:` protocol, since a `^`/`~` range over it
+ * would not match it. Any other non-semver version keeps the operator: written
+ * exactly it could mean a wildcard, a tag or an alias inside `workspace:`, or
+ * a different dependency source without it.
+ */
+function isPartialVersion (version: string): boolean {
+  const [major, ...minorAndPatch] = version.split('.')
+  return isVersionNumber(major) &&
+    minorAndPatch.length <= 2 &&
+    minorAndPatch.every((part) => ['x', 'X', '*'].includes(part) || isVersionNumber(part)) &&
+    semver.validRange(version) != null
+}
+
+function isVersionNumber (part: string): boolean {
+  return part === '0' || (part !== '' && !part.startsWith('0') && [...part].every((char) => char >= '0' && char <= '9'))
 }
 
 function resolveLocalPackageDir (localPackage: WorkspacePackage): string {

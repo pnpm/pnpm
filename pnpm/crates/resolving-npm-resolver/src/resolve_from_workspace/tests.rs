@@ -238,6 +238,34 @@ fn no_matching_version_available_versions_deterministic_ordering() {
 }
 
 #[test]
+fn no_matching_version_lists_semver_versions_before_non_semver_ones() {
+    let mut entries: WorkspacePackagesByVersion = BTreeMap::new();
+    for version in ["10.0.0", "100", "2.0.0", "3", "\u{E000}", "\u{10000}"] {
+        entries.insert(
+            version.to_string(),
+            WorkspacePackage {
+                root_dir: Path::new("/repo/packages").join(version),
+                manifest: json!({ "name": "mixed", "version": version }),
+            },
+        );
+    }
+    let mut packages: WorkspacePackages = BTreeMap::new();
+    packages.insert("mixed".to_string(), entries);
+
+    let opts = opts(&packages);
+    let err = try_resolve_from_workspace(&wanted("mixed", "workspace:^50.0.0"), &opts).unwrap_err();
+    match err {
+        ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace { available, .. } => {
+            assert_eq!(
+                available,
+                ". Available versions: 10.0.0, 2.0.0, \u{E000}, \u{10000}, 3, 100",
+            );
+        }
+        other => panic!("expected NoMatchingVersionInsideWorkspace, got {other:?}"),
+    }
+}
+
+#[test]
 fn workspace_packages_unset_surfaces_error() {
     let packages = build_packages();
     let mut opts = opts(&packages);
