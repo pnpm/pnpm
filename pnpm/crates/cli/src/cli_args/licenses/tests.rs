@@ -23,11 +23,13 @@ fn project_runtime_from_json5_selects_the_license_store_slot() {
         ..Config::default()
     };
     config.allow_builds.insert("native".to_owned(), true);
-    let expected =
-        super::lockfile_layout(&config, dir.path(), dir.path(), &lockfile).unwrap().slot_dir(&key);
+    let expected = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
+        .unwrap()
+        .slot_dir(&key);
     config.node_version = Some("20.0.0".to_owned());
-    let other =
-        super::lockfile_layout(&config, dir.path(), dir.path(), &lockfile).unwrap().slot_dir(&key);
+    let other = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
+        .unwrap()
+        .slot_dir(&key);
     dbg!(&expected, &other);
     assert_ne!(expected, other);
     config.node_version = None;
@@ -36,16 +38,18 @@ fn project_runtime_from_json5_selects_the_license_store_slot() {
         "{devEngines: {runtime: {name: 'node', version: '18.0.0'}}}",
     )
     .unwrap();
-    let actual =
-        super::lockfile_layout(&config, dir.path(), dir.path(), &lockfile).unwrap().slot_dir(&key);
+    let actual = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
+        .unwrap()
+        .slot_dir(&key);
     assert_eq!(actual, expected);
     std::fs::write(
         dir.path().join("package.json"),
         r#"{"devEngines":{"runtime":{"name":"node","version":"20.0.0"}}}"#,
     )
     .unwrap();
-    let preferred =
-        super::lockfile_layout(&config, dir.path(), dir.path(), &lockfile).unwrap().slot_dir(&key);
+    let preferred = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
+        .unwrap()
+        .slot_dir(&key);
     assert_eq!(preferred, other);
 }
 
