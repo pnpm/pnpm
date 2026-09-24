@@ -330,8 +330,13 @@ fn merge_pattern_manifests(
     Ok(merged.into_inner().expect("merge lock never poisoned"))
 }
 
-/// Group manifest candidates by root directory in path order, preserving
-/// precedence so a failed read can fall through to the next format.
+/// Group the manifests by the root directory they belong to, in `rootDir`
+/// order.
+///
+/// A root's candidates are ordered by [`PROJECT_MANIFEST_BASENAMES`]
+/// precedence and share one read task, so "first readable manifest wins"
+/// holds under concurrency: a candidate that vanishes mid-run hands its root
+/// to the next candidate, never to a skipped root.
 fn group_manifests_by_root(
     manifest_paths: BTreeSet<PathBuf>,
     workspace_root: &Path,

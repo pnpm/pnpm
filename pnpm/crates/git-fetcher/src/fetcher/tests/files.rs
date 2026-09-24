@@ -155,6 +155,20 @@ fn packlist_applies_the_files_field_of_a_package_yaml_manifest() {
 }
 
 #[test]
+fn packlist_applies_the_files_field_of_a_package_yml_manifest() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("package.yml"), "name: pkg\nversion: 1.0.0\nfiles:\n  - dist\n")
+        .unwrap();
+    fs::create_dir_all(dir.path().join("dist")).unwrap();
+    fs::write(dir.path().join("dist/index.js"), "").unwrap();
+    fs::create_dir_all(dir.path().join("src")).unwrap();
+    fs::write(dir.path().join("src/index.ts"), "").unwrap();
+
+    let files = crate::fetcher::packlist_of(dir.path()).unwrap();
+    assert_eq!(files, vec!["dist/index.js".to_string(), "package.yml".into()]);
+}
+
+#[test]
 fn packlist_rejects_an_invalid_package_yaml_manifest() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("package.yaml"), "name: [unclosed\n").unwrap();

@@ -22,8 +22,8 @@
 //!    handled in pass 3).
 //! 3. **Always-include** the standard files: `package.json`,
 //!    `README*` / `LICEN[SC]E*` at the root, plus the paths declared
-//!    in `main` / `bin`. The packed package's `package.yaml` /
-//!    `package.json5` are included too, but a bundled dependency's are
+//!    in `main` / `bin`. The packed package's `package.json5` /
+//!    `package.yaml` / `package.yml` are included too, but a bundled dependency's are
 //!    not. These survive `.npmignore` rejection and the `files`-field
 //!    filter.
 //! 4. **`bundleDependencies` closure**: starting from the names in
@@ -49,7 +49,7 @@
 use derive_more::{Display, Error};
 use ignore::{WalkBuilder, gitignore::Gitignore};
 use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_package_manifest::safe_read_package_json_from_dir;
+use pnpm_package_manifest::{PROJECT_MANIFEST_BASENAMES, safe_read_package_json_from_dir};
 use serde_json::Value;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
@@ -318,7 +318,7 @@ fn collect_always_included_at_root(
     collect_root_files_matching(pkg_dir, is_always_included_at_root, out)
 }
 
-/// A `package.yaml` or `package.json5` manifest ships like `package.json`, but
+/// A `package.json5`, `package.yaml`, or `package.yml` manifest ships like `package.json`, but
 /// only for the package being packed: a bundled dependency's manifest is its
 /// `package.json`, so its alternate manifests follow its `files` and ignore
 /// rules. Matched case-insensitively, like npm-packlist's rules.
@@ -329,8 +329,9 @@ fn collect_alternate_manifests_at_root(
     collect_root_files_matching(
         pkg_dir,
         |name| {
-            let lower = name.to_ascii_lowercase();
-            lower == "package.yaml" || lower == "package.json5"
+            PROJECT_MANIFEST_BASENAMES
+                .iter()
+                .any(|basename| name.eq_ignore_ascii_case(basename))
         },
         out,
     )

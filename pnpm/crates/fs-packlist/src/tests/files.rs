@@ -70,6 +70,7 @@ fn files_field_always_includes_alternate_manifests_at_root() {
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.yaml");
+    touch(root, "package.yml");
     touch(root, "package.json5");
     touch(root, "dist/index.js");
     touch(root, "src/index.ts");
@@ -83,8 +84,13 @@ fn files_field_always_includes_alternate_manifests_at_root() {
     let out = packlist(root, &manifest).unwrap();
     assert_eq!(
         out,
-        vec!["dist/index.js".to_string(), "package.json5".into(), "package.yaml".into(),],
-        "always-included files (package.yaml/package.json5) ship alongside the `files` glob",
+        vec![
+            "dist/index.js".to_string(),
+            "package.json5".into(),
+            "package.yaml".into(),
+            "package.yml".into(),
+        ],
+        "alternate manifests ship alongside the `files` glob",
     );
 }
 
