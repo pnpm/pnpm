@@ -299,19 +299,21 @@ function checkLinkedDependenciesPeers (
       }
 
       let manifest: {
+        name?: string
         version?: string
         peerDependencies?: Record<string, string>
         peerDependenciesMeta?: Record<string, { optional?: boolean }>
       }
       try {
         manifest = JSON.parse(fs.readFileSync(path.join(canonicalTargetDir, 'package.json'), 'utf8'))
-      } catch {
-        continue
+      } catch (err: unknown) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') continue
+        throw err
       }
       if (!manifest.peerDependencies) continue
 
       const linkedVersion = manifest.version ?? '0.0.0'
-      const currentParents: ParentPackages = [{ name: alias, version: linkedVersion }]
+      const currentParents: ParentPackages = [{ name: manifest.name ?? alias, version: linkedVersion }]
 
       const linkedImporterId = getLockfileImporterId(canonicalLockfileDir, canonicalTargetDir)
       const linkedImporter = lockfile.importers[linkedImporterId as ProjectId]
@@ -358,8 +360,12 @@ function checkLinkedDependenciesPeers (
               const linkedDepManifest = JSON.parse(fs.readFileSync(path.join(canonicalLinkedDepDir, 'package.json'), 'utf8'))
               foundVersion = linkedDepManifest.version
             }
-          } catch {
-            foundVersion = undefined
+          } catch (err: unknown) {
+            if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+              foundVersion = undefined
+            } else {
+              throw err
+            }
           }
         } else {
           foundVersion = extractVersion(foundRef, peerName, lockfile.packages ?? {})

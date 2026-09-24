@@ -231,10 +231,10 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       for (const linkedDependency of linkedDependencies) {
         if (!linkedDependency.pkg.peerDependencies) continue
         const parents = [{
-          name: linkedDependency.alias,
+          name: linkedDependency.name ?? linkedDependency.alias,
           version: linkedDependency.version,
         }]
-        const linkedProject = projectsByRootDir.get(linkedDependency.resolution.directory as ProjectRootDir)
+        const linkedProject = projectsByRootDir.get(path.resolve(opts.lockfileDir, linkedDependency.resolution.directory) as ProjectRootDir)
         for (const [peerName, peerRange] of Object.entries(linkedDependency.pkg.peerDependencies)) {
           const peerVersionRange = getPeerVersionRange(peerRange)
           const isOptional = linkedDependency.pkg.peerDependenciesMeta?.[peerName]?.optional === true
