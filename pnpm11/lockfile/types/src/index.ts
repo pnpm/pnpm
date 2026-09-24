@@ -18,6 +18,8 @@ export interface LockfileBase {
   catalogs?: CatalogSnapshots
   ignoredOptionalDependencies?: string[]
   lockfileVersion: string
+  neverBuiltDependencies?: string[]
+  onlyBuiltDependencies?: string[]
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
   patchedDependencies?: Record<string, string>
