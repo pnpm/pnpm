@@ -12,9 +12,8 @@ use std::{
 };
 use tempfile::tempdir;
 
-/// Per target directory, how many workers are placing entries in it and
-/// the most there have been at once. Keyed by absolute path, so tests
-/// sharing the process only ever read their own directories.
+/// Keyed by absolute path, so tests sharing the process only ever read
+/// their own directories.
 static DIRECTORY_WRITERS: Mutex<BTreeMap<PathBuf, DirectoryWriters>> = Mutex::new(BTreeMap::new());
 
 #[derive(Default)]
