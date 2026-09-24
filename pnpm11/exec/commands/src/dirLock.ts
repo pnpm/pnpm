@@ -120,7 +120,7 @@ async function removeIfStillStale (lockPath: string, staleOwner: string | undefi
     if (!isErrorCode(err, 'EEXIST')) throw err
     const stats = await fs.lstat(reaperPath).catch(() => undefined)
     if (stats != null && Date.now() - stats.mtimeMs > REAPER_ABANDONED_MS) {
-      await fs.rm(reaperPath, { force: true, recursive: true }).catch(() => {})
+      await fs.rm(reaperPath, { force: true, recursive: true })
     }
     return false
   }
