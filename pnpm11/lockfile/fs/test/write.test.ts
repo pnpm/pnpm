@@ -574,17 +574,25 @@ testOnNonWindows('writeWantedLockfileAtomic() removes the temp file when the pro
     '--input-type=module',
     '--eval',
     `import { writeWantedLockfileAtomic } from ${JSON.stringify(writeModule)}
-process.stdout.write('ready\\n')
-await writeWantedLockfileAtomic(process.env.LOCKFILE_PATH, 'key: ' + 'x'.repeat(200 * 1024 * 1024))`,
+await writeWantedLockfileAtomic(process.env.LOCKFILE_PATH, 'key: ' + 'x'.repeat(400 * 1024 * 1024))`,
   ], {
     env: { ...process.env, LOCKFILE_PATH: path.join(projectPath, WANTED_LOCKFILE) },
-    stdio: ['ignore', 'pipe', 'inherit'],
+    stdio: ['ignore', 'ignore', 'inherit'],
   })
-  // Wait for the child to open the temp file, then interrupt its write.
-  await once(child.stdout, 'data')
+  // Interrupt once the temp file exists. Killing earlier — while the child
+  // is still building the write's payload — would pass without exercising
+  // the cleanup, as there would be no temp file to remove.
+  await waitForTempFile(1000)
   child.kill('SIGINT')
 
   const [, signal] = await once(child, 'exit')
   expect(signal).toBe('SIGINT')
   expect(fs.readdirSync(projectPath).filter((entry) => entry.endsWith('.tmp'))).toStrictEqual([])
+
+  function waitForTempFile (attempts: number): Promise<void> {
+    if (attempts === 0 || fs.readdirSync(projectPath).some((entry) => entry.endsWith('.tmp'))) {
+      return Promise.resolve()
+    }
+    return new Promise<void>((resolve) => setTimeout(resolve, 5)).then(() => waitForTempFile(attempts - 1))
+  }
 })
