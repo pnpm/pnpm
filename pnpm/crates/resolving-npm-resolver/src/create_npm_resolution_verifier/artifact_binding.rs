@@ -160,8 +160,7 @@ pub(super) fn lockfile_revision(resolution: &LockfileResolution) -> Option<u64> 
 /// encoding difference between the lockfile URL and the registry
 /// metadata isn't read as tampering.
 pub(super) fn canonical_tarball_url(url: &str) -> String {
-    let normalized = reqwest::Url::parse(url)
-        .map_or_else(|_error| url.to_string(), |parsed| parsed.to_string())
+    let normalized = crate::normalize_tarball_url(url)
         // `%2f` may survive re-serialization in either case; normalize both.
         .replace("%2F", "/")
         .replace("%2f", "/");

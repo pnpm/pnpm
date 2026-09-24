@@ -497,6 +497,63 @@ fn computes_the_integrity_of_an_unpinned_tarball() {
     drop(root);
 }
 
+/// A registry that advertises a tarball URL with an explicit default port
+/// (e.g. `:443` for HTTPS or `:80` for HTTP) must have the default port
+/// stripped before saving the tarball URL to the lockfile (regression of
+/// pnpm/pnpm#10273, tracked by pnpm/pnpm#15539).
+#[test]
+fn strips_default_ports_from_registry_tarball_urls_in_lockfile() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let packument = serde_json::json!({
+        "name": "default-port-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "modified": "2020-01-15T12:00:00.000Z",
+        "time": { "1.0.0": "2020-01-10T08:30:00.000Z" },
+        "versions": {
+            "1.0.0": {
+                "name": "default-port-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry.npmjs.org:443/default-port-pkg/-/default-port-pkg-1.0.0.tgz",
+                },
+            },
+        },
+    });
+    let packument_mock = registry
+        .mock("GET", "/default-port-pkg")
+        .with_body(packument.to_string())
+        .create();
+    write_registry_workspace(&workspace, &registry.url());
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "default-port-pkg": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        !lockfile.contains(":443"),
+        "the lockfile must not contain the default port :443:\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains(
+            "https://registry.npmjs.org/default-port-pkg/-/default-port-pkg-1.0.0.tgz"
+        ),
+        "the lockfile must record the normalized tarball URL without default port:\n{lockfile}",
+    );
+    packument_mock.assert();
+
+    drop(root);
+}
+
 /// `.npmrc` + `pnpm-workspace.yaml` for a registry the test hosts
 /// itself. [`AddMockedRegistry`] writes the same pair, but only ever for
 /// the shared pnpr fixture registry.
