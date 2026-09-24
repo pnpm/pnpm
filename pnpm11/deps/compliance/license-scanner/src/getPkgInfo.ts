@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { resolveLicense } from '@pnpm/deps.compliance.license-resolver'
-import { depPathToFilename } from '@pnpm/deps.path'
+import { depPathToFilename, removeSuffix } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 import { readPackageJson } from '@pnpm/pkg-manifest.reader'
@@ -111,7 +111,7 @@ export async function getPkgInfo (
     opts.dir
   )
 
-  const hoistedLocation = opts.hoistedLocations?.[pkg.depPath]?.[0]
+  const hoistedLocation = (opts.hoistedLocations?.[pkg.depPath] ?? opts.hoistedLocations?.[removeSuffix(pkg.depPath)])?.[0]
   const packageModulePath = hoistedLocation != null
     ? path.join(opts.dir, hoistedLocation)
     : path.join(
