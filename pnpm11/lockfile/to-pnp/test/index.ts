@@ -773,7 +773,8 @@ test('writePnpFile resolves a workspace dependency from a nested workspace packa
 })
 
 test('lockfileToPackageRegistry writes workspace dependency locators with forward slashes', () => {
-  const joinSpy = jest.spyOn(path, 'join').mockImplementation(path.win32.join)
+  const win32Join = path.win32.join
+  const joinSpy = jest.spyOn(path, 'join').mockImplementation(win32Join)
   try {
     const packageRegistry = lockfileToPackageRegistry(workspaceLockfile, {
       importerNames: { 'packages/a': 'a', 'packages/b': 'b' },
