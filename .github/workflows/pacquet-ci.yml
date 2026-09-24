@@ -232,11 +232,11 @@ jobs:
         with:
           tool: cargo-nextest,sccache@0.17.0
 
-      # rust-cache saves no dependency artifacts for this workspace: the
-      # pnpm-managed crates source lives inside it, so every crate counts as a
-      # workspace member and gets pruned. sccache keys each compiler call by
-      # its inputs instead. On Windows a warm sccache build was no faster than
-      # a plain one and a cold one was slower, so it stays off there.
+      # rust-cache restores the dependencies' artifacts but prunes the crates
+      # under pnpm/ (see .github/actions/rustup). sccache keys each compiler
+      # call by its inputs, so those crates still hit when unchanged. On
+      # Windows a warm sccache build was no faster than a plain one and a
+      # cold one was slower, so it stays off there.
       - name: Use sccache
         if: runner.os != 'Windows'
         shell: bash
