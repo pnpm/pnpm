@@ -32,6 +32,12 @@ export interface LockfileSettingsInput {
   excludeLinksFromLockfile?: boolean
   peersSuffixMaxLength?: number
   pnpmfileChecksum?: string
+  /**
+   * Skips comparing `pnpmfileChecksum`, for an install that loads no
+   * pnpmfile because of `ignorePnpmfile`. The flag skips the pnpmfile for
+   * that run only, so the checksum the lockfile records still stands.
+   */
+  ignorePnpmfileChecksum?: boolean
   injectWorkspacePackages?: boolean
 }
 
@@ -71,6 +77,7 @@ function * outdatedLockfileSettings (
     excludeLinksFromLockfile,
     peersSuffixMaxLength,
     pnpmfileChecksum,
+    ignorePnpmfileChecksum,
     injectWorkspacePackages,
   }: LockfileSettingsInput
 ): Generator<ChangedField> {
@@ -108,7 +115,7 @@ function * outdatedLockfileSettings (
   ) {
     yield 'settings.peersSuffixMaxLength'
   }
-  if (lockfile.pnpmfileChecksum !== pnpmfileChecksum) {
+  if (!ignorePnpmfileChecksum && lockfile.pnpmfileChecksum !== pnpmfileChecksum) {
     yield 'pnpmfileChecksum'
   }
   if (Boolean(lockfile.settings?.injectWorkspacePackages) !== Boolean(injectWorkspacePackages)) {

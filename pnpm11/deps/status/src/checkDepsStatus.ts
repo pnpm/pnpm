@@ -56,6 +56,7 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'catalogs'
 | 'dedupeDirectDeps'
 | 'excludeLinksFromLockfile'
+| 'ignorePnpmfile'
 | 'injectWorkspacePackages'
 | 'linkWorkspacePackages'
 | 'lockfileDir'
@@ -718,6 +719,7 @@ async function assertWantedLockfileUpToDate (
     packageExtensionsChecksum: hashObjectNullableWithPrefix(config.packageExtensions),
     patchedDependencies,
     pnpmfileChecksum,
+    ignorePnpmfileChecksum: config.ignorePnpmfile === true && pnpmfileChecksum == null,
   })
 
   if (outdatedLockfileSettingName) {

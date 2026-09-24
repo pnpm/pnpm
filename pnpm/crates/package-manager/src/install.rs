@@ -105,7 +105,8 @@ use lifecycle::{
     run_projects_lifecycle_scripts, run_root_hook,
 };
 use lockfile_freshness::{
-    FastUpdateLockfileOptions, check_lockfile_freshness, try_fast_update_lockfile,
+    FastUpdateLockfileOptions, LockfileFreshnessInputs, check_lockfile_freshness,
+    try_fast_update_lockfile,
 };
 use materialize::{MaterializationInputs, Materialized, materialize};
 use modules_state::{
@@ -181,6 +182,23 @@ pub(crate) fn untracked_read_package_hook_may_have_changed(
     current: Option<bool>,
 ) -> bool {
     current == Some(true) || recorded != current
+}
+
+/// What the freshness gates compare the lockfile's `pnpmfileChecksum`
+/// against: the `current` checksum, unless the install loads no pnpmfile
+/// because of `ignorePnpmfile`. The flag skips the pnpmfile for that run
+/// only, so the checksum is left uncompared and a lockfile that is
+/// otherwise up to date installs as it is
+/// (<https://github.com/pnpm/pnpm/issues/10944>). A run that goes on to
+/// resolve still sees the drift in the reuse gate and records no checksum.
+fn pnpmfile_checksum_check<'a>(
+    inputs: &LockfileFreshnessInputs<'_, '_>,
+    current: Option<&'a str>,
+) -> PnpmfileChecksumCheck<'a> {
+    if inputs.config.ignore_pnpmfile && inputs.pnpmfile_hook.is_none() {
+        return PnpmfileChecksumCheck::Skip;
+    }
+    PnpmfileChecksumCheck::Current(current)
 }
 
 impl LockfileVerificationGate {

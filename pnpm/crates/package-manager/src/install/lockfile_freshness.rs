@@ -300,7 +300,8 @@ pub(super) fn check_importer_manifests_exist(
 /// `pnpmfile_hook` is the pnpmfile an install of this project would
 /// load, whose checksum the settings gate compares against
 /// `lockfile.pnpmfileChecksum` (see
-/// [`pnpm_hooks::current_pnpmfile_checksum`]).
+/// [`pnpm_hooks::current_pnpmfile_checksum`]), unless `ignorePnpmfile`
+/// leaves it uncompared (see [`super::pnpmfile_checksum_check`]).
 pub(super) async fn check_lockfile_freshness(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
@@ -317,7 +318,7 @@ pub(super) async fn check_lockfile_freshness(
         inputs.catalogs,
         CheckLockfileSettingsDriftOptions {
             parsed_overrides: parsed_overrides_opt.as_deref(),
-            pnpmfile_checksum: PnpmfileChecksumCheck::Current(pnpmfile_checksum.as_deref()),
+            pnpmfile_checksum: super::pnpmfile_checksum_check(inputs, pnpmfile_checksum.as_deref()),
             dedupe_peers: inputs.config.dedupe_peers,
         },
     )?;

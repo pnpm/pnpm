@@ -815,6 +815,13 @@ export async function mutateModules (
     }
     const packageExtensionsChecksum = hashObjectNullableWithPrefix(opts.packageExtensions)
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
+    // `ignorePnpmfile` skips the pnpmfile for this run only, so the checksum
+    // the lockfile records is not compared against its absence, and a
+    // lockfile that is otherwise up to date installs as it is. A run that
+    // changes the lockfile resolves without the snapshots the pnpmfile shaped
+    // and records no checksum (https://github.com/pnpm/pnpm/issues/10944).
+    const pnpmfileChecksumIgnored = opts.ignorePnpmfile && pnpmfileChecksum == null &&
+      ctx.wantedLockfile.pnpmfileChecksum != null
     const untrackedPnpmfileReadPackageHook = getUntrackedPnpmfileReadPackageHook(opts.hooks)
     const untrackedReadPackageHookMayHaveChanged = untrackedPnpmfileReadPackageHook === true ||
       ctx.wantedLockfile.untrackedPnpmfileReadPackageHook !== untrackedPnpmfileReadPackageHook
@@ -889,6 +896,7 @@ export async function mutateModules (
     if (!opts.ignorePackageManifest) {
       changedLockfileSettings = getOutdatedLockfileSettings(ctx.wantedLockfile, {
         ...lockfileSettings,
+        ignorePnpmfileChecksum: pnpmfileChecksumIgnored,
         overrides: overridesMap,
       })
       if (frozenLockfile && changedLockfileSettings.length > 0) {
@@ -962,6 +970,7 @@ export async function mutateModules (
       // programmatic one, or one from the checksum-excluded global pnpmfile
       // — keeps forcing the resolver.
       !untrackedReadPackageHookMayHaveChanged &&
+      !pnpmfileChecksumIgnored &&
       !opts.hooks.preResolution?.length &&
       !opts.hooks.afterAllResolved?.length &&
       opts.hooks.customResolvers == null &&
@@ -1103,6 +1112,10 @@ export async function mutateModules (
       } else {
         return frozenInstallResult
       }
+    }
+    if (pnpmfileChecksumIgnored) {
+      needsFullResolution = true
+      ctx.wantedLockfile.pnpmfileChecksum = pnpmfileChecksum
     }
 
     const projectsToInstall = [] as ImporterToUpdate[]

@@ -86,7 +86,10 @@ pub(crate) struct ReuseLockfileInputs<'a> {
     /// the candidate holds. A pnpmfile's `readPackage` rewrites the
     /// manifests the recorded subtrees were resolved from, so a drifted
     /// checksum means they describe manifests this install no longer sees
-    /// (<https://github.com/pnpm/pnpm/issues/3735>).
+    /// (<https://github.com/pnpm/pnpm/issues/3735>). That holds for an
+    /// `ignorePnpmfile` run as well: it answers `None`, so it resolves
+    /// without the snapshots the pnpmfile shaped even though the freshness
+    /// gates leave the checksum uncompared.
     pub pnpmfile_checksum: Option<&'a str>,
     pub untracked_pnpmfile_read_package_hook: Option<bool>,
     pub parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
