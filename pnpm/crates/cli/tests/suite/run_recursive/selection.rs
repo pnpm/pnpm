@@ -862,3 +862,29 @@ fn filtered_run_follows_workspace_catalog_entries() {
 
     drop(root);
 }
+
+/// With `link-workspace-packages: true`, a dependency declared as an
+/// `npm:` alias of a sibling is a workspace edge, since install links it
+/// to that sibling: `--filter app...` selects the sibling and runs it
+/// first.
+#[test]
+fn filtered_run_follows_npm_alias_of_a_sibling() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut app = build_appends_run_order("app");
+    app["dependencies"] = json!({ "math-alias": "npm:math@^1.0.0" });
+    write_workspace(&workspace, &[("app", app), ("math", build_appends_run_order("math"))]);
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut manifest = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    manifest.push_str("linkWorkspacePackages: true\n");
+    fs::write(&workspace_yaml, manifest).expect("write pnpm-workspace.yaml");
+
+    pacquet
+        .with_args(["--filter", "app...", "--workspace-concurrency=1", "run", "build"])
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "math\napp\n");
+
+    drop(root);
+}

@@ -936,3 +936,54 @@ test('create graph with dependencies resolved through catalogs', () => {
   expect(result.unmatched).toStrictEqual([])
   expect(result.graph[BAR1_PATH].dependencies.sort()).toStrictEqual([BAR2_PATH, FOO1_PATH].sort())
 })
+
+test('create graph with dependencies declared through npm aliases', () => {
+  const projects = [
+    {
+      rootDir: BAR1_PATH,
+      manifest: {
+        name: 'bar',
+        version: '1.0.0',
+        dependencies: {
+          'foo-alias': 'npm:foo@^1.0.0',
+          'baz-alias': 'npm:baz@^9.0.0',
+          'is-positive-alias': 'npm:is-positive@1.0.0',
+          qar: 'npm:^4.0.0',
+          'foo-latest': 'npm:foo',
+        },
+      },
+    },
+    {
+      rootDir: FOO1_PATH,
+      manifest: {
+        name: 'foo',
+        version: '1.2.0',
+      },
+    },
+    {
+      rootDir: BAR2_PATH,
+      manifest: {
+        name: 'baz',
+        version: '2.0.0',
+      },
+    },
+    {
+      rootDir: FOO2_PATH,
+      manifest: {
+        name: 'qar',
+        version: '4.0.0',
+      },
+    },
+  ]
+  const linked = createProjectsGraph(projects)
+  expect(linked.graph[BAR1_PATH].dependencies).toStrictEqual([FOO1_PATH, FOO2_PATH])
+  expect(linked.unmatched).toStrictEqual([{ pkgName: 'baz', range: '>=9.0.0 <10.0.0-0' }])
+
+  const strict = createProjectsGraph(projects, { linkWorkspacePackages: false })
+  expect(strict.graph[BAR1_PATH].dependencies).toStrictEqual([])
+  expect(strict.unmatched).toStrictEqual([
+    { pkgName: 'foo', range: '>=1.0.0 <2.0.0-0' },
+    { pkgName: 'baz', range: '>=9.0.0 <10.0.0-0' },
+    { pkgName: 'qar', range: '>=4.0.0 <5.0.0-0' },
+  ])
+})

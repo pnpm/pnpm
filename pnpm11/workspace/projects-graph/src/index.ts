@@ -61,19 +61,10 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
               // resolve them as directory dependencies below.
               rawSpec = npmSpec
             } else {
-              let parsed: ReturnType<typeof parseBareSpecifier> = null
-              try {
-                parsed = parseBareSpecifier(npmSpec, depName, 'latest', '')
-              } catch {
-                // Defensive backstop for other malformed specs.
-              }
-              if (parsed) {
-                rawSpec = parsed.fetchSpec
-                depName = parsed.name
-              } else {
-                rawSpec = npmSpec
-              }
+              ({ depName, rawSpec } = parseRegistrySpec(depName, npmSpec))
             }
+          } else if (rawSpec.startsWith('npm:')) {
+            ({ depName, rawSpec } = parseRegistrySpec(depName, rawSpec))
           }
           spec = npa.resolve(depName, rawSpec, project.rootDir)
         } catch {
@@ -129,6 +120,21 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
       })
       .filter(Boolean)
   }
+}
+
+/**
+ * The package an `npm:` alias points at and the selector it asks for, read
+ * the way the npm resolver reads them. A spec the resolver does not claim
+ * passes through unchanged.
+ */
+function parseRegistrySpec (depName: string, npmSpec: string): { depName: string, rawSpec: string } {
+  let parsed: ReturnType<typeof parseBareSpecifier> = null
+  try {
+    parsed = parseBareSpecifier(npmSpec, depName, 'latest', '')
+  } catch {
+    // Defensive backstop for other malformed specs.
+  }
+  return parsed ? { depName: parsed.name, rawSpec: parsed.fetchSpec } : { depName, rawSpec: npmSpec }
 }
 
 function isRelativePathSpec (spec: string): boolean {

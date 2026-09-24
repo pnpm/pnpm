@@ -238,7 +238,8 @@ fn resolve_edge(
         let spec = WorkspaceSpec::parse(raw_spec)?;
         (spec.alias.unwrap_or_else(|| dep_name.to_string()), spec.version)
     } else {
-        (dep_name.to_string(), raw_spec.to_string())
+        let (name, spec) = npm_alias_target(dep_name, raw_spec);
+        (name.to_string(), spec.to_string())
     };
 
     if is_workspace_spec {
@@ -254,6 +255,22 @@ fn resolve_edge(
             resolve_by_name_version(&effective_name, &effective_spec, false, lookups, unmatched)
         }
         SpecKind::Skip => None,
+    }
+}
+
+/// The package an `npm:` alias points at and the selector it asks for,
+/// split the way the npm resolver splits them: the last `@` past the
+/// first character separates `<name>@<selector>`, and without one the
+/// body is a selector for `dep_name` itself. A bare `npm:<name>` thus
+/// yields a package name as the selector, which no version or range
+/// matches. Any other specifier is returned unchanged.
+fn npm_alias_target<'a>(dep_name: &'a str, raw_spec: &'a str) -> (&'a str, &'a str) {
+    let Some(aliased) = raw_spec.strip_prefix("npm:") else {
+        return (dep_name, raw_spec);
+    };
+    match aliased.rfind('@') {
+        Some(index) if index >= 1 => (&aliased[..index], &aliased[index + 1..]),
+        _ => (dep_name, aliased),
     }
 }
 

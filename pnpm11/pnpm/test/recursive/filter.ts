@@ -244,3 +244,36 @@ test('pnpm --recursive --filter "!./packages/**" --filter "a" run should re-incl
   expect(stdout).not.toContain('packages/b which$')
 })
 
+test('pnpm --filter "<pkg>..." run follows an npm alias of a workspace project when workspace packages are linked', async () => {
+  preparePackages([
+    {
+      location: 'math',
+      package: {
+        name: 'math',
+        version: '1.0.0',
+        scripts: {
+          which: "node -e \"console.log('from-math')\"",
+        },
+      },
+    },
+    {
+      location: 'app',
+      package: {
+        name: 'app',
+        dependencies: {
+          'math-alias': 'npm:math@^1.0.0',
+        },
+        scripts: {
+          which: "node -e \"console.log('from-app')\"",
+        },
+      },
+    },
+  ])
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - "*"\nlinkWorkspacePackages: true\n')
+
+  const result = execPnpmSync(['--filter', 'app...', 'run', 'which'])
+  expect(result.status).toBe(0)
+  const stdout = result.stdout.toString()
+  expect(stdout).toContain('from-math')
+  expect(stdout.indexOf('from-math')).toBeLessThan(stdout.indexOf('from-app'))
+})
