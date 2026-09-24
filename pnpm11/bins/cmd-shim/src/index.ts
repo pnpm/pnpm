@@ -199,14 +199,21 @@ export function isShimNodePath (shimContent: string, expected: { first?: string,
  * has no `NODE_PATH` of its own.
  */
 function readShNodePath (shimContent: string): string | undefined {
-  const prefix = isWindows ? SH_NEW_NODE_PATH : SH_NODE_PATH_EXPORT
-  const start = shimContent.indexOf(prefix)
-  if (start === -1) return shimContent.includes(SH_NODE_PATH_EXPORT) ? '' : undefined
-  const valueStart = start + prefix.length
+  if (isWindows) {
+    const start = shimContent.indexOf('\n  new_node_path=')
+    if (start === -1) return shimContent.includes(SH_NODE_PATH_EXPORT) ? '' : undefined
+    const quoteStart = start + '\n  new_node_path='.length
+    const quote = shimContent[quoteStart]
+    const valueStart = quoteStart + 1
+    const end = shimContent.indexOf(quote, valueStart)
+    return end === -1 ? undefined : shimContent.slice(valueStart, end)
+  }
+  const start = shimContent.indexOf(SH_NODE_PATH_EXPORT)
+  if (start === -1) return undefined
+  const valueStart = start + SH_NODE_PATH_EXPORT.length
   return shimContent.slice(valueStart, shimContent.indexOf('"', valueStart))
 }
 
-const SH_NEW_NODE_PATH = '\n  new_node_path="'
 const SH_NODE_PATH_EXPORT = '\n  export NODE_PATH="'
 
 /**
@@ -555,7 +562,7 @@ if [ -n "$msys" ]; then
   new_node_path=${shSingleQuote(normalizePathEnvVar(opts.nodePath).win32)}
   node_path_sep=';'
 else
-  new_node_path="${shNodePath}"
+  new_node_path=${shSingleQuote(shNodePath)}
   node_path_sep=':'
 fi
 if [ -z "$NODE_PATH" ]; then

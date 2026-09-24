@@ -458,7 +458,7 @@ if [ -n "$msys" ]; then
   new_node_path='\\john\\src\\node_modules;\\bin\\node\\node_modules'
   node_path_sep=';'
 else
-  new_node_path="/john/src/node_modules:/bin/node/node_modules"
+  new_node_path='/john/src/node_modules:/bin/node/node_modules'
   node_path_sep=':'
 fi
 if [ -z "$NODE_PATH" ]; then

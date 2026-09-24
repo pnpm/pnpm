@@ -166,7 +166,7 @@ test('linkBins() keeps or rewrites the NODE_PATH of an existing bin according to
 // A shim written on Windows keeps its posix entries in `new_node_path` and
 // picks the form it exports when it runs.
 function nodePathEntries (shim: string): string[] {
-  const posix = /^ {2}new_node_path="([^"]*)"$/m.exec(shim) ?? /^ {2}export NODE_PATH="([^"]*)"$/m.exec(shim)
+  const posix = /^ {2}new_node_path=['"]([^'"]*)['"]$/m.exec(shim) ?? /^ {2}export NODE_PATH="([^"]*)"$/m.exec(shim)
   return posix?.[1].split(':') ?? []
 }
 

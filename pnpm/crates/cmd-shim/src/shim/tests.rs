@@ -1050,8 +1050,11 @@ fn shim_execution_skips_node_modules_and_relative_path_entries_when_command_p_se
 #[cfg(unix)]
 #[test]
 fn a_windows_sh_shim_picks_the_node_path_form_when_it_runs() {
-    let node_path =
-        [r"C:\proj\node_modules\.pnpm\node_modules".to_owned(), "D:/it's/node_modules".to_owned()];
+    let node_path = [
+        r"C:\proj\node_modules\.pnpm\node_modules".to_owned(),
+        "D:/it's/node_modules".to_owned(),
+        r"E:\hostile$(touch pwned)`touch pwned`".to_owned(),
+    ];
     let mut block = String::new();
     write_sh_node_path(&mut block, &node_path, true);
 
@@ -1070,19 +1073,23 @@ fn a_windows_sh_shim_picks_the_node_path_form_when_it_runs() {
         String::from_utf8(output.stdout).unwrap()
     };
 
-    assert_eq!(run("true", None), r"C:\proj\node_modules\.pnpm\node_modules;D:\it's\node_modules");
+    assert_eq!(
+        run("true", None),
+        r"C:\proj\node_modules\.pnpm\node_modules;D:\it's\node_modules;E:\hostile$(touch pwned)`touch pwned`",
+    );
     assert_eq!(
         run("true", Some(r"E:\global")),
-        r"C:\proj\node_modules\.pnpm\node_modules;D:\it's\node_modules;E:\global",
+        r"C:\proj\node_modules\.pnpm\node_modules;D:\it's\node_modules;E:\hostile$(touch pwned)`touch pwned`;E:\global",
     );
     assert_eq!(
         run("", None),
-        "/mnt/c/proj/node_modules/.pnpm/node_modules:/mnt/d/it's/node_modules",
+        "/mnt/c/proj/node_modules/.pnpm/node_modules:/mnt/d/it's/node_modules:/mnt/e/hostile$(touch pwned)`touch pwned`",
     );
     assert_eq!(
         run("", Some("/usr/lib/node")),
-        "/mnt/c/proj/node_modules/.pnpm/node_modules:/mnt/d/it's/node_modules:/usr/lib/node",
+        "/mnt/c/proj/node_modules/.pnpm/node_modules:/mnt/d/it's/node_modules:/mnt/e/hostile$(touch pwned)`touch pwned`:/usr/lib/node",
     );
+    assert!(!std::path::Path::new("pwned").exists());
 }
 
 #[test]

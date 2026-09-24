@@ -101,9 +101,10 @@ pub(super) fn write_sh_node_path(sh: &mut String, node_path: &[String], windows_
         return;
     }
     let win32 = sh_single_quote(&win32);
+    let posix = sh_single_quote(&posix);
     writeln!(
         sh,
-        "if [ -n \"$msys\" ]; then\n  new_node_path={win32}\n  node_path_sep=';'\nelse\n  new_node_path=\"{posix}\"\n  node_path_sep=':'\nfi\nif [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH=\"$new_node_path\"\nelse\n  export NODE_PATH=\"$new_node_path$node_path_sep$NODE_PATH\"\nfi",
+        "if [ -n \"$msys\" ]; then\n  new_node_path={win32}\n  node_path_sep=';'\nelse\n  new_node_path={posix}\n  node_path_sep=':'\nfi\nif [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH=\"$new_node_path\"\nelse\n  export NODE_PATH=\"$new_node_path$node_path_sep$NODE_PATH\"\nfi",
     )
     .unwrap();
 }
