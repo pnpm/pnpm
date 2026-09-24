@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Running `pnpm install -r` now performs a recursive install across all workspace projects when `recursive-install: false` is configured [pnpm/pnpm#7504](https://github.com/pnpm/pnpm/issues/7504).
+`pnpm install -r` now installs every workspace project when `recursiveInstall` is set to `false` in `pnpm-workspace.yaml` [pnpm/pnpm#7504](https://github.com/pnpm/pnpm/issues/7504).
