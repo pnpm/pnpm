@@ -136,23 +136,35 @@ describe('placeholder bin', () => {
     assert.match(result.stdout, FAKE_BINARY_OUTPUT)
   })
 
-  it('does not use a readlink or dirname from a node_modules entry on PATH even when command -p falls back to PATH', { skip: HAS_A_SHELL }, async () => {
+  // Where no default path is compiled in, as on Nix, `command -p` searches the
+  // caller's PATH. No test host behaves that way, so the placeholder's
+  // `command -p` is rewritten to the plain `command` such a shell amounts to.
+  it('does not use a readlink from a node_modules or relative PATH entry when command -p searches PATH', { skip: HAS_A_SHELL }, async () => {
     const fixture = createFixture()
+    fs.writeFileSync(fixture.placeholder, fs.readFileSync(fixture.placeholder, 'utf8').replaceAll('command -p ', 'command '))
     const hijackDir = path.join(fixture.dir, 'hijack')
     fs.mkdirSync(path.join(hijackDir, 'bin'), { recursive: true })
     fs.writeFileSync(path.join(hijackDir, 'bin', 'pnpm.mjs'), 'console.log("hijacked")\n')
-    const decoyDir = path.join(fixture.dir, 'fake_project', 'node_modules', '.bin')
+    const decoyDir = path.join(fixture.dir, 'decoy')
     fs.mkdirSync(decoyDir, { recursive: true })
     writeDecoy(path.join(decoyDir, 'readlink'), path.join(hijackDir, 'pnpm'))
-    writeDecoy(path.join(decoyDir, 'dirname'), hijackDir)
     const link = path.join(fixture.dir, 'pnpm-link')
     fs.symlinkSync(path.relative(fixture.dir, fixture.placeholder), link)
-
-    const result = await run('sh', [link, '--version'], {
-      env: { PATH: [decoyDir, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) },
+    const runWithPath = (entry, cwd) => run('sh', [link, '--version'], {
+      cwd,
+      env: { PATH: [entry, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) },
     })
-    assert.equal(result.status, 0, result.stderr)
-    assert.match(result.stdout, FAKE_BINARY_OUTPUT)
+
+    const hijacked = await runWithPath(decoyDir)
+    assert.match(hijacked.stdout, /^hijacked$/m, 'precondition: the rewritten placeholder resolves readlink through PATH')
+    const nodeModulesBin = path.join(fixture.dir, 'proj', 'node_modules', '.bin')
+    fs.mkdirSync(path.dirname(nodeModulesBin), { recursive: true })
+    fs.renameSync(decoyDir, nodeModulesBin)
+    for (const [entry, cwd] of [[nodeModulesBin], ['.bin', path.dirname(nodeModulesBin)]]) {
+      const result = await runWithPath(entry, cwd)
+      assert.equal(result.status, 0, result.stderr)
+      assert.match(result.stdout, FAKE_BINARY_OUTPUT, `readlink came from the PATH entry ${entry}`)
+    }
   })
 
   it('hands over to the entry point when no platform package is installed', { skip: HAS_A_SHELL }, async () => {

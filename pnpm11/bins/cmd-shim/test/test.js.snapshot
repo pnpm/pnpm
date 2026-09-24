@@ -9,6 +9,23 @@ exports[`batch script > shim files > bat.shim 1`] = `
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+PATH=$helper_path
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -55,6 +72,7 @@ case \`command -p uname -a\` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 if [ -n "$msys" ]; then
   if [ -n "$exe" ] && [ -x "$basedir/cmd.exe" ]; then
@@ -142,6 +160,23 @@ exports[`custom node executable > shim files > env.shim 1`] = `
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+PATH=$helper_path
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -188,6 +223,7 @@ case \`command -p uname -a\` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 exec "/.pnpm/nodejs/16.0.0/node"  "$basedir/src.env" "$@"
 exit $?
@@ -233,6 +269,23 @@ exports[`env shebang > shim files > env.shim 1`] = `
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+PATH=$helper_path
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -279,6 +332,7 @@ case \`command -p uname -a\` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
@@ -350,6 +404,23 @@ exports[`env shebang with NODE_PATH > shim files > env.shim 1`] = `
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+PATH=$helper_path
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -396,6 +467,7 @@ case \`command -p uname -a\` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 if [ -z "$NODE_PATH" ]; then
   export NODE_PATH="/john/src/node_modules:/bin/node/node_modules"
@@ -490,6 +562,23 @@ exports[`env shebang with PATH extending > shim files > env.shim 1`] = `
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+PATH=$helper_path
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -536,6 +625,7 @@ case \`command -p uname -a\` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 export PATH="/add-to-path:$PATH"
 if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
@@ -619,6 +709,23 @@ exports[`env shebang with args > shim files > env.args.shim 1`] = `
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+PATH=$helper_path
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -665,6 +772,7 @@ case \`command -p uname -a\` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  --expose_gc "$basedir_win/src.env.args" "$@"
@@ -736,6 +844,23 @@ exports[`env shebang with default args > shim files > env.shim 1`] = `
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+PATH=$helper_path
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -782,6 +907,7 @@ case \`command -p uname -a\` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe" --preserve-symlinks "$basedir_win/src.env" "$@"
@@ -853,6 +979,23 @@ exports[`env shebang with no NODE_PATH > shim files > env.shim 1`] = `
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+PATH=$helper_path
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -899,6 +1042,7 @@ case \`command -p uname -a\` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
@@ -970,6 +1114,23 @@ exports[`explicit shebang > shim files > sh.shim 1`] = `
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+PATH=$helper_path
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1016,6 +1177,7 @@ case \`command -p uname -a\` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 if [ -n "$exe" ] && [ -x "$basedir//usr/bin/sh.exe" ]; then
   exec "$basedir//usr/bin/sh.exe"  "$basedir_win/src.sh" "$@"
@@ -1087,6 +1249,23 @@ exports[`explicit shebang with args > shim files > sh.args.shim 1`] = `
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+PATH=$helper_path
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1133,6 +1312,7 @@ case \`command -p uname -a\` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 if [ -n "$exe" ] && [ -x "$basedir//usr/bin/sh.exe" ]; then
   exec "$basedir//usr/bin/sh.exe"  -x "$basedir_win/src.sh.args" "$@"
@@ -1204,6 +1384,23 @@ exports[`explicit shebang with args, linking to another drive on Windows > shim 
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+PATH=$helper_path
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1250,6 +1447,7 @@ case \`command -p uname -a\` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 if [ -n "$exe" ] && [ -x "$basedir//usr/bin/sh.exe" ]; then
   exec "$basedir//usr/bin/sh.exe"  -x "J:/cmd-shim/fixtures/src.sh.args" "$@"
@@ -1321,6 +1519,23 @@ exports[`explicit shebang with prog args > shim files > sh.args.shim 1`] = `
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+PATH=$helper_path
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1367,6 +1582,7 @@ case \`command -p uname -a\` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 if [ -n "$exe" ] && [ -x "$basedir//usr/bin/sh.exe" ]; then
   exec "$basedir//usr/bin/sh.exe"  -x "$basedir_win/src.sh.args" hello "$@"
@@ -1438,6 +1654,23 @@ exports[`no cmd file > shim files > exe.shim 1`] = `
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+PATH=$helper_path
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1484,6 +1717,7 @@ case \`command -p uname -a\` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 exec "$basedir/src.exe"   "$@"
 exit $?
@@ -1522,6 +1756,23 @@ exports[`no shebang > shim files > exe.shim 1`] = `
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+PATH=$helper_path
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1568,6 +1819,7 @@ case \`command -p uname -a\` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 exec "$basedir/src.exe"   "$@"
 exit $?
@@ -1613,6 +1865,23 @@ exports[`shebang with -S > shim files > from.env.s.shim 1`] = `
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+PATH=$helper_path
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1659,6 +1928,7 @@ case \`command -p uname -a\` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  --expose_gc "$basedir_win/from.env.S" "$@"

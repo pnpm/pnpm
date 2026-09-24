@@ -182,8 +182,8 @@ describe('alias bins', () => {
   it('walks symlinks the same way in every bin', () => {
     const walks = ['pnpm', ...ALIASES.map(([alias]) => alias)].map((bin) => {
       const script = fs.readFileSync(path.join(WRAPPER_DIR, bin), 'utf8')
-      const start = script.indexOf('\nself=$0\n')
-      const end = script.indexOf('\ndone\n', start)
+      const start = script.indexOf('\ncaller_path_set=')
+      const end = script.indexOf('; else unset PATH; fi\n', start)
       assert.ok(start >= 0 && end > start, `${bin} has no symlink walk`)
       // Without the comments, which name the alias and so differ by design.
       const code = script.slice(start, end).split('\n').filter((line) => !line.startsWith('#'))
