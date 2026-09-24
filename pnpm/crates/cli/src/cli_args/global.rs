@@ -65,6 +65,7 @@ use pnpm_package_manifest::{DependencyGroup, safe_read_package_json_from_dir};
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, PnpmLog, Reporter, SummaryLog};
+use pnpm_resolving_local_resolver::local_file_path;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 
 use remove::{
@@ -72,8 +73,9 @@ use remove::{
     collect_existing_global_installs, snapshot_global_package,
 };
 use selectors::{
-    SelectorGroup, groups_matching_params, infer_local_package_alias, replacement_aliases,
-    should_replace_existing_package, split_into_groups, tool_install_selectors, update_selectors,
+    SelectorGroup, groups_matching_params, infer_local_package_alias, missing_file_source_warning,
+    replacement_aliases, should_replace_existing_package, split_into_groups,
+    tool_install_selectors, update_selectors,
 };
 
 use shims::{
@@ -276,22 +278,19 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         global_pkg_dir: &global_pkg_dir,
         global_bin_dir: &global_bin_dir,
     };
-    let mut changed = false;
-    for pkg in &to_update {
-        changed |= target.update_group::<Reporter>(
-            pkg,
-            latest,
-            range_spec_style,
-            supported_architectures.clone(),
-        )
-        .await?;
-    }
-    emit_global_update_result::<Reporter>(&global_pkg_dir, changed);
+    let up_to_date = target.update_groups::<Reporter>(
+        &to_update,
+        latest,
+        range_spec_style,
+        supported_architectures,
+    )
+    .await?;
+    emit_global_update_result::<Reporter>(&global_pkg_dir, up_to_date);
     Ok(())
 }
 
-fn emit_global_update_result<Reporter: self::Reporter>(global_pkg_dir: &Path, changed: bool) {
-    if !changed {
+fn emit_global_update_result<Reporter: self::Reporter>(global_pkg_dir: &Path, up_to_date: bool) {
+    if up_to_date {
         Reporter::emit(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Info,
             message: "Already up to date".to_string(),

@@ -4695,6 +4695,7 @@ dependencies = [
  "pnpm-reporter",
  "pnpm-resolving-default-resolver",
  "pnpm-resolving-git-resolver",
+ "pnpm-resolving-local-resolver",
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",

@@ -14,7 +14,8 @@ import {
 } from '@pnpm/global.packages'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
-import { logger } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
+import { localFilePath } from '@pnpm/resolving.local-resolver'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { ProjectManifest } from '@pnpm/types'
 import semver from 'semver'
@@ -82,14 +83,38 @@ export async function handleGlobalUpdate (
 
   // Update each package group sequentially to avoid overwhelming the system
 
+  let checked = false
   let changed = false
   for (const pkg of packagesToUpdate) {
+    const missingSourceWarning = missingFileSourceWarning(pkg)
+    if (missingSourceWarning != null) {
+      globalWarn(missingSourceWarning)
+      continue
+    }
+    checked = true
     changed = await updateGlobalPackageGroup(opts, globalDir, globalBinDir, pkg, commands) || changed // eslint-disable-line no-await-in-loop
   }
-  if (!changed) {
+  if (checked && !changed) {
     logger.info({ message: 'Already up to date', prefix: opts.dir })
   }
   summaryLogger.debug({ prefix: globalDir })
+  return undefined
+}
+
+/**
+ * The warning `update -g` prints for a group it skips because the `file:`
+ * source one of its dependencies was installed from is gone. Reinstalling the
+ * group would fail with `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`, and the group
+ * still works from what it installed, so the other groups are updated instead.
+ */
+function missingFileSourceWarning (pkg: GlobalPackageInfo): string | undefined {
+  for (const [alias, spec] of Object.entries(pkg.dependencies)) {
+    const source = localFilePath(spec, pkg.installDir)
+    if (source != null && fs.statSync(source, { throwIfNoEntry: false }) == null) {
+      return `Skipped updating ${Object.keys(pkg.dependencies).join(', ')} because "${source}" no longer exists. ` +
+        `Reinstall ${alias} from an existing location, or remove it with "pnpm remove -g ${alias}".`
+    }
+  }
   return undefined
 }
 

@@ -254,6 +254,21 @@ pub fn local_tarball_path(bare: &str, project_dir: &Path) -> Option<PathBuf> {
     )
 }
 
+/// Resolve a `file:` specifier to the path the local resolver reads: the
+/// package directory, or the tarball file. Returns `None` for any other
+/// specifier.
+#[must_use]
+pub fn local_file_path(bare: &str, project_dir: &Path) -> Option<PathBuf> {
+    if !bare.starts_with("file:") {
+        return None;
+    }
+    let wanted = WantedLocalDependency { bare_specifier: bare.to_string(), injected: false };
+    parse_local_scheme(&wanted, project_dir, project_dir, ParseOptions::default())
+        .ok()
+        .flatten()
+        .map(|spec| spec.fetch_spec)
+}
+
 fn contains_path_sep(bare: &str) -> bool {
     bare.contains(std::path::MAIN_SEPARATOR) || bare.contains('/')
 }

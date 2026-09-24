@@ -132,6 +132,15 @@ export function parseLocalScheme (
   return null
 }
 
+/**
+ * The path a `file:` specifier resolves to: the package directory, or the
+ * tarball file. `undefined` for any other specifier.
+ */
+export function localFilePath (bareSpecifier: string, projectDir: string): string | undefined {
+  if (!bareSpecifier.startsWith('file:')) return undefined
+  return parseLocalScheme({ bareSpecifier }, projectDir, projectDir, { preserveAbsolutePaths: false })?.fetchSpec
+}
+
 export function parseLocalPath (
   wd: WantedLocalDependency,
   projectDir: string,

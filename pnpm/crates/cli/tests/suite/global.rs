@@ -1066,6 +1066,69 @@ fn global_update_restores_group_with_deleted_node_modules() {
 
 #[cfg(unix)]
 #[test]
+fn global_update_skips_a_group_whose_file_source_no_longer_exists() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    let package_dir = root.path().join("since-deleted");
+    fs::create_dir_all(&package_dir).expect("create local package");
+    fs::write(package_dir.join("package.json"), r#"{ "name": "local-pkg", "version": "1.0.0" }"#)
+        .expect("write local package manifest");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", &format!("file:{}", package_dir.display())])
+        .assert()
+        .success();
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+    let global_dir = pnpm_home.join("global").join("v11");
+    let local_before = pnpm_global::find_global_package(&global_dir, "local-pkg")
+        .expect("scan global packages")
+        .expect("find the local group");
+    let registry_before = pnpm_global::find_global_package(&global_dir, "@foo/touch-file-one-bin")
+        .expect("scan global packages")
+        .expect("find the registry group");
+    fs::remove_dir_all(&package_dir).expect("delete the local package");
+    fs::remove_dir_all(registry_before.install_dir.join("node_modules"))
+        .expect("remove the registry group's node_modules");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g"])
+        .output()
+        .expect("run global update over a deleted file: source");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{stdout}\n{stderr}");
+    assert!(stdout.contains("Skipped updating local-pkg"), "{stdout}");
+
+    let local_after = pnpm_global::find_global_package(&global_dir, "local-pkg")
+        .expect("scan global packages")
+        .expect("the skipped group stays installed");
+    assert_eq!(local_after.install_dir, local_before.install_dir);
+    let registry_after = pnpm_global::find_global_package(&global_dir, "@foo/touch-file-one-bin")
+        .expect("scan global packages")
+        .expect("find the registry group after update");
+    assert_ne!(registry_after.install_dir, registry_before.install_dir);
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "local-pkg"])
+        .output()
+        .expect("run global update of only the skipped group");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "{stdout}");
+    assert!(stdout.contains("Skipped updating local-pkg"), "{stdout}");
+    assert!(!stdout.contains("Already up to date"), "{stdout}");
+
+    drop((root, npmrc_info));
+}
+
+#[cfg(unix)]
+#[test]
 fn global_update_renders_both_changed_groups_with_one_completion_summary() {
     use assert_cmd::assert::OutputAssertExt;
 
