@@ -149,7 +149,9 @@ impl Config {
         // Without this, typescript-eslint's case-folded path cache
         // diverges from TypeScript's case-sensitive program when the
         // workspace is case-sensitive and the home is not.
-        if !explicit.store_dir {
+        if explicit.store_dir {
+            self.store_dir_placement_skipped = false;
+        } else {
             self.resolve_default_store_dir::<Sys>(start_dir);
         }
 
