@@ -97,7 +97,8 @@ export async function requireHooks (
   }
   const entries: PnpmfileEntryLoaded[] = []
   const loadedFiles: string[] = []
-  // Loaded one at a time so that hooks run in the order the pnpmfiles are listed.
+  // Must stay sequential: loading in parallel registers .mjs pnpmfiles in import
+  // completion order, not in the order listed above.
   for (const { path, fallbackPath, includeInChecksum, optional } of pnpmfiles) {
     for (const candidate of fallbackPath == null ? [path] : [path, fallbackPath]) {
       const file = pathAbsolute(candidate, prefix)
