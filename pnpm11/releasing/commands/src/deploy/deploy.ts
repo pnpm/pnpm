@@ -460,23 +460,14 @@ As a workaround, add the following to pnpm-workspace.yaml:
   return undefined
 }
 
-/**
- * The virtualStoreDir a deploy honours, as configured. With a global virtual
- * store it names that shared store, which the self-contained deploy must not
- * write into.
- */
+// With a global virtual store, virtualStoreDir names that shared store, which
+// the self-contained deploy must not write into.
 function configuredVirtualStoreDir (
   opts: Pick<DeployOptions, 'enableGlobalVirtualStore' | 'virtualStoreDir'>
 ): string | undefined {
   return opts.enableGlobalVirtualStore ? undefined : opts.virtualStoreDir
 }
 
-/**
- * The deploy directory is the deploy install's lockfile directory, so a
- * configured virtualStoreDir resolves against it as it resolves against the
- * source lockfile directory in an install: a relative value lands in the
- * deploy directory, an absolute one stays where it points.
- */
 function deployVirtualStoreDir (
   deployDir: string,
   opts: Pick<DeployOptions, 'enableGlobalVirtualStore' | 'virtualStoreDir'>

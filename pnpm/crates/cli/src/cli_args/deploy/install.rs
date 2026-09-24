@@ -94,9 +94,8 @@ pub(super) fn legacy_deploy_preferred_versions<ReporterT: Reporter>(
     }
 }
 
-/// The `virtualStoreDir` a deploy honours, as configured. With a global
-/// virtual store it names that shared store, which the self-contained
-/// deploy must not write into.
+/// With a global virtual store, `virtualStoreDir` names that shared store,
+/// which the self-contained deploy must not write into.
 pub(super) fn configured_virtual_store_dir(config: &Config) -> Option<&str> {
     config.explicit_settings
         .get("virtualStoreDir")
@@ -104,10 +103,6 @@ pub(super) fn configured_virtual_store_dir(config: &Config) -> Option<&str> {
         .filter(|_| !config.enable_global_virtual_store)
 }
 
-/// The deploy directory is the deploy install's lockfile directory, so a
-/// configured `virtualStoreDir` resolves against it as it resolves against
-/// the source lockfile directory in an install: a relative value lands in
-/// the deploy directory, an absolute one stays where it points.
 fn deploy_virtual_store_dir(base_config: &Config, deploy_dir: &Path) -> PathBuf {
     match configured_virtual_store_dir(base_config) {
         Some(raw) => pnpm_fs::lexical_normalize(&deploy_dir.join(raw)),
