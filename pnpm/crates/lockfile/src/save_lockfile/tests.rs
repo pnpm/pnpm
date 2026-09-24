@@ -806,13 +806,13 @@ fn parallel_map_lowering_matches_serial_lowering() {
 #[cfg(unix)]
 #[test]
 fn interrupt_cleanup_unlinks_the_staged_lockfile() {
-    const ATTEMPTS: usize = 5;
+    const ATTEMPTS: usize = 10;
     for _ in 0..ATTEMPTS {
         let dir = tempdir().expect("create tempdir");
         let target = dir.path().join(Lockfile::FILE_NAME);
         let writer = std::thread::spawn({
             let target = target.clone();
-            move || super::write_atomic(&target, &vec![b'x'; 256 * 1024 * 1024])
+            move || super::write_atomic(&target, &vec![b'x'; 64 * 1024 * 1024])
         });
 
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
