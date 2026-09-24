@@ -415,10 +415,12 @@ fn ignore_pnpmfile_keeps_the_pnpmfile_checksum() {
 
     // Dedupe re-resolves without the hook, which drops the dependency the
     // hook injected, while retaining the recorded pnpmfile checksum.
+    assert!(read_package_hook_applied(&workspace), "the hook injected its dependency");
     pacquet_in(&workspace)
         .with_args(["dedupe", "--lockfile-only", "--ignore-pnpmfile"])
         .assert()
         .success();
+    assert!(!read_package_hook_applied(&workspace), "dedupe re-resolved without the hook");
     let pnpmfile_checksum = |lockfile: &str| {
         lockfile
             .lines()
