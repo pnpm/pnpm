@@ -13,11 +13,21 @@ use pnpm_testing_utils::fs::is_symlink_or_junction;
 use std::{collections::HashMap, fs, path::PathBuf, sync::Mutex};
 use tempfile::tempdir;
 
+fn group_ids(groups: Vec<super::ImporterTaskGroup<'_>>) -> Vec<Vec<&str>> {
+    groups
+        .into_iter()
+        .map(|group| group.importer_ids)
+        .collect()
+}
+
 #[test]
 fn importer_task_groups_fold_filesystem_name_aliases() {
     let dir = tempdir().expect("tempdir");
     fs::create_dir_all(dir.path().join("packages/app")).expect("create project dir");
-    let groups = super::importer_task_groups(dir.path(), vec![".", "packages/App", "packages/app"]);
+    let groups = group_ids(super::importer_task_groups(
+        dir.path(),
+        vec![".", "packages/App", "packages/app"],
+    ));
     // Self-conditioning on the host filesystem: where names fold (the
     // alias resolves), the aliased keys must share one group; where
     // they don't, the keys are genuinely distinct directories.
@@ -42,8 +52,10 @@ fn importer_task_groups_serialize_all_missing_dirs_together() {
     let dir = tempdir().expect("tempdir");
     let nfc = "packages/caf\u{e9}";
     let nfd = "packages/cafe\u{301}";
-    let groups =
-        super::importer_task_groups(dir.path(), vec!["packages/Ghost", nfc, nfd, "packages/ghost"]);
+    let groups = group_ids(super::importer_task_groups(
+        dir.path(),
+        vec!["packages/Ghost", nfc, nfd, "packages/ghost"],
+    ));
     assert_eq!(groups, vec![vec!["packages/Ghost", nfc, nfd, "packages/ghost"]]);
 }
 
@@ -56,7 +68,7 @@ fn importer_task_groups_fold_unicode_normalization_aliases() {
     let nfc = "packages/caf\u{e9}";
     let nfd = "packages/cafe\u{301}";
     fs::create_dir_all(dir.path().join(nfc)).expect("create project dir");
-    let groups = super::importer_task_groups(dir.path(), vec![nfc, nfd]);
+    let groups = group_ids(super::importer_task_groups(dir.path(), vec![nfc, nfd]));
     assert_eq!(groups, vec![vec![nfc, nfd]], "normalization aliases must share a task");
 }
 

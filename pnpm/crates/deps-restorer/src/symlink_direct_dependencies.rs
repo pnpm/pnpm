@@ -15,7 +15,6 @@ use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use std::{
-    borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
     ffi::OsStr,
     path::{Path, PathBuf},
@@ -183,11 +182,12 @@ impl ImporterPass<'_> {
         task_groups
             .par_iter()
             .try_for_each(|group| {
-                group
+                group.importer_ids
                     .iter()
                     .try_for_each(|importer_id| {
                         self.link_importer::<Reporter>(
                             importer_id,
+                            group.real_dir.as_deref(),
                             modules_dir_name,
                             root_targets.as_ref(),
                         )
@@ -237,15 +237,20 @@ impl ImporterPass<'_> {
     fn link_importer<Reporter: self::Reporter>(
         &self,
         importer_id: &str,
+        real_dir: Option<&Path>,
         modules_dir_name: &OsStr,
         root_targets: Option<&BTreeMap<String, PathBuf>>,
     ) -> Result<(), SymlinkDirectDependenciesError> {
         // Safe: the task groups were built from `importers.keys()`.
         let project_snapshot = &self.graph.importers[importer_id];
         let project_dir = importer_root_dir(self.context.workspace_root, importer_id);
-        let modules_dir =
-            importer_modules_parent(self.workspace_root_real.as_deref(), &project_dir, importer_id)
-                .join(modules_dir_name);
+        let modules_dir = importer_modules_parent(
+            self.workspace_root_real.as_deref(),
+            &project_dir,
+            real_dir,
+            importer_id,
+        )
+        .join(modules_dir_name);
 
         // Only non-root importers get deduped against root: the
         // root project is linked unfiltered, then each sibling's
@@ -324,7 +329,10 @@ fn root_dedupe_targets(
 /// exists by this point (its manifest was read during project
 /// discovery), so the shared group only ever collects the phantom
 /// importers of a malformed lockfile.
-fn importer_task_groups<'a>(workspace_root: &Path, keys: Vec<&'a str>) -> Vec<Vec<&'a str>> {
+fn importer_task_groups<'a>(
+    workspace_root: &Path,
+    keys: Vec<&'a str>,
+) -> Vec<ImporterTaskGroup<'a>> {
     let mut task_groups: BTreeMap<PathBuf, Vec<&'a str>> = BTreeMap::new();
     let mut unresolved: Vec<&'a str> = Vec::new();
     for importer_id in keys {
@@ -337,11 +345,25 @@ fn importer_task_groups<'a>(workspace_root: &Path, keys: Vec<&'a str>) -> Vec<Ve
             Err(_) => unresolved.push(importer_id),
         }
     }
-    let mut task_groups: Vec<Vec<&'a str>> = task_groups.into_values().collect();
+    let mut task_groups: Vec<ImporterTaskGroup<'a>> = task_groups
+        .into_iter()
+        .map(|(real_dir, importer_ids)| ImporterTaskGroup {
+            real_dir: Some(real_dir),
+            importer_ids,
+        })
+        .collect();
     if !unresolved.is_empty() {
-        task_groups.push(unresolved);
+        task_groups.push(ImporterTaskGroup { real_dir: None, importer_ids: unresolved });
     }
     task_groups
+}
+
+/// Importers the parallel link pass runs serially in one task, and the
+/// directory they canonicalize to (`None` for the group of project dirs
+/// that do not exist).
+struct ImporterTaskGroup<'a> {
+    real_dir: Option<PathBuf>,
+    importer_ids: Vec<&'a str>,
 }
 
 /// The directory an importer's modules dir is created in.
@@ -355,21 +377,19 @@ fn importer_task_groups<'a>(workspace_root: &Path, keys: Vec<&'a str>) -> Vec<Ve
 fn importer_modules_parent<'a>(
     workspace_root_real: Option<&Path>,
     project_dir: &'a Path,
+    real_dir: Option<&'a Path>,
     importer_id: &str,
-) -> Cow<'a, Path> {
-    let Some(workspace_root_real) = workspace_root_real else {
-        return Cow::Borrowed(project_dir);
+) -> &'a Path {
+    let (Some(workspace_root_real), Some(real_dir)) = (workspace_root_real, real_dir) else {
+        return project_dir;
     };
     if importer_id == "." {
-        return Cow::Borrowed(project_dir);
+        return project_dir;
     }
     let lexical_real = importer_id
         .split('/')
         .fold(workspace_root_real.to_path_buf(), |dir, segment| dir.join(segment));
-    match std::fs::canonicalize(project_dir) {
-        Ok(real) if real != lexical_real => Cow::Owned(real),
-        _ => Cow::Borrowed(project_dir),
-    }
+    if real_dir == lexical_real { project_dir } else { real_dir }
 }
 
 /// Reject importer keys that would resolve outside the workspace root.
