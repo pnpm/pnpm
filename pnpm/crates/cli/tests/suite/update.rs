@@ -882,11 +882,42 @@ fn update_with_depth_limit_verifies_the_locked_versions_of_its_targets() {
     lock_unserved_version_of_dep(&workspace);
     set_minimum_release_age(&workspace, 1);
 
-    let output = pacquet(&workspace, ["update", "--depth", "0", DEP]).assert().failure();
+    assert_unserved_dep_is_rejected(pacquet(&workspace, ["update", "--depth", "0", DEP]));
+
+    drop((root, anchor));
+}
+
+fn assert_unserved_dep_is_rejected(mut command: Command) {
+    let output = command.assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
 
     assert!(stderr.contains("ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION"), "{stderr}");
     assert!(stderr.contains(&format!("{DEP}@{UNSERVED_DEP_VERSION}")), "{stderr}");
+}
+
+/// A filtered update leaves the other importers' pins in place, so the
+/// lockfile verification gate still checks them. An update of every
+/// importer replaces them.
+#[test]
+fn update_verifies_the_locked_versions_of_importers_it_does_not_update() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0" }}"#));
+    add_workspace_package(&workspace, "project-b", "1.0.0");
+    fs::write(
+        workspace.join("project-b/package.json"),
+        format!(r#"{{ "name": "project-b", "version": "1.0.0", "dependencies": {{ "{PARENT}": "100.0.0" }} }}"#),
+    )
+    .expect("write project-b/package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+    lock_unserved_version_of_dep(&workspace);
+    set_minimum_release_age(&workspace, 1);
+
+    assert_unserved_dep_is_rejected(pacquet(&workspace, ["--filter", "project-b", "update", DEP]));
+
+    pacquet(&workspace, ["update", "--recursive", DEP]).assert().success();
+    let packages = lockfile_package_keys(&workspace);
+    assert!(!packages.contains(&format!("{DEP}@{UNSERVED_DEP_VERSION}")), "{packages:?}");
 
     drop((root, anchor));
 }
