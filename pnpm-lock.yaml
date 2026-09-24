@@ -3298,15 +3298,27 @@ importers:
 
   pnpm11/deps/github-actions:
     dependencies:
+      '@pnpm/config.version-policy':
+        specifier: workspace:*
+        version: link:../../config/version-policy
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1100.0.0
+      '@pnpm/network.git-utils':
+        specifier: workspace:*
+        version: link:../../network/git-utils
       '@pnpm/resolving.git-resolver':
         specifier: workspace:*
         version: link:../../resolving/git-resolver
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.3.0
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0

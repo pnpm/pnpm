@@ -264,6 +264,7 @@ impl UpdateArgs {
             self.selection.latest,
             matcher,
             config.update_config.github_actions_server.as_deref(),
+            crate::github_actions::release_age(config)?.as_ref(),
         )
         .await?;
         Ok(())

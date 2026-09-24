@@ -168,13 +168,7 @@ pub(crate) async fn select_packages<Reporter: self::Reporter>(
     )
     .await?;
     if options.include_github_actions {
-        append_github_actions::<Reporter>(
-            &mut choices,
-            root,
-            options.latest,
-            config.update_config.github_actions_server.as_deref(),
-        )
-        .await?;
+        append_github_actions::<Reporter>(&mut choices, root, options.latest, config).await?;
     }
     prompt_for_packages::<Reporter>(
         &choices,
@@ -213,13 +207,7 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
     )
     .await?;
     if options.include_github_actions {
-        append_github_actions::<Reporter>(
-            &mut choices,
-            root,
-            options.latest,
-            config.update_config.github_actions_server.as_deref(),
-        )
-        .await?;
+        append_github_actions::<Reporter>(&mut choices, root, options.latest, config).await?;
     }
     prompt_for_packages::<Reporter>(&choices, options.latest, true, options.prompt)
 }
@@ -228,13 +216,19 @@ async fn append_github_actions<Reporter: self::Reporter>(
     choices: &mut Vec<OutdatedPackage>,
     root: &Path,
     latest: bool,
-    server_url: Option<&str>,
+    config: &Config,
 ) -> miette::Result<()> {
     choices.extend(
-        github_actions::find_outdated::<Reporter>(root, !latest, None, server_url)
-            .await?
-            .into_iter()
-            .map(OutdatedPackage::from),
+        github_actions::find_outdated::<Reporter>(
+            root,
+            !latest,
+            None,
+            config.update_config.github_actions_server.as_deref(),
+            crate::github_actions::release_age(config)?.as_ref(),
+        )
+        .await?
+        .into_iter()
+        .map(OutdatedPackage::from),
     );
     Ok(())
 }

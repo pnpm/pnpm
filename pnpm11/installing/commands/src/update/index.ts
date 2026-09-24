@@ -343,6 +343,8 @@ async function interactiveUpdate (
         compatible: opts.latest !== true,
         dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         match: input.length > 0 ? createMatcher(input.map(normalizeGitHubActionSelector)) : undefined,
+        minimumReleaseAge: opts.minimumReleaseAge,
+        minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
         serverUrl: opts.updateConfig?.githubActionsServer,
       })
       : [],
@@ -484,6 +486,8 @@ async function update (
       dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
       latest: opts.latest,
       match: dependencies.length > 0 ? createMatcher(dependencies.map(normalizeGitHubActionSelector)) : undefined,
+      minimumReleaseAge: opts.minimumReleaseAge,
+      minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
       serverUrl: opts.updateConfig?.githubActionsServer,
     })
   }

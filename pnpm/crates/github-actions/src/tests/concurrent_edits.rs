@@ -40,6 +40,7 @@ async fn preserves_concurrent_workflow_edits_when_action_ranges_are_stale() {
             None,
             "https://github.com",
             &runner,
+            None,
         )
         .await;
         let error = result.err().expect("stale edits must fail");
@@ -72,6 +73,7 @@ async fn keeps_unrelated_edits_when_action_ranges_still_match() {
         None,
         "https://github.com",
         &runner,
+        None,
     )
     .await
     .expect("update actions");

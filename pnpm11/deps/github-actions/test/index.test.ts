@@ -1,8 +1,10 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { afterAll, afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
+import { safeExeca as execa } from 'execa'
 
 jest.unstable_mockModule('@pnpm/logger', () => ({
   globalWarn: jest.fn(),
@@ -558,6 +560,120 @@ ${Array.from({ length: actionCount }, (_, index) => `      - uses: owner/action-
 
     await expect(fs.readFile(workflow, 'utf8')).resolves.toContain(`uses: actions/checkout@${'a'.repeat(40)} # v4.2.0`)
     await expect(fs.readFile(outsideWorkflow, 'utf8')).resolves.toBe(original)
+  })
+})
+
+describe('minimumReleaseAge', () => {
+  const now = Date.now()
+  const checkoutRefs = repoRefs([
+    ['v4.1.0', 'a'.repeat(40)],
+    ['v4.2.0', 'b'.repeat(40)],
+    ['v5.0.0', 'c'.repeat(40)],
+  ])
+  const tagDates: Record<string, Date> = {
+    'v4.2.0': new Date(now - 2 * 24 * 60 * 60 * 1000),
+    'v5.0.0': new Date(now - 60 * 1000),
+  }
+  const workflow = `jobs:
+  test:
+    steps:
+      - uses: actions/checkout@${'a'.repeat(40)} # v4.1.0
+`
+
+  test('offers only versions older than the minimum release age', async () => {
+    const dir = await fixture({ '.github/workflows/ci.yml': workflow })
+    const readTagDates = jest.fn(async (_repo: string, tags: string[]) => Object.fromEntries(tags.map((tag) => [tag, tagDates[tag]])))
+
+    await expect(findOutdatedGitHubActions({
+      dir,
+      minimumReleaseAge: 1440,
+      readRepoRefs: async () => checkoutRefs,
+      readTagDates,
+    })).resolves.toMatchObject([{ current: '4.1.0', latest: '4.2.0', name: 'actions/checkout' }])
+    expect(readTagDates).toHaveBeenCalledWith('actions/checkout', ['v4.2.0', 'v5.0.0'])
+  })
+
+  test('updates to the newest version old enough', async () => {
+    const dir = await fixture({ '.github/workflows/ci.yml': workflow })
+
+    await updateGitHubActions({
+      dir,
+      latest: true,
+      minimumReleaseAge: 1440,
+      readRepoRefs: async () => checkoutRefs,
+      readTagDates: async () => tagDates,
+    })
+
+    await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(`actions/checkout@${'b'.repeat(40)} # v4.2.0`)
+  })
+
+  test.each(['actions/checkout', 'actions/*', 'actions/checkout@5.0.0'])('minimumReleaseAgeExclude %s skips the check', async (exclude) => {
+    const dir = await fixture({ '.github/workflows/ci.yml': workflow })
+
+    await expect(findOutdatedGitHubActions({
+      dir,
+      minimumReleaseAge: 1440,
+      minimumReleaseAgeExclude: [exclude],
+      readRepoRefs: async () => checkoutRefs,
+      readTagDates: async () => tagDates,
+    })).resolves.toMatchObject([{ latest: '5.0.0' }])
+  })
+
+  test('skips actions whose release dates cannot be read and warns', async () => {
+    const dir = await fixture({ '.github/workflows/ci.yml': workflow })
+
+    await expect(findOutdatedGitHubActions({
+      dir,
+      minimumReleaseAge: 1440,
+      readRepoRefs: async () => checkoutRefs,
+      readTagDates: async () => {
+        throw new Error('fetch failed')
+      },
+    })).resolves.toEqual([])
+    expect(globalWarn).toHaveBeenCalledWith('Skipping the GitHub Actions from "actions/checkout": cannot read the release dates that minimumReleaseAge needs: fetch failed')
+  })
+
+  test('reads the tagger date of annotated tags and the commit date of lightweight ones', async () => {
+    const repo = await fixture({})
+    const day = 24 * 60 * 60
+    const old = Math.floor(now / 1000) - 400 * day
+    const git = async (args: string[], date: number) => execa('git', ['-c', 'user.name=pnpm', '-c', 'user.email=pnpm@example.com', ...args], {
+      cwd: repo,
+      // The user's own git config may sign tags or commits.
+      env: { ...process.env, GIT_AUTHOR_DATE: `${date} +0000`, GIT_COMMITTER_DATE: `${date} +0000`, GIT_CONFIG_GLOBAL: path.join(repo, '.no-global-config'), GIT_CONFIG_NOSYSTEM: '1' },
+    })
+    await git(['init', '--quiet'], old)
+    await git(['commit', '--quiet', '--allow-empty', '-m', 'one'], old)
+    await git(['tag', 'v1.0.0'], old)
+    await git(['commit', '--quiet', '--allow-empty', '-m', 'two'], old + day)
+    await git(['tag', 'v1.1.0'], old + day)
+    // An old commit tagged just now is a new release.
+    await git(['tag', '-a', '-m', 'v1.2.0', 'v1.2.0'], Math.floor(now / 1000))
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: owner/tool@v1.0.0
+`,
+    })
+    const originalEnv = { ...process.env }
+    Object.assign(process.env, {
+      GIT_CONFIG_COUNT: '1',
+      GIT_CONFIG_KEY_0: `url.${pathToFileURL(repo).href}.insteadOf`,
+      GIT_CONFIG_VALUE_0: 'https://github.com/owner/tool.git',
+    })
+    try {
+      await expect(findOutdatedGitHubActions({ dir, minimumReleaseAge: 1440 })).resolves.toMatchObject([{ latest: '1.1.0' }])
+      await expect(findOutdatedGitHubActions({ dir })).resolves.toMatchObject([{ latest: '1.2.0' }])
+    } finally {
+      for (const name of ['GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0']) {
+        if (originalEnv[name] == null) {
+          delete process.env[name]
+        } else {
+          process.env[name] = originalEnv[name]
+        }
+      }
+    }
   })
 })
 

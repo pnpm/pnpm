@@ -5263,10 +5263,13 @@ dependencies = [
 name = "pnpm-github-actions"
 version = "0.0.1"
 dependencies = [
+ "chrono",
  "futures-util",
  "miette 7.6.0",
  "node-semver",
+ "pnpm-config",
  "pnpm-fs",
+ "pnpm-git-utils",
  "pnpm-matcher",
  "pnpm-network",
  "pnpm-reporter",
