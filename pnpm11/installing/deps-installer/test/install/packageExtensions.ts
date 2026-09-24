@@ -677,6 +677,33 @@ test('manifests without version do not match ranged packageExtensions selectors'
   }
 })
 
+test('ranged packageExtensions selectors do not match a local directory with no package.json', async () => {
+  const project = prepareEmpty()
+  fs.mkdirSync('debug')
+  fs.writeFileSync('debug/index.js', '', 'utf8')
+
+  await addDependenciesToPackage({}, ['file:./debug'], testDefaults({
+    packageExtensions: {
+      'debug@<1': {
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+      debug: {
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+  }))
+
+  expect(project.readLockfile().snapshots['debug@file:debug']).toStrictEqual({
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+})
+
 function createTarGz (entries: Array<{ name: string, content: string | Buffer }>): Buffer {
   const blocks: Buffer[] = []
   for (const entry of entries) {

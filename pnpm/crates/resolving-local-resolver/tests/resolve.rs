@@ -745,7 +745,9 @@ async fn do_not_fail_when_resolving_from_not_existing_directory() {
         .expect("claims");
     let manifest = result.manifest.as_ref().expect("manifest");
     assert_eq!(manifest.get("name").and_then(|value| value.as_str()), Some("dir-does-not-exist"));
-    assert_eq!(manifest.get("version").and_then(|value| value.as_str()), Some("0.0.0"));
+    // The version stays unknown so ranged selectors cannot match it
+    // (https://github.com/pnpm/pnpm/issues/15007).
+    assert_eq!(manifest.get("version"), None);
 }
 
 #[tokio::test]

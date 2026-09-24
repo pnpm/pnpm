@@ -81,6 +81,7 @@ mod licenses;
 mod lifecycle_scripts;
 mod link;
 mod list;
+mod local_directory_without_manifest;
 mod local_override_metadata_cache;
 mod local_tarball_dependency;
 mod lockfile_dir;

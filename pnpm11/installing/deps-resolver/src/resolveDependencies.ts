@@ -2259,7 +2259,7 @@ async function resolveDependency (
         optional: wantedDependency.optional,
         pkgId: pkgResponse.body.id,
         resolution: pkgResponse.body.resolution,
-        version: pkgResponse.body.manifest.version,
+        version: pkgResponse.body.manifest.version || '0.0.0',
         normalizedBareSpecifier: pkgResponse.body.normalizedBareSpecifier,
         pkg: pkgResponse.body.manifest,
         wantedDependency,

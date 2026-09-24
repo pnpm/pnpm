@@ -292,7 +292,6 @@ test('do not fail when resolving from not existing directory', async () => {
   const resolveResult = await resolveFromLocalScheme({}, wantedDependency, { projectDir: import.meta.dirname })
   expect(resolveResult?.manifest).toStrictEqual({
     name: 'dir-does-not-exist',
-    version: '0.0.0',
   })
   expect(logger.warn).toHaveBeenCalledWith({
     message: `Installing a dependency from a non-existent directory: ${path.join(import.meta.dirname, './dir-does-not-exist')}`,
