@@ -81,6 +81,9 @@ pub struct SyncInjectedDeps<'a> {
     /// The name of the workspace's modules directories, `node_modules`
     /// unless `modulesDir` says otherwise.
     pub modules_dir_name: &'a std::ffi::OsStr,
+    /// pnpm's `extendNodePath`: the relinked shims put a custom modules
+    /// directory on `NODE_PATH`, as the install's shims do.
+    pub extend_node_path: bool,
     /// The package's manifest as it was before the scripts ran. A script
     /// that drops a bin leaves its shim behind, and the copies cannot say
     /// which bins they used to have: their `package.json` is hardlinked to
@@ -163,6 +166,7 @@ fn sync_workspace_injected_deps(
         hoisted_bin_dir: hoisted_bin_path(workspace_dir, modules.as_ref()).as_deref(),
         ignored_directories: &opts.ignored_directories,
         modules_dir_name: opts.modules_dir_name,
+        extend_node_path: opts.extend_node_path,
     })
 }
 
@@ -223,6 +227,7 @@ struct SyncBinLinks<'a> {
     hoisted_bin_dir: Option<&'a Path>,
     ignored_directories: &'a [PathBuf],
     modules_dir_name: &'a std::ffi::OsStr,
+    extend_node_path: bool,
 }
 
 /// Where one injected target's dropped bins have to be cleared from.
@@ -255,7 +260,7 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
 
     let has_bins = manifest.get("bin").is_some();
     let manifest = Arc::new(manifest);
-    let link_options = workspace_link_options(opts.workspace_dir);
+    let link_options = workspace_link_options(opts);
 
     for target_dir in opts.resolved_targets {
         let Some(parent_modules_dir) = target_dir.parent() else {
@@ -285,9 +290,12 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
 
 /// The workspace's bins name the paths inside it relative to themselves,
 /// as the install writes them.
-fn workspace_link_options(workspace_dir: &Path) -> LinkBinsOptions {
+fn workspace_link_options(opts: &SyncBinLinks<'_>) -> LinkBinsOptions {
     LinkBinsOptions {
-        relocatable_root: Some(workspace_dir.to_path_buf()),
+        relocatable_root: Some(opts.workspace_dir.to_path_buf()),
+        project_modules_dir_name: (opts.extend_node_path
+            && opts.modules_dir_name != "node_modules")
+            .then(|| opts.modules_dir_name.to_owned()),
         ..LinkBinsOptions::default()
     }
 }
@@ -312,7 +320,7 @@ fn relink_project_bins(
         },
     )
     .map_err(|error| SyncInjectedDepsError::FindProjects { error })?;
-    let link_options = workspace_link_options(workspace_dir);
+    let link_options = workspace_link_options(opts);
     for project in projects {
         let project_modules_dir = project.root_dir.join(opts.modules_dir_name);
         // A stale name another package legitimately owns is put back by the

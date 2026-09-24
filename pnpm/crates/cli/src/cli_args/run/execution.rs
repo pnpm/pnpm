@@ -375,6 +375,7 @@ fn run_script_stages(
             pkg_root_dir: ctx.dir,
             workspace_dir: ctx.config.workspace_dir.as_deref(),
             modules_dir_name: ctx.config.modules_dir_name(),
+            extend_node_path: ctx.config.extend_node_path,
             // Read before the script ran, so a bin it drops can still be named.
             manifest_before_scripts: Some(ctx.manifest.value()),
             ignored_directories: ctx.config.managed_directories(),

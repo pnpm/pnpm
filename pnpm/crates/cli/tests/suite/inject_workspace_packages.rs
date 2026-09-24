@@ -573,3 +573,41 @@ fn injected_copy_gets_the_output_of_the_prepare_script_with_a_custom_modules_dir
 
     drop((root, mock_instance));
 }
+
+#[cfg(unix)]
+#[test]
+fn relinked_bin_of_an_injected_copy_keeps_a_custom_modules_dir_on_node_path() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_prepare(&workspace, "modulesDir: vendor\n");
+    let manifest_path = workspace.join("project-1/package.json");
+    let mut manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(&manifest_path).expect("read project-1/package.json"),
+    )
+    .expect("parse project-1/package.json");
+    manifest["bin"] = serde_json::json!({ "project-1-bin": "bin.js" });
+    fs::write(&manifest_path, manifest.to_string()).expect("write project-1/package.json");
+    fs::write(workspace.join("project-1/bin.js"), "#!/usr/bin/env node\n")
+        .expect("write project-1/bin.js");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let shim = fs::read_to_string(workspace.join("project-2/vendor/.bin/project-1-bin"))
+        .expect("read the project-1-bin shim");
+    assert!(
+        shim.contains(r#"export NODE_PATH="$basedir_abs/..:"#),
+        "the shim should put the vendor directory first on NODE_PATH:\n{shim}",
+    );
+
+    drop((root, mock_instance));
+}

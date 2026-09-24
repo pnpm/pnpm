@@ -102,6 +102,7 @@ impl ProjectScriptRunner<'_> {
             pkg_root_dir: project_dir,
             workspace_dir: Some(self.workspace_root),
             modules_dir_name: self.config.modules_dir_name(),
+            extend_node_path: self.config.extend_node_path,
             manifest_before_scripts: Some(manifest.value()),
             ignored_directories: self.config.managed_directories(),
         })
