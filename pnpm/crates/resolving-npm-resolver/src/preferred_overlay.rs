@@ -88,14 +88,9 @@ pub(crate) fn warn_once_on_held_back_update(
         return;
     };
     let key = format!("{}@{}:{picked_version}<{preferred}", spec.name, spec.fetch_spec);
-    let mut warned = WARNED_HELD_BACK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    if warned.contains(&key) {
+    if !crate::warn_once::first_warning(&WARNED_HELD_BACK, key, MAX_WARNED_HELD_BACK) {
         return;
     }
-    if warned.len() >= MAX_WARNED_HELD_BACK {
-        warned.shift_remove_index(0);
-    }
-    warned.insert(key);
     tracing::warn!(
         target: "pnpm_resolving_npm_resolver::preferred_overlay",
         pkg_name = spec.name,

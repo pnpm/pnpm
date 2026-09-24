@@ -475,13 +475,14 @@ test('self-update fetches pnpm from the trusted package-manager registry, not th
   expect(output).toContain('9.1.0')
 })
 
-test('self-update rejects a trust downgrade under trustPolicy=no-downgrade', async () => {
+test('self-update rejects a trust-downgraded version under trustPolicy=no-downgrade', async () => {
   const opts = prepare()
   const registry = opts.registriesByScope.default
   const now = Date.now()
   // The earlier 9.0.5 was published with strong trust evidence (trusted
   // publisher + provenance); the later 9.1.0 has none — a trust downgrade
-  // the no-downgrade policy must refuse to switch to.
+  // the no-downgrade policy must refuse to switch to when it is requested
+  // by version.
   const metadata = {
     name: 'pnpm',
     'dist-tags': { latest: '9.1.0' },
@@ -520,7 +521,7 @@ test('self-update rejects a trust downgrade under trustPolicy=no-downgrade', asy
     .reply(200, metadata).persist()
 
   await expect(
-    selfUpdate.handler({ ...opts, trustPolicy: 'no-downgrade' }, [])
+    selfUpdate.handler({ ...opts, trustPolicy: 'no-downgrade' }, ['9.1.0'])
   ).rejects.toThrow(/High-risk trust downgrade/)
 })
 

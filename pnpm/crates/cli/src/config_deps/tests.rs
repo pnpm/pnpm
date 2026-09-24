@@ -530,9 +530,10 @@ fn no_downgrade_config(registry: String, cache_dir: &Path) -> Config {
 /// Under `trustPolicy=no-downgrade`, the self-update probe must resolve
 /// against **full** metadata — the same as a regular install — so the
 /// no-downgrade check actually runs. It reaches the full packument (with
-/// `time`), sees the downgrade, and rejects it. If the probe fetched
-/// abbreviated metadata it would instead fail closed with "missing time";
-/// if it skipped the check it would resolve `1.1.0` with no error.
+/// `time`), sees the downgrade, rejects the requested `1.1.0`, and falls
+/// back to `1.0.0` for a range. If the probe fetched abbreviated metadata it
+/// would instead fail closed with "missing time"; if it skipped the check it
+/// would resolve `1.1.0` with no error.
 #[tokio::test]
 async fn resolve_pnpm_version_fetches_full_metadata_and_rejects_a_downgrade() {
     let mut server = mockito::Server::new_async().await;
@@ -553,7 +554,12 @@ async fn resolve_pnpm_version_fetches_full_metadata_and_rejects_a_downgrade() {
     let cache_dir = tempfile::TempDir::new().expect("cache tempdir");
     let config = no_downgrade_config(format!("{}/", server.url()), cache_dir.path());
 
-    let err = resolve_engine_version(&config, "pnpm", "^1.0.0").await
+    let resolved = resolve_engine_version(&config, "pnpm", "^1.0.0").await
+        .expect("a range falls back past the downgrade")
+        .expect("a matching pnpm version resolves");
+    assert_eq!(resolved.version, "1.0.0");
+
+    let err = resolve_engine_version(&config, "pnpm", "1.1.0").await
         .expect_err("a trust downgrade must be rejected");
     let report = format!("{err:?}");
     assert!(
@@ -601,7 +607,7 @@ async fn resolve_pnpm_version_resolves_a_clean_update_under_no_downgrade() {
 /// must NOT let the no-downgrade check settle for abbreviated metadata:
 /// abbreviated still omits the trust evidence, so the check would see none
 /// and miss the downgrade. The probe must fetch full metadata regardless of
-/// `registrySupportsTimeField` and reject the downgrade.
+/// `registrySupportsTimeField` and skip the downgrade.
 #[tokio::test]
 async fn resolve_pnpm_version_forces_full_metadata_for_no_downgrade_despite_registry_time_field() {
     let mut server = mockito::Server::new_async().await;
@@ -614,7 +620,7 @@ async fn resolve_pnpm_version_forces_full_metadata_for_no_downgrade_despite_regi
         .await;
     // Abbreviated here carries `time` (as a `registrySupportsTimeField`
     // registry would) but no trust evidence. If the probe wrongly settled
-    // for it, the downgrade would be missed and resolution would succeed.
+    // for it, the downgrade would be missed and `1.1.0` would resolve.
     let _abbreviated = server
         .mock("GET", "/pnpm")
         .match_header("accept", ACCEPT_ABBREVIATED)
@@ -626,12 +632,12 @@ async fn resolve_pnpm_version_forces_full_metadata_for_no_downgrade_despite_regi
     let mut config = no_downgrade_config(format!("{}/", server.url()), cache_dir.path());
     config.registry_supports_time_field = true;
 
-    let err = resolve_engine_version(&config, "pnpm", "^1.0.0").await
-        .expect_err("the downgrade must be rejected even with registrySupportsTimeField");
-    let report = format!("{err:?}");
-    assert!(
-        report.contains("trust downgrade"),
-        "expected a trust-downgrade rejection, got: {report}",
+    let resolved = resolve_engine_version(&config, "pnpm", "^1.0.0").await
+        .expect("a range falls back past the downgrade")
+        .expect("a matching pnpm version resolves");
+    assert_eq!(
+        resolved.version, "1.0.0",
+        "the downgrade must be skipped even with registrySupportsTimeField",
     );
 }
 

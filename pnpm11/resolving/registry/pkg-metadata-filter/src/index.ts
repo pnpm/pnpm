@@ -1,5 +1,5 @@
 import { globalWarn } from '@pnpm/logger'
-import type { PackageMetadataWithTime } from '@pnpm/resolving.registry.types'
+import type { PackageMeta, PackageMetadataWithTime } from '@pnpm/resolving.registry.types'
 import semver from 'semver'
 
 /**
@@ -57,20 +57,36 @@ function filterPkgMetadataByPublishDateUncached (
   publishedBy: Date,
   trustedVersions?: string[]
 ): PackageMetadataWithTime {
+  return filterPkgMetadataVersions(pkgDoc, (version) => {
+    const timeStr = pkgDoc.time[version]
+    return Boolean(timeStr && new Date(timeStr) <= publishedBy) || trustedVersions?.includes(version) === true
+  })
+}
+
+/**
+ * Returns the packument narrowed to the versions `keep` accepts, with each
+ * dist-tag whose version was dropped moved to the best version still kept.
+ *
+ * The returned document's version manifests are the very objects held by
+ * `pkgDoc`.
+ */
+export function filterPkgMetadataVersions<PkgDoc extends PackageMeta> (
+  pkgDoc: PkgDoc,
+  keep: (version: string) => boolean
+): PkgDoc {
   // Null-prototype so a registry-controlled version like `__proto__` becomes
   // an own key instead of reassigning the map's prototype
   // (js/prototype-polluting-assignment), and so a lookup of an inherited
-  // member name can't be mistaken for a version that is within date.
-  const versionsWithinDate: PackageMetadataWithTime['versions'] = Object.create(null)
+  // member name can't be mistaken for a version that was kept.
+  const keptVersions: PackageMeta['versions'] = Object.create(null)
   for (const version in pkgDoc.versions) {
     if (!Object.hasOwn(pkgDoc.versions, version)) continue
-    const timeStr = pkgDoc.time[version]
-    if ((timeStr && new Date(timeStr) <= publishedBy) || trustedVersions?.includes(version)) {
-      versionsWithinDate[version] = pkgDoc.versions[version]
+    if (keep(version)) {
+      keptVersions[version] = pkgDoc.versions[version]
     }
   }
 
-  const distTagsWithinDate: PackageMetadataWithTime['dist-tags'] = Object.create(null)
+  const keptDistTags: PackageMeta['dist-tags'] = Object.create(null)
   const allDistTags = pkgDoc['dist-tags'] ?? {}
   const parsedSemverCache = new Map<string, semver.SemVer>()
   function tryParseSemver (semverStr: string): semver.SemVer | null {
@@ -88,18 +104,18 @@ function filterPkgMetadataByPublishDateUncached (
   for (const tag in allDistTags) {
     if (!Object.hasOwn(allDistTags, tag)) continue
     const distTagVersion = allDistTags[tag]
-    if (versionsWithinDate[distTagVersion]) {
-      distTagsWithinDate[tag] = distTagVersion
+    if (keptVersions[distTagVersion]) {
+      keptDistTags[tag] = distTagVersion
       continue
     }
-    // Repopulate the tag to the highest version available within date
+    // Repopulate the tag to the highest version still kept
     const originalSemVer = tryParseSemver(distTagVersion)
     if (!originalSemVer) continue
     const originalIsPrerelease = (originalSemVer.prerelease.length > 0)
     let bestVersion: string | undefined
     let bestParsed: semver.SemVer | undefined
-    for (const candidate in versionsWithinDate) {
-      if (!Object.hasOwn(versionsWithinDate, candidate)) continue
+    for (const candidate in keptVersions) {
+      if (!Object.hasOwn(keptVersions, candidate)) continue
       const candidateParsed = tryParseSemver(candidate)
       if (
         !candidateParsed ||
@@ -127,13 +143,13 @@ function filterPkgMetadataByPublishDateUncached (
       }
     }
     if (bestVersion) {
-      distTagsWithinDate[tag] = bestVersion
+      keptDistTags[tag] = bestVersion
     }
   }
 
   return {
     ...pkgDoc,
-    versions: versionsWithinDate,
-    'dist-tags': distTagsWithinDate,
+    versions: keptVersions,
+    'dist-tags': keptDistTags,
   }
 }

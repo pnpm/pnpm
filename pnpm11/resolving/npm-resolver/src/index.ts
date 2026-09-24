@@ -71,10 +71,11 @@ import {
 import {
   type PackageMetaCache,
   pickPackage,
+  pickPackageFromFetchedMeta,
   type PickPackageOptions,
 } from './pickPackage.js'
 import { applyPublishedByPolicy, findNonDeprecatedAlternative, knownImmature, pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
-import { failIfTrustDowngraded } from './trustChecks.js'
+import { pickWithoutTrustDowngrade } from './trustChecks.js'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from './violationCodes.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 
@@ -303,6 +304,7 @@ export function createNpmResolver (
     ignoreMissingTimeField: opts.ignoreMissingTimeField,
     peekManifestFromStore,
     warnedHeldBackUpdates: new Set(),
+    warnedTrustDowngradeFallbacks: new Set(),
   }
   const boundResolveFromNpm = resolveNpm.bind(null, ctx)
   const boundResolveFromJsr = resolveJsr.bind(null, ctx)
@@ -429,6 +431,25 @@ function warnOnceOnHeldBackUpdate (
   globalWarn(`"${spec.name}@${spec.fetchSpec}" was updated to ${pickedVersion}, not ${preferred}, to match the version preferred by your manifests and already installed dependencies. To use ${preferred}, add an override to pnpm-workspace.yaml: overrides: { "${spec.name}@${spec.fetchSpec}": "${preferred}" }`)
 }
 
+const MAX_SKIPPED_VERSIONS_IN_WARNING = 5
+
+function warnOnceOnTrustDowngradeFallback (
+  ctx: Pick<ResolveFromNpmContext, 'warnedTrustDowngradeFallbacks'>,
+  pkgName: string,
+  pickedVersion: string,
+  skippedVersions: string[]
+): void {
+  if (skippedVersions.length === 0) return
+  const key = `${pkgName}@${pickedVersion}`
+  if (ctx.warnedTrustDowngradeFallbacks.has(key)) return
+  ctx.warnedTrustDowngradeFallbacks.add(key)
+  let skipped = skippedVersions.slice(0, MAX_SKIPPED_VERSIONS_IN_WARNING).map((version) => `${pkgName}@${version}`).join(', ')
+  if (skippedVersions.length > MAX_SKIPPED_VERSIONS_IN_WARNING) {
+    skipped += ` and ${skippedVersions.length - MAX_SKIPPED_VERSIONS_IN_WARNING} more`
+  }
+  globalWarn(`Skipped trust downgrades rejected by trustPolicy: ${skipped}. Resolved ${pkgName}@${pickedVersion} instead.`)
+}
+
 function isNpmSpec (query: LatestQuery, defaultRegistry: string): boolean {
   const { alias, bareSpecifier } = query.wantedDependency
   if (!bareSpecifier) return alias != null
@@ -514,6 +535,8 @@ export interface ResolveFromNpmContext {
   }) => Promise<DependencyManifest | undefined>
   /** Deduplicates the held-back-update warning per `(name, picked, preferred)`. */
   warnedHeldBackUpdates: Set<string>
+  /** Deduplicates the trust-downgrade fallback warning per `name@picked`. */
+  warnedTrustDowngradeFallbacks: Set<string>
 }
 
 export type ResolveFromNpmOptions = {
@@ -675,21 +698,22 @@ async function resolveNpm (
   }
 
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry, { pkgName: spec.name })
+  const pickOptions: PickPackageOptions = {
+    pickLowestVersion: opts.pickLowestVersion,
+    publishedBy: opts.publishedBy,
+    publishedByExclude: opts.publishedByExclude,
+    authHeaderValue,
+    dryRun: opts.dryRun === true,
+    preferredVersionSelectors: preferredVersionSelectorsFor(opts, spec.name),
+    registry,
+    includeLatestTag: opts.update === 'latest',
+    updateChecksums: opts.updateChecksums || opts.updatePatches,
+    optional: wantedDependency.optional,
+    trustPolicy: opts.trustPolicy,
+  }
   let pickResult!: { meta: PackageMeta, pickedPackage: PackageInRegistry | null }
   try {
-    pickResult = await ctx.pickPackage(spec, {
-      pickLowestVersion: opts.pickLowestVersion,
-      publishedBy: opts.publishedBy,
-      publishedByExclude: opts.publishedByExclude,
-      authHeaderValue,
-      dryRun: opts.dryRun === true,
-      preferredVersionSelectors: preferredVersionSelectorsFor(opts, spec.name),
-      registry,
-      includeLatestTag: opts.update === 'latest',
-      updateChecksums: opts.updateChecksums || opts.updatePatches,
-      optional: wantedDependency.optional,
-      trustPolicy: opts.trustPolicy,
-    })
+    pickResult = await ctx.pickPackage(spec, pickOptions)
   } catch (err: any) { // eslint-disable-line
     if ((workspacePackages != null) && opts.projectDir) {
       try {
@@ -714,7 +738,8 @@ async function resolveNpm (
     }
     throw err
   }
-  const pickedPackage = pickResult.pickedPackage
+  let pickedPackage = pickResult.pickedPackage
+  let trustDowngradesSkipped: string[] = []
   const meta = pickResult.meta
   if (pickedPackage == null) {
     if ((workspacePackages != null) && opts.projectDir) {
@@ -741,11 +766,16 @@ async function resolveNpm (
 
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   } else if (opts.trustPolicy === 'no-downgrade') {
-    failIfTrustDowngraded(meta, pickedPackage.version, {
-      trustPolicyExclude: opts.trustPolicyExclude,
-      trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
-      ignoreMissingTimeField: ctx.ignoreMissingTimeField,
+    const trustedPick = pickWithoutTrustDowngrade(meta, pickedPackage, {
+      repick: (narrowedMeta) => pickPackageFromFetchedMeta(ctx, spec, pickOptions, narrowedMeta),
+      trustCheck: {
+        trustPolicyExclude: opts.trustPolicyExclude,
+        trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
+        ignoreMissingTimeField: ctx.ignoreMissingTimeField,
+      },
     })
+    pickedPackage = trustedPick.pickedPackage
+    trustDowngradesSkipped = trustedPick.rejectedVersions
   }
 
   const latest = latestAllowedByPolicy(meta, opts)
@@ -783,6 +813,7 @@ async function resolveNpm (
     }
   }
 
+  warnOnceOnTrustDowngradeFallback(ctx, spec.name, pickedPackage.version, trustDowngradesSkipped)
   warnOnceOnHeldBackUpdate(ctx, opts, spec, meta, pickedPackage.version)
   const selectedPackage = selectPackageRevision(pickedPackage, spec, registry)
   const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
