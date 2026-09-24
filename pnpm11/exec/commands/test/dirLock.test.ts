@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { afterEach, expect, test } from '@jest/globals'
+import { afterEach, expect, jest, test } from '@jest/globals'
 
 import { DirLock } from '../src/dirLock.js'
 
@@ -111,4 +111,27 @@ test('a reaper lock left behind as a file does not block takeovers', async () =>
   const lock = await DirLock.acquire(lockPath, { waitMs: 1_000, abandonedMs: 60_000 })
   expect(lock).toBeDefined()
   await lock!.release()
+})
+
+test('a lock whose holder cannot be signaled is taken over once older than the abandonment age', async () => {
+  const killSpy = jest.spyOn(process, 'kill').mockImplementation(() => {
+    const err = new Error('operation not permitted')
+    Object.assign(err, { code: 'EPERM' })
+    throw err
+  })
+  try {
+    const lockPath = path.join(temporaryDirectory(), 'eperm.lock')
+    fs.mkdirSync(lockPath)
+    fs.writeFileSync(path.join(lockPath, 'owner'), `${os.hostname()}:999999:0:eperm`)
+
+    expect(await DirLock.acquire(lockPath, { waitMs: 0, abandonedMs: 1_000 })).toBeUndefined()
+
+    const longAgo = new Date(Date.now() - 60_000)
+    fs.utimesSync(lockPath, longAgo, longAgo)
+    const lock = await DirLock.acquire(lockPath, { waitMs: 0, abandonedMs: 1_000 })
+    expect(lock).toBeDefined()
+    await lock!.release()
+  } finally {
+    killSpy.mockRestore()
+  }
 })

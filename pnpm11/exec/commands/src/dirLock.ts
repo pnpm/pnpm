@@ -14,15 +14,15 @@ const REAPER_ABANDONED_MS = 10_000
 
 export interface DirLockOptions {
   waitMs: number
-  // Bounds how long a holder whose process cannot be checked may keep the lock.
+  // Bounds how long a holder whose process cannot be verified may keep the lock.
   abandonedMs: number
 }
 
 /**
  * A cross-process advisory lock: creating a directory is atomic, so the winner
  * of the `mkdir` race holds it. A lock is taken over once its holder, another
- * process on this host, has ended; any other holder's lock once it is older
- * than `abandonedMs`.
+ * process on this host, has ended; a lock whose holder cannot be verified is
+ * taken over once it is older than `abandonedMs`.
  */
 export class DirLock {
   private readonly lockPath: string
@@ -96,12 +96,14 @@ async function inspectLock (lockPath: string, abandonedMs: number): Promise<Lock
   const owner = await readOwner(lockPath)
   const age = Date.now() - stats.mtimeMs
   const localPid = owner == null ? undefined : localOwnerPid(owner)
+  const liveness = localPid != null && localPid !== process.pid ? processLiveness(localPid) : 'unknown'
   let stale: boolean
   if (owner == null) {
     stale = age > OWNERLESS_ABANDONED_MS
-  } else if (localPid != null && localPid !== process.pid) {
-    // Another process on this host proves its liveness, so its age does not matter.
-    stale = hasEnded(localPid)
+  } else if (liveness === 'alive') {
+    stale = false
+  } else if (liveness === 'ended') {
+    stale = true
   } else {
     stale = age > abandonedMs
   }
@@ -148,12 +150,12 @@ function localOwnerPid (owner: string): number | undefined {
   return hostname === os.hostname() && Number.isInteger(pid) && pid > 0 ? pid : undefined
 }
 
-function hasEnded (pid: number): boolean {
+function processLiveness (pid: number): 'alive' | 'ended' | 'unknown' {
   try {
     process.kill(pid, 0)
-    return false
+    return 'alive'
   } catch (err: unknown) {
-    return isErrorCode(err, 'ESRCH')
+    return isErrorCode(err, 'ESRCH') ? 'ended' : 'unknown'
   }
 }
 

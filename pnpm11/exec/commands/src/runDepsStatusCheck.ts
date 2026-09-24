@@ -16,7 +16,7 @@ import { DirLock } from './dirLock.js'
 
 const INSTALL_LOCK_NAMESPACE = 'pnpm-verify-deps-install-locks'
 // How long a gate waits for another gate's install in the same workspace
-// before installing without the lock, as it did before there was one.
+// before installing without the lock.
 const INSTALL_LOCK_WAIT_MS = 5 * 60_000
 // Comfortably above how long an install can legitimately take.
 const INSTALL_LOCK_ABANDONED_MS = 30 * 60_000

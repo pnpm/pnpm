@@ -24,7 +24,7 @@ use std::{
 const INSTALL_LOCK_NAMESPACE: &str = "pnpm-verify-deps-install-locks";
 
 /// How long a gate waits for another gate's install in the same workspace
-/// before installing without the lock, as it did before there was one.
+/// before installing without the lock.
 const INSTALL_LOCK_WAIT: Duration = Duration::from_mins(5);
 
 /// Comfortably above how long an install can legitimately take, so a
