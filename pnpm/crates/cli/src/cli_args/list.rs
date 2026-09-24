@@ -26,7 +26,7 @@ use pnpm_global::{ListReportAs, find_global_install_dirs, list_global_packages};
 use pnpm_modules_yaml::IncludedDependencies;
 use render::{ProjectHierarchy, RenderParseableOptions, RenderTreeOptions};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{Arc, OnceLock},
 };
@@ -82,7 +82,7 @@ pub struct ListArgs {
     /// Discovered once per command: a recursive listing with dedicated
     /// lockfiles expands the linked projects of every selected project.
     #[clap(skip)]
-    workspace_project_dirs: OnceLock<Arc<HashSet<PathBuf>>>,
+    linked_project_dirs: OnceLock<Arc<HashMap<PathBuf, PathBuf>>>,
 }
 
 #[derive(Debug, Clone, clap::Args)]

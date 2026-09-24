@@ -22,6 +22,7 @@ export async function listRecursive (
     checkWantedLockfileOnly?: boolean
     onlyProjects?: boolean
     workspaceProjectDirs?: string[]
+    workspaceProjectPublishDirs?: Record<string, string>
   }
 ): Promise<string> {
   const depth = opts.depth ?? 0

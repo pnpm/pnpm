@@ -48,6 +48,11 @@ export interface BuildDependenciesTreeOptions {
    * lockfiles when the lockfile being read has no importer for them.
    */
   workspaceProjectDirs?: string[]
+  /**
+   * The workspace projects that dependents link through their publish
+   * directory (`publishConfig.directory`), keyed by that directory.
+   */
+  workspaceProjectPublishDirs?: Record<string, string>
   search?: Finder
   showDedupedSearchMatches?: boolean
   lockfileDir: string
@@ -64,7 +69,10 @@ export async function buildDependenciesTree (
   return buildProjectsTrees(projectPaths, maybeOpts, {
     ancestors: new Set(),
     expanded: new Map(),
-    workspaceProjectDirs: new Set(maybeOpts.workspaceProjectDirs),
+    linkedProjectDirs: new Map([
+      ...(maybeOpts.workspaceProjectDirs ?? []).map((dir) => [dir, dir] as const),
+      ...Object.entries(maybeOpts.workspaceProjectPublishDirs ?? {}),
+    ]),
   })
 }
 
@@ -75,7 +83,10 @@ interface LinkedProjectsWalk {
    * walked again.
    */
   expanded: Map<string, number>
-  workspaceProjectDirs: ReadonlySet<string>
+  /**
+   * The workspace project each directory that dependents link to belongs to.
+   */
+  linkedProjectDirs: ReadonlyMap<string, string>
 }
 
 async function buildProjectsTrees (
@@ -239,11 +250,13 @@ async function expandLinkedProjectNodes (
 }
 
 async function expandLinkedProject (
-  node: DependencyNode,
+  linkedNode: DependencyNode,
   level: number,
   ctx: LinkedProjectsContext
 ): Promise<DependencyNode | undefined> {
-  if (!ctx.walk.workspaceProjectDirs.has(node.path)) return undefined
+  const projectDir = ctx.walk.linkedProjectDirs.get(linkedNode.path)
+  if (projectDir == null) return undefined
+  const node = { ...linkedNode, path: projectDir }
   if (ctx.walk.ancestors.has(node.path)) return keepSearched({ ...node, circular: true }, ctx)
   if (level >= ctx.depth) return keepSearched(node, ctx)
   const depth = ctx.depth - level - 1
@@ -263,7 +276,7 @@ async function expandLinkedProject (
   const dependencies = DEPENDENCIES_FIELDS.flatMap((field) => linkedTree[field] ?? [])
   ctx.walk.expanded.set(key, countNodes(dependencies))
   return keepSearched(dependencies.length > 0
-    ? { ...node, dependencies: rewriteLinkVersions(dependencies, ctx.rewriteLinkVersionDir) }
+    ? { ...node, dependencies: rewriteLinkVersions(dependencies, node.path, ctx.rewriteLinkVersionDir) }
     : node, ctx)
 }
 
@@ -275,13 +288,17 @@ function keepSearched (node: DependencyNode, ctx: LinkedProjectsContext): Depend
   return ctx.treeOpts.search == null || node.searched || node.dependencies?.length ? node : undefined
 }
 
-function rewriteLinkVersions (nodes: DependencyNode[], rewriteLinkVersionDir: string): DependencyNode[] {
+/**
+ * Rebases the `link:` versions of a linked project's dependencies, which are
+ * relative to `linkedProjectDir`, onto `rewriteLinkVersionDir`.
+ */
+function rewriteLinkVersions (nodes: DependencyNode[], linkedProjectDir: string, rewriteLinkVersionDir: string): DependencyNode[] {
   return nodes.map((node) => ({
     ...node,
     version: node.version.startsWith('link:')
-      ? `link:${normalizePath(path.relative(rewriteLinkVersionDir, node.path))}`
+      ? `link:${normalizePath(path.relative(rewriteLinkVersionDir, path.resolve(linkedProjectDir, node.version.slice('link:'.length))))}`
       : node.version,
-    ...(node.dependencies && { dependencies: rewriteLinkVersions(node.dependencies, rewriteLinkVersionDir) }),
+    ...(node.dependencies && { dependencies: rewriteLinkVersions(node.dependencies, linkedProjectDir, rewriteLinkVersionDir) }),
   }))
 }
 

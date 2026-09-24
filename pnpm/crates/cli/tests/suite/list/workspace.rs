@@ -633,6 +633,84 @@ fn list_only_projects_matches_each_alias_of_a_project_with_a_dedicated_lockfile(
     );
 }
 
+/// A project with `publishConfig.directory` is linked through that directory,
+/// and `--only-projects` lists it at its own directory.
+#[test]
+fn list_only_projects_follows_a_project_linked_through_its_publish_directory() {
+    for extra_settings in ["", "sharedWorkspaceLockfile: false\n"] {
+        let (_root, workspace, _registry) = setup_registry();
+        fs::write(
+            workspace.join("package.json"),
+            json!({ "name": "root", "version": "1.0.0", "dependencies": { "@scope/a": "workspace:*" } })
+                .to_string(),
+        )
+        .expect("write root package.json");
+        let mut yaml =
+            fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
+        yaml.push_str("packages:\n  - packages/*\n");
+        yaml.push_str(extra_settings);
+        fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write workspace yaml");
+        let packages = [
+            (
+                "a",
+                json!({ "name": "@scope/a", "version": "1.0.0", "dependencies": { "@scope/c": "workspace:*" } }),
+            ),
+            ("b", json!({ "name": "@scope/b", "version": "1.0.0" })),
+            (
+                "c",
+                json!({
+                    "name": "@scope/c",
+                    "version": "1.0.0",
+                    "dependencies": { "@scope/b": "workspace:*" },
+                    "publishConfig": { "directory": "dist" },
+                }),
+            ),
+        ];
+        for (dir_name, manifest) in &packages {
+            let dir = workspace.join("packages").join(dir_name);
+            fs::create_dir_all(&dir).expect("create package dir");
+            fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
+        }
+        run_ok(&workspace, &["install"]);
+
+        let output = run_ok(
+            &workspace,
+            &["--filter", ".", "list", "--depth", "Infinity", "--only-projects"],
+        );
+        let dir = canonical(&workspace);
+        assert_eq!(
+            output,
+            format!(
+                "{LEGEND}\n\n\
+                 root@1.0.0 {dir}\n\
+                 \u{2502}\n\
+                 \u{2502}   dependencies:\n\
+                 \u{2514}\u{2500}\u{252c} @scope/a@link:packages/a\n\
+                 \x20\x20\u{2514}\u{2500}\u{252c} @scope/c@link:packages/c/dist\n\
+                 \x20\x20\x20\x20\u{2514}\u{2500}\u{2500} @scope/b@link:packages/b\n\
+                 \n\
+                 3 packages\n"
+            ),
+            "with {extra_settings:?}",
+        );
+
+        let output = run_ok(
+            &workspace,
+            &["--filter", ".", "list", "--depth", "Infinity", "--only-projects", "--parseable"],
+        );
+        let paths: Vec<_> = output
+            .lines()
+            .map(Path::new)
+            .map(canonical)
+            .collect();
+        let expected: Vec<_> = ["", "packages/a", "packages/b", "packages/c"]
+            .into_iter()
+            .map(|project| canonical(&workspace.join(project)))
+            .collect();
+        assert_eq!(paths, expected, "with {extra_settings:?}");
+    }
+}
+
 fn write_nested_projects_workspace(workspace: &Path, extra_settings: &str) {
     fs::write(
         workspace.join("package.json"),

@@ -218,8 +218,8 @@ fn package_edges(
 
 /// The node an edge leads to. A resolvable depPath is a package node; a
 /// `link:` from an importer resolves to a sibling importer when the
-/// linked path is itself a workspace project; anything else is a leaf
-/// edge (`None`).
+/// linked path is a workspace project or its publish directory; anything
+/// else is a leaf edge (`None`).
 fn edge_target(
     dep_path: Option<&PkgNameVerPeer>,
     link_target: Option<&str>,
@@ -232,9 +232,25 @@ fn edge_target(
     let link_target = link_target?;
     let parent_importer_id = parent_importer_id?;
     let importer_id = normalize_importer_path(parent_importer_id, link_target)?;
+    if lockfile.importers.contains_key(importer_id.as_str()) {
+        return Some(TreeNodeId::Importer(importer_id));
+    }
+    importer_by_publish_directory(lockfile, &importer_id).map(TreeNodeId::Importer)
+}
+
+/// The importer that dependents link through its publish directory: a
+/// project with `publishConfig.directory` is linked there unless
+/// `publishConfig.linkDirectory` is false.
+fn importer_by_publish_directory(lockfile: &Lockfile, linked_importer_id: &str) -> Option<String> {
     lockfile.importers
-        .contains_key(importer_id.as_str())
-        .then_some(TreeNodeId::Importer(importer_id))
+        .iter()
+        .find_map(|(importer_id, importer)| {
+            let publish_directory = importer.publish_directory.as_deref()?;
+            let links_publish_directory = importer.link_directory != Some(false)
+                && normalize_importer_path(importer_id.as_str(), publish_directory).as_deref()
+                    == Some(linked_importer_id);
+            links_publish_directory.then(|| importer_id.to_string())
+        })
 }
 
 /// Lexically resolve `relative` against the importer id `base`,

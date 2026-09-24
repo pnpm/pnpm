@@ -200,6 +200,83 @@ project-1@1.0.0 ${path.resolve('project-1')}
 2 packages`)
 })
 
+test.each([
+  { sharedWorkspaceLockfile: false },
+  { sharedWorkspaceLockfile: true },
+])('list --only-projects follows a project linked through its publish directory (%o)', async ({ sharedWorkspaceLockfile }) => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-2': 'workspace:*',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-3': 'workspace:*',
+      },
+      publishConfig: {
+        directory: 'dist',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+    },
+  ])
+  const lockfileDir = sharedWorkspaceLockfile ? process.cwd() : undefined
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    lockfileDir,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile,
+    workspaceDir: process.cwd(),
+  })
+
+  const listOpts = {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    lockfileDir,
+    recursive: true,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [
+      { namePattern: 'project-1' },
+    ]),
+  }
+  const output = await list.handler({
+    ...listOpts,
+    cliOptions: { depth: Infinity, 'only-projects': true },
+  }, [])
+
+  expect(stripAnsi(output as unknown as string)).toBe(`Legend: production dependency, optional only, dev only
+
+project-1@1.0.0 ${path.resolve('project-1')}
+│
+│   dependencies:
+└─┬ project-2@link:../project-2/dist
+  └── project-3@link:../project-3
+
+2 packages`)
+
+  const parseable = await list.handler({
+    ...listOpts,
+    cliOptions: { depth: Infinity, 'only-projects': true, parseable: true },
+    parseable: true,
+  }, [])
+
+  expect(parseable).toBe(['project-1', 'project-2', 'project-3'].map((project) => path.resolve(project)).join('\n'))
+})
+
 test('recursive list --filter', async () => {
   preparePackages([
     {

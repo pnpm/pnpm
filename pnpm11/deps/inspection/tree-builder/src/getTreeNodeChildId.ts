@@ -35,13 +35,16 @@ export function getTreeNodeChildId (opts: GetTreeNodeChildIdOpts): TreeNodeId | 
       const absoluteLinkedPath = path.join(opts.lockfileDir, opts.parentId.importerId, linkValue)
       const childImporterId = getLockfileImporterId(opts.lockfileDir, absoluteLinkedPath)
 
+      if (opts.importers[childImporterId] != null) {
+        return { type: 'importer', importerId: childImporterId }
+      }
       // A 'link:' reference may refer to a package outside of the pnpm workspace.
       // Return undefined in that case since it would be difficult to list/traverse
       // that package outside of the pnpm workspace.
-      const isLinkOutsideWorkspace = opts.importers[childImporterId] == null
-      return isLinkOutsideWorkspace
+      const publishingImporterId = findImporterByPublishDirectory(opts.lockfileDir, opts.importers, childImporterId)
+      return publishingImporterId == null
         ? undefined
-        : { type: 'importer', importerId: childImporterId }
+        : { type: 'importer', importerId: publishingImporterId }
     }
     case 'package':
     // In theory an external package could be overridden to link to a
@@ -49,4 +52,22 @@ export function getTreeNodeChildId (opts: GetTreeNodeChildIdOpts): TreeNodeId | 
     // edge case for now.
       return undefined
   }
+}
+
+/**
+ * The importer that dependents link through its publish directory: a project
+ * with `publishConfig.directory` is linked there unless
+ * `publishConfig.linkDirectory` is false.
+ */
+function findImporterByPublishDirectory (
+  lockfileDir: string,
+  importers: Record<string, ProjectSnapshot>,
+  linkedImporterId: string
+): string | undefined {
+  return Object.keys(importers).find((importerId) => {
+    const { publishDirectory, linkDirectory } = importers[importerId]
+    return publishDirectory != null &&
+      linkDirectory !== false &&
+      getLockfileImporterId(lockfileDir, path.join(lockfileDir, importerId, publishDirectory)) === linkedImporterId
+  })
 }

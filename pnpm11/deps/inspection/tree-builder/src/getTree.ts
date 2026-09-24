@@ -174,6 +174,11 @@ function materializeChildren (
       linkedPathBaseDir,
       parentDir,
     })
+    // A project linked through its publish directory is listed at its own
+    // directory.
+    if (ctx.onlyProjects && edge.target?.nodeId.type === 'importer') {
+      packageInfo.path = path.join(ctx.lockfileDir, edge.target.nodeId.importerId)
+    }
 
     const searchMatch = ctx.search?.({
       alias: edge.alias,

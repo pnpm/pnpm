@@ -182,7 +182,16 @@ fn materialize_edge(inputs: MaterializeEdge<'_>) {
         rewrite_link_version_dir: Some(opts.rewrite_link_version_dir.clone()),
         parent_dir: inputs.parent_dir.map(Path::to_path_buf),
     };
-    let (package_info, _) = get_pkg_info(opts.env, edge, &edge_ctx);
+    let (mut package_info, _) = get_pkg_info(opts.env, edge, &edge_ctx);
+    // A project linked through its publish directory is listed at its own
+    // directory.
+    if opts.only_projects
+        && let Some(TreeNodeId::Importer(importer_id)) = &edge.target
+        && let Some(project_dir) =
+            super::build::safe_importer_dir(&opts.env.layout.lockfile_dir, importer_id)
+    {
+        package_info.package.path = project_dir.to_string_lossy().into_owned();
+    }
     let search_match = opts.search.map(|search| {
         search.matches(
             &edge.alias,
