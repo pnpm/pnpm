@@ -1,20 +1,20 @@
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import type { BadPeerDependencyIssue, PeerDependencyIssues, PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'
 
 export function renderPeerIssues (issuesByProjects: PeerDependencyIssuesByProjects): string {
-  const projects: Array<[string, string[]]> = []
+  const projectIds = Object.keys(issuesByProjects)
+  if (projectIds.length === 1 && projectIds[0] === '.') {
+    return renderProjectSections(issuesByProjects['.']).join('\n\n')
+  }
+  const projects: string[] = []
   for (const [projectId, projectIssues] of Object.entries(issuesByProjects)) {
     const sections = renderProjectSections(projectIssues)
     if (sections.length > 0) {
-      projects.push([projectId, sections])
+      projects.push(`${chalk.underline(sanitizeInline(projectId))}\n${sections.map(indent).join('\n\n')}`)
     }
   }
-  if (projects.length === 1 && projects[0][0] === '.') {
-    return projects[0][1].join('\n\n')
-  }
-  return projects
-    .map(([projectId, sections]) => `${chalk.underline(projectId)}\n${sections.map(indent).join('\n\n')}`)
-    .join('\n\n')
+  return projects.join('\n\n')
 }
 
 function renderProjectSections ({ bad, missing, conflicts, intersections }: PeerDependencyIssues): string[] {

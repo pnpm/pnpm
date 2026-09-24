@@ -1,5 +1,6 @@
 use super::{BTreeMap, IssuesByProjects, ParentPkg, PeerIssues, Serialize, Stream, sanitize};
 use owo_colors::OwoColorize as _;
+use pnpm_text_sanitize::sanitize_inline;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MissingPeerIssue {
@@ -26,33 +27,35 @@ pub struct BadPeerIssue {
 /// project. A listing that covers only the root project keeps no heading.
 #[must_use]
 pub fn render_peer_issues(issues_by_projects: &IssuesByProjects) -> String {
-    let projects: Vec<(&String, Vec<String>)> = issues_by_projects
-        .iter()
-        .map(|(project_id, project_issues)| {
-            let mut sections: Vec<String> = Vec::new();
-            push_bad_sections(project_issues, &mut sections);
-            push_missing_sections(project_issues, &mut sections);
-            (project_id, sections)
-        })
-        .filter(|(_, sections)| !sections.is_empty())
-        .collect();
-    if let [(project_id, sections)] = projects.as_slice()
-        && project_id.as_str() == "."
+    if let Some((project_id, project_issues)) = issues_by_projects.first_key_value()
+        && issues_by_projects.len() == 1
+        && project_id == "."
     {
-        return sections.join("\n\n");
+        return render_project_sections(project_issues).join("\n\n");
     }
-    projects
+    issues_by_projects
         .iter()
-        .map(|(project_id, sections)| {
+        .filter_map(|(project_id, project_issues)| {
+            let sections = render_project_sections(project_issues);
+            if sections.is_empty() {
+                return None;
+            }
             let body = sections
                 .iter()
                 .map(|section| indent(section))
                 .collect::<Vec<_>>()
                 .join("\n\n");
-            format!("{}\n{}", underline(project_id), body)
+            Some(format!("{}\n{}", underline(project_id), body))
         })
         .collect::<Vec<_>>()
         .join("\n\n")
+}
+
+fn render_project_sections(project_issues: &PeerIssues) -> Vec<String> {
+    let mut sections = Vec::new();
+    push_bad_sections(project_issues, &mut sections);
+    push_missing_sections(project_issues, &mut sections);
+    sections
 }
 
 fn indent(section: &str) -> String {
@@ -166,7 +169,7 @@ fn bold(text: &str) -> String {
 }
 
 fn underline(text: &str) -> String {
-    let cleaned = sanitize(text);
+    let cleaned = sanitize_inline(text);
     cleaned
         .as_ref()
         .if_supports_color(Stream::Stdout, |t| t.underline())

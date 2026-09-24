@@ -399,9 +399,7 @@ fn strict_peer_dependencies_fails_on_a_linked_workspace_packages_unmet_peer() {
     drop((root, mock_instance));
 }
 
-/// pnpm/pnpm#15351: a workspace package whose peer is missing in every
-/// project that links it is reported once per project, and each report
-/// must name the project it belongs to.
+/// pnpm/pnpm#15351
 #[test]
 fn peers_check_names_the_project_of_each_issue() {
     let CommandTempCwd {

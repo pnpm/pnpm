@@ -760,8 +760,7 @@ fn missing_react_issues() -> PeerIssues {
     }
 }
 
-/// pnpm/pnpm#15351: the same missing peer reported by several workspace
-/// projects must say which project each entry belongs to.
+/// pnpm/pnpm#15351
 #[test]
 fn render_names_the_project_of_each_issue() {
     let issues: IssuesByProjects = BTreeMap::from([
@@ -797,6 +796,28 @@ fn render_skips_projects_without_reportable_issues() {
     let rendered = super::render_peer_issues(&issues);
     assert!(rendered.starts_with("apps/web\n  ✕ missing peer react"), "{rendered}");
     assert!(!rendered.contains("\n.\n") && !rendered.starts_with(".\n"), "{rendered}");
+}
+
+#[test]
+fn render_names_the_root_project_when_other_projects_are_listed() {
+    let issues: IssuesByProjects = BTreeMap::from([
+        (".".to_string(), missing_react_issues()),
+        (
+            "apps/web".to_string(),
+            PeerIssues { intersections: BTreeMap::new(), ..missing_react_issues() },
+        ),
+    ]);
+    let rendered = super::render_peer_issues(&issues);
+    assert!(rendered.starts_with(".\n  ✕ missing peer react"), "{rendered}");
+    assert!(!rendered.contains("apps/web"), "{rendered}");
+}
+
+#[test]
+fn render_strips_control_characters_from_the_project_heading() {
+    let issues: IssuesByProjects =
+        BTreeMap::from([("apps/\u{1b}[2J\nweb\u{202e}".to_string(), missing_react_issues())]);
+    let rendered = super::render_peer_issues(&issues);
+    assert!(rendered.starts_with("apps/[2Jweb\n"), "{rendered:?}");
 }
 
 #[test]

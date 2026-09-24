@@ -203,3 +203,21 @@ test('renderPeerIssues() omits the heading when only the root project has issues
     '.': missingReactIssues(),
   }))).toMatch(/^✕ missing peer react\n {2}Wanted:/)
 })
+
+test('renderPeerIssues() names the root project when other projects are listed', () => {
+  const rendered = stripAnsi(renderPeerIssues({
+    '.': missingReactIssues(),
+    'apps/web': { ...missingReactIssues(), intersections: {} },
+  }))
+  expect(rendered).toMatch(/^\.\n {2}✕ missing peer react\n/)
+  expect(rendered).not.toContain('apps/web')
+})
+
+test('renderPeerIssues() strips control characters from the project heading', () => {
+  const rendered = renderPeerIssues({
+    'apps/\u001b[2J\nweb\u202e': missingReactIssues(),
+  })
+  expect(rendered).not.toContain('\u001b[2J')
+  expect(rendered).not.toContain('\u202e')
+  expect(stripAnsi(rendered)).toMatch(/^apps\/\[2Jweb\n/)
+})
