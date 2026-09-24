@@ -37,21 +37,32 @@ test('no versions when no lockfile is available', () => {
 })
 
 test('the versions every project lockfile records together', async () => {
-  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prune-'))
-  const projectDirs = writeProjectLockfiles(workspaceDir, { a: 'foo@1.0.0', b: 'foo@2.0.0' })
+  await withWorkspaceDir(async (workspaceDir) => {
+    const projectDirs = writeProjectLockfiles(workspaceDir, { a: 'foo@1.0.0', b: 'foo@2.0.0' })
 
-  expect(await resolvedPackageVersionsOfProjectLockfiles({}, projectDirs))
-    .toEqual(new Map([['foo', new Set(['1.0.0', '2.0.0'])]]))
+    expect(await resolvedPackageVersionsOfProjectLockfiles({}, projectDirs))
+      .toEqual(new Map([['foo', new Set(['1.0.0', '2.0.0'])]]))
+  })
 })
 
 test('no versions when a project has no lockfile', async () => {
-  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prune-'))
-  const projectDirs = writeProjectLockfiles(workspaceDir, { a: 'foo@1.0.0' })
-  const projectWithoutLockfile = path.join(workspaceDir, 'b')
-  fs.mkdirSync(projectWithoutLockfile)
+  await withWorkspaceDir(async (workspaceDir) => {
+    const projectDirs = writeProjectLockfiles(workspaceDir, { a: 'foo@1.0.0' })
+    const projectWithoutLockfile = path.join(workspaceDir, 'b')
+    fs.mkdirSync(projectWithoutLockfile)
 
-  expect(await resolvedPackageVersionsOfProjectLockfiles({}, [...projectDirs, projectWithoutLockfile])).toBeUndefined()
+    expect(await resolvedPackageVersionsOfProjectLockfiles({}, [...projectDirs, projectWithoutLockfile])).toBeUndefined()
+  })
 })
+
+async function withWorkspaceDir (fn: (workspaceDir: string) => Promise<void>): Promise<void> {
+  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prune-'))
+  try {
+    await fn(workspaceDir)
+  } finally {
+    fs.rmSync(workspaceDir, { recursive: true, force: true })
+  }
+}
 
 function writeProjectLockfiles (workspaceDir: string, snapshots: Record<string, string>): string[] {
   return Object.entries(snapshots).map(([name, snapshot]) => {
