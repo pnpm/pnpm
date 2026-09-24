@@ -155,8 +155,8 @@ pub(super) fn installed_version(install_dir: &Path, package_name: &str) -> Optio
         .map(ToString::to_string)
 }
 
-/// The aliases a pnpm engine can be installed under globally. The standalone
-/// install script installs `@pnpm/exe` even for the versions
+/// The aliases a pnpm engine can be installed under globally. `pnpm setup` of
+/// earlier releases installed `@pnpm/exe` even for the versions
 /// [`pnpm_package_to_install`] resolves to `pnpm`, so a switch to either name
 /// has to recognize an install under the other (see pnpm/pnpm#14823).
 const ENGINE_ALIASES: [&str; 2] = [PNPM_PACKAGE_NAME, PNPM_EXE_PACKAGE_NAME];

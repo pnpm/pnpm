@@ -112,12 +112,13 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
         &format!("Installing pnpm CLI globally from {}", exec_dir.display()),
     );
 
-    // `@pnpm/exe` ships a preinstall/prepare pair that hardlinks the
-    // platform-specific binary out of its optional platform packages. None
-    // of that applies here: this `file:` dependency is the standalone
-    // executable itself, the platform packages aren't installed alongside
-    // it, and the host may have no `node` to run the scripts. Skipping them
-    // also avoids a build-approval prompt for pnpm's own install.
+    // The published `pnpm` package ships a preinstall/postinstall pair that
+    // hardlinks the platform-specific binary out of its optional platform
+    // packages. None of that applies here: this `file:` dependency is the
+    // standalone executable itself, the platform packages aren't installed
+    // alongside it, and the host may have no `node` to run the scripts.
+    // Skipping them also avoids a build-approval prompt for pnpm's own
+    // install.
     let separator = if cfg!(windows) { ";" } else { ":" };
     // Build `PATH` as an `OsString` so a non-UTF-8 ambient `PATH` is
     // preserved verbatim rather than lost to a lossy string conversion.
@@ -150,12 +151,19 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
 /// The manifest `pnpm setup` writes next to a standalone executable that ships
 /// without one, so the global install has a package to install.
 ///
+/// The package is `pnpm`, the name `pnpm self-update` installs the engine
+/// under, so both leave the same shims behind: the bin linker writes no
+/// `pnpm.ps1` for that name and removes one it finds, and a setup that
+/// installed under another name would leave a `.ps1` for the next
+/// self-update to delete, changing how PowerShell launches pnpm
+/// (pnpm/pnpm#15567).
+///
 /// `type: module` matters even though nothing here is imported as a package:
 /// without it Node.js reparses the ESM files shipped alongside the executable
 /// as `CommonJS` first and warns on every spawn.
 fn standalone_manifest(exec_name: &str) -> serde_json::Value {
     serde_json::json!({
-        "name": "@pnpm/exe",
+        "name": "pnpm",
         "version": PNPM_VERSION,
         "type": "module",
         "bin": { "pnpm": exec_name, "pn": exec_name },
@@ -181,9 +189,9 @@ fn create_alias_scripts(target_dir: &Path) -> std::io::Result<()> {
 /// call (`" dlx"` for `pnpx` and `pnx`).
 ///
 /// The sibling each form reaches is the bin `pnpm add -g` linked for the CLI this
-/// command just installed: a `pnpm` / `pnpm.cmd` / `pnpm.ps1` shim trio, one per
-/// shell. `link_bins` writes a bare `pnpm.exe` only for the `node` bin name, so
-/// each form has exactly one sibling to name.
+/// command just installed: a `pnpm` shim and, on Windows, its `pnpm.cmd` twin.
+/// `link_bins` writes a bare `pnpm.exe` only for the `node` bin name, so each
+/// form has exactly one sibling to name.
 fn create_shell_script(target_dir: &Path, name: &str, subcommand: &str) -> std::io::Result<()> {
     // Windows can also run shell scripts via mingw / cygwin, so write the
     // POSIX script unconditionally.
