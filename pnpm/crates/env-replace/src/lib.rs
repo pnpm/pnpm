@@ -1,7 +1,8 @@
 //! Environment-variable substitution for pnpm-style `${VAR}` placeholders.
 //!
-//! Occurrences of `${VAR}` (with optional `${VAR-default}` or `${VAR:-default}` fallback) are
-//! replaced with the value the [`EnvVar`] capability returns for `VAR`.
+//! Occurrences of `${VAR}` (with optional `${VAR-default}` or `${VAR:-default}` fallback,
+//! or npm's `${VAR?}`, which falls back to `""`) are replaced with the value the
+//! [`EnvVar`] capability returns for `VAR`.
 //! Backslashes immediately preceding the `$` escape the placeholder so
 //! it is left as-is.
 //!
@@ -67,7 +68,8 @@ impl EnvVar for SystemEnv {
 /// the value [`Sys::var`] returns. Placeholders that have no value and no
 /// default become `""` (the literal `${...}` never reaches the caller) and
 /// are recorded in the returned `Vec` so the caller can surface each one as
-/// a warning.
+/// a warning. npm's optional `${VAR?}` form defaults to `""`, so it is never
+/// recorded.
 ///
 /// Recording each unresolved placeholder matters because leaving an
 /// unresolved `${VAR}` in an auth value would later be sent as a literal
@@ -170,7 +172,10 @@ fn expand_placeholder<Sys: EnvVar>(
             Some(name) => (name, Some(default), true),
             None => (name, Some(default), false),
         },
-        None => (inside, None, false),
+        None => match optional_var_name(inside) {
+            Some(var_name) => (var_name, Some(""), false),
+            None => (inside, None, false),
+        },
     };
     let value = Sys::var(var_name)
         .filter(|value| !value.is_empty() || (default.is_some() && !default_on_empty));
@@ -179,6 +184,14 @@ fn expand_placeholder<Sys: EnvVar>(
         (None, Some(default)) => output.push_str(default),
         (None, None) => unresolved.push(placeholder.to_owned()),
     }
+}
+
+/// The `NAME` of an npm-style optional `${NAME?}` placeholder. Suffixes
+/// ending in `-` are excluded so `${NAME-?}` is handled as a dash default.
+fn optional_var_name(inside: &str) -> Option<&str> {
+    inside
+        .strip_suffix('?')
+        .filter(|name| !name.is_empty() && !name.contains('?') && !name.ends_with('-'))
 }
 
 /// Return the index of the closing `}` for a `${...}` starting at `start`.

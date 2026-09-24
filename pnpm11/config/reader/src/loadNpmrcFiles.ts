@@ -612,7 +612,7 @@ function substituteEnv (value: string, env: Record<string, string | undefined>, 
   const { warnings, key } = opts
   const authKey = AUTH_VALUE_KEYS.find(name => key === name || key.endsWith(`:${name}`))
   const context = opts.context ?? (authKey ? ` in .npmrc key "${authKey}"` : '')
-  const { value: substituted, unresolved } = envReplaceLossy(value, env)
+  const { value: substituted, unresolved } = envReplaceLossy(value, withOptionalEnvPlaceholders(value, env))
   for (const placeholder of unresolved) {
     warnings.push(`Failed to replace env in config: ${placeholder}${context}`)
   }
@@ -620,6 +620,20 @@ function substituteEnv (value: string, env: Record<string, string | undefined>, 
     warnings.push(`Failed to replace env in config: ${placeholder}${context}`)
   }
   return substituted
+}
+
+// npm's `${VAR?}` expands to VAR, or to '' without a warning when VAR is
+// unset. envReplaceLossy reads the whole `VAR?` body as the variable name, so
+// the lookup table gets a `VAR?` entry for each such placeholder. A name
+// ending in `-` is left to envReplaceLossy's `${VAR-fallback}` form.
+function withOptionalEnvPlaceholders (value: string, env: Record<string, string | undefined>): Record<string, string | undefined> {
+  const names = Array.from(value.matchAll(/\$\{([^${}?]*[^${}?-])\?\}/g), ([, name]) => name)
+  if (names.length === 0) return env
+  const envWithOptional = { ...env }
+  for (const name of names) {
+    envWithOptional[`${name}?`] = env[name] ?? ''
+  }
+  return envWithOptional
 }
 
 function findEmptyEnvPlaceholders (value: string, env: Record<string, string | undefined>): string[] {
