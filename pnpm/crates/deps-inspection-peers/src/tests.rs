@@ -815,9 +815,9 @@ fn render_names_the_root_project_when_other_projects_are_listed() {
 #[test]
 fn render_strips_control_characters_from_the_project_heading() {
     let issues: IssuesByProjects =
-        BTreeMap::from([("apps/\u{1b}[2J\nweb\u{202e}".to_string(), missing_react_issues())]);
+        BTreeMap::from([("apps/\u{1b}[2J\n-web\u{202e}".to_string(), missing_react_issues())]);
     let rendered = super::render_peer_issues(&issues);
-    assert!(rendered.starts_with("apps/[2Jweb\n"), "{rendered:?}");
+    assert!(rendered.starts_with("apps/[2J-web\n"), "{rendered:?}");
 }
 
 #[test]

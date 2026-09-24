@@ -215,9 +215,9 @@ test('renderPeerIssues() names the root project when other projects are listed',
 
 test('renderPeerIssues() strips control characters from the project heading', () => {
   const rendered = renderPeerIssues({
-    'apps/\u001b[2J\nweb\u202e': missingReactIssues(),
+    'apps/\u001b[2J\n-web\u202e': missingReactIssues(),
   })
   expect(rendered).not.toContain('\u001b[2J')
   expect(rendered).not.toContain('\u202e')
-  expect(stripAnsi(rendered)).toMatch(/^apps\/\[2Jweb\n/)
+  expect(stripAnsi(rendered)).toMatch(/^apps\/\[2J-web\n/)
 })
