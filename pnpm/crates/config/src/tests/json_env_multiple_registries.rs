@@ -172,3 +172,30 @@ pub fn global_config_auth_for_scoped_registry_does_not_become_default() {
         Some("Bearer stored-token"),
     );
 }
+
+/// A scope the `_auth` env var re-routes no longer claims its old registry,
+/// so an `@` credential for that registry can make it the default again.
+#[test]
+pub fn json_env_rerouted_scope_frees_its_old_registry_for_the_default() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join("pnpm-workspace.yaml"),
+        "registries:\n  'https://old-scope.example/':\n    scopes: ['@abc']\n",
+    );
+    set_fake_env(&[(
+        "pnpm_config__auth",
+        r#"{
+            "https://new-scope.example/": { "@abc": { "authToken": "token-abc" } },
+            "https://old-scope.example/": { "@": { "authToken": "token-default" } }
+        }"#,
+    )]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.registry, "https://old-scope.example/");
+    assert_eq!(
+        config.registries_by_scope.get("@abc").map(String::as_str),
+        Some("https://new-scope.example/"),
+    );
+}

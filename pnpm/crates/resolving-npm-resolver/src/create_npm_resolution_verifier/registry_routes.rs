@@ -44,46 +44,54 @@ impl VerificationRegistryRoutes {
 
     pub(super) fn pick_registry(&self, name: &PkgName, tarball_url: Option<&str>) -> String {
         if let Some(url) = tarball_url
-            && let Some(matched) = self.match_tarball_registry(url)
+            && let Some(matched) = self.match_tarball_registry(url, name)
         {
             return matched;
         }
         pick_registry_for_package(&self.registries, &name.to_string(), None)
     }
 
-    fn match_tarball_registry(&self, url: &str) -> Option<String> {
-        // Match on the same canonical form the tarball comparison uses, so
-        // a named-registry or scoped-registry tarball that differs from the
-        // configured base only by scheme or `%2f` encoding still routes to its
-        // registry instead of falling back (and then failing closed against the
-        // wrong packument).
-        // Check prefixes in descending order of specificity so a longer scoped
-        // or named registry path takes precedence over a broader prefix, and
-        // exclude the default registry so scoped packages fall back to scope-based
-        // routing rather than validating against public metadata.
+    /// The registry whose prefix the lockfile tarball URL falls under.
+    ///
+    /// Prefixes are matched on the same canonical form the tarball comparison
+    /// uses, so a tarball that differs from the configured base only by scheme
+    /// or `%2f` encoding still routes to its registry instead of failing closed
+    /// against the wrong packument. The longest prefix wins.
+    ///
+    /// A package whose scope has a registry of its own only matches that
+    /// registry among the scope registries: the lockfile must not move
+    /// `@a/pkg` off the registry `@a` is assigned to, or a registry that also
+    /// proxies the public one would vouch for a same-name public package.
+    /// Other packages match any scope registry. The default registry is never
+    /// a candidate, since scope routing already falls back to it.
+    fn match_tarball_registry(&self, url: &str, name: &PkgName) -> Option<String> {
         let normalized = canonical_tarball_url(url);
-        let mut candidate_prefixes: Vec<&str> = Vec::new();
-        for prefix in &self.named_registry_prefixes {
-            candidate_prefixes.push(prefix.as_str());
-        }
-        for (scope, prefix) in &self.registries {
-            if scope != "default" {
-                candidate_prefixes.push(prefix.as_str());
-            }
-        }
+        let own_scope = name.scope
+            .as_ref()
+            .map(|scope| format!("@{scope}"))
+            .filter(|scope| self.registries.contains_key(scope));
+        let scope_prefixes = self.registries
+            .iter()
+            .filter(|(scope, _)| match &own_scope {
+                Some(own_scope) => *scope == own_scope,
+                None => scope.as_str() != "default",
+            })
+            .map(|(_, prefix)| prefix.as_str());
+        let mut candidate_prefixes: Vec<&str> = self.named_registry_prefixes
+            .iter()
+            .map(String::as_str)
+            .chain(scope_prefixes)
+            .collect();
         candidate_prefixes.sort_by(|first, second| {
-            let len_first = canonical_tarball_url(first).len();
-            let len_second = canonical_tarball_url(second).len();
-            len_second
-                .cmp(&len_first)
+            canonical_tarball_url(second)
+                .len()
+                .cmp(&canonical_tarball_url(first).len())
                 .then_with(|| first.cmp(second))
         });
         candidate_prefixes.dedup();
-        for prefix in candidate_prefixes {
-            if normalized.starts_with(&canonical_tarball_url(prefix)) {
-                return Some(prefix.to_string());
-            }
-        }
-        None
+        candidate_prefixes
+            .into_iter()
+            .find(|prefix| normalized.starts_with(&canonical_tarball_url(prefix)))
+            .map(str::to_string)
     }
 }

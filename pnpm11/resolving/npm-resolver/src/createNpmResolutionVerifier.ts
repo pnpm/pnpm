@@ -1111,12 +1111,20 @@ function pickRegistryForVersion (
     // named-registry tarball that differs from the configured base only by
     // scheme or `%2f` encoding still routes to its registry instead of
     // falling back (and then failing closed against the wrong packument).
+    // A package whose scope has a registry of its own only matches that
+    // registry among the scope registries: the lockfile must not move
+    // `@a/pkg` off the registry `@a` is assigned to, or a registry that also
+    // proxies the public one would vouch for a same-name public package.
     const normalized = canonicalTarballUrl(tarballUrl)
+    const scope = name.startsWith('@') ? name.slice(0, name.indexOf('/')) : undefined
+    const ownScopeRegistry = scope == null ? undefined : registriesByScope[scope]
     const candidatePrefixes = [
       ...namedRegistryPrefixes,
-      ...Object.entries(registriesByScope)
-        .filter((entry): entry is [string, string] => entry[0] !== 'default' && typeof entry[1] === 'string')
-        .map(([, url]) => url),
+      ...(ownScopeRegistry != null
+        ? [ownScopeRegistry]
+        : Object.entries(registriesByScope)
+          .filter((entry): entry is [string, string] => entry[0] !== 'default' && typeof entry[1] === 'string')
+          .map(([, url]) => url)),
     ].sort((a, b) => {
       const diff = canonicalTarballUrl(b).length - canonicalTarballUrl(a).length
       return diff !== 0 ? diff : a.localeCompare(b)

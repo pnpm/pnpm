@@ -1003,6 +1003,43 @@ test('createNpmResolutionVerifier() queries private scoped registry and rejects 
   expect(result).toMatchObject({ ok: false, code: 'TARBALL_URL_MISMATCH' })
 })
 
+test('createNpmResolutionVerifier() keeps a scope-routed package on its registry when the tarball points at another scope\'s registry', async () => {
+  const metaOn = (registry: string) => ({
+    name: '@private/pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: '@private/pkg',
+        version: '1.0.0',
+        dist: { tarball: `${registry}@private/pkg/-/pkg-1.0.0.tgz`, shasum: 'aa' },
+      },
+    },
+    modified: '2020-01-01T00:00:00.000Z',
+  })
+  const slash = '%2F'
+  getMockAgent().get('https://private.example.com')
+    .intercept({ path: `/@private${slash}pkg`, method: 'GET' }).reply(200, metaOn('https://private.example.com/')).persist()
+  getMockAgent().get('https://proxy.example.com')
+    .intercept({ path: `/@private${slash}pkg`, method: 'GET' }).reply(200, metaOn('https://proxy.example.com/')).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    registriesByScope: {
+      default: 'https://public.example.com/',
+      '@private': 'https://private.example.com/',
+      '@other': 'https://proxy.example.com/',
+    },
+  }))
+  const result = await verifier.verify(
+    {
+      integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+      tarball: 'https://proxy.example.com/@private/pkg/-/pkg-1.0.0.tgz',
+    } as unknown as Resolution,
+    { name: '@private/pkg', version: '1.0.0' }
+  )
+
+  expect(result).toMatchObject({ ok: false, code: 'TARBALL_URL_MISMATCH' })
+})
+
 test('createNpmResolutionVerifier() routes to more specific scoped registry when a broad named registry contains it', async () => {
   const meta = {
     name: '@corp/pkg',

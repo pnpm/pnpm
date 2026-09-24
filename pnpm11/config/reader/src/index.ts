@@ -53,6 +53,7 @@ import {
 } from './overrideSupportedArchitecturesWithCLI.js'
 import { createProjectModulesDirResolver, getModulesDirsByProjectName } from './projectConfig.js'
 import { quoteAndJoin } from './quoteAndJoin.js'
+import { resolveJsonAuthRegistries } from './resolveJsonAuthRegistries.js'
 import { transformGlobalDirKeys, transformPathKeys } from './transformPath.js'
 import { types } from './types.js'
 import { isKnownSettingKey, quoteAndAnnotateUnknown } from './unknownSettings.js'
@@ -399,19 +400,25 @@ export async function getConfig (opts: {
   if (explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string') {
     pnpmConfig.registriesByScope.default = normalizeRegistryUrl(pnpmConfig.registry)
   }
+  // Only the trusted `.npmrc` files reach the bootstrap cascade, so only what
+  // they declare decides which `_auth` routes apply to it.
+  const bootstrapJsonAuthRegistries = resolveJsonAuthRegistries(npmrcResult.jsonAuth, {
+    registries: { ...trustedNetworkConfigs.registries, ...npmrcResult.trustedDeclaredRegistries },
+    defaultRegistry: npmrcResult.trustedDeclaredRegistries.default,
+  })
   pnpmConfig.packageManagerRegistries = {
     default: normalizeRegistryUrl(trustedAuthConfig.registry as string),
     // The file fallback applies to the bootstrap cascade too, so a registry
     // reached only through a stored credential is reached the same way when
     // pnpm downloads itself as when it installs.
-    ...npmrcResult.jsonAuth.fallbackRegistries,
+    ...bootstrapJsonAuthRegistries.fallbackRegistries,
     // A `registry=` in a trusted `.npmrc` declares the default registry as
     // plainly as a yaml does, so it holds the file fallback back here too.
     ...npmrcResult.trustedDeclaredRegistries,
     ...trustedNetworkConfigs.registries,
     // `_auth` routes apply here too so bootstrap (self-download / version
     // switching) resolves the same way as regular installs.
-    ...npmrcResult.jsonAuth.registries,
+    ...bootstrapJsonAuthRegistries.envRegistries,
     ...cliScopedRegistries,
   }
   if (explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string') {
@@ -619,52 +626,28 @@ export async function getConfig (opts: {
     explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string'
       ? { default: normalizeRegistryUrl(pnpmConfig.registry) }
       : undefined
-  // The global config file's `_auth` only fills in what nothing declares:
-  // it is where a `pnpm login` stores a credential, and holding one is not
-  // a statement about where packages come from. `registriesFromNpmrc`
-  // carries the builtin default as well as what the `.npmrc` files
-  // declared, so only the latter are restated above the fallback.
-  const { default: fallbackDefault, ...fallbackScopedRegistries } = npmrcResult.jsonAuth.fallbackRegistries
   const declaredRegistries = {
     ...npmrcResult.declaredRegistries,
     ...globalYamlRegistries,
     ...workspaceManifestRegistries,
   }
-  const scopedRegistryUrls = new Set(
-    Object.entries({ ...registriesFromNpmrc, ...declaredRegistries })
-      .filter(([scope]) => scope !== 'default')
-      .map(([, url]) => normalizeRegistryUrl(url))
-  )
-  // An `@` credential in `_auth` for a registry a config file assigns to a
-  // scope authenticates that registry; it does not make it the default.
-  const isScopedRegistry = (url: string): boolean => scopedRegistryUrls.has(normalizeRegistryUrl(url))
-  const baseRegistries = {
-    ...registriesFromNpmrc,
-    ...(fallbackDefault != null && !isScopedRegistry(fallbackDefault) ? { default: fallbackDefault } : {}),
-    ...fallbackScopedRegistries,
-    ...declaredRegistries,
-  }
-  const envDefaultCandidates = (npmrcResult.jsonAuth.defaultCandidates ?? [])
-    .filter(url => !isScopedRegistry(url))
-  const resolvedEnvRegistries = { ...npmrcResult.jsonAuth.registries }
-  delete resolvedEnvRegistries.default
-  const declaredDefaultUrl = declaredDefault?.default ?? declaredRegistries.default
-  if (envDefaultCandidates.length > 0) {
-    if (declaredDefaultUrl != null && envDefaultCandidates.length > 1) {
-      const match = envDefaultCandidates.find(url => normalizeRegistryUrl(url) === declaredDefaultUrl)
-      if (match) {
-        resolvedEnvRegistries.default = match
-      }
-    } else {
-      resolvedEnvRegistries.default = envDefaultCandidates[envDefaultCandidates.length - 1]
-    }
-  }
+  const jsonAuthRegistries = resolveJsonAuthRegistries(npmrcResult.jsonAuth, {
+    registries: { ...registriesFromNpmrc, ...declaredRegistries },
+    defaultRegistry: declaredDefault?.default ?? declaredRegistries.default,
+  })
   pnpmConfig.registriesByScope = {
-    ...baseRegistries,
+    ...registriesFromNpmrc,
+    // The global config file's `_auth` only fills in what nothing declares:
+    // it is where a `pnpm login` stores a credential, and holding one is not
+    // a statement about where packages come from. `registriesFromNpmrc`
+    // carries the builtin default as well as what the `.npmrc` files
+    // declared, so only the latter are restated above the fallback.
+    ...jsonAuthRegistries.fallbackRegistries,
+    ...declaredRegistries,
     ...declaredDefault,
     // The `_auth` env var is the operator's channel — a CI runner pointed at
     // a mandated proxy — so its routes win over what any file declares.
-    ...resolvedEnvRegistries,
+    ...jsonAuthRegistries.envRegistries,
     // CLI per-scope registries last, so `--@scope:registry=...` wins over
     // both yaml and `_auth` ("CLI > _auth env > yaml > _auth file").
     ...cliScopedRegistries,

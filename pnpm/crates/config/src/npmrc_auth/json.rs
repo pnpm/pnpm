@@ -267,7 +267,7 @@ impl NpmrcAuth {
         config: &mut Config,
         declared: &DeclaredRegistries,
     ) {
-        let scoped_urls = scoped_registry_urls(&config.registries_by_scope);
+        let scoped_urls = declared_scope_registry_urls(config, &self.routes.json_env);
         self.apply_file_routes(config, declared, &scoped_urls);
         self.apply_env_routes(config, declared, &scoped_urls);
     }
@@ -319,12 +319,16 @@ impl NpmrcAuth {
     }
 }
 
-fn scoped_registry_urls(
-    registries: &std::collections::BTreeMap<String, String>,
+/// The URLs of the scope registries a config file declared and the `_auth`
+/// env var does not re-route. An `@` credential in `_auth` for one of them
+/// authenticates that registry; it does not make it the default.
+fn declared_scope_registry_urls(
+    config: &Config,
+    json_env: &std::collections::BTreeMap<String, String>,
 ) -> BTreeSet<String> {
-    registries
+    config.registries_by_scope
         .iter()
-        .filter(|(scope, _)| scope.as_str() != "default")
+        .filter(|(scope, _)| scope.as_str() != "default" && !json_env.contains_key(*scope))
         .map(|(_, url)| normalize_registry_url(url))
         .collect()
 }
