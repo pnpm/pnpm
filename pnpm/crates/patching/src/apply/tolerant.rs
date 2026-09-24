@@ -10,6 +10,9 @@
 //! 2. A hunk that doesn't match at its recorded position is retried up
 //!    to twenty lines either side of it.
 //!
+//! One more tolerance applies before the patch is parsed; see
+//! [`drop_context_no_newline_markers`].
+//!
 //! The file is modeled as `split('\n')` throughout — the same
 //! representation `patch-package` uses — so a line's own ending is
 //! whatever the surrounding text carried: untouched CRLF lines keep
@@ -21,6 +24,36 @@ use diffy::{Line, Patch};
 /// How far either side of its recorded position a hunk is retried
 /// before the patch is rejected.
 const MAX_FUZZING_OFFSET: isize = 20;
+
+const NO_NEWLINE_MARKER: &str = r"\ No newline at end of file";
+
+/// Remove each `\ No newline at end of file` marker that follows a context
+/// line.
+///
+/// `pnpm patch-commit` diffs with `--ignore-cr-at-eol`, which counts a line
+/// that only lost its final newline as unchanged. When the lines after it
+/// were deleted, git prints it as context carrying the marker and then the
+/// deletions. [`diffy`] accepts nothing but the end of the hunk after a
+/// marked context line, so it rejects that patch with "expected end of
+/// hunk". `patch-package` ignores the marker on a context line, and so does
+/// [`apply`], so dropping it loses nothing the applier reads.
+pub(super) fn drop_context_no_newline_markers(text: String) -> String {
+    if !text.contains(NO_NEWLINE_MARKER) {
+        return text;
+    }
+    let mut kept = String::with_capacity(text.len());
+    let mut follows_context = false;
+    for line in text.split_inclusive('\n') {
+        if follows_context && line.starts_with(NO_NEWLINE_MARKER) {
+            follows_context = false;
+            continue;
+        }
+        // `diffy` reads an empty line inside a hunk as context too.
+        follows_context = line.starts_with([' ', '\n']);
+        kept.push_str(line);
+    }
+    kept
+}
 
 /// Apply every hunk of `patch` to `original`.
 ///

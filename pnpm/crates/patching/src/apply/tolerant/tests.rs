@@ -1,4 +1,4 @@
-use super::apply;
+use super::{apply, drop_context_no_newline_markers};
 use diffy::Patch;
 use pretty_assertions::assert_eq;
 use text_block_macros::text_block_fnl;
@@ -263,4 +263,36 @@ fn applies_zero_context_insertions_after_deletion_and_replacement_shifts() {
     let after = applied(original, patch);
     eprintln!("{after}");
     assert_eq!(after, expected);
+}
+
+/// Only a marker on a context line is dropped. The markers on a deleted and
+/// an inserted line carry the final newline change and stay.
+#[test]
+fn drops_only_the_no_newline_markers_that_follow_context() {
+    let patch = text_block_fnl! {
+        "@@ -1,3 +1 @@"
+        " one"
+        r"\ No newline at end of file"
+        "-two"
+        "-"
+        "@@ -5,2 +3,2 @@"
+        " five"
+        "-six"
+        r"\ No newline at end of file"
+        "+SIX"
+        r"\ No newline at end of file"
+    };
+    let expected = text_block_fnl! {
+        "@@ -1,3 +1 @@"
+        " one"
+        "-two"
+        "-"
+        "@@ -5,2 +3,2 @@"
+        " five"
+        "-six"
+        r"\ No newline at end of file"
+        "+SIX"
+        r"\ No newline at end of file"
+    };
+    assert_eq!(drop_context_no_newline_markers(patch.to_string()), expected);
 }

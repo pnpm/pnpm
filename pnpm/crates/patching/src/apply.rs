@@ -93,7 +93,7 @@ pub fn apply_patch_to_dir(
     patched_dir: &Path,
     patch_file_path: &Path,
 ) -> Result<(), PatchApplyError> {
-    let text = read_patch_file(patch_file_path)?;
+    let text = tolerant::drop_context_no_newline_markers(read_patch_file(patch_file_path)?);
 
     let patches = PatchSet::parse(&text, ParseOptions::gitdiff());
     for file_patch_result in patches {
@@ -134,7 +134,7 @@ pub fn preview_patch(
     patched_dir: &Path,
     patch_file_path: &Path,
 ) -> Result<PatchPreview, PatchApplyError> {
-    let text = read_patch_file(patch_file_path)?;
+    let text = tolerant::drop_context_no_newline_markers(read_patch_file(patch_file_path)?);
     let mut state = PreviewState {
         patched_dir,
         patch_file_path,
