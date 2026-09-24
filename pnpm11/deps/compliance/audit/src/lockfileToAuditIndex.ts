@@ -223,12 +223,17 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
   // deep chain O(depth^2). The chain is materialized into a path string only
   // when a vulnerable node is recorded.
   const stack: Array<{ depPath: DepPath, trail: TrailNode, children: Array<{ name: string, depPath: DepPath }>, next: number }> = []
+  // Findings the current importer has already contributed a path to. Each
+  // importer records its first path to a finding even past the per-finding
+  // cap, so a project with a heavily shared dependency cannot hide that another
+  // project depends on the same vulnerable package.
+  let importerFindings = new Set<string>()
 
   // Apply the per-node logic and, unless the node is pruned, push a frame so its
   // children are visited. Records a path when the node is itself vulnerable.
   const open = (edge: { name: string, depPath: DepPath }, parentTrail: TrailNode): void => {
     const reachable = reachableVulnerabilities(edge)
-    if (reachable.size === 0 || allReachableVulnerabilitiesSaturated(paths, reachable, depTypes, optionalOnly)) return
+    if (reachable.size === 0 || allReachableVulnerabilitiesSaturated(paths, reachable, { depTypes, optionalOnly, importerFindings })) return
     if (inTrail.has(edge.depPath)) return
     const pkgSnapshot = packages[edge.depPath]
     if (pkgSnapshot == null) return
@@ -236,11 +241,15 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
     const resolvedName = name ?? edge.name
     const trail: TrailNode = { name: resolvedName, parent: parentTrail }
     if (version && vulnerableNames.has(resolvedName)) {
-      recordPath(paths, resolvedName, version, joinTrail(trail),
-        depTypes[edge.depPath] === DepType.DevOnly,
-        optionalOnly.has(edge.depPath))
+      const findingKey = `${resolvedName}\0${version}`
+      recordPath(paths, resolvedName, version, joinTrail(trail), {
+        isDev: depTypes[edge.depPath] === DepType.DevOnly,
+        isOptional: optionalOnly.has(edge.depPath),
+        exceedCap: !importerFindings.has(findingKey),
+      })
+      importerFindings.add(findingKey)
     }
-    if (allReachableVulnerabilitiesSaturated(paths, reachable, depTypes, optionalOnly)) return
+    if (allReachableVulnerabilitiesSaturated(paths, reachable, { depTypes, optionalOnly, importerFindings })) return
     const children = snapshotChildren({ depPath: edge.depPath, snapshot: pkgSnapshot }, { includeOptDeps, skippedPeerEdges })
     inTrail.add(edge.depPath)
     stack.push({ depPath: edge.depPath, trail, children, next: 0 })
@@ -248,6 +257,7 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
 
   for (const [importerId, importer] of Object.entries(lockfile.importers)) {
     const trail: TrailNode = { name: importerSegmentOf(importerId), parent: null }
+    importerFindings = new Set()
     const roots: Array<{ name: string, depPath: DepPath }> = []
     if (includeDeps) appendNamedDepPaths(roots, importer.dependencies ?? {})
     if (includeDevDeps) appendNamedDepPaths(roots, importer.devDependencies ?? {})
@@ -410,13 +420,13 @@ function createReachableVulnerabilitiesGetter (
 function allReachableVulnerabilitiesSaturated (
   paths: AuditPathIndex,
   reachable: ReadonlySet<string>,
-  depTypes: DepTypes,
-  optionalOnly: Set<DepPath>
+  { depTypes, optionalOnly, importerFindings }: { depTypes: DepTypes, optionalOnly: Set<DepPath>, importerFindings: Set<string> }
 ): boolean {
   for (const key of reachable) {
     const { name, version, depPath } = parseVulnerabilityKey(key)
     const info = paths[name]?.get(version)
     if (!info || info.paths.length < MAX_PATHS_PER_FINDING) return false
+    if (!importerFindings.has(`${name}\0${version}`)) return false
     if (depTypes[depPath] !== DepType.DevOnly && info.dev) return false
     if (!optionalOnly.has(depPath) && info.optional) return false
   }
@@ -441,10 +451,18 @@ function addAll<T> (target: Set<T>, source: Set<T>): void {
 // Per-(name, version) cap on recorded paths. The CLI only ever displays the
 // first few and follows with a "run pnpm why" hint, so keeping tens of
 // thousands of equivalent chains is wasted memory/CPU for projects with
-// heavy sharing (e.g. diamond dependencies deep in the graph).
+// heavy sharing (e.g. diamond dependencies deep in the graph). A path with
+// `exceedCap` set (an importer's first path to the finding) is recorded
+// regardless, so the total is bounded by the cap plus the number of importers.
 const MAX_PATHS_PER_FINDING = 100
 
-function recordPath (paths: AuditPathIndex, name: string, version: string, joined: string, isDev: boolean, isOptional: boolean): void {
+interface RecordPathOptions {
+  isDev: boolean
+  isOptional: boolean
+  exceedCap: boolean
+}
+
+function recordPath (paths: AuditPathIndex, name: string, version: string, joined: string, { isDev, isOptional, exceedCap }: RecordPathOptions): void {
   let byVersion = paths[name]
   if (!byVersion) {
     byVersion = new Map()
@@ -457,7 +475,7 @@ function recordPath (paths: AuditPathIndex, name: string, version: string, joine
   }
   if (!isDev) info.dev = false
   if (!isOptional) info.optional = false
-  if (info.paths.length >= MAX_PATHS_PER_FINDING) return
+  if (info.paths.length >= MAX_PATHS_PER_FINDING && !exceedCap) return
   // Dedupe — the same joined trail can be produced when a package appears in
   // both `dependencies` and `optionalDependencies` of the same parent, or via
   // equivalent peer-suffix variants.

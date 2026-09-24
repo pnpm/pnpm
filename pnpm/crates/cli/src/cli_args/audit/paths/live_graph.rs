@@ -68,6 +68,16 @@ impl LiveGraph {
         self.live_sources[self.component_of[key]] > 0
     }
 
+    pub(super) fn add_target(&mut self, key: &PackageKey) {
+        let mut stack = vec![self.component_of[key]];
+        while let Some(component) = stack.pop() {
+            self.live_sources[component] += 1;
+            if self.live_sources[component] == 1 {
+                stack.extend(self.parents[component].iter().copied());
+            }
+        }
+    }
+
     pub(super) fn remove_target(&mut self, key: &PackageKey) {
         let mut stack = vec![self.component_of[key]];
         while let Some(component) = stack.pop() {
