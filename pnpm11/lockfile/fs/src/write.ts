@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { promises as fs } from 'node:fs'
+import { promises as fs, rmSync } from 'node:fs'
 import type { FileHandle } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -8,6 +8,7 @@ import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import { rimraf } from '@zkochan/rimraf'
 import yaml from 'js-yaml'
 import { isEmpty } from 'ramda'
+import { onExit } from 'signal-exit'
 import writeFileAtomic from 'write-file-atomic'
 
 import { convertToLockfileFile, convertToLockfileObject } from './lockfileFormatConverters.js'
@@ -116,6 +117,13 @@ export async function writeWantedLockfileAtomic (lockfilePath: string, content: 
     path.dirname(lockfilePath),
     `.${path.basename(lockfilePath)}.${process.pid}.${randomUUID()}.tmp`
   )
+  // A SIGINT/SIGTERM kills the process without unwinding this async
+  // function, so the `finally` below never runs for it. Remove the
+  // unpublished temp file from an exit callback, the way
+  // `write-file-atomic` cleans up after itself.
+  const removeTempFileOnExit = onExit(() => {
+    rmSync(tempPath, { force: true })
+  })
   let tempFile: FileHandle | undefined
   try {
     tempFile = await fs.open(tempPath, 'wx', targetStat?.mode)
@@ -136,6 +144,7 @@ export async function writeWantedLockfileAtomic (lockfilePath: string, content: 
     await ensureLockfileIsNotSymlink(lockfilePath)
     await fs.rename(tempPath, lockfilePath)
   } finally {
+    removeTempFileOnExit()
     await tempFile?.close().catch(() => {})
     await fs.rm(tempPath, { force: true }).catch(() => {})
   }

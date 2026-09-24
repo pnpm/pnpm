@@ -1,3 +1,5 @@
+import { spawn } from 'node:child_process'
+import { once } from 'node:events'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -561,4 +563,28 @@ testOnNonWindows('writeWantedLockfile() leaves no temp file behind', async () =>
   await writeWantedLockfile(projectPath, upToDateLockfile)
 
   expect(fs.readdirSync(projectPath)).toStrictEqual([WANTED_LOCKFILE])
+})
+
+// Windows has no SIGINT delivery to a child; `kill` there is TerminateProcess,
+// against which no cleanup can run.
+testOnNonWindows('writeWantedLockfileAtomic() removes the temp file when the process dies from SIGINT mid-write', async () => {
+  const projectPath = temporaryDirectory()
+  const writeModule = path.join(import.meta.dirname, '../lib/write.js')
+  const child = spawn(process.execPath, [
+    '--input-type=module',
+    '--eval',
+    `import { writeWantedLockfileAtomic } from ${JSON.stringify(writeModule)}
+process.stdout.write('ready\\n')
+await writeWantedLockfileAtomic(process.env.LOCKFILE_PATH, 'key: ' + 'x'.repeat(200 * 1024 * 1024))`,
+  ], {
+    env: { ...process.env, LOCKFILE_PATH: path.join(projectPath, WANTED_LOCKFILE) },
+    stdio: ['ignore', 'pipe', 'inherit'],
+  })
+  // Wait for the child to open the temp file, then interrupt its write.
+  await once(child.stdout, 'data')
+  child.kill('SIGINT')
+
+  const [, signal] = await once(child, 'exit')
+  expect(signal).toBe('SIGINT')
+  expect(fs.readdirSync(projectPath).filter((entry) => entry.endsWith('.tmp'))).toStrictEqual([])
 })

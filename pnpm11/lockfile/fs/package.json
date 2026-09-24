@@ -49,6 +49,7 @@
     "normalize-path": "catalog:",
     "ramda": "catalog:",
     "semver": "catalog:",
+    "signal-exit": "catalog:",
     "strip-bom": "catalog:",
     "write-file-atomic": "catalog:"
   },

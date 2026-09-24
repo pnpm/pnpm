@@ -788,6 +788,9 @@ catalogs:
     shx:
       specifier: ^0.4.0
       version: 0.4.0
+    signal-exit:
+      specifier: ^4.1.0
+      version: 4.1.0
     socks:
       specifier: ^2.8.10
       version: 2.8.10
@@ -7132,6 +7135,9 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.8.5
+      signal-exit:
+        specifier: 'catalog:'
+        version: 4.1.0
       strip-bom:
         specifier: 'catalog:'
         version: 5.0.0
