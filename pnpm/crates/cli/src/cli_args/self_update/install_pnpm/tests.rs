@@ -78,12 +78,8 @@ async fn run_install_ignores_an_ambient_workspace_manifest_above_the_install_dir
 async fn run_install_persists_minimum_release_age_excludes_to_target_workspace() {
     let (temp, workspace_yaml) = engine_install_with_immature_release(true).await;
 
-    assert!(
-        !temp
-            .path()
-            .join("engine-slot/pnpm-workspace.yaml")
-            .exists()
-    );
+    let install_manifest = temp.path().join("engine-slot/pnpm-workspace.yaml");
+    assert!(!install_manifest.exists());
     let manifest = fs::read_to_string(&workspace_yaml).expect("read workspace yaml");
     assert!(manifest.contains("minimumReleaseAgeExclude:"), "{manifest}");
     assert!(manifest.contains("@pnpm.e2e/hello-world-js-bin@1.0.0"), "{manifest}");
