@@ -2,9 +2,10 @@ use crate::{FileHash, StoreDir};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_fs::{
-    EnsureFileError, cas_write_lock, create_exclusive_temp_file, ensure_file, ensure_parent_dir,
+    EnsureFileError, cas_write_lock, create_exclusive_temp_file, ensure_cas_file,
+    ensure_parent_dir,
     file_mode::{EXEC_MODE, is_executable},
-    rename_with_retry,
+    overwrite_file_in_place, rename_with_retry,
 };
 use sha2::{Digest, Sha512};
 use std::{
@@ -93,7 +94,7 @@ impl StoreDir {
 
         self.ensure_shard_dir(&file_path, file_hash[0])?;
 
-        ensure_file(&file_path, buffer, mode).map_err(WriteCasFileError::WriteFile)?;
+        ensure_cas_file(&file_path, buffer, mode).map_err(WriteCasFileError::WriteFile)?;
         Ok((file_path, file_hash))
     }
 
@@ -113,7 +114,9 @@ impl StoreDir {
     /// to [`StoreDir::write_cas_file`] lands at the same path with the
     /// same guarantees: an existing regular file at the target is kept
     /// as the live entry only after a byte-compare against the streamed
-    /// content, and anything else is atomically replaced.
+    /// content, a corrupt regular file is repaired in place so its
+    /// inode — and every hard link to it — survives (pnpm/pnpm#3445),
+    /// and anything else is atomically replaced.
     ///
     /// When `expected_size` is given, a reader that yields any other
     /// number of bytes fails with the `Read` variant *before* anything
@@ -147,34 +150,7 @@ impl StoreDir {
             return Err(WriteCasFileFromReaderError::Write(error));
         }
 
-        // Serialize with buffer-based writers ([`ensure_file`]) and
-        // verifiers of the same path, per [`cas_write_lock`]'s
-        // coordination contract.
-        let lock = cas_write_lock(&file_path);
-        let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-
-        // A regular file already at the hash-derived target is kept —
-        // preserving its inode — only after its bytes are verified
-        // against the freshly streamed temp, the same guarantee
-        // [`ensure_file`]'s byte-compare gives the buffered writer.
-        // Anything else (missing, torn or corrupt blob, symlink or
-        // other non-regular dirent) is atomically replaced by the
-        // rename, which is self-healing in every such state.
-        let existing_is_live = fs::symlink_metadata(&file_path)
-            .is_ok_and(|meta| meta.file_type().is_file() && meta.len() == size)
-            && files_have_equal_contents(&tmp_path, &file_path);
-        if existing_is_live {
-            let _ = fs::remove_file(&tmp_path);
-            return Ok((file_path, file_hash, size));
-        }
-        if let Err(error) = rename_with_retry(&tmp_path, &file_path) {
-            let _ = fs::remove_file(&tmp_path);
-            return Err(write_cas_error(EnsureFileError::RenameFile {
-                tmp_path,
-                file_path: file_path.clone(),
-                error,
-            }));
-        }
+        commit_streamed_temp_file(&tmp_path, &file_path, size)?;
         Ok((file_path, file_hash, size))
     }
 
@@ -198,6 +174,65 @@ impl StoreDir {
 
 fn write_cas_error(error: EnsureFileError) -> WriteCasFileFromReaderError {
     WriteCasFileFromReaderError::Write(WriteCasFileError::WriteFile(error))
+}
+
+/// Commit a fully streamed temp file to its content-addressed path,
+/// consuming the temp in every outcome.
+///
+/// A regular file already at the hash-derived target is kept —
+/// preserving its inode — only after its bytes are verified against the
+/// freshly streamed temp, the same guarantee [`ensure_cas_file`]'s
+/// byte-compare gives the buffered writer. A corrupt regular file is
+/// repaired in place, again keeping the inode so hard links to it from
+/// other projects' `node_modules` are healed by the same write
+/// (pnpm/pnpm#3445). Anything else (missing or torn blob, symlink or
+/// other non-regular dirent, refused in-place write) is atomically
+/// replaced by the rename, which is self-healing in every such state.
+fn commit_streamed_temp_file(
+    tmp_path: &Path,
+    file_path: &Path,
+    size: u64,
+) -> Result<(), WriteCasFileFromReaderError> {
+    // Serialize with buffer-based writers ([`ensure_cas_file`]) and
+    // verifiers of the same path, per [`cas_write_lock`]'s
+    // coordination contract.
+    let lock = cas_write_lock(file_path);
+    let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+
+    let existing_meta = fs::symlink_metadata(file_path).ok();
+    let existing_is_regular = existing_meta
+        .as_ref()
+        .is_some_and(|meta| meta.file_type().is_file());
+    let existing_is_live = existing_meta
+        .as_ref()
+        .is_some_and(|meta| meta.file_type().is_file() && meta.len() == size)
+        && files_have_equal_contents(tmp_path, file_path);
+    if existing_is_live || (existing_is_regular && repair_in_place(tmp_path, file_path)) {
+        let _ = fs::remove_file(tmp_path);
+        return Ok(());
+    }
+    if let Err(error) = rename_with_retry(tmp_path, file_path) {
+        let _ = fs::remove_file(tmp_path);
+        return Err(write_cas_error(EnsureFileError::RenameFile {
+            tmp_path: tmp_path.to_path_buf(),
+            file_path: file_path.to_path_buf(),
+            error,
+        }));
+    }
+    Ok(())
+}
+
+/// Overwrite the corrupt regular file at `file_path` in place with the
+/// bytes just streamed into `tmp_path`, keeping the inode so hard links
+/// to it from other projects' `node_modules` are healed by the same
+/// write (pnpm/pnpm#3445). Returns false — the caller falls back to the
+/// atomic rename — when the in-place write is refused or the result
+/// fails a byte-compare against the temp, which covers a concurrent
+/// process still mid-write on the same path.
+fn repair_in_place(tmp_path: &Path, file_path: &Path) -> bool {
+    let Ok(mut tmp_reader) = fs::File::open(tmp_path) else { return false };
+    overwrite_file_in_place(file_path, &mut tmp_reader)
+        && files_have_equal_contents(tmp_path, file_path)
 }
 
 /// Copy the reader into the temp file, hashing as it goes, and return the

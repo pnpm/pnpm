@@ -137,7 +137,8 @@ pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
 ///    target and `rename`ing it over. Rename is atomic on Unix
 ///    (`rename(2)`) and replaces-in-place on Windows
 ///    (`SetFileInformationByHandle`/`MoveFileEx`), so an observer
-///    never sees a partial file.
+///    never sees a partial file. ([`ensure_cas_file`] instead repairs
+///    in place, keeping the inode for the sake of hard-linked copies.)
 /// 5. Any other open error propagates as `CreateFile`.
 ///
 /// Design choices:
@@ -166,6 +167,49 @@ pub fn ensure_file(
     #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
     mode: Option<u32>,
 ) -> Result<(), EnsureFileError> {
+    ensure(file_path, content, mode, Repair::Rename)
+}
+
+/// [`ensure_file`] with the repair strategy CAS blobs need: when the
+/// existing file's bytes mismatch, overwrite it in place first, keeping
+/// the inode so the hard links to it from other projects'
+/// `node_modules` are healed by the same write (pnpm/pnpm#3445). The
+/// temp+`rename` repair [`ensure_file`] uses would swap the inode and
+/// leave those copies corrupt. Falls back to the rename when the
+/// in-place overwrite is refused or fails verification.
+///
+/// In-place overwrite is not atomic — a concurrent reader can observe
+/// torn content for the duration of the write — so this variant is for
+/// content-addressed blobs only: their consumers validate integrity and
+/// re-trigger this repair on a torn read. Files whose readers take the
+/// bytes as-is (`.pnp.cjs`, the package map) must keep [`ensure_file`]'s
+/// atomic rename.
+pub fn ensure_cas_file(
+    file_path: &Path,
+    content: &[u8],
+    #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
+    mode: Option<u32>,
+) -> Result<(), EnsureFileError> {
+    ensure(file_path, content, mode, Repair::InPlace)
+}
+
+/// How [`ensure`] repairs an existing file whose bytes mismatch.
+#[derive(Clone, Copy)]
+enum Repair {
+    /// Temp file + `rename` over the target. Atomic, but swaps the
+    /// inode, disconnecting hard-linked copies.
+    Rename,
+    /// Truncate and rewrite under the same inode, healing hard-linked
+    /// copies; falls back to the rename when refused.
+    InPlace,
+}
+
+fn ensure(
+    file_path: &Path,
+    content: &[u8],
+    mode: Option<u32>,
+    repair: Repair,
+) -> Result<(), EnsureFileError> {
     // See the "Process-local per-path mutex" bullet above and
     // [`cas_write_lock`] for the rationale.
     let lock = cas_write_lock(file_path);
@@ -190,7 +234,7 @@ pub fn ensure_file(
                 error,
             }),
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-            verify_or_rewrite(file_path, content, mode)
+            verify_or_rewrite(file_path, content, mode, repair)
         }
         Err(error) => {
             Err(EnsureFileError::CreateFile { file_path: file_path.to_path_buf(), error })
@@ -273,6 +317,7 @@ fn verify_or_rewrite(
     file_path: &Path,
     content: &[u8],
     mode: Option<u32>,
+    repair: Repair,
 ) -> Result<(), EnsureFileError> {
     match fs::symlink_metadata(file_path) {
         Ok(meta) if !meta.file_type().is_file() => {
@@ -283,10 +328,12 @@ fn verify_or_rewrite(
         // Cheap size-mismatch reject before we read a single byte —
         // a CAS file whose length doesn't match the buffer we were
         // about to write cannot possibly have matching contents.
-        Ok(meta) if meta.len() != content.len() as u64 => write_atomic(file_path, content, mode),
+        Ok(meta) if meta.len() != content.len() as u64 => {
+            repair_file(file_path, content, mode, repair)
+        }
         Ok(_) => match file_equals_bytes(file_path, content) {
             Ok(true) => Ok(()),
-            Ok(false) => write_atomic(file_path, content, mode),
+            Ok(false) => repair_file(file_path, content, mode, repair),
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 write_atomic(file_path, content, mode)
             }
@@ -299,6 +346,27 @@ fn verify_or_rewrite(
         }
         Err(error) => Err(EnsureFileError::ReadFile { file_path: file_path.to_path_buf(), error }),
     }
+}
+
+/// Repair a corrupt regular file at `file_path` per the caller's
+/// strategy. [`Repair::InPlace`] overwrites under the same inode so
+/// every hard link to the file — other projects' `node_modules` copies
+/// of the CAS blob — is healed by the same write (pnpm/pnpm#3445),
+/// falling back to [`write_atomic`]'s temp+rename when the in-place
+/// overwrite is refused or the freshly written bytes fail verification
+/// (e.g. a concurrent process still mid-write on the same path
+/// interleaved with ours).
+fn repair_file(
+    file_path: &Path,
+    content: &[u8],
+    mode: Option<u32>,
+    repair: Repair,
+) -> Result<(), EnsureFileError> {
+    let mut source = content;
+    let repaired = matches!(repair, Repair::InPlace)
+        && overwrite_file_in_place(file_path, &mut source)
+        && file_equals_bytes(file_path, content).unwrap_or(false);
+    if repaired { Ok(()) } else { write_atomic(file_path, content, mode) }
 }
 
 /// Stream `file_path` and byte-compare against `content` without
@@ -346,6 +414,44 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
         Ok(_) => Ok(false),
         Err(error) => Err(error),
     }
+}
+
+/// Overwrite the regular file at `file_path` in place with bytes from
+/// `reader`, keeping the inode so hard-linked copies of the file — other
+/// projects' `node_modules` entries importing the same CAS blob — are
+/// healed by the same write (pnpm/pnpm#3445).
+///
+/// The caller must have already rejected non-regular dirents via
+/// `symlink_metadata`; on Unix the open additionally uses `O_NOFOLLOW`
+/// so a symlink swapped in after that check is refused rather than
+/// followed, and `O_NONBLOCK` so a FIFO cannot hold the open. Windows
+/// has neither flag, so the residual swap race there is accepted: the
+/// caller's rename fallback replaces the dirent on the next attempt.
+///
+/// Returns `false` when in-place overwrite is refused and the caller
+/// should fall back to an atomic temp+rename: the target is not a
+/// regular file at open time, it is not writable by us (read-only mode
+/// bits, `ETXTBSY` from a running executable), or the write failed.
+/// Every such state is one the rename handles correctly, and a
+/// persistent failure (e.g. `ENOSPC`) re-surfaces with proper context
+/// when the fallback attempts its own write, so no error detail is lost
+/// by collapsing these into `false`.
+///
+/// In-place overwrite is not atomic: a concurrent reader can observe
+/// torn content for the duration of the write. The file was already
+/// corrupt, and a failed integrity check re-triggers this repair, so
+/// the trade is a brief torn-read window for healing every hard-linked
+/// copy at once.
+pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> bool {
+    let mut options = OpenOptions::new();
+    options.write(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    }
+    let Ok(mut file) = retry_on_fd_pressure(|| options.open(file_path)) else { return false };
+    io::copy(reader, &mut file).is_ok()
 }
 
 /// Write `content` to a unique temporary path next to `file_path` and

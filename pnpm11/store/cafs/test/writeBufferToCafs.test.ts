@@ -132,6 +132,54 @@ describe('writeBufferToCafs', () => {
     expect(crypto.hash('sha512', finalContent, 'hex')).toBe(digest)
   })
 
+  it('should preserve the inode when repairing a corrupted file, healing hard-linked copies', () => {
+    const storeDir = temporaryDirectory()
+    const fileDest = 'abc'
+    const buffer = Buffer.from('abc')
+    const fullFileDest = path.join(storeDir, fileDest)
+    const digest = crypto.hash('sha512', buffer, 'hex')
+    const integrity = { digest, algorithm: 'sha512' }
+    const locker = new Map<string, number>()
+
+    writeBufferToCafs(locker, storeDir, buffer, fileDest, 420, integrity)
+    locker.clear()
+
+    // Another project's node_modules imports the same store file by hard link
+    const linkedCopy = path.join(storeDir, '_linked-copy')
+    fs.linkSync(fullFileDest, linkedCopy)
+    const inodeBefore = fs.statSync(fullFileDest).ino
+
+    // Editing through a hard link corrupts the store file in place
+    fs.writeFileSync(linkedCopy, 'hacked from another project')
+
+    const result = writeBufferToCafs(locker, storeDir, buffer, fileDest, 420, integrity)
+    expect(result.filePath).toBe(fullFileDest)
+    expect(fs.statSync(fullFileDest).ino).toBe(inodeBefore)
+    expect(fs.readFileSync(fullFileDest, 'utf8')).toBe('abc')
+    expect(fs.readFileSync(linkedCopy, 'utf8')).toBe('abc')
+  })
+
+  it('should fall back to replacing the dirent when the corrupt path is not a regular file', () => {
+    const storeDir = temporaryDirectory()
+    const fileDest = 'abc'
+    const buffer = Buffer.from('abc')
+    const fullFileDest = path.join(storeDir, fileDest)
+    const digest = crypto.hash('sha512', buffer, 'hex')
+    const integrity = { digest, algorithm: 'sha512' }
+    const locker = new Map<string, number>()
+
+    const symlinkTarget = path.join(storeDir, '_symlink-target')
+    fs.writeFileSync(symlinkTarget, 'do not touch')
+    fs.symlinkSync(symlinkTarget, fullFileDest)
+
+    const result = writeBufferToCafs(locker, storeDir, buffer, fileDest, 420, integrity)
+    expect(result.filePath).toBe(fullFileDest)
+    expect(fs.lstatSync(fullFileDest).isFile()).toBe(true)
+    expect(fs.readFileSync(fullFileDest, 'utf8')).toBe('abc')
+    // The symlink's target must not be overwritten through the link
+    expect(fs.readFileSync(symlinkTarget, 'utf8')).toBe('do not touch')
+  })
+
   it('should populate the locker cache when a file already exists with correct integrity', () => {
     const storeDir = temporaryDirectory()
     const fileDest = 'abc'

@@ -44,7 +44,13 @@ function writeOrCheck (
       return Date.now()
     }
     // File exists but has wrong integrity (corruption/partial write).
-    // Use temp+rename so the replacement is atomic.
+    // Overwrite it in place when possible, keeping the inode so the
+    // hard links to it from other projects' node_modules are healed by
+    // the same write (pnpm/pnpm#3445). Fall back to atomic temp+rename
+    // when in-place overwrite is refused or fails verification.
+    if (overwriteFileInPlace(fileDest, buffer, integrity)) {
+      return Date.now()
+    }
     return writeFileAtomic(fileDest, buffer, mode)
   }
 
@@ -81,6 +87,59 @@ function writeFileAtomic (
   writeFile(temp, buffer, mode)
   optimisticRenameOverwrite(temp, fileDest)
   return Date.now()
+}
+
+// O_NOFOLLOW keeps a symlink planted at the digest path from being
+// followed into a file the store does not own, and O_NONBLOCK keeps a
+// FIFO there from holding the open until a reader appears; both are
+// no-ops for the regular files expected. Windows has neither flag;
+// there the lstat check below stands alone.
+const IN_PLACE_OPEN = fs.constants.O_WRONLY | fs.constants.O_TRUNC |
+  (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0)
+
+/**
+ * Overwrites a corrupt store file in place — truncate and rewrite under
+ * the same inode — so every hard link to it (in other projects'
+ * node_modules) sees the restored content too. Returns false when the
+ * repair should instead fall back to {@link writeFileAtomic}'s
+ * temp+rename: the dirent is not a regular file, the file cannot be
+ * opened for writing (read-only mode, ETXTBSY from a running
+ * executable), the write failed, or the freshly written content does
+ * not verify — the last covers a concurrent process still mid-write on
+ * the same path, whose interleaved writes the rename then replaces.
+ *
+ * In-place overwrite is not atomic: a concurrent reader can observe
+ * torn content for the duration of the write. The file was already
+ * corrupt, and a failed read re-triggers verification and repair, so
+ * this trades a brief torn-read window for healing every hard-linked
+ * copy at once.
+ */
+function overwriteFileInPlace (
+  fileDest: string,
+  buffer: Buffer,
+  integrity: Integrity
+): boolean {
+  const stats = fs.lstatSync(fileDest, { throwIfNoEntry: false })
+  if (!stats?.isFile()) return false
+  let fd: number
+  try {
+    fd = fs.openSync(fileDest, IN_PLACE_OPEN)
+  } catch {
+    return false
+  }
+  try {
+    fs.writeFileSync(fd, buffer)
+  } catch {
+    return false
+  } finally {
+    try {
+      fs.closeSync(fd)
+    } catch {
+      // Best-effort close; a close failure after a successful write is
+      // caught by the verification below.
+    }
+  }
+  return verifyFileIntegrity(fileDest, integrity)
 }
 
 export function optimisticRenameOverwrite (temp: string, fileDest: string): void {
