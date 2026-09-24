@@ -215,6 +215,19 @@ test('deploy with a shared lockfile honors --no-optional in the graph and virtua
 
   await execPnpm(['install'])
 
+  const deployDirWithOptional = path.resolve('deploy-with-optional')
+  await execPnpm(['--filter=app', 'deploy', '--prod', deployDirWithOptional])
+
+  expect(fs.existsSync(path.join(deployDirWithOptional, 'node_modules/lib'))).toBe(true)
+  expect(fs.existsSync(path.join(deployDirWithOptional, 'node_modules/optional-only'))).toBe(true)
+  const libReal = fs.realpathSync(path.join(deployDirWithOptional, 'node_modules/lib'))
+  expect(fs.existsSync(path.join(path.dirname(libReal), '@pnpm.e2e/qar'))).toBe(true)
+  const optReal = fs.realpathSync(path.join(deployDirWithOptional, 'node_modules/optional-only'))
+  expect(fs.existsSync(path.join(path.dirname(optReal), '@pnpm.e2e/foo'))).toBe(true)
+  const virtualStoreWithOptional = fs.readdirSync(path.join(deployDirWithOptional, 'node_modules/.pnpm'))
+  expect(virtualStoreWithOptional.some(entry => entry.includes('@pnpm.e2e+qar@'))).toBe(true)
+  expect(virtualStoreWithOptional.some(entry => entry.includes('@pnpm.e2e+foo@'))).toBe(true)
+
   const deployDir = path.resolve('deploy-without-optional')
   await execPnpm(['--filter=app', 'deploy', '--prod', '--no-optional', deployDir])
 
