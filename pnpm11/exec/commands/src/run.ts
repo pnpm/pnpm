@@ -249,7 +249,7 @@ export async function handler (
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
       if (fallsBackToExec(opts, scriptName)) {
-        // The dependencies were verified above.
+        // exec must not repeat the dependency verification above.
         return exec({ implicitlyFellbackFromRun: true, ...opts, verifyDepsBeforeRun: false }, params)
       }
       return runRecursive(params, opts)
