@@ -114,7 +114,8 @@ async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]
       if (!needsInstall(upToDate, opts)) return
       command = ['install', ...createInstallArgs(workspaceState?.settings)]
     }
-    runPnpmCli(command, { cwd: opts.dir, loglevel: opts.loglevel, reporter: opts.reporter })
+    const loglevel = opts.loglevel === 'silent' || opts.loglevel === 'error' || opts.loglevel === 'warn' ? opts.loglevel : undefined
+    runPnpmCli(command, { cwd: opts.dir, loglevel, reporter: opts.reporter })
   } finally {
     await lock?.release()
   }

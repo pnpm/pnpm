@@ -174,7 +174,7 @@ test('silent run does not print verifyDepsBeforeRun install output', async () =>
   expect(result.stdout.toString().trim()).toBe('hi')
 })
 
-test.each(['warn', 'error'])('run with --loglevel=%s prints neither the command nor the verifyDepsBeforeRun install output', (loglevel) => {
+test.each(['silent', 'warn', 'error'])('run with --loglevel=%s prints neither the command nor the verifyDepsBeforeRun install output', (loglevel) => {
   prepare({
     scripts: {
       hi: 'echo hi',
