@@ -1,4 +1,4 @@
-use super::{Map, PackageManifest, PackageManifestError, Path, Value, json};
+use super::{PackageManifest, PackageManifestError, Path, Value, json};
 
 /// What `pnpm init` records in the manifest it scaffolds, beyond the fields
 /// every scaffold carries.
@@ -57,32 +57,28 @@ fn scaffold_manifest(name: &str, bare: bool) -> Value {
     }
 }
 
-fn apply_pinned_pnpm_version(fields: &mut Map<String, Value>, version: &str) {
-    // The pin is written twice on purpose: pnpm reads
-    // `devEngines.packageManager`, corepack reads only the legacy
-    // `packageManager` field. The two must agree — pnpm warns and
-    // ignores the legacy field when they disagree — and corepack
-    // rejects everything but an exact version, so neither carries a
-    // range.
-    fields.insert(
-        "devEngines".to_string(),
-        json!({
-            "packageManager": {
-                "name": "pnpm",
-                "version": version,
-                "onFail": "download",
-            },
-        }),
-    );
-    fields.insert("packageManager".to_string(), json!(format!("pnpm@{version}")));
-}
-
 impl PackageManifest {
     pub(super) fn create_init_package_json(name: &str, options: InitOptions<'_>) -> Value {
         let mut manifest = scaffold_manifest(name, options.bare);
         let fields = manifest.as_object_mut().expect("the scaffold is a JSON object");
         if let Some(version) = options.pinned_pnpm_version {
-            apply_pinned_pnpm_version(fields, version);
+            // The pin is written twice on purpose: pnpm reads
+            // `devEngines.packageManager`, corepack reads only the legacy
+            // `packageManager` field. The two must agree — pnpm warns and
+            // ignores the legacy field when they disagree — and corepack
+            // rejects everything but an exact version, so neither carries a
+            // range.
+            fields.insert(
+                "devEngines".to_string(),
+                json!({
+                    "packageManager": {
+                        "name": "pnpm",
+                        "version": version,
+                        "onFail": "download",
+                    },
+                }),
+            );
+            fields.insert("packageManager".to_string(), json!(format!("pnpm@{version}")));
         }
         if options.es_module {
             fields.insert("type".to_string(), json!("module"));
