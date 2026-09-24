@@ -369,6 +369,7 @@ fn link_hoisted_workspace_dependencies<Reporter: self::Reporter>(
         // lockfile row for a prefetched manifest to serve.
         package_manifests: None,
         requires_build_by_snapshot: None,
+        scheduled_builds: None,
     }
     .run::<Reporter>()
     .map_err(HoistedLinkerError::SymlinkDirectDependencies)

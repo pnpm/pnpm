@@ -133,14 +133,32 @@ pub struct PrefetchedBinLookup<'a> {
     /// file's shebang read and executable-bit fix-up run once per pass
     /// rather than once per importer.
     shim_cache: ShimTargetCache,
+    /// See [`Self::with_scheduled_builds`].
+    scheduled_builds: Option<&'a crate::build_modules::ScheduledBuilds<'a>>,
 }
 impl<'a> PrefetchedBinLookup<'a> {
-    /// Whether the snapshot's build scripts may run after this pass. A
-    /// `link:` workspace sibling (no snapshot key) runs no dependency build.
-    fn may_build(&self, snapshot_key: Option<&PackageKey>) -> bool {
-        snapshot_key.is_some_and(|key| {
-            self.requires_build.and_then(|flags| flags.get(key)) != Some(&false)
-        })
+    /// Record the builds that run after this pass. The bins of a package
+    /// among them are marked [`PackageBinSource::build_pending`], so a bin
+    /// its scripts have yet to create stays off the importer's `.bin` until
+    /// the post-build relink.
+    #[must_use]
+    pub fn with_scheduled_builds(
+        mut self,
+        scheduled_builds: Option<&'a crate::build_modules::ScheduledBuilds<'a>>,
+    ) -> Self {
+        self.scheduled_builds = scheduled_builds;
+        self
+    }
+
+    fn is_build_pending(
+        &self,
+        snapshot_key: Option<&PackageKey>,
+        source: &PackageBinSource,
+    ) -> bool {
+        let (Some(scheduled), Some(key)) = (self.scheduled_builds, snapshot_key) else {
+            return false;
+        };
+        scheduled.includes(key, &source.manifest)
     }
 
     #[must_use]
@@ -154,6 +172,7 @@ impl<'a> PrefetchedBinLookup<'a> {
             package_manifests,
             requires_build,
             shim_cache: ShimTargetCache::default(),
+            scheduled_builds: None,
         }
     }
 }
@@ -185,8 +204,12 @@ pub fn link_direct_dep_bins_prefetched(
                 PrefetchedBin::Source(source) => Some(Ok(source)),
                 PrefetchedBin::ReadFromDisk => read_dep_bin_source(modules_dir, name, target),
             };
-            let build_pending = lookup.may_build(snapshot_key.as_ref());
-            source.map(|source| source.map(|source| source.with_build_pending(build_pending)))
+            source.map(|source| {
+                source.map(|source| {
+                    let build_pending = lookup.is_build_pending(snapshot_key.as_ref(), &source);
+                    source.with_build_pending(build_pending)
+                })
+            })
         })
         .collect::<Result<_, _>>()?;
     if bin_sources.is_empty() {
@@ -222,7 +245,7 @@ pub(super) fn prefetched_bin_source(
     let Some(snapshot_key) = snapshot_key else {
         return PrefetchedBin::ReadFromDisk;
     };
-    if lookup.may_build(Some(snapshot_key)) {
+    if lookup.requires_build.and_then(|flags| flags.get(snapshot_key)) != Some(&false) {
         return PrefetchedBin::ReadFromDisk;
     }
     let metadata_key = snapshot_key.without_peer();

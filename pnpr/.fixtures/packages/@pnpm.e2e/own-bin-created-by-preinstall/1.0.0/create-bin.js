@@ -12,5 +12,5 @@ if (shims.length > 0) {
   process.exit(1)
 }
 
-fs.mkdirSync(path.join(__dirname, 'bin'))
+fs.mkdirSync(path.join(__dirname, 'bin'), { recursive: true })
 fs.writeFileSync(path.join(__dirname, 'bin', 'cli.js'), "console.log('created by preinstall')\n")

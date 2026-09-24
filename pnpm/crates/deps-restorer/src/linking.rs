@@ -93,6 +93,17 @@ pub struct LinkPhaseInputs<'a> {
     pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
 }
 
+impl LinkPhaseInputs<'_> {
+    /// The dependency builds that run after this phase.
+    fn scheduled_builds(&self) -> Option<crate::build_modules::ScheduledBuilds<'_>> {
+        crate::build_modules::ScheduledBuilds::new(
+            self.graph.materialized_snapshots,
+            self.ctx.allow_build_policy,
+            self.ctx.config.ignore_scripts,
+        )
+    }
+}
+
 /// What the link phase hands to the build phase and the caller's
 /// `.modules.yaml` writer.
 pub struct LinkPhaseOutput {
@@ -242,6 +253,7 @@ fn relink_importer_tree<Reporter: self::Reporter>(
     let config = inputs.ctx.config;
     prune_importer_tree::<Reporter>(inputs, hoist.plan.as_ref())?;
 
+    let scheduled_builds = inputs.scheduled_builds();
     let phase_start = std::time::Instant::now();
     SymlinkDirectDependencies {
         context: crate::ImporterLinkContext {
@@ -265,6 +277,7 @@ fn relink_importer_tree<Reporter: self::Reporter>(
 
         package_manifests: Some(inputs.packages.package_manifests),
         requires_build_by_snapshot: inputs.packages.requires_build_by_snapshot,
+        scheduled_builds: scheduled_builds.as_ref(),
     }
     .run::<Reporter>()
     .map_err(LinkPhaseError::SymlinkDirectDependencies)?;

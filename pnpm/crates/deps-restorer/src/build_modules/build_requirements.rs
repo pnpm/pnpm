@@ -4,7 +4,7 @@ use pnpm_package_manifest::{
     file_path_requires_build, manifest_requires_build, parse_manifest, pkg_requires_build,
 };
 use pnpm_patching::{ExtendedPatchInfo, preview_patch};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Whether each configured patch adds build work its package's published
 /// manifest does not declare, keyed by the peer-stripped package key.
@@ -179,4 +179,36 @@ pub(crate) fn deferred_builds<'a>(
         .collect();
     deferred.sort();
     deferred
+}
+
+/// The builds that run after an install's link phase, for bin passes that
+/// must know whether a dependency's scripts have yet to run.
+pub struct ScheduledBuilds<'a> {
+    materialized: HashSet<&'a PackageKey>,
+    allow_build_policy: &'a super::AllowBuildPolicy,
+}
+
+impl<'a> ScheduledBuilds<'a> {
+    /// `None` when no dependency build follows the link phase: scripts are
+    /// ignored, or a rebuild passes no materialized snapshots.
+    #[must_use]
+    pub fn new(
+        materialized_snapshots: Option<&'a [PackageKey]>,
+        allow_build_policy: &'a super::AllowBuildPolicy,
+        ignore_scripts: bool,
+    ) -> Option<Self> {
+        let materialized = materialized_snapshots.filter(|_| !ignore_scripts)?;
+        Some(ScheduledBuilds { materialized: materialized.iter().collect(), allow_build_policy })
+    }
+
+    /// Whether the snapshot's lifecycle scripts run after the link phase:
+    /// this install materialized it, its `manifest` declares build scripts,
+    /// and `allowBuilds` allows them. An ignored or denied build does not
+    /// run, so no script creates its bins later.
+    #[must_use]
+    pub fn includes(&self, snapshot_key: &PackageKey, manifest: &serde_json::Value) -> bool {
+        self.materialized.contains(snapshot_key)
+            && manifest_requires_build(manifest)
+            && self.allow_build_policy.check(&snapshot_key.without_peer().to_string()) == Some(true)
+    }
 }

@@ -288,6 +288,40 @@ fn own_bin_is_not_on_path_before_preinstall_creates_it() {
     drop((root, mock_instance));
 }
 
+/// A denied build never creates its bin and no relink follows the build
+/// phase, so the project gets the shim of the missing bin right away, like a
+/// dependent of any other bin built after install.
+#[test]
+fn missing_bin_of_a_denied_build_is_linked() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/own-bin-created-by-preinstall": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    allow_builds(&workspace, &[("@pnpm.e2e/own-bin-created-by-preinstall", false)]);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let bin = workspace.join("node_modules/.bin/own-bin-created-by-preinstall");
+    assert!(bin.exists(), "a denied build's missing bin is still linked for the project");
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn hoisting_tolerates_bins_created_by_a_later_lifecycle_stage() {
     let CommandTempCwd {
