@@ -3,8 +3,8 @@ use super::{
     PendingNode, Pipe, PkgNameVerPeer, PreferredVersionsOverlay, ResolveDependencyTreeError,
     Resolver, ReuseSource, SeededNode, SnapshotEntry, TreeCtx, WantedDependency, async_recursion,
     catalog_anchor, declaring_manifest_dir, extract_children, future, higher_direct_dep_version,
-    level_aliases, level_versions, lock_recoverable, prior_child_key, real_package_name_of,
-    resolve_catalog_specifier, resolve_node_seed, warm_children_resolutions,
+    keeps_locked_version, level_aliases, level_versions, lock_recoverable, prior_child_key,
+    real_package_name_of, resolve_catalog_specifier, resolve_node_seed, warm_children_resolutions,
 };
 
 /// Seed every child edge of one occurrence — its manifest's
@@ -141,14 +141,15 @@ pub(super) async fn seed_child<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
-    let (wanted, prior) = child_wanted(scope, spec);
+    let depth = node.pending.ancestry.depth + 1;
+    let (wanted, prior) = child_wanted(ctx, scope, spec, depth);
     let seed = resolve_node_seed(
         ctx,
         resolver,
         wanted,
         ChildEdge {
             ancestor_ids: &node.pending.ancestry.next_ancestors,
-            depth: node.pending.ancestry.depth + 1,
+            depth,
             parent_optional: node.pending.ancestry.current_is_optional,
             reuse: ReuseSource::Transitive { key: prior },
             pick_overlay: node.children_overlay.clone(),
@@ -163,12 +164,15 @@ where
 }
 
 /// The edge's wanted dependency and its prior key. Stale-pin refresh:
-/// the edge is forced onto a higher in-range direct-dep version instead
-/// of reusing the pin, so the pinned version is never resolved or
-/// fetched.
+/// an edge that would keep its pin is forced onto a higher in-range
+/// direct-dep version instead, so the pinned version is never resolved or
+/// fetched. An edge that re-picks anyway is left to the preferred
+/// versions, which already weigh the direct deps.
 pub(super) fn child_wanted(
+    ctx: &TreeCtx,
     scope: &ChildSeedScope<'_>,
     (name, range, optional, injected): &ChildSpec,
+    depth: i32,
 ) -> (WantedDependency, Option<PkgNameVerPeer>) {
     let mut wanted = WantedDependency {
         alias: Some(name.clone()),
@@ -181,6 +185,7 @@ pub(super) fn child_wanted(
         scope.prior_children_snapshot.and_then(|snapshot| prior_child_key(snapshot, name, range));
     if let Some(higher) = prior
         .as_ref()
+        .filter(|key| keeps_locked_version(ctx, &wanted, key, depth))
         .and_then(|key| key.suffix.version_semver().cloned())
         .zip(range.parse::<node_semver::Range>().ok())
         .and_then(|(pinned, parsed)| {

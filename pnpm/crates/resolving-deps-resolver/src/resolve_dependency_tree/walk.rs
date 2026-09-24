@@ -32,7 +32,8 @@ use level_walk::{assign_level_owners, pkgs_info_from_ids, seeded_dep, settle_lev
 
 mod locked_versions;
 use locked_versions::{
-    ensure_same_registry_revision, overlay_version_view, pin_locked_version, pin_patched_revision,
+    ensure_same_registry_revision, keeps_locked_version, overlay_version_view, pin_locked_version,
+    pin_patched_revision,
 };
 
 mod edge_resolution;

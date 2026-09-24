@@ -3,6 +3,7 @@
 //! a fresh install would produce. Mirrors the pnpm fix in
 //! `installing/deps-resolver/src/resolveDependencies.ts`.
 
+use crate::_utils::read_lockfile;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
@@ -169,6 +170,64 @@ fn does_not_refresh_an_aliased_transitive_dependency() {
         lockfile.contains("@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0"),
         "the aliased transitive edge keeps its 100.0.0 pin:\n{lockfile}",
     );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn dedupe_does_not_refresh_a_pin_onto_an_aliased_direct_dependency() {
+    // `latest` is an `npm:` alias of the package the direct dependency
+    // names. The transitive `^100.0.0` edge re-picks during a dedupe, so the
+    // refresh must not lift it onto the alias's version: the preferred
+    // versions settle it on the direct dependency, and repeated runs used to
+    // alternate between the two (https://github.com/pnpm/pnpm/issues/15588).
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.0.0",
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+                "latest": "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0",
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let parent: pnpm_lockfile::PkgNameVerPeer =
+        "@pnpm.e2e/pkg-with-1-dep@100.0.0".parse().expect("parse the parent key");
+    let transitive_pin = read_lockfile(&lockfile_path).snapshots
+        .expect("the lockfile has snapshots")[&parent]
+        .dependencies
+        .as_ref()
+        .expect("the parent has dependencies")
+        .get(&"@pnpm.e2e/dep-of-pkg-with-1-dep".parse().expect("parse the dependency name"))
+        .expect("the parent pins dep-of-pkg-with-1-dep")
+        .to_string();
+    assert_eq!(transitive_pin, "100.0.0");
+    let installed = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+
+    for _ in 0..2 {
+        pacquet_at(&workspace)
+            .with_args(["dedupe", "--lockfile-only"])
+            .assert()
+            .success();
+        let deduped = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+        assert_eq!(deduped, installed);
+    }
+    pacquet_at(&workspace)
+        .with_args(["dedupe", "--check", "--lockfile-only"])
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }
