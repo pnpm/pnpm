@@ -293,8 +293,6 @@ fn finish_apply<Reporter: self::Reporter>(
     completion
 }
 
-/// A legacy deploy anchors on the source workspace but installs into the
-/// deploy directory, so the source's workspace state does not describe it.
 fn deploys_outside_workspace_root(inputs: &ApplyMaterializationInputs<'_, '_>) -> bool {
     matches!(inputs.scripts.mutation, crate::ProjectMutation::Deploy)
         && inputs.scripts.manifest_dir != inputs.projects.workspace_root
