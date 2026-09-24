@@ -27,9 +27,11 @@ use platform::manifest_from_metadata;
 use std::collections::{HashMap, HashSet};
 
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry,
+    Lockfile, LockfileResolution, PackageKey, PackageMetadata, Prefix, ProjectSnapshot,
+    SnapshotEntry,
 };
 use pnpm_package_is_installable::{InstallabilityError, InstallabilityOptions, SkipReason};
+use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{
     LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
     SkippedOptionalReason,
@@ -551,6 +553,25 @@ fn add_runtime_skips_from(
             skipped.add_optional_excluded(key);
         }
     }
+}
+
+/// The Node.js version the root project's `node` runtime dependency is
+/// locked to: the Node.js pnpm installs for the project.
+#[must_use]
+pub fn find_root_runtime_node_version(
+    importers: &HashMap<String, ProjectSnapshot>,
+) -> Option<String> {
+    importers
+        .get(Lockfile::ROOT_IMPORTER_KEY)?
+        .dependencies_by_groups([
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+        ])
+        .filter(|(alias, _)| alias.scope.is_none() && alias.bare == "node")
+        .filter_map(|(_, spec)| spec.version.ver_peer())
+        .filter(|ver_peer| ver_peer.prefix() == Prefix::Runtime)
+        .find_map(|ver_peer| ver_peer.version_semver().map(ToString::to_string))
 }
 
 /// `None` = compatible. `Some(err)` = incompatible, with the

@@ -72,6 +72,11 @@ export interface ConfigContext {
    * pointed at.
    */
   enginePinManifest?: ProjectManifest
+  /**
+   * `true` when `nodeVersion` was not configured and was taken from the
+   * `devEngines.runtime` / `engines.runtime` of the engine pin manifest.
+   */
+  nodeVersionFromEnginesRuntime?: boolean
 
   // -- CLI metadata --
   cliOptions: Record<string, any> // eslint-disable-line

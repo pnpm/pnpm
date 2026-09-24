@@ -146,6 +146,13 @@ pub(super) async fn plan_fresh_materialization<'l, 'a: 'l, Reporter: self::Repor
         engine_name.clone(),
         deferred_engine_name.as_ref(),
     );
+    let installability_host = pnpm_deps_restorer::materialization_plan::with_locked_runtime_node(
+        installability_host.as_ref(),
+        install.drivers.config,
+        &lockfiles.built.importers,
+    );
+    let host_node =
+        installability_host.as_ref().map(pnpm_deps_restorer::materialization_plan::HostNode::from);
     let skipped = compute_fresh_skip_set::<Reporter>(
         install,
         lockfiles,

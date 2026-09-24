@@ -1,12 +1,12 @@
 use super::{
-    assert_installed, command, mock_node_release, prepare_workspace, runtime_fixture,
-    write_devengines_manifest, write_runtime_lockfile_for_group,
+    RuntimeFixture, assert_installed, command, mock_node_release, prepare_workspace,
+    runtime_fixture, write_devengines_manifest, write_runtime_lockfile_for_group,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_graph_hasher::{host_arch, host_platform};
 use serde_json::{Value, json};
-use std::fs;
+use std::{fs, path::Path};
 
 #[test]
 fn hoisted_no_runtime_installs_can_be_repeated_and_restore_the_runtime() {
@@ -100,4 +100,76 @@ fn fresh_install_with_no_runtime_resolves_but_does_not_fetch_the_runtime() {
         .success();
     assert!(!workspace.join("node_modules/node").exists());
     assert!(!archive.matched(), "the runtime archive must never be downloaded");
+}
+
+#[test]
+fn engines_are_checked_against_the_locked_node_runtime() {
+    for linker in ["isolated", "hoisted"] {
+        let root = tempfile::tempdir().unwrap();
+        let workspace = prepare_workspace(&root, format!("nodeLinker: {linker}\n").as_str());
+        let mut server = mockito::Server::new();
+        let fixture = runtime_fixture(&mut server, "node", "24.1.0", host_platform(), host_arch());
+        write_range_runtime_project(&workspace, &fixture, "optionalDependencies", ">=24.1.0");
+
+        command(&workspace)
+            .with_args(["install", "--frozen-lockfile", "--no-runtime"])
+            .assert()
+            .success();
+        assert!(
+            workspace.join("node_modules/dependency/package.json").exists(),
+            "{linker}: the locked Node.js 24.1.0 satisfies the optional dependency's engines",
+        );
+    }
+}
+
+#[test]
+fn explicit_node_version_takes_priority_over_the_locked_node_runtime() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "engineStrict: true\nnodeVersion: 20.0.0\n");
+    let mut server = mockito::Server::new();
+    let fixture = runtime_fixture(&mut server, "node", "24.1.0", host_platform(), host_arch());
+    write_range_runtime_project(&workspace, &fixture, "dependencies", "<21");
+
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--no-runtime"])
+        .assert()
+        .success();
+}
+
+/// A project whose `devEngines.runtime` range is locked to `fixture` and
+/// that depends on a local `dependency` requiring `engines_node`.
+fn write_range_runtime_project(
+    workspace: &Path,
+    fixture: &RuntimeFixture,
+    dependency_group: &str,
+    engines_node: &str,
+) {
+    write_devengines_manifest(workspace, "^24.0.0", Some("download"));
+    write_runtime_lockfile_for_group(workspace, std::slice::from_ref(fixture), "devDependencies");
+    let dependency = workspace.join("dependency");
+    fs::create_dir(&dependency).unwrap();
+    fs::write(
+        dependency.join("package.json"),
+        json!({ "name": "dependency", "version": "1.0.0", "engines": { "node": engines_node } })
+            .to_string(),
+    )
+    .unwrap();
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest[dependency_group] = json!({ "dependency": "file:dependency" });
+    fs::write(manifest_path, manifest.to_string()).unwrap();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile: Value =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).unwrap()).unwrap();
+    lockfile["importers"]["."]["devDependencies"]["node"]["specifier"] = json!("runtime:^24.0.0");
+    lockfile["importers"]["."][dependency_group] = json!({
+        "dependency": { "specifier": "file:dependency", "version": "file:dependency" },
+    });
+    lockfile["packages"]["dependency@file:dependency"] = json!({
+        "resolution": { "directory": "dependency", "type": "directory" },
+        "engines": { "node": engines_node },
+    });
+    lockfile["snapshots"]["dependency@file:dependency"] =
+        json!({ "optional": dependency_group == "optionalDependencies" });
+    fs::write(&lockfile_path, serde_saphyr::to_string(&lockfile).unwrap()).unwrap();
 }

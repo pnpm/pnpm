@@ -89,6 +89,7 @@ export interface StrictInstallOptions extends RegistryContext {
   nodeExperimentalPackageMap: boolean
   nodePackageMapType: 'standard' | 'loose'
   nodeVersion?: string
+  nodeVersionFromEnginesRuntime?: boolean
   packageExtensions: Record<string, PackageExtension>
   ignoredOptionalDependencies: string[]
   pnpmfile: string[] | string
