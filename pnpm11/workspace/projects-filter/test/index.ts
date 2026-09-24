@@ -720,6 +720,54 @@ test('select changed packages when operating under a git worktree nested inside 
   expect(Object.keys(selectedProjectsGraph)).toStrictEqual([worktreePkgADir])
 })
 
+test('select packages changed since the merge base with the diff ref, including uncommitted changes', async () => {
+  if (isCI && isWindows()) {
+    return
+  }
+
+  const workspaceDir = temporaryDirectory() as ProjectRootDir
+  const git = (...args: string[]) => execa('git', args, { cwd: workspaceDir })
+  const commit = () => git('commit', '--allow-empty-message', '-m', '', '--no-gpg-sign')
+  await git('init', '--initial-branch=main')
+  await git('config', 'user.email', 'x@y.z')
+  await git('config', 'user.name', 'xyz')
+  const pkgDirs = ['package-a', 'package-b', 'package-c'].map((name) => path.join(workspaceDir, name) as ProjectRootDir)
+  const [pkgADir, pkgBDir, pkgCDir] = pkgDirs
+  for (const pkgDir of pkgDirs) {
+    fs.mkdirSync(pkgDir)
+    fs.writeFileSync(path.join(pkgDir, 'file.js'), '')
+  }
+  await git('add', '.')
+  await commit()
+
+  await git('checkout', '-b', 'feature')
+  fs.writeFileSync(path.join(pkgADir, 'feature.js'), 'feature')
+  await git('add', '.')
+  await commit()
+
+  await git('checkout', 'main')
+  fs.writeFileSync(path.join(pkgBDir, 'main.js'), 'main')
+  await git('add', '.')
+  await commit()
+
+  await git('checkout', 'feature')
+  fs.writeFileSync(path.join(pkgCDir, 'file.js'), 'uncommitted')
+
+  const projectsGraph: ProjectGraph<BaseProject> = Object.fromEntries(pkgDirs.map((rootDir) => [rootDir, {
+    dependencies: [],
+    package: {
+      rootDir,
+      manifest: { name: path.basename(rootDir), version: '0.0.0' },
+    },
+  }]))
+
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, [{
+    diff: 'main',
+  }], { workspaceDir })
+
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkgADir, pkgCDir])
+})
+
 test('an option-like diff ref is rejected as a bad revision instead of being parsed as a git option', async () => {
   if (isCI && isWindows()) {
     return

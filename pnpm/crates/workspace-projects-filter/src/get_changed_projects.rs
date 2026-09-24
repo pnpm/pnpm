@@ -42,10 +42,11 @@ pub fn get_changed_projects(
     opts: &GetChangedProjectsOptions<'_>,
 ) -> Result<ChangedProjects, FilterError> {
     let repo_root = find_repo_root(opts.workspace_dir);
+    let base = merge_base(commit, opts.workspace_dir)?;
     let ChangedDirsResult {
         changed_dirs,
         workspace_manifest_changed,
-    } = get_changed_dirs_since_commit(commit, opts, &repo_root)?;
+    } = get_changed_dirs_since_commit(&base, opts, &repo_root)?;
 
     let mut project_change_types: IndexMap<PathBuf, Option<ChangeType>> = project_dirs
         .into_iter()
@@ -60,7 +61,7 @@ pub fn get_changed_projects(
     }
 
     if workspace_manifest_changed {
-        catalogs::apply_changed_catalogs(&mut project_change_types, commit, opts, &repo_root)?;
+        catalogs::apply_changed_catalogs(&mut project_change_types, &base, opts, &repo_root)?;
     }
 
     let mut changed_projects: Vec<PathBuf> = Vec::new();
@@ -190,6 +191,30 @@ fn get_changed_dirs_since_commit(
         process_diff_line(line, &ctx, &mut workspace_manifest_changed, &mut changed_dirs);
     }
     Ok(ChangedDirsResult { changed_dirs, workspace_manifest_changed })
+}
+
+/// The commit `commit` and `HEAD` share. Diffing against it keeps commits
+/// made only on the `<since>` side out of the result. git exits with 1 when
+/// there is no merge base (a shallow clone or unrelated histories) and with
+/// 128 for an invalid `<since>`. Both fall back to `commit` itself, so
+/// `git diff` reports the bad revision.
+fn merge_base(commit: &str, workspace_dir: &Path) -> Result<String, FilterError> {
+    let output = Command::new("git")
+        .args(["merge-base", "--end-of-options", commit, "HEAD"])
+        .current_dir(workspace_dir)
+        .output()
+        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
+    match output.status.code() {
+        Some(0) => {
+            let base = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            Ok(if base.is_empty() { commit.to_string() } else { base })
+        }
+        Some(1 | 128) => Ok(commit.to_string()),
+        _ => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            Err(FilterError::FilterChanged { stderr: strip_final_newline(&stderr).to_string() })
+        }
+    }
 }
 
 fn git_diff_names(

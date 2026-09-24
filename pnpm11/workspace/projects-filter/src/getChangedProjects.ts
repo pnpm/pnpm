@@ -43,8 +43,9 @@ export async function getChangedProjects (
 
   const repoRoot = path.resolve(gitPath ?? opts.workspaceDir, '..')
 
+  const base = await getMergeBase(commit, opts.workspaceDir)
   const { changedDirs: rawChangedDirs, workspaceManifestChanged } = await getChangedDirsSinceCommit(
-    commit,
+    base,
     workingDir,
     repoRoot,
     opts.testPattern ?? [],
@@ -72,7 +73,7 @@ export async function getChangedProjects (
   if (workspaceManifestChanged) {
     await applyCatalogChangesToProjects({
       allProjects: opts.allProjects,
-      commit,
+      commit: base,
       projectChangeTypes,
       projectDirs,
       repoRoot,
@@ -293,6 +294,23 @@ function parseCatalogDep (depName: string, specifier: string): { catalogName: st
     }
   }
   return { catalogName, lookupName }
+}
+
+// Diffing against the merge base keeps commits made only on the `<since>`
+// side out of the result. git exits with 1 when there is no merge base (a
+// shallow clone or unrelated histories) and with 128 for an invalid
+// `<since>`. Both fall back to diffing `<since>` itself, which reports the
+// bad revision.
+async function getMergeBase (commit: string, workspaceDir: string): Promise<string> {
+  try {
+    const { stdout } = await execa('git', ['merge-base', '--end-of-options', commit, 'HEAD'], { cwd: workspaceDir })
+    return (stdout as string).trim() || commit
+  } catch (err: unknown) {
+    assert(util.types.isNativeError(err))
+    const exitCode = 'exitCode' in err ? err.exitCode : undefined
+    if (exitCode === 1 || exitCode === 128) return commit
+    throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. ${'stderr' in err && err.stderr ? err.stderr as string : err.message}`, { cause: err })
+  }
 }
 
 async function getChangedDirsSinceCommit (
