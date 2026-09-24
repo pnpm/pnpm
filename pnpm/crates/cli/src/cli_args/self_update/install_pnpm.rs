@@ -331,9 +331,6 @@ fn build_engine_install_config(
     cfg.virtual_store_dir = install_dir.join("node_modules").join(".pnpm");
     cfg.enable_global_virtual_store = shared_engine_packages.is_some();
     cfg.lockfile = true;
-    cfg.target_workspace_dir = base_config.target_workspace_dir
-        .clone()
-        .or_else(|| base_config.workspace_dir.clone());
     cfg.workspace_dir = Some(install_dir.to_path_buf());
     cfg.supported_architectures = supported_architectures;
     cfg.ignore_scripts = true;

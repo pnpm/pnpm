@@ -139,7 +139,7 @@ fn pre_command_plan_from_input(
     let outcome =
         resolve_input_pin(input, &config, &roots, process_state, manifest.as_ref(), wanted_pm)?;
     let (config, package_manager_to_sync) =
-        match plan_pin_action(outcome, &input.switch, config_overrides, &dir, config)? {
+        match plan_pin_action(outcome, input, config_overrides, &dir, config)? {
             PreCommandAction::Switch(plan) => return Ok(Some(PreCommandPlan::Switch(plan))),
             PreCommandAction::Continue { config, package_manager_to_sync } => {
                 (config, package_manager_to_sync)
@@ -166,22 +166,25 @@ enum PreCommandAction {
 
 fn plan_pin_action(
     outcome: PinOutcome,
-    switch: &SwitchInput,
+    input: &PreCommandInput,
     config_overrides: &ConfigOverrides,
     dir: &Path,
     config: Config,
 ) -> miette::Result<PreCommandAction> {
     match outcome {
         PinOutcome::Switch(target) => {
-            let mut config = load_pre_command_config(switch, config_overrides, dir, true)?;
-            // Without a workspace, the approvals of the pinned pnpm's install
-            // go to the project, as a regular install's do.
-            config.target_workspace_dir =
-                Some(config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf()));
+            let mut config = load_pre_command_config(&input.switch, config_overrides, dir, true)?;
+            // A global command does not act on the project. Without a
+            // workspace, the approvals go to the project, as a regular
+            // install's do.
+            if !input.global {
+                config.target_workspace_dir =
+                    Some(config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf()));
+            }
             Ok(PreCommandAction::Switch(SwitchPlan { config, target }))
         }
         PinOutcome::Sync(Some(sync)) => {
-            let config = load_pre_command_config(switch, config_overrides, dir, true)?;
+            let config = load_pre_command_config(&input.switch, config_overrides, dir, true)?;
             Ok(PreCommandAction::Continue { config, package_manager_to_sync: Some(sync) })
         }
         PinOutcome::Sync(None) => {

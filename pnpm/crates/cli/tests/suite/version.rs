@@ -334,6 +334,43 @@ fn version_flag_records_the_minimum_release_age_exclude_in_a_project_without_a_w
     drop((root, mock_instance));
 }
 
+#[test]
+fn a_global_command_does_not_record_the_minimum_release_age_exclude_in_the_project() {
+    use assert_cmd::cargo::CommandCargoExt as _;
+    use pnpm_testing_utils::command_env::CommandTestExt as _;
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_dev_engine_pin(&workspace, "9.3.0");
+    set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
+    append_workspace_yaml_key(&workspace, "minimumReleaseAgeStrict", false);
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+
+    let command = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config();
+    let path = std::env::join_paths(
+        std::iter::once(root.path().join("pnpm-home"))
+            .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())),
+    )
+    .expect("join PATH");
+    let output = test_command(command, root.path())
+        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .env("PATH", path)
+        .args(["root", "-g"])
+        .output()
+        .expect("run pacquet root -g");
+    dbg!(&output);
+    let global_dir = String::from_utf8_lossy(&output.stdout);
+    // Only pnpm 9 prints this layout, so the global command did switch.
+    assert!(Path::new(global_dir.trim_end()).ends_with("global/5/node_modules"), "{global_dir}");
+    assert_eq!(fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml"), yaml);
+
+    drop((root, mock_instance));
+}
+
 fn assert_records_the_pnpm_exe_exclude(workspace: &Path) {
     let settings = WorkspaceSettings::load_at(workspace)
         .expect("read pnpm-workspace.yaml")
