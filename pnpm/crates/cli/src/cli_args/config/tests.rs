@@ -5,7 +5,7 @@
 
 use super::{ConfigFlags, ConfigLocation, config_get, config_list, config_set, ini};
 use indexmap::IndexMap;
-use pnpm_config::Config;
+use pnpm_config::{Config, Host};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -608,6 +608,44 @@ fn set_ca_array_json_writes_repeated_keys_preserving_comments() {
 
     let doc = ini::read(&npmrc_path).unwrap();
     assert_eq!(doc.get_all("ca"), vec!["cert-1", "cert-2"]);
+
+    let runtime_config =
+        Config::default().current::<Host>(tmp.path()).expect("load runtime config");
+    assert_eq!(runtime_config.tls.ca, vec!["cert-1", "cert-2"]);
+}
+
+#[test]
+fn set_ca_array_json_appends_unbracketed_ca_to_file_without_existing_ca() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial = "# Registry config\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), true),
+        "ca",
+        Some(r#"["cert-x", "cert-y"]"#.to_string()),
+    )
+    .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Registry config"));
+    assert!(text.contains("ca=cert-x"));
+    assert!(text.contains("ca=cert-y"));
+    assert!(!text.contains("ca[]="));
+    assert!(text.contains("registry=https://registry.npmjs.org/"));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), vec!["cert-x", "cert-y"]);
+
+    // Verify runtime config reader consumes the repeated ca= entries into tls.ca
+    let runtime_config =
+        Config::default().current::<Host>(tmp.path()).expect("load runtime config");
+    assert_eq!(runtime_config.tls.ca, vec!["cert-x", "cert-y"]);
 }
 
 #[test]
@@ -636,6 +674,10 @@ fn set_ca_replaces_existing_bracketed_ca_lines() {
 
     let doc = ini::read(&npmrc_path).unwrap();
     assert_eq!(doc.get_all("ca"), vec!["certificate-C"]);
+
+    let runtime_config =
+        Config::default().current::<Host>(tmp.path()).expect("load runtime config");
+    assert_eq!(runtime_config.tls.ca, vec!["certificate-C"]);
 }
 
 #[test]

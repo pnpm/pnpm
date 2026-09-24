@@ -326,8 +326,14 @@ fn parse_line_kind(content: &str) -> LineKind {
     LineKind::Raw(content.to_string())
 }
 
+fn is_ca_key(key: &str) -> bool {
+    key.strip_suffix("[]").unwrap_or(key) == "ca"
+}
+
 fn resolve_replace_key(key: &str, existing_key: &str, is_array: bool) -> String {
-    if key.ends_with("[]") {
+    if is_ca_key(key) {
+        "ca".to_string()
+    } else if key.ends_with("[]") {
         key.to_string()
     } else if is_array && existing_key.ends_with("[]") {
         existing_key.to_string()
@@ -337,7 +343,13 @@ fn resolve_replace_key(key: &str, existing_key: &str, is_array: bool) -> String 
 }
 
 fn resolve_append_key(key: &str, is_array: bool) -> String {
-    if is_array && !key.ends_with("[]") { format!("{key}[]") } else { key.to_string() }
+    if is_ca_key(key) {
+        "ca".to_string()
+    } else if is_array && !key.ends_with("[]") {
+        format!("{key}[]")
+    } else {
+        key.to_string()
+    }
 }
 
 /// Read `path` into an [`IniDocument`]. A missing file produces an empty document;

@@ -169,20 +169,40 @@ fn delete_removes_both_bracketed_and_unbracketed_keys() {
 
 #[test]
 fn set_array_preserves_existing_bracketed_keys() {
-    let input = "ca[]=certOld1\nca[]=certOld2\nother=val\n";
+    let input = "tags[]=old1\ntags[]=old2\nother=val\n";
     let mut doc = IniDocument::parse(input);
-    doc.set_array("ca", &["certNew1".to_string(), "certNew2".to_string()]);
-    let expected = "ca[]=certNew1\nca[]=certNew2\nother=val\n";
+    doc.set_array("tags", &["new1".to_string(), "new2".to_string()]);
+    let expected = "tags[]=new1\ntags[]=new2\nother=val\n";
     assert_eq!(doc.serialize(), expected);
-    assert_eq!(doc.get_all("ca"), vec!["certNew1", "certNew2"]);
+    assert_eq!(doc.get_all("tags"), vec!["new1", "new2"]);
 }
 
 #[test]
 fn set_array_appends_bracketed_keys_for_new_entry() {
     let input = "registry=https://reg/\n";
     let mut doc = IniDocument::parse(input);
+    doc.set_array("tags", &["item1".to_string(), "item2".to_string()]);
+    let expected = "registry=https://reg/\ntags[]=item1\ntags[]=item2\n";
+    assert_eq!(doc.serialize(), expected);
+    assert_eq!(doc.get_all("tags"), vec!["item1", "item2"]);
+}
+
+#[test]
+fn set_array_ca_writes_unbracketed_ca_keys_when_replacing_bracketed() {
+    let input = "ca[]=certOld1\nca[]=certOld2\nother=val\n";
+    let mut doc = IniDocument::parse(input);
+    doc.set_array("ca", &["certNew1".to_string(), "certNew2".to_string()]);
+    let expected = "ca=certNew1\nca=certNew2\nother=val\n";
+    assert_eq!(doc.serialize(), expected);
+    assert_eq!(doc.get_all("ca"), vec!["certNew1", "certNew2"]);
+}
+
+#[test]
+fn set_array_ca_appends_unbracketed_ca_keys_for_new_entry() {
+    let input = "registry=https://reg/\n";
+    let mut doc = IniDocument::parse(input);
     doc.set_array("ca", &["cert1".to_string(), "cert2".to_string()]);
-    let expected = "registry=https://reg/\nca[]=cert1\nca[]=cert2\n";
+    let expected = "registry=https://reg/\nca=cert1\nca=cert2\n";
     assert_eq!(doc.serialize(), expected);
     assert_eq!(doc.get_all("ca"), vec!["cert1", "cert2"]);
 }
