@@ -1,4 +1,4 @@
-use super::{fs, json, packlist, tempdir, touch};
+use super::{PacklistOptions, fs, json, packlist, packlist_with_options, tempdir, touch};
 
 #[cfg(unix)]
 use super::write;
@@ -65,6 +65,35 @@ fn bundle_dependency_symlink_escaping_pkg_dir_is_refused() {
             .any(|path| path.contains("secret")),
         "a node_modules symlink escaping pkg_dir must not leak host files: {out:?}",
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn bundle_dependency_symlink_to_workspace_package_is_included() {
+    let dir = tempdir().unwrap();
+    let workspace = dir.path();
+    let root = workspace.join("packages/app");
+    fs::create_dir_all(root.join("node_modules")).unwrap();
+    touch(&root, "package.json");
+    let bundled = workspace.join("packages/bundled");
+    fs::create_dir_all(&bundled).unwrap();
+    fs::write(bundled.join("package.json"), r#"{"name":"bundled","version":"1.0.0"}"#).unwrap();
+    fs::write(bundled.join("index.js"), "module.exports = 42").unwrap();
+    std::os::unix::fs::symlink(&bundled, root.join("node_modules/bundled")).unwrap();
+
+    let manifest = json!({
+        "name": "app",
+        "version": "1.0.0",
+        "bundleDependencies": ["bundled"],
+    });
+    let out = packlist_with_options(
+        &root,
+        &manifest,
+        PacklistOptions { workspace_dir: Some(workspace), ..Default::default() },
+    )
+    .unwrap();
+
+    assert!(out.contains(&"node_modules/bundled/index.js".to_string()));
 }
 
 /// An intermediate symlinked directory (`subdir -> /outside`) lets a

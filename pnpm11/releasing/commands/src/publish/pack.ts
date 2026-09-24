@@ -347,7 +347,7 @@ export function resolvePackOutput (
 
 export async function api (opts: PackOptions): Promise<PackResult> {
   const { manifest: entryManifest, fileName: manifestFileName } = await readProjectManifest(opts.dir, opts)
-  preventBundledDependenciesWithoutHoistedNodeLinker(opts.nodeLinker, entryManifest)
+  preventBundledDependenciesWithPnpNodeLinker(opts.nodeLinker, entryManifest)
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
     depPath: opts.dir,
     extraBinPaths: opts.extraBinPaths,
@@ -369,7 +369,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     : opts.dir
   // always read the latest manifest, as "prepack" or "prepare" script may modify package manifest.
   const { manifest, fileName: selectedManifestFileName } = await readProjectManifest(dir, opts)
-  preventBundledDependenciesWithoutHoistedNodeLinker(opts.nodeLinker, manifest)
+  preventBundledDependenciesWithPnpNodeLinker(opts.nodeLinker, manifest)
   if (!manifest.name) {
     throw new PnpmError('PACKAGE_NAME_NOT_FOUND', `Package name is not defined in the ${manifestFileName}.`)
   }
@@ -425,7 +425,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     manifest: publishManifest as Record<string, unknown>,
     workspaceDir: opts.workspaceDir,
   })
-  const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
+  const filesMap = Object.fromEntries(files.map((file) => [`package/${normalizeBundledPath(file)}`, path.join(dir, file)]))
   for (const name of Object.keys(filesMap)) {
     if (isManifestEntry(name)) delete filesMap[name]
   }
@@ -579,13 +579,13 @@ function stripBuildMetadata (version: string): string {
   return plusIndex === -1 ? version : version.slice(0, plusIndex)
 }
 
-function preventBundledDependenciesWithoutHoistedNodeLinker (nodeLinker: Config['nodeLinker'], manifest: ProjectManifest): void {
-  if (nodeLinker === 'hoisted') return
+function preventBundledDependenciesWithPnpNodeLinker (nodeLinker: Config['nodeLinker'], manifest: ProjectManifest): void {
+  if (nodeLinker !== 'pnp') return
   for (const key of ['bundledDependencies', 'bundleDependencies'] as const) {
     const bundledDependencies = manifest[key]
     if (bundledDependencies) {
       throw new PnpmError('BUNDLED_DEPENDENCIES_WITHOUT_HOISTED', `${key} does not work with "nodeLinker: ${nodeLinker}"`, {
-        hint: `Add "nodeLinker: hoisted" to pnpm-workspace.yaml or delete ${key} from the root package.json to resolve this error`,
+        hint: `Set "nodeLinker: isolated" or "nodeLinker: hoisted" in pnpm-workspace.yaml or delete ${key} from the root package.json to resolve this error`,
       })
     }
   }
@@ -635,6 +635,14 @@ async function packPkg (opts: {
 type PackedEntry =
   | { name: string, source: string }
   | { name: string, content: string }
+
+function normalizeBundledPath (file: string): string {
+  let relativePath = file
+  while (relativePath.startsWith('../')) {
+    relativePath = relativePath.slice(3)
+  }
+  return relativePath.startsWith('node_modules/') ? relativePath : file
+}
 
 /**
  * Every tar entry under the name it is packed as, ordered for compression.

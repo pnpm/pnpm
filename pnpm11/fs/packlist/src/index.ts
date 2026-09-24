@@ -20,6 +20,11 @@ interface TreeNode {
   edgesOut: Map<string, Edge>
 }
 
+interface BundledTreeContext {
+  rootDir: string
+  seen: Map<string, TreeNode>
+}
+
 export async function packlist (pkgDir: string, opts?: {
   manifest?: Record<string, unknown>
   workspaceDir?: string
@@ -27,8 +32,8 @@ export async function packlist (pkgDir: string, opts?: {
   const resolvedPkgDir = path.resolve(pkgDir)
   const workspaceDir = opts?.workspaceDir == null ? undefined : path.resolve(opts.workspaceDir)
   const pkg = opts?.manifest ?? readPackageJson(resolvedPkgDir)
-  const tree = buildRootTree(resolvedPkgDir, pkg)
   const hasWorkspaceContext = workspaceDir != null && workspaceDir !== resolvedPkgDir && isSubdir(workspaceDir, resolvedPkgDir)
+  const tree = buildRootTree(resolvedPkgDir, pkg, hasWorkspaceContext ? workspaceDir : resolvedPkgDir)
   let hasNpmIgnore = false
   if (hasWorkspaceContext) {
     try {
@@ -44,7 +49,7 @@ export async function packlist (pkgDir: string, opts?: {
   return files.map((file) => file.replace(/^\.[/\\]/, ''))
 }
 
-function buildRootTree (pkgDir: string, pkg: Record<string, unknown>): TreeNode {
+function buildRootTree (pkgDir: string, pkg: Record<string, unknown>, rootDir: string): TreeNode {
   const bundledDeps = getRootBundledDeps(pkg)
   // npm-packlist's gatherBundles() iterates package.bundleDependencies directly,
   // so the field must be an array. Normalize true/undefined to an explicit list.
@@ -52,26 +57,26 @@ function buildRootTree (pkgDir: string, pkg: Record<string, unknown>): TreeNode 
   normalizedPkg.bundleDependencies = bundledDeps
   delete normalizedPkg.bundledDependencies
   const root = makeNode(pkgDir, normalizedPkg, true)
-  const seen = new Map<string, TreeNode>([[pkgDir, root]])
-  populateEdges(root, bundledDeps, seen)
+  const context = { rootDir, seen: new Map<string, TreeNode>([[pkgDir, root]]) }
+  populateEdges(root, bundledDeps, context)
   return root
 }
 
-function buildBundledTree (pkgDir: string, seen: Map<string, TreeNode>): TreeNode {
-  const cached = seen.get(pkgDir)
+function buildBundledTree (pkgDir: string, context: BundledTreeContext): TreeNode {
+  const cached = context.seen.get(pkgDir)
   if (cached) return cached
   const pkg = readPackageJson(pkgDir)
   const node = makeNode(pkgDir, normalizePackage(pkg), false)
-  seen.set(pkgDir, node)
-  populateEdges(node, getNestedBundledDeps(pkg), seen)
+  context.seen.set(pkgDir, node)
+  populateEdges(node, getNestedBundledDeps(pkg), context)
   return node
 }
 
-function populateEdges (node: TreeNode, deps: string[], seen: Map<string, TreeNode>): void {
+function populateEdges (node: TreeNode, deps: string[], context: BundledTreeContext): void {
   for (const dep of deps) {
-    const depDir = resolveDependency(dep, node.path)
+    const depDir = resolveDependency(dep, node.path, context.rootDir)
     if (!depDir) continue
-    const depNode = buildBundledTree(depDir, seen)
+    const depNode = buildBundledTree(depDir, context)
     node.edgesOut.set(dep, { to: depNode, peer: false, dev: false })
   }
 }
@@ -103,18 +108,26 @@ function getNestedBundledDeps (pkg: Record<string, unknown>): string[] {
   return [...Object.keys(dependencies), ...Object.keys(optionalDependencies)]
 }
 
-function resolveDependency (depName: string, fromDir: string): string | undefined {
+function resolveDependency (depName: string, fromDir: string, rootDir: string): string | undefined {
+  // Bundle names come from package.json; reject paths before joining them under node_modules.
+  if (typeof depName !== 'string' || !/^(?:@[^/\\]+\/)?[^/\\]+$/.test(depName) || depName.split('/').some(part => part === '.' || part === '..')) return undefined
+  const canonicalRootDir = fs.realpathSync(rootDir)
   let currentDir = fromDir
   while (true) {
     const candidate = path.join(currentDir, 'node_modules', depName)
     try {
       const stat = fs.statSync(path.join(candidate, 'package.json'))
-      if (stat.isFile()) return candidate
+      if (stat.isFile()) {
+        const canonicalCandidate = fs.realpathSync(candidate)
+        if (canonicalCandidate !== canonicalRootDir && !isSubdir(canonicalRootDir, canonicalCandidate)) return undefined
+        return candidate
+      }
     } catch (err: unknown) {
       if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
         throw err
       }
     }
+    if (currentDir === rootDir) return undefined
     const parent = path.dirname(currentDir)
     if (parent === currentDir) return undefined
     currentDir = parent

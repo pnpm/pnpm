@@ -50,7 +50,7 @@ use pnpm_diagnostics::miette::{self, Diagnostic};
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use serde_json::Value;
 use std::{
-    collections::{BTreeSet, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
     ffi::OsStr,
     fs,
     path::{Component, Path, PathBuf},
@@ -107,6 +107,8 @@ pub fn packlist(pkg_dir: &Path, manifest: &Value) -> Result<Vec<String>, Packlis
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PacklistOptions<'a> {
     pub workspace_dir: Option<&'a Path>,
+    /// Project directory containing installed dependencies when publishing a subdirectory.
+    pub bundled_dependencies_dir: Option<&'a Path>,
 }
 
 /// Variant of [`packlist`] that lets callers pass workspace context.
@@ -120,9 +122,27 @@ pub fn packlist_with_options(
     manifest: &Value,
     options: PacklistOptions<'_>,
 ) -> Result<Vec<String>, PacklistError> {
-    let mut out: BTreeSet<String> = collect_own_files(pkg_dir, manifest, options.workspace_dir)?;
-    collect_bundled_files(pkg_dir, manifest, &mut out)?;
-    Ok(out.into_iter().collect())
+    Ok(packlist_with_sources(pkg_dir, manifest, options)?.into_keys().collect())
+}
+
+/// Map normalized archive paths to their resolved source files.
+pub fn packlist_with_sources(
+    pkg_dir: &Path,
+    manifest: &Value,
+    options: PacklistOptions<'_>,
+) -> Result<BTreeMap<String, PathBuf>, PacklistError> {
+    let workspace_dir =
+        options.workspace_dir.filter(|workspace_dir| pkg_dir.starts_with(workspace_dir));
+    let mut out = collect_own_files(pkg_dir, manifest, workspace_dir)?
+        .into_iter()
+        .map(|file| {
+            let source = pkg_dir.join(&file);
+            (file, source)
+        })
+        .collect();
+    let bundle_dir = options.bundled_dependencies_dir.unwrap_or(pkg_dir);
+    collect_bundled_files(bundle_dir, manifest, workspace_dir, &mut out)?;
+    Ok(out)
 }
 
 /// Collect the forward-slash relative paths for a single package's own
@@ -494,8 +514,8 @@ fn should_always_exclude(rel: &str) -> bool {
 }
 
 fn relative_forward_slash(root: &Path, full: &Path) -> String {
-    let rel = full.strip_prefix(root).unwrap_or(full);
-    let mut buf = PathBuf::from(rel)
+    let rel = pathdiff::diff_paths(full, root).unwrap_or_else(|| full.to_path_buf());
+    let mut buf = rel
         .into_os_string()
         .to_string_lossy()
         .into_owned();
@@ -503,6 +523,14 @@ fn relative_forward_slash(root: &Path, full: &Path) -> String {
         buf = buf.replace(std::path::MAIN_SEPARATOR, "/");
     }
     buf
+}
+
+/// A hoisted workspace package can resolve a bundle from the workspace root's
+/// `node_modules`. It is emitted at the packed package's own `node_modules`
+/// location while retaining its resolved source path.
+fn normalize_workspace_bundle_path(path: String) -> String {
+    let under_modules = path.trim_start_matches("../");
+    if under_modules.starts_with("node_modules/") { under_modules.to_string() } else { path }
 }
 
 /// Strip a leading `./` and any leading slashes from `path` so manifest
