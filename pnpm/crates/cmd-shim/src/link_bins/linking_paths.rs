@@ -173,21 +173,21 @@ pub(super) fn target_probe_path(pkg: &PackageBinSource, target: &Path) -> PathBu
         .unwrap_or_else(|| target.to_path_buf())
 }
 
-/// Remove the shims of the `chosen` bins that [`is_own_missing_bin`] rejects,
+/// Remove the shims of the `chosen` bins that [`awaits_target`] holds back,
 /// and return the rest for linking.
 ///
 /// Every removal finishes before the caller writes a shim: on Windows the
 /// siblings of a removed bin `tool` include `tool.cmd`, which may be the shim
 /// of another bin.
-pub(super) fn remove_own_missing_bins<'packages, Sys: FsReadHead>(
+pub(super) fn remove_bins_awaiting_target<'packages, Sys: FsReadHead>(
     chosen: Vec<(Command, &'packages PackageBinSource)>,
     bins_dir: &Path,
     shims_dir: &Path,
 ) -> Result<Vec<(Command, &'packages PackageBinSource)>, LinkBinsError> {
-    let (missing_own, to_link): (Vec<_>, Vec<_>) = chosen
+    let (awaiting, to_link): (Vec<_>, Vec<_>) = chosen
         .into_par_iter()
-        .partition(|(command, pkg)| is_own_missing_bin::<Sys>(pkg, bins_dir, &command.path));
-    missing_own
+        .partition(|(command, pkg)| awaits_target::<Sys>(pkg, bins_dir, &command.path));
+    awaiting
         .par_iter()
         .try_for_each(|(command, _)| {
             let shim_path = shims_dir.join(&command.name);
@@ -197,22 +197,19 @@ pub(super) fn remove_own_missing_bins<'packages, Sys: FsReadHead>(
     Ok(to_link)
 }
 
-/// Whether `bins_dir` is the `node_modules/.bin` of `pkg` and the bin's
-/// `target` is missing.
+/// Whether the bin's `target` is missing while a lifecycle script that may
+/// create it can still run with `bins_dir` on `PATH`.
 ///
-/// A package's own bins are on `PATH` while its lifecycle scripts run, and
-/// those scripts may be what creates a missing target: the `node` package's
-/// preinstall runs `node` to download `bin/node`, which must not resolve to a
-/// shim of `bin/node` itself. So a package's own bin is linked there only once
-/// its target exists, and a shim an earlier install left there is removed,
-/// while dependents get the shim right away (the target may be built after
-/// install).
-fn is_own_missing_bin<Sys: FsReadHead>(
-    pkg: &PackageBinSource,
-    bins_dir: &Path,
-    target: &Path,
-) -> bool {
-    pkg.location.join("node_modules").join(".bin") == bins_dir
+/// A package's scripts run with its own `node_modules/.bin` and the project's
+/// `.bin` on `PATH`. The `node` package's preinstall runs `node` to download
+/// `bin/node`, which must not resolve to a shim of `bin/node` itself
+/// (pnpm/pnpm#15501). So a package's own bin is linked there only once its
+/// target exists, and so is any bin of a package whose build is still pending
+/// ([`PackageBinSource::build_pending`]). A shim an earlier install left is
+/// removed. Other dependents get the shim right away, because the target may
+/// be built after install.
+fn awaits_target<Sys: FsReadHead>(pkg: &PackageBinSource, bins_dir: &Path, target: &Path) -> bool {
+    (pkg.build_pending || pkg.location.join("node_modules").join(".bin") == bins_dir)
         && target_is_missing::<Sys>(&target_probe_path(pkg, target))
 }
 

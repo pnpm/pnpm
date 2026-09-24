@@ -60,6 +60,11 @@ pub struct PackageBinSource {
     ///
     /// [`location`]: Self::location
     pub resolved_location: Option<PathBuf>,
+    /// Whether the package's lifecycle scripts have yet to run in this
+    /// install. Such a package's bin is not linked while its target is
+    /// missing, because the scripts may create it and run with this
+    /// `.bin` on `PATH`. The linking pass after the build links it.
+    pub build_pending: bool,
 }
 
 impl PackageBinSource {
@@ -70,7 +75,13 @@ impl PackageBinSource {
     /// most tests).
     #[must_use]
     pub fn new(location: PathBuf, manifest: Arc<Value>) -> Self {
-        Self { location, manifest, origin: BinOrigin::Direct, resolved_location: None }
+        Self {
+            location,
+            manifest,
+            origin: BinOrigin::Direct,
+            resolved_location: None,
+            build_pending: false,
+        }
     }
 
     /// Tag this source with the given [`BinOrigin`]. Builder-style
@@ -88,6 +99,14 @@ impl PackageBinSource {
     #[must_use]
     pub fn with_resolved_location(mut self, resolved_location: PathBuf) -> Self {
         self.resolved_location = Some(resolved_location);
+        self
+    }
+
+    /// Mark the package's lifecycle scripts as not yet run. See
+    /// [`Self::build_pending`].
+    #[must_use]
+    pub fn with_build_pending(mut self, build_pending: bool) -> Self {
+        self.build_pending = build_pending;
         self
     }
 }
@@ -423,7 +442,7 @@ where
 
     let paths = linking_paths::LinkingPaths::new(bins_dir, options)?;
 
-    let to_link = remove_own_missing_bins::<Sys>(chosen, bins_dir, &paths.bins_dir)?;
+    let to_link = remove_bins_awaiting_target::<Sys>(chosen, bins_dir, &paths.bins_dir)?;
 
     // Each shim's read-shebang + write-file + chmod sequence is independent
     // across bin names. There is no shared state, so drive them on rayon.
@@ -547,6 +566,6 @@ use executable::{
 mod discovery;
 
 mod linking_paths;
-use linking_paths::{remove_own_missing_bins, shim_node_path, target_probe_path};
+use linking_paths::{remove_bins_awaiting_target, shim_node_path, target_probe_path};
 
 mod relocatable;

@@ -438,6 +438,28 @@ fn missing_bin_target_is_linked_for_dependents_only() {
     assert!(!own_bins.join("tool").exists(), "own .bin drops a shim whose target is gone");
 }
 
+/// A package whose build is still pending may create its bin in a script that
+/// runs with the dependent's `.bin` on `PATH`, so that bin is held back there
+/// too until the target exists.
+#[test]
+fn missing_bin_of_a_package_with_a_pending_build_is_held_back() {
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("node_modules/tool");
+    create_dir_all(&pkg).unwrap();
+    let manifest = json!({"name": "tool", "bin": {"tool": "dist/tool.js"}});
+    let source =
+        || PackageBinSource::new(pkg.clone(), Arc::new(manifest.clone())).with_build_pending(true);
+    let bins = tmp.path().join("node_modules/.bin");
+
+    link_bins_of_packages::<Host>(&[source()], &bins, &LinkBinsOptions::default()).unwrap();
+    assert!(!bins.join("tool").exists(), "a pending build's missing bin must not be linked");
+
+    create_dir_all(pkg.join("dist")).unwrap();
+    write_file(pkg.join("dist/tool.js"), "console.log('built')\n").unwrap();
+    link_bins_of_packages::<Host>(&[source()], &bins, &LinkBinsOptions::default()).unwrap();
+    assert!(bins.join("tool").exists(), "the bin is linked once the build created its target");
+}
+
 /// Windows finds `<target>.exe` when the shim runs an extensionless target,
 /// so an own bin with only the `.exe` present still gets its shim.
 #[cfg(windows)]

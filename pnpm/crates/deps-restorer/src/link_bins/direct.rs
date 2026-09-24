@@ -135,6 +135,14 @@ pub struct PrefetchedBinLookup<'a> {
     shim_cache: ShimTargetCache,
 }
 impl<'a> PrefetchedBinLookup<'a> {
+    /// Whether the snapshot's build scripts may run after this pass. A
+    /// `link:` workspace sibling (no snapshot key) runs no dependency build.
+    fn may_build(&self, snapshot_key: Option<&PackageKey>) -> bool {
+        snapshot_key.is_some_and(|key| {
+            self.requires_build.and_then(|flags| flags.get(key)) != Some(&false)
+        })
+    }
+
     #[must_use]
     pub fn new(
         packages: Option<&HashMap<PackageKey, PackageMetadata>>,
@@ -166,11 +174,19 @@ pub fn link_direct_dep_bins_prefetched(
     let bin_sources: Vec<PackageBinSource> = deps
         .par_iter()
         .filter_map(|(name, target, snapshot_key)| {
-            match prefetched_bin_source(modules_dir, name, target, snapshot_key.as_ref(), lookup) {
+            let source = match prefetched_bin_source(
+                modules_dir,
+                name,
+                target,
+                snapshot_key.as_ref(),
+                lookup,
+            ) {
                 PrefetchedBin::NoBins => None,
                 PrefetchedBin::Source(source) => Some(Ok(source)),
                 PrefetchedBin::ReadFromDisk => read_dep_bin_source(modules_dir, name, target),
-            }
+            };
+            let build_pending = lookup.may_build(snapshot_key.as_ref());
+            source.map(|source| source.map(|source| source.with_build_pending(build_pending)))
         })
         .collect::<Result<_, _>>()?;
     if bin_sources.is_empty() {
@@ -206,7 +222,7 @@ pub(super) fn prefetched_bin_source(
     let Some(snapshot_key) = snapshot_key else {
         return PrefetchedBin::ReadFromDisk;
     };
-    if lookup.requires_build.and_then(|flags| flags.get(snapshot_key)) != Some(&false) {
+    if lookup.may_build(Some(snapshot_key)) {
         return PrefetchedBin::ReadFromDisk;
     }
     let metadata_key = snapshot_key.without_peer();
