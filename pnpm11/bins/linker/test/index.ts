@@ -163,8 +163,11 @@ test('linkBins() keeps or rewrites the NODE_PATH of an existing bin according to
   expect(projectWithoutExtras.entries[0]).toMatch(/\/vendor$/)
 })
 
+// A shim written on Windows keeps its posix entries in `new_node_path` and
+// picks the form it exports when it runs.
 function nodePathEntries (shim: string): string[] {
-  return /^ {2}export NODE_PATH="([^"]*)"$/m.exec(shim)?.[1].split(':') ?? []
+  const posix = /^ {2}new_node_path="([^"]*)"$/m.exec(shim) ?? /^ {2}export NODE_PATH="([^"]*)"$/m.exec(shim)
+  return posix?.[1].split(':') ?? []
 }
 
 // A shim an older pnpm wrote still points at the right target, so the warm

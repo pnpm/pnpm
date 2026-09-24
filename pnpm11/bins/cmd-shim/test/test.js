@@ -13,6 +13,7 @@ import { cmdShim, cmdShimIfExists, isShimForMissingTarget, isShimPointingAt } fr
  * @param {import('node:test').TestContext} t
  * @param {string} fileName
  * @param {'\n' | '\r\n'} lineEnding
+ * @param {string} name The subtest name, which keys the snapshot.
  */
 async function testFile (t, fileName, lineEnding = '\n', name = path.basename(fileName).toLowerCase()) {
   await t.test(name, async (t) => {
