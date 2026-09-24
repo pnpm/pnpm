@@ -171,8 +171,9 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
 
 /// Phase 1: rimraf every directory that was in the previous
 /// install's graph but isn't in the new one, after unlinking the
-/// bins it declared from its `node_modules/.bin`. Errors are swallowed
-/// silently with the same `EPERM`/`EBUSY` tolerance — a directory
+/// bins it declared from its `node_modules/.bin`. A failed bin unlink
+/// is logged and does not keep the directory. Directory removal errors
+/// are swallowed silently with the same `EPERM`/`EBUSY` tolerance — a directory
 /// we can't remove right now is no worse than leaving a stale
 /// entry, and the next install will retry. Returns the orphan count
 /// (attempted, not necessarily removed — the same number pnpm's
