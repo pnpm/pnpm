@@ -77,19 +77,19 @@ fn single_byte_input_does_not_panic() {
 fn trailing_dots_and_spaces_are_escaped() {
     assert_eq!(
         dep_path_to_filename("parent-pkg@file:..", 120),
-        "parent-pkg@file+++_03a936b22c43a1cf3e318266a6921640",
+        "parent-pkg@file+++_3cf6176c884f1541b42906b711973e2d",
     );
     assert_eq!(
         dep_path_to_filename("pkg@file:.", 120),
-        "pkg@file++_af438b120e771c4877c21269718fda92",
+        "pkg@file++_f8a4bd4027dd0dda71549ddff4eb2bbb",
     );
     assert_eq!(
         dep_path_to_filename("pkg@file:../dir ", 120),
-        "pkg@file+..+dir+_66e2dc0e992628fa370a66df00e93c72",
+        "pkg@file+..+dir+_58ccd8dce4811ac686d72920d5724090",
     );
     assert_eq!(
         dep_path_to_filename("foo@1.0.0(pkg@file:..)", 120),
-        "foo@1.0.0_pkg@file+++_61847500d559aa48fd4e606d071ee28b",
+        "foo@1.0.0_pkg@file+++_532b5e0801878347427004a15da818ef",
     );
     assert_eq!(dep_path_to_filename("pkg@file:../project-2", 120), "pkg@file+..+project-2");
 }
@@ -101,4 +101,8 @@ fn escaped_trailing_dots_do_not_collide_with_literal_plus() {
         dep_path_to_filename("parent-pkg@file:++", 120),
     );
     assert_eq!(dep_path_to_filename("parent-pkg@file:++", 120), "parent-pkg@file+++");
+    assert_ne!(
+        dep_path_to_filename("Parent-pkg@file:..", 120),
+        dep_path_to_filename("Parent-pkg@file:++", 120),
+    );
 }

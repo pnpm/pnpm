@@ -207,7 +207,7 @@ fn file_dep_on_the_parent_directory_gets_a_windows_safe_slot() {
     };
     assert_eq!(
         read(
-            "parent-pkg@file+++_03a936b22c43a1cf3e318266a6921640/node_modules/parent-pkg/index.js"
+            "parent-pkg@file+++_3cf6176c884f1541b42906b711973e2d/node_modules/parent-pkg/index.js"
         ),
         "module.exports = 'parent'\n",
     );
