@@ -6,6 +6,11 @@ import util from 'node:util'
 
 const OWNER_FILE = 'owner'
 const POLL_INTERVAL_MS = 50
+// A holder writes its owner file right after creating the directory, so one
+// that still has none after this long died in between.
+const OWNERLESS_ABANDONED_MS = 5_000
+// Reaping is a few file operations, so a reaper lock this old was left behind.
+const REAPER_ABANDONED_MS = 10_000
 
 export interface DirLockOptions {
   waitMs: number
@@ -29,52 +34,106 @@ export class DirLock {
 
   /** Resolves to `undefined` when the lock is still held after `waitMs`. */
   static async acquire (lockPath: string, opts: DirLockOptions): Promise<DirLock | undefined> {
-    return DirLock.acquireUntil(lockPath, Date.now() + opts.waitMs, opts.abandonedMs)
-  }
-
-  private static async acquireUntil (lockPath: string, deadline: number, abandonedMs: number): Promise<DirLock | undefined> {
-    try {
-      await fs.mkdir(lockPath)
-      const token = `${os.hostname()}:${process.pid}:${Date.now()}:${crypto.randomUUID()}`
-      try {
-        await fs.writeFile(path.join(lockPath, OWNER_FILE), token, { mode: 0o600 })
-      } catch (err: unknown) {
-        await fs.rm(lockPath, { force: true, recursive: true }).catch(() => {})
-        throw err
-      }
-      return new DirLock(lockPath, token)
-    } catch (err: unknown) {
-      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+    const deadline = Date.now() + opts.waitMs
+    for (;;) {
+      // eslint-disable-next-line no-await-in-loop
+      const lock = await DirLock.tryCreate(lockPath)
+      if (lock != null) return lock
+      // eslint-disable-next-line no-await-in-loop
+      const state = await inspectLock(lockPath, opts.abandonedMs)
+      if (state.kind === 'unusable') return undefined
+      // Released since the `mkdir` attempt: retry at once.
+      if (state.kind === 'vanished' && Date.now() < deadline) continue
+      // eslint-disable-next-line no-await-in-loop
+      if (state.kind === 'stale' && await removeIfStillStale(lockPath, state.owner, opts.abandonedMs)) continue
+      if (Date.now() >= deadline) return undefined
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS))
     }
-    const stats = await fs.lstat(lockPath).catch(() => undefined)
-    if (stats == null || stats.isSymbolicLink() || !stats.isDirectory()) return undefined
-    if (Date.now() - stats.mtimeMs > abandonedMs || await isHeldByEndedProcess(lockPath)) {
-      const removed = await fs.rm(lockPath, { force: true, recursive: true }).then(() => true, () => false)
-      if (removed) return DirLock.acquireUntil(lockPath, deadline, abandonedMs)
-    }
-    if (Date.now() >= deadline) return undefined
-    await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS))
-    return DirLock.acquireUntil(lockPath, deadline, abandonedMs)
   }
 
   async isOwner (): Promise<boolean> {
-    try {
-      return await fs.readFile(path.join(this.lockPath, OWNER_FILE), 'utf8') === this.token
-    } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
-      throw err
-    }
+    return await readOwner(this.lockPath) === this.token
   }
 
   async release (): Promise<void> {
     if (!await this.isOwner().catch(() => false)) return
     await fs.rm(this.lockPath, { force: true, recursive: true }).catch(() => {})
   }
+
+  private static async tryCreate (lockPath: string): Promise<DirLock | undefined> {
+    try {
+      await fs.mkdir(lockPath)
+    } catch (err: unknown) {
+      if (isErrorCode(err, 'EEXIST')) return undefined
+      throw err
+    }
+    const token = `${os.hostname()}:${process.pid}:${Date.now()}:${crypto.randomUUID()}`
+    try {
+      await fs.writeFile(path.join(lockPath, OWNER_FILE), token, { mode: 0o600 })
+    } catch (err: unknown) {
+      await fs.rm(lockPath, { force: true, recursive: true }).catch(() => {})
+      throw err
+    }
+    return new DirLock(lockPath, token)
+  }
 }
 
-async function isHeldByEndedProcess (lockPath: string): Promise<boolean> {
-  const owner = await fs.readFile(path.join(lockPath, OWNER_FILE), 'utf8').catch(() => undefined)
-  if (owner == null) return false
+type LockState =
+  | { kind: 'live' | 'vanished' | 'unusable' }
+  | { kind: 'stale', owner: string | undefined }
+
+async function inspectLock (lockPath: string, abandonedMs: number): Promise<LockState> {
+  let stats
+  try {
+    stats = await fs.lstat(lockPath)
+  } catch (err: unknown) {
+    if (isErrorCode(err, 'ENOENT')) return { kind: 'vanished' }
+    throw err
+  }
+  if (stats.isSymbolicLink() || !stats.isDirectory()) return { kind: 'unusable' }
+  const owner = await readOwner(lockPath)
+  const age = Date.now() - stats.mtimeMs
+  const stale = age > abandonedMs ||
+    (owner == null ? age > OWNERLESS_ABANDONED_MS : isHeldByEndedProcess(owner))
+  return stale ? { kind: 'stale', owner } : { kind: 'live' }
+}
+
+/**
+ * Removes the lock only while it still carries the stale owner, under a reaper
+ * lock, so that a waiter never removes a lock another waiter just took over.
+ */
+async function removeIfStillStale (lockPath: string, staleOwner: string | undefined, abandonedMs: number): Promise<boolean> {
+  const reaperPath = `${lockPath}.reap`
+  try {
+    await fs.mkdir(reaperPath)
+  } catch (err: unknown) {
+    if (!isErrorCode(err, 'EEXIST')) throw err
+    const stats = await fs.lstat(reaperPath).catch(() => undefined)
+    if (stats != null && Date.now() - stats.mtimeMs > REAPER_ABANDONED_MS) {
+      await fs.rmdir(reaperPath).catch(() => {})
+    }
+    return false
+  }
+  try {
+    const current = await inspectLock(lockPath, abandonedMs)
+    if (current.kind !== 'stale' || current.owner !== staleOwner) return false
+    return await fs.rm(lockPath, { force: true, recursive: true }).then(() => true, () => false)
+  } finally {
+    await fs.rmdir(reaperPath).catch(() => {})
+  }
+}
+
+async function readOwner (lockPath: string): Promise<string | undefined> {
+  try {
+    return await fs.readFile(path.join(lockPath, OWNER_FILE), 'utf8')
+  } catch (err: unknown) {
+    if (isErrorCode(err, 'ENOENT')) return undefined
+    throw err
+  }
+}
+
+function isHeldByEndedProcess (owner: string): boolean {
   const [hostname, pidText] = owner.split(':')
   const pid = Number(pidText)
   if (hostname !== os.hostname() || !Number.isInteger(pid) || pid <= 0 || pid === process.pid) return false
@@ -82,6 +141,10 @@ async function isHeldByEndedProcess (lockPath: string): Promise<boolean> {
     process.kill(pid, 0)
     return false
   } catch (err: unknown) {
-    return util.types.isNativeError(err) && 'code' in err && err.code === 'ESRCH'
+    return isErrorCode(err, 'ESRCH')
   }
+}
+
+function isErrorCode (err: unknown, code: string): boolean {
+  return util.types.isNativeError(err) && 'code' in err && err.code === code
 }

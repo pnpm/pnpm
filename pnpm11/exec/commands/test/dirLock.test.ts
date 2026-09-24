@@ -35,7 +35,8 @@ test('a held lock is not acquired until it is released', async () => {
 
 test('a lock whose holder process has ended is taken over at once', async () => {
   const lockPath = path.join(temporaryDirectory(), 'ended.lock')
-  const { pid } = spawnSync(process.execPath, ['-e', ''])
+  const { pid, status } = spawnSync(process.execPath, ['-e', ''])
+  expect({ pid, status }).toMatchObject({ pid: expect.any(Number), status: 0 })
   fs.mkdirSync(lockPath)
   fs.writeFileSync(path.join(lockPath, 'owner'), `${os.hostname()}:${pid}:0:ended`)
 
@@ -43,4 +44,36 @@ test('a lock whose holder process has ended is taken over at once', async () => 
   expect(lock).toBeDefined()
   expect(await lock!.isOwner()).toBe(true)
   await lock!.release()
+})
+
+test('a lock directory its holder died before claiming is taken over', async () => {
+  const lockPath = path.join(temporaryDirectory(), 'ownerless.lock')
+  fs.mkdirSync(lockPath)
+  const longAgo = new Date(Date.now() - 60_000)
+  fs.utimesSync(lockPath, longAgo, longAgo)
+
+  const lock = await DirLock.acquire(lockPath, OPTS)
+  expect(lock).toBeDefined()
+  await lock!.release()
+})
+
+test('a live holder keeps its lock', async () => {
+  const lockPath = path.join(temporaryDirectory(), 'live.lock')
+  fs.mkdirSync(lockPath)
+  fs.writeFileSync(path.join(lockPath, 'owner'), `${os.hostname()}:${process.ppid}:0:live`)
+
+  expect(await DirLock.acquire(lockPath, OPTS)).toBeUndefined()
+})
+
+test('waiters taking over one ended holder\'s lock end up with one holder', async () => {
+  const { pid } = spawnSync(process.execPath, ['-e', ''])
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const lockPath = path.join(temporaryDirectory(), 'contended.lock')
+    fs.mkdirSync(lockPath)
+    fs.writeFileSync(path.join(lockPath, 'owner'), `${os.hostname()}:${pid}:0:ended`)
+
+    // eslint-disable-next-line no-await-in-loop
+    const locks = await Promise.all(Array.from({ length: 4 }, async () => DirLock.acquire(lockPath, OPTS)))
+    expect(locks.filter(Boolean)).toHaveLength(1)
+  }
 })
