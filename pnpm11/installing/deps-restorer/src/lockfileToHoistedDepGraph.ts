@@ -63,6 +63,12 @@ export interface LockfileToHoistedDepGraphOptions extends RegistryContext {
    * optional for everything outside this set.
    */
   requiredDepPaths: Set<DepPath>
+  /**
+   * An importer whose node_modules is the root node_modules while the root
+   * project is not installed. Its dependencies are hoisted as the root's, so
+   * each of its direct dependencies takes the top-level slot.
+   */
+  rootImporterId?: ProjectId
   sideEffectsCacheRead: boolean
   skipped: Set<string>
   storeController: StoreController
@@ -108,13 +114,21 @@ async function _lockfileToHoistedDepGraph (
   opts: LockfileToHoistedDepGraphOptions & SkipFetchingOption
 ): Promise<Omit<LockfileToDepGraphResult, 'prevGraph'>> {
   const importerIdsSet = opts.importerIds ? new Set(opts.importerIds) : undefined
+  let importers: LockfileObject['importers'] = importerIdsSet
+    ? Object.fromEntries(
+      Object.entries(lockfile.importers).filter(([importerId]) => importerIdsSet.has(importerId as ProjectId))
+    ) as LockfileObject['importers']
+    : lockfile.importers
+  const rootImporterId = opts.rootImporterId != null && importers[opts.rootImporterId] != null && importers['.' as ProjectId] == null
+    ? opts.rootImporterId
+    : undefined
+  if (rootImporterId != null) {
+    const { [rootImporterId]: rootImporter, ...otherImporters } = importers
+    importers = { ...otherImporters, ['.' as ProjectId]: rootImporter }
+  }
   const tree = hoist({
     ...lockfile,
-    importers: importerIdsSet
-      ? Object.fromEntries(
-        Object.entries(lockfile.importers).filter(([importerId]) => importerIdsSet.has(importerId as ProjectId))
-      )
-      : lockfile.importers,
+    importers,
   }, {
     hoistingLimits: opts.hoistingLimits,
     externalDependencies: opts.externalDependencies,
@@ -137,6 +151,14 @@ async function _lockfileToHoistedDepGraph (
     '.': directDepsMap(Object.keys(hierarchy[opts.lockfileDir]), graph),
   }
   const symlinkedDirectDependenciesByImporterId: DirectDependenciesByImporterId = { '.': {} }
+  if (rootImporterId != null) {
+    directDependenciesByImporterId[rootImporterId] = directDependenciesByImporterId['.']
+    symlinkedDirectDependenciesByImporterId[rootImporterId] = pickLinkedDirectDeps(
+      lockfile.importers[rootImporterId],
+      path.join(opts.lockfileDir, rootImporterId),
+      opts.include
+    )
+  }
   await Promise.all(
     Array.from(tree.dependencies).map(async (rootDep) => {
       const reference = Array.from(rootDep.references)[0]
