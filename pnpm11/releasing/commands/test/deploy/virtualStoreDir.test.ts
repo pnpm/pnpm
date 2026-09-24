@@ -75,7 +75,7 @@ test('deploy keeps the default virtual store when virtualStoreDir names the glob
     lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
     enableGlobalVirtualStore: true,
-    virtualStoreDir: path.resolve('global-virtual-store'),
+    virtualStoreDir: 'global-virtual-store',
     forceLegacyDeploy: true,
     selectedProjectsGraph,
     sharedWorkspaceLockfile: true,
@@ -84,6 +84,7 @@ test('deploy keeps the default virtual store when virtualStoreDir names the glob
   expect(fs.realpathSync('deploy/node_modules/is-positive')).toBe(
     fs.realpathSync('deploy/node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')
   )
+  expect(fs.existsSync('deploy/global-virtual-store')).toBe(false)
   expect(fs.existsSync('global-virtual-store')).toBe(false)
 })
 
