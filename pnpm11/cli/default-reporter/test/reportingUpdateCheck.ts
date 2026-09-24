@@ -134,3 +134,32 @@ test('print update notification for Corepack on Windows', async () => {
   const output = await firstValueFrom(output$)
   expect(stripAnsi(output)).toMatchSnapshot()
 })
+
+test('print update notification without a box when append-only is used', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { recursive: true } as ReporterPnpmConfig,
+      env: {
+        PNPM_HOME: '/home/user/.local/share/pnpm',
+      },
+      process: {
+        pkg: true,
+      } as any, // eslint-disable-line
+    },
+    reportingOptions: { appendOnly: true },
+    streamParser: createStreamParser(),
+  })
+
+  updateCheckLogger.debug({
+    currentVersion: '10.0.0',
+    latestVersion: '11.0.0',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(stripAnsi(output)).toBe(`Update available! 10.0.0 → 11.0.0.
+Changelog: https://pnpm.io/v/11.0.0
+To update, run: pnpm self-update`)
+})
