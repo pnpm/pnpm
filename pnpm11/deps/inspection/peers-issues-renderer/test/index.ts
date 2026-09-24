@@ -176,8 +176,8 @@ function missingReactIssues (): PeerDependencyIssues {
 // https://github.com/pnpm/pnpm/issues/15351
 test('renderPeerIssues() names the project of each issue', () => {
   expect(stripAnsi(renderPeerIssues({
-    'apps/docs': missingReactIssues(),
     'apps/web': missingReactIssues(),
+    'apps/docs': missingReactIssues(),
   }))).toBe(`apps/docs
   ✕ missing peer react
     Wanted:

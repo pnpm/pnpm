@@ -7,14 +7,17 @@ export function renderPeerIssues (issuesByProjects: PeerDependencyIssuesByProjec
   if (projectIds.length === 1 && projectIds[0] === '.') {
     return renderProjectSections(issuesByProjects['.']).join('\n\n')
   }
-  const projects: string[] = []
+  const projects: Array<[string, string[]]> = []
   for (const [projectId, projectIssues] of Object.entries(issuesByProjects)) {
     const sections = renderProjectSections(projectIssues)
     if (sections.length > 0) {
-      projects.push(`${chalk.underline(sanitizeInline(projectId))}\n${sections.map(indent).join('\n\n')}`)
+      projects.push([projectId, sections])
     }
   }
-  return projects.join('\n\n')
+  return projects
+    .sort(([projectIdA], [projectIdB]) => projectIdA.localeCompare(projectIdB))
+    .map(([projectId, sections]) => `${chalk.underline(sanitizeInline(projectId))}\n${sections.map(indent).join('\n\n')}`)
+    .join('\n\n')
 }
 
 function renderProjectSections ({ bad, missing, conflicts, intersections }: PeerDependencyIssues): string[] {
