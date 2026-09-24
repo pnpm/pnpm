@@ -44,7 +44,7 @@ impl Diagnostic for CannotResolveWorkspaceProtocolError {
         match self.reason {
             CannotResolveReason::MissingVersion => Some(Box::new(format!(
                 r#"Add a "version" field to the package.json of "{}"."#,
-                self.package_name
+                self.package_name,
             ))),
             CannotResolveReason::MissingName | CannotResolveReason::NotInstalled => None,
         }
@@ -55,7 +55,7 @@ impl Diagnostic for CannotResolveWorkspaceProtocolError {
 /// version. `MissingVersion` / `MissingName` mean the package was found
 /// but its manifest is incomplete, which is not the same as "not
 /// installed" and must not be reported as such.
-#[derive(Debug, Display, Error, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]
 pub enum CannotResolveReason {
     #[display(r#"this dependency is not installed. Try running "pnpm install"."#)]
     NotInstalled,
@@ -223,7 +223,8 @@ fn aliased_peer_spec(alias: &str, version: &str) -> String {
 }
 
 /// Read `<dependency_dir>/package.json` and verify the `name` / `version`
-/// fields are present. Surfaces the
+/// fields are present, falling back to the workspace package named
+/// `target_pkg_name`. Surfaces the
 /// `ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL` error when the
 /// dependency hasn't been installed yet or its manifest is incomplete.
 fn read_and_check_manifest(
@@ -232,60 +233,63 @@ fn read_and_check_manifest(
     dependency_dir: &Path,
     workspace_packages: Option<&HashMap<String, WorkspacePackageManifest>>,
 ) -> Result<WorkspacePackageManifest, ReplaceWorkspaceProtocolError> {
-    let manifest_from_dir = match safe_read_package_json_from_dir(dependency_dir) {
-        Ok(Some(value)) => Some(WorkspacePackageManifest {
-            name: value
-                .get("name")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string(),
-            version: value
-                .get("version")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string(),
-        }),
-        Ok(None) => None,
-        Err(err) => return Err(ReplaceWorkspaceProtocolError::ReadManifest(err)),
-    };
-
-    if let Some(manifest) = manifest_from_dir.as_ref()
-        && !manifest.name.is_empty()
-        && !manifest.version.is_empty()
+    let manifest_from_dir = read_manifest_fields(dependency_dir)?;
+    if let Some(manifest) = &manifest_from_dir
+        && manifest.is_complete()
     {
         return Ok(manifest.clone());
     }
 
-    let workspace_manifest = workspace_packages
-        .and_then(|pkgs| pkgs.get(target_pkg_name))
-        .cloned();
-    if let Some(manifest) = workspace_manifest.as_ref()
-        && !manifest.version.is_empty()
+    let workspace_manifest = workspace_packages.and_then(|pkgs| pkgs.get(target_pkg_name));
+    if let Some(manifest) = workspace_manifest
+        && manifest.is_complete()
     {
         return Ok(manifest.clone());
     }
 
-    let found = if manifest_from_dir
-        .as_ref()
-        .is_some_and(|manifest| !manifest.name.is_empty() || !manifest.version.is_empty())
-    {
-        manifest_from_dir
-    } else {
-        workspace_manifest.or(manifest_from_dir)
+    let found = match manifest_from_dir {
+        Some(manifest) if !manifest.name.is_empty() || !manifest.version.is_empty() => {
+            Some(manifest)
+        }
+        manifest_from_dir => workspace_manifest.cloned().or(manifest_from_dir),
     };
+    Err(ReplaceWorkspaceProtocolError::CannotResolve(cannot_resolve_error(dep_name, found)))
+}
+
+/// The `name` / `version` fields of `<dir>/package.json`, each empty when
+/// absent, or `None` when the file doesn't exist.
+fn read_manifest_fields(
+    dir: &Path,
+) -> Result<Option<WorkspacePackageManifest>, ReplaceWorkspaceProtocolError> {
+    let value =
+        safe_read_package_json_from_dir(dir).map_err(ReplaceWorkspaceProtocolError::ReadManifest)?;
+    let field = |value: &Value, key: &str| {
+        value
+            .get(key)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string()
+    };
+    Ok(value.map(|value| WorkspacePackageManifest {
+        name: field(&value, "name"),
+        version: field(&value, "version"),
+    }))
+}
+
+/// Classify an unresolvable dependency by the incomplete manifest that was
+/// found for it, if any.
+fn cannot_resolve_error(
+    dep_name: &str,
+    found: Option<WorkspacePackageManifest>,
+) -> CannotResolveWorkspaceProtocolError {
     let (package_name, reason) = match found {
-        Some(manifest) if !manifest.name.is_empty() && manifest.version.is_empty() => {
+        Some(manifest) if !manifest.name.is_empty() => {
             (manifest.name, CannotResolveReason::MissingVersion)
         }
         Some(_) => (dep_name.to_string(), CannotResolveReason::MissingName),
         None => (dep_name.to_string(), CannotResolveReason::NotInstalled),
     };
-
-    Err(ReplaceWorkspaceProtocolError::CannotResolve(CannotResolveWorkspaceProtocolError {
-        dep_name: dep_name.to_string(),
-        package_name,
-        reason,
-    }))
+    CannotResolveWorkspaceProtocolError { dep_name: dep_name.to_string(), package_name, reason }
 }
 
 /// The two fields the rewriters consult on the dependency's manifest.
@@ -296,6 +300,12 @@ fn read_and_check_manifest(
 pub struct WorkspacePackageManifest {
     pub name: String,
     pub version: String,
+}
+
+impl WorkspacePackageManifest {
+    fn is_complete(&self) -> bool {
+        !self.name.is_empty() && !self.version.is_empty()
+    }
 }
 
 /// Output of [`parse_version_alias_spec`]: the optional sentinel

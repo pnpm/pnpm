@@ -265,7 +265,7 @@ fn missing_version_help_uses_the_workspace_package_name() {
         err.help()
             .map(|help| help.to_string())
             .expect("help for MissingVersion"),
-        r#"Add a "version" field to the package.json of "pkg-b"."#
+        r#"Add a "version" field to the package.json of "pkg-b"."#,
     );
 }
 
