@@ -84,6 +84,45 @@ describe('createPublishOptions: access', () => {
   })
 })
 
+describe('createPublishOptions: registry', () => {
+  const registriesByScope = {
+    default: 'https://registry.npmjs.org/',
+    '@scope': 'https://npmrc-scoped.example/',
+  }
+  const publishConfig = {
+    registry: 'https://unscoped-publish.example/',
+    '@other:registry': 'https://other-publish.example/',
+    '@scope:registry': 'https://scoped-publish.example/',
+  }
+
+  test('publishConfig["@scope:registry"] wins for a package in that scope', async () => {
+    const opts = await createPublishOptions(
+      { name: '@scope/pkg', version: '1.0.0', publishConfig },
+      { ...baseOpts(), registriesByScope },
+      { oidc: false }
+    )
+    expect(opts.registry).toBe('https://scoped-publish.example/')
+  })
+
+  test('publishConfig.registry applies to a package in another scope', async () => {
+    const opts = await createPublishOptions(
+      { name: '@third/pkg', version: '1.0.0', publishConfig },
+      { ...baseOpts(), registriesByScope },
+      { oidc: false }
+    )
+    expect(opts.registry).toBe('https://unscoped-publish.example/')
+  })
+
+  test('a scoped publishConfig registry of another scope is ignored', async () => {
+    const opts = await createPublishOptions(
+      { name: '@scope/pkg', version: '1.0.0', publishConfig: { '@other:registry': 'https://other-publish.example/' } },
+      { ...baseOpts(), registriesByScope },
+      { oidc: false }
+    )
+    expect(opts.registry).toBe('https://npmrc-scoped.example/')
+  })
+})
+
 describe('createPublishOptions: auth', () => {
   test('prefers package-scoped credentials over registry-wide credentials', async () => {
     const opts = await createPublishOptions(

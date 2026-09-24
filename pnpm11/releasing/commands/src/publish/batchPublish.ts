@@ -22,6 +22,7 @@ import {
   createPublishContext,
   createPublishOptions,
   findRegistryInfo,
+  getPublishConfigRegistry,
   isPublishAccess,
 } from './publishPackedPkg.js'
 import type { PublishRecursiveOpts } from './recursivePublish.js'
@@ -66,10 +67,8 @@ export async function batchPublishPackages (pkgs: Project[], opts: BatchPublishO
   for (const project of pkgs) {
     // eslint-disable-next-line no-await-in-loop
     const packedPkg = await packPkgForBatch(project, opts)
-    const publishConfigRegistry = typeof packedPkg.publishedManifest.publishConfig?.registry === 'string'
-      ? packedPkg.publishedManifest.publishConfig.registry
-      : undefined
-    const { registry } = findRegistryInfo(packedPkg.publishedManifest, opts, publishConfigRegistry)
+    const { publishedManifest } = packedPkg
+    const { registry } = findRegistryInfo(publishedManifest, opts, getPublishConfigRegistry(publishedManifest.publishConfig, publishedManifest.name))
     let group = packedByRegistry.get(registry!)
     if (!group) {
       group = []

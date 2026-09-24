@@ -32,7 +32,8 @@ pub use publish_failure::PublishFailure;
 pub use publish_options::{
     Access, CreatePublishOptionsError, CreatePublishOptionsInput, FetchTokenAndProvenanceError,
     OidcTokenProvenance, PublishUnsupportedRegistryProtocolError, ResolvedPublishOptions,
-    create_publish_options, fetch_token_and_provenance_by_oidc, find_registry_info, resolve_access,
+    create_publish_options, fetch_token_and_provenance_by_oidc, find_registry_info,
+    publish_config_registry, resolve_access,
 };
 pub use publish_packed_pkg::{
     PackedPkg, PublishHttpError, PublishNetwork, PublishPackedPkgError, PublishPackedPkgOptions,

@@ -1,7 +1,7 @@
 use super::{
     Access, CreatePublishOptionsError, CreatePublishOptionsInput, OidcTokenProvenance,
-    create_publish_options, fetch_token_and_provenance_by_oidc, find_registry_info, resolve_access,
-    scope_of,
+    create_publish_options, fetch_token_and_provenance_by_oidc, find_registry_info,
+    publish_config_registry, resolve_access, scope_of,
 };
 use crate::{
     capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
@@ -30,6 +30,28 @@ fn publish_config_registry_wins() {
     )
     .unwrap();
     assert_eq!(registry.as_str(), "https://from-config.example/");
+}
+
+#[test]
+fn publish_config_scoped_registry_wins_for_its_scope() {
+    let manifest = json!({
+        "publishConfig": {
+            "registry": "https://unscoped.example/",
+            "@a:registry": "https://scoped.example/",
+            "@other:registry": "https://other.example/",
+        },
+    });
+    assert_eq!(publish_config_registry(&manifest, "@a/b"), Some("https://scoped.example/"));
+    assert_eq!(publish_config_registry(&manifest, "@c/d"), Some("https://unscoped.example/"));
+    assert_eq!(publish_config_registry(&manifest, "b"), Some("https://unscoped.example/"));
+
+    let manifest = json!({
+        "publishConfig": { "registry": "https://unscoped.example/", "@a:registry": true },
+    });
+    assert_eq!(publish_config_registry(&manifest, "@a/b"), Some("https://unscoped.example/"));
+    let manifest = json!({ "publishConfig": { "@other:registry": "https://other.example/" } });
+    assert_eq!(publish_config_registry(&manifest, "@a/b"), None);
+    assert_eq!(publish_config_registry(&json!({ "name": "@a/b" }), "@a/b"), None);
 }
 
 #[test]

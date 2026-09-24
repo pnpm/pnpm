@@ -22,7 +22,8 @@ use pnpm_hooks::PnpmfileHooks;
 use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_publish::{
     Host, PublishFailure, PublishNetwork, PublishSummary, batch_publish_packed_pkgs,
-    find_registry_info, resolve_otp_from_env, validate_batch_publish_options,
+    find_registry_info, publish_config_registry, resolve_otp_from_env,
+    validate_batch_publish_options,
 };
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{
@@ -352,15 +353,11 @@ async fn is_already_published(
     http_client: &ThrottledClient,
     retry_opts: RetryOpts,
 ) -> bool {
-    let publish_config_registry = manifest
-        .get("publishConfig")
-        .and_then(|publish_config| publish_config.get("registry"))
-        .and_then(Value::as_str);
     let Ok(registry) = find_registry_info(
         name,
         &config.registry,
         &config.registries_by_scope,
-        publish_config_registry,
+        publish_config_registry(manifest, name),
     ) else {
         return false;
     };
