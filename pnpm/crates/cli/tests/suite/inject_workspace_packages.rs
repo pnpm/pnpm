@@ -233,6 +233,15 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
          entries: {entries:?}",
     );
 
+    // (5) The peer-suffixed `file:` snapshots must pass the lockfile
+    // freshness check.
+    std::process::Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
     drop((root, mock_instance));
 }
 

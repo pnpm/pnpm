@@ -6,8 +6,8 @@ pub(crate) use specs::{
 mod workspace;
 
 use super::{
-    CatalogAnchor, CatalogResolutionResult, Catalogs, DependencyGroup, IncludedDependencies,
-    Lockfile, OptimisticRepeatInstallCheck, Path, PathBuf, WantedDependency, resolve_from_catalog,
+    CatalogAnchor, CatalogResolutionResult, Catalogs, DependencyGroup, Lockfile,
+    OptimisticRepeatInstallCheck, Path, PathBuf, WantedDependency, resolve_from_catalog,
 };
 use pnpm_lockfile::{LockfileResolution, PkgName, is_local_tarball_path};
 use pnpm_resolving_local_resolver::local_tarball_path;

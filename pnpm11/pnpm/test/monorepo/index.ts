@@ -2269,7 +2269,6 @@ test('package.json is updated when adding a dependency in member dir even if roo
   expect(pkgAManifest.dependencies?.['is-positive']).toBe('1.0.0')
 })
 
-
 test('issue 7209: updates injected dependency when sharedWorkspaceLockfile is false', async () => {
   const projects = preparePackages([
     {

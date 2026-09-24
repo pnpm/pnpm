@@ -5,4 +5,4 @@
 "pacquet": patch
 ---
 
-Update injected workspace dependencies when `shared-workspace-lockfile` is `false` and the dependency's own dependencies have changed.
+`pnpm install` now updates an injected workspace dependency after that package's own dependencies change, when `shared-workspace-lockfile` is `false` [#7209](https://github.com/pnpm/pnpm/issues/7209).

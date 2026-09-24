@@ -148,32 +148,24 @@ async function isLocalFileDepUpdated (
           resolveSpecPath(localDepDir, currentSpec.slice(5)) === resolveSpecPath(lockfileDir, lockfileDep.slice(5))
         )
       }
+      const cleanLockfileDep = removeSuffix(lockfileDep)
+      const lockfilePath = getLocalPath(cleanLockfileDep)
       if (currentSpec.startsWith('file:')) {
-        const cleanLockfileDep = removeSuffix(lockfileDep)
-        const lockfilePath = cleanLockfileDep.startsWith('link:') || cleanLockfileDep.startsWith('file:')
-          ? cleanLockfileDep.slice(5)
-          : null
-        if (lockfilePath == null) return false
-        return resolveSpecPath(localDepDir, currentSpec.slice(5)) === resolveSpecPath(lockfileDir, lockfilePath)
+        return lockfilePath != null &&
+          resolveSpecPath(localDepDir, currentSpec.slice(5)) === resolveSpecPath(lockfileDir, lockfilePath)
       }
       if (currentSpec.startsWith('workspace:')) {
         const target = currentSpec.slice(10)
         if (isWorkspacePath(target)) {
-          const cleanLockfileDep = removeSuffix(lockfileDep)
-          const lockfilePath = cleanLockfileDep.startsWith('link:') || cleanLockfileDep.startsWith('file:')
-            ? cleanLockfileDep.slice(5)
-            : null
-          if (lockfilePath == null) return false
-          return resolveSpecPath(localDepDir, target) === resolveSpecPath(lockfileDir, lockfilePath)
+          return lockfilePath != null &&
+            resolveSpecPath(localDepDir, target) === resolveSpecPath(lockfileDir, lockfilePath)
         }
         const range = getVersionRange(currentSpec)
-        const cleanLockfileDep = removeSuffix(lockfileDep)
-        if (cleanLockfileDep.startsWith('link:') || cleanLockfileDep.startsWith('file:')) {
-          const depPath = cleanLockfileDep.slice(5)
-          if (path.isAbsolute(depPath)) {
+        if (lockfilePath != null) {
+          if (path.isAbsolute(lockfilePath)) {
             return false
           }
-          const targetDir = path.resolve(lockfileDir, depPath)
+          const targetDir = path.resolve(lockfileDir, lockfilePath)
           if (!isSubdirectory(workspaceRoot, targetDir)) {
             return false
           }
@@ -181,9 +173,11 @@ async function isLocalFileDepUpdated (
           let realWorkspaceRoot: string
           let realManifestPath: string
           try {
-            realTargetDir = fs.realpathSync(targetDir)
-            realWorkspaceRoot = fs.realpathSync(workspaceRoot)
-            realManifestPath = fs.realpathSync(path.join(targetDir, 'package.json'))
+            [realTargetDir, realWorkspaceRoot, realManifestPath] = await Promise.all([
+              fs.promises.realpath(targetDir),
+              fs.promises.realpath(workspaceRoot),
+              fs.promises.realpath(path.join(targetDir, 'package.json')),
+            ])
           } catch {
             return false
           }
@@ -212,7 +206,6 @@ async function isLocalFileDepUpdated (
         }
         return true
       }
-      const cleanLockfileDep = removeSuffix(lockfileDeps[depName])
       const expectedName = getTargetPkgName(currentSpec, depName)
       const actualName = getDepActualName(cleanLockfileDep, depName)
       if (actualName !== expectedName) {
@@ -222,6 +215,12 @@ async function isLocalFileDepUpdated (
       return semver.satisfies(lockfileVersion, getVersionRange(currentSpec), { loose: true })
     })
   })
+}
+
+function getLocalPath (lockfileDep: string): string | null {
+  return lockfileDep.startsWith('link:') || lockfileDep.startsWith('file:')
+    ? lockfileDep.slice(5)
+    : null
 }
 
 function getDepActualName (lockfileDep: string, defaultName: string): string {

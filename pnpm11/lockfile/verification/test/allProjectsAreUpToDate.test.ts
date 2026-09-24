@@ -1275,5 +1275,3 @@ test('allProjectsAreUpToDate(): works with injected workspace dependency with a 
   }
   expect(await allProjectsAreUpToDate(projects, opts)).toBeTruthy()
 })
-
-

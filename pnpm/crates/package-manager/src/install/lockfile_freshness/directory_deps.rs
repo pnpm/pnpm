@@ -15,6 +15,19 @@ struct LocalDepContext<'a> {
     workspace_root: &'a Path,
 }
 
+impl LocalDepContext<'_> {
+    fn outdated(&self) -> FreshnessCheckError {
+        local_dependency_outdated(self.name, self.rel_path)
+    }
+}
+
+fn local_dependency_outdated(name: &str, path: &str) -> FreshnessCheckError {
+    FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
+        name: name.to_string(),
+        path: path.to_string(),
+    })
+}
+
 pub(crate) fn check_directory_dependencies_freshness(
     check: &ImporterSatisfactionCheck<'_>,
     importer: &pnpm_lockfile::ProjectSnapshot,
@@ -95,21 +108,17 @@ fn check_single_dep_spec_directory_freshness(
     };
     let Some(pkg_meta) = check.lockfile.packages
         .as_ref()
-        .and_then(|p| p.get(&pkg_key))
+        .and_then(|p| p.get(&pkg_key.without_peer()))
     else {
-        return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
-            name: dep_str,
-            path: dep_spec.specifier.clone(),
-        }));
+        return Err(local_dependency_outdated(&dep_str, &dep_spec.specifier));
     };
     if let pnpm_lockfile::LockfileResolution::Directory(dir_res) = &pkg_meta.resolution {
         let local_dep_dir = check.lockfile_dir.join(&dir_res.directory);
         let snapshot = check.lockfile.snapshots
             .as_ref()
             .and_then(|s| s.get(&pkg_key));
-        let dep_name_str = dep_name.to_string();
         let dep = LocalDepContext {
-            name: &dep_name_str,
+            name: &dep_str,
             rel_path: &dir_res.directory,
             dir: &local_dep_dir,
             lockfile_dir: check.lockfile_dir,
@@ -127,12 +136,7 @@ fn read_and_override_manifest(
     let mut local_manifest = pnpm_workspace::safe_read_project_manifest_only(dep.dir)
         .ok()
         .flatten()
-        .ok_or_else(|| {
-            FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
-                name: dep.name.to_string(),
-                path: dep.rel_path.to_string(),
-            })
-        })?;
+        .ok_or_else(|| dep.outdated())?;
     if let Some(parsed) = check.parsed_overrides {
         crate::VersionsOverrider::new(parsed, check.lockfile_dir)
             .apply(&mut local_manifest, Some(dep.dir));
@@ -148,10 +152,7 @@ fn check_single_directory_dep_freshness(
 ) -> Result<(), FreshnessCheckError> {
     let local_manifest = read_and_override_manifest(check, dep)?;
     let Some(snapshot) = snapshot else {
-        return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
-            name: dep.name.to_string(),
-            path: dep.rel_path.to_string(),
-        }));
+        return Err(dep.outdated());
     };
     check_local_dep_group_freshness(
         dep,
@@ -203,10 +204,7 @@ fn check_local_peer_deps_freshness(
                 lockfile_dep,
             )
         {
-            return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
-                name: dep.name.to_string(),
-                path: dep.rel_path.to_string(),
-            }));
+            return Err(dep.outdated());
         }
     }
 
@@ -221,20 +219,14 @@ fn check_recorded_peer_specs_match(
     let recorded_count =
         pkg_meta.peer_dependencies.as_ref().map_or(0, std::collections::HashMap::len);
     if manifest_peers.len() != recorded_count {
-        return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
-            name: dep.name.to_string(),
-            path: dep.rel_path.to_string(),
-        }));
+        return Err(dep.outdated());
     }
     for (name, spec) in manifest_peers {
         let recorded_spec = pkg_meta.peer_dependencies
             .as_ref()
             .and_then(|p| p.get(*name));
         if recorded_spec.map(String::as_str) != Some(spec) {
-            return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
-                name: dep.name.to_string(),
-                path: dep.rel_path.to_string(),
-            }));
+            return Err(dep.outdated());
         }
     }
     Ok(())
@@ -263,10 +255,7 @@ fn check_peer_dependencies_meta_freshness(
             .count()
     });
     if manifest_optional_count != recorded_optional_count {
-        return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
-            name: dep.name.to_string(),
-            path: dep.rel_path.to_string(),
-        }));
+        return Err(dep.outdated());
     }
     if let Some(recorded) = recorded_meta {
         for (name, meta) in recorded {
@@ -276,10 +265,7 @@ fn check_peer_dependencies_meta_freshness(
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(false);
             if meta.optional != manifest_optional {
-                return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
-                    name: dep.name.to_string(),
-                    path: dep.rel_path.to_string(),
-                }));
+                return Err(dep.outdated());
             }
         }
     }
@@ -322,10 +308,7 @@ fn check_snapshot_keys_in_manifest(
     for lockfile_dep_name in snapshot_deps.keys() {
         let lockfile_name_str = lockfile_dep_name.to_string();
         if !manifest_deps.contains_key(lockfile_name_str.as_str()) {
-            return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
-                name: dep.name.to_string(),
-                path: dep.rel_path.to_string(),
-            }));
+            return Err(dep.outdated());
         }
     }
     Ok(())
@@ -349,10 +332,7 @@ fn check_manifest_specs_satisfy_snapshot(
             if allow_unresolved {
                 continue;
             }
-            return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
-                name: dep.name.to_string(),
-                path: dep.rel_path.to_string(),
-            }));
+            return Err(dep.outdated());
         };
         if !spec_satisfies_snapshot_dep(
             dep.workspace_root,
@@ -362,10 +342,7 @@ fn check_manifest_specs_satisfy_snapshot(
             spec,
             lockfile_dep,
         ) {
-            return Err(FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
-                name: dep.name.to_string(),
-                path: dep.rel_path.to_string(),
-            }));
+            return Err(dep.outdated());
         }
     }
     Ok(())
