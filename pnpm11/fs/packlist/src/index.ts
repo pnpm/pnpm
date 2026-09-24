@@ -112,11 +112,7 @@ function mapToPackedPaths (pkgDir: string, files: string[], packedDirs: Map<Tree
  * resolves the way Node resolves it at runtime, from the parent's real
  * directory. The isolated linker keeps a package's dependencies next to its
  * real directory rather than under the link, so the packed location is chosen
- * separately, so that Node resolves the same package from the parent's packed
- * location: the on-disk location when that already works, otherwise the
- * top-level node_modules, otherwise the parent's own node_modules. A package
- * already visible from the parent at the same real directory is not packed
- * again, which also ends dependency cycles.
+ * separately by packedLocation().
  */
 function buildRootTree (pkgDir: string, pkg: Record<string, unknown>, boundary: string): { tree: TreeNode, packedDirs: Map<TreeNode, string[]> } {
   const bundledDeps = getRootBundledDeps(pkg)
@@ -161,9 +157,16 @@ function buildRootTree (pkgDir: string, pkg: Record<string, unknown>, boundary: 
   return { tree: root, packedDirs: walk.packedDirs }
 }
 
-// Cap on bundleDependencies closure depth, matching the Rust implementation.
 const MAX_BUNDLE_DEPTH = 32
 
+/**
+ * The packed location for a dependency required from the package packed at
+ * parent, so that Node resolves it from parent inside the tarball. Prefers the
+ * on-disk location when that already works, then the top-level node_modules,
+ * then parent's own node_modules. Undefined when a package at the same real
+ * directory is already visible from parent, which also ends dependency
+ * cycles, or when no location can make it visible.
+ */
 function packedLocation (walk: BundleWalk, name: string, parent: string[], realDir: string): string[] | undefined {
   const visibleFreeSlots: string[][] = []
   for (let depth = parent.length; depth >= 0; depth--) {

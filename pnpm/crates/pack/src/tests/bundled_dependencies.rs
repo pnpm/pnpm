@@ -206,7 +206,6 @@ fn add_to_virtual_store(
     package
 }
 
-/// Link a package from the virtual store into `project`'s `node_modules`.
 fn link_direct_dependency(project: &Path, name: &str, package: &Path) {
     symlink_dir(package, &project.join("node_modules").join(name)).unwrap();
 }

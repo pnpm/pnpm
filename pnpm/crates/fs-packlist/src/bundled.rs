@@ -56,12 +56,8 @@ struct BundleWalk<'a> {
 /// parent's real directory, walking up through ancestor `node_modules`
 /// directories to `boundary`. The isolated linker keeps a package's
 /// dependencies next to its real directory rather than under the link, so the
-/// resolved directory can sit anywhere under `boundary`. The packed location is
-/// therefore chosen separately, so that Node resolves the same package from the
-/// parent's packed location: the on-disk location when that already works,
-/// otherwise the top-level `node_modules`, otherwise the parent's own
-/// `node_modules`. A package already visible from the parent at the same real
-/// directory is not packed again, which also ends dependency cycles.
+/// resolved directory can sit anywhere under `boundary`, and the packed location
+/// is chosen separately by [`BundleWalk::packed_location`].
 pub(super) fn collect_bundled_files(
     pkg_dir: &Path,
     root_manifest: &Value,
@@ -127,8 +123,13 @@ impl BundleWalk<'_> {
     }
 
     /// The packed location for `dependency`, required from the package packed
-    /// at `parent`. `None` when a package at the same real directory is already
-    /// visible from `parent`, or when no location can make it visible.
+    /// at `parent`, so that Node resolves it from `parent` inside the tarball.
+    /// Prefers the on-disk location when that already works, then the
+    /// top-level `node_modules`, then `parent`'s own `node_modules`.
+    ///
+    /// `None` when a package at the same real directory is already visible
+    /// from `parent`, which also ends dependency cycles, or when no location
+    /// can make it visible.
     fn packed_location(
         &self,
         name: &str,
@@ -243,9 +244,8 @@ fn admitted_bundle(task: &BundleTask, walk: &BundleWalk<'_>) -> Option<AdmittedB
         );
         return None;
     };
-    // `fs::canonicalize` resolves symlinks, giving the containment check the
-    // real target. A dependency whose real path cannot be read cannot be
-    // proven to stay inside the boundary, so it is refused.
+    // A dependency whose real path cannot be read cannot be proven to stay
+    // inside the boundary, so it is refused.
     let real_dir = fs::canonicalize(&dep_dir)
         .ok()
         .filter(|real| real.starts_with(walk.boundary));
