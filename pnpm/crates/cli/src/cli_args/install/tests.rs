@@ -321,3 +321,36 @@ fn pnpr_benchmark_override_keeps_resolve_registry_separate_from_tarball_rewrite(
         "http://client-registry.test/foo/-/foo-1.0.0.tgz",
     );
 }
+
+#[test]
+fn allow_build_flag_parses_single_and_multiple() {
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses default");
+    assert!(parsed.args.allow_build().is_empty(), "default is empty");
+
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--allow-build", "esbuild"])
+        .expect("parses --allow-build");
+    assert_eq!(parsed.args.allow_build(), ["esbuild"]);
+
+    let parsed = InstallArgsHarness::try_parse_from([
+        "pacquet-test",
+        "--allow-build=esbuild",
+        "--allow-build",
+        "sharp",
+        "--allow-build=!core-js",
+    ])
+    .expect("parses multiple --allow-build flags");
+    assert_eq!(parsed.args.allow_build(), ["esbuild", "sharp", "!core-js"]);
+}
+
+#[test]
+fn allow_build_disqualifies_fast_path() {
+    let config = pnpm_config::Config::default();
+    let mut args = InstallArgs::default();
+    assert!(args.fast_path_is_eligible(&config), "default args eligible for fast path");
+
+    args.materialization.allow_build.push("esbuild".to_string());
+    assert!(
+        !args.fast_path_is_eligible(&config),
+        "--allow-build must disqualify fast path so build policy applies",
+    );
+}

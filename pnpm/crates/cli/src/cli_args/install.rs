@@ -214,6 +214,11 @@ impl InstallArgs {
         }
     }
 
+    /// Package names allowed to run lifecycle (build) scripts during this install.
+    pub fn allow_build(&self) -> &[String] {
+        &self.materialization.allow_build
+    }
+
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         Box::pin(self.run_inner::<Reporter>(state, None)).await
     }
