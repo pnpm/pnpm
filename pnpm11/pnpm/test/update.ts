@@ -602,7 +602,7 @@ test('update --latest --prod', async function () {
   ])
 
   await execPnpm(['add', '-D', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
-  await execPnpm(['add', '-P', '@pnpm.e2e/bar@^100.0.0'])
+  await execPnpm(['add', '--save-prod', '@pnpm.e2e/bar@^100.0.0'])
 
   await execPnpm(['update', '--latest', '--prod'])
 

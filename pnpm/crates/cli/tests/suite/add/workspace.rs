@@ -477,3 +477,89 @@ fn the_env_var_drives_the_saved_workspace_range() {
         drop(root);
     }
 }
+
+#[test]
+fn add_save_peer_in_workspace() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        std::fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    std::fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    let app_dir = workspace.join("packages/app");
+    std::fs::create_dir_all(&app_dir).unwrap();
+    std::fs::write(
+        app_dir.join("package.json"),
+        serde_json::json!({ "name": "app", "version": "1.0.0" }).to_string(),
+    )
+    .unwrap();
+
+    pacquet
+        .with_current_dir(&app_dir)
+        .with_args(["add", "--save-peer", "@pnpm.e2e/hello-world-js-bin"])
+        .assert()
+        .success();
+
+    let manifest: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(app_dir.join("package.json")).unwrap())
+            .unwrap();
+    assert!(
+        manifest["peerDependencies"]["@pnpm.e2e/hello-world-js-bin"].is_string(),
+        "peerDependencies must contain package, got: {manifest:#?}",
+    );
+    assert!(
+        manifest["devDependencies"]["@pnpm.e2e/hello-world-js-bin"].is_string(),
+        "devDependencies must contain package, got: {manifest:#?}",
+    );
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn add_short_p_in_workspace() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        std::fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    std::fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    let app_dir = workspace.join("packages/app");
+    std::fs::create_dir_all(&app_dir).unwrap();
+    std::fs::write(
+        app_dir.join("package.json"),
+        serde_json::json!({ "name": "app", "version": "1.0.0" }).to_string(),
+    )
+    .unwrap();
+
+    pacquet
+        .with_current_dir(&app_dir)
+        .with_args(["add", "-P", "@pnpm.e2e/hello-world-js-bin"])
+        .assert()
+        .success();
+
+    let manifest: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(app_dir.join("package.json")).unwrap())
+            .unwrap();
+    assert!(
+        manifest["peerDependencies"]["@pnpm.e2e/hello-world-js-bin"].is_string(),
+        "peerDependencies must contain package with -P, got: {manifest:#?}",
+    );
+    assert!(
+        manifest["devDependencies"]["@pnpm.e2e/hello-world-js-bin"].is_string(),
+        "devDependencies must contain package with -P, got: {manifest:#?}",
+    );
+    drop((root, npmrc_info));
+}

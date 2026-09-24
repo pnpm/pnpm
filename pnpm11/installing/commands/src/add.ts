@@ -21,6 +21,7 @@ export const shorthands: Record<string, string> = {
   e: '--save-exact',
   o: '--save-optional',
   p: '--save-prod',
+  P: '--save-peer',
 }
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -134,6 +135,7 @@ export function help (): string {
           {
             description: 'Save package to your `peerDependencies` and `devDependencies`',
             name: '--save-peer',
+            shortAlias: '-P',
           },
           {
             description: 'Save package to the default catalog',

@@ -44,7 +44,7 @@ use std::{
 #[derive(Debug, Clone, Args)]
 pub struct AddDependencyOptions {
     /// Install the specified packages as regular dependencies.
-    #[clap(short = 'P', long)]
+    #[clap(short = 'p', long)]
     save_prod: bool,
     /// Install the specified packages as devDependencies.
     #[clap(short = 'D', long)]
@@ -56,7 +56,7 @@ pub struct AddDependencyOptions {
     #[clap(long = "save-build")]
     save_build: bool,
     /// Using --save-peer will add one or more packages to peerDependencies and install them as dev dependencies
-    #[clap(long, overrides_with = "no_save_peer")]
+    #[clap(short = 'P', long, overrides_with = "no_save_peer")]
     save_peer: bool,
     /// Don't add the packages to peerDependencies, overriding a
     /// `savePeer: true` setting.

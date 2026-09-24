@@ -330,3 +330,23 @@ fn the_dependency_group_filter_honors_the_optional_setting() {
 
     assert_eq!(args.included_groups(&config), [DependencyGroup::Prod, DependencyGroup::Dev]);
 }
+
+#[test]
+fn short_flags_select_expected_dependency_groups() {
+    assert_eq!(
+        add_args(&["pacquet", "add", "foo", "-p"]).dependency_options.save_target(),
+        Some(vec![DependencyGroup::Prod]),
+    );
+    assert_eq!(
+        add_args(&["pacquet", "add", "foo", "-D"]).dependency_options.save_target(),
+        Some(vec![DependencyGroup::Dev]),
+    );
+    assert_eq!(
+        add_args(&["pacquet", "add", "foo", "-O"]).dependency_options.save_target(),
+        Some(vec![DependencyGroup::Optional]),
+    );
+    assert_eq!(
+        add_args(&["pacquet", "add", "foo", "-P"]).dependency_options.save_target(),
+        Some(vec![DependencyGroup::Dev, DependencyGroup::Peer]),
+    );
+}
