@@ -431,8 +431,8 @@ fn read_location_bin_sources(
         })
         .collect()
 }
-/// The command names in `bins_dir`, with the Windows shim extensions
-/// stripped. A missing directory has none.
+/// The command names in `bins_dir`, with the Windows shim and executable
+/// extensions stripped in any case. A missing directory has none.
 fn existing_commands(bins_dir: &Path) -> HashSet<String> {
     let Ok(entries) = fs::read_dir(bins_dir) else { return HashSet::new() };
     entries
@@ -443,12 +443,20 @@ fn existing_commands(bins_dir: &Path) -> HashSet<String> {
                 .into_string()
                 .ok()
         })
-        .map(|name| {
-            name.strip_suffix(".cmd")
-                .or_else(|| name.strip_suffix(".ps1"))
-                .map_or_else(|| name.clone(), str::to_owned)
-        })
+        .map(|name| command_name(&name).to_owned())
         .collect()
+}
+fn command_name(file_name: &str) -> &str {
+    match file_name.rsplit_once('.') {
+        Some((command, extension))
+            if ["cmd", "ps1", "exe"]
+                .iter()
+                .any(|shim| extension.eq_ignore_ascii_case(shim)) =>
+        {
+            command
+        }
+        _ => file_name,
+    }
 }
 /// Top-level bin link that mixes direct-dep candidates and hoisted
 /// (`publicly_hoisted_aliases_with_bins`) candidates in a single

@@ -534,3 +534,25 @@ fn own_missing_bin_removal_keeps_a_bin_named_like_its_cmd_sibling() {
     let shim = read_to_string(own_bins.join("tool.cmd")).unwrap();
     assert!(shim.contains("cli.js"), "the tool.cmd bin keeps its shim:\n{shim}");
 }
+
+/// Windows resolves commands without regard to case, so an excluded
+/// `Shared` also excludes a `shared` bin there. Elsewhere the names are
+/// distinct commands.
+#[test]
+fn choose_bins_matches_exclusions_case_insensitively_only_on_windows() {
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("pkg");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cmd.js"), "#!/usr/bin/env node\n").unwrap();
+    let manifest = json!({"name": "pkg", "bin": {"shared": "cmd.js"}});
+    let packages = [PackageBinSource::new(pkg, Arc::new(manifest))];
+    let exclude_bins = std::collections::HashSet::from(["Shared".to_owned()]);
+
+    let chosen: Vec<String> = crate::choose_bins::<Host>(&packages, &exclude_bins)
+        .into_iter()
+        .map(|(command, _)| command.name)
+        .collect();
+
+    let expected: &[&str] = if cfg!(windows) { &[] } else { &["shared"] };
+    assert_eq!(chosen, expected);
+}

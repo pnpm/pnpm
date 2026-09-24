@@ -96,8 +96,11 @@ pub(crate) fn hoisted_workspace_packages_present(
 /// The hoisted linker's `hoist-workspace-packages` links in the root
 /// `node_modules`: a project the setting and patterns select has a
 /// directory at its name, reached through its own link or the package that
-/// holds the name, and a project they do not select is not linked.
+/// holds the name, and a project they do not select is not linked. A name
+/// the root project declares as a dependency is its direct-dependency
+/// link, which [`frozen_tree_intact`] probes.
 pub(crate) fn hoisted_linker_workspace_links_intact(
+    current: &Lockfile,
     config: &Config,
     workspace_root: &Path,
     projects: &[(std::path::PathBuf, &pnpm_package_manifest::PackageManifest)],
@@ -106,6 +109,7 @@ pub(crate) fn hoisted_linker_workspace_links_intact(
     if candidates.is_empty() {
         return true;
     }
+    let root_dependencies = root_dependency_aliases(current);
     let private = pnpm_matcher::create_matcher(
         config.hoist_pattern
             .as_deref()
@@ -119,6 +123,9 @@ pub(crate) fn hoisted_linker_workspace_links_intact(
     candidates
         .iter()
         .all(|(name, (_, project_dir))| {
+            if root_dependencies.contains(name) {
+                return true;
+            }
             let Ok(destination) = crate::safe_join_modules_dir::safe_join_workspace_modules_dir(
                 &config.modules_dir,
                 name,
@@ -131,6 +138,21 @@ pub(crate) fn hoisted_linker_workspace_links_intact(
                 !workspace_link_points_to(&destination, project_dir)
             }
         })
+}
+
+fn root_dependency_aliases(lockfile: &Lockfile) -> std::collections::HashSet<String> {
+    lockfile
+        .root_project()
+        .into_iter()
+        .flat_map(|root| {
+            root.dependencies_by_groups([
+                pnpm_package_manifest::DependencyGroup::Prod,
+                pnpm_package_manifest::DependencyGroup::Dev,
+                pnpm_package_manifest::DependencyGroup::Optional,
+            ])
+        })
+        .map(|(alias, _)| alias.to_string())
+        .collect()
 }
 
 fn workspace_link_points_to(destination: &Path, project_dir: &Path) -> bool {

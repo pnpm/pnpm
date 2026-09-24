@@ -1196,9 +1196,13 @@ async function removeBinsOfWorkspaceHoists (hoistedDependencies: HoistedDependen
   })))
 }
 
+const WINDOWS_BIN_EXTENSIONS = new Set(['.cmd', '.ps1', '.exe'])
+
 /**
  * The commands already linked into `binsDir`, so that a workspace project's
- * bins never replace the bins of a hoisted package.
+ * bins never replace the bins of a hoisted package. The Windows shim and
+ * executable extensions are stripped in any case. A missing `binsDir` has no
+ * commands.
  */
 async function readCommandNames (binsDir: string): Promise<Set<string>> {
   let entries: string[]
@@ -1210,7 +1214,7 @@ async function readCommandNames (binsDir: string): Promise<Set<string>> {
   }
   return new Set(entries.map((entry) => {
     const extension = path.extname(entry)
-    return extension === '.cmd' || extension === '.ps1' ? entry.slice(0, -extension.length) : entry
+    return WINDOWS_BIN_EXTENSIONS.has(extension.toLowerCase()) ? entry.slice(0, -extension.length) : entry
   }))
 }
 

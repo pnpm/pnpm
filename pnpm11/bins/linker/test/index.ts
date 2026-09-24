@@ -519,6 +519,24 @@ test('linkBinsOfPackages()', async () => {
   expect(content).toMatch('node_modules/simple/index.js')
 })
 
+test('linkBinsOfPackages() matches excludeBins case-insensitively only on Windows', async () => {
+  const binTarget = temporaryDirectory()
+  const simpleFixture = f.prepare('simple-fixture')
+
+  await linkBinsOfPackages(
+    [
+      {
+        location: path.join(simpleFixture, 'node_modules/simple'),
+        manifest: (await import(path.join(simpleFixture, 'node_modules/simple/package.json'))).default,
+      },
+    ],
+    binTarget,
+    { excludeBins: new Set(['Simple']) }
+  )
+
+  expect(fs.existsSync(path.join(binTarget, 'simple'))).toBe(!IS_WINDOWS)
+})
+
 test('linkBinsOfPkgsByAliases()', async () => {
   const binTarget = temporaryDirectory()
   const simpleFixture = f.prepare('simple-fixture')

@@ -107,6 +107,7 @@ fn tree_contents_intact(
         context.tree.node_linker,
     ) && if context.tree.node_linker == pnpm_config::NodeLinker::Hoisted {
         hoisted_linker_workspace_links_intact(
+            current,
             config,
             context.tree.workspace_root,
             context.recorded.projects,
