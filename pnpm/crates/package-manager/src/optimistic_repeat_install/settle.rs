@@ -242,19 +242,10 @@ pub(super) fn first_project_missing_modules_dir(
         .find_map(|(root_dir, manifest)| {
             let root_project_dir = workspace_dir_of(config, root_dir);
             let is_root = *root_dir == root_project_dir;
-            let sibling_modules_dir = || {
-                root_dir.join(config.modules_dir_name_for(
-                    root_dir,
-                    manifest_string_field(manifest, "name").as_deref(),
-                ))
-            };
             let installed = !manifest_has_runtime_deps(manifest)
-                || modules_dir_exists(
-                    node_linker,
-                    is_root,
-                    root_modules_dir_exists,
-                    sibling_modules_dir,
-                )
+                || modules_dir_exists(node_linker, is_root, root_modules_dir_exists, || {
+                    sibling_modules_dir(config, root_dir, manifest)
+                })
                 || (!is_root
                     && root_modules_dir_exists
                     && config.dedupe_direct_deps
@@ -272,6 +263,15 @@ pub(super) fn first_project_missing_modules_dir(
                     .unwrap_or_else(|| root_dir.to_string_lossy().into_owned())
             })
         })
+}
+
+/// The modules directory an isolated install creates for the workspace
+/// project at `root_dir`.
+fn sibling_modules_dir(config: &Config, root_dir: &Path, manifest: &PackageManifest) -> PathBuf {
+    root_dir.join(config.modules_dir_name_for(
+        root_dir,
+        manifest_string_field(manifest, "name").as_deref(),
+    ))
 }
 
 /// The root importer uses `config.modules_dir`; under the isolated linker
