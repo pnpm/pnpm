@@ -252,7 +252,7 @@ pub fn update_workspace_state(
 ) -> Result<(), UpdateWorkspaceStateError> {
     let file_path = get_file_path(workspace_dir);
     let parent = file_path.parent().expect("workspace-state path always has a parent");
-    fs::create_dir_all(parent)
+    pnpm_fs::create_dir_all_with_retry(parent)
         .map_err(|source| UpdateWorkspaceStateError::CreateDir {
             path: parent.to_path_buf(),
             source,

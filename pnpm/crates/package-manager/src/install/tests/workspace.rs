@@ -915,3 +915,87 @@ fn load_workspace_projects_discovers_symlinked_packages() {
 
     assert_eq!(names, vec!["root", "target-pkg"]);
 }
+
+#[tokio::test]
+async fn install_succeeds_even_when_workspace_state_write_fails() {
+    let mock_instance = TestRegistry::start();
+
+    let dirs = InstallDirs::new();
+
+    std::fs::create_dir_all(&dirs.project_root).expect("create project root");
+    let manifest_path = dirs.project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.registry = mock_instance.url().to_string();
+    let config = config.leak();
+
+    // Create a directory at node_modules/.pnpm-workspace-state-v1.json so that
+    // update_workspace_state fails to rename into place.
+    let state_file_path = workspace_state::get_file_path(&dirs.project_root);
+    std::fs::create_dir_all(&state_file_path).expect("seed directory at state file path");
+
+    let result = Install {
+        lockfile_policy: crate::InstallLockfilePolicy {
+            frozen: false,
+            prefer_frozen: None,
+            ignore_manifest_check: false,
+            trust: false,
+            update_checksums: false,
+            excludes: PolicyExcludes::Persist,
+            disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
+        },
+        execution: crate::InstallExecution {
+            skip_runtimes: false,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::default(),
+            lockfile_only: false,
+            dry_run: false,
+        },
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: &Default::default(),
+            config,
+            manifest: &manifest,
+            emit_initial_manifest: true,
+            lockfile: MaybeLazyLockfile::Loaded(None),
+            lockfile_path: None,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: Default::default(),
+            http_client_arc: std::sync::Arc::new(Default::default()),
+            resolved_packages: &Default::default(),
+        },
+        projects: crate::InstallProjects {
+            dependency_groups: [DependencyGroup::Prod],
+            supported_architectures: None,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        },
+    }
+    .run::<SilentReporter>()
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "install must succeed even if workspace state cannot be written: {result:?}",
+    );
+    assert!(dirs.project_root.join("pnpm-lock.yaml").exists(), "install must write lockfile");
+}

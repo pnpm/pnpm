@@ -221,7 +221,7 @@ pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
         context.tree.workspace_root,
         (context.write.synthesized_from_current, context.write.fast_updated, context.write.save),
     )?;
-    refresh_up_to_date_workspace(&context)?;
+    refresh_up_to_date_workspace(&context);
     Reporter::emit(&LogEvent::Summary(SummaryLog {
         level: LogLevel::Debug,
         prefix: context.projects.prefix.to_string(),
@@ -240,24 +240,25 @@ pub(super) fn enforce_recorded_build_policy(
     }
     Ok(())
 }
-pub(super) fn refresh_up_to_date_workspace(
-    context: &UpToDateInstall<'_, '_>,
-) -> Result<(), InstallError> {
-    update_workspace_state(
+pub(super) fn refresh_up_to_date_workspace(context: &UpToDateInstall<'_, '_>) {
+    let state = build_workspace_state::<Host>(
         context.tree.workspace_root,
-        &build_workspace_state::<Host>(
-            context.tree.workspace_root,
-            context.tree.config,
-            context.tree.node_linker,
-            context.tree.included,
-            context.supported_architectures,
-            context.projects.catalogs,
-            context.projects.manifests,
-            context.filtered_install,
-            filesystem_now_ms(context.tree.workspace_root),
-        ),
-    )
-    .map_err(InstallError::WriteWorkspaceState)
+        context.tree.config,
+        context.tree.node_linker,
+        context.tree.included,
+        context.supported_architectures,
+        context.projects.catalogs,
+        context.projects.manifests,
+        context.filtered_install,
+        filesystem_now_ms(context.tree.workspace_root),
+    );
+    if let Err(error) = update_workspace_state(context.tree.workspace_root, &state) {
+        tracing::warn!(
+            target: "pacquet::install",
+            ?error,
+            "Failed to write the workspace state",
+        );
+    }
 }
 pub(super) async fn verify_up_to_date_lockfile<Reporter: self::Reporter + 'static>(
     wanted_lockfile: &Lockfile,

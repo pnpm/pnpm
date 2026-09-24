@@ -317,8 +317,13 @@ fn write_applied_workspace_state(
     state.settings.auto_dedupe = (inputs.completion.config.auto_dedupe
         && inputs.materialized.fresh_lockfile.is_some())
     .then_some(true);
-    update_workspace_state(&inputs.projects.workspace_root, &state)
-        .map_err(InstallError::WriteWorkspaceState)?;
+    if let Err(error) = update_workspace_state(&inputs.projects.workspace_root, &state) {
+        tracing::warn!(
+            target: "pacquet::install",
+            ?error,
+            "Failed to write the workspace state",
+        );
+    }
     tracing::info!(target: "pacquet::install::phase", phase = "apply.workspace_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
     Ok(())
