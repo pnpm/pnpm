@@ -5683,6 +5683,7 @@ dependencies = [
  "dunce",
  "flate2",
  "futures-util",
+ "home",
  "httpdate",
  "indexmap 2.14.0",
  "insta",

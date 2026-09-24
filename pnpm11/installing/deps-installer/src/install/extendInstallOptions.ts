@@ -79,6 +79,7 @@ export interface StrictInstallOptions extends RegistryContext {
   forceIgnoresPlatform: boolean
   depth: number
   lockfileDir: string
+  workspaceDir?: string
   modulesDir: string
   configByUri: Record<string, RegistryConfig>
   verifyStoreIntegrity: boolean
@@ -349,6 +350,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
       optionalDependencies: true,
     },
     lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
+    workspaceDir: opts.workspaceDir,
     lockfileOnly: false,
     updateChecksums: false,
     nodeVersion: opts.nodeVersion,

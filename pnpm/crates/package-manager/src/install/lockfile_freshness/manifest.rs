@@ -95,6 +95,8 @@ pub(crate) fn check_importer_satisfies(
         FreshnessCheckError::Stale(reason)
     })?;
 
+    super::directory_deps::check_directory_dependencies_freshness(check, importer)?;
+
     Ok(unresolved)
 }
 /// The optional dependencies the comparison leaves out: the configured

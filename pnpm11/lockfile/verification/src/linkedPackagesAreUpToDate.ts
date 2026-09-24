@@ -1,6 +1,8 @@
+import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
-import { refToRelative } from '@pnpm/deps.path'
+import { refToRelative, removeSuffix } from '@pnpm/deps.path'
 import type {
   PackageSnapshot,
   PackageSnapshots,
@@ -26,12 +28,14 @@ export async function linkedPackagesAreUpToDate (
     workspacePackages,
     lockfilePackages,
     lockfileDir,
+    workspaceDir,
   }: {
     linkWorkspacePackages: boolean
     manifestsByDir: Record<string, DependencyManifest>
     workspacePackages?: WorkspacePackages
     lockfilePackages?: PackageSnapshots
     lockfileDir: string
+    workspaceDir?: string
   },
   project: {
     dir: string
@@ -52,24 +56,25 @@ export async function linkedPackagesAreUpToDate (
           const currentSpec = manifestDeps[depName]
           if (!currentSpec) return true
           const lockfileRef = lockfileDeps[depName]
-          if (refIsLocalDirectory(project.snapshot.specifiers[depName])) {
+          if (refIsLocalDirectory(project.snapshot.specifiers[depName]) || refIsLocalDirectory(lockfileRef)) {
             // When a file: specifier resolves to link: in the lockfile
             // (e.g. injected self-references), it's a local link with no
             // entry in the packages section. Treat it as up-to-date.
             if (lockfileRef.startsWith('link:')) return true
             const depPath = refToRelative(lockfileRef, depName)
-            return depPath != null && isLocalFileDepUpdated(lockfileDir, lockfilePackages?.[depPath])
+            return depPath != null && isLocalFileDepUpdated(lockfileDir, lockfilePackages?.[depPath], manifestsByDir, workspaceDir)
           }
           const isLinked = lockfileRef.startsWith('link:')
-          if (
-            isLinked &&
-            (
-              currentSpec.startsWith('link:') ||
-              currentSpec.startsWith('file:') ||
-              currentSpec.startsWith('workspace:.')
-            )
-          ) {
-            return true
+          if (isLinked) {
+            if (currentSpec.startsWith('link:') || currentSpec.startsWith('file:')) {
+              return resolveSpecPath(project.dir, currentSpec.slice(5)) === resolveSpecPath(project.dir, lockfileRef.slice(5))
+            }
+            if (currentSpec.startsWith('workspace:')) {
+              const target = currentSpec.slice(10)
+              if (isWorkspacePath(target)) {
+                return resolveSpecPath(project.dir, target) === resolveSpecPath(project.dir, lockfileRef.slice(5))
+              }
+            }
           }
           // https://github.com/pnpm/pnpm/issues/6592
           // if the dependency is linked and the specified version type is tag, we consider it to be up-to-date to skip full resolution.
@@ -98,47 +103,208 @@ export async function linkedPackagesAreUpToDate (
   )
 }
 
-async function isLocalFileDepUpdated (lockfileDir: string, pkgSnapshot: PackageSnapshot | undefined): Promise<boolean> {
+async function isLocalFileDepUpdated (
+  lockfileDir: string,
+  pkgSnapshot: PackageSnapshot | undefined,
+  manifestsByDir?: Record<string, DependencyManifest>,
+  workspaceDir?: string
+): Promise<boolean> {
   if (!pkgSnapshot) return false
+  if (!('directory' in (pkgSnapshot.resolution ?? {}))) return true
+  const workspaceRoot = workspaceDir ?? lockfileDir
   const localDepDir = path.join(lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
-  const manifest = await safeReadPackageJsonFromDir(localDepDir)
+  const manifest = manifestsByDir?.[localDepDir] ?? await safeReadPackageJsonFromDir(localDepDir)
   if (!manifest) return false
-  for (const depField of DEPENDENCIES_OR_PEER_FIELDS) {
-    if (depField === 'devDependencies') continue
+  const manifestPeerMeta = manifest.peerDependenciesMeta ?? {}
+  const lockfilePeerMeta = pkgSnapshot.peerDependenciesMeta ?? {}
+  for (const [name, meta] of Object.entries(manifestPeerMeta)) {
+    if (Boolean(meta?.optional) !== Boolean(lockfilePeerMeta[name]?.optional)) {
+      return false
+    }
+  }
+  for (const [name, meta] of Object.entries(lockfilePeerMeta)) {
+    if (Boolean(meta?.optional) !== Boolean(manifestPeerMeta[name]?.optional)) {
+      return false
+    }
+  }
+  return pEvery.default(DEPENDENCIES_OR_PEER_FIELDS, async (depField) => {
+    if (depField === 'devDependencies') return true
     const manifestDeps = manifest[depField] ?? {}
     const lockfileDeps = pkgSnapshot[depField] ?? {}
 
-    // Lock file has more dependencies than the current manifest, e.g. some dependencies are removed.
     if (Object.keys(lockfileDeps).some(depName => !manifestDeps[depName])) {
       return false
     }
 
-    for (const depName of Object.keys(manifestDeps)) {
-      // If a dependency does not exist in the lock file, e.g. a new dependency is added to the current manifest.
-      // We need to do full resolution again.
+    return pEvery.default(Object.keys(manifestDeps), async (depName) => {
       if (!lockfileDeps[depName]) {
         return false
       }
       const currentSpec = manifestDeps[depName]
-      // We do not care about the link dependencies of local dependency.
-      if (currentSpec.startsWith('file:') || currentSpec.startsWith('link:') || currentSpec.startsWith('workspace:')) continue
-      if (semver.satisfies(lockfileDeps[depName], getVersionRange(currentSpec), { loose: true })) {
-        continue
-      } else {
+      const lockfileDep = lockfileDeps[depName]
+      if (currentSpec.startsWith('link:')) {
+        return (
+          lockfileDep.startsWith('link:') &&
+          resolveSpecPath(localDepDir, currentSpec.slice(5)) === resolveSpecPath(lockfileDir, lockfileDep.slice(5))
+        )
+      }
+      const cleanLockfileDep = removeSuffix(lockfileDep)
+      const lockfilePath = getLocalPath(cleanLockfileDep)
+      if (currentSpec.startsWith('file:')) {
+        return lockfilePath != null &&
+          resolveSpecPath(localDepDir, currentSpec.slice(5)) === resolveSpecPath(lockfileDir, lockfilePath)
+      }
+      if (currentSpec.startsWith('workspace:')) {
+        const target = currentSpec.slice(10)
+        if (isWorkspacePath(target)) {
+          return lockfilePath != null &&
+            resolveSpecPath(localDepDir, target) === resolveSpecPath(lockfileDir, lockfilePath)
+        }
+        const range = getVersionRange(currentSpec)
+        if (lockfilePath != null) {
+          if (path.isAbsolute(lockfilePath)) {
+            return false
+          }
+          const targetDir = path.resolve(lockfileDir, lockfilePath)
+          if (!isSubdirectory(workspaceRoot, targetDir)) {
+            return false
+          }
+          let realTargetDir: string
+          let realWorkspaceRoot: string
+          let realManifestPath: string
+          try {
+            [realTargetDir, realWorkspaceRoot, realManifestPath] = await Promise.all([
+              fs.promises.realpath(targetDir),
+              fs.promises.realpath(workspaceRoot),
+              fs.promises.realpath(path.join(targetDir, 'package.json')),
+            ])
+          } catch {
+            return false
+          }
+          if (!isSubdirectory(realWorkspaceRoot, realTargetDir) || !isSubdirectory(realWorkspaceRoot, realManifestPath)) {
+            return false
+          }
+          const targetPkg = manifestsByDir?.[targetDir] ?? await safeReadPackageJsonFromDir(targetDir)
+          const expectedName = getTargetPkgName(currentSpec, depName)
+          if (!targetPkg || targetPkg.name !== expectedName) {
+            return false
+          }
+          if (range !== '*' && range !== '^' && range !== '~' && range !== '' &&
+              !semver.satisfies(targetPkg.version, range, { loose: true })) {
+            return false
+          }
+          return true
+        }
+        const expectedName = getTargetPkgName(currentSpec, depName)
+        const actualName = getDepActualName(cleanLockfileDep, depName)
+        if (actualName !== expectedName) {
+          return false
+        }
+        const lockfileVersion = getDepVersion(cleanLockfileDep)
+        if (semver.valid(lockfileVersion) && !semver.satisfies(lockfileVersion, range, { loose: true })) {
+          return false
+        }
+        return true
+      }
+      const expectedName = getTargetPkgName(currentSpec, depName)
+      const actualName = getDepActualName(cleanLockfileDep, depName)
+      if (actualName !== expectedName) {
         return false
       }
-    }
+      const lockfileVersion = getDepVersion(cleanLockfileDep)
+      return semver.satisfies(lockfileVersion, getVersionRange(currentSpec), { loose: true })
+    })
+  })
+}
+
+function getLocalPath (lockfileDep: string): string | null {
+  return lockfileDep.startsWith('link:') || lockfileDep.startsWith('file:')
+    ? lockfileDep.slice(5)
+    : null
+}
+
+function getDepActualName (lockfileDep: string, defaultName: string): string {
+  const atIndex = lockfileDep.lastIndexOf('@')
+  if (atIndex > 0) {
+    return lockfileDep.slice(0, atIndex)
   }
-  return true
+  return defaultName
+}
+
+function getDepVersion (lockfileDep: string): string {
+  const atIndex = lockfileDep.lastIndexOf('@')
+  const ver = atIndex > 0 ? lockfileDep.slice(atIndex + 1) : lockfileDep
+  const colonIndex = ver.indexOf(':')
+  return colonIndex >= 0 ? ver.slice(colonIndex + 1) : ver
+}
+
+function isSubdirectory (parentDir: string, childPath: string): boolean {
+  const relativePath = path.relative(parentDir, childPath)
+  return relativePath === '' || (
+    relativePath !== '..' &&
+    !relativePath.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relativePath)
+  )
+}
+
+function resolveSpecPath (baseDir: string, rawPath: string): string {
+  const clean = rawPath.startsWith('./') ? rawPath.slice(2) : rawPath
+  if (clean.startsWith('~/') || clean.startsWith('~\\')) {
+    return path.resolve(os.homedir(), clean.slice(2))
+  }
+  return path.resolve(baseDir, clean)
+}
+
+function isWorkspacePath (spec: string): boolean {
+  return (
+    spec.startsWith('.') ||
+    spec.startsWith('/') ||
+    spec.startsWith('\\') ||
+    spec.startsWith('~/') ||
+    spec.startsWith('~\\') ||
+    /^[a-z]:/i.test(spec)
+  )
+}
+
+function getTargetPkgName (spec: string, defaultName: string): string {
+  if (spec.startsWith('workspace:')) {
+    const raw = spec.slice(10)
+    if (isWorkspacePath(raw)) return defaultName
+    const atIndex = raw.lastIndexOf('@')
+    if (atIndex > 0) {
+      return raw.slice(0, atIndex)
+    }
+  } else if (spec.startsWith('npm:')) {
+    const raw = spec.slice(4)
+    if (semver.validRange(raw)) {
+      return defaultName
+    }
+    const atIndex = raw.lastIndexOf('@')
+    if (atIndex > 0) {
+      return raw.slice(0, atIndex)
+    }
+    return raw
+  }
+  return defaultName
 }
 
 function getVersionRange (spec: string): string {
-  if (spec.startsWith('workspace:')) return spec.slice(10)
+  if (spec.startsWith('workspace:')) {
+    const raw = spec.slice(10)
+    const atIndex = raw.lastIndexOf('@')
+    if (atIndex > 0) {
+      return raw.slice(atIndex + 1) || '*'
+    }
+    return raw
+  }
   if (spec.startsWith('npm:')) {
-    spec = spec.slice(4)
-    const index = spec.indexOf('@', 1)
+    const raw = spec.slice(4)
+    if (semver.validRange(raw)) {
+      return raw
+    }
+    const index = raw.indexOf('@', 1)
     if (index === -1) return '*'
-    return spec.slice(index + 1) || '*'
+    return raw.slice(index + 1) || '*'
   }
   return spec
 }

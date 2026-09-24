@@ -183,7 +183,7 @@ pub fn is_filespec(spec: &str) -> bool {
     let mut chars = spec.chars();
     match chars.next() {
         Some('.' | '/' | '\\') => true,
-        Some('~') => chars.next() == Some('/'),
+        Some('~') => matches!(chars.next(), Some('/' | '\\')),
         Some(c) if c.is_ascii_alphabetic() => chars.next() == Some(':'),
         _ => false,
     }

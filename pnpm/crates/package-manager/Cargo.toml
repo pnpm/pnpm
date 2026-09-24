@@ -73,6 +73,7 @@ derive_more = { workspace = true }
 dialoguer = { workspace = true }
 dunce = { workspace = true }
 futures-util = { workspace = true }
+home = { workspace = true }
 httpdate = { workspace = true }
 indexmap = { workspace = true }
 node-semver = { workspace = true }
