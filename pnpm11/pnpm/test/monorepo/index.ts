@@ -53,6 +53,29 @@ test('no projects matched the filters', async () => {
   }
 })
 
+test('run and exec report a filter that matched no project', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+      scripts: { build: 'node -e "require(\'fs\').writeFileSync(\'ran.txt\', \'\')"' },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  for (const args of [
+    ["--filter='**'", 'build'],
+    ['--filter=not-exists', 'run', 'build'],
+    ['--filter=not-exists', 'exec', 'node', '-e', 'process.exit(1)'],
+  ]) {
+    const { stdout, status } = execPnpmSync(args)
+    expect(stdout.toString()).toMatch(/^No projects matched the filters in/)
+    expect(status).toBe(0)
+  }
+  expect(fs.existsSync('project/ran.txt')).toBe(false)
+})
+
 test('no projects found', async () => {
   prepareEmpty()
 
