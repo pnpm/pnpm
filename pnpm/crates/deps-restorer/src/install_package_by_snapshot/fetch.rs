@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     CreateVirtualDirBySnapshot, build_modules::exec_scripts_prepend_node_path,
-    retry_config::retry_opts_from_config,
+    create_virtual_store::requires_build_from_cas_paths, retry_config::retry_opts_from_config,
 };
 use pnpm_config::NodeLinker;
 use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
@@ -347,6 +347,7 @@ impl InstallPackageBySnapshot<'_> {
                 is_mutable: slot.source_is_mutable,
                 force: false,
                 build_marker: None,
+                needs_build: requires_build_from_cas_paths(cas_paths),
             },
             layout: self.ctx.linker.layout,
             cas_paths,

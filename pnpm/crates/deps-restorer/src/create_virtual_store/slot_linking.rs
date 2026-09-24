@@ -125,6 +125,7 @@ pub(super) fn link_cold_chunk<Reporter: self::Reporter>(
                     is_mutable: capture.source_is_mutable,
                     force: capture.force_import,
                     build_marker: needs_build.then_some(marker_path).flatten(),
+                    needs_build,
                 },
                 snapshot_key: capture.snapshot_key,
                 snapshot: capture.snapshot,
