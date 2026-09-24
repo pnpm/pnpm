@@ -312,12 +312,12 @@ test('importIndexedDir() recreates the internal symlinks of a local directory', 
   fs.writeFileSync(path.join(tmp, 'outside.txt'), 'outside')
   fs.symlinkSync('real.txt', path.join(src, 'file-link'), 'file')
   fs.symlinkSync(path.join(src, 'real.txt'), path.join(src, 'absolute-link'), 'file')
-  fs.symlinkSync('sub', path.join(src, 'dir-link'), 'dir')
+  fs.symlinkSync(path.join(src, 'sub'), path.join(src, 'dir-link'), 'junction')
   fs.symlinkSync('../outside.txt', path.join(src, 'outside-link'), 'file')
   fs.writeFileSync(path.join(src, 'left-out.txt'), 'left out')
   fs.symlinkSync('left-out.txt', path.join(src, 'left-out-link'), 'file')
   fs.mkdirSync(path.join(src, 'left-out-dir'))
-  fs.symlinkSync('left-out-dir', path.join(src, 'left-out-dir-link'), 'dir')
+  fs.symlinkSync(path.join(src, 'left-out-dir'), path.join(src, 'left-out-dir-link'), 'junction')
 
   const newDir = path.join(tmp, 'dest')
   const filenames = new Map([
@@ -394,7 +394,7 @@ test.each([
   fs.mkdirSync(path.join(src, '..generated'), { recursive: true })
   fs.writeFileSync(path.join(src, '..generated/gen.txt'), 'generated content')
   fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
-  fs.symlinkSync('..generated', path.join(src, 'gen-link'), 'dir')
+  fs.symlinkSync(path.join(src, '..generated'), path.join(src, 'gen-link'), 'junction')
 
   const newDir = path.join(tmp, 'dest')
   const filenames = new Map([
