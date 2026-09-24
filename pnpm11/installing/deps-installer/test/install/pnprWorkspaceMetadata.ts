@@ -93,7 +93,7 @@ test("pnpr forwards a project's peer dependencies so the server can auto-install
   const manifest: ProjectManifest = { name: 'app', version: '1.2.3', peerDependencies: { 'is-positive': '^1.0.0' } }
   const options = createOptions(workspaceRoot, rootDir)
 
-  await install(manifest, options).catch(() => undefined)
+  await install(manifest, options)
 
   expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
     peerDependencies: { 'is-positive': '^1.0.0' },
