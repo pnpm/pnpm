@@ -1,8 +1,9 @@
 use super::{
-    FixedResolver, manifestless_tarball_result, resolver, resolver_with_prefetch,
-    result_without_manifest, tarball_with_a_dependency,
+    FixedResolver, PrefetchingResolver, manifestless_tarball_result, resolver,
+    resolver_with_prefetch, result_without_manifest, tarball_with_a_dependency,
 };
 use pnpm_lockfile::{LockfileResolution, TarballResolution};
+use pnpm_reporter::SilentReporter;
 use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pnpm_tarball::package_mem_cache_key;
 use serde_json::json;
@@ -356,7 +357,9 @@ async fn evicted_archive_cache_entry_does_not_abort_manifest_recovery() {
 
 /// A fetcher that hands a package back to the registry, whose URL the install
 /// pass builds from the lockfile key.
-struct RegistryDelegatingFetcher;
+struct RegistryDelegatingFetcher {
+    integrity: String,
+}
 
 #[async_trait::async_trait]
 impl pnpm_hooks::CustomFetcher for RegistryDelegatingFetcher {
@@ -373,32 +376,74 @@ impl pnpm_hooks::CustomFetcher for RegistryDelegatingFetcher {
         _resolution: serde_json::Value,
         _opts: serde_json::Value,
     ) -> Result<serde_json::Value, pnpm_hooks::HookError> {
-        let integrity = ssri::Integrity::from(b"archive").to_string();
-        Ok(json!({"delegate": {"integrity": integrity}}))
+        Ok(json!({"delegate": {"integrity": self.integrity}}))
     }
 }
 
-/// A custom resolution names no URL, and before the lockfile key exists there
-/// is none to derive for a registry delegate, so the read has nothing to fetch.
-/// It must leave the package to the install pass rather than fail the install.
-#[tokio::test]
-async fn a_registry_delegate_for_a_custom_resolution_is_left_to_the_install_pass() {
-    let dir = tempdir().unwrap();
+fn registry_delegated_custom_resolution(
+    dir: &std::path::Path,
+    id: &str,
+    delegate: (&str, String),
+) -> (PrefetchingResolver<SilentReporter>, pnpm_resolving_resolver_base::ResolveResult) {
+    let (registry, integrity) = delegate;
     let mut result = result_without_manifest("vendored");
+    result.id = id.into();
     result.package.name_ver = None;
-    let resolution = LockfileResolution::Custom(
+    result.resolution = LockfileResolution::Custom(
         serde_json::from_value(json!({"type": "custom:vendored"})).unwrap(),
     );
-    result.resolution = resolution.clone();
-    let mut resolver = resolver_with_prefetch(
+    let mut resolver =
+        resolver_with_prefetch(dir, Box::new(FixedResolver { result: result.clone() }), false);
+    let ctx = Arc::get_mut(&mut resolver.ctx).unwrap();
+    let mut config = pnpm_config::Config::new();
+    config.store_dir = dir.join("store").into();
+    config.fetch_retries = 0;
+    config.registry = registry.to_owned();
+    ctx.config = Box::leak(Box::new(config));
+    ctx.policy.custom_session = Some(Arc::new(pnpm_deps_restorer::CustomFetcherSession::new(
+        vec![Arc::new(RegistryDelegatingFetcher { integrity })],
+    )));
+    (resolver, result)
+}
+
+/// A custom resolution names no URL, so a registry delegate is fetched from
+/// where the install pass will fetch it: the registry tarball of the package
+/// the resolver's id names.
+#[tokio::test]
+async fn a_registry_delegate_for_a_custom_resolution_recovers_the_manifest() {
+    let dir = tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let body = tarball_with_a_dependency("vendored");
+    let integrity = ssri::Integrity::from(&body).to_string();
+    let tarball = server
+        .mock("GET", "/vendored/-/vendored-1.0.0.tgz")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, mut result) =
+        registry_delegated_custom_resolution(dir.path(), "vendored@1.0.0", (&registry, integrity));
+    let resolution = result.resolution.clone();
+    resolver.populate_missing_tarball_metadata(&mut result, dir.path()).await.unwrap();
+    assert_eq!(result.package.manifest.unwrap()["dependencies"]["ms"], json!("2.1.2"));
+    assert_eq!(result.resolution, resolution);
+    tarball.assert_async().await;
+}
+
+/// An id that names no package gives no registry URL to derive, so the read
+/// leaves the package to the install pass rather than fail the install.
+#[tokio::test]
+async fn a_registry_delegate_for_an_unnamed_custom_resolution_is_left_to_the_install_pass() {
+    let dir = tempdir().unwrap();
+    let integrity = ssri::Integrity::from(b"archive").to_string();
+    let (resolver, mut result) = registry_delegated_custom_resolution(
         dir.path(),
-        Box::new(FixedResolver { result: result.clone() }),
-        false,
+        "custom:opaque",
+        ("https://registry.invalid/", integrity),
     );
-    Arc::get_mut(&mut resolver.ctx).unwrap().policy.custom_session = Some(Arc::new(
-        pnpm_deps_restorer::CustomFetcherSession::new(vec![Arc::new(RegistryDelegatingFetcher)]),
-    ));
+    let resolution = result.resolution.clone();
     resolver.populate_missing_tarball_metadata(&mut result, dir.path()).await.unwrap();
     assert!(result.package.manifest.is_none());
-    assert_eq!(dbg!(result.resolution), resolution);
+    assert_eq!(result.resolution, resolution);
 }

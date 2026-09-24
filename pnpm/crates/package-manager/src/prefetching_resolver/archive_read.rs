@@ -194,7 +194,12 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             ),
         });
         session
-            .resolve_tarball_metadata::<Reporter>(download, &result.resolution, opts)
+            .resolve_tarball_metadata::<Reporter>(
+                download,
+                &result.resolution,
+                opts,
+                self.ctx.config,
+            )
             .await
             .map_err(|error| Box::new(error) as ResolveError)
     }

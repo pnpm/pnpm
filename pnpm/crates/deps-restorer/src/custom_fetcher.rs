@@ -246,11 +246,9 @@ fn decode_resolution(
 
 /// `None` when the hook pointed the package at a source that carries no archive
 /// digest — a directory or a git checkout — or at a registry resolution while
-/// the caller has no URL for it, which is the case for a custom resolution: the
-/// install pass derives that URL from the lockfile key, which resolution time
-/// does not have yet. Only a fresh install's missing-metadata discovery calls
-/// this, so there is nothing to hash and nothing to verify; the install pass
-/// materializes such a resolution through its own dispatch.
+/// the caller has no URL for it. Only a fresh install's missing-metadata
+/// discovery calls this, so there is nothing to hash and nothing to verify; the
+/// install pass materializes such a resolution through its own dispatch.
 async fn fetch_custom_tarball<Reporter: self::Reporter>(
     download: IngestTarballToStore<'_>,
     resolution: &LockfileResolution,
@@ -262,16 +260,38 @@ async fn fetch_custom_tarball<Reporter: self::Reporter>(
             integrity: resolution.integrity.clone(),
         },
         LockfileResolution::Registry(resolution) if !download.package.url.is_empty() => {
-            TarballLocation {
-                tarball: download.package.url.to_owned(),
-                integrity: Some(resolution.integrity.clone()),
-            }
+            return load_or_fetch_registry_tarball::<Reporter>(download, &resolution.integrity)
+                .await
+                .map_err(InstallPackageBySnapshotError::DownloadTarball)
+                .map(Some);
         }
         _ => return Ok(None),
     };
     fetch_location::<Reporter>(&download, location, lockfile_dir).await
         .map_err(InstallPackageBySnapshotError::DownloadTarball)
         .map(Some)
+}
+
+/// A registry resolution always pins its integrity, so its archive is the one
+/// the store already holds under that hash whenever an earlier install fetched
+/// it. Reusing that copy keeps a warm install off the network and lets an
+/// offline one read the manifest.
+async fn load_or_fetch_registry_tarball<Reporter: self::Reporter>(
+    download: IngestTarballToStore<'_>,
+    integrity: &Integrity,
+) -> Result<Arc<FetchedTarball>, TarballError> {
+    let files_map = IngestTarballToStore {
+        package: pnpm_tarball::TarballPackage { integrity: Some(integrity), ..download.package },
+        ..download
+    }
+    .run_without_mem_cache::<Reporter>()
+    .await?;
+    Ok(Arc::new(FetchedTarball {
+        integrity: integrity.clone(),
+        manifest: pnpm_tarball::read_cas_package_json(&files_map, "package.json").await?,
+        requires_build: crate::requires_build_from_cas_paths(&files_map),
+        files_map,
+    }))
 }
 
 async fn fetch_location<Reporter: self::Reporter>(

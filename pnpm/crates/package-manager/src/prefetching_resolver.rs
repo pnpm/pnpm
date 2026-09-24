@@ -101,6 +101,7 @@ pub struct PrefetchPolicy<'a> {
 /// independent set without leaking lifetimes back into the resolver's
 /// type.
 struct OwnedFetchCtx {
+    config: &'static Config,
     mem_cache: Arc<MemCache>,
     requester: Arc<str>,
     progress_reported: SharedReportedProgressKeys,
@@ -354,6 +355,7 @@ fn owned_fetch_context(prefetch_ctx: &PrefetchContext<'_>) -> OwnedFetchCtx {
             },
     } = prefetch_ctx;
     OwnedFetchCtx {
+        config,
         mem_cache: Arc::clone(mem_cache),
         requester: Arc::<str>::from(*requester),
         progress_reported: SharedReportedProgressKeys::clone(progress_reported),

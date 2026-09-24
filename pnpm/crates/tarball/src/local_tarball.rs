@@ -144,7 +144,7 @@ pub(crate) fn is_unc_like_file_payload(path: &str) -> bool {
 /// Read `relative_path` out of extracted CAS paths and return the
 /// bundled-manifest subset. Missing or unparsable JSON is `None` so
 /// the caller can degrade rather than fail the resolve.
-pub(crate) async fn read_cas_package_json(
+pub async fn read_cas_package_json(
     cas_paths: &HashMap<String, PathBuf>,
     relative_path: &str,
 ) -> Result<Option<serde_json::Value>, TarballError> {
