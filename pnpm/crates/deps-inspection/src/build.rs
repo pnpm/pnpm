@@ -217,13 +217,14 @@ pub fn importer_id_for(lockfile_dir: &Path, project_dir: &Path) -> String {
     pnpm_workspace::importer_id_from_root_dir(lockfile_dir, project_dir)
 }
 
-/// The on-disk directory of a lockfile importer key, or `None` for a
-/// key that cannot be safely joined (absolute, drive-prefixed, or
-/// `..`-traversing — a malformed or hostile lockfile).
+/// The on-disk directory of a lockfile importer key, spelled with the
+/// platform's separators, or `None` for a key that cannot be safely
+/// joined (absolute, drive-prefixed, or `..`-traversing — a malformed or
+/// hostile lockfile).
 #[must_use]
 pub fn safe_importer_dir(lockfile_dir: &Path, importer_id: &str) -> Option<PathBuf> {
     pnpm_deps_restorer::validate_importer_id(importer_id).ok()?;
-    Some(pnpm_deps_restorer::importer_root_dir(lockfile_dir, importer_id))
+    Some(lexical_normalize(&pnpm_deps_restorer::importer_root_dir(lockfile_dir, importer_id)))
 }
 
 /// Scan the project's modules dir for packages absent from its
