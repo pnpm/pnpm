@@ -47,7 +47,6 @@ fn a_workspace_install_warns_that_a_nested_workspace_manifest_does_not_apply() {
     assert_eq!(stdout.matches(NESTED_MANIFEST_WARNING).count(), 1, "{stdout}");
 }
 
-/// Each project installs on its own there, and the warning still comes once.
 #[test]
 fn a_workspace_with_a_lockfile_per_project_warns_once() {
     let CommandTempCwd { root: _root, workspace, .. } =

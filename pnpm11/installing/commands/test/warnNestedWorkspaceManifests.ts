@@ -18,7 +18,8 @@ jest.unstable_mockModule('@pnpm/logger', () => ({
 const { install } = await import('@pnpm/installing.commands')
 
 afterEach(() => {
-  jest.mocked(warn).mockRestore()
+  jest.mocked(warn).mockClear()
+  jest.mocked(debug).mockClear()
 })
 
 async function installWorkspace (selectors: Array<{ namePattern: string }> = []): Promise<void> {
@@ -75,3 +76,29 @@ test('does not warn when the install leaves out the project with its own pnpm-wo
 
   expect(warn).toHaveBeenCalledTimes(0)
 })
+
+test('does not fail when checking a nested workspace manifest encounters a filesystem error', async () => {
+  preparePackages([
+    { name: 'project-1', version: '1.0.0' },
+    { name: 'project-2', version: '1.0.0' },
+  ])
+  const targetManifest = path.join(process.cwd(), 'project-2', 'pnpm-workspace.yaml')
+  const originalStat = fs.promises.stat.bind(fs.promises)
+  const statSpy = jest.spyOn(fs.promises, 'stat').mockImplementation(async (filePath, opts) => {
+    if (path.resolve(String(filePath)) === targetManifest) {
+      throw Object.assign(new Error('Permission denied'), { code: 'EACCES' })
+    }
+    return originalStat(filePath, opts)
+  })
+  try {
+    await installWorkspace()
+    expect(warn).toHaveBeenCalledTimes(0)
+    expect(debug).toHaveBeenCalledWith(expect.objectContaining({
+      error: expect.objectContaining({ code: 'EACCES' }),
+      message: `Could not stat nested workspace manifest at "${targetManifest}"`,
+    }))
+  } finally {
+    statSpy.mockRestore()
+  }
+})
+

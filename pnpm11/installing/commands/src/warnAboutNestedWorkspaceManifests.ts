@@ -35,7 +35,10 @@ async function isFile (filePath: string): Promise<boolean> {
   try {
     return (await fs.promises.stat(filePath)).isFile()
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return false
-    throw err
+    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) {
+      return false
+    }
+    logger.debug({ error: err, message: `Could not stat nested workspace manifest at "${filePath}"` })
+    return false
   }
 }
