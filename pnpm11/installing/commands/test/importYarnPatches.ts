@@ -112,7 +112,7 @@ test('import converts the yarn patches of workspace projects', async () => {
   fs.writeFileSync('packages/foo/package.json', JSON.stringify({
     name: 'foo',
     devDependencies: {
-      positive: 'patch:positive@npm%3Ais-positive@1.0.0#./foo.patch::locator=foo%40workspace%3Apackages%2Ffoo',
+      positive: 'patch:positive@npm%3Ais-positive@1.0.0#./foo.patch::version=1.0.0&hash=abc',
     },
   }))
   fs.copyFileSync(IS_POSITIVE_PATCH, 'packages/foo/foo.patch')
