@@ -493,6 +493,71 @@ module.exports = {{
     drop((root, mock_instance));
 }
 
+/// A fetcher that hands a custom resolution back to the registry names only
+/// the integrity. The archive to read the package's dependencies from is then
+/// the registry tarball of the package the resolver's id names.
+#[test]
+fn custom_resolution_delegated_to_the_registry_installs_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let registry_url = mock_instance.url();
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .unwrap();
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        format!(
+            r"
+module.exports = {{
+  resolvers: [{{
+    canResolve: wanted => wanted.alias === '@pnpm.e2e/pkg-with-1-dep',
+    async resolve () {{
+      const response = await fetch('{registry_url}@pnpm.e2e%2Fpkg-with-1-dep');
+      const dist = (await response.json()).versions['100.0.0'].dist;
+      return {{
+        id: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+        resolution: {{ type: 'custom:registry', integrity: dist.integrity }},
+      }};
+    }},
+  }}],
+  fetchers: [{{
+    canFetch: (id, resolution) => resolution.type === 'custom:registry',
+    fetch: (cafs, resolution) => ({{ delegate: {{ integrity: resolution.integrity }} }}),
+  }}],
+}};
+",
+        ),
+    )
+    .unwrap();
+    pacquet
+        .with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
+    let dependency_version = |workspace: &Path| {
+        pacquet_at(workspace).with_args(["exec", "node", "-e",
+            "console.log(require(require.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep/package.json', { paths: [require.resolve('@pnpm.e2e/pkg-with-1-dep/package.json')] })).version)"])
+            .assert().success().stdout("100.1.0\n");
+    };
+    dependency_version(&workspace);
+
+    fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--ignore-scripts"])
+        .assert()
+        .success();
+    dependency_version(&workspace);
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn custom_resolver_git_subdirectory_installs_its_manifest_and_dependencies() {
     assert_git_subdirectory_install(

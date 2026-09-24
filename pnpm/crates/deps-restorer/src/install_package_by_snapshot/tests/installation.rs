@@ -562,6 +562,7 @@ async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
             },
             &unpinned,
             serde_json::json!({ "lockfileDir": store_tmp.path() }),
+            config,
         )
         .await
         .expect("a digest-less delegate is not an integrity failure");

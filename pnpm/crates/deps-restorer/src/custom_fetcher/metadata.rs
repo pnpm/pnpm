@@ -2,17 +2,26 @@ use super::{
     CustomFetchOutcome, CustomFetcherSession, FetchedTarball, InstallPackageBySnapshotError,
     LockfileResolution, ResolvedTarballMetadata, decode_resolution, fetch_custom_tarball,
 };
+use crate::install_package_by_snapshot::tarball_url_and_integrity;
+use pnpm_config::Config;
+use pnpm_lockfile::PackageKey;
 use pnpm_reporter::Reporter;
-use pnpm_tarball::IngestTarballToStore;
+use pnpm_tarball::{IngestTarballToStore, TarballPackage};
 use serde_json::Value;
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 impl CustomFetcherSession {
+    /// `config` supplies the registry a delegate to a registry resolution is
+    /// fetched from when `download` names no URL.
     pub async fn resolve_tarball_metadata<Reporter: self::Reporter>(
         &self,
         download: IngestTarballToStore<'_>,
         original: &LockfileResolution,
         opts: Value,
+        config: &Config,
     ) -> Result<ResolvedTarballMetadata, InstallPackageBySnapshotError> {
         let lockfile_dir = PathBuf::from(
             opts.get("lockfileDir")
@@ -34,7 +43,7 @@ impl CustomFetcherSession {
             tarball
         } else {
             let Some(tarball) =
-                fetch_custom_tarball::<Reporter>(download.clone(), source, &lockfile_dir).await?
+                fetch_source::<Reporter>(&download, source, &lockfile_dir, config).await?
             else {
                 return Ok(ResolvedTarballMetadata { resolution, manifest: None });
             };
@@ -96,6 +105,41 @@ impl CustomFetcherSession {
             .unwrap()
             .insert((package_id.to_owned(), tarball.integrity.to_string()), tarball);
     }
+}
+
+async fn fetch_source<Reporter: self::Reporter>(
+    download: &IngestTarballToStore<'_>,
+    source: &LockfileResolution,
+    lockfile_dir: &Path,
+    config: &Config,
+) -> Result<Option<Arc<FetchedTarball>>, InstallPackageBySnapshotError> {
+    let registry_url = registry_delegate_url(download, source, config)?;
+    let download = IngestTarballToStore {
+        package: TarballPackage {
+            url: registry_url.as_deref().unwrap_or(download.package.url),
+            ..download.package
+        },
+        ..download.clone()
+    };
+    fetch_custom_tarball::<Reporter>(download, source, lockfile_dir).await
+}
+
+/// The URL the install pass fetches a registry delegate from, when the caller
+/// has none. A custom resolution names no archive, and the install pass then
+/// derives the URL from the lockfile key, which for a resolution that reports
+/// no `name@version` is the resolver's id. An id that names no package leaves
+/// the delegate to the install pass.
+fn registry_delegate_url(
+    download: &IngestTarballToStore<'_>,
+    source: &LockfileResolution,
+    config: &Config,
+) -> Result<Option<String>, InstallPackageBySnapshotError> {
+    if !download.package.url.is_empty() || !matches!(source, LockfileResolution::Registry(_)) {
+        return Ok(None);
+    }
+    let Ok(package_key) = download.package.id.parse::<PackageKey>() else { return Ok(None) };
+    let (url, _) = tarball_url_and_integrity(source, &package_key, config)?;
+    Ok(Some(url.into_owned()))
 }
 
 async fn resolve_archive_metadata(
