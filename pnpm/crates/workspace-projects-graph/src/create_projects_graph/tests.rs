@@ -281,6 +281,47 @@ fn catalog_specs_resolve_through_the_workspace_catalogs() {
     assert!(result.unmatched.is_empty());
 }
 
+#[test]
+fn npm_alias_resolves_to_the_sibling_it_names() {
+    let make_projects = || {
+        vec![
+            project(
+                "/ws/a",
+                "a",
+                "1.0.0",
+                &[
+                    ("b-alias", "npm:b@^2.0.0"),
+                    ("c-alias", "npm:c@^9.0.0"),
+                    ("d", "npm:^4.0.0"),
+                    ("e-alias", "npm:b"),
+                    ("f-alias", "npm:c@file:../c"),
+                    ("g-alias", "npm:c@link:../c"),
+                    ("h-alias", "npm:c@../c"),
+                ],
+            ),
+            project("/ws/b", "b", "2.1.0", &[]),
+            project("/ws/c", "c", "3.0.0", &[]),
+            project("/ws/d", "d", "4.0.0", &[]),
+        ]
+    };
+
+    let linked = create_projects_graph(make_projects(), &CreateProjectsGraphOptions::default());
+    assert_eq!(edges(&linked.graph, "/ws/a"), vec!["/ws/b".to_string(), "/ws/d".to_string()]);
+    assert_eq!(
+        linked.unmatched,
+        vec![Unmatched { pkg_name: "c".to_string(), range: "^9.0.0".to_string() }],
+    );
+
+    let strict = create_projects_graph(
+        make_projects(),
+        &CreateProjectsGraphOptions {
+            link_workspace_packages: Some(false),
+            ..CreateProjectsGraphOptions::default()
+        },
+    );
+    assert_eq!(edges(&strict.graph, "/ws/a"), Vec::<String>::new());
+}
+
 fn vec_clone(projects: &[TestProject]) -> Vec<TestProject> {
     projects
         .iter()
