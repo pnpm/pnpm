@@ -5111,6 +5111,9 @@ importers:
 
   pnpm11/fs/packlist:
     dependencies:
+      '@pnpm/workspace.project-manifest-reader':
+        specifier: workspace:*
+        version: link:../../workspace/project-manifest-reader
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0

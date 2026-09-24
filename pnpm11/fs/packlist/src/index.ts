@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import npmPacklist from 'npm-packlist'
 
@@ -18,6 +19,38 @@ interface TreeNode {
   isLink: boolean
   target: TreeNode
   edgesOut: Map<string, Edge>
+}
+
+const ALTERNATE_MANIFEST_NAMES = ['package.yaml', 'package.json5']
+
+/**
+ * npm-packlist applies the manifest rules (`files`, `main`, `bin`, and the
+ * always-included files) only when it finds `package.json` on disk. This walker
+ * also applies them to a package root that has only a `package.yaml` or
+ * `package.json5` manifest, and always includes those manifests like
+ * `package.json`.
+ */
+class AlternateManifestWalker extends npmPacklist.Walker {
+  override onReaddir (entries: string[]): void {
+    if (
+      this.isPackage &&
+      !entries.includes('package.json') &&
+      entries.some((entry) => ALTERNATE_MANIFEST_NAMES.includes(entry))
+    ) {
+      this.processPackage(() => {
+        super.onReaddir(entries)
+      })
+      return
+    }
+    super.onReaddir(entries)
+  }
+
+  override injectRules (filename: string | symbol, rules: string[], callback?: () => void): void {
+    if (rules.includes('!/package.json')) {
+      rules = [...rules, ...ALTERNATE_MANIFEST_NAMES.map((name) => `!/${name}`)]
+    }
+    super.injectRules(filename, rules, callback)
+  }
 }
 
 interface PlacedPackage {
@@ -67,7 +100,7 @@ export async function packlist (pkgDir: string, opts?: PacklistOptions): Promise
 export async function packlistWithSources (pkgDir: string, opts?: PacklistOptions): Promise<Map<string, string>> {
   const resolvedPkgDir = path.resolve(pkgDir)
   const workspaceDir = opts?.workspaceDir == null ? undefined : path.resolve(opts.workspaceDir)
-  const pkg = opts?.manifest ?? readPackageJson(resolvedPkgDir)
+  const pkg = opts?.manifest ?? await safeReadProjectManifestOnly(resolvedPkgDir) as Record<string, unknown> | null ?? {}
   const hasWorkspaceContext = workspaceDir != null && workspaceDir !== resolvedPkgDir && isSubdir(workspaceDir, resolvedPkgDir)
   const boundary = hasWorkspaceContext ? workspaceDir : path.resolve(opts?.bundledDependenciesDir ?? resolvedPkgDir)
   const { tree, packedDirs } = buildRootTree(resolvedPkgDir, pkg, boundary)
@@ -82,7 +115,13 @@ export async function packlistWithSources (pkgDir: string, opts?: PacklistOption
   const packlistOpts = hasWorkspaceContext && !hasNpmIgnore
     ? { prefix: workspaceDir, workspaces: [resolvedPkgDir] }
     : undefined
-  const files = (await npmPacklist(tree, packlistOpts)).map((file) => file.replace(/^\.[/\\]/, ''))
+  const walkedFiles = await new Promise<string[]>((resolve, reject) => {
+    new AlternateManifestWalker(tree, { ...packlistOpts, isPackage: true })
+      .on('done', resolve)
+      .on('error', reject)
+      .start()
+  })
+  const files = walkedFiles.map((file) => file.replace(/^\.[/\\]/, ''))
   return mapToPackedPaths(resolvedPkgDir, files, packedDirs)
 }
 

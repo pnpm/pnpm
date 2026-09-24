@@ -214,3 +214,34 @@ fn bundle_dependencies_closure_stops_past_max_depth() {
         "packages past MAX_BUNDLE_DEPTH must be refused: {out:?}",
     );
 }
+
+#[test]
+fn bundled_dependency_alternate_manifests_follow_its_files_field() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    write(
+        root,
+        "node_modules/top/package.json",
+        r#"{"name":"top","version":"1.0.0","files":["index.js"]}"#,
+    );
+    touch(root, "node_modules/top/index.js");
+    touch(root, "node_modules/top/package.yaml");
+    touch(root, "node_modules/top/package.json5");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "bundleDependencies": ["top"],
+    });
+    let out = packlist(root, &manifest).unwrap();
+
+    assert_eq!(
+        out,
+        vec![
+            "node_modules/top/index.js".to_string(),
+            "node_modules/top/package.json".into(),
+            "package.json".into(),
+        ],
+    );
+}
