@@ -3217,7 +3217,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     const isPathInsideWorkspace = isSubdir.bind(null, opts.lockfileDir)
     if (!opts.frozenLockfile && opts.useLockfile) {
       const allProjectsLocatedInsideWorkspace = Object.values(ctx.projects)
-        .filter((project) => isPathInsideWorkspace(project.rootDirRealPath ?? project.rootDir))
+        .filter((project) => isPathInsideWorkspace(project.rootDir))
       if (allProjectsLocatedInsideWorkspace.length > projects.length && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
         const newProjects = [...projects]
         const getWantedDepsOpts = {

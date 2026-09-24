@@ -5684,9 +5684,6 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
-      p-filter:
-        specifier: 'catalog:'
-        version: 4.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'

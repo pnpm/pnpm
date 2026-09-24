@@ -919,7 +919,7 @@ test('shared-workspace-lockfile: create shared lockfile format when installation
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1451
-test("shared-workspace-lockfile: don't install dependencies in projects that are outside of the current workspace", async () => {
+test('shared-workspace-lockfile: install dependencies in a project that is symlinked from another workspace', async () => {
   preparePackages([
     {
       location: 'workspace-1/package-1',
@@ -975,9 +975,25 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
           },
         },
       },
+      'package-2': {
+        dependencies: {
+          'is-negative': {
+            specifier: '1.0.0',
+            version: '1.0.0',
+          },
+        },
+      },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
+      'is-negative@1.0.0': {
+        engines: {
+          node: '>=0.10.0',
+        },
+        resolution: {
+          integrity: 'sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==',
+        },
+      },
       'is-positive@1.0.0': {
         engines: {
           node: '>=0.10.0',
@@ -988,6 +1004,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
       },
     },
     snapshots: {
+      'is-negative@1.0.0': {},
       'is-positive@1.0.0': {},
     },
   })
