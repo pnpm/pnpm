@@ -440,7 +440,11 @@ module.exports = {{
     resolve: () => ({{ id: 'custom-typed@1.0.0', resolution: {resolution} }}),
   }}],
   fetchers: [{{
-    canFetch: (id, resolution) => resolution.type === 'custom:vendored',
+    canFetch: (id, resolution) => {{
+      // hook-local scratch, not a lockfile field
+      resolution._localCache = process.cwd() + '/.cache/' + id;
+      return resolution.type === 'custom:vendored';
+    }},
     fetch: (cafs, resolution, opts, fetchers) => fetchers.localTarball(
       cafs,
       {{ tarball: 'file:./vendor/package.tgz', integrity: '{integrity}' }},
@@ -465,10 +469,16 @@ module.exports = {{
 
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
     // The resolution stays the resolver's, so the lockfile keeps naming no
-    // location and the same fetcher claims it on the next install.
+    // location and the same fetcher claims it on the next install. A field the
+    // fetcher's `canFetch` left behind is the fetcher's, not the resolver's,
+    // and committing it would make the lockfile machine-dependent.
     assert!(
         lockfile.contains("type: custom:vendored") && !lockfile.contains("tarball:"),
         "the custom resolution is recorded verbatim: {lockfile}",
+    );
+    assert!(
+        !lockfile.contains("_localCache"),
+        "no scratch field from canFetch reaches the lockfile: {lockfile}",
     );
 
     // A frozen install has only the lockfile to work from, so an empty snapshot

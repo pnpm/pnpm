@@ -43,7 +43,14 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             }
             Err(err) => return Err(err),
         };
-        if self.ctx.policy.custom_session.is_some() {
+        // A custom resolution is the resolver's, and the read only interprets
+        // it, so there is nothing for the archive to name better. Taking the
+        // fetcher's copy would also carry the scratch fields a `canFetch` left
+        // on the object into the lockfile, since `decode_resolution` strips
+        // those only from resolutions that have no `type`.
+        if self.ctx.policy.custom_session.is_some()
+            && !matches!(result.resolution, LockfileResolution::Custom(_))
+        {
             // A fetcher can select different content for the same URL, and
             // the manifest below was read out of whatever it chose. Record
             // the resolution naming those bytes, not the one it replaced.
