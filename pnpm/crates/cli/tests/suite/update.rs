@@ -877,9 +877,8 @@ fn lock_unserved_version_of_dep(workspace: &Path) {
     .expect("write pnpm-lock.yaml");
 }
 
-/// Covers <https://github.com/pnpm/pnpm/issues/9953>: `update <pkg>` moves
-/// a dependency off a locked version the registry no longer serves. The
-/// lockfile verification gate skips the version the update replaces.
+/// Covers <https://github.com/pnpm/pnpm/issues/9953>. The lockfile
+/// verification gate skips the version the update replaces.
 #[test]
 fn update_moves_a_dependency_off_a_locked_version_the_registry_no_longer_serves() {
     let (root, workspace, anchor) = setup();
@@ -928,8 +927,7 @@ fn assert_unserved_dep_is_rejected(mut command: Command) {
 }
 
 /// A filtered update leaves the other importers' pins in place, so the
-/// lockfile verification gate still checks them. An update of every
-/// importer replaces them.
+/// lockfile verification gate still checks them.
 #[test]
 fn update_verifies_the_locked_versions_of_importers_it_does_not_update() {
     let (root, workspace, anchor) = setup();
