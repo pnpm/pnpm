@@ -13,18 +13,12 @@ struct ParseOptions {
 /// One `key=value` line, with comments and blanks skipped and the value
 /// decoded.
 fn split_ini_line(line: &str) -> Option<(&str, std::borrow::Cow<'_, str>)> {
-    let line = line.trim().trim_start_matches('\u{feff}');
+    let line = line.trim();
     if line.is_empty() || line.starts_with([';', '#']) {
         return None;
     }
     let (raw_key, raw_value) = line.split_once('=')?;
-    Some((
-        raw_key
-            .trim()
-            .trim_start_matches('\u{feff}')
-            .trim(),
-        decode_ini_value(raw_value.trim()),
-    ))
+    Some((raw_key.trim(), decode_ini_value(raw_value.trim())))
 }
 
 fn decode_ini_value(value: &str) -> Cow<'_, str> {
