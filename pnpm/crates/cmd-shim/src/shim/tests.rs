@@ -1059,7 +1059,7 @@ fn a_windows_sh_shim_picks_the_node_path_form_when_it_runs() {
         let mut command = std::process::Command::new("/bin/sh");
         command
             .arg("-c")
-            .arg(format!("{block}printf '%s' \"$NODE_PATH\""))
+            .arg(format!(r#"{block}printf '%s' "$NODE_PATH""#))
             .env("msys", msys)
             .env_remove("NODE_PATH");
         if let Some(inherited) = inherited {
@@ -1077,7 +1077,7 @@ fn a_windows_sh_shim_picks_the_node_path_form_when_it_runs() {
     );
     assert_eq!(
         run("", None),
-        "/mnt/c/proj/node_modules/.pnpm/node_modules:/mnt/d/it's/node_modules"
+        "/mnt/c/proj/node_modules/.pnpm/node_modules:/mnt/d/it's/node_modules",
     );
     assert_eq!(
         run("", Some("/usr/lib/node")),
