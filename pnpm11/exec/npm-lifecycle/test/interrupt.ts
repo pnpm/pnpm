@@ -50,6 +50,73 @@ skipOnWindows('a SIGTERM reaches a script behind a shell that stays its parent',
   expect(shutDownBeforeExit).toBe(true)
 })
 
+// A tool that starts the runner detached and stops it by killing its process
+// group, as Playwright's webServer does, reaches the runner but not a script
+// in a group of its own. The script must still end with the runner: a survivor
+// keeps the tool's output pipes open, and the tool waits on them for ever
+// (https://github.com/pnpm/pnpm/issues/15555).
+skipOnWindows('killing the runner\'s process group kills the script behind its shell too', async () => {
+  const proc = spawn(process.execPath, [runScript, 'dev-behind-shell'], { cwd: fixture, detached: true, stdio: ['ignore', 'pipe', 'inherit'] })
+  const closed = new Promise<void>((resolve) => {
+    proc.on('close', () => {
+      resolve()
+    })
+  })
+  proc.stdout.resume()
+  let script: number | undefined
+  try {
+    await waitForFile(markers[0])
+    script = Number(fs.readFileSync(markers[0], 'utf8'))
+    killProcessGroup(proc.pid!)
+    expect(await withDeadline(closed, shutdownTimeout)).not.toBe('timed out')
+    expect(await endsWithin(script, shutdownTimeout)).toBe(true)
+  } finally {
+    if (script != null) killProcess(script)
+  }
+})
+
+/** Whether `pid` is gone before `timeout` passes. A process that has just died counts until it is reaped. */
+async function endsWithin (pid: number, timeout: number): Promise<boolean> {
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    try {
+      process.kill(pid, 0)
+    } catch {
+      return true
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
+  }
+  return false
+}
+
+function killProcess (pid: number): void {
+  try {
+    process.kill(pid, 'SIGKILL')
+  } catch {
+    // gone already
+  }
+}
+
+async function waitForFile (file: string): Promise<void> {
+  const deadline = Date.now() + shutdownTimeout
+  while (!fs.existsSync(file)) {
+    if (Date.now() > deadline) throw new Error(`${file} did not appear within ${shutdownTimeout}ms`)
+    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
+  }
+}
+
+async function withDeadline<T> (promise: Promise<T>, timeout: number): Promise<T | 'timed out'> {
+  let timer: NodeJS.Timeout | undefined
+  const deadline = new Promise<'timed out'>((resolve) => {
+    timer = setTimeout(() => resolve('timed out'), timeout)
+  })
+  try {
+    return await Promise.race([promise, deadline])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /**
  * Runs the fixture's `script` in a session without a terminal, sends
  * `signal` to the runner once the script has started, and resolves with the

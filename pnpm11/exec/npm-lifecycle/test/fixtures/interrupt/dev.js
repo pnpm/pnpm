@@ -1,6 +1,8 @@
 // Shuts down on the first SIGINT or SIGTERM and exits at once on a second
 // interrupt, the way many CLIs treat a repeated Ctrl+C. Marker files record
-// what happened, since the runner's exit is what the tests observe.
+// what happened, since the runner's exit is what the tests observe; the
+// started marker holds the pid, so a test can tell whether the script is
+// still running once the runner is gone.
 const fs = require('node:fs')
 let interrupts = 0
 const shutDown = () => {
@@ -20,6 +22,6 @@ process.on('SIGINT', () => {
   }
   shutDown()
 })
-fs.writeFileSync('started.txt', '')
+fs.writeFileSync('started.txt', String(process.pid))
 console.log('started')
 setInterval(() => {}, 1000)

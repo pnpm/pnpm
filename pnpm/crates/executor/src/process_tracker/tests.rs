@@ -1,5 +1,10 @@
-use super::{ProcessTracker, spawn_child};
-use std::process::Command;
+use super::{ProcessTracker, group_watchdog::GroupWatchdog, spawn_child};
+use std::{
+    os::unix::process::CommandExt,
+    process::{Child, Command, Stdio},
+    thread::sleep,
+    time::{Duration, Instant},
+};
 
 /// A foreground tracker keeps a child in the test's own process group
 /// while the test holds a terminal, so the terminal's signals reach it.
@@ -29,4 +34,65 @@ fn foreground_children_share_the_terminal_process_group_only_at_a_terminal() {
             .expect("wait for cancelled child")
             .success(),
     );
+}
+
+/// Dropping the watchdog unreleased closes its pipe the way pnpm's death
+/// does, and the group it watched is killed.
+#[test]
+fn a_watchdog_dropped_unreleased_kills_the_group() {
+    let mut leader = spawn_group_leader();
+    let watchdog =
+        GroupWatchdog::spawn(leader.id()).expect("spawn the watchdog").expect("`sh` is available");
+
+    drop(watchdog);
+
+    assert!(
+        exits_within(&mut leader, Duration::from_secs(10)),
+        "the group should have been killed once its watchdog lost pnpm",
+    );
+}
+
+/// A released watchdog ends without touching the group.
+#[test]
+fn a_released_watchdog_leaves_the_group_alone() {
+    let mut leader = spawn_group_leader();
+    let watchdog =
+        GroupWatchdog::spawn(leader.id()).expect("spawn the watchdog").expect("`sh` is available");
+
+    watchdog.release();
+
+    assert!(
+        !exits_within(&mut leader, Duration::from_millis(500)),
+        "the group should still be running after its watchdog was released",
+    );
+    let _ = leader.kill();
+    let _ = leader.wait();
+}
+
+/// A `sleep` leading a process group of its own, as a child of
+/// [`spawn_child`] does.
+fn spawn_group_leader() -> Child {
+    let mut command = Command::new("sleep");
+    command
+        .arg("30")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .process_group(0);
+    command.spawn().expect("spawn the group leader")
+}
+
+fn exits_within(child: &mut Child, deadline: Duration) -> bool {
+    let deadline = Instant::now() + deadline;
+    while Instant::now() < deadline {
+        if child
+            .try_wait()
+            .expect("poll the child")
+            .is_some()
+        {
+            return true;
+        }
+        sleep(Duration::from_millis(20));
+    }
+    false
 }

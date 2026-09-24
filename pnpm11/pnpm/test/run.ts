@@ -514,6 +514,63 @@ testOnPosix('run: a SIGTERM sent to pnpm without a terminal reaches the script b
   }
 })
 
+// A tool that starts pnpm detached and stops it by killing its process group,
+// as Playwright's webServer does, reaches pnpm but not a script in a group of
+// its own. The script must still end with pnpm: a survivor keeps the tool's
+// output pipes open, and the tool waits on them for ever
+// (https://github.com/pnpm/pnpm/issues/15555).
+testOnPosix('run: killing pnpm\'s process group kills the script behind its shell too', async () => {
+  prepare({
+    name: 'project',
+    scripts: {
+      dev: 'node dev.js',
+    },
+  })
+  fs.writeFileSync('dev.js', `const fs = require('node:fs')
+fs.writeFileSync('started.txt', String(process.pid))
+setInterval(() => {}, 1000)
+`, 'utf8')
+
+  const proc = spawnPnpm(['run', '--config.verify-deps-before-run=false', 'dev'], { detached: true })
+  const closed = new Promise<void>((resolve) => {
+    proc.on('close', () => {
+      resolve()
+    })
+  })
+  proc.stdout!.resume()
+  proc.stderr!.resume()
+  let script: number | undefined
+  try {
+    await waitForFile('started.txt', 30_000)
+    script = Number(fs.readFileSync('started.txt', 'utf8'))
+    killProcessGroup(proc.pid!)
+    await withDeadline(closed, 30_000)
+    expect(await endsWithin(script, 30_000)).toBe(true)
+  } finally {
+    if (script != null) {
+      try {
+        process.kill(script, 'SIGKILL')
+      } catch {
+        // gone already
+      }
+    }
+  }
+})
+
+/** Whether `pid` is gone before `timeout` passes. A process that has just died counts until it is reaped. */
+async function endsWithin (pid: number, timeout: number): Promise<boolean> {
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    try {
+      process.kill(pid, 0)
+    } catch {
+      return true
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
+  }
+  return false
+}
+
 async function withDeadline<T> (promise: Promise<T>, timeout: number): Promise<T> {
   let timer: NodeJS.Timeout | undefined
   const deadline = new Promise<never>((_, reject) => {

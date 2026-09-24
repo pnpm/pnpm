@@ -6,9 +6,10 @@ import { expect, test } from '@jest/globals'
 import { killProcessGroup } from '@pnpm/prepare'
 import { temporaryDirectory } from 'tempy'
 
-import { relaySignals, reserveSignalRelay, waitForProcessGroup } from '../src/signals.js'
+import { relaySignals, reserveSignalRelay, waitForProcessGroup, watchProcessGroup } from '../src/signals.js'
 
 const testOnLinux = process.platform === 'linux' ? test : test.skip
+const testOnPosix = process.platform === 'win32' ? test.skip : test
 
 test('a signal is raised once after concurrent relays settle', async () => {
   const child = { kill: () => true }
@@ -110,6 +111,23 @@ testOnLinux('the wait ends once the kernel no longer knows the group', async () 
   killProcessGroup(group)
   await exited
   expect(await withDeadline(waitForProcessGroup(group), 5_000)).toBeUndefined()
+})
+
+// A released watchdog ends without touching the group, so a process the
+// script left behind in it survives pnpm's own exit.
+testOnPosix('a released watchdog leaves the group alone', async () => {
+  const child = spawn('sleep', ['30'], { detached: true, stdio: 'ignore' })
+  const exited = new Promise<string>((resolve) => {
+    child.on('exit', () => {
+      resolve('exited')
+    })
+  })
+  try {
+    watchProcessGroup(child.pid!).release()
+    expect(await withDeadline(exited, 500)).toBe('timed out')
+  } finally {
+    killProcessGroup(child.pid!)
+  }
 })
 
 /** A `stat` line is the kernel's: pid, command in parentheses, state, parent, process group. */
