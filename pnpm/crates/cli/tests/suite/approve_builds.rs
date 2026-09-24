@@ -107,10 +107,9 @@ fn ignored_builds_lists_the_blocked_dependency() {
     drop(harness);
 }
 
-/// An interactive install scaffolds an `allowBuilds` entry per ignored
-/// build with a placeholder string. The workspace pnpm left behind must
-/// stay usable: the config still loads, and the undecided package is
-/// reported as automatically — not explicitly — ignored.
+/// A workspace whose `allowBuilds` holds placeholder entries stays usable:
+/// the config still loads, and the undecided package is reported as
+/// automatically ignored, not explicitly ignored.
 #[test]
 fn allow_builds_placeholder_does_not_block_commands() {
     let (harness, workspace) = install_with_ignored_build();
