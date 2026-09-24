@@ -12,6 +12,8 @@ import { safeExeca as execa } from 'execa'
 import * as micromatch from 'micromatch'
 import * as yaml from 'yaml'
 
+import { formatDirGlob, formatDirGlobCandidate } from './dirGlob.js'
+
 type ChangeType = 'source' | 'test'
 
 interface ChangedDir {
@@ -114,13 +116,14 @@ function projectMatchesWorkingDir (
     return false
   }
   const format = (str: string) => str.replace(/\/$/, '')
-  const formattedFilter = workingDir.replace(/\\/g, '/').replace(/\/$/, '')
-  if (micromatch.default.isMatch(projectDir, formattedFilter, { format })) {
+  const formattedFilter = formatDirGlob(workingDir)
+  const candidate = formatDirGlobCandidate(projectDir)
+  if (micromatch.default.isMatch(candidate, formattedFilter, { format })) {
     return true
   }
   if (formattedFilter.endsWith('/*')) {
     const recursivePattern = `${formattedFilter}*`
-    return micromatch.default.isMatch(projectDir, recursivePattern, { format })
+    return micromatch.default.isMatch(candidate, recursivePattern, { format })
   }
   return false
 }

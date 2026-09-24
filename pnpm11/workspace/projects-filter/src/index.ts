@@ -6,6 +6,7 @@ import { isSubdir } from 'is-subdir'
 import * as micromatch from 'micromatch'
 import { difference, partition, pick } from 'ramda'
 
+import { formatDirGlob, formatDirGlobCandidate } from './dirGlob.js'
 import { filterProjectsBySelectorObjectsFromDir } from './filterProjectsFromDir.js'
 import { getChangedProjects } from './getChangedProjects.js'
 import { parseProjectSelector, type ProjectSelector } from './parseProjectSelector.js'
@@ -357,8 +358,8 @@ function matchProjectsByGlob<Pkg extends BaseProject> (
   pathStartsWith: string
 ): ProjectRootDir[] {
   const format = (str: string) => str.replace(/\/$/, '')
-  const formattedFilter = pathStartsWith.replace(/\\/g, '/').replace(/\/$/, '')
-  return (Object.keys(graph) as ProjectRootDir[]).filter((parentDir) => micromatch.default.isMatch(parentDir, formattedFilter, { format }))
+  const formattedFilter = formatDirGlob(pathStartsWith)
+  return (Object.keys(graph) as ProjectRootDir[]).filter((parentDir) => micromatch.default.isMatch(formatDirGlobCandidate(parentDir), formattedFilter, { format }))
 }
 
 function pickSubgraph (
