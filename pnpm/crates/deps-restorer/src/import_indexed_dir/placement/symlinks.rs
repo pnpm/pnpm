@@ -7,7 +7,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Where [`populate_dir`] writes a package whose symlinks it preserves.
+/// Where [`populate_dir`](super::populate_dir) writes a package whose
+/// symlinks it preserves.
 #[derive(Clone, Copy)]
 pub(super) struct SymlinkRoots<'a> {
     /// The directory the entries are written into.
