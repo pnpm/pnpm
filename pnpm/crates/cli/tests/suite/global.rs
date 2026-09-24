@@ -1115,6 +1115,15 @@ fn global_update_skips_a_group_whose_file_source_no_longer_exists() {
         .expect("find the registry group after update");
     assert_ne!(registry_after.install_dir, registry_before.install_dir);
 
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "local-pkg"])
+        .output()
+        .expect("run global update of only the skipped group");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "{stdout}");
+    assert!(stdout.contains("Skipped updating local-pkg"), "{stdout}");
+    assert!(!stdout.contains("Already up to date"), "{stdout}");
+
     drop((root, npmrc_info));
 }
 

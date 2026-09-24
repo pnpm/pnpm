@@ -89,8 +89,8 @@ impl GlobalInstallTarget<'_> {
     }
 
     /// Reinstall each of `groups` for `update -g`, skipping with a warning the
-    /// ones [`missing_file_source_warning`] reports. Returns whether any group
-    /// changed.
+    /// ones [`missing_file_source_warning`] reports. Returns whether at least
+    /// one group was checked and none of them changed.
     pub(super) async fn update_groups<Reporter: self::Reporter + 'static>(
         &self,
         groups: &[GlobalPackageInfo],
@@ -98,12 +98,14 @@ impl GlobalInstallTarget<'_> {
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<bool> {
+        let mut checked = false;
         let mut changed = false;
         for pkg in groups {
             if let Some(warning) = missing_file_source_warning(pkg) {
                 warn_global::<Reporter>(&warning);
                 continue;
             }
+            checked = true;
             changed |= self.update_group::<Reporter>(
                 pkg,
                 latest,
@@ -112,7 +114,7 @@ impl GlobalInstallTarget<'_> {
             )
             .await?;
         }
-        Ok(changed)
+        Ok(checked && !changed)
     }
 
     /// Reinstall one group for `update -g` and activate it over its own

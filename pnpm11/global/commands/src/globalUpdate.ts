@@ -83,6 +83,7 @@ export async function handleGlobalUpdate (
 
   // Update each package group sequentially to avoid overwhelming the system
 
+  let checked = false
   let changed = false
   for (const pkg of packagesToUpdate) {
     const missingSourceWarning = missingFileSourceWarning(pkg)
@@ -90,9 +91,10 @@ export async function handleGlobalUpdate (
       globalWarn(missingSourceWarning)
       continue
     }
+    checked = true
     changed = await updateGlobalPackageGroup(opts, globalDir, globalBinDir, pkg, commands) || changed // eslint-disable-line no-await-in-loop
   }
-  if (!changed) {
+  if (checked && !changed) {
     logger.info({ message: 'Already up to date', prefix: opts.dir })
   }
   summaryLogger.debug({ prefix: globalDir })
@@ -108,7 +110,7 @@ export async function handleGlobalUpdate (
 function missingFileSourceWarning (pkg: GlobalPackageInfo): string | undefined {
   for (const [alias, spec] of Object.entries(pkg.dependencies)) {
     const source = localFilePath(spec, pkg.installDir)
-    if (source != null && !fs.existsSync(source)) {
+    if (source != null && fs.statSync(source, { throwIfNoEntry: false }) == null) {
       return `Skipped updating ${Object.keys(pkg.dependencies).join(', ')} because "${source}" no longer exists. ` +
         `Reinstall ${alias} from an existing location, or remove it with "pnpm remove -g ${alias}".`
     }

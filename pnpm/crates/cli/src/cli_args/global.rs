@@ -278,19 +278,19 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         global_pkg_dir: &global_pkg_dir,
         global_bin_dir: &global_bin_dir,
     };
-    let changed = target.update_groups::<Reporter>(
+    let up_to_date = target.update_groups::<Reporter>(
         &to_update,
         latest,
         range_spec_style,
         supported_architectures,
     )
     .await?;
-    emit_global_update_result::<Reporter>(&global_pkg_dir, changed);
+    emit_global_update_result::<Reporter>(&global_pkg_dir, up_to_date);
     Ok(())
 }
 
-fn emit_global_update_result<Reporter: self::Reporter>(global_pkg_dir: &Path, changed: bool) {
-    if !changed {
+fn emit_global_update_result<Reporter: self::Reporter>(global_pkg_dir: &Path, up_to_date: bool) {
+    if up_to_date {
         Reporter::emit(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Info,
             message: "Already up to date".to_string(),

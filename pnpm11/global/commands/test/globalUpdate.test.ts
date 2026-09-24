@@ -620,6 +620,25 @@ test('global update skips a group whose file: source no longer exists and update
   }
 })
 
+test('global update does not report already up to date when every group was skipped', async () => {
+  scanGlobalPackages.mockReturnValue([
+    {
+      dependencies: { 'local-pkg': `file:${path.join(os.tmpdir(), 'global-update-never-created')}` },
+      hash: 'hash-local',
+      installDir: '/global/v11/old-local',
+    },
+  ])
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(globalWarn).toHaveBeenCalledTimes(1)
+  expect(installGlobalPackages).not.toHaveBeenCalled()
+  expect(info).not.toHaveBeenCalledWith(expect.objectContaining({ message: 'Already up to date' }))
+})
+
 // `pnpm self-update` owns the pnpm CLI's global install: it is what points the
 // pnpm home's bins at a release. Updating that group here would resolve pnpm
 // from the `latest` dist-tag and relink the bins, silently rolling the running
