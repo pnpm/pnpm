@@ -6,6 +6,7 @@ use std::{collections::BTreeMap, time::Duration};
 
 use futures_util::{StreamExt, stream};
 use pnpm_reporter::Reporter;
+use tokio::time::Instant;
 
 use crate::{
     global_log::global_info,
@@ -42,19 +43,45 @@ pub async fn wait_for_published_packages<Reporter: self::Reporter>(
         packages.len(),
         pnpm_network::redact_url_for_display(registry.as_str()),
     ));
-    let result = tokio::time::timeout(timeout, async {
-        while !pending.is_empty() {
-            let delay = probe_pending(&packages, &mut pending, registry, network).await?;
-            if !pending.is_empty() {
-                tokio::time::sleep(delay.max(POLL_INTERVAL).min(timeout)).await;
-            }
+    let deadline = Instant::now().checked_add(timeout);
+    tokio::time::timeout(
+        timeout,
+        poll_packages(&packages, &mut pending, registry, network, deadline, timeout),
+    )
+    .await
+    .unwrap_or_else(|_| Err(PublishWaitError::timeout(pending.into_values(), registry, timeout)))
+}
+
+async fn poll_packages(
+    packages: &[(String, String)],
+    pending: &mut BTreeMap<usize, String>,
+    registry: &NormalizedRegistryUrl,
+    network: &PublishNetwork<'_>,
+    deadline: Option<Instant>,
+    timeout: Duration,
+) -> Result<(), PublishWaitError> {
+    while !pending.is_empty() {
+        if deadline.is_some_and(|dl| Instant::now() >= dl) {
+            return Err(PublishWaitError::timeout(pending.values().cloned(), registry, timeout));
         }
-        Ok(())
-    })
-    .await;
-    result.unwrap_or_else(|_| {
-        Err(PublishWaitError::timeout(pending.into_values(), registry, timeout))
-    })
+        let delay = probe_pending(packages, pending, registry, network).await?.max(POLL_INTERVAL);
+        if pending.is_empty() {
+            break;
+        }
+        let now = Instant::now();
+        if deadline.is_some_and(|dl| {
+            now.checked_add(delay)
+                .is_none_or(|next| next >= dl)
+        }) {
+            return Err(PublishWaitError::timeout(pending.values().cloned(), registry, timeout));
+        }
+        let sleep_duration = match deadline {
+            Some(dl) => delay.min(dl.saturating_duration_since(now)),
+            None => delay,
+        };
+        tokio::time::sleep(sleep_duration).await;
+    }
+    Ok(())
 }
 
 fn normalize_versions(
