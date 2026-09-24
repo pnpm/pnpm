@@ -30,10 +30,12 @@ fn timeout_stops_dependents_and_reports_the_accepted_upload() {
         .mock("PUT", "/b")
         .expect(0)
         .create();
+    // A probe round can start as the 100 ms deadline fires, so a second
+    // probe is allowed; the uploads stay exact.
     let metadata = registry
         .mock("GET", "/a")
         .with_body(r#"{"versions":{}}"#)
-        .expect(1)
+        .expect_at_least(1)
         .create();
     let output = clear_ci(pacquet)
         .with_args([
@@ -65,13 +67,15 @@ fn already_published_version_still_needs_an_available_tarball() {
         .mock("PUT", Matcher::Any)
         .expect(0)
         .create();
+    // A probe round can start as the 100 ms deadline fires, so the probe
+    // requests are counted from below.
     let metadata = registry.mock("GET", "/a").with_body(json!({"name":"a", "dist-tags":{"latest":"1.0.0"}, "versions":{
         "1.0.0":{"name":"a","version":"1.0.0","dist":{"tarball":format!("{}/a.tgz",registry.url())}}
-    }}).to_string()).expect(2).create();
+    }}).to_string()).expect_at_least(2).create();
     let tarball = registry
         .mock("HEAD", "/a.tgz")
         .with_status(404)
-        .expect(1)
+        .expect_at_least(1)
         .create();
     let output = clear_ci(pacquet)
         .with_args([
@@ -103,15 +107,17 @@ fn batch_timeout_records_every_accepted_package() {
         .with_body("{}")
         .expect(1)
         .create();
+    // A probe round can start as the 100 ms deadline fires, so a second
+    // probe is allowed; the upload stays exact.
     let metadata_a = registry
         .mock("GET", "/a")
         .with_body(r#"{"versions":{}}"#)
-        .expect(1)
+        .expect_at_least(1)
         .create();
     let metadata_b = registry
         .mock("GET", "/b")
         .with_body(r#"{"versions":{}}"#)
-        .expect(1)
+        .expect_at_least(1)
         .create();
     let output = clear_ci(pacquet)
         .with_args([
