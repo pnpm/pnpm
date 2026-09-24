@@ -36,7 +36,17 @@ case "$*" in
   'rev-parse --git-path rebase-apply') echo "$STUB_GIT_DIR/rebase-apply" ;;
   'rev-parse --git-path rebase-merge/head-name') echo "$STUB_GIT_DIR/rebase-merge/head-name" ;;
   'rev-parse --git-path rebase-apply/head-name') echo "$STUB_GIT_DIR/rebase-apply/head-name" ;;
+  'rev-parse --git-path resolve-pr-conflicts.state') echo "$STUB_GIT_DIR/resolve-pr-conflicts.state" ;;
   'rev-parse origin/main') echo "$STUB_BASE_SHA" ;;
+  # A rebase that stops on a conflict: git leaves its rebase state behind and fails.
+  'rebase origin/main')
+    if [ -n "${STUB_REBASE_CONFLICT:-}" ]; then
+      mkdir -p "$STUB_GIT_DIR/rebase-merge"
+      printf 'refs/heads/%s\n' "$STUB_HEAD_BRANCH" > "$STUB_GIT_DIR/rebase-merge/head-name"
+      exit 1
+    fi
+    ;;
+  'diff --name-only --diff-filter=U') printf '%s\n' "${STUB_CONFLICTED:-}" ;;
   *) ;;
 esac
 EOF
@@ -80,10 +90,16 @@ exit 0
 EOF
 chmod +x "$fake_bin/sleep"
 
+# The identity a full run records before it starts the rebase.
+write_identity() { # <pr> <owner> <branch>
+  printf 'PR=%s\nOWNER=%s\nBRANCH=%s\n' "$1" "$2" "$3" > "$git_dir/resolve-pr-conflicts.state"
+}
+
 start_rebase() {
   reset_state
   mkdir -p "$git_dir/rebase-merge"
   printf 'refs/heads/%s\n' "$1" > "$git_dir/rebase-merge/head-name"
+  write_identity 4242 pnpm "$1"
 }
 
 # The apply backend writes rebase-apply instead of rebase-merge.
@@ -91,10 +107,12 @@ start_rebase_apply() {
   reset_state
   mkdir -p "$git_dir/rebase-apply"
   printf 'refs/heads/%s\n' "$1" > "$git_dir/rebase-apply/head-name"
+  write_identity 4242 pnpm "$1"
 }
 
 reset_state() {
-  rm -rf "$git_dir/rebase-merge" "$git_dir/rebase-apply" "$git_dir/checked-out"
+  rm -rf "$git_dir/rebase-merge" "$git_dir/rebase-apply" "$git_dir/checked-out" \
+    "$git_dir/resolve-pr-conflicts.state"
 }
 
 no_rebase() {
@@ -247,5 +265,82 @@ export STUB_CURRENT_BRANCH='fix/other'
 run_case 'full-checkout' 4242 --no-push
 expect_status 0
 expect_call 'pr checkout 4242'
+
+# The record written when the rebase started decides which PR a pause belongs to: the same
+# head branch name can belong to another fork's PR.
+start_rebase 'fix/example'
+write_identity 4242 other-fork fix/example
+detached_head
+run_case 'continue-other-fork' 4242 --continue
+expect_status 1
+expect_output 'the paused rebase belongs to PR #4242 (other-fork:fix/example)'
+expect_no_call '^git rebase --continue$'
+expect_no_call '^git push'
+
+# A paused rebase this script did not start has no record to check, so it is refused.
+start_rebase 'fix/example'
+rm -f "$git_dir/resolve-pr-conflicts.state"
+detached_head
+run_case 'continue-unrecorded' 4242 --continue
+expect_status 1
+expect_output "did not start it"
+expect_output 'git rebase --abort'
+expect_no_call '^git rebase --continue$'
+expect_no_call '^git push'
+
+# A full run that stops on a manual conflict records the PR identity before the rebase, and
+# --continue for a different PR is then refused instead of force-pushing the wrong branch.
+no_rebase
+export STUB_HEAD_BRANCH='fix/example'
+on_pr_branch
+export STUB_REBASE_CONFLICT=1
+export STUB_CONFLICTED='pnpm/crates/cli/src/main.rs'
+run_case 'full-records-identity' 4242
+expect_status 1
+expect_output 'MANUAL_RESOLUTION_NEEDED'
+if [ ! -f "$git_dir/resolve-pr-conflicts.state" ]; then
+  fail 'the rebase identity was not recorded before the rebase'
+fi
+grep -q '^PR=4242$' "$git_dir/resolve-pr-conflicts.state" ||
+  fail 'the recorded PR number is not the one that was requested'
+grep -q '^OWNER=pnpm$' "$git_dir/resolve-pr-conflicts.state" ||
+  fail 'the recorded head owner is not the one that was requested'
+grep -q '^BRANCH=fix/example$' "$git_dir/resolve-pr-conflicts.state" ||
+  fail 'the recorded head branch is not the one that was requested'
+
+# The pause is still in progress: continuing it for another PR must be refused.
+detached_head
+run_case 'continue-other-pr-after-pause' 4243 --continue
+expect_status 1
+expect_output 'the paused rebase belongs to PR #4242 (pnpm:fix/example), not to PR #4243'
+expect_no_call '^git rebase --continue$'
+expect_no_call '^git push'
+
+# The same pause continued for the PR it was started for goes through.
+run_case 'continue-same-pr-after-pause' 4242 --continue
+expect_status 0
+expect_call '^git rebase --continue$'
+expect_call '^git push origin HEAD:fix/example --force-with-lease$'
+unset STUB_REBASE_CONFLICT STUB_CONFLICTED
+
+# --no-push prints a push command that keeps a branch name with shell metacharacters inert.
+no_rebase
+export STUB_HEAD_BRANCH='fix/with;metachar'
+on_pr_branch
+run_case 'full-no-push-escapes-branch' 4242 --no-push
+expect_status 0
+# The printed command is a string the operator copies, so it is escaped, not interpolated.
+printf '%s' "$output" | grep -qF 'HEAD:fix/with\;metachar --force-with-lease' ||
+  fail 'the printed push command does not escape the branch name'
+export STUB_HEAD_BRANCH='fix/example'
+
+# A PR number that is not a number cannot reach the API paths or the printed commands.
+no_rebase
+on_pr_branch
+run_case 'non-numeric-pr' '4242; touch injected' --continue
+expect_status 2
+expect_output 'PR_NUMBER must be a number'
+expect_no_call '^git '
+expect_no_call '^gh '
 
 echo 'resolve-pr-conflicts.sh: all cases passed'

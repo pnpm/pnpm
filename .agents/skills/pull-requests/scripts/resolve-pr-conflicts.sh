@@ -7,7 +7,9 @@
 #   ./.agents/skills/pull-requests/scripts/resolve-pr-conflicts.sh <PR_NUMBER> --no-push   # rebase only, push by hand
 #
 # Options:
-#   --continue  Finish the rebase that was paused for manual conflict resolution.
+#   --continue  Finish the rebase that was paused for manual conflict resolution. Only a
+#               rebase this script started for that PR is continued: the PR it started for is
+#               recorded when the rebase begins, and a mismatch is refused, not pushed.
 #   --no-push   Stop after a successful rebase and print the push command instead of
 #               running it. Resolve, review and publish are then three separate steps,
 #               which is what a fork PR needs: the push goes to the contributor's branch.
@@ -63,6 +65,12 @@ if [ -z "$PR_NUMBER" ]; then
   usage
   exit 2
 fi
+# The number is echoed back in the "run this next" lines and used to build API paths.
+if [[ ! "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: PR_NUMBER must be a number, got: $PR_NUMBER" >&2
+  usage
+  exit 2
+fi
 
 REPO="pnpm/pnpm"
 
@@ -86,6 +94,39 @@ rebase_head_branch() {
   echo ""
 }
 
+# The identity a rebase was started for, kept beside git's own rebase state. A branch name
+# cannot say which PR a paused rebase belongs to — two forks can have the same head branch
+# name — and --continue picks the remote to push to from the head owner.
+rebase_state_file() {
+  git rev-parse --git-path resolve-pr-conflicts.state
+}
+
+RECORDED_PR=""
+RECORDED_OWNER=""
+RECORDED_BRANCH=""
+
+# Reads the identity recorded when the rebase started into RECORDED_PR, RECORDED_OWNER and
+# RECORDED_BRANCH. Non-zero when there is no record, i.e. this script did not start the
+# rebase that is in progress.
+read_rebase_identity() {
+  local state
+  state="$(rebase_state_file)"
+  if [ ! -f "$state" ]; then
+    return 1
+  fi
+  RECORDED_PR="$(sed -n 's/^PR=//p' "$state" | sed -n '1p')"
+  RECORDED_OWNER="$(sed -n 's/^OWNER=//p' "$state" | sed -n '1p')"
+  RECORDED_BRANCH="$(sed -n 's/^BRANCH=//p' "$state" | sed -n '1p')"
+}
+
+record_rebase_identity() {
+  printf 'PR=%s\nOWNER=%s\nBRANCH=%s\n' "$PR_NUMBER" "$HEAD_OWNER" "$HEAD_BRANCH" > "$(rebase_state_file)"
+}
+
+clear_rebase_identity() {
+  rm -f "$(rebase_state_file)"
+}
+
 # Verify origin points to pnpm/pnpm (strict match for HTTPS or SSH)
 ORIGIN_URL=$(git remote get-url origin 2>/dev/null || echo "")
 if [[ ! "$ORIGIN_URL" =~ github\.com[:/]pnpm/pnpm(\.git)?$ ]]; then
@@ -106,20 +147,32 @@ HEAD_BRANCH=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefName --jq .he
 if rebase_in_progress; then
   if [ "$CONTINUE_MODE" != "--continue" ]; then
     echo "ERROR: a rebase is already in progress."
-    echo "  Finish it with: $0 $PR_NUMBER --continue"
+    printf '  Finish it with: %q %s --continue\n' "$0" "$PR_NUMBER"
     exit 1
   fi
 
   REBASE_BRANCH="$(rebase_head_branch)"
-  if [ -z "$REBASE_BRANCH" ]; then
-    echo "Rebase in progress; git did not record the branch it rewrites, so it is not verified."
-  elif [ "$REBASE_BRANCH" != "$HEAD_BRANCH" ]; then
+  if [ -n "$REBASE_BRANCH" ] && [ "$REBASE_BRANCH" != "$HEAD_BRANCH" ]; then
     echo "ERROR: PR #$PR_NUMBER's head branch is '$HEAD_BRANCH', but the paused rebase is rewriting '$REBASE_BRANCH'."
     echo "  Refusing to continue: the rebased commits would be force-pushed to the wrong branch."
     exit 1
-  else
-    echo "Rebase in progress on '$REBASE_BRANCH'; staying on the detached HEAD."
   fi
+
+  if ! read_rebase_identity; then
+    echo "ERROR: a rebase of '${REBASE_BRANCH:-the current branch}' is in progress, but PR #$PR_NUMBER's rebase did not start it."
+    echo "  Refusing to continue: another fork's PR can use the same head branch name, and the"
+    echo "  rebased commits would then be force-pushed to that PR's branch."
+    echo "  Run 'git rebase --abort' to discard it, then re-run without --continue."
+    exit 1
+  fi
+  if [ "$RECORDED_PR" != "$PR_NUMBER" ] ||
+    [ "$RECORDED_OWNER" != "$HEAD_OWNER" ] ||
+    [ "$RECORDED_BRANCH" != "$HEAD_BRANCH" ]; then
+    echo "ERROR: the paused rebase belongs to PR #$RECORDED_PR ($RECORDED_OWNER:$RECORDED_BRANCH), not to PR #$PR_NUMBER ($HEAD_OWNER:$HEAD_BRANCH)."
+    echo "  Refusing to continue: the rebased commits would be force-pushed to the wrong branch."
+    exit 1
+  fi
+  echo "Rebase in progress on '$RECORDED_BRANCH' for PR #$PR_NUMBER; staying on the detached HEAD."
 elif [ "$CONTINUE_MODE" = "--continue" ]; then
   echo "ERROR: --continue was passed, but no rebase is in progress."
   echo "  Run without --continue to rebase the PR branch onto the latest base branch."
@@ -161,11 +214,12 @@ regenerate_lockfile() {
 
 # Publish the rebased branch and let GitHub re-evaluate mergeability.
 finish_rebase() {
+  clear_rebase_identity
   if [ "$NO_PUSH" -eq 1 ]; then
     echo ""
     echo "Rebase finished; not pushing (--no-push)."
     echo "Review the rewritten commits, then publish the branch with:"
-    echo "  git push $REMOTE HEAD:$HEAD_BRANCH --force-with-lease"
+    printf '  git push %q %q --force-with-lease\n' "$REMOTE" "HEAD:$HEAD_BRANCH"
     return 0
   fi
 
@@ -224,6 +278,10 @@ if [ "$GITHUB_SHA" != "$LOCAL_SHA" ]; then
 fi
 echo "Base branch ref verified: $LOCAL_SHA"
 
+# The rebase is recorded as belonging to this PR before it starts, so a pause can be tied
+# back to it: --continue refuses a rebase that this script did not start.
+record_rebase_identity
+
 # Rebase
 echo "Rebasing onto origin/$BASE_BRANCH..."
 if git rebase "origin/$BASE_BRANCH"; then
@@ -258,7 +316,7 @@ else
     done
     echo ""
     echo "After resolving, stage the files with 'git add' and run:"
-    echo "  $0 $PR_NUMBER --continue"
+    printf '  %q %s --continue\n' "$0" "$PR_NUMBER"
     exit 1
   fi
 
@@ -268,7 +326,7 @@ else
   fi
 
   if ! GIT_EDITOR=true git rebase --continue; then
-    echo "ERROR: 'git rebase --continue' failed. Resolve remaining conflicts and run: $0 $PR_NUMBER --continue"
+    printf "ERROR: 'git rebase --continue' failed. Resolve remaining conflicts and run: %q %s --continue\n" "$0" "$PR_NUMBER"
     exit 1
   fi
 fi
