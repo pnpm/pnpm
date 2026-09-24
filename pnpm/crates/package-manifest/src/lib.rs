@@ -183,13 +183,26 @@ impl PackageManifest {
         if self.on_disk.as_ref() == Some(&value) {
             return Ok(value);
         }
+        let contents = self.serialize(&value)?;
+        Self::write_atomic(&self.path, &contents)?;
+        if !self.is_yaml() && !self.is_json5() {
+            self.blank_lines = BlankLines::detect(&contents);
+        }
+        self.empty_dependency_fields = empty_dependency_fields(&value);
+        self.on_disk = Some(value.clone());
+        Ok(value)
+    }
+
+    /// The file contents a save writes for `value`, in the source file's
+    /// format and style.
+    fn serialize(&self, value: &Value) -> Result<String, PackageManifestError> {
         let mut contents = if self.is_yaml() {
-            self.serialize_yaml(&value)?
+            self.serialize_yaml(value)?
         } else {
             let mut contents = if self.is_json5() {
-                self.serialize_json5(&value)?
+                self.serialize_json5(value)?
             } else {
-                self.blank_lines.restore(&serialize_with_indent(&value, &self.indent)?)
+                self.blank_lines.restore(&serialize_with_indent(value, &self.indent)?)
             };
             if self.insert_final_newline {
                 contents.push('\n');
@@ -199,13 +212,7 @@ impl PackageManifest {
         if self.crlf {
             contents = contents.replace("\r\n", "\n").replace('\n', "\r\n");
         }
-        Self::write_atomic(&self.path, &contents)?;
-        if !self.is_yaml() && !self.is_json5() {
-            self.blank_lines = BlankLines::detect(&contents);
-        }
-        self.empty_dependency_fields = empty_dependency_fields(&value);
-        self.on_disk = Some(value.clone());
-        Ok(value)
+        Ok(contents)
     }
 
     pub fn save(&mut self) -> Result<(), PackageManifestError> {
