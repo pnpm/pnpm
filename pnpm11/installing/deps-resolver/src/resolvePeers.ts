@@ -246,7 +246,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
           const isOptional = linkedDependency.pkg.peerDependenciesMeta?.[peerName]?.optional === true
           const resolved = pkgsByName[peerName]
           if (!resolved) {
-            const consumerLinked = linkedDependencies.find((l) => (l.alias === peerName || l.name === peerName) && l !== linkedDependency)
+            const consumerLinked = findLinkedPeer(linkedDependencies, peerName, linkedDependency)
             if (consumerLinked) {
               if (!semverUtils.satisfiesWithPrereleases(consumerLinked.version, peerVersionRange, true)) {
                 if (!peerDependencyIssues.bad[peerName]) {
@@ -272,7 +272,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
                 }
               }
               if (!fallbackSatisfied && linkedProject.linkedDependencies) {
-                const nestedLinked = linkedProject.linkedDependencies.find((l) => l.alias === peerName || l.name === peerName)
+                const nestedLinked = findLinkedPeer(linkedProject.linkedDependencies, peerName)
                 if (nestedLinked && semverUtils.satisfiesWithPrereleases(nestedLinked.version, peerVersionRange, true)) {
                   fallbackSatisfied = true
                 }
@@ -287,7 +287,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
                 }
               }
               if (!fallbackSatisfied && workspaceRootProject.linkedDependencies) {
-                const rootNestedLinked = workspaceRootProject.linkedDependencies.find((l) => l.alias === peerName || l.name === peerName)
+                const rootNestedLinked = findLinkedPeer(workspaceRootProject.linkedDependencies, peerName)
                 if (rootNestedLinked && semverUtils.satisfiesWithPrereleases(rootNestedLinked.version, peerVersionRange, true)) {
                   fallbackSatisfied = true
                 }
@@ -1492,4 +1492,21 @@ function updateParentRefs (parentRefs: ParentRefs, newAlias: string, pkg: Parent
     if (newHasAlias && semver.gte(existing.version, pkg.version)) return
   }
   parentRefs[newAlias] = pkg
+}
+
+function findLinkedPeer (
+  linkedDependencies: readonly LinkedDependency[] | undefined,
+  peerName: string,
+  exclude?: LinkedDependency
+): LinkedDependency | undefined {
+  if (!linkedDependencies) return undefined
+  let fallback: LinkedDependency | undefined
+  for (const dep of linkedDependencies) {
+    if (dep === exclude) continue
+    if (dep.alias === peerName) return dep
+    if (fallback == null && dep.name === peerName) {
+      fallback = dep
+    }
+  }
+  return fallback
 }
