@@ -324,6 +324,52 @@ fn dedupe_check_keeps_valid_lockfile_pins() {
     drop((root, mock_instance));
 }
 
+/// A transitive range that both a direct dependency and a higher `npm:`
+/// alias of it satisfy stays on the direct dependency's version across
+/// repeated dedupes (<https://github.com/pnpm/pnpm/issues/15588>).
+#[test]
+fn dedupe_is_stable_when_an_npm_alias_satisfies_a_transitive_range() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.0.0",
+                "dep-alias": "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0",
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let installed = fs::read_to_string(&lockfile_path).expect("read installed lockfile");
+    eprintln!("installed lockfile:\n{installed}");
+    let edge = "\n  '@pnpm.e2e/pkg-with-1-dep@100.0.0':\n    dependencies:\n      \
+                '@pnpm.e2e/dep-of-pkg-with-1-dep': 100.0.0\n";
+    assert!(installed.contains(edge), "the transitive edge takes the direct dependency's version");
+    for _ in 0..2 {
+        pacquet_at(&workspace)
+            .with_args(["dedupe", "--lockfile-only"])
+            .assert()
+            .success();
+        let deduped = fs::read_to_string(&lockfile_path).expect("read deduped lockfile");
+        eprintln!("deduped lockfile:\n{deduped}");
+        assert_eq!(deduped, installed);
+    }
+    pacquet_at(&workspace)
+        .with_args(["dedupe", "--check", "--lockfile-only"])
+        .assert()
+        .success();
+    drop((root, npmrc_info));
+}
+
 /// pnpm's dedupe points at `pnpm peers check` when the install it runs
 /// leaves peer-dependency issues behind, so the two commands agree.
 #[test]

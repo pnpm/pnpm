@@ -4,7 +4,7 @@ use super::{
     Resolver, ReuseSource, SeededNode, SnapshotEntry, TreeCtx, WantedDependency, async_recursion,
     catalog_anchor, declaring_manifest_dir, extract_children, future, higher_direct_dep_version,
     level_aliases, level_versions, lock_recoverable, prior_child_key, real_package_name_of,
-    resolve_catalog_specifier, resolve_node_seed, warm_children_resolutions,
+    resolve_catalog_specifier, resolve_node_seed, update_unpins_edge, warm_children_resolutions,
 };
 
 /// Seed every child edge of one occurrence — its manifest's
@@ -141,7 +141,7 @@ pub(super) async fn seed_child<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
-    let (wanted, prior) = child_wanted(scope, spec);
+    let (wanted, prior) = child_wanted(ctx, scope, spec, node.pending.ancestry.depth + 1);
     let seed = resolve_node_seed(
         ctx,
         resolver,
@@ -165,10 +165,14 @@ where
 /// The edge's wanted dependency and its prior key. Stale-pin refresh:
 /// the edge is forced onto a higher in-range direct-dep version instead
 /// of reusing the pin, so the pinned version is never resolved or
-/// fetched.
+/// fetched. An edge an update unpins (every edge under `pacquet dedupe`)
+/// holds no pin to refresh: it re-picks from the preferred versions, as
+/// pnpm's dedupe does after forgetting every recorded resolution.
 pub(super) fn child_wanted(
+    ctx: &TreeCtx,
     scope: &ChildSeedScope<'_>,
     (name, range, optional, injected): &ChildSpec,
+    depth: i32,
 ) -> (WantedDependency, Option<PkgNameVerPeer>) {
     let mut wanted = WantedDependency {
         alias: Some(name.clone()),
@@ -182,6 +186,7 @@ pub(super) fn child_wanted(
     if let Some(higher) = prior
         .as_ref()
         .and_then(|key| key.suffix.version_semver().cloned())
+        .filter(|pinned| !update_unpins_edge(ctx.update_scope(), &wanted, Some(pinned), depth))
         .zip(range.parse::<node_semver::Range>().ok())
         .and_then(|(pinned, parsed)| {
             higher_direct_dep_version(scope.direct_versions.as_deref(), name, &pinned, &parsed)
