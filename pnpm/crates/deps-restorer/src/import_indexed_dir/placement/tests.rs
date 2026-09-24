@@ -1,9 +1,44 @@
 use super::{
     FsRemoveDirAll, FsRemoveNonDirDirent, clear_dir_blocking_file, clear_dirent_blocking_dir,
-    dir_fits_at, file_fits_at,
+    dir_fits_at, entries_by_target_dir, file_fits_at,
 };
-use std::{fs, io, path::Path};
+use std::{
+    collections::{BTreeSet, HashMap},
+    fs, io,
+    path::{Path, PathBuf},
+};
 use tempfile::tempdir;
+
+#[test]
+fn entries_are_grouped_by_the_directory_they_land_in() {
+    let cas_paths: HashMap<String, PathBuf> =
+        ["package.json", "README.md", "lib/index.js", "lib/util.js", "lib/esm/index.js"]
+            .into_iter()
+            .map(|entry| (entry.to_string(), PathBuf::from("store").join(entry)))
+            .collect();
+
+    let groups: BTreeSet<BTreeSet<&str>> = entries_by_target_dir(&cas_paths, Some("package.json"))
+        .iter()
+        .map(|entries| {
+            entries
+                .iter()
+                .map(|(entry, store_path)| {
+                    assert_eq!(*store_path, cas_paths[*entry]);
+                    *entry
+                })
+                .collect()
+        })
+        .collect();
+
+    assert_eq!(
+        groups,
+        BTreeSet::from([
+            BTreeSet::from(["README.md"]),
+            BTreeSet::from(["lib/index.js", "lib/util.js"]),
+            BTreeSet::from(["lib/esm/index.js"]),
+        ])
+    );
+}
 
 #[test]
 fn nothing_at_a_path_fits_either_kind() {

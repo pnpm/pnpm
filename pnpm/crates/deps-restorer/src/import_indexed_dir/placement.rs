@@ -11,13 +11,13 @@ use std::{
     sync::atomic::AtomicU8,
 };
 
-/// Make the parent dir set, then run the parallel per-entry import over
-/// `cas_paths`. Mirrors pnpm v11's `tryImportIndexedDir`: collect the
-/// unique relative parent dirs, sort shortest-first, mkdir each
-/// sequentially, then dispatch the file imports in parallel. Sorting by
-/// length means the recursive mkdir for a deeper dir always finds its
-/// ancestor already on disk, so each call costs one `mkdirat` instead of
-/// walking up.
+/// Make the parent dir set, then import the entries of `cas_paths`, one
+/// task per target directory. Mirrors pnpm v11's `tryImportIndexedDir`:
+/// collect the unique relative parent dirs, sort shortest-first, mkdir
+/// each sequentially, then dispatch the file imports. Sorting by length
+/// means the recursive mkdir for a deeper dir always finds its ancestor
+/// already on disk, so each call costs one `mkdirat` instead of walking
+/// up.
 pub(super) fn populate_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
@@ -31,17 +31,20 @@ pub(super) fn populate_dir<Reporter: self::Reporter>(
     // interrupted import leaves a directory the next install recognises
     // as incomplete (pnpm's `tryImportIndexedDir`).
     let marker = marker_file(cas_paths);
-    cas_paths
+    entries_by_target_dir(cas_paths, marker)
         .par_iter()
-        .filter(|(cleaned_entry, _)| Some(cleaned_entry.as_str()) != marker)
-        .try_for_each(|(cleaned_entry, store_path)| {
-            place_entry::<Reporter>(
-                placement,
-                logged_methods,
-                import_method,
-                store_path,
-                &dir_path.join(cleaned_entry),
-            )
+        .try_for_each(|entries| {
+            entries
+                .iter()
+                .try_for_each(|(cleaned_entry, store_path)| {
+                    place_entry::<Reporter>(
+                        placement,
+                        logged_methods,
+                        import_method,
+                        store_path,
+                        &dir_path.join(cleaned_entry),
+                    )
+                })
         })?;
 
     if let Some(marker) = marker {
@@ -54,6 +57,35 @@ pub(super) fn populate_dir<Reporter: self::Reporter>(
         )?;
     }
     Ok(())
+}
+/// The entries of `cas_paths` other than `marker`, grouped by the
+/// directory they land in.
+///
+/// Every group is placed by one worker, entry after entry. Creating a
+/// dirent takes the parent directory's lock on every filesystem pnpm
+/// runs on, so workers linking into the same directory only queue on
+/// each other, and the kernel spends CPU arbitrating the queue: linking
+/// the 88k files of a 995-package warm install with one rayon task per
+/// file cost 15 s of system time on Linux against 3 s with one task per
+/// directory (pnpm v11's per-package loop: 2 s), and pnpm/pnpm#15439
+/// reports the per-file fan-out taking five times pnpm v11's wall time
+/// on NTFS. Directories are independent, so a package spread over many
+/// of them still imports in parallel.
+fn entries_by_target_dir<'a>(
+    cas_paths: &'a HashMap<String, PathBuf>,
+    marker: Option<&str>,
+) -> Vec<Vec<(&'a str, &'a Path)>> {
+    let mut groups: HashMap<Option<&Path>, Vec<(&str, &Path)>> = HashMap::new();
+    for (cleaned_entry, store_path) in cas_paths {
+        if Some(cleaned_entry.as_str()) == marker {
+            continue;
+        }
+        groups
+            .entry(Path::new(cleaned_entry).parent())
+            .or_default()
+            .push((cleaned_entry, store_path));
+    }
+    groups.into_values().collect()
 }
 pub(super) fn create_indexed_dirs(
     dir_path: &Path,
