@@ -51,6 +51,9 @@ pub(crate) struct ApplyCompletionContext {
     /// Whether the run may write the workspace state. See
     /// `InstallSaveOptions::workspace_state`.
     pub(crate) save_workspace_state: bool,
+    /// Whether a person is at the terminal to answer for the run. See
+    /// `RunMode::can_prompt`.
+    pub(crate) can_prompt: bool,
 }
 
 #[derive(Clone, Copy)]

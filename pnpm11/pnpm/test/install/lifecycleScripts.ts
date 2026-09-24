@@ -239,7 +239,6 @@ test('selectively allow scripts in some dependencies by --allow-build flag', asy
   const modulesManifest = await readWorkspaceManifest(project.dir())
   expect(modulesManifest?.allowBuilds).toStrictEqual({
     '@pnpm.e2e/install-script-example': true,
-    '@pnpm.e2e/pre-and-postinstall-scripts-example': 'set this to true or false',
   })
 })
 
@@ -458,15 +457,8 @@ test('the list of ignored builds is preserved after a repeat install', async () 
   ])
 })
 
-test('ignored builds are auto-populated as placeholders in allowBuilds', async () => {
-  prepare({})
-  execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'])
-
-  const manifest = await readWorkspaceManifest(process.cwd())
-  expect(manifest?.allowBuilds?.['@pnpm.e2e/pre-and-postinstall-scripts-example']).toBe('set this to true or false')
-})
-
-test('auto-populated placeholders are merged with existing allowBuilds', async () => {
+// https://github.com/pnpm/pnpm/issues/11574
+test('a non-interactive install does not add ignored builds to allowBuilds', async () => {
   prepare({})
   writeYamlFileSync('pnpm-workspace.yaml', {
     allowBuilds: {
@@ -476,8 +468,9 @@ test('auto-populated placeholders are merged with existing allowBuilds', async (
   execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'])
 
   const manifest = await readWorkspaceManifest(process.cwd())
-  expect(manifest?.allowBuilds?.['@pnpm.e2e/install-script-example']).toBe(true)
-  expect(manifest?.allowBuilds?.['@pnpm.e2e/pre-and-postinstall-scripts-example']).toBe('set this to true or false')
+  expect(manifest?.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/install-script-example': true,
+  })
 })
 
 test('install --ignore-workspace does not overwrite allowBuilds in pnpm-workspace.yaml', () => {
