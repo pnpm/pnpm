@@ -80,6 +80,16 @@ pub fn check_deps_status_before_run_at(
         &workspace_state,
     )
 }
+/// The directory the verify-deps-before-run gate serializes its installs
+/// over: the workspace root, or `dir` outside a workspace. Every gate in one
+/// workspace shares it, whichever project it runs in.
+#[must_use]
+pub fn deps_install_root(dir: &Path, config: &Config) -> std::path::PathBuf {
+    configured_or_discovered_workspace_dir(config, dir)
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| dir.to_path_buf())
+}
 fn gate_config<'a>(
     config: &'a Config,
     manifest_dir: &Path,

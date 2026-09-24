@@ -84,6 +84,84 @@ fn default_install_action_installs_before_running_the_script() {
     drop(root);
 }
 
+/// Concurrent gates on one stale tree start one install instead of one
+/// each racing in the same `node_modules`: the others wait for it, find
+/// the dependencies up to date, and run their scripts
+/// ([pnpm/pnpm#14551](https://github.com/pnpm/pnpm/issues/14551)).
+#[cfg(unix)]
+#[test]
+fn concurrent_gates_on_a_stale_tree_start_one_install() {
+    use std::process::Stdio;
+
+    const RUNS: usize = 4;
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    let project = workspace.join("packages/project");
+    fs::create_dir_all(&project).expect("create workspace project");
+    fs::write(
+        project.join("package.json"),
+        json!({ "name": "project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the workspace project manifest");
+    let installs = workspace.join("installs.log");
+    let write_root_manifest = |dependencies: serde_json::Value| {
+        let manifest = json!({
+            "name": "verify-deps-root",
+            "version": "0.0.0",
+            "scripts": {
+                "hello": "true",
+                // Keep the install running until every gate has checked
+                // the stale tree.
+                "postinstall": format!(r#"echo installed >> "{}" && sleep 2"#, installs.display()),
+            },
+            "dependencies": dependencies,
+        });
+        fs::write(workspace.join("package.json"), manifest.to_string())
+            .expect("write the root manifest");
+    };
+
+    write_root_manifest(json!({}));
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::remove_file(&installs).expect("reset the install log");
+
+    write_root_manifest(json!({ "project": "workspace:*" }));
+    bump_mtime(&workspace.join("package.json"));
+    let runs = (0..RUNS)
+        .map(|_| {
+            pacquet_in(&workspace)
+                .with_args(["run", "hello"])
+                .with_stdout(Stdio::null())
+                .with_stderr(Stdio::piped())
+                .spawn()
+                .expect("spawn pacquet run")
+        })
+        .collect::<Vec<_>>();
+    for run in runs {
+        let output = run.wait_with_output().expect("wait for pacquet run");
+        assert!(
+            output.status.success(),
+            "every run must succeed:\n{}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+    }
+
+    let install_count = fs::read_to_string(&installs)
+        .expect("read the install log")
+        .lines()
+        .count();
+    assert_eq!(install_count, 1, "the concurrent gates must share one install");
+    assert!(
+        workspace.join("node_modules/project").exists(),
+        "the shared install must link the new dependency",
+    );
+
+    drop(root);
+}
+
 /// The spawned install reproduces the dependency groups the last
 /// install recorded, spelled the way the CLI accepts them, so a
 /// production-only install leaves `pnpm run` working

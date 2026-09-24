@@ -1,11 +1,12 @@
 import fs from 'node:fs'
 
 import { expect, test } from '@jest/globals'
-import { prepare } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
+import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync } from '../utils/index.js'
+import { execPnpm, execPnpmSync, spawnPnpm, waitForPnpmExit } from '../utils/index.js'
 
 const CONFIG = [
   '--config.verify-deps-before-run=install',
@@ -139,4 +140,34 @@ test('verify-deps-before-run=install reuses the same flags as specified by the w
       },
     })
   }
+})
+
+test('concurrent runs on a stale workspace start one install (#14551)', async () => {
+  const root: ProjectManifest = {
+    name: 'root',
+    private: true,
+    scripts: {
+      hello: 'echo hello from script',
+      // Keep the install running until every run has checked the stale tree.
+      postinstall: 'node -e "require(\'fs\').appendFileSync(\'installs.log\', \'installed\\n\'); setTimeout(() => {}, 2000)"',
+    },
+  }
+  const project = preparePackages([
+    { location: '.', package: root },
+    { name: 'project', version: '1.0.0' },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm([...CONFIG, 'install'])
+  fs.rmSync('installs.log', { force: true })
+
+  project.root.writePackageJson({ ...root, dependencies: { project: 'workspace:*' } })
+  const runs = Array.from({ length: 4 }, () => spawnPnpm([...CONFIG, 'hello']))
+  const results = await Promise.all(runs.map(async (run) => waitForPnpmExit(run)))
+
+  for (const { status, stdout, stderr } of results) {
+    expect({ status, output: stdout.toString() + stderr.toString() }).toMatchObject({ status: 0 })
+  }
+  expect(fs.readFileSync('installs.log', 'utf8').split('\n').filter(Boolean)).toHaveLength(1)
+  project.root.has('project')
 })

@@ -10,13 +10,26 @@ use dialoguer::Confirm;
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::{Config, VerifyDepsBeforeRun};
 use pnpm_default_reporter::colors::Colors;
-use pnpm_package_manager::{RunDepsStatus, check_deps_status_before_run_at};
+use pnpm_fs::DirLock;
+use pnpm_package_manager::{RunDepsStatus, check_deps_status_before_run_at, deps_install_root};
 use std::{
     collections::HashSet,
-    io::IsTerminal,
+    io::{self, IsTerminal},
     path::Path,
     process::{Command, exit},
+    time::Duration,
 };
+
+/// The per-user lock directory namespace of the gate's install locks.
+const INSTALL_LOCK_NAMESPACE: &str = "pnpm-verify-deps-install-locks";
+
+/// How long a gate waits for another gate's install in the same workspace
+/// before installing without the lock.
+const INSTALL_LOCK_WAIT: Duration = Duration::from_mins(5);
+
+/// Comfortably above how long an install can legitimately take, so a
+/// holder that cannot prove it is alive never has its lock stolen.
+const INSTALL_LOCK_ABANDONED_AFTER: Duration = Duration::from_mins(30);
 
 #[derive(Debug, Display, Error, Diagnostic)]
 enum VerifyDepsError {
@@ -58,8 +71,8 @@ pub(crate) fn verify_deps_before_run(
         RunDepsStatus::Outdated { issue, install_args } => (issue, install_args),
     };
     match config.verify_deps_before_run {
-        VerifyDepsBeforeRun::Install => spawn_install(dir, &install_args, reporter),
-        VerifyDepsBeforeRun::Prompt => prompt_install(dir, &install_args, reporter, issue),
+        VerifyDepsBeforeRun::Install => locked_install(dir, config, &install_args, reporter),
+        VerifyDepsBeforeRun::Prompt => prompt_install(dir, config, &install_args, reporter, issue),
         VerifyDepsBeforeRun::Error => Err(VerifyDepsError::OutOfSync { issue }.into()),
         VerifyDepsBeforeRun::Warn => {
             warn(
@@ -108,6 +121,54 @@ pub(crate) fn verify_deps_before_recursive_run<ProjectPath: AsRef<Path>>(
         }
         Ok(())
     }
+}
+
+/// Install while holding the workspace's gate lock, so concurrent `run` and
+/// `exec` gates on one stale tree start one install rather than one each,
+/// racing in the same `node_modules`. A gate that found the lock held
+/// re-checks the dependencies once it gets the lock, and installs only if
+/// its predecessor's install left them out of date.
+fn locked_install(
+    dir: &Path,
+    config: &Config,
+    install_args: &[String],
+    reporter: ReporterType,
+) -> miette::Result<()> {
+    let root = deps_install_root(dir, config);
+    let (_lock, waited) = acquire_install_lock(&root).unwrap_or_else(|error| {
+        warn(
+            matches!(reporter, ReporterType::Silent),
+            &format!(
+                "Could not lock the dependency install at {}: {error}. Installing without it, which is unsafe if another pnpm is installing there concurrently.",
+                root.display(),
+            ),
+        );
+        (None, false)
+    });
+    if !waited {
+        return spawn_install(dir, install_args, reporter);
+    }
+    match check_deps_status_before_run_at(dir, config) {
+        Some(RunDepsStatus::Outdated { install_args, .. }) => {
+            spawn_install(dir, &install_args, reporter)
+        }
+        _ => Ok(()),
+    }
+}
+
+/// Take the gate's install lock for the workspace at `root`. The flag
+/// reports that another process held it, so the dependencies may have
+/// been installed meanwhile. The lock is `None` when the wait ran out.
+fn acquire_install_lock(root: &Path) -> io::Result<(Option<DirLock>, bool)> {
+    let root = pnpm_fs::realpath_missing(&pnpm_fs::lexical_normalize(root))?;
+    let path = pnpm_fs::secure_user_lock_file_path(INSTALL_LOCK_NAMESPACE, &root, "lock")?;
+    if let Some(lock) =
+        DirLock::acquire(path.clone(), Duration::ZERO, INSTALL_LOCK_ABANDONED_AFTER)?
+    {
+        return Ok((Some(lock), false));
+    }
+    let lock = DirLock::acquire(path, INSTALL_LOCK_WAIT, INSTALL_LOCK_ABANDONED_AFTER)?;
+    Ok((lock, true))
 }
 
 /// Re-run the kind of install the workspace state recorded, in-place
@@ -166,6 +227,7 @@ fn warn(silent: bool, message: &str) {
 #[expect(clippy::exit, reason = "an interrupted prompt exits 1, like pnpm's ExitPromptError")]
 fn prompt_install(
     dir: &Path,
+    config: &Config,
     install_args: &[String],
     reporter: ReporterType,
     issue: String,
@@ -185,7 +247,7 @@ fn prompt_install(
         .default(true)
         .interact()
     {
-        Ok(true) => spawn_install(dir, install_args, reporter),
+        Ok(true) => locked_install(dir, config, install_args, reporter),
         Ok(false) => Ok(()),
         // The prompt was interrupted (Esc / Ctrl-C); exit like
         // pnpm's ExitPromptError handler.
