@@ -235,12 +235,12 @@ impl DeployArgs {
         );
         let mut deploy_config = create_deploy_install_config(base_config, deploy_dir, node_linker);
         deploy_config.prefer_frozen_lockfile = frozen_lockfile;
-        deploy_config.ignore_platform_checks = self.install_args.materialization
-            .ignore_platform_checks
-            || self.install_args.materialization.force;
+        deploy_config.ignore_platform_checks =
+            self.install_args.materialization.ignore_platform_checks;
         deploy_config.reinstall = self.install_args.materialization.reinstall
             || self.install_args.materialization.force;
-        deploy_config.force = self.install_args.materialization.force;
+        deploy_config.force = self.install_args.materialization.force
+            || (deploy_config.ignore_platform_checks && deploy_config.reinstall);
         // `source_hooks` is the whole of the pnpmfile this install runs.
         // With none to run there is nothing left to discover either: the
         // install must not fall back to looking next to the deployed

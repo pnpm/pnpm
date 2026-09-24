@@ -31,19 +31,22 @@ pub(super) struct FrozenTreeUpToDate<'a> {
     pub(super) modules_manifest: Option<&'a pnpm_modules_yaml::ModulesLayout>,
     pub(crate) recorded: crate::install::state_options::RecordedWorkspace<'a>,
 }
+fn config_bypasses_up_to_date(config: &Config) -> bool {
+    config.reinstall || config.ignore_platform_checks || config.force
+}
+
 /// The lockfile and modules manifest of a tree nothing has to be done to, or
 /// `None` when the install has to materialize.
 pub(super) fn frozen_tree_up_to_date<'a>(
     context: &FrozenTreeUpToDate<'a>,
 ) -> Option<(&'a Lockfile, &'a pnpm_modules_yaml::ModulesLayout)> {
     let config = context.tree.config;
-    // `--force` reinstalls everything, so an up-to-date tree must not
-    // short-circuit the materialization.
+    // Reinstalling or ignoring platform checks requires materialization,
+    // so an up-to-date tree must not short-circuit.
     if !context.repeat.frozen
         || context.repeat.filtered
         || context.repeat.disable_optimistic_check
-        || config.reinstall
-        || config.force
+        || config_bypasses_up_to_date(config)
     {
         return None;
     }

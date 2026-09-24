@@ -886,14 +886,11 @@ pub struct Config {
     /// `pnpm add` / `pnpm deploy` at dispatch); not a `pnpm-workspace.yaml` / `.npmrc` setting.
     pub reinstall: bool,
 
-    /// pnpm's `--force`. Install every package the lockfile names, even
-    /// ones whose `cpu` / `os` / `libc` / `engines` don't match the host
-    /// — the per-snapshot installability check is bypassed entirely, so
-    /// optional dependencies for foreign platforms are materialized
-    /// instead of skipped.
-    ///
-    /// It also re-materializes every slot, changed or not. Union of
-    /// `--ignore-platform-checks` and `--reinstall`.
+    /// pnpm's `--force`. Re-materialize every package slot the lockfile
+    /// names, relinking packages an earlier install already materialized.
+    /// In pnpm v12, `--force` does not bypass platform compatibility checks
+    /// unless configured via `forceIgnoresPlatform: true`; use
+    /// `--ignore-platform-checks` to bypass platform checks directly.
     ///
     /// CLI-only (merged from `--force` on `pnpm install` / `pnpm add` /
     /// `pnpm deploy` at the dispatch, like `ignoreScripts`); not a
@@ -1784,10 +1781,11 @@ pub struct Config {
 impl Config {
     /// Whether this install materializes every snapshot the lockfile
     /// names, `cpu` / `os` / `libc` / `engines` notwithstanding: `--force`
-    /// under [`force_ignores_platform`](Self::force_ignores_platform).
+    /// under [`force_ignores_platform`](Self::force_ignores_platform) or
+    /// `--ignore-platform-checks`.
     /// Every installability gate reads this rather than `force` alone.
     pub fn installs_incompatible_packages(&self) -> bool {
-        self.force && self.force_ignores_platform
+        self.ignore_platform_checks || (self.force && self.force_ignores_platform)
     }
 
     /// [`engine_strict`](Self::engine_strict) as an install applies it.

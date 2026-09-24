@@ -240,7 +240,6 @@ fn hoisted_walker_options<'a>(
 
         skipped: walker_skipped,
         reinstall: config.reinstall,
-        force: config.force,
         include_incompatible_packages: config.installs_incompatible_packages(),
         current_hoisted_locations: inputs.prior.current_hoisted_locations,
     }

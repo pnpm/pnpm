@@ -247,9 +247,10 @@ impl AddArgs {
             self.target.no_ignore_workspace_root_check,
             config.ignore_workspace_root_check,
         );
-        config.ignore_platform_checks = self.install.ignore_platform_checks
-            || self.install.force
-            || config.ignore_platform_checks;
+        config.optional =
+            resolve_bool_override(self.install.optional, self.install.no_optional, config.optional);
+        config.ignore_platform_checks =
+            self.install.ignore_platform_checks || config.ignore_platform_checks;
         config.reinstall = self.install.reinstall || self.install.force || config.reinstall;
         config.force = self.install.force
             || (config.ignore_platform_checks && config.reinstall)

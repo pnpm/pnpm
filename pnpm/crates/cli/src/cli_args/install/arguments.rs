@@ -109,11 +109,11 @@ pub struct InstallMaterializationArgs {
     /// Show what an install would change without writing anything to disk.
     #[clap(long = "dry-run")]
     pub dry_run: bool,
-    /// Reinstall every package the lockfile names: relink packages an
-    /// earlier install already materialized, and install optional
-    /// dependencies whose `cpu` / `os` / `libc` / `engines` don't match
-    /// the host instead of skipping them. Union of `--ignore-platform-checks`
-    /// and `--reinstall`.
+    /// Re-materialize every package slot the lockfile names, relinking
+    /// packages an earlier install already materialized. In pnpm v12,
+    /// `--force` does not bypass platform compatibility checks unless
+    /// configured via `forceIgnoresPlatform: true`; use
+    /// `--ignore-platform-checks` to bypass platform checks directly.
     #[clap(long)]
     pub force: bool,
     /// Bypass per-snapshot installability checks (`cpu`, `os`, `libc`,
