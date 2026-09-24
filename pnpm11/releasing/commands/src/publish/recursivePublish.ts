@@ -16,7 +16,7 @@ import { writeJsonFile } from 'write-json-file'
 import { publishedName } from '../publishedNames.js'
 import { batchPublishPackages } from './batchPublish.js'
 import { publish } from './publish.js'
-import type { PublishPackedPkgOptions, PublishSummary } from './publishPackedPkg.js'
+import { getPublishConfigRegistry, type PublishPackedPkgOptions, type PublishSummary } from './publishPackedPkg.js'
 
 export type PublishRecursiveOpts = Required<Pick<Config,
 | 'bin'
@@ -138,9 +138,8 @@ export async function recursivePublish (
           try {
             if (!publishedPkgDirs.has(pkgDir)) return 'passed'
             const pkg = opts.selectedProjectsGraph[pkgDir].package
-            // The registry is picked by scope, so a `publishConfig.name` that
-            // moves the package to another scope has to route by the new one.
-            const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registriesByScope, publishedName(pkg.manifest)!)
+            const targetName = publishedName(pkg.manifest)!
+            const registry = getPublishConfigRegistry(pkg.manifest.publishConfig, targetName) ?? pickRegistryForPackage(opts.registriesByScope, targetName)
 
             const publishResult = await publish({
               ...opts,

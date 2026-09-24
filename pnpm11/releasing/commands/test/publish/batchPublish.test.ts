@@ -47,8 +47,8 @@ async function createRegistryStub (): Promise<RegistryStub> {
         headers: req.headers,
         body: rawBody.length > 0 ? JSON.parse(rawBody.toString()) : undefined,
       })
-      if (req.method === 'PUT' && req.url === '/-/pnpm/v1/publish') {
-        res.statusCode = stub.multiPublishStatusCode
+      if (req.method === 'PUT') {
+        res.statusCode = req.url === '/-/pnpm/v1/publish' ? stub.multiPublishStatusCode : 200
         res.setHeader('content-type', 'application/json')
         res.end(JSON.stringify({ ok: true, success: true }))
         return
@@ -212,6 +212,31 @@ test('batch publish sends a package to the registry its publishConfig sets for i
     }, [])
 
     expect(registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')).toHaveLength(1)
+    expect(npmrcScopedRegistry.received.filter(({ method }) => method === 'PUT')).toHaveLength(0)
+  } finally {
+    await npmrcScopedRegistry.close()
+  }
+})
+
+test('recursive publish sends a package to the registry its publishConfig sets for its scope', async () => {
+  const npmrcScopedRegistry = await createRegistryStub()
+  try {
+    preparePackages([
+      {
+        name: '@scope/recursive-scoped-registry',
+        version: '1.0.0',
+        publishConfig: { '@scope:registry': registry.url },
+      },
+    ])
+
+    await publish.handler({
+      ...batchPublishOpts(),
+      batch: false,
+      ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+      registriesByScope: { default: npmrcScopedRegistry.url, '@scope': npmrcScopedRegistry.url },
+    }, [])
+
+    expect(registry.received.filter(({ method }) => method === 'PUT')).toHaveLength(1)
     expect(npmrcScopedRegistry.received.filter(({ method }) => method === 'PUT')).toHaveLength(0)
   } finally {
     await npmrcScopedRegistry.close()

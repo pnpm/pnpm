@@ -177,9 +177,6 @@ fn publish_config_registry_overrides_the_default() {
     publish_mock.assert();
 }
 
-/// A `publishConfig["@scope:registry"]` entry for the package's own scope wins
-/// over the same key in `.npmrc` and over `publishConfig.registry`, as in npm,
-/// and the publish request carries the token configured for that registry.
 #[test]
 fn publish_config_scoped_registry_overrides_the_npmrc_scoped_registry() {
     let dir = tempfile::tempdir().expect("workspace");

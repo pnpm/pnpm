@@ -208,13 +208,10 @@ interface RegistryInfo {
   config: RegistryConfig
 }
 
-// eslint-disable-next-line regexp/no-unused-capturing-group
-const SCOPED_NAME_REGEX = /@(?<scope>[^/]+)\/(?<slug>[^/]+)/
+const SCOPED_NAME_REGEX = /^@(?<scope>[^/]+)\/[^/]+/
 
 /**
- * The registry a manifest's `publishConfig` sets for publishing it as `name`:
- * the `@scope:registry` entry for the scope of `name`, else `publishConfig.registry`.
- * npm lets that scoped entry win the same way.
+ * Resolves the publish registry defined in `publishConfig` matching npm's precedence rules.
  *
  * @internal Exported for batch and recursive publish.
  */
@@ -228,9 +225,6 @@ export function getPublishConfigRegistry (publishConfig: PublishConfig | undefin
 /**
  * Find credentials and SSL info for a package's registry.
  * Follows {@link https://docs.npmjs.com/cli/v10/configuring-npm/npmrc#auth-related-configuration}.
- *
- * The registry the manifest's `publishConfig` sets (see {@link getPublishConfigRegistry}),
- * when there is one, takes precedence over `registries`.
  *
  * @internal Exported for batch publish, which groups packages by their target registry.
  */

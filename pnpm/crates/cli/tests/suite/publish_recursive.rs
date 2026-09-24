@@ -791,9 +791,6 @@ fn recursive_publish_filter_uses_workspace_root_npmrc_registry() {
     drop(root);
 }
 
-/// Both the already-published probe and the `PUT` go to the registry that
-/// `publishConfig["@scope:registry"]` names, not to the `.npmrc` one for the
-/// same scope.
 #[test]
 fn recursive_publish_uses_the_publish_config_scoped_registry() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
