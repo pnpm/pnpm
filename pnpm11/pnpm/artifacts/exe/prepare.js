@@ -38,8 +38,8 @@ for (const [name, subcommand] of [['pn', ''], ['pnpx', ' dlx'], ['pnx', ' dlx']]
     if (e.code !== 'ENOENT') throw e
   }
   fs.writeFileSync(file, unixScript(name, subcommand), { mode: 0o755 })
-  fs.writeFileSync(path.join(ownDir, name + '.cmd'), `@echo off\npnpm${subcommand} %*\n`)
-  fs.writeFileSync(path.join(ownDir, name + '.ps1'), `pnpm${subcommand} @args\n`)
+  fs.writeFileSync(path.join(ownDir, name + '.cmd'), `@echo off\npnpm${subcommand} %*\nexit /b %errorlevel%\n`)
+  fs.writeFileSync(path.join(ownDir, name + '.ps1'), `pnpm${subcommand} @args\nexit $LASTEXITCODE\n`)
 }
 
 function unixScript (name, subcommand) {
