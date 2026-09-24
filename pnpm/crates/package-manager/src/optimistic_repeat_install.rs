@@ -441,8 +441,6 @@ fn settings_block_fast_path(
     if !project_structure_matches(state, project_manifests) {
         return Some("workspace project list changed");
     }
-    // A project with `dependencies`/`devDependencies` but no modules
-    // directory cannot be up to date.
     if !modules_dirs_present(check) {
         return Some("project has dependencies but no node_modules directory");
     }
