@@ -521,8 +521,7 @@ fn update_config_applies_to_fetch() {
 
 /// `--ignore-pnpmfile` covers the `updateConfig` pass as well as the
 /// hooks the fetch itself would load. The install recorded the pnpmfile's
-/// checksum, so the frozen fetch then stops at the lockfile check, after
-/// the point where the hook would have run.
+/// checksum, which the frozen fetch accepts without loading the pnpmfile.
 #[test]
 fn fetch_ignore_pnpmfile_skips_update_config() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -535,15 +534,12 @@ fn fetch_ignore_pnpmfile_skips_update_config() {
         .success();
     clear_hook_marker(&workspace);
 
-    let output = pacquet_in(&workspace)
+    pacquet_in(&workspace)
         .with_args(["fetch", "--ignore-pnpmfile"])
-        .output()
-        .expect("run fetch");
+        .assert()
+        .success();
 
     assert_eq!(hook_runs(&workspace), 0, "--ignore-pnpmfile should skip the hook");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(!output.status.success(), "the frozen fetch should stop at the lockfile check");
-    assert!(stderr.contains("ERR_PNPM_LOCKFILE_CONFIG_MISMATCH"), "STDERR:\n{stderr}");
     drop((root, mock_instance));
 }
 
