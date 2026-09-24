@@ -82,5 +82,17 @@ declare module 'npm-packlist' {
     workspaces?: Map<string, string>
   }
   function npmPacklist (tree: PacklistTree, options?: Record<string, unknown>): Promise<string[]>
+  namespace npmPacklist {
+    class Walker {
+      constructor (tree: PacklistTree, options?: Record<string, unknown>)
+      isPackage: boolean
+      on (event: 'done', listener: (files: string[]) => void): this
+      on (event: 'error', listener: (err: unknown) => void): this
+      start (): this
+      onReaddir (entries: string[]): void
+      injectRules (filename: string | symbol, rules: string[], callback?: () => void): void
+      processPackage (callback: () => void): void
+    }
+  }
   export = npmPacklist
 }

@@ -1,5 +1,8 @@
 use super::{Host, PackError, PackOptions, PackResult, format_pack_output, to_pack_result_json};
-use crate::capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsIsExecutable, FsReadFile};
+use crate::{
+    capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsIsExecutable, FsReadFile},
+    manifest_entry::is_manifest_entry,
+};
 use flate2::read::GzDecoder;
 use pnpm_config::NodeLinker;
 use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
@@ -521,6 +524,66 @@ fn files_field_restricts_the_tarball_contents() {
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
     assert_eq!(result.contents, vec!["dist/index.js".to_string(), "package.json".into()]);
+}
+
+#[test]
+fn files_field_restricts_the_tarball_contents_with_package_yaml() {
+    let (dir, opts) = fixture(&json!({}));
+    std::fs::remove_file(dir.path().join("package.json")).unwrap();
+    std::fs::write(
+        dir.path().join("package.yaml"),
+        "name: foo\nversion: 1.0.0\nfiles:\n  - dist\n",
+    )
+    .unwrap();
+    touch(dir.path(), "dist/index.js", "x\n");
+    touch(dir.path(), "src/index.ts", "x\n");
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+    assert_eq!(result.contents, vec!["dist/index.js".to_string(), "package.json".into()]);
+    let mut entry_names = tarball_entry_names(&dir.path().join("foo-1.0.0.tgz"));
+    entry_names.sort();
+    assert_eq!(entry_names, vec!["package/dist/index.js", "package/package.json"]);
+}
+
+#[test]
+fn uppercase_manifest_names_ship_as_ordinary_files() {
+    let (dir, opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "files": ["dist"],
+    }));
+    touch(dir.path(), "PACKAGE.YAML", "not a manifest\n");
+    touch(dir.path(), "dist/index.js", "x\n");
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+    assert_eq!(
+        result.contents,
+        vec!["dist/index.js".to_string(), "package.json".into(), "PACKAGE.YAML".into()],
+    );
+    let mut entry_names = tarball_entry_names(&dir.path().join("foo-1.0.0.tgz"));
+    entry_names.sort();
+    assert_eq!(
+        entry_names,
+        vec!["package/PACKAGE.YAML", "package/dist/index.js", "package/package.json"],
+    );
+}
+
+#[test]
+fn matches_manifest_entries_at_root() {
+    assert!(is_manifest_entry("package/package.json"));
+    assert!(is_manifest_entry("package/package.yaml"));
+    assert!(is_manifest_entry("package/package.json5"));
+
+    assert!(!is_manifest_entry("package/sub/package.json"));
+    assert!(!is_manifest_entry("other/package.json"));
+    assert!(!is_manifest_entry("package/package.js"));
+}
+
+#[test]
+fn uppercase_manifest_names_are_not_manifest_entries() {
+    assert!(!is_manifest_entry("package/PACKAGE.JSON"));
+    assert!(!is_manifest_entry("package/PACKAGE.YAML"));
+    assert!(!is_manifest_entry("package/PACKAGE.JSON5"));
 }
 
 #[test]

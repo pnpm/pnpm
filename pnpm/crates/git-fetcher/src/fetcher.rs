@@ -27,7 +27,7 @@ use crate::{
 };
 use pnpm_fs_packlist::packlist;
 use pnpm_network::{redact_and_sanitize, redact_and_sanitize_multiline};
-use pnpm_package_manifest::safe_read_package_json_from_dir;
+use pnpm_package_manifest::{safe_read_package_json_from_dir, safe_read_project_manifest_from_dir};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreIndexWriter};
 use serde_json::Value;
@@ -176,11 +176,11 @@ impl<'a> GitFetcher<'a> {
 /// Git-hosted packages build with no extra environment.
 pub(crate) static NO_EXTRA_ENV: LazyLock<HashMap<String, String>> = LazyLock::new(HashMap::new);
 
-/// The files the package would publish, per its manifest (a missing or
-/// unreadable manifest counts as empty).
+/// The files the package would publish, per its manifest (a missing
+/// manifest counts as empty; an unreadable or invalid one is an error).
 pub(crate) fn packlist_of(pkg_dir: &Path) -> Result<Vec<String>, GitFetcherError> {
-    let manifest = safe_read_package_json_from_dir(pkg_dir)
-        .unwrap_or(None)
+    let manifest = safe_read_project_manifest_from_dir(pkg_dir)
+        .map_err(GitFetcherError::ReadManifest)?
         .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
     packlist(pkg_dir, &manifest).map_err(GitFetcherError::Packlist)
 }

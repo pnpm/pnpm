@@ -47,6 +47,39 @@ test('pack: package with package.yaml', async () => {
   expect(fs.existsSync('package.json')).toBeFalsy()
 })
 
+test('pack: package with package.yaml respects files field', async () => {
+  prepare({
+    name: 'test-publish-package-yaml-files',
+    version: '0.0.0',
+    files: ['dist'],
+  }, { manifestFormat: 'YAML' })
+
+  fs.mkdirSync('dist')
+  fs.writeFileSync('dist/index.js', 'console.log(1)', 'utf8')
+  fs.writeFileSync('index.ts', 'console.log(1)', 'utf8')
+  fs.writeFileSync('tsconfig.json', '{}', 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  const names: string[] = []
+  await tar.list({
+    file: 'test-publish-package-yaml-files-0.0.0.tgz',
+    onReadEntry: (entry) => {
+      names.push(entry.path)
+    },
+  })
+
+  expect(names.sort()).toStrictEqual([
+    'package/dist/index.js',
+    'package/package.json',
+  ])
+})
+
 test('pack: package with package.json5', async () => {
   prepare({
     name: 'test-publish-package.json5',
@@ -63,6 +96,39 @@ test('pack: package with package.json5', async () => {
   expect(fs.existsSync('test-publish-package.json5-0.0.0.tgz')).toBeTruthy()
   expect(fs.existsSync('package.json5')).toBeTruthy()
   expect(fs.existsSync('package.json')).toBeFalsy()
+})
+
+test('pack: package with package.json5 respects files field', async () => {
+  prepare({
+    name: 'test-publish-package-json5-files',
+    version: '0.0.0',
+    files: ['dist'],
+  }, { manifestFormat: 'JSON5' })
+
+  fs.mkdirSync('dist')
+  fs.writeFileSync('dist/index.js', 'console.log(1)', 'utf8')
+  fs.writeFileSync('index.ts', 'console.log(1)', 'utf8')
+  fs.writeFileSync('tsconfig.json', '{}', 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  const names: string[] = []
+  await tar.list({
+    file: 'test-publish-package-json5-files-0.0.0.tgz',
+    onReadEntry: (entry) => {
+      names.push(entry.path)
+    },
+  })
+
+  expect(names.sort()).toStrictEqual([
+    'package/dist/index.js',
+    'package/package.json',
+  ])
 })
 
 test('pack a package with scoped name', async () => {

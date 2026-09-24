@@ -22,8 +22,10 @@
 //!    handled in pass 3).
 //! 3. **Always-include** the standard files: `package.json`,
 //!    `README*` / `LICEN[SC]E*` at the root, plus the paths declared
-//!    in `main` / `bin`. These survive `.npmignore` rejection and the
-//!    `files`-field filter.
+//!    in `main` / `bin`. The packed package's `package.yaml` /
+//!    `package.json5` are included too, but a bundled dependency's are
+//!    not. These survive `.npmignore` rejection and the `files`-field
+//!    filter.
 //! 4. **`bundleDependencies` closure**: starting from the names in
 //!    `manifest.bundleDependencies` (or the legacy
 //!    `bundledDependencies`), transitively include every reachable
@@ -147,7 +149,9 @@ pub fn packlist_with_sources(
 ) -> Result<BTreeMap<String, PathBuf>, PacklistError> {
     let workspace_dir =
         options.workspace_dir.filter(|workspace_dir| pkg_dir.starts_with(workspace_dir));
-    let mut out = collect_own_files(pkg_dir, manifest, workspace_dir)?
+    let mut own_files = collect_own_files(pkg_dir, manifest, workspace_dir)?;
+    collect_alternate_manifests_at_root(pkg_dir, &mut own_files)?;
+    let mut out = own_files
         .into_iter()
         .map(|file| {
             let source = pkg_dir.join(&file);
@@ -311,6 +315,32 @@ fn collect_always_included_at_root(
     pkg_dir: &Path,
     out: &mut BTreeSet<String>,
 ) -> Result<(), PacklistError> {
+    collect_root_files_matching(pkg_dir, is_always_included_at_root, out)
+}
+
+/// A `package.yaml` or `package.json5` manifest ships like `package.json`, but
+/// only for the package being packed: a bundled dependency's manifest is its
+/// `package.json`, so its alternate manifests follow its `files` and ignore
+/// rules. Matched case-insensitively, like npm-packlist's rules.
+fn collect_alternate_manifests_at_root(
+    pkg_dir: &Path,
+    out: &mut BTreeSet<String>,
+) -> Result<(), PacklistError> {
+    collect_root_files_matching(
+        pkg_dir,
+        |name| {
+            let lower = name.to_ascii_lowercase();
+            lower == "package.yaml" || lower == "package.json5"
+        },
+        out,
+    )
+}
+
+fn collect_root_files_matching(
+    pkg_dir: &Path,
+    matches: impl Fn(&str) -> bool,
+    out: &mut BTreeSet<String>,
+) -> Result<(), PacklistError> {
     let root_entries = fs::read_dir(pkg_dir)
         .map_err(|source| PacklistError::Io { pkg_dir: pkg_dir.display().to_string(), source })?;
     for entry in root_entries {
@@ -325,7 +355,7 @@ fn collect_always_included_at_root(
             .file_name()
             .to_string_lossy()
             .into_owned();
-        if !should_always_exclude(&name) && is_always_included_at_root(&name) {
+        if !should_always_exclude(&name) && matches(&name) {
             out.insert(name);
         }
     }
