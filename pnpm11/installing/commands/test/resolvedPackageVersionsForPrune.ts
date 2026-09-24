@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
+import { getWantedLockfileName } from '@pnpm/lockfile.fs'
 import type { DepPath } from '@pnpm/types'
 
 import { resolvedPackageVersionsForPrune, resolvedPackageVersionsOfProjectLockfiles } from '../src/resolvedPackageVersionsForPrune.js'
@@ -52,6 +53,43 @@ test('no versions when a project has no lockfile', async () => {
     fs.mkdirSync(projectWithoutLockfile)
 
     expect(await resolvedPackageVersionsOfProjectLockfiles({}, [...projectDirs, projectWithoutLockfile])).toBeUndefined()
+  })
+})
+
+test('the versions recorded in a branch lockfile when useGitBranchLockfile is enabled', async () => {
+  await withWorkspaceDir(async (workspaceDir) => {
+    const branchLockfileName = await getWantedLockfileName({ useGitBranchLockfile: true })
+    if (branchLockfileName === 'pnpm-lock.yaml') return
+    const projectDir = path.join(workspaceDir, 'a')
+    fs.mkdirSync(projectDir)
+    fs.writeFileSync(
+      path.join(projectDir, branchLockfileName),
+      'lockfileVersion: \'9.0\'\nimporters:\n  .: {}\npackages:\n  foo@3.0.0:\n    resolution: {integrity: AAA}\nsnapshots:\n  foo@3.0.0: {}\n'
+    )
+
+    expect(await resolvedPackageVersionsOfProjectLockfiles({ useGitBranchLockfile: true }, [projectDir]))
+      .toEqual(new Map([['foo', new Set(['3.0.0'])]]))
+  })
+})
+
+test('the versions recorded across branch lockfiles when mergeGitBranchLockfiles is enabled', async () => {
+  await withWorkspaceDir(async (workspaceDir) => {
+    const projectDir = path.join(workspaceDir, 'a')
+    fs.mkdirSync(projectDir)
+    fs.writeFileSync(
+      path.join(projectDir, 'pnpm-lock.yaml'),
+      'lockfileVersion: \'9.0\'\nimporters:\n  .: {}\npackages:\n  foo@1.0.0:\n    resolution: {integrity: AAA}\nsnapshots:\n  foo@1.0.0: {}\n'
+    )
+    fs.writeFileSync(
+      path.join(projectDir, 'pnpm-lock.feature.yaml'),
+      'lockfileVersion: \'9.0\'\nimporters:\n  .: {}\npackages:\n  bar@2.0.0:\n    resolution: {integrity: BBB}\nsnapshots:\n  bar@2.0.0: {}\n'
+    )
+
+    expect(await resolvedPackageVersionsOfProjectLockfiles({ useGitBranchLockfile: true, mergeGitBranchLockfiles: true }, [projectDir]))
+      .toEqual(new Map([
+        ['foo', new Set(['1.0.0'])],
+        ['bar', new Set(['2.0.0'])],
+      ]))
   })
 })
 
