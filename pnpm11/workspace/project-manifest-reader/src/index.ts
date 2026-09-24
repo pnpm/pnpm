@@ -35,6 +35,26 @@ export async function safeReadProjectManifestOnly (projectDir: string): Promise<
     }
   })
 }
+export async function safeReadPublishManifest (projectDir: string): Promise<ProjectManifest | null> {
+  const directManifest = await safeReadProjectManifestOnly(projectDir)
+  if (directManifest) return directManifest
+  const normalizedTarget = path.resolve(projectDir)
+  let searchDir = path.dirname(projectDir)
+  while (searchDir && searchDir !== projectDir) {
+    // eslint-disable-next-line no-await-in-loop
+    const parentManifest = await safeReadProjectManifestOnly(searchDir)
+    if (parentManifest?.publishConfig?.directory) {
+      const normalizedPublish = path.resolve(searchDir, parentManifest.publishConfig.directory)
+      if (normalizedPublish === normalizedTarget) {
+        return parentManifest
+      }
+    }
+    const next = path.dirname(searchDir)
+    if (next === searchDir) break
+    searchDir = next
+  }
+  return null
+}
 
 export async function readProjectManifest (projectDir: string): Promise<{
   fileName: string

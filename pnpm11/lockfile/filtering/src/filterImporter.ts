@@ -12,6 +12,9 @@ export function filterImporter (
     devDependencies: !include.devDependencies ? {} : pickNonRuntime(importer.devDependencies, skipRuntimes),
     optionalDependencies: !include.optionalDependencies ? {} : pickNonRuntime(importer.optionalDependencies, skipRuntimes),
     specifiers: pickNonRuntime(importer.specifiers, skipRuntimes),
+    ...(importer.publishDirectory ? { publishDirectory: importer.publishDirectory } : {}),
+    ...(importer.linkDirectory != null ? { linkDirectory: importer.linkDirectory } : {}),
+    ...(importer.dependenciesMeta ? { dependenciesMeta: importer.dependenciesMeta } : {}),
   }
 }
 

@@ -3,7 +3,10 @@
 //! out of the archive for a tarball, off disk for a directory — once a
 //! [`LocalPackageSpec`] has been chosen.
 
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -383,11 +386,38 @@ fn synthesize_fallback_manifest(
             path: spec.fetch_spec.display().to_string(),
         });
     }
+    if let Some(manifest) = find_parent_publish_manifest(&spec.fetch_spec)? {
+        return Ok(manifest);
+    }
     let name = spec.fetch_spec
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
     Ok(serde_json::json!({ "name": name, "version": "0.0.0" }))
+}
+
+fn find_parent_publish_manifest(
+    fetch_spec: &Path,
+) -> Result<Option<serde_json::Value>, ResolveLocalError> {
+    let target_path =
+        std::fs::canonicalize(fetch_spec).unwrap_or_else(|_| fetch_spec.to_path_buf());
+    let normalized_target = pnpm_fs::lexical_normalize(&target_path);
+    for parent in target_path.ancestors().skip(1) {
+        let Some(manifest) =
+            safe_read_package_json_from_dir(parent).map_err(ResolveLocalError::ReadManifest)?
+        else {
+            continue;
+        };
+        let is_publish_dir = manifest
+            .get("publishConfig")
+            .and_then(|config| config.get("directory"))
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|dir| pnpm_fs::lexical_normalize(&parent.join(dir)) == normalized_target);
+        if is_publish_dir {
+            return Ok(Some(manifest));
+        }
+    }
+    Ok(None)
 }
 
 /// Map a [`PackageManifestError`] from

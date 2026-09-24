@@ -622,6 +622,171 @@ fn symlink_local_package_from_publish_config_directory() {
     assert_eq!(fixture.wanted().importers["packages/project-1"].link_directory, Some(false));
 }
 
+/// pnpm/pnpm#8338: transitive dependencies and bins are accessible when using
+/// `publishConfig.directory` and `publishConfig.linkDirectory`.
+#[test]
+fn transitive_dependencies_and_bins_with_publish_config_directory() {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("is-positive", "1.0.0")], ..Default::default() },
+    );
+    let project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut project_1_manifest = read_manifest(&project_1);
+    project_1_manifest["publishConfig"] = json!({
+        "directory": "dist",
+        "linkDirectory": true,
+    });
+    project_1_manifest["bin"] = json!({
+        "project-1-bin": "./cli.js",
+    });
+    write_manifest_value(&project_1, &project_1_manifest);
+
+    let publish_dir = project_1.join("dist");
+    fs::create_dir_all(&publish_dir).expect("create publish directory");
+    fs::write(publish_dir.join("cli.js"), "#!/usr/bin/env node\nconsole.log('hello');")
+        .expect("write bin executable");
+
+    fixture.run(["install"]);
+
+    assert!(
+        project_1.join("dist/node_modules/is-positive").exists(),
+        "is-positive should exist under project-1/dist/node_modules",
+    );
+
+    assert!(
+        project_2.join("node_modules/project-1/node_modules/is-positive").exists(),
+        "is-positive should exist under project-2/node_modules/project-1/node_modules",
+    );
+
+    assert!(
+        project_2.join("node_modules/.bin/project-1-bin").exists(),
+        "project-1-bin should be linked into project-2/node_modules/.bin",
+    );
+
+    fs::remove_dir_all(project_2.join("node_modules")).expect("remove project-2 node_modules");
+    fs::remove_dir_all(project_1.join("node_modules")).expect("remove project-1 node_modules");
+    fs::remove_dir_all(project_1.join("dist/node_modules"))
+        .expect("remove project-1 dist node_modules");
+    fixture.run(["install", "--frozen-lockfile"]);
+
+    assert!(
+        project_2.join("node_modules/project-1/node_modules/is-positive").exists(),
+        "frozen install: is-positive should exist under project-2/node_modules/project-1/node_modules",
+    );
+    assert!(
+        project_2.join("node_modules/.bin/project-1-bin").exists(),
+        "frozen install: project-1-bin should be linked into project-2/node_modules/.bin",
+    );
+}
+
+/// pnpm/pnpm#8338: transitive dependencies and bins with nested publish directory and `./` prefix.
+#[test]
+fn transitive_dependencies_and_bins_with_nested_publish_config_directory() {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("is-positive", "1.0.0")], ..Default::default() },
+    );
+    let project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut project_1_manifest = read_manifest(&project_1);
+    project_1_manifest["publishConfig"] = json!({
+        "directory": "./dist/nested",
+        "linkDirectory": true,
+    });
+    project_1_manifest["bin"] = json!({
+        "project-1-nested-bin": "./cli.js",
+    });
+    write_manifest_value(&project_1, &project_1_manifest);
+
+    let publish_dir = project_1.join("dist/nested");
+    fs::create_dir_all(&publish_dir).expect("create publish directory");
+    fs::write(publish_dir.join("cli.js"), "#!/usr/bin/env node\nconsole.log('nested');")
+        .expect("write bin executable");
+
+    fixture.run(["install"]);
+
+    assert!(
+        project_2.join("node_modules/project-1/node_modules/is-positive").exists(),
+        "is-positive should exist under project-2/node_modules/project-1/node_modules",
+    );
+    assert!(
+        project_2.join("node_modules/.bin/project-1-nested-bin").exists(),
+        "project-1-nested-bin should be linked into project-2/node_modules/.bin",
+    );
+
+    fs::remove_dir_all(project_2.join("node_modules")).expect("remove project-2 node_modules");
+    fs::remove_dir_all(project_1.join("node_modules")).expect("remove project-1 node_modules");
+    fs::remove_dir_all(project_1.join("dist/nested/node_modules"))
+        .expect("remove project-1 nested dist node_modules");
+    fixture.run(["install", "--frozen-lockfile"]);
+
+    assert!(
+        project_2.join("node_modules/project-1/node_modules/is-positive").exists(),
+        "frozen install: is-positive should exist under project-2/node_modules/project-1/node_modules",
+    );
+    assert!(
+        project_2.join("node_modules/.bin/project-1-nested-bin").exists(),
+        "frozen install: project-1-nested-bin should be linked into project-2/node_modules/.bin",
+    );
+}
+
+#[test]
+fn publish_config_directory_dependency_builds_in_correct_order() {
+    let fixture = WorkspaceFixture::new();
+    let dependency = fixture.project("project-1", "project-1", ManifestDeps::default());
+    let dependent = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { dev: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut dep_manifest = read_manifest(&dependency);
+    dep_manifest["publishConfig"] = json!({
+        "directory": "dist",
+        "linkDirectory": true,
+    });
+    dep_manifest["scripts"] = json!({
+        "prepare": append_line_script("project-1-prepare", ORDER_LOG),
+    });
+    write_manifest_value(&dependency, &dep_manifest);
+
+    let mut dependent_manifest = read_manifest(&dependent);
+    dependent_manifest["scripts"] = json!({
+        "prepare": append_line_script("project-2-prepare", ORDER_LOG),
+    });
+    write_manifest_value(&dependent, &dependent_manifest);
+
+    let order_path = fixture.workspace.join("order.txt");
+    let mut expected = ["project-1-prepare", "project-2-prepare"].join("\n");
+    expected.push('\n');
+
+    fixture.run(["install"]);
+    assert_eq!(fs::read_to_string(&order_path).expect("read fresh lifecycle order"), expected);
+
+    fs::remove_file(&order_path).expect("reset lifecycle order");
+    for modules_dir in [
+        fixture.workspace.join("node_modules"),
+        dependency.join("node_modules"),
+        dependent.join("node_modules"),
+    ] {
+        if modules_dir.exists() {
+            fs::remove_dir_all(modules_dir).expect("remove node_modules");
+        }
+    }
+    fixture.run(["install", "--frozen-lockfile"]);
+    assert_eq!(fs::read_to_string(order_path).expect("read frozen lifecycle order"), expected);
+}
+
 /// TS: `recursive install with shared-workspace-lockfile builds
 /// workspace projects in correct order` (`pnpm/test/monorepo/index.ts:734`).
 #[test]

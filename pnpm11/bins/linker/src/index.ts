@@ -10,7 +10,7 @@ import { globalWarn, logger } from '@pnpm/logger'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import type { DependencyManifest, EngineDependency, ProjectManifest } from '@pnpm/types'
-import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+import { safeReadProjectManifestOnly, safeReadPublishManifest } from '@pnpm/workspace.project-manifest-reader'
 import { rimraf } from '@zkochan/rimraf'
 import fixBin from 'bin-links/lib/fix-bin.js'
 import { isSubdir } from 'is-subdir'
@@ -230,9 +230,19 @@ async function getPackageBins (
   },
   target: string
 ): Promise<CommandInfo[]> {
-  const manifest = opts.allowExoticManifests
+  let manifest = opts.allowExoticManifests
     ? (await safeReadProjectManifestOnly(target) as DependencyManifest)
     : await safeReadPkgJson(target)
+
+  if (manifest == null) {
+    let realTarget = target
+    try {
+      realTarget = await fs.realpath(target)
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+    }
+    manifest = (await safeReadPublishManifest(realTarget)) as DependencyManifest
+  }
 
   if (manifest == null) {
     // There's a directory in node_modules without package.json: ${target}.

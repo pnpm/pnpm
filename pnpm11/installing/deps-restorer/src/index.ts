@@ -90,7 +90,7 @@ import {
   type SupportedArchitectures,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
-import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+import { readProjectManifestOnly, safeReadPublishManifest } from '@pnpm/workspace.project-manifest-reader'
 import pLimit from 'p-limit'
 import { pathAbsolute } from 'path-absolute'
 import { equals, isEmpty, omit, pick, pickBy, props, union } from 'ramda'
@@ -835,10 +835,13 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
             await linkBinsOfPackages(
               (
                 await Promise.all(
-                  directPkgDirs.map(async (dir) => ({
-                    location: dir,
-                    manifest: await safeReadProjectManifestOnly(dir),
-                  }))
+                  directPkgDirs.map(async (dir) => {
+                    const manifest = await safeReadPublishManifest(dir)
+                    return {
+                      location: dir,
+                      manifest,
+                    }
+                  })
                 )
               )
                 .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
@@ -980,19 +983,26 @@ async function symlinkDirectDependencies (
     importerManifestsByImporterId[id] = manifest
   }
   const projectsToLink = Object.fromEntries(await Promise.all(
-    projects.map(async ({ rootDir, id, modulesDir }) => ([id, {
-      dir: rootDir,
-      modulesDir,
-      dependencies: await getRootPackagesToLink(filteredLockfile, {
-        importerId: id,
-        importerModulesDir: modulesDir,
-        lockfileDir,
-        projectDir: rootDir,
-        importerManifestsByImporterId,
-        registriesByScope,
-        rootDependencies: directDependenciesByImporterId[id],
-      }),
-    }]))
+    projects.map(async ({ rootDir, id, modulesDir }) => {
+      const importer = filteredLockfile.importers[id]
+      const publishDir = (importer?.publishDirectory != null && importer?.linkDirectory !== false)
+        ? importer.publishDirectory
+        : undefined
+      return [id, {
+        dir: rootDir,
+        modulesDir,
+        publishDir,
+        dependencies: await getRootPackagesToLink(filteredLockfile, {
+          importerId: id,
+          importerModulesDir: modulesDir,
+          lockfileDir,
+          projectDir: rootDir,
+          importerManifestsByImporterId,
+          registriesByScope,
+          rootDependencies: directDependenciesByImporterId[id],
+        }),
+      }]
+    })
   ))
   const rootProject = projectsToLink['.']
   if (rootProject && dedupe) {
