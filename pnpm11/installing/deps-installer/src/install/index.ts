@@ -823,7 +823,11 @@ export async function mutateModules (
       })
     }
     const packageExtensionsChecksum = hashObjectNullableWithPrefix(opts.packageExtensions)
-    const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
+    // An install that ignores the pnpmfile cannot hash it, so it keeps the
+    // checksum the lockfile records instead of dropping it.
+    const pnpmfileChecksum = opts.ignorePnpmfile
+      ? ctx.wantedLockfile.pnpmfileChecksum
+      : await opts.hooks.calculatePnpmfileChecksum?.()
     const untrackedPnpmfileReadPackageHook = getUntrackedPnpmfileReadPackageHook(opts.hooks)
     const untrackedReadPackageHookMayHaveChanged = untrackedPnpmfileReadPackageHook === true ||
       ctx.wantedLockfile.untrackedPnpmfileReadPackageHook !== untrackedPnpmfileReadPackageHook

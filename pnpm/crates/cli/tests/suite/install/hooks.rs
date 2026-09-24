@@ -372,6 +372,69 @@ fn ignore_pnpmfile_skips_the_read_package_hook() {
     drop((root, mock_instance));
 }
 
+/// `--ignore-pnpmfile` skips the pnpmfile for one run, so it leaves the
+/// lockfile's `pnpmfileChecksum` alone instead of recording that no
+/// pnpmfile exists (<https://github.com/pnpm/pnpm/issues/10944>).
+#[test]
+fn ignore_pnpmfile_keeps_the_pnpmfile_checksum() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_read_package_pnpmfile(&workspace);
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .expect("write package.json");
+    let read_lockfile =
+        || fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let lockfile = read_lockfile();
+    assert!(lockfile.contains("pnpmfileChecksum:"), "the pnpmfile is checksummed");
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--lockfile-only", "--ignore-pnpmfile"])
+        .assert()
+        .success();
+    assert_eq!(read_lockfile(), lockfile, "install --ignore-pnpmfile");
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--ignore-pnpmfile"])
+        .assert()
+        .success();
+    assert_eq!(read_lockfile(), lockfile, "install --frozen-lockfile --ignore-pnpmfile");
+
+    // Dedupe re-resolves without the hook, which drops the dependency the
+    // hook injected, but the checksum still answers for the pnpmfile.
+    pacquet_in(&workspace)
+        .with_args(["dedupe", "--lockfile-only", "--ignore-pnpmfile"])
+        .assert()
+        .success();
+    let pnpmfile_checksum = |lockfile: &str| {
+        lockfile
+            .lines()
+            .find(|line| line.starts_with("pnpmfileChecksum:"))
+            .map(str::to_owned)
+    };
+    assert_eq!(
+        pnpmfile_checksum(&read_lockfile()),
+        pnpmfile_checksum(&lockfile),
+        "dedupe --ignore-pnpmfile",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// `add` and `update` each merge their own CLI flags into the config,
 /// on a dispatch path `install` never takes.
 #[test]

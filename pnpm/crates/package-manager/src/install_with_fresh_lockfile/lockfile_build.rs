@@ -36,8 +36,15 @@ pub(super) async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>
     views: LockfileViews<'_, 'a>,
     verify_filtered_repair: bool,
 ) -> Result<Lockfile, InstallWithFreshLockfileError> {
-    let pnpmfile_checksum =
-        pnpmfile_checksum(resolved.hooks.after_all_resolved_hook.as_ref()).await;
+    // An install that ignores the pnpmfile cannot hash it, so it keeps the
+    // checksum the lockfile records instead of dropping it.
+    let pnpmfile_checksum = if install.drivers.config.ignore_pnpmfile {
+        install.lockfiles.merge_wanted
+            .or(install.lockfiles.wanted)
+            .and_then(|lockfile| lockfile.pnpmfile_checksum.clone())
+    } else {
+        pnpmfile_checksum(resolved.hooks.after_all_resolved_hook.as_ref()).await
+    };
     let untracked_pnpmfile_read_package_hook =
         pnpm_hooks::untracked_read_package_hook(resolved.hooks.after_all_resolved_hook.as_ref())
             .await

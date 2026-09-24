@@ -237,6 +237,28 @@ test('adding or changing pnpmfile should change pnpmfileChecksum and module stru
   expect(lockfile3).toStrictEqual(lockfile0)
 })
 
+test('--ignore-pnpmfile keeps pnpmfileChecksum in the lockfile', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+  const pnpmfile = 'module.exports.hooks = { readPackage: (pkg) => pkg }'
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile)
+  await execPnpm(['install'])
+  const lockfile = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+  expect(lockfile).toContain(`pnpmfileChecksum: ${createHash(pnpmfile)}`)
+
+  await execPnpm(['install', '--ignore-pnpmfile'])
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfile)
+
+  await execPnpm(['install', '--ignore-pnpmfile', '--frozen-lockfile'])
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfile)
+
+  await execPnpm(['dedupe', '--ignore-pnpmfile'])
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfile)
+})
+
 test('loading a pnpmfile from a config dependency', async () => {
   prepare({
     dependencies: {

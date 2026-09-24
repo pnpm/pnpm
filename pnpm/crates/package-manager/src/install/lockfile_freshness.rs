@@ -306,18 +306,30 @@ pub(super) async fn check_lockfile_freshness(
     inputs: &LockfileFreshnessInputs<'_, '_>,
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
     let parsed_overrides_opt = parse_config_overrides(inputs.config, inputs.catalogs)?;
-    let pnpmfile_checksum = pnpm_hooks::current_pnpmfile_checksum(
-        inputs.pnpmfile_hook,
-        lockfile.pnpmfile_checksum.as_deref(),
-    )
-    .await;
+    // An install that ignores the pnpmfile cannot hash it, so it keeps the
+    // recorded checksum instead of comparing against it.
+    let pnpmfile_checksum = if inputs.config.ignore_pnpmfile {
+        None
+    } else {
+        Some(
+            pnpm_hooks::current_pnpmfile_checksum(
+                inputs.pnpmfile_hook,
+                lockfile.pnpmfile_checksum.as_deref(),
+            )
+            .await,
+        )
+    };
     check_lockfile_settings_drift(
         lockfile,
         inputs.config,
         inputs.catalogs,
         CheckLockfileSettingsDriftOptions {
             parsed_overrides: parsed_overrides_opt.as_deref(),
-            pnpmfile_checksum: PnpmfileChecksumCheck::Current(pnpmfile_checksum.as_deref()),
+            pnpmfile_checksum: pnpmfile_checksum
+                .as_ref()
+                .map_or(PnpmfileChecksumCheck::Skip, |checksum| {
+                    PnpmfileChecksumCheck::Current(checksum.as_deref())
+                }),
             dedupe_peers: inputs.config.dedupe_peers,
         },
     )?;
