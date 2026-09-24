@@ -81,13 +81,7 @@ pub async fn confirmed_published_versions(
     if changelog_storage(Some(&options.config.versioning)) != ChangelogStorage::Registry {
         return Ok(HashSet::new());
     }
-    let private_names: HashSet<String> = projects
-        .iter()
-        .filter(|project| {
-            options.private_dirs.contains(&to_project_dir(options.workspace_dir, &project.root_dir))
-        })
-        .filter_map(|project| project.name.clone())
-        .collect();
+    let private_names = private_only_names(projects, options.workspace_dir, options.private_dirs);
     let checks = list_pending_changelogs(options.workspace_dir)?
         .into_iter()
         .filter(|(name, _)| !private_names.contains(name))
@@ -106,6 +100,30 @@ pub async fn confirmed_published_versions(
         .into_iter()
         .flatten()
         .collect())
+}
+
+/// The manifest names that only private projects carry. Parked changelogs are
+/// keyed by manifest name, so a name that a public project shares still gets
+/// its confirmation probe.
+fn private_only_names(
+    projects: &[WorkspaceProject],
+    workspace_dir: &Path,
+    private_dirs: &HashSet<String>,
+) -> HashSet<String> {
+    let (private, public): (Vec<_>, Vec<_>) = projects
+        .iter()
+        .partition(|project| {
+            private_dirs.contains(&to_project_dir(workspace_dir, &project.root_dir))
+        });
+    let public_names: HashSet<&String> = public
+        .iter()
+        .filter_map(|project| project.name.as_ref())
+        .collect();
+    private
+        .into_iter()
+        .filter_map(|project| project.name.clone())
+        .filter(|name| !public_names.contains(name))
+        .collect()
 }
 
 /// The workspace-relative dirs of the projects marked `"private": true`.
@@ -352,3 +370,6 @@ pub fn published_name(manifest: &serde_json::Value) -> Option<&str> {
         .as_str()
         .filter(|name| !name.is_empty())
 }
+
+#[cfg(test)]
+mod tests;

@@ -21,7 +21,7 @@ import { renderHelp } from 'render-help'
 import { inc, valid } from 'semver'
 
 import { renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
-import { privateProjectDirs, privateProjectNames } from '../privateProjects.js'
+import { privateOnlyProjectNames, privateProjectDirs } from '../privateProjects.js'
 import { changelogHasSection, fetchPublishedChangelog } from '../publish/previousChangelog.js'
 import { publishedNameByManifestName } from '../publishedNames.js'
 import { type CheckVersionPublished, resolveUnpublishedDirs } from '../resolveUnpublishedDirs.js'
@@ -258,7 +258,7 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     projects,
     allIntents: intents,
     versioning: opts.versioning,
-    verifyPublished: buildVerifyPublished(opts, publishedNames, privateProjectNames(projects)),
+    verifyPublished: buildVerifyPublished(opts, publishedNames, privateOnlyProjectNames(projects)),
   }
 
   if (plan.releases.length === 0) {
