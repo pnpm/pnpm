@@ -193,15 +193,20 @@ test.each(['silent', 'warn', 'error'])('run with --loglevel=%s prints neither th
   expect(result.stderr.toString()).toBe('')
 })
 
-test('recursive run with --loglevel=error does not print the command', () => {
+test('recursive run with loglevel: error in pnpm-workspace.yaml does not print the command', () => {
   preparePackages([{
     name: 'project',
     scripts: {
       hi: 'echo hi',
     },
   }])
+  fs.writeFileSync('package.json', JSON.stringify({ name: 'root', private: true }), 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project'],
+    loglevel: 'error',
+  })
 
-  const result = execPnpmSync(['--loglevel=error', '-r', '--workspace-concurrency=1', '--config.verify-deps-before-run=false', 'run', 'hi'], {
+  const result = execPnpmSync(['-r', '--workspace-concurrency=1', '--config.verify-deps-before-run=false', 'run', 'hi'], {
     expectSuccess: true,
     omitEnvDefaults: ['pnpm_config_silent'],
   })
