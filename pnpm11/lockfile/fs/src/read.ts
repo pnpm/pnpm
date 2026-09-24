@@ -204,7 +204,10 @@ async function _read (
     })
     return { lockfile: null, lockfileFile: null, hadConflicts: false }
   }
-  throw new LockfileBreakingChangeError(lockfilePath)
+  throw new LockfileBreakingChangeError(lockfilePath, {
+    lockfileVersion: lockfile?.lockfileVersion?.toString(),
+    wantedVersions: opts.wantedVersions,
+  })
 }
 
 function formatLockfileError (err: unknown): string {
