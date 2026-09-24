@@ -22,7 +22,9 @@ tracing = { workspace = true }
 webpki-root-certs = { workspace = true }
 
 [target.'cfg(target_vendor = "apple")'.dependencies]
+core-foundation = { workspace = true }
 security-framework = { workspace = true }
+security-framework-sys = { workspace = true }
 
 [dev-dependencies]
 mockito = { workspace = true }
