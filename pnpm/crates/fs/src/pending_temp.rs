@@ -12,24 +12,23 @@
 //!
 //! The handler chains to the disposition it replaced rather than assuming
 //! the default: `pnpm-executor`'s interrupt relay may have been installed
-//! first, and its exit path cleans this registry in turn, so an interrupt
-//! both reaches the children pnpm started and removes the temp files,
-//! whichever order the two handlers were installed in.
+//! first and may keep the process alive while children settle, so the
+//! handler unlinks only when the process is about to die — before the
+//! reset-and-raise for the default disposition, or in the relay's own exit
+//! path, which cleans this registry in turn. Unlinking while the relay
+//! keeps waiting would pull temp files out from under writes that keep
+//! running. An interrupt thus both reaches the children pnpm started and
+//! removes the temp files, whichever order the two handlers were installed
+//! in.
 
 use std::{
     path::Path,
     ptr,
     sync::{
         Once,
-        atomic::{AtomicPtr, Ordering},
+        atomic::{AtomicPtr, AtomicUsize, Ordering},
     },
 };
-
-#[cfg(unix)]
-use std::sync::atomic::AtomicUsize;
-
-#[cfg(not(unix))]
-use std::path::PathBuf;
 
 /// The terminal and service-manager signals that end pnpm without running
 /// destructors.
@@ -240,24 +239,28 @@ fn install_handler_for(index: usize, signal: libc::c_int) {
     }
 }
 
-/// Unlink the pending temp files, then pass the signal on to the
-/// disposition this handler replaced: the default ends the process by the
-/// signal, while a handler installed earlier — `pnpm-executor`'s interrupt
-/// relay — decides itself whether pnpm still has something to wait for.
+/// Pass the signal on to the disposition this handler replaced, unlinking
+/// the pending temp files only on the path that ends the process: the
+/// default dies by the signal, so it gets the cleanup first, while a
+/// handler installed earlier — `pnpm-executor`'s interrupt relay — may keep
+/// pnpm alive waiting for children, and unlinking now would pull temp files
+/// out from under writes that keep running. The relay's own exit path calls
+/// [`remove_pending_temp_files`] when it ends the process.
 ///
 /// Everything up to the chained call is async-signal-safe: atomic loads and
 /// `unlink`.
 #[cfg(unix)]
 extern "C" fn clean_temp_files(signal: libc::c_int) {
-    remove_pending_temp_files();
     let Some(index) = SIGNALS
         .iter()
         .position(|candidate| *candidate == signal)
     else {
+        remove_pending_temp_files();
         return;
     };
     let previous = PREVIOUS[index].load(Ordering::Acquire);
     if previous == libc::SIG_DFL {
+        remove_pending_temp_files();
         die_from(signal);
     }
     if previous == libc::SIG_IGN {
@@ -314,6 +317,11 @@ fn install_handler() {
 /// Remove the pending temp files, then pass the event on: returning `FALSE`
 /// lets the next handler — `pnpm-executor`'s relay while children are
 /// running, or the default termination — decide how the process ends.
+///
+/// Unlike the Unix handler this cannot defer the cleanup to the exit path:
+/// a console handler runs on a thread of its own and never learns whether
+/// the next handler kept the process alive, and the relay's Windows exit
+/// path is a plain exit code with no cleanup point of its own.
 #[cfg(windows)]
 unsafe extern "system" fn clean_temp_files(event: u32) -> windows_sys::core::BOOL {
     use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT};
