@@ -42,8 +42,36 @@ impl CustomFetcherSession {
         };
         let metadata =
             resolve_archive_metadata((&resolution, source), &tarball, download.package.id).await?;
-        self.cache_resolved_tarball(download.package.id, (&resolution, source), tarball);
+        self.record_completed_identities(&download, (&resolution, source), &metadata, tarball);
         Ok(metadata)
+    }
+
+    fn record_completed_identities(
+        &self,
+        download: &IngestTarballToStore<'_>,
+        resolutions: (&LockfileResolution, &LockfileResolution),
+        metadata: &ResolvedTarballMetadata,
+        tarball: Arc<FetchedTarball>,
+    ) {
+        self.cache_resolved_tarball(download.package.id, resolutions, Arc::clone(&tarball));
+        if !download.package.url.is_empty()
+            && download.package.url != download.package.id
+        {
+            self.cache_resolved_tarball(download.package.url, resolutions, Arc::clone(&tarball));
+        }
+        let Some(manifest) = &metadata.manifest else { return };
+        let (Some(name), Some(version)) = (
+            manifest.get("name").and_then(Value::as_str),
+            manifest.get("version").and_then(Value::as_str),
+        ) else {
+            return;
+        };
+        let canonical_id = format!("{name}@{version}");
+        if canonical_id != download.package.id
+            && canonical_id != download.package.url
+        {
+            self.cache_resolved_tarball(&canonical_id, resolutions, tarball);
+        }
     }
 
     fn cache_resolved_tarball(
