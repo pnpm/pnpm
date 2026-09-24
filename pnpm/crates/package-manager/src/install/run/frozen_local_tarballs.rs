@@ -110,7 +110,7 @@ pub(super) async fn local_tarballs_changed(settled: Settled<'_, '_>) -> bool {
     )
     .iter()
     .filter_map(|key| lockfile.packages.as_ref()?.get(key))
-    .filter(|metadata| is_local_tarball(&metadata.resolution))
+    .filter(|metadata| is_local_file_tarball(&metadata.resolution))
     .map(|metadata| metadata.resolution.clone())
     .collect();
     if resolutions.is_empty() {
@@ -198,14 +198,22 @@ fn has_local_tarball(lockfile: &pnpm_lockfile::Lockfile) -> bool {
     lockfile.packages
         .iter()
         .flat_map(|packages| packages.values())
-        .any(|package| is_local_tarball(&package.resolution))
+        .any(|package| {
+            matches!(
+                &package.resolution,
+                pnpm_lockfile::LockfileResolution::Tarball(resolution)
+                    if pnpm_lockfile::is_local_tarball_path(&resolution.tarball),
+            )
+        })
 }
 
-fn is_local_tarball(resolution: &pnpm_lockfile::LockfileResolution) -> bool {
+/// A `file:` tarball. Remote tarball URLs end in `.tgz` too.
+fn is_local_file_tarball(resolution: &pnpm_lockfile::LockfileResolution) -> bool {
     matches!(
         resolution,
         pnpm_lockfile::LockfileResolution::Tarball(resolution)
-            if pnpm_lockfile::is_local_tarball_path(&resolution.tarball),
+            if resolution.tarball.starts_with("file:")
+                && pnpm_lockfile::is_local_tarball_path(&resolution.tarball),
     )
 }
 
