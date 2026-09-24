@@ -226,6 +226,7 @@ impl NpmrcAuth {
         auth_token: String,
         origin: JsonAuthOrigin,
     ) {
+        let is_default = matches!(scope, JsonAuthScope::Default);
         let key = match &scope {
             JsonAuthScope::Default => format!("{}:_authToken", registry.nerfed),
             JsonAuthScope::Package(scope) => format!("{}:{scope}:_authToken", registry.nerfed),
@@ -238,11 +239,17 @@ impl NpmrcAuth {
             JsonAuthScope::Default => "default".to_string(),
             JsonAuthScope::Package(scope) => scope,
         };
-        let routes = match origin {
-            JsonAuthOrigin::Env => &mut self.routes.json_env,
-            JsonAuthOrigin::File => &mut self.routes.json_file,
-        };
-        routes.insert(route_key, registry.normalized.clone());
+        match origin {
+            JsonAuthOrigin::Env => {
+                if is_default {
+                    self.routes.json_env_default_candidates.push(registry.normalized.clone());
+                }
+                self.routes.json_env.insert(route_key, registry.normalized.clone());
+            }
+            JsonAuthOrigin::File => {
+                self.routes.json_file.insert(route_key, registry.normalized.clone());
+            }
+        }
     }
 
     /// Apply the [`crate::npmrc_auth::NpmrcRoutes::json_env`] routes. Unlike
@@ -260,22 +267,87 @@ impl NpmrcAuth {
         config: &mut Config,
         declared: &DeclaredRegistries,
     ) {
+        let scoped_urls = declared_scope_registry_urls(config, &self.routes.json_env);
+        self.apply_file_routes(config, declared, &scoped_urls);
+        self.apply_env_routes(config, declared, &scoped_urls);
+    }
+
+    fn apply_file_routes(
+        &mut self,
+        config: &mut Config,
+        declared: &DeclaredRegistries,
+        scoped_urls: &BTreeSet<String>,
+    ) {
         let file_routes = std::mem::take(&mut self.routes.json_file);
         for (scope, url) in file_routes
             .into_iter()
             .filter(|(scope, _)| !declared.covers(scope))
         {
             if scope == "default" {
-                config.registry.clone_from(&url);
-                continue;
+                if !scoped_urls.contains(&normalize_registry_url(&url)) {
+                    config.registry.clone_from(&url);
+                }
+            } else {
+                config.registries_by_scope.insert(scope, url);
             }
-            config.registries_by_scope.insert(scope, url);
         }
+    }
+
+    fn apply_env_routes(
+        &mut self,
+        config: &mut Config,
+        declared: &DeclaredRegistries,
+        scoped_urls: &BTreeSet<String>,
+    ) {
         for (scope, url) in std::mem::take(&mut self.routes.json_env) {
-            if scope == "default" {
-                config.registry.clone_from(&url);
+            if scope != "default" {
+                config.registries_by_scope.insert(scope, url);
             }
-            config.registries_by_scope.insert(scope, url);
         }
+
+        let candidates: Vec<String> = std::mem::take(&mut self.routes.json_env_default_candidates)
+            .into_iter()
+            .filter(|url| !scoped_urls.contains(&normalize_registry_url(url)))
+            .collect();
+
+        if let Some(url) =
+            select_default_candidate(&candidates, &config.registry, declared.registry)
+        {
+            config.registry.clone_from(&url);
+            config.registries_by_scope.insert("default".to_string(), url);
+        }
+    }
+}
+
+/// The URLs of the scope registries a config file declared and the `_auth`
+/// env var does not re-route. An `@` credential in `_auth` for one of them
+/// authenticates that registry; it does not make it the default.
+fn declared_scope_registry_urls(
+    config: &Config,
+    json_env: &std::collections::BTreeMap<String, String>,
+) -> BTreeSet<String> {
+    config.registries_by_scope
+        .iter()
+        .filter(|(scope, _)| scope.as_str() != "default" && !json_env.contains_key(*scope))
+        .map(|(_, url)| normalize_registry_url(url))
+        .collect()
+}
+
+fn select_default_candidate(
+    candidates: &[String],
+    current_default: &str,
+    has_declared_registry: bool,
+) -> Option<String> {
+    if candidates.is_empty() {
+        return None;
+    }
+    if has_declared_registry && candidates.len() > 1 {
+        let current_normalized = normalize_registry_url(current_default);
+        candidates
+            .iter()
+            .find(|url| normalize_registry_url(url) == current_normalized)
+            .cloned()
+    } else {
+        candidates.last().cloned()
     }
 }

@@ -63,6 +63,7 @@ export interface JsonAuthResult {
   auth: Record<string, string>
   registries: Record<string, string>
   fallbackRegistries: Record<string, string>
+  defaultCandidates?: string[]
 }
 
 export interface LoadNpmrcConfigOpts {
@@ -151,6 +152,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     auth: { ...globalConfigJsonAuth.auth, ...envJsonAuth.auth },
     registries: envJsonAuth.registries,
     fallbackRegistries: globalConfigJsonAuth.registries,
+    defaultCandidates: envJsonAuth.defaultCandidates,
   }
   for (const [key, value] of Object.entries(jsonAuth.auth)) {
     jsonAuth.auth[key] = substituteEnv(value, env, { warnings, key, context: ' in _auth.authToken' })
@@ -308,6 +310,7 @@ function parseJsonAuth (parsed: unknown, source: string): JsonAuthResult {
 
   const auth: Record<string, string> = {}
   const registries: Record<string, string> = {}
+  const defaultCandidates: string[] = []
   for (const [index, [url, scopes]] of Object.entries(parsed as Record<string, unknown>).entries()) {
     const registry = parseJsonAuthRegistry(url, index + 1, source)
     if (scopes === null || typeof scopes !== 'object' || Array.isArray(scopes)) {
@@ -324,10 +327,17 @@ function parseJsonAuth (parsed: unknown, source: string): JsonAuthResult {
       auth[`${registry.nerfed}:${scope === '@' ? '' : `${scope}:`}_authToken`] = token
       // Infer a registry route from the same entry (see JsonAuthResult.registries).
       // Last write wins on a duplicate scope, matching yaml/CLI.
-      registries[scope === '@' ? 'default' : scope] = registry.normalized
+      if (scope === '@') {
+        defaultCandidates.push(registry.normalized)
+      } else {
+        registries[scope] = registry.normalized
+      }
     }
   }
-  return { auth, registries, fallbackRegistries: {} }
+  if (defaultCandidates.length > 0) {
+    registries.default = defaultCandidates[defaultCandidates.length - 1]
+  }
+  return { auth, registries, fallbackRegistries: {}, defaultCandidates }
 }
 
 /** Parse `_auth` from the global pnpm config yaml (already a parsed object). */
