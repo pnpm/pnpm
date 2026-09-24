@@ -212,7 +212,8 @@ test('batch publish sends a package to the registry its publishConfig sets for i
     }, [])
 
     expect(registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')).toHaveLength(1)
-    expect(npmrcScopedRegistry.received.filter(({ method }) => method === 'PUT')).toHaveLength(0)
+    expect(registry.received.filter(({ method }) => method === 'GET')).not.toHaveLength(0)
+    expect(npmrcScopedRegistry.received).toHaveLength(0)
   } finally {
     await npmrcScopedRegistry.close()
   }
@@ -237,7 +238,8 @@ test('recursive publish sends a package to the registry its publishConfig sets f
     }, [])
 
     expect(registry.received.filter(({ method }) => method === 'PUT')).toHaveLength(1)
-    expect(npmrcScopedRegistry.received.filter(({ method }) => method === 'PUT')).toHaveLength(0)
+    expect(registry.received.filter(({ method }) => method === 'GET')).not.toHaveLength(0)
+    expect(npmrcScopedRegistry.received).toHaveLength(0)
   } finally {
     await npmrcScopedRegistry.close()
   }

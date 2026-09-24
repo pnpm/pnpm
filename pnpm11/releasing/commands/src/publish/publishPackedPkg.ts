@@ -211,7 +211,9 @@ interface RegistryInfo {
 const SCOPED_NAME_REGEX = /^@(?<scope>[^/]+)\/[^/]+/
 
 /**
- * Resolves the publish registry defined in `publishConfig` matching npm's precedence rules.
+ * Returns the registry `publishConfig` sets for `name`: its `@<scope>:registry`
+ * entry for the scope of `name`, else `publishConfig.registry`. Entries that are
+ * not strings are ignored. `undefined` means the configured registries apply.
  *
  * @internal Exported for batch and recursive publish.
  */

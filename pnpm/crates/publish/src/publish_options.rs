@@ -199,7 +199,9 @@ pub struct ResolvedPublishOptions {
     pub auth_token_override: Option<String>,
 }
 
-/// Resolves the publish registry defined in `publishConfig` matching npm's precedence rules.
+/// The registry `publishConfig` sets for `name`: its `@<scope>:registry` entry
+/// for the scope of `name`, else `publishConfig.registry`. Entries that are not
+/// strings are ignored. `None` means the configured registries apply.
 pub fn publish_config_registry<'a>(manifest: &'a Value, name: &str) -> Option<&'a str> {
     let publish_config = manifest.get("publishConfig")?;
     scope_of(name)
