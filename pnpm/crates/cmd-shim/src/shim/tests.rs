@@ -972,3 +972,55 @@ fn a_shim_lets_the_targets_signal_death_reach_the_caller() {
     assert_eq!(status.signal(), Some(9), "the shim swallowed the signal, reporting {status:?}");
     assert_eq!(status.code(), None);
 }
+
+/// On Nix, `command -p` falls back to searching `PATH`. If `node_modules/.bin` on `PATH`
+/// contains a decoy `readlink` or `sed`, the shim header strips `node_modules` from `PATH`
+/// before invoking helpers so the decoy is never executed.
+#[cfg(unix)]
+#[test]
+fn shim_execution_ignores_helpers_from_node_modules_in_path() {
+    let tmp = tempfile::tempdir().unwrap();
+    let bin_dir = plant_shimmed_tool(tmp.path());
+    let node_modules_decoy_dir = tmp
+        .path()
+        .join("fake_project")
+        .join("node_modules")
+        .join(".bin");
+    std::fs::create_dir_all(&node_modules_decoy_dir).unwrap();
+
+    let hijack = tmp
+        .path()
+        .join("hijack")
+        .join("node_modules");
+    let hijack_bin = hijack.join(".bin");
+    let hijack_target = hijack
+        .join("typescript")
+        .join("bin")
+        .join("tsc.js");
+    std::fs::create_dir_all(&hijack_bin).unwrap();
+    std::fs::create_dir_all(hijack_target.parent().unwrap()).unwrap();
+    std::fs::write(&hijack_target, "console.log('hijacked')\n").unwrap();
+
+    let answer = format!("#!/bin/sh\necho '{}'\n", hijack_bin.join("tsc").display());
+    write_executable(&node_modules_decoy_dir.join("readlink"), &answer);
+    write_executable(&node_modules_decoy_dir.join("sed"), &answer);
+    write_executable(&node_modules_decoy_dir.join("uname"), "#!/bin/sh\necho MINGW64_NT-10.0\n");
+
+    let path = format!(
+        "{}:{}",
+        node_modules_decoy_dir.display(),
+        std::env::var("PATH").unwrap_or_default(),
+    );
+    let output = std::process::Command::new(bin_dir.join("tsc-link"))
+        .env("PATH", path)
+        .output()
+        .expect("run the shim");
+
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(
+        stdout.trim_end(),
+        "tsc-output",
+        "the shim executed a helper from node_modules in PATH",
+    );
+}

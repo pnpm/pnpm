@@ -168,6 +168,21 @@ function createShellScript (targetDir: string, name: string, subcommand: string)
 # file itself before looking beside it. The hop cap matches the kernel's ELOOP
 # limit, so a cycle cannot hang the script. Directories come from \`\${self%/*}\`
 # and \`readlink\` runs through \`command -p\`, so the caller's PATH decides nothing here.
+# On Nix, \`command -p\` falls back to PATH, so node_modules entries are stripped
+# from PATH while resolving helpers.
+_PATH="$PATH"
+_path=""
+_old_ifs=\${IFS+x}
+_saved_ifs="$IFS"
+IFS=":"
+for _dir in $PATH; do
+  case "$_dir" in
+    *node_modules*|"") ;;
+    /*) _path="\${_path:+\${_path}:}$_dir" ;;
+  esac
+done
+if [ -n "$_old_ifs" ]; then IFS="$_saved_ifs"; else unset IFS; fi
+PATH="$_path"
 self=$0
 # MSYS and Cygwin can launch this with a native Windows path, which has no slash
 # for \`\${self%/*}\` to strip. Only a drive letter or a UNC prefix marks one; a
@@ -199,6 +214,7 @@ while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
     *) self=\${self%/*}/$link ;;
   esac
 done
+PATH="$_PATH"
 # The walk has to end at a regular file. Running out of hops leaves $self a
 # symlink; a chain that changed under us can leave it dangling or a directory, and
 # a failed readlink leaves a trailing slash. Each case would take \`pnpm\` from the
