@@ -177,6 +177,9 @@ pub enum LinkBinsError {
         error: serde_json::Error,
     },
 
+    #[diagnostic(transparent)]
+    ReadProjectManifest(#[error(source)] pnpm_package_manifest::PackageManifestError),
+
     #[display("Failed to read shim source {path:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_CMD_SHIM_PROBE_SHIM_SOURCE))]
     ProbeShimSource {

@@ -448,6 +448,43 @@ test('linkBins() with exotic manifests do not fail on directory w/o manifest fil
   expect(warn).not.toHaveBeenCalled()
 })
 
+describe('linkBins() with a dependency linked to its publishConfig.directory', () => {
+  function prepareWorkspace (opts: { symlinkedPublishDir: boolean }) {
+    const root = temporaryDirectory()
+    const projectDir = path.join(root, 'project')
+    const outputDir = opts.symlinkedPublishDir ? path.join(root, 'output') : path.join(projectDir, 'dist')
+    fs.mkdirSync(projectDir, { recursive: true })
+    fs.mkdirSync(outputDir, { recursive: true })
+    fs.writeFileSync(path.join(outputDir, 'cli.js'), '#!/usr/bin/env node\n', 'utf8')
+    fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+      name: 'project',
+      version: '1.0.0',
+      bin: { 'project-cli': './cli.js' },
+      publishConfig: { directory: 'dist' },
+    }), 'utf8')
+    if (opts.symlinkedPublishDir) {
+      fs.symlinkSync(outputDir, path.join(projectDir, 'dist'), 'junction')
+    }
+    const modulesDir = path.join(root, 'consumer/node_modules')
+    fs.mkdirSync(modulesDir, { recursive: true })
+    fs.symlinkSync(path.join(projectDir, 'dist'), path.join(modulesDir, 'project'), 'junction')
+    return modulesDir
+  }
+
+  test.each([false, true])('links the project\'s bins (symlinked publish directory: %s)', async (symlinkedPublishDir) => {
+    const binTarget = temporaryDirectory()
+    const warn = jest.fn()
+
+    await linkBins(prepareWorkspace({ symlinkedPublishDir }), binTarget, {
+      allowExoticManifests: false,
+      warn,
+    })
+
+    expect(warn).not.toHaveBeenCalled()
+    expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['project-cli']))
+  })
+})
+
 test('linkBins() does not link own bins', async () => {
   const target = f.prepare('foobar')
 

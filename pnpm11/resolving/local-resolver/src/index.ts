@@ -6,7 +6,7 @@ import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import type { DirectoryResolution, LatestInfo, LatestQuery, Resolution, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, PkgResolutionId } from '@pnpm/types'
-import { readProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+import { readProjectManifestOnly, safeReadParentPublishManifest } from '@pnpm/workspace.project-manifest-reader'
 
 import { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isLocalFilesystemSpecifier, isTarballFilename, type LocalPackageSpec, parseLocalPath, parseLocalScheme, type WantedLocalDependency } from './parseBareSpecifier.js'
 
@@ -149,6 +149,11 @@ async function resolveSpec (
         }
         case 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND':
         case 'ENOENT': {
+          const parentManifest = await safeReadParentPublishManifest(spec.fetchSpec) as DependencyManifest | null
+          if (parentManifest) {
+            localDependencyManifest = parentManifest
+            break
+          }
           localDependencyManifest = {
             name: path.basename(spec.fetchSpec),
             version: '0.0.0',

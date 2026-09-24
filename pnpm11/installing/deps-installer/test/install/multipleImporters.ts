@@ -2316,3 +2316,176 @@ test('frozenLockfile fails when a linked workspace package version is bumped and
     code: 'ERR_PNPM_OUTDATED_LOCKFILE',
   })
 })
+
+test('transitive dependencies and bins are accessible when using publishConfig directory and linkDirectory', async () => {
+  preparePackages([
+    {
+      location: 'project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+        bin: {
+          'project-1-bin': './cli.js',
+        },
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+        publishConfig: {
+          directory: 'dist',
+          linkDirectory: true,
+        },
+      },
+    },
+    {
+      location: 'project-2',
+      package: {
+        name: 'project-2',
+        version: '1.0.0',
+        dependencies: {
+          'project-1': 'workspace:*',
+        },
+      },
+    },
+  ])
+
+  fs.mkdirSync('project-1/dist', { recursive: true })
+  fs.writeFileSync('project-1/dist/cli.js', '#!/usr/bin/env node\nconsole.log("hello")', 'utf8')
+
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    bin: {
+      'project-1-bin': './cli.js',
+    },
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    publishConfig: {
+      directory: 'dist',
+      linkDirectory: true,
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'workspace:*',
+    },
+  }
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+
+  await mutateModules(importers, testDefaults({ allProjects }))
+
+  expect(fs.existsSync('project-1/dist/node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('project-2/node_modules/project-1/node_modules/is-positive')).toBe(true)
+  const isPositiveManifest = loadJsonFileSync<{ name: string }>('project-2/node_modules/project-1/node_modules/is-positive/package.json')
+  expect(isPositiveManifest.name).toBe('is-positive')
+
+  const project2 = assertProject(path.resolve('project-2'))
+  project2.has('project-1')
+  expect(fs.existsSync('project-2/node_modules/.bin/project-1-bin')).toBe(true)
+
+  rimrafSync('project-2/node_modules')
+  rimrafSync('project-1/node_modules')
+  rimrafSync('project-1/dist/node_modules')
+  await mutateModules(importers, testDefaults({ allProjects, frozenLockfile: true }))
+
+  expect(fs.existsSync('project-2/node_modules/project-1/node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('project-2/node_modules/.bin/project-1-bin')).toBe(true)
+})
+
+test('transitive dependencies and bins are accessible with nested publishConfig directory', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    bin: {
+      'project-1-nested-bin': './cli.js',
+    },
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    publishConfig: {
+      directory: './dist/nested',
+      linkDirectory: true,
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'workspace:*',
+    },
+  }
+
+  preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'project-2',
+      package: project2Manifest,
+    },
+  ])
+
+  fs.mkdirSync('project-1/dist/nested', { recursive: true })
+  fs.writeFileSync('project-1/dist/nested/cli.js', '#!/usr/bin/env node\nconsole.log("nested")', 'utf8')
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+
+  await mutateModules(importers, testDefaults({ allProjects }))
+
+  expect(fs.existsSync('project-2/node_modules/project-1/node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('project-2/node_modules/.bin/project-1-nested-bin')).toBe(true)
+
+  rimrafSync('project-2/node_modules')
+  rimrafSync('project-1/node_modules')
+  rimrafSync('project-1/dist/nested/node_modules')
+  await mutateModules(importers, testDefaults({ allProjects, frozenLockfile: true }))
+
+  expect(fs.existsSync('project-2/node_modules/project-1/node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('project-2/node_modules/.bin/project-1-nested-bin')).toBe(true)
+})

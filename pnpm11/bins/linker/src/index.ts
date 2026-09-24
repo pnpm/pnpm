@@ -10,7 +10,7 @@ import { globalWarn, logger } from '@pnpm/logger'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import type { DependencyManifest, EngineDependency, ProjectManifest } from '@pnpm/types'
-import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { rimraf } from '@zkochan/rimraf'
 import fixBin from 'bin-links/lib/fix-bin.js'
 import { isSubdir } from 'is-subdir'
@@ -230,9 +230,13 @@ async function getPackageBins (
   },
   target: string
 ): Promise<CommandInfo[]> {
-  const manifest = opts.allowExoticManifests
+  let manifest = opts.allowExoticManifests
     ? (await safeReadProjectManifestOnly(target) as DependencyManifest)
     : await safeReadPkgJson(target)
+
+  if (manifest == null) {
+    manifest = await readLinkedPublishManifest(target) as DependencyManifest
+  }
 
   if (manifest == null) {
     // There's a directory in node_modules without package.json: ${target}.
@@ -249,6 +253,36 @@ async function getPackageBins (
   }
 
   return getPackageBinsFromManifest(manifest, target)
+}
+
+/**
+ * Returns the manifest of the project whose `publishConfig.directory` the
+ * dependency link `target` points to, or `null` when there is no such project
+ * or `target` does not exist. The link is matched both by its own target and
+ * by its real path, so a publish directory that is itself a symlink matches.
+ * Other filesystem errors and unreadable manifests are thrown.
+ */
+async function readLinkedPublishManifest (target: string): Promise<ProjectManifest | null> {
+  const candidates = new Set<string>()
+  for (const resolve of [readLinkTarget, fs.realpath]) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      candidates.add(await resolve(target))
+    } catch (err: unknown) {
+      const code = (err as NodeJS.ErrnoException).code
+      if (code !== 'ENOENT' && code !== 'EINVAL') throw err
+    }
+  }
+  for (const candidate of candidates) {
+    // eslint-disable-next-line no-await-in-loop
+    const manifest = await safeReadParentPublishManifest(candidate)
+    if (manifest != null) return manifest
+  }
+  return null
+}
+
+async function readLinkTarget (link: string): Promise<string> {
+  return path.resolve(path.dirname(link), await fs.readlink(link))
 }
 
 async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string): Promise<CommandInfo[]> {

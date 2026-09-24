@@ -5,6 +5,7 @@ import { safeJoinModulesDir } from './safeJoinModulesDir.js'
 
 export { findCommonPathAncestor, prepareWorkspaceModulesDir, safeJoinModulesDir, safeJoinWorkspaceModulesDir, validateWorkspaceModulesDir } from './safeJoinModulesDir.js'
 export { symlinkDirectRootDependency } from './symlinkDirectRootDependency.js'
+export { symlinkDir, symlinkDirSync }
 
 export async function symlinkDependency (
   dependencyRealLocation: string,

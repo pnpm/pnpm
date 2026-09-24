@@ -435,3 +435,47 @@ test('filterByImporters(): exclude orphan packages', () => {
     },
   })
 })
+
+test('filterByImporters(): preserves publishDirectory, linkDirectory, and dependenciesMeta', () => {
+  const filteredLockfile = filterLockfileByImporters(
+    {
+      importers: {
+        ['project-1' as ProjectId]: {
+          dependencies: {
+            'prod-dep': '1.0.0',
+          },
+          dependenciesMeta: {
+            'prod-dep': { injected: true },
+          },
+          linkDirectory: false,
+          publishDirectory: 'dist',
+          specifiers: {
+            'prod-dep': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['prod-dep@1.0.0' as DepPath]: {
+          resolution: { integrity: '' },
+        },
+      },
+    },
+    ['project-1' as ProjectId],
+    {
+      failOnMissingDependencies: true,
+      include: {
+        dependencies: true,
+        devDependencies: true,
+        optionalDependencies: true,
+      },
+      skipped: new Set<DepPath>(),
+    }
+  )
+
+  expect(filteredLockfile.importers['project-1' as ProjectId].publishDirectory).toBe('dist')
+  expect(filteredLockfile.importers['project-1' as ProjectId].linkDirectory).toBe(false)
+  expect(filteredLockfile.importers['project-1' as ProjectId].dependenciesMeta).toEqual({
+    'prod-dep': { injected: true },
+  })
+})

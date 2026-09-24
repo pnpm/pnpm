@@ -35,6 +35,31 @@ export async function safeReadProjectManifestOnly (projectDir: string): Promise<
     }
   })
 }
+export async function safeReadPublishManifest (projectDir: string): Promise<ProjectManifest | null> {
+  return (await safeReadProjectManifestOnly(projectDir)) ?? safeReadParentPublishManifest(projectDir)
+}
+
+/**
+ * Finds the manifest of a project whose `publishConfig.directory` is `publishDir`,
+ * searching the ancestors of `publishDir`.
+ */
+export async function safeReadParentPublishManifest (publishDir: string): Promise<ProjectManifest | null> {
+  const normalizedTarget = path.resolve(publishDir)
+  let searchDir = path.dirname(normalizedTarget)
+  while (true) {
+    // eslint-disable-next-line no-await-in-loop
+    const parentManifest = await safeReadProjectManifestOnly(searchDir)
+    if (
+      parentManifest?.publishConfig?.directory &&
+      path.resolve(searchDir, parentManifest.publishConfig.directory) === normalizedTarget
+    ) {
+      return parentManifest
+    }
+    const next = path.dirname(searchDir)
+    if (next === searchDir) return null
+    searchDir = next
+  }
+}
 
 export async function readProjectManifest (projectDir: string): Promise<{
   fileName: string

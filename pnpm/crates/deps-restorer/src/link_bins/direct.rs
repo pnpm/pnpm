@@ -6,7 +6,7 @@ use pnpm_cmd_shim::{
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{PackageKey, PackageMetadata};
-use pnpm_package_manifest::parse_manifest_bytes;
+use pnpm_package_manifest::{parse_manifest_bytes, safe_read_project_manifest_from_dir};
 use rayon::prelude::*;
 use std::{
     collections::{HashMap, HashSet},
@@ -274,6 +274,41 @@ pub(super) fn prefetched_bin_source(
             .with_resolved_location(target.to_path_buf()),
     )
 }
+fn read_manifest_at(manifest_path: &Path) -> Result<Option<serde_json::Value>, LinkBinsError> {
+    let bytes = match fs::read(manifest_path) {
+        Ok(bytes) => bytes,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(LinkBinsError::ReadManifest { path: manifest_path.to_path_buf(), error });
+        }
+    };
+    parse_manifest_bytes(&bytes)
+        .map(Some)
+        .map_err(|error| LinkBinsError::ParseManifest { path: manifest_path.to_path_buf(), error })
+}
+
+/// The manifest of a project enclosing `target` whose
+/// `publishConfig.directory` is `target`.
+fn read_parent_publish_manifest(target: &Path) -> Result<Option<serde_json::Value>, LinkBinsError> {
+    let normalized_target = pnpm_fs::lexical_normalize(target);
+    for parent in target.ancestors().skip(1) {
+        let Some(manifest) = safe_read_project_manifest_from_dir(parent)
+            .map_err(LinkBinsError::ReadProjectManifest)?
+        else {
+            continue;
+        };
+        let is_publish_dir = manifest
+            .get("publishConfig")
+            .and_then(|cfg| cfg.get("directory"))
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|dir| pnpm_fs::lexical_normalize(&parent.join(dir)) == normalized_target);
+        if is_publish_dir {
+            return Ok(Some(manifest));
+        }
+    }
+    Ok(None)
+}
+
 /// The disk-read arm of [`link_direct_dep_bins_prefetched`], with the
 /// same `NotFound`-tolerant / other-IO-fatal policy as
 /// [`link_direct_dep_bins`].
@@ -282,23 +317,34 @@ pub(super) fn read_dep_bin_source(
     name: &str,
     target: &Path,
 ) -> Option<Result<PackageBinSource, LinkBinsError>> {
+    read_dep_manifest(modules_dir, name, Some(target))
+        .map(|result| {
+            result.map(|(location, manifest)| {
+                PackageBinSource::new(location, Arc::new(manifest))
+                    .with_resolved_location(target.to_path_buf())
+            })
+        })
+}
+/// Reads `<modules_dir>/<name>/package.json`. A dependency linked to a
+/// `publishConfig.directory` that has no manifest of its own falls back
+/// to the manifest of the project that declares that directory, found
+/// through `target`.
+fn read_dep_manifest(
+    modules_dir: &Path,
+    name: &str,
+    target: Option<&Path>,
+) -> Option<Result<(PathBuf, serde_json::Value), LinkBinsError>> {
     let location = modules_dir.join(name);
-    let manifest_path = location.join("package.json");
-    let bytes = match fs::read(&manifest_path) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
-        Err(error) => {
-            return Some(Err(LinkBinsError::ReadManifest { path: manifest_path, error }));
-        }
+    let manifest = match read_manifest_at(&location.join("package.json")) {
+        Ok(Some(manifest)) => manifest,
+        Ok(None) => match read_parent_publish_manifest(target?) {
+            Ok(Some(manifest)) => manifest,
+            Ok(None) => return None,
+            Err(err) => return Some(Err(err)),
+        },
+        Err(err) => return Some(Err(err)),
     };
-    let manifest: serde_json::Value = match parse_manifest_bytes(&bytes) {
-        Ok(manifest) => manifest,
-        Err(error) => {
-            return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
-        }
-    };
-    Some(Ok(PackageBinSource::new(location, Arc::new(manifest))
-        .with_resolved_location(target.to_path_buf())))
+    Some(Ok((location, manifest)))
 }
 pub(super) fn link_named_dep_bins(
     modules_dir: &Path,
@@ -317,20 +363,9 @@ pub(super) fn link_named_dep_bins(
     let bin_sources: Vec<PackageBinSource> = deps
         .par_iter()
         .filter_map(|(name, resolved)| {
-            let location = modules_dir.join(name);
-            let manifest_path = location.join("package.json");
-            let bytes = match fs::read(&manifest_path) {
-                Ok(bytes) => bytes,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
-                Err(error) => {
-                    return Some(Err(LinkBinsError::ReadManifest { path: manifest_path, error }));
-                }
-            };
-            let manifest: serde_json::Value = match parse_manifest_bytes(&bytes) {
-                Ok(manifest) => manifest,
-                Err(error) => {
-                    return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
-                }
+            let (location, manifest) = match read_dep_manifest(modules_dir, name, *resolved)? {
+                Ok(found) => found,
+                Err(err) => return Some(Err(err)),
             };
             let mut source = PackageBinSource::new(location, Arc::new(manifest))
                 .with_build_pending(build_pending);
