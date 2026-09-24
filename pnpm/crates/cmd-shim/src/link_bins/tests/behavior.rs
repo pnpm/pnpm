@@ -116,6 +116,82 @@ fn link_bins_rewrites_when_only_canonical_flavor_exists() {
     assert!(bins.join("foo.ps1").exists(), ".ps1 sibling must be re-created on second pass");
 }
 
+/// Missing declared bin targets must be skipped on Windows, matching pnpm v11
+/// behavior. Otherwise, a broken `.cmd` shim is written for targets that are
+/// only created during lifecycle scripts (such as `node`'s `preinstall`), which
+/// intercepts PATH lookups and fails with "The system cannot find the path specified".
+#[cfg(windows)]
+#[test]
+fn link_bins_skips_writing_shim_when_target_does_not_exist() {
+    let tmp = tempdir().unwrap();
+    let bin_target = tmp.path().join(".bin");
+    let node_dir = tmp.path().join("node_pkg");
+    create_dir_all(&node_dir).unwrap();
+    // package.json declares bin/node, but bin/node does not exist yet.
+    write_file(
+        node_dir.join("package.json"),
+        json!({"name": "node", "version": "20.16.0", "bin": {"node": "bin/node"}}).to_string(),
+    )
+    .unwrap();
+
+    let manifest: Value =
+        serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(node_dir, Arc::new(manifest))],
+        &bin_target,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    assert!(
+        !bin_target.join("node").exists(),
+        "canonical shim must not be written when target does not exist",
+    );
+    assert!(
+        !bin_target.join("node.cmd").exists(),
+        ".cmd shim must not be written when target does not exist",
+    );
+    assert!(
+        !bin_target.join("node.ps1").exists(),
+        ".ps1 shim must not be written when target does not exist",
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn link_bins_removes_existing_shim_when_target_does_not_exist() {
+    let tmp = tempdir().unwrap();
+    let bin_target = tmp.path().join(".bin");
+    create_dir_all(&bin_target).unwrap();
+    write_file(bin_target.join("node.cmd"), "@echo off\r\n").unwrap();
+    write_file(bin_target.join("node.ps1"), "# pwsh\r\n").unwrap();
+    let node_dir = tmp.path().join("node_pkg");
+    create_dir_all(&node_dir).unwrap();
+    write_file(
+        node_dir.join("package.json"),
+        json!({"name": "node", "version": "20.16.0", "bin": {"node": "bin/node"}}).to_string(),
+    )
+    .unwrap();
+
+    let manifest: Value =
+        serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(node_dir, Arc::new(manifest))],
+        &bin_target,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    assert!(
+        !bin_target.join("node.cmd").exists(),
+        "existing .cmd shim must be removed when target does not exist",
+    );
+    assert!(
+        !bin_target.join("node.ps1").exists(),
+        "existing .ps1 shim must be removed when target does not exist",
+    );
+}
+
 #[test]
 fn link_bins_propagates_chmod_error_via_di() {
     use std::io;

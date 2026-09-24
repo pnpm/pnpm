@@ -58,6 +58,30 @@ impl ShimSpec<'_> {
     }
 }
 
+#[cfg(windows)]
+fn handle_probe_error(spec: &ShimSpec<'_>, error: io::Error) -> Result<(), LinkBinsError> {
+    if error.kind() == io::ErrorKind::NotFound {
+        let shim_path = spec.shim_path.display();
+        let target_path = spec.target_path.display();
+        tracing::warn!(
+            "Failed to create bin at {shim_path}. The target {target_path} does not exist",
+        );
+        remove_bin(spec.shim_path)
+            .map_err(|error| LinkBinsError::RemoveStaleBin {
+                path: spec.shim_path.to_path_buf(),
+                error,
+            })?;
+        Ok(())
+    } else {
+        Err(LinkBinsError::ProbeShimSource { path: spec.probe_path.to_path_buf(), error })
+    }
+}
+
+#[cfg(not(windows))]
+fn handle_probe_error(spec: &ShimSpec<'_>, error: io::Error) -> Result<(), LinkBinsError> {
+    Err(LinkBinsError::ProbeShimSource { path: spec.probe_path.to_path_buf(), error })
+}
+
 pub(super) fn write_shim<Sys>(
     spec: ShimSpec<'_>,
     cache: &ShimTargetCache,
@@ -130,17 +154,29 @@ where
         return Ok(());
     }
 
-    let runtime = cache
-        .runtime_for::<Sys>(spec.probe_path)
-        .map_err(|error| LinkBinsError::ProbeShimSource {
-            path: spec.probe_path.to_path_buf(),
-            error,
-        })?;
+    update_shims::<Sys>(&spec, cache, existing_shim.as_deref())
+}
+
+fn update_shims<Sys>(
+    spec: &ShimSpec<'_>,
+    cache: &ShimTargetCache,
+    existing_shim: Option<&str>,
+) -> Result<(), LinkBinsError>
+where
+    Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
+{
+    let runtime = match cache.runtime_for::<Sys>(spec.probe_path) {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            handle_probe_error(spec, error)?;
+            return Ok(());
+        }
+    };
 
     let sh_body = spec.sh_body(runtime.as_ref());
-    let windows_shims = windows_shim_bodies(&spec, runtime.as_ref());
+    let windows_shims = windows_shim_bodies(spec, runtime.as_ref());
 
-    let current = shim_body_matches(existing_shim.as_deref(), &sh_body, &spec)
+    let current = shim_body_matches(existing_shim, &sh_body, spec)
         && windows_shims_match::<Sys>(windows_shims.as_ref());
     if !current {
         replace_shims::<Sys>(spec.shim_path, &sh_body, windows_shims.as_ref())?;
@@ -334,12 +370,13 @@ where
         make_powershell_shim,
         ..
     } = spec;
-    let runtime = cache
-        .runtime_for::<Sys>(probe_path)
-        .map_err(|error| LinkBinsError::ProbeShimSource {
-            path: probe_path.to_path_buf(),
-            error,
-        })?;
+    let runtime = match cache.runtime_for::<Sys>(probe_path) {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            handle_probe_error(spec, error)?;
+            return Ok(true);
+        }
+    };
     let sh_body = spec.sh_body(runtime.as_ref());
     // Any failure — a lost race, a dangling symlink squatting on the
     // path, a `Sys` without exclusive creation — goes to the general

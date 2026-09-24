@@ -374,10 +374,19 @@ fn search_script_runtime_reads_shebang_from_real_file() {
     assert_eq!(rt.prog.as_deref(), Some("node"));
 }
 
+#[cfg(not(windows))]
 #[test]
 fn search_script_runtime_returns_none_for_missing_file() {
     let nonexistent = Path::new("/definitely/not/a/real/path/cli");
     assert_eq!(search_script_runtime::<Host>(nonexistent).unwrap(), None);
+}
+
+#[cfg(windows)]
+#[test]
+fn search_script_runtime_propagates_not_found_on_windows() {
+    let nonexistent = Path::new("/definitely/not/a/real/path/cli");
+    let err = search_script_runtime::<Host>(nonexistent).unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::NotFound);
 }
 
 #[test]

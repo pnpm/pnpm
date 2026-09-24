@@ -61,6 +61,7 @@ fn read_shebang<Sys: FsReadHead>(path: &Path) -> io::Result<Option<ScriptRuntime
     let mut buffer = [0u8; 512];
     let read = match read_head_filled::<Sys>(path, &mut buffer) {
         Ok(read) => read,
+        #[cfg(not(windows))]
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error),
     };
