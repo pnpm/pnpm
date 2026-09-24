@@ -34,11 +34,22 @@ pub trait FsReflink {
     fn reflink(source: &Path, target: &Path) -> io::Result<()>;
 }
 
+/// Create a hard link from `source` to `target`, as [`fs::hard_link`].
+pub trait FsHardLink {
+    fn hard_link(source: &Path, target: &Path) -> io::Result<()>;
+}
+
 pub struct Host;
 
 impl FsReflink for Host {
     fn reflink(source: &Path, target: &Path) -> io::Result<()> {
         reflink_copy::reflink(source, target)
+    }
+}
+
+impl FsHardLink for Host {
+    fn hard_link(source: &Path, target: &Path) -> io::Result<()> {
+        fs::hard_link(source, target)
     }
 }
 

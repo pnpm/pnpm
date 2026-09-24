@@ -16,6 +16,9 @@ use std::io;
 /// cross-device would overwrite that other content with a copy.
 #[must_use]
 pub fn is_cross_device(error: &io::Error) -> bool {
+    if error.kind() == io::ErrorKind::CrossesDevices {
+        return true;
+    }
     #[cfg(unix)]
     return error.raw_os_error() == Some(18);
     #[cfg(windows)]

@@ -1,3 +1,5 @@
+pub use pnpm_fs::FsHardLink;
+
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
@@ -507,20 +509,6 @@ fn create_new_with_permissions(
 fn clone_file<Sys: FsReflink>(source_file: &Path, target_link: &Path) -> io::Result<()> {
     Sys::reflink(source_file, target_link)?;
     pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
-}
-
-/// The hardlink syscall the import methods issue. A capability seam so
-/// tests can hand them the errors only some filesystems return
-/// (`EPERM` from a FUSE mount that has no hardlinks), which a temp dir
-/// on the CI runner's disk cannot reproduce.
-pub trait FsHardLink {
-    fn hard_link(source: &Path, target: &Path) -> io::Result<()>;
-}
-
-impl FsHardLink for Host {
-    fn hard_link(source: &Path, target: &Path) -> io::Result<()> {
-        fs::hard_link(source, target)
-    }
 }
 
 /// Unix permission errors that may deny linking while still allowing copying.

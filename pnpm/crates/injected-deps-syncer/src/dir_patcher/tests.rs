@@ -152,3 +152,69 @@ fn sync_shares_inodes_with_the_source() {
         file_id(&target_path, &target_stat).expect("target file id"),
     );
 }
+
+struct CrossDeviceHardLink;
+
+impl pnpm_fs::FsHardLink for CrossDeviceHardLink {
+    fn hard_link(_source: &std::path::Path, _target: &std::path::Path) -> std::io::Result<()> {
+        Err(std::io::Error::from(std::io::ErrorKind::CrossesDevices))
+    }
+}
+
+struct RawOsCrossDeviceHardLink;
+
+impl pnpm_fs::FsHardLink for RawOsCrossDeviceHardLink {
+    fn hard_link(_source: &std::path::Path, _target: &std::path::Path) -> std::io::Result<()> {
+        #[cfg(unix)]
+        return Err(std::io::Error::from_raw_os_error(18));
+        #[cfg(windows)]
+        return Err(std::io::Error::from_raw_os_error(17));
+        #[cfg(not(any(unix, windows)))]
+        return Err(std::io::Error::from(std::io::ErrorKind::CrossesDevices));
+    }
+}
+
+#[test]
+fn sync_falls_back_to_copy_on_cross_device_link() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("lib/index.js"), "built");
+    create_file(&source.join("assets/logo.png"), "image-bytes");
+    fs::create_dir_all(&target).expect("create target");
+
+    let source_map = super::load_inode_map(&source).expect("source inode map");
+    let target_map = super::load_inode_map(&target).expect("target inode map");
+    let patch = super::diff_dir(&target_map, &source_map);
+    super::apply_patch_with_link::<CrossDeviceHardLink>(&patch, &source, &target)
+        .expect("apply patch with cross-device link fallback");
+
+    let (source_path, target_path) = (source.join("lib/index.js"), target.join("lib/index.js"));
+    assert_eq!(fs::read_to_string(&target_path).expect("read target file"), "built");
+    assert_eq!(
+        fs::read_to_string(target.join("assets/logo.png")).expect("read target image"),
+        "image-bytes",
+    );
+
+    let source_stat = fs::metadata(&source_path).expect("stat source");
+    let target_stat = fs::metadata(&target_path).expect("stat target");
+    assert_ne!(
+        file_id(&source_path, &source_stat).expect("source file id"),
+        file_id(&target_path, &target_stat).expect("target file id"),
+    );
+}
+
+#[test]
+fn sync_falls_back_to_copy_on_raw_os_cross_device_error() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("main.js"), "content");
+    fs::create_dir_all(&target).expect("create target");
+
+    let source_map = super::load_inode_map(&source).expect("source inode map");
+    let target_map = super::load_inode_map(&target).expect("target inode map");
+    let patch = super::diff_dir(&target_map, &source_map);
+    super::apply_patch_with_link::<RawOsCrossDeviceHardLink>(&patch, &source, &target)
+        .expect("apply patch with raw os cross device error");
+
+    assert_eq!(fs::read_to_string(target.join("main.js")).expect("read copied file"), "content");
+}

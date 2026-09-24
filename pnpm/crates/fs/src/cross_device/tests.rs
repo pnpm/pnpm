@@ -40,3 +40,8 @@ fn is_cross_device_distinguishes_unix_eexist_from_windows_not_same_device() {
 fn errors_without_an_os_code_are_not_cross_device() {
     assert!(!is_cross_device(&io::Error::other("no raw code")));
 }
+
+#[test]
+fn crosses_devices_kind_is_cross_device() {
+    assert!(is_cross_device(&io::Error::from(io::ErrorKind::CrossesDevices)));
+}

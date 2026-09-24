@@ -91,9 +91,21 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
       await retryOverBlockingInode(targetPath, async () => fs.promises.mkdir(targetPath, { recursive: true }))
     } else if (typeof value === 'string') {
       fs.mkdirSync(path.dirname(targetPath), { recursive: true })
-      await retryOverBlockingInode(targetPath, async () => fs.promises.link(sourcePath, targetPath))
+      await retryOverBlockingInode(targetPath, async () => linkOrCopy(sourcePath, targetPath))
     } else {
       const _: never = value // static type guard
+    }
+  }
+
+  async function linkOrCopy (sourcePath: string, targetPath: string): Promise<void> {
+    try {
+      await fs.promises.link(sourcePath, targetPath)
+    } catch (error) {
+      if (util.types.isNativeError(error) && 'code' in error && error.code === 'EXDEV') {
+        await fs.promises.copyFile(sourcePath, targetPath)
+        return
+      }
+      throw error
     }
   }
 
