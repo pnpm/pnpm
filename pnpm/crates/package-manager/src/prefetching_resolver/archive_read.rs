@@ -43,14 +43,26 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             }
             Err(err) => return Err(err),
         };
+        self.record_archive_metadata(result, missing, metadata);
+        Ok(())
+    }
+
+    /// Write back whichever halves the read was there to settle, leaving every
+    /// other field of the resolution as the resolver wrote it.
+    fn record_archive_metadata(
+        &self,
+        result: &mut ResolveResult,
+        missing: MissingTarballMetadata,
+        metadata: ResolvedTarballMetadata,
+    ) {
         // A custom resolution is the resolver's, and the read only interprets
         // it, so there is nothing for the archive to name better. Taking the
         // fetcher's copy would also carry the scratch fields a `canFetch` left
         // on the object into the lockfile, since `decode_resolution` strips
         // those only from resolutions that have no `type`.
-        if self.ctx.policy.custom_session.is_some()
-            && !matches!(result.resolution, LockfileResolution::Custom(_))
-        {
+        let fetcher_chose_the_content = self.ctx.policy.custom_session.is_some()
+            && !matches!(result.resolution, LockfileResolution::Custom(_));
+        if fetcher_chose_the_content {
             // A fetcher can select different content for the same URL, and
             // the manifest below was read out of whatever it chose. Record
             // the resolution naming those bytes, not the one it replaced.
@@ -67,7 +79,6 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         {
             result.package.manifest = Some(manifest);
         }
-        Ok(())
     }
 
     /// Read the archive once per distinct content and share the result
