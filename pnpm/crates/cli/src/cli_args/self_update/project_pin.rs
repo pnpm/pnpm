@@ -58,9 +58,7 @@ pub(super) fn implicit_latest_no_upgrade_message(
 }
 
 pub(super) async fn registry_latest_ignoring_maturity(config: &'static Config) -> Option<String> {
-    if config.resolved_minimum_release_age().is_none() {
-        return None;
-    }
+    config.resolved_minimum_release_age()?;
     Box::pin(config_deps::resolve_engine_version_ignoring_maturity(config, "pnpm", "latest"))
         .await
         .ok()
