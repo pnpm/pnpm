@@ -380,6 +380,7 @@ fn gvs_install_waits_for_another_install_building_the_same_slot() {
     let hash_dir = sole_hash_dir(&pkg_version_dir(&store_dir, PKG, "1.0.0"));
     let pkg = pkg_in_slot(&hash_dir, PKG);
     assert!(pkg.join(".pnpm-needs-build").is_file(), "the deferred build must leave its marker");
+    fs::remove_file(pkg.join("README.md")).expect("remove a pristine file");
 
     let lock = DirLock::acquire(
         hash_dir.join(".pnpm-build.lock"),
@@ -403,11 +404,16 @@ fn gvs_install_waits_for_another_install_building_the_same_slot() {
         !pkg.join("generated-by-postinstall.js").exists(),
         "the install must not build the slot while another install holds its lock",
     );
+    assert!(
+        !pkg.join("README.md").exists(),
+        "the install must not re-import the slot while another install holds its lock",
+    );
 
     drop(lock);
     let status = install.wait().expect("wait for the install");
     assert!(status.success(), "the install must finish once the slot lock is released");
     assert!(pkg.join("generated-by-postinstall.js").exists());
+    assert!(pkg.join("README.md").exists());
     assert!(!pkg.join(".pnpm-needs-build").exists());
 
     drop((root, mock_instance));

@@ -386,6 +386,7 @@ test('GVS build waits for another install building the same slot', async () => {
   const pkgInGvs = path.join(hashDir, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
   fs.writeFileSync(path.join(pkgInGvs, '.pnpm-needs-build'), '')
   fs.unlinkSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))
+  fs.unlinkSync(path.join(pkgInGvs, 'README.md'))
   rimrafSync('node_modules')
 
   const lock = await DirLock.acquire(path.join(hashDir, '.pnpm-build.lock'), { waitMs: 0, abandonedMs: 30 * 60_000 })
@@ -394,14 +395,17 @@ test('GVS build waits for another install building the same slot', async () => {
   const installing = install(manifest, testDefaults({ ...opts, frozenLockfile: true })).finally(() => {
     settled = true
   })
-
-  await new Promise((resolve) => setTimeout(resolve, 3000))
-  expect(settled).toBe(false)
-  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeFalsy()
-
-  await lock!.release()
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+    expect(settled).toBe(false)
+    expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeFalsy()
+    expect(fs.existsSync(path.join(pkgInGvs, 'README.md'))).toBeFalsy()
+  } finally {
+    await lock!.release()
+  }
   await installing
   expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pkgInGvs, 'README.md'))).toBeTruthy()
   expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeFalsy()
 })
 

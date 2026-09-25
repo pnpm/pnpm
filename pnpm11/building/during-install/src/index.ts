@@ -408,6 +408,24 @@ async function buildDependency<T extends string> (
 }
 
 /**
+ * Takes the lock that serializes writes into one global virtual store slot
+ * across processes: builds, and re-imports of a slot that still carries its
+ * `.pnpm-needs-build` marker. `slotModulesDir` is the slot's `node_modules`.
+ * Resolves to `undefined` when the lock cannot be taken, and the caller then
+ * writes without it: the lock avoids a race, and a race lost is better than
+ * an install that refuses to run.
+ */
+export async function lockGlobalVirtualStoreSlot (slotModulesDir: string): Promise<DirLock | undefined> {
+  const lockPath = path.join(path.dirname(slotModulesDir), SLOT_LOCK_DIR)
+  try {
+    return await DirLock.acquire(lockPath, { waitMs: SLOT_LOCK_WAIT_MS, abandonedMs: SLOT_LOCK_ABANDONED_MS })
+  } catch (err: unknown) {
+    logger.debug({ message: `Failed to lock ${lockPath}`, error: err })
+    return undefined
+  }
+}
+
+/**
  * Serializes builds into one global virtual store slot across processes.
  * Resolves to `undefined` when another install built the slot while this one
  * waited for its lock.
@@ -415,15 +433,7 @@ async function buildDependency<T extends string> (
 async function lockSlotForBuild<T extends string> (depNode: DependenciesGraphNode<T>): Promise<{ lock?: DirLock } | undefined> {
   const marker = path.join(depNode.dir, NEEDS_BUILD_MARKER)
   const awaitingBuild = await pathExists(marker)
-  // `depNode.modules` is `<hashDir>/node_modules`, so its parent is the
-  // hash directory for scoped and unscoped names alike.
-  const lockPath = path.join(path.dirname(depNode.modules), SLOT_LOCK_DIR)
-  let lock: DirLock | undefined
-  try {
-    lock = await DirLock.acquire(lockPath, { waitMs: SLOT_LOCK_WAIT_MS, abandonedMs: SLOT_LOCK_ABANDONED_MS })
-  } catch (err: unknown) {
-    logger.debug({ message: `Failed to lock ${lockPath}`, error: err })
-  }
+  const lock = await lockGlobalVirtualStoreSlot(depNode.modules)
   if (awaitingBuild && !await pathExists(marker)) {
     await lock?.release()
     return undefined
