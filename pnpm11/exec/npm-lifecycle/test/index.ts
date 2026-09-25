@@ -64,6 +64,28 @@ test("reports child's output", async () => {
   expect(log.silly).toHaveBeenCalledWith('lifecycle', 'undefined~postinstall:', 'Returned: code:', 0, ' signal:', null)
 })
 
+// https://github.com/pnpm/pnpm/issues/5730
+test('stops reading output held open by a background process the script started', async () => {
+  const backgroundOutput = path.join(fixtures, 'background-output')
+  const log = makeLog()
+  const started = Date.now()
+
+  await lifecycle(readManifest(backgroundOutput), 'prepare', backgroundOutput, {
+    stdio: 'pipe',
+    log,
+    dir: backgroundOutput,
+  })
+  const elapsed = Date.now() - started
+  await new Promise((resolve) => setTimeout(resolve, 3000 - elapsed))
+  const pidLine = log.verbose.mock.calls.map((call) => String(call[3])).find((line) => line.startsWith('background pid '))
+  process.kill(Number(pidLine?.slice('background pid '.length)))
+
+  expect(elapsed).toBeLessThan(2000)
+  expect(log.verbose.mock.calls.filter((call) => call[2] === 'stdout' || call[2] === 'stderr')).toStrictEqual([
+    ['lifecycle', 'undefined~prepare:', 'stdout', expect.stringMatching(/^background pid \d+$/)],
+  ])
+}, 10_000)
+
 test('runs a script with inherited output', async () => {
   const log = makeLog()
 

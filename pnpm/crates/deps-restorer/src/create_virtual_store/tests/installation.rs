@@ -145,6 +145,7 @@ async fn shared_store_context_materializes_a_warm_package() {
 
         entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
         current_entries: LockfileEntries::default(),
+        importers: &HashMap::new(),
 
         dir_clone_cache: None,
 

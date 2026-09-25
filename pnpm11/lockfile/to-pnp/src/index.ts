@@ -87,7 +87,7 @@ export function lockfileToPackageRegistry (
               ...((importer.optionalDependencies != null) ? toPackageDependenciesMap(lockfile, importer.optionalDependencies, importerId) : []),
               ...((importer.devDependencies != null) ? toPackageDependenciesMap(lockfile, importer.devDependencies, importerId) : []),
             ]),
-            packageLocation: `./${importerId}`,
+            packageLocation: `./${importerId}/`,
           },
         ],
       ])
@@ -141,7 +141,7 @@ function toPackageDependenciesMap (
 ): Array<[string, string | [string, string]]> {
   return Object.entries(deps).map(([depAlias, ref]) => {
     if (importerId && ref.startsWith('link:')) {
-      return [depAlias, path.join(importerId, ref.slice(5))]
+      return [depAlias, normalizePath(path.join(importerId, ref.slice(5)))]
     }
     const relDepPath = refToRelative(ref, depAlias)
     if (!relDepPath) return [depAlias, ref]

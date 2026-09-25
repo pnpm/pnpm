@@ -2,6 +2,14 @@ import { spawn as spawnProcess, type SpawnOptions, type StdioOptions } from 'nod
 import { EventEmitter } from 'node:events'
 import type { Readable, Writable } from 'node:stream'
 
+/**
+ * How long a script's piped output is still read once the script has exited.
+ * A process the script left running in the background inherits the pipes and
+ * can hold them open for as long as it lives
+ * ([pnpm/pnpm#5730](https://github.com/pnpm/pnpm/issues/5730)).
+ */
+const OUTPUT_DRAIN_AFTER_EXIT_MS = 1000
+
 export interface ProgressLog {
   progressEnabled?: boolean
   disableProgress?: () => void
@@ -44,6 +52,16 @@ export function spawn (cmd: string, args: string[], options: LifecycleSpawnOptio
   }
   const raw = spawnProcess(cmd, args, spawnOptions)
   const cooked = new EventEmitter() as LifecycleChildProcess
+
+  raw.once('exit', () => {
+    const outputTimeout = setTimeout(() => {
+      raw.stdout?.destroy()
+      raw.stderr?.destroy()
+    }, OUTPUT_DRAIN_AFTER_EXIT_MS)
+    raw.once('close', () => {
+      clearTimeout(outputTimeout)
+    })
+  })
 
   raw.on('error', (er: SpawnError) => {
     stop()

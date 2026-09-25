@@ -250,7 +250,7 @@ async function fetchDeps (
     const pkg = {
       name: pkgName,
       version: pkgVersion,
-      engines: pkgSnapshot.engines,
+      engines: depPath.includes('(patch_hash=') ? undefined : pkgSnapshot.engines,
       cpu: pkgSnapshot.cpu,
       os: pkgSnapshot.os,
       libc: pkgSnapshot.libc,

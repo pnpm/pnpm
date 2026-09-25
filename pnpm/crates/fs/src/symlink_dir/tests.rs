@@ -439,7 +439,7 @@ fn windows_rename_failure_with_missing_destination_is_not_reusable() {
     fs::create_dir(&staging).expect("create staged junction stand-in");
 
     let rename_error = std::io::Error::from(std::io::ErrorKind::AlreadyExists);
-    let error = super::windows::discard_staging_after_rename(&staging, &link, rename_error);
+    let error = super::windows::discard_staging_after_commit(&staging, &link, rename_error);
 
     assert_ne!(
         error.kind(),

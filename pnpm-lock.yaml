@@ -1903,6 +1903,9 @@ importers:
       '@pnpm/building.pkg-requires-build':
         specifier: workspace:*
         version: link:../pkg-requires-build
+      '@pnpm/config.package-is-installable':
+        specifier: workspace:*
+        version: link:../../config/package-is-installable
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../config/reader
@@ -1921,6 +1924,9 @@ importers:
       '@pnpm/exec.lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
+      '@pnpm/fs.dir-lock':
+        specifier: workspace:*
+        version: link:../../fs/dir-lock
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: link:../../fs/hard-link-dir
@@ -1954,6 +1960,9 @@ importers:
       p-defer:
         specifier: 'catalog:'
         version: 4.0.1
+      path-exists:
+        specifier: 'catalog:'
+        version: 5.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -3016,9 +3025,6 @@ importers:
       '@pnpm/installing.commands':
         specifier: workspace:*
         version: link:../../../installing/commands
-      '@pnpm/installing.modules-yaml':
-        specifier: workspace:*
-        version: link:../../../installing/modules-yaml
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../../lockfile/fs
@@ -3152,6 +3158,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../../core/error
+      '@pnpm/installing.modules-yaml':
+        specifier: workspace:*
+        version: link:../../../installing/modules-yaml
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../../../lockfile/detect-dep-types
@@ -4003,6 +4012,9 @@ importers:
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
+      semver:
+        specifier: 'catalog:'
+        version: 7.8.5
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -4019,6 +4031,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.32.0
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.8.0
 
   pnpm11/engine/pm/commands:
     dependencies:
@@ -4415,6 +4430,9 @@ importers:
       '@pnpm/exec.pnpm-cli-runner':
         specifier: workspace:*
         version: link:../pnpm-cli-runner
+      '@pnpm/fs.dir-lock':
+        specifier: workspace:*
+        version: link:../../fs/dir-lock
       '@pnpm/installing.client':
         specifier: workspace:*
         version: link:../../installing/client
@@ -5028,6 +5046,15 @@ importers:
         version: 0.2.0
     devDependencies:
       '@pnpm/fetching.types':
+        specifier: workspace:*
+        version: 'link:'
+
+  pnpm11/fs/dir-lock:
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
+      '@pnpm/fs.dir-lock':
         specifier: workspace:*
         version: 'link:'
 
@@ -6139,6 +6166,9 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
+      '@pnpm/fs.dir-lock':
+        specifier: workspace:*
+        version: link:../../fs/dir-lock
       '@pnpm/hooks.pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
@@ -6725,6 +6755,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../../core/core-loggers
+      '@pnpm/fs.graceful-fs':
+        specifier: workspace:*
+        version: link:../../../fs/graceful-fs
       '@pnpm/fs.symlink-dependency':
         specifier: workspace:*
         version: link:../../../fs/symlink-dependency
@@ -6747,6 +6780,9 @@ importers:
         specifier: 'catalog:'
         version: 10.0.3
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/installing.linking.hoist':
         specifier: workspace:*
         version: 'link:'

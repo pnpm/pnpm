@@ -241,7 +241,7 @@ impl Config {
             features,
             routing: super::RoutingConfig {
                 upstreams,
-                route_policy: build_route_policy(file.routes),
+                route_policy: build_route_policy(file.routes)?,
                 registries,
                 hosted,
             },

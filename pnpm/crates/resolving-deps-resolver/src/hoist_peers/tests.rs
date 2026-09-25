@@ -284,7 +284,13 @@ fn get_hoistable_optional_peers_preserves_the_importers_locked_version() {
         HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]);
 
     assert_eq!(
-        get_hoistable_optional_peers_with_locked_versions(&missing, &preferred, &[], &locked,),
+        get_hoistable_optional_peers_with_locked_versions(
+            &missing,
+            &preferred,
+            &[],
+            &locked,
+            &|_, _| true,
+        ),
         BTreeMap::from([("peer".to_string(), "1.0.0".to_string())]),
     );
 }
@@ -304,7 +310,13 @@ fn get_hoistable_optional_peers_ignores_a_locked_version_no_longer_in_the_graph(
         HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["2.0.0".to_string()]))]);
 
     assert_eq!(
-        get_hoistable_optional_peers_with_locked_versions(&missing, &preferred, &[], &locked,),
+        get_hoistable_optional_peers_with_locked_versions(
+            &missing,
+            &preferred,
+            &[],
+            &locked,
+            &|_, _| true,
+        ),
         BTreeMap::from([("peer".to_string(), "1.0.0".to_string())]),
     );
 }

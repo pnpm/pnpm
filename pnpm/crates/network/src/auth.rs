@@ -22,7 +22,10 @@ pub use redaction::{
 };
 pub use url::{base64_encode, base64_encode_bytes, is_url_secure_for_credentials, nerf_dart};
 
-use crate::token_helper::{TokenHelperRunner, execute_token_helper, run_token_helper_command};
+use crate::{
+    AddressGuard,
+    token_helper::{TokenHelperRunner, execute_token_helper, run_token_helper_command},
+};
 use std::{
     collections::{BTreeMap, HashMap},
     fmt,
@@ -68,6 +71,13 @@ pub trait UpstreamRouteHook: Send + Sync {
     /// the user, who may reach whatever they configured).
     fn allows_fetch(&self, _url: &str) -> bool {
         true
+    }
+
+    /// The addresses a connection made on this deployment's behalf may
+    /// reach, for connections a caller opens outside the HTTP client, such
+    /// as a `git` subprocess. `None` for hooks with no such policy.
+    fn connect_guard(&self) -> Option<AddressGuard> {
+        None
     }
 
     /// Classify the metadata cache scope for a fetch to `url` for package
@@ -490,6 +500,12 @@ impl AuthHeaders {
         self.route_hook
             .as_ref()
             .is_none_or(|hook| hook.allows_fetch(url))
+    }
+
+    /// See [`UpstreamRouteHook::connect_guard`].
+    #[must_use]
+    pub fn connect_guard(&self) -> Option<AddressGuard> {
+        self.route_hook.as_ref().and_then(|hook| hook.connect_guard())
     }
 
     /// Record the route for a metadata/tarball fetch that is about to be

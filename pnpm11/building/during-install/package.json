@@ -35,12 +35,14 @@
   "dependencies": {
     "@pnpm/bins.linker": "workspace:*",
     "@pnpm/building.pkg-requires-build": "workspace:*",
+    "@pnpm/config.package-is-installable": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/deps.graph-hasher": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
+    "@pnpm/fs.dir-lock": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/patching.apply-patch": "workspace:*",
@@ -51,6 +53,7 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.task-scheduler": "workspace:*",
     "p-defer": "catalog:",
+    "path-exists": "catalog:",
     "ramda": "catalog:"
   },
   "peerDependencies": {

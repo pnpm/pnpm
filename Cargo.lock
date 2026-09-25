@@ -5658,6 +5658,7 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-package-name",
  "pnpm-reporter",
+ "pnpm-text-sanitize",
  "serde",
  "serde_json",
  "tar",
@@ -6754,6 +6755,7 @@ dependencies = [
  "reqwest",
  "sha2",
  "tracing",
+ "url",
  "wax",
 ]
 

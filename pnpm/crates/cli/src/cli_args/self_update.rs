@@ -24,7 +24,10 @@ use pnpm_lockfile::EnvLockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, infer_range_spec_style};
-use project_pin::{project_pin_refusal, read_project_pinned_pnpm_version, update_project_pin};
+use project_pin::{
+    NoUpgradeKind, implicit_latest_no_upgrade_message, project_pin_refusal,
+    read_project_pinned_pnpm_version, registry_latest_ignoring_maturity, update_project_pin,
+};
 use serde_json::Value;
 use std::{io::IsTerminal, path::Path};
 
@@ -233,7 +236,8 @@ async fn handler<Reporter: self::Reporter + 'static>(
         .filter(|pm| pm.name == "pnpm");
     if let Some(pm) = pinned_pnpm
         && let Some(refusal) =
-            project_pin_refusal(config, dir, pm, &target_version, is_implicit_latest)
+            Box::pin(project_pin_refusal(config, dir, pm, &target_version, is_implicit_latest))
+                .await?
     {
         return Ok(Some(refusal));
     }
@@ -241,17 +245,14 @@ async fn handler<Reporter: self::Reporter + 'static>(
     // The global install moves forward even when the project pins pnpm, or
     // the machine never holds a pnpm that reaches the pin (pnpm/pnpm#14747).
     // The pin is written last so a failed switch leaves the project as it was.
-    let global_message = match global_switch_declined(
+    let global_message = Box::pin(decline_or_switch_global::<Reporter>(
         config,
         &target_version,
+        &prefix,
         bare_specifier,
         is_implicit_latest,
-    )? {
-        Some(declined) => Some(declined),
-        None => {
-            switch_global_pnpm::<Reporter>(config, &target_version, &prefix, bare_specifier).await?
-        }
-    };
+    ))
+    .await?;
 
     let project_pin_message = match pinned_pnpm {
         Some(pm) => Some(Box::pin(update_project_pin(config, dir, pm, &target_version)).await?),
@@ -362,9 +363,34 @@ fn crossed_major_hint(
 }
 
 /// The message explaining why the global install is left alone, when this
+/// update would not move it forward. Otherwise install and activate the
+/// target engine.
+async fn decline_or_switch_global<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    target_version: &str,
+    prefix: &str,
+    bare_specifier: &str,
+    is_implicit_latest: bool,
+) -> miette::Result<Option<String>> {
+    match Box::pin(global_switch_declined(
+        config,
+        target_version,
+        bare_specifier,
+        is_implicit_latest,
+    ))
+    .await?
+    {
+        Some(declined) => Ok(Some(declined)),
+        None => {
+            switch_global_pnpm::<Reporter>(config, target_version, prefix, bare_specifier).await
+        }
+    }
+}
+
+/// The message explaining why the global install is left alone, when this
 /// update would not move it forward.
-fn global_switch_declined(
-    config: &Config,
+async fn global_switch_declined(
+    config: &'static Config,
     target_version: &str,
     bare_specifier: &str,
     is_implicit_latest: bool,
@@ -380,8 +406,12 @@ fn global_switch_declined(
         )));
     }
     if is_implicit_latest && version_lt(target_version, PNPM_VERSION) {
-        return Ok(Some(format!(
-            r#"The currently active pnpm v{PNPM_VERSION} is newer than the "latest" version on the registry (v{target_version}). No update performed. Run "pnpm self-update latest" to downgrade."#,
+        let registry_latest = registry_latest_ignoring_maturity(config).await?;
+        return Ok(Some(implicit_latest_no_upgrade_message(
+            NoUpgradeKind::Active,
+            PNPM_VERSION,
+            target_version,
+            registry_latest.as_deref(),
         )));
     }
     Ok(None)

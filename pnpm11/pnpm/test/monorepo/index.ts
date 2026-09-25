@@ -2453,3 +2453,38 @@ test('pnpm install --frozen-lockfile fails when an injected workspace package ve
     execPnpm(['install', '--frozen-lockfile'])
   ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
 })
+
+test('issue 4407: refreshes an injected copy on a repeat install after the source project is rebuilt', async () => {
+  preparePackages([
+    {
+      name: 'shared',
+      version: '1.0.0',
+    },
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        shared: 'workspace:*',
+      },
+      dependenciesMeta: {
+        shared: {
+          injected: true,
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    dedupeInjectedDeps: false,
+  })
+
+  execPnpmSync(['install'])
+  expect(fs.existsSync('app/node_modules/shared/dist/out.js')).toBe(false)
+
+  fs.mkdirSync('shared/dist')
+  fs.writeFileSync('shared/dist/out.js', 'module.exports = "built"\n')
+  execPnpmSync(['install'])
+
+  expect(fs.readFileSync('app/node_modules/shared/dist/out.js', 'utf8')).toBe('module.exports = "built"\n')
+})

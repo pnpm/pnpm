@@ -142,6 +142,7 @@ impl<'a> OnDiskInputs<'a> {
 
             entries: self.projects.materialization_lockfile.into(),
             current_entries: LockfileEntries::of_previous_install(self.install.prior.lockfile),
+            importers: &self.projects.materialization_lockfile.importers,
 
             dir_clone_cache: self.store.dir_clone_cache,
             // Share the resolve-time prefetcher's in-flight downloads with

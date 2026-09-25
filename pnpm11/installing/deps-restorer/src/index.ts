@@ -3,7 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { getProjectNodePath, type LinkBinOptions, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
-import { buildModules, linkBinsOfRuntimeDependencies } from '@pnpm/building.during-install'
+import { buildModules, linkBinsOfRuntimeDependencies, lockGlobalVirtualStoreSlot } from '@pnpm/building.during-install'
 import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import { installabilityUnderForce } from '@pnpm/config.package-is-installable'
 import {
@@ -24,7 +24,7 @@ import {
   lockfileToDepGraph,
   type LockfileToDepGraphOptions,
 } from '@pnpm/deps.graph-builder'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -94,6 +94,7 @@ import { symlinkAllModules } from '@pnpm/worker'
 import { readProjectManifestOnly, safeReadPublishManifest } from '@pnpm/workspace.project-manifest-reader'
 import pLimit from 'p-limit'
 import { pathAbsolute } from 'path-absolute'
+import { pathExists } from 'path-exists'
 import { equals, isEmpty, omit, pick, pickBy, props, union } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 
@@ -318,12 +319,13 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const skipPostImportLinking = opts.virtualStoreOnly === true
 
   const skipped = opts.skipped || new Set<DepPath>()
+  const rootRuntimeNodeVersion = findLockedRootNodeRuntime(wantedLockfile)?.version
   const nodeVersionIsConfigured = opts.currentEngine.nodeVersion != null && opts.nodeVersionFromEnginesRuntime !== true
   const currentEngine = nodeVersionIsConfigured
     ? opts.currentEngine
     : {
       ...opts.currentEngine,
-      nodeVersion: findLockedRootNodeRuntime(wantedLockfile)?.version ?? opts.currentEngine.nodeVersion,
+      nodeVersion: rootRuntimeNodeVersion ?? opts.currentEngine.nodeVersion,
     }
   const filterOpts = {
     include: opts.include,
@@ -515,6 +517,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         holdBackMissingBins: !opts.ignoreScripts && opts.enableModulesDir !== false && !opts.ignorePackageManifest,
         ignoreScripts: opts.ignoreScripts,
         lockfileDir: opts.lockfileDir,
+        nodeVersion: rootRuntimeNodeVersion,
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
         remoteSideEffectsCache: opts.remoteSideEffectsCache,
@@ -598,6 +601,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
           ignoreScripts: opts.ignoreScripts,
           lockfileDir: opts.lockfileDir,
+          nodeVersion: rootRuntimeNodeVersion,
           sideEffectsCacheRead: opts.sideEffectsCacheRead,
           remoteSideEffectsCache: opts.remoteSideEffectsCache,
           pnprServer: opts.pnprServer,
@@ -805,6 +809,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     // Dependency lifecycle scripts must not run on an unverified lockfile.
     await opts.verifyLockfile?.()
     ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
+      engineStrict: installabilityUnderForce(opts).engineStrict,
+      engineNodeVersion: currentEngine.nodeVersion,
+      skipped,
       allowBuild,
       childConcurrency: opts.childConcurrency,
       extraBinPaths,
@@ -813,6 +820,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       ignoreScripts: opts.ignoreScripts,
       hoistedLocations,
       lockfileDir,
+      nodeVersion: rootRuntimeNodeVersion,
       optional: opts.include.optionalDependencies,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       rootModulesDir: virtualStoreDir,
@@ -856,9 +864,11 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       if (!opts.ignorePackageManifest) {
         await Promise.all(selectedProjects.map(async (project) => {
           const projectModulesDir = await getProjectNodePath(project, opts)
+          const protectedBins = new Set<string>()
           if (opts.nodeLinker === 'hoisted' || opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
             await linkBinsOfImporter(project, {
               extraNodePaths: opts.extraNodePaths,
+              linkedCommandNames: protectedBins,
               preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
               projectModulesDir,
             })
@@ -890,10 +900,36 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
               project.binsDir,
               {
                 extraNodePaths: opts.extraNodePaths,
+                linkedCommandNames: protectedBins,
                 preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
                 projectModulesDir,
               }
             )
+          }
+          if (opts.autoInstallPeers !== false && opts.nodeLinker !== 'hoisted') {
+            const peerPkgDirs = autoInstalledPeerBinDirs(
+              directDependenciesByImporterId[project.id],
+              project.id,
+              filteredLockfile
+            )
+            if (peerPkgDirs.length > 0) {
+              await linkBinsOfPackages(
+                (
+                  await Promise.all(peerPkgDirs.map(async (dir) => ({
+                    location: dir,
+                    manifest: await safeReadPublishManifest(dir),
+                  })))
+                )
+                  .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
+                project.binsDir,
+                {
+                  excludeBins: protectedBins,
+                  extraNodePaths: opts.extraNodePaths,
+                  preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+                  projectModulesDir,
+                }
+              )
+            }
           }
         }))
       }
@@ -1206,6 +1242,30 @@ async function removeBinsOfWorkspaceHoists (hoistedDependencies: HoistedDependen
 
 const WINDOWS_BIN_EXTENSIONS = new Set(['.cmd', '.ps1', '.exe'])
 
+function autoInstalledPeerBinDirs (
+  directPkgDirs: Record<string, string>,
+  importerId: ProjectId,
+  lockfile: LockfileObject
+): string[] {
+  const peerDirs = new Set<string>()
+  const importer = lockfile.importers[importerId]
+  const directRefs = { ...importer.dependencies, ...importer.devDependencies, ...importer.optionalDependencies }
+  for (const [alias, dir] of Object.entries(directPkgDirs)) {
+    const ref = directRefs[alias]
+    const depPath = ref ? dp.refToRelative(ref, alias) : null
+    if (depPath == null) continue
+    const metadata = lockfile.packages?.[depPath]
+    const parent = path.dirname(dir)
+    const modulesDir = path.basename(parent).startsWith('@') ? path.dirname(parent) : parent
+    for (const peerName of Object.keys(metadata?.peerDependencies ?? {})) {
+      if (metadata?.peerDependenciesMeta?.[peerName]?.optional) continue
+      if (metadata?.dependencies?.[peerName] == null && metadata?.optionalDependencies?.[peerName] == null) continue
+      peerDirs.add(safeJoinModulesDir(modulesDir, peerName))
+    }
+  }
+  return Array.from(peerDirs).sort()
+}
+
 /**
  * The commands already linked into `binsDir`, so that a workspace project's
  * bins never replace the bins of a hoisted package. On Windows the shim and
@@ -1302,6 +1362,11 @@ async function linkAllPkgs (
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
+    /**
+     * The root project's `engines.runtime` Node version, which keys the
+     * side-effects cache of every package that does not pin its own.
+     */
+    nodeVersion?: string
     sideEffectsCacheRead: boolean
     remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     pnprServer?: string
@@ -1318,21 +1383,13 @@ async function linkAllPkgs (
     needsBuildMarkerSrc = path.join(opts.storeDir, '.pnpm-needs-build-marker')
     await fs.writeFile(needsBuildMarkerSrc, '')
   }
-  // Resolved `engines.runtime` Node version (when present) anchors
-  // the side-effects-cache key prefix to the script-runner Node, not
-  // pnpm's own `process.version`. The restorer's `depGraph` is keyed
-  // by install directory, so scanning `Object.keys(opts.depGraph)`
-  // would never see a `node@runtime:<version>` entry — pull the
-  // depPath off each node instead. Computed once outside the
-  // per-node loop.
-  const nodeVersion = findRuntimeNodeVersion(depNodes.map((node) => node.depPath))
   const restorer = createRemoteSideEffectsRestorer({
     allowBuild: opts.allowBuild,
     configByUri: opts.configByUri,
     depsGraph: opts.depGraph,
     depsStateCache: opts.depsStateCache,
     ignoreScripts: opts.ignoreScripts,
-    nodeVersion,
+    nodeVersion: opts.nodeVersion,
     pnprServer: opts.pnprServer,
     settings: opts.remoteSideEffectsCache,
     sideEffectsCacheRead: opts.sideEffectsCacheRead,
@@ -1367,7 +1424,7 @@ async function linkAllPkgs (
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild === true,
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
-            nodeVersion,
+            nodeVersion: opts.nodeVersion,
           })
           if (filesResponse.sideEffectsDiffs?.get(localCacheKey)?.remoteOrigin == null) {
             sideEffectsCacheKey = localCacheKey
@@ -1394,22 +1451,37 @@ async function linkAllPkgs (
         }
       }
 
-      const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
-        filesResponse: effectiveFilesResponse,
-        force: depNode.forceImportPackage ?? opts.force,
-        disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
-        requiresBuild: depNode.patch != null || depNode.requiresBuild,
-        safeToSkip: opts.enableGlobalVirtualStore,
-        sideEffectsCacheKey,
-      })
-      if (importMethod) {
+      // The marker is also there while another install builds the slot,
+      // which a re-import would overwrite.
+      const slotMarker = path.join(depNode.dir, '.pnpm-needs-build')
+      const slotLock = opts.enableGlobalVirtualStore && await pathExists(slotMarker)
+        ? await lockGlobalVirtualStoreSlot(depNode.modules)
+        : undefined
+      let imported: Awaited<ReturnType<StoreController['importPackage']>> | undefined
+      try {
+        if (slotLock != null && !await pathExists(slotMarker)) {
+          depNode.isBuilt = true
+        } else {
+          imported = await storeController.importPackage(depNode.dir, {
+            filesResponse: effectiveFilesResponse,
+            force: depNode.forceImportPackage ?? opts.force,
+            disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+            requiresBuild: depNode.patch != null || depNode.requiresBuild,
+            safeToSkip: opts.enableGlobalVirtualStore,
+            sideEffectsCacheKey,
+          })
+        }
+      } finally {
+        await slotLock?.release()
+      }
+      if (imported?.importMethod) {
         reportPackageImported({
-          method: importMethod,
+          method: imported.importMethod,
           requester: opts.lockfileDir,
           to: depNode.dir,
         })
       }
-      depNode.isBuilt = isBuilt
+      if (imported != null) depNode.isBuilt = imported.isBuilt
 
       const selfDep = depNode.children[depNode.name]
       if (selfDep) {

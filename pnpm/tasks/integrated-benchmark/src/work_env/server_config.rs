@@ -167,6 +167,7 @@ pub(super) fn pnpr_benchmark_config_yaml(
                 .iter()
                 .map(|registry| PnprBenchmarkPublicRoute { registry: (*registry).to_string() })
                 .collect(),
+            allowed_private_networks: &["127.0.0.0/8", "::1"],
         },
         log: PnprBenchmarkLog { r#type: "stdout", format: "pretty", level: "error" },
     };
@@ -204,6 +205,9 @@ pub(super) struct PnprBenchmarkHtpasswd {
 #[serde(rename_all = "camelCase")]
 pub(super) struct PnprBenchmarkRoutes {
     public: Vec<PnprBenchmarkPublicRoute>,
+    /// The mocks and proxies the resolver fetches from listen on loopback.
+    /// A `pnpr` that predates the setting ignores it.
+    allowed_private_networks: &'static [&'static str],
 }
 #[derive(Serialize)]
 pub(super) struct PnprBenchmarkPublicRoute {

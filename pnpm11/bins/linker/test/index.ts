@@ -519,6 +519,7 @@ test('linkBins() does not link own bins', async () => {
 test('linkBinsOfPackages()', async () => {
   const binTarget = temporaryDirectory()
   const simpleFixture = f.prepare('simple-fixture')
+  const linkedCommandNames = new Set<string>()
 
   await linkBinsOfPackages(
     [
@@ -527,9 +528,11 @@ test('linkBinsOfPackages()', async () => {
         manifest: (await import(path.join(simpleFixture, 'node_modules/simple/package.json'))).default,
       },
     ],
-    binTarget
+    binTarget,
+    { linkedCommandNames }
   )
 
+  expect([...linkedCommandNames]).toEqual(['simple'])
   expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['simple']))
   const binLocation = path.join(binTarget, 'simple')
   expect(fs.existsSync(binLocation)).toBe(true)
@@ -1052,6 +1055,11 @@ describe('enable prefer-symlinked-executables', () => {
     const binTarget = temporaryDirectory()
     const warn = jest.fn()
     const simpleFixture = f.prepare('simple-fixture')
+    const sourceFile = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
+    if (EXECUTABLE_SHEBANG_SUPPORTED) {
+      fs.chmodSync(sourceFile, 0o700)
+    }
+    const sourceMode = fs.statSync(sourceFile).mode & 0o777
 
     await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn, preferSymlinkedExecutables: true })
 
@@ -1069,7 +1077,9 @@ describe('enable prefer-symlinked-executables', () => {
     if (EXECUTABLE_SHEBANG_SUPPORTED) {
       const binFile = path.join(binTarget, 'simple')
       const stat = fs.statSync(binFile)
-      expect(stat.mode).toBe(parseInt('100755', 8))
+      // The target gains the execute bits it lacks, keeping the read and write
+      // bits that the fixture gave it.
+      expect(stat.mode & 0o777).toBe(sourceMode | 0o111)
       expect(stat.isFile()).toBe(true)
       const stdout = spawnSync(binFile).stdout.toString('utf-8')
       expect(stdout).toMatch('hello_world')
@@ -1185,6 +1195,33 @@ describe('node binary linking', () => {
     expect(fs.readFileSync(exePath, 'utf8')).toBe('fake-node-binary')
     // No cmd-shim should be created since we return early
     expect(fs.existsSync(path.join(binTarget, `node${CMD_EXTENSION}`))).toBe(false)
+  })
+
+  // https://github.com/pnpm/pnpm/issues/5411
+  testOnWindows('linkBinsOfPackages() replaces a dangling node.exe symlink', async () => {
+    const binTarget = temporaryDirectory()
+    const nodeDir = temporaryDirectory()
+
+    fs.writeFileSync(path.join(nodeDir, 'node.exe'), 'fake-node-binary', 'utf8')
+    const exePath = path.join(binTarget, 'node.exe')
+    fs.symlinkSync(path.join(temporaryDirectory(), 'missing', 'node.exe'), exePath, 'file')
+
+    await linkBinsOfPackages(
+      [
+        {
+          location: nodeDir,
+          manifest: {
+            name: 'node',
+            version: '20.0.0',
+            bin: { node: 'node.exe' },
+          },
+        },
+      ],
+      binTarget
+    )
+
+    expect(fs.lstatSync(exePath).isSymbolicLink()).toBe(false)
+    expect(fs.readFileSync(exePath, 'utf8')).toBe('fake-node-binary')
   })
 
   testOnWindows('linkBinsOfPackages() does not warn when node.exe is already the correct hardlink', async () => {

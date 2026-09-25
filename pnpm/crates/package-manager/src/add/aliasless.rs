@@ -325,7 +325,7 @@ pub(super) fn aliasless_git_resolver(
     let http_client = &inputs.owned.http_client_arc;
     GitResolver::new(
         Arc::new(RealGitProbe::new(Arc::clone(http_client))),
-        Arc::new(RealGitRunner::new()),
+        Arc::new(RealGitRunner::new().with_connect_guard(config.auth_headers.connect_guard())),
     )
     .with_fetch_context(GitFetchContext {
         source_cache: Arc::clone(inputs.git_source_cache),

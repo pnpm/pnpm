@@ -1,14 +1,16 @@
 use super::{
     global_bin::{link_into_global_bin, refresh_global_shims},
-    install_pnpm, is_installed_globally, join_messages, version_lt,
+    handler, install_pnpm, is_installed_globally, join_messages, version_lt,
 };
 use crate::{
     cli_args::self_update::project_pin::{
-        package_manager_pin_specifier, update_version_constraint,
+        NoUpgradeKind, implicit_latest_no_upgrade_message, package_manager_pin_specifier,
+        update_version_constraint,
     },
     shim_dispatch::{ShimTarget, native_shim::install_native_shim_from, native_shim_target},
 };
 use pnpm_config::Config;
+use pnpm_reporter::SilentReporter;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -339,4 +341,113 @@ fn assert_pnpm_runs_reports_the_exit_code_of_an_engine_that_fails() {
     let err = install_pnpm::assert_pnpm_runs(&install_dir, "@pnpm/exe", "1.2.3").unwrap_err();
 
     assert!(err.to_string().contains("exited with code 1"), "{err}");
+}
+
+#[test]
+fn implicit_latest_message_mentions_minimum_release_age_when_registry_latest_is_not_older() {
+    let message =
+        implicit_latest_no_upgrade_message(NoUpgradeKind::Project, "9.1.0", "9.0.0", Some("9.1.0"));
+    assert!(message.contains("minimumReleaseAge") && !message.contains("downgrade"), "{message}");
+    let active =
+        implicit_latest_no_upgrade_message(NoUpgradeKind::Active, "9.1.0", "9.0.0", Some("9.1.0"));
+    assert!(active.contains("minimumReleaseAge") && !active.contains("downgrade"), "{active}");
+}
+
+#[test]
+fn implicit_latest_message_still_offers_downgrade_when_registry_latest_is_older() {
+    let message = implicit_latest_no_upgrade_message(
+        NoUpgradeKind::Active,
+        "9.0.0",
+        "8.15.0",
+        Some("8.15.0"),
+    );
+    assert!(message.contains("downgrade") && !message.contains("minimumReleaseAge"), "{message}");
+}
+
+#[test]
+fn implicit_latest_message_names_both_versions_when_registry_latest_is_older_but_immature() {
+    let message = implicit_latest_no_upgrade_message(
+        NoUpgradeKind::Project,
+        "10.0.0",
+        "9.0.0",
+        Some("9.5.0"),
+    );
+    assert!(
+        message.contains(r#""latest" version on the registry (v9.5.0)"#)
+            && message.contains("minimumReleaseAge is v9.0.0")
+            && message.contains("downgrade"),
+        "{message}",
+    );
+}
+
+/// A registry serving `mature` published long ago and `fresh` published now,
+/// with `latest` on `fresh`.
+async fn registry_with_fresh_latest(mature: &str, fresh: &str) -> mockito::ServerGuard {
+    let dist = |version: &str| {
+        format!(
+            r#"{{"name":"pnpm","version":"{version}","dist":{{"shasum":"0000000000000000000000000000000000000000","tarball":"https://registry/pnpm-{version}.tgz"}}}}"#,
+        )
+    };
+    let body = format!(
+        r#"{{"name":"pnpm","dist-tags":{{"latest":"{fresh}"}},"time":{{"{mature}":"2024-01-10T08:30:00.000Z","{fresh}":"{now}"}},"versions":{{"{mature}":{mature_dist},"{fresh}":{fresh_dist}}}}}"#,
+        now = chrono::Utc::now().to_rfc3339(),
+        mature_dist = dist(mature),
+        fresh_dist = dist(fresh),
+    );
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("GET", "/pnpm")
+        .with_status(200)
+        .with_body(body)
+        .create_async()
+        .await;
+    server
+}
+
+/// Run an implicit `self-update` in a project pinned to `pin`, under a
+/// one-day `minimumReleaseAge`, and return its message and the manifest it
+/// leaves behind.
+async fn implicit_self_update_of_pin(server: &mockito::ServerGuard, pin: &str) -> (String, String) {
+    let root = tempfile::tempdir().expect("tempdir");
+    let manifest = format!(r#"{{"packageManager":"pnpm@{pin}"}}"#);
+    fs::write(root.path().join("package.json"), &manifest).expect("write package.json");
+    let mut config = Config {
+        minimum_release_age: Some(24 * 60),
+        cache_dir: root.path().join("cache"),
+        ..Config::default()
+    };
+    config.package_manager_bootstrap.registry = format!("{}/", server.url());
+    let config: &'static Config = Box::leak(Box::new(config));
+
+    let message = handler::<SilentReporter>(None, config, root.path()).await
+        .expect("the refusal is not an error")
+        .expect("the refusal prints a message");
+    let manifest_after = fs::read_to_string(root.path().join("package.json")).expect("read");
+    (message, manifest_after)
+}
+
+#[tokio::test]
+async fn implicit_self_update_names_the_cutoff_when_the_pin_is_the_immature_latest() {
+    let server = registry_with_fresh_latest("900.0.0", "900.1.0").await;
+
+    let (message, manifest) = implicit_self_update_of_pin(&server, "900.1.0").await;
+
+    assert_eq!(
+        message,
+        "The current project is set to use pnpm v900.1.0. The latest version that meets minimumReleaseAge is v900.0.0. v900.1.0 on the registry is still within the cutoff. No update performed.",
+    );
+    assert_eq!(manifest, r#"{"packageManager":"pnpm@900.1.0"}"#);
+}
+
+#[tokio::test]
+async fn implicit_self_update_names_both_versions_when_the_immature_latest_is_older_than_the_pin() {
+    let server = registry_with_fresh_latest("900.0.0", "900.5.0").await;
+
+    let (message, manifest) = implicit_self_update_of_pin(&server, "901.0.0").await;
+
+    assert_eq!(
+        message,
+        r#"The current project is set to use pnpm v901.0.0, which is newer than the "latest" version on the registry (v900.5.0). The latest version that meets minimumReleaseAge is v900.0.0. No update performed. Run "pnpm self-update latest" to downgrade."#,
+    );
+    assert_eq!(manifest, r#"{"packageManager":"pnpm@901.0.0"}"#);
 }

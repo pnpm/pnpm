@@ -212,7 +212,7 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
       ...opts.hooks,
       readPackage: [
         ...(opts.hooks?.readPackage ?? []),
-        deployHook,
+        pkg => deployHook(pkg, { convertLinksToFileProtocol: true }),
       ],
     },
     frozenLockfile: false,
@@ -447,7 +447,7 @@ async function deployFromSharedLockfile (
         ...opts.hooks,
         readPackage: [
           ...(opts.hooks?.readPackage ?? []),
-          deployHook,
+          pkg => deployHook(pkg),
         ],
         calculatePnpmfileChecksum: undefined, // the effects of the pnpmfile should already be part of the package snapshots
       },

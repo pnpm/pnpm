@@ -19,6 +19,7 @@ indexmap = { workspace = true }
 reqwest = { workspace = true }
 sha2 = { workspace = true }
 tracing = { workspace = true }
+url = { workspace = true }
 wax = { workspace = true }
 
 [lints]

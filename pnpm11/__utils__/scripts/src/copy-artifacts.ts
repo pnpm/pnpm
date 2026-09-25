@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import stream from 'node:stream'
+import url from 'node:url'
 
 import * as execa from 'execa'
 import { makeEmptyDir } from 'make-empty-dir'
@@ -12,7 +13,19 @@ const dest = path.join(repoRoot, 'dist')
 const artifactsDir = path.join(repoRoot, 'pnpm11/pnpm/artifacts')
 const pnpmDistDir = path.join(repoRoot, 'pnpm11/pnpm/dist')
 
-;(async () => {
+const WINDOWS_ONLY_DIST_ENTRIES = [
+  'node-gyp-bin/node-gyp.cmd',
+  'vendor',
+]
+
+if (isDirectInvocation()) {
+  main().catch((err) => {
+    console.error(err)
+    process.exitCode = 1
+  })
+}
+
+async function main (): Promise<void> {
   await makeEmptyDir(dest)
   if (!fs.existsSync(path.join(artifactsDir, 'linux-x64/pnpm'))) {
     execa.sync('pnpm', ['--filter=@pnpm/exe', 'run', 'build-artifacts'], {
@@ -30,10 +43,17 @@ const pnpmDistDir = path.join(repoRoot, 'pnpm11/pnpm/dist')
   await createArtifactTarball('win32-x64', 'pnpm.exe')
   await createArtifactTarball('win32-arm64', 'pnpm.exe')
   await createSourceMapsArchive()
-})().catch((err) => {
-  console.error(err)
-  process.exitCode = 1
-})
+}
+
+function isDirectInvocation (): boolean {
+  if (process.argv[1] === undefined) return false
+  try {
+    return import.meta.url === url.pathToFileURL(fs.realpathSync(process.argv[1])).href
+  } catch {
+    return false
+  }
+}
+
 
 async function createArtifactTarball (target: string, binaryName: string): Promise<void> {
   try {
@@ -51,6 +71,7 @@ async function createArtifactTarball (target: string, binaryName: string): Promi
     fs.rmSync(distDest, { recursive: true, force: true })
     fs.cpSync(pnpmDistDir, distDest, { recursive: true, verbatimSymlinks: true })
     stripReflinkPackages(distDest, getReflinkKeepPackages(target))
+    stripWindowsOnlyFiles(distDest, target)
     for (const mapFile of await glob('**/*.map', { cwd: distDest })) {
       fs.rmSync(path.join(distDest, mapFile))
     }
@@ -121,5 +142,12 @@ function stripReflinkPackages (distDir: string, keepPackages: string[]): void {
     if (!keepPackages.includes(`@reflink/${entry}`)) {
       fs.rmSync(path.join(reflinkDir, entry), { recursive: true })
     }
+  }
+}
+
+export function stripWindowsOnlyFiles (distDir: string, target: string): void {
+  if (target.startsWith('win32-')) return
+  for (const entry of WINDOWS_ONLY_DIST_ENTRIES) {
+    fs.rmSync(path.join(distDir, entry), { recursive: true, force: true })
   }
 }

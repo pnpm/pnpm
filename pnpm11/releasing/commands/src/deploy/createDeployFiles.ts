@@ -152,13 +152,17 @@ export function createDeployFiles ({
   for (const field of DEPENDENCIES_FIELD) {
     // An excluded group's direct dependencies are left out of both the
     // deployed manifest and the deployed importer, because the graph filter
-    // below drops the packages they would point at.
+    // below drops the packages they would point at. A runtime reference is
+    // the exception: the engines field that generates it survives in the
+    // deployed manifest and regenerates the edge on every read, so the
+    // importer keeps it. The deploy install skips it with the rest of its
+    // excluded group.
     const targetDependencies = targetSnapshot[field] ?? {}
     const targetSpecifiers = targetSnapshot.specifiers
     const inputDependencies = inputSnapshot[field] ?? {}
     for (const name in inputDependencies) {
-      if (!include[field] && !peerOnlyDependencies.has(name)) continue
       const version = inputDependencies[name]
+      if (!include[field] && !peerOnlyDependencies.has(name) && !version.startsWith('runtime:')) continue
       const resolveResult = resolveLinkOrFile(version, {
         lockfileDir,
         projectRootDirRealPath: path.resolve(lockfileDir, projectId),

@@ -118,7 +118,11 @@ export function withFileLockRetry<T> (operation: () => T): T {
   }
 }
 
-async function withFileLockRetryAsync<T> (operation: () => Promise<T>): Promise<T> {
+/**
+ * Asynchronous {@link withFileLockRetry}, which waits between attempts
+ * without blocking the event loop.
+ */
+export async function withFileLockRetryAsync<T> (operation: () => Promise<T>): Promise<T> {
   const retry = createFileLockRetry()
   for (;;) {
     try {

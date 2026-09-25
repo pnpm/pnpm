@@ -49,7 +49,8 @@
     "@pnpm/workspace.projects-reader": "workspace:*",
     "@pnpm/workspace.state": "workspace:*",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
-    "ramda": "catalog:"
+    "ramda": "catalog:",
+    "semver": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -59,7 +60,8 @@
     "@pnpm/deps.status": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/workspace.project-manifest-writer": "workspace:*",
-    "@types/ramda": "catalog:"
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

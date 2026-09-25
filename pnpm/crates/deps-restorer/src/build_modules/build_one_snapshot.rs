@@ -1,10 +1,14 @@
 //! Running one package's build scripts.
 
+mod patched_engines;
 mod side_effects;
+mod slot_to_build;
+use patched_engines::skip_incompatible_optional;
 use side_effects::{
     FrozenStoreWrites, SideEffectsUpload, already_built, side_effects_cache_key,
     upload_side_effects_cache,
 };
+use slot_to_build::slot_to_build;
 
 use std::sync::atomic::Ordering;
 
@@ -13,8 +17,8 @@ use super::{
     PackageKey, Path, PathBuf, PkgRoots, RebuildOptions, Reporter, RunPostinstallHooks,
     SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
     allow_build_key_from_ignored_build, apply_patch_to_dir, bin_dirs_in_all_parent_dirs,
-    discard_failed_global_virtual_store_slot, get_pkg_id_with_patch_hash,
-    parse_name_version_from_key, run_postinstall_hooks, slot_carries_overlay,
+    get_pkg_id_with_patch_hash, parse_name_version_from_key, run_postinstall_hooks,
+    slot_carries_overlay,
 };
 
 /// Everything one snapshot's build reads: the lockfile shape it belongs to,
@@ -49,6 +53,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     let Some(candidate) = BuildCandidate::of(context, snapshot_key) else { return Ok(()) };
     let cache_key = side_effects_cache_key(context, snapshot_key, &candidate);
     if already_built::<Reporter>(context, snapshot_key, &candidate, cache_key.as_deref())? {
+        skip_incompatible_optional::<Reporter>(context, snapshot_key, &candidate)?;
         return Ok(());
     }
 
@@ -77,12 +82,9 @@ fn build_candidate<Reporter: self::Reporter>(
     cache_key: Option<&str>,
     optional: bool,
 ) -> Result<(), BuildModulesError> {
-    let Some(pkg_dir) = context.pkg_roots().canonical(snapshot_key) else {
+    let Some((pkg_dir, _slot_lock)) = slot_to_build(context, snapshot_key, candidate)? else {
         return Ok(());
     };
-    if !pkg_dir.exists() {
-        return Ok(());
-    }
 
     let extra_bin_paths = snapshot_extra_bin_paths(context, &pkg_dir);
 
@@ -91,7 +93,10 @@ fn build_candidate<Reporter: self::Reporter>(
     // error (`PatchFilePathMissing`).
     // `is_patched` feeds the cache-write gate below
     // (`is_patched || has_side_effects`).
-    let is_patched = apply_configured_patch(context, snapshot_key, candidate.patch)?;
+    let Some(is_patched) = apply_configured_patch::<Reporter>(context, snapshot_key, candidate)?
+    else {
+        return Ok(());
+    };
 
     let Some(has_side_effects) = run_snapshot_scripts::<Reporter>(
         context,
@@ -107,7 +112,7 @@ fn build_candidate<Reporter: self::Reporter>(
     clear_global_virtual_store_build_markers(
         context,
         snapshot_key,
-        candidate.patch.is_some() || candidate.should_run_scripts,
+        (candidate.patch.is_some() || candidate.should_run_scripts) && !candidate.build_pending,
     );
 
     upload_side_effects_cache(
@@ -164,6 +169,9 @@ struct BuildCandidate<'c> {
     /// suppressed by the rebuild-selection gate after it.
     force_rebuild: bool,
     should_run_scripts: bool,
+    /// `--ignore-scripts` left the build scripts for a later install to run
+    /// in the same global-virtual-store slot, so its marker has to stay.
+    build_pending: bool,
 }
 
 impl<'c> BuildCandidate<'c> {
@@ -186,7 +194,16 @@ impl<'c> BuildCandidate<'c> {
             &dep_path,
             (requires_build, force_rebuild),
         );
-        Some(Self { metadata_key, patch, name, version, force_rebuild, should_run_scripts })
+        let build_pending = requires_build && context.scripts.ignore;
+        Some(Self {
+            metadata_key,
+            patch,
+            name,
+            version,
+            force_rebuild,
+            should_run_scripts,
+            build_pending,
+        })
     }
 }
 
@@ -281,12 +298,12 @@ fn reject_frozen_store_build<Reporter: self::Reporter>(
 /// Every copy is patched, not just the primary slot. Under the hoisted linker
 /// a version conflict nests further copies under their consumers; leaving
 /// those unpatched would silently run the very code the patch replaces.
-fn apply_configured_patch(
+fn apply_configured_patch<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
-    patch: Option<&pnpm_patching::ExtendedPatchInfo>,
-) -> Result<bool, BuildModulesError> {
-    let Some(patch) = patch else { return Ok(false) };
+    candidate: &BuildCandidate<'_>,
+) -> Result<Option<bool>, BuildModulesError> {
+    let Some(patch) = candidate.patch else { return Ok(Some(false)) };
     let patch_file_path = patch.patch_file_path
         .as_deref()
         .ok_or_else(|| BuildModulesError::PatchFilePathMissing {
@@ -297,13 +314,12 @@ fn apply_configured_patch(
         if !patched_dir.exists() {
             continue;
         }
-        apply_patch_to_dir(&patched_dir, patch_file_path)
-            .inspect_err(|_| {
-                discard_failed_global_virtual_store_slot(context.directories.layout, snapshot_key);
-            })
-            .map_err(BuildModulesError::PatchApply)?;
+        apply_patch_to_dir(&patched_dir, patch_file_path).map_err(BuildModulesError::PatchApply)?;
     }
-    Ok(true)
+    if skip_incompatible_optional::<Reporter>(context, snapshot_key, candidate)? {
+        return Ok(None);
+    }
+    Ok(Some(true))
 }
 
 // A removed GVS slot may have been imported pristine while its cached build row survived.
@@ -338,9 +354,6 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
     match result {
         Ok(ran) => Ok(Some(ran)),
         Err(err) => {
-            // Before the optional-skip return, so a failed optional build
-            // leaves no half-built slot behind either.
-            discard_failed_global_virtual_store_slot(context.directories.layout, snapshot_key);
             if !optional {
                 return Err(BuildModulesError::LifecycleScript(err));
             }

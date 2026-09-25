@@ -111,9 +111,9 @@ impl FetchMetadataError {
     /// Whether another attempt could succeed. Timeouts, connection
     /// failures, "error sending request", "error decoding response
     /// body", retryable HTTP statuses, and broken JSON are transient.
-    /// An access denial or a bad TLS certificate is not: retrying
-    /// cannot change the verdict, and neither is a `trustPolicy` or
-    /// `minimumReleaseAge` violation.
+    /// An access denial or a [permanent](pnpm_network::is_permanent_error)
+    /// network error is not: retrying cannot change the verdict, and
+    /// neither is a `trustPolicy` or `minimumReleaseAge` violation.
     ///
     /// The metadata fetchers hand this to [`pnpm_network::retry_async`]
     /// and issue each attempt once. [`pnpm_network::send_with_retry`]
@@ -123,7 +123,7 @@ impl FetchMetadataError {
         match self {
             FetchMetadataError::BodyRead { .. } | FetchMetadataError::Decode { .. } => true,
             FetchMetadataError::Network { error, .. } => {
-                if pnpm_network::is_certificate_error(error) || self.is_access_denied() {
+                if pnpm_network::is_permanent_error(error) || self.is_access_denied() {
                     return false;
                 }
                 match error.status() {

@@ -1,5 +1,5 @@
 use crate::{HttpStatusError, NetworkError, TarballError, auth_header_for_package_download};
-use pnpm_network::{AuthHeaders, ThrottledClient, ThrottledClientGuard, is_certificate_error};
+use pnpm_network::{AuthHeaders, ThrottledClient, ThrottledClientGuard, is_permanent_error};
 use pnpm_reporter::{FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, Reporter};
 
 /// Authorize and start one archive request. The returned permit must remain
@@ -101,7 +101,7 @@ fn build_archive_request(
 
 fn retry_backoff_for_error(error: &reqwest::Error, attempt: usize) -> Option<std::time::Duration> {
     const MAX_QUICK_RETRIES: usize = 2;
-    if attempt >= MAX_QUICK_RETRIES || is_certificate_error(error) {
+    if attempt >= MAX_QUICK_RETRIES || is_permanent_error(error) {
         return None;
     }
     if error.is_connect() {

@@ -119,6 +119,127 @@ test('the committed alias scripts are what prepare.js writes', () => {
   expect(stdout).toMatch(/^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/)
 })
 
+const npmShimTest = isWindows ? test : test.skip
+
+npmShimTest('npm global PowerShell shim waits for the standalone executable', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-exe-npm-shim-'))
+  try {
+    const prefix = installExeFixtureWithNpm(root, ['--global'])
+    expectShimsRunTheExecutable(prefix)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+// `--location=global` leaves npm_config_global unset and sets npm's project
+// prefix to the global prefix, so only npm_config_location marks it global.
+npmShimTest('npm global shims name the standalone executable with --location=global', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-exe-npm-shim-'))
+  try {
+    const prefix = installExeFixtureWithNpm(root, ['--location=global'])
+    expectShimsRunTheExecutable(prefix)
+    expect(fs.existsSync(path.join(prefix, 'node_modules', '.bin'))).toBe(false)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+npmShimTest('npm project shims name the standalone executable', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-exe-npm-shim-'))
+  try {
+    const prefix = installExeFixtureWithNpm(root, [])
+    expectShimsRunTheExecutable(path.join(prefix, 'node_modules', '.bin'))
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+/**
+ * Install a minimal @pnpm/exe, whose platform package carries node.exe as the
+ * standalone executable, with npm into `<root>/prefix` and return that prefix.
+ * Without a `--global` or `--location` flag the prefix is a project, and the
+ * shims land in its `node_modules/.bin`. Throws when npm fails.
+ */
+function installExeFixtureWithNpm (root: string, npmFlags: string[]): string {
+  const nativePackageDir = path.join(root, 'native-package')
+  fs.mkdirSync(nativePackageDir)
+  const nativePackageName = exePlatformPkgName(platform, process.arch, familySync())
+  fs.writeFileSync(path.join(nativePackageDir, 'package.json'), JSON.stringify({
+    name: nativePackageName,
+    version: '1.0.0',
+  }))
+  const nativeBinary = path.join(nativePackageDir, 'pnpm.exe')
+  try {
+    fs.linkSync(process.execPath, nativeBinary)
+  } catch (err) {
+    // EPERM is a same-volume link the process may not create, such as
+    // node.exe under Program Files.
+    const code = (err as NodeJS.ErrnoException).code
+    if (code !== 'EXDEV' && code !== 'EPERM') throw err
+    fs.copyFileSync(process.execPath, nativeBinary)
+  }
+
+  const fixtureDir = path.join(root, 'wrapper')
+  fs.mkdirSync(fixtureDir)
+  for (const name of ['setup.js', 'platform-pkg-name.js']) {
+    fs.copyFileSync(path.join(exeDir, name), path.join(fixtureDir, name))
+  }
+  for (const name of ['pnpm', 'pn', 'pnpx', 'pnx']) {
+    fs.writeFileSync(path.join(fixtureDir, name), 'placeholder')
+  }
+  const exeManifest = JSON.parse(fs.readFileSync(path.join(exeDir, 'package.json'), 'utf8')) as {
+    scripts: { preinstall: string, postinstall?: string },
+  }
+  fs.writeFileSync(path.join(fixtureDir, 'package.json'), JSON.stringify({
+    name: '@pnpm/exe',
+    version: '1.0.0',
+    type: 'module',
+    bin: { pnpm: 'pnpm', pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' },
+    scripts: {
+      preinstall: exeManifest.scripts.preinstall,
+      postinstall: exeManifest.scripts.postinstall,
+    },
+    dependencies: {
+      'detect-libc': `file:${fs.realpathSync(path.join(exeDir, 'node_modules', 'detect-libc'))}`,
+    },
+    optionalDependencies: { [nativePackageName]: `file:${nativePackageDir}` },
+  }))
+
+  const npmCli = execFileSync('where.exe', ['npm.cmd'], { encoding: 'utf8' })
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map(launcher => path.join(path.dirname(launcher), 'node_modules', 'npm', 'bin', 'npm-cli.js'))
+    .find(candidate => fs.existsSync(candidate))
+  expect(npmCli).toBeDefined()
+  const prefix = path.join(root, 'prefix')
+  fs.mkdirSync(prefix)
+  if (!npmFlags.some(flag => flag.startsWith('--global') || flag.startsWith('--location'))) {
+    fs.writeFileSync(path.join(prefix, 'package.json'), JSON.stringify({ name: 'project', version: '1.0.0' }))
+  }
+  execFileSync(process.execPath, [
+    npmCli!, 'install', ...npmFlags, '--install-links=true', '--dangerously-allow-all-scripts',
+    '--prefix', prefix, fixtureDir,
+  ], { cwd: root, stdio: 'pipe', timeout: 60_000 })
+  return prefix
+}
+
+function expectShimsRunTheExecutable (binDir: string): void {
+  for (const name of ['pnpm', 'pn', 'pnpx', 'pnx']) {
+    for (const ext of ['cmd', 'ps1']) {
+      expect(fs.readFileSync(path.join(binDir, `${name}.${ext}`), 'utf8')).toContain(`${name}.exe`)
+    }
+  }
+  const shim = path.join(binDir, 'pnpm.ps1')
+  expect(execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', shim, '--version'], {
+    encoding: 'utf8',
+    timeout: 10_000,
+  }).trim()).toBe(process.version)
+  const failure = spawnSync('powershell.exe', [
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', shim, '-e', 'process.exit(7)',
+  ], { encoding: 'utf8', timeout: 10_000 })
+  expect(failure.status).toBe(7)
+}
+
 // Stand up a minimal sandbox that mimics @pnpm/exe with NO platform package
 // installed: setup.js + platform-pkg-name.js + a package.json (so Node loads
 // it as ESM), plus a node_modules with detect-libc symlinked from this repo
@@ -607,4 +728,3 @@ function getWindowsFallbackEnv (stubDir: string): NodeJS.ProcessEnv {
     NODE_OPTIONS: `${prevNodeOptions} --require "${stubJs}"`.trim(),
   }
 }
-

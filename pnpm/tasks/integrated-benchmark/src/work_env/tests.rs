@@ -416,6 +416,7 @@ fn pnpr_benchmark_config_declares_local_registry_public() {
 
     assert!(yaml.contains("registry: http://localhost:4873/"));
     assert!(yaml.contains("registry: http://127.0.0.1:61824/"));
+    assert!(yaml.contains("allowedPrivateNetworks:"));
     assert!(yaml.contains("max_users: -1"));
     assert!(yaml.contains("htpasswd"));
 }

@@ -1,4 +1,5 @@
-use super::{BTreeMap, BTreeSet, HashMap, HashSet, MissingPeer, MissingPeerInfo, Range};
+use super::{BTreeMap, BTreeSet, HashMap, HashSet, MissingPeer, MissingPeerInfo};
+use node_semver::Range;
 
 /// Split the missing-peer report into the inputs the inner and outer
 /// loops consume.

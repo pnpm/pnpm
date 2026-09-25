@@ -6,7 +6,7 @@ import {
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
 import type {
@@ -23,6 +23,7 @@ import {
   filterLockfileByImporters,
 } from '@pnpm/lockfile.filtering'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
+import { findLockedRootNodeRuntime } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { createRemoteSideEffectsRestorer } from '@pnpm/pnpr.client'
 import type { StoreController, TarballResolution } from '@pnpm/store.controller-types'
@@ -514,6 +515,7 @@ async function linkNewPackages (
       force: opts.force,
       ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
+      nodeVersion: findLockedRootNodeRuntime(wantedLockfile)?.version,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
       remoteSideEffectsCache: opts.remoteSideEffectsCache,
       pnprServer: opts.pnprServer,
@@ -574,6 +576,11 @@ async function linkAllPkgs (
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
+    /**
+     * The root project's `engines.runtime` Node version, which keys the
+     * side-effects cache of every package that does not pin its own.
+     */
+    nodeVersion?: string
     sideEffectsCacheRead: boolean
     remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     pnprServer?: string
@@ -581,18 +588,13 @@ async function linkAllPkgs (
     supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<void> {
-  // Resolved `engines.runtime` Node version (when present) so the
-  // side-effects-cache key prefix tracks the script-runner Node
-  // rather than pnpm's own `process.version`. Computed once outside
-  // the per-node loop.
-  const nodeVersion = findRuntimeNodeVersion(Object.keys(opts.depGraph))
   const restorer = createRemoteSideEffectsRestorer({
     allowBuild: opts.allowBuild,
     configByUri: opts.configByUri,
     depsGraph: opts.depGraph,
     depsStateCache: opts.depsStateCache,
     ignoreScripts: opts.ignoreScripts,
-    nodeVersion,
+    nodeVersion: opts.nodeVersion,
     pnprServer: opts.pnprServer,
     settings: opts.remoteSideEffectsCache,
     sideEffectsCacheRead: opts.sideEffectsCacheRead,
@@ -620,7 +622,7 @@ async function linkAllPkgs (
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild === true,
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
-            nodeVersion,
+            nodeVersion: opts.nodeVersion,
           })
           if (files.sideEffectsDiffs?.get(localCacheKey)?.remoteOrigin == null) {
             sideEffectsCacheKey = localCacheKey

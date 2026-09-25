@@ -21,7 +21,9 @@ pub use platform::{
 mod reachability;
 use reachability::{LockfileEdgeReach, walk_lockfile_edges};
 
+mod patched;
 mod platform;
+use patched::{snapshot_is_patched, without_published_engines};
 use platform::manifest_from_metadata;
 
 use std::collections::{HashMap, HashSet};
@@ -427,13 +429,9 @@ impl SkipScan<'_, '_> {
             (snapshot.optional, !snapshot.optional)
         };
 
-        let warn = cached_check(
-            &mut self.check_cache,
-            &metadata_key,
-            metadata,
-            skip_check_optional,
-            &self.base_options,
-        )?;
+        let defer_engines =
+            self.base_options.engine_strict && snapshot_is_patched(snapshot_key, snapshot);
+        let warn = self.snapshot_warn(&metadata_key, metadata, skip_check_optional, defer_engines)?;
         // Whatever the seed recorded, this pass's verdict replaces it.
         self.skipped.remove_installability(snapshot_key);
         let Some(warn) = warn else { return Ok(()) };
@@ -442,7 +440,26 @@ impl SkipScan<'_, '_> {
             self.record_skip::<Reporter>(snapshot_key, &metadata_key, &warn);
             return Ok(());
         }
-        self.report_incompatible_required(&metadata_key, metadata, warn, skip_check_optional)
+        self.report_incompatible_required(
+            &metadata_key,
+            metadata,
+            warn,
+            skip_check_optional,
+            defer_engines,
+        )
+    }
+
+    fn snapshot_warn(
+        &mut self,
+        metadata_key: &PackageKey,
+        metadata: &PackageMetadata,
+        optional: bool,
+        defer_engines: bool,
+    ) -> Result<Option<InstallabilityError>, Box<InstallabilityError>> {
+        if defer_engines {
+            return without_published_engines(metadata_key, metadata, optional, &self.base_options);
+        }
+        cached_check(&mut self.check_cache, metadata_key, metadata, optional, &self.base_options)
     }
 
     fn record_skip<Reporter: self::Reporter>(
@@ -471,11 +488,14 @@ impl SkipScan<'_, '_> {
         metadata: &PackageMetadata,
         warn: InstallabilityError,
         skip_check_optional: bool,
+        defer_engines: bool,
     ) -> Result<(), Box<InstallabilityError>> {
         // The required dispatch drops the optional-only
         // platform-from-name inference, so its verdict needs the
         // non-optional check.
-        let warn = if skip_check_optional {
+        let warn = if skip_check_optional && defer_engines {
+            without_published_engines(metadata_key, metadata, false, &self.base_options)?
+        } else if skip_check_optional {
             cached_check(&mut self.check_cache, metadata_key, metadata, false, &self.base_options)?
         } else {
             Some(warn)
@@ -579,7 +599,9 @@ pub fn find_root_runtime_node_key<'a>(
         .find(|key| key.name.scope.is_none() && key.name.bare == "node" && key.suffix == *ver_peer)
 }
 
-fn root_runtime_node_ver_peer(importers: &HashMap<String, ProjectSnapshot>) -> Option<&PkgVerPeer> {
+pub(crate) fn root_runtime_node_ver_peer(
+    importers: &HashMap<String, ProjectSnapshot>,
+) -> Option<&PkgVerPeer> {
     importers
         .get(Lockfile::ROOT_IMPORTER_KEY)?
         .dependencies_by_groups([

@@ -115,9 +115,12 @@ test.each([
   }
 })
 
-test('a wrapper error code does not hide a certificate error in its cause', () => {
-  const cause = Object.assign(new Error('certificate has expired'), { code: 'CERT_HAS_EXPIRED' })
-  expect(isNonRetryableError(Object.assign(new Error('fetch failed', { cause }), { code: 'FETCH_FAILED' }))).toBe(true)
+test('wrapped non-retryable errors keep their cause code', () => {
+  const certificate = Object.assign(new Error('certificate has expired'), { code: 'CERT_HAS_EXPIRED' })
+  const diskFull = Object.assign(new Error('no space left on device'), { code: 'ENOSPC' })
+  expect(isNonRetryableError(Object.assign(new Error('fetch failed', { cause: certificate }), { code: 'FETCH_FAILED' }))).toBe(true)
+  expect(isNonRetryableError(Object.assign(new Error('store failed', { cause: diskFull }), { code: 'ERR_PNPM_TARBALL_EXTRACT' }))).toBe(true)
+  expect(isNonRetryableError(Object.assign(new Error('store write failed'), { code: 'ERR_PNPM_ENOSPC' }))).toBe(true)
   expect(isNonRetryableError(Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' }))).toBe(false)
 })
 

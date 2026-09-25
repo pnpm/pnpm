@@ -167,6 +167,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
         },
 
         allow_build_policy: &policy,
@@ -248,6 +249,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
         },
 
         allow_build_policy: &policy,
@@ -416,6 +418,7 @@ async fn write_path_populates_side_effects_row() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
         },
 
         allow_build_policy: &policy,

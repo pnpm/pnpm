@@ -82,6 +82,7 @@ import {
   resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, removePackageMap, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
+import { findLockedRootNodeRuntime } from '@pnpm/lockfile.utils'
 import {
   allProjectsAreUpToDate,
   catalogResolutionIsStale,
@@ -2896,6 +2897,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         // Dependency lifecycle scripts must not run on an unverified lockfile.
         await opts.verifyLockfile?.()
         const ignoredBuildsFromBuild = (await buildModules(dependenciesGraph, rootNodes, {
+          engineStrict: installabilityUnderForce(opts).engineStrict,
+          engineNodeVersion: opts.nodeVersion,
+          skipped: ctx.skipped,
           allowBuild: opts.allowBuild,
           childConcurrency: opts.childConcurrency,
           depsStateCache,
@@ -2905,6 +2909,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           extraEnv,
           ignoreScripts: opts.ignoreScripts,
           lockfileDir: ctx.lockfileDir,
+          nodeVersion: findLockedRootNodeRuntime(newLockfile)?.version,
           optional: opts.include.optionalDependencies,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           rootModulesDir: ctx.virtualStoreDir,
@@ -2935,7 +2940,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       logger.info({ message, prefix })
     }
     if (result.newDepPaths?.length && !opts.virtualStoreOnly) {
-      const newPkgs = props<DepPath, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
+      const newPkgs = props<DepPath, DependenciesGraphNode>(
+        result.newDepPaths.filter((depPath) => !ctx.skipped.has(depPath)),
+        dependenciesGraph
+      )
       await linkAllBins(newPkgs, dependenciesGraph, {
         extraNodePaths: ctx.extraNodePaths,
         optional: opts.include.optionalDependencies,

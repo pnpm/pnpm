@@ -36,6 +36,9 @@ jobs:
       - name: Setup Rust toolchain
         uses: $/.github/actions/rustup
 
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+
       - name: Build pnpm and the harness
         run: cargo build --release --bin pnpm --bin cargo-equivalence
 
