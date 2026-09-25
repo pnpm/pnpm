@@ -274,7 +274,11 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
-            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -371,7 +375,11 @@ pub(super) fn fail_when_failing_postinstall_is_required() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
-            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -492,7 +500,11 @@ async fn write_path_disabled_skips_upload() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
-            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -635,7 +647,11 @@ async fn upload_error_does_not_interrupt_install() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
-            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,

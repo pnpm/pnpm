@@ -3,8 +3,17 @@ use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_package_is_installable::{InstallabilityError, InstallabilityOptions};
 
 /// Returns whether the snapshot has an applied patch.
-pub(super) fn snapshot_is_patched(snapshot_key: &PackageKey, snapshot: &SnapshotEntry) -> bool {
-    snapshot.patched == Some(true) || snapshot_key.to_string().contains("(patch_hash=")
+///
+/// Only the package's own `(patch_hash=...)` segment counts. A patched peer
+/// nested in the peers suffix leaves the package itself unpatched.
+pub(crate) fn snapshot_is_patched(
+    snapshot_key: &PackageKey,
+    snapshot: Option<&SnapshotEntry>,
+) -> bool {
+    snapshot.is_some_and(|snapshot| snapshot.patched == Some(true))
+        || pnpm_deps_path::index_of_dep_path_suffix(&snapshot_key.to_string())
+            .patch_hash_index
+            .is_some()
 }
 
 /// Checks package installability with engine constraints cleared.

@@ -31,9 +31,20 @@ pub(super) fn skip_incompatible_optional<EventReporter: Reporter>(
 
 fn remove_linked_copies(context: &BuildOneSnapshot<'_>, snapshot_key: &PackageKey) {
     let dirs = context.pkg_roots().all(snapshot_key);
-    let store = context.directories.layout.package_store_dir();
-    unlink_children(context.directories.modules_dir, &dirs);
-    unlink_children(&store.join("node_modules"), &dirs);
+    let layout = context.directories.layout;
+    let store = layout.package_store_dir();
+    for modules_dir in project_modules_dirs(context) {
+        unlink_children(&modules_dir, &dirs);
+    }
+    let virtual_store_dir = context.scripts.patched_engines.virtual_store_dir.unwrap_or(store);
+    unlink_children(&virtual_store_dir.join("node_modules"), &dirs);
+    // A global virtual store slot, and the links between slots, are shared
+    // with every other project that resolves to them.
+    if layout.enable_global_virtual_store()
+        && context.directories.pkg_roots_by_key.is_none()
+    {
+        return;
+    }
     if let Ok(entries) = std::fs::read_dir(store) {
         for entry in entries.flatten() {
             unlink_children(&entry.path().join("node_modules"), &dirs);
@@ -42,6 +53,21 @@ fn remove_linked_copies(context: &BuildOneSnapshot<'_>, snapshot_key: &PackageKe
     for dir in &dirs {
         let _ = std::fs::remove_dir_all(dir);
     }
+}
+
+/// The `node_modules` directory of every project in the lockfile.
+fn project_modules_dirs(context: &BuildOneSnapshot<'_>) -> Vec<std::path::PathBuf> {
+    let root = context.directories.modules_dir;
+    let lockfile_dir = context.directories.lockfile_dir;
+    let mut dirs = vec![root.to_path_buf()];
+    let Ok(modules_dir_name) = root.strip_prefix(lockfile_dir) else { return dirs };
+    dirs.extend(
+        context.graph.importers
+            .keys()
+            .filter(|importer_id| importer_id.as_str() != ".")
+            .map(|importer_id| lockfile_dir.join(importer_id).join(modules_dir_name)),
+    );
+    dirs
 }
 
 fn unlink_children(dir: &std::path::Path, dirs: &[std::path::PathBuf]) {
