@@ -133,6 +133,7 @@ pub(super) struct ReportInstallCompletionInputs<'a> {
     pub(super) resolved_lockfile: Option<&'a Lockfile>,
     pub(super) peer_issue_importer_ids: &'a HashSet<String>,
     pub(super) installed_importer_ids: &'a HashSet<String>,
+    pub(super) can_prompt: bool,
 }
 pub(super) fn report_install_completion<Reporter: self::Reporter>(
     inputs: ReportInstallCompletionInputs<'_>,
@@ -172,8 +173,12 @@ pub(super) fn report_install_completion<Reporter: self::Reporter>(
     // than recalling the `allowBuilds` shape. Written before the strict
     // failure below, which is the very run whose message it answers.
     // `--ignore-workspace` opts out: the run disowned the workspace
-    // manifest, so it must not write to one either.
+    // manifest, so it must not write to one either. So does a run nobody
+    // is at the terminal for, such as CI or a dependency-update bot: no
+    // one there edits the line, and it would land in the committed
+    // manifest as a value that is not a decision.
     if !inputs.ignored_builds.is_empty()
+        && inputs.can_prompt
         && !is_global_install
         && !inputs.workspace.config.ignore_workspace
     {

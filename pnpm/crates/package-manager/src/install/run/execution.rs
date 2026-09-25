@@ -208,6 +208,7 @@ impl<'a> RunExecution<'a> {
             verified_file_integrity_baseline: self.mode.verified_file_integrity_baseline,
             config: self.install.context.config,
             save_workspace_state: self.options.save.workspace_state,
+            can_prompt: self.mode.can_prompt,
         }
     }
 

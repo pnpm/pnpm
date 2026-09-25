@@ -287,6 +287,7 @@ fn finish_apply<Reporter: self::Reporter>(
         resolved_lockfile: inputs.materialized.fresh_lockfile.as_ref(),
         peer_issue_importer_ids: &inputs.materialized.peer_issue_importer_ids,
         installed_importer_ids,
+        can_prompt: inputs.completion.can_prompt,
     });
     pnpm_fs::background_drop(inputs.materialized.fresh_lockfile);
     completion
