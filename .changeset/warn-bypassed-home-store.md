@@ -1,5 +1,5 @@
 ---
-"@pnpm/store.connection-manager": patch
+"@pnpm/store.connection-manager": minor
 "@pnpm/store.path": minor
 "pacquet": patch
 "pnpm": patch

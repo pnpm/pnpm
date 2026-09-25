@@ -121,3 +121,13 @@ test('warns once the store in the pnpm home directory appears later in the proce
   await createStoreController(storeControllerOptions(pnpmHomeDir))
   expect(globalWarn).toHaveBeenCalledTimes(1)
 })
+
+test('does not warn when the caller skips the bypassed home store warning', async () => {
+  const pnpmHomeDir = path.join(tmpDir, 'home-skipped')
+  fs.mkdirSync(getStorePathInPnpmHome(pnpmHomeDir), { recursive: true })
+  getStorePath.mockResolvedValue(relocatedStoreDir)
+
+  await createStoreController(storeControllerOptions(pnpmHomeDir, { skipBypassedHomeStoreWarning: true }))
+
+  expect(globalWarn).not.toHaveBeenCalled()
+})

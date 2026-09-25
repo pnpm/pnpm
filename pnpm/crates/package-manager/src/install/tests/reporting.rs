@@ -316,8 +316,7 @@ async fn install_emits_pnpm_event_sequence() {
 
     drop(dirs.dir);
 }
-/// An install whose default store was moved off an existing pnpm home
-/// store warns about it before the install header names the store in use.
+/// <https://github.com/pnpm/pnpm/issues/14505>
 #[tokio::test]
 async fn install_warns_when_the_default_store_bypasses_an_existing_home_store() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());

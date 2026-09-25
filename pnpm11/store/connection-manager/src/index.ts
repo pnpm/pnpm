@@ -15,7 +15,9 @@ export type CreateStoreControllerOptions = Omit<CreateNewStoreControllerOptions,
 | 'dir'
 | 'pnpmHomeDir'
 | 'workspaceDir'
->
+> & {
+  skipBypassedHomeStoreWarning?: boolean
+}
 
 export interface StoreControllerHandle {
   ctrl: StoreController
@@ -46,7 +48,7 @@ export async function createStoreController (
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
   })
-  if (!opts.storeDir) {
+  if (!opts.storeDir && !opts.skipBypassedHomeStoreWarning) {
     await warnIfHomeStoreIsBypassed(opts.pnpmHomeDir, storeDir)
   }
   return createNewStoreController(Object.assign(opts, {
