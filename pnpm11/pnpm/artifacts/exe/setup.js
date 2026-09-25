@@ -114,9 +114,13 @@ function relinkNpmWindowsShims() {
   }
   args.push('@pnpm/exe')
   const result = spawnSync(process.execPath, args, { stdio: 'inherit' })
-  if (result.error != null) throw result.error
+  if (result.error != null) {
+    console.error(`Could not regenerate the npm shims for @pnpm/exe: ${result.error.message}`)
+    process.exit(1)
+  }
   if (result.status !== 0) {
-    throw new Error('npm could not regenerate the Windows shims for @pnpm/exe')
+    console.error(`npm could not regenerate the shims for @pnpm/exe (exit code ${result.status}).`)
+    process.exit(1)
   }
 }
 
