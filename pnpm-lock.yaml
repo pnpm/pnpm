@@ -1742,6 +1742,9 @@ importers:
       '@pnpm/workspace.task-scheduler':
         specifier: workspace:*
         version: link:../../workspace/task-scheduler
+      is-subdir:
+        specifier: 'catalog:'
+        version: 2.0.0
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
@@ -1957,6 +1960,9 @@ importers:
       '@pnpm/workspace.task-scheduler':
         specifier: workspace:*
         version: link:../../workspace/task-scheduler
+      is-subdir:
+        specifier: 'catalog:'
+        version: 2.0.0
       p-defer:
         specifier: 'catalog:'
         version: 4.0.1

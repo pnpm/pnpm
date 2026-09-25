@@ -29,6 +29,7 @@ import type {
 } from '@pnpm/types'
 import { hardLinkDir } from '@pnpm/worker'
 import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
+import { strict as isStrictSubdir } from 'is-subdir'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import { pathExists } from 'path-exists'
 import { pickBy } from 'ramda'
@@ -402,6 +403,9 @@ async function buildDependency<T extends string> (
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
     if (depNode.optional) {
+      if (!opts.enableGlobalVirtualStore) {
+        await removeSkippedOptionalDependency(depNode, opts)
+      }
       // TODO: add parents field to the log
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
@@ -566,6 +570,26 @@ function containedNodeModulesLink (dir: string, alias: string): string | undefin
     path.isAbsolute(relative)
   ) return undefined
   return link
+}
+
+/**
+ * Remove every installed copy of an optional dependency whose build failed,
+ * so a consumer that probes for it finds it absent rather than half-built.
+ * The next install finds the directory missing and retries the build.
+ * A hoisted location outside the lockfile directory is never removed.
+ * Rejects if a removal fails, so the package is not reported as skipped.
+ */
+async function removeSkippedOptionalDependency<T extends string> (
+  depNode: DependenciesGraphNode<T>,
+  opts: { hoistedLocations?: Record<string, string[]>, lockfileDir: string }
+): Promise<void> {
+  const dirs = new Set([
+    depNode.dir,
+    ...(opts.hoistedLocations?.[depNode.depPath] ?? [])
+      .map((hoistedLocation) => path.join(opts.lockfileDir, hoistedLocation))
+      .filter((dir) => isStrictSubdir(opts.lockfileDir, dir)),
+  ])
+  await Promise.all(Array.from(dirs, (dir) => fs.rm(dir, { recursive: true, force: true })))
 }
 
 export async function linkBinsOfDependencies<T extends string> (
