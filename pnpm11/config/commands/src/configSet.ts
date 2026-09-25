@@ -1,5 +1,4 @@
 import path from 'node:path'
-import util from 'node:util'
 
 import { type ConfigFileKey, isConfigFileKey, isIniConfigKey, isProjectManifestSkippedKey, types, whereRefusedKeyBelongs } from '@pnpm/config.reader'
 import { GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
@@ -242,7 +241,7 @@ async function safeReadIniFile (configPath: string): Promise<Record<string, unkn
   try {
     return await readIniFile(configPath) as Record<string, unknown>
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return {}
+    if (err != null && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') return {}
     throw err
   }
 }

@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { packageNameFromAllowBuildKey, UNDECIDED_ALLOW_BUILD } from '@pnpm/building.policy'
 import type { Catalogs } from '@pnpm/catalogs.types'
@@ -37,7 +36,7 @@ async function readManifestRaw (file: string): Promise<string | undefined> {
   try {
     return (await fs.promises.readFile(file)).toString()
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (err != null && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
       return undefined
     }
     throw err
