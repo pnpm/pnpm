@@ -16,6 +16,7 @@ use path_extender::{
 use pnpm_config::{GLOBAL_LAYOUT_VERSION, Host, PNPM_VERSION, default_pnpm_home_dir};
 use pnpm_fs::write_atomic;
 use pnpm_global::scan_global_packages;
+use pnpm_local_spec::LocalSpec;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use std::{fs, path::Path, process::Command};
 
@@ -59,7 +60,13 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
     // pnpm's single-executable branch always applies: install the CLI
     // globally and write the alias scripts.
     install_cli_globally::<Reporter>(&exec_path, &pnpm_home_dir, dir)?;
-    migrate_legacy_global_packages::<Reporter>(&exec_path, &pnpm_home_dir, dir)?;
+    if let Err(error) = migrate_legacy_global_packages::<Reporter>(&exec_path, &pnpm_home_dir, dir)
+    {
+        warn::<Reporter>(
+            &dir.to_string_lossy(),
+            &format!("Failed to migrate global packages: {error}"),
+        );
+    }
     {
         let _global_bin_lock = super::global_bin_lock::acquire_global_bin_lock(&bin_dir)?;
         create_alias_scripts(&bin_dir)
@@ -329,6 +336,7 @@ const LEGACY_GLOBAL_LAYOUT: &str = "5";
 pub(crate) fn legacy_global_add_specs(
     dependencies: &serde_json::Map<String, serde_json::Value>,
     already_installed: &std::collections::BTreeSet<String>,
+    manifest_dir: Option<&Path>,
 ) -> Vec<String> {
     let mut specs = Vec::new();
     for (name, spec) in dependencies {
@@ -340,6 +348,11 @@ pub(crate) fn legacy_global_add_specs(
             .filter(|spec| !spec.is_empty())
         else {
             continue;
+        };
+        let spec = match manifest_dir {
+            Some(dir) => LocalSpec::parse(spec, dir)
+                .map_or_else(|| spec.to_string(), |local| local.render(None)),
+            None => spec.to_string(),
         };
         specs.push(format!("{name}@{spec}"));
     }
@@ -389,10 +402,18 @@ fn migrate_legacy_global_packages<Reporter: self::Reporter + 'static>(
     pnpm_home_dir: &Path,
     prefix_dir: &Path,
 ) -> miette::Result<()> {
+    let manifest_path = pnpm_home_dir
+        .join("global")
+        .join(LEGACY_GLOBAL_LAYOUT)
+        .join("package.json");
     let Some(dependencies) = legacy_global_dependencies(pnpm_home_dir) else {
         return Ok(());
     };
-    let specs = legacy_global_add_specs(&dependencies, &installed_global_aliases(pnpm_home_dir));
+    let specs = legacy_global_add_specs(
+        &dependencies,
+        &installed_global_aliases(pnpm_home_dir),
+        manifest_path.parent(),
+    );
     if specs.is_empty() {
         return Ok(());
     }
@@ -462,6 +483,14 @@ fn report_config_change(config_report: &ConfigReport) -> String {
 fn info<Reporter: self::Reporter>(prefix: &str, message: &str) {
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Info,
+        message: message.to_string(),
+        prefix: prefix.to_string(),
+    }));
+}
+
+fn warn<Reporter: self::Reporter>(prefix: &str, message: &str) {
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
         message: message.to_string(),
         prefix: prefix.to_string(),
     }));

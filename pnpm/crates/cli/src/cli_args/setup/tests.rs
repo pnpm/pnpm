@@ -8,6 +8,7 @@ use super::{
     migrate_legacy_global_packages, remove_legacy_homedir_shims, render_setup_output,
     standalone_manifest,
 };
+use pnpm_local_spec::LocalSpec;
 use pretty_assertions::assert_eq;
 use std::path::{Path, PathBuf};
 
@@ -302,7 +303,28 @@ fn legacy_global_add_specs_skips_pnpm_and_packages_already_installed() {
     });
     let dependencies = dependencies.as_object().expect("object");
     let already_installed = std::iter::once("prettier".to_string()).collect();
-    assert_eq!(legacy_global_add_specs(dependencies, &already_installed), ["typescript@^5.4.0"]);
+    assert_eq!(
+        legacy_global_add_specs(dependencies, &already_installed, None),
+        ["typescript@^5.4.0"],
+    );
+}
+
+#[test]
+fn legacy_global_add_specs_resolves_relative_file_dependencies_against_the_manifest_dir() {
+    let dependencies = serde_json::json!({
+        "my-cli": "file:../packages/cli",
+        "abs": "file:/tmp/pkg",
+    });
+    let dependencies = dependencies.as_object().expect("object");
+    let manifest_dir = PathBuf::from("/home/user/.local/share/pnpm/global/5");
+    let specs = legacy_global_add_specs(
+        dependencies,
+        &std::collections::BTreeSet::new(),
+        Some(&manifest_dir),
+    );
+    let expected_local =
+        LocalSpec::parse("file:../packages/cli", &manifest_dir).expect("local spec").render(None);
+    assert_eq!(specs, [format!("abs@file:/tmp/pkg"), format!("my-cli@{expected_local}")],);
 }
 
 fn write_legacy_manifest(home: &Path, body: &str) {

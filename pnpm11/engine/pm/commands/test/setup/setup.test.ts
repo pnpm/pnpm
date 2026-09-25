@@ -362,6 +362,45 @@ test('legacy global migration skips pnpm and packages already installed', () => 
   }, new Set(['prettier']))).toEqual(['typescript@^5.4.0'])
 })
 
+test('legacy global migration resolves relative file dependencies against the legacy manifest directory', () => {
+  const manifestDir = path.join('/home/user', '.local', 'share', 'pnpm', 'global', '5')
+  expect(legacyGlobalAddSpecs({
+    'my-cli': 'file:../packages/cli',
+    abs: 'file:/tmp/pkg',
+  }, new Set(), manifestDir)).toEqual([
+    'abs@file:/tmp/pkg',
+    `my-cli@file:${path.resolve(manifestDir, '../packages/cli')}`,
+  ])
+})
+
+test('setup continues when legacy global migration fails', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(true)
+  jest.mocked(spawnSync)
+    .mockReturnValueOnce({ status: 0 } as ReturnType<typeof spawnSync>)
+    .mockReturnValueOnce({ status: 1 } as ReturnType<typeof spawnSync>)
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-migrate-fail-'))
+  const home = path.join(tmpDir, 'home')
+  actualFs.mkdirSync(path.join(home, 'global', '5'), { recursive: true })
+  actualFs.writeFileSync(path.join(home, 'global', '5', 'package.json'), JSON.stringify({
+    dependencies: { typescript: '^5.4.0' },
+  }))
+  const execPath = path.join(tmpDir, 'pnpm')
+  const originalExecPath = process.execPath
+  Object.defineProperty(process, 'execPath', { value: execPath, configurable: true })
+  try {
+    const output = await setup.handler({ pnpmHomeDir: home })
+    expect(output).toBe('No changes to the environment were made. Everything is already up to date.')
+    expect(addDirToEnvPath).toHaveBeenCalled()
+  } finally {
+    Object.defineProperty(process, 'execPath', { value: originalExecPath, configurable: true })
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
 test('the manifest written next to the standalone executable declares its package files', () => {
   expect(setup.standaloneManifest('pnpm.exe')).toStrictEqual({
     name: '@pnpm/exe',

@@ -242,16 +242,37 @@ const PNPM_PACKAGE_NAMES = new Set(['pnpm', '@pnpm/exe'])
  * pnpm itself is installed by setup separately, and names already present in
  * the current global directory are left alone.
  */
+function normalizeLegacyGlobalSpec (spec: string, manifestDir?: string): string {
+  if (manifestDir == null) return spec
+  const protocol = spec.startsWith('file:')
+    ? 'file:'
+    : spec.startsWith('link:')
+      ? 'link:'
+      : null
+  if (protocol == null) return spec
+  const localPath = spec.slice(protocol.length)
+  if (
+    localPath === '' ||
+    path.isAbsolute(localPath) ||
+    localPath.startsWith('~/') ||
+    localPath.startsWith('~\\')
+  ) {
+    return spec
+  }
+  return `${protocol}${path.resolve(manifestDir, localPath)}`
+}
+
 export function legacyGlobalAddSpecs (
   dependencies: Record<string, unknown> | undefined,
-  alreadyInstalled: ReadonlySet<string>
+  alreadyInstalled: ReadonlySet<string>,
+  manifestDir?: string
 ): string[] {
   if (dependencies == null) return []
   const specs: string[] = []
   for (const [name, spec] of Object.entries(dependencies)) {
     if (PNPM_PACKAGE_NAMES.has(name) || alreadyInstalled.has(name)) continue
     if (typeof spec !== 'string' || spec === '') continue
-    specs.push(`${name}@${spec}`)
+    specs.push(`${name}@${normalizeLegacyGlobalSpec(spec, manifestDir)}`)
   }
   return specs.sort()
 }
@@ -291,7 +312,11 @@ function migrateLegacyGlobalPackages (execPath: string, pnpmHomeDir: string): vo
   } catch {
     return
   }
-  const specs = legacyGlobalAddSpecs(dependencies, installedGlobalAliases(pnpmHomeDir))
+  const specs = legacyGlobalAddSpecs(
+    dependencies,
+    installedGlobalAliases(pnpmHomeDir),
+    path.dirname(manifestPath)
+  )
   if (specs.length === 0) return
   logger.info({
     message: `Migrating global packages from the previous pnpm layout: ${specs.join(' ')}`,
@@ -346,7 +371,14 @@ export async function handler (
     installCliGlobally(execPath, opts.pnpmHomeDir)
     createAliasScripts(binDir)
   }
-  migrateLegacyGlobalPackages(execPath, opts.pnpmHomeDir)
+  try {
+    migrateLegacyGlobalPackages(execPath, opts.pnpmHomeDir)
+  } catch (err: any) { // eslint-disable-line
+    logger.warn({
+      message: `Failed to migrate global packages: ${err.message}`,
+      prefix: opts.pnpmHomeDir,
+    })
+  }
   try {
     const report = await addDirToEnvPath(opts.pnpmHomeDir, {
       configSectionName: 'pnpm',
