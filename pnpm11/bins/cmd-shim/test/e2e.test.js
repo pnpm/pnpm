@@ -481,3 +481,30 @@ describeOnPosix('sh shim picks its Windows path converter', () => {
     )
   })
 })
+
+describeOnWindows('cmd shim prependToPath', () => {
+  test('preserves the first inherited PATH entry', async () => {
+    const tempDir = temporaryDirectory()
+    const target = path.join(tempDir, 'print-path.js')
+    fs.writeFileSync(target, 'process.stdout.write(process.env.PATH)\n', 'utf8')
+    const prependToPath = path.join(tempDir, 'tools with spaces')
+    fs.mkdirSync(prependToPath)
+    await cmdShim(target, path.join(tempDir, 'shim'), { prependToPath })
+
+    // Node is available only through the first inherited PATH entry.
+    // A colon would join that entry to prependToPath and hide both directories.
+    const inheritedPath = path.dirname(process.execPath)
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toLowerCase() !== 'path'))
+    env.PATH = inheritedPath
+    const r = spawnSync(process.env.ComSpec, ['/d', '/c', 'shim.cmd'], {
+      cwd: tempDir,
+      env,
+      encoding: 'utf8',
+      timeout: 10000,
+      windowsHide: true,
+    })
+
+    assert.equal(r.status, 0, `cmd exited ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`)
+    assert.equal(r.stdout, `${prependToPath};${inheritedPath}`)
+  })
+})

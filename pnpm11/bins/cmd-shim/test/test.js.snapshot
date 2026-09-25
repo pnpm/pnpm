@@ -753,7 +753,7 @@ fi
 exports[`env shebang with PATH extending > shim files > env.shim.cmd 1`] = `
 
 @SETLOCAL
-@SET "PATH=\\add-to-path:%PATH%"
+@SET "PATH=\\add-to-path;%PATH%"
 @IF EXIST "%~dp0\\node.exe" (
   "%~dp0\\node.exe"  "%~dp0\\src.env" %*
 ) ELSE (
