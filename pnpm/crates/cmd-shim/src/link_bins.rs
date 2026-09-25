@@ -111,14 +111,12 @@ impl PackageBinSource {
     }
 }
 
-/// Whether a [`PackageBinSource`] came from a project's direct
-/// dependencies or from a transitive dep that the hoister lifted to
-/// `node_modules/<name>` / `node_modules/.pnpm/node_modules/<name>`.
+/// Whether a [`PackageBinSource`] came from a project's direct dependencies,
+/// a hoisted package, or an auto-installed peer.
 ///
 /// Used by `pick_winner` (private) as the highest-precedence tier
-/// in the conflict-resolution rule: a direct dep's bin always wins
-/// over a hoisted dep's bin with the same name — direct candidates
-/// are kept and hoisted candidates with a name collision are dropped.
+/// in the conflict-resolution rule: direct bins take precedence over
+/// publicly hoisted bins, which take precedence over auto-installed peers.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum BinOrigin {
     /// The candidate is a direct dependency of the importer
@@ -132,6 +130,9 @@ pub enum BinOrigin {
     /// from these candidates are dropped when a same-named
     /// [`Self::Direct`] candidate is also present.
     Hoisted,
+    /// An auto-installed peer exposed to a project; its bin must not
+    /// replace a directly installed or publicly hoisted command.
+    Peer,
 }
 
 /// Error type for [`link_bins_of_packages`].
@@ -524,8 +525,10 @@ fn wants_powershell_shim(pkg_name: &str) -> bool {
 /// Return `true` when `candidate` should replace `existing` for `bin_name`.
 fn pick_winner(bin_name: &str, existing: &PackageBinSource, candidate: &PackageBinSource) -> bool {
     match (existing.origin, candidate.origin) {
-        (BinOrigin::Hoisted, BinOrigin::Direct) => return true,
-        (BinOrigin::Direct, BinOrigin::Hoisted) => return false,
+        (BinOrigin::Direct, BinOrigin::Hoisted | BinOrigin::Peer)
+        | (BinOrigin::Hoisted, BinOrigin::Peer) => return false,
+        (BinOrigin::Hoisted | BinOrigin::Peer, BinOrigin::Direct)
+        | (BinOrigin::Peer, BinOrigin::Hoisted) => return true,
         _ => {}
     }
     let existing_name = package_name(existing);

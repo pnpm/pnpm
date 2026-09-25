@@ -417,20 +417,15 @@ pub fn link_new_bins_from_locations(
     let existing = existing_commands(&bins_dir)?;
     link_bins_of_packages_with_excludes::<Host>(&bin_sources, &bins_dir, &existing, link_options)
 }
-/// Top-level bin link that mixes direct-dep candidates and hoisted
-/// (`publicly_hoisted_aliases_with_bins`) candidates in a single
+/// Top-level bin link that mixes direct-dep candidates, publicly hoisted
+/// aliases, and auto-installed peers in a single
 /// [`link_bins_of_packages`] call so `pnpm_cmd_shim::pick_winner` (private)
 /// can apply [`BinOrigin::Direct`] precedence over
 /// [`BinOrigin::Hoisted`] — a hoisted (transitive) dep's bin must
 /// never shadow a direct dep's bin with the same name.
 ///
-/// Two-list shape (rather than a single tagged list) keeps the call
-/// site cheap: callers already have these names in separate
-/// collections — direct deps come from the importer's
-/// `dependencies` / `devDependencies` / `optionalDependencies`,
-/// hoisted aliases come from the hoist-result's
-/// `publicly_hoisted_aliases_with_bins`. Joining them upthread
-/// would force every caller to allocate a tagged `Vec`.
+/// Direct deps come from the importer's dependency groups, hoisted
+/// aliases from the hoist result, and peers from their resolved slots.
 ///
 /// Lifecycle-script-created bins must pick up the post-install
 /// state of `package.json` (a `postinstall` script can write a
@@ -441,6 +436,7 @@ pub fn link_top_level_bins(
     modules_dir: &Path,
     direct_dep_names: &[String],
     hoisted_dep_names: &[String],
+    peer_locations: &[PathBuf],
     link_options: &LinkBinsOptions,
 ) -> Result<(), LinkBinsError> {
     let mut bin_sources: Vec<PackageBinSource> = Vec::new();
@@ -467,6 +463,9 @@ pub fn link_top_level_bins(
         .collect();
     for source in read_bin_sources(modules_dir, &hoisted_only)? {
         bin_sources.push(source.with_origin(BinOrigin::Hoisted));
+    }
+    for source in read_location_bin_sources(peer_locations)? {
+        bin_sources.push(source.with_origin(BinOrigin::Peer));
     }
     if bin_sources.is_empty() {
         return Ok(());

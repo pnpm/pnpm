@@ -98,3 +98,31 @@ fn hoisted_origin_loses_to_existing_direct() {
         "Direct incumbent must shut out Hoisted candidate, got body:\n{body}",
     );
 }
+
+#[test]
+fn publicly_hoisted_bin_wins_over_auto_installed_peer_in_either_order() {
+    let tmp = tempdir().unwrap();
+    let hoisted = tmp.path().join("zeta");
+    let peer = tmp.path().join("alpha");
+    for dir in [&hoisted, &peer] {
+        create_dir_all(dir).unwrap();
+        write_file(dir.join("cmd.js"), "#!/usr/bin/env node\n").unwrap();
+    }
+    let hoisted_manifest = Arc::new(json!({"name": "zeta", "bin": {"shared": "cmd.js"}}));
+    let peer_manifest = Arc::new(json!({"name": "alpha", "bin": {"shared": "cmd.js"}}));
+    for reverse in [false, true] {
+        let hoisted_source = PackageBinSource::new(hoisted.clone(), Arc::clone(&hoisted_manifest))
+            .with_origin(BinOrigin::Hoisted);
+        let peer_source = PackageBinSource::new(peer.clone(), Arc::clone(&peer_manifest))
+            .with_origin(BinOrigin::Peer);
+        let sources =
+            if reverse { [peer_source, hoisted_source] } else { [hoisted_source, peer_source] };
+        let bins = tmp
+            .path()
+            .join(format!("bins-{reverse}"));
+        link_bins_of_packages::<Host>(&sources, &bins, &LinkBinsOptions::default()).unwrap();
+        let shim = bins.join(if cfg!(windows) { "shared.cmd" } else { "shared" });
+        let body = read_to_string(shim).unwrap();
+        assert!(body.contains("zeta"), "public bin should win: {body}");
+    }
+}

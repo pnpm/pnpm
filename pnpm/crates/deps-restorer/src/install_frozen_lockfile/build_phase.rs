@@ -300,7 +300,14 @@ fn link_importer_top_level_bins(
     // candidate set, so re-resolving it would only re-read every direct
     // dep's manifest per importer. Hoisted installs always relink: this
     // pass is their only importer bin pass.
-    if !inputs.directories.is_hoisted && !mutated_slots && hoisted_names.is_empty() {
+    let peer_locations =
+        if inputs.policy.config.auto_install_peers && !inputs.directories.is_hoisted {
+            auto_installed_peer_bin_locations(inputs, importer_snapshot)
+        } else {
+            Vec::new()
+        };
+    let relink_direct = inputs.directories.is_hoisted || mutated_slots || !hoisted_names.is_empty();
+    if !relink_direct && peer_locations.is_empty() {
         return Ok(());
     }
     let project_dir = importer_root_dir(inputs.directories.top_level_bin_root, importer_id);
@@ -314,6 +321,79 @@ fn link_importer_top_level_bins(
         inputs.skipped,
         false,
     );
-    link_top_level_bins(&modules_dir, &direct_names, hoisted_names, inputs.directories.link_options)
-        .map_err(BuildPhaseError::TopLevelBinLink)
+    link_top_level_bins(
+        &modules_dir,
+        &direct_names,
+        hoisted_names,
+        &peer_locations,
+        inputs.directories.link_options,
+    )
+    .map_err(BuildPhaseError::TopLevelBinLink)
+}
+
+fn auto_installed_peer_bin_locations(
+    inputs: &BuildPhaseInputs<'_>,
+    importer: &pnpm_lockfile::ProjectSnapshot,
+) -> Vec<std::path::PathBuf> {
+    let (Some(packages), Some(snapshots)) = (inputs.graph.packages, inputs.graph.snapshots) else {
+        return Vec::new();
+    };
+    let mut locations = Vec::new();
+    for (name, spec) in
+        importer.dependencies_by_groups(inputs.graph.dependency_groups.iter().copied())
+    {
+        let Some(key) = spec.version.resolved_key(name) else { continue };
+        if inputs.skipped.contains(&key) {
+            continue;
+        }
+        let (Some(metadata), Some(snapshot)) =
+            (packages.get(&key.without_peer()), snapshots.get(&key))
+        else {
+            continue;
+        };
+        let Some(peer_dependencies) = metadata.peer_dependencies.as_ref() else { continue };
+        for peer_name in peer_dependencies.keys() {
+            if metadata.peer_dependencies_meta
+                .as_ref()
+                .and_then(|meta| meta.get(peer_name))
+                .is_some_and(|meta| meta.optional)
+            {
+                continue;
+            }
+            let Ok(peer_alias) = peer_name.parse::<pnpm_lockfile::PkgName>() else { continue };
+            let Some(peer_key) = snapshot.dependencies
+                .as_ref()
+                .and_then(|deps| deps.get(&peer_alias))
+                .or_else(|| {
+                    snapshot.optional_dependencies
+                        .as_ref()
+                        .and_then(|deps| deps.get(&peer_alias))
+                })
+                .and_then(|reference| reference.resolve(&peer_alias))
+            else {
+                continue;
+            };
+            if inputs.skipped.contains(&peer_key) {
+                continue;
+            }
+            if packages
+                .get(&peer_key.without_peer())
+                .is_none_or(|peer| peer.has_bin != Some(true))
+                && !inputs.cache.requires_build_by_snapshot
+                    .get(&peer_key)
+                    .is_some_and(|requires_build| *requires_build)
+            {
+                continue;
+            }
+            locations.push(
+                inputs.directories.layout
+                    .slot_dir(&peer_key)
+                    .join("node_modules")
+                    .join(peer_key.name.to_string()),
+            );
+        }
+    }
+    locations.sort_unstable();
+    locations.dedup();
+    locations
 }
