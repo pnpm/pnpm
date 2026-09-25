@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { parseAllowBuildSelector } from '@pnpm/building.policy'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
@@ -11,8 +14,10 @@ import { linkedDirectoryPath } from '@pnpm/resolving.local-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+import normalizePath from 'normalize-path'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
+import { globSync } from 'tinyglobby'
 
 import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
@@ -225,6 +230,18 @@ export type AddCommandOptions = InstallCommandOptions & {
   config?: boolean
 }
 
+const ROOT_WORKSPACE_ADD_MESSAGE =
+  'Running this command will add the dependency to the workspace root, ' +
+  'which might not be what you want - if you really meant it, ' +
+  'make it explicit by running this command again with the -w flag (or --workspace-root). ' +
+  'If you don\'t want to see this warning anymore, you may set the ignore-workspace-root-check setting to true.'
+
+const WORKSPACE_PACKAGE_DIR_ADD_MESSAGE =
+  'Running this command in a workspace package directory without a package manifest will add the dependency to the workspace root, which might not be what you want. ' +
+  'If this directory is meant to be a package, create a package manifest first, for example by running "pnpm init" to generate a package.json. ' +
+  'If you really meant it, make it explicit by running this command again with the -w flag (or --workspace-root). ' +
+  'If you don\'t want to see this warning anymore, you may set the ignore-workspace-root-check setting to true.'
+
 export async function handler (
   opts: AddCommandOptions,
   params: string[],
@@ -301,10 +318,7 @@ function assertNotAddingToWorkspaceRoot (opts: AddCommandOptions): void {
     opts.workspacePackagePatterns.length > 1
   ) {
     throw new PnpmError('ADDING_TO_ROOT',
-      'Running this command will add the dependency to the workspace root, ' +
-      'which might not be what you want - if you really meant it, ' +
-      'make it explicit by running this command again with the -w flag (or --workspace-root). ' +
-      'If you don\'t want to see this warning anymore, you may set the ignore-workspace-root-check setting to true.'
+      getWorkspaceRootCheckMessage(opts)
     )
   }
 }
@@ -407,4 +421,33 @@ export function applyAllowBuildSelectors (
     updated[name] = allowed
   }
   return updated
+}
+
+function getWorkspaceRootCheckMessage (opts: AddCommandOptions): string {
+  if (isWorkspacePackageDirWithoutManifest(opts)) {
+    return WORKSPACE_PACKAGE_DIR_ADD_MESSAGE
+  }
+  return ROOT_WORKSPACE_ADD_MESSAGE
+}
+
+function isWorkspacePackageDirWithoutManifest (opts: AddCommandOptions): boolean {
+  if (!opts.workspaceDir || !opts.workspacePackagePatterns) return false
+
+  const currentDir = process.cwd()
+  if (currentDir === opts.workspaceDir) return false
+  if (hasProjectManifest(currentDir)) return false
+
+  const relativeDir = normalizePath(path.relative(opts.workspaceDir, currentDir)) || '.'
+  if (relativeDir === '.' || relativeDir.startsWith('../')) return false
+
+  return globSync(opts.workspacePackagePatterns, {
+    cwd: opts.workspaceDir,
+    deep: relativeDir.split('/').length,
+    expandDirectories: false,
+    onlyDirectories: true,
+  }).some((matchedDir) => normalizePath(matchedDir) === relativeDir)
+}
+
+function hasProjectManifest (dir: string): boolean {
+  return ['package.json', 'package.json5', 'package.yaml'].some((manifestFileName) => fs.existsSync(path.join(dir, manifestFileName)))
 }

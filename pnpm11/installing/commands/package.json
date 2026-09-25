@@ -113,6 +113,7 @@
     "render-help": "catalog:",
     "semver": "catalog:",
     "string-width": "catalog:",
+    "tinyglobby": "catalog:",
     "version-selector-type": "catalog:"
   },
   "peerDependencies": {
