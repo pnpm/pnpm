@@ -53,12 +53,18 @@ fn maps_keys_to_hashes() {
 }
 
 #[test]
-fn missing_file_errors() {
+fn missing_file_errors_patch_not_found() {
     let dir = tempdir().unwrap();
     let missing = dir.path().join("nope.patch");
     let err = create_hex_hash_from_file(&missing).unwrap_err();
-    // Just confirm the error variant; `io::Error` formatting is
-    // platform-specific.
+    assert!(matches!(err, super::CalcPatchHashError::PatchNotFound { .. }), "got: {err:?}");
+    assert_eq!(err.to_string(), format!("Patch file not found: {}", missing.display()));
+}
+
+#[test]
+fn unreadable_path_errors_read_file() {
+    let dir = tempdir().unwrap();
+    let err = create_hex_hash_from_file(dir.path()).unwrap_err();
     assert!(matches!(err, super::CalcPatchHashError::ReadFile { .. }), "got: {err:?}");
 }
 

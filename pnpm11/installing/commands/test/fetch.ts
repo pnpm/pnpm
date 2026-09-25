@@ -361,6 +361,42 @@ test('fetch applies patches to dependencies when patchedDependencies key is bare
   expect(patchedIndexJsAfterFetch).toContain('FIRST LINE')
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/5268
+test('fetch fails with ERR_PNPM_PATCH_NOT_FOUND when a patch file is missing', async () => {
+  const f = fixtures(import.meta.dirname)
+  const project = prepare({
+    dependencies: { '@pnpm.e2e/console-log': '1.0.0' },
+  })
+  fs.mkdirSync('patches', { recursive: true })
+  fs.copyFileSync(f.find('patchedDependencies/console-log-replace-1st-line.patch'), 'patches/console-log.patch')
+
+  const patchedDependencies = { '@pnpm.e2e/console-log': 'patches/console-log.patch' }
+  const cacheDir = path.resolve(project.dir(), 'cache')
+  const storeDir = path.resolve(project.dir(), 'store')
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir,
+    dir: project.dir(),
+    linkWorkspacePackages: false,
+    lockfileOnly: true,
+    storeDir,
+    patchedDependencies,
+  })
+  rimrafSync('patches')
+
+  await expect(fetch.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir,
+    dir: project.dir(),
+    storeDir,
+    patchedDependencies,
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_PATCH_NOT_FOUND',
+    message: `Patch file not found: ${path.resolve(project.dir(), 'patches/console-log.patch')}`,
+  })
+})
+
 // Regression test for https://github.com/pnpm/pnpm/issues/14174
 // A dependency's lifecycle script resolves a sibling dependency's bin
 // through the `node_modules/.bin` linked next to it in the virtual store.

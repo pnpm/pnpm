@@ -925,6 +925,26 @@ test('patch package should fail when the name-only range patch fails to apply', 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
 })
 
+test('patch package should fail when the patch file is missing', async () => {
+  prepareEmpty()
+  const patchPath = path.resolve('patches/is-positive@1.0.0.patch')
+
+  const patchedDependencies = {
+    'is-positive@1.0.0': patchPath,
+  }
+  const opts = testDefaults({
+    patchedDependencies,
+  })
+  await expect(install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }, opts)).rejects.toMatchObject({
+    code: 'ERR_PNPM_PATCH_NOT_FOUND',
+    message: `Patch file not found: ${patchPath}`,
+  })
+})
+
 test('patch with relative paths resolved against lockfileDir', async () => {
   prepareEmpty()
   // The lockfile and the patches dir live in the parent of the project dir
