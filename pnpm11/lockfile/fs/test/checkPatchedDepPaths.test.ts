@@ -403,6 +403,14 @@ test('checkPatchedDepPaths() cannot judge a patch-hash marker that is not a comp
   }))).toBe('indeterminate')
 })
 
+test('checkPatchedDepPaths() cannot judge a patch-hash marker placed after the peers', () => {
+  expect(checkPatchedDepPaths(lockfile({
+    packages: {
+      [`foo@1.0.0(react@18.0.0)(patch_hash=${STALE})` as DepPath]: { resolution: { integrity: 'sha512-fake' } },
+    },
+  }))).toBe('indeterminate')
+})
+
 function lockfile (overrides: Partial<LockfileObject>): LockfileObject {
   return {
     lockfileVersion: '9.0',

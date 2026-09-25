@@ -639,3 +639,19 @@ snapshots:
         PatchedDepPathsStatus::UpToDate,
     );
 }
+
+#[test]
+fn a_patch_hash_marker_after_the_peers_cannot_be_judged() {
+    assert_eq!(
+        status(&format!(
+            r"
+lockfileVersion: '9.0'
+importers:
+  .: {{}}
+snapshots:
+  foo@1.0.0(react@18.0.0)(patch_hash={STALE}): {{}}
+"
+        )),
+        PatchedDepPathsStatus::Indeterminate,
+    );
+}

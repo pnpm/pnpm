@@ -201,9 +201,7 @@ impl<'a> Checker<'a> {
 
     /// Returns `true` when the depPath definitely disagrees.
     fn visit(&mut self, name: &PkgName, ver_peer: &PkgVerPeer) -> bool {
-        if !ver_peer.peer().starts_with(PATCH_HASH_PREFIX)
-            && !self.patched_names.contains(name)
-        {
+        if !ver_peer.peer().contains(PATCH_HASH_PREFIX) && !self.patched_names.contains(name) {
             return false;
         }
         let key = PackageKey::new(name.clone(), ver_peer.clone());
@@ -230,6 +228,11 @@ impl<'a> Checker<'a> {
                 Some((hash, _)) => Some(hash),
                 None => return Verdict::Indeterminate,
             },
+            // pnpm writes the patch hash ahead of the peers, so a marker anywhere
+            // else is not a segment the hash can be read from.
+            None if key.suffix.peer().contains(PATCH_HASH_PREFIX) => {
+                return Verdict::Indeterminate;
+            }
             None => None,
         };
         let name = key.name.to_string();
