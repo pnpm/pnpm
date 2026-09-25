@@ -936,9 +936,6 @@ fn sbom_filtered_single_project_inherits_workspace_root_metadata() {
     assert_eq!(spdx_root["licenseDeclared"], "MIT");
 }
 
-/// A field the filtered project declares is the project's own even when the
-/// value names nobody, so the SBOM omits it instead of inheriting the
-/// workspace root's.
 #[test]
 fn sbom_filtered_single_project_does_not_inherit_over_its_own_declarations() {
     let tmp = copy_fixture("workspace-sbom-populated");
