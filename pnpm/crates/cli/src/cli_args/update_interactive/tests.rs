@@ -806,6 +806,62 @@ async fn interactively_update() {
     );
 }
 
+/// A tag target is an exact destination: a tag pointing below the
+/// installed version is offered and applied, the way a non-interactive
+/// `--tag` update downgrades.
+#[tokio::test]
+async fn interactive_tag_update_offers_a_downgrade() {
+    let fixture = UpdateFixture::new();
+
+    fixture.write_manifest(&json!({ MULTI_A: "2.0.0" }));
+    fixture.update(&["update"]).await;
+    fixture.set_dist_tag(MULTI_A, "1.0.0", "next");
+
+    let scripted = scripted_prompts();
+    scripted.answer_next(&[MULTI_A]);
+    fixture.update(&["update", "--interactive", "--tag", "next"]).await;
+
+    let prompts = scripted.seen();
+    assert_eq!(prompts.len(), 1);
+    assert_eq!(
+        offered(&prompts[0]),
+        [(MULTI_A.to_string(), "2.0.0".to_string(), "1.0.0".to_string())],
+    );
+    assert!(
+        fixture
+            .lockfile_packages()
+            .contains(&format!("{MULTI_A}@1.0.0")),
+    );
+}
+
+/// A complete `npm:` alias names its package behind the manifest key, and
+/// the `--tag` rewrite leaves such declarations unchanged: the alias drops
+/// out of the tag report instead of being queried as `<alias>@<tag>` and
+/// offered an update that cannot apply.
+#[tokio::test]
+async fn interactive_tag_update_skips_aliased_dependencies() {
+    let fixture = UpdateFixture::new();
+
+    fixture.write_manifest(&json!({ "fooAlias": format!("npm:{MULTI_B}@2.0.0") }));
+    fixture.update(&["update"]).await;
+    fixture.set_dist_tag(MULTI_B, "1.0.0", "next");
+
+    let scripted = scripted_prompts();
+    fixture.update(&["update", "--interactive", "--tag", "next"]).await;
+
+    let prompts = scripted.seen();
+    assert!(
+        prompts.is_empty(),
+        "the aliased dependency must not be offered: {} prompt(s) shown",
+        prompts.len(),
+    );
+    let packages = fixture.lockfile_packages();
+    assert!(
+        packages.contains(&format!("{MULTI_B}@2.0.0")),
+        "the aliased dependency keeps its installed version: {packages:?}",
+    );
+}
+
 /// Ports `interactively update should ignore dependencies from the
 /// ignoreDependencies field`.
 #[tokio::test]

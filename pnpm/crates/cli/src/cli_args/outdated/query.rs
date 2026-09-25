@@ -265,6 +265,14 @@ async fn outdated_dependency(
 ) -> miette::Result<Option<OutdatedPackage>> {
     let bare_specifier =
         dereference_catalog(&run.catalogs, candidate.alias, candidate.bare_specifier)?;
+    // A tag target queries `<alias>@<tag>`, but a complete `npm:` alias
+    // names its package behind the manifest key: querying the alias would
+    // fetch the wrong packument. The `--tag` rewrite keeps such
+    // declarations unchanged anyway, so the dependency drops out of the
+    // tag report rather than being offered an update that cannot apply.
+    if matches!(query.target_version, TargetVersion::Tag(_)) && bare_specifier.starts_with("npm:") {
+        return Ok(None);
+    }
     let resolved_package_name =
         PackageManifest::resolve_registry_dependency(candidate.alias, &bare_specifier)
             .0
@@ -407,8 +415,16 @@ fn outdated_target(
         .get("deprecated")
         .and_then(serde_json::Value::as_str)
         .map(str::to_string);
-    let is_newer = target > candidate.current;
-    if !(is_newer || (query.include_deprecated && deprecated.is_some())) {
+    // A tag target is an exact destination: the user named the tag, so the
+    // dependency is offered whenever the version behind the tag differs
+    // from the installed one, downgrades included — the way a
+    // non-interactive `--tag` update applies them. `latest` and in-range
+    // targets stay newer-only.
+    let target_moves = match query.target_version {
+        TargetVersion::Tag(_) => target != candidate.current,
+        TargetVersion::Latest | TargetVersion::WithinRange => target > candidate.current,
+    };
+    if !(target_moves || (query.include_deprecated && deprecated.is_some())) {
         return None;
     }
     let package_name = target_manifest
