@@ -57,6 +57,9 @@
       "path": "../config/commands"
     },
     {
+      "path": "../config/normalize-registries"
+    },
+    {
       "path": "../config/reader"
     },
     {
