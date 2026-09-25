@@ -384,6 +384,7 @@ describe('installConfigDepsAndLoadHooks', () => {
   test.each([
     ['a null route', '{ ...config.registriesByScope, \'@acme\': null }'],
     ['a non-object map', '\'https://acme.example/\''],
+    ['a Map instance', 'new Map([[\'@acme\', \'https://acme.example/\']])'],
   ])('an updateConfig hook that sets registriesByScope to %s fails', async (_, registriesByScope) => {
     prepare()
 

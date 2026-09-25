@@ -198,7 +198,7 @@ function applyRegistryRoutingChanges (config: Config, before: RegistryRouting): 
 
 /** An `undefined` route is one the hook removed, as it would be once serialized. */
 function readHookRegistryRoutes (routes: unknown): Record<string, string> {
-  if (routes === null || typeof routes !== 'object' || Array.isArray(routes)) {
+  if (!isPlainObject(routes)) {
     throw invalidHookResult('registriesByScope')
   }
   const result: Record<string, string> = {}
@@ -210,6 +210,14 @@ function readHookRegistryRoutes (routes: unknown): Record<string, string> {
     result[scope] = registry
   }
   return result
+}
+
+function isPlainObject (value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return false
+  }
+  const proto = Object.getPrototypeOf(value)
+  return proto === null || proto === Object.prototype
 }
 
 function invalidHookResult (key: string): PnpmError {
