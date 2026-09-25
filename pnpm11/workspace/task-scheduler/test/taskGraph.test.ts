@@ -49,6 +49,32 @@ test('a same-project dependsOn entry pulls the named task into the graph', () =>
   expect(graph.get(taskKey(dir('a'), 'test'))!.requested).toBe(true)
 })
 
+test('a regexp task name pulls in the dependsOn of the scripts it matches', () => {
+  const graph = buildGraph({
+    a: { dependencies: ['b'], scripts: ['build', 'test'] },
+    b: { scripts: ['build', 'test'] },
+  }, '/test/', {
+    build: { dependsOn: ['^build'] },
+    test: { dependsOn: ['build'] },
+  })
+
+  expect(graph.get(taskKey(dir('a'), '/test/'))!.scripts).toStrictEqual(['test'])
+  expect(graph.get(taskKey(dir('a'), '/test/'))!.dependencies).toStrictEqual([taskKey(dir('a'), 'build')])
+  expect(graph.get(taskKey(dir('b'), '/test/'))!.dependencies).toStrictEqual([taskKey(dir('b'), 'build')])
+  expect(graph.get(taskKey(dir('a'), '/test/'))!.requested).toBe(true)
+  expect(graph.get(taskKey(dir('a'), 'build'))!.requested).toBe(false)
+})
+
+test('a regexp task name without tasks entries keeps the topological fan-out', () => {
+  const graph = buildGraph({
+    a: { dependencies: ['b'], scripts: ['test'] },
+    b: { scripts: ['test', 'test:unit'] },
+  }, '/test/')
+
+  expect(graph.get(taskKey(dir('a'), '/test/'))!.dependencies).toStrictEqual([taskKey(dir('b'), '/test/')])
+  expect(graph.get(taskKey(dir('b'), '/test/'))!.scripts).toStrictEqual(['test', 'test:unit'])
+})
+
 test('an explicitly empty dependsOn means the task depends on nothing', () => {
   const graph = buildGraph({
     a: { dependencies: ['b'], scripts: ['lint'] },

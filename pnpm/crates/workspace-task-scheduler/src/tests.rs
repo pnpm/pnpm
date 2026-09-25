@@ -213,6 +213,97 @@ fn same_project_depends_on_entry_pulls_the_named_task_into_the_graph() {
 }
 
 #[test]
+fn regexp_seed_expands_depends_on_through_the_matched_script_names() {
+    // The `/test/` selector matches no `tasks` entry itself, so its
+    // `dependsOn` has to come from the scripts it matched.
+    let settings = tasks(&[("build", Some(&[])), ("test", Some(&["build"]))]);
+    let graph = build_regexp_graph(
+        &[("a", project(&["b"], &["build", "test"])), ("b", project(&[], &["build", "test"]))],
+        "/test/",
+        Some(&settings),
+    );
+
+    assert_eq!(graph[&key("a", "/test/")].scripts, vec!["test".to_string()]);
+    assert_eq!(graph[&key("a", "/test/")].dependencies, vec![key("a", "build")]);
+    assert_eq!(graph[&key("b", "/test/")].dependencies, vec![key("b", "build")]);
+    assert!(graph[&key("a", "/test/")].requested);
+    assert!(!graph[&key("a", "build")].requested);
+}
+
+#[test]
+fn regexp_seed_without_tasks_entries_keeps_the_selector_fan_out() {
+    // Without a `tasks` entry the seed keeps its topological fan-out,
+    // so every matched script still runs in each dependency.
+    let graph = build_regexp_graph(
+        &[("a", project(&["b"], &["test"])), ("b", project(&[], &["test", "test:unit"]))],
+        "/test/",
+        None,
+    );
+
+    assert_eq!(graph[&key("a", "/test/")].dependencies, vec![key("b", "/test/")]);
+    assert_eq!(
+        graph[&key("b", "/test/")].scripts,
+        vec!["test".to_string(), "test:unit".to_string()]
+    );
+}
+
+fn build_regexp_graph(
+    projects: &[(&'static str, FakeProject)],
+    task_name: &str,
+    task_settings: Option<&IndexMap<String, TaskSettings>>,
+) -> TaskGraph {
+    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = projects
+        .iter()
+        .map(|(name, project)| {
+            (
+                dir(name),
+                project.dependencies
+                    .iter()
+                    .map(|dependency| dir(dependency))
+                    .collect(),
+            )
+        })
+        .collect();
+    let scripts_by_dir: HashMap<PathBuf, Vec<String>> = projects
+        .iter()
+        .map(|(name, project)| {
+            (
+                dir(name),
+                project.scripts
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect(),
+            )
+        })
+        .collect();
+    build_task_graph(&BuildTaskGraphOptions {
+        project_dependencies: &project_dependencies,
+        select_scripts: |project: &Path, task_name: &str| {
+            let scripts = &scripts_by_dir[project];
+            if scripts
+                .iter()
+                .any(|script| script == task_name)
+            {
+                return vec![task_name.to_string()];
+            }
+            let Some(pattern) = task_name
+                .strip_prefix('/')
+                .and_then(|name| name.strip_suffix('/'))
+            else {
+                return Vec::new();
+            };
+            scripts
+                .iter()
+                .filter(|script| script.contains(pattern))
+                .cloned()
+                .collect()
+        },
+        task_name,
+        tasks: task_settings,
+    })
+}
+
+#[test]
 fn explicitly_empty_depends_on_means_the_task_depends_on_nothing() {
     let settings = tasks(&[("lint", None)]);
     let graph = build_graph(
