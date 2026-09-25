@@ -24,7 +24,7 @@ impl<'a> ScriptSelector<'a> {
 
     /// The script names this selector picks out of `manifest`: an exact
     /// match wins, otherwise every script the pattern matches.
-    pub(in super::super) fn select(&self, manifest: &Value) -> Vec<String> {
+    pub(in super::super) fn select(&self, manifest: &Value, sequential: bool) -> Vec<String> {
         let scripts = manifest.get("scripts").and_then(Value::as_object);
         let has_script = scripts
             .and_then(|scripts| scripts.get(self.name))
@@ -37,7 +37,7 @@ impl<'a> ScriptSelector<'a> {
         let (Some(pattern), Some(scripts)) = (self.pattern.as_ref(), scripts) else {
             return Vec::new();
         };
-        scripts
+        let mut keys: Vec<String> = scripts
             .iter()
             .filter(|(script, body)| {
                 body.as_str()
@@ -45,15 +45,19 @@ impl<'a> ScriptSelector<'a> {
                     && pattern.is_match(script)
             })
             .map(|(script, _)| script.clone())
-            .collect()
+            .collect();
+        if !sequential {
+            keys.sort();
+        }
+        keys
     }
 
     /// [`Self::select`] plus single-project `run`'s `start` fallback:
     /// `pnpm start` resolves to `node server.js` even when the manifest
     /// declares no `start` script. The recursive runner has no such
     /// fallback.
-    pub(super) fn select_with_start(&self, manifest: &Value) -> Vec<String> {
-        let specified = self.select(manifest);
+    pub(super) fn select_with_start(&self, manifest: &Value, sequential: bool) -> Vec<String> {
+        let specified = self.select(manifest, sequential);
         if !specified.is_empty() {
             return specified;
         }
