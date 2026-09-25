@@ -430,7 +430,7 @@ fn public_ctx<'a>(
 fn age_mirror(cache_dir: &std::path::Path, registry: &str) {
     let mirror = get_pkg_mirror_path(cache_dir, ABBREVIATED_META_DIR, registry, "acme")
         .expect("mirror path");
-    let expired = std::time::SystemTime::now() - std::time::Duration::from_secs(10 * 60);
+    let expired = std::time::SystemTime::now() - std::time::Duration::from_mins(10);
     std::fs::OpenOptions::new()
         .write(true)
         .open(mirror)
