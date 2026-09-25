@@ -1,7 +1,7 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { createMatcher } from '@pnpm/config.matcher'
 import type { ProjectRootDir, SupportedArchitectures } from '@pnpm/types'
-import { type BaseProject, createProjectsGraph, type ProjectGraphNode } from '@pnpm/workspace.projects-graph'
+import { type BaseProject, createProjectsGraph, type ProjectGraphNode, type ProjectsGraphOverrides } from '@pnpm/workspace.projects-graph'
 import { findWorkspaceProjects, type Project } from '@pnpm/workspace.projects-reader'
 import { isSubdir } from 'is-subdir'
 import * as micromatch from 'micromatch'
@@ -51,6 +51,8 @@ export interface ReadProjectsResult {
 export interface FilterProjectsOptions {
   catalogs?: Catalogs
   linkWorkspacePackages?: boolean
+  /** See {@link ProjectsGraphOverrides}. */
+  overrides?: ProjectsGraphOverrides
   prefix: string
   workspaceDir: string
   testPattern?: string[]
@@ -120,6 +122,7 @@ export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
   opts: {
     catalogs?: Catalogs
     linkWorkspacePackages?: boolean
+    overrides?: ProjectsGraphOverrides
     workspaceDir: string
     testPattern?: string[]
     changedFilesIgnorePattern?: string[]
@@ -136,7 +139,7 @@ export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
 
   if ((allProjectSelectors.length > 0) || (prodProjectSelectors.length > 0)) {
     let filteredGraph: FilteredGraph<Pkg> | undefined
-    const { graph } = createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, linkWorkspacePackages: opts.linkWorkspacePackages })
+    const { graph } = createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, linkWorkspacePackages: opts.linkWorkspacePackages, overrides: opts.overrides })
 
     if (allProjectSelectors.length > 0) {
       filteredGraph = await filterWorkspaceProjects(graph, allProjectSelectors, {
@@ -151,7 +154,7 @@ export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
     let prodGraph: ProjectGraph<Pkg> | undefined
 
     if (prodProjectSelectors.length > 0) {
-      prodGraph = createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages }).graph
+      prodGraph = createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages, overrides: opts.overrides }).graph
       prodFilteredGraph = await filterWorkspaceProjects(prodGraph, prodProjectSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
@@ -180,7 +183,7 @@ export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
       ],
     }
   } else {
-    const { graph } = createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, linkWorkspacePackages: opts.linkWorkspacePackages })
+    const { graph } = createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, linkWorkspacePackages: opts.linkWorkspacePackages, overrides: opts.overrides })
     return { allProjectsGraph: graph, selectedProjectsGraph: graph, unmatchedFilters: [] }
   }
 }
