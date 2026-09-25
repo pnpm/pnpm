@@ -389,6 +389,21 @@ fn devengines_runtime_with_download_is_installed() {
 #[cfg(unix)]
 #[test]
 fn downloaded_node_runtime_is_available_to_dependency_lifecycle_scripts() {
+    assert_downloaded_node_runtime_reaches_dependency_lifecycle_scripts(false);
+}
+
+/// A slot in the global virtual store has no `node_modules` ancestor inside
+/// the project, so the runtime's `node` cannot be found by walking up from it.
+/// See <https://github.com/pnpm/pnpm/issues/15652>.
+#[cfg(unix)]
+#[test]
+fn downloaded_node_runtime_is_available_to_dependency_lifecycle_scripts_in_the_global_virtual_store()
+ {
+    assert_downloaded_node_runtime_reaches_dependency_lifecycle_scripts(true);
+}
+
+#[cfg(unix)]
+fn assert_downloaded_node_runtime_reaches_dependency_lifecycle_scripts(global_virtual_store: bool) {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new();
     let version = "24.0.0-rc.4";
@@ -401,6 +416,13 @@ fn downloaded_node_runtime_is_available_to_dependency_lifecycle_scripts() {
         )
         .as_str(),
     );
+    if global_virtual_store {
+        let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+        let yaml = fs::read_to_string(&workspace_yaml)
+            .unwrap()
+            .replace("enableGlobalVirtualStore: false", "enableGlobalVirtualStore: true");
+        fs::write(workspace_yaml, yaml).unwrap();
+    }
     let dependency = workspace.join("dependency");
     fs::create_dir(&dependency).unwrap();
     fs::write(

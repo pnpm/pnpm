@@ -644,13 +644,12 @@ fn approve_builds_updates_gvs_symlinks_and_runs_builds_at_the_new_hash_dir() {
     drop((root, mock_instance));
 }
 
-/// A dependency's build script runs from its slot under the store, which has
-/// no `node_modules` ancestor inside the workspace. The workspace root's
-/// `node_modules/.bin`, where a `devEngines.runtime` puts its `node`, still
-/// has to be on the script's `PATH`, as it is with a local virtual store.
-/// See <https://github.com/pnpm/pnpm/issues/15652>.
+/// A slot's hash does not record the workspace root's bins, so a build
+/// that another project reuses must not depend on them. Only the pinned
+/// runtime's `node` reaches the script, which the engine part of the hash
+/// does record.
 #[test]
-fn gvs_dependency_build_scripts_see_the_workspace_root_bins() {
+fn gvs_dependency_build_scripts_do_not_see_the_workspace_root_bins() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
@@ -678,7 +677,9 @@ fn gvs_dependency_build_scripts_see_the_workspace_root_bins() {
         serde_json::json!({
             "name": "dep",
             "version": "1.0.0",
-            "scripts": { "postinstall": "gvs-root-tool" },
+            "scripts": {
+                "postinstall": "gvs-root-tool || node -e \"require('fs').writeFileSync('root-tool-missing', '')\"",
+            },
         })
         .to_string(),
     )
@@ -693,9 +694,11 @@ fn gvs_dependency_build_scripts_see_the_workspace_root_bins() {
         .success();
 
     let slot = sole_hash_dir(&pkg_version_dir(&store_dir, "@/dep", "directory"));
+    let dep_dir = pkg_in_slot(&slot, "dep");
+    assert!(dep_dir.join("root-tool-missing").exists(), "the postinstall script did not run");
     assert!(
-        pkg_in_slot(&slot, "dep").join("root-tool-ran").exists(),
-        "the postinstall script must have run the bin from the workspace root's node_modules/.bin",
+        !dep_dir.join("root-tool-ran").exists(),
+        "the postinstall script ran a bin from the workspace root's node_modules/.bin",
     );
 
     drop((root, mock_instance));
