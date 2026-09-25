@@ -5,7 +5,10 @@
 // stay shebang-less because pnpm 11 records its interpreter before installing
 // the native binary at the same path. npm's global Windows shims still target
 // the extensionless path after the `bin` rewrite, so postinstall asks npm to
-// regenerate them against `pnpm.exe`. When lifecycle scripts are blocked
+// regenerate them against `pnpm.exe`. A global install uses `npm rebuild
+// --global`. A local install must pass the project prefix: the script's
+// working directory is the installed package, not the project that owns
+// `node_modules/.bin`. When lifecycle scripts are blocked
 // (`--ignore-scripts`, pnpm/Bun default), the placeholder remains and runs pnpm
 // through Node.js wherever a shell reaches it (see the `pnpm` file).
 //
@@ -125,7 +128,6 @@ function relinkNpmWindowsShims () {
   const npmExecPath = process.env.npm_execpath
   if (
     process.platform !== 'win32' ||
-    process.env.npm_config_global !== 'true' ||
     npmExecPath == null ||
     path.basename(npmExecPath).toLowerCase() !== 'npm-cli.js'
   ) {
@@ -136,13 +138,21 @@ function relinkNpmWindowsShims () {
   if (typeof packageName !== 'string') {
     fail('Could not determine the pnpm wrapper package name when regenerating npm shims.')
   }
-  const result = spawnSync(process.execPath, [
+  const args = [
     npmExecPath,
     'rebuild',
-    '--global',
     '--ignore-scripts',
-    packageName,
-  ], { stdio: 'inherit' })
+  ]
+  if (process.env.npm_config_global === 'true') {
+    args.push('--global', packageName)
+  } else {
+    const prefix = process.env.npm_config_local_prefix
+    if (typeof prefix !== 'string' || prefix === '') {
+      fail('Could not determine the npm project prefix when regenerating local shims.')
+    }
+    args.push('--prefix', prefix, packageName)
+  }
+  const result = spawnSync(process.execPath, args, { stdio: 'inherit' })
   if (result.error != null) {
     fail(`Could not regenerate the npm shims for pnpm: ${result.error.message}`)
   }
