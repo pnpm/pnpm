@@ -515,9 +515,10 @@ pub fn choose_bins<'packages, Sys: FsWalkFiles>(
 /// one. The pnpm CLI opts out, because PowerShell resolves `pnpm.ps1` ahead of
 /// `pnpm.cmd`: a shim written for one installation of the CLI would keep
 /// shadowing every later one, including an upgrade that ships a different
-/// executable.
+/// executable. `@pnpm/exe` is that same CLI under the name earlier
+/// installs used, so it opts out too.
 fn wants_powershell_shim(pkg_name: &str) -> bool {
-    pkg_name != "pnpm"
+    !matches!(pkg_name, "pnpm" | "@pnpm/exe")
 }
 
 /// Return `true` when `candidate` should replace `existing` for `bin_name`.

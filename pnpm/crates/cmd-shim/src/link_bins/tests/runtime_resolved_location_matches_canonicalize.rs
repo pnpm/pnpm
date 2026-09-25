@@ -116,17 +116,30 @@ fn a_project_node_path_comes_first_and_a_repeated_entry_keeps_its_first_position
 
 /// The pnpm CLI's own package opts out of the PowerShell shim
 /// ([`super::super::wants_powershell_shim`]), and a `.ps1` an earlier install
-/// wrote — a pre-v12 `@pnpm/exe` wrapper carried the same bin names —
-/// has to be deleted, not merely left unwritten: PowerShell would keep
+/// wrote has to be deleted, not merely left unwritten: PowerShell would keep
 /// preferring it over the `.cmd` shim and run the version it points at.
 #[test]
 fn linking_the_pnpm_cli_deletes_a_stale_powershell_shim() {
+    assert_linking_the_pnpm_cli_deletes_a_stale_powershell_shim("pnpm");
+}
+
+/// `pnpm setup` of earlier releases installed the CLI as `@pnpm/exe`, and
+/// a setup rerun from such an install links it under that name again.
+#[test]
+fn linking_the_pnpm_cli_under_its_earlier_name_deletes_a_stale_powershell_shim() {
+    assert_linking_the_pnpm_cli_deletes_a_stale_powershell_shim("@pnpm/exe");
+}
+
+fn assert_linking_the_pnpm_cli_deletes_a_stale_powershell_shim(pkg_name: &str) {
     let tmp = tempdir().unwrap();
-    let pkg_dir = tmp.path().join("node_modules/pnpm");
+    let pkg_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(pkg_name);
     create_dir_all(&pkg_dir).unwrap();
     write_file(
         pkg_dir.join("package.json"),
-        json!({"name": "pnpm", "version": "1.0.0", "bin": {"pnpm": "cli.js", "pn": "cli.js"}})
+        json!({"name": pkg_name, "version": "1.0.0", "bin": {"pnpm": "cli.js", "pn": "cli.js"}})
             .to_string(),
     )
     .unwrap();
