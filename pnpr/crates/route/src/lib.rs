@@ -452,7 +452,7 @@ impl RouteContext {
     }
 
     /// Whether the resolver may open a connection to `address`, resolved for
-    /// `host`: a public address, one in `resolver.allowedPrivateNetworks`, or
+    /// `host`: a public address, one in `routes.allowedPrivateNetworks`, or
     /// any address of this server's own `public_url` host. The allowlist
     /// admits a registry by name, so this is what keeps an allowlisted name
     /// that resolves to an internal address (DNS rebinding), or a fetch path

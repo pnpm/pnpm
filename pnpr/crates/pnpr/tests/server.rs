@@ -75,7 +75,7 @@ fn config_for(upstream: &str, storage: PathBuf) -> Config {
         upstream.to_string();
     config.http.public_url = "http://example.test".to_string();
     config.http.packument_ttl = Duration::from_mins(1);
-    config.features.resolver.allowed_private_networks = crate::network::loopback_networks();
+    config.routing.route_policy.allowed_private_networks = crate::network::loopback_networks();
     config
 }
 

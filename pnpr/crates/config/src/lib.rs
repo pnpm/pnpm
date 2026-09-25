@@ -35,8 +35,8 @@ mod presets;
 mod config_file;
 use config_file::{
     ArtifactsFeatureFile, AuthFile, BackendFile, ConfigFile, CorsFile, DefaultRegistryFile,
-    HostedFile, LogEntryFile, OsvFile, PipelineFeatureFile, RegistryFile, RegistryGroupFile,
-    ResolverFeatureFile, RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
+    FeatureFile, HostedFile, LogEntryFile, OsvFile, PipelineFeatureFile, RegistryFile,
+    RegistryGroupFile, RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
     parse_config_file, reject_removed_blocks,
 };
 
@@ -288,6 +288,11 @@ pub struct RoutePolicy {
     /// Operator-declared public routes, matched by registry prefix
     /// and/or package pattern.
     pub public: Vec<PublicRoute>,
+    /// Non-public networks the resolver may still connect to, such as the
+    /// one an internal upstream registry sits on. The resolver refuses every
+    /// other loopback, private, link-local, and reserved address, except for
+    /// this server's own `public_url` host.
+    pub allowed_private_networks: Vec<IpNetwork>,
 }
 
 /// One operator-declared public route. A fetch matches when its registry
@@ -328,16 +333,11 @@ pub struct ResolverFeature {
     /// `/-/pnpr/v0/verify-lockfile`). When `false`, none of those routes are
     /// mounted.
     pub enabled: bool,
-    /// Non-public networks the resolver may still connect to, such as the
-    /// one an internal upstream registry sits on. The resolver refuses every
-    /// other loopback, private, link-local, and reserved address, except for
-    /// this server's own `public_url` host.
-    pub allowed_private_networks: Vec<IpNetwork>,
 }
 
 impl Default for ResolverFeature {
     fn default() -> Self {
-        Self { enabled: true, allowed_private_networks: Vec::new() }
+        Self { enabled: true }
     }
 }
 
@@ -476,7 +476,7 @@ pub struct Features {
 /// credential resolution) key off effective enablement.
 fn build_features(
     registry_declared: bool,
-    resolver: Option<ResolverFeatureFile>,
+    resolver: Option<FeatureFile>,
     artifacts: Option<ArtifactsFeatureFile>,
     pipeline: Option<PipelineFeatureFile>,
     overrides: FeatureOverrides,
@@ -486,13 +486,7 @@ fn build_features(
     let pipeline_file = pipeline.unwrap_or_default();
     Ok(Features {
         registry: RegistryFeature { enabled: registry_declared && !overrides.disable_registry },
-        resolver: ResolverFeature {
-            enabled: resolver_file.enabled && !overrides.disable_resolver,
-            allowed_private_networks: resolver_file.allowed_private_networks
-                .iter()
-                .map(|network| IpNetwork::parse(network))
-                .collect::<Result<_, _>>()?,
-        },
+        resolver: ResolverFeature { enabled: resolver_file.enabled && !overrides.disable_resolver },
         artifacts: ArtifactsFeature {
             enabled: artifacts_file.enabled && !overrides.disable_artifacts,
             compiler_caches: parse_storage_access(artifacts_file.compiler_caches)?,
@@ -529,16 +523,18 @@ fn normalize_cors_origin(raw: &str) -> Result<String, RegistryError> {
     Ok(parsed.origin().ascii_serialization())
 }
 
-fn build_route_policy(file: Option<RoutesFile>) -> RoutePolicy {
-    match file {
-        None => RoutePolicy::default(),
-        Some(file) => RoutePolicy {
-            public: file.public
-                .into_iter()
-                .map(|route| PublicRoute { registry: route.registry, package: route.package })
-                .collect(),
-        },
-    }
+fn build_route_policy(file: Option<RoutesFile>) -> Result<RoutePolicy, RegistryError> {
+    let Some(file) = file else { return Ok(RoutePolicy::default()) };
+    Ok(RoutePolicy {
+        public: file.public
+            .into_iter()
+            .map(|route| PublicRoute { registry: route.registry, package: route.package })
+            .collect(),
+        allowed_private_networks: file.allowed_private_networks
+            .iter()
+            .map(|network| IpNetwork::parse(network))
+            .collect::<Result<_, _>>()?,
+    })
 }
 
 /// Minimum length for an operator-configured `secret:`. A shorter value makes

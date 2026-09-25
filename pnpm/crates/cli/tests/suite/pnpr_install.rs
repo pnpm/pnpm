@@ -139,7 +139,7 @@ impl PnprServer {
                 runtime.block_on(async move {
                     let mut config = pnpr::Config::proxy(addr, storage);
                     config.http.public_url = format!("http://{addr}");
-                    config.features.resolver.allowed_private_networks = loopback_networks();
+                    config.routing.route_policy.allowed_private_networks = loopback_networks();
                     configure(&mut config);
                     let listener =
                         tokio::net::TcpListener::from_std(listener).expect("tokio listener");

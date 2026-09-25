@@ -553,7 +553,7 @@ async fn allowlisted_registry_egress(
         registry: Some(registry.clone()),
         package: None,
     });
-    config.features.resolver.allowed_private_networks = allowed_private_networks
+    config.routing.route_policy.allowed_private_networks = allowed_private_networks
         .iter()
         .map(|network| IpNetwork::parse(network).unwrap())
         .collect();

@@ -15,7 +15,7 @@ fn config(public_url: &str, public_routes: &[&str], allowed_private_networks: &[
             .iter()
             .map(|registry| PublicRoute { registry: Some((*registry).to_string()), package: None }),
     );
-    config.features.resolver.allowed_private_networks = allowed_private_networks
+    config.routing.route_policy.allowed_private_networks = allowed_private_networks
         .iter()
         .map(|network| IpNetwork::parse(network).unwrap())
         .collect();

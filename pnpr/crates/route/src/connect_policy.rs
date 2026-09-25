@@ -5,7 +5,7 @@ use pnpr_config::{Config, IpNetwork};
 use url::{Host, Url};
 
 /// The addresses pnpr may open a resolver connection to: public addresses,
-/// the networks the operator allowed with `resolver.allowedPrivateNetworks`,
+/// the networks the operator allowed with `routes.allowedPrivateNetworks`,
 /// and whatever this server's own `public_url` host names, which the resolver
 /// fetches hosted packages from.
 #[derive(Debug, Clone)]
@@ -20,7 +20,7 @@ impl ConnectPolicy {
             own_host: Url::parse(&config.http.public_url)
                 .ok()
                 .and_then(|url| url.host_str().map(str::to_owned)),
-            allowed_private_networks: config.features.resolver
+            allowed_private_networks: config.routing.route_policy
                 .allowed_private_networks
                 .clone(),
         }

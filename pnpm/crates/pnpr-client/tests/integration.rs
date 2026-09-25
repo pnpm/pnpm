@@ -88,7 +88,7 @@ async fn start_pnpr_inner(
     config.features.artifacts.enabled = artifacts_enabled;
     config.http.public_url = public_url.unwrap_or_else(|| format!("http://{addr}"));
     config.identity.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
-    config.features.resolver.allowed_private_networks = ["127.0.0.0/8", "::1"]
+    config.routing.route_policy.allowed_private_networks = ["127.0.0.0/8", "::1"]
         .into_iter()
         .map(|network| pnpr::IpNetwork::parse(network).expect("loopback network parses"))
         .collect();
