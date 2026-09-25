@@ -256,7 +256,7 @@ impl OutdatedArgs {
 
     /// `--compatible` reports the newest version the declared range
     /// still admits; the default reports the newest published one.
-    fn target_version(&self) -> TargetVersion {
+    fn target_version(&self) -> TargetVersion<'static> {
         if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest }
     }
 
@@ -441,7 +441,7 @@ impl OutdatedFilters {
         })
     }
 
-    fn query(&self, target_version: TargetVersion) -> OutdatedQuery<'_> {
+    fn query<'a>(&'a self, target_version: TargetVersion<'a>) -> OutdatedQuery<'a> {
         OutdatedQuery {
             target_version,
             include_direct: &self.include,

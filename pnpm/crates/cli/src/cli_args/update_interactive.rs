@@ -50,9 +50,28 @@ struct InteractiveUpdateProject<'a> {
 
 pub(crate) struct InteractiveUpdateOptions<'a> {
     pub latest: bool,
+    /// `--tag <tag>`: the prompt compares each dependency against the
+    /// version behind this dist-tag instead of `latest` or the in-range
+    /// highest.
+    pub tag: Option<&'a str>,
     pub include_direct: &'a [DependencyGroup],
     pub include_github_actions: bool,
     pub prompt: UpdatePrompt,
+}
+
+impl InteractiveUpdateOptions<'_> {
+    fn target_version(&self) -> TargetVersion<'_> {
+        if let Some(tag) = self.tag {
+            return TargetVersion::Tag(tag);
+        }
+        if self.latest { TargetVersion::Latest } else { TargetVersion::WithinRange }
+    }
+
+    /// Whether the up-to-date message may point at ranges the manifest
+    /// declares: only an in-range update has that excuse.
+    fn reaches_past_declared_range(&self) -> bool {
+        self.latest || self.tag.is_some()
+    }
 }
 
 /// One row of the checkbox prompt.
@@ -163,7 +182,7 @@ pub(crate) async fn select_packages<Reporter: self::Reporter>(
         lockfile,
         config,
         http_client,
-        options.latest,
+        options.target_version(),
         options.include_direct,
     )
     .await?;
@@ -172,7 +191,7 @@ pub(crate) async fn select_packages<Reporter: self::Reporter>(
     }
     prompt_for_packages::<Reporter>(
         &choices,
-        options.latest,
+        options.reaches_past_declared_range(),
         config.workspace_dir.is_some(),
         options.prompt,
     )
@@ -202,14 +221,19 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
         lockfile,
         config,
         http_client,
-        options.latest,
+        options.target_version(),
         options.include_direct,
     )
     .await?;
     if options.include_github_actions {
         append_github_actions::<Reporter>(&mut choices, root, options.latest, config).await?;
     }
-    prompt_for_packages::<Reporter>(&choices, options.latest, true, options.prompt)
+    prompt_for_packages::<Reporter>(
+        &choices,
+        options.reaches_past_declared_range(),
+        true,
+        options.prompt,
+    )
 }
 
 async fn append_github_actions<Reporter: self::Reporter>(
@@ -238,10 +262,9 @@ async fn collect_choices(
     lockfile: Option<&Lockfile>,
     config: &Config,
     http_client: &Arc<ThrottledClient>,
-    latest: bool,
+    target_version: TargetVersion<'_>,
     include_direct: &[DependencyGroup],
 ) -> miette::Result<Vec<OutdatedPackage>> {
-    let target_version = if latest { TargetVersion::Latest } else { TargetVersion::WithinRange };
     let ignored = ignored_dependencies_matcher(config);
     let query = OutdatedQuery {
         target_version,
@@ -294,8 +317,8 @@ fn unique_choices(
     Ok(collected)
 }
 
-fn print_up_to_date(latest: bool) {
-    let message = if latest {
+fn print_up_to_date(past_declared_range: bool) {
+    let message = if past_declared_range {
         "All of your dependencies are already up to date"
     } else {
         "All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json"
@@ -305,12 +328,12 @@ fn print_up_to_date(latest: bool) {
 
 fn prompt_for_packages<Reporter: self::Reporter>(
     choices: &[OutdatedPackage],
-    latest: bool,
+    past_declared_range: bool,
     workspaces_enabled: bool,
     prompt: UpdatePrompt,
 ) -> miette::Result<Option<Vec<String>>> {
     if choices.is_empty() {
-        print_up_to_date(latest);
+        print_up_to_date(past_declared_range);
         return Ok(None);
     }
 

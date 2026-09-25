@@ -41,6 +41,7 @@ fn test_update(
             },
             version: crate::UpdateVersionOptions {
                 latest,
+                tag: None,
                 patches: false,
                 save_exact: false,
                 save,

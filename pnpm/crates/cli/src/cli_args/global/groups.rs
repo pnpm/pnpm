@@ -1,9 +1,9 @@
 use super::{
     ActivationBinSets, ArtifactCleanupError, CmdShimHost, Config, Context, GlobalInstallTarget,
     GlobalPackageInfo, GlobalUpdateMaterializationReporter, GlobalUpdateResolutionReporter,
-    GroupActivation, GroupInstall, HashSet, IntoDiagnostic, Lockfile, PackageBinSource, Path,
-    PathBuf, RangeSpecStyle, ReplacedGlobalBinPlan, Reporter, SupportedArchitectures,
-    acquire_global_bin_lock, activate_global_install_with_extra_bin_names,
+    GlobalVersionTarget, GroupActivation, GroupInstall, HashSet, IntoDiagnostic, Lockfile,
+    PackageBinSource, Path, PathBuf, RangeSpecStyle, ReplacedGlobalBinPlan, Reporter,
+    SupportedArchitectures, acquire_global_bin_lock, activate_global_install_with_extra_bin_names,
     bin_names_of_other_groups, check_global_bin_conflicts, check_virtual_shim_conflicts,
     cleanup_replaced_global_installs, collect_existing_global_installs, create_global_cache_key,
     create_install_dir, discard_install_dir_on_error, fs, get_actual_bin_names, get_hash_link,
@@ -94,7 +94,7 @@ impl GlobalInstallTarget<'_> {
     pub(super) async fn update_groups<Reporter: self::Reporter + 'static>(
         &self,
         groups: &[GlobalPackageInfo],
-        latest: bool,
+        version_target: GlobalVersionTarget<'_>,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<bool> {
@@ -108,7 +108,7 @@ impl GlobalInstallTarget<'_> {
             checked = true;
             changed |= self.update_group::<Reporter>(
                 pkg,
-                latest,
+                version_target,
                 range_spec_style,
                 supported_architectures.clone(),
             )
@@ -122,13 +122,13 @@ impl GlobalInstallTarget<'_> {
     async fn update_group<Reporter: self::Reporter + 'static>(
         &self,
         pkg: &GlobalPackageInfo,
-        latest: bool,
+        version_target: GlobalVersionTarget<'_>,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<bool> {
         let (install_dir, selectors) = self.prepare_update_candidate::<Reporter>(
             pkg,
-            latest,
+            version_target,
             range_spec_style,
             supported_architectures.clone(),
         )
@@ -158,7 +158,7 @@ impl GlobalInstallTarget<'_> {
     async fn prepare_update_candidate<Reporter: self::Reporter + 'static>(
         &self,
         pkg: &GlobalPackageInfo,
-        latest: bool,
+        version_target: GlobalVersionTarget<'_>,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<(PathBuf, Vec<String>)> {
@@ -168,7 +168,7 @@ impl GlobalInstallTarget<'_> {
         let resolved = Box::pin(self.resolve_update_candidate::<Reporter>(
             pkg,
             &install_dir,
-            latest,
+            version_target,
             range_spec_style,
             supported_architectures,
         ))
@@ -184,7 +184,7 @@ impl GlobalInstallTarget<'_> {
         &self,
         pkg: &GlobalPackageInfo,
         install_dir: &Path,
-        latest: bool,
+        version_target: GlobalVersionTarget<'_>,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<Vec<String>> {
@@ -197,12 +197,12 @@ impl GlobalInstallTarget<'_> {
                 self.global_pkg_dir,
                 install_dir,
                 pkg,
-                latest,
+                version_target,
                 range_spec_style,
                 supported_architectures.clone(),
             ))
             .await?;
-        let selectors = update_selectors(&pkg.dependencies, latest, &downgrade_check.pins);
+        let selectors = update_selectors(&pkg.dependencies, version_target, &downgrade_check.pins);
         if !downgrade_check.candidate_resolved || !downgrade_check.pins.is_empty() {
             Box::pin(run_group_install::<GlobalUpdateResolutionReporter<Reporter>>(GroupInstall {
                 base_config: self.base_config,

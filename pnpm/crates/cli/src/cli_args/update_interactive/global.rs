@@ -7,7 +7,7 @@ use super::{
 pub(crate) async fn select_global_package_groups<Reporter: self::Reporter>(
     base_config: &'static Config,
     packages: &[String],
-    latest: bool,
+    target_version: TargetVersion<'_>,
     prompt: UpdatePrompt,
 ) -> miette::Result<Option<HashSet<String>>> {
     let global_pkg_dir = base_config.global_pkg_dir
@@ -21,7 +21,7 @@ pub(crate) async fn select_global_package_groups<Reporter: self::Reporter>(
     let config = global_update_config(base_config);
     let ignored = ignored_dependencies_matcher(config);
     let query = OutdatedQuery {
-        target_version: if latest { TargetVersion::Latest } else { TargetVersion::WithinRange },
+        target_version,
         include_direct: &[DependencyGroup::Prod],
         match_names: None,
         ignore_names: ignored.as_ref(),
@@ -33,7 +33,7 @@ pub(crate) async fn select_global_package_groups<Reporter: self::Reporter>(
     };
     let rows = outdated_group_rows(matched_packages, config, &query).await?;
     if rows.is_empty() {
-        super::print_up_to_date(latest);
+        super::print_up_to_date(!matches!(target_version, TargetVersion::WithinRange));
         return Ok(None);
     }
     let Some(selected_indices) = prompt.select(

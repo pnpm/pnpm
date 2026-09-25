@@ -117,6 +117,11 @@ pub struct UpdateSelectionArgs {
     /// to their latest version and rewrite the manifest ranges.
     #[clap(short = 'L', long)]
     pub latest: bool,
+    /// Ignore version ranges in package.json: bump the matched packages
+    /// to the version behind the given dist-tag and rewrite the manifest
+    /// ranges.
+    #[clap(long, conflicts_with = "latest", value_name = "tag")]
+    pub tag: Option<String>,
     /// Refresh registry revisions without changing package versions.
     #[clap(long)]
     pub patches: bool,
@@ -174,7 +179,7 @@ pub struct UpdateInstallArgs {
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display(
-    "--patches cannot be combined with package selectors, --latest, --interactive, or --global"
+    "--patches cannot be combined with package selectors, --latest, --tag, --interactive, or --global"
 )]
 #[diagnostic(code(ERR_PNPM_PATCHES_WITH_SELECTOR))]
 struct PatchesWithSelectorError;
@@ -205,12 +210,13 @@ impl UpdateArgs {
     }
 
     fn interactive_options<'a>(
-        &self,
+        &'a self,
         include_direct: &'a [DependencyGroup],
         update_actions: bool,
     ) -> InteractiveUpdateOptions<'a> {
         InteractiveUpdateOptions {
             latest: self.selection.latest,
+            tag: self.selection.tag.as_deref(),
             include_direct,
             include_github_actions: update_actions,
             prompt: self.prompt,
@@ -269,8 +275,9 @@ impl UpdateArgs {
     }
 
     /// `pnpm update -g`: reinstall each matching global package group,
-    /// within its existing range or (with `--latest`) to the newest
-    /// version. Delegates to [`crate::cli_args::global::handle_global_update`].
+    /// within its existing range, to the newest version (`--latest`), or
+    /// to the version behind a dist-tag (`--tag`). Delegates to
+    /// [`crate::cli_args::global::handle_global_update`].
     pub async fn run_global<Reporter: self::Reporter + 'static>(
         self,
         config: &'static Config,
@@ -281,11 +288,15 @@ impl UpdateArgs {
         if crate::cli_args::global::selects_pnpm_cli(&self.packages) {
             return Err(crate::cli_args::global::GlobalError::GlobalPnpmInstall.into());
         }
+        let version_target = crate::cli_args::global::GlobalVersionTarget::from_flags(
+            self.selection.latest,
+            self.selection.tag.as_deref(),
+        );
         let selected_hashes: Option<HashSet<String>> = if self.selection.interactive {
             match crate::cli_args::update_interactive::select_global_package_groups::<Reporter>(
                 config,
                 &self.packages,
-                self.selection.latest,
+                version_target.target_version(),
                 self.prompt,
             )
             .await?
@@ -306,7 +317,7 @@ impl UpdateArgs {
             config,
             &self.packages,
             selected_hashes.as_ref(),
-            self.selection.latest,
+            version_target,
             range_spec_style,
             supported_architectures,
         ))
@@ -323,7 +334,10 @@ impl UpdateArgs {
         workspace_root: Option<&'root Path>,
     ) -> miette::Result<Option<&'root Path>> {
         if self.selection.workspace && self.selection.latest {
-            return Err(WorkspaceOptionError::LatestWithWorkspace.into());
+            return Err(WorkspaceOptionError::WithLatest.into());
+        }
+        if self.selection.workspace && self.selection.tag.is_some() {
+            return Err(WorkspaceOptionError::WithTag.into());
         }
         workspace_link_root(self.selection.workspace, workspace_root)
     }
@@ -332,6 +346,7 @@ impl UpdateArgs {
         if self.selection.patches
             && (!self.packages.is_empty()
                 || self.selection.latest
+                || self.selection.tag.is_some()
                 || self.selection.interactive
                 || self.selection.global)
         {

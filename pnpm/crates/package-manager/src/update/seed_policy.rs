@@ -1,8 +1,8 @@
 use super::{
     CatalogCtx, LatestResolverChain, LatestRewriteCtx, MatchedRewriteInputs, UpdateError,
-    WorkspaceLinkTarget, emit_latest_ignored, latest_specifier, record_matched_direct_update,
+    WorkspaceLinkTarget, emit_range_flag_ignored, latest_specifier, record_matched_direct_update,
     selectors::{ParsedSelector, expand_update_selectors, insert_update_target},
-    workspace_specifier,
+    tag_rewrite, workspace_specifier,
 };
 use crate::{ImporterUpdateSeedPolicy, UpdateSeedPolicy};
 use pnpm_config::Config;
@@ -34,7 +34,7 @@ pub(super) struct UpdateScope<'a> {
     pub(super) overridden_direct: &'a [OverriddenDirect],
     pub(super) lockfile: Option<&'a Lockfile>,
     pub(super) config: &'a Config,
-    pub(super) version: super::UpdateVersionOptions,
+    pub(super) version: super::UpdateVersionOptions<'a>,
     pub(super) depth: usize,
     pub(super) updates_all_groups: bool,
 }
@@ -149,6 +149,14 @@ pub(super) fn apply_workspace_targets(
         plan.rewrites.push((target.name, target.group, specifier));
     }
 }
+/// The range-rewriting flag the update runs under, as the user passed it,
+/// for the warning a `--no-save` update emits when it has to ignore one.
+fn range_flag_name(version: super::UpdateVersionOptions<'_>) -> Option<String> {
+    if version.latest {
+        return Some("--latest".to_string());
+    }
+    version.tag.map(|tag| format!("--tag {tag}"))
+}
 /// No selector: every included direct dependency updates.
 pub(super) async fn all_direct_seed_policy<Reporter: self::Reporter>(
     scope: &UpdateScope<'_>,
@@ -167,8 +175,10 @@ pub(super) async fn all_direct_seed_policy<Reporter: self::Reporter>(
             .as_ref()
             .is_some_and(|matcher| matcher.matches(name))
     };
-    if scope.version.latest && !scope.version.save {
-        emit_latest_ignored::<Reporter>(rewrite_ctx.manifest);
+    if !scope.version.save
+        && let Some(flag) = range_flag_name(scope.version)
+    {
+        emit_range_flag_ignored::<Reporter>(&flag, rewrite_ctx.manifest);
     }
     for (name, group, previous) in scope.direct {
         if is_ignored(name) {
@@ -209,7 +219,20 @@ pub(super) async fn record_direct_update(
     {
         plan.rewrites.push((name.clone(), group, specifier));
     }
-    if scope.version.save && !scope.version.latest {
+    if let Some(tag) = scope.version.tag.filter(|_| scope.version.save)
+        && let Some(specifier) = tag_rewrite(
+            rewrite_ctx,
+            latest_chain,
+            &mut plan.preferred_versions_override,
+            scope.range_spec_style(),
+            (name, previous, tag),
+            Some(tag.to_string()),
+        )
+        .await?
+    {
+        plan.rewrites.push((name.clone(), group, specifier));
+    }
+    if scope.version.save && !scope.version.reaches_past_declared_range() {
         plan.bump_targets.push((name.clone(), group, previous.clone()));
     }
     plan.drop_targets.insert(name.clone(), None);
@@ -223,7 +246,8 @@ pub(super) fn widen_drop_targets_to_lockfile(
     nothing_dropped: bool,
     is_ignored: &impl Fn(&str) -> bool,
 ) {
-    if !scope.updates_all_groups || (scope.version.latest && nothing_dropped) {
+    if !scope.updates_all_groups || (scope.version.reaches_past_declared_range() && nothing_dropped)
+    {
         return;
     }
     let Some(snapshots) = scope.lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()) else {
@@ -295,17 +319,19 @@ pub(super) async fn selector_seed_policy<Reporter: self::Reporter>(
         .cloned()
         .collect::<Vec<_>>();
     if matched_direct.is_empty() {
-        // An unmatched `--latest` selector is a no-op. Deeper versioned
-        // selectors can still target lockfile names but cannot force that
-        // version.
-        if scope.depth == 0 || scope.version.latest {
+        // An unmatched `--latest` / `--tag` selector is a no-op. Deeper
+        // versioned selectors can still target lockfile names but cannot
+        // force that version.
+        if scope.depth == 0 || scope.version.reaches_past_declared_range() {
             return Ok(None);
         }
         widen_drop_targets_by_selectors(scope.lockfile, plan, &expanded);
         return Ok(Some(plan.drop_only(scope.max_depth())));
     }
-    if scope.version.latest && !scope.version.save {
-        emit_latest_ignored::<Reporter>(rewrite_ctx.manifest);
+    if !scope.version.save
+        && let Some(flag) = range_flag_name(scope.version)
+    {
+        emit_range_flag_ignored::<Reporter>(&flag, rewrite_ctx.manifest);
     }
     for (name, group, previous) in &matched_direct {
         record_matched_direct_update::<Reporter>(
@@ -375,6 +401,6 @@ impl UpdateScope<'_> {
         !self.selectors.is_empty()
             && self.selectors.iter().all(|selector| selector.version.is_none())
             && self.depth > 0
-            && !self.version.latest
+            && !self.version.reaches_past_declared_range()
     }
 }

@@ -1,7 +1,8 @@
 mod named_registry;
 
 use super::{
-    InteractiveUpdateProject, PromptRow, UpdatePrompt, collect_choices, dependencies_prompt_message,
+    InteractiveUpdateProject, PromptRow, TargetVersion, UpdatePrompt, collect_choices,
+    dependencies_prompt_message,
 };
 use crate::cli_args::update::UpdateArgs;
 use clap::Parser;
@@ -62,7 +63,7 @@ importers:
         Some(&lockfile),
         &config,
         &Arc::new(ThrottledClient::default()),
-        true,
+        TargetVersion::Latest,
         &[DependencyGroup::Prod],
     )
     .await
@@ -126,7 +127,7 @@ importers:
         Some(&lockfile),
         &config,
         &Arc::new(ThrottledClient::default()),
-        false,
+        TargetVersion::WithinRange,
         &[DependencyGroup::Prod],
     )
     .await
@@ -198,7 +199,7 @@ importers:
         Some(&lockfile),
         &config,
         &Arc::new(ThrottledClient::default()),
-        false,
+        TargetVersion::WithinRange,
         &[DependencyGroup::Prod],
     )
     .await
@@ -262,7 +263,7 @@ importers:
         Some(&lockfile),
         &config,
         &Arc::new(ThrottledClient::default()),
-        false,
+        TargetVersion::WithinRange,
         &[DependencyGroup::Prod],
     )
     .await
@@ -329,7 +330,7 @@ importers:
             Some(&lockfile),
             &config,
             &Arc::new(ThrottledClient::default()),
-            false,
+            TargetVersion::WithinRange,
             &[DependencyGroup::Prod],
         )
         .await
@@ -932,7 +933,7 @@ async fn global_interactive_update_handles_an_empty_global_directory() {
     let selected = super::select_global_package_groups::<pnpm_reporter::SilentReporter>(
         config,
         &[],
-        true,
+        TargetVersion::Latest,
         UpdatePrompt::Scripted,
     )
     .await
@@ -975,7 +976,7 @@ importers:
         Some(&lockfile),
         &config,
         &Arc::new(ThrottledClient::default()),
-        true,
+        TargetVersion::Latest,
         &[DependencyGroup::Prod],
     )
     .await

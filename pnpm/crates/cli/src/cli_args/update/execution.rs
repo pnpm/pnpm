@@ -209,7 +209,7 @@ impl UpdateArgs {
     }
 
     fn prepare_update<'a>(
-        &self,
+        &'a self,
         state: &'a mut State,
         inputs: &'a UpdateInputs,
         packages: &'a [String],
@@ -230,6 +230,7 @@ impl UpdateArgs {
                 },
                 version: pnpm_package_manager::UpdateVersionOptions {
                     latest: self.selection.latest,
+                    tag: self.selection.tag.as_deref(),
                     patches: self.selection.patches,
                     save_exact: self.save.exact || state.config.save_exact,
                     save: !self.save.no_save,

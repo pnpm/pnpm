@@ -1,9 +1,9 @@
 use super::{
     AddGroups, CatalogMode, Config, Context, DependencyGroup, GlobalPackageBinSnapshot,
-    GlobalPackageInfo, HashMap, HashSet, ImporterDepVersion, Lockfile, PackageBinSource, Path,
-    RangeSpecStyle, Reporter, State, SupportedArchitectures, Version, WorkspaceSettings,
-    add_packages, apply_allow_build, decided_allow_builds, infer_local_package_alias,
-    installed_versions, prompt_approve_install_builds, update_selectors,
+    GlobalPackageInfo, GlobalVersionTarget, HashMap, HashSet, ImporterDepVersion, Lockfile,
+    PackageBinSource, Path, RangeSpecStyle, Reporter, State, SupportedArchitectures, Version,
+    WorkspaceSettings, add_packages, apply_allow_build, decided_allow_builds,
+    infer_local_package_alias, installed_versions, prompt_approve_install_builds, update_selectors,
 };
 
 /// The pnpm home a global group installs into.
@@ -32,9 +32,9 @@ pub(super) struct GroupActivation<'a> {
 }
 
 /// The version to hold each dependency of `pkg` at, for the ones an update would
-/// otherwise move backwards. `--latest` resolves the `latest` dist-tag, which
-/// points at an older release than the one installed whenever that came from
-/// another tag, or from a major that has not been promoted to `latest` yet.
+/// otherwise move backwards. A target past the recorded range (`--latest`, or
+/// `--tag` with a tag that points at an older release) can resolve to a version
+/// older than the one installed.
 ///
 /// The versions are resolved into `install_dir` without installing anything, so
 /// a release that is about to be rejected never gets the chance to run its
@@ -49,14 +49,15 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
     global_pkg_dir: &Path,
     install_dir: &Path,
     pkg: &GlobalPackageInfo,
-    latest: bool,
+    target: GlobalVersionTarget<'_>,
     range_spec_style: RangeSpecStyle,
     supported_architectures: Option<SupportedArchitectures>,
 ) -> miette::Result<DowngradeCheck> {
-    // Only `--latest` can pick a version outside the recorded range, and only a
-    // plain version spec is dropped for it. Everything else resolves within a
-    // range the installed version already satisfies.
-    if !latest {
+    // Only a target past the recorded range can pick a version outside it,
+    // and only a plain version spec is dropped or replaced for one.
+    // Everything else resolves within a range the installed version already
+    // satisfies.
+    if !target.reaches_past_recorded_range() {
         return Ok(DowngradeCheck { candidate_resolved: false, pins: HashMap::new() });
     }
     let versions_before = installed_versions(&pkg.install_dir);
@@ -71,7 +72,7 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
         base_config,
         global_pkg_dir,
         install_dir,
-        selectors: &update_selectors(&pkg.dependencies, latest, &HashMap::new()),
+        selectors: &update_selectors(&pkg.dependencies, target, &HashMap::new()),
         range_spec_style,
         supported_architectures,
         allow_build: &[],
