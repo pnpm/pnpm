@@ -96,6 +96,8 @@ export type InstallDepsOptions = Pick<Config,
 | 'lockfile'
 | 'lockfileDir'
 | 'lockfileOnly'
+| 'minimumReleaseAge'
+| 'minimumReleaseAgeExclude'
 | 'pnprServer'
 | 'remoteSideEffectsCache'
 | 'production'
