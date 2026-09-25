@@ -438,7 +438,11 @@ test('barePathIsUnambiguous recognizes only path-prefixed specifiers', () => {
 })
 
 test('resolveFromLocalPath claims a forward-slash separated path', async () => {
-  const result = await resolveFromLocalPath({}, { bareSpecifier: 'some/local/dir' }, { projectDir: import.meta.dirname })
-  expect(result?.manifest?.name).toBe('dir')
+  const dir = tempDir(false)
+  const pkgDir = path.join(dir, 'nested/pkg')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'nested-pkg', version: '1.0.0' }))
+  const result = await resolveFromLocalPath({}, { bareSpecifier: 'nested/pkg' }, { projectDir: dir })
+  expect(result?.manifest?.name).toBe('nested-pkg')
 })
 
