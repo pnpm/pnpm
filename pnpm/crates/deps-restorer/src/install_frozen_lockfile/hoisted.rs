@@ -3,8 +3,8 @@
 pub(crate) use direct_links::link_selected_hoisted_direct_dependencies;
 pub use hoist_plan::{
     HoistPlan, HoistedWorkspacePackages, collect_public_hoist_targets, compute_hoist_plan,
-    find_own_runtime_node_major, find_runtime_node_key, find_runtime_node_major,
-    parse_major_from_version, workspace_packages_for_hoist,
+    find_own_runtime_node_major, find_runtime_node_major, parse_major_from_version,
+    workspace_packages_for_hoist,
 };
 
 mod direct_links;

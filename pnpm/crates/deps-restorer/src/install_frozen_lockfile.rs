@@ -4,9 +4,8 @@ pub use build_phase::{
 pub use hoisted::{
     HoistPlan, HoistedLinkerError, HoistedLinkerInputs, HoistedLinkerOutput,
     HoistedMaterialization, HoistedWorkspacePackages, collect_public_hoist_targets,
-    compute_hoist_plan, find_own_runtime_node_major, find_runtime_node_key,
-    find_runtime_node_major, parse_major_from_version, run_hoisted_linker,
-    workspace_packages_for_hoist,
+    compute_hoist_plan, find_own_runtime_node_major, find_runtime_node_major,
+    parse_major_from_version, run_hoisted_linker, workspace_packages_for_hoist,
 };
 
 mod verification;

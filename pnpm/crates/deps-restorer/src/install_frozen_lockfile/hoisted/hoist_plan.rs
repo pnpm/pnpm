@@ -222,29 +222,24 @@ pub fn parse_major_from_version(version: &str) -> Option<u32> {
 pub fn find_runtime_node_major(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
 ) -> Option<u32> {
-    // `Version::major` is `u64`; the major is small (<=99 in
-    // practice), so the cast is lossless. The downstream
-    // `engine_name` argument is `u32`.
-    let major = find_runtime_node_key(snapshots)?.suffix.version_semver()?.major;
-    Some(major as u32)
-}
-
-/// The `node@runtime:<version>` snapshot a project pinned, the one
-/// [`find_runtime_node_major`] reads the engine major from.
-#[must_use]
-pub fn find_runtime_node_key(
-    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
-) -> Option<&PackageKey> {
-    // Only `node@runtime:` feeds the Node-shaped engine string —
-    // `bun@runtime:` and `deno@runtime:` exist as separate runtime
-    // kinds.
-    snapshots?
-        .keys()
-        .find(|key| {
-            key.suffix.prefix() == Prefix::Runtime
-                && key.name.scope.is_none()
-                && key.name.bare == "node"
-        })
+    let snapshots = snapshots?;
+    for key in snapshots.keys() {
+        if key.suffix.prefix() != Prefix::Runtime {
+            continue;
+        }
+        // Only `node@runtime:` feeds the Node-shaped engine string —
+        // `bun@runtime:` and `deno@runtime:` exist as separate runtime
+        // kinds. Scan for `node@runtime:` exclusively.
+        if key.name.scope.is_some() || key.name.bare != "node" {
+            continue;
+        }
+        // `Version::major` is `u64`; the major is small (<=99 in
+        // practice), so the cast is lossless. The downstream
+        // `engine_name` argument is `u32`.
+        let major = key.suffix.version_semver()?.major;
+        return Some(major as u32);
+    }
+    None
 }
 /// Read one snapshot's own `engines.runtime` Node pin from its
 /// `dependencies` map. The resolver desugars `engines.runtime`
