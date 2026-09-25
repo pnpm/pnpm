@@ -92,6 +92,42 @@ fn hook_configuration_restores_pack_output() {
 }
 
 #[test]
+fn hook_configuration_restores_pack_output_with_the_selected_loglevel() {
+    for (loglevel, flag, lifecycle_output) in [
+        ("warn", None, false),
+        ("error", None, false),
+        ("warn", Some("--loglevel=info"), true),
+        ("error", Some("--loglevel=info"), true),
+        ("info", Some("--loglevel=warn"), false),
+        ("info", Some("--loglevel=error"), false),
+    ] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = prepare_package_with_lifecycle();
+        fs::write(workspace.join("pnpm-workspace.yaml"), "loglevel: silent\n")
+            .expect("write silent configuration");
+        write_output_config_hook(&workspace, "loglevel", loglevel);
+
+        let assertion = pacquet
+            .with_arg("pack")
+            .with_args(flag)
+            .assert()
+            .success()
+            .stderr("");
+        let stdout = String::from_utf8_lossy(&assertion.get_output().stdout);
+        eprintln!("hook loglevel: {loglevel}; flag: {flag:?}; STDOUT:\n{stdout}");
+        assert!(stdout.contains("Tarball Contents"));
+        for stage in ["prepack", "prepare", "postpack"] {
+            for stream in ["stdout", "stderr"] {
+                assert_eq!(stdout.contains(&format!("{stage} {stream}")), lifecycle_output);
+            }
+        }
+        assert_lifecycle_stages(&workspace);
+        let manifest = read_manifest_from_tarball(&workspace.join("pkg-1.0.0.tgz"));
+        assert_eq!(manifest["name"], "pkg");
+        drop(root);
+    }
+}
+
+#[test]
 fn cli_flags_override_hook_output_settings() {
     for (setting, value, flag, silent) in [
         ("reporter", "silent", "--reporter=default", false),

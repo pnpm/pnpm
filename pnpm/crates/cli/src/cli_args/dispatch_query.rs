@@ -256,6 +256,7 @@ pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: PackArgs) -> miette::Result<Comma
         } else {
             apply_update_config(config, dir, reporter).await?
         };
+        reporter_flags.configure_with(config);
         let reporter = reporter_flags.resolve_with(config);
         let print_output = args.json || reporter != ReporterType::Silent;
         let output = if args.json {
