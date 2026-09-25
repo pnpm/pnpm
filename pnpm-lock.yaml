@@ -1903,6 +1903,9 @@ importers:
       '@pnpm/building.pkg-requires-build':
         specifier: workspace:*
         version: link:../pkg-requires-build
+      '@pnpm/config.package-is-installable':
+        specifier: workspace:*
+        version: link:../../config/package-is-installable
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../config/reader

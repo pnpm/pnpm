@@ -2156,6 +2156,9 @@ async function resolveDependency (
         downloadPriority: -options.currentDepth,
         lockfileDir: ctx.lockfileDir,
         nodeVersion: ctx.nodeVersion,
+        deferEnginesCheck: (manifest) => manifest.name != null &&
+          manifest.version != null &&
+          getPatchInfo(ctx.patchedDependencies, manifest.name, manifest.version) != null,
         preferredVersions,
         preferWorkspacePackages: ctx.preferWorkspacePackages,
         projectDir: (

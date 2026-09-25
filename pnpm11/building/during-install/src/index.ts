@@ -5,6 +5,7 @@ import util from 'node:util'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { dirRequiresBuild } from '@pnpm/building.pkg-requires-build'
+import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
@@ -78,6 +79,10 @@ export async function buildModules<T extends string> (
     pnprServer?: string
     remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     supportedArchitectures?: SupportedArchitectures
+    engineStrict?: boolean
+    /** Node version the installability check used. Separate from the script runner. */
+    engineNodeVersion?: string
+    skipped?: Set<DepPath>
   }
 ): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
   if (!rootDepPaths.length) return {}
@@ -246,6 +251,10 @@ async function buildDependency<T extends string> (
     pnprServer?: string
     remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     supportedArchitectures?: SupportedArchitectures
+    engineStrict?: boolean
+    /** Node version the installability check used. Separate from the script runner. */
+    engineNodeVersion?: string
+    skipped?: Set<DepPath>
     warn: (message: string) => void
   }
 ): Promise<void> {
@@ -276,6 +285,30 @@ async function buildDependency<T extends string> (
         )
       }
       isPatched = applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: depNode.patch.patchFilePath })
+      if (isPatched && opts.engineStrict) {
+        const patched = await safeReadPackageJsonFromDir(depNode.dir)
+        if (patched == null) {
+          throw new PnpmError(
+            'PATCHED_MANIFEST_UNREADABLE',
+            `Cannot read the patched package.json of ${depPath}`
+          )
+        }
+        const installable = packageIsInstallable(depPath, {
+          name: patched.name ?? '',
+          version: patched.version ?? '0.0.0',
+          engines: patched.engines,
+        }, {
+          engineStrict: !depNode.optional,
+          lockfileDir: opts.lockfileDir,
+          nodeVersion: opts.engineNodeVersion ?? opts.nodeVersion,
+          optional: depNode.optional,
+          supportedArchitectures: opts.supportedArchitectures,
+        })
+        if (installable === false) {
+          await removeIncompatibleOptional(depPath, depNode, depGraph, opts)
+          return
+        }
+      }
     }
     // A patch can add install scripts - or a binding.gyp, which the lifecycle
     // runner turns into `node-gyp rebuild` - to a package that published
@@ -474,6 +507,44 @@ async function markBuildStarted<T extends string> (depNode: DependenciesGraphNod
       prefix: lockfileDir,
     })
   }
+}
+
+async function removeIncompatibleOptional<T extends string> (
+  depPath: T,
+  depNode: DependenciesGraphNode<T>,
+  depGraph: DependenciesGraph<T>,
+  opts: { enableGlobalVirtualStore?: boolean, hoistedLocations?: Record<string, string[]>, lockfileDir: string, skipped?: Set<DepPath> }
+): Promise<void> {
+  depNode.installable = false
+  opts.skipped?.add(depNode.depPath)
+  const removed = opts.enableGlobalVirtualStore ? path.dirname(depNode.modules) : depNode.dir
+  await fs.rm(removed, { recursive: true, force: true })
+  const nodes = Object.values(depGraph) as Array<DependenciesGraphNode<T>>
+  const links = nodes.flatMap((node) =>
+    Object.entries(node.children)
+      .filter(([, child]) => child === depPath)
+      .flatMap(([alias]) => {
+        const link = containedNodeModulesLink(node.dir, alias)
+        return link == null ? [] : [link]
+      })
+  )
+  for (const location of opts.hoistedLocations?.[depNode.depPath] ?? []) {
+    links.push(path.join(opts.lockfileDir, location))
+  }
+  await Promise.all(links.map(async (link) => fs.rm(link, { recursive: true, force: true })))
+}
+
+function containedNodeModulesLink (dir: string, alias: string): string | undefined {
+  const nodeModulesDir = path.resolve(dir, 'node_modules')
+  const link = path.resolve(nodeModulesDir, alias)
+  const relative = path.relative(nodeModulesDir, link)
+  if (
+    relative === '' ||
+    relative === '..' ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) return undefined
+  return link
 }
 
 export async function linkBinsOfDependencies<T extends string> (

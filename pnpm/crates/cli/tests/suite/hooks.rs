@@ -1234,3 +1234,124 @@ fn read_package_accepts_a_deleted_dependency() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn engine_strict_respects_a_patch_that_relaxes_engines() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/for-legacy-node": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(
+        workspace.join("patches").join("for-legacy-node.patch"),
+        "\
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -2,6 +2,6 @@
+   \"name\": \"@pnpm.e2e/for-legacy-node\",
+   \"version\": \"1.0.0\",
+   \"engines\": {
+-    \"node\": \"0.10\"
++    \"node\": \"*\"
+   }
+ }
+",
+    )
+    .expect("write patch");
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).unwrap_or_default();
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str(
+        "\
+engineStrict: true
+patchedDependencies:
+  '@pnpm.e2e/for-legacy-node@1.0.0': patches/for-legacy-node.patch
+",
+    );
+    fs::write(&workspace_yaml, yaml).expect("write workspace yaml");
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--engine-strict"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn engine_strict_skips_an_optional_patch_with_incompatible_engines() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "optionalDependencies": { "legacy-node": "npm:@pnpm.e2e/for-legacy-node@1.0.0" }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(
+        workspace.join("patches").join("for-legacy-node.patch"),
+        "\
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -2,6 +2,6 @@
+   \"name\": \"@pnpm.e2e/for-legacy-node\",
+   \"version\": \"1.0.0\",
+   \"engines\": {
+-    \"node\": \"0.10\"
++    \"node\": \"99\"
+   }
+ }
+",
+    )
+    .expect("write patch");
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).unwrap_or_default();
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str(
+        "\
+engineStrict: true
+virtualStoreDir: node_modules/.store
+patchedDependencies:
+  '@pnpm.e2e/for-legacy-node@1.0.0': patches/for-legacy-node.patch
+",
+    );
+    fs::write(&workspace_yaml, yaml).expect("write workspace yaml");
+
+    let links = [
+        workspace.join("node_modules/legacy-node"),
+        workspace.join("node_modules/@pnpm.e2e/for-legacy-node"),
+        workspace.join("node_modules/.store/node_modules/legacy-node"),
+        workspace.join("node_modules/.store/node_modules/@pnpm.e2e/for-legacy-node"),
+    ];
+    for _ in 0..2 {
+        pacquet_in(&workspace)
+            .with_args(["install", "--engine-strict"])
+            .assert()
+            .success();
+        for link in &links {
+            assert!(
+                fs::symlink_metadata(link).is_err(),
+                "incompatible optional package must not stay linked at {}",
+                link.display(),
+            );
+        }
+    }
+
+    drop((root, mock_instance));
+}

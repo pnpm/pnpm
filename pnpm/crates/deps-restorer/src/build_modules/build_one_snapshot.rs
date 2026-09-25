@@ -1,7 +1,9 @@
 //! Running one package's build scripts.
 
+mod patched_engines;
 mod side_effects;
 mod slot_to_build;
+use patched_engines::skip_incompatible_optional;
 use side_effects::{
     FrozenStoreWrites, SideEffectsUpload, already_built, side_effects_cache_key,
     upload_side_effects_cache,
@@ -51,6 +53,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     let Some(candidate) = BuildCandidate::of(context, snapshot_key) else { return Ok(()) };
     let cache_key = side_effects_cache_key(context, snapshot_key, &candidate);
     if already_built::<Reporter>(context, snapshot_key, &candidate, cache_key.as_deref())? {
+        skip_incompatible_optional::<Reporter>(context, snapshot_key, &candidate)?;
         return Ok(());
     }
 
@@ -90,7 +93,10 @@ fn build_candidate<Reporter: self::Reporter>(
     // error (`PatchFilePathMissing`).
     // `is_patched` feeds the cache-write gate below
     // (`is_patched || has_side_effects`).
-    let is_patched = apply_configured_patch(context, snapshot_key, candidate.patch)?;
+    let Some(is_patched) = apply_configured_patch::<Reporter>(context, snapshot_key, candidate)?
+    else {
+        return Ok(());
+    };
 
     let Some(has_side_effects) = run_snapshot_scripts::<Reporter>(
         context,
@@ -292,12 +298,12 @@ fn reject_frozen_store_build<Reporter: self::Reporter>(
 /// Every copy is patched, not just the primary slot. Under the hoisted linker
 /// a version conflict nests further copies under their consumers; leaving
 /// those unpatched would silently run the very code the patch replaces.
-fn apply_configured_patch(
+fn apply_configured_patch<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
-    patch: Option<&pnpm_patching::ExtendedPatchInfo>,
-) -> Result<bool, BuildModulesError> {
-    let Some(patch) = patch else { return Ok(false) };
+    candidate: &BuildCandidate<'_>,
+) -> Result<Option<bool>, BuildModulesError> {
+    let Some(patch) = candidate.patch else { return Ok(Some(false)) };
     let patch_file_path = patch.patch_file_path
         .as_deref()
         .ok_or_else(|| BuildModulesError::PatchFilePathMissing {
@@ -310,7 +316,10 @@ fn apply_configured_patch(
         }
         apply_patch_to_dir(&patched_dir, patch_file_path).map_err(BuildModulesError::PatchApply)?;
     }
-    Ok(true)
+    if skip_incompatible_optional::<Reporter>(context, snapshot_key, candidate)? {
+        return Ok(None);
+    }
+    Ok(Some(true))
 }
 
 // A removed GVS slot may have been imported pristine while its cached build row survived.

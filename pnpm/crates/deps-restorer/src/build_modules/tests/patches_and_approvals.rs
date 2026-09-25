@@ -233,6 +233,7 @@ new file mode 100644
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
         },
 
         allow_build_policy: &policy,
@@ -363,6 +364,7 @@ new file mode 100644
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
         },
 
         allow_build_policy: &policy,
@@ -462,6 +464,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
         },
 
         allow_build_policy: &policy,

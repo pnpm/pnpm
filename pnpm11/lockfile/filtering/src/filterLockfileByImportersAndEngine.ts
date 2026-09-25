@@ -273,7 +273,9 @@ function toInstallabilityManifest (depPath: DepPath, pkgSnapshot: PackageSnapsho
   return {
     ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
     cpu: pkgSnapshot.cpu,
-    engines: pkgSnapshot.engines,
+    // A patch can change `engines` after this pass. The published range is
+    // checked again from the patched manifest once the patch is applied.
+    engines: depPath.includes('(patch_hash=') ? undefined : pkgSnapshot.engines,
     os: pkgSnapshot.os,
     libc: pkgSnapshot.libc,
   }

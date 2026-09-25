@@ -35,6 +35,7 @@
   "dependencies": {
     "@pnpm/bins.linker": "workspace:*",
     "@pnpm/building.pkg-requires-build": "workspace:*",
+    "@pnpm/config.package-is-installable": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/deps.graph-hasher": "workspace:*",

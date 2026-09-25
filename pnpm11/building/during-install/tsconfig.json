@@ -16,6 +16,9 @@
       "path": "../../bins/linker"
     },
     {
+      "path": "../../config/package-is-installable"
+    },
+    {
       "path": "../../config/reader"
     },
     {

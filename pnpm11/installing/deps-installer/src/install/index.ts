@@ -2897,6 +2897,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         // Dependency lifecycle scripts must not run on an unverified lockfile.
         await opts.verifyLockfile?.()
         const ignoredBuildsFromBuild = (await buildModules(dependenciesGraph, rootNodes, {
+          engineStrict: installabilityUnderForce(opts).engineStrict,
+          engineNodeVersion: opts.nodeVersion,
+          skipped: ctx.skipped,
           allowBuild: opts.allowBuild,
           childConcurrency: opts.childConcurrency,
           depsStateCache,
@@ -2937,7 +2940,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       logger.info({ message, prefix })
     }
     if (result.newDepPaths?.length && !opts.virtualStoreOnly) {
-      const newPkgs = props<DepPath, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
+      const newPkgs = props<DepPath, DependenciesGraphNode>(
+        result.newDepPaths.filter((depPath) => !ctx.skipped.has(depPath)),
+        dependenciesGraph
+      )
       await linkAllBins(newPkgs, dependenciesGraph, {
         extraNodePaths: ctx.extraNodePaths,
         optional: opts.include.optionalDependencies,
