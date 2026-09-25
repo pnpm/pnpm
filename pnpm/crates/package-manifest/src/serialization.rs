@@ -275,7 +275,7 @@ impl PackageManifest {
     }
 
     pub(super) fn serialize_json5(&self, value: &Value) -> Result<String, PackageManifestError> {
-        let serialized = serialize_with_indent(value, &self.indent)?;
+        let serialized = crate::json5::stringify(value, &self.indent);
         let text = match fs::read_to_string(&self.path) {
             Ok(text) => text,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(serialized),

@@ -52,6 +52,20 @@ fn json_null_roots_keep_the_invalid_manifest_error_code() {
 }
 
 #[test]
+fn json5_version_bump_keeps_json5_style() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json5");
+    let source = "// comment\n{\n  name: 'j5',\n  version: '1.0.0',\n}\n";
+    fs::write(&path, source).unwrap();
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.value_mut()["version"] = json!("1.0.1");
+    manifest.save().unwrap();
+    let written = fs::read_to_string(&path).unwrap();
+    eprintln!("WRITTEN:\n{written}");
+    assert_eq!(written, "// comment\n{\n  name: 'j5',\n  version: '1.0.1',\n}\n");
+}
+
+#[test]
 fn json5_reads_bom_comments_and_json5_syntax() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("package.json5");
