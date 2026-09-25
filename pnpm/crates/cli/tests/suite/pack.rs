@@ -15,6 +15,8 @@ use pnpm_testing_utils::{
 use serde_json::json;
 use std::{fmt::Write, fs, path::Path};
 
+mod output;
+
 #[test]
 fn pack_uses_embed_readme_and_manifest_obfuscation_settings() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

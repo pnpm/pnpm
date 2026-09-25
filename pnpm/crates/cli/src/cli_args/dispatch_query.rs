@@ -244,16 +244,12 @@ pub(super) fn version<'a>(
     }))
 }
 
-// `pack` prints the tarball summary (or JSON) its handler returns; the
-// reporter type only affects the lifecycle-script output, so it's threaded
-// into `run` and the result printed here, mirroring pnpm's `handler` → CLI
-// print split. `run` is async (it may invoke `beforePacking` pnpmfile
-// hooks), so the work is deferred into the returned future.
 pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: PackArgs) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
     let recursive = ctx.workspace.recursive;
     let reporter = ctx.reporter();
+    let print_output = args.json || reporter != ReporterType::Silent;
     async fn run<Reporter: pnpm_reporter::Reporter>(
         args: PackArgs,
         dir: &std::path::Path,
@@ -275,7 +271,7 @@ pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: PackArgs) -> miette::Result<Comma
                 ReporterType::Silent => run::<SilentReporter>(args, dir, config, recursive).await?,
             }
         };
-        if !output.is_empty() {
+        if print_output && !output.is_empty() {
             println!("{output}");
         }
         Ok(())
