@@ -384,6 +384,78 @@ test('adding new dependency in the root should fail if neither --workspace-root 
   }
 })
 
+test('adding a dependency from a workspace-matched directory without a manifest should suggest initializing the package first', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+  ])
+
+  fs.mkdirSync('packages/project', { recursive: true })
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - '.'
+  - 'packages/*'
+  - '!store/**'
+`, 'utf8')
+
+  const { status, stdout } = execPnpmSync(['add', 'is-positive'], { cwd: path.resolve('packages/project') })
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toMatch(/workspace package directory without a package manifest/)
+  expect(stdout.toString()).toMatch(/running "pnpm init" to generate a package\.json/)
+})
+
+test('adding a dependency from a directory outside the workspace package patterns should keep the workspace root warning', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+  ])
+
+  fs.mkdirSync('scripts', { recursive: true })
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - '.'
+  - 'packages/*'
+  - '!store/**'
+`, 'utf8')
+
+  const { status, stdout } = execPnpmSync(['add', 'is-positive'], { cwd: path.resolve('scripts') })
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toMatch(/Running this command will add the dependency to the workspace root/)
+  expect(stdout.toString()).not.toMatch(/running "pnpm init" to generate a package\.json/)
+})
+
+test('adding a dependency from a directory ignored by anchored workspace patterns should keep the workspace root warning', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+  ])
+
+  fs.mkdirSync('packages/ignored', { recursive: true })
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - '.'
+  - '/packages/*'
+  - '!/packages/ignored'
+`, 'utf8')
+
+  const { status, stdout } = execPnpmSync(['add', 'is-positive'], { cwd: path.resolve('packages/ignored') })
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toMatch(/Running this command will add the dependency to the workspace root/)
+  expect(stdout.toString()).not.toMatch(/running "pnpm init" to generate a package\.json/)
+})
+
 test('--workspace-packages', async () => {
   const projects = preparePackages([
     {
