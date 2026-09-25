@@ -35,19 +35,17 @@ pub(crate) fn detect_patched_drift(
     lockfile: &Lockfile,
     hashes: Option<&BTreeMap<String, String>>,
 ) -> Drift<PatchedPlan> {
+    // The rekey below reads each path's segment against the lockfile's own
+    // map, so a lockfile whose paths contradict that map, or carry a segment
+    // it cannot read, goes to the resolver whether or not the map drifted.
+    if check_patched_dep_paths(lockfile) != PatchedDepPathsStatus::UpToDate {
+        return Drift::Resolve;
+    }
     let empty = BTreeMap::new();
     let recorded = lockfile.patched_dependencies.as_ref().unwrap_or(&empty);
     let current = hashes.unwrap_or(&empty);
     if recorded == current {
-        // An agreeing map is not on its own enough: the suffixes the
-        // depPaths carry are what the install reads, and a lockfile whose
-        // suffixes contradict the map needs the rekey below even though
-        // nothing drifted against the config.
-        return if check_patched_dep_paths(lockfile) == PatchedDepPathsStatus::UpToDate {
-            Drift::Clean
-        } else {
-            Drift::Resolve
-        };
+        return Drift::Clean;
     }
     match groups_from_hashes(current) {
         Some(groups) => Drift::Absorb(PatchedPlan { current: current.clone(), groups }),
