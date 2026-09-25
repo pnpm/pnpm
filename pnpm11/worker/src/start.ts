@@ -479,7 +479,7 @@ function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles)
     } else if (
       !baseFiles.has(file) ||
       baseFiles.get(file)!.digest !== sideEffectsFiles.get(file)!.digest ||
-      // On Windows, a mode read back from disk is not the mode stored from the tarball.
+      // On Windows, the mode read back from disk does not preserve the mode stored from the tarball.
       (process.platform !== 'win32' && baseFiles.get(file)!.mode !== sideEffectsFiles.get(file)!.mode)
     ) {
       added.set(file, sideEffectsFiles.get(file)!)
