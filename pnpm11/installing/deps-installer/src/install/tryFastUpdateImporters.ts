@@ -134,6 +134,10 @@ export function tryFastUpdateImporters (
           (importer[targetGroup] ??= {})[alias] = ref
         }
         for (const recordedGroup of recordedGroups) {
+          const recordedRef = importer[recordedGroup]![alias]
+          if (!targetGroups.includes(recordedGroup) || recordedRef !== ref) {
+            recordDroppedEdge(edits.dropped, alias, recordedRef)
+          }
           if (!targetGroups.includes(recordedGroup)) {
             delete importer[recordedGroup]![alias]
           }

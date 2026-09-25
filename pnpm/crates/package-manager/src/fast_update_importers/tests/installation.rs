@@ -305,6 +305,66 @@ fn removes_prod_entry_when_manifest_narrows_to_dev_only() {
 }
 
 #[test]
+fn prunes_orphaned_package_when_duplicate_group_with_differing_version_is_removed() {
+    let subject = parsed_lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    specifiers:
+      foo: ^1.0.0
+      bar: ^2.0.0
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.1.0
+      bar:
+        specifier: ^2.0.0
+        version: 2.0.0
+    devDependencies:
+      bar:
+        specifier: ^2.0.0
+        version: 2.1.0
+packages:
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-foo
+  bar@2.0.0:
+    resolution:
+      integrity: sha512-bar20
+  bar@2.1.0:
+    resolution:
+      integrity: sha512-bar21
+snapshots:
+  foo@1.1.0: {}
+  bar@2.0.0: {}
+  bar@2.1.0: {}
+",
+    );
+
+    let manifest = manifest_from(json!({
+        "dependencies": { "foo": "^1.0.0", "bar": "^2.0.0" },
+    }));
+
+    let updated = try_fast_update_importers(&subject, &[(".".to_string(), &manifest)])
+        .expect("removing a group edge needs no resolution");
+
+    let packages = updated.packages.as_ref().expect("packages");
+    assert!(
+        !packages
+            .keys()
+            .any(|k| k.to_string() == "bar@2.1.0"),
+        "bar@2.1.0 should be pruned from packages because its dev group edge was discarded",
+    );
+    assert!(
+        packages
+            .keys()
+            .any(|k| k.to_string() == "bar@2.0.0"),
+        "bar@2.0.0 should be kept in packages",
+    );
+}
+
+#[test]
 fn synchronizes_duplicate_records_after_retarget() {
     let mut subject = parsed_lockfile(WITH_TWO_LOCKED_VERSIONS);
     let importer = subject.importers.get_mut(".").expect("importer");

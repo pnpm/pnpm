@@ -275,12 +275,18 @@ fn place_dependency(
     alias: &PkgName,
     groups: ImporterGroups,
     force_sync: bool,
+    edits: &mut GraphEdits,
 ) -> Option<ImporterGroups> {
     let recorded = recorded_groups(importer, alias);
     if recorded == groups && !force_sync {
         return None;
     }
-    let dependency = take_dependency(importer, alias)?;
+    let (dependency, removed_all) = take_dependency(importer, alias)?;
+    for (group, removed) in removed_all {
+        if !groups.contains(group) || removed != dependency {
+            edits.dropped.record(alias, &removed);
+        }
+    }
     for group in groups.iter() {
         importer_group(importer, group)
             .get_or_insert_default()
@@ -301,24 +307,28 @@ fn recorded_groups(importer: &ProjectSnapshot, alias: &PkgName) -> ImporterGroup
 }
 
 /// Remove `alias` from every group recording it, dropping the groups that
-/// become empty, and return the removed entry (once, not per group).
+/// become empty, and return the chosen entry and all removed entries with their groups.
 fn take_dependency(
     importer: &mut ProjectSnapshot,
     alias: &PkgName,
-) -> Option<ResolvedDependencySpec> {
-    let mut dependency = None;
+) -> Option<(ResolvedDependencySpec, Vec<(DependencyGroup, ResolvedDependencySpec)>)> {
+    let mut chosen = None;
+    let mut removed_all = Vec::new();
     for group in [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev] {
         let Some(dependencies) = importer_group(importer, group) else {
             continue;
         };
         if let Some(removed) = dependencies.remove(alias) {
-            dependency = dependency.or(Some(removed));
+            if chosen.is_none() {
+                chosen = Some(removed.clone());
+            }
+            removed_all.push((group, removed));
         }
         if dependencies.is_empty() {
             *importer_group(importer, group) = None;
         }
     }
-    dependency
+    chosen.map(|chosen_dep| (chosen_dep, removed_all))
 }
 
 fn importer_group(

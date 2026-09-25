@@ -70,6 +70,24 @@ test('falls back to resolution when an importer has a specifier but no recorded 
   ])).toBe(false)
 })
 
+test('prunes orphaned package when duplicate group with differing version is removed', async () => {
+  const subject = lockfile()
+  const importer = subject.importers['.' as ProjectId]
+  importer.devDependencies = {
+    bar: '2.1.0',
+  }
+  subject.packages!['bar@2.1.0' as DepPath] = {
+    resolution: { integrity: 'sha512-bar21' },
+  }
+
+  expect(await tryFastUpdateImporters(subject, [
+    project({ dependencies: { foo: '^1.0.0', bar: '^2.0.0' } }),
+  ])).toBe(true)
+
+  expect(subject.packages!['bar@2.1.0' as DepPath]).toBeUndefined()
+  expect(subject.packages!['bar@2.0.0' as DepPath]).toBeDefined()
+})
+
 test('a move into optionalDependencies marks the subtree optional', async () => {
   const subject = lockfile()
 

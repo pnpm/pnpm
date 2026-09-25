@@ -129,7 +129,7 @@ pub(super) fn apply_importer_edge(
     {
         return false;
     }
-    if let Some(recorded) = place_dependency(importer, alias, target, retargeted) {
+    if let Some(recorded) = place_dependency(importer, alias, target, retargeted, edits) {
         // Only a change to whether the package is optional here makes the
         // `optional` flags of its subtree stale.
         edits.optional_flags_are_stale |= recorded.contains(DependencyGroup::Optional)
