@@ -200,12 +200,6 @@ impl State {
     }
 }
 
-/// `manifest_path` names the project directory. The manifest loaded from
-/// it is the one `preferredManifestFormat` selects among those present, so
-/// a caller that resolved the path before config was loaded, or that
-/// passes `package.json` outright, still reads and saves the preferred
-/// file.
-///
 /// `package.json` loads (or is scaffolded) as usual, but when it is
 /// absent an existing alternate manifest base name (`package.yaml`)
 /// must be loaded rather than shadowed by a scaffolded `package.json`
@@ -220,19 +214,11 @@ fn load_or_create_manifest(
     manifest_path: PathBuf,
     config: &Config,
 ) -> Result<PackageManifest, InitStateError> {
-    let project_dir = manifest_path
-        .parent()
-        .expect("manifest path always has a parent dir")
-        .to_path_buf();
-    let selected =
-        pnpm_workspace::project_manifest_path(&project_dir, config.preferred_manifest_format);
-    let manifest_path = if selected.exists() { selected } else { manifest_path };
     if !manifest_path.exists() {
-        if let Some((_, manifest)) = pnpm_workspace::try_read_project_manifest(
-            &project_dir,
-            config.preferred_manifest_format,
-        )
-        .map_err(InitStateError::ManifestRead)?
+        let project_dir = manifest_path.parent().expect("manifest path always has a parent dir");
+        if let Some((_, manifest)) =
+            pnpm_workspace::try_read_project_manifest(project_dir, config.preferred_manifest_format)
+                .map_err(InitStateError::ManifestRead)?
         {
             return Ok(apply_runtime_on_fail(manifest, config));
         }

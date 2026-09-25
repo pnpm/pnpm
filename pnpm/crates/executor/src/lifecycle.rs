@@ -99,6 +99,10 @@ pub struct RunPostinstallHooks<'a> {
     /// same flag independently to decide whether to swallow a build
     /// failure (see [#397](https://github.com/pnpm/pacquet/issues/397) item 6).
     pub optional: bool,
+    /// Which of several coexisting manifests at `pkg_root` the scripts are
+    /// read from: the configured preference for a workspace project, the
+    /// default order for a dependency.
+    pub manifest_format: ManifestFormat,
     pub environment: crate::ScriptEnvironment<'a>,
     pub execution: crate::ScriptExecutionOptions<'a>,
 }
@@ -238,7 +242,9 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
     opts: &RunPostinstallHooks<'_>,
     stages: &[&str],
 ) -> Result<bool, LifecycleScriptError> {
-    let Some(manifest) = read_lifecycle_manifest(opts.pkg_root)? else { return Ok(false) };
+    let Some(manifest) = read_lifecycle_manifest(opts.pkg_root, opts.manifest_format)? else {
+        return Ok(false);
+    };
 
     let scripts = manifest.get("scripts").and_then(|v| v.as_object());
     let get_script = |name: &str| -> Option<&str> {
@@ -274,12 +280,10 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
     Ok(ran_any)
 }
 
-/// Lifecycle hooks run for dependency packages, which `preferredManifestFormat`
-/// does not cover, so their manifest is picked in the default order.
 fn read_lifecycle_manifest(
     pkg_root: &Path,
+    format: ManifestFormat,
 ) -> Result<Option<serde_json::Value>, LifecycleScriptError> {
-    let format = ManifestFormat::default();
     safe_read_project_manifest_from_dir(pkg_root, format)
         .map_err(|source| LifecycleScriptError::ReadManifest {
             path: pnpm_package_manifest::project_manifest_path(pkg_root, format)

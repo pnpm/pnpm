@@ -405,6 +405,7 @@ fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
     let (bin_dir, extra_env) = project_scripts_bin_dir_and_env(change, config);
     let script_shell = config.script_shell.as_ref().map(PathBuf::from);
     let run_opts = RunPostinstallHooks {
+        manifest_format: config.preferred_manifest_format,
         environment: super::run::script_environment(config, init_cwd, &extra_env),
         execution: pnpm_executor::ScriptExecutionOptions {
             extra_bin_paths: &config.extra_bin_paths,

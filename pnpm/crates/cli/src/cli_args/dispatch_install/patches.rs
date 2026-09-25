@@ -5,6 +5,7 @@ use super::{
 };
 use crate::State;
 use indexmap::IndexMap;
+use pnpm_workspace::project_manifest_path;
 use std::sync::atomic::Ordering;
 
 pub(in super::super) fn patch<'a>(
@@ -13,12 +14,13 @@ pub(in super::super) fn patch<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let config = ctx.prepared_config();
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     let effective_reporter = ctx.effective_reporter;
     Ok(Box::pin(async move {
-        let config = installed_project_config(config.await?, manifest_path);
-        let command_state = State::init(manifest_path.to_path_buf(), config, false)
-            .wrap_err("initialize the state")?;
+        let config = config.await?;
+        let manifest_path = project_manifest_path(dir, config.preferred_manifest_format);
+        let config = installed_project_config(config, &manifest_path);
+        let command_state =
+            State::init(manifest_path, config, false).wrap_err("initialize the state")?;
         match effective_reporter.load(Ordering::Relaxed).into() {
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(async move {
@@ -70,11 +72,11 @@ pub(in super::super) fn patch_commit<'a>(
     args: PatchCommitArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     let config = ctx.prepared_config();
     macro_rules! run_patch_commit {
         ($reporter:ty, $config:ident) => {
             Box::pin(async move {
+                let manifest_path = &project_manifest_path(dir, $config.preferred_manifest_format);
                 let state = State::init(
                     manifest_path.to_path_buf(),
                     installed_project_config($config, manifest_path),
@@ -110,11 +112,11 @@ pub(in super::super) fn patch_remove<'a>(
     args: PatchRemoveArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     let config = ctx.prepared_config();
     macro_rules! run_patch_remove {
         ($reporter:ty, $config:ident) => {
             Box::pin(async move {
+                let manifest_path = &project_manifest_path(dir, $config.preferred_manifest_format);
                 let state = State::init(manifest_path.to_path_buf(), $config, false)
                     .wrap_err("initialize the state")?;
                 let patched_dependencies = Box::pin(args.run(dir, state)).await?;

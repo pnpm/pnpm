@@ -42,6 +42,7 @@ where
             &opts.dir,
             &["prepack", "prepare"],
             &entry_manifest,
+            opts.manifest.format,
         )?;
     }
 

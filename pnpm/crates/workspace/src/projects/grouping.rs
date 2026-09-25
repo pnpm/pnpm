@@ -39,7 +39,11 @@ fn manifest_order_key(path: &Path, preferred: ManifestFormat) -> (&Path, usize) 
     let rank = path
         .file_name()
         .and_then(|name| name.to_str())
-        .and_then(|name| preferred.rank(name))
+        .and_then(|name| {
+            preferred
+                .precedence()
+                .position(|basename| basename == name)
+        })
         .unwrap_or(usize::MAX);
     (dir, rank)
 }

@@ -39,7 +39,8 @@ pub(super) async fn update_project_pin(
         return Ok(format!("The current project is already set to use pnpm v{target_version}"));
     }
 
-    let manifest_path = dir.join("package.json");
+    let manifest_path =
+        pnpm_workspace::project_manifest_path(dir, config.preferred_manifest_format);
     let mut manifest = PackageManifest::from_path(manifest_path)
         .map_err(miette::Report::new)
         .wrap_err("read the project manifest")?;

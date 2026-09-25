@@ -423,6 +423,7 @@ fn run_publish_scripts<Reporter: self::Reporter>(
     let dep_path = dir.to_string_lossy().into_owned();
     let root_modules_dir = dir.join("node_modules");
     let run_opts = RunPostinstallHooks {
+        manifest_format: config.preferred_manifest_format,
         environment: super::run::script_environment(config, dir, &config.extra_env),
         execution: pnpm_executor::ScriptExecutionOptions {
             extra_bin_paths: &config.extra_bin_paths,

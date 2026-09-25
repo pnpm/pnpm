@@ -50,14 +50,6 @@ impl ManifestFormat {
                     .filter(move |name| *name != preferred),
             )
     }
-
-    /// Where `basename` falls in [`Self::precedence`], or `None` when it is
-    /// not a project manifest basename.
-    #[must_use]
-    pub fn rank(self, basename: &str) -> Option<usize> {
-        self.precedence()
-            .position(|name| name == basename)
-    }
 }
 
 /// Select the existing project manifest in `preferred`'s precedence order,

@@ -228,6 +228,7 @@ where
                 &opts.dir,
                 &["postpack"],
                 &source.entry_manifest,
+                opts.manifest.format,
             )?;
         }
     }

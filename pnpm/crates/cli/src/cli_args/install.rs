@@ -11,7 +11,7 @@ use crate::{
     cli_args::{
         legacy_pnpm_field::warn_ignored_pnpm_manifest_fields, lockfile_dir::LockfileDirArg,
         override_version_references::warn_deprecated_override_version_references,
-        package_manager::read_root_manifest_json, pipelines::InstallFamilySelection,
+        package_manager::read_root_manifest, pipelines::InstallFamilySelection,
         recursive::discover_workspace_projects,
         supported_architectures::SupportedArchitecturesArgs,
     },

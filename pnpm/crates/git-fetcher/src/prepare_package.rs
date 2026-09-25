@@ -141,6 +141,7 @@ impl PreparePackageOptions<'_> {
         extra_bin_paths: &'a [PathBuf],
     ) -> RunPostinstallHooks<'a> {
         RunPostinstallHooks {
+            manifest_format: pnpm_package_manifest::ManifestFormat::default(),
             environment: pnpm_executor::ScriptEnvironment {
                 init_cwd: pkg_dir,
                 node_execpath: self.scripts.node_execpath,

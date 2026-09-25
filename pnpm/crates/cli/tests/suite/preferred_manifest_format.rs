@@ -149,3 +149,112 @@ fn rejects_an_unknown_manifest_format() {
     );
     drop(root);
 }
+
+#[test]
+fn repeat_install_applies_edits_to_the_preferred_manifest() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    append_to_workspace_yaml(&workspace, "preferredManifestFormat: json5\n");
+    fs::write(workspace.join("package.json"), STUB_JSON).unwrap();
+    let path = workspace.join("package.json5");
+    let manifest_with_foo = |version: &str| {
+        format!(
+            "// real\n{{ name: 'fixture', dependencies: {{ '@pnpm.e2e/foo': '{version}' }} }}\n",
+        )
+    };
+    fs::write(&path, manifest_with_foo("1.0.0")).unwrap();
+    command(&pacquet)
+        .arg("install")
+        .assert()
+        .success();
+    fs::write(&path, manifest_with_foo("2.0.0")).unwrap();
+    command(&pacquet)
+        .arg("install")
+        .assert()
+        .success();
+    let installed: serde_json::Value = serde_json::from_slice(
+        &fs::read(workspace.join("node_modules/@pnpm.e2e/foo/package.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(installed["version"], "2.0.0");
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn install_runs_the_lifecycle_scripts_of_the_preferred_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    append_to_workspace_yaml(&workspace, "preferredManifestFormat: json5\n");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"name": "stub", "scripts": {"postinstall": "node -e \"require('fs').writeFileSync('stub-ran', '')\""}}"#,
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("package.json5"),
+        r#"{
+      name: 'fixture',
+      scripts: {
+        preinstall: 'node -e "require(\'fs\').writeFileSync(\'real-preinstall-ran\', \'\')"',
+        postinstall: 'node -e "require(\'fs\').writeFileSync(\'real-postinstall-ran\', \'\')"',
+      },
+    }"#,
+    )
+    .unwrap();
+    command(&pacquet)
+        .args(["install", "--offline"])
+        .assert()
+        .success();
+    assert!(workspace.join("real-preinstall-ran").exists());
+    assert!(workspace.join("real-postinstall-ran").exists());
+    assert!(!workspace.join("stub-ran").exists());
+    drop(root);
+}
+
+#[test]
+fn deploy_installs_the_manifest_it_writes() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    append_to_workspace_yaml(
+        &workspace,
+        "packages:\n  - app\n  - lib\npreferredManifestFormat: json5\n",
+    );
+    fs::write(workspace.join("package.json"), r#"{"name": "root", "private": true}"#).unwrap();
+    fs::create_dir_all(workspace.join("app")).unwrap();
+    fs::write(
+        workspace.join("app/package.json5"),
+        "// real\n{ name: 'app', version: '1.0.0', dependencies: { lib: 'workspace:*' } }\n",
+    )
+    .unwrap();
+    fs::create_dir_all(workspace.join("lib")).unwrap();
+    fs::write(workspace.join("lib/package.json"), r#"{"name": "lib", "version": "1.0.0"}"#)
+        .unwrap();
+    command(&pacquet)
+        .arg("install")
+        .assert()
+        .success();
+    let deploy_dir = root.path().join("deploy");
+    command(&pacquet)
+        .args(["--filter=app", "deploy"])
+        .arg(&deploy_dir)
+        .assert()
+        .success();
+    let deployed = PackageManifest::from_path(deploy_dir.join("package.json")).unwrap();
+    assert!(
+        !deployed.value()["dependencies"]["lib"]
+            .as_str()
+            .unwrap()
+            .starts_with("workspace:"),
+    );
+    assert!(deploy_dir.join("node_modules/lib").exists());
+    drop((root, npmrc_info));
+}

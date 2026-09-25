@@ -432,7 +432,8 @@ pub fn unknown_preferred_manifest_format_is_rejected() {
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "preferredManifestFormat: jsonc\n")
         .expect("write to pnpm-workspace.yaml");
     let error = Config::new().current::<HostNoHome>(tmp.path()).unwrap_err();
-    dbg!(&error);
+    let message = error.to_string();
+    assert!(message.contains("unknown variant `jsonc`"), "{message}");
 }
 
 #[test]

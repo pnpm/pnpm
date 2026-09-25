@@ -4,7 +4,7 @@ use miette::Context;
 use pnpm_config::Config;
 use std::{
     future::Future,
-    path::Path,
+    path::{Path, PathBuf},
     pin::Pin,
     sync::atomic::{AtomicBool, AtomicU8, Ordering},
 };
@@ -44,7 +44,15 @@ pub(crate) struct CommandLocations<'a> {
     /// scaffolds here and a non-recursive `exec` runs here, rather than at
     /// the local prefix [`Self::dir`] resolves to.
     pub(crate) cli_dir: &'a Path,
-    pub(crate) manifest_path: &'a Path,
+}
+
+impl CommandLocations<'_> {
+    /// The manifest of the project at [`Self::dir`]. Which of several
+    /// coexisting manifests that is depends on `preferredManifestFormat`,
+    /// so it is known only once config is loaded.
+    pub(crate) fn manifest_path(&self, config: &Config) -> PathBuf {
+        pnpm_workspace::project_manifest_path(self.dir, config.preferred_manifest_format)
+    }
 }
 
 pub(crate) struct WorkspaceInvocation<'a> {
@@ -120,17 +128,19 @@ impl<'a> RunCtx<'a> {
         apply_cli_config: impl FnOnce(&mut Config) + Send + 'a,
     ) -> impl Future<Output = miette::Result<State>> + Send + 'a {
         let config = self.prepared_config_with(apply_cli_config);
-        let manifest_path = self.locations.manifest_path;
+        let dir = self.locations.dir;
         async move {
-            State::init(manifest_path.to_path_buf(), config.await?, require_lockfile)
-                .wrap_err("initialize the state")
+            let config = config.await?;
+            let manifest_path =
+                pnpm_workspace::project_manifest_path(dir, config.preferred_manifest_format);
+            State::init(manifest_path, config, require_lockfile).wrap_err("initialize the state")
         }
     }
 }
 
 impl<'a> From<&'a RunAnchors> for CommandLocations<'a> {
     fn from(anchors: &'a RunAnchors) -> Self {
-        Self { dir: &anchors.dir, cli_dir: &anchors.cli_dir, manifest_path: &anchors.manifest_path }
+        Self { dir: &anchors.dir, cli_dir: &anchors.cli_dir }
     }
 }
 
