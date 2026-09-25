@@ -298,15 +298,13 @@ async function cmdShim_ (src: string, to: string, opts: InternalOptions) {
  * the relative target is computed from there too. That is the shim's own
  * directory unless a symlink lies on the way. Then it is the physical
  * directory, placed under the lexical ancestor it shares with `src` when it
- * lies under that ancestor's physical path. Windows keeps the lexical
- * directory: `realpath` also resolves a `subst` drive, which the MSYS shell
- * does not.
+ * lies under that ancestor's physical path, which also keeps a `subst` drive
+ * on Windows.
  */
 export async function getShShimDir (src: string, to: string, opts: GetShShimDirOptions = {}): Promise<string> {
   const dir = path.dirname(to)
-  if (isWindows) return dir
   const realpath = opts.realpath ?? fs.promises.realpath
-  const physicalDir = opts.physicalDir ?? await realpath(dir)
+  const physicalDir = opts.physicalDir ?? await getPhysicalShimDir(dir, realpath)
   if (physicalDir === dir) return dir
   let ancestor = dir
   while (!isSubdirOrEqual(ancestor, src)) {
@@ -318,6 +316,35 @@ export async function getShShimDir (src: string, to: string, opts: GetShShimDirO
   return isSubdirOrEqual(physicalAncestor, physicalDir)
     ? path.join(ancestor, path.relative(physicalAncestor, physicalDir))
     : physicalDir
+}
+
+/**
+ * `dir` with its symlinks resolved, as the shell shim's `cd -P` resolves them.
+ * On Windows `dir` is resolved only when a symlink or junction lies on its
+ * path, since `realpath` also resolves a `subst` drive, which the MSYS shell
+ * does not.
+ */
+export async function getPhysicalShimDir (dir: string, realpath: (path: string) => Promise<string> = fs.promises.realpath): Promise<string> {
+  if (isWindows && !await hasLinkOnPath(dir)) return dir
+  return realpath(dir)
+}
+
+async function hasLinkOnPath (dir: string): Promise<boolean> {
+  const ancestors = [dir]
+  for (let parent = path.dirname(dir); parent !== ancestors.at(-1); parent = path.dirname(parent)) {
+    ancestors.push(parent)
+  }
+  const isLink = await Promise.all(ancestors.map(isSymbolicLink))
+  return isLink.includes(true)
+}
+
+async function isSymbolicLink (file: string): Promise<boolean> {
+  try {
+    return (await fs.promises.lstat(file)).isSymbolicLink()
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
 }
 
 function isSubdirOrEqual (parent: string, child: string): boolean {

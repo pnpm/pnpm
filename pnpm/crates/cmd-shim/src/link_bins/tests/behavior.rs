@@ -680,3 +680,33 @@ fn a_reinstall_replaces_a_shim_whose_relative_target_climbs_from_another_dir() {
     let body = read_to_string(&shim).unwrap();
     assert!(body.contains(r#""$basedir_abs/../../../pkg/cli.js""#), "body was:\n{body}");
 }
+
+/// The MSYS shell's `cd -P` resolves a junction the way a POSIX shell
+/// resolves a symlink, so on Windows a bin directory reached through one has
+/// its relative target computed from the junction's destination too.
+#[cfg(windows)]
+#[test]
+fn a_shim_in_a_junctioned_bin_dir_names_its_target_from_the_physical_dir() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    let pkg = root.join("pkg");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let physical_bins_dir = root
+        .join("storage")
+        .join("deep")
+        .join("bin");
+    create_dir_all(&physical_bins_dir).unwrap();
+    let bins_dir = root.join("bin");
+    pnpm_fs::symlink_dir(&physical_bins_dir, &bins_dir).unwrap();
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg, Arc::new(json!({"name": "tool", "bin": "cli.js"})))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    let body = read_to_string(bins_dir.join("tool")).unwrap();
+    assert!(body.contains(r#""$basedir_abs/../../../pkg/cli.js""#), "body was:\n{body}");
+}
