@@ -2101,3 +2101,58 @@ describe('checkDepsStatus - moved project', () => {
     expect(result.issue).toBe('The project directory has changed since last install')
   })
 })
+
+describe('checkDepsStatus - stale patch hashes', () => {
+  beforeEach(() => {
+    jest.resetModules()
+    jest.clearAllMocks()
+  })
+
+  it('returns upToDate: false when the lockfile has patch hashes that disagree with its patchedDependencies', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        peersSuffixMaxLength: 1000,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+    const lockfileMtime = lastValidatedTimestamp - 10_000
+    jest.mocked(fsUtils.safeStat).mockImplementation(async () => ({
+      mtime: new Date(lockfileMtime),
+      mtimeMs: lockfileMtime,
+    } as Stats))
+    jest.mocked(fsUtils.safeStatSync).mockReturnValue(undefined)
+    jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => ({
+      mtime: new Date(lastValidatedTimestamp),
+      mtimeMs: lastValidatedTimestamp,
+    } as Stats))
+    // A suffix left behind after its patch was removed from `patchedDependencies`.
+    const lockfile = {
+      lockfileVersion: '9.0',
+      importers: { '.': { specifiers: {} } },
+      packages: {
+        'is-positive@1.0.0(patch_hash=aaaa1111)': { resolution: { integrity: 'sha512-fake' } },
+      },
+    } as unknown as LockfileObject
+    jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(async () => lockfile)
+    jest.mocked(lockfileFs.readWantedLockfile).mockImplementation(async () => lockfile)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The lockfile in /project has patch hashes that disagree with its own "patchedDependencies"')
+  })
+})

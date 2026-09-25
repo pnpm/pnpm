@@ -7,7 +7,7 @@ function sanitizePatchGroupRecord (patchGroups: PatchGroupRecord): PatchGroupRec
   for (const name in patchGroups) {
     patchGroups[name].range.sort((a, b) => a.version.localeCompare(b.version))
   }
-  return patchGroups
+  return { ...patchGroups }
 }
 
 const _groupPatchedDependencies: typeof groupPatchedDependencies = patchedDependencies => sanitizePatchGroupRecord(groupPatchedDependencies(patchedDependencies))
@@ -84,4 +84,12 @@ test('errors on invalid version range', async () => {
   })).toThrow(expect.objectContaining({
     code: 'ERR_PNPM_PATCH_NON_SEMVER_RANGE',
   }))
+})
+
+test('groups a package named after an Object.prototype member under its own name', () => {
+  const hash = '00000000000000000000000000000000'
+  const groups = groupPatchedDependencies({ constructor: hash, 'toString@1.0.0': hash })
+  expect(groups.constructor.all).toStrictEqual({ key: 'constructor', hash })
+  expect(groups.toString.exact['1.0.0']).toStrictEqual({ key: 'toString@1.0.0', hash })
+  expect(Object.hasOwn(Object, 'all')).toBe(false)
 })

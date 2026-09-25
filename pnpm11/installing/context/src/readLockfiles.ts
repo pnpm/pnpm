@@ -107,7 +107,8 @@ export async function readLockfiles (
         (async () => {
           const read = await readWantedLockfileWithMergeInfo(opts.lockfileDir, lockfileOpts)
           preMergeImporters = read.preMergeImporters
-          shouldCheckPatchedDepPaths = read.lockfile != null && !read.hadConflicts
+          // A frozen install installs an autofixed lockfile as it is, so its suffixes are checked too.
+          shouldCheckPatchedDepPaths = read.lockfile != null
           return read.lockfile
         })()
       )

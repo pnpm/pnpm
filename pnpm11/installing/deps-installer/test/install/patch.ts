@@ -25,28 +25,6 @@ afterAll(() => {
   for (const si of storeIndexes) si.close()
 })
 
-/**
- * Every package identity hash (`(patch_hash=...)`) in the lockfile, in the order they appear.
- *
- * Intentionally not using traversal of the parsed lockfile so that any new `patch_hash` sites are
- * automatically caught.
- */
-function readPatchHashSuffixes (): string[] {
-  return fs.readFileSync(WANTED_LOCKFILE, 'utf8')
-    .split('(patch_hash=')
-    .slice(1)
-    .map((afterPrefix) => afterPrefix.slice(0, afterPrefix.indexOf(')')))
-}
-
-/**
- * Rewrites a hash under `patchedDependencies`, leaving every patched package untouched.
- */
-function updatePatchedDependenciesHeaderOnly (key: string, currentHash: string): void {
-  const lockfile = readYamlFileSync<LockfileFile>(WANTED_LOCKFILE)
-  lockfile.patchedDependencies![key] = currentHash
-  writeYamlFileSync(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
-}
-
 const PATCHED_MANIFEST = {
   dependencies: {
     // Patched package
@@ -54,20 +32,6 @@ const PATCHED_MANIFEST = {
     // Optionally depends on the patched package
     '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
   },
-}
-
-function patchedInstallOpts (patchPath: string): ReturnType<typeof testDefaults> {
-  return testDefaults({
-    fastUnpack: false,
-    patchedDependencies: {
-      'is-positive@1.0.0': patchPath,
-    },
-  }, {}, {}, { packageImportMethod: 'hardlink' })
-}
-
-function editPatchFile (patchPath: string): void {
-  const patchContent = fs.readFileSync(patchPath, 'utf8')
-  fs.writeFileSync(patchPath, patchContent.replace('// patched', '// edited patch'), 'utf8')
 }
 
 test('patch package with exact version', async () => {
@@ -526,6 +490,26 @@ test('a lockfile whose patch_hash depPaths disagree with the patchedDependencies
   }))
 })
 
+test('a lockfile whose dependency paths lack the patch_hash its patch calls for is rejected with frozenLockfile', async () => {
+  prepareEmpty()
+  f.copy('patch-pkg', 'patches')
+  const patchPath = path.resolve('patches', 'is-positive@1.0.0.patch')
+  const opts = patchedInstallOpts(patchPath)
+
+  await install(PATCHED_MANIFEST, opts)
+
+  const hash = await createHexHashFromFile(patchPath)
+  const lockfileText = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
+  fs.writeFileSync(WANTED_LOCKFILE, lockfileText.replaceAll(`(patch_hash=${hash})`, ''), 'utf8')
+  expect(readPatchHashSuffixes()).toStrictEqual([])
+
+  await expect(
+    install(PATCHED_MANIFEST, { ...opts, frozenLockfile: true })
+  ).rejects.toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INCONSISTENT_PATCH_HASH',
+  }))
+})
+
 test('patch package when scripts are ignored', async () => {
   const project = prepareEmpty()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
@@ -976,3 +960,39 @@ test('patch with relative paths resolved against lockfileDir', async () => {
     'is-positive@1.0.0': patchFileHash,
   })
 })
+
+/**
+ * Every package identity hash (`(patch_hash=...)`) in the lockfile, in the order they appear.
+ *
+ * Intentionally not using traversal of the parsed lockfile so that any new `patch_hash` sites are
+ * automatically caught.
+ */
+function readPatchHashSuffixes (): string[] {
+  return fs.readFileSync(WANTED_LOCKFILE, 'utf8')
+    .split('(patch_hash=')
+    .slice(1)
+    .map((afterPrefix) => afterPrefix.slice(0, afterPrefix.indexOf(')')))
+}
+
+/**
+ * Rewrites a hash under `patchedDependencies`, leaving every patched package untouched.
+ */
+function updatePatchedDependenciesHeaderOnly (key: string, currentHash: string): void {
+  const lockfile = readYamlFileSync<LockfileFile>(WANTED_LOCKFILE)
+  lockfile.patchedDependencies![key] = currentHash
+  writeYamlFileSync(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
+}
+
+function patchedInstallOpts (patchPath: string): ReturnType<typeof testDefaults> {
+  return testDefaults({
+    fastUnpack: false,
+    patchedDependencies: {
+      'is-positive@1.0.0': patchPath,
+    },
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+}
+
+function editPatchFile (patchPath: string): void {
+  const patchContent = fs.readFileSync(patchPath, 'utf8')
+  fs.writeFileSync(patchPath, patchContent.replace('// patched', '// edited patch'), 'utf8')
+}

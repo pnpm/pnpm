@@ -7,19 +7,28 @@ use super::{
     remove_dir_if_exists, setup_configured_patch, setup_configured_patch_with_yaml, snapshot_keys,
 };
 use assert_cmd::assert::OutputAssertExt;
+#[cfg(unix)]
+use pnpm_testing_utils::fs::bump_mtime;
 
 /// The map records the hash bare, so replacing the parenthesized form reaches
 /// only the segments and leaves `patchedDependencies` alone.
-fn staleify_patch_hash_suffixes(workspace: &Path, patch_hash: &str) {
-    let lockfile_path = workspace.join("pnpm-lock.yaml");
-    let text = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-    let staled = text.replace(
-        &format!("(patch_hash={patch_hash})"),
-        "(patch_hash=0000000000000000000000000000000000000000000000000000000000000000)",
+fn rewrite_patch_hash_segments(workspace: &Path, patch_hash: &str, replacement: &str) {
+    rewrite_lockfile_patch_hash_segments(
+        &workspace.join("pnpm-lock.yaml"),
+        patch_hash,
+        replacement,
     );
-    assert_ne!(staled, text, "the lockfile must carry a patch hash to make stale");
-    fs::write(&lockfile_path, staled).expect("write pnpm-lock.yaml");
 }
+
+fn rewrite_lockfile_patch_hash_segments(lockfile_path: &Path, patch_hash: &str, replacement: &str) {
+    let text = fs::read_to_string(lockfile_path).expect("read the lockfile");
+    let rewritten = text.replace(&format!("(patch_hash={patch_hash})"), replacement);
+    assert_ne!(rewritten, text, "the lockfile must carry a patch hash to rewrite");
+    fs::write(lockfile_path, rewritten).expect("write the lockfile");
+}
+
+const STALE_PATCH_HASH_SEGMENT: &str =
+    "(patch_hash=0000000000000000000000000000000000000000000000000000000000000000)";
 
 /// TS: `patch package with exact version` (`patch.ts:24`).
 #[test]
@@ -546,7 +555,7 @@ fn an_install_repairs_stale_patch_hash_dep_paths() {
     pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
 
     let patch_hash = patch_file_hash(&workspace, "is-positive@1.0.0.patch");
-    staleify_patch_hash_suffixes(&workspace, &patch_hash);
+    rewrite_patch_hash_segments(&workspace, &patch_hash, STALE_PATCH_HASH_SEGMENT);
 
     pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
 
@@ -571,7 +580,7 @@ fn a_frozen_install_rejects_stale_patch_hash_dep_paths() {
     pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
 
     let patch_hash = patch_file_hash(&workspace, "is-positive@1.0.0.patch");
-    staleify_patch_hash_suffixes(&workspace, &patch_hash);
+    rewrite_patch_hash_segments(&workspace, &patch_hash, STALE_PATCH_HASH_SEGMENT);
 
     let output = pacquet(&workspace, ["install", "--frozen-lockfile", "--reporter=silent"])
         .output()
@@ -582,6 +591,67 @@ fn a_frozen_install_rejects_stale_patch_hash_dep_paths() {
         stderr.contains("ERR_PNPM_INCONSISTENT_PATCH_HASH"),
         "the frozen install should name the inconsistency: {stderr}",
     );
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+#[test]
+fn a_frozen_install_rejects_dep_paths_missing_their_patch_hash() {
+    let (root, workspace, npmrc_info) =
+        setup_configured_patch("is-positive@1.0.0", "is-positive@1.0.0.patch");
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+
+    let patch_hash = patch_file_hash(&workspace, "is-positive@1.0.0.patch");
+    rewrite_patch_hash_segments(&workspace, &patch_hash, "");
+
+    let output = pacquet(&workspace, ["install", "--frozen-lockfile", "--reporter=silent"])
+        .output()
+        .expect("run the frozen install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "the frozen install should fail: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_INCONSISTENT_PATCH_HASH"),
+        "the frozen install should name the inconsistency: {stderr}",
+    );
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// The wanted and current lockfiles are rewritten alike, as an install by a
+/// pnpm without this check leaves them, so only the patch-hash check can
+/// tell the manifest's content check that anything is wrong.
+#[cfg(unix)]
+#[test]
+fn verify_deps_before_run_rejects_stale_patch_hash_dep_paths() {
+    let (root, workspace, npmrc_info) =
+        setup_configured_patch("is-positive@1.0.0", "is-positive@1.0.0.patch");
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+
+    let patch_hash = patch_file_hash(&workspace, "is-positive@1.0.0.patch");
+    rewrite_patch_hash_segments(&workspace, &patch_hash, STALE_PATCH_HASH_SEGMENT);
+    rewrite_lockfile_patch_hash_segments(
+        &workspace.join("node_modules/.pnpm/lock.yaml"),
+        &patch_hash,
+        STALE_PATCH_HASH_SEGMENT,
+    );
+    let marker = workspace.join("marker.txt");
+    let manifest = serde_json::json!({
+        "dependencies": { "is-positive": "1.0.0" },
+        "scripts": { "hello": format!(r#"touch "{}""#, marker.display()) },
+    });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+    bump_mtime(&workspace.join("package.json"));
+
+    let output = pacquet(&workspace, ["--config.verify-deps-before-run=error", "run", "hello"])
+        .output()
+        .expect("run the script");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "the pre-run check should fail: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN") && stderr.contains("patch hashes"),
+        "the pre-run check should name the stale patch hashes: {stderr}",
+    );
+    assert!(!marker.exists(), "the script must not run");
 
     drop((root, npmrc_info)); // cleanup
 }

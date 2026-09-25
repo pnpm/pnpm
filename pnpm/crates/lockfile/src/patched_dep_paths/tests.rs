@@ -383,9 +383,8 @@ fn a_bare_name_patch_key_is_judged_without_a_recorded_version() {
     );
 }
 
-/// The map is the reference every segment is judged against, so a key it
-/// cannot resolve leaves nothing to judge them with. The resolver reports the
-/// key itself.
+/// A key that does not resolve leaves its own package with nothing to be
+/// judged against. The resolver reports the key itself.
 #[test]
 fn an_unparsable_patched_dependencies_key_is_indeterminate() {
     assert_eq!(
@@ -401,6 +400,26 @@ snapshots:
 "
         )),
         PatchedDepPathsStatus::Indeterminate,
+    );
+}
+
+#[test]
+fn other_packages_are_still_judged_next_to_an_unparsable_key() {
+    assert_eq!(
+        status(&format!(
+            r"
+lockfileVersion: '9.0'
+patchedDependencies:
+  foo@not-a-range: {CURRENT}
+  bar@1.0.0: {CURRENT}
+importers:
+  .: {{}}
+snapshots:
+  foo@1.0.0(patch_hash={CURRENT}): {{}}
+  bar@1.0.0(patch_hash={STALE}): {{}}
+"
+        )),
+        PatchedDepPathsStatus::Stale,
     );
 }
 
@@ -469,7 +488,8 @@ snapshots:
 }
 
 /// A definite disagreement is knowledge, and a segment that cannot be judged
-/// elsewhere does not take it away.
+/// elsewhere does not take it away. Importers are walked before `snapshots:`,
+/// so the segment that cannot be judged is met first.
 #[test]
 fn a_stale_segment_outranks_one_that_cannot_be_judged() {
     assert_eq!(
@@ -477,13 +497,15 @@ fn a_stale_segment_outranks_one_that_cannot_be_judged() {
             r"
 lockfileVersion: '9.0'
 patchedDependencies:
+  foo@1.0.0: {CURRENT}
   is-positive@1.0.0: {CURRENT}
 importers:
-  .: {{}}
-snapshots:
-  is-odd@3.0.1:
+  .:
     dependencies:
-      is-positive: 1.0.0(patch_hash={STALE})
+      foo:
+        specifier: git+file:///repo
+        version: {GIT_DEP_PATH}(patch_hash={STALE})
+snapshots:
   is-positive@1.0.0(patch_hash={STALE}): {{}}
 "
         )),
@@ -510,5 +532,110 @@ snapshots:
 "
         )),
         PatchedDepPathsStatus::Indeterminate,
+    );
+}
+
+#[test]
+fn a_snapshot_key_missing_the_segment_its_patch_calls_for_is_stale() {
+    assert_eq!(
+        status(&format!(
+            r"
+lockfileVersion: '9.0'
+patchedDependencies:
+  is-positive@1.0.0: {CURRENT}
+importers:
+  .: {{}}
+snapshots:
+  is-positive@1.0.0: {{}}
+"
+        )),
+        PatchedDepPathsStatus::Stale,
+    );
+}
+
+#[test]
+fn an_importer_reference_missing_the_segment_its_patch_calls_for_is_stale() {
+    assert_eq!(
+        status(&format!(
+            r"
+lockfileVersion: '9.0'
+patchedDependencies:
+  is-positive@1.0.0: {CURRENT}
+importers:
+  .:
+    dependencies:
+      is-positive:
+        specifier: 1.0.0
+        version: 1.0.0
+snapshots:
+  is-positive@1.0.0(patch_hash={CURRENT}): {{}}
+"
+        )),
+        PatchedDepPathsStatus::Stale,
+    );
+}
+
+#[test]
+fn a_dependency_edge_missing_the_segment_its_patch_calls_for_is_stale() {
+    assert_eq!(
+        status(&format!(
+            r"
+lockfileVersion: '9.0'
+patchedDependencies:
+  is-positive@1.0.0: {CURRENT}
+importers:
+  .: {{}}
+snapshots:
+  is-odd@3.0.1:
+    dependencies:
+      positive: is-positive@1.0.0
+  is-positive@1.0.0(patch_hash={CURRENT}): {{}}
+"
+        )),
+        PatchedDepPathsStatus::Stale,
+    );
+}
+
+#[test]
+fn a_patched_git_dependency_missing_its_segment_is_stale() {
+    assert_eq!(
+        status(&format!(
+            r"
+lockfileVersion: '9.0'
+patchedDependencies:
+  foo@1.0.0: {CURRENT}
+importers:
+  .: {{}}
+packages:
+  {GIT_DEP_PATH}:
+    resolution: {{type: git, repo: file:///repo, commit: '0123456789012345678901234567890123456789'}}
+    version: 1.0.0
+snapshots:
+  {GIT_DEP_PATH}: {{}}
+",
+        )),
+        PatchedDepPathsStatus::Stale,
+    );
+}
+
+#[test]
+fn an_unsegmented_version_outside_the_patch_is_up_to_date() {
+    assert_eq!(
+        status(&format!(
+            r"
+lockfileVersion: '9.0'
+patchedDependencies:
+  is-positive@1.0.0: {CURRENT}
+importers:
+  .:
+    dependencies:
+      is-positive:
+        specifier: 2.0.0
+        version: 2.0.0
+snapshots:
+  is-positive@2.0.0: {{}}
+"
+        )),
+        PatchedDepPathsStatus::UpToDate,
     );
 }

@@ -6,14 +6,6 @@ import type { DepPath, ProjectId } from '@pnpm/types'
 const CURRENT = 'aaaa1111'
 const STALE = 'bbbb2222'
 
-function lockfile (overrides: Partial<LockfileObject>): LockfileObject {
-  return {
-    lockfileVersion: '9.0',
-    importers: {},
-    ...overrides,
-  }
-}
-
 // A git / tarball / `file:` dependency records the version the patch was matched against on
 // its package entry, since its dependency path's version slot holds the reference instead.
 const GIT_REF = 'git+file:///repo#0123456789012345678901234567890123456789'
@@ -301,23 +293,25 @@ test('checkPatchedDepPaths() cannot judge a reference to a missing entry whose p
 })
 
 // A definite disagreement is knowledge, and a suffix that cannot be judged elsewhere does not
-// take it away.
+// take it away. Importers are walked first, so the suffix that cannot be judged is met first.
 test('checkPatchedDepPaths() reports a stale suffix even when another cannot be judged', () => {
   expect(checkPatchedDepPaths(lockfile({
-    patchedDependencies: { 'is-positive@1.0.0': CURRENT },
-    packages: {
-      ['is-odd@3.0.1' as DepPath]: {
-        resolution: { integrity: 'sha512-fake' },
-        dependencies: { 'is-positive': `1.0.0(patch_hash=${STALE})` },
+    patchedDependencies: { 'foo@1.0.0': CURRENT, 'is-positive@1.0.0': CURRENT },
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { foo: GIT_REF },
+        dependencies: { foo: `${GIT_REF}(patch_hash=${STALE})` },
       },
+    },
+    packages: {
       [`is-positive@1.0.0(patch_hash=${STALE})` as DepPath]: { resolution: { integrity: 'sha512-fake' } },
     },
   }))).toBe('stale')
 })
 
-// The map is the reference every suffix is judged against, so a key it cannot resolve leaves
-// nothing to judge them with. The resolver reports the key itself.
-test('checkPatchedDepPaths() cannot judge a lockfile whose patchedDependencies key is unparsable', () => {
+// A key that does not resolve leaves its own package with nothing to be judged against. The
+// resolver reports the key itself.
+test('checkPatchedDepPaths() cannot judge a package whose patchedDependencies key is unparsable', () => {
   expect(checkPatchedDepPaths(lockfile({
     patchedDependencies: { 'foo@not-a-range': CURRENT },
     packages: {
@@ -325,3 +319,94 @@ test('checkPatchedDepPaths() cannot judge a lockfile whose patchedDependencies k
     },
   }))).toBe('indeterminate')
 })
+
+test('checkPatchedDepPaths() still judges other packages when one patchedDependencies key is unparsable', () => {
+  expect(checkPatchedDepPaths(lockfile({
+    patchedDependencies: { 'foo@not-a-range': CURRENT, 'bar@1.0.0': CURRENT },
+    packages: {
+      [`foo@1.0.0(patch_hash=${CURRENT})` as DepPath]: { resolution: { integrity: 'sha512-fake' } },
+      [`bar@1.0.0(patch_hash=${STALE})` as DepPath]: { resolution: { integrity: 'sha512-fake' } },
+    },
+  }))).toBe('stale')
+})
+
+test('checkPatchedDepPaths() reports a snapshot key missing the suffix its patch calls for', () => {
+  expect(checkPatchedDepPaths(lockfile({
+    patchedDependencies: { 'is-positive@1.0.0': CURRENT },
+    packages: {
+      ['is-positive@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-fake' } },
+    },
+  }))).toBe('stale')
+})
+
+test('checkPatchedDepPaths() reports an importer reference missing the suffix its patch calls for', () => {
+  expect(checkPatchedDepPaths(lockfile({
+    patchedDependencies: { 'is-positive@1.0.0': CURRENT },
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { 'is-positive': '1.0.0' },
+        dependencies: { 'is-positive': '1.0.0' },
+      },
+    },
+    packages: {
+      [`is-positive@1.0.0(patch_hash=${CURRENT})` as DepPath]: { resolution: { integrity: 'sha512-fake' } },
+    },
+  }))).toBe('stale')
+})
+
+test('checkPatchedDepPaths() reports a dependency edge missing the suffix its patch calls for', () => {
+  expect(checkPatchedDepPaths(lockfile({
+    patchedDependencies: { 'is-positive@1.0.0': CURRENT },
+    packages: {
+      ['is-odd@3.0.1' as DepPath]: {
+        resolution: { integrity: 'sha512-fake' },
+        dependencies: { positive: 'is-positive@1.0.0' },
+      },
+      [`is-positive@1.0.0(patch_hash=${CURRENT})` as DepPath]: { resolution: { integrity: 'sha512-fake' } },
+    },
+  }))).toBe('stale')
+})
+
+test('checkPatchedDepPaths() reports a patched git dependency missing its suffix', () => {
+  expect(checkPatchedDepPaths(lockfile({
+    patchedDependencies: { 'foo@1.0.0': CURRENT },
+    packages: {
+      [`foo@${GIT_REF}` as DepPath]: { resolution: GIT_RESOLUTION, version: '1.0.0' },
+    },
+  }))).toBe('stale')
+})
+
+test('checkPatchedDepPaths() accepts an unsuffixed version of a package whose patch covers another version', () => {
+  expect(checkPatchedDepPaths(lockfile({
+    patchedDependencies: { 'is-positive@1.0.0': CURRENT },
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { 'is-positive': '2.0.0' },
+        dependencies: { 'is-positive': '2.0.0' },
+      },
+    },
+    packages: {
+      ['is-positive@2.0.0' as DepPath]: { resolution: { integrity: 'sha512-fake' } },
+    },
+  }))).toBe('up-to-date')
+})
+
+test('checkPatchedDepPaths() cannot judge a patch-hash marker that is not a complete suffix', () => {
+  expect(checkPatchedDepPaths(lockfile({
+    patchedDependencies: { 'is-positive@1.0.0': CURRENT },
+    packages: {
+      ['is-odd@3.0.1' as DepPath]: {
+        resolution: { integrity: 'sha512-fake' },
+        dependencies: { 'is-positive': `1.0.0(patch_hash=${STALE}` },
+      },
+    },
+  }))).toBe('indeterminate')
+})
+
+function lockfile (overrides: Partial<LockfileObject>): LockfileObject {
+  return {
+    lockfileVersion: '9.0',
+    importers: {},
+    ...overrides,
+  }
+}
