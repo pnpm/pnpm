@@ -80,7 +80,15 @@ impl ProcessTracker {
                 .collect::<Vec<_>>()
         };
         #[cfg(unix)]
-        let descendants = descendant_processes(std::process::id());
+        let roots: Vec<u32> = executions
+            .iter()
+            .filter_map(|exec| match exec {
+                RunningExecution::Process { pid, .. } => Some(*pid),
+                RunningExecution::Emulated(_) => None,
+            })
+            .collect();
+        #[cfg(unix)]
+        let descendants = descendant_processes(&roots);
         for execution in executions {
             execution.cancel();
         }
@@ -311,13 +319,16 @@ fn terminate_descendant(pid: i32) {
 }
 
 #[cfg(unix)]
-fn descendant_processes(root: u32) -> Vec<i32> {
+fn descendant_processes(roots: &[u32]) -> Vec<i32> {
+    if roots.is_empty() {
+        return Vec::new();
+    }
     let Some(listing) = process_listing() else {
         return Vec::new();
     };
     let children = parse_parent_child_pids(&listing);
     let mut descendants = Vec::new();
-    let mut stack = vec![root];
+    let mut stack = roots.to_vec();
     while let Some(parent) = stack.pop() {
         for &pid in children
             .get(&parent)
