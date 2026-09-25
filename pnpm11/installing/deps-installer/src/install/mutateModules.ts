@@ -43,7 +43,7 @@ import {
 import { reportVerifiedFileIntegrity } from './reportVerifiedFileIntegrity.js'
 import { runMutations } from './runMutations.js'
 import { validateModules } from './validateModules.js'
-import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
+import { type PendingVerificationRecord, verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 
 export async function mutateModules (
   projects: MutatedProject[],
@@ -127,7 +127,9 @@ async function prepareMutationRun (base: MutationRunBase): Promise<MutationRun> 
   return {
     ...openedRun,
     verifyLockfilePromise,
-    verifyLockfile: verifyLockfilePromise && (() => verifyLockfilePromise),
+    verifyLockfile: verifyLockfilePromise && (async () => {
+      await verifyLockfilePromise
+    }),
     forceResolutionFromHook,
     pruneVirtualStore,
   }
@@ -341,7 +343,7 @@ function applyProjectPruneFlags (ctx: PnpmContext, projects: MutatedProject[]): 
 export async function startLockfileVerification (
   { ctx, installsOnly, opts, projects }: Pick<OpenedMutationRun, 'ctx' | 'installsOnly' | 'opts' | 'projects'>,
   { skipStatShortcut = false }: { skipStatShortcut?: boolean } = {}
-): Promise<{ verifyLockfilePromise?: Promise<void> }> {
+): Promise<{ verifyLockfilePromise?: Promise<PendingVerificationRecord | undefined> }> {
   if (willDelegateToPacquet(opts, ctx, installsOnly) || opts.trustLockfile) return {}
   const cacheActive = !skipStatShortcut &&
     !opts.mergeGitBranchLockfiles &&
@@ -459,7 +461,7 @@ function shouldPruneVirtualStore (opts: StrictInstallOptions, ctx: PnpmContext):
 // a rejected install.
 async function settleInstall (
   install: Promise<InnerInstallResult>,
-  verification: Promise<void> | undefined,
+  verification: Promise<PendingVerificationRecord | undefined> | undefined,
   detachReporter: () => void
 ): Promise<InnerInstallResult> {
   if (verification != null) {
@@ -497,6 +499,11 @@ async function finishMutation (run: MutationRun, result: InnerInstallResult): Pr
   ignoredScriptsLogger.debug({
     packageNames: ignoredBuilds ? dedupePackageNamesFromIgnoredBuilds(ignoredBuilds) : [],
   })
+
+  // `settleIgnoredBuilds` rebuilds the packages approved since the last
+  // install, the last dependency scripts this install runs. An install
+  // that threw never gets here, so it leaves no verdict behind.
+  ;(await run.verifyLockfilePromise)?.record()
 
   run.detachReporter()
 

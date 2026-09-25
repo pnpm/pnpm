@@ -2,8 +2,8 @@ use std::{path::Path, sync::Arc};
 
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::{
-    ReplacedCandidate, ReplacedEntries, VerifyLockfileResolutionsOptions,
-    verify_lockfile_resolutions,
+    PendingVerificationRecord, ReplacedCandidate, ReplacedEntries,
+    VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
 };
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 
@@ -19,7 +19,9 @@ use pnpm_resolving_resolver_base::ResolutionVerifier;
 /// the gate doesn't leave verification requests running in the host
 /// process (the napi embedding outlives a failed install).
 pub struct LockfileVerificationGate(
-    tokio::task::JoinHandle<Result<(), pnpm_lockfile_verification::VerifyError>>,
+    tokio::task::JoinHandle<
+        Result<Option<PendingVerificationRecord>, pnpm_lockfile_verification::VerifyError>,
+    >,
 );
 
 /// Owned form of [`ReplacedEntries`], for the spawned gate.
@@ -59,7 +61,9 @@ impl LockfileVerificationGate {
     }
 
     /// Block on the verdict.
-    pub(crate) async fn wait(mut self) -> Result<(), pnpm_lockfile_verification::VerifyError> {
+    pub(crate) async fn wait(
+        mut self,
+    ) -> Result<Option<PendingVerificationRecord>, pnpm_lockfile_verification::VerifyError> {
         (&mut self.0).await.expect(
             "the lockfile verification task is only aborted by dropping the gate unawaited",
         )

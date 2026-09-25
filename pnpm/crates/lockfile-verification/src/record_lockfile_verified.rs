@@ -18,7 +18,7 @@ use pnpm_lockfile::Lockfile;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 
 use crate::{
-    cache::record_verification, hash_lockfile,
+    PendingVerificationRecord, cache::CachePrecomputed, hash_lockfile,
     verify_lockfile_resolutions::with_offline_check_cache_identities,
 };
 
@@ -38,18 +38,29 @@ pub fn record_lockfile_verified(
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
 ) {
-    let Some(cache_dir) = cache_dir else { return };
-    if verifiers.is_empty() {
-        return;
+    if let Some(pending) = pending_lockfile_verified(cache_dir, lockfile_path, lockfile, verifiers)
+    {
+        pending.record();
     }
-    if lockfile.packages.is_none() {
-        return;
+}
+
+/// [`record_lockfile_verified`] for a caller that goes on to run lifecycle
+/// scripts, which records the returned value after them.
+pub fn pending_lockfile_verified(
+    cache_dir: Option<&Path>,
+    lockfile_path: &Path,
+    lockfile: &Lockfile,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> Option<PendingVerificationRecord> {
+    let cache_dir = cache_dir?;
+    if verifiers.is_empty() || lockfile.packages.is_none() {
+        return None;
     }
-    record_verification(
-        cache_dir,
-        lockfile_path,
-        &with_offline_check_cache_identities(verifiers),
-        || hash_lockfile(lockfile),
-        crate::cache::CachePrecomputed::default(),
-    );
+    Some(PendingVerificationRecord {
+        cache_dir: cache_dir.to_path_buf(),
+        lockfile_path: lockfile_path.to_path_buf(),
+        verifiers: with_offline_check_cache_identities(verifiers),
+        hash: hash_lockfile(lockfile),
+        precomputed: CachePrecomputed::default(),
+    })
 }

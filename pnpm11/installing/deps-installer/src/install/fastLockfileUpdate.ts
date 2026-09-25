@@ -67,7 +67,9 @@ export async function tryFastLockfileUpdate (
   const updated = await tryFastUpdateLockfile(ctx.wantedLockfile, {
     update: async (candidate) => tryComposeFastUpdates(candidate, createComposeOptions(run, { input, plan, rewriteOptions })),
     isLockfileUpToDate,
-    verifyLockfile: (lockfile) => verifyLockfileResolutions(lockfile, []),
+    verifyLockfile: async (lockfile) => {
+      await verifyLockfileResolutions(lockfile, [])
+    },
   })
   if (!updated) return null
   ctx.wantedLockfileIsModified = true

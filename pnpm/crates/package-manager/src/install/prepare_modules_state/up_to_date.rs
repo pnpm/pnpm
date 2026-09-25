@@ -315,16 +315,26 @@ pub(super) async fn verify_up_to_date_lockfile<Reporter: self::Reporter + 'stati
     paths: (Option<&Path>, &Path),
 ) -> Result<(), InstallError> {
     let (derived_lockfile_path, cache_dir) = paths;
-    let Some(lockfile_verification_override) = lockfile_verification_override else {
-        return verify_lockfile_eagerly::<Reporter>(
-            wanted_lockfile,
-            resolution_verifiers,
-            derived_lockfile_path,
-            cache_dir,
-        )
-        .await;
+    let pending_verification_record = match lockfile_verification_override {
+        Some(lockfile_verification_override) => {
+            lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?
+        }
+        None => {
+            verify_lockfile_eagerly::<Reporter>(
+                wanted_lockfile,
+                resolution_verifiers,
+                derived_lockfile_path,
+                cache_dir,
+            )
+            .await?
+        }
     };
-    lockfile_verification_override.await.map_err(map_frozen_lockfile_error)
+    // The up-to-date path materializes nothing, so no lifecycle script runs
+    // between the verdict and this record.
+    if let Some(pending_verification_record) = pending_verification_record {
+        pending_verification_record.record();
+    }
+    Ok(())
 }
 /// A merge produced a lockfile that no file on disk holds, so it has to be
 /// written back even when nothing else changed.

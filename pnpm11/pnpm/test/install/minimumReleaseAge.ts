@@ -445,4 +445,96 @@ describe('lockfile minimumReleaseAge verification', () => {
       { ...omitMinReleaseAgeEnv, expectSuccess: true }
     )
   })
+
+  test('the verdict is recorded after the builds approved since the last install', () => {
+    // Approving a build the previous install ignored makes this install
+    // run that build after the install proper is over — the last point at
+    // which a dependency's script can append to the verification log, and
+    // therefore the point the verdict has to be recorded past.
+    prepare({
+      dependencies: {
+        'is-positive': '1.0.0',
+        'log-reading-dep': 'file:./log-reading-dep',
+      },
+    })
+    const cacheDir = path.resolve('pnpm-cache')
+    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
+    // What the dependency's build script saw in the log, written by the
+    // script itself — the log as it stood mid-install, which no assertion
+    // made afterwards can reconstruct.
+    const logAsSeenByTheBuild = path.resolve('log-as-seen-by-the-build.txt')
+    fs.mkdirSync('log-reading-dep')
+    fs.writeFileSync('log-reading-dep/package.json', JSON.stringify({
+      name: 'log-reading-dep',
+      version: '1.0.0',
+      scripts: { postinstall: 'node snapshot-log.cjs' },
+    }))
+    fs.writeFileSync('log-reading-dep/snapshot-log.cjs', [
+      "const fs = require('fs')",
+      `const log = ${JSON.stringify(cacheFile)}`,
+      `fs.writeFileSync(${JSON.stringify(logAsSeenByTheBuild)}, fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '')`,
+    ].join('\n'))
+
+    const policy = { minimumReleaseAge: 1, minimumReleaseAgeStrict: true, cacheDir }
+    writeYamlFileSync('pnpm-workspace.yaml', policy)
+    // Ends in ERR_PNPM_IGNORED_BUILDS under the test env's strictDepBuilds,
+    // having installed everything and recorded the ignored build.
+    const firstInstall = execPnpmSync([PUBLIC_REGISTRY, 'install'], omitMinReleaseAgeEnv)
+    expect(`${firstInstall.stdout}${firstInstall.stderr}`).toContain('ERR_PNPM_IGNORED_BUILDS')
+    expect(fs.existsSync(logAsSeenByTheBuild)).toBe(false)
+
+    // Clearing the log makes the record this install writes the only one.
+    fs.rmSync(cacheFile, { force: true })
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ...policy,
+      // A name-keyed `allowBuilds` entry wouldn't approve a `file:`
+      // dependency: package-name approvals don't extend to artifacts whose
+      // identity the name can't vouch for.
+      dangerouslyAllowAllBuilds: true,
+    })
+    execPnpmSync([PUBLIC_REGISTRY, 'install'], { ...omitMinReleaseAgeEnv, expectSuccess: true })
+
+    expect(fs.readFileSync(logAsSeenByTheBuild, 'utf8')).toBe('')
+    expect(fs.readFileSync(cacheFile, 'utf8').split('\n').filter(Boolean)).toHaveLength(1)
+  })
+
+  test('pnpm ci records the verdict of its preflight after the builds', () => {
+    // `pnpm ci` verifies the lockfile before it cleans node_modules, well
+    // ahead of the install that runs the dependency builds.
+    prepare({
+      dependencies: {
+        'is-positive': '1.0.0',
+        'log-reading-dep': 'file:./log-reading-dep',
+      },
+    })
+    const cacheDir = path.resolve('pnpm-cache')
+    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
+    const logAsSeenByTheBuild = path.resolve('log-as-seen-by-the-build.txt')
+    fs.mkdirSync('log-reading-dep')
+    fs.writeFileSync('log-reading-dep/package.json', JSON.stringify({
+      name: 'log-reading-dep',
+      version: '1.0.0',
+      scripts: { postinstall: 'node snapshot-log.cjs' },
+    }))
+    fs.writeFileSync('log-reading-dep/snapshot-log.cjs', [
+      "const fs = require('fs')",
+      `const log = ${JSON.stringify(cacheFile)}`,
+      `fs.writeFileSync(${JSON.stringify(logAsSeenByTheBuild)}, fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '')`,
+    ].join('\n'))
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: 1,
+      minimumReleaseAgeStrict: true,
+      cacheDir,
+      dangerouslyAllowAllBuilds: true,
+    })
+    execPnpmSync([PUBLIC_REGISTRY, 'install'], { ...omitMinReleaseAgeEnv, expectSuccess: true })
+
+    // Without a record, the preflight verifies the lockfile again.
+    fs.rmSync(cacheFile, { force: true })
+    fs.rmSync(logAsSeenByTheBuild)
+    execPnpmSync([PUBLIC_REGISTRY, 'ci'], { ...omitMinReleaseAgeEnv, expectSuccess: true })
+
+    expect(fs.readFileSync(logAsSeenByTheBuild, 'utf8')).toBe('')
+    expect(fs.readFileSync(cacheFile, 'utf8').split('\n').filter(Boolean)).toHaveLength(1)
+  })
 })

@@ -61,8 +61,11 @@ pub(super) fn build_extra_env(
 /// only.
 pub(super) async fn await_lockfile_gate(
     gate: &mut Option<crate::install::LockfileVerificationGate>,
-) -> Result<(), InstallWithFreshLockfileError> {
-    let Some(gate) = gate.take() else { return Ok(()) };
+) -> Result<
+    Option<pnpm_lockfile_verification::PendingVerificationRecord>,
+    InstallWithFreshLockfileError,
+> {
+    let Some(gate) = gate.take() else { return Ok(None) };
     gate.wait().await.map_err(InstallWithFreshLockfileError::LockfileVerification)
 }
 /// What the on-disk phases read once the lockfile is built and the
@@ -327,7 +330,7 @@ pub(super) async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
     let lockfile = inputs.projects.materialization_lockfile;
     let mut materialized = inputs.materialize::<Reporter>(skipped).await?;
 
-    await_lockfile_gate(lockfile_verification_gate).await?;
+    let pending_pre_resolve_record = await_lockfile_gate(lockfile_verification_gate).await?;
     for key in std::mem::take(&mut materialized.fetch_failed) {
         skipped.add_fetch_failed(key);
     }
@@ -343,6 +346,10 @@ pub(super) async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
         mutated_slots: _,
         mutated_snapshot_keys: _,
     } = inputs.build::<Reporter>(&materialized, &linked, skipped).await?;
+
+    if let Some(pending_record) = pending_pre_resolve_record {
+        pending_record.record();
+    }
 
     let injected_deps = crate::collect_injected_deps(
         ctx.linker.layout,

@@ -26,6 +26,7 @@ use super::{
 };
 use crate::{LockfileVerificationOverride, WorkspaceInstallSelection};
 use checks::verify_settled_frozen_path;
+use pnpm_lockfile_verification::PendingVerificationRecord;
 use std::marker::PhantomData;
 
 /// Whether `pnpm ci`'s cleanup step removes or preserves the virtual store's
@@ -46,11 +47,13 @@ pub struct PreparedFrozenInstall {
     verified_wanted: Option<Arc<Lockfile>>,
     had_conflicts: bool,
     lockfile_verified: bool,
+    verification_record: Option<PendingVerificationRecord>,
 }
 
 struct VerifiedSettledFrozen {
     pre_resolution: PreparedPreResolution,
     lockfile_verified: bool,
+    verification_record: Option<PendingVerificationRecord>,
 }
 
 pub(crate) struct PreparedFrozenRun {
@@ -190,9 +193,10 @@ where
         if let Some(hook) = prepared.pnpmfile_hook {
             self.projects.pnpmfile_hook_override = Some(hook);
         }
+        let verification_record = prepared.verification_record;
         let lockfile_verification_override =
             (same_lockfile && prepared.lockfile_verified).then(|| {
-                Box::pin(async { Ok(()) }) as LockfileVerificationOverride<'a>
+                Box::pin(async { Ok(verification_record) }) as LockfileVerificationOverride<'a>
             });
         InstallRunOptions {
             selection,
@@ -257,7 +261,11 @@ impl<'a> RunExecution<'a> {
             .or_else(|| loaded.wanted.lockfile.cloned().map(Arc::new));
         let had_conflicts = loaded.wanted.had_conflicts;
         let manifests = std::mem::take(&mut loaded.manifests);
-        let VerifiedSettledFrozen { pre_resolution, lockfile_verified } = {
+        let VerifiedSettledFrozen {
+            pre_resolution,
+            lockfile_verified,
+            verification_record,
+        } = {
             let project_manifests = manifests.view(&scope.project_manifests);
             self.validate_project_manifests(&project_manifests)?;
             self.verify_settled_frozen::<Reporter>(&scope, &mut loaded, &project_manifests).await?
@@ -269,6 +277,7 @@ impl<'a> RunExecution<'a> {
             verified_wanted,
             had_conflicts,
             lockfile_verified,
+            verification_record,
         })
     }
 
@@ -335,7 +344,7 @@ impl<'a> RunExecution<'a> {
             &mut lockfiles.wanted,
         )
         .await?;
-        let lockfile_verified = {
+        let (lockfile_verified, verification_record) = {
             let settled = Settled::new(
                 (self.install, &self.owned, &self.mode, &self.workspace),
                 (loaded, &lockfiles, &verification),
@@ -345,7 +354,7 @@ impl<'a> RunExecution<'a> {
         };
         let pre_resolution =
             PreparedPreResolution { hooked_wanted: lockfiles.wanted.take_hooked(), hooked_current };
-        Ok(VerifiedSettledFrozen { pre_resolution, lockfile_verified })
+        Ok(VerifiedSettledFrozen { pre_resolution, lockfile_verified, verification_record })
     }
 }
 

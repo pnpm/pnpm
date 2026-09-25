@@ -2,7 +2,9 @@ use super::{InstallFrozenLockfileError, LockfileVerificationOverride};
 use crate::{CheckVerdict, ConcurrentCheck, CreateVirtualStore, CreateVirtualStoreOutput};
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
-use pnpm_lockfile_verification::{VerifyLockfileResolutionsOptions, verify_lockfile_resolutions};
+use pnpm_lockfile_verification::{
+    PendingVerificationRecord, VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
+};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 use std::{path::Path, sync::Arc};
@@ -36,7 +38,8 @@ pub(super) struct ConcurrentVerification<'a> {
 pub(super) async fn fetch_verified<Reporter: self::Reporter>(
     create_virtual_store: CreateVirtualStore<'_>,
     verification: ConcurrentVerification<'_>,
-) -> Result<CreateVirtualStoreOutput, InstallFrozenLockfileError> {
+) -> Result<(CreateVirtualStoreOutput, Option<PendingVerificationRecord>), InstallFrozenLockfileError>
+{
     let mut verdict = None;
     let check: ConcurrentCheck<'_> = Box::pin(async {
         let outcome = verification.run::<Reporter>().await;
@@ -45,8 +48,9 @@ pub(super) async fn fetch_verified<Reporter: self::Reporter>(
         decision
     });
     let output = create_virtual_store.run_with_check::<Reporter>(Some(check)).await;
-    verdict.expect("the fetch drives its concurrent check to its verdict")?;
-    output.map_err(InstallFrozenLockfileError::CreateVirtualStore)
+    let pending_record = verdict.expect("the fetch drives its concurrent check to its verdict")?;
+    let output = output.map_err(InstallFrozenLockfileError::CreateVirtualStore)?;
+    Ok((output, pending_record))
 }
 /// Load custom fetchers from the install's pnpmfiles, if any.
 /// Returns `Ok(None)` when no pnpmfile exists or it exports no
@@ -78,7 +82,9 @@ pub(super) async fn load_custom_fetcher_session(
 }
 
 impl ConcurrentVerification<'_> {
-    async fn run<Reporter: self::Reporter>(self) -> Result<(), InstallFrozenLockfileError> {
+    async fn run<Reporter: self::Reporter>(
+        self,
+    ) -> Result<Option<PendingVerificationRecord>, InstallFrozenLockfileError> {
         let ConcurrentVerification {
             lockfile,
             verifiers,
@@ -90,7 +96,7 @@ impl ConcurrentVerification<'_> {
             return precomputed.await;
         }
         if verifiers.is_empty() {
-            return Ok(());
+            return Ok(None);
         }
         verify_lockfile_resolutions::<Reporter>(
             lockfile,

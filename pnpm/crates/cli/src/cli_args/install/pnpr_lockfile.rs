@@ -5,8 +5,8 @@ use super::{
     ResolveProject, SkippedSnapshots, State, TarballPrefetcher, VerifyLockfileOptions,
     VerifyLockfileResolutionsOptions, build_resolution_verifiers, lockfile_verification_is_cached,
     lockfile_verification_is_cached_by_content, materialization_closure,
-    merge_filtered_wanted_lockfile, record_lockfile_verified, record_pnpmfile,
-    verify_lockfile_resolutions, workspace_install_selection,
+    merge_filtered_wanted_lockfile, pending_lockfile_verified, record_lockfile_verified,
+    record_pnpmfile, verify_lockfile_resolutions, workspace_install_selection,
 };
 
 /// Link `node_modules` from the server-produced lockfile through the normal
@@ -320,15 +320,12 @@ fn local_lockfile_verification<'a>(
     let lockfile = local.lockfile;
     Ok(Some(Box::pin(async move {
         match verify_client.verify_lockfile(verify_opts).await {
-            Ok(()) => {
-                record_lockfile_verified(
-                    Some(&cache_dir),
-                    &record_lockfile_path,
-                    lockfile,
-                    &verifiers,
-                );
-                Ok(())
-            }
+            Ok(()) => Ok(pending_lockfile_verified(
+                Some(&cache_dir),
+                &record_lockfile_path,
+                lockfile,
+                &verifiers,
+            )),
             Err(PnprClientError::Verification(verify_err)) => {
                 Err(InstallFrozenLockfileError::LockfileVerification(verify_err))
             }

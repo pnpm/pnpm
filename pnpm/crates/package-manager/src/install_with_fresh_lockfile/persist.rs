@@ -199,6 +199,7 @@ pub(super) async fn verify_merged_repair<Reporter: self::Reporter>(
         &pnpm_lockfile_verification::VerifyLockfileResolutionsOptions::default(),
     )
     .await
+    .map(|_| ())
     .map_err(InstallWithFreshLockfileError::LockfileVerification)
 }
 /// Tail of the `--lockfile-only` path: persist the freshly-built

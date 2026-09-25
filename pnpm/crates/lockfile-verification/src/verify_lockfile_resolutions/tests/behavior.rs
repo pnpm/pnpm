@@ -302,7 +302,9 @@ async fn second_run_with_cache_skips_fan_out() {
         &opts,
     )
     .await
-    .expect("first run");
+    .expect("first run")
+    .expect("a passing run yields a record")
+    .record();
     assert_eq!(CALLS.load(Ordering::SeqCst), 1, "first run ran the verifier");
 
     verify_lockfile_resolutions::<SilentReporter>(
@@ -349,7 +351,9 @@ async fn cache_hit_with_no_policy_verifiers_stays_silent() {
         &opts,
     )
     .await
-    .expect("first run");
+    .expect("first run")
+    .expect("a passing run yields a record")
+    .record();
     verify_lockfile_resolutions::<RecordingReporter>(&lockfile, &[], &opts)
         .await
         .expect("second run");

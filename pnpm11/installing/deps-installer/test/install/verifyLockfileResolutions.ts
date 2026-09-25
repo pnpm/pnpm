@@ -325,10 +325,12 @@ test('skips the verifier when the cache holds an unchanged lockfile + matching p
       return { ok: true }
     }, exampleSlot(60))
 
-    // First call has no cache record yet — verifier runs.
-    await verifyLockfileResolutions(lockfile, [counting], {
+    // First call has no cache record yet — verifier runs. The install
+    // persists the verdict once its build phase is over; here that is the
+    // `record()` call.
+    ;(await verifyLockfileResolutions(lockfile, [counting], {
       cacheDir, lockfilePath,
-    })
+    }))?.record()
     expect(calls).toBe(1)
 
     // Second call against the same lockfile + policy — cache short-circuit.
@@ -352,7 +354,7 @@ test('emits a cached event when the cache short-circuits verification', async ()
     })
     const verifier = wrap(async () => ({ ok: true }), exampleSlot(60))
 
-    await verifyLockfileResolutions(lockfile, [verifier], { cacheDir, lockfilePath })
+    ;(await verifyLockfileResolutions(lockfile, [verifier], { cacheDir, lockfilePath }))?.record()
 
     const debugSpy = jest.spyOn(lockfileVerificationLogger, 'debug')
     try {
@@ -382,9 +384,9 @@ test('reuses the cached verdict silently when no policy verifiers are active', a
       'a@1.0.0': { resolution: tarballResolution('sha512-a') },
     })
 
-    await verifyLockfileResolutions(lockfile, [wrap(async () => ({ ok: true }), exampleSlot(60))], {
+    ;(await verifyLockfileResolutions(lockfile, [wrap(async () => ({ ok: true }), exampleSlot(60))], {
       cacheDir, lockfilePath,
-    })
+    }))?.record()
 
     const debugSpy = jest.spyOn(lockfileVerificationLogger, 'debug')
     try {
@@ -462,7 +464,7 @@ test('does not write a cache record when re-resolved entries were skipped', asyn
       reason: 'failed',
     }), exampleSlot(60))
 
-    await verifyLockfileResolutions(lockfile, [rejecting], { cacheDir, lockfilePath, isReplaced: isA100 })
+    ;(await verifyLockfileResolutions(lockfile, [rejecting], { cacheDir, lockfilePath, isReplaced: isA100 }))?.record()
 
     await expect(
       verifyLockfileResolutions(lockfile, [rejecting], { cacheDir, lockfilePath })
@@ -841,7 +843,7 @@ test('invalidates lockfile-verified.jsonl when default or scoped registry change
     const initialVerifiers = testDefaults({
       registriesByScope: { default: mockRegistry },
     }).resolutionVerifiers
-    await verifyLockfileResolutions(lockfile, initialVerifiers, { cacheDir, lockfilePath })
+    ;(await verifyLockfileResolutions(lockfile, initialVerifiers, { cacheDir, lockfilePath }))?.record()
 
     // Repeat run with equivalent registry URL spelling hits the cache without touching the network.
     const sameRegistryVerifiers = testDefaults({
@@ -879,6 +881,50 @@ test('invalidates lockfile-verified.jsonl when default or scoped registry change
     await expect(
       verifyLockfileResolutions(lockfile, changedScopeVerifiers, { cacheDir, lockfilePath })
     ).rejects.toThrow()
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('a passing verification writes nothing until the caller records it', async () => {
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-'))
+  try {
+    const cacheDir = path.join(tmpDir, 'cache')
+    const lockfilePath = path.join(tmpDir, 'pnpm-lock.yaml')
+    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
+    const lockfile = makeLockfile({
+      'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+    })
+    const logPath = path.join(cacheDir, 'lockfile-verified.jsonl')
+
+    const pending = await verifyLockfileResolutions(lockfile, [wrap(async () => ({ ok: true }), exampleSlot(60))], {
+      cacheDir, lockfilePath,
+    })
+    expect(fs.existsSync(logPath)).toBe(false)
+
+    pending!.record()
+    expect(fs.existsSync(logPath)).toBe(true)
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('a verification that could not stat the lockfile records nothing', async () => {
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-'))
+  try {
+    const cacheDir = path.join(tmpDir, 'cache')
+    const lockfilePath = path.join(tmpDir, 'pnpm-lock.yaml')
+    const lockfile = makeLockfile({
+      'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+    })
+
+    const pending = await verifyLockfileResolutions(lockfile, [wrap(async () => ({ ok: true }), exampleSlot(60))], {
+      cacheDir, lockfilePath,
+    })
+    // The install writes a lockfile other than the one that was verified.
+    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
+
+    expect(pending).toBeUndefined()
   } finally {
     await fs.promises.rm(tmpDir, { recursive: true, force: true })
   }

@@ -8,7 +8,9 @@ use super::{
     project_snapshot_to_snapshot_entry, same_path, warn,
 };
 use pnpm_lockfile::{ImporterDepVersion, SnapshotDepRef};
-use pnpm_lockfile_verification::{VerifyLockfileResolutionsOptions, verify_lockfile_resolutions};
+use pnpm_lockfile_verification::{
+    PendingVerificationRecord, VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
+};
 use pnpm_package_manager::build_resolution_verifiers;
 
 /// The source workspace lockfile whose pins a legacy deploy prefers.
@@ -54,8 +56,12 @@ impl LegacyDeploySource {
     }
 
     /// Applies the resolution policies to the source lockfile, as an install
-    /// in the source workspace does.
-    pub(super) async fn verify<ReporterT: Reporter>(&self, state: &State) -> miette::Result<()> {
+    /// in the source workspace does. The verdict is recorded by the caller
+    /// once the deploy's install is done.
+    pub(super) async fn verify<ReporterT: Reporter>(
+        &self,
+        state: &State,
+    ) -> miette::Result<Option<PendingVerificationRecord>> {
         let verifiers = build_resolution_verifiers(
             state.config,
             Arc::clone(&state.http_client),

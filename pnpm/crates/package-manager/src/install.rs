@@ -71,7 +71,8 @@ use pnpm_lockfile::{
     VersionPart, satisfies_package_manifest,
 };
 use pnpm_lockfile_verification::{
-    VerifyLockfileResolutionsOptions, record_lockfile_verified, verify_lockfile_resolutions,
+    PendingVerificationRecord, VerifyLockfileResolutionsOptions, record_lockfile_verified,
+    verify_lockfile_resolutions,
 };
 use pnpm_modules_yaml::{
     Clock, Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
@@ -161,14 +162,18 @@ use workspace_state::{
 /// up-to-date short-circuits); the frozen materialization path instead
 /// runs verification concurrently with the fetch inside
 /// [`InstallFrozenLockfile`]. A no-op when `verifiers` is empty.
+///
+/// The verdict is returned unrecorded: see [`PendingVerificationRecord`]
+/// for why a caller that goes on to run lifecycle scripts must persist it
+/// after them.
 async fn verify_lockfile_eagerly<Reporter: pnpm_reporter::Reporter>(
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
     lockfile_path: Option<&Path>,
     cache_dir: &Path,
-) -> Result<(), InstallError> {
+) -> Result<Option<PendingVerificationRecord>, InstallError> {
     if verifiers.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     verify_lockfile_resolutions::<Reporter>(
         lockfile,

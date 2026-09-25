@@ -111,16 +111,22 @@ pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'stati
         ..
     } = settled;
     let lockfile = lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
-    if let Some(lockfile_verification_override) = lockfile_verification_override {
-        lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
-    } else {
-        verify_lockfile_eagerly::<Reporter>(
-            lockfile,
-            &verification.resolution_verifiers,
-            verification.derived_lockfile_path.as_deref(),
-            &install.context.config.cache_dir,
-        )
-        .await?;
+    let pending_verification_record = match lockfile_verification_override {
+        Some(lockfile_verification_override) => {
+            lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?
+        }
+        None => {
+            verify_lockfile_eagerly::<Reporter>(
+                lockfile,
+                &verification.resolution_verifiers,
+                verification.derived_lockfile_path.as_deref(),
+                &install.context.config.cache_dir,
+            )
+            .await?
+        }
+    };
+    if let Some(pending_verification_record) = pending_verification_record {
+        pending_verification_record.record();
     }
     if install.context.config.lockfile {
         lockfile

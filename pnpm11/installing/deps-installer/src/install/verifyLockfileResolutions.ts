@@ -107,6 +107,34 @@ export interface VerifyLockfileResolutionsOptions {
 }
 
 /**
+ * A verification that passed but has not been written to the log yet.
+ *
+ * The log is read by the *next* install, and the log is last-writer-wins
+ * per lockfile. An install's own dependency lifecycle scripts run before
+ * it finishes and can append to the same file, so a verdict written ahead
+ * of them is a verdict they can supersede. Holding the record back until
+ * everything else is done keeps the install's verdict its last word on
+ * the lockfile it verified.
+ *
+ * This is ordering, not integrity: a lifecycle script runs with the same
+ * privileges as pnpm and can rewrite the log — or the lockfile, or
+ * `node_modules` — however it likes, and nothing marks a line in the log
+ * as pnpm's. Whether such a script runs at all is what `allowBuilds`
+ * governs.
+ *
+ * Discarding the value without calling {@link PendingVerificationRecord.record}
+ * persists nothing — an install that fails after verification leaves no
+ * verdict behind.
+ */
+export interface PendingVerificationRecord {
+  /**
+   * Append the verdict to the log. Call once the install has finished
+   * every dependency lifecycle script it runs.
+   */
+  record: () => void
+}
+
+/**
  * Policy-neutral pass that asks every resolver-supplied
  * {@link ResolutionVerifier} to check every entry in a lockfile loaded
  * from disk. Iteration runs before resolution decisions are touched and
@@ -127,11 +155,11 @@ export async function verifyLockfileResolutions (
   lockfile: LockfileObject,
   verifiers: ResolutionVerifier[],
   options?: VerifyLockfileResolutionsOptions
-): Promise<void> {
-  if (!lockfile.packages) return
+): Promise<PendingVerificationRecord | undefined> {
+  if (!lockfile.packages) return undefined
 
   const cacheContext = createVerificationCacheContext(lockfile, verifiers, options)
-  if (isVerifiedByCache(cacheContext, verifiers, options?.lockfilePath)) return
+  if (isVerifiedByCache(cacheContext, verifiers, options?.lockfilePath)) return undefined
 
   // Emit started/done around the actual verification pass — the
   // round-trip can be slow on a cold registry cache, and the cached
@@ -148,15 +176,14 @@ export async function verifyLockfileResolutions (
   if (shapeViolations.length > 0) {
     throw buildVerificationError(shapeViolations)
   }
-  if (verifiers.length === 0) return
+  if (verifiers.length === 0) return undefined
   if (dropReplacedCandidates(candidates, options?.isReplaced)) {
     cacheContext.cache = undefined
   }
   if (candidates.size === 0) {
-    recordVerifiedLockfile(cacheContext)
-    return
+    return pendingRecord(cacheContext)
   }
-  await verifyCandidates(candidates, verifiers, { cacheContext, options })
+  return verifyCandidates(candidates, verifiers, { cacheContext, options })
 }
 
 type CachePrecomputed = ReturnType<typeof tryLockfileVerificationCache>['precomputed']
@@ -207,6 +234,12 @@ function isVerifiedByCache (
     hashLockfile: cacheContext.hashLockfile,
   })
   if (!result.hit) {
+    // The record is written after the install has mutated the lockfile
+    // object and possibly the file, so it may only carry the stat and hash
+    // taken here. A lookup that could not take both records nothing.
+    if (result.precomputed.stat == null || result.precomputed.hash == null) {
+      cacheContext.cache = undefined
+    }
     cacheContext.precomputed = result.precomputed
     return false
   }
@@ -224,14 +257,18 @@ function isVerifiedByCache (
   return true
 }
 
-/** Persist the success so the next install can stat-only the lockfile. */
-function recordVerifiedLockfile (cacheContext: VerificationCacheContext): void {
-  if (!cacheContext.cache) return
-  recordVerification(cacheContext.cache.cacheDir, {
-    lockfilePath: cacheContext.cache.lockfilePath,
-    verifiers: cacheContext.cacheVerifiers,
-    hashLockfile: cacheContext.hashLockfile,
-  }, cacheContext.precomputed)
+function pendingRecord (cacheContext: VerificationCacheContext): PendingVerificationRecord | undefined {
+  const { cache, cacheVerifiers, hashLockfile, precomputed } = cacheContext
+  if (!cache) return undefined
+  return {
+    record: () => {
+      recordVerification(cache.cacheDir, {
+        lockfilePath: cache.lockfilePath,
+        verifiers: cacheVerifiers,
+        hashLockfile,
+      }, precomputed)
+    },
+  }
 }
 
 /** Remove the candidates the install re-resolves; whether any was removed. */
@@ -254,7 +291,7 @@ async function verifyCandidates (
   candidates: Map<string, Candidate>,
   verifiers: ResolutionVerifier[],
   { cacheContext, options }: { cacheContext: VerificationCacheContext, options: VerifyLockfileResolutionsOptions | undefined }
-): Promise<void> {
+): Promise<PendingVerificationRecord | undefined> {
   const startedAt = Date.now()
   lockfileVerificationLogger.debug({
     status: 'started',
@@ -272,7 +309,7 @@ async function verifyCandidates (
     const violations = await iterateLockfileViolations(candidates, verifiers, options?.concurrency)
     if (violations.length > 0) throw buildVerificationError(violations)
     terminalStatus = 'done'
-    recordVerifiedLockfile(cacheContext)
+    return pendingRecord(cacheContext)
   } finally {
     lockfileVerificationLogger.debug({
       status: terminalStatus,

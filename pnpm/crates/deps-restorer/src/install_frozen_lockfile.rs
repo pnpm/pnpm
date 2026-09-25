@@ -40,7 +40,7 @@ use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{
     Lockfile, LockfileEntries, PackageKey, PackageMetadata, Prefix, SnapshotEntry,
 };
-use pnpm_lockfile_verification::VerifyError;
+use pnpm_lockfile_verification::{PendingVerificationRecord, VerifyError};
 use pnpm_matcher::create_matcher;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_patching::{
@@ -56,8 +56,16 @@ use std::{
     sync::{Arc, atomic::AtomicU8},
 };
 
-pub type LockfileVerificationOverride<'a> =
-    Pin<Box<dyn Future<Output = Result<(), InstallFrozenLockfileError>> + Send + 'a>>;
+/// A verification of the lockfile run elsewhere, which the install awaits
+/// in place of its own. Its verdict is recorded like the install's own: see
+/// [`PendingVerificationRecord`].
+pub type LockfileVerificationOverride<'a> = Pin<
+    Box<
+        dyn Future<Output = Result<Option<PendingVerificationRecord>, InstallFrozenLockfileError>>
+            + Send
+            + 'a,
+    >,
+>;
 
 /// This subroutine installs dependencies from a frozen lockfile.
 ///
@@ -393,7 +401,7 @@ impl<'a> InstallFrozenLockfile<'a> {
 
         let (store_index_writer, writer_task) = spawn_store_index_writer(ctx.config);
 
-        let fetched = self.fetch::<Reporter>(
+        let (fetched, pending_verification_record) = self.fetch::<Reporter>(
             &ctx,
             FetchInputs {
                 cas_prefetch: plan.cas_prefetch,
@@ -411,8 +419,8 @@ impl<'a> InstallFrozenLockfile<'a> {
             fetched,
             settled,
             plan.deferred_engine_name,
-            store_index_writer,
-            writer_task,
+            (store_index_writer, writer_task),
+            pending_verification_record,
         )
         .await
     }
@@ -424,9 +432,10 @@ impl<'a> InstallFrozenLockfile<'a> {
         mut fetched: CreateVirtualStoreOutput,
         mut settled: SkipSetPlan,
         deferred_engine_name: Option<crate::materialization_plan::DeferredEngineName>,
-        store_index_writer: Arc<StoreIndexWriter>,
-        writer_task: tokio::task::JoinHandle<Result<(), StoreIndexError>>,
+        store_index: (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>),
+        pending_verification_record: Option<PendingVerificationRecord>,
     ) -> Result<InstallFrozenLockfileOutput, InstallFrozenLockfileError> {
+        let (store_index_writer, writer_task) = store_index;
         settled.skipped.add_fetch_failed_all(fetched.fetch_failed.drain());
 
         let (linked, injected_deps) =
@@ -455,6 +464,13 @@ impl<'a> InstallFrozenLockfile<'a> {
             elapsed_ms = phase_start.elapsed().as_millis() as u64,
             "phase complete",
         );
+
+        // Only now that the build phase is over: a dependency's lifecycle
+        // script can append to the verification log, and the newest record
+        // for a lockfile is the one the next install reads.
+        if let Some(pending_verification_record) = pending_verification_record {
+            pending_verification_record.record();
+        }
 
         // Drop the orchestrator's clone of the writer so the channel
         // closes once every per-snapshot clone has also been dropped

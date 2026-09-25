@@ -119,7 +119,7 @@ impl<'a> MaterializationInputs<'a, '_> {
         );
         assert_supported_lockfile_major(scope.lockfile());
 
-        let frozen_verification_override = settle_frozen_verification::<Reporter>(
+        let (override_check, pending_record) = settle_frozen_verification::<Reporter>(
             self.workspace.requested_importer_ids,
             self.lockfiles.verification_override.take(),
             lockfile,
@@ -131,13 +131,7 @@ impl<'a> MaterializationInputs<'a, '_> {
         let prior_unbuilt = prior_unbuilt_builds(self.modules.modules_manifest);
         let prior_skipped = previously_skipped(self.modules.modules_manifest);
         let frozen_result = self
-            .frozen_installer(
-                &scope,
-                lockfile,
-                frozen_verification_override,
-                &prior_unbuilt,
-                &prior_skipped,
-            )
+            .frozen_installer(&scope, lockfile, override_check, &prior_unbuilt, &prior_skipped)
             .run::<Reporter>()
             .await
             // Surface a verification failure as the same top-level
@@ -145,6 +139,11 @@ impl<'a> MaterializationInputs<'a, '_> {
             // than nesting it under `FrozenLockfile` — the concurrent gate
             // is the same gate, run alongside the fetch.
             .map_err(map_frozen_lockfile_error)?;
+
+        if let Some(record) = pending_record {
+            record.record();
+        }
+
         Ok(MaterializationOutput::from_frozen(frozen_result, scope.groups))
     }
 }

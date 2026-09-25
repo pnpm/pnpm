@@ -638,3 +638,101 @@ fn changing_default_or_scoped_registry_invalidates_lockfile_verified_cache() {
 
     drop((root, mock_instance));
 }
+
+/// The verdict is written only once the install's build phase is over.
+/// A dependency's lifecycle script runs inside the install and can append
+/// to the same log, where the newest record for a lockfile wins — so a
+/// verdict recorded ahead of the scripts is one they can supersede.
+#[test]
+fn verification_is_recorded_after_dependency_build_scripts_run() {
+    assert_verification_recorded_after_build_scripts(&["install", "--frozen-lockfile"]);
+}
+
+/// `pnpm ci` verifies the lockfile before it cleans `node_modules`, well
+/// ahead of the install that runs the builds.
+#[test]
+fn ci_records_its_preflight_verification_after_dependency_build_scripts_run() {
+    assert_verification_recorded_after_build_scripts(&["ci"]);
+}
+
+fn assert_verification_recorded_after_build_scripts(second_install: &[&str]) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, cache_dir, .. } = npmrc_info;
+    let verification_log = cache_dir.join("lockfile-verified.jsonl");
+    // What the dependency's build script saw in the log, written by the
+    // script itself: the log as it stood mid-install.
+    let log_as_seen_by_the_build = workspace.join("log-as-seen-by-the-build.txt");
+
+    let log_reading_dep = workspace.join("log-reading-dep");
+    fs::create_dir(&log_reading_dep).expect("create log-reading-dep");
+    fs::write(
+        log_reading_dep.join("package.json"),
+        serde_json::json!({
+            "name": "log-reading-dep",
+            "version": "1.0.0",
+            "scripts": { "postinstall": "node snapshot-log.cjs" },
+        })
+        .to_string(),
+    )
+    .expect("write log-reading-dep/package.json");
+    fs::write(
+        log_reading_dep.join("snapshot-log.cjs"),
+        format!(
+            "const fs = require('fs')\n\
+             const log = {log}\n\
+             fs.writeFileSync({out}, fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '')\n",
+            log = serde_json::to_string(&verification_log).unwrap(),
+            out = serde_json::to_string(&log_as_seen_by_the_build).unwrap(),
+        ),
+    )
+    .expect("write log-reading-dep/snapshot-log.cjs");
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/install-script-example": "1.0.0",
+            "log-reading-dep": "file:./log-reading-dep",
+        },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+    // A policy has to be active for the gate to run a fan-out worth
+    // recording; one minute holds nothing back.
+    set_minimum_release_age(&workspace, 1);
+    append_workspace_yaml_key(&workspace, "dangerouslyAllowAllBuilds", true);
+
+    // The first install resolves. Clear the log and the modules dir so the
+    // second run re-verifies and rebuilds.
+    assert_success(
+        &pacquet
+            .with_arg("install")
+            .output()
+            .expect("spawn pacquet install"),
+    );
+    fs::remove_file(&verification_log).expect("clear the verification log");
+    fs::remove_file(&log_as_seen_by_the_build).expect("clear the build's snapshot");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("clear node_modules");
+
+    assert_success(
+        &pacquet_in(&workspace)
+            .with_args(second_install)
+            .output()
+            .expect("spawn pacquet install"),
+    );
+
+    let seen_by_the_build =
+        fs::read_to_string(&log_as_seen_by_the_build).expect("the build script must have run");
+    assert_eq!(seen_by_the_build, "", "the verdict must be recorded after the build script ran");
+    let log = fs::read_to_string(&verification_log).expect("read the verification log");
+    let records = log
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .count();
+    assert_eq!(records, 1, "the install must append exactly one record; got:\n{log}");
+
+    drop((root, mock_instance));
+}

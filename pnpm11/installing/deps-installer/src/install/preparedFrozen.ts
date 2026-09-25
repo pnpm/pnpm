@@ -10,7 +10,7 @@ import type {
   MutateModulesOptions,
   PreparedFrozenMutation,
 } from './mutationTypes.js'
-import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
+import { type PendingVerificationRecord, verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 
 export function assertProjectManifestsExist (ctx: PnpmContext, ignorePackageManifest: boolean): void {
   if (ignorePackageManifest) return
@@ -76,12 +76,12 @@ export async function settlePreparedMutationHooksAndVerification (
     projects: MutatedProject[]
   },
   rawPrepared: MutateModulesOptions['_preparedFrozen']
-): Promise<{ verifyLockfilePromise?: Promise<void> }> {
+): Promise<{ verifyLockfilePromise?: Promise<PendingVerificationRecord | undefined> }> {
   const { ctx, installsOnly, opts, projects } = openedRun
   const prepared = matchesPreparedFrozenLockfile(ctx, rawPrepared) ? rawPrepared : undefined
   const lockfileChangedAfterPreflight = rawPrepared != null && prepared == null
   const { verifyLockfilePromise: initialVerifyPromise } = prepared?.verifiedLockfile
-    ? {}
+    ? { verifyLockfilePromise: prepared.verificationRecord && Promise.resolve(prepared.verificationRecord) }
     : await startLockfileVerification(openedRun, { skipStatShortcut: lockfileChangedAfterPreflight })
   const wantedBeforeHook = lockfileChangedAfterPreflight && opts.hooks.preResolution?.length
     ? clone(ctx.wantedLockfile)

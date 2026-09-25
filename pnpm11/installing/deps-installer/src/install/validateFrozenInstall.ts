@@ -32,7 +32,7 @@ import {
   createNoLockfileError,
   verifyLockedTarballIntegrity,
 } from './verifyFrozenLockfile.js'
-import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
+import { type PendingVerificationRecord, verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 
 export interface ValidatedFrozenInstall {
   wantedLockfile?: LockfileObject
@@ -93,7 +93,9 @@ async function validateFixLockfilePreflight (
   if (!rawCtx.existsWantedLockfile || rawCtx.lockfileHadConflicts) return
   await verifyLockfileStructureAndSettings(rawCtx, { maybeOpts, opts, projects, usesPnpr, checkMajorVersion: false })
   if (!opts.trustLockfile) {
-    await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: false })
+    // A --fix-lockfile install re-resolves and records the lockfile it
+    // writes once its dependencies are built, so this is not its last record.
+    ;(await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: false }))?.record()
   }
 }
 
@@ -121,9 +123,9 @@ async function validateWithoutWantedLockfile (
   if (preResolution.wantedMutated) {
     await verifyLockfileStructureAndSettings(rawCtx, { maybeOpts, opts, projects, usesPnpr, checkMajorVersion: false })
   }
-  if (!opts.trustLockfile) {
-    await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: preResolution.wantedMutated })
-  }
+  const verificationRecord = opts.trustLockfile
+    ? undefined
+    : await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: preResolution.wantedMutated })
   return {
     wantedLockfile: rawCtx.wantedLockfile,
     prepared: {
@@ -134,6 +136,7 @@ async function validateWithoutWantedLockfile (
       lockfileHadConflicts: false,
       preResolutionRan: true,
       verifiedLockfile: !opts.trustLockfile,
+      verificationRecord,
     },
   }
 }
@@ -149,9 +152,9 @@ async function prepareUnverifiedLockfile (
   if (preResolution.wantedMutated) {
     await verifyLockfileStructureAndSettings(rawCtx, { maybeOpts, opts, projects, usesPnpr, checkMajorVersion: false })
   }
-  if (!opts.trustLockfile) {
-    await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: preResolution.wantedMutated })
-  }
+  const verificationRecord = opts.trustLockfile
+    ? undefined
+    : await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: preResolution.wantedMutated })
   return {
     wantedLockfile: rawCtx.wantedLockfile,
     prepared: {
@@ -163,6 +166,7 @@ async function prepareUnverifiedLockfile (
       preResolutionRan: true,
       validatedInputLockfile,
       verifiedLockfile: !opts.trustLockfile,
+      verificationRecord,
     },
   }
 }
@@ -262,9 +266,9 @@ async function verifyFrozenMutationRun (
   if (!opts.lockfileOnly) {
     await verifyLockedTarballIntegrity(run)
   }
-  if (!opts.trustLockfile) {
-    await verifyLockfilePolicies(ctx, opts, { wantedMutated: preResolution.wantedMutated })
-  }
+  const verificationRecord = opts.trustLockfile
+    ? undefined
+    : await verifyLockfilePolicies(ctx, opts, { wantedMutated: preResolution.wantedMutated })
   return {
     wantedLockfile: ctx.wantedLockfile,
     prepared: {
@@ -276,6 +280,7 @@ async function verifyFrozenMutationRun (
       preResolutionRan: true,
       validatedInputLockfile,
       verifiedLockfile: !opts.trustLockfile,
+      verificationRecord,
     },
   }
 }
@@ -320,7 +325,7 @@ async function verifyLockfilePolicies (
   ctx: PnpmContext,
   opts: StrictInstallOptions,
   { wantedMutated }: { wantedMutated: boolean }
-): Promise<void> {
+): Promise<PendingVerificationRecord | undefined> {
   const canUseOnDiskCache = !wantedMutated &&
     !opts.mergeGitBranchLockfiles &&
     ctx.existsWantedLockfile &&
@@ -337,7 +342,7 @@ async function verifyLockfilePolicies (
     (!opts.useGitBranchLockfile || wantedLockfileName !== WANTED_LOCKFILE)
     ? path.resolve(ctx.lockfileDir, wantedLockfileName)
     : undefined
-  await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
+  return verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
     cacheDir: wantedMutated ? undefined : opts.cacheDir,
     lockfilePath: wantedLockfilePath,
   })

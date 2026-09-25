@@ -17,6 +17,7 @@ fn make_prepared(
         verified_wanted,
         had_conflicts,
         lockfile_verified: true,
+        verification_record: None,
     }
 }
 

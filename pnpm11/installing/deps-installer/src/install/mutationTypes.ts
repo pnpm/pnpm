@@ -21,6 +21,7 @@ import type {
 } from '@pnpm/types'
 
 import type { InstallOptions, ProcessedInstallOptions as StrictInstallOptions } from './extendInstallOptions.js'
+import type { PendingVerificationRecord } from './verifyLockfileResolutions.js'
 
 export interface InstallMutationOptions {
   update?: boolean
@@ -68,6 +69,8 @@ export interface PreparedFrozenMutation {
   preResolutionRan: boolean
   validatedInputLockfile?: LockfileObject
   verifiedLockfile: boolean
+  /** The preflight's verdict, which the install records once its scripts are done. */
+  verificationRecord?: PendingVerificationRecord
 }
 
 export type SingleProjectInstallOptions = Omit<InstallOptions, 'allProjects'> & {
@@ -273,7 +276,7 @@ export interface MutationRun extends MutationRunBase {
   installsAndUninstallsOnly: boolean
   scriptsOpts: RunLifecycleHooksConcurrentlyOptions
   rootProjectPreinstallRan: boolean
-  verifyLockfilePromise?: Promise<void>
+  verifyLockfilePromise?: Promise<PendingVerificationRecord | undefined>
   /**
    * Gate passed down to the build phase: fetching and linking overlap with
    * verification, but no dependency lifecycle script may run until the verdict

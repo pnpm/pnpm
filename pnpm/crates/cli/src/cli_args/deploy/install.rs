@@ -125,11 +125,12 @@ impl DeployArgs {
         if legacy {
             state.lockfile = deployed_lockfile(&state, deploy_dir, frozen_lockfile);
         }
-        if let Some(source) = &legacy_source
-            && !self.trust_lockfile(config)
-        {
-            source.verify::<ReporterT>(&state).await?;
-        }
+        let source_verification_record = match &legacy_source {
+            Some(source) if !self.trust_lockfile(config) => {
+                source.verify::<ReporterT>(&state).await?
+            }
+            _ => None,
+        };
         let preferred_versions = legacy_source.as_ref().map(LegacyDeploySource::preferred_versions);
         if let Some(source) = legacy_source {
             state.lockfile = LazyLockfile::preloaded(Some(source.lockfile));
@@ -145,7 +146,11 @@ impl DeployArgs {
                 preferred_versions_override: preferred_versions,
             },
         )
-        .await
+        .await?;
+        if let Some(source_verification_record) = source_verification_record {
+            source_verification_record.record();
+        }
+        Ok(())
     }
 
     fn trust_lockfile(&self, config: &Config) -> bool {

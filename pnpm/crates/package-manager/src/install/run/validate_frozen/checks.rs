@@ -2,8 +2,8 @@ use super::{
     super::{
         super::{
             Arc, CheckLockfileSettingsDriftOptions, InstallError, Lockfile, Path,
-            PnpmfileChecksumCheck, VerifyLockfileResolutionsOptions, check_lockfile_settings_drift,
-            parse_config_overrides, verify_lockfile_resolutions,
+            PendingVerificationRecord, PnpmfileChecksumCheck, VerifyLockfileResolutionsOptions,
+            check_lockfile_settings_drift, parse_config_overrides, verify_lockfile_resolutions,
         },
         InstallScope, RunExecution,
         dispatch::{FrozenDispatch, decide_frozen_path},
@@ -76,9 +76,11 @@ impl RunExecution<'_> {
     }
 }
 
+/// Whether the wanted lockfile was verified, and its verdict, which the
+/// install records once its lifecycle scripts are done.
 pub(super) async fn verify_settled_frozen_path(
     settled: Settled<'_, '_>,
-) -> Result<bool, InstallError> {
+) -> Result<(bool, Option<PendingVerificationRecord>), InstallError> {
     let take_frozen_path =
         decide_frozen_path::<SilentReporter>(&FrozenDispatch::new(settled, None)).await?;
     if take_frozen_path && !settled.mode.lockfile_only {
@@ -95,16 +97,16 @@ pub(super) async fn verify_settled_frozen_path(
             .then_some(settled.verification.derived_lockfile_path.as_deref())
             .flatten();
         let cache_dir = can_use_on_disk_cache.then_some(config.cache_dir.as_path());
-        verify_lockfile_offline_and_policies(
+        let pending_record = verify_lockfile_offline_and_policies(
             lockfile,
             &settled.verification.resolution_verifiers,
             lockfile_path,
             cache_dir,
         )
         .await?;
-        return Ok(true);
+        return Ok((true, pending_record));
     }
-    Ok(false)
+    Ok((false, None))
 }
 
 async fn verify_lockfile_offline_and_policies(
@@ -112,7 +114,7 @@ async fn verify_lockfile_offline_and_policies(
     verifiers: &[Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>],
     lockfile_path: Option<&Path>,
     cache_dir: Option<&Path>,
-) -> Result<(), InstallError> {
+) -> Result<Option<PendingVerificationRecord>, InstallError> {
     verify_lockfile_resolutions::<SilentReporter>(
         lockfile,
         verifiers,
