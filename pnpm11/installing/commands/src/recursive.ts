@@ -637,9 +637,11 @@ export async function recursive (
     // its own, so the copies are synced once every project has been built.
     if (!opts.dryRun) {
       const builtProjectDirs = new Set<string>(installedModulesDirs.keys())
-      await Promise.all(Array.from(installedModulesDirs, async ([lockfileDir, modulesDir]) =>
+      const syncResults = await Promise.allSettled(Array.from(installedModulesDirs, async ([lockfileDir, modulesDir]) =>
         syncInjectedDepsOfModulesDir({ lockfileDir, modulesDir, sourceDirs: builtProjectDirs })
       ))
+      const syncFailure = syncResults.find((syncResult): syncResult is PromiseRejectedResult => syncResult.status === 'rejected')
+      if (syncFailure != null) throw syncFailure.reason
     }
   }
 
