@@ -733,3 +733,54 @@ fn pack_reports_a_workspace_peer_without_a_version() {
 
     drop(root);
 }
+
+fn init_package_with_dotenv() -> CommandTempCwd<()> {
+    let temp = CommandTempCwd::init();
+    fs::write(
+        temp.workspace.join("package.json"),
+        json!({ "name": "pkg-with-dotenv", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(temp.workspace.join(".env"), "SECRET=1\n").expect("write .env");
+    temp
+}
+
+#[test]
+fn pack_warns_about_an_unlisted_dotenv_file() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = init_package_with_dotenv();
+
+    let output = pacquet
+        .with_arg("pack")
+        .output()
+        .expect("run pack");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("status: {}; stdout:\n{stdout}\nstderr:\n{stderr}", output.status);
+    assert!(output.status.success());
+    let combined = format!("{stdout}{stderr}");
+    assert!(combined.contains("dotenv files that may contain secrets"));
+    assert!(combined.contains("  .env\n"));
+    assert!(workspace.join("pkg-with-dotenv-1.0.0.tgz").is_file());
+
+    drop(root);
+}
+
+#[test]
+fn pack_json_keeps_the_dotenv_warning_out_of_its_output() {
+    let CommandTempCwd { pacquet, root, .. } = init_package_with_dotenv();
+
+    let output = pacquet
+        .with_args(["pack", "--json"])
+        .output()
+        .expect("run pack --json");
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 stdout");
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+    eprintln!("status: {}; stdout:\n{stdout}\nstderr:\n{stderr}", output.status);
+    assert!(output.status.success());
+    assert_eq!(stderr, "");
+    let result: serde_json::Value = serde_json::from_str(&stdout).expect("parse pack JSON");
+    let files = result["files"].as_array().expect("files array");
+    assert!(files.contains(&json!({ "path": ".env" })));
+
+    drop(root);
+}
