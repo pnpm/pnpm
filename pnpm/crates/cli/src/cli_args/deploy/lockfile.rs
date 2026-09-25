@@ -1,11 +1,11 @@
 use super::{
     Config, Context, DependencyGroup, DeployError, DeployWorkspaceConfig, DirectoryResolution,
-    HashMap, HashSet, IntoDiagnostic, Lockfile, LockfileResolution, Map, PackageKey,
-    PackageManifest, PackageMetadata, Path, PathBuf, PkgName, PkgNameVerPeer, Project, ProjectInfo,
-    ProjectPathKey, ProjectSnapshot, ResolveBases, ResolvedDependencyMap, ResolvedDependencySpec,
-    SelectedProject, SnapshotEntry, State, Value, bind_singleton_peers, convert_package_key,
+    HashMap, HashSet, Lockfile, LockfileResolution, Map, PackageKey, PackageManifest,
+    PackageMetadata, Path, PkgName, PkgNameVerPeer, Project, ProjectInfo, ProjectPathKey,
+    ProjectSnapshot, ResolveBases, ResolvedDependencyMap, ResolvedDependencySpec, SelectedProject,
+    SnapshotEntry, State, Value, bind_singleton_peers, convert_package_key,
     convert_package_metadata, convert_resolved_dependency_spec, convert_snapshot,
-    create_file_url_key, deploy_peer_edges, deploy_workspace_manifest, is_ancestor_path,
+    create_file_url_key, deploy_peer_edges, deploy_workspace_settings, is_ancestor_path,
     lexical_normalize, omit_peers_of_excluded_dependencies, project_snapshot_to_snapshot_entry,
     prune_deploy_lockfile_graph, relative_path, same_path, validate_lockfile_local_path,
 };
@@ -277,50 +277,6 @@ fn convert_deploy_snapshots(
         );
     }
     Ok(DeploySnapshots { snapshots, linked_workspace_projects })
-}
-
-/// The `pnpm-workspace.yaml` the deploy writes, and the same settings in
-/// the shape the deploy install consumes. The manifest records the
-/// self-contained deploy layout plus settings that survive from the source.
-fn deploy_workspace_settings(
-    lockfile: &Lockfile,
-    config: &Config,
-    lockfile_dir: &Path,
-    deploy_dir: &Path,
-    deploy_lockfile: &mut Lockfile,
-) -> miette::Result<(Map<String, Value>, DeployWorkspaceConfig)> {
-    let mut workspace_manifest = deploy_workspace_manifest(config);
-    let mut workspace_config =
-        DeployWorkspaceConfig { patched_dependencies: None, allow_builds: HashMap::new() };
-    if lockfile.patched_dependencies.is_some()
-        && let Some(patched_dependencies) = config.patched_dependencies.as_ref()
-    {
-        deploy_lockfile.patched_dependencies.clone_from(&lockfile.patched_dependencies);
-        let rewritten = patched_dependencies
-            .iter()
-            .map(|(name, value)| {
-                let absolute = if Path::new(value).is_absolute() {
-                    PathBuf::from(value)
-                } else {
-                    lockfile_dir.join(value)
-                };
-                (name.clone(), relative_path(deploy_dir, &absolute))
-            })
-            .collect::<indexmap::IndexMap<_, _>>();
-        workspace_manifest.insert(
-            "patchedDependencies".to_string(),
-            serde_json::to_value(&rewritten).into_diagnostic()?,
-        );
-        workspace_config.patched_dependencies = Some(rewritten);
-    }
-    if !config.allow_builds.is_empty() {
-        workspace_manifest.insert(
-            "allowBuilds".to_string(),
-            serde_json::to_value(&config.allow_builds).into_diagnostic()?,
-        );
-        workspace_config.allow_builds.clone_from(&config.allow_builds);
-    }
-    Ok((workspace_manifest, workspace_config))
 }
 
 /// A lockfile importer records a dependency group only when it has entries.
