@@ -109,6 +109,19 @@ testOnPosix('linkBins() invokes fixBin when the bin source has only partial exec
   expect(fs.existsSync(path.join(binTarget, 'simple'))).toBe(true)
 })
 
+testOnPosix('linkBins() keeps the read and write bits a strict umask gave the bin source', async () => {
+  const binTarget = temporaryDirectory()
+  const fixture = f.prepare('simple-fixture')
+  const binSource = path.join(fixture, 'node_modules', 'simple', 'index.js')
+  // A bin imported from a store under a umask of 077.
+  fs.chmodSync(binSource, 0o700)
+
+  const warn = jest.fn()
+  await expect(linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })).resolves.toBeDefined()
+
+  expect(fixBinMock).toHaveBeenCalledWith(binSource, 0o711)
+})
+
 testOnPosix('linkBins() rethrows EPERM from fixBin when the bin source has only partial execute bits', async () => {
   const eperm = Object.assign(new Error('EPERM: operation not permitted, chmod'), { code: 'EPERM' })
   fixBinMock.mockRejectedValue(eperm)

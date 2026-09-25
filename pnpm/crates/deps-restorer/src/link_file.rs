@@ -230,12 +230,12 @@ pub fn import_into_fresh_target<Reporter: self::Reporter>(
 ///
 /// `AlreadyExists` means a concurrent writer beat us to the target; its
 /// content is content-addressed and equivalent. pnpm's `linkOrCopy`
-/// returns here without touching disk, but pnpm's clone preserves the
-/// mode and pacquet's reflink does not — so re-assert the exec bit from
-/// the `-exec` suffix (idempotent, a no-op for non-exec entries) before
-/// adopting the dirent. That re-assertion also heals a target that an
-/// earlier failed restore left non-executable; the clone tier relies on
-/// it and keeps such a target in place.
+/// returns here without touching disk, but a reflinked or copied target
+/// carries whichever mode its writer's umask gave it, so the adopted
+/// dirent is aligned with the current umask's store-entry mode first.
+/// That alignment also heals a target an earlier failure left with the
+/// wrong mode; the clone tier relies on it and keeps such a target in
+/// place.
 ///
 /// `NotFound` is the same race when a regular file now sits at the
 /// target: APFS `clonefile` intermittently reports a destination that
@@ -245,6 +245,8 @@ pub fn import_into_fresh_target<Reporter: self::Reporter>(
 /// a store blob that really is gone stays an error, and so does a target
 /// the copy tier could not open through.
 ///
+/// A symlink squatting at the target is left exactly as pnpm leaves it:
+/// no writer materialized it, and the alignment would only fail on it.
 /// Every other error is the caller's to surface.
 fn recover_from_concurrent_import(
     error: io::Error,
@@ -267,7 +269,13 @@ fn recover_from_concurrent_import(
     if !placed_concurrently {
         return Err(import_error(error));
     }
-    match pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link) {
+    if fs::symlink_metadata(target_link).is_ok_and(|meta| meta.file_type().is_symlink()) {
+        return Ok(());
+    }
+    if same_inode(source_file, target_link) {
+        return Ok(());
+    }
+    match align_target_mode(source_file, target_link) {
         Ok(()) => Ok(()),
         // Nothing serializes shared-slot imports across
         // processes: the writer that owns the target may
@@ -278,11 +286,7 @@ fn recover_from_concurrent_import(
         // means another writer finished the job — the same
         // tolerance the bin-shim chmod applies
         // (`chmod_tolerating_removal` in `pnpm-cmd-shim`,
-        // pnpm/pnpm#14353). The dirent check keeps the
-        // dangling-symlink detection this recovery is
-        // responsible for: a symlink squatting at the path
-        // also opens as `NotFound`, but its dirent is still
-        // there and no concurrent writer will heal it.
+        // pnpm/pnpm#14353).
         Err(error)
             if error.kind() == io::ErrorKind::NotFound
                 && matches!(
@@ -371,19 +375,31 @@ fn hardlink_file<Reporter: self::Reporter, Sys: FsHardLink>(
     // a silent whole-install copy. No caching — the `fs::hard_link`
     // syscall itself is already cheap; pnpm doesn't cache this path
     // either.
-    match Sys::hard_link(source_file, target_link) {
-        Ok(()) => {
-            log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
-            Ok(WireImportMethod::Hardlink)
+    //
+    // A mode that does not match the current umask cannot be fixed on the
+    // store inode every name shares, so the file is copied at the
+    // [`desired_mode`] instead (pnpm/pnpm#3807).
+    if source_has_desired_mode(source_file)? {
+        match Sys::hard_link(source_file, target_link) {
+            Ok(()) => {
+                log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
+                Ok(WireImportMethod::Hardlink)
+            }
+            Err(error) if is_cross_device(&error) || is_too_many_links(&error) => {
+                copy_file(source_file, target_link)
+                    .inspect(|()| {
+                        log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                    })
+                    .map(|()| WireImportMethod::Copy)
+            }
+            Err(error) => Err(error),
         }
-        Err(error) if is_cross_device(&error) || is_too_many_links(&error) => {
-            copy_file(source_file, target_link)
-                .inspect(|()| {
-                    log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-                })
-                .map(|()| WireImportMethod::Copy)
-        }
-        Err(error) => Err(error),
+    } else {
+        copy_file(source_file, target_link)
+            .inspect(|()| {
+                log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+            })
+            .map(|()| WireImportMethod::Copy)
     }
 }
 
@@ -397,8 +413,9 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
     STATE.import::<Reporter, Sys>(method, logged, source_file, target_link)
 }
 
-/// Materialize `source_file` at `target_link` for the copy tier, with
-/// the exec bit the CAS suffix asks for.
+/// Materialize `source_file` at `target_link` for the copy tier, at the
+/// mode a fresh store write under the current umask would give the CAS
+/// entry rather than the source's population-time mode (pnpm/pnpm#3807).
 ///
 /// [`pnpm_fs::copy_file_exclusive`] creates the target exclusively, so
 /// an occupied target raises `AlreadyExists` and reaches
@@ -406,19 +423,79 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
 /// partial file it removes on failure would otherwise be adopted by a
 /// later import as a concurrent writer's finished work.
 fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
-    pnpm_fs::copy_file_exclusive(source_file, target_link, |target| {
-        if pnpm_fs::file_mode::cas_path_is_executable(source_file) {
-            pnpm_fs::file_mode::make_file_executable(target)?;
-        }
-        Ok(())
-    })
+    #[cfg(unix)]
+    let permissions = {
+        use std::os::unix::fs::PermissionsExt;
+        fs::Permissions::from_mode(desired_mode(source_file))
+    };
+    #[cfg(not(unix))]
+    let permissions = fs::File::open(source_file)?.metadata()?.permissions();
+
+    pnpm_fs::copy_file_exclusive(source_file, target_link, &permissions, |_| Ok(()))
 }
 
-/// [`FsReflink::reflink`] for the explicit `Clone` method, then exec-bit
-/// restoration via [`pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix`].
+/// [`FsReflink::reflink`] for the explicit `Clone` method, then
+/// alignment with the store-entry mode.
 fn clone_file<Sys: FsReflink>(source_file: &Path, target_link: &Path) -> io::Result<()> {
     Sys::reflink(source_file, target_link)?;
-    pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
+    align_target_mode(source_file, target_link)
+}
+
+/// The mode the materialized file should carry: what a fresh store
+/// write under the current process umask would give this CAS entry
+/// (pnpm/pnpm#3807).
+#[cfg(unix)]
+fn desired_mode(source_file: &Path) -> u32 {
+    pnpm_fs::file_mode::store_entry_mode(
+        pnpm_fs::file_mode::cas_path_is_executable(source_file),
+        pnpm_fs::file_mode::current_umask(),
+    )
+}
+
+/// Whether `source_file`'s on-disk mode is [`desired_mode`]. A mode that
+/// differs cannot be fixed on a store inode, so the hardlink tiers copy
+/// instead; a reflink that copied the same mode onto the target is
+/// aligned instead.
+#[cfg(unix)]
+fn source_has_desired_mode(source_file: &Path) -> io::Result<bool> {
+    use std::os::unix::fs::MetadataExt;
+    Ok(fs::metadata(source_file)?.mode() & 0o777 == desired_mode(source_file))
+}
+
+/// Align a materialized `target_link` with the mode a fresh store write
+/// under the current umask would give `source_file`. A reflink carries the
+/// source's mode onto the target — `clonefile` copies its attributes and the
+/// reflink tier sets them explicitly — so an entry the store wrote under a
+/// wider umask keeps that wider mode in `node_modules` until it is aligned
+/// here (pnpm/pnpm#3807).
+#[cfg(unix)]
+fn align_target_mode(source_file: &Path, target_link: &Path) -> io::Result<()> {
+    pnpm_fs::file_mode::set_path_permissions(target_link, desired_mode(source_file))
+}
+
+#[cfg(not(unix))]
+fn source_has_desired_mode(_source_file: &Path) -> io::Result<bool> {
+    Ok(true)
+}
+
+#[cfg(not(unix))]
+fn align_target_mode(_source_file: &Path, _target_link: &Path) -> io::Result<()> {
+    Ok(())
+}
+
+#[cfg(unix)]
+fn same_inode(source: &Path, target: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    matches!(
+        (fs::metadata(source), fs::metadata(target)),
+        (Ok(source_meta), Ok(target_meta))
+            if source_meta.ino() == target_meta.ino() && source_meta.dev() == target_meta.dev(),
+    )
+}
+
+#[cfg(not(unix))]
+fn same_inode(_source: &Path, _target: &Path) -> bool {
+    false
 }
 
 /// Unix permission errors that may deny linking while still allowing copying.
@@ -509,7 +586,7 @@ fn auto_link<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
 /// on this filesystem pair and the caller should downgrade to the next
 /// one.
 ///
-/// Only the reflink itself may downgrade. Restoration runs after
+/// Only the reflink itself may downgrade. Alignment runs after
 /// reflink created the target, so its error is terminal — downgrading
 /// on it would re-attempt the next tier against that just-created file
 /// and mask the real error behind `AlreadyExists`.
@@ -520,7 +597,7 @@ fn clone_tier<Reporter: self::Reporter, Sys: FsReflink>(
 ) -> io::Result<bool> {
     match Sys::reflink(source, target) {
         Ok(()) => {
-            pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
+            align_target_mode(source, target)?;
             log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
             Ok(true)
         }
@@ -534,23 +611,34 @@ fn clone_tier<Reporter: self::Reporter, Sys: FsReflink>(
 /// for: a source out of names copies here and reports the tier still
 /// usable, because [`is_too_many_links`] says nothing about the next
 /// file.
+/// A source whose on-disk mode does not match the current umask's
+/// store-entry mode copies at the right mode, keeping the tier for the
+/// files whose mode does match (pnpm/pnpm#3807).
 fn hardlink_tier<Reporter: self::Reporter, Sys: FsHardLink>(
     logged: &AtomicU8,
     source: &Path,
     target: &Path,
 ) -> io::Result<Option<WireImportMethod>> {
-    match Sys::hard_link(source, target) {
-        Ok(()) => {
-            log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
-            Ok(Some(WireImportMethod::Hardlink))
+    if source_has_desired_mode(source)? {
+        match Sys::hard_link(source, target) {
+            Ok(()) => {
+                log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
+                Ok(Some(WireImportMethod::Hardlink))
+            }
+            Err(err) if is_too_many_links(&err) => copy_file(source, target)
+                .inspect(|()| {
+                    log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                })
+                .map(|()| Some(WireImportMethod::Copy)),
+            Err(err) if is_call_error(&err) => Err(err),
+            Err(_) => Ok(None),
         }
-        Err(err) if is_too_many_links(&err) => copy_file(source, target)
+    } else {
+        copy_file(source, target)
             .inspect(|()| {
                 log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
             })
-            .map(|()| Some(WireImportMethod::Copy)),
-        Err(err) if is_call_error(&err) => Err(err),
-        Err(_) => Ok(None),
+            .map(|()| Some(WireImportMethod::Copy))
     }
 }
 

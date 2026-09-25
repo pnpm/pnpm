@@ -1037,6 +1037,11 @@ describe('enable prefer-symlinked-executables', () => {
     const binTarget = temporaryDirectory()
     const warn = jest.fn()
     const simpleFixture = f.prepare('simple-fixture')
+    const sourceFile = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
+    if (EXECUTABLE_SHEBANG_SUPPORTED) {
+      fs.chmodSync(sourceFile, 0o700)
+    }
+    const sourceMode = fs.statSync(sourceFile).mode & 0o777
 
     await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn, preferSymlinkedExecutables: true })
 
@@ -1054,7 +1059,9 @@ describe('enable prefer-symlinked-executables', () => {
     if (EXECUTABLE_SHEBANG_SUPPORTED) {
       const binFile = path.join(binTarget, 'simple')
       const stat = fs.statSync(binFile)
-      expect(stat.mode).toBe(parseInt('100755', 8))
+      // The target gains the execute bits it lacks, keeping the read and write
+      // bits that the fixture gave it.
+      expect(stat.mode & 0o777).toBe(sourceMode | 0o111)
       expect(stat.isFile()).toBe(true)
       const stdout = spawnSync(binFile).stdout.toString('utf-8')
       expect(stdout).toMatch('hello_world')
