@@ -1,4 +1,7 @@
+import path from 'node:path'
+
 import { PnpmError } from '@pnpm/error'
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type {
   DependenciesField,
@@ -77,6 +80,7 @@ function appendDependenciesFromLicenseNode (
 export async function findDependencyLicenses (opts: {
   ignoreDependencies?: Set<string>
   include?: IncludedDependencies
+  dir?: string
   lockfileDir: string
   manifest: ProjectManifest
   storeDir: string
@@ -88,6 +92,8 @@ export async function findDependencyLicenses (opts: {
    * `nodeLinker: hoisted` install, which leaves the virtual store empty.
    */
   hoistedLocations?: Record<string, string[]>
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+  shamefullyHoist?: boolean
   registriesByScope: RegistriesByScope
   registriesByPrefix?: Record<string, string>
   wantedLockfile: LockfileObject | null
@@ -102,14 +108,32 @@ export async function findDependencyLicenses (opts: {
     )
   }
 
+  const modulesDir = opts.modulesDir ?? 'node_modules'
+  const rootModulesDir = path.resolve(opts.lockfileDir, modulesDir)
+  const projectModulesDir = opts.dir ? path.resolve(opts.dir, modulesDir) : rootModulesDir
+  const needsModulesManifest = opts.nodeLinker == null ||
+    (opts.nodeLinker === 'hoisted' ? opts.hoistedLocations == null : opts.shamefullyHoist == null)
+  const modulesManifest = needsModulesManifest
+    ? await readModulesManifest(rootModulesDir) ??
+      (projectModulesDir !== rootModulesDir ? await readModulesManifest(projectModulesDir) : null)
+    : null
+
+  const nodeLinker = opts.nodeLinker ?? modulesManifest?.nodeLinker
+  const shamefullyHoist = opts.shamefullyHoist ??
+    (modulesManifest?.shamefullyHoist === true || Boolean(modulesManifest?.publicHoistPattern?.includes('*')))
+  const hoistedLocations = opts.hoistedLocations ?? (nodeLinker === 'hoisted' ? modulesManifest?.hoistedLocations : undefined)
+
   const licenseNodeTree = await lockfileToLicenseNodeTree(opts.wantedLockfile, {
-    dir: opts.lockfileDir,
+    dir: opts.dir ?? opts.lockfileDir,
+    lockfileDir: opts.lockfileDir,
     modulesDir: opts.modulesDir,
-    hoistedLocations: opts.hoistedLocations,
+    hoistedLocations,
     storeDir: opts.storeDir,
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     include: opts.include,
+    nodeLinker,
+    shamefullyHoist,
     registriesByScope: opts.registriesByScope,
     registriesByPrefix: opts.registriesByPrefix,
     includedImporterIds: opts.includedImporterIds,

@@ -114,3 +114,44 @@ test('findDependencyLicenses() retains distinct isolated peer installations of o
     ['alpha', path.join(lockfileDir, 'node_modules/.pnpm/alpha@1.0.0_peer@2.0.0/node_modules/alpha')],
   ])
 })
+
+test('findDependencyLicenses() treats a recorded public hoist pattern of * as shameful hoisting', async () => {
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-license-public-hoist-'))
+  try {
+    const modulesDir = path.join(projectDir, 'node_modules')
+    const slotDir = path.join(modulesDir, '.pnpm', 'peer@1.0.0', 'node_modules', 'peer')
+    fs.mkdirSync(slotDir, { recursive: true })
+    fs.symlinkSync(slotDir, path.join(modulesDir, 'peer'), 'junction')
+    fs.writeFileSync(path.join(modulesDir, '.modules.yaml'), JSON.stringify({
+      layoutVersion: 5,
+      nodeLinker: 'isolated',
+      shamefullyHoist: false,
+      publicHoistPattern: ['*'],
+    }))
+    const licenses = await findDependencyLicenses({
+      lockfileDir: projectDir,
+      manifest: {} as ProjectManifest,
+      virtualStoreDir: 'node_modules/.pnpm',
+      virtualStoreDirMaxLength: 120,
+      registriesByScope: { default: 'https://registry.npmjs.org/' },
+      wantedLockfile: {
+        importers: {
+          ['.' as ProjectId]: {
+            dependencies: { peer: '1.0.0' },
+            specifiers: { peer: '1.0.0' },
+          },
+        },
+        lockfileVersion: LOCKFILE_VERSION,
+        packages: {
+          ['peer@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-peer' } },
+        },
+      },
+      storeDir,
+    })
+    expect(licenses.map(({ name, path }) => [name, path])).toStrictEqual([
+      ['peer', path.join(modulesDir, 'peer')],
+    ])
+  } finally {
+    fs.rmSync(projectDir, { recursive: true, force: true })
+  }
+})

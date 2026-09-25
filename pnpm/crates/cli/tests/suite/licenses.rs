@@ -4,7 +4,10 @@ use _utils::{enable_gvs_in_workspace_yaml, pacquet_in};
 use assert_cmd::prelude::*;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use serde_json::{Value, json};
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 #[test]
 fn licenses_normalizes_metadata_and_orders_groups_by_package() {
@@ -610,4 +613,332 @@ fn licenses_lists_distinct_isolated_peer_installations_of_one_version() {
         })
         .collect();
     assert_eq!(report["MIT"][0]["paths"], json!(expected_paths));
+}
+
+#[test]
+fn licenses_reports_distinct_paths_for_conflicting_versions_under_shamefully_hoist() {
+    let workspace = tempfile::tempdir().expect("create workspace");
+    fs::write(
+        workspace.path().join("package.json"),
+        json!({
+            "dependencies": {
+                "is-positive": "3.1.0",
+                "wrapper": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.path().join("pnpm-lock.yaml"),
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      is-positive:
+        specifier: 3.1.0
+        version: 3.1.0
+      wrapper:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  is-positive@1.0.0:
+    resolution: {integrity: sha512-is-positive-1}
+  is-positive@3.1.0:
+    resolution: {integrity: sha512-is-positive-3}
+  wrapper@1.0.0:
+    resolution: {integrity: sha512-wrapper}
+snapshots:
+  is-positive@1.0.0: {}
+  is-positive@3.1.0: {}
+  wrapper@1.0.0:
+    dependencies:
+      is-positive: 1.0.0
+",
+    )
+    .expect("write lockfile");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "shamefullyHoist: true\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let vs_v1 =
+        workspace.path().join("node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive");
+    let vs_v3 =
+        workspace.path().join("node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive");
+    fs::create_dir_all(&vs_v1).expect("create vs v1");
+    fs::create_dir_all(&vs_v3).expect("create vs v3");
+    fs::write(
+        vs_v1.join("package.json"),
+        json!({
+            "name": "is-positive",
+            "version": "1.0.0",
+            "license": "MIT",
+        })
+        .to_string(),
+    )
+    .expect("write v1 manifest");
+    fs::write(
+        vs_v3.join("package.json"),
+        json!({
+            "name": "is-positive",
+            "version": "3.1.0",
+            "license": "MIT",
+        })
+        .to_string(),
+    )
+    .expect("write v3 manifest");
+
+    let root_hoisted = workspace.path().join("node_modules/is-positive");
+    pnpm_fs::symlink_dir(&vs_v3, &root_hoisted).expect("symlink v3 to root node_modules");
+
+    fs::write(
+        workspace.path().join("node_modules/.modules.yaml"),
+        r"
+shamefullyHoist: true
+publicHoistPattern:
+  - '*'
+",
+    )
+    .expect("write .modules.yaml");
+
+    let output = pacquet_in(workspace.path())
+        .args(["licenses", "list", "--json"])
+        .output()
+        .expect("run licenses");
+    assert!(
+        output.status.success(),
+        "licenses should succeed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
+    let mit_packages = report["MIT"].as_array().expect("MIT license group");
+    let is_positive = mit_packages
+        .iter()
+        .find(|pkg| pkg["name"] == "is-positive")
+        .expect("find is-positive");
+
+    let versions = is_positive["versions"].as_array().expect("versions array");
+    assert_eq!(versions.len(), 2);
+
+    let paths = is_positive["paths"].as_array().expect("paths array");
+    assert_eq!(paths.len(), 2);
+    assert_ne!(paths[0], paths[1], "both versions must have distinct paths");
+
+    let has_virtual_store = paths
+        .iter()
+        .any(|path| path.as_str().unwrap().contains(".pnpm"));
+    let has_root_hoisted = paths
+        .iter()
+        .any(|path| !path.as_str().unwrap().contains(".pnpm"));
+    assert!(has_virtual_store, "version 1.0.0 must point to virtual store path");
+    assert!(has_root_hoisted, "version 3.1.0 must point to hoisted node_modules path");
+}
+
+#[test]
+fn licenses_reports_hoisted_package_paths_under_hoisted_node_linker() {
+    let workspace = tempfile::tempdir().expect("create workspace");
+    fs::write(
+        workspace.path().join("package.json"),
+        json!({
+            "dependencies": {
+                "is-positive": "3.1.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.path().join("pnpm-lock.yaml"),
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      is-positive:
+        specifier: 3.1.0
+        version: 3.1.0
+packages:
+  is-positive@3.1.0:
+    resolution: {integrity: sha512-is-positive}
+snapshots:
+  is-positive@3.1.0: {}
+",
+    )
+    .expect("write lockfile");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let pkg_dir = workspace.path().join("node_modules/is-positive");
+    fs::create_dir_all(&pkg_dir).expect("create is-positive directory");
+    fs::write(
+        pkg_dir.join("package.json"),
+        json!({
+            "name": "is-positive",
+            "version": "3.1.0",
+            "license": "MIT",
+            "author": "Test Author",
+        })
+        .to_string(),
+    )
+    .expect("write is-positive manifest");
+
+    fs::write(
+        workspace.path().join("node_modules/.modules.yaml"),
+        r#"
+nodeLinker: hoisted
+hoistedLocations:
+  "is-positive@3.1.0":
+    - node_modules/is-positive
+"#,
+    )
+    .expect("write .modules.yaml");
+
+    let output = pacquet_in(workspace.path())
+        .args(["licenses", "list", "--json"])
+        .output()
+        .expect("run licenses");
+    assert!(
+        output.status.success(),
+        "licenses should succeed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
+    let mit_packages = report["MIT"].as_array().expect("MIT license group");
+    assert_eq!(mit_packages.len(), 1);
+    let pkg = &mit_packages[0];
+    assert_eq!(pkg["name"], "is-positive");
+    assert_eq!(pkg["versions"], json!(["3.1.0"]));
+    assert_eq!(pkg["author"], "Test Author");
+
+    let paths = pkg["paths"].as_array().expect("paths array");
+    assert_eq!(paths.len(), 1);
+    let reported_path = paths[0].as_str().expect("path string");
+    assert!(
+        !reported_path.contains(".pnpm"),
+        "reported path should not contain .pnpm: {reported_path}",
+    );
+    let canonical_reported =
+        dunce::canonicalize(reported_path).expect("canonicalize reported path");
+    let canonical_pkg_dir = dunce::canonicalize(&pkg_dir).expect("canonicalize pkg dir");
+    assert_eq!(
+        canonical_reported, canonical_pkg_dir,
+        "reported path should match the hoisted directory",
+    );
+    assert!(Path::new(reported_path).exists(), "reported path should exist on disk");
+}
+
+#[test]
+fn licenses_falls_back_to_a_version_matched_root_package_without_recorded_hoisted_locations() {
+    let workspace = tempfile::tempdir().expect("create workspace");
+    fs::write(
+        workspace.path().join("package.json"),
+        json!({ "dependencies": { "is-positive": "3.1.0", "wrapper": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.path().join("pnpm-lock.yaml"),
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      is-positive:
+        specifier: 3.1.0
+        version: 3.1.0
+      wrapper:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  is-positive@1.0.0:
+    resolution: {integrity: sha512-is-positive-1}
+  is-positive@3.1.0:
+    resolution: {integrity: sha512-is-positive-3}
+  wrapper@1.0.0:
+    resolution: {integrity: sha512-wrapper}
+snapshots:
+  is-positive@1.0.0: {}
+  is-positive@3.1.0: {}
+  wrapper@1.0.0:
+    dependencies:
+      is-positive: 1.0.0
+",
+    )
+    .expect("write lockfile");
+    for (location, name, version) in [
+        ("node_modules/is-positive", "is-positive", "3.1.0"),
+        ("node_modules/wrapper", "wrapper", "1.0.0"),
+        ("node_modules/wrapper/node_modules/is-positive", "is-positive", "1.0.0"),
+    ] {
+        let package_dir = workspace.path().join(location);
+        fs::create_dir_all(&package_dir).expect("create package directory");
+        fs::write(
+            package_dir.join("package.json"),
+            json!({ "name": name, "version": version, "license": "MIT" }).to_string(),
+        )
+        .expect("write manifest");
+    }
+    fs::write(
+        workspace.path().join("node_modules/.modules.yaml"),
+        json!({ "layoutVersion": 5, "nodeLinker": "hoisted" }).to_string(),
+    )
+    .expect("write .modules.yaml");
+
+    let output = pacquet_in(workspace.path())
+        .args(["licenses", "list", "--json"])
+        .output()
+        .expect("run licenses");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
+    let root = dunce::canonicalize(workspace.path()).expect("canonicalize workspace");
+    let root_is_positive = root.join("node_modules").join("is-positive");
+    let is_positive_paths: Vec<(String, PathBuf)> = report
+        .as_object()
+        .expect("license groups")
+        .values()
+        .flat_map(|group| group.as_array().expect("license group"))
+        .filter(|pkg| pkg["name"] == "is-positive")
+        .flat_map(|pkg| {
+            let versions = pkg["versions"]
+                .as_array()
+                .expect("versions")
+                .clone();
+            let paths = pkg["paths"]
+                .as_array()
+                .expect("paths")
+                .clone();
+            versions
+                .into_iter()
+                .zip(paths)
+                .map(|(version, path)| {
+                    (version.as_str().unwrap().to_string(), PathBuf::from(path.as_str().unwrap()))
+                })
+        })
+        .collect();
+
+    let path_of = |version: &str| {
+        is_positive_paths
+            .iter()
+            .find(|(listed, _)| listed == version)
+            .map_or_else(
+                || panic!("is-positive@{version} missing from {is_positive_paths:?}"),
+                |(_, path)| path.clone(),
+            )
+    };
+    assert_eq!(
+        dunce::canonicalize(path_of("3.1.0")).expect("canonicalize reported path"),
+        root_is_positive,
+        "the root package matches the locked version",
+    );
+    let virtual_store_path =
+        Path::new("node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive");
+    let nested_path = path_of("1.0.0");
+    assert!(
+        nested_path == root.join(virtual_store_path)
+            || nested_path == workspace.path().join(virtual_store_path),
+        "the root package holds another version, so 1.0.0 falls back to its virtual-store path, got {nested_path:?}",
+    );
 }
