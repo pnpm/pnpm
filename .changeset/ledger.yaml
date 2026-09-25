@@ -15,12 +15,23 @@
   dir: pnpm11/auth/commands
   intents:
     - login-non-interactive-web-auth
+"@pnpm/auth.commands@1100.3.10":
+  dir: pnpm11/auth/commands
+  intents:
+    - optional-config-files-non-native-errors
 "@pnpm/bins.cmd-shim@1100.0.0":
   dir: pnpm11/bins/cmd-shim
   intents:
     - cmd-shim-monorepo
     - shim-printf-path-normalization
     - system-cygpath-wslpath-shims
+"@pnpm/bins.cmd-shim@1100.0.1":
+  dir: pnpm11/bins/cmd-shim
+  intents:
+    - link-missing-bin-target
+    - modules-dir-node-path
+    - sh-shim-node-path-msys
+    - strip-node-modules-from-path-in-shims
 "@pnpm/bins.linker@1100.0.22":
   dir: pnpm11/bins/linker
   intents:
@@ -41,6 +52,18 @@
     - shim-helpers-bypass-caller-path
     - shim-printf-path-normalization
     - system-cygpath-wslpath-shims
+"@pnpm/bins.linker@1100.0.33":
+  dir: pnpm11/bins/linker
+  intents:
+    - bins-linker-custom-modules-dir
+    - hoisted-linker-hoist-workspace-packages
+    - link-deps-publish-config-directory
+    - link-missing-bin-target
+    - modules-dir-node-path
+    - skip-noop-chmod-on-executable-bins
+    - strip-node-modules-from-path-in-shims
+    - symlink-dir-concurrent-races
+    - thick-forks-wave
 "@pnpm/bins.remover@1100.0.16":
   dir: pnpm11/bins/remover
   intents:
@@ -74,6 +97,11 @@
   dir: pnpm11/building/after-install
   intents:
     - retire-execution-barriers
+"@pnpm/building.after-install@1103.0.6":
+  dir: pnpm11/building/after-install
+  intents:
+    - modules-dir-node-path
+    - prod-skips-dev-provided-optional-peers
 "@pnpm/building.commands@1100.1.17":
   dir: pnpm11/building/commands
   intents:
@@ -130,6 +158,10 @@
   dir: pnpm11/building/pkg-requires-build
   intents:
     - patched-install-scripts-need-approval
+"@pnpm/building.pkg-requires-build@1100.0.18":
+  dir: pnpm11/building/pkg-requires-build
+  intents:
+    - gypfile-false-opts-out-of-node-gyp
 "@pnpm/building.policy@1100.0.15":
   dir: pnpm11/building/policy
   intents:
@@ -206,6 +238,12 @@
   dir: pnpm11/cli/commands
   intents:
     - fix-run-script-completion
+"@pnpm/cli.commands@1100.0.44":
+  dir: pnpm11/cli/commands
+  intents:
+    - bash-completion-colon-script-names
+    - fish-completion-escapes
+    - safe-completion-candidates
 "@pnpm/cli.common-cli-options-help@1100.0.3":
   dir: pnpm11/cli/common-cli-options-help
   intents:
@@ -227,6 +265,14 @@
   dir: pnpm11/cli/default-reporter
   intents:
     - deprecation-notices-stay-out-of-the-output
+"@pnpm/cli.default-reporter@1100.3.21":
+  dir: pnpm11/cli/default-reporter
+  intents:
+    - frozen-install-skips-unresolved-optional
+    - lockfile-incompatible-error-versions
+    - plain-warnings-in-append-only
+    - script-signal-name-v11
+    - store-status-drop-refetch-hint
 "@pnpm/cli.default-reporter@1100.3.8":
   dir: pnpm11/cli/default-reporter
   intents:
@@ -239,6 +285,10 @@
   dir: pnpm11/cli/meta
   intents:
     - tidy-pianos-tap
+"@pnpm/cli.meta@1100.1.1":
+  dir: pnpm11/cli/meta
+  intents:
+    - npm-execpath-running-pnpm
 "@pnpm/cli.parse-cli-args@1100.1.6":
   dir: pnpm11/cli/parse-cli-args
   intents:
@@ -264,6 +314,10 @@
   intents:
     - config-get-resolved-registries
     - registries-by-scope-by-prefix
+"@pnpm/config.commands@1101.0.6":
+  dir: pnpm11/config/commands
+  intents:
+    - optional-config-files-non-native-errors
 "@pnpm/config.matcher@1100.0.2":
   dir: pnpm11/config/matcher
   intents:
@@ -292,6 +346,10 @@
   dir: pnpm11/config/package-is-installable
   intents:
     - headless-edge-aware-engine-strict
+"@pnpm/config.package-is-installable@1100.2.0":
+  dir: pnpm11/config/package-is-installable
+  intents:
+    - force-ignores-platform-setting
 "@pnpm/config.parse-overrides@1100.1.0":
   dir: pnpm11/config/parse-overrides
   intents:
@@ -300,6 +358,10 @@
   dir: pnpm11/config/parse-overrides
   intents:
     - republish-all-lib-packages
+"@pnpm/config.parse-overrides@1100.1.6":
+  dir: pnpm11/config/parse-overrides
+  intents:
+    - trim-override-selectors
 "@pnpm/config.pick-registry-for-package@1100.0.12":
   dir: pnpm11/config/pick-registry-for-package
   intents:
@@ -392,6 +454,21 @@
   intents:
     - explain-ignored-project-auth
     - read-workspaces-that-use-pnpm-12-task-settings
+"@pnpm/config.reader@1102.3.0":
+  dir: pnpm11/config/reader
+  intents:
+    - config-warn-shared-workspace-lockfile-outside-workspace
+    - devengines-runtime-range-uses-locked-node-v11
+    - devengines-runtime-range-uses-system-node
+    - force-ignores-platform-setting
+    - modules-dir-command-lookup
+    - npmrc-optional-env-var
+    - preserve-default-registry-env-auth
+    - quiet-tokens-warn
+    - skip-custom-modules-dir-in-workspace-discovery
+    - store-connection-manager-exports-cafile
+    - trusted-auth-env-expansion
+    - workspace-user-agent-env
 "@pnpm/config.registry-auth-key@1100.0.0":
   dir: pnpm11/config/registry-auth-key
   intents:
@@ -450,6 +527,10 @@
   dir: pnpm11/crypto/hash
   intents:
     - republish-all-lib-packages
+"@pnpm/crypto.hash@1100.0.6":
+  dir: pnpm11/crypto/hash
+  intents:
+    - fresh-tarballs-freeze
 "@pnpm/crypto.integrity@1100.0.2":
   dir: pnpm11/crypto/integrity
   intents:
@@ -486,6 +567,11 @@
   dir: pnpm11/deps/compliance/audit
   intents:
     - audit-fix-age-excludes-unpublished-versions
+"@pnpm/deps.compliance.audit@1101.0.38":
+  dir: pnpm11/deps/compliance/audit
+  intents:
+    - audit-paths-every-project
+    - prod-skips-dev-provided-optional-peers
 "@pnpm/deps.compliance.commands@1101.5.10":
   dir: pnpm11/deps/compliance/commands
   intents:
@@ -523,6 +609,16 @@
   intents:
     - fix-audit-double-interactive
     - fix-sbom-repository-url
+"@pnpm/deps.compliance.commands@1102.1.4":
+  dir: pnpm11/deps/compliance/commands
+  intents:
+    - audit-fix-prune-subset-overrides
+    - audit-respects-filter
+    - licenses-current-project
+    - licenses-dedicated-lockfiles
+    - licenses-hoisted-paths
+    - prod-skips-dev-provided-optional-peers
+    - sbom-filtered-declared-blank-metadata
 "@pnpm/deps.compliance.license-resolver@1100.0.1":
   dir: pnpm11/deps/compliance/license-resolver
   intents:
@@ -547,6 +643,11 @@
   dir: pnpm11/deps/compliance/license-scanner
   intents:
     - licenses-skip-runtime-deps
+"@pnpm/deps.compliance.license-scanner@1101.0.6":
+  dir: pnpm11/deps/compliance/license-scanner
+  intents:
+    - licenses-hoisted-paths
+    - prod-skips-dev-provided-optional-peers
 "@pnpm/deps.compliance.sbom@1100.3.8":
   dir: pnpm11/deps/compliance/sbom
   intents:
@@ -575,6 +676,10 @@
   intents:
     - fix-sbom-repository-url
     - sbom-license-expressions
+"@pnpm/deps.compliance.sbom@1101.0.5":
+  dir: pnpm11/deps/compliance/sbom
+  intents:
+    - prod-skips-dev-provided-optional-peers
 "@pnpm/deps.github-actions@1100.1.0":
   dir: pnpm11/deps/github-actions
   intents:
@@ -584,6 +689,10 @@
   dir: pnpm11/deps/github-actions
   intents:
     - interactive-update-github-actions-opt-in
+"@pnpm/deps.github-actions@1100.1.11":
+  dir: pnpm11/deps/github-actions
+  intents:
+    - github-actions-minimum-release-age
 "@pnpm/deps.github-actions@1100.1.8":
   dir: pnpm11/deps/github-actions
   intents:
@@ -617,6 +726,10 @@
   dir: pnpm11/deps/graph-builder
   intents:
     - prod-install-skips-dev-downloads
+"@pnpm/deps.graph-builder@1101.1.0":
+  dir: pnpm11/deps/graph-builder
+  intents:
+    - force-ignores-platform-setting
 "@pnpm/deps.graph-hasher@1100.2.12":
   dir: pnpm11/deps/graph-hasher
   intents:
@@ -668,6 +781,16 @@
   intents:
     - deprecation-notices-stay-out-of-the-output
     - recursive-list-json
+"@pnpm/deps.inspection.commands@1101.0.6":
+  dir: pnpm11/deps/inspection/commands
+  intents:
+    - github-actions-minimum-release-age
+    - list-only-projects-dedicated-lockfiles
+    - list-only-projects-publish-directory
+    - list-only-projects-selected-and-unsaved
+    - outdated-missing-dep
+    - outdated-recursive-json-all-deps
+    - prod-skips-dev-provided-optional-peers
 "@pnpm/deps.inspection.list@1100.0.29":
   dir: pnpm11/deps/inspection/list
   intents:
@@ -684,6 +807,12 @@
   dir: pnpm11/deps/inspection/list
   intents:
     - recursive-list-json
+"@pnpm/deps.inspection.list@1101.0.6":
+  dir: pnpm11/deps/inspection/list
+  intents:
+    - list-only-projects-dedicated-lockfiles
+    - list-only-projects-publish-directory
+    - prod-skips-dev-provided-optional-peers
 "@pnpm/deps.inspection.outdated@1100.1.20":
   dir: pnpm11/deps/inspection/outdated
   intents:
@@ -693,6 +822,10 @@
   intents:
     - interactive-update-blank-workspace-name
     - interactive-update-workspace-labels
+"@pnpm/deps.inspection.outdated@1100.1.32":
+  dir: pnpm11/deps/inspection/outdated
+  intents:
+    - update-peer-dependencies
 "@pnpm/deps.inspection.peers-checker@1100.0.21":
   dir: pnpm11/deps/inspection/peers-checker
   intents:
@@ -701,6 +834,10 @@
   dir: pnpm11/deps/inspection/peers-checker
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.inspection.peers-issues-renderer@1100.0.15":
+  dir: pnpm11/deps/inspection/peers-issues-renderer
+  intents:
+    - name-project-in-peer-issues
 "@pnpm/deps.inspection.peers-issues-renderer@1100.0.9":
   dir: pnpm11/deps/inspection/peers-issues-renderer
   intents:
@@ -722,6 +859,13 @@
   intents:
     - drop-modules-yaml-registries
     - registries-by-scope-by-prefix
+"@pnpm/deps.inspection.tree-builder@1101.0.6":
+  dir: pnpm11/deps/inspection/tree-builder
+  intents:
+    - list-only-projects-dedicated-lockfiles
+    - list-only-projects-publish-directory
+    - list-only-projects-selected-and-unsaved
+    - prod-skips-dev-provided-optional-peers
 "@pnpm/deps.path@1100.0.11":
   dir: pnpm11/deps/path
   intents:
@@ -734,6 +878,10 @@
   dir: pnpm11/deps/path
   intents:
     - registries-by-scope-by-prefix
+"@pnpm/deps.path@1101.0.4":
+  dir: pnpm11/deps/path
+  intents:
+    - virtual-store-trailing-dots
 "@pnpm/deps.peer-range@1100.1.0":
   dir: pnpm11/deps/peer-range
   intents:
@@ -778,6 +926,15 @@
   dir: pnpm11/deps/status
   intents:
     - repeat-install-deduped-siblings
+"@pnpm/deps.status@1100.1.24":
+  dir: pnpm11/deps/status
+  intents:
+    - bzip2-tarball-support
+    - fast-path-custom-modules-dir
+    - ignore-pnpmfile-checksum
+    - relink-after-project-move
+    - relink-dangling-direct-dependency
+    - skip-custom-modules-dir-in-workspace-discovery
 "@pnpm/deps.status@1100.1.7":
   dir: pnpm11/deps/status
   intents:
@@ -839,6 +996,14 @@
   intents:
     - alias-bins-resolve-sibling-pnpm
     - fix-setup-output-grammar
+"@pnpm/engine.pm.commands@1102.1.4":
+  dir: pnpm11/engine/pm/commands
+  intents:
+    - fix-self-update-in-project-pin
+    - self-update-replaces-other-pnpm-package
+    - setup-preserve-shell-config
+    - strip-node-modules-from-path-in-shims
+    - symlink-dir-concurrent-races
 "@pnpm/engine.runtime.bun-resolver@1102.0.11":
   dir: pnpm11/engine/runtime/bun-resolver
   intents:
@@ -859,6 +1024,10 @@
   dir: pnpm11/engine/runtime/commands
   intents:
     - authenticated-node-mirrors
+"@pnpm/engine.runtime.commands@1101.1.4":
+  dir: pnpm11/engine/runtime/commands
+  intents:
+    - env-remove-cleanup-pnpm11
 "@pnpm/engine.runtime.deno-resolver@1102.0.11":
   dir: pnpm11/engine/runtime/deno-resolver
   intents:
@@ -879,6 +1048,10 @@
   dir: pnpm11/engine/runtime/node-resolver
   intents:
     - fix-node-runtime-unofficial-builds-error-handling
+"@pnpm/engine.runtime.node-resolver@1101.3.3":
+  dir: pnpm11/engine/runtime/node-resolver
+  intents:
+    - node-runtime-win-arm64
 "@pnpm/engine.runtime.system-version@1100.0.6":
   dir: pnpm11/engine/runtime/system-version
   intents:
@@ -900,6 +1073,10 @@
   dir: pnpm11/core/error
   intents:
     - redact-tarball-error-urls
+"@pnpm/error@1100.2.0":
+  dir: pnpm11/core/error
+  intents:
+    - surface-fetch-timeout
 "@pnpm/eslint-config@1100.0.1":
   dir: pnpm11/__utils__/eslint-config
   intents:
@@ -912,6 +1089,12 @@
   dir: pnpm11/pnpm/artifacts/exe
   intents:
     - alias-bins-resolve-sibling-pnpm
+"@pnpm/exe@11.28.0":
+  dir: pnpm11/pnpm/artifacts/exe
+  intents:
+    - fix-exe-windows-wrapper-exit-code
+    - fix-windows-path-alias-bins
+    - strip-node-modules-from-path-in-shims
 "@pnpm/exec.commands@1100.3.5":
   dir: pnpm11/exec/commands
   intents:
@@ -955,6 +1138,20 @@
     - exec-subdirectory-project-bins
     - exec-waits-for-command
     - fix-dlx-build-approval
+"@pnpm/exec.commands@1101.1.4":
+  dir: pnpm11/exec/commands
+  intents:
+    - big-geckos-explode
+    - dlx-cache-key-node-major
+    - exec-pwd-logical-path
+    - filter-run-falls-back-to-bin
+    - modules-dir-command-lookup
+    - modules-dir-node-path
+    - quiet-recursive-ctrl-c
+    - restart-without-restart-script
+    - run-loglevel-quiets-command-echo
+    - symlink-dir-concurrent-races
+    - verify-deps-install-lock
 "@pnpm/exec.esm-node-path-loader@1100.0.0":
   dir: pnpm11/exec/esm-node-path-loader
   intents:
@@ -972,6 +1169,15 @@
   dir: pnpm11/exec/lifecycle
   intents:
     - npm-lifecycle-monorepo
+"@pnpm/exec.lifecycle@1100.1.19":
+  dir: pnpm11/exec/lifecycle
+  intents:
+    - gypfile-false-opts-out-of-node-gyp
+    - modules-dir-command-lookup
+    - modules-dir-node-path
+    - quiet-recursive-ctrl-c
+    - remove-runs-uninstall-scripts
+    - root-preinstall-before-install
 "@pnpm/exec.lifecycle@1100.1.3":
   dir: pnpm11/exec/lifecycle
   intents:
@@ -986,6 +1192,18 @@
     - exec-waits-for-command
     - npm-lifecycle-monorepo
     - relay-to-script-group
+"@pnpm/exec.npm-lifecycle@1100.0.1":
+  dir: pnpm11/exec/npm-lifecycle
+  intents:
+    - big-geckos-explode
+    - khaki-keys-thank
+    - missing-script-shell-error
+    - modules-dir-command-lookup
+    - npm-execpath-running-pnpm
+    - quiet-recursive-ctrl-c
+    - script-group-dies-with-pnpm
+    - script-shell-cmd-exe-args
+    - script-signal-name-v11
 "@pnpm/exec.pnpm-cli-runner@1100.0.2":
   dir: pnpm11/exec/pnpm-cli-runner
   intents:
@@ -994,6 +1212,12 @@
   dir: pnpm11/exec/pnpm-cli-runner
   intents:
     - hip-pugs-search
+"@pnpm/exec.pnpm-cli-runner@1100.0.4":
+  dir: pnpm11/exec/pnpm-cli-runner
+  intents:
+    - entry-script-owner-check
+    - npm-execpath-running-pnpm
+    - run-loglevel-quiets-command-echo
 "@pnpm/exec.prepare-package@1100.0.27":
   dir: pnpm11/exec/prepare-package
   intents:
@@ -1014,6 +1238,10 @@
   dir: pnpm11/fetching/binary-fetcher
   intents:
     - wild-poems-tickle
+"@pnpm/fetching.binary-fetcher@1102.0.16":
+  dir: pnpm11/fetching/binary-fetcher
+  intents:
+    - lazy-tempy-missing-tmpdir
 "@pnpm/fetching.binary-fetcher@1102.0.4":
   dir: pnpm11/fetching/binary-fetcher
   intents:
@@ -1050,6 +1278,11 @@
   dir: pnpm11/fetching/git-fetcher
   intents:
     - git-dependency-denied-preparation
+"@pnpm/fetching.git-fetcher@1102.0.20":
+  dir: pnpm11/fetching/git-fetcher
+  intents:
+    - git-ssh-batch-mode
+    - swift-crabs-relate
 "@pnpm/fetching.git-fetcher@1102.0.9":
   dir: pnpm11/fetching/git-fetcher
   intents:
@@ -1084,6 +1317,12 @@
   dir: pnpm11/fetching/tarball-fetcher
   intents:
     - git-dependency-denied-preparation
+"@pnpm/fetching.tarball-fetcher@1102.1.4":
+  dir: pnpm11/fetching/tarball-fetcher
+  intents:
+    - fail-fast-on-untrusted-certificate
+    - import-git-hosted-tarball-integrity
+    - surface-fetch-timeout
 "@pnpm/fetching.types@1100.0.3":
   dir: pnpm11/fetching/types
   intents:
@@ -1104,6 +1343,11 @@
   dir: pnpm11/fs/graceful-fs
   intents:
     - retry-delete-pending-inspection
+"@pnpm/fs.graceful-fs@1100.2.3":
+  dir: pnpm11/fs/graceful-fs
+  intents:
+    - fix-6155-wsl-windows-drive-locks
+    - lockfile-rename-retry
 "@pnpm/fs.hard-link-dir@1100.0.3":
   dir: pnpm11/fs/hard-link-dir
   intents:
@@ -1128,6 +1372,12 @@
   dir: pnpm11/fs/indexed-pkg-importer
   intents:
     - retry-delete-pending-inspection
+"@pnpm/fs.indexed-pkg-importer@1100.0.30":
+  dir: pnpm11/fs/indexed-pkg-importer
+  intents:
+    - deploy-respects-package-import-method
+    - fix-6155-wsl-windows-drive-locks
+    - preserve-internal-symlinks-pack-deploy
 "@pnpm/fs.is-empty-dir-or-nothing@1100.0.1":
   dir: pnpm11/fs/is-empty-dir-or-nothing
   intents:
@@ -1144,6 +1394,12 @@
   dir: pnpm11/fs/packlist
   intents:
     - republish-all-lib-packages
+"@pnpm/fs.packlist@1100.0.5":
+  dir: pnpm11/fs/packlist
+  intents:
+    - package-yaml-files-field
+    - preserve-internal-symlinks-pack-deploy
+    - smart-camels-pack
 "@pnpm/fs.read-modules-dir@1100.0.2":
   dir: pnpm11/fs/read-modules-dir
   intents:
@@ -1152,6 +1408,11 @@
   dir: pnpm11/fs/symlink-dependency
   intents:
     - republish-all-lib-packages
+"@pnpm/fs.symlink-dependency@1100.0.21":
+  dir: pnpm11/fs/symlink-dependency
+  intents:
+    - link-deps-publish-config-directory
+    - symlink-dir-concurrent-races
 "@pnpm/global.commands@1100.0.34":
   dir: pnpm11/global/commands
   intents:
@@ -1195,6 +1456,12 @@
   intents:
     - fix-global-retained-bin-scan
     - quiet-global-update
+"@pnpm/global.commands@1102.0.3":
+  dir: pnpm11/global/commands
+  intents:
+    - global-update-missing-file-source
+    - global-update-single-approval
+    - symlink-dir-concurrent-races
 "@pnpm/global.packages@1100.0.13":
   dir: pnpm11/global/packages
   intents:
@@ -1215,6 +1482,10 @@
   dir: pnpm11/global/packages
   intents:
     - fail-closed-global-bin-enumeration
+"@pnpm/global.packages@1101.1.4":
+  dir: pnpm11/global/packages
+  intents:
+    - global-scan-skips-absent-package-dirs
 "@pnpm/hooks.pnpmfile@1100.0.22":
   dir: pnpm11/hooks/pnpmfile
   intents:
@@ -1227,6 +1498,12 @@
   dir: pnpm11/hooks/pnpmfile
   intents:
     - deprecate-import-package-hook
+"@pnpm/hooks.pnpmfile@1100.0.33":
+  dir: pnpm11/hooks/pnpmfile
+  intents:
+    - global-pnpmfile-readpackage-lockfile-reuse
+    - project-pnpmfile-after-plugin-pnpmfiles
+    - read-package-hook-invalid-range
 "@pnpm/hooks.read-package-hook@1100.1.0":
   dir: pnpm11/hooks/read-package-hook
   intents:
@@ -1255,6 +1532,10 @@
   dir: pnpm11/hooks/read-package-hook
   intents:
     - overrides-bare-local-paths
+"@pnpm/hooks.read-package-hook@1100.3.4":
+  dir: pnpm11/hooks/read-package-hook
+  intents:
+    - fix-optional-peer-removal
 "@pnpm/hooks.types@1100.2.3":
   dir: pnpm11/hooks/types
   intents:
@@ -1357,6 +1638,31 @@
     - deploy-excludes-root-dependencies
     - force-install-repairs-modified-files
     - quiet-mature-versions
+"@pnpm/installing.commands@1101.4.0":
+  dir: pnpm11/installing/commands
+  intents:
+    - catalog-workspace-graph-edges
+    - fix-14406-remove-trust-lockfile
+    - fix-8627
+    - force-ignores-platform-setting
+    - github-actions-minimum-release-age
+    - import-converts-yarn-patches
+    - import-keeps-root-yarn-lock-pins-in-workspace
+    - interactive-workspace-update-external-deps
+    - legacy-deploy-keeps-workspace-state
+    - modules-dir-command-lookup
+    - pacquet-delegation-reporting-flags
+    - prune-excludes-per-project-lockfiles
+    - recursive-remove-missing-dep
+    - relink-after-project-move
+    - relink-dangling-direct-dependency
+    - remove-usage-text
+    - skip-allow-builds-placeholders-without-terminal
+    - symlinked-workspace-project-links
+    - unlink-reverts-link
+    - update-peer-dependencies
+    - update-prod-no-dev-deps
+    - warn-nested-workspace-manifest
 "@pnpm/installing.context@1100.0.28":
   dir: pnpm11/installing/context
   intents:
@@ -1505,6 +1811,39 @@
     - fix-forced-child-links
     - prod-install-skips-dev-downloads
     - update-hook-added-dependencies
+"@pnpm/installing.deps-installer@1104.2.0":
+  dir: pnpm11/installing/deps-installer
+  intents:
+    - add-keeps-hook-provided-specifier
+    - audit-fix-update-npm-alias
+    - dedupe-prefers-catalog-versions
+    - devengines-runtime-range-uses-locked-node-v11
+    - fix-8627
+    - force-ignores-platform-setting
+    - fresh-tarballs-freeze
+    - frozen-install-missing-workspace-project
+    - frozen-install-skips-unresolved-optional
+    - frozen-lockfile-workspace-drift
+    - global-pnpmfile-readpackage-lockfile-reuse
+    - hoist-workspace-packages-every-install
+    - hoisted-filter-dependencies
+    - ignore-pnpmfile-checksum
+    - link-deps-publish-config-directory
+    - modules-dir-command-lookup
+    - modules-dir-node-path
+    - peer-issues-log-drops-silenced-peers
+    - pnpr-forwards-peer-dependencies
+    - prod-skips-dev-provided-optional-peers
+    - prune-dev-deps-without-lockfile
+    - remove-runs-uninstall-scripts
+    - removed-override-reresolves
+    - root-preinstall-before-install
+    - symlinked-workspace-project-links
+    - tall-grapes-tan
+    - update-off-unavailable-version
+    - update-peer-dependencies
+    - update-prod-no-dev-deps
+    - warn-different-source-replacement
 "@pnpm/installing.deps-resolver@1100.2.11":
   dir: pnpm11/installing/deps-resolver
   intents:
@@ -1576,6 +1915,26 @@
     - fix-peer-dependent-child-dedupe
     - prod-install-skips-dev-downloads
     - update-hook-added-dependencies
+"@pnpm/installing.deps-resolver@1102.2.3":
+  dir: pnpm11/installing/deps-resolver
+  intents:
+    - bzip2-tarball-support
+    - devengines-runtime-range-uses-locked-node-v11
+    - engine-strict-read-package-hook
+    - keep-locked-subdeps-on-add
+    - locked-alien-module-v11
+    - no-skip-adding-warning-on-catalog-update
+    - optional-peer-also-a-dependency
+    - real-owls-travel
+    - removed-override-reresolves
+    - secondary-dep-local-direct-version
+    - synthesized-version-package-extensions-v11
+    - unknown-version-local-directory
+    - update-auto-installed-transitive-peer
+    - update-peer-dependencies
+    - wise-swans-win
+    - workspace-dependency-build-metadata
+    - workspace-peer-follows-provider
 "@pnpm/installing.deps-restorer@1102.1.10":
   dir: pnpm11/installing/deps-restorer
   intents:
@@ -1626,6 +1985,20 @@
     - fix-forced-child-links
     - hoisted-linker-summary-versions
     - prod-install-skips-dev-downloads
+"@pnpm/installing.deps-restorer@1103.2.0":
+  dir: pnpm11/installing/deps-restorer
+  intents:
+    - devengines-runtime-range-uses-locked-node-v11
+    - force-ignores-platform-setting
+    - hoisted-filter-dependencies
+    - hoisted-linker-hoist-workspace-packages
+    - hoisted-prune-stale-bin-links
+    - legacy-deploy-hoisted-direct-deps
+    - link-deps-publish-config-directory
+    - modules-dir-node-path
+    - prod-skips-dev-provided-optional-peers
+    - remove-runs-uninstall-scripts
+    - root-preinstall-before-install
 "@pnpm/installing.env-installer@1102.0.12":
   dir: pnpm11/installing/env-installer
   intents:
@@ -1648,14 +2021,28 @@
   dir: pnpm11/installing/env-installer
   intents:
     - sync-satisfied-range-pin
+"@pnpm/installing.env-installer@1103.0.6":
+  dir: pnpm11/installing/env-installer
+  intents:
+    - fix-env-lockfile-package-manager-exe-rewrite
+    - symlink-dir-concurrent-races
 "@pnpm/installing.linking.direct-dep-linker@1100.0.14":
   dir: pnpm11/installing/linking/direct-dep-linker
   intents:
     - republish-all-lib-packages
+"@pnpm/installing.linking.direct-dep-linker@1100.0.21":
+  dir: pnpm11/installing/linking/direct-dep-linker
+  intents:
+    - link-deps-publish-config-directory
 "@pnpm/installing.linking.hoist@1100.0.22":
   dir: pnpm11/installing/linking/hoist
   intents:
     - republish-all-lib-packages
+"@pnpm/installing.linking.hoist@1100.0.33":
+  dir: pnpm11/installing/linking/hoist
+  intents:
+    - hoist-workspace-packages-every-install
+    - symlink-dir-concurrent-races
 "@pnpm/installing.linking.modules-cleaner@1100.1.15":
   dir: pnpm11/installing/linking/modules-cleaner
   intents:
@@ -1664,6 +2051,10 @@
   dir: pnpm11/installing/linking/modules-cleaner
   intents:
     - fast-exact-overrides
+"@pnpm/installing.linking.modules-cleaner@1100.1.25":
+  dir: pnpm11/installing/linking/modules-cleaner
+  intents:
+    - prod-skips-dev-provided-optional-peers
 "@pnpm/installing.linking.real-hoist@1100.1.14":
   dir: pnpm11/installing/linking/real-hoist
   intents:
@@ -1672,6 +2063,10 @@
   dir: pnpm11/installing/linking/real-hoist
   intents:
     - hoisted-file-dep-peer-variants-stay-apart
+"@pnpm/installing.linking.real-hoist@1100.1.20":
+  dir: pnpm11/installing/linking/real-hoist
+  intents:
+    - hoisted-filter-dependencies
 "@pnpm/installing.linking.real-hoist@1100.1.9":
   dir: pnpm11/installing/linking/real-hoist
   intents:
@@ -1699,6 +2094,13 @@
   dir: pnpm11/installing/package-requester
   intents:
     - republish-all-lib-packages
+"@pnpm/installing.package-requester@1102.2.0":
+  dir: pnpm11/installing/package-requester
+  intents:
+    - allow-deleted-local-tarball-reuse
+    - devengines-runtime-range-uses-locked-node-v11
+    - engine-strict-read-package-hook
+    - force-ignores-platform-setting
 "@pnpm/installing.read-projects-context@1100.0.24":
   dir: pnpm11/installing/read-projects-context
   intents:
@@ -1708,10 +2110,18 @@
   intents:
     - drop-modules-yaml-registries
     - registries-by-scope-by-prefix
+"@pnpm/installing.read-projects-context@1101.0.6":
+  dir: pnpm11/installing/read-projects-context
+  intents:
+    - symlinked-workspace-project-links
 "@pnpm/lockfile.detect-dep-types@1100.0.16":
   dir: pnpm11/lockfile/detect-dep-types
   intents:
     - republish-all-lib-packages
+"@pnpm/lockfile.detect-dep-types@1100.0.25":
+  dir: pnpm11/lockfile/detect-dep-types
+  intents:
+    - prod-skips-dev-provided-optional-peers
 "@pnpm/lockfile.filtering@1100.1.14":
   dir: pnpm11/lockfile/filtering
   intents:
@@ -1720,6 +2130,11 @@
   dir: pnpm11/lockfile/filtering
   intents:
     - headless-edge-aware-engine-strict
+"@pnpm/lockfile.filtering@1100.2.9":
+  dir: pnpm11/lockfile/filtering
+  intents:
+    - link-deps-publish-config-directory
+    - prod-skips-dev-provided-optional-peers
 "@pnpm/lockfile.fs@1100.1.12":
   dir: pnpm11/lockfile/fs
   intents:
@@ -1747,14 +2162,38 @@
     - env-lockfile-write-matches-main-document
     - harden-env-lockfile-writes
     - relink-publish-directories
+"@pnpm/lockfile.fs@1100.2.9":
+  dir: pnpm11/lockfile/fs
+  intents:
+    - bzip2-tarball-support
+    - cleanup-temp-lockfile-on-interrupt
+    - global-pnpmfile-readpackage-lockfile-reuse
+    - lockfile-incompatible-error-versions
+    - lockfile-rename-retry
 "@pnpm/lockfile.make-dedicated-lockfile@1100.0.30":
   dir: pnpm11/lockfile/make-dedicated-lockfile
   intents:
     - republish-all-lib-packages
+"@pnpm/lockfile.make-dedicated-lockfile@1100.0.42":
+  dir: pnpm11/lockfile/make-dedicated-lockfile
+  intents:
+    - clever-moons-shave
+    - make-dedicated-lockfile-cross-device-rename
+    - make-dedicated-lockfile-keep-publish-config
+    - make-dedicated-lockfile-keeps-workspace-links
 "@pnpm/lockfile.merger@1100.0.16":
   dir: pnpm11/lockfile/merger
   intents:
     - republish-all-lib-packages
+"@pnpm/lockfile.merger@1100.0.24":
+  dir: pnpm11/lockfile/merger
+  intents:
+    - global-pnpmfile-readpackage-lockfile-reuse
+    - preserve-lockfile-config-fields
+"@pnpm/lockfile.peer-edges@1100.0.0":
+  dir: pnpm11/lockfile/peer-edges
+  intents:
+    - prod-skips-dev-provided-optional-peers
 "@pnpm/lockfile.preferred-versions@1100.0.25":
   dir: pnpm11/lockfile/preferred-versions
   intents:
@@ -1763,10 +2202,18 @@
   dir: pnpm11/lockfile/preferred-versions
   intents:
     - fix-dedupe-direct-version
+"@pnpm/lockfile.preferred-versions@1100.0.35":
+  dir: pnpm11/lockfile/preferred-versions
+  intents:
+    - dedupe-prefers-catalog-versions
 "@pnpm/lockfile.pruner@1100.0.16":
   dir: pnpm11/lockfile/pruner
   intents:
     - republish-all-lib-packages
+"@pnpm/lockfile.pruner@1100.0.25":
+  dir: pnpm11/lockfile/pruner
+  intents:
+    - global-pnpmfile-readpackage-lockfile-reuse
 "@pnpm/lockfile.settings-checker@1100.1.7":
   dir: pnpm11/lockfile/settings-checker
   intents:
@@ -1776,6 +2223,10 @@
   intents:
     - ignored-optional-dependencies-order-preserved
     - inert-lockfile-setting-updates
+"@pnpm/lockfile.settings-checker@1100.2.8":
+  dir: pnpm11/lockfile/settings-checker
+  intents:
+    - ignore-pnpmfile-checksum
 "@pnpm/lockfile.to-pnp@1100.1.9":
   dir: pnpm11/lockfile/to-pnp
   intents:
@@ -1796,6 +2247,11 @@
   dir: pnpm11/lockfile/types
   intents:
     - relink-publish-directories
+"@pnpm/lockfile.types@1100.1.3":
+  dir: pnpm11/lockfile/types
+  intents:
+    - global-pnpmfile-readpackage-lockfile-reuse
+    - preserve-lockfile-config-fields
 "@pnpm/lockfile.utils@1100.1.5":
   dir: pnpm11/lockfile/utils
   intents:
@@ -1819,6 +2275,12 @@
   dir: pnpm11/lockfile/utils
   intents:
     - tidy-ravens-revise
+"@pnpm/lockfile.utils@1102.1.4":
+  dir: pnpm11/lockfile/utils
+  intents:
+    - bzip2-tarball-support
+    - devengines-runtime-range-uses-locked-node-v11
+    - update-injected-workspace-deps
 "@pnpm/lockfile.verification@1100.0.26":
   dir: pnpm11/lockfile/verification
   intents:
@@ -1839,10 +2301,21 @@
   dir: pnpm11/lockfile/verification
   intents:
     - relink-publish-directories
+"@pnpm/lockfile.verification@1100.1.7":
+  dir: pnpm11/lockfile/verification
+  intents:
+    - fresh-tarballs-freeze
+    - frozen-install-skips-unresolved-optional
+    - frozen-lockfile-workspace-drift
+    - update-injected-workspace-deps
 "@pnpm/lockfile.walker@1100.0.16":
   dir: pnpm11/lockfile/walker
   intents:
     - republish-all-lib-packages
+"@pnpm/lockfile.walker@1100.0.25":
+  dir: pnpm11/lockfile/walker
+  intents:
+    - prod-skips-dev-provided-optional-peers
 "@pnpm/modules-mounter.daemon@1100.0.33":
   dir: pnpm11/modules-mounter/daemon
   intents:
@@ -1931,6 +2404,10 @@
   dir: pnpm11/network/fetch
   intents:
     - fetch-timeout-measures-inactivity
+"@pnpm/network.fetch@1100.1.18":
+  dir: pnpm11/network/fetch
+  intents:
+    - fail-fast-on-untrusted-certificate
 "@pnpm/network.fetch@1100.1.8":
   dir: pnpm11/network/fetch
   intents:
@@ -1943,6 +2420,11 @@
   dir: pnpm11/network/git-utils
   intents:
     - fix-detached-head-publish
+"@pnpm/network.git-utils@1100.0.5":
+  dir: pnpm11/network/git-utils
+  intents:
+    - git-ssh-batch-mode
+    - swift-crabs-relate
 "@pnpm/network.web-auth@1101.3.0":
   dir: pnpm11/network/web-auth
   intents:
@@ -1986,6 +2468,11 @@
   intents:
     - bright-pandas-quote
     - registries-by-scope-by-prefix
+"@pnpm/patching.commands@1101.0.6":
+  dir: pnpm11/patching/commands
+  intents:
+    - patch-commit-exdev-fallback
+    - resolve-default-patch-path
 "@pnpm/patching.config@1100.0.12":
   dir: pnpm11/patching/config
   intents:
@@ -2032,6 +2519,12 @@
   dir: pnpm11/pkg-manifest/utils
   intents:
     - seven-pens-smile
+"@pnpm/pkg-manifest.utils@1100.4.6":
+  dir: pnpm11/pkg-manifest/utils
+  intents:
+    - fix-add-exact-version
+    - update-keeps-range-shape
+    - update-peer-dependencies
 "@pnpm/pnpr.client@1.3.5":
   dir: pnpr/client
   intents:
@@ -2062,6 +2555,10 @@
     - pnpr-refreshes-revisions
     - remote-side-effects-reuse-store-content
     - safe-pnpr-project-transforms
+"@pnpm/pnpr.client@3.0.4":
+  dir: pnpr/client
+  intents:
+    - pnpr-forwards-peer-dependencies
 "@pnpm/pnpr@0.1.0-alpha.1":
   dir: pnpr/npm/pnpr
   intents:
@@ -2115,6 +2612,14 @@
     - skip-unreadable-python-requirements
     - skip-unusable-python-index-files
     - tolerate-unreadable-requires-python
+"@pnpm/pnpr@0.1.0-alpha.13":
+  dir: pnpr/npm/pnpr
+  intents:
+    - fail-fast-on-untrusted-certificate-v12
+    - macos-ssl-policy-crash
+    - pnpr-forwards-peer-dependencies
+    - pnpr-index-rebuild-plain-fsync
+    - pnpr-optional-env-var
 "@pnpm/pnpr@0.1.0-alpha.2":
   dir: pnpr/npm/pnpr
   intents:
@@ -2174,6 +2679,10 @@
   dir: pnpm11/__utils__/prepare
   intents:
     - relay-to-script-group
+"@pnpm/prepare@1100.0.32":
+  dir: pnpm11/__utils__/prepare
+  intents:
+    - script-group-dies-with-pnpm
 "@pnpm/registry-access.client@1100.1.10":
   dir: pnpm11/registry-access/client
   intents:
@@ -2182,6 +2691,10 @@
   dir: pnpm11/registry-access/client
   intents:
     - unpublish-otp-challenge
+"@pnpm/registry-access.client@1100.1.20":
+  dir: pnpm11/registry-access/client
+  intents:
+    - login-existing-user
 "@pnpm/registry-access.commands@1100.5.0":
   dir: pnpm11/registry-access/commands
   intents:
@@ -2268,6 +2781,27 @@
     - fix-deploy-peer-specifiers
     - fix-detached-head-publish
     - sort-packed-tar-entries
+"@pnpm/releasing.commands@1101.2.3":
+  dir: pnpm11/releasing/commands
+  intents:
+    - change-check-validates-intents
+    - deploy-keeps-package-manager
+    - deploy-project-virtual-store
+    - deploy-respects-package-import-method
+    - deploy-respects-virtual-store-dir
+    - error-on-bin-crlf
+    - fix-workspace-protocol-publish-without-node-modules
+    - lazy-tempy-missing-tmpdir
+    - legacy-deploy-keeps-workspace-state
+    - modules-dir-command-lookup
+    - modules-dir-node-path
+    - pack-alternative-manifest
+    - pack-preserve-executable-mode
+    - preserve-internal-symlinks-pack-deploy
+    - private-package-version-bumps
+    - prod-skips-dev-provided-optional-peers
+    - publish-config-scoped-registry
+    - smart-camels-pack
 "@pnpm/releasing.exportable-manifest@1100.1.10":
   dir: pnpm11/releasing/exportable-manifest
   intents:
@@ -2288,6 +2822,12 @@
   dir: pnpm11/releasing/exportable-manifest
   intents:
     - workspace-protocol-catalogs
+"@pnpm/releasing.exportable-manifest@1100.3.3":
+  dir: pnpm11/releasing/exportable-manifest
+  intents:
+    - fix-workspace-protocol-publish-without-node-modules
+    - make-dedicated-lockfile-keep-publish-config
+    - workspace-protocol-missing-version
 "@pnpm/releasing.versioning@1100.1.0":
   dir: pnpm11/releasing/versioning
   intents:
@@ -2309,6 +2849,11 @@
   dir: pnpm11/releasing/versioning
   intents:
     - change-check-command
+"@pnpm/releasing.versioning@1100.3.3":
+  dir: pnpm11/releasing/versioning
+  intents:
+    - change-check-validates-intents
+    - private-package-version-bumps
 "@pnpm/resolving.default-resolver@1100.3.20":
   dir: pnpm11/resolving/default-resolver
   intents:
@@ -2356,6 +2901,10 @@
   dir: pnpm11/resolving/git-resolver
   intents:
     - git-specifier-keeps-committish
+"@pnpm/resolving.git-resolver@1100.1.23":
+  dir: pnpm11/resolving/git-resolver
+  intents:
+    - git-ssh-batch-mode
 "@pnpm/resolving.jsr-specifier-parser@1100.0.3":
   dir: pnpm11/resolving/jsr-specifier-parser
   intents:
@@ -2372,6 +2921,18 @@
   dir: pnpm11/resolving/local-resolver
   intents:
     - overrides-bare-local-paths
+"@pnpm/resolving.local-resolver@1101.2.3":
+  dir: pnpm11/resolving/local-resolver
+  intents:
+    - allow-deleted-local-tarball-reuse
+    - bzip2-tarball-support
+    - fix-windows-unc-tarballs
+    - global-update-missing-file-source
+    - link-deps-publish-config-directory
+    - local-resolver-forward-slash-windows
+    - local-specifier-forward-slashes
+    - local-tarball-parent-segments-resolve-lexically
+    - unknown-version-local-directory
 "@pnpm/resolving.npm-resolver@1102.1.3":
   dir: pnpm11/resolving/npm-resolver
   intents:
@@ -2437,6 +2998,20 @@
     - deprecation-notices-stay-out-of-the-output
     - omit-etag-on-upgraded-mirror
     - release-age-etag-upgrade
+"@pnpm/resolving.npm-resolver@1104.2.1":
+  dir: pnpm11/resolving/npm-resolver
+  intents:
+    - audit-fix-update-npm-alias
+    - fix-add-exact-version
+    - preserve-default-registry-env-auth
+    - runtime-range-union-not-npm
+    - suppress-error-meta-cache-fallback
+    - surface-fetch-timeout
+    - trust-downgrade-falls-back
+    - update-skips-deprecated-versions
+    - workspace-dependency-build-metadata
+    - workspace-non-semver-versions
+    - workspace-semver-build-metadata
 "@pnpm/resolving.parse-wanted-dependency@1100.0.2":
   dir: pnpm11/resolving/parse-wanted-dependency
   intents:
@@ -2457,6 +3032,10 @@
   dir: pnpm11/resolving/registry/pkg-metadata-filter
   intents:
     - chilly-foxes-brush
+"@pnpm/resolving.registry.pkg-metadata-filter@1100.0.19":
+  dir: pnpm11/resolving/registry/pkg-metadata-filter
+  intents:
+    - trust-downgrade-falls-back
 "@pnpm/resolving.registry.types@1100.1.6":
   dir: pnpm11/resolving/registry/types
   intents:
@@ -2539,6 +3118,11 @@
   dir: pnpm11/store/cafs
   intents:
     - keep-cas-blobs-on-verify-failure
+"@pnpm/store.cafs@1100.3.4":
+  dir: pnpm11/store/cafs
+  intents:
+    - bzip2-tarball-support
+    - gypfile-false-opts-out-of-node-gyp
 "@pnpm/store.commands@1100.0.38":
   dir: pnpm11/store/commands
   intents:
@@ -2551,6 +3135,11 @@
   dir: pnpm11/store/commands
   intents:
     - registries-by-scope-by-prefix
+"@pnpm/store.commands@1101.0.6":
+  dir: pnpm11/store/commands
+  intents:
+    - dlx-prune-linked-root
+    - store-status-built-packages
 "@pnpm/store.connection-manager@1100.3.12":
   dir: pnpm11/store/connection-manager
   intents:
@@ -2568,6 +3157,11 @@
   dir: pnpm11/store/connection-manager
   intents:
     - init-pins-latest-pnpm
+"@pnpm/store.connection-manager@1101.2.0":
+  dir: pnpm11/store/connection-manager
+  intents:
+    - force-ignores-platform-setting
+    - store-connection-manager-exports-cafile
 "@pnpm/store.controller-types@1100.1.10":
   dir: pnpm11/store/controller-types
   intents:
@@ -2595,6 +3189,11 @@
   dir: pnpm11/store/controller-types
   intents:
     - deprecation-notices-stay-out-of-the-output
+"@pnpm/store.controller-types@1101.3.1":
+  dir: pnpm11/store/controller-types
+  intents:
+    - devengines-runtime-range-uses-locked-node-v11
+    - engine-strict-read-package-hook
 "@pnpm/store.controller@1102.0.8":
   dir: pnpm11/store/controller
   intents:
@@ -2605,10 +3204,19 @@
     - calm-pandas-share
     - persist-remote-build-artifacts
     - remote-side-effects-reuse-store-content
+"@pnpm/store.controller@1102.2.0":
+  dir: pnpm11/store/controller
+  intents:
+    - force-ignores-platform-setting
+    - symlink-dir-concurrent-races
 "@pnpm/store.create-cafs-store@1100.0.21":
   dir: pnpm11/store/create-cafs-store
   intents:
     - republish-all-lib-packages
+"@pnpm/store.create-cafs-store@1100.0.31":
+  dir: pnpm11/store/create-cafs-store
+  intents:
+    - deploy-respects-package-import-method
 "@pnpm/store.index@1100.2.2":
   dir: pnpm11/store/index
   intents:
@@ -2714,6 +3322,11 @@
     - task-concurrency-limits
     - unite-side-effects-cache
     - workspace-task-orchestration
+"@pnpm/types@1102.1.1":
+  dir: pnpm11/core/types
+  intents:
+    - gypfile-false-opts-out-of-node-gyp
+    - update-peer-dependencies
 "@pnpm/worker@1100.2.7":
   dir: pnpm11/worker
   intents:
@@ -2729,6 +3342,10 @@
     - calm-pandas-share
     - persist-remote-build-artifacts
     - tough-flies-approve
+"@pnpm/worker@1100.4.4":
+  dir: pnpm11/worker
+  intents:
+    - gypfile-false-opts-out-of-node-gyp
 "@pnpm/workspace.commands@1100.1.31":
   dir: pnpm11/workspace/commands
   intents:
@@ -2745,6 +3362,10 @@
   dir: pnpm11/workspace/commands
   intents:
     - init-pins-latest-pnpm
+"@pnpm/workspace.commands@1100.2.4":
+  dir: pnpm11/workspace/commands
+  intents:
+    - fix-package-yaml-version-init
 "@pnpm/workspace.injected-deps-syncer@1100.0.28":
   dir: pnpm11/workspace/injected-deps-syncer
   intents:
@@ -2756,14 +3377,30 @@
     - injected-syncer-removal-order
     - injected-syncer-stale-bins
     - injected-syncer-volume-identity
+"@pnpm/workspace.injected-deps-syncer@1100.0.39":
+  dir: pnpm11/workspace/injected-deps-syncer
+  intents:
+    - injected-deps-cross-device-sync
+    - injected-sync-removal-race
 "@pnpm/workspace.package-patterns@1100.0.0":
   dir: pnpm11/workspace/package-patterns
   intents:
     - standalone-projects-outside-the-workspace
+"@pnpm/workspace.package-patterns@1100.0.1":
+  dir: pnpm11/workspace/package-patterns
+  intents:
+    - workspace-patterns-dot-dirs-exclude
 "@pnpm/workspace.project-manifest-reader@1100.0.20":
   dir: pnpm11/workspace/project-manifest-reader
   intents:
     - republish-all-lib-packages
+"@pnpm/workspace.project-manifest-reader@1100.1.0":
+  dir: pnpm11/workspace/project-manifest-reader
+  intents:
+    - keep-empty-dependency-fields
+    - link-deps-publish-config-directory
+    - manifest-preserve-crlf
+    - workspace-sync-finders
 "@pnpm/workspace.project-manifest-writer@1100.0.11":
   dir: pnpm11/workspace/project-manifest-writer
   intents:
@@ -2772,6 +3409,10 @@
   dir: pnpm11/workspace/project-manifest-writer
   intents:
     - preserve-package-yaml
+"@pnpm/workspace.project-manifest-writer@1100.0.18":
+  dir: pnpm11/workspace/project-manifest-writer
+  intents:
+    - manifest-preserve-crlf
 "@pnpm/workspace.projects-filter@1100.0.32":
   dir: pnpm11/workspace/projects-filter
   intents:
@@ -2784,6 +3425,16 @@
   dir: pnpm11/workspace/projects-filter
   intents:
     - rust-cli-honors-inert-settings
+"@pnpm/workspace.projects-filter@1100.0.44":
+  dir: pnpm11/workspace/projects-filter
+  intents:
+    - catalog-workspace-graph-edges
+    - filter-catalog-since
+    - filter-lowercase-drive-letter
+    - filter-moved-files-renames
+    - filter-multiplicity-ordered-exclusion
+    - filter-since-merge-base
+    - skip-custom-modules-dir-in-workspace-discovery
 "@pnpm/workspace.projects-graph@1100.0.28":
   dir: pnpm11/workspace/projects-graph
   intents:
@@ -2792,6 +3443,11 @@
   dir: pnpm11/workspace/projects-graph
   intents:
     - workspace-relative-path-deps-resolved
+"@pnpm/workspace.projects-graph@1100.0.39":
+  dir: pnpm11/workspace/projects-graph
+  intents:
+    - catalog-workspace-graph-edges
+    - npm-alias-workspace-graph-edges
 "@pnpm/workspace.projects-reader@1101.0.19":
   dir: pnpm11/workspace/projects-reader
   intents:
@@ -2800,6 +3456,13 @@
   dir: pnpm11/workspace/projects-reader
   intents:
     - standalone-projects-outside-the-workspace
+"@pnpm/workspace.projects-reader@1101.1.0":
+  dir: pnpm11/workspace/projects-reader
+  intents:
+    - skip-custom-modules-dir-in-workspace-discovery
+    - workspace-manifest-precedence
+    - workspace-patterns-dot-dirs-exclude
+    - workspace-sync-finders
 "@pnpm/workspace.projects-sorter@1100.0.11":
   dir: pnpm11/workspace/projects-sorter
   intents:
@@ -2813,6 +3476,10 @@
   dir: pnpm11/workspace/range-resolver
   intents:
     - republish-all-lib-packages
+"@pnpm/workspace.range-resolver@1100.0.4":
+  dir: pnpm11/workspace/range-resolver
+  intents:
+    - workspace-non-semver-versions
 "@pnpm/workspace.root-finder@1100.0.4":
   dir: pnpm11/workspace/root-finder
   intents:
@@ -2821,6 +3488,10 @@
   dir: pnpm11/workspace/root-finder
   intents:
     - standalone-projects-outside-the-workspace
+"@pnpm/workspace.root-finder@1100.1.0":
+  dir: pnpm11/workspace/root-finder
+  intents:
+    - workspace-sync-finders
 "@pnpm/workspace.spec-parser@1100.0.1":
   dir: pnpm11/workspace/spec-parser
   intents:
@@ -2833,6 +3504,10 @@
   dir: pnpm11/workspace/state
   intents:
     - republish-all-lib-packages
+"@pnpm/workspace.state@1100.0.45":
+  dir: pnpm11/workspace/state
+  intents:
+    - workspace-state-non-fatal
 "@pnpm/workspace.task-scheduler@1100.0.0":
   dir: pnpm11/workspace/task-scheduler
   intents:
@@ -2849,6 +3524,11 @@
   dir: pnpm11/workspace/workspace-manifest-reader
   intents:
     - republish-all-lib-packages
+"@pnpm/workspace.workspace-manifest-reader@1100.2.0":
+  dir: pnpm11/workspace/workspace-manifest-reader
+  intents:
+    - optional-config-files-non-native-errors
+    - workspace-sync-finders
 "@pnpm/workspace.workspace-manifest-writer@1100.0.18":
   dir: pnpm11/workspace/workspace-manifest-writer
   intents:
@@ -2871,6 +3551,10 @@
   dir: pnpm11/workspace/workspace-manifest-writer
   intents:
     - preserve-catalog-yaml-anchors
+"@pnpm/workspace.workspace-manifest-writer@1100.2.2":
+  dir: pnpm11/workspace/workspace-manifest-writer
+  intents:
+    - optional-config-files-non-native-errors
 "@pnpm/yaml.document-sync@1100.0.1":
   dir: pnpm11/yaml/document-sync
   intents:
@@ -4447,6 +5131,209 @@ pacquet@12.6.0:
     - windows-slot-inspection-retry
     - workspace-semver-build-metadata
     - write-package-yaml
+pacquet@12.7.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - audit-fix-prune-subset-overrides
+    - audit-paths-every-project
+    - audit-respects-filter
+    - auto-dedupe-prefers-catalog-versions
+    - bash-completion-colon-script-names
+    - bounded-missing-peer-intersection
+    - cap-proxy-sockets-and-retry-transient-drops
+    - catalog-entry-follows-the-wanted-version
+    - catalog-workspace-graph-edges
+    - ci-detection-matches-ci-info
+    - cleanup-temp-lockfile-on-interrupt
+    - cli-config-reporter
+    - curly-pandas-use
+    - custom-fetcher-resolution-identity
+    - custom-resolution-manifest-recovery
+    - dedupe-aliased-direct-dependency
+    - dedupe-count-reused-packages-once
+    - deploy-keeps-package-manager
+    - deploy-legacy-keeps-workspace-state
+    - deploy-respects-package-import-method
+    - deploy-respects-virtual-store-dir
+    - deploy-skips-prepare-scripts
+    - devengines-runtime-range-uses-locked-node
+    - dlx-cache-key-node-major
+    - env-remove-cleanup-pacquet
+    - error-on-bin-crlf
+    - exec-package-manager-env-rust
+    - exec-pwd-logical-path
+    - fail-fast-on-untrusted-certificate-v12
+    - fallback-bundled-ca-macos-sandbox
+    - fast-path-custom-modules-dir
+    - fetch-installs-pinned-pnpm
+    - filter-catalog-since
+    - filter-moved-files-renames
+    - filter-multiplicity-ordered-exclusion
+    - filter-run-falls-back-to-bin
+    - filter-since-merge-base
+    - fix-14406-remove-trust-lockfile
+    - fix-14504-cross-device-modules-preserve
+    - fix-6155-wsl-windows-drive-locks
+    - fix-8627
+    - fix-add-exact-version
+    - fix-optional-peer-removal
+    - fix-package-yaml-version-init
+    - fix-sbom-filtered-workspace-metadata-fallback
+    - fix-self-update-in-project-pin
+    - fix-workspace-protocol-publish-without-node-modules
+    - force-keeps-platform-filter
+    - fresh-tarballs-freeze
+    - frozen-install-missing-workspace-project
+    - github-actions-minimum-release-age
+    - global-commands-skip-pm-switch
+    - global-scan-skips-absent-package-dirs
+    - global-update-missing-file-source
+    - gypfile-false-opts-out-of-node-gyp
+    - hoisted-filter-dependencies
+    - hoisted-frozen-repeat-install-is-a-noop
+    - hoisted-linker-custom-modules-dir
+    - hoisted-linker-hoist-workspace-packages
+    - hoisted-prune-stale-bin-links
+    - ignore-pnpmfile-checksum
+    - import-converts-yarn-patches
+    - import-keeps-root-yarn-lock-pins-in-workspace
+    - import-warns-about-workspaces-field
+    - init-bare-flag
+    - injected-build-not-hardlinked
+    - injected-deps-cross-device-sync
+    - install-allow-build
+    - interactive-workspace-update-external-deps
+    - json5-project-manifests
+    - keep-empty-dependency-fields
+    - keep-manifest-blank-lines
+    - khaki-keys-thank
+    - licenses-current-project
+    - licenses-dedicated-lockfiles
+    - licenses-hoisted-paths-pacquet
+    - link-deps-publish-config-directory
+    - link-one-writer-per-directory
+    - list-only-projects-dedicated-lockfiles
+    - list-only-projects-publish-directory
+    - list-only-projects-selected-and-unsaved
+    - list-scope-workspace-package
+    - local-tarball-peer-versions
+    - locked-alien-module-v12
+    - lockfile-rename-retry
+    - login-existing-user
+    - macos-ssl-policy-crash
+    - minimum-release-age-exclude-engine-install
+    - missing-script-shell-error
+    - moved-tree-store-on-project-volume
+    - name-project-in-peer-issues
+    - nested-modules-dir-per-project
+    - no-optional-skips-store-downloads
+    - node-runtime-win-arm64
+    - node-version-probe-once
+    - npm-alias-workspace-graph-edges
+    - npm-execpath-running-pnpm
+    - npmrc-utf8-bom
+    - optional-peer-also-a-dependency
+    - outdated-missing-dep
+    - outdated-recursive-json-all-deps
+    - own-bin-missing-target
+    - pack-alternative-manifest
+    - package-map-metadata-only-gvs-slots
+    - package-yaml-files-field-git
+    - pacquet-allow-deleted-local-tarball-reuse
+    - pacquet-lockfile-incompatible-error-versions
+    - pacquet-optional-env-var
+    - pacquet-pack-preserve-executable-mode
+    - pacquet-workspace-dependency-build-metadata
+    - patch-commit-exdev-fallback
+    - patch-commit-lockfile-dependencies
+    - patch-in-project-with-own-lockfile
+    - patch-no-newline-context-marker
+    - peers-check-workspace-root
+    - pipeline-without-git
+    - pnpr-forwards-peer-dependencies
+    - preserve-default-registry-env-auth
+    - preserve-internal-symlinks-pack-deploy
+    - preserve-lockfile-config-fields
+    - preserve-repeated-npmrc-keys
+    - private-install-when-engine-lock-is-held
+    - private-package-version-bumps
+    - prod-skips-dev-provided-optional-peers
+    - prune-dev-deps-without-lockfile
+    - prune-exclude-indentation
+    - prune-excludes-per-project-lockfiles
+    - prune-prod-without-lockfile
+    - prune-unused-catalogs-on-install
+    - publish-config-scoped-registry
+    - publish-wait-probe-after-timeout
+    - publish-wait-timeout
+    - purple-queens-juggle
+    - quiet-command-store-probe
+    - quiet-owls-read
+    - real-owls-travel
+    - recursive-install-flag-precedence
+    - reinstall-changed-local-tarball
+    - relink-dangling-direct-dependency
+    - relink-injected-deps-after-install-scripts
+    - removed-override-reresolves
+    - reresolve-prerelease-to-stable
+    - resolve-default-patch-path
+    - restart-without-restart-script
+    - retry-locked-removals-on-windows
+    - reuse-store-manifest-unauthenticated-install
+    - run-exec-no-match-notice
+    - run-loglevel-quiets-command-echo
+    - runtime-range-union-not-npm
+    - script-group-dies-with-pnpm
+    - script-shell-cmd-exe-args
+    - script-signal-name
+    - secondary-dep-local-direct-version
+    - self-update-replaces-other-pnpm-package
+    - setup-installs-pnpm-package
+    - setup-preserve-shell-config
+    - setup-replaces-busy-alias-scripts
+    - sh-shim-node-path-msys
+    - skip-allow-builds-placeholders-without-terminal
+    - skip-managed-dirs-in-workspace-discovery
+    - skip-noop-chmod-on-executable-bins
+    - skip-prepare-on-prod-install
+    - smart-camels-pack
+    - store-status-built-packages
+    - store-status-drop-refetch-hint
+    - store-status-snapshot-dirs
+    - strip-default-port-tarball-url
+    - strip-node-modules-from-path-in-shims
+    - surface-fetch-timeout
+    - swift-crabs-relate
+    - symlink-workspace-packages
+    - symlinked-workspace-project-links
+    - synthesized-version-package-extensions-v12
+    - take-over-a-dead-holders-lock
+    - tall-grapes-tan
+    - thick-forks-wave
+    - trim-override-selectors
+    - trust-downgrade-falls-back
+    - trusted-auth-env-expansion
+    - unknown-version-local-directory
+    - unlink-reverts-link
+    - update-injected-workspace-deps
+    - update-keeps-range-shape
+    - update-off-unavailable-version
+    - update-prod-no-dev-deps
+    - verify-deps-install-lock
+    - verify-deps-package-configs-overrides
+    - virtual-store-trailing-dots
+    - warn-different-source-replacement
+    - warn-link-peer-deps
+    - warn-nested-workspace-manifest
+    - warn-on-unreadable-npmrc
+    - wise-swans-win
+    - workspace-manifest-exclude-quote-style
+    - workspace-non-semver-versions
+    - workspace-peer-follows-provider
+    - workspace-protocol-missing-version
+    - workspace-state-non-fatal
+    - workspace-user-agent-env
+    - workspace-yaml-from-yarn-workspaces
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
@@ -4885,3 +5772,209 @@ pnpm@11.27.1:
     - standalone-projects-outside-the-workspace
     - system-cygpath-wslpath-shims
     - update-hook-added-dependencies
+pnpm@11.28.0:
+  dir: pnpm11/pnpm
+  intents:
+    - add-keeps-hook-provided-specifier
+    - allow-deleted-local-tarball-reuse
+    - audit-fix-prune-subset-overrides
+    - audit-fix-update-npm-alias
+    - audit-paths-every-project
+    - audit-respects-filter
+    - bash-completion-colon-script-names
+    - big-geckos-explode
+    - bins-linker-custom-modules-dir
+    - bzip2-tarball-support
+    - catalog-workspace-graph-edges
+    - change-check-validates-intents
+    - cleanup-temp-lockfile-on-interrupt
+    - config-warn-shared-workspace-lockfile-outside-workspace
+    - dedupe-prefers-catalog-versions
+    - deploy-keeps-package-manager
+    - deploy-project-virtual-store
+    - deploy-respects-package-import-method
+    - deploy-respects-virtual-store-dir
+    - deploy-skips-prepare-scripts
+    - devengines-runtime-range-uses-locked-node-v11
+    - devengines-runtime-range-uses-system-node
+    - dlx-cache-key-node-major
+    - dlx-prune-linked-root
+    - doctor-configured-registry
+    - engine-strict-read-package-hook
+    - entry-script-owner-check
+    - env-remove-cleanup-pnpm11
+    - error-on-bin-crlf
+    - exec-pwd-logical-path
+    - fail-fast-on-untrusted-certificate
+    - fast-path-custom-modules-dir
+    - fetch-installs-pinned-pnpm
+    - filter-catalog-since
+    - filter-lowercase-drive-letter
+    - filter-moved-files-renames
+    - filter-multiplicity-ordered-exclusion
+    - filter-run-falls-back-to-bin
+    - filter-since-merge-base
+    - fish-completion-escapes
+    - fix-14406-remove-trust-lockfile
+    - fix-6155-wsl-windows-drive-locks
+    - fix-8627
+    - fix-add-exact-version
+    - fix-env-lockfile-package-manager-exe-rewrite
+    - fix-exe-windows-wrapper-exit-code
+    - fix-optional-peer-removal
+    - fix-package-yaml-version-init
+    - fix-self-update-in-project-pin
+    - fix-windows-path-alias-bins
+    - fix-windows-unc-tarballs
+    - fix-workspace-protocol-publish-without-node-modules
+    - force-ignores-platform-setting
+    - fresh-tarballs-freeze
+    - frozen-install-missing-workspace-project
+    - frozen-install-skips-unresolved-optional
+    - frozen-lockfile-workspace-drift
+    - git-ssh-batch-mode
+    - github-actions-minimum-release-age
+    - global-commands-skip-pm-switch
+    - global-pnpmfile-readpackage-lockfile-reuse
+    - global-recover-deleted-node-modules
+    - global-scan-skips-absent-package-dirs
+    - global-update-missing-file-source
+    - global-update-single-approval
+    - gypfile-false-opts-out-of-node-gyp
+    - hoist-workspace-packages-every-install
+    - hoisted-filter-dependencies
+    - hoisted-linker-hoist-workspace-packages
+    - hoisted-prune-stale-bin-links
+    - ignore-pnpmfile-checksum
+    - import-converts-yarn-patches
+    - import-git-hosted-tarball-integrity
+    - import-keeps-root-yarn-lock-pins-in-workspace
+    - injected-deps-cross-device-sync
+    - injected-sync-removal-race
+    - install-test-no-bail
+    - interactive-workspace-update-external-deps
+    - keep-empty-dependency-fields
+    - keep-locked-subdeps-on-add
+    - khaki-keys-thank
+    - lazy-tempy-missing-tmpdir
+    - legacy-deploy-hoisted-direct-deps
+    - legacy-deploy-keeps-workspace-state
+    - licenses-current-project
+    - licenses-dedicated-lockfiles
+    - licenses-hoisted-paths
+    - link-deps-publish-config-directory
+    - link-missing-bin-target
+    - list-only-projects-dedicated-lockfiles
+    - list-only-projects-publish-directory
+    - list-only-projects-selected-and-unsaved
+    - list-scope-workspace-package
+    - local-resolver-forward-slash-windows
+    - local-specifier-forward-slashes
+    - local-tarball-parent-segments-resolve-lexically
+    - locked-alien-module-v11
+    - lockfile-incompatible-error-versions
+    - lockfile-rename-retry
+    - login-existing-user
+    - make-dedicated-lockfile-cross-device-rename
+    - make-dedicated-lockfile-keep-publish-config
+    - manifest-preserve-crlf
+    - missing-script-shell-error
+    - modules-dir-command-lookup
+    - modules-dir-node-path
+    - name-project-in-peer-issues
+    - no-optional-skips-store-downloads
+    - no-skip-adding-warning-on-catalog-update
+    - node-runtime-win-arm64
+    - npm-alias-workspace-graph-edges
+    - npm-execpath-running-pnpm
+    - npmrc-optional-env-var
+    - optional-config-files-non-native-errors
+    - optional-peer-also-a-dependency
+    - outdated-missing-dep
+    - outdated-recursive-json-all-deps
+    - pack-alternative-manifest
+    - pack-preserve-executable-mode
+    - package-yaml-files-field
+    - pacquet-delegation-reporting-flags
+    - patch-commit-exdev-fallback
+    - patch-commit-lockfile-dependencies
+    - peer-issues-log-drops-silenced-peers
+    - plain-warnings-in-append-only
+    - pnpr-forwards-peer-dependencies
+    - preserve-default-registry-env-auth
+    - preserve-internal-symlinks-pack-deploy
+    - preserve-lockfile-config-fields
+    - private-package-version-bumps
+    - prod-skips-dev-provided-optional-peers
+    - project-pnpmfile-after-plugin-pnpmfiles
+    - prune-dev-deps-without-lockfile
+    - prune-excludes-per-project-lockfiles
+    - publish-config-scoped-registry
+    - quiet-recursive-ctrl-c
+    - quiet-tokens-warn
+    - read-package-hook-invalid-range
+    - real-owls-travel
+    - recursive-install-flag-precedence
+    - recursive-remove-missing-dep
+    - relink-after-project-move
+    - relink-dangling-direct-dependency
+    - remove-runs-uninstall-scripts
+    - remove-usage-text
+    - removed-override-reresolves
+    - resolve-default-patch-path
+    - restart-without-restart-script
+    - root-preinstall-before-install
+    - run-loglevel-quiets-command-echo
+    - runtime-range-union-not-npm
+    - safe-completion-candidates
+    - sbom-filtered-declared-blank-metadata
+    - script-group-dies-with-pnpm
+    - script-shell-cmd-exe-args
+    - script-signal-name-v11
+    - secondary-dep-local-direct-version
+    - self-update-replaces-other-pnpm-package
+    - setup-preserve-shell-config
+    - sh-shim-node-path-msys
+    - skip-allow-builds-placeholders-without-terminal
+    - skip-custom-modules-dir-in-workspace-discovery
+    - skip-noop-chmod-on-executable-bins
+    - skip-prepare-on-prod-install
+    - smart-camels-pack
+    - store-connection-manager-exports-cafile
+    - store-status-built-packages
+    - store-status-drop-refetch-hint
+    - strip-node-modules-from-path-in-shims
+    - suppress-error-meta-cache-fallback
+    - surface-fetch-timeout
+    - swift-crabs-relate
+    - symlink-dir-concurrent-races
+    - symlinked-workspace-project-links
+    - synthesized-version-package-extensions-v11
+    - tall-grapes-tan
+    - thick-forks-wave
+    - trim-override-selectors
+    - trust-downgrade-falls-back
+    - trusted-auth-env-expansion
+    - unknown-version-local-directory
+    - unlink-reverts-link
+    - update-auto-installed-transitive-peer
+    - update-injected-workspace-deps
+    - update-keeps-range-shape
+    - update-off-unavailable-version
+    - update-peer-dependencies
+    - update-prod-no-dev-deps
+    - update-skips-deprecated-versions
+    - verify-deps-install-lock
+    - virtual-store-trailing-dots
+    - warn-different-source-replacement
+    - warn-nested-workspace-manifest
+    - wise-swans-win
+    - workspace-dependency-build-metadata
+    - workspace-manifest-precedence
+    - workspace-non-semver-versions
+    - workspace-patterns-dot-dirs-exclude
+    - workspace-peer-follows-provider
+    - workspace-protocol-missing-version
+    - workspace-semver-build-metadata
+    - workspace-state-non-fatal
+    - workspace-user-agent-env
