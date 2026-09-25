@@ -79,6 +79,9 @@ impl<'a> RunExecution<'a> {
         lockfiles: &Lockfiles<'_>,
     ) -> Result<InstallRunOutcome, InstallError> {
         let verification = Verification::set_up(self, lockfiles.wanted.get().is_some())?;
+        if let Some(message) = self.install.context.config.bypassed_home_store_warning() {
+            pnpm_reporter::emit_global_warning::<Reporter>(&message);
+        }
         let Some(mut dispatched) = dispatch::<Reporter>(
             Settled {
                 install: self.install,

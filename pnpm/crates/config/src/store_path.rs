@@ -49,11 +49,33 @@
 //! [`Host`]: crate::api::Host
 
 use crate::api::LinkProbe;
+use pnpm_store_dir::StoreDir;
 use std::{
     fs,
     path::{Component, Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
+
+/// A default store that the store resolution moved off the pnpm home
+/// directory: `home_store_dir` is the store the project cannot hard link
+/// from, `store_dir` the one chosen on the project's volume.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoreRelocation {
+    pub home_store_dir: StoreDir,
+    pub store_dir: StoreDir,
+}
+
+impl StoreRelocation {
+    /// The warning for a relocation that leaves an existing home store
+    /// unused, for example one pre-populated in a container image.
+    pub fn warning(&self) -> String {
+        format!(
+            "The store at {} is not used because packages cannot be hard linked from it into this project. Using the store at {} instead. Set storeDir to choose the store.",
+            self.home_store_dir.root().display(),
+            self.store_dir.root().display(),
+        )
+    }
+}
 
 /// Resolve where to place the default pnpm store given the `SmartDefault`
 /// home-based path and the project root.

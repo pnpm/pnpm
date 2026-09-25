@@ -75,7 +75,7 @@ export async function installConfigDepsAndLoadHooks (
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
   if (config.configDependencies) {
-    const store = await createStoreController({ ...config, ...context })
+    const store = await createStoreController({ ...config, ...context, skipBypassedHomeStoreWarning: true })
     try {
       await resolveAndInstallConfigDeps(config.configDependencies, {
         ...config,
