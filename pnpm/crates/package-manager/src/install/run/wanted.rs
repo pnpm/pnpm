@@ -226,7 +226,7 @@ async fn may_fast_update_with_hooks(
     }
     let current = pnpm_hooks::untracked_read_package_hook(loaded.pnpmfile_hook.as_ref())
         .await
-        .map_err(InstallError::ReadPackageHook)?;
+        .map_err(InstallError::read_package_hook)?;
     Ok(!crate::install::untracked_read_package_hook_may_have_changed(
         lockfile.untracked_pnpmfile_read_package_hook(),
         current,

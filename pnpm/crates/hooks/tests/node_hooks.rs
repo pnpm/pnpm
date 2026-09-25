@@ -12,7 +12,7 @@ fn cjs_hooks(source: &str) -> (pnpm_hooks::node_runtime::NodeJsHooks, TempDir) {
     (pnpm_hooks::node_runtime::NodeJsHooks::new(path), tmp)
 }
 
-async fn read_package_err(source: &str) -> String {
+async fn read_package_error(source: &str) -> pnpm_hooks::HookError {
     let (hooks, _tmp) = cjs_hooks(source);
     hooks
         .read_package(
@@ -21,7 +21,10 @@ async fn read_package_err(source: &str) -> String {
         )
         .await
         .expect_err("readPackage should fail")
-        .to_string()
+}
+
+async fn read_package_err(source: &str) -> String {
+    read_package_error(source).await.to_string()
 }
 
 fn noop_context() -> pnpm_hooks::HookContext {

@@ -1121,75 +1121,6 @@ fn engine_strict_respects_read_package_hook_relaxing_engines() {
     drop((root, mock_instance));
 }
 
-/// A `readPackage` hook that leaves a dependency range as anything but a
-/// string produces a malformed manifest, and the worker sends the manifest
-/// back as JSON, which drops the entry. The install has to fail on that
-/// manifest rather than carry on without the dependency
-/// (pnpm/pnpm#15705). The message is the one pnpm 11 prints: it names the
-/// dependency, the field, the package and the pnpmfile. The error code is the
-/// one thing that still differs, because every hook failure here carries
-/// `ERR_PNPM_PNPMFILE_FAIL` where pnpm 11 uses
-/// `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT`.
-#[test]
-fn read_package_rejects_a_non_string_dependency_range() {
-    for (range, described) in [("undefined", "undefined"), ("null", "null"), ("1", "number")] {
-        let CommandTempCwd { root, workspace, npmrc_info, .. } =
-            CommandTempCwd::init().add_mocked_registry();
-        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-        fs::write(
-            workspace.join("package.json"),
-            serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } })
-                .to_string(),
-        )
-        .expect("write package.json");
-        fs::write(
-            workspace.join(".pnpmfile.cjs"),
-            format!(
-                r"module.exports = {{
-  hooks: {{
-    readPackage (pkg) {{
-      if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {{
-        pkg.dependencies['@pnpm.e2e/foo'] = {range};
-      }}
-      return pkg;
-    }}
-  }}
-}};
-",
-            ),
-        )
-        .expect("write pnpmfile");
-
-        let output = pacquet_in(&workspace)
-            .with_arg("install")
-            .output()
-            .expect("run install");
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        // The reporter wraps the message to the terminal width, so compare it
-        // with the wrapping taken out.
-        let reported = stderr
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ");
-        assert!(
-            !output.status.success(),
-            "a range of {range} must fail the install\nSTDERR:\n{stderr}",
-        );
-        assert!(
-            reported.contains(&format!(
-                "readPackage hook returned an invalid range for '@pnpm.e2e/foo' in the 'dependencies' of @pnpm.e2e/pkg-with-1-dep@100.0.0. Expected a string, got {described}."
-            )),
-            "the error names the dependency, the field and the package\nSTDERR:\n{stderr}",
-        );
-        assert!(
-            reported.contains(".pnpmfile.cjs"),
-            "the error names the pnpmfile\nSTDERR:\n{stderr}",
-        );
-
-        drop((root, mock_instance));
-    }
-}
-
 /// Deleting the property is how a hook removes a dependency, so an entry the
 /// map no longer carries is not the non-string range the check above rejects.
 #[test]
@@ -1354,4 +1285,193 @@ patchedDependencies:
     }
 
     drop((root, mock_instance));
+}
+
+/// A `readPackage` hook that returns something pnpm cannot use as a package
+/// manifest: the install has to fail rather than resolve a tree from it
+/// (pnpm/pnpm#15730). A returned string is the sharp case, because the
+/// resolver reads no dependencies off it and installs the package with an
+/// empty snapshot. pnpm 11 reports every one of these under
+/// `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT`, apart from a hook that threw.
+#[test]
+fn read_package_rejects_a_manifest_it_cannot_use() {
+    for (returned, message) in [
+        ("return undefined", "readPackage hook did not return a package manifest object."),
+        ("return 'a string'", "readPackage hook did not return a package manifest object."),
+        ("return [1]", "readPackage hook did not return a package manifest object."),
+        ("pkg.dependencies = 1", "property 'dependencies' must be an object"),
+    ] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } })
+                .to_string(),
+        )
+        .expect("write package.json");
+        fs::write(
+            workspace.join(".pnpmfile.cjs"),
+            format!(
+                r"module.exports = {{
+  hooks: {{
+    readPackage (pkg) {{
+      if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {{
+        {returned};
+      }}
+      return pkg;
+    }}
+  }}
+}};
+",
+            ),
+        )
+        .expect("write pnpmfile");
+
+        let output = pacquet_in(&workspace)
+            .with_arg("install")
+            .output()
+            .expect("run install");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let reported = unwrapped(&stderr);
+        assert!(
+            !output.status.success(),
+            "a hook doing `{returned}` must fail the install\nSTDERR:\n{stderr}",
+        );
+        assert!(
+            reported.contains(&unwrapped("ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT")),
+            "the code pnpm 11 uses for a manifest it cannot use\nSTDERR:\n{stderr}",
+        );
+        assert!(
+            reported.contains(&unwrapped(message)),
+            "the error explains what is wrong with the manifest\nSTDERR:\n{stderr}",
+        );
+        assert!(
+            reported.contains(".pnpmfile.cjs"),
+            "the error names the pnpmfile\nSTDERR:\n{stderr}",
+        );
+
+        drop((root, mock_instance));
+    }
+}
+
+/// A `readPackage` hook that leaves a dependency range as anything but a
+/// string produces a malformed manifest, and the worker sends the manifest
+/// back as JSON, which drops the entry. The install has to fail on that
+/// manifest rather than carry on without the dependency
+/// (pnpm/pnpm#15705).
+#[test]
+fn read_package_rejects_a_non_string_dependency_range() {
+    for (range, described) in [("undefined", "undefined"), ("null", "null"), ("1", "number")] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } })
+                .to_string(),
+        )
+        .expect("write package.json");
+        fs::write(
+            workspace.join(".pnpmfile.cjs"),
+            format!(
+                r"module.exports = {{
+  hooks: {{
+    readPackage (pkg) {{
+      if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {{
+        pkg.dependencies['@pnpm.e2e/foo'] = {range};
+      }}
+      return pkg;
+    }}
+  }}
+}};
+",
+            ),
+        )
+        .expect("write pnpmfile");
+
+        let output = pacquet_in(&workspace)
+            .with_arg("install")
+            .output()
+            .expect("run install");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let reported = unwrapped(&stderr);
+        assert!(
+            !output.status.success(),
+            "a range of {range} must fail the install\nSTDERR:\n{stderr}",
+        );
+        assert!(
+            reported.contains(&unwrapped("ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT")),
+            "the code pnpm 11 uses for a manifest it cannot use\nSTDERR:\n{stderr}",
+        );
+        assert!(
+            reported.contains(&unwrapped(&format!(
+                "readPackage hook returned an invalid range for '@pnpm.e2e/foo' in the 'dependencies' of @pnpm.e2e/pkg-with-1-dep@100.0.0. Expected a string, got {described}."
+            ))),
+            "the error names the dependency, the field and the package\nSTDERR:\n{stderr}",
+        );
+        assert!(
+            reported.contains(".pnpmfile.cjs"),
+            "the error names the pnpmfile\nSTDERR:\n{stderr}",
+        );
+
+        drop((root, mock_instance));
+    }
+}
+
+/// A hook that throws is a pnpmfile that failed to run, which keeps the code
+/// it has always had: the two kinds are told apart so each reports the code
+/// pnpm 11 reports for it.
+#[test]
+fn a_throwing_read_package_hook_stays_a_pnpmfile_failure() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } }).to_string(
+        ),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"module.exports = {
+  hooks: {
+    readPackage (pkg) {
+      if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
+        throw new Error('the hook gave up');
+      }
+      return pkg;
+    }
+  }
+};
+",
+    )
+    .expect("write pnpmfile");
+
+    let output = pacquet_in(&workspace)
+        .with_arg("install")
+        .output()
+        .expect("run install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "a throwing hook fails the install\nSTDERR:\n{stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_PNPMFILE_FAIL"),
+        "a hook that failed to run is a pnpmfile failure\nSTDERR:\n{stderr}",
+    );
+    assert!(
+        unwrapped(&stderr).contains(&unwrapped("the hook gave up")),
+        "the error carries what the hook said\nSTDERR:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// An error message with the whitespace taken out. The reporter wraps a
+/// message to the terminal width, breaking inside a long token when it has to,
+/// so a phrase the code emitted as one line is not one line on the way out.
+fn unwrapped(text: &str) -> String {
+    text.chars()
+        .filter(|character| !character.is_whitespace())
+        .collect()
 }

@@ -119,6 +119,12 @@ pub enum InstallError {
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     ReadPackageHook(#[error(not(source))] pnpm_hooks::HookError),
 
+    /// The pnpmfile's `readPackage` hook returned a manifest pnpm cannot use,
+    /// raised with the `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT` code pnpm 11
+    /// reports for that class of failure.
+    #[diagnostic(code(ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT))]
+    BadReadPackageHookResult(#[error(not(source))] pnpm_hooks::HookError),
+
     #[diagnostic(transparent)]
     FrozenLockfile(#[error(source)] InstallFrozenLockfileError),
 
@@ -426,6 +432,19 @@ pub enum InstallError {
     #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR))]
     ConfigConflictVirtualStoreOnlyWithNoModulesDir,
 }
+
+impl InstallError {
+    /// A `readPackage` failure, under the code its kind calls for: a hook that
+    /// returned a manifest pnpm cannot use reads apart from one that threw.
+    pub(crate) fn read_package_hook(err: pnpm_hooks::HookError) -> Self {
+        if err.is_bad_read_package_result() {
+            Self::BadReadPackageHookResult(err)
+        } else {
+            Self::ReadPackageHook(err)
+        }
+    }
+}
+
 /// Hold back an [`InstallError::IgnoredBuilds`] verdict so the calling
 /// command can finish writing `package.json` and `pnpm-workspace.yaml`
 /// before it aborts: the install materialized the tree, and pnpm reports

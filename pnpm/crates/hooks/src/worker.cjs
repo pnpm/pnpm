@@ -152,17 +152,17 @@ async function handle(req) {
       pkg.optionalDependencies = pkg.optionalDependencies ?? {};
       pkg.peerDependencies = pkg.peerDependencies ?? {};
       const newPkg = await fn(pkg, context);
-      if (!newPkg) {
-        throw new Error("readPackage hook did not return a package manifest object. Hook imported via " + pnpmfilePath);
+      if (!newPkg || typeof newPkg !== "object" || Array.isArray(newPkg)) {
+        throw unusableManifest("readPackage hook did not return a package manifest object.");
       }
       for (const dep of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
         const v = newPkg[dep];
         if (v != null && (typeof v !== "object" || Array.isArray(v))) {
-          throw new Error("readPackage hook returned package manifest object's property '" + dep + "' must be an object. Hook imported via " + pnpmfilePath);
+          throw unusableManifest("readPackage hook returned package manifest object's property '" + dep + "' must be an object.");
         }
         for (const [name, range] of Object.entries(v ?? {})) {
           if (typeof range !== "string") {
-            throw new Error("readPackage hook returned an invalid range for '" + name + "' in the '" + dep + "' of " + describePackage(newPkg) + ". Expected a string, got " + (range === null ? "null" : typeof range) + ". To remove the dependency, delete the property. Hook imported via " + pnpmfilePath);
+            throw unusableManifest("readPackage hook returned an invalid range for '" + name + "' in the '" + dep + "' of " + describePackage(newPkg) + ". Expected a string, got " + (range === null ? "null" : typeof range) + ". To remove the dependency, delete the property.");
           }
         }
       }
@@ -179,8 +179,19 @@ async function handle(req) {
       send({ ok: res === undefined ? null : res });
     }
   } catch (err) {
-    send({ err: err && err.stack ? err.stack : String(err) });
+    const failure = { err: err && err.stack ? err.stack : String(err) };
+    if (err && err.unusableManifest) failure.unusableManifest = true;
+    send(failure);
   }
+}
+
+// A `readPackage` hook that returned something pnpm cannot use, as opposed to
+// one that threw: the failure is flagged so the caller can report it apart from
+// a pnpmfile that failed to run, the way pnpm 11 does.
+function unusableManifest(message) {
+  const err = new Error(message + " Hook imported via " + pnpmfilePath);
+  err.unusableManifest = true;
+  return err;
 }
 
 function describePackage(pkg) {

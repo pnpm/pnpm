@@ -39,9 +39,12 @@ pub type ReadPackageResult = Arc<Value>;
 
 /// An error raised while running a pnpmfile hook in Node.js.
 ///
-/// Covers the `ERR_PNPM_PNPMFILE_FAIL` / `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT` conditions: a
-/// throwing or syntactically invalid pnpmfile, or a `readPackage` hook that
-/// returns something that is not a package manifest, aborts the install.
+/// A pnpmfile that fails to load or throws, and a `readPackage` hook that
+/// throws, abort the install as `ERR_PNPM_PNPMFILE_FAIL`. A `readPackage`
+/// hook that *returns* a manifest pnpm cannot use aborts it under
+/// `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT`, the code pnpm 11 reports for
+/// that class of failure. The two are separate variants so each consumer can
+/// pick the code.
 #[derive(Debug, Display, Clone)]
 pub enum HookError {
     #[display("pnpmfile hook '{_0}' timed out after {_1} seconds")]
@@ -49,6 +52,20 @@ pub enum HookError {
 
     #[display("Error during pnpmfile execution. pnpmfile: \"{pnpmfile}\". Error: \"{message}\".")]
     Execution { pnpmfile: String, message: String },
+
+    #[display(
+        "The pnpmfile's readPackage hook returned a package manifest pnpm cannot use. pnpmfile: \"{pnpmfile}\". Error: \"{message}\"."
+    )]
+    BadReadPackageResult { pnpmfile: String, message: String },
+}
+
+impl HookError {
+    /// Whether a `readPackage` hook returned a manifest pnpm cannot use,
+    /// which pnpm reports apart from a pnpmfile that failed to run.
+    #[must_use]
+    pub fn is_bad_read_package_result(&self) -> bool {
+        matches!(self, Self::BadReadPackageResult { .. })
+    }
 }
 
 /// Context provided to pnpmfile hooks.

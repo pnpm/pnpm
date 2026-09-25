@@ -304,14 +304,16 @@ pub enum ResolveDependencyTreeError {
         alias: String,
     },
 
-    /// A pnpmfile hook (`readPackage`) threw, timed out, or returned an
-    /// invalid package manifest; a bad hook aborts the install. Carries
-    /// `ERR_PNPM_PNPMFILE_FAIL` for all of those. pnpm splits them across
-    /// two codes, reserving `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT` for a
-    /// hook that returns a non-manifest; pacquet does not distinguish the
-    /// two yet.
+    /// A pnpmfile hook (`readPackage`) threw or timed out; a bad hook aborts
+    /// the install.
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     PnpmfileHook(#[error(not(source))] pnpm_hooks::HookError),
+
+    /// A `readPackage` hook returned a package manifest the resolver cannot
+    /// use, raised with the `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT` code pnpm
+    /// 11 reports for that class of failure.
+    #[diagnostic(code(ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT))]
+    BadReadPackageHookResult(#[error(not(source))] pnpm_hooks::HookError),
 
     /// An importer's `peerDependencies` entry held a value that is neither a
     /// peer range nor a scheme-carrying specifier, raised with the
@@ -331,6 +333,19 @@ pub enum ResolveDependencyTreeError {
         project_id: String,
         specifier: String,
     },
+}
+
+impl ResolveDependencyTreeError {
+    /// A `readPackage` failure, under the code its kind calls for: a hook that
+    /// returned a manifest pnpm cannot use reads apart from one that threw.
+    #[must_use]
+    pub fn read_package_hook(err: pnpm_hooks::HookError) -> Self {
+        if err.is_bad_read_package_result() {
+            Self::BadReadPackageHookResult(err)
+        } else {
+            Self::PnpmfileHook(err)
+        }
+    }
 }
 
 impl From<PatchKeyConflictError> for ResolveDependencyTreeError {

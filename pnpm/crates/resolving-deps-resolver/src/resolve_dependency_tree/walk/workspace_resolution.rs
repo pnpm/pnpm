@@ -225,7 +225,7 @@ pub(super) async fn apply_manifest_hooks(
         let updated = pnpmfile_hook
             .read_package((*manifest).clone(), hook_ctx)
             .await
-            .map_err(ResolveDependencyTreeError::PnpmfileHook)?;
+            .map_err(ResolveDependencyTreeError::read_package_hook)?;
         result.package.manifest = Some(updated);
     }
 

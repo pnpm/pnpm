@@ -75,8 +75,33 @@ pub struct FetcherCapabilities {
 
 struct Pending {
     log: LogFn,
-    done: oneshot::Sender<Result<Value, String>>,
+    done: oneshot::Sender<Result<Value, Failure>>,
     callbacks: Option<FetcherCallbackSender>,
+}
+
+/// What the worker reported for a request it could not answer.
+///
+/// A failure the worker attributes to a `readPackage` hook that returned a
+/// manifest pnpm cannot use becomes [`HookError::BadReadPackageResult`];
+/// anything else is a pnpmfile that failed to run.
+struct Failure {
+    message: String,
+    unusable_manifest: bool,
+}
+
+impl Failure {
+    fn execution(message: impl Into<String>) -> Self {
+        Self { message: message.into(), unusable_manifest: false }
+    }
+
+    fn into_hook_error(self, pnpmfile: &str) -> HookError {
+        let pnpmfile = pnpmfile.to_string();
+        if self.unusable_manifest {
+            HookError::BadReadPackageResult { pnpmfile, message: self.message }
+        } else {
+            HookError::Execution { pnpmfile, message: self.message }
+        }
+    }
 }
 
 /// Pending requests keyed by id. A `std` mutex (never held across an
@@ -372,7 +397,7 @@ impl NodeWorker {
         };
         match timeout(request_timeout, rx).await {
             Ok(Ok(Ok(value))) => Ok(value),
-            Ok(Ok(Err(message))) => Err(self.exec_err(message)),
+            Ok(Ok(Err(failure))) => Err(failure.into_hook_error(&self.pnpmfile)),
             Ok(Err(_)) => Err(self.exec_err("pnpmfile worker dropped the response")),
             Err(_) => Err(HookError::Timeout(label.to_string(), request_timeout.as_secs())),
         }
@@ -392,7 +417,7 @@ fn spawn_stdout_reader(stdout: ChildStdout, pending: PendingMap, stdin: Arc<Mute
             dispatch_line(&pending, &stdin, &line);
         }
         for (_, request) in pending.lock().unwrap().drain() {
-            let _ = request.done.send(Err("pnpmfile worker exited".to_string()));
+            let _ = request.done.send(Err(Failure::execution("pnpmfile worker exited")));
         }
     });
 }
@@ -420,7 +445,13 @@ fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>, line: &st
 
     let Some(entry) = pending.lock().unwrap().remove(&id) else { return };
     let result = match message.get("err").and_then(Value::as_str) {
-        Some(err) => Err(err.to_string()),
+        Some(err) => Err(Failure {
+            message: err.to_string(),
+            unusable_manifest: message
+                .get("unusableManifest")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+        }),
         None => Ok(message
             .get("ok")
             .cloned()

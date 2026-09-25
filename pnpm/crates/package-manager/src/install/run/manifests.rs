@@ -153,7 +153,7 @@ pub(super) async fn hook_one_manifest(
     let value = hook
         .read_package(manifest.value().clone(), ctx)
         .await
-        .map_err(InstallError::ReadPackageHook)?;
+        .map_err(InstallError::read_package_hook)?;
     let mut hooked = manifest.clone();
     *hooked.value_mut() = (*value).clone();
     Ok((project_dir.to_path_buf(), hooked))
