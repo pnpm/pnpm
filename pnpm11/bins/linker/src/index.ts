@@ -32,6 +32,11 @@ const POWER_SHELL_IS_SUPPORTED = IS_WINDOWS
 // A POSIX shim written on Windows lists NODE_PATH in two forms and can pass 4 KiB.
 const CMD_SHIM_MAX_SIZE = 64 * 1024
 
+/** The directory holding the `node` executable of a Node.js runtime package. */
+export function nodeRuntimeBinDir (nodeDir: string): string {
+  return IS_WINDOWS ? nodeDir : path.join(nodeDir, 'bin')
+}
+
 export type WarningCode = 'BINARIES_CONFLICT' | 'EMPTY_BIN'
 
 export type WarnFunction = (msg: string, code: WarningCode) => void
@@ -300,7 +305,7 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
     // In a hoisted layout, it may be in one of the parent node_modules directories.
     const nodeDir = path.dirname(require.resolve('node/CHANGELOG.md', { paths: [pkgDir] }))
     if (nodeDir) {
-      nodeExecPath = path.join(nodeDir, IS_WINDOWS ? 'node.exe' : 'bin/node')
+      nodeExecPath = path.join(nodeRuntimeBinDir(nodeDir), IS_WINDOWS ? 'node.exe' : 'node')
     }
   }
   return cmds.map((cmd) => ({
