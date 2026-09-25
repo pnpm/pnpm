@@ -144,7 +144,11 @@ function overwriteFileInPlace (
       }
     }
   }
-  return verifyFileIntegrity(fileDest, integrity)
+  try {
+    return verifyFileIntegrity(fileDest, integrity)
+  } catch {
+    return false
+  }
 }
 
 /**

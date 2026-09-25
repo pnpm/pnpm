@@ -124,6 +124,39 @@ fn cas_repair_of_read_only_blob_preserves_inode_and_restores_mode() {
     assert_eq!(mode, 0o444, "write protection must be restored");
 }
 
+/// A corrupt blob whose mode lacks the owner-write bit but has other
+/// write bits (e.g. 0o464) is repaired in place: `is_write_protected`
+/// inspects the owner bit specifically rather than `readonly()`,
+/// keeping the inode and healing hard-linked copies.
+#[cfg(unix)]
+#[test]
+fn cas_repair_preserves_hardlink_for_owner_non_writable_mode() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    let tmp = tempdir().unwrap();
+    let path = tmp.path().join("cas_entry");
+    ensure_cas_file(&path, b"original", None).unwrap();
+    let linked = tmp.path().join("linked_copy");
+    fs::hard_link(&path, &linked).unwrap();
+    let ino_before = fs::metadata(&path).unwrap().ino();
+
+    fs::write(&linked, b"tampered").unwrap();
+    let mut permissions = fs::metadata(&path).unwrap().permissions();
+    permissions.set_mode(0o464);
+    fs::set_permissions(&path, permissions).unwrap();
+
+    ensure_cas_file(&path, b"original", None).expect("in-place repair of 0o464 blob");
+
+    assert_eq!(fs::read(&linked).unwrap(), b"original", "hard-linked copy must be healed");
+    assert_eq!(fs::metadata(&path).unwrap().ino(), ino_before, "inode must survive repair");
+    let mode = fs::metadata(&path)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(mode, 0o464, "mode 0o464 must be restored");
+}
+
 #[test]
 fn missing_parent_dir_errors() {
     let tmp = tempdir().unwrap();

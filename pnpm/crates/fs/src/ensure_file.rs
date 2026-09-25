@@ -483,7 +483,7 @@ fn open_for_overwrite(
     if !meta.file_type().is_file() {
         return None;
     }
-    let restore_permissions = if meta.permissions().readonly() {
+    let restore_permissions = if is_write_protected(&meta.permissions()) {
         fs::set_permissions(file_path, make_writable(&meta.permissions())).ok()?;
         Some(meta.permissions())
     } else {
@@ -498,6 +498,22 @@ fn open_for_overwrite(
         let _ = fs::set_permissions(file_path, permissions.clone());
     }
     None
+}
+
+/// Whether the file is write-protected for the current process: on Unix
+/// by lacking the owner-write bit, and on Windows by having the readonly
+/// attribute. Rust's `readonly()` checks whether all write bits (owner,
+/// group, other) are clear, which returns false for modes like 0o464
+/// where the owner still cannot write.
+#[cfg(unix)]
+fn is_write_protected(permissions: &fs::Permissions) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    permissions.mode() & 0o200 == 0
+}
+
+#[cfg(windows)]
+fn is_write_protected(permissions: &fs::Permissions) -> bool {
+    permissions.readonly()
 }
 
 /// Grant write permission, disturbing nothing else: on Unix by adding
