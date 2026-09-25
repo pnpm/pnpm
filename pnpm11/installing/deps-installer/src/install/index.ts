@@ -53,7 +53,7 @@ import {
   type UpdateMatchingFunction,
   type WantedDependency,
 } from '@pnpm/installing.deps-resolver'
-import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
+import { extendProjectsWithTargetDirs, getInjectedDeps, headlessInstall, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
 import { type Modules, readModulesManifest, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { filterLockfileByImportersAndEngine } from '@pnpm/lockfile.filtering'
 import {
@@ -2999,7 +2999,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     }))
 
-    const projectsWithTargetDirs = getProjectsWithTargetDirs(projects, newLockfile, dependenciesGraph)
+    const injectionTargetsByDepPath = getInjectionTargetsByDepPath(newLockfile, dependenciesGraph)
+    const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath)
     const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
     await Promise.all([
       opts.useLockfile && opts.saveLockfile
@@ -3022,12 +3023,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         ) {
           return Promise.resolve()
         }
-        const injectedDeps: Record<string, string[]> = {}
-        for (const project of projectsWithTargetDirs) {
-          if (project.targetDirs.length > 0) {
-            injectedDeps[project.id] = project.targetDirs.map((targetDir) => path.relative(opts.lockfileDir, targetDir))
-          }
-        }
+        const injectedDeps = getInjectedDeps(injectionTargetsByDepPath, opts.lockfileDir)
         return writeModulesManifest(ctx.rootModulesDir, {
           ...ctx.modulesFile,
           hoistedDependencies: result.newHoistedDependencies,
@@ -3596,16 +3592,14 @@ function dedupePackageNamesFromIgnoredBuilds (ignoredBuilds: IgnoredBuilds): str
 }
 
 /**
- * Build injectionTargetsByDepPath from the dependenciesGraph for injected workspace packages
- * and extend projects with their target directories.
+ * Build injectionTargetsByDepPath from the dependenciesGraph for injected workspace packages.
  * The dependenciesGraph already has the correct `dir` values after `extendGraph` is applied
  * (which uses the correct hash-based paths when global virtual store is enabled).
  */
-function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
-  projects: T[],
+function getInjectionTargetsByDepPath (
   lockfile: LockfileObject,
   dependenciesGraph: DependenciesGraph
-): Array<T & { id: ProjectId, stages: string[], targetDirs: string[] }> {
+): Map<string, string[]> {
   const injectionTargetsByDepPath = new Map<string, string[]>()
   if (lockfile.packages) {
     for (const [depPath, { resolution }] of Object.entries(lockfile.packages)) {
@@ -3617,7 +3611,7 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
       }
     }
   }
-  return extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath)
+  return injectionTargetsByDepPath
 }
 
 /**

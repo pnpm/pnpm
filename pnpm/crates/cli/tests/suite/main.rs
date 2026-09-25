@@ -69,6 +69,7 @@ mod import;
 mod import_yarn_patches;
 mod init;
 mod inject_workspace_packages;
+mod injected_deps_with_dedicated_lockfiles;
 mod install;
 mod install_filters;
 mod install_root_engine;

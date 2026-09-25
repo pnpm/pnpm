@@ -50,6 +50,7 @@ import type {
   ProjectsGraph,
   RangeSpecStyle,
 } from '@pnpm/types'
+import { syncInjectedDepsOfModulesDir } from '@pnpm/workspace.injected-deps-syncer'
 import { filteredProjectsDependencies, projectsDependencies } from '@pnpm/workspace.projects-sorter'
 import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
@@ -436,6 +437,7 @@ export async function recursive (
   // violations; accumulate them here so the post-loop persist step can
   // dedup and write a single batch to the workspace manifest.
   const allResolutionPolicyViolations: PolicyViolation[] = []
+  const installedModulesDirs = new Map<ProjectRootDir, string>()
   let firstError: Error | undefined
   await scheduleGraph(selectedProjectDependencies, {
     bail: opts.bail !== false,
@@ -567,6 +569,7 @@ export async function recursive (
             allResolutionPolicyViolations.push(violation)
           }
         }
+        installedModulesDirs.set(rootDir, path.resolve(rootDir, localConfig.modulesDir ?? opts.modulesDir ?? 'node_modules'))
         result[rootDir].status = 'passed'
         return 'passed'
       } catch (err: any) { // eslint-disable-line
@@ -629,6 +632,17 @@ export async function recursive (
       pending: opts.pending === true,
       skipIfHasSideEffectsCache: true,
     }, [])
+    // With a shared lockfile, an injected project is imported again after its
+    // own lifecycle scripts run. Here each project was installed and built on
+    // its own, so the copies are synced once every project has been built.
+    if (!opts.dryRun) {
+      const builtProjectDirs = new Set<string>(installedModulesDirs.keys())
+      const syncResults = await Promise.allSettled(Array.from(installedModulesDirs, async ([lockfileDir, modulesDir]) =>
+        syncInjectedDepsOfModulesDir({ lockfileDir, modulesDir, sourceDirs: builtProjectDirs })
+      ))
+      const syncFailure = syncResults.find((syncResult): syncResult is PromiseRejectedResult => syncResult.status === 'rejected')
+      if (syncFailure != null) throw syncFailure.reason
+    }
   }
 
   throwOnFail(result)

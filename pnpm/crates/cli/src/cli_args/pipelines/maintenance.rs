@@ -179,6 +179,7 @@ async fn run_dedicated_dedupe<Reporter: self::Reporter + 'static>(
         require_lockfile: false,
         http_client: Some(State::new_http_client(cfg)?),
         prune_excludes: !args.check,
+        sync_injected_deps: false,
     }
     .run(|state| {
         Box::pin(dedupe_dedicated_project::<Reporter>(
