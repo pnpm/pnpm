@@ -30,7 +30,7 @@ const PATCH_HASH_PREFIX = '(patch_hash='
  * a lockfile that was hand-edited or merged badly, and neither failing is a patch-hash problem:
  * `'indeterminate'` keeps those apart from a hash that genuinely disagrees, so a caller can
  * re-resolve without reporting a cause it hasn't established. A `patchedDependencies` key that
- * does not resolve leaves only its own package unjudged.
+ * does not resolve leaves only its own package without a verdict.
  *
  * Stops at the first dependency path that definitely disagrees.
  */

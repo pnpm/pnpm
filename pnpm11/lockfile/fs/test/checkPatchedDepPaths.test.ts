@@ -376,7 +376,7 @@ test('checkPatchedDepPaths() reports a patched git dependency missing its suffix
   }))).toBe('stale')
 })
 
-test('checkPatchedDepPaths() accepts an unsuffixed version of a package whose patch covers another version', () => {
+test('checkPatchedDepPaths() accepts a version without a suffix of a package whose patch covers another version', () => {
   expect(checkPatchedDepPaths(lockfile({
     patchedDependencies: { 'is-positive@1.0.0': CURRENT },
     importers: {

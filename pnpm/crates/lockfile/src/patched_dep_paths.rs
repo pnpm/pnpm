@@ -82,7 +82,7 @@ pub enum PatchedDepPathsStatus {
 /// patch-hash problem, so [`PatchedDepPathsStatus::Indeterminate`] keeps them
 /// apart from a hash that genuinely disagrees: a caller can re-resolve without
 /// reporting a cause it has not established. A `patchedDependencies` key that
-/// does not resolve leaves only its own package unjudged.
+/// does not resolve leaves only its own package without a verdict.
 ///
 /// Stops at the first depPath that definitely disagrees.
 #[must_use]
