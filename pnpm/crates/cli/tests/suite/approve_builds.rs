@@ -418,7 +418,7 @@ fn approve_builds_in_a_project_with_its_own_lockfile_runs_the_build() {
     assert!(!workspace.join("node_modules/.pnpm").exists(), "no virtual store at the root");
     assert_eq!(
         allow_builds(&workspace),
-        std::collections::BTreeMap::from([(INSTALL.to_string(), true)])
+        std::collections::BTreeMap::from([(INSTALL.to_string(), true)]),
     );
 
     drop(harness);
