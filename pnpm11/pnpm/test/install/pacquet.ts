@@ -66,6 +66,8 @@ test.each([
   [['--silent']],
   [['-s']],
   [['-sd']],
+  [['-silent']],
+  [['-quiet']],
   [['--loglevel', 'warn']],
 ])('pnpm install --frozen-lockfile %j keeps the reporting flags from pacquet', async (reportingFlags) => {
   await prepareWithPacquet({ manifest: { dependencies: { 'is-positive': '3.1.0' } } })
@@ -82,7 +84,10 @@ test.each([
 }, TIMEOUT)
 
 // https://github.com/pnpm/pnpm/issues/11936
-test('pnpm install --frozen-lockfile -sP passes -P to pacquet', async () => {
+test.each([
+  [['-sP']],
+  [['-prod', '--silent']],
+])('pnpm install --frozen-lockfile %j installs only production dependencies with pacquet', async (flags) => {
   await prepareWithPacquet({
     manifest: {
       dependencies: { 'is-positive': '3.1.0' },
@@ -92,7 +97,7 @@ test('pnpm install --frozen-lockfile -sP passes -P to pacquet', async () => {
   await fs.promises.rm('node_modules', { recursive: true, force: true })
 
   const { stdout, stderr, status } = execPnpmSync(
-    [PUBLIC_REGISTRY, 'install', '--frozen-lockfile', '-sP'],
+    [PUBLIC_REGISTRY, 'install', '--frozen-lockfile', ...flags],
     { env: { pnpm_config_silent: 'false' }, stdio: 'pipe' }
   )
   expect(stderr.toString()).toBe('')
