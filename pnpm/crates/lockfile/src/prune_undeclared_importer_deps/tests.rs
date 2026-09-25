@@ -230,3 +230,44 @@ fn keeps_an_undeclared_entry_the_fold_did_not_introduce() {
         2,
     );
 }
+
+#[test]
+fn keeps_a_dependency_declared_in_both_dependencies_and_dev_dependencies() {
+    let mut importer = importer(
+        r"
+specifiers:
+  foo: ^1.0.0
+dependencies:
+  foo:
+    specifier: ^1.0.0
+    version: 1.1.0
+devDependencies:
+  foo:
+    specifier: ^1.0.0
+    version: 1.1.0
+",
+    );
+    prune_undeclared_importer_deps(
+        &mut importer,
+        None,
+        &manifest(json!({
+            "dependencies": { "foo": "^1.0.0" },
+            "devDependencies": { "foo": "^1.0.0" },
+        })),
+        true,
+    );
+    assert_eq!(
+        importer.dependencies
+            .as_ref()
+            .expect("dependencies")
+            .len(),
+        1,
+    );
+    assert_eq!(
+        importer.dev_dependencies
+            .as_ref()
+            .expect("devDependencies")
+            .len(),
+        1,
+    );
+}

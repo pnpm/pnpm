@@ -62,7 +62,7 @@ struct DeclaredNames {
 
 impl DeclaredNames {
     /// Precedence for an alias several groups declare: optional over
-    /// prod, prod over dev.
+    /// prod and dev; prod and dev both record an alias declared in both.
     fn of(manifest: &PackageManifest, auto_install_peers: bool) -> Self {
         let names_of = |group| {
             manifest
@@ -74,7 +74,7 @@ impl DeclaredNames {
             .filter(|name| !optional.contains(name))
             .collect();
         let dev: HashSet<PkgName> = names_of(DependencyGroup::Dev)
-            .filter(|name| !optional.contains(name) && !prod.contains(name))
+            .filter(|name| !optional.contains(name))
             .collect();
         prod.extend(
             auto_installed_peer_deps(manifest, auto_install_peers)
