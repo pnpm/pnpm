@@ -7,8 +7,8 @@ import { describe, expect, test } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
 
 import {
-  type AddDirToPosixEnvPathOpts,
   addDirToPosixEnvPath,
+  type AddDirToPosixEnvPathOpts,
   findSection,
   replaceSection,
   updateShellConfig,
@@ -320,9 +320,10 @@ esac`)
     }
   })
 
+  // cspell:ignore ZDOTDIR
   test('zsh snippet prepends PNPM_HOME when it is already on PATH', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-posix-test-'))
-    const previousZdotdir = process.env.ZDOTDIR
+    const savedConfigDir = process.env.ZDOTDIR
     const previousZshVersion = process.env.ZSH_VERSION
     process.env.ZDOTDIR = dir
     process.env.ZSH_VERSION = '5.9'
@@ -344,10 +345,10 @@ printf '%s' "$PATH"
       expect(result.status).toBe(0)
       expect(result.stdout).toBe(`${pnpmHome}/bin:/usr/local/bin:${pnpmHome}/bin:/usr/bin`)
     } finally {
-      if (previousZdotdir == null) {
+      if (savedConfigDir == null) {
         delete process.env.ZDOTDIR
       } else {
-        process.env.ZDOTDIR = previousZdotdir
+        process.env.ZDOTDIR = savedConfigDir
       }
       if (previousZshVersion == null) {
         delete process.env.ZSH_VERSION
