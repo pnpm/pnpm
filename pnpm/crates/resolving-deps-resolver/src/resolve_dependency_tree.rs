@@ -304,14 +304,11 @@ pub enum ResolveDependencyTreeError {
         alias: String,
     },
 
-    /// A pnpmfile hook (`readPackage`) threw, timed out, or returned an
-    /// invalid package manifest; a bad hook aborts the install. Carries
-    /// `ERR_PNPM_PNPMFILE_FAIL` for all of those. pnpm splits them across
-    /// two codes, reserving `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT` for a
-    /// hook that returns a non-manifest; pacquet does not distinguish the
-    /// two yet.
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     PnpmfileHook(#[error(not(source))] pnpm_hooks::HookError),
+
+    #[diagnostic(code(ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT))]
+    BadReadPackageHookResult(#[error(not(source))] pnpm_hooks::HookError),
 
     /// An importer's `peerDependencies` entry held a value that is neither a
     /// peer range nor a scheme-carrying specifier, raised with the
@@ -336,6 +333,17 @@ pub enum ResolveDependencyTreeError {
 impl From<PatchKeyConflictError> for ResolveDependencyTreeError {
     fn from(err: PatchKeyConflictError) -> Self {
         ResolveDependencyTreeError::PatchKeyConflict(err)
+    }
+}
+
+impl From<pnpm_hooks::HookError> for ResolveDependencyTreeError {
+    fn from(err: pnpm_hooks::HookError) -> Self {
+        match err {
+            pnpm_hooks::HookError::BadReadPackageResult { .. } => {
+                Self::BadReadPackageHookResult(err)
+            }
+            _ => Self::PnpmfileHook(err),
+        }
     }
 }
 

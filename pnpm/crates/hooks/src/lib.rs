@@ -49,6 +49,9 @@ pub enum HookError {
 
     #[display("Error during pnpmfile execution. pnpmfile: \"{pnpmfile}\". Error: \"{message}\".")]
     Execution { pnpmfile: String, message: String },
+
+    #[display("{message}")]
+    BadReadPackageResult { message: String },
 }
 
 /// Context provided to pnpmfile hooks.

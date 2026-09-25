@@ -1121,15 +1121,6 @@ fn engine_strict_respects_read_package_hook_relaxing_engines() {
     drop((root, mock_instance));
 }
 
-/// A `readPackage` hook that leaves a dependency range as anything but a
-/// string produces a malformed manifest, and the worker sends the manifest
-/// back as JSON, which drops the entry. The install has to fail on that
-/// manifest rather than carry on without the dependency
-/// (pnpm/pnpm#15705). The message is the one pnpm 11 prints: it names the
-/// dependency, the field, the package and the pnpmfile. The error code is the
-/// one thing that still differs, because every hook failure here carries
-/// `ERR_PNPM_PNPMFILE_FAIL` where pnpm 11 uses
-/// `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT`.
 #[test]
 fn read_package_rejects_a_non_string_dependency_range() {
     for (range, described) in [("undefined", "undefined"), ("null", "null"), ("1", "number")] {
@@ -1170,11 +1161,13 @@ fn read_package_rejects_a_non_string_dependency_range() {
         let reported = stderr
             .split_whitespace()
             .collect::<Vec<_>>()
-            .join(" ");
+            .join(" ")
+            .replace("- dep@", "-dep@");
         assert!(
             !output.status.success(),
             "a range of {range} must fail the install\nSTDERR:\n{stderr}",
         );
+        assert!(reported.contains("ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT"), "STDERR:\n{stderr}");
         assert!(
             reported.contains(&format!(
                 "readPackage hook returned an invalid range for '@pnpm.e2e/foo' in the 'dependencies' of @pnpm.e2e/pkg-with-1-dep@100.0.0. Expected a string, got {described}."
@@ -1188,6 +1181,45 @@ fn read_package_rejects_a_non_string_dependency_range() {
 
         drop((root, mock_instance));
     }
+}
+
+#[test]
+fn read_package_rejects_non_object_manifest() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } }).to_string(
+        ),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"module.exports = { hooks: { readPackage (pkg) {
+  return pkg.name === '@pnpm.e2e/pkg-with-1-dep' ? 'a string' : pkg;
+} } };",
+    )
+    .expect("write pnpmfile");
+
+    let output = pacquet_in(&workspace)
+        .with_arg("install")
+        .output()
+        .expect("run install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let reported = stderr
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(!output.status.success(), "STDERR:\n{stderr}");
+    assert!(stderr.contains("ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT"), "STDERR:\n{stderr}");
+    assert!(
+        reported.contains("readPackage hook did not return a package manifest object."),
+        "STDERR:\n{stderr}"
+    );
+    assert!(stderr.contains(".pnpmfile.cjs"), "STDERR:\n{stderr}");
+
+    drop((root, mock_instance));
 }
 
 /// Deleting the property is how a hook removes a dependency, so an entry the
