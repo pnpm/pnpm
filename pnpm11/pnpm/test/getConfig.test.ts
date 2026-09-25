@@ -315,6 +315,51 @@ describe('installConfigDepsAndLoadHooks', () => {
     expect((result.config as unknown as { order: string[] }).order).toStrictEqual(['pnpm-plugin-a', 'pnpm-plugin-b', 'project'])
   })
 
+  test('restores the built-in registry routes an updateConfig hook drops', async () => {
+    prepare()
+
+    fs.writeFileSync('.pnpmfile.cjs', `
+      module.exports = {
+        hooks: {
+          updateConfig: (config) => ({ ...config, registriesByScope: { '@acme': 'https://acme.example' } }),
+        },
+      }
+    `)
+
+    const { config, context } = buildPnpmfileConfig()
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.registriesByScope).toStrictEqual({
+      default: 'https://registry.npmjs.org/',
+      '@jsr': 'https://npm.jsr.io/',
+      '@acme': 'https://acme.example/',
+    })
+  })
+
+  test('keeps the registry routes an updateConfig hook overrides', async () => {
+    prepare()
+
+    fs.writeFileSync('.pnpmfile.cjs', `
+      module.exports = {
+        hooks: {
+          updateConfig: (config) => ({
+            ...config,
+            registriesByScope: { default: 'https://mirror.example/', '@jsr': 'https://jsr-mirror.example/' },
+          }),
+        },
+      }
+    `)
+
+    const { config, context } = buildPnpmfileConfig()
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.registriesByScope).toStrictEqual({
+      default: 'https://mirror.example/',
+      '@jsr': 'https://jsr-mirror.example/',
+    })
+  })
+  })
+
   function buildPnpmfileConfig (): { config: Config, context: ConfigContext } {
     const { config, context } = buildBaseConfig()
     config.ignorePnpmfile = false

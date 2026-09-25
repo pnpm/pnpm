@@ -4,6 +4,7 @@ import util from 'node:util'
 
 import { formatWarn } from '@pnpm/cli.default-reporter'
 import { packageManager } from '@pnpm/cli.meta'
+import { normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
 import { type CliOptions, type Config, type ConfigContext, getConfig as _getConfig } from '@pnpm/config.reader'
 import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
@@ -115,6 +116,8 @@ export async function installConfigDepsAndLoadHooks (
         const updateConfigResult = updateConfig(config)
         config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop
       }
+      // A hook may drop the `default` or `@jsr` route, which the resolver assumes is always present.
+      config.registriesByScope = normalizeRegistriesByScope(config.registriesByScope)
     }
   }
   return { config, context }
