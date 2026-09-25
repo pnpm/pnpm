@@ -337,11 +337,12 @@ test('a git-hosted tarball reused from the store keeps its integrity in a fresh 
     .reply(200)
     .times(2)
   const manifest = { dependencies: { 'is-negative': 'github:kevva/is-negative#1.0.0' } }
-  await install(manifest, testDefaults({ lockfileOnly: true }))
+  const coldStoreOpts = testDefaults({ lockfileOnly: true })
+  await install(manifest, coldStoreOpts)
   const coldStorePackages = project.readLockfile().packages
 
   fs.rmSync(WANTED_LOCKFILE)
-  await install(manifest, testDefaults({ lockfileOnly: true }))
+  await install(manifest, testDefaults({ lockfileOnly: true, storeDir: coldStoreOpts.storeDir }))
 
   expect(coldStorePackages).toStrictEqual({
     'is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99': {
