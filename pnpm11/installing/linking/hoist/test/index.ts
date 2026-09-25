@@ -102,6 +102,25 @@ test.each(['ENOENT', 'EINVAL'])('rechecks a winning link after readlink reports 
   }
 })
 
+test('stops retrying when a competing link stays unreadable', async () => {
+  const { root, link, target, opts } = await prepareStaleHoist()
+  const unlink = fs.promises.unlink
+  const readlink = fs.promises.readlink
+  jest.spyOn(fs.promises, 'unlink').mockImplementationOnce(async (dest) => {
+    await unlink(dest)
+    await symlinkDir(target, link)
+    jest.spyOn(fs.promises, 'readlink').mockImplementation(async (...args) => {
+      if (args[0] === link) throw Object.assign(new Error('link is unreadable'), { code: 'ENOENT' })
+      return readlink(...args)
+    })
+  })
+  try {
+    await expect(hoist(opts)).rejects.toMatchObject({ code: expect.stringMatching(/^(?:EEXIST|EISDIR)$/) })
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('recreates a link removed before ownership inspection', async () => {
   const { root, link, target, opts } = await prepareStaleHoist()
   const readlink = fs.promises.readlink

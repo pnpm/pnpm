@@ -55,6 +55,7 @@ fn replace_stale_hoist_symlink(dep_dir: &Path, dest: &Path) -> io::Result<()> {
 }
 
 fn create_hoist_symlink(dep_dir: &Path, dest: &Path) -> io::Result<()> {
+    let mut retries = 0;
     loop {
         let error = match pnpm_fs::symlink_dir(dep_dir, dest) {
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => error,
@@ -66,7 +67,9 @@ fn create_hoist_symlink(dep_dir: &Path, dest: &Path) -> io::Result<()> {
             {
                 return Ok(());
             }
-            Err(read_error) if should_retry_hoist_link_read(dest, &read_error) => {}
+            Err(read_error) if should_retry_hoist_link_read(dest, &read_error) && retries < 100 => {
+                retries += 1;
+            }
             Ok(existing) => {
                 return Err(io::Error::new(
                     error.kind(),

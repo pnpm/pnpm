@@ -642,6 +642,7 @@ async function symlinkHoistedDependency (
 }
 
 async function createHoistedDependencyLink (depLocation: string, dest: string): Promise<void> {
+  let retries = 0
   while (true) {
     try {
       // eslint-disable-next-line no-await-in-loop
@@ -654,15 +655,16 @@ async function createHoistedDependencyLink (depLocation: string, dest: string): 
         // eslint-disable-next-line no-await-in-loop
         winningTarget = await withFileLockRetryAsync(() => resolveLinkTarget(dest))
       } catch (readError: unknown) {
+        retries += 1
         if (util.types.isNativeError(readError) && 'code' in readError) {
-          if (readError.code === 'ENOENT') continue
+          if (readError.code === 'ENOENT' && retries <= 100) continue
           if (readError.code === 'EINVAL') {
             // macOS can report EINVAL when a concurrent unlink interrupts readlink.
             try {
               // eslint-disable-next-line no-await-in-loop
-              if ((await fs.promises.lstat(dest)).isSymbolicLink()) continue
+              if ((await fs.promises.lstat(dest)).isSymbolicLink() && retries <= 100) continue
             } catch (statError: unknown) {
-              if (util.types.isNativeError(statError) && 'code' in statError && statError.code === 'ENOENT') continue
+              if (util.types.isNativeError(statError) && 'code' in statError && statError.code === 'ENOENT' && retries <= 100) continue
             }
           }
         }
