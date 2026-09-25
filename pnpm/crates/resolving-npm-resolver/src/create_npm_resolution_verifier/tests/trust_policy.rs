@@ -1,8 +1,11 @@
+use std::time::Duration;
+
 use super::{
     PkgName, ResolutionVerification, TrustPolicy, assert_eq, create_npm_resolution_verifier,
     create_package_version_policy, ctx, default_opts, now_at, registry_resolution,
     stable_trust_packument, time_free_trust_packument, trust_downgrade_packument,
 };
+use pnpm_network::RetryOpts;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 
 /// `trust_policy = Off` keeps the trust check inactive (same tripwire
@@ -309,4 +312,98 @@ fn can_trust_past_check_rejects_changed_ignore_after() {
     cached.insert("trustPolicyExclude".to_string(), serde_json::Value::Array(vec![]));
     cached.insert("trustPolicyIgnoreAfter".to_string(), serde_json::Value::Null);
     assert!(!verifier.can_trust_past_check(&cached));
+}
+
+fn fast_retries(retries: u32) -> RetryOpts {
+    RetryOpts {
+        retries,
+        factor: 1,
+        min_timeout: Duration::from_millis(1),
+        max_timeout: Duration::from_millis(1),
+    }
+}
+
+/// Three transient registry failures, then `body`. `retries: 3` is three
+/// retries after the first attempt, so the fourth response is the one
+/// the trust check is allowed to judge.
+async fn fail_then(
+    server: &mut mockito::ServerGuard,
+    body: &str,
+) -> (mockito::Mock, mockito::Mock, mockito::Mock) {
+    let unavailable = server
+        .mock("GET", "/acme")
+        .with_status(500)
+        .expect(2)
+        .create_async()
+        .await;
+    // Truncated gzip is reqwest's "error decoding response body".
+    let truncated = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-encoding", "gzip")
+        .with_body("this is not valid gzip")
+        .expect(1)
+        .create_async()
+        .await;
+    let packument = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+    (unavailable, truncated, packument)
+}
+
+#[tokio::test]
+async fn trust_check_passes_after_transient_metadata_failures() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let (unavailable, truncated, packument) =
+        fail_then(&mut server, &stable_trust_packument("acme").to_string()).await;
+    let mut opts = default_opts(&registry);
+    opts.trust.policy = Some(TrustPolicy::NoDowngrade);
+    opts.metadata.retry_opts = fast_retries(3);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts);
+    let result = verifier.verify(
+        &registry_resolution(),
+        ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"),
+    )
+    .await;
+    assert_eq!(result, ResolutionVerification::Ok);
+    unavailable.assert_async().await;
+    truncated.assert_async().await;
+    packument.assert_async().await;
+}
+
+#[tokio::test]
+async fn trust_downgrade_still_fails_after_transient_metadata_failures() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let (unavailable, truncated, packument) =
+        fail_then(&mut server, &trust_downgrade_packument("acme").to_string()).await;
+    let mut opts = default_opts(&registry);
+    opts.trust.policy = Some(TrustPolicy::NoDowngrade);
+    opts.metadata.retry_opts = fast_retries(3);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts);
+    let result = verifier.verify(
+        &registry_resolution(),
+        ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"),
+    )
+    .await;
+    let ResolutionVerification::Err { code, reason } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "TRUST_DOWNGRADE");
+    assert!(reason.contains("trust downgrade"), "got reason: {reason}");
+    assert!(
+        !reason.contains("Failed to fetch") && !reason.contains("decoding response body"),
+        "a successful fetch must not be reported as a transport failure: {reason}",
+    );
+    unavailable.assert_async().await;
+    truncated.assert_async().await;
+    packument.assert_async().await;
 }
