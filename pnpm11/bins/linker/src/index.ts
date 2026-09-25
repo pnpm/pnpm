@@ -2,7 +2,7 @@ import { existsSync, promises as fs } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
-import { cmdShim, getExeExtension, isShimForMissingTarget, isShimNodePath, isShimPointingAt } from '@pnpm/bins.cmd-shim'
+import { cmdShim, getExeExtension, getShShimDir, isShimBasedirAnchorCurrent, isShimForMissingTarget, isShimNodePath, isShimPointingAt, readShRelativeTarget } from '@pnpm/bins.cmd-shim'
 import { type Command, getBinsFromPackageManifest, pkgOwnsBin } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
@@ -369,9 +369,17 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
         (!EXECUTABLE_SHEBANG_SUPPORTED || await canSymlinkExecutable(cmd.path))
     } else if (stat.isFile() && stat.size < CMD_SHIM_MAX_SIZE) {
       const content = await fs.readFile(externalBinPath, 'utf8')
+      const shShimDir = await getShShimDir(cmd.path, externalBinPath)
+      const expectedRelativeTarget = path.relative(shShimDir, cmd.path).split('\\').join('/')
+      const storedRelativeTarget = readShRelativeTarget(content)
+      const isRelativeTargetCurrent = path.isAbsolute(expectedRelativeTarget)
+        ? storedRelativeTarget == null
+        : storedRelativeTarget === expectedRelativeTarget
       isCorrectlyLinked = isShimPointingAt(content, cmd.path) && isShimHardened(content) &&
         (!IS_WINDOWS || existsSync(`${externalBinPath}.cmd`)) &&
         (!isShimForMissingTarget(content) || await isMissing(cmd.path)) &&
+        isShimBasedirAnchorCurrent(content, path.relative(binsDir, cmd.path)) &&
+        isRelativeTargetCurrent &&
         (
           (opts?.extraNodePaths == null && opts?.projectModulesDir == null) ||
           isShimNodePath(content, {

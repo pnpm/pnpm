@@ -45,6 +45,8 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
 basedir_win="$basedir"
 exe=""
 msys=""
@@ -75,7 +77,7 @@ case \`command -p uname -a\` in
 esac
 if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
-exec "$basedir/foo"   "$@"
+exec "$basedir_abs/foo"   "$@"
 exit $?
 
 `;

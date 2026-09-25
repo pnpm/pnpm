@@ -30,6 +30,7 @@ const {
 } = await import('@pnpm/bins.linker')
 
 const binsConflictLogger = logger('bins-conflict')
+const BASEDIR_ABS_LINE = 'basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?'
 const PRINTF_BASEDIR_LINE = String.raw`basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')`
 // The fixture directories are copied to before the tests run
 // This happens because the tests convert some of the files into executables
@@ -334,6 +335,68 @@ test('linkBins() replaces a shim that resolves its helpers with node_modules on 
   expect(content).toContain(helperPathFilterLine)
   expect(content).not.toContain('# outdated-helper-path')
 })
+
+// A shim written before relative targets climbed from the physical shim
+// directory still carries a matching target marker and hardened header.
+test('linkBins() replaces a shim whose relative target climbs from the lexical basedir', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+  const target = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
+
+  fs.mkdirSync(binTarget, { recursive: true })
+  const binLocation = path.join(binTarget, 'simple')
+  await cmdShim(target, binLocation, { createCmdFile: false, createPwshFile: false })
+  const outdated = fs.readFileSync(binLocation, 'utf8')
+    .replace(`${BASEDIR_ABS_LINE}\n`, '')
+    .replace('basedir="$basedir_abs"\n', '')
+    .replaceAll('"$basedir_abs/', '"$basedir/')
+  expect(outdated).not.toContain('basedir_abs')
+  fs.writeFileSync(binLocation, outdated, 'utf8')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  const content = fs.readFileSync(binLocation, 'utf8')
+  expect(content).toContain(`${BASEDIR_ABS_LINE}\n`)
+  expect(content).toContain('"$basedir_abs/')
+})
+
+test('linkBins() replaces a shim whose relative target does not match the physical bin directory', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+  const target = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
+
+  fs.mkdirSync(binTarget, { recursive: true })
+  const binLocation = path.join(binTarget, 'simple')
+  await cmdShim(target, binLocation, { createCmdFile: false, createPwshFile: false })
+  const original = fs.readFileSync(binLocation, 'utf8')
+  const stale = original.replace('"$basedir_abs/', '"$basedir_abs/../stale/')
+  expect(stale).not.toEqual(original)
+  fs.writeFileSync(binLocation, stale, 'utf8')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  const content = fs.readFileSync(binLocation, 'utf8')
+  expect(content).not.toContain('stale')
+})
+
+test('linkBins() keeps a shim whose size exceeds 4KB but stays within the shim size limit', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+
+  fs.mkdirSync(binTarget, { recursive: true })
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  const binLocation = path.join(binTarget, 'simple')
+  const padding = '# ' + 'x'.repeat(5 * 1024) + '\n'
+  fs.appendFileSync(binLocation, `${padding}# sentinel\n`)
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+  expect(fs.readFileSync(binLocation, 'utf8')).toContain('# sentinel')
+})
+
 
 testOnPosix('linkBins() repairs a non-executable source when the existing bin references it', async () => {
   const binTarget = temporaryDirectory()
@@ -935,7 +998,7 @@ test('linkBinsOfPackages() rewrites a shim written for a missing target once the
   fs.writeFileSync(path.join(pkgDir, 'bin', 'tool'), '#!/usr/bin/env node\nconsole.log(\'built\')\n')
   await linkBinsOfPackages([pkg], binsDir)
 
-  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).toMatch(/exec node +"\$basedir\//)
+  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).toMatch(/exec node +"\$basedir_abs\//)
   if (IS_WINDOWS) {
     expect(fs.readFileSync(path.join(binsDir, `tool${CMD_EXTENSION}`), 'utf8')).toMatch('node')
   }
