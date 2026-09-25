@@ -310,6 +310,16 @@ pub struct CustomResolution {
     pub extra: serde_json::Map<String, serde_json::Value>,
 }
 
+impl CustomResolution {
+    /// The resolver's own `integrity` field, in whatever form it wrote.
+    /// pnpm never verifies bytes against it, but a change in it marks a
+    /// change in the package's contents.
+    #[must_use]
+    pub fn integrity(&self) -> Option<&serde_json::Value> {
+        self.extra.get("integrity")
+    }
+}
+
 /// Host triple used to pick a variant out of a [`VariationsResolution`].
 ///
 /// `libc`'s tri-state encodes the `string | null | undefined` shape:
