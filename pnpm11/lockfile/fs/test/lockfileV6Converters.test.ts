@@ -280,6 +280,7 @@ patchedDependencies:
   const foo = lockfile.packages!['foo@1.0.0' as DepPath]
   expect(Object.getPrototypeOf(foo)).toBe(Object.prototype)
   expect(foo).not.toHaveProperty('polluted')
+  expect(Object.getOwnPropertyDescriptor(foo, '__proto__')?.value).toStrictEqual({ polluted: true })
   expect(foo.resolution).toStrictEqual({ integrity: 'sha512-foo' })
 
   expect(Object.getPrototypeOf(lockfile.packages)).toBe(Object.prototype)
