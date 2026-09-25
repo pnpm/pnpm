@@ -697,7 +697,8 @@ async function createHoistedDependencyLink (depLocation: string, dest: string): 
  * A junction is created as an empty directory that gets its reparse point
  * afterwards, so a concurrent hoist can find an empty plain directory in its
  * place for a moment. A junction completed after `stat` was read lists its
- * target's entries, so a non-empty directory is checked again.
+ * target's entries, so a non-empty directory is checked again. Always false
+ * off Windows. Rejects if `dest` can no longer be listed or inspected.
  */
 async function mayBeJunctionInCreation (dest: string, stat: fs.Stats): Promise<boolean> {
   if (process.platform !== 'win32' || !stat.isDirectory()) return false
