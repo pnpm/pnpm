@@ -119,7 +119,7 @@ pub struct MetadataHttpClient<'a> {
     pub retry_opts: RetryOpts,
 }
 
-impl<'a> MetadataHttpClient<'a> {
+impl MetadataHttpClient<'_> {
     /// One HTTP attempt. [`crate::FetchMetadataError::is_transient`]
     /// owns the caller's retry budget around the whole fetch, so the
     /// inner send must not spend it again.
