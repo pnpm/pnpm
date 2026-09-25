@@ -505,7 +505,23 @@ fn anchor_files_entry(pattern: &str) -> String {
 /// chain and returns `Ignore` when any segment matches — exactly the
 /// behavior npm-packlist's `files`-field needs (a directory pattern
 /// includes its contents recursively).
+///
+/// An exclusion naming an ancestor directory (`!**/test`) wins over
+/// any include match on the file itself: `matched_path_or_any_parents`
+/// answers for the deepest path first, so without the ancestor scan a
+/// broad include (`**`) would keep the file even though npm-packlist,
+/// which decides directories before descending into them, drops the
+/// whole subtree. Like git, a file under an excluded directory cannot
+/// be re-included.
 fn files_field_includes(matcher: &Gitignore, rel: &str) -> bool {
+    let path = Path::new(rel);
+    if path
+        .ancestors()
+        .skip(1)
+        .any(|ancestor| matcher.matched(ancestor, true).is_whitelist())
+    {
+        return false;
+    }
     matcher.matched_path_or_any_parents(rel, false).is_ignore()
 }
 
