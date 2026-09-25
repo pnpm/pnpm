@@ -245,6 +245,26 @@ pub(crate) fn modules_layout_consistent_with(
                 .as_ref()
 }
 
+/// Whether `.modules.yaml` records layout settings compatible with running
+/// scripts without touching the store or registry.
+pub(crate) fn modules_layout_satisfies_run(
+    modules: &pnpm_modules_yaml::ModulesLayout,
+    config: &Config,
+    node_linker: NodeLinker,
+) -> bool {
+    if modules.virtual_store_only == Some(true) {
+        return false;
+    }
+    let hoist_patterns_match = normalized_pattern(modules.hoist_pattern.as_deref())
+        == normalized_pattern(config.hoist_pattern.as_deref())
+        && normalized_pattern(modules.public_hoist_pattern.as_deref())
+            == normalized_pattern(config.public_hoist_pattern.as_deref());
+    modules.layout_version == Some(LayoutVersion)
+        && modules.node_linker == Some(map_node_linker(node_linker))
+        && hoist_patterns_match
+        && modules.virtual_store_dir_max_length == config.virtual_store_dir_max_length
+}
+
 /// Whether `.modules.yaml` records any ignored build that the current
 /// `allowBuilds` policy now allows.
 ///

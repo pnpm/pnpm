@@ -50,14 +50,9 @@ pub fn check_deps_status_before_run_at(
         GateManifest::NoManifest => return None,
         GateManifest::Unreadable => return cannot_check_deps(),
     };
-    let Ok(workspace_manifest) = workspace_dir_opt
-        .as_deref()
-        .map(pnpm_workspace::read_workspace_manifest)
-        .transpose()
-    else {
+    let Ok(workspace_manifest) = gate_workspace_manifest(workspace_dir_opt.as_deref()) else {
         return cannot_check_deps();
     };
-    let workspace_manifest = workspace_manifest.flatten();
     let config = gate_config(config, manifest_dir, &manifest);
     // A pinned `lockfileDir` is where the install left the state and the
     // lockfile; otherwise it follows the manifest read above, just as it
@@ -69,16 +64,13 @@ pub fn check_deps_status_before_run_at(
     // only to reach the same verdict inside the check.
     let Ok(Some(workspace_state)) = pnpm_workspace_state::load_workspace_state(&lockfile_root)
     else {
-        if installed_modules_match_lockfile(
+        return fallback_or_cannot_check(
             &config,
             &manifest,
             workspace_manifest.as_ref(),
             &workspace_root,
             &lockfile_root,
-        ) {
-            return Some(crate::RunDepsStatus::UpToDate);
-        }
-        return cannot_check_deps();
+        );
     };
     check_discovered_deps(
         &config,
@@ -88,6 +80,36 @@ pub fn check_deps_status_before_run_at(
         &lockfile_root,
         &workspace_state,
     )
+}
+
+fn gate_workspace_manifest(
+    workspace_dir_opt: Option<&Path>,
+) -> Result<Option<pnpm_workspace::WorkspaceManifest>, ()> {
+    workspace_dir_opt
+        .map(pnpm_workspace::read_workspace_manifest)
+        .transpose()
+        .map(Option::flatten)
+        .map_err(|_| ())
+}
+
+fn fallback_or_cannot_check(
+    config: &Config,
+    manifest: &PackageManifest,
+    workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
+    workspace_root: &Path,
+    lockfile_root: &Path,
+) -> Option<crate::RunDepsStatus> {
+    if installed_modules_match_lockfile(
+        config,
+        manifest,
+        workspace_manifest,
+        workspace_root,
+        lockfile_root,
+    ) {
+        Some(crate::RunDepsStatus::UpToDate)
+    } else {
+        cannot_check_deps()
+    }
 }
 /// The directory the verify-deps-before-run gate serializes its installs
 /// over: the workspace root, or `dir` outside a workspace. Every gate in one
@@ -211,6 +233,15 @@ pub(super) fn configured_catalogs(
 /// file is missing or unreadable, spawning an install opens the store index
 /// and contacts the registry. This check reads the lockfiles and the project
 /// manifests only.
+fn modules_layout_valid(config: &Config) -> bool {
+    let Ok(Some(modules)) =
+        pnpm_modules_yaml::read_modules_layout::<pnpm_modules_yaml::Host>(&config.modules_dir)
+    else {
+        return false;
+    };
+    crate::install::modules_layout_satisfies_run(&modules, config, config.node_linker)
+}
+
 fn installed_modules_match_lockfile(
     config: &Config,
     manifest: &PackageManifest,
@@ -218,6 +249,9 @@ fn installed_modules_match_lockfile(
     workspace_root: &Path,
     lockfile_root: &Path,
 ) -> bool {
+    if !modules_layout_valid(config) {
+        return false;
+    }
     let Ok(Some(wanted)) =
         pnpm_lockfile::Lockfile::load_wanted(lockfile_root, &config.wanted_lockfile_selection())
     else {
@@ -229,7 +263,7 @@ fn installed_modules_match_lockfile(
     else {
         return false;
     };
-    if !crate::optimistic_repeat_install::materialized_shape_matches(
+    crate::optimistic_repeat_install::materialized_shape_matches(
         &wanted,
         &current,
         IncludedDependencies {
@@ -238,10 +272,7 @@ fn installed_modules_match_lockfile(
             optional_dependencies: true,
         },
         config.peer_edge_options(),
-    ) {
-        return false;
-    }
-    manifests_match_lockfile(
+    ) && manifests_match_lockfile(
         config,
         manifest,
         workspace_manifest,
@@ -252,6 +283,11 @@ fn installed_modules_match_lockfile(
 }
 
 fn virtual_store_dir_for(config: &Config, lockfile_root: &Path) -> std::path::PathBuf {
+    if config.explicit_settings.contains_key("virtualStoreDir")
+        || config.enable_global_virtual_store
+    {
+        return config.effective_virtual_store_dir().to_path_buf();
+    }
     if config.virtual_store_dir.starts_with(lockfile_root) {
         return config.virtual_store_dir.clone();
     }
@@ -268,20 +304,46 @@ fn manifests_match_lockfile(
     wanted: &pnpm_lockfile::Lockfile,
 ) -> bool {
     let ignored_directories = config.managed_directories();
-    let projects = match workspace_manifest {
-        Some(workspace_manifest) => {
-            match load_workspace_projects(
-                workspace_root,
-                Some(workspace_manifest),
-                &ignored_directories,
-            ) {
-                Ok(projects) => projects,
-                Err(_) => return false,
-            }
-        }
-        None => None,
+    let Ok(projects) = config
+        .shares_one_lockfile()
+        .then(|| load_workspace_projects(workspace_root, workspace_manifest, &ignored_directories))
+        .transpose()
+    else {
+        return false;
     };
+    let projects = projects.flatten();
     let manifests = build_project_manifests_list(manifest, projects.as_deref());
+    let Some(catalogs) = configured_catalogs(config, workspace_manifest) else {
+        return false;
+    };
+    let check = OptimisticRepeatInstallCheck {
+        workspace_root: lockfile_root,
+        config,
+        project_manifests: &manifests,
+        is_workspace_install: workspace_manifest.is_some(),
+        lockfile: MaybeLazyLockfile::Loaded(Some(wanted)),
+        catalogs: &catalogs,
+        layout: crate::RepeatInstallLayout {
+            node_linker: config.node_linker,
+            supported_architectures: config.supported_architectures.as_ref(),
+            included: IncludedDependencies {
+                dependencies: true,
+                dev_dependencies: true,
+                optional_dependencies: true,
+            },
+        },
+        manifest_freshness: crate::ManifestFreshness::Mtime,
+    };
+    crate::optimistic_repeat_install::first_project_missing_modules_dir(&check).is_none()
+        && projects_satisfy_lockfile(config, lockfile_root, &manifests, wanted)
+}
+
+fn projects_satisfy_lockfile(
+    config: &Config,
+    lockfile_root: &Path,
+    manifests: &[(std::path::PathBuf, &PackageManifest)],
+    wanted: &pnpm_lockfile::Lockfile,
+) -> bool {
     let is_ignored_optional = |_: &str| false;
     manifests
         .iter()

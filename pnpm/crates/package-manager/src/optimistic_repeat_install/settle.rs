@@ -224,7 +224,7 @@ pub(super) fn modules_dirs_present(check: &OptimisticRepeatInstallCheck<'_>) -> 
 /// resolves to the same target as the root's gets nothing linked, so the
 /// linker never creates its modules directory; such a sibling is installed
 /// all the same and does not count as missing one.
-pub(super) fn first_project_missing_modules_dir(
+pub(crate) fn first_project_missing_modules_dir(
     check: &OptimisticRepeatInstallCheck<'_>,
 ) -> Option<String> {
     let &OptimisticRepeatInstallCheck {
