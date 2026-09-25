@@ -777,9 +777,16 @@ test('remoteTarball fetcher reports resolutionNeedsFetch from the integrity', ()
   // Empty/non-string integrity from a tampered lockfile counts as missing.
   expect(fetchers.remoteTarball.resolutionNeedsFetch?.(createMockResolution({ tarball: 'http://x/p.tgz', integrity: '' }))).toBe(true)
   expect(fetchers.remoteTarball.resolutionNeedsFetch?.(createMockResolution({ tarball: 'http://x/p.tgz', integrity: true }))).toBe(true)
-  // file: and git-hosted tarballs are anchored otherwise and don't force a fetch.
+  // file: tarballs are anchored otherwise and don't force a fetch.
   expect(fetchers.localTarball.resolutionNeedsFetch).toBeUndefined()
-  expect(fetchers.gitHostedTarball.resolutionNeedsFetch).toBeUndefined()
+})
+
+// https://github.com/pnpm/pnpm/issues/13338
+test('gitHostedTarball fetcher reports resolutionNeedsFetch from the integrity', () => {
+  const fetchers = createTarballFetcher(createFetchFromRegistry({}), () => undefined, { storeIndex })
+  const tarball = 'https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99'
+  expect(fetchers.gitHostedTarball.resolutionNeedsFetch?.(createMockResolution({ tarball }))).toBe(true)
+  expect(fetchers.gitHostedTarball.resolutionNeedsFetch?.(createMockResolution({ tarball, integrity: 'sha512-x' }))).toBe(false)
 })
 
 test('pickFetcher() forwards a custom fetcher resolutionNeedsFetch hook bound to the fetcher', async () => {

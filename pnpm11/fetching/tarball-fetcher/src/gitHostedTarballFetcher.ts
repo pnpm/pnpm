@@ -56,7 +56,9 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
     }
   }
 
-  return fetch as FetchFunction
+  return Object.assign(fetch, {
+    resolutionNeedsFetch: fetchRemoteTarball.resolutionNeedsFetch?.bind(fetchRemoteTarball),
+  }) as FetchFunction
 }
 
 interface PrepareGitHostedPkgResult {
