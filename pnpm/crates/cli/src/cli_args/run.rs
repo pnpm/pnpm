@@ -205,7 +205,7 @@ impl RunArgs {
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
 
-        let specified = selected_scripts(&manifest, script_name)?;
+        let specified = selected_scripts(&manifest, script_name, self.sequential)?;
         if specified.is_empty() {
             return no_matching_script(
                 script_name,

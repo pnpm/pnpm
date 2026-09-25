@@ -268,12 +268,12 @@ pub(super) fn build_run_task_graph(
     let select_scripts = |project: &Path, task_name: &str| -> Vec<String> {
         let manifest = graph[project].package.project.manifest.value();
         if task_name == script_name {
-            return selector.select(manifest);
+            return selector.select(manifest, args.sequential);
         }
         // A task name `dependsOn` pulled in; a selector it cannot compile
         // reads as a plain name that matches nothing, like pnpm's.
         match ScriptSelector::new(task_name) {
-            Ok(selector) => selector.select(manifest),
+            Ok(selector) => selector.select(manifest, args.sequential),
             Err(_) => Vec::new(),
         }
     };

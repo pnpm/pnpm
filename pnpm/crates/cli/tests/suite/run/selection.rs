@@ -245,8 +245,8 @@ fn no_bail_reports_failures_in_selection_order() {
             "name": "test",
             "version": "0.0.0",
             "scripts": {
-                "check:slow-fail": r#"node -e "setTimeout(() => process.exit(4), 500)""#,
-                "check:fast-fail": r#"node -e "process.exit(3)""#,
+                "check:a-slow-fail": r#"node -e "setTimeout(() => process.exit(4), 500)""#,
+                "check:z-fast-fail": r#"node -e "process.exit(3)""#,
             },
         })
         .to_string(),
@@ -262,8 +262,8 @@ fn no_bail_reports_failures_in_selection_order() {
         .clone();
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Some scripts failed: 2 of 2"), "got: {stderr}");
-    let slow = stderr.find("check:slow-fail: exit").expect("slow-fail is listed");
-    let fast = stderr.find("check:fast-fail: exit").expect("fast-fail is listed");
+    let slow = stderr.find("check:a-slow-fail: exit").expect("slow-fail is listed");
+    let fast = stderr.find("check:z-fast-fail: exit").expect("fast-fail is listed");
     assert!(slow < fast, "failures should follow the selection order, got: {stderr}");
 
     drop(root);
@@ -327,6 +327,64 @@ fn run_rejects_regexp_flags_in_a_selector() {
         stderr.contains("ERR_PNPM_UNSUPPORTED_SCRIPT_COMMAND_FORMAT"),
         "should reject the flags:\n{stderr}",
     );
+
+    drop(root);
+}
+
+#[test]
+fn regexp_selected_scripts_preserve_package_json_order_under_sequential() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": {
+                "build:z": r#"node -e "require('fs').appendFileSync('order.log', 'z')""#,
+                "build:a": r#"node -e "require('fs').appendFileSync('order.log', 'a')""#,
+                "build:m": r#"node -e "require('fs').appendFileSync('order.log', 'm')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_args(["run", "--sequential", "/^build:.*/"])
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order.log");
+    assert_eq!(order, "zam");
+
+    drop(root);
+}
+
+#[test]
+fn regexp_selected_scripts_run_in_alphabetical_order_without_sequential() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": {
+                "build:z": r#"node -e "require('fs').appendFileSync('order.log', 'z')""#,
+                "build:a": r#"node -e "require('fs').appendFileSync('order.log', 'a')""#,
+                "build:m": r#"node -e "require('fs').appendFileSync('order.log', 'm')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_args(["--workspace-concurrency=1", "run", "/^build:.*/"])
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order.log");
+    assert_eq!(order, "amz");
 
     drop(root);
 }
