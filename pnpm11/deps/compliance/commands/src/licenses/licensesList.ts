@@ -22,7 +22,7 @@ export type LicensesCommandOptions = {
 | 'dev'
 | 'dir'
 | 'lockfileDir'
-| 'nodeLinker'
+| 'publicHoistPattern'
 | 'shamefullyHoist'
 | 'registriesByScope'
 | 'registriesByPrefix'
@@ -85,7 +85,7 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
         modulesDir: opts.modulesDir,
         nodeLinker: opts.nodeLinker,
-        shamefullyHoist: opts.shamefullyHoist,
+        shamefullyHoist: hoistsEverythingPublicly(opts),
         registriesByScope: opts.registriesByScope,
         registriesByPrefix: opts.registriesByPrefix,
         wantedLockfile: lockfile,
@@ -137,4 +137,10 @@ function importerIdsByLockfileDir (opts: LicensesCommandOptions): Map<string, Pr
     importerIds.push(getLockfileImporterId(lockfileDir, projectDir))
   }
   return byLockfileDir
+}
+
+function hoistsEverythingPublicly (opts: Pick<LicensesCommandOptions, 'publicHoistPattern' | 'shamefullyHoist'>): boolean {
+  if (opts.shamefullyHoist) return true
+  const patterns = typeof opts.publicHoistPattern === 'string' ? [opts.publicHoistPattern] : opts.publicHoistPattern
+  return patterns?.includes('*') ?? false
 }

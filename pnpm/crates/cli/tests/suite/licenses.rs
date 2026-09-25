@@ -4,7 +4,10 @@ use _utils::{enable_gvs_in_workspace_yaml, pacquet_in};
 use assert_cmd::prelude::*;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use serde_json::{Value, json};
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 #[test]
 fn licenses_normalizes_metadata_and_orders_groups_by_package() {
@@ -824,4 +827,118 @@ hoistedLocations:
         "reported path should match the hoisted directory",
     );
     assert!(Path::new(reported_path).exists(), "reported path should exist on disk");
+}
+
+#[test]
+fn licenses_falls_back_to_a_version_matched_root_package_without_recorded_hoisted_locations() {
+    let workspace = tempfile::tempdir().expect("create workspace");
+    fs::write(
+        workspace.path().join("package.json"),
+        json!({ "dependencies": { "is-positive": "3.1.0", "wrapper": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.path().join("pnpm-lock.yaml"),
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      is-positive:
+        specifier: 3.1.0
+        version: 3.1.0
+      wrapper:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  is-positive@1.0.0:
+    resolution: {integrity: sha512-is-positive-1}
+  is-positive@3.1.0:
+    resolution: {integrity: sha512-is-positive-3}
+  wrapper@1.0.0:
+    resolution: {integrity: sha512-wrapper}
+snapshots:
+  is-positive@1.0.0: {}
+  is-positive@3.1.0: {}
+  wrapper@1.0.0:
+    dependencies:
+      is-positive: 1.0.0
+",
+    )
+    .expect("write lockfile");
+    for (location, name, version) in [
+        ("node_modules/is-positive", "is-positive", "3.1.0"),
+        ("node_modules/wrapper", "wrapper", "1.0.0"),
+        ("node_modules/wrapper/node_modules/is-positive", "is-positive", "1.0.0"),
+    ] {
+        let package_dir = workspace.path().join(location);
+        fs::create_dir_all(&package_dir).expect("create package directory");
+        fs::write(
+            package_dir.join("package.json"),
+            json!({ "name": name, "version": version, "license": "MIT" }).to_string(),
+        )
+        .expect("write manifest");
+    }
+    fs::write(
+        workspace.path().join("node_modules/.modules.yaml"),
+        json!({ "layoutVersion": 5, "nodeLinker": "hoisted" }).to_string(),
+    )
+    .expect("write .modules.yaml");
+
+    let output = pacquet_in(workspace.path())
+        .args(["licenses", "list", "--json"])
+        .output()
+        .expect("run licenses");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
+    let root = dunce::canonicalize(workspace.path()).expect("canonicalize workspace");
+    let root_is_positive = root.join("node_modules").join("is-positive");
+    let is_positive_paths: Vec<(String, PathBuf)> = report
+        .as_object()
+        .expect("license groups")
+        .values()
+        .flat_map(|group| group.as_array().expect("license group"))
+        .filter(|pkg| pkg["name"] == "is-positive")
+        .flat_map(|pkg| {
+            let versions = pkg["versions"]
+                .as_array()
+                .expect("versions")
+                .clone();
+            let paths = pkg["paths"]
+                .as_array()
+                .expect("paths")
+                .clone();
+            versions
+                .into_iter()
+                .zip(paths)
+                .map(|(version, path)| {
+                    (version.as_str().unwrap().to_string(), PathBuf::from(path.as_str().unwrap()))
+                })
+        })
+        .collect();
+
+    let path_of = |version: &str| {
+        is_positive_paths
+            .iter()
+            .find(|(listed, _)| listed == version)
+            .map(|(_, path)| path.clone())
+            .unwrap_or_else(|| panic!("is-positive@{version} missing from {is_positive_paths:?}"))
+    };
+    assert_eq!(
+        dunce::canonicalize(path_of("3.1.0")).expect("canonicalize reported path"),
+        root_is_positive,
+        "the root package matches the locked version",
+    );
+    let nested_path = path_of("1.0.0");
+    assert!(
+        nested_path != root_is_positive
+            && nested_path
+                != workspace
+                    .path()
+                    .join("node_modules")
+                    .join("is-positive"),
+        "the root package holds another version, so it must not be reported for 1.0.0",
+    );
 }

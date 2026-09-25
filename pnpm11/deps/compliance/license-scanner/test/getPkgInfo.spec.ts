@@ -295,6 +295,52 @@ describe('getPkgInfo', () => {
     fs.rmSync(workspaceDir, { recursive: true, force: true })
   })
 
+  test('should not report a hoisted root package that holds another version', async () => {
+    const digest = '4455667788990011'
+    writeCafsFile(storeDir, digest, JSON.stringify({
+      name: 'is-positive',
+      version: '1.0.0',
+      license: 'MIT',
+    }))
+
+    const pkgId = 'is-positive@1.0.0'
+    const integrity = 'sha512-test/integrity005'
+    storeIndex.set(storeIndexKey(integrity, pkgId), {
+      algo: 'sha256',
+      files: new Map([
+        ['package.json', { digest, mode: 0o644, size: 0 }],
+      ]),
+    })
+
+    const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-hoisted-other-version-test-'))
+    const rootPkgPath = path.join(workspaceDir, 'node_modules', 'is-positive')
+    fs.mkdirSync(rootPkgPath, { recursive: true })
+    fs.writeFileSync(path.join(rootPkgPath, 'package.json'), JSON.stringify({ name: 'is-positive', version: '3.1.0' }))
+
+    const result = await getPkgInfo(
+      {
+        name: 'is-positive',
+        version: '1.0.0',
+        id: pkgId,
+        depPath: pkgId,
+        snapshot: { resolution: { integrity } },
+        registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
+      },
+      {
+        ...defaultGetOpts(),
+        dir: workspaceDir,
+        lockfileDir: workspaceDir,
+        modulesDir: 'node_modules',
+        virtualStoreDir: path.join(workspaceDir, 'node_modules', '.pnpm'),
+        nodeLinker: 'hoisted',
+      }
+    )
+
+    expect(result.path).toBe(path.join(workspaceDir, 'node_modules', '.pnpm', pkgId, 'node_modules', 'is-positive'))
+
+    fs.rmSync(workspaceDir, { recursive: true, force: true })
+  })
+
   test('should resolve path to node_modules when shamefullyHoist is enabled', async () => {
     const digest = '2233445566778899'
     writeCafsFile(storeDir, digest, JSON.stringify({

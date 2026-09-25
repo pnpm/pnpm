@@ -2,9 +2,7 @@ use miette::IntoDiagnostic;
 use pnpm_config::{Config, NodeLinker};
 use pnpm_deps_restorer::VirtualStoreLayout;
 use pnpm_lockfile::PackageKey;
-use pnpm_modules_yaml::{
-    Host, ModulesLayout, ReadModulesError, read_modules_layout, read_modules_manifest,
-};
+use pnpm_modules_yaml::{Host, Modules, read_modules_manifest};
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use std::{
     borrow::Cow,
@@ -36,16 +34,8 @@ impl PackageDirs {
     ) -> miette::Result<Self> {
         let modules_dir_name = PathBuf::from(config.modules_dir_name());
         let is_hoisted = config.node_linker == NodeLinker::Hoisted;
-        // Only the hoisted linker needs the potentially large
-        // `hoistedLocations` map; the other linkers read the lightweight
-        // layout.
         let hoisted_dirs = if is_hoisted {
-            let modules = load_modules(
-                &modules_dir_name,
-                lockfile_dir,
-                project_dir,
-                read_modules_manifest::<Host>,
-            )?;
+            let modules = load_modules(&modules_dir_name, lockfile_dir, project_dir)?;
             collect_hoisted_dirs(
                 lockfile_dir,
                 modules.and_then(|manifest| manifest.hoisted_locations),
@@ -53,15 +43,7 @@ impl PackageDirs {
         } else {
             BTreeMap::new()
         };
-        let is_shamefully_hoist = !is_hoisted
-            && (config.shamefully_hoist
-                || load_modules(
-                    &modules_dir_name,
-                    lockfile_dir,
-                    project_dir,
-                    read_modules_layout::<Host>,
-                )?
-                .is_some_and(|manifest| records_shameful_hoisting(&manifest)));
+        let is_shamefully_hoist = !is_hoisted && hoists_everything_publicly(config);
 
         Ok(Self {
             layout,
@@ -126,14 +108,13 @@ impl PackageDirs {
     }
 }
 
-fn load_modules<Manifest>(
+fn load_modules(
     modules_dir_name: &Path,
     lockfile_dir: &Path,
     project_dir: &Path,
-    read: impl Fn(&Path) -> Result<Option<Manifest>, ReadModulesError>,
-) -> miette::Result<Option<Manifest>> {
+) -> miette::Result<Option<Modules>> {
     let root_modules_dir = lockfile_dir.join(modules_dir_name);
-    let manifest = read(&root_modules_dir).into_diagnostic()?;
+    let manifest = read_modules_manifest::<Host>(&root_modules_dir).into_diagnostic()?;
     if manifest.is_some() {
         return Ok(manifest);
     }
@@ -141,13 +122,13 @@ fn load_modules<Manifest>(
     if project_modules_dir == root_modules_dir {
         Ok(None)
     } else {
-        read(&project_modules_dir).into_diagnostic()
+        read_modules_manifest::<Host>(&project_modules_dir).into_diagnostic()
     }
 }
 
-fn records_shameful_hoisting(manifest: &ModulesLayout) -> bool {
-    manifest.shamefully_hoist.unwrap_or(false)
-        || manifest.public_hoist_pattern
+fn hoists_everything_publicly(config: &Config) -> bool {
+    config.shamefully_hoist
+        || config.public_hoist_pattern
             .as_ref()
             .is_some_and(|patterns| {
                 patterns

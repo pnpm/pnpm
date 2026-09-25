@@ -111,8 +111,12 @@ export async function findDependencyLicenses (opts: {
   const modulesDir = opts.modulesDir ?? 'node_modules'
   const rootModulesDir = path.resolve(opts.lockfileDir, modulesDir)
   const projectModulesDir = opts.dir ? path.resolve(opts.dir, modulesDir) : rootModulesDir
-  const modulesManifest = await readModulesManifest(rootModulesDir) ??
-    (projectModulesDir !== rootModulesDir ? await readModulesManifest(projectModulesDir) : null)
+  const needsModulesManifest = opts.nodeLinker == null ||
+    (opts.nodeLinker === 'hoisted' ? opts.hoistedLocations == null : opts.shamefullyHoist == null)
+  const modulesManifest = needsModulesManifest
+    ? await readModulesManifest(rootModulesDir) ??
+      (projectModulesDir !== rootModulesDir ? await readModulesManifest(projectModulesDir) : null)
+    : null
 
   const nodeLinker = opts.nodeLinker ?? modulesManifest?.nodeLinker
   const shamefullyHoist = opts.shamefullyHoist ?? modulesManifest?.shamefullyHoist ?? Boolean(modulesManifest?.publicHoistPattern?.includes('*'))

@@ -148,10 +148,8 @@ export async function getPkgInfo (
       packageModulePath = candidateInDir
     } else if (await candidateMatchesVersion(candidateInLockfileDir, manifest.version)) {
       packageModulePath = candidateInLockfileDir
-    } else if (fs.existsSync(virtualStorePath)) {
-      packageModulePath = virtualStorePath
     } else {
-      packageModulePath = candidateInLockfileDir
+      packageModulePath = virtualStorePath
     }
   } else if (isShamefullyHoist) {
     const candidateInDir = path.resolve(opts.dir, modulesDir, manifest.name)
