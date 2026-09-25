@@ -170,6 +170,27 @@ pub async fn resolve_engine_version(
     package: &str,
     bare_specifier: &str,
 ) -> Result<Option<ResolvedEngine>> {
+    resolve_engine(config, package, bare_specifier, false).await
+}
+
+/// Resolve as [`resolve_engine_version`], but without the `minimumReleaseAge`
+/// cutoff. `self-update` uses this to tell a lagging `latest` dist-tag
+/// from a pick that is older only because the true latest is still within
+/// the cutoff (pnpm/pnpm#12006).
+pub async fn resolve_engine_version_ignoring_maturity(
+    config: &Config,
+    package: &str,
+    bare_specifier: &str,
+) -> Result<Option<ResolvedEngine>> {
+    resolve_engine(config, package, bare_specifier, true).await
+}
+
+async fn resolve_engine(
+    config: &Config,
+    package: &str,
+    bare_specifier: &str,
+    ignore_maturity: bool,
+) -> Result<Option<ResolvedEngine>> {
     let context = EnvInstallerContext::for_package_manager(config)?;
 
     let wanted = WantedDependency {
@@ -177,7 +198,7 @@ pub async fn resolve_engine_version(
         bare_specifier: Some(bare_specifier.to_string()),
         ..WantedDependency::default()
     };
-    let opts = engine_resolve_options(config)?;
+    let opts = engine_resolve_options(config, ignore_maturity)?;
     let result = context.resolver
         .resolve(&wanted, &opts)
         .await
@@ -206,21 +227,28 @@ pub async fn resolve_engine_version(
     }))
 }
 
+fn published_by_exclude_for_engine(
+    config: &Config,
+) -> Result<Option<pnpm_config::version_policy::PackageVersionPolicy>> {
+    let mut exclude_patterns = config.minimum_release_age_exclude.clone().unwrap_or_default();
+    exclude_patterns.push(format!("pnpm@{PNPM_VERSION}"));
+    pnpm_config::version_policy::create_package_version_policy(&exclude_patterns)
+        .into_diagnostic()
+        .wrap_err("compile the minimum-release-age-exclude policy")
+        .map(Some)
+}
+
 /// The resolve options carrying the maturity and trust policies of the
-/// install path.
-fn engine_resolve_options(config: &Config) -> Result<ResolveOptions> {
-    let published_by = engine_release_cutoff(config)?;
+/// install path. `ignore_maturity` drops `publishedBy` so the lookup
+/// returns the registry's real `latest` tag.
+fn engine_resolve_options(config: &Config, ignore_maturity: bool) -> Result<ResolveOptions> {
+    let published_by = if ignore_maturity { None } else { engine_release_cutoff(config)? };
     // The running version is already on this machine, so hiding it behind the
     // maturity cutoff protects nothing — it only makes a dist-tag that points
     // at it fall back to an older release, downgrading the user
     // (pnpm/pnpm#13883).
-    let mut exclude_patterns = config.minimum_release_age_exclude.clone().unwrap_or_default();
-    exclude_patterns.push(format!("pnpm@{PNPM_VERSION}"));
     let published_by_exclude =
-        pnpm_config::version_policy::create_package_version_policy(&exclude_patterns)
-            .into_diagnostic()
-            .wrap_err("compile the minimum-release-age-exclude policy")
-            .map(Some)?;
+        if ignore_maturity { None } else { published_by_exclude_for_engine(config)? };
     let trust_policy = match config.trust_policy {
         pnpm_config::TrustPolicy::Off => None,
         pnpm_config::TrustPolicy::NoDowngrade => Some(pnpm_config::TrustPolicy::NoDowngrade),
