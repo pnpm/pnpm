@@ -18,6 +18,8 @@ use finish::{finish_selected_add, finish_single_add};
 mod manifest;
 use manifest::{catalog_version_requests, prepare_selected_add, prepare_single_add};
 
+mod source;
+
 use crate::{
     CatalogVersionMismatchError, CommandLockfile, InstallError, ResolvedPackages, SelectedProjects,
     catalog_cleanup::WriteWorkspaceCatalogsError, defer_ignored_builds,
