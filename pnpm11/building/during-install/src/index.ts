@@ -7,7 +7,7 @@ import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { dirRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import { isRuntimeDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/exec.lifecycle'
@@ -47,6 +47,11 @@ export async function buildModules<T extends string> (
     extraEnv?: Record<string, string>
     ignoreScripts?: boolean
     lockfileDir: string
+    /**
+     * The root project's `engines.runtime` Node version, which keys the
+     * side-effects cache of every package that does not pin its own.
+     */
+    nodeVersion?: string
     optional: boolean
     preferSymlinkedExecutables?: boolean
     unsafePerm: boolean
@@ -72,15 +77,9 @@ export async function buildModules<T extends string> (
   }
   // postinstall hooks
 
-  // Resolved `engines.runtime` Node version (when the project pins
-  // one) so each per-snapshot side-effects-cache key reflects the
-  // script-runner Node. Computed once over the install-wide graph
-  // and threaded into [`buildDependency`] via [`buildDepOpts`].
-  const nodeVersion = findRuntimeNodeVersion(Object.keys(depGraph))
   const buildDepOpts = {
     ...opts,
     builtHoistedDeps: opts.hoistedLocations ? {} : undefined,
-    nodeVersion,
     warn,
   }
   const dependencyGraph = buildGraph<T>(depGraph, rootDepPaths)

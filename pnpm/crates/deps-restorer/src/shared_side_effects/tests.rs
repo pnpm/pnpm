@@ -148,7 +148,10 @@ mod restore {
         pkcs8::{EncodePrivateKey as _, EncodePublicKey as _},
     };
     use pnpm_config::{Config, RemoteSideEffectsCacheSettings};
-    use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
+    use pnpm_lockfile::{
+        ImporterDepVersion, PackageKey, PackageMetadata, ProjectSnapshot, ResolvedDependencySpec,
+        SnapshotEntry,
+    };
     use pnpm_pnpr_client::{
         ARTIFACT_KIND, ArtifactFile, ArtifactManifest, ArtifactPayload, ArtifactSubject,
         BuilderProfile, CompatibilityConstraints, OwnerScope, ResolveArtifactsRequest,
@@ -192,6 +195,20 @@ mod restore {
             (SNAPSHOT.parse().expect("snapshot key"), SnapshotEntry::default()),
             (NODE_RUNTIME.parse().expect("runtime key"), SnapshotEntry::default()),
         ])
+    }
+
+    /// A root importer that pins [`NODE_RUNTIME`].
+    fn importers() -> HashMap<String, ProjectSnapshot> {
+        let node: PackageKey = NODE_RUNTIME.parse().expect("runtime key");
+        let spec = ResolvedDependencySpec {
+            specifier: "runtime:22.0.0".to_string(),
+            version: ImporterDepVersion::Regular(node.suffix),
+        };
+        let importer = ProjectSnapshot {
+            dependencies: Some(std::iter::once((node.name, spec)).collect()),
+            ..Default::default()
+        };
+        HashMap::from([(".".to_string(), importer)])
     }
 
     fn packages() -> HashMap<PackageKey, PackageMetadata> {
@@ -407,8 +424,9 @@ mod restore {
         expected_downloads: usize,
     ) -> SideEffectsMapsBySnapshot {
         let snapshots = snapshots();
+        let importers = importers();
         let packages = packages();
-        let platform = super::super::artifact_platform(&snapshots)
+        let platform = super::super::artifact_platform(&importers)
             .expect("the host compatibility floor must be readable on a supported platform");
         assert_eq!(
             platform.node_major(),
@@ -449,33 +467,36 @@ mod restore {
         let mut side_effects = SideEffectsMapsBySnapshot::new();
         let (store_index_writer, store_index_writer_task) =
             pnpm_store_dir::StoreIndexWriter::spawn_disabled();
-        super::super::apply_shared_side_effects(super::super::ApplySharedSideEffectsOptions {
-            cached: crate::shared_side_effects::SharedSideEffectsCacheRows {
-                base_cas_paths: &HashMap::from([(snapshot_key.clone(), HashMap::new())]),
-                by_snapshot: &HashMap::new(),
-                quarantine_by_snapshot: &HashMap::new(),
-                store_index_keys_by_snapshot: &HashMap::from([(
+        super::super::apply_shared_side_effects(
+            super::super::ApplySharedSideEffectsOptions {
+                cached: crate::shared_side_effects::SharedSideEffectsCacheRows {
+                    base_cas_paths: &HashMap::from([(snapshot_key.clone(), HashMap::new())]),
+                    by_snapshot: &HashMap::new(),
+                    quarantine_by_snapshot: &HashMap::new(),
+                    store_index_keys_by_snapshot: &HashMap::from([(
+                        snapshot_key.clone(),
+                        "row".to_string(),
+                    )]),
+                },
+                config: &config(&server.url(), store_dir),
+                snapshots: &snapshots,
+                packages: &packages,
+                requires_build_by_snapshot: &RequiresBuildBySnapshot::from([(
                     snapshot_key.clone(),
-                    "row".to_string(),
+                    true,
                 )]),
+                allow_build_policy: &AllowBuildPolicy::new(
+                    HashSet::from([PACKAGE.to_string()]),
+                    HashSet::new(),
+                    false,
+                ),
+
+                side_effects_maps_by_snapshot: &mut side_effects,
+
+                store_index_writer: &store_index_writer,
             },
-            config: &config(&server.url(), store_dir),
-            snapshots: &snapshots,
-            packages: &packages,
-            requires_build_by_snapshot: &RequiresBuildBySnapshot::from([(
-                snapshot_key.clone(),
-                true,
-            )]),
-            allow_build_policy: &AllowBuildPolicy::new(
-                HashSet::from([PACKAGE.to_string()]),
-                HashSet::new(),
-                false,
-            ),
-
-            side_effects_maps_by_snapshot: &mut side_effects,
-
-            store_index_writer: &store_index_writer,
-        })
+            &importers,
+        )
         .await;
         drop(store_index_writer);
         store_index_writer_task.await.unwrap().unwrap();
@@ -594,8 +615,7 @@ mod restore {
     /// way the build phase does.
     async fn publish(config: Config, store_dir: StoreDir, diff: SideEffectsDiff) {
         tokio::task::spawn_blocking(move || {
-            let snapshots = snapshots();
-            let publisher = super::super::shared_side_effects_publisher(&config, Some(&snapshots))
+            let publisher = super::super::shared_side_effects_publisher(&config, &importers())
                 .expect("the config enables publishing on a supported platform");
             let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
             let packages = packages();

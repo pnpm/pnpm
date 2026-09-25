@@ -243,8 +243,7 @@ pub(super) fn lockfile_layout(
     let layout = virtual_store_layout_for_lockfile(
         config,
         effective_node_version,
-        lockfile.snapshots.as_ref(),
-        lockfile.packages.as_ref(),
+        lockfile,
         Some(&allow_build_policy),
         Some(lockfile_dir),
     );

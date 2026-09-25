@@ -129,7 +129,7 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         inputs.graph.packages,
     )?;
     let shared_side_effects_publisher =
-        crate::shared_side_effects::shared_side_effects_publisher(config, inputs.graph.snapshots);
+        crate::shared_side_effects::shared_side_effects_publisher(config, inputs.graph.importers);
 
     let build_output = build_or_defer::<Reporter>(
         inputs,

@@ -275,7 +275,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             // same host.
             //
             // Four paths, the first that applies wins:
-            // - Runtime pin in the lockfile: the name is known outright.
+            // - Root project's runtime pin: the name is known outright.
             // - Host detection still pending (constraint-bearing lockfile,
             //   GVS off): the name is derived from the host once it
             //   resolves below; until then the directory-clone cache reads
@@ -289,7 +289,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             //   deferred into the blocking pool, overlaps
             //   `CreateVirtualStore::run`'s I/O, and is awaited right
             //   before `BuildModules`.
-            let engine = plan_engine_name(config, &host_detection, snapshots).await;
+            let engine = plan_engine_name(config, &host_detection, install.importers()).await;
 
             let layout = install.verified_layout(allow_build_policy, engine.name.as_deref())?;
 

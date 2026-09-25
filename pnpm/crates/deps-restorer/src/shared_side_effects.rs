@@ -22,7 +22,7 @@ use crate::{
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use pnpm_config::Config;
-use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
+use pnpm_lockfile::{PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
 use pnpm_pnpr_client::{
     ARTIFACT_KIND, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
     ArtifactPayload, ArtifactSubject, BuilderProfile, CompatibilityConstraints, OwnerScope,
@@ -59,7 +59,12 @@ pub(crate) struct ApplySharedSideEffectsOptions<'a> {
     pub store_index_writer: &'a Arc<StoreIndexWriter>,
 }
 
-pub(crate) async fn apply_shared_side_effects(mut options: ApplySharedSideEffectsOptions<'_>) {
+/// `importers` are the wanted lockfile's: the root project's runtime pin
+/// picks the Node.js major of the artifacts.
+pub(crate) async fn apply_shared_side_effects(
+    mut options: ApplySharedSideEffectsOptions<'_>,
+    importers: &HashMap<String, ProjectSnapshot>,
+) {
     let persisted_remote = take_persisted_remote_side_effects(
         options.side_effects_maps_by_snapshot,
         options.cached.by_snapshot,
@@ -67,7 +72,7 @@ pub(crate) async fn apply_shared_side_effects(mut options: ApplySharedSideEffect
     if !options.config.side_effects_cache_read() {
         options.side_effects_maps_by_snapshot.clear();
     }
-    let Some(setup) = remote_cache_setup(options.config, options.snapshots) else { return };
+    let Some(setup) = remote_cache_setup(options.config, importers) else { return };
 
     let roots = plan_eligible_roots(&options, &setup);
     if roots.is_empty() {
@@ -100,15 +105,14 @@ fn non_empty(value: &str) -> Option<&str> {
 
 pub(crate) fn shared_side_effects_publisher(
     config: &Config,
-    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    importers: &HashMap<String, ProjectSnapshot>,
 ) -> Option<SharedSideEffectsPublisher> {
     let server = config.pnpr_server.as_deref()?;
     let settings = config.remote_side_effects_cache.as_ref()?;
     if settings.publish != Some(true) {
         return None;
     }
-    let snapshots = snapshots?;
-    let platform = artifact_platform(snapshots)?;
+    let platform = artifact_platform(importers)?;
     let private_key = BASE64
         .decode(settings.private_key.as_ref()?)
         .ok()?;

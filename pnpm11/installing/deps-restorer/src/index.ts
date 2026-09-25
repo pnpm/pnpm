@@ -24,7 +24,7 @@ import {
   lockfileToDepGraph,
   type LockfileToDepGraphOptions,
 } from '@pnpm/deps.graph-builder'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -318,12 +318,13 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const skipPostImportLinking = opts.virtualStoreOnly === true
 
   const skipped = opts.skipped || new Set<DepPath>()
+  const rootRuntimeNodeVersion = findLockedRootNodeRuntime(wantedLockfile)?.version
   const nodeVersionIsConfigured = opts.currentEngine.nodeVersion != null && opts.nodeVersionFromEnginesRuntime !== true
   const currentEngine = nodeVersionIsConfigured
     ? opts.currentEngine
     : {
       ...opts.currentEngine,
-      nodeVersion: findLockedRootNodeRuntime(wantedLockfile)?.version ?? opts.currentEngine.nodeVersion,
+      nodeVersion: rootRuntimeNodeVersion ?? opts.currentEngine.nodeVersion,
     }
   const filterOpts = {
     include: opts.include,
@@ -515,6 +516,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         holdBackMissingBins: !opts.ignoreScripts && opts.enableModulesDir !== false && !opts.ignorePackageManifest,
         ignoreScripts: opts.ignoreScripts,
         lockfileDir: opts.lockfileDir,
+        nodeVersion: rootRuntimeNodeVersion,
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
         remoteSideEffectsCache: opts.remoteSideEffectsCache,
@@ -598,6 +600,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
           ignoreScripts: opts.ignoreScripts,
           lockfileDir: opts.lockfileDir,
+          nodeVersion: rootRuntimeNodeVersion,
           sideEffectsCacheRead: opts.sideEffectsCacheRead,
           remoteSideEffectsCache: opts.remoteSideEffectsCache,
           pnprServer: opts.pnprServer,
@@ -813,6 +816,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       ignoreScripts: opts.ignoreScripts,
       hoistedLocations,
       lockfileDir,
+      nodeVersion: rootRuntimeNodeVersion,
       optional: opts.include.optionalDependencies,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       rootModulesDir: virtualStoreDir,
@@ -1307,6 +1311,11 @@ async function linkAllPkgs (
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
+    /**
+     * The root project's `engines.runtime` Node version, which keys the
+     * side-effects cache of every package that does not pin its own.
+     */
+    nodeVersion?: string
     sideEffectsCacheRead: boolean
     remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     pnprServer?: string
@@ -1323,21 +1332,13 @@ async function linkAllPkgs (
     needsBuildMarkerSrc = path.join(opts.storeDir, '.pnpm-needs-build-marker')
     await fs.writeFile(needsBuildMarkerSrc, '')
   }
-  // Resolved `engines.runtime` Node version (when present) anchors
-  // the side-effects-cache key prefix to the script-runner Node, not
-  // pnpm's own `process.version`. The restorer's `depGraph` is keyed
-  // by install directory, so scanning `Object.keys(opts.depGraph)`
-  // would never see a `node@runtime:<version>` entry — pull the
-  // depPath off each node instead. Computed once outside the
-  // per-node loop.
-  const nodeVersion = findRuntimeNodeVersion(depNodes.map((node) => node.depPath))
   const restorer = createRemoteSideEffectsRestorer({
     allowBuild: opts.allowBuild,
     configByUri: opts.configByUri,
     depsGraph: opts.depGraph,
     depsStateCache: opts.depsStateCache,
     ignoreScripts: opts.ignoreScripts,
-    nodeVersion,
+    nodeVersion: opts.nodeVersion,
     pnprServer: opts.pnprServer,
     settings: opts.remoteSideEffectsCache,
     sideEffectsCacheRead: opts.sideEffectsCacheRead,
@@ -1372,7 +1373,7 @@ async function linkAllPkgs (
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild === true,
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
-            nodeVersion,
+            nodeVersion: opts.nodeVersion,
           })
           if (filesResponse.sideEffectsDiffs?.get(localCacheKey)?.remoteOrigin == null) {
             sideEffectsCacheKey = localCacheKey
