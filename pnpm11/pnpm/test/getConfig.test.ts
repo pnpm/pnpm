@@ -362,7 +362,7 @@ describe('installConfigDepsAndLoadHooks', () => {
     expect(result.config.registry).toBe('https://other-mirror.example/')
   })
 
-  test('a scope an updateConfig hook unsets routes to the default registry', async () => {
+  test('a scope an updateConfig hook sets to undefined routes to the default registry', async () => {
     prepare()
 
     fs.writeFileSync('.pnpmfile.cjs', `
