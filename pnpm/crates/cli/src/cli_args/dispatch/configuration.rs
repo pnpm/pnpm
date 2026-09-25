@@ -221,6 +221,9 @@ pub(super) fn apply_color_override(
     color: Option<pnpm_config::ColorMode>,
     no_color: bool,
 ) {
+    if color.is_some() || no_color {
+        cfg.cli_settings.insert("color".to_string());
+    }
     cfg.color = match (color, no_color) {
         (Some(color), _) => color,
         (None, true) => pnpm_config::ColorMode::Never,
@@ -242,9 +245,11 @@ pub(super) fn apply_location_overrides(
     }
     if let Some(store_dir) = store_dir {
         apply_store_dir_override::<Host>(cfg, store_dir, anchor)?;
+        cfg.cli_settings.insert("storeDir".to_string());
     }
     if let Some(state_dir) = state_dir {
         apply_state_dir_override::<Host>(cfg, state_dir, anchor);
+        cfg.cli_settings.insert("stateDir".to_string());
     }
     Ok(())
 }
@@ -295,22 +300,27 @@ pub(super) struct OutputOverrides<'a> {
 
 pub(super) fn apply_output_overrides(cfg: &mut Config, overrides: &OutputOverrides<'_>) {
     if overrides.reporter_hide_prefix || overrides.no_reporter_hide_prefix {
+        cfg.cli_settings.insert("reporterHidePrefix".to_string());
         cfg.reporter_hide_prefix = Some(overrides.reporter_hide_prefix);
     }
     if !overrides.workspace_packages.is_empty() {
+        cfg.cli_settings.insert("workspacePackagePatterns".to_string());
         cfg.workspace_package_patterns = Some(overrides.workspace_packages.to_vec());
     }
     // Unlike the CLI-only selectors, these two are genuine config keys —
     // the flag overrides yaml / env only when actually given.
     if !overrides.test_pattern.is_empty() {
+        cfg.cli_settings.insert("testPattern".to_string());
         cfg.test_pattern = overrides.test_pattern.to_vec();
     }
     if !overrides.changed_files_ignore_pattern.is_empty() {
+        cfg.cli_settings.insert("changedFilesIgnorePattern".to_string());
         cfg.changed_files_ignore_pattern = overrides
             .changed_files_ignore_pattern
             .to_vec();
     }
     if let Some(workspace_concurrency) = overrides.workspace_concurrency {
+        cfg.cli_settings.insert("workspaceConcurrency".to_string());
         cfg.workspace_concurrency =
             pnpm_config::resolve_child_concurrency(Some(workspace_concurrency));
     }
@@ -348,31 +358,70 @@ pub(super) fn warn_fast_path_config(config_overrides: &ConfigOverrides, config: 
     );
 }
 
-pub(super) fn apply_run_output_config(args: &CliArgs, cfg: &mut Config) {
-    cfg.bail = super::resolve_bool_override(
-        args.workspace.execution.bail,
-        args.workspace.execution.no_bail,
-        cfg.bail,
-    );
-    cfg.progress = args.progress_enabled(cfg.progress);
-    cfg.stream |= args.output.lifecycle.stream;
-    cfg.aggregate_output |= args.output.lifecycle.aggregate_output;
-    cfg.use_stderr |= args.output.lifecycle.use_stderr;
-    cfg.sort = super::resolve_bool_override(
-        args.workspace.ordering.sort,
-        args.workspace.ordering.no_sort,
-        cfg.sort,
-    );
+fn apply_workspace_execution_config(
+    cfg: &mut Config,
+    execution: &crate::cli_args::cli_command::WorkspaceExecutionArgs,
+) {
+    if execution.bail || execution.no_bail {
+        cfg.cli_settings.insert("bail".to_string());
+    }
+    cfg.bail = super::resolve_bool_override(execution.bail, execution.no_bail, cfg.bail);
+}
+
+fn apply_lifecycle_output_config(
+    cfg: &mut Config,
+    output: &crate::cli_args::cli_command::CliOutputArgs,
+    progress_enabled: bool,
+) {
+    if output.presentation.progress || output.presentation.no_progress {
+        cfg.cli_settings.insert("progress".to_string());
+    }
+    cfg.progress = progress_enabled;
+    if output.lifecycle.stream {
+        cfg.cli_settings.insert("stream".to_string());
+    }
+    cfg.stream |= output.lifecycle.stream;
+    if output.lifecycle.aggregate_output {
+        cfg.cli_settings.insert("aggregateOutput".to_string());
+    }
+    cfg.aggregate_output |= output.lifecycle.aggregate_output;
+    if output.lifecycle.use_stderr {
+        cfg.cli_settings.insert("useStderr".to_string());
+    }
+    cfg.use_stderr |= output.lifecycle.use_stderr;
+}
+
+fn apply_workspace_ordering_and_selection_config(
+    cfg: &mut Config,
+    workspace: &crate::cli_args::cli_command::CliWorkspaceArgs,
+) {
+    if workspace.ordering.sort || workspace.ordering.no_sort {
+        cfg.cli_settings.insert("sort".to_string());
+    }
+    cfg.sort =
+        super::resolve_bool_override(workspace.ordering.sort, workspace.ordering.no_sort, cfg.sort);
+    if workspace.ordering.reverse || workspace.ordering.no_reverse {
+        cfg.cli_settings.insert("reverse".to_string());
+    }
     cfg.reverse = super::resolve_bool_override(
-        args.workspace.ordering.reverse,
-        args.workspace.ordering.no_reverse,
+        workspace.ordering.reverse,
+        workspace.ordering.no_reverse,
         cfg.reverse,
     );
+    if workspace.selection.include_workspace_root || workspace.selection.no_include_workspace_root {
+        cfg.cli_settings.insert("includeWorkspaceRoot".to_string());
+    }
     cfg.include_workspace_root = super::resolve_bool_override(
-        args.workspace.selection.include_workspace_root,
-        args.workspace.selection.no_include_workspace_root,
+        workspace.selection.include_workspace_root,
+        workspace.selection.no_include_workspace_root,
         cfg.include_workspace_root,
     );
+}
+
+pub(super) fn apply_run_output_config(args: &CliArgs, cfg: &mut Config) {
+    apply_workspace_execution_config(cfg, &args.workspace.execution);
+    apply_lifecycle_output_config(cfg, &args.output, args.progress_enabled(cfg.progress));
+    apply_workspace_ordering_and_selection_config(cfg, &args.workspace);
     apply_output_overrides(
         cfg,
         &OutputOverrides {

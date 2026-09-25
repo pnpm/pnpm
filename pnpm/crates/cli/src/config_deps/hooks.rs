@@ -1,3 +1,6 @@
+mod apply;
+
+use self::apply::apply_hook_delta;
 use super::{
     Arc, BTreeMap, Config, HashMap, HookContext, HookLog, Host, IntoDiagnostic, LogEvent, LogFn,
     LogLevel, Path, PathBuf, PnpmLog, PnpmfileHooks, Reporter, Result, Value, WorkspaceSettings,
@@ -214,154 +217,12 @@ fn seed_hook_input(
     Ok(())
 }
 
-/// Apply what the `updateConfig` hooks changed between `input` and their
-/// `output` back onto `config`.
-fn apply_hook_delta(
-    config: &mut Config,
-    input: &Value,
-    current: &Value,
-    base_dir: &Path,
-) -> Result<()> {
-    let mut delta = config_delta(input, current);
-    if let Some(delta) = delta.as_object_mut() {
-        delta.remove("macosBackup");
-    }
-    // `config_delta` only walks keys present in the hook output, so a
-    // `scriptShell` the hook deleted (pnpm: `undefined`, no shell) leaves no
-    // trace in the delta.
-    let script_shell_deleted =
-        input.get("scriptShell").is_some() && current.get("scriptShell").is_none();
-    if delta.as_object().is_none_or(serde_json::Map::is_empty) && !script_shell_deleted {
-        return Ok(());
-    }
-    let changed_store_dir = delta
-        .get("storeDir")
-        .and_then(Value::as_str)
-        .map(str::to_owned);
-    // `extraBinPaths` / `extraEnv` aren't `WorkspaceSettings` fields, so
-    // `from_value(delta)` below ignores them. Pull the hook's values out
-    // first and assign them directly.
-    let HookExecutionChanges {
-        changed_extra_bin_paths,
-        changed_extra_env,
-    } = hook_execution_changes(&delta)?;
-    apply_registry_routing_changes(config, &delta)?;
-
-    let delta_settings: WorkspaceSettings = serde_json::from_value(delta.clone())
-        .into_diagnostic()
-        .wrap_err("deserialize the updateConfig hook result")?;
-    record_explicit_setting_changes(config, &delta, &delta_settings);
-    delta_settings.apply_to(config, base_dir);
-    if script_shell_deleted {
-        config.script_shell = None;
-    }
-    if let Some(extra_bin_paths) = changed_extra_bin_paths {
-        config.extra_bin_paths = extra_bin_paths;
-    }
-    if let Some(extra_env) = changed_extra_env {
-        config.extra_env = extra_env;
-    }
-    restore_defaults_of_nulled_settings(config, &delta, base_dir);
-    apply_state_dir_change(config, &delta);
-    if delta.get("shamefullyHoist").is_some() {
-        config.apply_shamefully_hoist_derivation();
-    }
-    apply_hook_store_dir(config, changed_store_dir.as_deref(), base_dir)?;
-    Ok(())
-}
-
-/// Apply the routing a hook rewrote under the `registriesByScope` /
-/// `registriesByPrefix` names it reads it under. `WorkspaceSettings`
-/// reaches the same lookups through its file-shaped `registries` key, which
-/// `apply_to` still honors, so this runs first and an entry the hook wrote
-/// through `registries` wins.
-fn apply_registry_routing_changes(config: &mut Config, delta: &Value) -> Result<()> {
-    if let Some(mut routes) = hook_registry_routes(delta, "registriesByScope")? {
-        // The hook reads the default registry as the `default` entry of the
-        // map, but the config carries it as the standalone `registry`
-        // setting beside a map of `@scope` routes only.
-        if let Some(default) = routes.remove("default") {
-            config.registry = default;
-        }
-        config.registries_by_scope = routes;
-    }
-    if let Some(routes) = hook_registry_routes(delta, "registriesByPrefix")? {
-        config.registries_by_prefix = routes;
-    }
-    Ok(())
-}
-
-/// The routing map the hook output holds under `key`, if it changed one.
-fn hook_registry_routes(delta: &Value, key: &str) -> Result<Option<BTreeMap<String, String>>> {
-    delta
-        .get(key)
-        .cloned()
-        .map(serde_json::from_value)
-        .transpose()
-        .into_diagnostic()
-        .wrap_err_with(|| format!("the updateConfig hook produced an invalid {key} value"))
-}
-
-/// Record what the hook set in [`Config::explicit_settings`], as loading a
-/// settings file does, and drop the settings it set to null, so the
-/// derivations that read whether a setting was set at all see the hook's
-/// answer.
-fn record_explicit_setting_changes(
-    config: &mut Config,
-    delta: &Value,
-    delta_settings: &WorkspaceSettings,
-) {
-    config.record_explicit_settings(delta_settings);
-    let Some(delta) = delta.as_object() else { return };
-    for key in delta
-        .iter()
-        .filter(|(_, value)| value.is_null())
-        .map(|(key, _)| key)
-    {
-        if is_known_setting_key(key) {
-            config.explicit_settings.remove(key);
-        }
-    }
-}
-
-/// A setting the hook set to null is unset, as it is on pnpm 11, and
-/// resolves to the default pnpm would have chosen. `apply_to` has no value
-/// to apply for it, so each is restored through
-/// [`WorkspaceSettings::reset_setting_to_default`].
-fn restore_defaults_of_nulled_settings(config: &mut Config, delta: &Value, base_dir: &Path) {
-    let Some(delta) = delta.as_object() else { return };
-    let mut defaults = None;
-    for key in delta
-        .iter()
-        .filter(|(_, value)| value.is_null())
-        .map(|(key, _)| key)
-    {
-        let defaults = defaults.get_or_insert_with(Config::default);
-        WorkspaceSettings::reset_setting_to_default::<Host>(config, defaults, key, base_dir);
-    }
-}
-
-/// `stateDir` resolves against the host's state root rather than the
-/// workspace, the way [`Config::current`] resolves it, so `apply_to` leaves
-/// it to this.
-fn apply_state_dir_change(config: &mut Config, delta: &Value) {
-    let Some(dir) = delta
-        .get("stateDir")
-        .and_then(Value::as_str)
-        .filter(|dir| !dir.is_empty())
-    else {
-        return;
-    };
-    let default_state_dir = default_state_dir::<Host>().unwrap_or_default();
-    config.state_dir = resolve_configured_state_dir(&default_state_dir, dir);
-}
-
 /// The resolved state an `updateConfig` hook reads that is not a settings
 /// key, under the names pnpm 11 exposes it as.
 ///
 /// These are derived from the settings rather than written by a user, so
 /// [`WorkspaceSettings`] has no field for them and the write-back ignores
-/// them, except registry routing, which [`apply_registry_routing_changes`]
+/// them, except registry routing, which [`apply::apply_registry_routing_changes`]
 /// applies.
 ///
 /// `configByUri` carries each registry's credentials by scope; the
@@ -432,7 +293,7 @@ fn resolved_config_views(
 /// config and the hooks' output. Applying only these avoids clobbering
 /// config resolved elsewhere (`.npmrc`, CLI flags) that a hook left
 /// untouched.
-fn config_delta(input: &Value, output: &Value) -> Value {
+pub(super) fn config_delta(input: &Value, output: &Value) -> Value {
     let (Some(input_obj), Some(output_obj)) = (input.as_object(), output.as_object()) else {
         return output.clone();
     };
@@ -475,44 +336,4 @@ fn adopt_hook_catalogs(config: &mut Config, current: &Value) -> Result<()> {
     );
 
     Ok(())
-}
-
-fn apply_hook_store_dir(
-    config: &mut Config,
-    changed_store_dir: Option<&str>,
-    base_dir: &Path,
-) -> Result<()> {
-    if let Some(store_dir) = changed_store_dir {
-        apply_store_dir_override::<Host>(config, Path::new(store_dir), base_dir)?;
-    } else {
-        let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
-        let global_virtual_store_dir_explicit =
-            config.explicit_settings.contains_key("globalVirtualStoreDir");
-        config.apply_global_virtual_store_derivation(
-            virtual_store_dir_explicit,
-            global_virtual_store_dir_explicit,
-        );
-    }
-    Ok(())
-}
-
-struct HookExecutionChanges {
-    changed_extra_bin_paths: Option<Vec<PathBuf>>,
-    changed_extra_env: Option<HashMap<String, String>>,
-}
-
-fn hook_execution_changes(delta: &Value) -> Result<HookExecutionChanges> {
-    let changed_extra_bin_paths = delta
-        .get("extraBinPaths")
-        .map(|value| serde_json::from_value::<Vec<PathBuf>>(value.clone()))
-        .transpose()
-        .into_diagnostic()
-        .wrap_err("the updateConfig hook produced an invalid extraBinPaths value")?;
-    let changed_extra_env = delta
-        .get("extraEnv")
-        .map(|value| serde_json::from_value::<HashMap<String, String>>(value.clone()))
-        .transpose()
-        .into_diagnostic()
-        .wrap_err("the updateConfig hook produced an invalid extraEnv value")?;
-    Ok(HookExecutionChanges { changed_extra_bin_paths, changed_extra_env })
 }
