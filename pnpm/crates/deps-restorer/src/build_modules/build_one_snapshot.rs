@@ -77,15 +77,7 @@ fn build_candidate<Reporter: self::Reporter>(
     cache_key: Option<&str>,
     optional: bool,
 ) -> Result<(), BuildModulesError> {
-    let Some(pkg_dir) = context.pkg_roots().canonical(snapshot_key) else {
-        return Ok(());
-    };
-    if !pkg_dir.exists() {
-        return Ok(());
-    }
-    let SlotBuild::Pending(_slot_lock) =
-        lock_slot_for_build(context, snapshot_key, candidate, &pkg_dir)
-    else {
+    let Some((pkg_dir, _slot_lock)) = slot_to_build(context, snapshot_key, candidate) else {
         return Ok(());
     };
 
@@ -146,26 +138,24 @@ fn snapshot_extra_bin_paths(context: &BuildOneSnapshot<'_>, pkg_dir: &Path) -> V
     extra_bin_paths
 }
 
-/// Whether this install still has to build a slot other installs may share.
-enum SlotBuild {
-    /// Build it, holding the slot's lock when one could be taken.
-    Pending(Option<pnpm_fs::DirLock>),
-    /// Another install built the slot while this one waited for its lock.
-    BuiltElsewhere,
-}
-
-/// Serialize a build into an isolated global-virtual-store slot with every
-/// other install's build of it.
-fn lock_slot_for_build(
+/// The package directory to build in, with the lock that serializes a
+/// build into an isolated global-virtual-store slot with every other
+/// install's build of it. `None` when there is nothing to build: the
+/// snapshot has no directory, or another install built the slot while
+/// this one waited for its lock.
+fn slot_to_build(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
-    pkg_dir: &Path,
-) -> SlotBuild {
+) -> Option<(PathBuf, Option<pnpm_fs::DirLock>)> {
+    let pkg_dir = context
+        .pkg_roots()
+        .canonical(snapshot_key)
+        .filter(|dir| dir.exists())?;
     if context.directories.pkg_roots_by_key.is_some()
         || !(candidate.patch.is_some() || candidate.should_run_scripts)
     {
-        return SlotBuild::Pending(None);
+        return Some((pkg_dir, None));
     }
     let marker = pkg_dir.join(NEEDS_BUILD_MARKER);
     let awaiting_build = marker.is_file();
@@ -174,9 +164,9 @@ fn lock_slot_for_build(
         snapshot_key,
     );
     if awaiting_build && !marker.is_file() {
-        return SlotBuild::BuiltElsewhere;
+        return None;
     }
-    SlotBuild::Pending(lock)
+    Some((pkg_dir, lock))
 }
 
 /// A snapshot whose build scripts or patch this install applies, with
