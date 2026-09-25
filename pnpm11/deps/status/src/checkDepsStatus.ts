@@ -677,16 +677,14 @@ interface AssertWantedLockfileUpToDateContext {
 }
 
 /**
- * Settings whose unset form means exactly what a concrete value means.
+ * Settings whose unset form means the same as a concrete value.
  *
  * The workspace state only records settings that were configured, so a
  * setting left at its default has no key in the state file. The resolved
  * config, on the other hand, may carry the value the default resolves to:
  * `@pnpm/config.reader` writes `enableGlobalVirtualStore: false` when `ci`
- * is set, and reading `allowBuilds` yields `{}`. Comparing the two forms
- * raw reports a change where nothing changed — a `pnpm install` outside CI
- * followed by a `pnpm run` under `CI=true` (or the reverse) reinstalls from
- * scratch on every switch.
+ * is set, and reading `allowBuilds` yields `{}`. Normalizing unset values
+ * ensures an unrecorded setting matches its resolved default.
  *
  * pacquet normalizes the same two settings before comparing, in
  * `enable_global_virtual_store_match` and `allow_builds_match`.
