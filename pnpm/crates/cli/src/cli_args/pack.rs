@@ -76,6 +76,13 @@ impl Reporter for PackJsonReporter {
 
 /// Create a tarball from a package.
 #[derive(Debug, Args)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields are CLI flags for pack, which cannot be grouped without changing the CLI interface."
+    )
+)]
 pub struct PackArgs {
     /// Do everything `pack` would do except writing the tarball to disk.
     #[clap(long)]
@@ -85,6 +92,16 @@ pub struct PackArgs {
     /// working directory.
     #[clap(long = "pack-destination")]
     pub pack_destination: Option<String>,
+
+    /// Don't run the `prepack`, `prepare` and `postpack` lifecycle
+    /// scripts. Combined with `--dry-run --json`, this prints the manifest
+    /// that would be published without building the package.
+    #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
+    pub ignore_scripts: bool,
+
+    /// Force-enable lifecycle scripts for this invocation.
+    #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
+    pub no_ignore_scripts: bool,
 
     /// Print the packed tarball and its contents in JSON.
     #[clap(long)]
@@ -190,6 +207,20 @@ impl PackArgs {
         Some(self.pack_options(project.root_dir.clone(), config, shared))
     }
 
+    fn pack_scripts(&self, config: &Config) -> pnpm_pack::PackScripts {
+        pnpm_pack::PackScripts {
+            ignore: resolve_bool_override(
+                self.ignore_scripts,
+                self.no_ignore_scripts,
+                config.ignore_scripts,
+            ),
+            unsafe_perm: config.unsafe_perm,
+            user_agent: config.user_agent.clone(),
+            extra_bin_paths: config.extra_bin_paths.clone(),
+            extra_env: config.extra_env.clone(),
+        }
+    }
+
     /// Map `self` plus the resolved `config` onto a [`PackOptions`].
     ///
     /// `before_packing_hooks` is loaded once by the caller and cloned in
@@ -210,13 +241,7 @@ impl PackArgs {
         PackOptions {
             dir,
             workspace_dir: config.workspace_dir.clone(),
-            scripts: pnpm_pack::PackScripts {
-                ignore: config.ignore_scripts,
-                unsafe_perm: config.unsafe_perm,
-                user_agent: config.user_agent.clone(),
-                extra_bin_paths: config.extra_bin_paths.clone(),
-                extra_env: config.extra_env.clone(),
-            },
+            scripts: self.pack_scripts(config),
             manifest: pnpm_pack::PackManifestOptions {
                 catalogs: shared.catalogs,
                 catalogs_dir: config.workspace_dir.clone(),
