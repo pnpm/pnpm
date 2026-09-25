@@ -145,7 +145,7 @@ impl<'h> GvsHasher<'h> {
     /// whatever the caller used to format the fallback `engine` so the
     /// two strings remain comparable across snapshots in one install.
     /// Every snapshot's suffix, walked in lockfile key order rather
-    /// than `HashMap` order: [`calc_graph_node_hash`] memoizes into
+    /// than `HashMap` order: [`calc_graph_node_hash_with_layout`] memoizes into
     /// `cache`, and for a snapshot inside a dependency cycle the digest
     /// that lands there depends on which snapshot the walk reached it
     /// from.
