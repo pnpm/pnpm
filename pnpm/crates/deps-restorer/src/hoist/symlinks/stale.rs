@@ -62,17 +62,23 @@ fn create_hoist_symlink(dep_dir: &Path, dest: &Path) -> io::Result<()> {
             {
                 return Ok(());
             }
-            Err(read_error) if read_error.kind() == io::ErrorKind::NotFound => {}
-            Err(read_error) if read_error.kind() == io::ErrorKind::InvalidInput => {
-                // macOS can report EINVAL when a concurrent unlink interrupts read_link.
-                match pnpm_fs::symlink_metadata_with_retry(dest) {
-                    Ok(metadata) if metadata.file_type().is_symlink() => {}
-                    Err(metadata_error) if metadata_error.kind() == io::ErrorKind::NotFound => {}
-                    _ => return Err(error),
-                }
-            }
+            Err(read_error) if should_retry_hoist_link_read(dest, &read_error) => {}
             _ => return Err(error),
         }
+    }
+}
+
+fn should_retry_hoist_link_read(dest: &Path, error: &io::Error) -> bool {
+    if error.kind() == io::ErrorKind::NotFound {
+        return true;
+    }
+    if error.kind() != io::ErrorKind::InvalidInput {
+        return false;
+    }
+    // macOS can report EINVAL when a concurrent unlink interrupts read_link.
+    match pnpm_fs::symlink_metadata_with_retry(dest) {
+        Ok(metadata) => metadata.file_type().is_symlink(),
+        Err(error) => error.kind() == io::ErrorKind::NotFound,
     }
 }
 
