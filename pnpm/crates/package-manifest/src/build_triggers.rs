@@ -176,16 +176,14 @@ pub fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bo
     triggers.requires_build()
 }
 
-/// Whether a store-index row's stored `requiresBuild: true` can be stale
-/// because of `gypfile`, so only the package's own `package.json` can
-/// confirm it.
+/// Whether a store-index row's stored `requiresBuild: true` rests on a
+/// [`BINDING_GYP`] alone while its bundled manifest omits `gypfile`.
 ///
-/// Rows written before pnpm read `gypfile` recorded a `binding.gyp` as build
-/// work regardless, and their bundled manifest dropped the field. A row whose
-/// bundled manifest carries no `gypfile` and whose only trigger is a
-/// [`BINDING_GYP`] may be one of them. Every other stored `true` still holds.
+/// Such a value is inconclusive: only the package's own `package.json` can
+/// say whether `gypfile: false` opts that [`BINDING_GYP`] out. Every other
+/// stored `true` is conclusive.
 #[must_use]
-pub fn stored_build_may_predate_gypfile<Filenames, Filename>(
+pub fn stored_requires_build_needs_manifest_check<Filenames, Filename>(
     manifest: Option<&Value>,
     filenames: Filenames,
 ) -> bool
@@ -193,14 +191,13 @@ where
     Filenames: IntoIterator<Item = Filename>,
     Filename: AsRef<str>,
 {
-    if manifest.is_some_and(|manifest| manifest.get("gypfile").is_some()) {
+    if manifest.is_some_and(|manifest| {
+        manifest.get("gypfile").is_some() || manifest_requires_build(manifest)
+    }) {
         return false;
     }
-    let mut triggers = files_build_triggers(filenames);
-    if let Some(manifest) = manifest {
-        triggers.read_manifest(manifest);
-    }
-    triggers.binding_gyp && !triggers.hooks && !triggers.manifest_scripts
+    let triggers = files_build_triggers(filenames);
+    triggers.binding_gyp && !triggers.hooks
 }
 
 /// Decide whether store-index file keys imply build hooks, without consulting

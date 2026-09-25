@@ -4,7 +4,7 @@ import path from 'node:path'
 import util from 'node:util'
 import { parentPort } from 'node:worker_threads'
 
-import { pkgRequiresBuild, storedBuildMayPredateGypfile } from '@pnpm/building.pkg-requires-build'
+import { pkgRequiresBuild, storedRequiresBuildNeedsManifestCheck } from '@pnpm/building.pkg-requires-build'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import { PnpmError } from '@pnpm/error'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
@@ -18,6 +18,7 @@ import {
   HASH_ALGORITHM,
   normalizeBundledManifest,
   type PackageFilesIndex,
+  parseJsonBufferSync,
   takeVerifiedFileIntegrity,
   type VerifyResult,
 } from '@pnpm/store.cafs'
@@ -202,7 +203,7 @@ function resolveRequiresBuild (
   filesMap: FilesMap
 ): boolean {
   if (stored == null) return pkgRequiresBuild(bundledManifest, filesMap)
-  if (!stored || !storedBuildMayPredateGypfile(bundledManifest, filesMap)) return stored
+  if (!stored || !storedRequiresBuildNeedsManifestCheck(bundledManifest, filesMap)) return stored
   const manifest = readManifestFromCafs(filesMap)
   return manifest == null ? stored : pkgRequiresBuild(manifest, filesMap)
 }
@@ -211,7 +212,7 @@ function readManifestFromCafs (filesMap: FilesMap): DependencyManifest | undefin
   const manifestPath = filesMap.get('package.json')
   if (manifestPath == null) return undefined
   try {
-    return JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+    return parseJsonBufferSync(fs.readFileSync(manifestPath)) as DependencyManifest
   } catch (err: unknown) {
     if (err instanceof SyntaxError || (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
       return undefined

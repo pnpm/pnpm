@@ -13,7 +13,7 @@ use super::{
     ParallelIterator, PathBuf, TarballError,
 };
 use pnpm_package_manifest::{
-    files_build_triggers, requires_build_from_cas_paths, stored_build_may_predate_gypfile,
+    files_build_triggers, requires_build_from_cas_paths, stored_requires_build_needs_manifest_check,
 };
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use pnpm_store_dir::{
@@ -356,7 +356,7 @@ fn resolve_row_requires_build(
     cas_paths: &HashMap<String, PathBuf>,
 ) -> bool {
     match stored {
-        Some(true) if stored_build_may_predate_gypfile(manifest, cas_paths.keys()) => {
+        Some(true) if stored_requires_build_needs_manifest_check(manifest, cas_paths.keys()) => {
             requires_build_from_cas_paths(cas_paths)
         }
         Some(stored) => stored,

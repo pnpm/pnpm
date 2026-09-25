@@ -2,7 +2,7 @@ pub mod package_manager_spec;
 pub use build_triggers::{
     BINDING_GYP, BuildTriggers, files_build_triggers, files_include_install_scripts,
     manifest_opts_out_of_gyp_build, manifest_requires_build, pkg_build_triggers,
-    pkg_requires_build, requires_build_from_cas_paths, stored_build_may_predate_gypfile,
+    pkg_requires_build, requires_build_from_cas_paths, stored_requires_build_needs_manifest_check,
 };
 pub use error::PackageManifestError;
 pub use initialization::{InitAuthor, InitOptions};

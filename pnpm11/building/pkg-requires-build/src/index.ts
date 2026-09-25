@@ -7,34 +7,34 @@ import type { DependencyManifest } from '@pnpm/types'
 type FilesIndexArg = Map<string, unknown> | Record<string, unknown>
 
 export function pkgRequiresBuild (manifest: Partial<DependencyManifest> | undefined, filesIndex: FilesIndexArg): boolean {
-  return Boolean(
-    manifest?.scripts != null && (
-      Boolean(manifest.scripts.preinstall) ||
-      Boolean(manifest.scripts.install) ||
-      Boolean(manifest.scripts.postinstall)
-    ) ||
+  return (manifest != null && manifestHasBuildScripts(manifest)) ||
     filesIncludeInstallScripts(filesIndex, manifest?.gypfile === false)
+}
+
+function manifestHasBuildScripts (manifest: Partial<DependencyManifest>): boolean {
+  return manifest.scripts != null && (
+    Boolean(manifest.scripts.preinstall) ||
+    Boolean(manifest.scripts.install) ||
+    Boolean(manifest.scripts.postinstall)
   )
 }
 
 /**
- * Whether a store index row's stored `requiresBuild: true` can be stale because
- * of `gypfile`, so only the package's own `package.json` can confirm it.
- *
- * Rows written before pnpm read `gypfile` recorded a `binding.gyp` as build
- * work regardless, and their bundled manifest dropped the field. A row whose
- * bundled manifest carries no `gypfile` and whose only trigger is a
- * `binding.gyp` may be one of them. Every other stored `true` still holds.
+ * Whether a store index row's stored `requiresBuild: true` rests on a
+ * `binding.gyp` alone while its bundled manifest omits `gypfile`. Such a
+ * value is inconclusive: only the package's own `package.json` can say
+ * whether `gypfile: false` opts that `binding.gyp` out. Every other stored
+ * `true` is conclusive.
  */
-export function storedBuildMayPredateGypfile (manifest: Partial<DependencyManifest> | undefined, filesIndex: FilesIndexArg): boolean {
-  if (manifest != null && 'gypfile' in manifest) return false
+export function storedRequiresBuildNeedsManifestCheck (manifest: Partial<DependencyManifest> | undefined, filesIndex: FilesIndexArg): boolean {
+  if (manifest != null && ('gypfile' in manifest || manifestHasBuildScripts(manifest))) return false
   const hasBindingGyp = filesIndex instanceof Map ? filesIndex.has('binding.gyp') : Object.hasOwn(filesIndex, 'binding.gyp')
-  return hasBindingGyp && !pkgRequiresBuild(manifest, withoutBindingGyp(filesIndex))
-}
-
-function withoutBindingGyp (filesIndex: FilesIndexArg): Map<string, unknown> {
-  const entries = filesIndex instanceof Map ? filesIndex.entries() : Object.entries(filesIndex)
-  return new Map(Array.from(entries).filter(([filename]) => filename !== 'binding.gyp'))
+  if (!hasBindingGyp) return false
+  const keys = filesIndex instanceof Map ? filesIndex.keys() : Object.keys(filesIndex)
+  for (const filename of keys) {
+    if (isHooksEntry(filename)) return false
+  }
+  return true
 }
 
 /**
@@ -48,11 +48,15 @@ function filesIncludeInstallScripts (filesIndex: FilesIndexArg, gypBuildOptedOut
     if (filename === 'binding.gyp' && !gypBuildOptedOut) {
       return true
     }
-    if (filename.match(/^\.hooks[\\/]/) != null) {
+    if (isHooksEntry(filename)) {
       return true
     }
   }
   return false
+}
+
+function isHooksEntry (filename: string): boolean {
+  return filename.match(/^\.hooks[\\/]/) != null
 }
 
 /**
