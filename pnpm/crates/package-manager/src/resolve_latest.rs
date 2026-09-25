@@ -142,6 +142,7 @@ impl<'a> LatestPicker<'a> {
             request: pnpm_resolving_npm_resolver::MetadataPickRequest {
                 dry_run,
                 optional: false,
+                refresh_metadata: false,
                 update_checksums: false,
             },
         };

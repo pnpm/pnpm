@@ -215,6 +215,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
                 request: crate::MetadataPickRequest {
                     dry_run: opts.refresh.dry_run,
                     optional,
+                    refresh_metadata: opts.refresh.update != UpdateBehavior::Off,
                     update_checksums: opts.refresh.update_checksums
                         || opts.refresh.update == UpdateBehavior::Patches,
                 },
