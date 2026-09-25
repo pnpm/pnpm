@@ -119,6 +119,15 @@ pub struct MetadataHttpClient<'a> {
     pub retry_opts: RetryOpts,
 }
 
+impl<'a> MetadataHttpClient<'a> {
+    /// One HTTP attempt. [`crate::FetchMetadataError::is_transient`]
+    /// owns the caller's retry budget around the whole fetch, so the
+    /// inner send must not spend it again.
+    pub(crate) fn one_attempt(self) -> Self {
+        Self { retry_opts: RetryOpts { retries: 0, ..self.retry_opts }, ..self }
+    }
+}
+
 /// Send a metadata GET, retrying an unsolicited 304 once with intermediary
 /// cache reuse disabled. A repeated 304 cannot validate any local body and is
 /// reported with the same error in both pnpm implementations.
@@ -240,7 +249,7 @@ pub async fn fetch_full_metadata(
 ) -> Result<FetchFullMetadataOutcome, FetchMetadataError> {
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
-    retry_async(&url, opts.http.retry_opts, FetchMetadataError::is_body_retryable, || async {
+    retry_async(&url, opts.http.retry_opts, FetchMetadataError::is_transient, || async {
         let started_at = Instant::now();
         let (client, response) = send_metadata_request(&MetadataRequestOptions {
             pkg_name,
@@ -250,7 +259,7 @@ pub async fn fetch_full_metadata(
             etag: opts.etag,
             modified: opts.modified,
             bypass_cache: false,
-            http: opts.http,
+            http: opts.http.one_attempt(),
         })
         .await?;
         if response.status() == StatusCode::NOT_MODIFIED {
