@@ -6,7 +6,7 @@ use super::{
 /// Project a [`PackResult`] into its JSON shape.
 #[must_use]
 pub fn to_pack_result_json(result: &PackResult) -> PackResultJson {
-    let manifest = &result.published_manifest;
+    let manifest = &result.packed_manifest;
     PackResultJson {
         name: manifest
             .get("name")
@@ -23,6 +23,7 @@ pub fn to_pack_result_json(result: &PackResult) -> PackResultJson {
             .iter()
             .map(|path| PackFile { path: path.clone() })
             .collect(),
+        manifest: manifest.clone(),
     }
 }
 
