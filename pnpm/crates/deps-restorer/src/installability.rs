@@ -400,9 +400,7 @@ struct SkipScan<'a, 'lock> {
     skipped: SkippedSnapshots,
 }
 
-/// A patched snapshot's published engines are replaced once the patch is
-/// applied. The key carries `(patch_hash=...)`; `snapshot.patched` is the
-/// lockfile flag for the same fact.
+/// Returns whether the snapshot has an applied patch.
 fn snapshot_is_patched(snapshot_key: &PackageKey, snapshot: &SnapshotEntry) -> bool {
     snapshot.patched == Some(true) || snapshot_key.to_string().contains("(patch_hash=")
 }
@@ -436,8 +434,6 @@ impl SkipScan<'_, '_> {
             (snapshot.optional, !snapshot.optional)
         };
 
-        // A patch is applied after this pass. Published engines would fail
-        // here, so that check waits for the patched manifest.
         let defer_engines =
             self.base_options.engine_strict && snapshot_is_patched(snapshot_key, snapshot);
         let warn = self.snapshot_warn(&metadata_key, metadata, skip_check_optional, defer_engines)?;
@@ -501,8 +497,7 @@ impl SkipScan<'_, '_> {
     ) -> Result<(), Box<InstallabilityError>> {
         // The required dispatch drops the optional-only
         // platform-from-name inference, so its verdict needs the
-        // non-optional check. A patched package still omits published
-        // engines; the build phase checks the patched manifest.
+        // non-optional check.
         let warn = if skip_check_optional && defer_engines {
             without_published_engines(metadata_key, metadata, false, &self.base_options)?
         } else if skip_check_optional {

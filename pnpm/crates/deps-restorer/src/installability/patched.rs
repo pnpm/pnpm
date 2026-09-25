@@ -2,7 +2,7 @@ use super::platform::{check_installability, manifest_from_metadata};
 use pnpm_lockfile::{PackageKey, PackageMetadata};
 use pnpm_package_is_installable::{InstallabilityError, InstallabilityOptions};
 
-/// Published `engines` are omitted. The build phase checks the patched manifest.
+/// Checks package installability with engine constraints cleared.
 pub(super) fn without_published_engines(
     metadata_key: &PackageKey,
     metadata: &PackageMetadata,

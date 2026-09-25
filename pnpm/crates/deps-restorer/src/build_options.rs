@@ -38,16 +38,16 @@ pub struct BuildScriptOptions<'a> {
     /// ignored-builds set. Patches still apply — a patch is applied
     /// even when scripts are suppressed.
     pub ignore: bool,
-    /// `engineStrict` rechecked against the patched `package.json`.
+    /// Engine check options for patched packages.
     pub patched_engines: PatchedEngineCheck<'a>,
 }
 
-/// Node range check that runs after a `patchedDependencies` diff is applied.
+/// Engine check options for patched packages.
 #[derive(Clone, Copy)]
 pub struct PatchedEngineCheck<'a> {
-    /// Mirrors `config.engineStrict`.
+    /// Whether strict engine checking is enabled.
     pub engine_strict: bool,
-    /// Mirrors `config.nodeVersion`. `None` detects the running Node.js.
+    /// Explicit Node.js version to check against, or `None` to detect ambient version.
     pub node_version: Option<&'a str>,
 }
 

@@ -86,10 +86,9 @@ fn unlink_if_points(link: &std::path::Path, dirs: &[std::path::PathBuf]) -> bool
     hits
 }
 
-/// `engineStrict` against the patched manifest. The earlier installability
-/// pass skipped engines for patched packages because the published manifest
-/// was still the only one on record.
-/// `Some` is the skip details for an optional package. `None` means continue.
+/// Evaluates `engineStrict` against the patched manifest.
+///
+/// Returns `Some(details)` when an optional package should be skipped, or `None` if compatible.
 pub(super) fn enforce_patched_engines(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,

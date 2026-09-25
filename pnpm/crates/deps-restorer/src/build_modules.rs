@@ -58,11 +58,11 @@ pub enum BuildModulesError {
     #[diagnostic(transparent)]
     PatchApply(#[error(source)] PatchApplyError),
 
-    /// The patched `package.json` still fails `engineStrict`.
+    /// Incompatible engine requirements after applying patches.
     #[diagnostic(transparent)]
     PatchedEngines(#[error(source)] Box<pnpm_package_is_installable::InstallabilityError>),
 
-    /// `engineStrict` needed the patched manifest and it could not be read.
+    /// Failure reading patched manifest.
     #[display("Cannot read the patched package.json of {dep_path}")]
     #[diagnostic(code(ERR_PNPM_PATCHED_MANIFEST_UNREADABLE))]
     PatchedManifestUnreadable { dep_path: String },

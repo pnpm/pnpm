@@ -1122,6 +1122,7 @@ fn engine_strict_respects_read_package_hook_relaxing_engines() {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 /// A `readPackage` hook that leaves a dependency range as anything but a
 /// string produces a malformed manifest, and the worker sends the manifest
 /// back as JSON, which drops the entry. The install has to fail on that
@@ -1234,8 +1235,6 @@ fn read_package_accepts_a_deleted_dependency() {
     );
 }
 
-/// A patch that relaxes `engines.node` is the constraint `engineStrict` checks.
-/// The published manifest of `@pnpm.e2e/for-legacy-node` requires Node 0.10.
 #[test]
 fn engine_strict_respects_a_patch_that_relaxes_engines() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -1287,9 +1286,6 @@ patchedDependencies:
     drop((root, mock_instance));
 }
 
-/// An optional dependency whose patch leaves `engines.node` incompatible is
-/// skipped. The install succeeds, and the package is not linked. A second
-/// install hits the already-built path and still leaves it unlinked.
 #[test]
 fn engine_strict_skips_an_optional_patch_with_incompatible_engines() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
