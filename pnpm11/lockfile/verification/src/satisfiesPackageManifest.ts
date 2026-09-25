@@ -130,7 +130,7 @@ export function satisfiesPackageManifest (
       }
     }
     for (const [depName, ref] of Object.entries(importerDeps)) {
-      if (ref.includes('link:') || ref.includes('file:')) continue
+      if (ref.startsWith('link:') || ref.startsWith('file:')) continue
       if (!allowedDepNames.has(depName)) {
         return {
           satisfies: false,

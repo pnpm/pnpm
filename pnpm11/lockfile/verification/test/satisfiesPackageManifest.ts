@@ -566,3 +566,21 @@ test('satisfiesPackageManifest() accepts an optional dependency the lockfile lef
     detailedReason: 'specifiers in the lockfile don\'t match specifiers in package.json:\n* 1 dependencies were added: added@1.0.0\n',
   })
 })
+
+test('satisfiesPackageManifest() does not skip dependencies with file: in peer suffix', () => {
+  const importer = {
+    dependencies: {
+      foo: '1.0.0(bar@file:../bar)',
+    },
+    specifiers: {
+      foo: '^2.0.0',
+    },
+  }
+  const pkg = {
+    ...DEFAULT_PKG_FIELDS,
+    dependencies: {
+      foo: '^1.0.0',
+    },
+  }
+  expect(satisfiesPackageManifest({}, importer, pkg).satisfies).toBe(false)
+})
