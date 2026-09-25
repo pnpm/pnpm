@@ -188,12 +188,14 @@ fn get_env_value_from_registry(registry_output: &str, env_var_name: &str) -> Opt
 /// (four-space separators), matching `name` case-insensitively.
 fn env_value_from_registry_line(line: &str, env_var_name: &str) -> Option<String> {
     let rest = line.strip_prefix("    ")?;
-    if rest.len() < env_var_name.len()
-        || !rest[..env_var_name.len()].eq_ignore_ascii_case(env_var_name)
-    {
+    // The length of the name we want is not necessarily a char boundary of
+    // this line: an unrelated name can hold a multi-byte character that ends
+    // past it. Slicing there panics, so take the candidate as a whole.
+    let name = rest.get(..env_var_name.len())?;
+    if !name.eq_ignore_ascii_case(env_var_name) {
         return None;
     }
-    let after_name = rest[env_var_name.len()..].strip_prefix("    ")?;
+    let after_name = rest[name.len()..].strip_prefix("    ")?;
     let type_end = after_name.find("    ")?;
     let value_type = &after_name[..type_end];
     if value_type.is_empty()

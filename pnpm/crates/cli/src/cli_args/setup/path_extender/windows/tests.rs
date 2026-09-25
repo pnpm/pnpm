@@ -29,6 +29,17 @@ fn missing_value_returns_none() {
     assert!(get_env_value_from_registry(SAMPLE, "NOT_THERE").is_none());
 }
 
+/// An unrelated variable whose name holds a multi-byte character must not
+/// stop the search, even when its byte length exceeds the name we look for.
+#[test]
+fn skips_an_unrelated_name_holding_a_multibyte_character() {
+    let output = "    ABCä    REG_SZ    ignored\r\n    Path    REG_EXPAND_SZ    C:\\tools\r\n";
+    assert_eq!(get_env_value_from_registry(output, "Path").as_deref(), Some(r"C:\tools"));
+
+    let output = "    ABCDEFGHä    REG_SZ    ignored\r\n";
+    assert!(get_env_value_from_registry(output, "PNPM_HOME").is_none());
+}
+
 #[test]
 fn first_number_extracts_the_code_page() {
     assert_eq!(first_number("Active code page: 437"), Some(437));
