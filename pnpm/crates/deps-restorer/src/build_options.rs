@@ -26,6 +26,12 @@ pub struct BuildScriptOptions<'a> {
     /// [`pnpm_executor::ScriptExecutionOptions::shell_emulator`], so build scripts run
     /// under the built-in shell wherever `pnpm run` would.
     pub shell_emulator: bool,
+    /// Mirrors `config.extra_bin_paths`: the workspace root's
+    /// `node_modules/.bin`, where a `devEngines.runtime` links `node`.
+    /// A slot in the global virtual store has no `node_modules` ancestor
+    /// inside the project, so without these its build scripts could not
+    /// reach the project's bins.
+    pub extra_bin_paths: &'a [PathBuf],
     /// Mirrors `config.unsafe_perm`. When `false`, [`pnpm_executor`]
     /// runs each lifecycle script under a per-package TMPDIR set to
     /// `node_modules/.tmp`; when `true`, TMPDIR is left at the
@@ -51,6 +57,7 @@ impl<'a> BuildScriptOptions<'a> {
             prepend_node_path: crate::build_modules::exec_scripts_prepend_node_path(config),
             shell: config.script_shell.as_deref().map(Path::new),
             shell_emulator: config.shell_emulator,
+            extra_bin_paths: &config.extra_bin_paths,
             unsafe_perm: config.unsafe_perm,
             ignore: config.ignore_scripts,
         }

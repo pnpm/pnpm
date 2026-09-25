@@ -205,6 +205,7 @@ fn frozen_backstop_run(
             prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
+            extra_bin_paths: &[],
             unsafe_perm: true,
             ignore: false,
         },

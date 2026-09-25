@@ -83,15 +83,16 @@ fn build_candidate<Reporter: self::Reporter>(
         return Ok(());
     }
 
-    // Per-snapshot `extra_bin_paths`. Isolated leaves it empty;
-    // hoisted gathers every ancestor's `node_modules/.bin` up to
-    // `lockfile_dir` so a lifecycle script invoked at a nested
-    // hoisted location can resolve bins added by parents.
-    let extra_bin_paths = if context.directories.gather_ancestor_bin_paths {
+    // Per-snapshot `extra_bin_paths`. Hoisted gathers every ancestor's
+    // `node_modules/.bin` up to `lockfile_dir` so a lifecycle script
+    // invoked at a nested hoisted location can resolve bins added by
+    // parents. Both linkers then add the configured extra bin paths.
+    let mut extra_bin_paths = if context.directories.gather_ancestor_bin_paths {
         bin_dirs_in_all_parent_dirs(&pkg_dir, context.directories.lockfile_dir)
     } else {
         Vec::new()
     };
+    extra_bin_paths.extend_from_slice(context.scripts.extra_bin_paths);
 
     // Apply the patch before running postinstall hooks. A snapshot
     // with a patch entry but no resolved `patch_file_path` is a hard

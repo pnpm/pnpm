@@ -643,3 +643,60 @@ fn approve_builds_updates_gvs_symlinks_and_runs_builds_at_the_new_hash_dir() {
 
     drop((root, mock_instance));
 }
+
+/// A dependency's build script runs from its slot under the store, which has
+/// no `node_modules` ancestor inside the workspace. The workspace root's
+/// `node_modules/.bin`, where a `devEngines.runtime` puts its `node`, still
+/// has to be on the script's `PATH`, as it is with a local virtual store.
+/// See <https://github.com/pnpm/pnpm/issues/15652>.
+#[test]
+fn gvs_dependency_build_scripts_see_the_workspace_root_bins() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    fs::create_dir_all(workspace.join("tool")).expect("mkdir tool");
+    fs::write(
+        workspace.join("tool/package.json"),
+        serde_json::json!({
+            "name": "tool",
+            "version": "1.0.0",
+            "bin": { "gvs-root-tool": "cli.js" },
+        })
+        .to_string(),
+    )
+    .expect("write tool/package.json");
+    fs::write(
+        workspace.join("tool/cli.js"),
+        "#!/usr/bin/env node\nrequire('fs').writeFileSync('root-tool-ran', '')\n",
+    )
+    .expect("write tool/cli.js");
+
+    fs::create_dir_all(workspace.join("dep")).expect("mkdir dep");
+    fs::write(
+        workspace.join("dep/package.json"),
+        serde_json::json!({
+            "name": "dep",
+            "version": "1.0.0",
+            "scripts": { "postinstall": "gvs-root-tool" },
+        })
+        .to_string(),
+    )
+    .expect("write dep/package.json");
+
+    write_manifest(&workspace, &serde_json::json!({ "tool": "file:tool", "dep": "file:dep" }));
+    set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[("dep@file:dep", true)]));
+
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let slot = sole_hash_dir(&pkg_version_dir(&store_dir, "@/dep", "directory"));
+    assert!(
+        pkg_in_slot(&slot, "dep").join("root-tool-ran").exists(),
+        "the postinstall script must have run the bin from the workspace root's node_modules/.bin",
+    );
+
+    drop((root, mock_instance));
+}

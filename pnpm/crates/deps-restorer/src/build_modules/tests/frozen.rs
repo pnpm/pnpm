@@ -169,6 +169,7 @@ async fn frozen_store_skips_side_effects_upload() {
             prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
+            extra_bin_paths: &[],
             unsafe_perm: true,
             ignore: false,
         },
