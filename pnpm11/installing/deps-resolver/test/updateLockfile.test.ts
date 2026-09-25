@@ -1,10 +1,10 @@
 /// <reference path="../../../__typings__/local.d.ts"/>
 import { expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import type { LockfileObject, PackageSnapshot, Resolution } from '@pnpm/lockfile.types'
+import type { LockfileObject, PackageSnapshot, ProjectSnapshot, Resolution } from '@pnpm/lockfile.types'
 import type { DepPath, PkgResolutionId, ProjectId, RegistriesByScope } from '@pnpm/types'
 
-import { addDirectDependenciesToLockfile, type DependenciesGraph } from '../lib/index.js'
+import { addDirectDependenciesToLockfile, type DependenciesGraph, updateDirectDepRef } from '../lib/index.js'
 import { updateLockfile } from '../lib/updateLockfile.js'
 
 const TARBALL_URL = 'https://cdn.sheetjs.com/xlsx-0.18.5/xlsx-0.18.5.tgz'
@@ -215,4 +215,21 @@ test('addDirectDependenciesToLockfile records a dependency in both dependencies 
   expect(result.devDependencies?.['is-even']).toBe('1.0.0')
   expect(result.optionalDependencies?.['is-even']).toBeUndefined()
   expect(result.specifiers['is-even']).toBe('^1.0.0')
+})
+
+test('updateDirectDepRef rewrites every group that records a duplicate dependency', () => {
+  const projectSnapshot: ProjectSnapshot = {
+    dependencies: {
+      'is-even': 'file:../is-even',
+    },
+    devDependencies: {
+      'is-even': 'file:../is-even',
+    },
+    specifiers: {
+      'is-even': '^1.0.0',
+    },
+  }
+  updateDirectDepRef(projectSnapshot, 'is-even', 'link:../is-even')
+  expect(projectSnapshot.dependencies?.['is-even']).toBe('link:../is-even')
+  expect(projectSnapshot.devDependencies?.['is-even']).toBe('link:../is-even')
 })

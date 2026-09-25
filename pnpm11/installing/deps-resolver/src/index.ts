@@ -397,13 +397,7 @@ export async function resolveDependencies (
       if (preserveDedupedWorkspaceLinks && !targetedByUpdate && ref.startsWith('file:') && previousRef?.startsWith('link:')) {
         ref = previousRef
       }
-      if (projectSnapshot.dependencies?.[alias]) {
-        projectSnapshot.dependencies[alias] = ref
-      } else if (projectSnapshot.devDependencies?.[alias]) {
-        projectSnapshot.devDependencies[alias] = ref
-      } else if (projectSnapshot.optionalDependencies?.[alias]) {
-        projectSnapshot.optionalDependencies[alias] = ref
-      }
+      updateDirectDepRef(projectSnapshot, alias, ref)
     }
   }))
 
@@ -619,6 +613,18 @@ function alignDependencyTypes (manifest: ProjectManifest, projectSnapshot: Proje
     if (projectSnapshot[depType] != null && Object.keys(projectSnapshot[depType]!).length === 0) {
       delete projectSnapshot[depType]
     }
+  }
+}
+
+export function updateDirectDepRef (projectSnapshot: ProjectSnapshot, alias: string, ref: string): void {
+  if (projectSnapshot.dependencies?.[alias]) {
+    projectSnapshot.dependencies[alias] = ref
+  }
+  if (projectSnapshot.devDependencies?.[alias]) {
+    projectSnapshot.devDependencies[alias] = ref
+  }
+  if (projectSnapshot.optionalDependencies?.[alias]) {
+    projectSnapshot.optionalDependencies[alias] = ref
   }
 }
 
