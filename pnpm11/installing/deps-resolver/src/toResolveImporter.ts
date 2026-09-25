@@ -22,6 +22,7 @@ export interface ResolveImporter extends ImporterToResolve, ImporterToResolveGen
 
 export async function toResolveImporter (
   opts: {
+    autoInstallPeers?: boolean
     defaultUpdateDepth: number
     hideAlienModules: boolean
     preferredVersions?: PreferredVersions
@@ -34,7 +35,7 @@ export async function toResolveImporter (
   project: ImporterToResolve
 ): Promise<ResolveImporter> {
   validatePeerDependencies(project)
-  const allDeps = getWantedDependencies(project.manifest)
+  const allDeps = getWantedDependencies(project.manifest, { autoInstallPeers: opts.autoInstallPeers })
   const nonLinkedDependencies = await partitionLinkedPackages(allDeps, {
     hideAlienModules: opts.hideAlienModules,
     modulesDir: project.modulesDir,

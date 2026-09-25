@@ -947,6 +947,51 @@ test.each([false, true])('auto installs transitive peers shared at different dep
   expect(project.readLockfile()).toStrictEqual(lockfile)
 })
 
+// https://github.com/pnpm/pnpm/issues/14928
+test('an update that names another package keeps the version of a peer dependency the project installs automatically', async () => {
+  const project = prepareEmpty()
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project1',
+        dependencies: { '@pnpm.e2e/abc-optional-peers': '1.0.0' },
+        peerDependencies: { '@pnpm.e2e/peer-c': '1.0.0' },
+      },
+      rootDir: path.resolve('project1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project2',
+        dependencies: { '@pnpm.e2e/peer-c': '1.0.1' },
+      },
+      rootDir: path.resolve('project2') as ProjectRootDir,
+    },
+  ]
+  const opts = testDefaults({ allProjects, autoInstallPeers: true })
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), opts)
+  expect(project.readLockfile().importers.project1.dependencies?.['@pnpm.e2e/peer-c']).toStrictEqual({
+    specifier: '1.0.0',
+    version: '1.0.0',
+  })
+
+  await mutateModules(allProjects.map(({ rootDir }) => ({
+    dependencySelectors: [],
+    mutation: 'installSome',
+    rootDir,
+    update: true,
+    updateMatching: (pkgName: string) => pkgName === '@pnpm.e2e/peer-a',
+  })), { ...opts, depth: Infinity })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/peer-c']).toStrictEqual({
+    specifier: '1.0.0',
+    version: '1.0.0',
+  })
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/abc-optional-peers'].version).toContain('(@pnpm.e2e/peer-c@1.0.0)')
+})
+
 // https://github.com/pnpm/pnpm/issues/10486
 const updatePeerC = { depth: Infinity, update: true, updateMatching: (pkgName: string) => pkgName === '@pnpm.e2e/peer-c' }
 test.each([
