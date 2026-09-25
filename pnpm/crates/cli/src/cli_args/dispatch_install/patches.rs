@@ -1,7 +1,7 @@
 use super::{
     CommandFuture, Config, Context, DefaultReporter, InstallArgs, NdjsonReporter, PatchArgs,
     PatchCommitArgs, PatchRemoveArgs, Path, ReporterType, RunCtx, SilentReporter,
-    anchor_active_project,
+    anchor_active_project, installed_project_config, keeps_project_lockfiles,
 };
 use crate::State;
 use indexmap::IndexMap;
@@ -43,23 +43,6 @@ pub(in super::super) fn patch<'a>(
             }
         }
     }))
-}
-
-/// The config through which the patch commands find and reinstall the
-/// installed packages. In a workspace whose projects keep their own
-/// lockfiles, those are in the active project's modules directory, not the
-/// workspace root's.
-fn installed_project_config(config: &'static Config, manifest_path: &Path) -> &'static Config {
-    if !keeps_project_lockfiles(config) {
-        return config;
-    }
-    let mut config = config.clone();
-    anchor_active_project(&mut config, manifest_path);
-    Config::leak(config)
-}
-
-fn keeps_project_lockfiles(config: &Config) -> bool {
-    !config.shares_one_lockfile() && config.workspace_dir.is_some()
 }
 
 /// The state for the install that re-resolves after `patch-commit` or
