@@ -91,6 +91,33 @@ describeOnWindows('sh shim NODE_PATH invoked from Git Bash', () => {
   })
 })
 
+describeOnWindows('sh shim running node from PATH without MSYS path conversion', () => {
+  // Regression for pnpm/pnpm#12845: Cygwin, unlike MSYS2, starts the native
+  // Windows node found on PATH without rewriting POSIX path arguments, so node
+  // looked for the target under C:\cygdrive\c\... Git Bash behaves the same way
+  // when MSYS2_ARG_CONV_EXCL excludes every argument from conversion.
+  test('passes the Windows form of the target to node', async () => {
+    const tempDir = temporaryDirectory()
+    const target = path.join(tempDir, 'tool.js')
+    fs.writeFileSync(target, '#!/usr/bin/env node\nconsole.log("SHIM_OK")\n', 'utf8')
+    const shim = path.join(tempDir, 'tool')
+    await cmdShim(target, shim, { createCmdFile: false, createPwshFile: false })
+
+    const bash = process.env.PROGRAMFILES
+      ? path.join(process.env.PROGRAMFILES, 'Git', 'bin', 'bash.exe')
+      : 'bash'
+    // Run the shim by its absolute POSIX path, as a PATH lookup does, so the
+    // shim's basedir is a POSIX path.
+    const r = spawnSync(bash, ['--noprofile', '--norc', '-c', 'exec "$(cygpath -u "$1")"', 'bash', shim], {
+      encoding: 'utf8',
+      env: { ...process.env, MSYS2_ARG_CONV_EXCL: '*' },
+    })
+
+    assert.equal(r.status, 0, `bash exited ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`)
+    assert.equal(r.stdout.trim(), 'SHIM_OK')
+  })
+})
+
 describeOnPosix('sh shim binstub uses exec', () => {
   // Regression for the binstub bug: without `exec`, the shell process
   // wraps the wrapped binary, so signals sent to the shim do not reach

@@ -163,6 +163,21 @@ test('linkBins() keeps or rewrites the NODE_PATH of an existing bin according to
   expect(projectWithoutExtras.entries[0]).toMatch(/\/vendor$/)
 })
 
+test('linkBins() keeps an existing bin whose shim is larger than 4 KiB', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const modulesDir = path.join(f.prepare('simple-fixture'), 'node_modules')
+  const binLocation = path.join(binTarget, 'simple')
+  const extraNodePaths = [path.join(modulesDir, 'x'.repeat(2048))]
+
+  await linkBins(modulesDir, binTarget, { warn, extraNodePaths })
+  expect(fs.statSync(binLocation).size).toBeGreaterThan(4 * 1024)
+
+  fs.appendFileSync(binLocation, '# sentinel\n')
+  await linkBins(modulesDir, binTarget, { warn, extraNodePaths })
+  expect(fs.readFileSync(binLocation, 'utf8')).toContain('# sentinel')
+})
+
 // A shim written on Windows keeps its posix entries in `new_node_path` and
 // picks the form it exports when it runs.
 function nodePathEntries (shim: string): string[] {

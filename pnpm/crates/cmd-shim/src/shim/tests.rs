@@ -177,7 +177,7 @@ case `command -p uname -a` in"#
         "WSL2 branch must enable .exe fallback only after wslpath succeeds, body was:\n{body}",
     );
     assert!(
-        body.contains("if [ -n \"$exe\" ] && [ -x \"$basedir/node.exe\" ]; then\n  exec \"$basedir/node.exe\"  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelif [ -x \"$basedir/node\" ]; then\n  exec \"$basedir/node\"  \"$basedir/../typescript/bin/tsc\" \"$@\"\nelif command -v node >/dev/null 2>&1; then\n  exec node  \"$basedir/../typescript/bin/tsc\" \"$@\"\nelif [ -n \"$exe\" ] && command -v node.exe >/dev/null 2>&1; then\n  exec node.exe  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelse\n  exec node  \"$basedir/../typescript/bin/tsc\" \"$@\"\nfi\n"),
+        body.contains("if [ -n \"$exe\" ] && [ -x \"$basedir/node.exe\" ]; then\n  exec \"$basedir/node.exe\"  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelif [ -x \"$basedir/node\" ]; then\n  exec \"$basedir/node\"  \"$basedir/../typescript/bin/tsc\" \"$@\"\nelif [ -n \"$msys\" ] && command -v node >/dev/null 2>&1; then\n  exec node  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelif command -v node >/dev/null 2>&1; then\n  exec node  \"$basedir/../typescript/bin/tsc\" \"$@\"\nelif [ -n \"$exe\" ] && command -v node.exe >/dev/null 2>&1; then\n  exec node.exe  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelse\n  exec node  \"$basedir/../typescript/bin/tsc\" \"$@\"\nfi\n"),
         "exec block must preserve the generated sh shim fallback order, body was:\n{body}",
     );
     assert!(
@@ -426,15 +426,15 @@ fn strip_exe_suffix_is_case_insensitive() {
 }
 
 #[test]
-fn generate_sh_shim_uses_windows_target_only_for_exe_branches() {
+fn generate_sh_shim_uses_windows_target_only_for_exe_and_msys_branches() {
     let target = Path::new("/proj/node_modules/foo/src.bat");
     let shim = Path::new("/proj/node_modules/.bin/foo");
     let runtime = ScriptRuntime { prog: Some("cmd".into()), args: "/C".into() };
     let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
 
     assert!(
-        body.contains("if [ -n \"$msys\" ]; then\n  if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif [ -x \"$basedir/cmd\" ]; then\n    exec \"$basedir/cmd\" //C \"$basedir/../foo/src.bat\" \"$@\"\n  elif command -v cmd >/dev/null 2>&1; then\n    exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\n  elif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n    exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\n  fi\nelse\n  if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif [ -x \"$basedir/cmd\" ]; then\n    exec \"$basedir/cmd\" /C \"$basedir/../foo/src.bat\" \"$@\"\n  elif command -v cmd >/dev/null 2>&1; then\n    exec cmd /C \"$basedir/../foo/src.bat\" \"$@\"\n  elif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n    exec cmd.exe /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd /C \"$basedir/../foo/src.bat\" \"$@\"\n  fi\nfi\n"),
-        "cmd sh shim must escape switches only for MSYS and use Windows-form targets only for .exe execution branches, body was:\n{body}",
+        body.contains("if [ -n \"$msys\" ]; then\n  if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif [ -x \"$basedir/cmd\" ]; then\n    exec \"$basedir/cmd\" //C \"$basedir/../foo/src.bat\" \"$@\"\n  elif [ -n \"$msys\" ] && command -v cmd >/dev/null 2>&1; then\n    exec cmd //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif command -v cmd >/dev/null 2>&1; then\n    exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\n  elif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n    exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\n  fi\nelse\n  if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif [ -x \"$basedir/cmd\" ]; then\n    exec \"$basedir/cmd\" /C \"$basedir/../foo/src.bat\" \"$@\"\n  elif [ -n \"$msys\" ] && command -v cmd >/dev/null 2>&1; then\n    exec cmd /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif command -v cmd >/dev/null 2>&1; then\n    exec cmd /C \"$basedir/../foo/src.bat\" \"$@\"\n  elif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n    exec cmd.exe /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd /C \"$basedir/../foo/src.bat\" \"$@\"\n  fi\nfi\n"),
+        "cmd sh shim must escape switches only for MSYS and use Windows-form targets only for .exe and MSYS execution branches, body was:\n{body}",
     );
 }
 
@@ -446,7 +446,7 @@ fn generate_sh_shim_checks_path_before_exe_fallback() {
     let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
 
     assert!(
-        body.contains("elif command -v sh >/dev/null 2>&1; then\n  exec sh  \"$basedir/../foo/src.sh\" \"$@\"\nelif [ -n \"$exe\" ] && command -v sh.exe >/dev/null 2>&1; then\n  exec sh.exe  \"$basedir_win/../foo/src.sh\" \"$@\"\nelse\n  exec sh  \"$basedir/../foo/src.sh\" \"$@\"\nfi\n"),
+        body.contains("elif [ -n \"$msys\" ] && command -v sh >/dev/null 2>&1; then\n  exec sh  \"$basedir_win/../foo/src.sh\" \"$@\"\nelif command -v sh >/dev/null 2>&1; then\n  exec sh  \"$basedir/../foo/src.sh\" \"$@\"\nelif [ -n \"$exe\" ] && command -v sh.exe >/dev/null 2>&1; then\n  exec sh.exe  \"$basedir_win/../foo/src.sh\" \"$@\"\nelse\n  exec sh  \"$basedir/../foo/src.sh\" \"$@\"\nfi\n"),
         "PATH fallback must prefer POSIX runtimes and gate .exe fallback, body was:\n{body}",
     );
 }
@@ -1132,4 +1132,33 @@ fn a_shim_run_from_git_bash_hands_node_the_windows_node_path() {
         .expect("run the shim under Git Bash");
     assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(String::from_utf8_lossy(&output.stdout), node_path);
+}
+
+/// Cygwin, unlike MSYS2, starts the native Windows `node` found on `PATH`
+/// without rewriting POSIX path arguments, so `node` looked for the target
+/// under `C:\cygdrive\c\...` (pnpm/pnpm#12845). Git Bash behaves the same way
+/// when `MSYS2_ARG_CONV_EXCL` excludes every argument from conversion.
+#[cfg(windows)]
+#[test]
+fn a_shim_hands_node_on_path_the_windows_target_without_msys_path_conversion() {
+    let program_files = std::env::var_os("ProgramFiles").expect("ProgramFiles is set on Windows");
+    let bash = Path::new(&program_files).join(r"Git\bin\bash.exe");
+    let tmp = tempfile::tempdir().unwrap();
+    let target = tmp.path().join("tool.js");
+    std::fs::write(&target, "process.stdout.write('SHIM_OK')\n").unwrap();
+    let shim = tmp.path().join("tool");
+    let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
+    let body = generate_sh_shim(&target, &shim, Some(&runtime), &[], None);
+    std::fs::write(&shim, body).unwrap();
+
+    // Run the shim by its absolute POSIX path, as a PATH lookup does, so the
+    // shim's basedir is a POSIX path.
+    let output = std::process::Command::new(&bash)
+        .args(["--noprofile", "--norc", "-c", r#"exec "$(cygpath -u "$1")""#, "bash"])
+        .arg(&shim)
+        .env("MSYS2_ARG_CONV_EXCL", "*")
+        .output()
+        .expect("run the shim under Git Bash");
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "SHIM_OK");
 }
