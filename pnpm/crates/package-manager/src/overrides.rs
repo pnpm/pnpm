@@ -10,10 +10,13 @@
 //! happens through [`pnpm_package_manifest::PackageManifest::value_mut`]
 //! on the in-memory `Value` only.
 
+pub use dependency_rewriter::overrides_dependency_rewriter;
 pub(crate) use selectors::{matches_target, parse_declared_range};
 
+mod dependency_rewriter;
 mod meta_only_peers;
 mod selectors;
+
 
 use node_semver::{Range, Version};
 use pnpm_catalogs_types::Catalogs;

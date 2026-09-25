@@ -180,6 +180,9 @@ function createProjectsFilterOptions (config: Config, context: ConfigContext, op
     modulesDir: config.modulesDir,
     modulesDirsByProjectName: config.modulesDirsByProjectName,
     linkWorkspacePackages: !!config.linkWorkspacePackages,
+    overrides: config.overrides == null
+      ? undefined
+      : { overrides: config.overrides, catalogs: config.catalogs, lockfileDir: config.lockfileDir ?? options.wsDir },
     prefix: config.dir,
     workspaceDir: options.wsDir,
     testPattern: config.testPattern,

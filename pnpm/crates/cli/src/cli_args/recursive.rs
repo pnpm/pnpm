@@ -16,20 +16,18 @@ pub use unmatched::UnmatchedFilters;
 
 mod dependencies;
 mod execution_args;
+mod filter_graphs;
 mod importer_selection;
 mod selected_dirs;
 mod selection_order;
 mod unmatched;
 
-use crate::{
-    cli_args::catalogs::{configured_catalogs, workspace_catalogs},
-    state::{ProjectHost, host_requirements},
-};
+use crate::state::{ProjectHost, host_requirements};
 use derive_more::{Display, Error};
+use filter_graphs::{FilterGraphs, build_filter_graphs};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, FilterSource, LinkWorkspacePackages};
+use pnpm_config::{Config, FilterSource};
 use pnpm_reporter::LogEvent;
 use pnpm_workspace::{
     FindWorkspaceProjectsOpts, GraphPkg, Project, find_workspace_projects,
@@ -39,9 +37,7 @@ use pnpm_workspace_projects_filter::{
     FilterWorkspaceProjectsOptions, FilteredGraphProjects, ProjectSelector,
     filter_workspace_projects_with_prod_graph, parse_project_selector,
 };
-use pnpm_workspace_projects_graph::{
-    BaseProject, CreateProjectsGraphOptions, ProjectGraph, create_projects_graph,
-};
+use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph};
 use serde::Serialize;
 use std::{
     collections::HashSet,
@@ -202,9 +198,7 @@ pub fn select_recursive_projects_deferring_no_match<'a>(
     prefix: &Path,
     auto_exclude_root: AutoExcludeRoot<'_>,
 ) -> miette::Result<(RecursiveSelection<'a>, Option<UnmatchedFilters>)> {
-    let catalogs = configured_catalogs(config)?;
-    let graph_options = recursive_graph_options(config, &catalogs);
-    let all = build_graph(projects, graph_options);
+    let FilterGraphs { all, prod_all } = build_filter_graphs(projects, config, prefix)?;
 
     let root_selector = auto_exclude_root.root_selector(config, prefix);
 
@@ -212,7 +206,6 @@ pub fn select_recursive_projects_deferring_no_match<'a>(
         return Ok(unnarrowed_selection(all, config, prefix));
     }
 
-    let prod_all = production_filter_graph(projects, config, graph_options);
     let walk_opts = recursive_filter_options(config, prefix);
     let selectors = parse_configured_selectors(config, root_selector.as_deref(), prefix);
     let filtered = filter_graphs(&all, prod_all.as_ref(), &selectors, &walk_opts)?;
@@ -306,21 +299,6 @@ pub fn selected_importer_ids(
         .keys()
         .map(|project_dir| importer_id_from_root_dir(lockfile_dir, project_dir))
         .collect()
-}
-
-/// Build the workspace [`ProjectGraph`] from `projects` under `options`.
-fn build_graph<'p>(
-    projects: &'p [Project],
-    options: CreateProjectsGraphOptions<'_>,
-) -> ProjectGraph<GraphPkg<'p>> {
-    create_projects_graph(
-        projects
-            .iter()
-            .map(|project| GraphPkg { project })
-            .collect(),
-        &options,
-    )
-    .graph
 }
 
 /// Parse `config`'s `--filter` and `--filter-prod` entries in evaluation order,
@@ -476,33 +454,6 @@ pub fn recursive_filter_options(config: &Config, prefix: &Path) -> FilterWorkspa
             .to_path_buf(),
         test_pattern: config.test_pattern.clone(),
         changed_files_ignore_pattern: config.changed_files_ignore_pattern.clone(),
-    }
-}
-
-fn production_filter_graph<'a>(
-    projects: &'a [Project],
-    config: &Config,
-    graph_options: CreateProjectsGraphOptions<'_>,
-) -> Option<ProjectGraph<GraphPkg<'a>>> {
-    if config.filter_prod.is_empty() {
-        None
-    } else {
-        Some(build_graph(
-            projects,
-            CreateProjectsGraphOptions { ignore_dev_deps: true, ..graph_options },
-        ))
-    }
-}
-
-/// Respect the configured linking policy when determining workspace edges.
-fn recursive_graph_options<'a>(
-    config: &'a Config,
-    catalogs: &'a Catalogs,
-) -> CreateProjectsGraphOptions<'a> {
-    CreateProjectsGraphOptions {
-        link_workspace_packages: Some(config.link_workspace_packages != LinkWorkspacePackages::Off),
-        catalogs: workspace_catalogs(config, catalogs),
-        ..CreateProjectsGraphOptions::default()
     }
 }
 

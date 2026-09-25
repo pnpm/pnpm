@@ -144,7 +144,7 @@ impl PublishArgs {
         let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
         let (projects, selected_dirs, bumped) =
             self.select_and_bump_projects(dir, workspace_root, config)?;
-        let selection = selected_dirs.select(&projects, config)?;
+        let selection = selected_dirs.select(&projects, config, dir)?;
         let graph = &selection.selected;
         if graph.is_empty() {
             return Ok(Vec::new());
