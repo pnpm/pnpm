@@ -854,9 +854,9 @@ fn force_install_repairs_tampered_store_blob_in_place() {
     assert_eq!(fs::read(&installed).unwrap(), pristine);
     assert_eq!(fs::read(&linked).unwrap(), pristine, "hard-linked copy must be healed");
     assert_eq!(
-        fs::metadata(&linked).unwrap().ino(),
+        fs::metadata(&installed).unwrap().ino(),
         inode_before,
-        "store blob inode must survive the repair",
+        "the reinstalled file must link to the store blob's original inode",
     );
 
     drop((root, mock_instance));

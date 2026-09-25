@@ -93,12 +93,9 @@ function writeFileAtomic (
 // O_NOFOLLOW keeps a symlink planted at the digest path from being
 // followed into a file the store does not own, and O_NONBLOCK keeps a
 // FIFO there from holding the open until a reader appears; both are
-// no-ops for the regular files expected. Truncation is deferred until
-// after the opened descriptor is verified against the initial lstat,
-// avoiding truncating a swapped file on verification failure.
+// no-ops for the regular files expected. The open does not truncate:
+// nothing is written before the descriptor is verified.
 const IN_PLACE_OPEN = fs.constants.O_WRONLY |
-  (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0)
-const READONLY_OPEN = fs.constants.O_RDONLY |
   (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0)
 
 /**
@@ -106,12 +103,12 @@ const READONLY_OPEN = fs.constants.O_RDONLY |
  * the same inode — so every hard link to it (in other projects'
  * node_modules) sees the restored content too. Returns false when the
  * repair should instead fall back to {@link writeFileAtomic}'s
- * temp+rename: the dirent is not a regular file, the file refuses the
- * write open even after its write protection is lifted (a running
- * executable, another owner's file), the write failed, or the freshly
- * written content does not verify — the last covers a concurrent
- * process still mid-write on the same path, whose interleaved writes
- * the rename then replaces.
+ * temp+rename: the dirent is not a regular file, the file is
+ * write-protected or refuses the write open (a running executable,
+ * another owner's file), the write failed, or the freshly written
+ * content does not verify — the last covers a concurrent process still
+ * mid-write on the same path, whose interleaved writes the rename then
+ * replaces.
  *
  * In-place overwrite is not atomic: a concurrent reader can observe
  * torn content for the duration of the write. The file was already
@@ -125,162 +122,63 @@ function overwriteFileInPlace (
   integrity: Integrity
 ): boolean {
   const stats = withFileLockRetry(() => fs.lstatSync(fileDest, { bigint: true, throwIfNoEntry: false }))
-  if (!stats?.isFile()) return false
-  const opened = openForOverwrite(fileDest, stats)
-  if (opened == null) return false
+  // A write-protected file refuses the write open, and on Windows that
+  // refusal would first spend the transient-lock retry budget.
+  if (!stats?.isFile() || (Number(stats.mode) & 0o222) === 0) return false
+  const fd = openSameFile(fileDest, stats)
+  if (fd == null) return false
   try {
-    fs.writeFileSync(opened.fd, buffer)
+    fs.ftruncateSync(fd, 0)
+    fs.writeFileSync(fd, buffer)
   } catch {
     return false
   } finally {
-    if (opened.modeToRestore !== undefined) {
-      try {
-        fs.fchmodSync(opened.fd, opened.modeToRestore)
-      } catch {
-        try {
-          fs.chmodSync(fileDest, opened.modeToRestore)
-        } catch {
-          // Best-effort restore; the next repair retries.
-        }
-      }
-    }
-    try {
-      fs.closeSync(opened.fd)
-    } catch {
-      // Best-effort close; a close failure after a successful write is
-      // caught by the verification below.
-    }
+    closeQuietly(fd)
   }
-  try {
-    return verifyFileIntegrity(fileDest, integrity)
-  } catch {
-    return false
-  }
+  return verifyFileIntegrity(fileDest, integrity)
 }
 
 /**
- * Opens a store file for truncate-and-rewrite. When the first open is
- * refused and the file lacks its owner-write bit, lifts the write
- * protection and retries: tar entries keep modes like 0444, and the
- * readonly attribute that mode maps to on Windows refuses a write open
- * with EPERM. The caller restores the returned `modeToRestore` after
- * writing — the repair changes the file's content, not its protection.
+ * Opens `fileDest` for writing and verifies the opened descriptor is the
+ * same regular file `stats` described, closing it and returning null
+ * otherwise. The lstat-then-open window would let a symlink swapped in
+ * between be followed into a file the store does not own. O_NOFOLLOW
+ * covers that on POSIX, but Windows has no such flag, so the check is
+ * bound to the descriptor actually opened.
  *
- * The opens run under the store's transient-lock retry policy:
- * antivirus and indexer scans briefly hold just-written Windows paths
- * open, failing an unlucky open with EPERM/EACCES that clears moments
- * later. When the file lacks the owner-write bit, the initial open
- * bypasses lock retries so the permission error fails fast to chmod.
+ * The open runs under the store's transient-lock retry policy: antivirus
+ * and indexer scans briefly hold just-written Windows paths open,
+ * failing an unlucky open with EPERM/EACCES that clears moments later.
  */
-function openForOverwrite (
-  fileDest: string,
-  stats: fs.BigIntStats
-): { fd: number, modeToRestore?: number } | null {
-  const mode = Number(stats.mode)
-  const firstTry = openSameFile(fileDest, stats, (mode & 0o200) === 0)
-  if (firstTry != null) return { fd: firstTry }
-  if ((mode & 0o200) !== 0) return null
-  const modeFd = openDescriptorForModeChange(fileDest, stats)
-  if (modeFd == null) return null
-  try {
-    fs.fchmodSync(modeFd, mode | 0o200)
-  } catch {
-    try {
-      fs.chmodSync(fileDest, mode | 0o200)
-    } catch {
-      try {
-        fs.closeSync(modeFd)
-      } catch {
-        // Best-effort close
-      }
-      return null
-    }
-  }
-  const secondTry = openSameFile(fileDest, stats, false)
-  if (secondTry == null) {
-    try {
-      fs.fchmodSync(modeFd, mode)
-    } catch {
-      try {
-        fs.chmodSync(fileDest, mode)
-      } catch {
-        // Best-effort restore; the repair falls back to temp+rename either way.
-      }
-    } finally {
-      try {
-        fs.closeSync(modeFd)
-      } catch {
-        // Best-effort close
-      }
-    }
-    return null
-  }
-  try {
-    fs.closeSync(modeFd)
-  } catch {
-    // Best-effort close
-  }
-  return { fd: secondTry, modeToRestore: mode }
-}
-
-function openDescriptorForModeChange (fileDest: string, stats: fs.BigIntStats): number | null {
+function openSameFile (fileDest: string, stats: fs.BigIntStats): number | null {
   let fd: number
   try {
-    fd = fs.openSync(fileDest, READONLY_OPEN)
+    fd = withFileLockRetry(() => fs.openSync(fileDest, IN_PLACE_OPEN))
   } catch {
     return null
   }
-  const fdStats = fs.fstatSync(fd, { bigint: true })
+  let fdStats: fs.BigIntStats
+  try {
+    fdStats = fs.fstatSync(fd, { bigint: true })
+  } catch {
+    closeQuietly(fd)
+    return null
+  }
   if (!fdStats.isFile() || fdStats.dev !== stats.dev || fdStats.ino !== stats.ino) {
-    try {
-      fs.closeSync(fd)
-    } catch {
-      // Best-effort close
-    }
+    closeQuietly(fd)
     return null
   }
   return fd
 }
 
 /**
- * Opens `fileDest` for truncate-and-rewrite and verifies the opened
- * handle is the same regular file `stats` described, closing it and
- * returning null otherwise. The lstat-then-open window would let a
- * symlink swapped in between be followed into a file the store does
- * not own — O_NOFOLLOW covers that on POSIX, but Windows has no such
- * flag, so the check is bound to the descriptor actually opened.
- * `bypassLockRetry` makes the open fail fast, for files whose missing
- * owner-write bit already says the refusal is not a transient lock.
+ * A close failure after a write is caught by the integrity verification
+ * that follows it, and after a refused open there is nothing to lose.
  */
-function openSameFile (fileDest: string, stats: fs.BigIntStats, bypassLockRetry: boolean): number | null {
-  let fd: number
+function closeQuietly (fd: number): void {
   try {
-    fd = bypassLockRetry
-      ? fs.openSync(fileDest, IN_PLACE_OPEN)
-      : withFileLockRetry(() => fs.openSync(fileDest, IN_PLACE_OPEN))
-  } catch {
-    return null
-  }
-  const fdStats = fs.fstatSync(fd, { bigint: true })
-  if (!fdStats.isFile() || fdStats.dev !== stats.dev || fdStats.ino !== stats.ino) {
-    try {
-      fs.closeSync(fd)
-    } catch {
-      // Best-effort close; the caller falls back to temp+rename.
-    }
-    return null
-  }
-  try {
-    fs.ftruncateSync(fd, 0)
-  } catch {
-    try {
-      fs.closeSync(fd)
-    } catch {
-      // Best-effort close
-    }
-    return null
-  }
-  return fd
+    fs.closeSync(fd)
+  } catch {}
 }
 
 export function optimisticRenameOverwrite (temp: string, fileDest: string): void {

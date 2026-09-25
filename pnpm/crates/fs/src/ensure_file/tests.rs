@@ -86,7 +86,7 @@ fn cas_repair_preserves_inode_for_same_length_corruption() {
     fs::hard_link(&path, &linked).unwrap();
     let ino_before = fs::metadata(&path).unwrap().ino();
 
-    fs::write(&linked, b"tampered!").unwrap();
+    fs::write(&linked, b"tampered").unwrap();
 
     ensure_cas_file(&path, b"original", None).expect("in-place repair");
 
@@ -94,67 +94,25 @@ fn cas_repair_preserves_inode_for_same_length_corruption() {
     assert_eq!(fs::read(&linked).unwrap(), b"original");
 }
 
-/// A write-protected corrupt blob — tar entries keep modes like 0o444,
-/// and the readonly attribute that maps to on Windows — is repaired in
-/// place too: the repair lifts the write protection for the rewrite and
-/// restores the original mode, keeping the inode (pnpm/pnpm#3445).
+/// A corrupt blob without the owner-write bit refuses the in-place
+/// write open, so the repair falls back to the atomic rename and still
+/// restores the content.
 #[cfg(unix)]
 #[test]
-fn cas_repair_of_read_only_blob_preserves_inode_and_restores_mode() {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+fn cas_repair_of_write_protected_blob_falls_back_to_rename() {
+    use std::os::unix::fs::PermissionsExt;
 
-    let tmp = tempdir().unwrap();
-    let path = tmp.path().join("cas_entry");
-    ensure_cas_file(&path, b"original", None).unwrap();
-    fs::write(&path, b"tampered").unwrap();
-    let mut permissions = fs::metadata(&path).unwrap().permissions();
-    permissions.set_mode(0o444);
-    fs::set_permissions(&path, permissions).unwrap();
-    let ino_before = fs::metadata(&path).unwrap().ino();
+    for mode in [0o444, 0o464] {
+        let tmp = tempdir().unwrap();
+        let path = tmp.path().join("cas_entry");
+        ensure_cas_file(&path, b"original", None).unwrap();
+        fs::write(&path, b"tampered").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(mode)).unwrap();
 
-    ensure_cas_file(&path, b"original", None).expect("in-place repair of a read-only blob");
+        ensure_cas_file(&path, b"original", None).expect("repair of a write-protected blob");
 
-    assert_eq!(fs::read(&path).unwrap(), b"original");
-    assert_eq!(fs::metadata(&path).unwrap().ino(), ino_before, "inode must survive repair");
-    let mode = fs::metadata(&path)
-        .unwrap()
-        .permissions()
-        .mode()
-        & 0o777;
-    assert_eq!(mode, 0o444, "write protection must be restored");
-}
-
-/// A corrupt blob whose mode lacks the owner-write bit but has other
-/// write bits (e.g. 0o464) is repaired in place: `is_write_protected`
-/// inspects the owner bit specifically rather than `readonly()`,
-/// keeping the inode and healing hard-linked copies.
-#[cfg(unix)]
-#[test]
-fn cas_repair_preserves_hardlink_for_owner_non_writable_mode() {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
-
-    let tmp = tempdir().unwrap();
-    let path = tmp.path().join("cas_entry");
-    ensure_cas_file(&path, b"original", None).unwrap();
-    let linked = tmp.path().join("linked_copy");
-    fs::hard_link(&path, &linked).unwrap();
-    let ino_before = fs::metadata(&path).unwrap().ino();
-
-    fs::write(&linked, b"tampered").unwrap();
-    let mut permissions = fs::metadata(&path).unwrap().permissions();
-    permissions.set_mode(0o464);
-    fs::set_permissions(&path, permissions).unwrap();
-
-    ensure_cas_file(&path, b"original", None).expect("in-place repair of 0o464 blob");
-
-    assert_eq!(fs::read(&linked).unwrap(), b"original", "hard-linked copy must be healed");
-    assert_eq!(fs::metadata(&path).unwrap().ino(), ino_before, "inode must survive repair");
-    let mode = fs::metadata(&path)
-        .unwrap()
-        .permissions()
-        .mode()
-        & 0o777;
-    assert_eq!(mode, 0o464, "mode 0o464 must be restored");
+        assert_eq!(fs::read(&path).unwrap(), b"original", "mode {mode:o}");
+    }
 }
 
 #[test]

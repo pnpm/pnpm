@@ -874,7 +874,8 @@ test('install --force repairs a modified store file in place, keeping its inode'
   // copies is asserted only where the in-place overwrite works.
   if (!isWindows()) {
     expect(fs.readFileSync(linkedCopy, 'utf8')).toBe(pristine)
-    expect(fs.statSync(linkedCopy).ino).toBe(inodeBefore)
+    // The reinstalled file links to the store file, whose inode must be kept
+    expect(fs.statSync(installedFile).ino).toBe(inodeBefore)
   }
 })
 

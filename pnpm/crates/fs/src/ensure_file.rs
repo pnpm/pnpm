@@ -421,22 +421,21 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
 /// projects' `node_modules` entries importing the same CAS blob — are
 /// healed by the same write (pnpm/pnpm#3445).
 ///
-/// The path is rejected unless it is a regular file, and the opened
-/// handle is verified to be that same file before a byte is written:
-/// on Unix the open uses `O_NOFOLLOW`, so a symlink swapped in after
-/// the metadata check is refused rather than followed, but Windows has
-/// no such flag, so the descriptor itself is compared against the
-/// checked dirent's identity. `O_NONBLOCK` keeps a FIFO from holding
-/// the open.
+/// The open does not follow a symlink at `file_path` (`O_NOFOLLOW` on
+/// Unix, `FILE_FLAG_OPEN_REPARSE_POINT` on Windows), and the opened
+/// handle is compared against the identity of the file seen before the
+/// open, so a dirent swapped in between is left untouched. Nothing is
+/// truncated before that check passes. `O_NONBLOCK` keeps a FIFO from
+/// holding the open.
 ///
 /// Returns `false` when in-place overwrite is refused and the caller
 /// should fall back to an atomic temp+rename: the target is not a
-/// regular file, it refuses the write open even after its write
-/// protection is lifted (a running executable's `ETXTBSY`, another
-/// owner's file), or the write failed. Every such state is one the
-/// rename handles correctly, and a persistent failure (e.g. `ENOSPC`)
-/// re-surfaces with proper context when the fallback attempts its own
-/// write, so no error detail is lost by collapsing these into `false`.
+/// regular file, it refuses the write open (write protection, a running
+/// executable's `ETXTBSY`, another owner's file), or the write failed.
+/// Every such state is one the rename handles correctly, and a
+/// persistent failure (e.g. `ENOSPC`) re-surfaces with proper context
+/// when the fallback attempts its own write, so no error detail is lost
+/// by collapsing these into `false`.
 ///
 /// In-place overwrite is not atomic: a concurrent reader can observe
 /// torn content for the duration of the write. The file was already
@@ -444,11 +443,15 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
 /// the trade is a brief torn-read window for healing every hard-linked
 /// copy at once.
 pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> bool {
-    #[cfg(unix)]
-    let expected = match fs::symlink_metadata(file_path) {
-        Ok(meta) if meta.file_type().is_file() => meta,
+    // A write-protected file refuses the write open, and on Windows that
+    // refusal would first spend the transient-lock retry budget.
+    #[cfg_attr(windows, expect(unused_variables, reason = "Windows compares handles instead"))]
+    let meta = match fs::symlink_metadata(file_path) {
+        Ok(meta) if meta.file_type().is_file() && !meta.permissions().readonly() => meta,
         _ => return false,
     };
+    #[cfg(unix)]
+    let expected = meta;
     #[cfg(windows)]
     let Ok(expected) = same_file::Handle::from_path(file_path) else {
         return false;
@@ -460,26 +463,27 @@ pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> b
         use std::os::unix::fs::OpenOptionsExt;
         options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
     }
-    let Some((mut file, restore_permissions)) = open_for_overwrite(file_path, &options) else {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        options.custom_flags(windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT);
+    }
+    // Antivirus and indexer scans briefly hold just-written Windows
+    // paths open, failing an unlucky open with an access-denied error
+    // that clears moments later.
+    let open = || retry_transient_file_locks(|| retry_on_fd_pressure(|| options.open(file_path)));
+    let Ok(mut file) = open() else {
         return false;
     };
-    let handle_matches = same_file(&file, &expected);
-    let written = handle_matches
+    same_file(&file, &expected)
         && file.set_len(0).is_ok()
         && file.rewind().is_ok()
-        && io::copy(reader, &mut file).is_ok();
-    drop(file);
-    if let Some(permissions) = restore_permissions {
-        // Best-effort restore; the next repair retries.
-        let _ = fs::set_permissions(file_path, permissions);
-    }
-    written
+        && io::copy(reader, &mut file).is_ok()
 }
 
 /// Whether the opened handle is the same regular file `expected`
-/// describes — the guard against a symlink swapped into the path
-/// between the metadata check and the open, which a write open would
-/// otherwise follow into a file the store does not own.
+/// describes — the guard against a dirent swapped into the path between
+/// the metadata check and the open.
 #[cfg(unix)]
 fn same_file(file: &File, expected: &fs::Metadata) -> bool {
     use std::os::unix::fs::MetadataExt;
@@ -493,83 +497,12 @@ fn same_file(file: &File, expected: &fs::Metadata) -> bool {
 
 #[cfg(windows)]
 fn same_file(file: &File, expected: &same_file::Handle) -> bool {
-    file.try_clone()
-        .and_then(same_file::Handle::from_file)
-        .is_ok_and(|handle| &handle == expected)
-}
-
-/// Open a store blob for truncate-and-rewrite, returning the handle and
-/// the permissions to restore after writing. When the blob is
-/// write-protected, lift the protection before writing: tar entries keep
-/// modes like `0o444`, and the readonly attribute that maps to on
-/// Windows refuses a write open with `ERROR_ACCESS_DENIED`. The repair
-/// changes the file's content, not its protection, so the saved
-/// permissions go back on afterwards.
-///
-/// The open runs under [`retry_transient_file_locks`]: antivirus and
-/// indexer scans briefly hold just-written Windows paths open, failing
-/// an unlucky open with an access-denied error that clears moments
-/// later. Lifting write protection beforehand avoids consuming the
-/// Windows permission-denied retry budget on a read-only file.
-fn open_for_overwrite(
-    file_path: &Path,
-    options: &OpenOptions,
-) -> Option<(File, Option<fs::Permissions>)> {
-    let meta = fs::symlink_metadata(file_path).ok()?;
-    if !meta.file_type().is_file() {
-        return None;
-    }
-    let restore_permissions = if is_write_protected(&meta.permissions()) {
-        fs::set_permissions(file_path, make_writable(&meta.permissions())).ok()?;
-        Some(meta.permissions())
-    } else {
-        None
-    };
-    let open = || retry_transient_file_locks(|| retry_on_fd_pressure(|| options.open(file_path)));
-    if let Ok(file) = open() {
-        return Some((file, restore_permissions));
-    }
-    if let Some(ref permissions) = restore_permissions {
-        // Best-effort restore; the repair falls back to temp+rename.
-        let _ = fs::set_permissions(file_path, permissions.clone());
-    }
-    None
-}
-
-/// Whether the file is write-protected for the current process: on Unix
-/// by lacking the owner-write bit, and on Windows by having the readonly
-/// attribute. Rust's `readonly()` checks whether all write bits (owner,
-/// group, other) are clear, which returns false for modes like 0o464
-/// where the owner still cannot write.
-#[cfg(unix)]
-fn is_write_protected(permissions: &fs::Permissions) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    permissions.mode() & 0o200 == 0
-}
-
-#[cfg(windows)]
-fn is_write_protected(permissions: &fs::Permissions) -> bool {
-    permissions.readonly()
-}
-
-/// Grant write permission, disturbing nothing else: on Unix by adding
-/// the owner-write bit to the mode — a blanket `set_readonly(false)`
-/// would make the file world-writable — and on Windows by clearing the
-/// readonly attribute, the only permission Windows tracks.
-#[cfg(unix)]
-fn make_writable(permissions: &fs::Permissions) -> fs::Permissions {
-    use std::os::unix::fs::PermissionsExt;
-    fs::Permissions::from_mode(permissions.mode() | 0o200)
-}
-
-#[cfg(windows)]
-// The lint guards the Unix world-writable side effect; on Windows
-// clearing the readonly attribute is the exact operation.
-#[allow(clippy::permissions_set_readonly_false)]
-fn make_writable(permissions: &fs::Permissions) -> fs::Permissions {
-    let mut writable = permissions.clone();
-    writable.set_readonly(false);
-    writable
+    file.metadata()
+        .is_ok_and(|handle_meta| handle_meta.file_type().is_file())
+        && file
+            .try_clone()
+            .and_then(same_file::Handle::from_file)
+            .is_ok_and(|handle| &handle == expected)
 }
 
 /// Write `content` to a unique temporary path next to `file_path` and
