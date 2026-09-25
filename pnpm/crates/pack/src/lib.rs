@@ -72,8 +72,11 @@ fn canonicalize_output_key(path: &Path) -> PathBuf {
 /// Result of packing one project.
 #[derive(Debug)]
 pub struct PackResult {
-    /// The manifest packed inside the tarball.
+    /// The manifest sent to the registry as package metadata. It always
+    /// carries the readme, whatever `embed_readme` says.
     pub published_manifest: Value,
+    /// The `package.json` written into the tarball.
+    pub packed_manifest: Value,
     /// Sorted, de-duplicated list of the tarball's contents (paths
     /// relative to the package root, `package.json` for the manifest).
     pub contents: Vec<String>,
@@ -107,6 +110,7 @@ pub struct PackResultJson {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size: Option<u64>,
     pub files: Vec<PackFile>,
+    pub manifest: Value,
 }
 
 /// One entry of [`PackResultJson::files`].
@@ -268,8 +272,15 @@ where
     }
 
     let tarball_path = packed_tarball_path(&opts.dir, &source.dir, &dest_dir, &tarball_name);
-    let published_manifest = with_registry_readme(source.publish_manifest, &source.dir)?;
-    Ok(PackResult { published_manifest, contents, tarball_path, unpacked_size, archive })
+    let published_manifest = with_registry_readme(source.publish_manifest.clone(), &source.dir)?;
+    Ok(PackResult {
+        published_manifest,
+        packed_manifest: source.publish_manifest,
+        contents,
+        tarball_path,
+        unpacked_size,
+        archive,
+    })
 }
 
 fn packed_files_map(

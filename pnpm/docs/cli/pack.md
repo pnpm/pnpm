@@ -47,6 +47,8 @@ The gzip compression level of the tarball, from `0` to `9`. Values outside that 
 
 Log output in JSON format. Each archive written has an `integrity`, its SHA-512 in SRI form, and a `size` in bytes. A dry run writes no archive, so it prints neither.
 
+The `manifest` field holds the `package.json` that goes into the tarball, after `publishConfig` and the other publish-time changes are applied. Run `pnpm pack --dry-run --json` to preview it without writing a tarball.
+
 ### --filter &lt;package_selector\>
 
 [Read more about filtering.](../filtering.md)
