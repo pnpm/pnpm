@@ -1,4 +1,6 @@
-use crate::{SyncInjectedDeps, sync_injected_deps, sync_injected_deps_of_modules_dir};
+use crate::{
+    SyncInjectedDeps, injected_source_dirs, sync_injected_deps, sync_injected_deps_of_modules_dir,
+};
 use pretty_assertions::assert_eq;
 use std::{collections::HashSet, ffi::OsStr, fs, path::Path};
 use tempfile::TempDir;
@@ -184,4 +186,24 @@ fn sync_removes_a_stale_bin_shim_the_publish_directory_no_longer_declares() {
         "the injected copy follows the rebuilt publish directory",
     );
     assert!(!stale_shim.exists(), "the shim for the bin the rebuild dropped must be removed");
+}
+
+#[test]
+fn injected_source_dirs_adds_the_publish_directory_of_each_manifest() {
+    let publishes = serde_json::json!({ "publishConfig": { "directory": "dist" } });
+    let opts_out = serde_json::json!({
+        "publishConfig": { "directory": "dist", "linkDirectory": false },
+    });
+    let projects = [
+        (Path::new("/ws/a"), Some(&publishes)),
+        (Path::new("/ws/b"), Some(&opts_out)),
+        (Path::new("/ws/c"), None),
+    ];
+
+    let expected: HashSet<_> = ["/ws/a", "/ws/a/dist", "/ws/b", "/ws/c"]
+        .into_iter()
+        .map(Path::new)
+        .map(Path::to_path_buf)
+        .collect();
+    assert_eq!(injected_source_dirs(projects), expected);
 }
