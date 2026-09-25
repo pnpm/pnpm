@@ -536,29 +536,14 @@ fn run_in_shell<Reporter: self::Reporter>(
     let mut child = spawn_in_pkg_root(&mut cmd, pkg_root)
         .map_err(|error| spawn_error(opts, stage, pkg_root, error))?;
 
-    let stdout = child.child_mut().stdout.take();
-    let stderr = child.child_mut().stderr.take();
-
     let target = StreamedScript { dep_path: opts.dep_path, stage, wd, emit: Reporter::emit };
-    let stdout_handle = stdout.map(|stream| target.pump_stream(stream, LifecycleStdio::Stdout));
-    let stderr_handle = stderr.map(|stream| target.pump_stream(stream, LifecycleStdio::Stderr));
-
-    let status = child
-        .wait()
+    let status = target
+        .pump(&mut child)
         .map_err(|error| LifecycleScriptError::Wait {
             dep_path: opts.dep_path.to_string(),
             stage: stage.to_string(),
             source: error,
         })?;
-
-    // Joining the pumps after `wait` ensures every line they read is
-    // emitted before the caller's `Exit` event, matching pnpm's ordering.
-    if let Some(handle) = stdout_handle {
-        let _ = handle.join();
-    }
-    if let Some(handle) = stderr_handle {
-        let _ = handle.join();
-    }
 
     Ok(ScriptExit::Process(status))
 }

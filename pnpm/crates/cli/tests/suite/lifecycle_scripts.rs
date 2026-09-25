@@ -44,3 +44,9 @@ mod shell_emulator;
 /// A `scriptShell` that does not exist fails the spawn with an error that
 /// names it, not only the package directory the script was to run in.
 mod missing_script_shell;
+
+/// A project script that exits while a process it started in the
+/// background still holds its output pipes does not stall the install.
+/// Unix-only: the script backgrounds a POSIX `sleep`.
+#[cfg(unix)]
+mod background_output;
