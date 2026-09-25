@@ -327,31 +327,50 @@ impl Walker<'_> {
             if !visited.insert(child_pkg_id) {
                 continue;
             }
-            let Some(child_pkg) = self.tree.packages.get(child_pkg_id) else { continue };
-            if child_pkg.peer_dependencies.contains_key(parent_pkg_name)
-                && conflicting_peers
-                    .iter()
-                    .any(|peer| child_pkg.peer_dependencies.contains_key(peer))
-            {
+            if self.pkg_binds_conflicting_peer(child_pkg_id, parent_pkg_name, conflicting_peers) {
                 return true;
             }
-            let grandchildren = match child_node_id.and_then(|child_node_id| {
-                self.tree.dependencies_tree.get(child_node_id)
-            }) {
-                Some(child_node) => self.child_edges_of(child_node),
-                None => self.child_edges_of_pkg(child_pkg_id),
-            };
-            // A descendant that has its own copy of the provider hands that
-            // copy to its subtree, so the inherited one reaches no deeper.
-            if grandchildren
-                .iter()
-                .any(|(alias, _, _)| *alias == parent_pkg_name)
-            {
-                continue;
-            }
-            pending.extend(grandchildren);
+            pending.extend(self.children_inheriting(child_pkg_id, child_node_id, parent_pkg_name));
         }
         false
+    }
+
+    /// Whether `pkg_id` peer-depends on the provider and on one of the peers
+    /// the two contexts disagree about.
+    fn pkg_binds_conflicting_peer(
+        &self,
+        pkg_id: &str,
+        parent_pkg_name: &str,
+        conflicting_peers: &HashSet<String>,
+    ) -> bool {
+        let Some(pkg) = self.tree.packages.get(pkg_id) else { return false };
+        pkg.peer_dependencies.contains_key(parent_pkg_name)
+            && conflicting_peers
+                .iter()
+                .any(|peer| pkg.peer_dependencies.contains_key(peer))
+    }
+
+    /// The children of a descendant that still inherit the provider. None do
+    /// when the descendant has its own copy of it, because that copy is what
+    /// its subtree inherits.
+    fn children_inheriting<'a>(
+        &'a self,
+        pkg_id: &'a str,
+        node_id: Option<&'a NodeId>,
+        parent_pkg_name: &str,
+    ) -> Vec<(&'a str, &'a str, Option<&'a NodeId>)> {
+        let children =
+            match node_id.and_then(|node_id| self.tree.dependencies_tree.get(node_id)) {
+                Some(node) => self.child_edges_of(node),
+                None => self.child_edges_of_pkg(pkg_id),
+            };
+        if children
+            .iter()
+            .any(|(alias, _, _)| *alias == parent_pkg_name)
+        {
+            return Vec::new();
+        }
+        children
     }
 
     /// A node's children as `(alias, package id, node id)`, from its realized
