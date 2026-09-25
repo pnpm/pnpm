@@ -293,15 +293,26 @@ fn check_field_extras(
     let Some(importer_map) = importer_field else {
         return Ok(());
     };
+    let field_name = <&'static str>::from(field);
     for (name, spec) in importer_map {
-        if !manifest_field.contains_key(name.to_string().as_str()) {
+        let name_str = name.to_string();
+        let Some(manifest_spec) = manifest_field.get(name_str.as_str()) else {
             return Err(StalenessReason::DepSpecifierMismatch {
-                field: <&'static str>::from(field),
-                name: name.to_string(),
+                field: field_name,
+                name: name_str,
                 lockfile: spec.specifier.clone(),
                 manifest: "(absent)".to_string(),
             });
+        };
+        if !dependency_specifiers_equal(&spec.specifier, manifest_spec) {
+            return Err(StalenessReason::DepSpecifierMismatch {
+                field: field_name,
+                name: name_str,
+                lockfile: spec.specifier.clone(),
+                manifest: (*manifest_spec).to_string(),
+            });
         }
+        check_resolution_satisfies(&name_str, manifest_spec, Some(spec))?;
     }
     Ok(())
 }

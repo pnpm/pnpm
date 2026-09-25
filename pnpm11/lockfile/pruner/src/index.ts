@@ -54,7 +54,7 @@ export function pruneLockfile (
   const lockfileSpecs: ResolvedDependencies = importer.specifiers ?? {}
   const optionalDependencies = Object.keys(pkg.optionalDependencies ?? {})
   const dependencies = difference(Object.keys(pkg.dependencies ?? {}), optionalDependencies)
-  const devDependencies = difference(difference(Object.keys(pkg.devDependencies ?? {}), optionalDependencies), dependencies)
+  const devDependencies = difference(Object.keys(pkg.devDependencies ?? {}), optionalDependencies)
   const allDeps = new Set([
     ...optionalDependencies,
     ...devDependencies,
@@ -68,12 +68,18 @@ export function pruneLockfile (
   for (const depName in lockfileSpecs) {
     if (!allDeps.has(depName)) continue
     specifiers[depName] = lockfileSpecs[depName]
-    if (importer.dependencies?.[depName]) {
-      lockfileDependencies[depName] = importer.dependencies[depName]
-    } else if (importer.optionalDependencies?.[depName]) {
-      lockfileOptionalDependencies[depName] = importer.optionalDependencies[depName]
-    } else if (importer.devDependencies?.[depName]) {
-      lockfileDevDependencies[depName] = importer.devDependencies[depName]
+    const ref = importer.optionalDependencies?.[depName] ??
+      importer.dependencies?.[depName] ??
+      importer.devDependencies?.[depName]
+    if (pkg.optionalDependencies?.[depName] != null) {
+      lockfileOptionalDependencies[depName] = importer.optionalDependencies?.[depName] ?? ref!
+    } else {
+      if (pkg.dependencies?.[depName] != null) {
+        lockfileDependencies[depName] = importer.dependencies?.[depName] ?? ref!
+      }
+      if (pkg.devDependencies?.[depName] != null) {
+        lockfileDevDependencies[depName] = importer.devDependencies?.[depName] ?? ref!
+      }
     }
   }
   if (importer.dependencies != null) {

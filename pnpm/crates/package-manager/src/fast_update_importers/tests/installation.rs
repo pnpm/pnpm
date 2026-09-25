@@ -273,6 +273,64 @@ fn stands_aside_when_an_alias_is_recorded_under_every_declared_group() {
 
     assert!(updated.is_none(), "both groups are recorded, so the handler stands aside");
 }
+
+#[test]
+fn removes_prod_entry_when_manifest_narrows_to_dev_only() {
+    let mut subject = parsed_lockfile(WITH_REMOVABLE_DEP);
+    let importer = subject.importers.get_mut(".").expect("importer");
+    let alias: PkgName = "bar".parse().expect("alias");
+    let recorded = importer.dependencies.as_ref().expect("dependencies")[&alias].clone();
+    importer.dev_dependencies.get_or_insert_default().insert(alias.clone(), recorded);
+    let manifest = manifest_from(json!({
+        "dependencies": { "foo": "^1.0.0" },
+        "devDependencies": { "bar": "^2.0.0" },
+    }));
+
+    let updated = try_fast_update_importers(&subject, &[(".".to_string(), &manifest)])
+        .expect("removing a group edge needs no resolution");
+
+    let importer = &updated.importers["."];
+    assert!(
+        importer.dependencies
+            .as_ref()
+            .is_none_or(|deps| !deps.contains_key(&alias)),
+        "bar should no longer be in dependencies",
+    );
+    assert!(
+        importer.dev_dependencies
+            .as_ref()
+            .is_some_and(|deps| deps.contains_key(&alias)),
+        "bar should remain in devDependencies",
+    );
+}
+
+#[test]
+fn synchronizes_duplicate_records_after_retarget() {
+    let mut subject = parsed_lockfile(WITH_TWO_LOCKED_VERSIONS);
+    let importer = subject.importers.get_mut(".").expect("importer");
+    let alias: PkgName = "foo".parse().expect("alias");
+    let recorded = importer.dependencies.as_ref().expect("dependencies")[&alias].clone();
+    importer.dev_dependencies.get_or_insert_default().insert(alias.clone(), recorded);
+    let manifest = manifest_from(json!({
+        "dependencies": { "foo": "^1.2.0" },
+        "devDependencies": { "foo": "^1.2.0" },
+    }));
+    let other = manifest_from(json!({ "dependencies": { "foo": "1.2.0" } }));
+
+    let updated = try_fast_update_importers(
+        &subject,
+        &[(".".to_string(), &manifest), ("pkg-a".to_string(), &other)],
+    )
+    .expect("retargeting both copies of an alias");
+
+    let importer = &updated.importers["."];
+    let prod = &importer.dependencies.as_ref().expect("dependencies")[&alias];
+    let dev = &importer.dev_dependencies.as_ref().expect("devDependencies")[&alias];
+    assert_eq!(prod.version.to_string(), "1.2.0");
+    assert_eq!(dev.version.to_string(), "1.2.0");
+    assert_eq!(prod.specifier, "^1.2.0");
+    assert_eq!(dev.specifier, "^1.2.0");
+}
 #[test]
 fn moves_several_dependencies_between_groups_in_one_pass() {
     let manifest = manifest_from(json!({

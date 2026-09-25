@@ -99,40 +99,52 @@ export function satisfiesPackageManifest (
       pkgDeps = pickNonLinkedDeps(pkgDeps)
     }
 
-    let pkgDepNames!: string[]
+    let requiredDepNames: string[]
+    let allowedDepNames: Set<string>
     switch (depField) {
       case 'optionalDependencies':
-        pkgDepNames = Object.keys(pkgDeps)
+        requiredDepNames = Object.keys(pkgDeps)
+        allowedDepNames = new Set(requiredDepNames)
         break
       case 'devDependencies':
-        pkgDepNames = Object.keys(pkgDeps)
+        requiredDepNames = Object.keys(pkgDeps)
           .filter((depName) => !pkg.optionalDependencies?.[depName] && !pkg.dependencies?.[depName])
+        allowedDepNames = new Set(
+          Object.keys(pkgDeps).filter((depName) => !pkg.optionalDependencies?.[depName])
+        )
         break
       case 'dependencies':
-        pkgDepNames = Object.keys(pkgDeps)
+        requiredDepNames = Object.keys(pkgDeps)
           .filter((depName) => !pkg.optionalDependencies?.[depName])
+        allowedDepNames = new Set(requiredDepNames)
         break
       default:
         throw new Error(`Unknown dependency type "${depField as string}"`)
     }
-    if (
-      pkgDepNames.length !== Object.keys(importerDeps).length &&
-      pkgDepNames.length !== countOfNonLinkedDeps(importerDeps)
-    ) {
-      return {
-        satisfies: false,
-        detailedReason: `"${depField}" in the lockfile (${JSON.stringify(importerDeps)}) doesn't match the same field in package.json (${JSON.stringify(pkgDeps)})`,
+    for (const depName of requiredDepNames) {
+      if (!importerDeps[depName]) {
+        return {
+          satisfies: false,
+          detailedReason: `"${depField}" in the lockfile (${JSON.stringify(importerDeps)}) doesn't match the same field in package.json (${JSON.stringify(pkgDeps)})`,
+        }
       }
     }
-    for (const depName of pkgDepNames) {
-      if (!importerDeps[depName] || !dependencySpecifiersAreEqual(importer.specifiers?.[depName], pkgDeps[depName])) {
+    for (const [depName, ref] of Object.entries(importerDeps)) {
+      if (ref.includes('link:') || ref.includes('file:')) continue
+      if (!allowedDepNames.has(depName)) {
+        return {
+          satisfies: false,
+          detailedReason: `"${depField}" in the lockfile (${JSON.stringify(importerDeps)}) doesn't match the same field in package.json (${JSON.stringify(pkgDeps)})`,
+        }
+      }
+      if (!dependencySpecifiersAreEqual(importer.specifiers?.[depName], pkgDeps[depName])) {
         return {
           satisfies: false,
           detailedReason: `importer ${depField}.${depName} specifier ${importer.specifiers[depName]} don't match package manifest specifier (${pkgDeps[depName]})`,
         }
       }
       if (importer?.specifiers[depName] == null || !semver.validRange(importer?.specifiers[depName])) continue
-      const version = dp.removeSuffix(importerDeps[depName])
+      const version = dp.removeSuffix(ref)
       if (semver.valid(version) && !semver.satisfies(version, importer.specifiers[depName])) {
         return {
           satisfies: false,
@@ -155,9 +167,6 @@ function omitIgnoredDependencies (
   return filteredDependencies
 }
 
-function countOfNonLinkedDeps (lockfileDeps: { [depName: string]: string }): number {
-  return Object.values(lockfileDeps).filter((ref) => !ref.includes('link:') && !ref.includes('file:')).length
-}
 
 function displaySpecDiff ({ added, removed, modified }: Diff<string, string>): string {
   let result = ''

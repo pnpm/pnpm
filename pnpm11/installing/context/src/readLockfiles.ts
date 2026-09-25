@@ -230,7 +230,7 @@ function declaredDepNamesByField (
   const dependencies = new Set(Object.keys(manifest.dependencies ?? {})
     .filter((depName) => !optionalDependencies.has(depName)))
   const devDependencies = new Set(Object.keys(manifest.devDependencies ?? {})
-    .filter((depName) => !optionalDependencies.has(depName) && !dependencies.has(depName)))
+    .filter((depName) => !optionalDependencies.has(depName)))
   if (autoInstallPeers) {
     // A peer another field declares is not auto-installed, so it stays where
     // that field puts it.

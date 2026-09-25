@@ -88,9 +88,11 @@ export function tryFastUpdateImporters (
     if (importer == null) return false
     let editedGroups = false
     for (const [alias, specifier] of Object.entries(manifestSpecifiers)) {
+      const targetGroups = effectiveDependencyGroups(project.manifest, alias)
+      let recordedGroups = recordedDependencyGroups(importer, alias)
+      let specifierChanged = false
       if (importer.specifiers[alias] !== specifier) {
-        const recordedIn = recordedDependencyGroup(importer, alias)
-        const reference = recordedIn == null ? undefined : importer[recordedIn]![alias]
+        const reference = recordedGroups.length === 0 ? undefined : importer[recordedGroups[0]]![alias]
         if (semver.validRange(specifier) == null) return false
         if (reference == null) {
           if (!addImporterEdge(lockfile, { importer, alias, specifier, project, opts }, edits)) {
@@ -107,26 +109,40 @@ export function tryFastUpdateImporters (
         })
         if (wanted == null) return false
         if (wanted !== version) {
-          // Safe without resolving because the target version is already in
-          // the lockfile, subtree and all.
           if (reference !== version) return false
-          importer[recordedIn!]![alias] = wanted
+          for (const group of recordedGroups) {
+            importer[group]![alias] = wanted
+          }
           recordDroppedEdge(edits.dropped, alias, reference)
         }
         importer.specifiers[alias] = specifier
+        specifierChanged = true
         changed = true
       }
-      const recordedIn = recordedDependencyGroup(importer, alias)
-      const targetGroup = effectiveDependencyGroup(project.manifest, alias)
-      if (recordedIn == null || recordedIn === targetGroup) continue
-      const target = importer[targetGroup] ??= {}
-      target[alias] = importer[recordedIn]![alias]
-      delete importer[recordedIn]![alias]
-      if (recordedIn === 'optionalDependencies' || targetGroup === 'optionalDependencies') {
-        edits.optionalFlagsAreStale = true
+      recordedGroups = recordedDependencyGroups(importer, alias)
+      const groupsChanged = recordedGroups.length !== targetGroups.length ||
+        targetGroups.some((g) => !recordedGroups.includes(g))
+      if (groupsChanged || specifierChanged) {
+        if (recordedGroups.length > 0) {
+          const ref = importer[recordedGroups[0]]![alias]
+          for (const targetGroup of targetGroups) {
+            (importer[targetGroup] ??= {})[alias] = ref
+          }
+          for (const recordedGroup of recordedGroups) {
+            if (!targetGroups.includes(recordedGroup)) {
+              delete importer[recordedGroup]![alias]
+            }
+          }
+          if (
+            recordedGroups.includes('optionalDependencies') !==
+            targetGroups.includes('optionalDependencies')
+          ) {
+            edits.optionalFlagsAreStale = true
+          }
+          editedGroups = true
+          changed = true
+        }
       }
-      editedGroups = true
-      changed = true
     }
     for (const alias of Object.keys(importer.specifiers)) {
       if (manifestSpecifiers[alias] != null) continue
@@ -182,8 +198,10 @@ function writeImporterFromLockedVersions (
       resolutionPicksLowest: opts.resolutionPicksLowest,
     })
     if (version == null) return false
-    const group = effectiveDependencyGroup(project.manifest, alias)
-    ;(importer[group] ??= {})[alias] = version
+    const groups = effectiveDependencyGroups(project.manifest, alias)
+    for (const group of groups) {
+      ;(importer[group] ??= {})[alias] = version
+    }
     importer.specifiers[alias] = specifier
   }
   if (project.manifest.dependenciesMeta != null) {
@@ -235,13 +253,15 @@ function addImporterEdge (
   // resolution can look up the one for a package this promotes into that
   // position.
   if (lockfile.time != null && lockfile.time[`${alias}@${wanted}`] == null) return false
-  const targetGroup = effectiveDependencyGroup(project.manifest, alias)
-  const target = importer[targetGroup] ??= {}
-  target[alias] = wanted
+  const targetGroups = effectiveDependencyGroups(project.manifest, alias)
+  for (const targetGroup of targetGroups) {
+    const target = importer[targetGroup] ??= {}
+    target[alias] = wanted
+  }
   importer.specifiers[alias] = specifier
   // A path that does not run through `optionalDependencies` clears the
   // `optional` flag of everything the new edge reaches.
-  edits.optionalFlagsAreStale ||= targetGroup !== 'optionalDependencies'
+  edits.optionalFlagsAreStale ||= !targetGroups.includes('optionalDependencies')
   return true
 }
 
@@ -312,29 +332,32 @@ function dependencyGroupMoved (
   manifest: ProjectManifest,
   alias: string
 ): boolean {
-  const recordedIn = recordedDependencyGroup(importer, alias)
-  return recordedIn != null && recordedIn !== effectiveDependencyGroup(manifest, alias)
+  const recorded = recordedDependencyGroups(importer, alias)
+  const target = effectiveDependencyGroups(manifest, alias)
+  if (recorded.length !== target.length) return true
+  return target.some((group) => !recorded.includes(group))
 }
 
 /** Record the edge from `importer` to `alias` as severed. */
 function recordDroppedImporterEdge (dropped: DroppedEdges, importer: ProjectSnapshot, alias: string): void {
-  const recordedIn = recordedDependencyGroup(importer, alias)
-  recordDroppedEdge(dropped, alias, recordedIn == null ? undefined : importer[recordedIn]![alias])
+  for (const group of DEPENDENCIES_FIELDS) {
+    if (importer[group]?.[alias] != null) {
+      recordDroppedEdge(dropped, alias, importer[group]![alias])
+      break
+    }
+  }
 }
 
-function recordedDependencyGroup (importer: ProjectSnapshot, alias: string): DependenciesField | null {
-  return DEPENDENCIES_FIELDS.find((group) => importer[group]?.[alias] != null) ?? null
+function recordedDependencyGroups (importer: ProjectSnapshot, alias: string): DependenciesField[] {
+  return DEPENDENCIES_FIELDS.filter((group) => importer[group]?.[alias] != null)
 }
 
-/**
- * The group `satisfiesPackageManifest` expects a manifest dependency to be
- * recorded under when it appears in several: optional wins over prod, prod
- * over dev.
- */
-function effectiveDependencyGroup (manifest: ProjectManifest, alias: string): DependenciesField {
-  if (manifest.optionalDependencies?.[alias] != null) return 'optionalDependencies'
-  if (manifest.dependencies?.[alias] != null) return 'dependencies'
-  return 'devDependencies'
+function effectiveDependencyGroups (manifest: ProjectManifest, alias: string): DependenciesField[] {
+  if (manifest.optionalDependencies?.[alias] != null) return ['optionalDependencies']
+  const groups: DependenciesField[] = []
+  if (manifest.dependencies?.[alias] != null) groups.push('dependencies')
+  if (manifest.devDependencies?.[alias] != null) groups.push('devDependencies')
+  return groups
 }
 
 function getManifestSpecifiers (manifest: ProjectManifest): Record<string, string> {

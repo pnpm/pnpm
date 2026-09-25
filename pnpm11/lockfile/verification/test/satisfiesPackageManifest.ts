@@ -56,6 +56,31 @@ test('satisfiesPackageManifest()', () => {
     {},
     {
       dependencies: { foo: '1.0.0' },
+      devDependencies: { foo: '1.0.0' },
+      specifiers: { foo: '^1.0.0' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: { foo: '^1.0.0' },
+      devDependencies: { foo: '^1.0.0' },
+    }
+  )).toStrictEqual({ satisfies: true })
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: { foo: '1.0.0' },
+      specifiers: { foo: '^1.0.0' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: { foo: '^1.0.0' },
+      devDependencies: { foo: '^1.0.0' },
+    }
+  )).toStrictEqual({ satisfies: true })
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: { foo: '1.0.0' },
       specifiers: { foo: '^1.0.0' },
     },
     {

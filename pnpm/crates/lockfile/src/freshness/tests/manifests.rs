@@ -33,6 +33,39 @@ fn manifest_declaring_a_dep_in_dev_and_prod_matches_a_lockfile_recorded_in_both(
 }
 
 #[test]
+fn conflicting_dev_entry_is_rejected_even_when_prod_matches() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      is-even:"
+        "        specifier: ^1.0.0"
+        "        version: 1.0.0"
+        "    devDependencies:"
+        "      is-even:"
+        "        specifier: ^2.0.0"
+        "        version: 2.0.0"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    let (_dir, manifest) = manifest_from_json(
+        r#"{
+        "name": "x",
+        "version": "1.0.0",
+        "dependencies": { "is-even": "^1.0.0" },
+        "devDependencies": { "is-even": "^1.0.0" }
+    }"#,
+    );
+    let err = satisfies_package_manifest(importer, &manifest, true, &|_: &str| false)
+        .expect_err("conflicting dev entry must be reported as stale");
+    assert!(
+        matches!(err, StalenessReason::DepSpecifierMismatch { field: "devDependencies", .. }),
+        "got: {err:?}",
+    );
+}
+
+#[test]
 fn matching_manifest_and_lockfile_satisfies() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
         "lockfileVersion: '9.0'"

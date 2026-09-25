@@ -123,12 +123,13 @@ pub(super) fn apply_importer_edge(
         );
     }
     let dependency = importer_dependency_mut(importer, alias).expect("looked up just above");
-    if dependency.specifier != specifier
+    let retargeted = dependency.specifier != specifier;
+    if retargeted
         && !retarget_importer_dependency(dependency, alias, specifier, locked, plan, edits)
     {
         return false;
     }
-    if let Some(recorded) = place_dependency(importer, alias, target) {
+    if let Some(recorded) = place_dependency(importer, alias, target, retargeted) {
         // Only a change to whether the package is optional here makes the
         // `optional` flags of its subtree stale.
         edits.optional_flags_are_stale |= recorded.contains(DependencyGroup::Optional)

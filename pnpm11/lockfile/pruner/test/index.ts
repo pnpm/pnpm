@@ -177,6 +177,63 @@ test('keep all', () => {
   })
 })
 
+test('preserve dependency declared in both dependencies and devDependencies', () => {
+  expect(pruneLockfile({
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+        devDependencies: {
+          'is-positive': '1.0.0',
+        },
+        specifiers: {
+          'is-positive': '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      ['is-positive@1.0.0' as DepPath]: {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+  }, {
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '^1.0.0',
+    },
+    devDependencies: {
+      'is-positive': '^1.0.0',
+    },
+  }, '.' as ProjectId, DEFAULT_OPTS)).toStrictEqual({
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+        devDependencies: {
+          'is-positive': '1.0.0',
+        },
+        specifiers: {
+          'is-positive': '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      'is-positive@1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+  })
+})
+
 test('optional dependency should have optional = true', () => {
   expect(pruneLockfile({
     importers: {

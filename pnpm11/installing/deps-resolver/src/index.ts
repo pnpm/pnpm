@@ -563,22 +563,33 @@ function addDirectDependenciesToLockfile (
         alias: dep.alias,
         realName: dep.name,
       })
-      if (dep.dev) {
-        newProjectSnapshot.devDependencies[dep.alias] = ref
-      } else if (dep.optional) {
+      if (newManifest.optionalDependencies?.[dep.alias] != null) {
         newProjectSnapshot.optionalDependencies[dep.alias] = ref
       } else {
-        newProjectSnapshot.dependencies[dep.alias] = ref
+        if (newManifest.dependencies?.[dep.alias] != null) {
+          newProjectSnapshot.dependencies[dep.alias] = ref
+        }
+        if (newManifest.devDependencies?.[dep.alias] != null) {
+          newProjectSnapshot.devDependencies[dep.alias] = ref
+        }
       }
       newProjectSnapshot.specifiers[dep.alias] = spec
     } else if (projectSnapshot.specifiers[alias]) {
       newProjectSnapshot.specifiers[alias] = projectSnapshot.specifiers[alias]
-      if (projectSnapshot.dependencies?.[alias]) {
-        newProjectSnapshot.dependencies[alias] = projectSnapshot.dependencies[alias]
-      } else if (projectSnapshot.optionalDependencies?.[alias]) {
-        newProjectSnapshot.optionalDependencies[alias] = projectSnapshot.optionalDependencies[alias]
-      } else if (projectSnapshot.devDependencies?.[alias]) {
-        newProjectSnapshot.devDependencies[alias] = projectSnapshot.devDependencies[alias]
+      const ref = projectSnapshot.dependencies?.[alias] ??
+        projectSnapshot.devDependencies?.[alias] ??
+        projectSnapshot.optionalDependencies?.[alias]
+      if (ref != null) {
+        if (newManifest.optionalDependencies?.[alias] != null) {
+          newProjectSnapshot.optionalDependencies[alias] = ref
+        } else {
+          if (newManifest.dependencies?.[alias] != null) {
+            newProjectSnapshot.dependencies[alias] = ref
+          }
+          if (newManifest.devDependencies?.[alias] != null) {
+            newProjectSnapshot.devDependencies[alias] = ref
+          }
+        }
       }
     }
   }
@@ -589,15 +600,24 @@ function addDirectDependenciesToLockfile (
 }
 
 function alignDependencyTypes (manifest: ProjectManifest, projectSnapshot: ProjectSnapshot): void {
-  const depTypesOfAliases = getAliasToDependencyTypeMap(manifest)
+  const depGroupsOfAliases = getAliasToDependencyGroupsMap(manifest)
 
-  // Aligning the dependency types in pnpm-lock.yaml
   for (const depType of DEPENDENCIES_FIELDS) {
     if (projectSnapshot[depType] == null) continue
     for (const [alias, ref] of Object.entries(projectSnapshot[depType] ?? {})) {
-      if (depType === depTypesOfAliases[alias] || !depTypesOfAliases[alias]) continue
-      projectSnapshot[depTypesOfAliases[alias]]![alias] = ref
-      delete projectSnapshot[depType]![alias]
+      const targetGroups = depGroupsOfAliases[alias]
+      if (!targetGroups) continue
+      for (const targetGroup of targetGroups) {
+        (projectSnapshot[targetGroup] ??= {})[alias] = ref
+      }
+      if (!targetGroups.includes(depType)) {
+        delete projectSnapshot[depType]![alias]
+      }
+    }
+  }
+  for (const depType of DEPENDENCIES_FIELDS) {
+    if (projectSnapshot[depType] != null && Object.keys(projectSnapshot[depType]!).length === 0) {
+      delete projectSnapshot[depType]
     }
   }
 }
@@ -618,17 +638,30 @@ async function waitForResolutionFetches (resolvedPkgsById: Record<string, Resolv
   }
 }
 
-function getAliasToDependencyTypeMap (manifest: ProjectManifest): Record<string, DependenciesField> {
-  const depTypesOfAliases: Record<string, DependenciesField> = {}
-  for (const depType of DEPENDENCIES_FIELDS) {
-    if (manifest[depType] == null) continue
-    for (const alias of Object.keys(manifest[depType] ?? {})) {
-      if (!depTypesOfAliases[alias]) {
-        depTypesOfAliases[alias] = depType
+function getAliasToDependencyGroupsMap (manifest: ProjectManifest): Record<string, DependenciesField[]> {
+  const depGroupsOfAliases: Record<string, DependenciesField[]> = {}
+  const allAliases = new Set([
+    ...Object.keys(manifest.optionalDependencies ?? {}),
+    ...Object.keys(manifest.dependencies ?? {}),
+    ...Object.keys(manifest.devDependencies ?? {}),
+  ])
+  for (const alias of allAliases) {
+    if (manifest.optionalDependencies?.[alias] != null) {
+      depGroupsOfAliases[alias] = ['optionalDependencies']
+    } else {
+      const groups: DependenciesField[] = []
+      if (manifest.dependencies?.[alias] != null) {
+        groups.push('dependencies')
+      }
+      if (manifest.devDependencies?.[alias] != null) {
+        groups.push('devDependencies')
+      }
+      if (groups.length > 0) {
+        depGroupsOfAliases[alias] = groups
       }
     }
   }
-  return depTypesOfAliases
+  return depGroupsOfAliases
 }
 
 async function getTopParents (pkgAliases: string[], modulesDir: string): Promise<DependencyManifest[]> {

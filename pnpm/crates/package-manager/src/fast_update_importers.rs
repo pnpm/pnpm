@@ -247,10 +247,7 @@ fn alias_divergence(
         }
         return AliasDivergence::Diverged;
     }
-    // A record under only some of the declared groups still needs the ones it
-    // is missing, and only the importers path can add them without resolving
-    // (pnpm/pnpm#9572).
-    if groups.iter().all(|group| importer_records(importer, group, alias)) {
+    if recorded_groups(importer, alias) == groups {
         AliasDivergence::Clean
     } else {
         AliasDivergence::Diverged
@@ -273,18 +270,14 @@ fn importer_records(importer: &ProjectSnapshot, group: DependencyGroup, alias: &
 
 /// Record the importer's `alias` under exactly `groups`, returning the groups
 /// it was recorded under before, or `None` when it is already exactly that.
-///
-/// A dependency the manifest declares in several groups has to be recorded
-/// under each of them, and the groups it is no longer declared under have to
-/// lose it — that is the whole edit when a lockfile predates the manifest, and
-/// it is also what moves a dependency between groups.
 fn place_dependency(
     importer: &mut ProjectSnapshot,
     alias: &PkgName,
     groups: ImporterGroups,
+    force_sync: bool,
 ) -> Option<ImporterGroups> {
     let recorded = recorded_groups(importer, alias);
-    if recorded == groups {
+    if recorded == groups && !force_sync {
         return None;
     }
     let dependency = take_dependency(importer, alias)?;
@@ -315,12 +308,14 @@ fn take_dependency(
 ) -> Option<ResolvedDependencySpec> {
     let mut dependency = None;
     for group in [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev] {
-        let slot = importer_group(importer, group);
-        if let Some(dependencies) = slot {
-            dependency = dependency.or_else(|| dependencies.remove(alias));
-            if dependencies.is_empty() {
-                *slot = None;
-            }
+        let Some(dependencies) = importer_group(importer, group) else {
+            continue;
+        };
+        if let Some(removed) = dependencies.remove(alias) {
+            dependency = dependency.or(Some(removed));
+        }
+        if dependencies.is_empty() {
+            *importer_group(importer, group) = None;
         }
     }
     dependency
