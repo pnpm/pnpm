@@ -4,7 +4,7 @@ use miette::Diagnostic;
 use std::{
     fs::{self, File, OpenOptions},
     hash::{BuildHasher, Hasher},
-    io::{self, Write},
+    io::{self, Seek, Write},
     path::{Path, PathBuf},
     sync::{
         Mutex,
@@ -449,8 +449,12 @@ pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> b
         Ok(meta) if meta.file_type().is_file() => meta,
         _ => return false,
     };
+    #[cfg(windows)]
+    let Ok(expected) = same_file::Handle::from_path(file_path) else {
+        return false;
+    };
     let mut options = OpenOptions::new();
-    options.write(true).truncate(true);
+    options.write(true);
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
@@ -459,11 +463,11 @@ pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> b
     let Some((mut file, restore_permissions)) = open_for_overwrite(file_path, &options) else {
         return false;
     };
-    #[cfg(unix)]
     let handle_matches = same_file(&file, &expected);
-    #[cfg(windows)]
-    let handle_matches = same_file(&file, file_path);
-    let written = handle_matches && io::copy(reader, &mut file).is_ok();
+    let written = handle_matches
+        && file.set_len(0).is_ok()
+        && file.rewind().is_ok()
+        && io::copy(reader, &mut file).is_ok();
     drop(file);
     if let Some(permissions) = restore_permissions {
         // Best-effort restore; the next repair retries.
@@ -488,14 +492,10 @@ fn same_file(file: &File, expected: &fs::Metadata) -> bool {
 }
 
 #[cfg(windows)]
-fn same_file(file: &File, file_path: &Path) -> bool {
-    let (Ok(handle_a), Ok(handle_b)) = (
-        file.try_clone().and_then(same_file::Handle::from_file),
-        same_file::Handle::from_path(file_path),
-    ) else {
-        return false;
-    };
-    handle_a == handle_b
+fn same_file(file: &File, expected: &same_file::Handle) -> bool {
+    file.try_clone()
+        .and_then(same_file::Handle::from_file)
+        .is_ok_and(|handle| &handle == expected)
 }
 
 /// Open a store blob for truncate-and-rewrite, returning the handle and
