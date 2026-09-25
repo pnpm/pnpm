@@ -15,7 +15,7 @@ pub(super) fn enforce_patched_engines(
         return Ok(());
     };
     let manifest = read_package_json(&pkg_dir)
-        .map_err(|_| BuildModulesError::PatchedManifestUnreadable {
+        .map_err(|()| BuildModulesError::PatchedManifestUnreadable {
             dep_path: snapshot_key.to_string(),
         })?;
     check_patched_manifest(context, snapshot_key, candidate, &manifest)
