@@ -10,6 +10,7 @@ use std::{ffi::OsStr, fs, path::Path, process::Command};
 use tempfile::TempDir;
 
 const FOO: &str = "@pnpm.e2e/foo";
+const FOOBAR: &str = "@pnpm.e2e/foobar";
 
 fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -71,6 +72,20 @@ fn lockfile_override(workspace: &Path, selector: &str) -> Option<String> {
     lockfile.overrides
         .as_ref()
         .and_then(|overrides| overrides.get(selector).cloned())
+}
+
+fn snapshot_dep_version(workspace: &Path, snapshot_key: &str, name: &str) -> String {
+    let lockfile: Lockfile =
+        serde_saphyr::from_str(&read(workspace, "pnpm-lock.yaml")).expect("parse pnpm-lock.yaml");
+    let key: pnpm_lockfile::PkgNameVerPeer = snapshot_key.parse().expect("parse the snapshot key");
+    lockfile.snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&key))
+        .and_then(|snapshot| snapshot.dependencies.as_ref())
+        .and_then(|dependencies| {
+            dependencies.get(&PkgName::parse(name).expect("parse the package name"))
+        })
+        .map_or_else(|| panic!("{snapshot_key} has no resolved {name}"), ToString::to_string)
 }
 
 fn run_ok(workspace: &Path, args: &[&str]) {
@@ -416,6 +431,34 @@ fn update_latest_keeps_catalog_referencing_override_in_sync() {
     // follow-up frozen install reads it and must not fail with an
     // overrides/catalogs mismatch.
     run_ok(&workspace, &["install", "--frozen-lockfile"]);
+
+    drop((root, anchor));
+}
+
+/// `update --latest` bumping a catalog that an active override resolves
+/// through must apply the bumped value to the graph too, so the package the
+/// override targets depends on the version the lockfile records for it.
+#[test]
+fn update_latest_applies_a_catalog_referencing_override_to_the_graph() {
+    let CommandTempCwd {
+        root, workspace, npmrc_info: anchor, ..
+    } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    anchor.set_dist_tag(FOO, "100.1.0", "latest");
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:", "{FOOBAR}": "100.0.0" }}"#));
+    let override_selector = format!("{FOOBAR}>{FOO}");
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalog:\n  '{FOO}': 100.0.0\noverrides:\n  '{override_selector}': 'catalog:'\n"),
+    );
+
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+    assert_eq!(snapshot_dep_version(&workspace, &format!("{FOOBAR}@100.0.0"), FOO), "100.0.0");
+
+    run_ok(&workspace, &["update", "--latest", "--lockfile-only", FOO]);
+
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("100.1.0".to_string(), "100.1.0".to_string()));
+    assert_eq!(lockfile_override(&workspace, &override_selector).as_deref(), Some("100.1.0"));
+    assert_eq!(snapshot_dep_version(&workspace, &format!("{FOOBAR}@100.0.0"), FOO), "100.1.0");
 
     drop((root, anchor));
 }
