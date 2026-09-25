@@ -39,9 +39,9 @@ fn root_prints_the_local_node_modules_dir() {
 #[test]
 fn root_prints_a_custom_modules_dir() {
     for (modules_dir, expected) in [
-        ("custom_nm", "custom_nm"),
-        ("www/modules", "www/modules"),
-        ("./www/../modules", "modules"),
+        ("custom_nm", &["custom_nm"][..]),
+        ("www/modules", &["www", "modules"]),
+        ("./www/../modules", &["modules"]),
     ] {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
         fs::write(workspace.join("pnpm-workspace.yaml"), format!("modulesDir: {modules_dir}\n"))
@@ -54,7 +54,10 @@ fn root_prints_a_custom_modules_dir() {
         dbg!(&output);
         assert!(output.status.success(), "pacquet root should succeed");
 
-        let expected = format!("{}\n", canonicalize(&workspace).join(expected).display());
+        let expected = expected
+            .iter()
+            .fold(canonicalize(&workspace), |dir, part| dir.join(part));
+        let expected = format!("{}\n", expected.display());
         assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
 
         drop(root);
