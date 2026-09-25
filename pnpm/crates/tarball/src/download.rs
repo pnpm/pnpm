@@ -4,7 +4,7 @@
 //! events the reporter renders during a fetch.
 
 pub(crate) use body::{BodyProgress, slow_download_warning};
-pub(crate) use fetch::{AttemptedFetch, fetch_and_extract_once};
+pub(crate) use fetch::{AttemptedFetch, ExtractedArchive, fetch_and_extract_once};
 pub use progress::download_priority;
 pub(crate) use progress::{emit_progress_fetched, emit_progress_found_in_store};
 
@@ -452,49 +452,35 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     progress_key: Option<(&SharedReportedProgressKeys, &str)>,
     revision_addressed: bool,
 ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-    crate::archive_retry::retry_archive::<Reporter, _, _>(
+    match fetch_and_extract_conditional::<Reporter>(
+        http_client,
         package_url,
+        expected_integrity,
+        package_unpacked_size,
+        download_priority,
         package_id,
         requester,
+        store_dir,
+        retry_opts,
+        auth_headers,
+        ignore_file_pattern,
         progress_key,
-        RetryOpts {
-            retries: if revision_addressed { 0 } else { retry_opts.retries },
-            ..retry_opts
-        },
-        |attempt| {
-            let ignore_file_pattern = ignore_file_pattern.clone();
-            async move {
-                match fetch_and_extract_once::<Reporter>(
-                    http_client,
-                    package_url,
-                    expected_integrity,
-                    package_unpacked_size,
-                    download_priority,
-                    package_id,
-                    attempt,
-                    store_dir,
-                    auth_headers,
-                    ignore_file_pattern,
-                    revision_addressed,
-                    None,
-                )
-                .await?
-                {
-                    AttemptedFetch::Extracted(extracted) => {
-                        let extracted = *extracted;
-                        Ok((extracted.integrity, extracted.files, extracted.index))
-                    }
-                    AttemptedFetch::NotModified(meta) => {
-                        Err(TarballError::HttpStatus(crate::HttpStatusError {
-                            url: meta.final_url,
-                            status: 304,
-                        }))
-                    }
-                }
-            }
-        },
+        revision_addressed,
+        None,
     )
-    .await
+    .await?
+    {
+        AttemptedFetch::Extracted(extracted) => {
+            let extracted = *extracted;
+            Ok((extracted.integrity, extracted.files, extracted.index))
+        }
+        AttemptedFetch::NotModified(meta) => {
+            Err(TarballError::HttpStatus(crate::HttpStatusError {
+                url: meta.final_url,
+                status: 304,
+            }))
+        }
+    }
 }
 
 /// Like [`fetch_and_extract_with_retry`], but a conditional `If-None-Match`
@@ -519,15 +505,13 @@ pub(crate) async fn fetch_and_extract_conditional<Reporter: self::Reporter>(
     revision_addressed: bool,
     if_none_match: Option<&str>,
 ) -> Result<AttemptedFetch, TarballError> {
+    let retries = if revision_addressed { 0 } else { retry_opts.retries };
     crate::archive_retry::retry_archive::<Reporter, _, _>(
         package_url,
         package_id,
         requester,
         progress_key,
-        RetryOpts {
-            retries: if revision_addressed { 0 } else { retry_opts.retries },
-            ..retry_opts
-        },
+        RetryOpts { retries, ..retry_opts },
         |attempt| {
             fetch_and_extract_once::<Reporter>(
                 http_client,

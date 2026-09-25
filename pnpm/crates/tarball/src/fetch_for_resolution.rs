@@ -310,15 +310,20 @@ impl FetchTarballForResolution<'_> {
             if_none_match,
         )
         .await?;
-        let extracted = match fetched {
+        match fetched {
             AttemptedFetch::NotModified(meta) => {
-                return Ok(FetchedBody::NotModified {
-                    etag: meta.etag,
-                    cache_control: meta.cache_control,
-                });
+                Ok(FetchedBody::NotModified { etag: meta.etag, cache_control: meta.cache_control })
             }
-            AttemptedFetch::Extracted(extracted) => *extracted,
-        };
+            AttemptedFetch::Extracted(extracted) => {
+                self.process_extracted(*extracted).await.map(FetchedBody::Extracted)
+            }
+        }
+    }
+
+    async fn process_extracted(
+        &self,
+        extracted: crate::download::ExtractedArchive,
+    ) -> Result<ExtractedWithValidators, TarballError> {
         let mut cas_paths = extracted.files;
         let mut pkg_files_idx = extracted.index;
         let integrity = extracted.integrity;
@@ -329,7 +334,7 @@ impl FetchTarballForResolution<'_> {
             None => root_manifest.clone(),
         };
         self.record_store_index_row(&integrity, pkg_files_idx);
-        Ok(FetchedBody::Extracted(ExtractedWithValidators {
+        Ok(ExtractedWithValidators {
             body: ExtractedTarball {
                 integrity,
                 files: Arc::new(cas_paths),
@@ -339,7 +344,7 @@ impl FetchTarballForResolution<'_> {
             etag: extracted.meta.etag,
             cache_control: extracted.meta.cache_control,
             final_url: extracted.meta.final_url,
-        }))
+        })
     }
 
     /// File this extraction under the caller's `package_id` — the same

@@ -32,6 +32,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/fetching.tarball-fetcher": "workspace:*",
     "@pnpm/fetching.types": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*"
   },

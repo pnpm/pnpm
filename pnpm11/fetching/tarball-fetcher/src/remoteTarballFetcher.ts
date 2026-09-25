@@ -16,6 +16,7 @@ import throttle from 'lodash.throttle'
 
 import { BadTarballError } from './errorTypes/index.js'
 import {
+  hasDirective,
   loadTarballResolution,
   storeTarballResolution,
   tarballFreshness,
@@ -140,16 +141,16 @@ export function createDownloader (
         ? loadTarballResolution(opts.cacheDir, cacheKey)
         : undefined
       const freshness = cached ? tarballFreshness(cached) : undefined
-      if (freshness === 'fresh' && cached) {
-        const reused = fetchResultFromStore(opts, cached.integrity)
-        if (reused) return reused
+      const stored = cached ? fetchResultFromStore(opts, cached.integrity) : undefined
+      if (freshness === 'fresh' && stored) {
+        return stored
       }
       let data: Buffer
       let res: Response
       try {
         res = await fetchFromRegistry(url, {
           authHeaderValue,
-          ifNoneMatch: freshness === 'revalidate' ? cached?.etag : undefined,
+          ifNoneMatch: freshness === 'revalidate' && stored ? cached?.etag : undefined,
           // Tarballs are already compressed; ask the server not to apply an additional
           // Content-Encoding so Content-Length matches the body we receive and we don't
           // waste CPU on round-trip re-compression. See https://github.com/pnpm/pnpm/issues/11506
@@ -164,17 +165,14 @@ export function createDownloader (
           timeout: gotOpts.timeout,
         })
 
-        if (res.status === 304 && cached && opts.cacheDir) {
-          const reused = fetchResultFromStore(opts, cached.integrity)
-          if (reused) {
-            storeTarballResolution(opts.cacheDir, {
-              ...cached,
-              etag: res.headers.get('etag') ?? cached.etag,
-              cacheControl: res.headers.get('cache-control') ?? cached.cacheControl,
-              fetchedAt: Date.now(),
-            })
-            return reused
-          }
+        if (res.status === 304 && cached && opts.cacheDir && stored) {
+          storeTarballResolution(opts.cacheDir, {
+            ...cached,
+            etag: res.headers.get('etag') ?? cached.etag,
+            cacheControl: res.headers.get('cache-control') ?? cached.cacheControl,
+            fetchedAt: Date.now(),
+          })
+          return stored
         }
         if (res.status !== 200) {
           throw new FetchError({ url, authHeaderValue }, res)
@@ -281,7 +279,7 @@ function rememberTarballResolution (
     const cacheControl = res.headers.get('cache-control') ?? undefined
     storeTarballResolution(opts.cacheDir, {
       url: cacheKey,
-      tarball: cacheControl?.includes('immutable') ? res.url : requestedUrl,
+      tarball: cacheControl && hasDirective(cacheControl, 'immutable') ? res.url : requestedUrl,
       integrity,
       etag: res.headers.get('etag') ?? undefined,
       cacheControl,

@@ -37,11 +37,19 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     };
     let sent =
         send_archive_request(&client, package_url, package_id, auth_headers, if_none_match).await;
-    // Failed connects are attempts too; the reporter's counter starts at one.
     let size = sent
         .as_ref()
         .ok()
         .and_then(reqwest::Response::content_length);
+    emit_started::<Reporter>(attempt, package_id, size);
+    let response =
+        sent.map_err(|error| TarballError::FetchTarball(NetworkError::new(package_url, error)))?;
+    let meta = response_meta(&response);
+    let response = check_archive_status(response, package_url, if_none_match.is_some()).await?;
+    Ok((client, response, meta))
+}
+
+fn emit_started<Reporter: self::Reporter>(attempt: u32, package_id: &str, size: Option<u64>) {
     Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
         level: LogLevel::Debug,
         message: FetchingProgressMessage::Started {
@@ -50,17 +58,15 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
             size,
         },
     }));
-    let response =
-        sent.map_err(|error| TarballError::FetchTarball(NetworkError::new(package_url, error)))?;
-    let not_modified = response.status() == reqwest::StatusCode::NOT_MODIFIED;
-    let meta = ArchiveResponseMeta {
-        not_modified,
-        etag: header_string(&response, reqwest::header::ETAG),
-        cache_control: header_string(&response, reqwest::header::CACHE_CONTROL),
+}
+
+fn response_meta(response: &reqwest::Response) -> ArchiveResponseMeta {
+    ArchiveResponseMeta {
+        not_modified: response.status() == reqwest::StatusCode::NOT_MODIFIED,
+        etag: header_string(response, reqwest::header::ETAG),
+        cache_control: header_string(response, reqwest::header::CACHE_CONTROL),
         final_url: response.url().to_string(),
-    };
-    let response = check_archive_status(response, package_url, if_none_match.is_some()).await?;
-    Ok((client, response, meta))
+    }
 }
 
 fn header_string(

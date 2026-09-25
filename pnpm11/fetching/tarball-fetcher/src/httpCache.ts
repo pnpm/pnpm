@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
-interface TarballResolutionRecord {
+export interface TarballResolutionRecord {
   url: string
   tarball: string
   integrity: string
@@ -12,6 +12,8 @@ interface TarballResolutionRecord {
 }
 
 const CACHE_DIR_NAME = 'v11/tarball-resolutions'
+
+let writeCounter = 0
 
 export function loadTarballResolution (cacheDir: string, url: string): TarballResolutionRecord | undefined {
   let text: string
@@ -45,24 +47,36 @@ export function storeTarballResolution (cacheDir: string, record: TarballResolut
     return
   }
   const file = tarballCachePath(cacheDir, record.url)
-  fs.mkdirSync(path.dirname(file), { recursive: true })
-  const tmp = `${file}.tmp`
-  fs.writeFileSync(tmp, JSON.stringify({
-    url: record.url,
-    tarball: record.tarball,
-    integrity: record.integrity,
-    etag: record.etag ?? null,
-    cacheControl: record.cacheControl ?? null,
-    fetchedAt: record.fetchedAt,
-  }))
-  fs.renameSync(tmp, file)
+  const tmp = `${file}.tmp.${process.pid}.${++writeCounter}`
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(tmp, JSON.stringify({
+      url: record.url,
+      tarball: record.tarball,
+      integrity: record.integrity,
+      etag: record.etag ?? null,
+      cacheControl: record.cacheControl ?? null,
+      fetchedAt: record.fetchedAt,
+    }))
+    fs.renameSync(tmp, file)
+  } catch {
+    try {
+      fs.rmSync(tmp, { force: true })
+    } catch {
+      // Non-fatal
+    }
+  }
 }
 
-function removeTarballResolution (cacheDir: string, url: string): void {
-  fs.rmSync(tarballCachePath(cacheDir, url), { force: true })
+export function removeTarballResolution (cacheDir: string, url: string): void {
+  try {
+    fs.rmSync(tarballCachePath(cacheDir, url), { force: true })
+  } catch {
+    // Non-fatal
+  }
 }
 
-type TarballFreshness = 'fresh' | 'revalidate' | 'unusable'
+export type TarballFreshness = 'fresh' | 'revalidate' | 'unusable'
 
 export function tarballFreshness (record: TarballResolutionRecord, now = Date.now()): TarballFreshness {
   const header = record.cacheControl ?? ''
@@ -78,7 +92,7 @@ function shouldStore (record: TarballResolutionRecord): boolean {
   return maxAgeSeconds(header) != null || record.etag != null
 }
 
-function hasDirective (header: string, name: string): boolean {
+export function hasDirective (header: string, name: string): boolean {
   return header.split(',').some((part) => part.trim().toLowerCase() === name)
 }
 

@@ -10,14 +10,13 @@ use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, PkgResolutionId, ResolveError, ResolveFuture, ResolveLatestFuture,
     ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
-use pnpm_store_dir::store_index_key;
 use pnpm_tarball::{
     FetchTarballForResolution, MemCache, PrefetchIntegrityCheck, PrefetchResult, RetryOpts,
-    TarballError, TarballResolutionFetch, prefetch_cas_paths,
+    TarballError, prefetch_cas_paths,
 };
 use ssri::Integrity;
 
-use crate::http_cache::{self, Freshness, TarballResolutionRecord};
+mod cache;
 
 /// Store/network handles the [`TarballResolver`] needs to fetch a
 /// remote tarball during resolution — download it, compute its sha512
@@ -106,23 +105,10 @@ impl TarballResolver {
             return Ok(None);
         }
 
-        // Round-trip through `Url::parse` to drop a redundant default
-        // port (`registry.npmjs.org:443` → `registry.npmjs.org`) before
-        // it reaches the lockfile.
         let normalized_bare_specifier = reqwest::Url::parse(bare)
             .map_err(|err| Box::new(err) as ResolveError)?
             .to_string();
 
-        // Warm-store reuse: when the prior
-        // lockfile recorded this exact tarball URL with an integrity and
-        // the content is already extracted in the store, reuse the cached
-        // integrity + bundled manifest instead of re-downloading. The
-        // bundled manifest carries the same dependency fields a fresh
-        // extraction would, so transitive resolution is unchanged. Done
-        // before the HEAD request so a hit needs no network at all (this
-        // is what lets a re-resolve succeed under `--offline`). Any miss
-        // (cold store, key drift, a row without a bundled manifest) falls
-        // through to the HEAD + download below.
         if let Some(reused) =
             self.reuse_from_warm_store(wanted_dependency, &normalized_bare_specifier).await
         {
@@ -135,12 +121,16 @@ impl TarballResolver {
             return Ok(Some(reused));
         }
 
+        self.fetch_and_resolve(wanted_dependency, normalized_bare_specifier).await
+    }
+
+    async fn fetch_and_resolve(
+        &self,
+        wanted_dependency: &WantedDependency,
+        normalized_bare_specifier: String,
+    ) -> Result<Option<ResolveResult>, ResolveError> {
         let resolved_url = self.preflight_url(&normalized_bare_specifier).await?;
 
-        // No store context (unit tests): keep the HEAD-only shape. The
-        // download below is what fills `manifest` + `integrity`; without
-        // a store to extract into there's nothing to fetch, so leave
-        // them unset.
         let Some(ctx) = self.fetch_context.as_ref() else {
             return Ok(Some(Self::head_only_result(
                 wanted_dependency,
@@ -151,12 +141,6 @@ impl TarballResolver {
             )));
         };
 
-        // Download the tarball, compute its sha512 integrity, extract it
-        // to the store, and read its bundled manifest. Warms `mem_cache`
-        // (keyed by `resolved_url`) so the install pass reuses the
-        // extraction. Silent reporter: the install pass owns the
-        // `resolved → found_in_store → imported` event ordering (see
-        // `prefetching_resolver.rs`).
         let resolved = self
             .tarball_fetch(ctx, &normalized_bare_specifier, &resolved_url)
             .run::<SilentReporter>(ctx.mem_cache.as_deref())
@@ -176,7 +160,7 @@ impl TarballResolver {
     /// The normalized specifier is the store package ID even when an immutable
     /// redirect changes the download URL: the lockfile and install pass key the
     /// store-index row by this ID. The manifest is at the tarball root.
-    fn tarball_fetch<'a>(
+    pub(super) fn tarball_fetch<'a>(
         &'a self,
         ctx: &'a TarballFetchContext,
         normalized_bare_specifier: &'a str,
@@ -270,149 +254,12 @@ impl TarballResolver {
         ))
     }
 
-    /// Lockfile-less installs have no prior entry. A fresh `Cache-Control`
-    /// record points at the store row written by the previous download, so
-    /// the resolve makes no request. A stale record is revalidated with
-    /// `If-None-Match`; `304` keeps that row.
-    async fn reuse_from_http_cache(
-        &self,
-        wanted_dependency: &WantedDependency,
-        normalized_bare_specifier: &str,
-    ) -> Result<Option<ResolveResult>, ResolveError> {
-        let Some(cache_dir) = self.http_cache_dir(normalized_bare_specifier) else {
-            return Ok(None);
-        };
-        let Some(record) = http_cache::load(cache_dir, normalized_bare_specifier) else {
-            return Ok(None);
-        };
-        let now = http_cache::now_ms();
-        match record.freshness(now) {
-            Freshness::Unusable => {
-                http_cache::remove(cache_dir, normalized_bare_specifier);
-                Ok(None)
-            }
-            Freshness::Fresh => {
-                Ok(self.reuse_resolution(wanted_dependency, normalized_bare_specifier, &record)
-                    .await)
-            }
-            Freshness::Revalidate => {
-                self.revalidate_http_cache(
-                    wanted_dependency,
-                    normalized_bare_specifier,
-                    cache_dir,
-                    record,
-                    now,
-                )
-                .await
-            }
-        }
-    }
-
-    async fn revalidate_http_cache(
-        &self,
-        wanted_dependency: &WantedDependency,
-        normalized_bare_specifier: &str,
-        cache_dir: &std::path::Path,
-        record: TarballResolutionRecord,
-        now: u64,
-    ) -> Result<Option<ResolveResult>, ResolveError> {
-        let Some(etag) = record.etag.clone() else {
-            return Ok(None);
-        };
-        let Some(ctx) = self.fetch_context.as_ref() else {
-            return Ok(None);
-        };
-        let fetched = self
-            .tarball_fetch(ctx, normalized_bare_specifier, &record.tarball)
-            .run_with_cache::<SilentReporter>(ctx.mem_cache.as_deref(), Some(&etag))
-            .await
-            .map_err(|err| Box::new(err) as ResolveError)?;
-        match fetched {
-            TarballResolutionFetch::NotModified { etag, cache_control } => {
-                let renewed = record.renewed(cache_control, etag, now);
-                http_cache::store(cache_dir, &renewed);
-                Ok(self.reuse_resolution(wanted_dependency, normalized_bare_specifier, &renewed)
-                    .await)
-            }
-            TarballResolutionFetch::Resolved(resolved) => {
-                let tarball = cached_tarball_url(&record.tarball, &resolved);
-                self.remember_http_cache(normalized_bare_specifier, &tarball, &resolved);
-                Ok(Some(Self::head_only_result(
-                    wanted_dependency,
-                    normalized_bare_specifier.to_string(),
-                    tarball,
-                    Some(resolved.integrity),
-                    resolved.manifest.map(Arc::new),
-                )))
-            }
-        }
-    }
-
-    fn remember_http_cache(
-        &self,
-        normalized_bare_specifier: &str,
-        resolved_url: &str,
-        resolved: &pnpm_tarball::ResolvedTarball,
-    ) {
-        let Some(cache_dir) = self.http_cache_dir(normalized_bare_specifier) else {
-            return;
-        };
-        let tarball = cached_tarball_url(resolved_url, resolved);
-        http_cache::store(
-            cache_dir,
-            &TarballResolutionRecord {
-                url: normalized_bare_specifier.to_owned(),
-                tarball,
-                integrity: resolved.integrity.to_string(),
-                etag: resolved.etag.clone(),
-                cache_control: resolved.cache_control.clone(),
-                fetched_at: http_cache::now_ms(),
-            },
-        );
-    }
-
-    fn http_cache_dir(&self, url: &str) -> Option<&std::path::Path> {
-        let ctx = self.fetch_context.as_ref()?;
-        if ctx.auth_headers.for_url(url).is_some() {
-            return None;
-        }
-        ctx.cache_dir.as_deref()
-    }
-
-    async fn reuse_resolution(
-        &self,
-        wanted_dependency: &WantedDependency,
-        normalized_bare_specifier: &str,
-        record: &TarballResolutionRecord,
-    ) -> Option<ResolveResult> {
-        let integrity = record.integrity.parse().ok()?;
-        let prior = PriorTarballEntry {
-            integrity,
-            store_index_key: store_index_key(&record.integrity, normalized_bare_specifier),
-            tarball_url: record.tarball.clone(),
-        };
-        let ctx = self.fetch_context.as_ref()?;
-        let cache_key = &prior.store_index_key;
-        let PrefetchResult { cas_paths, manifests, .. } = ctx.prefetch(cache_key).await;
-        if !cas_paths.contains_key(cache_key) {
-            return None;
-        }
-        let manifest = manifests.get(cache_key)?;
-        Some(Self::head_only_result(
-            wanted_dependency,
-            normalized_bare_specifier.to_string(),
-            prior.tarball_url,
-            Some(prior.integrity),
-            Some(Arc::clone(manifest)),
-        ))
-    }
-
     /// Build the `ResolveResult` for a claimed http(s) tarball.
     /// `name_ver` stays `None` (URL-id semantics: the depPath is
     /// `name@<url>`, derived downstream from the manifest name);
     /// `integrity` and `manifest` are filled once the tarball is
     /// fetched.
-    fn head_only_result(
+    pub(super) fn head_only_result(
         wanted_dependency: &WantedDependency,
         normalized_bare_specifier: String,
         resolved_url: String,
@@ -457,17 +304,6 @@ fn resolve_latest(query: &LatestQuery) -> Option<LatestInfo> {
 
 fn is_http_url(bare: &str) -> bool {
     bare.starts_with("http:") || bare.starts_with("https:")
-}
-
-fn cached_tarball_url(requested_url: &str, resolved: &pnpm_tarball::ResolvedTarball) -> String {
-    if resolved.cache_control
-        .as_deref()
-        .is_some_and(|header| header.contains("immutable"))
-    {
-        resolved.final_url.clone()
-    } else {
-        requested_url.to_owned()
-    }
 }
 
 #[cfg(test)]

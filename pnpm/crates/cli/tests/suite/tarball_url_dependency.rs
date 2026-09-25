@@ -545,14 +545,14 @@ fn fresh_remote_tarball_skips_the_network_without_a_lockfile() {
     let head_mock = tarball_server
         .mock("HEAD", tarball_path)
         .with_status(200)
-        .with_header("etag", "\"pkg-from-tarball\"")
+        .with_header("etag", r#""pkg-from-tarball""#)
         .with_header("cache-control", "public, max-age=31536000, immutable")
         .expect(1)
         .create();
     let get_mock = tarball_server
         .mock("GET", tarball_path)
         .with_status(200)
-        .with_header("etag", "\"pkg-from-tarball\"")
+        .with_header("etag", r#""pkg-from-tarball""#)
         .with_header("cache-control", "public, max-age=31536000, immutable")
         .with_body(minimal_tarball("pkg-from-tarball", "1.0.0"))
         .expect(1)
@@ -607,14 +607,14 @@ fn stale_remote_tarball_revalidates_with_if_none_match() {
     let head_mock = tarball_server
         .mock("HEAD", tarball_path)
         .with_status(200)
-        .with_header("etag", "\"pkg-from-tarball\"")
+        .with_header("etag", r#""pkg-from-tarball""#)
         .with_header("cache-control", "public, max-age=31536000, immutable")
         .expect(1)
         .create();
     let get_mock = tarball_server
         .mock("GET", tarball_path)
         .with_status(200)
-        .with_header("etag", "\"pkg-from-tarball\"")
+        .with_header("etag", r#""pkg-from-tarball""#)
         .with_header("cache-control", "public, max-age=31536000, immutable")
         .with_body(minimal_tarball("pkg-from-tarball", "1.0.0"))
         .expect(1)
@@ -641,9 +641,9 @@ fn stale_remote_tarball_revalidates_with_if_none_match() {
         .create();
     let get_again = tarball_server
         .mock("GET", tarball_path)
-        .match_header("if-none-match", "\"pkg-from-tarball\"")
+        .match_header("if-none-match", r#""pkg-from-tarball""#)
         .with_status(304)
-        .with_header("etag", "\"pkg-from-tarball\"")
+        .with_header("etag", r#""pkg-from-tarball""#)
         .with_header("cache-control", "public, max-age=31536000, immutable")
         .expect(1)
         .create();

@@ -106,25 +106,7 @@ pub(super) async fn resolve_aliasless_tarball(
     config: &'static Config,
     http_client: &Arc<ThrottledClient>,
 ) -> Result<AliaslessDependency, AddError> {
-    let resolver = TarballResolver {
-        http_client: Arc::clone(http_client),
-        fetch_context: Some(TarballFetchContext {
-            mem_cache: None,
-            auth_headers: Arc::clone(&config.auth_headers),
-            retry_opts: crate::retry_config::retry_opts_from_config(config),
-            prior_tarball_entries: Arc::new(HashMap::new()),
-            cache_dir: Some(config.cache_dir.clone()),
-            store: pnpm_tarball::ArchiveStoreContext {
-                strict_pkg_content_check: false,
-                prefetched_cas_paths: None,
-                dir: &config.store_dir,
-                index_writer: None,
-                index: None,
-                verify_integrity: config.verify_store_integrity,
-                verified_files_cache: SharedVerifiedFilesCache::default(),
-            },
-        }),
-    };
+    let resolver = aliasless_tarball_resolver(config, http_client);
     let wanted = pnpm_resolving_resolver_base::WantedDependency {
         bare_specifier: Some(specifier.to_string()),
         ..pnpm_resolving_resolver_base::WantedDependency::default()
@@ -147,6 +129,31 @@ pub(super) async fn resolve_aliasless_tarball(
         result.normalized_bare_specifier.unwrap_or_else(|| normalized_save_specifier(specifier));
     let package_name = aliasless_package_name(result.package.manifest.as_deref(), specifier)?;
     Ok(AliaslessDependency { package_name, manifest_specifier })
+}
+
+fn aliasless_tarball_resolver(
+    config: &'static Config,
+    http_client: &Arc<ThrottledClient>,
+) -> TarballResolver {
+    TarballResolver {
+        http_client: Arc::clone(http_client),
+        fetch_context: Some(TarballFetchContext {
+            mem_cache: None,
+            auth_headers: Arc::clone(&config.auth_headers),
+            retry_opts: crate::retry_config::retry_opts_from_config(config),
+            prior_tarball_entries: Arc::new(HashMap::new()),
+            cache_dir: Some(config.cache_dir.clone()),
+            store: pnpm_tarball::ArchiveStoreContext {
+                strict_pkg_content_check: false,
+                prefetched_cas_paths: None,
+                dir: &config.store_dir,
+                index_writer: None,
+                index: None,
+                verify_integrity: config.verify_store_integrity,
+                verified_files_cache: SharedVerifiedFilesCache::default(),
+            },
+        }),
+    }
 }
 /// Flatten an error chain into one line, with every URL in it cut back to
 /// its display-safe form.

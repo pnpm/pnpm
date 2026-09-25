@@ -1,21 +1,16 @@
 //! Persistent URL → integrity record for remote tarball dependencies.
-//!
-//! Registry packages already skip the network on a warm metadata cache.
-//! An `http:` / `https:` tarball has no packument, so a lockfile-less
-//! install would otherwise HEAD and GET the archive on every resolve.
-//! This record is what makes `Cache-Control` freshness and
-//! `If-None-Match` revalidation possible: the store still holds the
-//! bytes, and the record says which integrity those bytes belong to
-//! and until when the response may be reused.
 
 use std::{
     fmt::Write,
     fs,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use sha2::{Digest, Sha256};
+
+static WRITE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub(crate) const TARBALL_RESOLUTION_CACHE_DIR: &str = "v11/tarball-resolutions";
 
@@ -40,10 +35,11 @@ pub(crate) enum Freshness {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct CacheControl {
-    no_store: bool,
-    no_cache: bool,
-    max_age: Option<u64>,
+pub(crate) struct CacheControl {
+    pub(crate) no_store: bool,
+    pub(crate) no_cache: bool,
+    pub(crate) immutable: bool,
+    pub(crate) max_age: Option<u64>,
 }
 
 impl TarballResolutionRecord {
@@ -80,8 +76,8 @@ impl TarballResolutionRecord {
 }
 
 impl CacheControl {
-    fn parse(header: &str) -> Self {
-        let mut parsed = Self { no_store: false, no_cache: false, max_age: None };
+    pub(crate) fn parse(header: &str) -> Self {
+        let mut parsed = Self { no_store: false, no_cache: false, immutable: false, max_age: None };
         for directive in header.split(',') {
             let directive = directive.trim();
             if directive.is_empty() {
@@ -93,6 +89,7 @@ impl CacheControl {
             match name {
                 "no-store" => parsed.no_store = true,
                 "no-cache" => parsed.no_cache = true,
+                "immutable" => parsed.immutable = true,
                 "max-age" => {
                     parsed.max_age = value.and_then(|value| value.trim_matches('"').parse().ok());
                 }
@@ -142,9 +139,14 @@ pub(crate) fn store(cache_dir: &Path, record: &TarballResolutionRecord) {
         "fetchedAt": record.fetched_at,
     });
     let Ok(body) = serde_json::to_vec(&body) else { return };
-    let tmp = path.with_extension("json.tmp");
+    let counter = WRITE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let tmp = path.with_extension(format!("json.tmp.{}.{counter}", std::process::id()));
     if fs::write(&tmp, body).is_ok() {
-        let _ = fs::rename(&tmp, path);
+        if fs::rename(&tmp, path).is_err() {
+            let _ = fs::remove_file(&tmp);
+        }
+    } else {
+        let _ = fs::remove_file(&tmp);
     }
 }
 
@@ -199,37 +201,4 @@ fn parse_record(text: &str) -> Option<TarballResolutionRecord> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{Freshness, TarballResolutionRecord};
-
-    fn record(cache_control: &str, fetched_at: u64) -> TarballResolutionRecord {
-        TarballResolutionRecord {
-            url: "https://example.com/pkg.tgz".to_owned(),
-            tarball: "https://example.com/pkg.tgz".to_owned(),
-            integrity: "sha512-abc".to_owned(),
-            etag: Some("\"pkg\"".to_owned()),
-            cache_control: Some(cache_control.to_owned()),
-            fetched_at,
-        }
-    }
-
-    #[test]
-    fn immutable_max_age_is_fresh_until_it_expires() {
-        let record = record("public, max-age=31536000, immutable", 1_000);
-        assert_eq!(record.freshness(1_000 + 60_000), Freshness::Fresh);
-        assert_eq!(record.freshness(1_000 + 31_536_000_000), Freshness::Revalidate);
-    }
-
-    #[test]
-    fn max_age_zero_must_be_revalidated() {
-        let record = record("max-age=0, must-revalidate", 1_000);
-        assert_eq!(record.freshness(1_000), Freshness::Revalidate);
-    }
-
-    #[test]
-    fn no_store_is_unusable() {
-        let record = record("no-store", 1_000);
-        assert_eq!(record.freshness(1_000), Freshness::Unusable);
-        assert!(!super::should_store(Some("no-store"), Some("\"pkg\"")));
-    }
-}
+mod tests;

@@ -9468,6 +9468,9 @@ importers:
 
   pnpm11/resolving/tarball-resolver:
     dependencies:
+      '@pnpm/fetching.tarball-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/tarball-fetcher
       '@pnpm/fetching.types':
         specifier: workspace:*
         version: link:../../fetching/types
