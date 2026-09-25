@@ -72,7 +72,7 @@ async fn refuses_a_name_with_no_address() {
         resolver
             .resolve("registry.example".parse().unwrap())
             .await
-            .is_err()
+            .is_err(),
     );
 }
 
@@ -92,6 +92,6 @@ async fn passes_the_host_to_the_guard_and_returns_accepted_addresses() {
         resolver
             .resolve("other.internal".parse().unwrap())
             .await
-            .is_err()
+            .is_err(),
     );
 }

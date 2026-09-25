@@ -123,13 +123,6 @@ impl TarballResolver {
             return Ok(Some(reused));
         }
 
-        if let Some(ctx) = self.fetch_context.as_ref()
-            && !ctx.auth_headers.allows_fetch(&normalized_bare_specifier)
-        {
-            return Err(Box::new(TarballError::OffAllowlist {
-                url: pnpm_network::redact_url_credentials(&normalized_bare_specifier),
-            }));
-        }
         let resolved_url = self.preflight_url(&normalized_bare_specifier).await?;
 
         // No store context (unit tests): keep the HEAD-only shape. The
@@ -195,9 +188,16 @@ impl TarballResolver {
         }
     }
 
-    /// Authenticate the HEAD preflight like the GET. Only immutable responses
+    /// Authorize and authenticate the HEAD preflight like the GET. Only immutable responses
     /// pin the post-redirect URL; mutable URLs must be revalidated on the next run.
     async fn preflight_url(&self, normalized_bare_specifier: &str) -> Result<String, ResolveError> {
+        if let Some(ctx) = self.fetch_context.as_ref()
+            && !ctx.auth_headers.allows_fetch(normalized_bare_specifier)
+        {
+            return Err(Box::new(TarballError::OffAllowlist {
+                url: pnpm_network::redact_url_credentials(normalized_bare_specifier),
+            }));
+        }
         let client = self.http_client.acquire_for_url(normalized_bare_specifier).await;
         let mut request = client.head(normalized_bare_specifier);
         if let Some(value) = self.fetch_context

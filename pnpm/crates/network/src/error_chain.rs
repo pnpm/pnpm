@@ -39,7 +39,7 @@ pub fn is_permanent_error(error: &reqwest::Error) -> bool {
     while let Some(error) = source {
         if matches!(
             error.downcast_ref::<rustls::Error>(),
-            Some(rustls::Error::InvalidCertificate(_))
+            Some(rustls::Error::InvalidCertificate(_)),
         ) || error.is::<BlockedAddress>()
         {
             return true;

@@ -56,7 +56,7 @@ impl ThrottledClient {
     ///
     /// Hostnames resolve through the platform's `getaddrinfo` behind a
     /// process-wide four-lookup cap shared by every client, matching
-    /// Node's libuv DNS pool. [`native_dns_resolver`](crate::native_dns_resolver)
+    /// Node's libuv DNS pool. [`native_dns_resolver`]
     /// documents why no pure-Rust resolver is used on any platform.
     #[must_use]
     pub fn new_for_installs() -> Self {

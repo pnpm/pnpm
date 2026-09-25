@@ -26,7 +26,7 @@ fn a_bare_address_is_a_single_host_network() {
     assert!(
         IpNetwork::parse("0.0.0.0/0")
             .unwrap()
-            .contains(address("8.8.8.8"))
+            .contains(address("8.8.8.8")),
     );
 }
 
