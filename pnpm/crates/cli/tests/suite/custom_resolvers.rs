@@ -6,8 +6,16 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    registry::TestRegistry,
+};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
+use tempfile::TempDir;
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
@@ -78,6 +86,16 @@ fn manifest_less_pnpmfile(registry_url: &str) -> String {
 }}
 ",
     )
+}
+
+/// Prepended to a pnpmfile `fetch` body so a test can count how often it ran.
+const RECORD_FETCH: &str = r"require('node:fs').appendFileSync(require('node:path').join(__dirname, 'fetches.log'), 'fetch\n');";
+
+fn fetch_count(workspace: &Path) -> usize {
+    fs::read_to_string(workspace.join("fetches.log"))
+        .expect("read fetches.log")
+        .lines()
+        .count()
 }
 
 fn installed_version(workspace: &Path) -> String {
@@ -445,11 +463,14 @@ module.exports = {{
       resolution._localCache = process.cwd() + '/.cache/' + id;
       return resolution.type === 'custom:vendored';
     }},
-    fetch: (cafs, resolution, opts, fetchers) => fetchers.localTarball(
-      cafs,
-      {{ tarball: 'file:./vendor/package.tgz', integrity: '{integrity}' }},
-      opts,
-    ),
+    fetch: (cafs, resolution, opts, fetchers) => {{
+      {RECORD_FETCH}
+      return fetchers.localTarball(
+        cafs,
+        {{ tarball: 'file:./vendor/package.tgz', integrity: '{integrity}' }},
+        opts,
+      );
+    }},
   }}],
 }};
 ",
@@ -466,6 +487,7 @@ module.exports = {{
             .assert().success().stdout("100.1.0\n");
     };
     dependency_version(&workspace);
+    assert_eq!(fetch_count(&workspace), 1);
 
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
     // The resolution stays the resolver's, so the lockfile keeps naming no
@@ -530,7 +552,10 @@ module.exports = {{
   }}],
   fetchers: [{{
     canFetch: (id, resolution) => resolution.type === 'custom:registry',
-    fetch: (cafs, resolution) => ({{ delegate: {{ integrity: resolution.integrity }} }}),
+    fetch: (cafs, resolution) => {{
+      {RECORD_FETCH}
+      return {{ delegate: {{ integrity: resolution.integrity }} }};
+    }},
   }}],
 }};
 ",
@@ -547,6 +572,7 @@ module.exports = {{
             .assert().success().stdout("100.1.0\n");
     };
     dependency_version(&workspace);
+    assert_eq!(fetch_count(&workspace), 1);
 
     fs::remove_dir_all(workspace.join("node_modules")).unwrap();
     pacquet_at(&workspace)
@@ -583,7 +609,39 @@ fn custom_resolver_git_subdirectory_installs_custom_fetched_files() {
     );
 }
 
+/// The resolver claims `/packages/foo`, but a delegate can name another
+/// directory of the same archive, and the package is then installed from that
+/// one.
+#[test]
+fn custom_resolver_git_delegate_to_another_subdirectory_installs_that_subdirectory() {
+    let (root, workspace, mock_instance) = install_git_subdirectory(
+        "return { delegate: { ...resolution, tarball: 'file:./repo.tgz', path: '/packages/bar' } };",
+    );
+    assert!(workspace.join("node_modules/custom-git/bar.js").is_file());
+    assert!(!workspace.join("node_modules/custom-git/index.js").exists());
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    eprintln!("lockfile:\n{lockfile}");
+    assert!(!lockfile.contains("dep-of-pkg-with-1-dep"));
+    drop((root, mock_instance));
+}
+
 fn assert_git_subdirectory_install(fetch_body: &str) {
+    let (root, workspace, mock_instance) = install_git_subdirectory(fetch_body);
+    let installed: serde_json::Value = serde_json::from_slice(
+        &fs::read(workspace.join("node_modules/custom-git/package.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(installed["name"], "custom-git");
+    assert!(workspace.join("node_modules/custom-git/index.js").is_file());
+    assert!(!workspace.join("node_modules/custom-git/excluded.txt").exists());
+    pacquet_at(&workspace).with_args(["exec", "node", "-e",
+        "console.log(require(require.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep/package.json', { paths: [require.resolve('custom-git/package.json')] })).version)"])
+        .assert().success().stdout("100.1.0\n");
+    assert_eq!(fetch_count(&workspace), 1);
+    drop((root, mock_instance));
+}
+
+fn install_git_subdirectory(fetch_body: &str) -> (TempDir, PathBuf, TestRegistry) {
     let CommandTempCwd {
         pacquet,
         root,
@@ -602,6 +660,8 @@ fn assert_git_subdirectory_install(fetch_body: &str) {
         ("repo/packages/foo/package.json", manifest.as_bytes()),
         ("repo/packages/foo/index.js", b"module.exports = 42;"),
         ("repo/packages/foo/excluded.txt", b"must not be installed"),
+        ("repo/packages/bar/package.json", br#"{"name":"custom-git","version":"1.0.0"}"#),
+        ("repo/packages/bar/bar.js", b"module.exports = 'bar';"),
     ]);
     fs::write(workspace.join("repo.tgz"), &body).unwrap();
     fs::write(workspace.join("package.json"), r#"{"dependencies":{"custom-git":"1.0.0"}}"#)
@@ -623,7 +683,7 @@ module.exports = {{
   }}],
   fetchers: [{{
     canFetch: (id, resolution) => resolution.gitHosted === true,
-    async fetch(cafs, resolution, opts, fetchers) {{ {fetch_body} }},
+    async fetch(cafs, resolution, opts, fetchers) {{ {RECORD_FETCH} {fetch_body} }},
   }}],
 }};
 ",
@@ -634,17 +694,7 @@ module.exports = {{
         .with_args(["install", "--ignore-scripts"])
         .assert()
         .success();
-    let installed: serde_json::Value = serde_json::from_slice(
-        &fs::read(workspace.join("node_modules/custom-git/package.json")).unwrap(),
-    )
-    .unwrap();
-    assert_eq!(installed["name"], "custom-git");
-    assert!(workspace.join("node_modules/custom-git/index.js").is_file());
-    assert!(!workspace.join("node_modules/custom-git/excluded.txt").exists());
-    pacquet_at(&workspace).with_args(["exec", "node", "-e",
-        "console.log(require(require.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep/package.json', { paths: [require.resolve('custom-git/package.json')] })).version)"])
-        .assert().success().stdout("100.1.0\n");
-    drop((root, mock_instance));
+    (root, workspace, mock_instance)
 }
 
 /// A custom resolution's integrity is opaque to pnpm's own verification, but
