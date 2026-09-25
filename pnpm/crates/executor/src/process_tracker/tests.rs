@@ -1,8 +1,10 @@
-use super::{ProcessTracker, group_watchdog::GroupWatchdog, spawn_child};
+use super::{ProcessTracker, RunningExecution, group_watchdog::GroupWatchdog, spawn_child};
 use std::{
+    io::{BufRead, BufReader, Read},
     os::unix::process::CommandExt,
     process::{Child, Command, Stdio},
-    thread::sleep,
+    sync::mpsc,
+    thread::{self, sleep},
     time::{Duration, Instant},
 };
 
@@ -99,6 +101,45 @@ fn cancellation_leaves_untracked_children_alone() {
 
     let _ = untracked.kill();
     let _ = untracked.wait();
+}
+
+/// The root shares the test's process group, so only the descendant scan
+/// can reach the `sleep` it started. The `sleep` holds the root's stdout,
+/// so the pipe reaches EOF only once both are gone.
+#[test]
+fn cancellation_terminates_descendants_of_tracked_children() {
+    let tracker = ProcessTracker::foreground();
+    let mut root = Command::new("sh")
+        .args(["-c", "sleep 30 & echo ready; wait"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn tracked root");
+    let registration = tracker.register(RunningExecution::Process {
+        pid: root.id(),
+        separate_process_group: false,
+    });
+    let mut stdout = BufReader::new(root.stdout.take().expect("root stdout is piped"));
+    let mut ready = String::new();
+    stdout.read_line(&mut ready).expect("read the ready line");
+    assert_eq!(ready.trim(), "ready");
+
+    tracker.cancel();
+    drop(registration);
+
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = stdout.read_to_end(&mut Vec::new());
+        let _ = sender.send(());
+    });
+    assert!(
+        receiver
+            .recv_timeout(Duration::from_secs(10))
+            .is_ok(),
+        "the tracked root's descendant should have been terminated",
+    );
+    let _ = root.wait();
 }
 
 /// A `sleep` leading a process group of its own, as a child of
