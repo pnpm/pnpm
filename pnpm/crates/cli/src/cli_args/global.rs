@@ -56,8 +56,8 @@ use pnpm_fs::{is_subdir, lexical_normalize, remove_symlink_dir, symlink_dir};
 use pnpm_global::{
     GlobalPackageInfo, check_global_bin_conflicts, clean_orphaned_install_dirs,
     create_global_cache_key, create_install_dir, find_global_package, get_hash_link,
-    get_installed_bin_names, installed_versions, read_direct_dependencies, read_installed_packages,
-    scan_global_packages,
+    get_installed_bin_names, installed_versions, is_global_install_subdir,
+    read_direct_dependencies, read_installed_packages, scan_global_packages,
 };
 use pnpm_lockfile::{ImporterDepVersion, Lockfile};
 use pnpm_package_is_installable::SupportedArchitectures;

@@ -50,7 +50,6 @@ test('respects global-bin-dir rather than dir', async () => {
 test('a command that only removes stored Node may use a global bin that is not in PATH', async () => {
   const tmp = tempDir()
   const binDir = path.join(tmp, 'not-in-path-bin')
-  fs.mkdirSync(binDir, { recursive: true })
   const { config } = await getConfig({
     cliOptions: {
       global: true,
@@ -67,6 +66,7 @@ test('a command that only removes stored Node may use a global bin that is not i
     skipGlobalBinDirCheck: true,
   })
   expect(config.bin).toBe(binDir)
+  expect(fs.existsSync(binDir)).toBe(false)
 })
 
 test('an exception is thrown when the global dir is not in PATH', async () => {

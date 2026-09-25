@@ -2,10 +2,10 @@ use super::{
     ArtifactCleanupError, CmdShimHost, Config, Context, Diagnostic, Display, Error, FsRename,
     GlobalError, GlobalPackageInfo, HashSet, IntoDiagnostic, Path, Reporter,
     acquire_global_bin_lock, bin_names_of_other_groups, check_bin_dir, find_global_package, fs,
-    get_hash_link, get_installed_bin_names, global_dirs, io, is_subdir, remove_cmd_shim,
-    remove_native_shim, remove_symlink_dir, replace_global_bin_slots, restore_virtual_shims,
-    should_replace_existing_package, symlink_dir, unprotected_bin_names, virtual_shims_to_restore,
-    warn_global,
+    get_hash_link, get_installed_bin_names, global_dirs, io, is_global_install_subdir,
+    remove_cmd_shim, remove_native_shim, remove_symlink_dir, replace_global_bin_slots,
+    restore_virtual_shims, should_replace_existing_package, symlink_dir, unprotected_bin_names,
+    virtual_shims_to_restore, warn_global,
 };
 
 /// `pnpm remove -g`. Removes the bins, hash symlinks, and install dirs of
@@ -377,7 +377,7 @@ fn cleanup_global_install_dir(
     group: &GlobalPackageInfo,
     cleanup: &GlobalInstallCleanup<'_>,
 ) -> Option<ArtifactCleanupError> {
-    if is_subdir(cleanup.global_pkg_dir, &group.install_dir) {
+    if is_global_install_subdir(cleanup.global_pkg_dir, &group.install_dir) {
         match fs::remove_dir_all(&group.install_dir) {
             Ok(()) => return None,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
