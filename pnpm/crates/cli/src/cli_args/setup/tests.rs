@@ -300,6 +300,6 @@ fn legacy_global_add_specs_skips_pnpm_and_packages_already_installed() {
         "broken": 1,
     });
     let dependencies = dependencies.as_object().expect("object");
-    let already_installed = ["prettier".to_string()].into_iter().collect();
+    let already_installed = std::iter::once("prettier".to_string()).collect();
     assert_eq!(legacy_global_add_specs(dependencies, &already_installed), ["typescript@^5.4.0"]);
 }
