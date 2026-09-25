@@ -111,7 +111,15 @@ pub fn replace_workspace_protocol(
     }
 
     if let Some(relative) = strip_workspace_relative_prefix(dep_spec) {
-        let manifest = read_and_check_manifest(dep_name, dep_name, &dir.join(relative), lookup)?;
+        // A relative spec names its target by path, so the manifest at that
+        // path is authoritative; the name-keyed workspace lookup stays a
+        // fallback only, since `dep_name` may belong to another package.
+        let manifest = read_and_check_manifest(
+            dep_name,
+            dep_name,
+            &dir.join(relative),
+            WorkspacePackageLookup { prefer_workspace: false, ..lookup },
+        )?;
         return Ok(published_spec(dep_name, &manifest, ""));
     }
 
@@ -309,7 +317,9 @@ pub struct WorkspacePackageLookup<'a> {
     /// Resolve from the workspace manifests before the installed copies.
     /// Recursive `publish --new-version` sets this: it rewrites the
     /// workspace manifests before packing, while `node_modules` can still
-    /// hold the pre-bump copies.
+    /// hold the pre-bump copies. Applies only to specs resolved by name; a
+    /// relative-path spec always reads the manifest at its target path
+    /// first.
     pub prefer_workspace: bool,
 }
 
