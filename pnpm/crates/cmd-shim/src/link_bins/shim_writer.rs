@@ -2,8 +2,9 @@ use super::{
     DirCreation, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable, FsWrite,
     LinkBinsError, LinkBinsOptions, Path, PathBuf, ScriptRuntime, ShimTargetCache,
     chmod_tolerating_removal, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, io,
-    is_node_bin_name, is_sh_shim_hardened, is_shim_pointing_at, link_node_bin,
-    link_symlinked_executable, symlink_already_points_at, target_requires_shim,
+    is_node_bin_name, is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at,
+    link_node_bin, link_symlinked_executable, linking_paths::LinkingPaths,
+    symlink_already_points_at, target_requires_shim,
 };
 
 /// Write the canonical bin shim for `target_path` at `shim_path`,
@@ -36,7 +37,7 @@ pub(super) struct ShimSpec<'a> {
     pub(super) node_path: &'a [String],
     pub(super) options: &'a LinkBinsOptions,
     pub(super) make_powershell_shim: bool,
-    pub(super) relocatable_root: Option<&'a Path>,
+    pub(super) paths: &'a LinkingPaths<'a>,
     /// Whether this run created the bin directory. Read by
     /// [`read_or_create_shim`], which documents what it is worth.
     pub(super) bin_dir: DirCreation,
@@ -47,14 +48,18 @@ impl ShimSpec<'_> {
         self.options.installed_modules_dir.as_deref()
     }
 
-    fn sh_body(&self, runtime: Option<&ScriptRuntime>) -> String {
-        generate_sh_shim(
+    fn relocatable_root(&self) -> Option<&Path> {
+        self.paths.relocatable_root.as_deref()
+    }
+
+    fn sh_body(&self, runtime: Option<&ScriptRuntime>) -> Result<String, LinkBinsError> {
+        Ok(generate_sh_shim(
             self.target_path,
-            self.shim_path,
+            &self.paths.sh_shim_path(self.target_path, self.shim_path)?,
             runtime,
             self.node_path,
-            self.relocatable_root,
-        )
+            self.relocatable_root(),
+        ))
     }
 }
 
@@ -86,7 +91,7 @@ where
     // carry the setting (the injected-deps syncer's workspace-wide
     // relink, for one) leaves symlinked bins alone instead of
     // rewriting them into shims.
-    if symlink_already_points_at(spec.shim_path, spec.target_path, spec.relocatable_root)
+    if symlink_already_points_at(spec.shim_path, spec.target_path, spec.relocatable_root())
         && prepare_direct_target::<Sys>(&spec, cache)?
     {
         return Ok(());
@@ -112,7 +117,7 @@ where
     //    appears twice). A direct symlink / hardlink bypasses the
     //    parser entirely.
     if is_node_bin_name(spec.shim_path)
-        && link_node_bin(spec.target_path, spec.shim_path, spec.relocatable_root)?
+        && link_node_bin(spec.target_path, spec.shim_path, spec.relocatable_root())?
     {
         return Ok(());
     }
@@ -137,7 +142,7 @@ where
             error,
         })?;
 
-    let sh_body = spec.sh_body(runtime.as_ref());
+    let sh_body = spec.sh_body(runtime.as_ref())?;
     let windows_shims = windows_shim_bodies(&spec, runtime.as_ref());
 
     let current = shim_body_matches(existing_shim.as_deref(), &sh_body, &spec)
@@ -254,16 +259,18 @@ fn windows_shim_bodies(
 /// The marker says nothing about the header, so the marker-only branch also
 /// requires [`is_sh_shim_hardened`]. A shim an older version wrote still points
 /// at the right target, and without that check an upgrade would leave a stale
-/// header in place.
+/// header in place. [`is_sh_shim_basedir_anchor_current`] does the same for
+/// the physical directory anchor.
 fn shim_body_matches(existing: Option<&str>, sh_body: &str, spec: &ShimSpec<'_>) -> bool {
     let Some(existing) = existing else {
         return false;
     };
-    if !spec.node_path.is_empty() || spec.relocatable_root.is_some() {
+    if !spec.node_path.is_empty() || spec.relocatable_root().is_some() {
         return existing == sh_body;
     }
     is_shim_pointing_at(existing, spec.shim_path, spec.target_path)
         && is_sh_shim_hardened(existing)
+        && is_sh_shim_basedir_anchor_current(existing, sh_body)
         && !existing.contains("export NODE_PATH=")
 }
 
@@ -340,7 +347,7 @@ where
             path: probe_path.to_path_buf(),
             error,
         })?;
-    let sh_body = spec.sh_body(runtime.as_ref());
+    let sh_body = spec.sh_body(runtime.as_ref())?;
     // Any failure — a lost race, a dangling symlink squatting on the
     // path, a `Sys` without exclusive creation — goes to the general
     // path, whose replacement is atomic. No content is ever read back

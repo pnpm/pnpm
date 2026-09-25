@@ -8,9 +8,12 @@ use super::relative_path_from;
 use pnpm_fs::{is_subdir, realpath_missing};
 use std::{borrow::Cow, path::Path};
 
-/// Sets `$basedir_abs` to the shim's physical directory so Node's lexical
-/// normalization of `..` cannot escape through a directory symlink.
+/// Sets `$basedir_abs`, and `$basedir` with it, to the shim's physical
+/// directory so Node's lexical normalization of `..` cannot escape through a
+/// directory symlink. It runs before `$basedir_win` is derived from
+/// `$basedir`, so the Windows-form paths are physical too.
 pub(super) const BASEDIR_ABS_PRELUDE: &str = r#"basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
 "#;
 
 pub(super) const BASEDIR_ABS: &str = "$basedir_abs/";

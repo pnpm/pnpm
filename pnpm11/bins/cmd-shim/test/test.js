@@ -14,6 +14,7 @@ import {
   isShimNodePath,
   isShimPointingAt,
   readShNodePath,
+  readShRelativeTarget,
 } from '@pnpm/bins.cmd-shim'
 
 /**
@@ -71,7 +72,7 @@ describe('missing source', () => {
   test('infers the runtime from the extension', async () => {
     const src = path.resolve(fixtures, 'dist', 'missing.js')
     await cmdShim(src, to, { createCmdFile: true, fs })
-    assert.match(fs.readFileSync(to, 'utf8'), /\n +exec node +"\$basedir\/dist\/missing\.js" "\$@"\n/)
+    assert.match(fs.readFileSync(to, 'utf8'), /\n +exec node +"\$basedir_abs\/dist\/missing\.js" "\$@"\n/)
     assert.match(fs.readFileSync(`${to}${cmdExtension}`, 'utf8'), /\n +node +"%~dp0\\dist\\missing\.js" %\*/)
   })
 
@@ -79,7 +80,7 @@ describe('missing source', () => {
     const src = path.resolve(fixtures, 'missing')
     await cmdShim(src, to, { createCmdFile: false, fs })
     const content = fs.readFileSync(to, 'utf8')
-    assert.match(content, /\nexec "\$basedir\/missing" +"\$@"\n/)
+    assert.match(content, /\nexec "\$basedir_abs\/missing" +"\$@"\n/)
     assert.doesNotMatch(content, /exec node/)
   })
 
@@ -350,6 +351,25 @@ fi
 `
     assert.equal(readShNodePath(shim), "/mnt/c/it's/path")
     assert.equal(isShimNodePath(shim, { first: "/mnt/c/it's/path" }), true)
+  })
+})
+
+describe('readShRelativeTarget', () => {
+  test('extracts relative target anchored on basedir_abs', () => {
+    const shim = `
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exec "$basedir/node" "$basedir_abs/../foo/bin/cli.js" "$@"
+`
+    assert.equal(readShRelativeTarget(shim), '../foo/bin/cli.js')
+  })
+
+  test('returns undefined when shim has no basedir_abs anchor', () => {
+    const shim = `
+exec "$basedir/node" "/abs/path/cli.js" "$@"
+`
+    assert.equal(readShRelativeTarget(shim), undefined)
   })
 })
 

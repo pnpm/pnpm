@@ -10,7 +10,8 @@ use crate::{
     },
     shim::{
         ScriptRuntime, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
-        is_sh_shim_hardened, is_shim_pointing_at, search_script_runtime,
+        is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at,
+        search_script_runtime,
     },
 };
 use derive_more::{Display, Error};
@@ -475,7 +476,7 @@ where
                     node_path: &node_path,
                     options,
                     make_powershell_shim: wants_powershell_shim(pkg_name),
-                    relocatable_root: paths.relocatable_root.as_deref(),
+                    paths: &paths,
                     bin_dir,
                 },
                 cache,

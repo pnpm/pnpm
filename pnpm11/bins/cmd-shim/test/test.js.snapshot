@@ -45,6 +45,8 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
 basedir_win="$basedir"
 exe=""
 msys=""
@@ -79,30 +81,30 @@ if [ -n "$msys" ]; then
   if [ -n "$exe" ] && [ -x "$basedir/cmd.exe" ]; then
     exec "$basedir/cmd.exe" //C "$basedir_win/src.bat" "$@"
   elif [ -x "$basedir/cmd" ]; then
-    exec "$basedir/cmd" //C "$basedir/src.bat" "$@"
+    exec "$basedir/cmd" //C "$basedir_abs/src.bat" "$@"
   elif [ -n "$msys" ] && command -v cmd >/dev/null 2>&1; then
     exec cmd //C "$basedir_win/src.bat" "$@"
   elif command -v cmd >/dev/null 2>&1; then
-    exec cmd //C "$basedir/src.bat" "$@"
+    exec cmd //C "$basedir_abs/src.bat" "$@"
   elif [ -n "$exe" ] && command -v cmd.exe >/dev/null 2>&1; then
     exec cmd.exe //C "$basedir_win/src.bat" "$@"
   else
-    exec cmd //C "$basedir/src.bat" "$@"
+    exec cmd //C "$basedir_abs/src.bat" "$@"
   fi
 
 else
   if [ -n "$exe" ] && [ -x "$basedir/cmd.exe" ]; then
     exec "$basedir/cmd.exe" /C "$basedir_win/src.bat" "$@"
   elif [ -x "$basedir/cmd" ]; then
-    exec "$basedir/cmd" /C "$basedir/src.bat" "$@"
+    exec "$basedir/cmd" /C "$basedir_abs/src.bat" "$@"
   elif [ -n "$msys" ] && command -v cmd >/dev/null 2>&1; then
     exec cmd /C "$basedir_win/src.bat" "$@"
   elif command -v cmd >/dev/null 2>&1; then
-    exec cmd /C "$basedir/src.bat" "$@"
+    exec cmd /C "$basedir_abs/src.bat" "$@"
   elif [ -n "$exe" ] && command -v cmd.exe >/dev/null 2>&1; then
     exec cmd.exe /C "$basedir_win/src.bat" "$@"
   else
-    exec cmd /C "$basedir/src.bat" "$@"
+    exec cmd /C "$basedir_abs/src.bat" "$@"
   fi
 
 fi
@@ -201,6 +203,8 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
 basedir_win="$basedir"
 exe=""
 msys=""
@@ -231,7 +235,7 @@ case \`command -p uname -a\` in
 esac
 if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
-exec "/.pnpm/nodejs/16.0.0/node"  "$basedir/src.env" "$@"
+exec "/.pnpm/nodejs/16.0.0/node"  "$basedir_abs/src.env" "$@"
 exit $?
 
 `;
@@ -311,6 +315,8 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
 basedir_win="$basedir"
 exe=""
 msys=""
@@ -344,15 +350,15 @@ if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
 elif [ -x "$basedir/node" ]; then
-  exec "$basedir/node"  "$basedir/src.env" "$@"
+  exec "$basedir/node"  "$basedir_abs/src.env" "$@"
 elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
   exec node  "$basedir_win/src.env" "$@"
 elif command -v node >/dev/null 2>&1; then
-  exec node  "$basedir/src.env" "$@"
+  exec node  "$basedir_abs/src.env" "$@"
 elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
   exec node.exe  "$basedir_win/src.env" "$@"
 else
-  exec node  "$basedir/src.env" "$@"
+  exec node  "$basedir_abs/src.env" "$@"
 fi
 
 `;
@@ -449,6 +455,8 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
 basedir_win="$basedir"
 exe=""
 msys=""
@@ -494,15 +502,15 @@ fi
 if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
 elif [ -x "$basedir/node" ]; then
-  exec "$basedir/node"  "$basedir/src.env" "$@"
+  exec "$basedir/node"  "$basedir_abs/src.env" "$@"
 elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
   exec node  "$basedir_win/src.env" "$@"
 elif command -v node >/dev/null 2>&1; then
-  exec node  "$basedir/src.env" "$@"
+  exec node  "$basedir_abs/src.env" "$@"
 elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
   exec node.exe  "$basedir_win/src.env" "$@"
 else
-  exec node  "$basedir/src.env" "$@"
+  exec node  "$basedir_abs/src.env" "$@"
 fi
 
 `;
@@ -554,6 +562,8 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
 basedir_win="$basedir"
 exe=""
 msys=""
@@ -592,15 +602,15 @@ fi
 if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
 elif [ -x "$basedir/node" ]; then
-  exec "$basedir/node"  "$basedir/src.env" "$@"
+  exec "$basedir/node"  "$basedir_abs/src.env" "$@"
 elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
   exec node  "$basedir_win/src.env" "$@"
 elif command -v node >/dev/null 2>&1; then
-  exec node  "$basedir/src.env" "$@"
+  exec node  "$basedir_abs/src.env" "$@"
 elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
   exec node.exe  "$basedir_win/src.env" "$@"
 else
-  exec node  "$basedir/src.env" "$@"
+  exec node  "$basedir_abs/src.env" "$@"
 fi
 
 `;
@@ -715,6 +725,8 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
 basedir_win="$basedir"
 exe=""
 msys=""
@@ -749,15 +761,15 @@ export PATH="/add-to-path:$PATH"
 if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
 elif [ -x "$basedir/node" ]; then
-  exec "$basedir/node"  "$basedir/src.env" "$@"
+  exec "$basedir/node"  "$basedir_abs/src.env" "$@"
 elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
   exec node  "$basedir_win/src.env" "$@"
 elif command -v node >/dev/null 2>&1; then
-  exec node  "$basedir/src.env" "$@"
+  exec node  "$basedir_abs/src.env" "$@"
 elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
   exec node.exe  "$basedir_win/src.env" "$@"
 else
-  exec node  "$basedir/src.env" "$@"
+  exec node  "$basedir_abs/src.env" "$@"
 fi
 
 `;
@@ -865,6 +877,8 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
 basedir_win="$basedir"
 exe=""
 msys=""
@@ -898,15 +912,15 @@ if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  --expose_gc "$basedir_win/src.env.args" "$@"
 elif [ -x "$basedir/node" ]; then
-  exec "$basedir/node"  --expose_gc "$basedir/src.env.args" "$@"
+  exec "$basedir/node"  --expose_gc "$basedir_abs/src.env.args" "$@"
 elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
   exec node  --expose_gc "$basedir_win/src.env.args" "$@"
 elif command -v node >/dev/null 2>&1; then
-  exec node  --expose_gc "$basedir/src.env.args" "$@"
+  exec node  --expose_gc "$basedir_abs/src.env.args" "$@"
 elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
   exec node.exe  --expose_gc "$basedir_win/src.env.args" "$@"
 else
-  exec node  --expose_gc "$basedir/src.env.args" "$@"
+  exec node  --expose_gc "$basedir_abs/src.env.args" "$@"
 fi
 
 `;
@@ -1003,6 +1017,8 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
 basedir_win="$basedir"
 exe=""
 msys=""
@@ -1036,15 +1052,15 @@ if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe" --preserve-symlinks "$basedir_win/src.env" "$@"
 elif [ -x "$basedir/node" ]; then
-  exec "$basedir/node" --preserve-symlinks "$basedir/src.env" "$@"
+  exec "$basedir/node" --preserve-symlinks "$basedir_abs/src.env" "$@"
 elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
   exec node --preserve-symlinks "$basedir_win/src.env" "$@"
 elif command -v node >/dev/null 2>&1; then
-  exec node --preserve-symlinks "$basedir/src.env" "$@"
+  exec node --preserve-symlinks "$basedir_abs/src.env" "$@"
 elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
   exec node.exe --preserve-symlinks "$basedir_win/src.env" "$@"
 else
-  exec node --preserve-symlinks "$basedir/src.env" "$@"
+  exec node --preserve-symlinks "$basedir_abs/src.env" "$@"
 fi
 
 `;
@@ -1141,6 +1157,8 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
 basedir_win="$basedir"
 exe=""
 msys=""
@@ -1174,15 +1192,15 @@ if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
 elif [ -x "$basedir/node" ]; then
-  exec "$basedir/node"  "$basedir/src.env" "$@"
+  exec "$basedir/node"  "$basedir_abs/src.env" "$@"
 elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
   exec node  "$basedir_win/src.env" "$@"
 elif command -v node >/dev/null 2>&1; then
-  exec node  "$basedir/src.env" "$@"
+  exec node  "$basedir_abs/src.env" "$@"
 elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
   exec node.exe  "$basedir_win/src.env" "$@"
 else
-  exec node  "$basedir/src.env" "$@"
+  exec node  "$basedir_abs/src.env" "$@"
 fi
 
 `;
@@ -1279,6 +1297,8 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
 basedir_win="$basedir"
 exe=""
 msys=""
@@ -1312,15 +1332,15 @@ if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 if [ -n "$exe" ] && [ -x "$basedir//usr/bin/sh.exe" ]; then
   exec "$basedir//usr/bin/sh.exe"  "$basedir_win/src.sh" "$@"
 elif [ -x "$basedir//usr/bin/sh" ]; then
-  exec "$basedir//usr/bin/sh"  "$basedir/src.sh" "$@"
+  exec "$basedir//usr/bin/sh"  "$basedir_abs/src.sh" "$@"
 elif [ -n "$msys" ] && command -v /usr/bin/sh >/dev/null 2>&1; then
   exec /usr/bin/sh  "$basedir_win/src.sh" "$@"
 elif command -v /usr/bin/sh >/dev/null 2>&1; then
-  exec /usr/bin/sh  "$basedir/src.sh" "$@"
+  exec /usr/bin/sh  "$basedir_abs/src.sh" "$@"
 elif [ -n "$exe" ] && command -v /usr/bin/sh.exe >/dev/null 2>&1; then
   exec /usr/bin/sh.exe  "$basedir_win/src.sh" "$@"
 else
-  exec /usr/bin/sh  "$basedir/src.sh" "$@"
+  exec /usr/bin/sh  "$basedir_abs/src.sh" "$@"
 fi
 
 `;
@@ -1417,6 +1437,8 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
 basedir_win="$basedir"
 exe=""
 msys=""
@@ -1450,15 +1472,15 @@ if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 if [ -n "$exe" ] && [ -x "$basedir//usr/bin/sh.exe" ]; then
   exec "$basedir//usr/bin/sh.exe"  -x "$basedir_win/src.sh.args" "$@"
 elif [ -x "$basedir//usr/bin/sh" ]; then
-  exec "$basedir//usr/bin/sh"  -x "$basedir/src.sh.args" "$@"
+  exec "$basedir//usr/bin/sh"  -x "$basedir_abs/src.sh.args" "$@"
 elif [ -n "$msys" ] && command -v /usr/bin/sh >/dev/null 2>&1; then
   exec /usr/bin/sh  -x "$basedir_win/src.sh.args" "$@"
 elif command -v /usr/bin/sh >/dev/null 2>&1; then
-  exec /usr/bin/sh  -x "$basedir/src.sh.args" "$@"
+  exec /usr/bin/sh  -x "$basedir_abs/src.sh.args" "$@"
 elif [ -n "$exe" ] && command -v /usr/bin/sh.exe >/dev/null 2>&1; then
   exec /usr/bin/sh.exe  -x "$basedir_win/src.sh.args" "$@"
 else
-  exec /usr/bin/sh  -x "$basedir/src.sh.args" "$@"
+  exec /usr/bin/sh  -x "$basedir_abs/src.sh.args" "$@"
 fi
 
 `;
@@ -1693,6 +1715,8 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
 basedir_win="$basedir"
 exe=""
 msys=""
@@ -1726,15 +1750,15 @@ if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 if [ -n "$exe" ] && [ -x "$basedir//usr/bin/sh.exe" ]; then
   exec "$basedir//usr/bin/sh.exe"  -x "$basedir_win/src.sh.args" hello "$@"
 elif [ -x "$basedir//usr/bin/sh" ]; then
-  exec "$basedir//usr/bin/sh"  -x "$basedir/src.sh.args" hello "$@"
+  exec "$basedir//usr/bin/sh"  -x "$basedir_abs/src.sh.args" hello "$@"
 elif [ -n "$msys" ] && command -v /usr/bin/sh >/dev/null 2>&1; then
   exec /usr/bin/sh  -x "$basedir_win/src.sh.args" hello "$@"
 elif command -v /usr/bin/sh >/dev/null 2>&1; then
-  exec /usr/bin/sh  -x "$basedir/src.sh.args" hello "$@"
+  exec /usr/bin/sh  -x "$basedir_abs/src.sh.args" hello "$@"
 elif [ -n "$exe" ] && command -v /usr/bin/sh.exe >/dev/null 2>&1; then
   exec /usr/bin/sh.exe  -x "$basedir_win/src.sh.args" hello "$@"
 else
-  exec /usr/bin/sh  -x "$basedir/src.sh.args" hello "$@"
+  exec /usr/bin/sh  -x "$basedir_abs/src.sh.args" hello "$@"
 fi
 
 `;
@@ -1831,6 +1855,8 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
 basedir_win="$basedir"
 exe=""
 msys=""
@@ -1861,7 +1887,7 @@ case \`command -p uname -a\` in
 esac
 if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
-exec "$basedir/src.exe"   "$@"
+exec "$basedir_abs/src.exe"   "$@"
 exit $?
 
 `;
@@ -1934,6 +1960,8 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
 basedir_win="$basedir"
 exe=""
 msys=""
@@ -1964,7 +1992,7 @@ case \`command -p uname -a\` in
 esac
 if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
-exec "$basedir/src.exe"   "$@"
+exec "$basedir_abs/src.exe"   "$@"
 exit $?
 
 `;
@@ -2044,6 +2072,8 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
 basedir_win="$basedir"
 exe=""
 msys=""
@@ -2077,15 +2107,15 @@ if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  --expose_gc "$basedir_win/from.env.S" "$@"
 elif [ -x "$basedir/node" ]; then
-  exec "$basedir/node"  --expose_gc "$basedir/from.env.S" "$@"
+  exec "$basedir/node"  --expose_gc "$basedir_abs/from.env.S" "$@"
 elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
   exec node  --expose_gc "$basedir_win/from.env.S" "$@"
 elif command -v node >/dev/null 2>&1; then
-  exec node  --expose_gc "$basedir/from.env.S" "$@"
+  exec node  --expose_gc "$basedir_abs/from.env.S" "$@"
 elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
   exec node.exe  --expose_gc "$basedir_win/from.env.S" "$@"
 else
-  exec node  --expose_gc "$basedir/from.env.S" "$@"
+  exec node  --expose_gc "$basedir_abs/from.env.S" "$@"
 fi
 
 `;

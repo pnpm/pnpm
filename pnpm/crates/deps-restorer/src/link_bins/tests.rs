@@ -67,7 +67,7 @@ fn writes_child_bins_into_slot_own_package_node_modules() {
     assert!(shim_path.exists(), "expected shim at {shim_path:?}");
     let body = read_to_string(&shim_path).unwrap();
     assert!(
-        body.contains(r#""$basedir/../../../child/cli.js""#),
+        body.contains(r#""$basedir_abs/../../../child/cli.js""#),
         "shim must reference the sibling child via the right number of `..`s, got:\n{body}",
     );
 }
