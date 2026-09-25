@@ -79,6 +79,45 @@ fn rm_without_global_is_refused_after_the_deprecation_warning() {
     assert!(output.stdout.contains(r#""pnpm env remove" is deprecated"#), "{}", output.stdout);
 }
 
+/// A pnpm installed by another tool has a home directory, and the Node
+/// copies it downloaded live there, but its bin directory is not on `PATH`.
+#[test]
+fn remove_deletes_a_managed_node_when_the_global_bin_is_not_on_path() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm_home");
+    let nodejs_dir = pnpm_home.join("nodejs");
+    std::fs::create_dir_all(nodejs_dir.join("22.5.0")).unwrap();
+    std::fs::create_dir_all(nodejs_dir.join("20.0.0")).unwrap();
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_args(["env", "remove", "--global", "22.5.0"])
+        .output()
+        .expect("run pacquet env remove");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stderr={stderr}");
+    assert!(!nodejs_dir.join("22.5.0").exists());
+    assert!(nodejs_dir.join("20.0.0").exists());
+}
+
+#[test]
+fn use_refuses_to_manage_node_when_the_global_bin_is_not_on_path() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm_home");
+    std::fs::create_dir_all(&pnpm_home).unwrap();
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_args(["env", "use", "--global", "24"])
+        .output()
+        .expect("run pacquet env use");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "stderr={stderr}");
+    assert!(stderr.contains("ERR_PNPM_GLOBAL_BIN_DIR_NOT_IN_PATH"), "{stderr}");
+}
+
 #[cfg(unix)]
 #[test]
 fn remove_cleans_up_dangling_node_link() {

@@ -45,6 +45,25 @@ fn managing_node_needs_a_global_bin_dir() {
 }
 
 #[test]
+fn remove_deletes_a_stored_node_without_a_global_bin_dir() {
+    let subcommand = args(true, &["remove", "22.5.0"])
+        .subcommand::<SilentReporter>(&Config::default())
+        .unwrap();
+    let EnvSubcommand::Remove { versions } = subcommand else {
+        panic!("expected a `remove` subcommand");
+    };
+    assert_eq!(versions, vec!["22.5.0".to_string()]);
+}
+
+#[test]
+fn listing_node_does_not_need_a_global_bin_dir() {
+    let subcommand = args(true, &["list"])
+        .subcommand::<SilentReporter>(&Config::default())
+        .unwrap();
+    assert!(matches!(subcommand, EnvSubcommand::List { version_spec: None }), "{subcommand:?}");
+}
+
+#[test]
 fn use_installs_the_version_as_a_global_runtime() {
     let subcommand = args(true, &["use", "24"])
         .subcommand::<SilentReporter>(&config_with_global_bin())

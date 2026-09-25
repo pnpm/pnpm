@@ -79,6 +79,28 @@ test('fail if not run with --global', async () => {
   expect(mockRunPnpmCli).not.toHaveBeenCalled()
 })
 
+test('env remove deletes a pnpm-managed Node when there is no global bin directory', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
+  const pnpmHomeDir = path.join(tempDir, 'home')
+  const nodejsDir = path.join(pnpmHomeDir, 'nodejs')
+  fs.mkdirSync(path.join(nodejsDir, '22.5.0'), { recursive: true })
+  fs.mkdirSync(path.join(nodejsDir, '20.0.0'), { recursive: true })
+
+  await env.handler({
+    // @ts-expect-error
+    bin: undefined,
+    global: true,
+    pnpmHomeDir,
+    configByUri: {},
+  }, ['remove', '22.5.0'])
+
+  expect(fs.existsSync(path.join(nodejsDir, '22.5.0'))).toBe(false)
+  expect(fs.existsSync(path.join(nodejsDir, '20.0.0'))).toBe(true)
+  expect(mockRunPnpmCli).not.toHaveBeenCalled()
+
+  fs.rmSync(tempDir, { recursive: true, force: true })
+})
+
 test('fail if there is no global bin directory', async () => {
   await expect(
     env.handler({

@@ -3,7 +3,7 @@
 
 use super::{
     add::AddRequest,
-    global::{global_dirs, handle_global_add, handle_global_remove},
+    global::{handle_global_add, handle_global_remove},
     registry_client::build_registry_client,
 };
 use crate::shim_dispatch::{ShimTarget, native_shim_target, remove_native_shim};
@@ -139,7 +139,9 @@ impl EnvArgs {
         let Some(subcommand) = self.params.first() else {
             return Err(EnvError::NoSubcommand);
         };
-        if self.global && config.global_bin.is_none() {
+        // `use` links Node into the global bin, which only a standalone pnpm
+        // install owns. `remove` deletes copies pnpm already stored.
+        if self.global && config.global_bin.is_none() && subcommand == "use" {
             return Err(EnvError::CannotManageNode);
         }
         match subcommand.as_str() {
@@ -211,10 +213,15 @@ impl EnvArgs {
         config: &'static Config,
         _dir: &Path,
     ) -> miette::Result<()> {
-        let (global_pkg_dir, global_bin_dir) = global_dirs(config)?;
         let mut removed_something = false;
 
-        if let Some(pkg) = find_global_package(&global_pkg_dir, "node").into_diagnostic()? {
+        // The global package and its bin links are the active Node. Without a
+        // global bin directory there is nothing there to manage; the Node
+        // store under the pnpm home is still removed below.
+        if let (Some(global_pkg_dir), Some(_)) =
+            (config.global_pkg_dir.as_deref(), config.global_bin.as_deref())
+            && let Some(pkg) = find_global_package(global_pkg_dir, "node").into_diagnostic()?
+        {
             let installed = pnpm_global::installed_versions(&pkg.install_dir);
             if let Some(installed_ver) = installed.get("node")
                 && versions
@@ -234,7 +241,9 @@ impl EnvArgs {
             removed_something = true;
         }
 
-        if cleanup_bin_links(&global_bin_dir, &removed_names).into_diagnostic()? {
+        if let Some(global_bin_dir) = config.global_bin.as_deref()
+            && cleanup_bin_links(global_bin_dir, &removed_names).into_diagnostic()?
+        {
             removed_something = true;
         }
 
