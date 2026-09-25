@@ -154,8 +154,8 @@ function isPluginName (configDepName: string): boolean {
  * the default route.
  *
  * A `default` route the hooks dropped falls back to `registry`, so a configured mirror keeps serving
- * unscoped packages. A scope a hook set to a non-string is dropped, so it routes to `default` as it would
- * have without the hook.
+ * unscoped packages. A scope a hook set to a non-string is dropped, so it routes to `default` like any
+ * scope without an entry.
  */
 function restoreRegistryInvariants (config: Config, defaultRegistryBeforeHooks: string): void {
   const routes = Object.fromEntries(
