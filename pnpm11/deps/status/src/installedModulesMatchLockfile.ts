@@ -4,6 +4,7 @@ import { parseOverrides } from '@pnpm/config.parse-overrides'
 import { createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import {
+  checkPatchedDepPaths,
   getLockfileImporterId,
   type LockfileObject,
   readCurrentLockfile,
@@ -145,14 +146,15 @@ async function lockfileSettingsUpToDate (
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
     peersSuffixMaxLength: opts.peersSuffixMaxLength ?? DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
     overrides: createOverridesMapFromParsed(parseOverrides(opts.overrides ?? {}, opts.catalogs)),
-    ignoredOptionalDependencies: opts.ignoredOptionalDependencies?.sort(),
+    ignoredOptionalDependencies: opts.ignoredOptionalDependencies == null ? undefined : [...opts.ignoredOptionalDependencies].sort(),
     packageExtensionsChecksum: hashObjectNullableWithPrefix(opts.packageExtensions),
     patchedDependencies,
     pnpmfileChecksum,
     ignorePnpmfileChecksum: opts.ignorePnpmfile === true && pnpmfileChecksum == null,
   })
 
-  return outdatedLockfileSettingName == null
+  if (outdatedLockfileSettingName != null) return false
+  return checkPatchedDepPaths(wantedLockfile) === 'up-to-date'
 }
 
 async function checkProjectsHaveModulesDir (

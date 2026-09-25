@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { Project, ProjectId, ProjectRootDir } from '@pnpm/types'
+import type { DepPath, Project, ProjectId, ProjectRootDir } from '@pnpm/types'
 
 {
   const original = await import('../lib/safeStat.js')
@@ -202,5 +202,53 @@ describe('installedModulesMatchLockfile', () => {
       allProjects: [childProject as Project],
     } as CheckDepsStatusOptions)
     expect(result).toBe(true)
+  })
+
+  it('returns false when wanted lockfile has stale patched dependency paths', async () => {
+    const lockfile: LockfileObject = {
+      ...makeLockfile(),
+      packages: {
+        ['is-positive@1.0.0(patch_hash=bbbb2222)' as DepPath]: {
+          resolution: { integrity: 'sha512-fake' },
+        },
+      },
+    }
+    jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(lockfile)
+    jest.mocked(lockfileFs.readCurrentLockfile).mockResolvedValue(lockfile)
+    jest.mocked(fsUtils.safeStat).mockResolvedValue({
+      isDirectory: () => true,
+    } as Stats)
+
+    const result = await installedModulesMatchLockfile({
+      ...baseOpts,
+      rootProjectManifest: manifest,
+      rootProjectManifestDir: '/workspace' as ProjectRootDir,
+      lockfileDir: '/workspace',
+    } as CheckDepsStatusOptions)
+    expect(result).toBe(false)
+  })
+
+  it('returns false when wanted lockfile has indeterminate patched dependency paths', async () => {
+    const lockfile: LockfileObject = {
+      ...makeLockfile(),
+      packages: {
+        ['foo@1.0.0(patch_hash=1111)(patch_hash=2222)' as DepPath]: {
+          resolution: { integrity: 'sha512-fake' },
+        },
+      },
+    }
+    jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(lockfile)
+    jest.mocked(lockfileFs.readCurrentLockfile).mockResolvedValue(lockfile)
+    jest.mocked(fsUtils.safeStat).mockResolvedValue({
+      isDirectory: () => true,
+    } as Stats)
+
+    const result = await installedModulesMatchLockfile({
+      ...baseOpts,
+      rootProjectManifest: manifest,
+      rootProjectManifestDir: '/workspace' as ProjectRootDir,
+      lockfileDir: '/workspace',
+    } as CheckDepsStatusOptions)
+    expect(result).toBe(false)
   })
 })
