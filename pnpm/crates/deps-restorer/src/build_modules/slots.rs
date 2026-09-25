@@ -108,6 +108,63 @@ pub(crate) fn mark_global_virtual_store_build_started(pkg_roots: PkgRoots<'_>, k
     }
 }
 
+/// Remove every project-local copy of an optional dependency whose build
+/// failed, so a consumer that probes for it finds it absent rather than
+/// half-built.
+///
+/// A no-op under the global virtual store: other projects may link the
+/// shared slot, so a failed build leaves it marked for the next install to
+/// rebuild (see [`mark_global_virtual_store_build_started`]). A directory that is not a
+/// plain descendant of the virtual store or the lockfile directory is left
+/// alone, since its path comes from a lockfile-controlled package name.
+pub(crate) fn discard_skipped_optional_dependency(
+    pkg_roots: PkgRoots<'_>,
+    lockfile_dir: &Path,
+    key: &PackageKey,
+) -> Result<(), BuildModulesError> {
+    if pkg_roots.layout.enable_global_virtual_store() {
+        return Ok(());
+    }
+    let virtual_store_dir = pkg_roots.layout.package_store_dir();
+    for pkg_dir in pkg_roots.all(key) {
+        if !is_contained_descendant(virtual_store_dir, &pkg_dir)
+            && !is_contained_descendant(lockfile_dir, &pkg_dir)
+        {
+            tracing::warn!(
+                target: "pacquet::build",
+                dep_path = %key,
+                pkg_dir = %pkg_dir.display(),
+                "refusing to remove a skipped optional dependency outside the project",
+            );
+            continue;
+        }
+        match pnpm_fs::remove_dir_all_with_retry(&pkg_dir) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(source) => {
+                return Err(BuildModulesError::RemoveSkippedOptionalDependency {
+                    path: pkg_dir,
+                    source,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Whether `dir` is a strict descendant of `root` reached only through
+/// `..`-free path components, so a crafted `..` segment in a
+/// lockfile-controlled package name cannot make a recursive delete escape
+/// `root`.
+pub(crate) fn is_contained_descendant(root: &Path, dir: &Path) -> bool {
+    dir.strip_prefix(root)
+        .is_ok_and(|suffix| {
+            let mut components = suffix.components().peekable();
+            components.peek().is_some()
+                && components.all(|component| matches!(component, std::path::Component::Normal(_)))
+        })
+}
+
 /// Where each snapshot's package sits on disk, under either linker.
 ///
 /// `by_key` is what distinguishes the two: the isolated linker leaves it

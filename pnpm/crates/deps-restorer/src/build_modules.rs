@@ -10,8 +10,9 @@ pub(crate) use build_requirements::deferred_builds;
 pub use build_requirements::{ScheduledBuilds, ScheduledBuildsInputs};
 pub use slots::parse_name_version_from_key;
 pub(crate) use slots::{
-    PkgRoots, bin_dirs_in_all_parent_dirs, is_started_build_marker,
-    mark_global_virtual_store_build_started, materialize_side_effects, slot_carries_overlay,
+    PkgRoots, bin_dirs_in_all_parent_dirs, discard_skipped_optional_dependency,
+    is_started_build_marker, mark_global_virtual_store_build_started, materialize_side_effects,
+    slot_carries_overlay,
 };
 
 mod build_requirements;
@@ -123,6 +124,15 @@ pub enum BuildModulesError {
     /// half-built is unknown.
     #[display("Failed to read the build marker at {}: {source}", path.display())]
     ReadBuildMarker {
+        path: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
+    /// An optional dependency's build failed and the package could not be
+    /// removed, so it would stay installed half-built.
+    #[display("Failed to remove {}, an optional dependency whose build failed: {source}", path.display())]
+    RemoveSkippedOptionalDependency {
         path: PathBuf,
         #[error(source)]
         source: std::io::Error,

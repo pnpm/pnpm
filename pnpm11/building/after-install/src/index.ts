@@ -47,6 +47,7 @@ import type {
 } from '@pnpm/types'
 import { hardLinkDir } from '@pnpm/worker'
 import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
+import { strict as isStrictSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
 import semver from 'semver'
 
@@ -515,6 +516,14 @@ async function _rebuild (
     } catch (err: unknown) {
       assert(util.types.isNativeError(err))
       if (pkgSnapshot.optional) {
+        // Other projects may link a global virtual store slot, so it is kept.
+        if (!gvsDirByDepPath.has(depPath)) {
+          // Hoisted package roots come from .modules.yaml, which is not validated.
+          const rootsToRemove = opts.nodeLinker === 'hoisted'
+            ? pkgRoots.filter((root) => isStrictSubdir(opts.lockfileDir, root))
+            : pkgRoots
+          await Promise.all(rootsToRemove.map((root) => fs.promises.rm(root, { recursive: true, force: true })))
+        }
         // TODO: add parents field to the log
         skippedOptionalDependencyLogger.debug({
           details: err.toString(),

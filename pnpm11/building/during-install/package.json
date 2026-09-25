@@ -52,6 +52,7 @@
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.task-scheduler": "workspace:*",
+    "is-subdir": "catalog:",
     "p-defer": "catalog:",
     "path-exists": "catalog:",
     "ramda": "catalog:"

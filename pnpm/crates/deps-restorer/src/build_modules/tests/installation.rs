@@ -7,7 +7,7 @@ use super::{
 use super::{
     super::{
         allow_build_policy::AllowBuildPolicy,
-        slots::{parse_name_version_from_key, virtual_store_dir_for_key},
+        slots::{is_contained_descendant, parse_name_version_from_key, virtual_store_dir_for_key},
     },
     key, policy_from_specs,
 };
@@ -722,4 +722,29 @@ fn pkg_root_for_key_uses_parsed_name_for_non_registry_version() {
     let result = virtual_store_dir_for_key(&layout, &key);
 
     assert!(result.ends_with(Path::new("node_modules").join("foo")), "package name: {result:?}");
+}
+
+/// The failed-optional-build cleanup only recurse-deletes a directory that
+/// sits strictly inside its root through `..`-free components, so a crafted
+/// package name cannot turn the cleanup into a path traversal.
+#[test]
+fn is_contained_descendant_rejects_traversal_and_escapes() {
+    let root = Path::new("/project/node_modules/.pnpm");
+
+    assert!(is_contained_descendant(
+        root,
+        &root.join("@pnpm.e2e+foo@1.0.0/node_modules/@pnpm.e2e/foo")
+    ));
+    assert!(is_contained_descendant(root, &root.join("foo@1.0.0/node_modules/foo")));
+
+    // A `..` segment that climbs out of the root is rejected even though
+    // the path still textually starts with the root.
+    assert!(!is_contained_descendant(root, &root.join("../../../etc/passwd")));
+    assert!(!is_contained_descendant(root, &root.join("foo/../../../escape")));
+
+    // The root itself is not a descendant.
+    assert!(!is_contained_descendant(root, root));
+
+    // A sibling that merely shares a name prefix is not contained.
+    assert!(!is_contained_descendant(root, Path::new("/project/node_modules/.pnpm-evil/foo")));
 }

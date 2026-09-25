@@ -17,8 +17,8 @@ use super::{
     PackageKey, Path, PathBuf, PkgRoots, RebuildOptions, Reporter, RunPostinstallHooks,
     SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
     allow_build_key_from_ignored_build, apply_patch_to_dir, bin_dirs_in_all_parent_dirs,
-    get_pkg_id_with_patch_hash, parse_name_version_from_key, run_postinstall_hooks,
-    slot_carries_overlay,
+    discard_skipped_optional_dependency, get_pkg_id_with_patch_hash, parse_name_version_from_key,
+    run_postinstall_hooks, slot_carries_overlay,
 };
 
 /// Everything one snapshot's build reads: the lockfile shape it belongs to,
@@ -357,6 +357,11 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
             if !optional {
                 return Err(BuildModulesError::LifecycleScript(err));
             }
+            discard_skipped_optional_dependency(
+                context.pkg_roots(),
+                context.directories.lockfile_dir,
+                snapshot_key,
+            )?;
             Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
                 level: LogLevel::Debug,
                 details: Some(err.to_string()),
