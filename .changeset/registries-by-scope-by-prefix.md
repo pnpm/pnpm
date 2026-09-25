@@ -42,6 +42,7 @@
 "@pnpm/testing.command-defaults": major
 "@pnpm/testing.temp-store": major
 "@pnpm/types": major
+"pnpm": patch
 "pacquet": patch
 ---
 
@@ -55,6 +56,6 @@ The three registry lookups are now named for what they are keyed by, so that non
 
 The same rename applies to the `RegistryContext` fields, the `Registries` and `NamedRegistries` types (now `RegistriesByScope` and `RegistriesByPrefix`), `normalizeRegistries` / `normalizeNamedRegistries` (now `normalizeRegistriesByScope` / `normalizeRegistriesByPrefix`), and the `BUILTIN_NAMED_REGISTRIES` constant (now `BUILTIN_REGISTRIES_BY_PREFIX`).
 
-This is an internal rename: no setting, error code, lockfile field, or `.pnpmfile.cjs` hook field changes. A `preResolution` hook still reads `ctx.registries`, which is the name pacquet passes as well. The `registries` and `namedRegistries` settings are read under the names users write them.
+This is an internal rename: no setting, error code, or lockfile field changes. A `preResolution` hook still reads `ctx.registries`, which is the name pacquet passes as well. An `updateConfig` hook is the exception, because it is handed the resolved configuration and its return value replaces it: the per-scope and per-prefix maps reach the hook as `registriesByScope` and `registriesByPrefix`, and the per-URL registry options as `registryOptionsByUrl`, so a hook that reads or returns those fields has to use the new names. The `registries` and `namedRegistries` settings are read under the names users write them.
 
 The pnpr resolve request sends `registriesByPrefix` where it sent `namedRegistries`. A pnpr server and its clients must be on matching versions, which is already the case for an experimental server.
