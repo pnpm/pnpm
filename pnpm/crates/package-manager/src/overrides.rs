@@ -14,9 +14,12 @@
 //! happens through [`pnpm_package_manifest::PackageManifest::value_mut`]
 //! on the in-memory `Value` only.
 
+pub use dependency_rewriter::overrides_dependency_rewriter;
 pub(crate) use selectors::parse_declared_range;
 
+mod dependency_rewriter;
 mod selectors;
+
 use selectors::{matches_target, semver_satisfies, sort_by_specificity};
 
 use node_semver::{Range, Version};

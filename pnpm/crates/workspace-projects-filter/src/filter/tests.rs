@@ -28,7 +28,7 @@ impl BaseProject for TestPkg {
     fn merged_dependencies(&self, ignore_dev_deps: bool) -> Vec<(String, String)> {
         let mut merged = self.deps.clone();
         if !ignore_dev_deps {
-            merged.extend(self.dev_deps.iter().cloned());
+            merged.extend(self.dev_deps.clone());
         }
         merged
     }
@@ -37,6 +37,13 @@ impl BaseProject for TestPkg {
 impl GraphProject for TestPkg {
     fn manifest_version(&self) -> Option<&str> {
         self.version.as_deref()
+    }
+    fn dependency_groups(&self, ignore_dev_deps: bool) -> Vec<Vec<(String, String)>> {
+        let mut groups = vec![self.deps.clone()];
+        if !ignore_dev_deps {
+            groups.push(self.dev_deps.clone());
+        }
+        groups
     }
 }
 

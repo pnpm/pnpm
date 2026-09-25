@@ -324,6 +324,9 @@ export async function main (inputArgv: string[]): Promise<void> {
       modulesDir: config.modulesDir,
       modulesDirsByProjectName: config.modulesDirsByProjectName,
       linkWorkspacePackages: !!config.linkWorkspacePackages,
+      overrides: config.overrides == null
+        ? undefined
+        : { overrides: config.overrides, catalogs: config.catalogs, lockfileDir: config.lockfileDir ?? wsDir },
       prefix: process.cwd(),
       workspaceDir: wsDir,
       testPattern: config.testPattern,

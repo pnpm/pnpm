@@ -7,7 +7,6 @@
 //! report a full install makes.
 
 use crate::Project;
-use indexmap::IndexMap;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_workspace_projects_graph::{BaseProject, GraphProject};
 use std::path::Path;
@@ -31,22 +30,9 @@ impl BaseProject for GraphPkg<'_> {
     }
 
     fn merged_dependencies(&self, ignore_dev_deps: bool) -> Vec<(String, String)> {
-        // Precedence: peer, then dev (unless excluded), then optional,
-        // then prod, with a later group overwriting an earlier
-        // duplicate's specifier while keeping the first-seen position.
-        let mut merged: IndexMap<String, String> = IndexMap::new();
-        let mut absorb = |group: DependencyGroup| {
-            for (name, spec) in self.project.manifest.dependencies([group]) {
-                merged.insert(name.to_string(), spec.to_string());
-            }
-        };
-        absorb(DependencyGroup::Peer);
-        if !ignore_dev_deps {
-            absorb(DependencyGroup::Dev);
-        }
-        absorb(DependencyGroup::Optional);
-        absorb(DependencyGroup::Prod);
-        merged.into_iter().collect()
+        pnpm_workspace_projects_graph::merge_dependency_groups(self.dependency_groups(
+            ignore_dev_deps,
+        ))
     }
 }
 
@@ -56,5 +42,21 @@ impl GraphProject for GraphPkg<'_> {
             .value()
             .get("version")
             .and_then(|version| version.as_str())
+    }
+
+    fn dependency_groups(&self, ignore_dev_deps: bool) -> Vec<Vec<(String, String)>> {
+        let declared = |group: DependencyGroup| {
+            self.project.manifest
+                .dependencies([group])
+                .map(|(name, spec)| (name.to_string(), spec.to_string()))
+                .collect()
+        };
+        let mut groups = vec![declared(DependencyGroup::Peer)];
+        if !ignore_dev_deps {
+            groups.push(declared(DependencyGroup::Dev));
+        }
+        groups.push(declared(DependencyGroup::Optional));
+        groups.push(declared(DependencyGroup::Prod));
+        groups
     }
 }

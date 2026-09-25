@@ -10437,6 +10437,12 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
+      '@pnpm/config.parse-overrides':
+        specifier: workspace:*
+        version: link:../../config/parse-overrides
+      '@pnpm/hooks.read-package-hook':
+        specifier: workspace:*
+        version: link:../../hooks/read-package-hook
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
         version: 2.0.0

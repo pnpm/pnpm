@@ -40,9 +40,7 @@ use pnpm_package_manager::{
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
 use pnpm_workspace::{GraphPkg, Project};
 use pnpm_workspace_projects_filter::{GetChangedProjectsOptions, get_changed_projects};
-use pnpm_workspace_projects_graph::{
-    CreateProjectsGraphOptions, ProjectGraph, create_projects_graph,
-};
+use pnpm_workspace_projects_graph::ProjectGraph;
 use pnpm_workspace_task_scheduler::{
     BuildPipelineTaskGraphOptions, ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion,
     TaskGraph, TaskKey, TaskNode, build_pipeline_task_graph, format_task,
@@ -182,7 +180,7 @@ pub fn run_pipeline(
     let (name, requested_tasks) = run.requested_tasks()?;
 
     let (projects, _) = discover_workspace_projects(run.workspace_root, config)?;
-    let graph = build_full_graph(&projects, config)?;
+    let graph = build_full_graph(&projects, config, run.workspace_root)?;
 
     let base = pipeline_base(invocation, config);
     let selection = select_affected_projects(&SelectAffectedOptions {
