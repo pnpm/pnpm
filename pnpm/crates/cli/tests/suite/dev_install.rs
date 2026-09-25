@@ -10,7 +10,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-// https://github.com/pnpm/pnpm/issues/9678
+// <https://github.com/pnpm/pnpm/issues/9678>
 
 const DEV_DEP: &str = "@pnpm.e2e/pkg-with-good-optional";
 const DEV_DEP_OPTIONAL: &str = "is-positive";
@@ -117,19 +117,10 @@ fn assert_dev_install(workspace: &Path, expect_dev_dep_optional: bool) {
     let dev_dep_dir = fs::canonicalize(workspace.join("node_modules").join(DEV_DEP))
         .expect("the dev dependency is installed");
     assert_eq!(resolves_from(&dev_dep_dir, DEV_DEP_OPTIONAL), expect_dev_dep_optional);
-    assert!(
-        !workspace
-            .join("node_modules")
-            .join(PROD_DEP)
-            .exists()
-    );
-    assert!(
-        !workspace
-            .join("node_modules")
-            .join(ROOT_OPTIONAL)
-            .exists()
-    );
-    assert!(!workspace.join("node_modules/.pnpm/@pnpm.e2e+bravo@1.0.0").exists());
+    let modules_dir = workspace.join("node_modules");
+    assert!(!modules_dir.join(PROD_DEP).exists());
+    assert!(!modules_dir.join(ROOT_OPTIONAL).exists());
+    assert!(!modules_dir.join(".pnpm/@pnpm.e2e+bravo@1.0.0").exists());
 }
 
 /// Whether Node's module resolution from `dir` finds `name`.
