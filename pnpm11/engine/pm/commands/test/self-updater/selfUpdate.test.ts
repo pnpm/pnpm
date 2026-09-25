@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globa
 import { linkBins } from '@pnpm/bins.linker'
 import { STORE_VERSION } from '@pnpm/constants'
 import type { PnpmError } from '@pnpm/error'
+import { scanGlobalPackages } from '@pnpm/global.packages'
 import { prepare as prepareWithPkg, tempDir } from '@pnpm/prepare'
 import { prependDirsToPath } from '@pnpm/shell.path'
 import { getRegisteredProjects } from '@pnpm/store.controller'
@@ -1220,6 +1221,28 @@ console.log('9.2.0')`, 'utf8')
   })
   expect(status).toBe(0)
   expect(stdout.toString().trim()).toBe('9.2.0')
+})
+
+test('self-update replaces the pnpm installed under the other package name', async () => {
+  // https://github.com/pnpm/pnpm/issues/14709
+  const opts = prepare()
+  const exeInstallDir = path.join(opts.globalPkgDir, 'exe-install')
+  fs.mkdirSync(path.join(exeInstallDir, 'node_modules/@pnpm/exe'), { recursive: true })
+  fs.writeFileSync(path.join(exeInstallDir, 'package.json'), '{"dependencies":{"@pnpm/exe":"9.0.0"}}', 'utf8')
+  fs.writeFileSync(path.join(exeInstallDir, 'node_modules/@pnpm/exe/package.json'), '{"name":"@pnpm/exe","version":"9.0.0"}', 'utf8')
+  fs.symlinkSync(exeInstallDir, path.join(opts.globalPkgDir, 'exe-hash'))
+  const toolInstallDir = path.join(opts.globalPkgDir, 'tool-install')
+  fs.mkdirSync(toolInstallDir)
+  fs.writeFileSync(path.join(toolInstallDir, 'package.json'), '{"dependencies":{"typescript":"6.0.0"}}', 'utf8')
+  fs.symlinkSync(toolInstallDir, path.join(opts.globalPkgDir, 'tool-hash'))
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+
+  await selfUpdate.handler(opts, ['9.1.0'])
+
+  expect(scanGlobalPackages(opts.globalPkgDir).map((group) => group.dependencies).sort((a, b) => Object.keys(a)[0].localeCompare(Object.keys(b)[0]))).toStrictEqual([
+    { pnpm: '9.1.0' },
+    { typescript: '6.0.0' },
+  ])
 })
 
 test('self-update works globally without package.json', async () => {

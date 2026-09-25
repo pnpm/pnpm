@@ -20,7 +20,7 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
-import { assertReleaseIsInstallable, findGlobalPnpmInstallDir, installPnpm, pnpmPackageNameToInstall } from './installPnpm.js'
+import { assertReleaseIsInstallable, findGlobalPnpmInstallDir, installPnpm, pnpmPackageNameToInstall, unlinkReplacedPnpmInstalls } from './installPnpm.js'
 import { resolvePnpmVersion } from './resolvePnpmVersion.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -191,6 +191,7 @@ async function switchGlobalPnpm (
 
   // Link bins to pnpmHomeDir/bin so the updated pnpm is the active global binary
   await linkBins(path.join(baseDir, 'node_modules'), path.join(opts.pnpmHomeDir, 'bin'), { warn: globalWarn })
+  await unlinkReplacedPnpmInstalls(opts.globalPkgDir, baseDir)
 
   // pnpm v10 setup linked bins directly into pnpmHomeDir and added that
   // directory to PATH (instead of pnpmHomeDir/bin as v11 does). When a v10

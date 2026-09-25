@@ -20,6 +20,7 @@ import {
   createInstallDir,
   findGlobalPackage,
   getHashLink,
+  scanGlobalPackages,
 } from '@pnpm/global.packages'
 import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
@@ -339,6 +340,28 @@ export async function findGlobalPnpmInstallDir (globalDir: string, pkgName: stri
     if (pkgJson.version === version) return existing.installDir
   } catch {}
   return undefined
+}
+
+const PNPM_ENGINE_ALIASES = new Set(['pnpm', '@pnpm/exe'])
+
+/**
+ * Unlinks every global group other than the one at `installDir` that holds
+ * nothing but a pnpm engine. The engine switched from may be installed under
+ * the other alias, whose group the new hash link does not overwrite
+ * (https://github.com/pnpm/pnpm/issues/14709). The install directories are
+ * left to `cleanOrphanedInstallDirs`, as the running pnpm may still execute
+ * from one of them.
+ */
+export async function unlinkReplacedPnpmInstalls (globalDir: string, installDir: string): Promise<void> {
+  const realInstallDir = await fs.promises.realpath(installDir)
+  await Promise.all(
+    scanGlobalPackages(globalDir)
+      .filter((group) =>
+        group.installDir !== realInstallDir &&
+        Object.keys(group.dependencies).every((alias) => PNPM_ENGINE_ALIASES.has(alias))
+      )
+      .map((group) => fs.promises.rm(getHashLink(globalDir, group.hash), { force: true }))
+  )
 }
 
 async function installFromLockfile (
