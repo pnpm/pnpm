@@ -9,7 +9,7 @@ use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     command_env::CommandTestExt,
 };
-use std::{fs, path::Path, process::Command};
+use std::{fmt::Write, fs, path::Path, process::Command};
 
 /// Writes the environment of its `install` script to `env.json`.
 const ENV_WRITER: &str = "@pnpm.e2e/write-lifecycle-env";
@@ -65,7 +65,9 @@ fn build_flavors(layout: &Layout) -> [String; 2] {
 fn configure(workspace: &Path, layout: &Layout) {
     let mut settings = format!("allowBuilds:\n  '{ENV_WRITER}': true\n");
     if layout.exclude {
-        settings.push_str(&format!("sideEffectsCacheExclude:\n  - '{ENV_WRITER}'\n"));
+        writeln!(settings, "sideEffectsCacheExclude:\n  - '{ENV_WRITER}'").expect(
+            "format the sideEffectsCacheExclude entry",
+        );
     }
     if layout.global_virtual_store {
         crate::_utils::enable_gvs_in_workspace_yaml(workspace, &settings);
