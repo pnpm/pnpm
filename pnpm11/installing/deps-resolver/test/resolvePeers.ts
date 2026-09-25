@@ -1491,6 +1491,129 @@ describe('dedupePeers', () => {
     expect(depPaths).not.toContain('plugin/1.0.0(parser/1.0.0(typescript/2.0.0))(typescript/1.0.0)')
   })
 
+  // https://github.com/pnpm/pnpm/issues/12098
+  test("a peer's own peer is shared with a descendant that peer-depends both", async () => {
+    // Same diamond as above, but plugin is not a direct child of the package that
+    // provides its own parser (shadow): it sits under wrapper, a regular dependency
+    // of shadow.
+    const ts1Pkg = {
+      name: 'typescript',
+      pkgIdWithPatchHash: 'typescript/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const ts2Pkg = {
+      name: 'typescript',
+      pkgIdWithPatchHash: 'typescript/2.0.0' as PkgIdWithPatchHash,
+      version: '2.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const parserPkg = {
+      name: 'parser',
+      pkgIdWithPatchHash: 'parser/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const pluginPkg = {
+      name: 'plugin',
+      pkgIdWithPatchHash: 'plugin/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { parser: { version: '*' }, typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const wrapperPkg = {
+      name: 'wrapper',
+      pkgIdWithPatchHash: 'wrapper/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const shadowPkg = {
+      name: 'shadow',
+      pkgIdWithPatchHash: 'shadow/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const { dependenciesGraph } = await resolvePeers({
+      allPeerDepNames: new Set(['typescript', 'parser']),
+      projects: [
+        {
+          directNodeIdsByAlias: new Map([
+            ['typescript', '>typescript/2.0.0>' as NodeId],
+            ['parser', '>parser/1.0.0>' as NodeId],
+            ['shadow', '>shadow/1.0.0>' as NodeId],
+          ]),
+          topParents: [],
+          rootDir: '' as ProjectRootDir,
+          id: '.',
+        },
+      ],
+      resolvedImporters: {},
+      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        ['>typescript/2.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: ts2Pkg,
+          depth: 0,
+        }],
+        ['>parser/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: parserPkg,
+          depth: 0,
+        }],
+        ['>shadow/1.0.0>' as NodeId, {
+          children: {
+            typescript: '>shadow/1.0.0>typescript/1.0.0>' as NodeId,
+            parser: '>shadow/1.0.0>parser/1.0.0>' as NodeId,
+            wrapper: '>shadow/1.0.0>wrapper/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: shadowPkg,
+          depth: 0,
+        }],
+        ['>shadow/1.0.0>typescript/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: ts1Pkg,
+          depth: 1,
+        }],
+        ['>shadow/1.0.0>parser/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: parserPkg,
+          depth: 1,
+        }],
+        ['>shadow/1.0.0>wrapper/1.0.0>' as NodeId, {
+          children: {
+            plugin: '>shadow/1.0.0>wrapper/1.0.0>plugin/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: wrapperPkg,
+          depth: 1,
+        }],
+        ['>shadow/1.0.0>wrapper/1.0.0>plugin/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: pluginPkg,
+          depth: 2,
+        }],
+      ]),
+      virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
+      lockfileDir: '',
+      peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set(),
+    })
+    const depPaths = Object.keys(dependenciesGraph)
+    expect(depPaths).toContain('plugin/1.0.0(parser/1.0.0(typescript/1.0.0))(typescript/1.0.0)')
+    expect(depPaths).not.toContain('plugin/1.0.0(parser/1.0.0(typescript/2.0.0))(typescript/1.0.0)')
+  })
+
   // A linked local package is represented by a depth -1 node whose resolved package
   // carries nothing but a name and a version. Such a node can still shadow a peer
   // provider that the consumer inherits from an ancestor.

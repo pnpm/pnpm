@@ -963,12 +963,32 @@ function inheritedParentPkgBreaksPeerDiamond<T extends PartialResolvedPackage> (
   }
   if (conflictingPeers.size === 0) return false
 
-  for (const childNodeId of Object.values(children)) {
-    const childPeerDependencies = (ctx.dependenciesTree.get(childNodeId)?.resolvedPackage as T | undefined)?.peerDependencies
-    if (childPeerDependencies == null || childPeerDependencies[parentPkg.name] == null) continue
-    for (const peerName of conflictingPeers) {
-      if (childPeerDependencies[peerName] != null) return true
+  // The consumer that closes the diamond may be any descendant that inherits
+  // this node's provider, not only a direct child. The children of a node
+  // depend only on its package, so each package is visited once.
+  // See https://github.com/pnpm/pnpm/issues/12098
+  const visited = new Set<PkgIdWithPatchHash>()
+  const pending = Object.values(children)
+  let childNodeId: NodeId | undefined
+  while ((childNodeId = pending.pop()) != null) {
+    const childNode = ctx.dependenciesTree.get(childNodeId)
+    if (childNode == null) continue
+    const childPkg = childNode.resolvedPackage as T
+    if (visited.has(childPkg.pkgIdWithPatchHash)) continue
+    visited.add(childPkg.pkgIdWithPatchHash)
+    const childPeerDependencies = childPkg.peerDependencies
+    if (childPeerDependencies?.[parentPkg.name] != null) {
+      for (const peerName of conflictingPeers) {
+        if (childPeerDependencies[peerName] != null) return true
+      }
     }
+    if (typeof childNode.children === 'function') {
+      childNode.children = childNode.children()
+    }
+    // A descendant that has its own copy of the package provides it to its
+    // subtree, so the inherited one doesn't reach any deeper.
+    if (childNode.children[parentPkg.name] != null) continue
+    pending.push(...Object.values(childNode.children))
   }
   return false
 }

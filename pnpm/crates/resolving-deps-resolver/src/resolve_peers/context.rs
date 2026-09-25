@@ -283,7 +283,7 @@ impl Walker<'_> {
         if conflicting_peers.is_empty() {
             return false;
         }
-        self.child_binds_conflicting_peer(node_id, &parent_pkg_name, &conflicting_peers)
+        self.descendant_binds_conflicting_peer(node_id, &parent_pkg_name, &conflicting_peers)
     }
 
     /// The peers `parent_pkg` declares that the inherited provider's own
@@ -308,47 +308,77 @@ impl Walker<'_> {
         conflicting_peers
     }
 
-    /// Whether a child of `node_id` closes the diamond: it takes the provider
-    /// as a peer *and* takes one of the peers the two contexts disagree
-    /// about.
-    fn child_binds_conflicting_peer(
+    /// Whether a descendant of `node_id` closes the diamond: it takes the
+    /// provider as a peer *and* takes one of the peers the two contexts
+    /// disagree about. The consumer need not be a direct child; any
+    /// descendant that inherits this node's provider counts
+    /// (<https://github.com/pnpm/pnpm/issues/12098>). A node's children
+    /// depend only on its package, so each package is visited once.
+    fn descendant_binds_conflicting_peer(
         &self,
         node_id: &NodeId,
         parent_pkg_name: &str,
         conflicting_peers: &HashSet<String>,
     ) -> bool {
         let Some(node) = self.tree.dependencies_tree.get(node_id) else { return false };
-        for child_pkg_id in self.child_pkg_ids_of(node) {
-            let Some(child_pkg) = self.tree.packages.get(child_pkg_id) else { continue };
-            if !child_pkg.peer_dependencies.contains_key(parent_pkg_name) {
+        let mut visited = HashSet::<&str>::default();
+        let mut pending = self.child_edges_of(node);
+        while let Some((_, child_pkg_id, child_node_id)) = pending.pop() {
+            if !visited.insert(child_pkg_id) {
                 continue;
             }
-            if conflicting_peers
-                .iter()
-                .any(|peer| child_pkg.peer_dependencies.contains_key(peer))
+            let Some(child_pkg) = self.tree.packages.get(child_pkg_id) else { continue };
+            if child_pkg.peer_dependencies.contains_key(parent_pkg_name)
+                && conflicting_peers
+                    .iter()
+                    .any(|peer| child_pkg.peer_dependencies.contains_key(peer))
             {
                 return true;
             }
+            let grandchildren = match child_node_id.and_then(|child_node_id| {
+                self.tree.dependencies_tree.get(child_node_id)
+            }) {
+                Some(child_node) => self.child_edges_of(child_node),
+                None => self.child_edges_of_pkg(child_pkg_id),
+            };
+            // A descendant that has its own copy of the provider hands that
+            // copy to its subtree, so the inherited one reaches no deeper.
+            if grandchildren
+                .iter()
+                .any(|(alias, _, _)| *alias == parent_pkg_name)
+            {
+                continue;
+            }
+            pending.extend(grandchildren);
         }
         false
     }
 
-    /// The package ids of a node's children, from its realized map or, while
-    /// it is still lazy, from the tree's per-package child edges.
-    fn child_pkg_ids_of(&self, node: &crate::DependenciesTreeNode) -> Vec<&str> {
+    /// A node's children as `(alias, package id, node id)`, from its realized
+    /// map or, while it is still lazy, from the tree's per-package child edges.
+    fn child_edges_of<'a>(
+        &'a self,
+        node: &'a crate::DependenciesTreeNode,
+    ) -> Vec<(&'a str, &'a str, Option<&'a NodeId>)> {
         match &node.children {
             TreeChildren::Realized(children) => children
-                .values()
-                .filter_map(|child_node_id| self.tree.dependencies_tree.get(child_node_id))
-                .map(|child| &*child.resolved_package_id)
+                .iter()
+                .filter_map(|(alias, child_node_id)| {
+                    let child = self.tree.dependencies_tree.get(child_node_id)?;
+                    Some((alias.as_str(), &*child.resolved_package_id, Some(child_node_id)))
+                })
                 .collect(),
-            TreeChildren::Lazy { .. } => self.tree.children_by_id
-                .get(&node.resolved_package_id)
-                .into_iter()
-                .flat_map(|children| children.iter())
-                .map(|child| &*child.pkg_id)
-                .collect(),
+            TreeChildren::Lazy { .. } => self.child_edges_of_pkg(&node.resolved_package_id),
         }
+    }
+
+    fn child_edges_of_pkg(&self, pkg_id: &str) -> Vec<(&str, &str, Option<&NodeId>)> {
+        self.tree.children_by_id
+            .get(pkg_id)
+            .into_iter()
+            .flat_map(|children| children.iter())
+            .map(|child| (child.alias.as_str(), &*child.pkg_id, None))
+            .collect()
     }
 
     fn parent_peer_differs(
