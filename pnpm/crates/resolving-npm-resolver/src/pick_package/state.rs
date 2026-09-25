@@ -84,6 +84,7 @@ impl<'a> PickState<'a> {
                 published_by_exclude: opts.policy.published_by_exclude,
                 pick_lowest_version: opts.pick_lowest_version,
                 include_latest_tag: opts.include_latest_tag,
+                current_version: opts.current_version,
                 ignore_missing_time_field: ctx.cache_policy.ignore_missing_time_field,
             },
             cache_key: metadata_cache_key(

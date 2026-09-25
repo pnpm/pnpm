@@ -247,13 +247,13 @@ function getPackageDisplayVersions (
 async function resolveOutdatedPackage (params: ResolvePackageContext): Promise<OutdatedPackage | undefined> {
   const { ctx, depType, alias, declaredSpecifier, wantedRef, currentRef } = params
   const bareSpecifier = ctx.replaceCatalog({ alias, bareSpecifier: declaredSpecifier })
+  const { packageName, wanted, current } = getPackageDisplayVersions(ctx, alias, wantedRef, currentRef)
   const info = await ctx.opts.resolveLatest(
-    { wantedDependency: { alias, bareSpecifier }, compatible: ctx.opts.compatible },
+    { wantedDependency: { alias, bareSpecifier }, compatible: ctx.opts.compatible, currentVersion: current },
     ctx.resolveOpts
   )
   if (info == null) return undefined
 
-  const { packageName, wanted, current } = getPackageDisplayVersions(ctx, alias, wantedRef, currentRef)
   return determineOutdatedPackage({
     alias,
     depType,

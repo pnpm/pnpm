@@ -61,7 +61,9 @@ async function resolveLatestInfo (
   // `update: 'latest'` tells the resolver to ignore the range and take
   // the absolute newest.
   const bareSpecifier = query.wantedDependency.bareSpecifier ?? 'latest'
-  const resolveOpts = query.compatible ? opts : { ...opts, update: 'latest' as const }
+  const resolveOpts = query.compatible
+    ? opts
+    : { ...opts, currentVersion: query.currentVersion, update: 'latest' as const }
   try {
     const result = await resolve(
       { alias: query.wantedDependency.alias, bareSpecifier },

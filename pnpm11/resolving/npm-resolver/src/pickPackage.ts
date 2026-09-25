@@ -99,6 +99,7 @@ function toPickerOptions (
     publishedByExclude: opts.publishedByExclude,
     pickLowestVersion: opts.pickLowestVersion,
     includeLatestTag: opts.includeLatestTag,
+    currentVersion: opts.currentVersion,
     ignoreMissingTimeField: ctx.ignoreMissingTimeField,
   }
 }

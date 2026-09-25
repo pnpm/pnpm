@@ -6,6 +6,11 @@ title: pnpm outdated
 Checks for outdated packages. The check can be limited to a subset of the
 installed packages by providing arguments (patterns are supported).
 
+The latest version is the one the `latest` dist-tag points to. If the installed
+version is a prerelease, pnpm also checks the dist-tag that points to the newest
+version of the same prerelease channel, such as `next` for `3.0.0-rc.0`, and
+reports the higher of the two.
+
 Examples:
 ```sh
 pnpm outdated

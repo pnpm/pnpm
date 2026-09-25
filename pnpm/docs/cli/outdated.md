@@ -20,6 +20,11 @@ Without a lockfile, the `Current` column shows the version installed in
 allowed by the declared range. Cargo and Python checks still require their
 ecosystem lockfiles.
 
+The latest version is the one the `latest` dist-tag points to. If the installed
+version is a prerelease, pnpm also checks the dist-tag that points to the newest
+version of the same prerelease channel, such as `next` for `3.0.0-rc.0`, and
+reports the higher of the two.
+
 Examples:
 ```sh
 pnpm outdated

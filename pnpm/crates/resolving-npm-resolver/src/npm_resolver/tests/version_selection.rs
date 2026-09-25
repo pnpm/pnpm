@@ -85,6 +85,7 @@ async fn resolve_latest_returns_picked_manifest() {
             ..WantedDependency::default()
         },
         compatible: false,
+        current_version: None,
     };
     let info = resolver
         .resolve_latest(&query, &ResolveOptions::default())
@@ -114,6 +115,7 @@ async fn resolve_latest_under_compatible_does_not_override_update_to_latest() {
             ..WantedDependency::default()
         },
         compatible: true,
+        current_version: None,
     };
     let opts = ResolveOptions {
         refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
@@ -253,4 +255,97 @@ async fn latest_is_suppressed_when_all_versions_are_immature_fallback_case() {
         "1.0.0",
     );
     assert!(result.package.latest.is_none(), "immature dist-tags.latest suppresses the hint");
+}
+
+fn prerelease_channel_body(dist_tags: &[(&str, &str)]) -> String {
+    let versions = [
+        "1.0.0",
+        "2.0.0-canary-2",
+        "2.0.0-next-1",
+        "2.0.0-next-2",
+        "2.0.0-rc.0",
+        "2.0.0-rc.1",
+        "2.0.0-rc.2",
+        "2.0.0",
+    ];
+    let versions = versions
+        .iter()
+        .map(|version| {
+            let manifest = serde_json::json!({
+                "name": "acme",
+                "version": version,
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "tarball": format!("https://registry/acme-{version}.tgz"),
+                },
+            });
+            ((*version).to_string(), manifest)
+        })
+        .collect::<serde_json::Map<_, _>>();
+    let dist_tags = dist_tags
+        .iter()
+        .map(|(tag, version)| ((*tag).to_string(), serde_json::Value::from(*version)))
+        .collect::<serde_json::Map<_, _>>();
+    serde_json::json!({ "name": "acme", "dist-tags": dist_tags, "versions": versions }).to_string()
+}
+
+struct PrereleaseChannelCase {
+    dist_tags: &'static [(&'static str, &'static str)],
+    current: &'static str,
+    expected: &'static str,
+}
+
+#[tokio::test]
+async fn resolve_latest_follows_the_prerelease_channel_of_the_current_version() {
+    let cases = [
+        PrereleaseChannelCase {
+            dist_tags: &[("latest", "1.0.0"), ("next", "2.0.0-next-2")],
+            current: "2.0.0-next-1",
+            expected: "2.0.0-next-2",
+        },
+        PrereleaseChannelCase {
+            dist_tags: &[("latest", "1.0.0"), ("beta", "2.0.0-rc.0"), ("next", "2.0.0-rc.2")],
+            current: "2.0.0-rc.1",
+            expected: "2.0.0-rc.2",
+        },
+        // A stable `latest` above a stale channel tag still wins.
+        PrereleaseChannelCase {
+            dist_tags: &[("latest", "2.0.0"), ("next", "2.0.0-next-2")],
+            current: "2.0.0-next-1",
+            expected: "2.0.0",
+        },
+        PrereleaseChannelCase {
+            dist_tags: &[("latest", "1.0.0"), ("canary", "2.0.0-canary-2")],
+            current: "2.0.0-next-1",
+            expected: "2.0.0-next-1",
+        },
+    ];
+    for PrereleaseChannelCase { dist_tags, current, expected } in cases {
+        let mut server = mockito::Server::new_async().await;
+        let _mock = server
+            .mock("GET", "/acme")
+            .with_status(200)
+            .with_body(prerelease_channel_body(dist_tags))
+            .create_async()
+            .await;
+        let registry = format!("{}/", server.url());
+        let (resolver, _tempdir) = build_resolver(&registry);
+
+        let query = LatestQuery {
+            wanted_dependency: WantedDependency {
+                alias: Some("acme".to_string()),
+                bare_specifier: Some(current.to_string()),
+                ..WantedDependency::default()
+            },
+            compatible: false,
+            current_version: Some(current.parse().expect("valid version")),
+        };
+        let info = resolver
+            .resolve_latest(&query, &ResolveOptions::default())
+            .await
+            .unwrap()
+            .expect("latest info");
+        let manifest = info.latest_manifest.expect("manifest present");
+        assert_eq!(manifest["version"].as_str(), Some(expected), "current {current}");
+    }
 }

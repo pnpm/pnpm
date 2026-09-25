@@ -18,6 +18,7 @@ export interface PickerOptions extends PickPackageFromMetaOptions {
   fallbackPublishedBy?: Date
   pickLowestVersion?: boolean
   includeLatestTag?: boolean
+  currentVersion?: string
   ignoreMissingTimeField?: boolean
 }
 
@@ -29,16 +30,63 @@ export type PeekManifestFromStore = (opts: {
 }) => Promise<DependencyManifest | undefined>
 
 // When includeLatestTag is set, the "latest" dist-tag is added as a candidate
-// alongside the requested spec, and the higher-versioned pick wins.
+// alongside the requested spec, and the higher-versioned pick wins. An
+// installed prerelease also adds the dist-tag that follows its prerelease
+// channel, which a lower stable `latest` would otherwise hide.
 function runPicker (
   pickerOpts: PickerOptions,
+  meta: PackageMeta,
   spec: RegistryPackageSpec,
   pickOne: (targetSpec: RegistryPackageSpec) => PackageInRegistry | null
 ): PackageInRegistry | null {
   const currentPkg = pickOne(spec)
   if (!pickerOpts.includeLatestTag) return currentPkg
-  const latestPkg = pickOne({ ...spec, type: 'tag', fetchSpec: 'latest' })
-  return pickMax(latestPkg, currentPkg)
+  const picked = pickMax(pickOne({ ...spec, type: 'tag', fetchSpec: 'latest' }), currentPkg)
+  const channelTag = findPrereleaseChannelTag(meta, pickerOpts.currentVersion)
+  if (channelTag == null || channelTag === 'latest') return picked
+  return pickMax(pickOne({ ...spec, type: 'tag', fetchSpec: channelTag }), picked)
+}
+
+/**
+ * Returns the dist-tag pointing at the highest version on the same
+ * prerelease channel as `currentVersion`, or `undefined` when
+ * `currentVersion` is not a prerelease or no dist-tag follows its channel.
+ */
+function findPrereleaseChannelTag (meta: PackageMeta, currentVersion: string | undefined): string | undefined {
+  const channel = currentVersion == null ? undefined : getPrereleaseChannel(currentVersion)
+  if (channel == null) return undefined
+  let bestTag: string | undefined
+  let bestVersion: string | undefined
+  for (const [tag, version] of Object.entries(meta['dist-tags'] ?? {})) {
+    if (getPrereleaseChannel(version) !== channel) continue
+    if (bestVersion == null || semver.gt(version, bestVersion, true)) {
+      bestTag = tag
+      bestVersion = version
+    }
+  }
+  return bestTag
+}
+
+/**
+ * The prerelease identifiers without their trailing build counter:
+ * `rc` for `3.0.0-rc.1`, `next` for `0.0.0-next-2`, and `beta` for `1.0.0-beta2`.
+ */
+function getPrereleaseChannel (version: string): string | undefined {
+  const prerelease = semver.prerelease(version, true)
+  if (prerelease == null) return undefined
+  const identifiers = prerelease.join('.')
+  if (!isAsciiDigit(identifiers.at(-1))) return identifiers
+  let end = identifiers.length
+  while (end > 0 && isCounterChar(identifiers[end - 1])) end--
+  return end === 0 ? undefined : identifiers.slice(0, end)
+}
+
+function isCounterChar (char: string): boolean {
+  return isAsciiDigit(char) || char === '.' || char === '-'
+}
+
+function isAsciiDigit (char: string | undefined): boolean {
+  return char != null && char >= '0' && char <= '9'
 }
 
 // Returns whichever pick has the higher version, treating null as "no match".
@@ -62,7 +110,7 @@ function pickRespectingMinReleaseAge (
   spec: RegistryPackageSpec,
   meta: PackageMeta
 ): PackageInRegistry | null {
-  return runPicker(pickerOpts, spec, (targetSpec) => {
+  return runPicker(pickerOpts, meta, spec, (targetSpec) => {
     const pickMature = pickerOpts.pickLowestVersion ? pickLowest : pickHighest
     const mature = pickMature(pickerOpts, meta, targetSpec)
     if (mature) return mature
@@ -86,7 +134,7 @@ function pickIgnoringReleaseAge (
   meta: PackageMeta
 ): PackageInRegistry | null {
   const pickVersion = pickerOpts.pickLowestVersion ? pickLowest : pickHighest
-  return runPicker(pickerOpts, spec, (targetSpec) => pickVersion(pickerOpts, meta, targetSpec))
+  return runPicker(pickerOpts, meta, spec, (targetSpec) => pickVersion(pickerOpts, meta, targetSpec))
 }
 
 // Used in shortcut/fall-through paths: if it fails (including with

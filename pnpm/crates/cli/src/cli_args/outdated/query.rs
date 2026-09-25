@@ -187,7 +187,9 @@ impl OutdatedRun {
 /// whether it is outdated.
 #[derive(Debug, Clone, Copy)]
 pub enum TargetVersion<'a> {
-    /// The `latest` dist-tag — the absolute newest published version.
+    /// The `latest` dist-tag — the absolute newest published version. An
+    /// installed prerelease also follows the dist-tag of its prerelease
+    /// channel when that tag is newer.
     Latest,
     /// The version behind the given dist-tag. `update --tag <tag>`'s target.
     Tag(&'a str),

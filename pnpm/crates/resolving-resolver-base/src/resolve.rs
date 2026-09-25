@@ -266,6 +266,10 @@ pub struct ResolutionRefreshOptions {
     /// update, so the resolver picks again instead of reusing
     /// [`Self::current_pkg`] as it is.
     pub repick_current_version: bool,
+    /// The installed version [`Resolver::resolve_latest`] compares against.
+    /// With [`UpdateBehavior::Latest`], an installed prerelease adds the
+    /// dist-tag that follows its prerelease channel to the `latest` candidates.
+    pub latest_current_version: Option<node_semver::Version>,
     pub update: UpdateBehavior,
     pub refresh_metadata: bool,
     /// True only when this specific package matches the user's update
@@ -469,6 +473,9 @@ pub struct NonDeprecatedAlternative {
 pub struct LatestQuery {
     pub wanted_dependency: WantedDependency,
     pub compatible: bool,
+    /// Lockfile-resolved version. An installed prerelease also follows the
+    /// dist-tag of its prerelease channel.
+    pub current_version: Option<node_semver::Version>,
 }
 
 /// Result of [`Resolver::resolve_latest`].

@@ -90,6 +90,67 @@ test('resolveFromNpm()', async () => {
 
 test.each([
   {
+    name: 'follows the prerelease channel dist-tag above a lower latest',
+    distTags: { latest: '1.0.0', next: '2.0.0-next-2' },
+    currentVersion: '2.0.0-next-1',
+    expected: '2.0.0-next-2',
+  },
+  {
+    name: 'follows a dot-separated prerelease channel',
+    distTags: { latest: '1.0.0', beta: '2.0.0-rc.0', next: '2.0.0-rc.2' },
+    currentVersion: '2.0.0-rc.1',
+    expected: '2.0.0-rc.2',
+  },
+  {
+    name: 'prefers a stable latest above a stale channel dist-tag',
+    distTags: { latest: '2.0.0', next: '2.0.0-next-2' },
+    currentVersion: '2.0.0-next-1',
+    expected: '2.0.0',
+  },
+  {
+    name: 'ignores dist-tags of other prerelease channels',
+    distTags: { latest: '1.0.0', canary: '2.0.0-canary-2' },
+    currentVersion: '2.0.0-next-1',
+    expected: '2.0.0-next-1',
+  },
+])('resolveLatestFromNpm() $name', async ({ distTags, currentVersion, expected }) => {
+  const name = 'prerelease-channel'
+  const manifest = (version: string) => ({
+    name,
+    version,
+    dist: {
+      integrity: ssri.fromData(version).toString(),
+      tarball: `${registriesByScope.default}${name}/-/${name}-${version}.tgz`,
+    },
+  })
+  const versions = ['1.0.0', '2.0.0-canary-2', '2.0.0-next-1', '2.0.0-next-2', '2.0.0-rc.0', '2.0.0-rc.1', '2.0.0-rc.2', '2.0.0']
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: `/${name}`, method: 'GET' })
+    .reply(200, {
+      name,
+      'dist-tags': distTags,
+      versions: Object.fromEntries(versions.map((version) => [version, manifest(version)])),
+    })
+
+  const { resolveLatestFromNpm } = createResolveFromNpm({
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const info = await resolveLatestFromNpm({
+    wantedDependency: { alias: name, bareSpecifier: currentVersion },
+    compatible: false,
+    currentVersion,
+  }, {
+    lockfileDir: temporaryDirectory(),
+    preferredVersions: {},
+    projectDir: temporaryDirectory(),
+  })
+
+  expect(info?.latestManifest?.version).toBe(expected)
+})
+
+test.each([
+  {
     name: 'a revision number and history',
     revisionFields: {
       revision: 0,

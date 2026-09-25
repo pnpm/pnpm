@@ -30,6 +30,8 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   registry: string
   dryRun: boolean
   includeLatestTag?: boolean
+  /** Installed version whose prerelease channel's dist-tag joins the `latest` candidates. */
+  currentVersion?: string
   optional?: boolean
   trustPolicy?: TrustPolicy
   /**

@@ -33,6 +33,7 @@ pub(crate) struct PickFromRegistryOptions<'a> {
     pub preferred_version_selectors: Option<&'a pnpm_resolving_resolver_base::VersionSelectors>,
     pub pick_lowest_version: bool,
     pub include_latest_tag: bool,
+    pub current_version: Option<&'a node_semver::Version>,
     pub checks: CandidateChecks<'a>,
     pub policy: crate::PackagePickPolicy<'a>,
     pub request: crate::MetadataPickRequest,
@@ -53,6 +54,7 @@ impl<'a> PickFromRegistryOptions<'a> {
             preferred_version_selectors,
             pick_lowest_version: opts.version.pick_lowest_version,
             include_latest_tag: opts.refresh.update == UpdateBehavior::Latest,
+            current_version: opts.refresh.latest_current_version.as_ref(),
             checks: CandidateChecks::new(&opts.policy, trust_check),
             policy: crate::PackagePickPolicy {
                 published_by: opts.policy.published_by,
@@ -109,6 +111,7 @@ pub(super) fn pick_options<'o>(
         preferred_version_selectors: opts.preferred_version_selectors,
         pick_lowest_version: opts.pick_lowest_version,
         include_latest_tag: opts.include_latest_tag,
+        current_version: opts.current_version,
         blocked_versions: (!blocked_versions.is_empty()).then_some(blocked_versions),
         policy: opts.policy,
         request: opts.request,
