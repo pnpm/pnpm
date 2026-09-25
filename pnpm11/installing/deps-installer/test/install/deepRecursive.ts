@@ -18,6 +18,11 @@ test('a package with a huge amount of circular dependencies and many peer depend
     testDefaults({
       fastUnpack: true,
       lockfileOnly: true,
+      // The tree resolves against the live registry. @yarnpkg/core@4.9.2 was
+      // published with a yarn-only "patch:" specifier for got.
+      overrides: {
+        '@yarnpkg/core@4': '4.9.1',
+      },
       registriesByScope: registries,
       strictPeerDependencies: false,
     }, { registriesByScope: registries })
