@@ -207,13 +207,12 @@ impl<'a> Checker<'a> {
             return false;
         }
         let key = PackageKey::new(name.clone(), ver_peer.clone());
-        let verdict = match self.verdicts.get(&key) {
-            Some(verdict) => *verdict,
-            None => {
-                let verdict = self.judge(&key);
-                self.verdicts.insert(key, verdict);
-                verdict
-            }
+        let verdict = if let Some(verdict) = self.verdicts.get(&key) {
+            *verdict
+        } else {
+            let verdict = self.judge(&key);
+            self.verdicts.insert(key, verdict);
+            verdict
         };
         match verdict {
             Verdict::Ok => false,
