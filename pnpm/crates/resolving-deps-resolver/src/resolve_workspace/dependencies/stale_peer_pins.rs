@@ -62,14 +62,14 @@ fn find_stale_peer_pins(
     stale
 }
 
-/// The ranges the importers declare for each package in their
+/// The distinct ranges the importers declare for each package in their
 /// `dependencies`, `devDependencies` and `optionalDependencies`, with
 /// `catalog:` specifiers replaced by the catalog entry.
 fn collect_direct_ranges(
     importers: &[&WorkspaceImporter<'_>],
     opts: &[ResolveImporterOptions],
-) -> HashMap<String, Vec<Range>> {
-    let mut direct_ranges = HashMap::<String, Vec<Range>>::default();
+) -> HashMap<String, HashSet<Range>> {
+    let mut direct_ranges = HashMap::<String, HashSet<Range>>::default();
     for (importer, importer_opts) in importers.iter().zip(opts) {
         let Ok(wanted) = importer_direct_wanted_specs(
             importer.manifest,
@@ -85,7 +85,7 @@ fn collect_direct_ranges(
                 direct_ranges
                     .entry(alias)
                     .or_default()
-                    .push(range);
+                    .insert(range);
             }
         }
     }
@@ -102,7 +102,7 @@ fn declares_peers(importer: &WorkspaceImporter<'_>) -> bool {
 fn importer_stale_peer_pins(
     importer: &WorkspaceImporter<'_>,
     lockfile: &Lockfile,
-    direct_ranges: &HashMap<String, Vec<Range>>,
+    direct_ranges: &HashMap<String, HashSet<Range>>,
 ) -> HashMap<String, Version> {
     let manifest = importer.manifest;
     let declared = manifest
@@ -113,20 +113,17 @@ fn importer_stale_peer_pins(
         .dependencies([DependencyGroup::Peer])
         .filter(|(alias, _)| !declared.contains(alias))
         .filter_map(|(alias, peer_spec)| {
+            let ranges = direct_ranges.get(alias)?;
             let peer_range = peer_spec.parse::<Range>().ok()?;
-            let overlapping = direct_ranges
-                .get(alias)?
+            let pinned = locked_importer_version(lockfile, &importer.id, alias)?;
+            let mut overlapping = ranges
                 .iter()
                 .filter(|range| range.allows_any(&peer_range))
-                .collect::<Vec<_>>();
-            if overlapping.is_empty() {
-                return None;
-            }
-            let pinned = locked_importer_version(lockfile, &importer.id, alias)?;
-            (!overlapping
-                .iter()
-                .any(|range| range.satisfies(&pinned)))
-            .then(|| (alias.to_string(), pinned))
+                .peekable();
+            overlapping.peek()?;
+            (!overlapping.any(|range| range.satisfies(&pinned))).then(|| {
+                (alias.to_string(), pinned)
+            })
         })
         .collect()
 }

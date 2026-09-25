@@ -10,25 +10,27 @@ import { getPinnedNameVer } from './resolveDependencies.js'
 type ManifestDependencies = Pick<ProjectManifest, 'dependencies' | 'devDependencies' | 'optionalDependencies'>
 
 /**
- * Collects the specifiers the given projects declare for each package in
- * their dependencies, devDependencies, and optionalDependencies, with
- * `catalog:` specifiers replaced by the catalog entry.
+ * Collects the distinct semver ranges the given projects declare for each
+ * package in their dependencies, devDependencies, and optionalDependencies,
+ * with `catalog:` specifiers replaced by the catalog entry. Specifiers that
+ * are not semver ranges are left out.
  */
 export function collectDirectDependencySpecs (
   manifests: ManifestDependencies[],
   catalogs: Catalogs
-): Map<string, string[]> {
-  const specsByName = new Map<string, string[]>()
+): Map<string, Set<string>> {
+  const specsByName = new Map<string, Set<string>>()
   for (const manifest of manifests) {
     for (const deps of [manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies]) {
       for (const [alias, bareSpecifier] of Object.entries(deps ?? {})) {
         const catalogLookup = resolveFromCatalog(catalogs, { alias, bareSpecifier })
         const spec = catalogLookup.type === 'found' ? catalogLookup.resolution.specifier : bareSpecifier
+        if (semver.validRange(spec) == null) continue
         const specs = specsByName.get(alias)
         if (specs == null) {
-          specsByName.set(alias, [spec])
+          specsByName.set(alias, new Set([spec]))
         } else {
-          specs.push(spec)
+          specs.add(spec)
         }
       }
     }
@@ -47,7 +49,7 @@ export function collectDirectDependencySpecs (
 export function findStalePeerPins (
   resolvedDependencies: ResolvedDependencies,
   opts: {
-    directSpecsByName: Map<string, string[]>
+    directSpecsByName: Map<string, Set<string>>
     lockfile: LockfileObject
     manifest: ProjectManifest
   }
@@ -62,10 +64,10 @@ export function findStalePeerPins (
       manifest.optionalDependencies?.[alias] != null ||
       semver.validRange(peerRange) == null
     ) continue
-    const overlappingSpecs = opts.directSpecsByName.get(alias)?.filter((spec) =>
-      semver.validRange(spec) != null && semver.intersects(spec, peerRange)
-    )
-    if (!overlappingSpecs?.length) continue
+    const directSpecs = opts.directSpecsByName.get(alias)
+    if (directSpecs == null) continue
+    const overlappingSpecs = [...directSpecs].filter((spec) => semver.intersects(spec, peerRange))
+    if (!overlappingSpecs.length) continue
     const pinned = getPinnedNameVer(opts.lockfile, resolvedDependencies[alias], alias)
     if (pinned != null && !overlappingSpecs.some((spec) => semver.satisfies(pinned.version, spec, true))) {
       stale.set(alias, pinned.version)
@@ -77,7 +79,8 @@ export function findStalePeerPins (
 /**
  * Drops the given peers from the importer's locked dependencies and the
  * lockfile's weight from their locked versions in its preferred versions, so
- * the peers resolve the way a fresh install resolves them.
+ * the peers resolve the way a fresh install resolves them. Returns copies and
+ * leaves the inputs unchanged.
  */
 export function releaseStalePeerPins (
   stalePeerPins: Map<string, string>,
