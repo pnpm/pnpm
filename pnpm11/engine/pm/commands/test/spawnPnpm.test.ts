@@ -11,6 +11,34 @@ const posixTest = process.platform === 'win32' ? test.skip : test
 // Only without a controlling terminal does the pnpm it runs get a process group of its own.
 const noTerminalTest = process.platform === 'win32' || hasControllingTerminal() ? test.skip : test
 
+const START_DEADLINE_MS = 30_000
+
+// Resolves once the pnpm under test has written `file`. Rejects when it exits
+// first or does not start in time, so a broken fixture fails the test instead
+// of hanging it.
+async function waitForStart (file: string, running: Promise<unknown>): Promise<void> {
+  let exited = false
+  running.then(() => {
+    exited = true
+  }, () => {
+    exited = true
+  })
+  const deadline = Date.now() + START_DEADLINE_MS
+  return new Promise<void>((resolve, reject) => {
+    const timer = setInterval(() => {
+      const failure = fs.existsSync(file)
+        ? undefined
+        : exited
+          ? new Error(`the pnpm under test exited before it wrote ${file}`)
+          : Date.now() > deadline ? new Error(`the pnpm under test did not write ${file} in time`) : null
+      if (failure === null) return
+      clearInterval(timer)
+      if (failure) reject(failure)
+      else resolve()
+    }, 20)
+  })
+}
+
 // A stand-in for the pnpm that pnpm switches to. It writes a file when it
 // starts, and shuts down when it receives SIGTERM.
 function writeFakePnpm (dir: string): string {
@@ -34,14 +62,7 @@ posixTest('spawnPnpm relays a SIGTERM sent to pnpm to the pnpm it runs (#9948)',
   const fakePnpm = writeFakePnpm(dir)
 
   const running = spawnPnpm(fakePnpm, [dir])
-  await new Promise<void>((resolve) => {
-    const timer = setInterval(() => {
-      if (fs.existsSync(path.join(dir, 'started'))) {
-        clearInterval(timer)
-        resolve()
-      }
-    }, 20)
-  })
+  await waitForStart(path.join(dir, 'started'), running)
   process.emit('SIGTERM')
 
   expect(await running).toStrictEqual({ status: 7, signal: null })
@@ -87,14 +108,7 @@ setInterval(() => {}, 1000)
   fs.chmodSync(selfishPnpm, 0o755)
 
   const running = spawnPnpm(selfishPnpm, [dir])
-  await new Promise<void>((resolve) => {
-    const timer = setInterval(() => {
-      if (fs.existsSync(path.join(dir, 'started'))) {
-        clearInterval(timer)
-        resolve()
-      }
-    }, 20)
-  })
+  await waitForStart(path.join(dir, 'started'), running)
   process.emit('SIGTERM')
   await running
 
