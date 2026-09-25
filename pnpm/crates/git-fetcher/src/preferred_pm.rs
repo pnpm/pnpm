@@ -68,7 +68,8 @@ impl PreferredPm {
 ///
 /// A `packageManager` / `devEngines.packageManager` pin in the
 /// dependency's own manifest wins — it is what its authors test against.
-/// Otherwise the lockfile names the package manager.
+/// Otherwise the lockfile names the package manager, or, for a pnpm workspace
+/// that commits no lockfile, its `pnpm-workspace.yaml`.
 ///
 /// Either way the `yarn.lock` names the Yarn line whenever the manifest
 /// does not: Classic and Berry cannot read each other's lockfiles, so
@@ -97,7 +98,17 @@ const YARN_CLASSIC_SPEC: &str = "1";
 const YARN_BERRY_SPEC: &str = ">=2";
 
 /// Sniff `dir` for a lockfile and return the matching package manager.
-/// Defaults to [`PreferredPm::Npm`] when no lockfile is present.
+///
+/// A `pnpm-workspace.yaml` names pnpm too, but only once every lockfile has had
+/// its say. Committing a lockfile is optional in a pnpm workspace
+/// (`lockfile: false`), so the manifest is what identifies a pnpm project that
+/// ships none — preparing such a dependency with npm honours its `.npmrc`
+/// `ignore-scripts` and skips the build, leaving no `dist/`. A lockfile that
+/// *is* shipped remains the stronger statement of what installs the dependency,
+/// so the manifest only breaks the no-lockfile tie. This is the precedence
+/// `preferred-pm` uses, consulting the manifest in its fallback stage.
+///
+/// Defaults to [`PreferredPm::Npm`] when neither is present.
 #[must_use]
 pub fn detect_preferred_pm(dir: &Path) -> PreferredPm {
     if dir.join("pnpm-lock.yaml").exists() {
@@ -111,6 +122,9 @@ pub fn detect_preferred_pm(dir: &Path) -> PreferredPm {
     }
     if dir.join("bun.lockb").exists() || dir.join("bun.lock").exists() {
         return PreferredPm::Bun;
+    }
+    if dir.join("pnpm-workspace.yaml").exists() {
+        return PreferredPm::Pnpm;
     }
     PreferredPm::Npm
 }
