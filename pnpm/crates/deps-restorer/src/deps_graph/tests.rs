@@ -103,6 +103,20 @@ fn registry_resolution_full_pkg_id_uses_integrity_verbatim() {
 }
 
 #[test]
+fn custom_resolution_full_pkg_id_uses_the_resolver_integrity() {
+    let pkg = key("dep-a", "1.0.0");
+    let snapshots = HashMap::from([(pkg.clone(), SnapshotEntry::default())]);
+    let metadata: PackageMetadata = serde_json::from_value(serde_json::json!({
+        "resolution": { "type": "custom:served", "integrity": "sha512-served" },
+    }))
+    .expect("parse custom package metadata");
+    let packages = HashMap::from([(pkg.clone(), metadata)]);
+
+    let graph = build_deps_graph(&snapshots, &packages);
+    assert_eq!(graph.get(&pkg).expect("graph node").full_pkg_id, "dep-a@1.0.0:sha512-served");
+}
+
+#[test]
 fn variation_input_keys_use_the_selected_platform_integrity() {
     let pkg = key("node", "runtime:22.0.0");
     let snapshots = HashMap::from([(pkg.clone(), SnapshotEntry::default())]);

@@ -652,6 +652,18 @@ module.exports = {{
 /// Regression test for pnpm/pnpm#15670.
 #[test]
 fn changed_custom_resolution_integrity_re_imports_the_package() {
+    assert_changed_custom_integrity_reinstalls(false);
+}
+
+/// A global-virtual-store slot is named by a hash of the package id, so a
+/// custom integrity has to be part of that id for the new bytes to get a
+/// slot of their own (pnpm/pnpm#15670).
+#[test]
+fn changed_custom_resolution_integrity_re_imports_the_package_into_the_global_virtual_store() {
+    assert_changed_custom_integrity_reinstalls(true);
+}
+
+fn assert_changed_custom_integrity_reinstalls(global_virtual_store: bool) {
     let CommandTempCwd {
         pacquet,
         root,
@@ -669,6 +681,9 @@ fn changed_custom_resolution_integrity_re_imports_the_package() {
     };
     fs::write(workspace.join("package.json"), r#"{"dependencies":{"dep-a":"1.0.0"}}"#).unwrap();
     crate::_utils::append_workspace_yaml_key(&workspace, "optimisticRepeatInstall", false);
+    if global_virtual_store {
+        crate::_utils::enable_gvs_in_workspace_yaml(&workspace, "");
+    }
     fs::write(
         workspace.join(".pnpmfile.cjs"),
         r"

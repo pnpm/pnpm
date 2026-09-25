@@ -288,13 +288,23 @@ pub(super) fn create_full_pkg_id(
     pkg_id_with_patch_hash: &PkgIdWithPatchHash,
     resolution: Option<&LockfileResolution>,
 ) -> String {
-    match resolution.and_then(LockfileResolution::integrity) {
-        Some(integrity) => format!("{pkg_id_with_patch_hash}:{integrity}"),
+    if let Some(integrity) = resolution.and_then(LockfileResolution::integrity) {
+        return format!("{pkg_id_with_patch_hash}:{integrity}");
+    }
+    match resolution {
+        // A custom fetcher's bytes can change under the same package id,
+        // so the slot has to be named after what identifies them.
+        Some(resolution @ LockfileResolution::Custom(_)) => {
+            crate::deps_graph::full_pkg_id_without_builtin_integrity(
+                pkg_id_with_patch_hash.as_str(),
+                resolution,
+            )
+        }
         // Directory / git / missing-metadata fall through to the bare
         // id. The install path rejects these resolutions before the
         // hash is consulted (see
         // [`crate::InstallPackageBySnapshotError::UnsupportedResolution`]),
         // so the value never actually drives a slot path on disk.
-        None => pkg_id_with_patch_hash.to_string(),
+        _ => pkg_id_with_patch_hash.to_string(),
     }
 }

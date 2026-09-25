@@ -191,14 +191,8 @@ pub(super) fn integrity_equal(
     let wanted = wanted.map(|meta| &meta.resolution);
     current.and_then(LockfileResolution::integrity)
         == wanted.and_then(LockfileResolution::integrity)
-        && current.and_then(custom_integrity) == wanted.and_then(custom_integrity)
-}
-/// [`LockfileResolution::integrity`] leaves a custom resolution's
-/// integrity to its fetcher, but the value still identifies the bytes
-/// the fetcher serves, so a changed one means the slot is stale.
-fn custom_integrity(resolution: &LockfileResolution) -> Option<&serde_json::Value> {
-    let LockfileResolution::Custom(custom) = resolution else { return None };
-    custom.extra.get("integrity")
+        && current.and_then(LockfileResolution::custom_integrity)
+            == wanted.and_then(LockfileResolution::custom_integrity)
 }
 /// Whether a slot may be served by the macOS directory-clone cache
 /// ([`crate::DirCloneCache`]).

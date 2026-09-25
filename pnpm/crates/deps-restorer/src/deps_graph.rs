@@ -133,10 +133,22 @@ fn full_pkg_id_for(
     if let Some(integrity) = resolution.integrity() {
         return format!("{pkg_id}:{integrity}");
     }
-    // Fallback for non-integrity resolutions (git, directory). We
-    // serialize the resolution to a JSON value and hash it. The hash
-    // is base64-encoded, the encoding the resulting
-    // `<pkg_id>:<digest>` string requires.
+    full_pkg_id_without_builtin_integrity(&pkg_id, resolution)
+}
+
+/// The `<pkg_id>:<...>` id of a resolution that
+/// [`LockfileResolution::integrity`] has no value for. A custom
+/// resolver's own `integrity` string stands in for it, as in pnpm 11's
+/// `createFullPkgId`. Any other resolution (git, directory, or custom
+/// without an integrity) is identified by a base64 hash of the whole
+/// object.
+pub(crate) fn full_pkg_id_without_builtin_integrity(
+    pkg_id: &str,
+    resolution: &LockfileResolution,
+) -> String {
+    if let Some(integrity) = resolution.custom_integrity().and_then(serde_json::Value::as_str) {
+        return format!("{pkg_id}:{integrity}");
+    }
     let resolution_value = serde_json::to_value(resolution).unwrap_or(serde_json::Value::Null);
     let hash =
         hash_object_with_encoding(&resolution_value, HashEncoding::Base64, /* sort */ true);

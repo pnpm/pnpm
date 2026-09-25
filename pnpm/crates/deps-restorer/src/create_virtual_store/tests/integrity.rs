@@ -49,4 +49,11 @@ fn integrity_equal_compares_custom_resolution_integrities() {
 
     assert!(integrity_equal(Some(&custom("sha512-old")), Some(&custom("sha512-old"))));
     assert!(!integrity_equal(Some(&custom("sha512-old")), Some(&custom("sha512-new"))));
+
+    let without_integrity: PackageMetadata = serde_json::from_value(serde_json::json!({
+        "resolution": { "type": "custom:served" },
+    }))
+    .expect("parse custom package metadata");
+    assert!(!integrity_equal(Some(&custom("sha512-old")), Some(&without_integrity)));
+    assert!(integrity_equal(Some(&without_integrity), Some(&without_integrity)));
 }
