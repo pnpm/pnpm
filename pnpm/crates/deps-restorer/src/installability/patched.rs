@@ -28,3 +28,6 @@ pub(super) fn without_published_engines(
     let options = InstallabilityOptions { optional, ..*base };
     check_installability(&metadata_key.to_string(), &manifest, &options)
 }
+
+#[cfg(test)]
+mod tests;
