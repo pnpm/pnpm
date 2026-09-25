@@ -3,6 +3,9 @@ use pnpm_lockfile::PackageKey;
 use pnpm_modules_yaml::HoistKind;
 use std::{collections::HashMap, path::PathBuf};
 
+#[cfg(test)]
+mod tests;
+
 /// Create the hoist symlinks.
 ///
 /// For each (`snapshot_key`, alias, kind) entry, link
@@ -472,13 +475,8 @@ pub(super) fn update_stale_hoist_symlink(
     {
         return Ok(());
     }
-    pnpm_fs::remove_symlink_dir(dest)
-        .map_err(|error| crate::SymlinkPackageError::SymlinkDir {
-            symlink_target: dep_dir.to_path_buf(),
-            symlink_path: dest.to_path_buf(),
-            error,
-        })?;
-    pnpm_fs::symlink_dir(dep_dir, dest)
+    pnpm_fs::force_symlink_dir(dep_dir, dest)
+        .map(|_| ())
         .map_err(|error| crate::SymlinkPackageError::SymlinkDir {
             symlink_target: dep_dir.to_path_buf(),
             symlink_path: dest.to_path_buf(),

@@ -629,7 +629,11 @@ async function symlinkHoistedDependency (
     })
     return
   }
-  await fs.promises.unlink(dest)
+  try {
+    await fs.promises.unlink(dest)
+  } catch (err: unknown) {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+  }
   await symlinkDir(depLocation, dest)
   linkLogger.debug({ target: dest, link: depLocation })
 }

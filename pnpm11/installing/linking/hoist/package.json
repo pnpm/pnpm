@@ -28,10 +28,11 @@
   },
   "scripts": {
     "start": "tsgo --watch",
-    "test": "pn compile",
-    "lint": "eslint \"src/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix"
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/bins.linker": "workspace:*",
@@ -50,6 +51,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/installing.linking.hoist": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:"
