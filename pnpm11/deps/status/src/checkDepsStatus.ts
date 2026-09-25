@@ -49,6 +49,7 @@ import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader
 import { equals, filter, isEmpty, once } from 'ramda'
 
 import { assertLockfilesEqual } from './assertLockfilesEqual.js'
+import { findInjectedWorkspaceDep } from './findInjectedWorkspaceDep.js'
 import { safeStat, safeStatSync } from './safeStat.js'
 import { statManifestFile } from './statManifestFile.js'
 
@@ -204,6 +205,19 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       return {
         upToDate: false,
         issue: `The dependency "${localFileDep}" is a local file dependency and its contents may have changed`,
+        workspaceState,
+      }
+    }
+    const injectedWorkspaceDep = findInjectedWorkspaceDep(manifests, {
+      workspaceManifests: manifests,
+      injectWorkspacePackages,
+      include: opts.include,
+      catalogs,
+    })
+    if (injectedWorkspaceDep != null) {
+      return {
+        upToDate: false,
+        issue: `The dependency "${injectedWorkspaceDep}" is an injected workspace dependency and its contents may have changed`,
         workspaceState,
       }
     }

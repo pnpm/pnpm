@@ -1433,6 +1433,128 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     expect(result.upToDate).toBe(true)
   })
 
+  describe('injected workspace dependencies', () => {
+    // A consumer's injected copy is hard-linked when the install runs, so a
+    // rebuild of the source project changes what it should hold without moving
+    // any manifest or lockfile mtime (https://github.com/pnpm/pnpm/issues/4407).
+    function workspaceOpts (
+      consumerManifest: Record<string, unknown>,
+      lastValidatedTimestamp: number,
+      extra: Partial<CheckDepsStatusOptions> = {}
+    ): CheckDepsStatusOptions {
+      return {
+        allProjects: [
+          {
+            rootDir: '/workspace/packages/ui' as ProjectRootDir,
+            rootDirRealPath: '/workspace/packages/ui' as ProjectRootDirRealPath,
+            manifest: { name: 'ui', version: '1.2.3' },
+            writeProjectManifest: async () => {},
+          },
+          {
+            rootDir: '/workspace/apps/web' as ProjectRootDir,
+            rootDirRealPath: '/workspace/apps/web' as ProjectRootDirRealPath,
+            manifest: { name: 'web', version: '1.0.0', ...consumerManifest },
+            writeProjectManifest: async () => {},
+          },
+        ],
+        workspaceDir: '/workspace',
+        sharedWorkspaceLockfile: true,
+        rootProjectManifest: { name: 'root', version: '1.0.0' },
+        rootProjectManifestDir: '/workspace',
+        pnpmfile: [],
+        treatLocalFileDepsAsOutdated: true,
+        ...mockWorkspaceState(lastValidatedTimestamp).settings,
+        ...extra,
+      }
+    }
+
+    it('returns upToDate: false when a dependency is marked as injected in dependenciesMeta', async () => {
+      const lastValidatedTimestamp = Date.now() - 10_000
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+
+      const result = await checkDepsStatus(workspaceOpts({
+        dependencies: { ui: 'workspace:*' },
+        dependenciesMeta: { ui: { injected: true } },
+      }, lastValidatedTimestamp))
+
+      expect(result.upToDate).toBe(false)
+      expect(result.issue).toBe('The dependency "ui" is an injected workspace dependency and its contents may have changed')
+    })
+
+    it.each([
+      ['workspace:*', 'workspace:*'],
+      ['workspace:^1.0.0', 'workspace:^1.0.0'],
+      ['a workspace path', 'workspace:../../packages/ui'],
+      ['a plain range the workspace project satisfies', '^1.0.0'],
+    ])('returns upToDate: false for a dependency on a workspace project as %s when injectWorkspacePackages is on', async (_desc, spec) => {
+      const lastValidatedTimestamp = Date.now() - 10_000
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+
+      const result = await checkDepsStatus(workspaceOpts(
+        { dependencies: { ui: spec } },
+        lastValidatedTimestamp,
+        { injectWorkspacePackages: true }
+      ))
+
+      expect(result.upToDate).toBe(false)
+      expect(result.issue).toBe('The dependency "ui" is an injected workspace dependency and its contents may have changed')
+    })
+
+    it('does not report a workspace: dependency that is not injected as injected', async () => {
+      const lastValidatedTimestamp = Date.now() - 10_000
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+
+      const result = await checkDepsStatus(workspaceOpts(
+        { dependencies: { ui: 'workspace:*' } },
+        lastValidatedTimestamp
+      ))
+
+      expect(result.issue ?? '').not.toContain('injected workspace dependency')
+    })
+
+    it('does not report a registry dependency as injected when injectWorkspacePackages is on', async () => {
+      const lastValidatedTimestamp = Date.now() - 10_000
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+
+      const result = await checkDepsStatus(workspaceOpts(
+        { dependencies: { lodash: '^4.0.0' } },
+        lastValidatedTimestamp,
+        { injectWorkspacePackages: true }
+      ))
+
+      expect(result.issue ?? '').not.toContain('injected workspace dependency')
+    })
+
+    it('does not report a plain range the workspace project does not satisfy as injected', async () => {
+      const lastValidatedTimestamp = Date.now() - 10_000
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+
+      const result = await checkDepsStatus(workspaceOpts(
+        { dependencies: { ui: '^2.0.0' } },
+        lastValidatedTimestamp,
+        { injectWorkspacePackages: true }
+      ))
+
+      expect(result.issue ?? '').not.toContain('injected workspace dependency')
+    })
+
+    it('ignores an injected dependency in a group the install leaves out', async () => {
+      const lastValidatedTimestamp = Date.now() - 10_000
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+
+      const result = await checkDepsStatus(workspaceOpts(
+        {
+          devDependencies: { ui: 'workspace:*' },
+          dependenciesMeta: { ui: { injected: true } },
+        },
+        lastValidatedTimestamp,
+        { include: { dependencies: true, devDependencies: false, optionalDependencies: true } }
+      ))
+
+      expect(result.issue ?? '').not.toContain('injected workspace dependency')
+    })
+  })
+
   it.each([
     ['a bare local tarball path', 'vendor/pkg.tgz'],
     ['a relative directory path', '../sibling-dir'],
