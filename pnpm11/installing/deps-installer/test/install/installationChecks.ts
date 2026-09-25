@@ -3,8 +3,9 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { addDependenciesToPackage, install, type PackageManifest } from '@pnpm/installing.deps-installer'
-import { prepareEmpty } from '@pnpm/prepare'
+import { addDependenciesToPackage, install, type MutatedProject, mutateModules, type PackageManifest } from '@pnpm/installing.deps-installer'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import type { ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
 
@@ -223,4 +224,46 @@ test('without engine-strict, a patched optional dependency with incompatible eng
   await install(manifest, testDefaults({ patchedDependencies }))
 
   expect(() => fs.lstatSync('node_modules/@pnpm.e2e/for-legacy-node')).toThrow()
+})
+
+test('engine-strict unlinks a skipped optional patched dependency from every workspace project', async () => {
+  const optionalDependencies = { 'legacy-node': 'npm:@pnpm.e2e/for-legacy-node@1.0.0' }
+  preparePackages([
+    { location: 'project-1', package: { name: 'project-1', optionalDependencies } },
+    { location: 'project-2', package: { name: 'project-2', optionalDependencies } },
+  ])
+  const patchedDependencies = writeLegacyNodeEnginesPatch('99')
+  const rootDirs = ['project-1', 'project-2'].map((location) => path.resolve(location) as ProjectRootDir)
+  const importers: MutatedProject[] = rootDirs.map((rootDir) => ({ mutation: 'install', rootDir }))
+  const allProjects = rootDirs.map((rootDir, index) => ({
+    buildIndex: 0,
+    manifest: { name: `project-${index + 1}`, version: '1.0.0', optionalDependencies },
+    rootDir,
+  }))
+
+  await mutateModules(importers, testDefaults({ allProjects, engineStrict: true, patchedDependencies }, {}, {}, { engineStrict: true }))
+
+  for (const rootDir of rootDirs) {
+    expect(() => fs.lstatSync(path.join(rootDir, 'node_modules/legacy-node'))).toThrow()
+  }
+})
+
+test('engine-strict keeps the global virtual store slot of a skipped optional patched dependency', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = { optionalDependencies: { 'legacy-node': 'npm:@pnpm.e2e/for-legacy-node@1.0.0' } }
+  const patchedDependencies = writeLegacyNodeEnginesPatch('99')
+
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    engineStrict: true,
+    patchedDependencies,
+    virtualStoreDir: globalVirtualStoreDir,
+  }, {}, {}, { engineStrict: true }))
+
+  expect(() => fs.lstatSync('node_modules/legacy-node')).toThrow()
+  const versionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/for-legacy-node/1.0.0')
+  const slots = fs.readdirSync(versionDir)
+  expect(slots).toHaveLength(1)
+  expect(fs.existsSync(path.join(versionDir, slots[0], 'node_modules/@pnpm.e2e/for-legacy-node/package.json'))).toBe(true)
 })

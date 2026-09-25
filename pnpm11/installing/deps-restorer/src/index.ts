@@ -811,7 +811,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
       engineStrict: installabilityUnderForce(opts).engineStrict,
       engineNodeVersion: currentEngine.nodeVersion,
-      linkedModulesDirs: [...selectedProjects.map(({ modulesDir }) => modulesDir), hoistedModulesDir],
+      linkedModulesDirs: [...Object.values(opts.allProjects).map(({ modulesDir }) => modulesDir), hoistedModulesDir],
       skipped,
       allowBuild,
       childConcurrency: opts.childConcurrency,

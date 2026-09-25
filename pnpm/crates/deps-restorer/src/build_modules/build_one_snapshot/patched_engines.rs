@@ -55,7 +55,8 @@ fn remove_linked_copies(context: &BuildOneSnapshot<'_>, snapshot_key: &PackageKe
     }
 }
 
-/// The `node_modules` directory of every project in the lockfile.
+/// The `node_modules` directory of every project in the lockfile. An importer
+/// key that would escape the lockfile directory is left out.
 fn project_modules_dirs(context: &BuildOneSnapshot<'_>) -> Vec<std::path::PathBuf> {
     let root = context.directories.modules_dir;
     let lockfile_dir = context.directories.lockfile_dir;
@@ -65,6 +66,7 @@ fn project_modules_dirs(context: &BuildOneSnapshot<'_>) -> Vec<std::path::PathBu
         context.graph.importers
             .keys()
             .filter(|importer_id| importer_id.as_str() != ".")
+            .filter(|importer_id| crate::validate_importer_id(importer_id).is_ok())
             .map(|importer_id| lockfile_dir.join(importer_id).join(modules_dir_name)),
     );
     dirs
