@@ -425,7 +425,9 @@ async fn install_warns_when_the_default_store_bypasses_an_existing_home_store() 
     assert_eq!(warnings, [relocation.warning()]);
     let warning_index = captured
         .iter()
-        .position(|event| matches!(event, LogEvent::Global(_)))
+        .position(|event| {
+            matches!(event, LogEvent::Global(GlobalLog { message, .. }) if *message == relocation.warning())
+        })
         .unwrap();
     let context_index = captured
         .iter()
