@@ -406,7 +406,7 @@ async fn global_switch_declined(
         )));
     }
     if is_implicit_latest && version_lt(target_version, PNPM_VERSION) {
-        let registry_latest = registry_latest_ignoring_maturity(config, true).await;
+        let registry_latest = registry_latest_ignoring_maturity(config).await;
         return Ok(Some(implicit_latest_no_upgrade_message(
             NoUpgradeKind::Active,
             PNPM_VERSION,

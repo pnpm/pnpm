@@ -23,7 +23,7 @@ pub(super) async fn project_pin_refusal(
     if !version_lt(target_version, &current) {
         return None;
     }
-    let registry_latest = registry_latest_ignoring_maturity(config, true).await;
+    let registry_latest = registry_latest_ignoring_maturity(config).await;
     Some(implicit_latest_no_upgrade_message(
         NoUpgradeKind::Project,
         &current,
@@ -57,11 +57,8 @@ pub(super) fn implicit_latest_no_upgrade_message(
     }
 }
 
-pub(super) async fn registry_latest_ignoring_maturity(
-    config: &'static Config,
-    is_implicit_latest: bool,
-) -> Option<String> {
-    if !is_implicit_latest || config.resolved_minimum_release_age().is_none() {
+pub(super) async fn registry_latest_ignoring_maturity(config: &'static Config) -> Option<String> {
+    if config.resolved_minimum_release_age().is_none() {
         return None;
     }
     Box::pin(config_deps::resolve_engine_version_ignoring_maturity(config, "pnpm", "latest"))

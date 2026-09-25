@@ -128,7 +128,6 @@ export async function handler (
   }
 
   const pinsPnpm = opts.wantedPackageManager?.name === packageManager.name
-  const registryLatest = await registryLatestIgnoringAge(opts, isImplicitLatest)
   if (pinsPnpm && isImplicitLatest && opts.wantedPackageManager?.version !== targetVersion) {
     // Prefer the lockfile-pinned version when available — for range
     // specs like `>=8.0.0`, the spec's lower bound understates the
@@ -139,7 +138,7 @@ export async function handler (
         kind: 'project',
         current: projectCurrentVersion,
         target: targetVersion,
-        registryLatest,
+        registryLatest: await registryLatestIgnoringAge(opts),
       })
     }
   }
@@ -147,7 +146,7 @@ export async function handler (
   // The global install moves forward even when the project pins pnpm, or the
   // machine never holds a pnpm that reaches the pin (pnpm/pnpm#14747). The pin
   // is written last so a failed switch leaves the project as it was.
-  const globalMessage = await switchGlobalPnpm(opts, { bareSpecifier, bootstrapConfig, isImplicitLatest, registryLatest, targetVersion })
+  const globalMessage = await switchGlobalPnpm(opts, { bareSpecifier, bootstrapConfig, isImplicitLatest, targetVersion })
   if (!pinsPnpm) return globalMessage
   const projectPinMessage = await updateProjectPin(opts, targetVersion, bootstrapConfig)
   return `${projectPinMessage}\n${globalMessage}`
@@ -155,11 +154,10 @@ export async function handler (
 
 async function switchGlobalPnpm (
   opts: SelfUpdateCommandOptions,
-  { bareSpecifier, bootstrapConfig, isImplicitLatest, registryLatest, targetVersion }: {
+  { bareSpecifier, bootstrapConfig, isImplicitLatest, targetVersion }: {
     bareSpecifier: string
     bootstrapConfig: PackageManagerBootstrapConfig
     isImplicitLatest: boolean
-    registryLatest: string | undefined
     targetVersion: string
   }
 ): Promise<string> {
@@ -178,7 +176,7 @@ async function switchGlobalPnpm (
       kind: 'active',
       current: packageManager.version,
       target: targetVersion,
-      registryLatest,
+      registryLatest: await registryLatestIgnoringAge(opts),
     })
   }
 
@@ -286,10 +284,9 @@ async function updateProjectPin (
 }
 
 async function registryLatestIgnoringAge (
-  opts: SelfUpdateCommandOptions,
-  isImplicitLatest: boolean
+  opts: SelfUpdateCommandOptions
 ): Promise<string | undefined> {
-  if (!isImplicitLatest || !opts.minimumReleaseAge) return undefined
+  if (!opts.minimumReleaseAge) return undefined
   const resolved = await resolvePnpmVersion({
     ...opts,
     minimumReleaseAge: undefined,
