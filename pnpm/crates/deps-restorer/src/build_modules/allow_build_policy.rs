@@ -82,7 +82,7 @@ impl AllowBuildPolicy {
             let keys = if value { &mut allowed } else { &mut disallowed };
             keys.add(spec);
         }
-        Ok(Self::new_with_dep_paths(
+        Self::new_with_dep_paths(
             expand_package_version_specs(allowed.specs)?,
             expand_package_version_specs(disallowed.specs)?,
             allowed.dep_paths,
@@ -92,7 +92,7 @@ impl AllowBuildPolicy {
         .with_git_repo_rules(allowed.git_repos, disallowed.git_repos)
         .with_side_effects_cache_exclude(
             config.side_effects_cache_exclude.as_deref().unwrap_or_default(),
-        )?)
+        )
     }
 
     /// Add the `sideEffectsCacheExclude` rules [`Self::caches_build`]

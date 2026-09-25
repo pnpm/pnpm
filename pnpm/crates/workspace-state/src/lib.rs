@@ -187,6 +187,9 @@ pub struct WorkspaceStateSettings {
     pub trust_policy: Option<TrustPolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trust_policy_exclude: Option<Vec<String>>,
+    /// Which global-virtual-store slots are project-scoped depends on it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub side_effects_cache_exclude: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trust_policy_ignore_after: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
