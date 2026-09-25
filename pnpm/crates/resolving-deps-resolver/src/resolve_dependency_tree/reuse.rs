@@ -93,12 +93,18 @@ impl ReuseSource {
     ) -> Option<PkgNameVerPeer> {
         let lockfile = ctx.workspace.reuse.lockfile.as_ref()?;
         match self {
-            ReuseSource::Importer { importer_id } => reusable_importer_dep(
-                lockfile,
-                importer_id,
-                wanted.alias.as_deref()?,
-                wanted.bare_specifier.as_deref()?,
-            ),
+            ReuseSource::Importer { importer_id } => {
+                let alias = wanted.alias.as_deref()?;
+                if ctx.workspace.is_stale_peer_pin(importer_id, alias) {
+                    return None;
+                }
+                reusable_importer_dep(
+                    lockfile,
+                    importer_id,
+                    alias,
+                    wanted.bare_specifier.as_deref()?,
+                )
+            }
             ReuseSource::Transitive { key } => key.clone(),
             ReuseSource::Off => None,
         }

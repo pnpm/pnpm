@@ -1,3 +1,6 @@
+mod stale_peer_pins;
+
+use self::stale_peer_pins::release_stale_peer_pins;
 use super::{
     DependencyGroup, InitializedImporters, PassSettings, ResolveImporterError,
     ResolveImporterOptions, ResolveWorkspaceResult, Resolver, WorkspaceImporter,
@@ -51,8 +54,11 @@ where
     Chain: Resolver + ?Sized,
     BuildImporterOptions: FnMut(&WorkspaceImporter<'a>) -> ResolveImporterOptions,
 {
-    let (workspace, settings) = opts.split();
-    let sorted = sorted_importers(importers, per_importer_options, &settings);
+    let (mut workspace, settings) = opts.split();
+    let mut sorted = sorted_importers(importers, per_importer_options, &settings);
+    if settings.peers.auto_install_peers {
+        release_stale_peer_pins(&mut workspace, &mut sorted);
+    }
     let cutoff = time_cutoff(resolver, &sorted, dependency_groups, &settings).await;
     let initialized =
         init_importers(resolver, sorted, dependency_groups, &cutoff, &settings, &workspace).await?;
