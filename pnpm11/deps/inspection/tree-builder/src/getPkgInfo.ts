@@ -35,7 +35,9 @@ export interface GetPkgInfoOpts {
   readonly depTypes: DepTypes
 
   /**
-   * The base dir if the `ref` argument is a `"link:"` relative path.
+   * The base dir if the `ref` argument is a `"link:"` relative path. An
+   * absolute `"link:"` path, such as one on another drive on Windows, is used
+   * as is.
    */
   readonly linkedPathBaseDir: string
 
@@ -124,7 +126,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
       modulesDir: opts.modulesDir,
       parentDir: opts.parentDir,
     })
-    : path.join(opts.linkedPathBaseDir, opts.ref.slice(5))
+    : path.resolve(opts.linkedPathBaseDir, opts.ref.slice(5))
 
   if (version.startsWith('link:') && opts.rewriteLinkVersionDir) {
     version = `link:${normalizePath(path.relative(opts.rewriteLinkVersionDir, fullPackagePath))}`
