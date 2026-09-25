@@ -933,14 +933,12 @@ snapshots:
         root_is_positive,
         "the root package matches the locked version",
     );
+    let virtual_store_path =
+        Path::new("node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive");
     let nested_path = path_of("1.0.0");
     assert!(
-        nested_path != root_is_positive
-            && nested_path
-                != workspace
-                    .path()
-                    .join("node_modules")
-                    .join("is-positive"),
-        "the root package holds another version, so it must not be reported for 1.0.0",
+        nested_path == root.join(virtual_store_path)
+            || nested_path == workspace.path().join(virtual_store_path),
+        "the root package holds another version, so 1.0.0 falls back to its virtual-store path, got {nested_path:?}",
     );
 }
