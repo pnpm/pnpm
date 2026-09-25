@@ -11,6 +11,7 @@ use crate::{LinkFileError, remove_quarantine::remove_quarantine_from_native_bina
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
+use pnpm_fs::DirLock;
 use pnpm_reporter::Reporter;
 use std::{
     collections::HashMap,
@@ -18,7 +19,11 @@ use std::{
     fs, io,
     path::{Path, PathBuf},
     sync::atomic::AtomicU8,
+    time::Duration,
 };
+
+const SHARED_IMPORT_LOCK_WAIT: Duration = Duration::from_mins(5);
+const SHARED_IMPORT_LOCK_ABANDONED_AFTER: Duration = Duration::from_mins(30);
 
 /// Options for [`import_indexed_dir`].
 ///
@@ -109,6 +114,12 @@ pub enum ImportIndexedDirError {
         #[error(source)]
         error: io::Error,
     },
+    #[display("failed to lock shared package target {path:?}: {error}")]
+    LockSharedTarget {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
     #[display("symlink target {target:?} escapes package root {root:?}")]
     SymlinkTargetEscapes { target: PathBuf, root: PathBuf },
 }
@@ -179,6 +190,16 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     cas_paths: &HashMap<String, PathBuf>,
     opts: ImportIndexedDirOpts,
 ) -> Result<(), ImportIndexedDirError> {
+    let _shared_import_lock = if opts.safe_to_skip && opts.force {
+        acquire_shared_import_lock(
+            dir_path,
+            SHARED_IMPORT_LOCK_WAIT,
+            SHARED_IMPORT_LOCK_ABANDONED_AFTER,
+        )?
+    } else {
+        None
+    };
+
     let existing_kind = existing_dirent_kind(dir_path)?;
 
     // Drop the macOS quarantine xattr from the package's native binaries after
@@ -228,6 +249,24 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         )
         .inspect(|()| unquarantine()),
     }
+}
+
+pub(super) fn acquire_shared_import_lock(
+    dir_path: &Path,
+    wait: Duration,
+    abandoned_after: Duration,
+) -> Result<Option<DirLock>, ImportIndexedDirError> {
+    let parent = dir_path.parent().unwrap_or_else(|| Path::new("."));
+    let name = dir_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("package");
+    let lock_path = parent.join(format!(".{name}_pacquet-import.lock"));
+    DirLock::acquire(lock_path, wait, abandoned_after)
+        .map_err(|error| ImportIndexedDirError::LockSharedTarget {
+            path: dir_path.to_path_buf(),
+            error,
+        })
 }
 
 fn force_import_existing_dir<Reporter: self::Reporter>(
