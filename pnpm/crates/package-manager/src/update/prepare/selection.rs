@@ -83,5 +83,6 @@ impl SelectedUpdatePreparation {
         if self.workspace_dir_for_catalogs.is_none() {
             self.workspace_dir_for_catalogs = prepared.workspace_dir_for_catalogs;
         }
+        self.updated_overrides.extend(prepared.updated_overrides);
     }
 }
