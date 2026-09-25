@@ -442,6 +442,33 @@ test('allowBuilds false resolves a strict ignored-build failure on repeat instal
   expect(Array.from(modulesManifest?.ignoredBuilds ?? [])).toStrictEqual([])
 })
 
+test('strictDepBuilds fails a repeat install that short-circuits with an undecided build', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    optimisticRepeatInstall: true,
+    strictDepBuilds: false,
+  })
+  execPnpmSync(['install'], { expectSuccess: true })
+
+  // The short-circuit, not a materializing install, is what has to enforce the policy.
+  const repeatResult = execPnpmSync(['install'])
+  expect(repeatResult.status).toBe(0)
+  expect(repeatResult.stdout.toString()).toContain('Already up to date')
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    optimisticRepeatInstall: true,
+    strictDepBuilds: true,
+  })
+  const result = execPnpmSync(['install'])
+
+  expect(result.status).toBe(1)
+  expect(`${result.stdout}${result.stderr}`).toContain('ERR_PNPM_IGNORED_BUILDS')
+})
+
 test('the list of ignored builds is preserved after a repeat install', async () => {
   const project = prepare({})
   execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', 'esbuild@0.25.0', '--config.optimistic-repeat-install=false'])
