@@ -243,7 +243,7 @@ const PNPM_PACKAGE_NAMES = new Set(['pnpm', '@pnpm/exe'])
  * the current global directory are left alone.
  */
 function isDriveLetterPrefix (spec: string): boolean {
-  return /^[a-zA-Z]:/.test(spec)
+  return /^[a-z]:/i.test(spec)
 }
 
 /** Same gate as `LocalSpec::parse_filesystem`: a path prefix, not a drive letter. */
