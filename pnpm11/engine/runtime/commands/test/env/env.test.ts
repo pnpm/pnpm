@@ -101,6 +101,30 @@ test('env remove deletes a pnpm-managed Node when there is no global bin directo
   fs.rmSync(tempDir, { recursive: true, force: true })
 })
 
+test('env remove removes a matching global node package when there is no global bin directory', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
+  const pnpmHomeDir = path.join(tempDir, 'home')
+  const installDir = path.join(pnpmHomeDir, 'global', 'v11', 'install-node')
+  fs.mkdirSync(path.join(installDir, 'node_modules', 'node'), { recursive: true })
+  fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies: { node: '22.5.0' } }))
+  fs.writeFileSync(path.join(installDir, 'node_modules', 'node', 'package.json'), JSON.stringify({ name: 'node', version: '22.5.0' }))
+  createSymlinkDir(installDir, path.join(pnpmHomeDir, 'global', 'v11', 'hash-node'))
+
+  await env.handler({
+    // @ts-expect-error
+    bin: undefined,
+    global: true,
+    pnpmHomeDir,
+    configByUri: {},
+  }, ['remove', '22.5.0'])
+
+  expect(fs.existsSync(path.join(pnpmHomeDir, 'global', 'v11', 'hash-node'))).toBe(false)
+  expect(fs.existsSync(installDir)).toBe(false)
+  expect(mockRunPnpmCli).not.toHaveBeenCalled()
+
+  fs.rmSync(tempDir, { recursive: true, force: true })
+})
+
 test('fail if there is no global bin directory', async () => {
   await expect(
     env.handler({
@@ -115,7 +139,7 @@ test('fail if there is no global bin directory', async () => {
   expect(mockRunPnpmCli).not.toHaveBeenCalled()
 })
 
-test('env remove calls pnpm remove when installed node version matches', async () => {
+test('env remove removes the global node package when its version matches', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
   const pnpmHomeDir = path.join(tempDir, 'home')
   const installDir = path.join(pnpmHomeDir, 'global', 'v11', 'install-node')
@@ -125,23 +149,20 @@ test('env remove calls pnpm remove when installed node version matches', async (
   createSymlinkDir(installDir, path.join(pnpmHomeDir, 'global', 'v11', 'hash-node'))
 
   await env.handler({
-    bin: '/usr/local/bin',
-    cacheDir: '/tmp/cache',
+    bin: path.join(tempDir, 'bin'),
     global: true,
     pnpmHomeDir,
     configByUri: {},
-    storeDir: '/tmp/store',
   }, ['remove', '18'])
 
-  expect(mockRunPnpmCli).toHaveBeenCalledWith(
-    ['remove', '--global', 'node', '--global-bin-dir', '/usr/local/bin', '--store-dir', '/tmp/store', '--cache-dir', '/tmp/cache'],
-    { cwd: pnpmHomeDir }
-  )
+  expect(fs.existsSync(path.join(pnpmHomeDir, 'global', 'v11', 'hash-node'))).toBe(false)
+  expect(fs.existsSync(installDir)).toBe(false)
+  expect(mockRunPnpmCli).not.toHaveBeenCalled()
 
   fs.rmSync(tempDir, { recursive: true, force: true })
 })
 
-test('env remove inspects configured globalPkgDir and passes globalDir to pnpm remove', async () => {
+test('env remove removes the global node package from the configured globalPkgDir', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
   const customGlobalDir = path.join(tempDir, 'custom-global')
   const customGlobalPkgDir = path.join(customGlobalDir, 'v11')
@@ -152,7 +173,7 @@ test('env remove inspects configured globalPkgDir and passes globalDir to pnpm r
   createSymlinkDir(installDir, path.join(customGlobalPkgDir, 'hash-node'))
 
   await env.handler({
-    bin: '/usr/local/bin',
+    bin: path.join(tempDir, 'bin'),
     global: true,
     globalDir: customGlobalDir,
     globalPkgDir: customGlobalPkgDir,
@@ -160,10 +181,8 @@ test('env remove inspects configured globalPkgDir and passes globalDir to pnpm r
     configByUri: {},
   }, ['remove', '18'])
 
-  expect(mockRunPnpmCli).toHaveBeenCalledWith(
-    ['remove', '--global', 'node', '--global-bin-dir', '/usr/local/bin', '--global-dir', customGlobalDir],
-    { cwd: path.join(tempDir, 'home') }
-  )
+  expect(fs.existsSync(path.join(customGlobalPkgDir, 'hash-node'))).toBe(false)
+  expect(fs.existsSync(installDir)).toBe(false)
 
   fs.rmSync(tempDir, { recursive: true, force: true })
 })
@@ -234,16 +253,13 @@ test('env remove recognizes node in mixed runtime array in engines.runtime', asy
   createSymlinkDir(installDir, path.join(pnpmHomeDir, 'global', 'v11', 'hash-node'))
 
   await env.handler({
-    bin: '/usr/local/bin',
+    bin: path.join(tempDir, 'bin'),
     global: true,
     pnpmHomeDir,
     configByUri: {},
   }, ['remove', '18'])
 
-  expect(mockRunPnpmCli).toHaveBeenCalledWith(
-    ['remove', '--global', 'node', '--global-bin-dir', '/usr/local/bin'],
-    { cwd: pnpmHomeDir }
-  )
+  expect(fs.existsSync(installDir)).toBe(false)
 
   fs.rmSync(tempDir, { recursive: true, force: true })
 })

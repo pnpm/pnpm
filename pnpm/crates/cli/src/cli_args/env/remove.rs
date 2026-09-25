@@ -1,5 +1,5 @@
 use crate::{
-    cli_args::global::handle_global_remove,
+    cli_args::global::remove_global_groups,
     shim_dispatch::{ShimTarget, native_shim_target, remove_native_shim},
 };
 use miette::IntoDiagnostic;
@@ -65,8 +65,10 @@ pub fn remove_matching_global_node<Reporter: self::Reporter + 'static>(
     if !versions.iter().any(|target_version| matches_node_version(installed_ver, target_version)) {
         return Ok(false);
     }
-    if config.global_bin.is_some() {
-        handle_global_remove::<Reporter>(config, &["node".to_string()])?;
+    // `env remove` deletes what pnpm stored, so unlike `pnpm remove -g` it
+    // runs when the global bin is not on `PATH`.
+    if let Some(global_bin_dir) = config.global_bin.as_deref().filter(|dir| dir.is_dir()) {
+        remove_global_groups::<Reporter>(global_pkg_dir, global_bin_dir, &["node".to_string()])?;
     } else {
         remove_global_node_install(global_pkg_dir, &pkg).into_diagnostic()?;
     }

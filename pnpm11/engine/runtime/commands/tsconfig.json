@@ -28,6 +28,9 @@
       "path": "../../../exec/pnpm-cli-runner"
     },
     {
+      "path": "../../../global/commands"
+    },
+    {
       "path": "../../../network/auth-header"
     },
     {

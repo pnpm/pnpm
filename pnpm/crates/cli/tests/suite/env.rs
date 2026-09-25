@@ -297,3 +297,41 @@ fn remove_with_custom_global_dir_removes_configured_global_node() {
     assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
     assert!(!linked_pkg.exists());
 }
+
+#[test]
+fn remove_deletes_a_global_node_package_when_the_global_bin_is_not_on_path() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm_home");
+    let global_bin = pnpm_home.join("bin");
+    let custom_global_dir = root.path().join("custom_global");
+    std::fs::create_dir_all(&global_bin).unwrap();
+    let linked_pkg = seed_custom_global_node(&custom_global_dir.join("v11"), "18.12.0");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(
+        linked_pkg.join("node_modules/node/bin/node"),
+        global_bin.join("node"),
+    )
+    .unwrap();
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_args([
+            "--global",
+            &format!("--global-dir={}", custom_global_dir.display()),
+            "env",
+            "rm",
+            "18.12.0",
+        ])
+        .output()
+        .expect("run pacquet env rm");
+
+    assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
+    assert!(!linked_pkg.exists());
+    #[cfg(unix)]
+    assert!(
+        global_bin
+            .join("node")
+            .symlink_metadata()
+            .is_err(),
+    );
+}

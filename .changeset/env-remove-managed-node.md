@@ -1,6 +1,7 @@
 ---
 "@pnpm/config.reader": patch
 "@pnpm/engine.runtime.commands": patch
+"@pnpm/global.commands": patch
 "pnpm": patch
 "pacquet": patch
 ---
