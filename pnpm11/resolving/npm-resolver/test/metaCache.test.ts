@@ -1,4 +1,4 @@
-import { rmSync } from 'node:fs'
+import { rmSync, utimesSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 import { expect, jest, test } from '@jest/globals'
@@ -19,6 +19,7 @@ import {
   pickPackage,
   prepareJsonForDisk,
   saveMeta,
+  UNVALIDATED_MIRROR_MAX_AGE_MS,
 } from '../src/pickPackage.js'
 
 const REGISTRY = 'https://registry.npmjs.org/'
@@ -229,6 +230,114 @@ test('normal range resolution reuses a provably dominant lockfile version from d
   expect(fetchedNames).toHaveLength(0)
 })
 
+test('a fresh mirror without an etag resolves a range without a registry request', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta, jsonText: JSON.stringify(meta), etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+
+  const result = await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+  })
+
+  expect(result.pickedPackage?.version).toBe('1.0.0')
+  expect(fetchedNames).toHaveLength(0)
+})
+
+test('an expired mirror without an etag is fetched again and can see a newer version', async () => {
+  const staleMeta = fooMeta()
+  const freshMeta = fooMeta()
+  freshMeta.versions['1.5.0'] = {
+    ...freshMeta.versions['1.0.0'],
+    version: '1.5.0',
+  }
+  freshMeta['dist-tags'].latest = '1.5.0'
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(staleMeta, undefined))
+  const expired = new Date(Date.now() - UNVALIDATED_MIRROR_MAX_AGE_MS - 60_000)
+  utimesSync(pkgMirror, expired, expired)
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta: freshMeta, jsonText: JSON.stringify(freshMeta), etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+
+  const result = await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+  })
+
+  expect(result.pickedPackage?.version).toBe('1.5.0')
+  expect(fetchedNames).toEqual(['foo'])
+})
+
+test('a fresh mirror that has an etag still revalidates a range', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, '"abc"'))
+  const fetchCalls: Array<{ etag?: string }> = []
+  const ctx = {
+    fetch: async (pkgName: string, opts: { etag?: string }) => {
+      fetchCalls.push({ etag: opts.etag })
+      return { meta, jsonText: JSON.stringify(meta), etag: '"abc"' }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+
+  const result = await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+  })
+
+  expect(result.pickedPackage?.version).toBe('1.0.0')
+  expect(fetchCalls).toEqual([{ etag: '"abc"' }])
+})
+
+test('pnpm update does not reuse a fresh mirror that has no etag', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta, jsonText: JSON.stringify(meta), etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+
+  await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+    refreshMetadata: true,
+  })
+
+  expect(fetchedNames).toEqual(['foo'])
+})
+
 test('normal range resolution fetches when the cache is missing its lockfile version', async () => {
   const staleMeta = fooMeta()
   const freshMeta = fooMeta()
@@ -302,6 +411,10 @@ test('a stable cached range does not let a later unproven range skip the registr
   const cacheDir = temporaryDirectory()
   const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
   await saveMeta(pkgMirror, prepareJsonForDisk(staleMeta, undefined))
+  // A just-written mirror without an ETag is reused. This case is about a
+  // later unproven range, so the mirror has to be old enough to revalidate.
+  const expired = new Date(Date.now() - UNVALIDATED_MIRROR_MAX_AGE_MS - 60_000)
+  utimesSync(pkgMirror, expired, expired)
   const fetchedNames: string[] = []
   const ctx = {
     fetch: async (pkgName: string) => {

@@ -231,6 +231,26 @@ export function pickStableCachedRangeVersion ({
   }
 }
 
+/**
+ * An exact preferred version that satisfies the range but is absent from
+ * `meta` can only be learned from the registry.
+ */
+export function cachedMetaMissesPreferredVersion (
+  versionRange: string,
+  preferredVersionSelectors: VersionSelectors | undefined,
+  meta: PackageMeta
+): boolean {
+  if (preferredVersionSelectors == null) return false
+  for (const [selector, value] of Object.entries(preferredVersionSelectors)) {
+    if (selector === versionRange) continue
+    const selectorType = typeof value === 'string' ? value : value.selectorType
+    if (selectorType !== 'version') continue
+    if (!semverSatisfiesLoose(selector, versionRange)) continue
+    if (meta.versions[selector] == null) return true
+  }
+  return false
+}
+
 export function getDominantLockfileVersion (
   versionRange: string,
   preferredVersionSelectors?: VersionSelectors

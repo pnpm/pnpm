@@ -22,6 +22,7 @@ import {
 } from './fetch.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import {
+  cachedMetaMissesPreferredVersion,
   getDominantLockfileVersion,
   pickLowestVersionByVersionRange,
   pickPackageFromMeta,
@@ -98,6 +99,11 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
    * revalidation updateChecksums exists to force.
    */
   updateChecksums?: boolean
+  /**
+   * `pnpm update` must see versions published since the mirror was
+   * written, so it does not reuse an ETag-less mirror.
+   */
+  refreshMetadata?: boolean
 }
 
 interface PickerOptions extends PickPackageFromMetaOptions {
@@ -117,6 +123,23 @@ function canReuseStableCachedRange (
     opts.publishedBy == null &&
     opts.trustPolicy !== 'no-downgrade'
   )
+}
+
+/**
+ * Registries that omit `ETag` cannot answer `If-None-Match` with 304, so a
+ * warm revalidation downloads the whole packument. A mirror younger than this
+ * and stored without an `ETag` is reused for a range the cache can already
+ * satisfy. The public npm registry sends `ETag`s, so it keeps conditional
+ * revalidation. After this age the mirror is fetched again, which is how a
+ * version published in the meantime shows up.
+ */
+export const UNVALIDATED_MIRROR_MAX_AGE_MS = 5 * 60 * 1000
+
+function canReuseFreshUnvalidatedMirror (
+  spec: RegistryPackageSpec,
+  opts: PickPackageOptions
+): boolean {
+  return canReuseStableCachedRange(spec, opts) && opts.refreshMetadata !== true
 }
 
 // When includeLatestTag is set, the "latest" dist-tag is added as a candidate
@@ -478,6 +501,31 @@ export async function pickPackage (
         } catch {
           // Any malformed cached metadata falls through to normal online
           // resolution, matching the neighboring disk fast paths.
+        }
+      }
+    }
+    if (canReuseFreshUnvalidatedMirror(spec, opts)) {
+      const headers = diskMeta != null
+        ? { etag: diskMeta.etag }
+        : await limit(async () => loadMetaHeaders(pkgMirror))
+      if (headers != null && (headers.etag == null || headers.etag === '')) {
+        const mtime = await limit(async () => getFileMtime(pkgMirror))
+        if (mtime != null && Date.now() - mtime.getTime() < UNVALIDATED_MIRROR_MAX_AGE_MS) {
+          diskMeta = diskMeta ?? await limit(loadMetaCondensed)
+          if (
+            diskMeta != null &&
+            !cachedMetaMissesPreferredVersion(spec.fetchSpec, opts.preferredVersionSelectors, diskMeta)
+          ) {
+            try {
+              const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, diskMeta)
+              if (pickedPackage) {
+                cacheDiskLoadedMeta(ctx.metaCache, cacheKey, diskMeta)
+                return { meta: diskMeta, pickedPackage }
+              }
+            } catch {
+              // Malformed cached metadata falls through to the registry.
+            }
+          }
         }
       }
     }

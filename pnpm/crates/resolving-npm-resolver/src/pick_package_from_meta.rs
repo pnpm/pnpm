@@ -25,7 +25,9 @@
 
 pub(crate) mod semver_range;
 
-pub(crate) use preferred_versions::dominant_lockfile_version;
+pub(crate) use preferred_versions::{
+    cached_meta_misses_preferred_version, dominant_lockfile_version,
+};
 
 pub(crate) use release_age::{PublishedByView, apply_published_by_policy};
 

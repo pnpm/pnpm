@@ -3,6 +3,29 @@ use super::{
     VersionSelectors, semver_satisfies_loose,
 };
 
+/// An exact preferred version that satisfies the range but is absent from
+/// `meta` can only be learned from the registry.
+pub(crate) fn cached_meta_misses_preferred_version(
+    meta: &Package,
+    version_range: &str,
+    preferred_version_selectors: Option<&VersionSelectors>,
+) -> bool {
+    let Some(selectors) = preferred_version_selectors else {
+        return false;
+    };
+    selectors
+        .iter()
+        .any(|(selector, entry)| {
+            if selector == version_range {
+                return false;
+            }
+            let (selector_type, _) = selector_info(entry);
+            selector_type == VersionSelectorType::Version
+                && semver_satisfies_loose(selector, version_range)
+                && !meta.versions.contains_key(selector)
+        })
+}
+
 pub(crate) fn dominant_lockfile_version(
     version_range: &str,
     preferred_version_selectors: Option<&VersionSelectors>,
