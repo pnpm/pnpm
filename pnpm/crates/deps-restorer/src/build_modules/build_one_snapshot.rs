@@ -3,7 +3,7 @@
 mod patched_engines;
 mod side_effects;
 mod slot_to_build;
-use patched_engines::enforce_patched_engines;
+use patched_engines::skip_incompatible_optional;
 use side_effects::{
     FrozenStoreWrites, SideEffectsUpload, already_built, side_effects_cache_key,
     upload_side_effects_cache,
@@ -298,31 +298,6 @@ fn reject_frozen_store_build<Reporter: self::Reporter>(
 /// Every copy is patched, not just the primary slot. Under the hoisted linker
 /// a version conflict nests further copies under their consumers; leaving
 /// those unpatched would silently run the very code the patch replaces.
-fn skip_incompatible_optional<Reporter: self::Reporter>(
-    context: &BuildOneSnapshot<'_>,
-    snapshot_key: &PackageKey,
-    candidate: &BuildCandidate<'_>,
-) -> Result<bool, BuildModulesError> {
-    let optional = context.graph.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
-    let Some(details) = enforce_patched_engines(context, snapshot_key, candidate, optional)? else {
-        return Ok(false);
-    };
-    Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
-        level: LogLevel::Debug,
-        details: Some(details),
-        package: SkippedOptionalPackage::Installed {
-            id: snapshot_key.to_string(),
-            name: candidate.name.clone(),
-            version: candidate.version.clone(),
-        },
-        parents: None,
-        prefix: context.directories.lockfile_dir.to_string_lossy().into_owned(),
-        reason: SkippedOptionalReason::UnsupportedEngine,
-    }));
-    discard_failed_global_virtual_store_slot(context.directories.layout, snapshot_key);
-    Ok(true)
-}
-
 fn apply_configured_patch<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,

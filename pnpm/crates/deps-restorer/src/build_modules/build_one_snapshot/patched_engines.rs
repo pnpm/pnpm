@@ -1,4 +1,34 @@
-use super::{super::BuildModulesError, BuildCandidate, BuildOneSnapshot, PackageKey};
+use super::super::{BuildModulesError, discard_failed_global_virtual_store_slot};
+use super::{BuildCandidate, BuildOneSnapshot, PackageKey};
+use pnpm_reporter::{
+    LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    SkippedOptionalReason,
+};
+
+pub(super) fn skip_incompatible_optional<R: Reporter>(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    candidate: &BuildCandidate<'_>,
+) -> Result<bool, BuildModulesError> {
+    let optional = context.graph.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
+    let Some(details) = enforce_patched_engines(context, snapshot_key, candidate, optional)? else {
+        return Ok(false);
+    };
+    R::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+        level: LogLevel::Debug,
+        details: Some(details),
+        package: SkippedOptionalPackage::Installed {
+            id: snapshot_key.to_string(),
+            name: candidate.name.clone(),
+            version: candidate.version.clone(),
+        },
+        parents: None,
+        prefix: context.directories.lockfile_dir.to_string_lossy().into_owned(),
+        reason: SkippedOptionalReason::UnsupportedEngine,
+    }));
+    discard_failed_global_virtual_store_slot(context.directories.layout, snapshot_key);
+    Ok(true)
+}
 
 /// `engineStrict` against the patched manifest. The earlier installability
 /// pass skipped engines for patched packages because the published manifest
