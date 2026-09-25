@@ -127,6 +127,10 @@ pub struct Modules {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shamefully_hoist: Option<bool>,
 
+    /// `packageImportPatterns` the packages were imported with; omitted when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package_import_patterns: Option<Vec<String>>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_hoist_pattern: Option<Vec<String>>,
 
@@ -201,6 +205,10 @@ pub struct ModulesLayout {
     pub ignored_builds: Option<IndexSet<DepPath>>,
     #[serde(default)]
     pub pruned_at: String,
+    /// `packageImportPatterns` the packages were imported with; omitted when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package_import_patterns: Option<Vec<String>>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_hoist_pattern: Option<Vec<String>>,
     /// Legacy: the v5-era flag used to mean "hoist everything publicly."

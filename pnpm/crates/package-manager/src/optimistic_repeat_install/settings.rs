@@ -159,6 +159,11 @@ impl SettingsComparison<'_> {
         return_drift_if!(self, "hoistPattern", recorded.hoist_pattern != live.hoist_pattern);
         return_drift_if!(
             self,
+            "packageImportPatterns",
+            recorded.package_import_patterns != live.package_import_patterns,
+        );
+        return_drift_if!(
+            self,
             "hoistWorkspacePackages",
             recorded.hoist_workspace_packages != live.hoist_workspace_packages,
         );
@@ -335,6 +340,7 @@ pub(crate) fn current_settings(
         exclude_links_from_lockfile: Some(config.exclude_links_from_lockfile),
         hoist_pattern: config.hoist_pattern.clone(),
         hoist_workspace_packages: Some(config.hoist_workspace_packages),
+        package_import_patterns: recorded_package_import_patterns(config),
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
         inject_workspace_packages: Some(config.inject_workspace_packages),
         link_workspace_packages: Some(link_workspace_packages_to_json(
@@ -361,6 +367,14 @@ pub(crate) fn current_settings(
         }),
         ..current_policy_settings(config)
     }
+}
+
+/// `packageImportPatterns` as the install records it: omitted when unset, the
+/// same as an empty list.
+pub(crate) fn recorded_package_import_patterns(config: &Config) -> Option<Vec<String>> {
+    (!config.package_import_patterns.is_empty()).then(|| {
+        config.package_import_patterns.clone()
+    })
 }
 
 fn recorded_allow_builds(

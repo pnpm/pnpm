@@ -16,6 +16,7 @@ use super::{
     Lockfile, Modules, ModulesNodeLinker, NodeLinker, PNPM_VERSION, PackageManifest, Path, PathBuf,
     write_modules_manifest,
 };
+use crate::optimistic_repeat_install::recorded_package_import_patterns;
 use pnpm_cmd_shim::bin_dir_is_relocatable;
 use rayon::prelude::*;
 
@@ -235,6 +236,8 @@ pub(crate) fn modules_layout_consistent_with(
         && modules.node_linker == Some(map_node_linker(node_linker))
         && hoist_patterns_match
         && modules.virtual_store_dir_max_length == config.virtual_store_dir_max_length
+        // A package imported under other patterns holds other files.
+        && modules.package_import_patterns == recorded_package_import_patterns(config)
         && modules.store_dir == config.store_dir.display().to_string()
         && modules.virtual_store_dir
             == config
@@ -393,13 +396,7 @@ pub(super) fn build_modules_manifest(
         // later install can re-run any that an `allowBuilds` change now
         // allows (see [`has_newly_allowed_ignored_builds`]). `None` when
         // empty, matching pnpm's omit-when-empty encoding.
-        ignored_builds: (!ignored_builds.is_empty()).then(|| {
-            ignored_builds
-                .iter()
-                .cloned()
-                .map(pnpm_modules_yaml::DepPath::from)
-                .collect()
-        }),
+        ignored_builds: recorded_ignored_builds(ignored_builds),
         hoist_pattern: config.hoist_pattern.clone(),
         hoisted_dependencies,
         // `Some(empty)` would round-trip on disk as
@@ -420,6 +417,7 @@ pub(super) fn build_modules_manifest(
         // version.
         package_manager: format!("pnpm@{PNPM_VERSION}"),
         pending_builds,
+        package_import_patterns: recorded_package_import_patterns(config),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         // RFC 1123 / `toUTCString()` format. The caller decides whether
         // this is a fresh timestamp (a prune ran or first install) or the
@@ -453,6 +451,18 @@ pub(super) fn build_modules_manifest(
         virtual_store_only: config.virtual_store_only.then_some(true),
         ..Default::default()
     }
+}
+
+fn recorded_ignored_builds(
+    ignored_builds: &[String],
+) -> Option<indexmap::IndexSet<pnpm_modules_yaml::DepPath>> {
+    (!ignored_builds.is_empty()).then(|| {
+        ignored_builds
+            .iter()
+            .cloned()
+            .map(pnpm_modules_yaml::DepPath::from)
+            .collect()
+    })
 }
 
 /// Drop `settled` from the `pendingBuilds` the install just wrote, now

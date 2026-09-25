@@ -256,7 +256,6 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
-            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
@@ -353,7 +352,6 @@ pub(super) fn fail_when_failing_postinstall_is_required() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
-            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
@@ -474,7 +472,6 @@ async fn write_path_disabled_skips_upload() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
-            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
@@ -617,7 +614,6 @@ async fn upload_error_does_not_interrupt_install() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
-            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {

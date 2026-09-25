@@ -75,7 +75,7 @@ pub(crate) use manifest_agreement::{
 pub(crate) use relocation::recorded_elsewhere;
 pub(crate) use settings::{
     catalogs_cache_matches, current_settings_with_catalogs, first_setting_drift,
-    recorded_supported_architectures_match, settings_match,
+    recorded_package_import_patterns, recorded_supported_architectures_match, settings_match,
 };
 pub(crate) use timestamps::{
     FileMtime, file_mtime, file_mtime_from_metadata, filesystem_now_ms, lockfile_modified_since,

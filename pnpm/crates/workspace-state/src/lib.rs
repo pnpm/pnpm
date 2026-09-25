@@ -125,6 +125,10 @@ pub struct WorkspaceStateSettings {
     pub exclude_links_from_lockfile: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hoist_pattern: Option<Vec<String>>,
+    /// `packageImportPatterns`, recorded only when set: a change re-imports
+    /// every package, so it cannot take the no-op fast path.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package_import_patterns: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hoist_workspace_packages: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

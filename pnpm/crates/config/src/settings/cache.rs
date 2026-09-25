@@ -78,10 +78,15 @@ impl Config {
     /// users who only want the READ side can set
     /// `sideEffectsCacheReadonly: true` with `sideEffectsCache: false`
     /// and get a read-only view.
+    ///
+    /// Off whenever `packageImportPatterns` is set: a slot holding only
+    /// some of its package's files can neither restore a cached build nor
+    /// record one (see [`Self::side_effects_cache_write`]).
     pub fn side_effects_cache_read(&self) -> bool {
-        self.side_effects_cache_read_setting.unwrap_or(
-            self.side_effects_cache || self.side_effects_cache_readonly,
-        )
+        self.package_import_patterns.is_empty()
+            && self.side_effects_cache_read_setting.unwrap_or(
+                self.side_effects_cache || self.side_effects_cache_readonly,
+            )
     }
 
     /// Whether the install is allowed to populate the side-effects
@@ -91,9 +96,16 @@ impl Config {
     /// always wins — a `??` would let `readonly` slip through when both
     /// flags are explicitly set, but `readonly` as a flag name only makes
     /// sense if it really does block writes.
+    ///
+    /// Off whenever `packageImportPatterns` is set. The cache records a
+    /// build as a diff against the package's full file list and is keyed
+    /// without the patterns, so a build in a partial slot would record the
+    /// files it lacks as deleted, and an install without patterns hitting
+    /// the same key would lose them.
     pub fn side_effects_cache_write(&self) -> bool {
-        self.side_effects_cache_write_setting.unwrap_or(
-            self.side_effects_cache && !self.side_effects_cache_readonly,
-        )
+        self.package_import_patterns.is_empty()
+            && self.side_effects_cache_write_setting.unwrap_or(
+                self.side_effects_cache && !self.side_effects_cache_readonly,
+            )
     }
 }

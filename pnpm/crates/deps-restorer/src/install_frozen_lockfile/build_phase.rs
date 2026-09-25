@@ -223,10 +223,15 @@ fn build_modules<'a>(
         cache: crate::BuildCacheContext {
             maps_by_snapshot: Some(inputs.cache.maps_by_snapshot),
             engine_name: inputs.cache.engine_name,
+            // `packageImportPatterns` turns the remote cache off with the
+            // local one; see `Config::side_effects_cache_write`.
             read: config.side_effects_cache_read()
-                || config.remote_side_effects_cache.is_some(),
+                || (config.remote_side_effects_cache.is_some()
+                    && config.package_import_patterns.is_empty()),
             write: config.side_effects_cache_write(),
-            publisher: shared_side_effects_publisher,
+            publisher: shared_side_effects_publisher.filter(|_| {
+                config.package_import_patterns.is_empty()
+            }),
             store_dir: Some(&config.store_dir),
             store_index_writer: Some(inputs.cache.store_index_writer),
             frozen_store: config.frozen_store,
@@ -238,7 +243,6 @@ fn build_modules<'a>(
             modules_dir: &config.modules_dir,
             lockfile_dir: inputs.directories.workspace_root,
             import_method: config.package_import_method,
-            import_patterns: &config.package_import_patterns,
             logged_methods: inputs.directories.logged_methods,
         },
         graph: crate::BuildGraphInputs {
