@@ -351,7 +351,6 @@ function recordDroppedImporterEdge (dropped: DroppedEdges, importer: ProjectSnap
   for (const group of DEPENDENCIES_FIELDS) {
     if (importer[group]?.[alias] != null) {
       recordDroppedEdge(dropped, alias, importer[group]![alias])
-      break
     }
   }
 }

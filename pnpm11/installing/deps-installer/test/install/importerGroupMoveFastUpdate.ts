@@ -88,6 +88,44 @@ test('prunes orphaned package when duplicate group with differing version is rem
   expect(subject.packages!['bar@2.0.0' as DepPath]).toBeDefined()
 })
 
+test('prunes all orphaned packages when duplicated alias with differing versions is removed entirely', async () => {
+  const subject = lockfile()
+  const importer = subject.importers['.' as ProjectId]
+  importer.devDependencies = {
+    bar: '2.1.0',
+  }
+  subject.packages!['bar@2.1.0' as DepPath] = {
+    resolution: { integrity: 'sha512-bar21' },
+  }
+
+  expect(await tryFastUpdateImporters(subject, [
+    project({ dependencies: { foo: '^1.0.0' } }),
+  ])).toBe(true)
+
+  expect(subject.packages!['bar@2.1.0' as DepPath]).toBeUndefined()
+  expect(subject.packages!['bar@2.0.0' as DepPath]).toBeUndefined()
+})
+
+test('prunes all orphaned packages when stale importer with duplicated alias is removed', async () => {
+  const subject = lockfile()
+  subject.importers['stale' as ProjectId] = {
+    specifiers: { bar: '^2.0.0' },
+    dependencies: { bar: '2.0.0' },
+    devDependencies: { bar: '2.1.0' },
+  }
+  subject.packages!['bar@2.1.0' as DepPath] = {
+    resolution: { integrity: 'sha512-bar21' },
+  }
+
+  expect(await tryFastUpdateImporters(subject, [
+    project({ dependencies: { foo: '^1.0.0' } }),
+  ], { pruneLockfileImporters: true })).toBe(true)
+
+  expect(subject.importers['stale' as ProjectId]).toBeUndefined()
+  expect(subject.packages!['bar@2.1.0' as DepPath]).toBeUndefined()
+  expect(subject.packages!['bar@2.0.0' as DepPath]).toBeUndefined()
+})
+
 test('a move into optionalDependencies marks the subtree optional', async () => {
   const subject = lockfile()
 
@@ -266,6 +304,12 @@ function lockfile (): LockfileObject {
   }
 }
 /** The composed pipeline restricted to manifest drift. */
-async function tryFastUpdateImporters (lockfile: LockfileObject, projects: ImporterProject[]): Promise<boolean> {
-  return tryComposeFastUpdates(lockfile, { drift: { importers: true }, projects, workspacePackages: new Map(), resolutionPicksLowest: false })
+async function tryFastUpdateImporters (lockfile: LockfileObject, projects: ImporterProject[], opts?: { pruneLockfileImporters?: boolean }): Promise<boolean> {
+  return tryComposeFastUpdates(lockfile, {
+    drift: { importers: true },
+    projects,
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
+    pruneLockfileImporters: opts?.pruneLockfileImporters,
+  })
 }
