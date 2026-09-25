@@ -178,10 +178,11 @@ impl AuditArgs {
     }
 
     /// Resolve the `--fix` flag (and the `--interactive` implies-override
-    /// rule) into a [`FixMethod`]. Mirrors pnpm's fix-method dispatch.
+    /// rule) into a [`FixMethod`]. Mirrors pnpm's fix-method dispatch,
+    /// which treats `--fix=true` like a bare `--fix`.
     pub(super) fn resolve_fix_method(&self) -> miette::Result<Option<FixMethod>> {
         match self.fix.as_deref() {
-            Some("override") => Ok(Some(FixMethod::Override)),
+            Some("override" | "true") => Ok(Some(FixMethod::Override)),
             Some("update") => Ok(Some(FixMethod::Update)),
             Some(value) => Err(AuditError::InvalidFixOption { value: value.to_string() }.into()),
             None if self.interactive => Ok(Some(FixMethod::Override)),
