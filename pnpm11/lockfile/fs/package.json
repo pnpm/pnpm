@@ -37,6 +37,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/lockfile.merger": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",

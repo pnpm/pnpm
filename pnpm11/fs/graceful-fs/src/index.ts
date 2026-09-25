@@ -72,6 +72,14 @@ export function renameFileWithRetry (src: string, dest: string): void {
 }
 
 /**
+ * Asynchronous {@link renameFileWithRetry}, which waits between attempts
+ * without blocking the event loop.
+ */
+export async function renameFileWithRetryAsync (src: string, dest: string): Promise<void> {
+  await withFileLockRetryAsync(() => fs.promises.rename(src, dest))
+}
+
+/**
  * Reads `target`'s stats without following it, with the retry policy of
  * {@link renameFileWithRetry}.
  *
@@ -98,21 +106,57 @@ export function unlinkWithRetry (target: string): void {
  * {@link renameFileWithRetry}.
  */
 export function withFileLockRetry<T> (operation: () => T): T {
-  const startedAt = Date.now()
-  let backoffMs = 0
-  let budgetMs = FILE_LOCK_RETRY_BUDGET_MS
+  const retry = createFileLockRetry()
   for (;;) {
     try {
       return operation()
     } catch (err) {
+      const delayMs = retry.delayBeforeNextAttempt(err)
+      if (delayMs > 0) Atomics.wait(fileLockRetrySleepBuffer, 0, 0, delayMs)
+      retry.checkBudgetAfterDelay(err)
+    }
+  }
+}
+
+async function withFileLockRetryAsync<T> (operation: () => Promise<T>): Promise<T> {
+  const retry = createFileLockRetry()
+  for (;;) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      return await operation()
+    } catch (err) {
+      const delayMs = retry.delayBeforeNextAttempt(err)
+      if (delayMs > 0) {
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((resolve) => setTimeout(resolve, delayMs))
+      }
+      retry.checkBudgetAfterDelay(err)
+    }
+  }
+}
+
+interface FileLockRetry {
+  /** Rethrows `err` unless another attempt fits the budget; returns the delay before it. */
+  delayBeforeNextAttempt: (err: unknown) => number
+  checkBudgetAfterDelay: (err: unknown) => void
+}
+
+function createFileLockRetry (): FileLockRetry {
+  const startedAt = Date.now()
+  let backoffMs = 0
+  let budgetMs = FILE_LOCK_RETRY_BUDGET_MS
+  return {
+    delayBeforeNextAttempt (err) {
       if (!isTransientFileLockError(err)) throw err
       if (err.code === 'EPERM' || err.code === 'EACCES') budgetMs = Math.min(budgetMs, PERMISSION_DENIED_RETRY_BUDGET_MS)
       const remainingMs = budgetMs - (Date.now() - startedAt)
       if (remainingMs <= 0) throw err
-      if (backoffMs > 0) Atomics.wait(fileLockRetrySleepBuffer, 0, 0, Math.min(backoffMs, remainingMs))
+      return Math.min(backoffMs, remainingMs)
+    },
+    checkBudgetAfterDelay (err) {
       if (Date.now() - startedAt >= budgetMs) throw err
       backoffMs = Math.min(backoffMs + 10, FILE_LOCK_RETRY_BACKOFF_CAP_MS)
-    }
+    },
   }
 }
 

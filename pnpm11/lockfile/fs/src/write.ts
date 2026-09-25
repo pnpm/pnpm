@@ -4,6 +4,7 @@ import type { FileHandle } from 'node:fs/promises'
 import path from 'node:path'
 
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { renameFileWithRetryAsync } from '@pnpm/fs.graceful-fs'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import { rimraf } from '@zkochan/rimraf'
 import yaml from 'js-yaml'
@@ -151,7 +152,9 @@ export async function writeWantedLockfileAtomic (lockfilePath: string, content: 
     // itself and never resolves it, so a swap after this check cannot redirect
     // the write through a symlink.
     await ensureLockfileIsNotSymlink(lockfilePath)
-    await fs.rename(tempPath, lockfilePath)
+    // Windows fails the rename while another process holds the lockfile open
+    // without delete sharing, which editors, indexers, and antivirus do briefly.
+    await renameFileWithRetryAsync(tempPath, lockfilePath)
   } finally {
     await tempFile?.close().catch(() => {})
     await fs.rm(tempPath, { force: true }).catch(() => {})

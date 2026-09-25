@@ -5,6 +5,9 @@ use std::path::Path;
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
+#[cfg(windows)]
+mod windows;
+
 /// A compact v9 lockfile fixture exercising the `importers` root entry, the
 /// `packages` metadata map (registry resolution + engines + hasBin), and
 /// the `snapshots` map (including peer-qualified keys and inner

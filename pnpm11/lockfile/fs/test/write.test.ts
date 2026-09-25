@@ -465,6 +465,28 @@ test('writeWantedLockfile() leaves an unchanged CRLF lockfile untouched', async 
   expect(fs.statSync(lockfilePath).mtimeMs).toBe(mtimeBefore)
 })
 
+test('writeWantedLockfile() retries a Windows rename blocked by a transient lock', async () => {
+  const projectPath = temporaryDirectory()
+  await writeWantedLockfile(projectPath, { ...upToDateLockfile, importers: {} })
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
+  const rename = jest.spyOn(fs.promises, 'rename').mockRejectedValueOnce(
+    Object.assign(new Error('operation not permitted, rename'), { code: 'EPERM' })
+  )
+  Object.defineProperty(process, 'platform', { value: 'win32' })
+  try {
+    await writeWantedLockfile(projectPath, upToDateLockfile)
+  } finally {
+    Object.defineProperty(process, 'platform', platform)
+    rename.mockRestore()
+  }
+
+  const expectedPath = temporaryDirectory()
+  await writeWantedLockfile(expectedPath, upToDateLockfile)
+  expect(fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8'))
+    .toBe(fs.readFileSync(path.join(expectedPath, WANTED_LOCKFILE), 'utf8'))
+  expect(fs.readdirSync(projectPath)).toStrictEqual([WANTED_LOCKFILE])
+})
+
 testOnNonWindows('writeWantedLockfile() accepts a symlinked lockfile when nothing changes', async () => {
   const projectPath = temporaryDirectory()
   const realDir = temporaryDirectory()
