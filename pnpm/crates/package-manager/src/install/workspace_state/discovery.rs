@@ -255,9 +255,7 @@ fn virtual_store_dir_for(config: &Config, lockfile_root: &Path) -> std::path::Pa
     if config.virtual_store_dir.starts_with(lockfile_root) {
         return config.virtual_store_dir.clone();
     }
-    let modules_name = config.modules_dir
-        .file_name()
-        .unwrap_or(OsStr::new("node_modules"));
+    let modules_name = config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
     lockfile_root.join(modules_name).join(".pnpm")
 }
 
