@@ -117,7 +117,7 @@ export function parseLocalScheme (
   wd: WantedLocalDependency,
   projectDir: string,
   lockfileDir: string,
-  opts: { preserveAbsolutePaths: boolean }
+  opts: { preserveAbsolutePaths: boolean, injectWorkspacePackages?: boolean }
 ): LocalPackageSpec | null {
   if (wd.bareSpecifier.startsWith('link:') || wd.bareSpecifier.startsWith('workspace:')) {
     return fromLocal(wd, projectDir, lockfileDir, 'directory', opts)
@@ -163,7 +163,7 @@ function fromLocal (
   projectDir: string,
   lockfileDir: string,
   type: 'file' | 'directory',
-  opts: { preserveAbsolutePaths: boolean }
+  opts: { preserveAbsolutePaths: boolean, injectWorkspacePackages?: boolean }
 ): LocalPackageSpec {
   const spec = bareSpecifier.replace(/\\/g, '/')
     .replace(/^(?:file|link|workspace):\/*([A-Z]:)/i, '$1') // drive name paths on windows
@@ -175,7 +175,13 @@ function fromLocal (
   } else if (bareSpecifier.startsWith('link:')) {
     protocol = 'link:'
   } else {
-    protocol = type === 'directory' && !injected ? 'link:' : 'file:'
+    // A `workspace:` specifier follows `injectWorkspacePackages` the same
+    // way the name/semver workspace-matching path does, in addition to the
+    // dependency's own `injected` flag. A bare path carrying no protocol
+    // (the other shape reaching this branch, via parseLocalPath) is never
+    // prefixed with `workspace:`, so the check below is a no-op for it.
+    const isInjected = injected || (bareSpecifier.startsWith('workspace:') && opts.injectWorkspacePackages === true)
+    protocol = type === 'directory' && !isInjected ? 'link:' : 'file:'
   }
   let fetchSpec!: string
   let normalizedBareSpecifier!: string

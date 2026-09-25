@@ -48,6 +48,10 @@ pub struct LocalResolverOptions {
     /// to two states here because the local resolver only branches on
     /// truthy / falsy.
     pub update: LocalResolverUpdate,
+    /// `inject-workspace-packages` / `injectWorkspacePackages` config.
+    /// When set, a `workspace:` directory dep resolves to `file:` (copy
+    /// semantics) the same way a per-dep `injected` flag does.
+    pub inject_workspace_packages: bool,
 }
 
 /// Lockfile-pinned slice the local resolver short-circuits on for
@@ -180,7 +184,10 @@ pub async fn resolve_from_local_scheme(
 ) -> Result<Option<LocalResolveResult>, ResolveLocalError> {
     let project_dir = opts.project_dir.as_path();
     let lockfile_dir = opts.lockfile_dir.as_deref().unwrap_or(project_dir);
-    let parse_opts = ParseOptions { preserve_absolute_paths: ctx.preserve_absolute_paths };
+    let parse_opts = ParseOptions {
+        preserve_absolute_paths: ctx.preserve_absolute_paths,
+        inject_workspace_packages: opts.inject_workspace_packages,
+    };
     let spec = match parse_local_scheme(wanted_dependency, project_dir, lockfile_dir, parse_opts) {
         Ok(maybe) => maybe,
         Err(err) => {
@@ -198,7 +205,11 @@ pub async fn resolve_from_local_path(
 ) -> Result<Option<LocalResolveResult>, ResolveLocalError> {
     let project_dir = opts.project_dir.as_path();
     let lockfile_dir = opts.lockfile_dir.as_deref().unwrap_or(project_dir);
-    let parse_opts = ParseOptions { preserve_absolute_paths: ctx.preserve_absolute_paths };
+    // `inject_workspace_packages` is left at its default (`false`): a
+    // path-shape specifier never carries the `workspace:` prefix that
+    // makes it relevant, since `parse_local_scheme` claims those first.
+    let parse_opts =
+        ParseOptions { preserve_absolute_paths: ctx.preserve_absolute_paths, ..Default::default() };
     let spec = parse_local_path(wanted_dependency, project_dir, lockfile_dir, parse_opts);
     resolve_spec(spec, opts).await
 }
