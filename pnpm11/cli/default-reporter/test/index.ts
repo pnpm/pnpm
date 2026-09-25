@@ -1,0 +1,1244 @@
+/// <reference path="../../../__typings__/index.d.ts"/>
+import path from 'node:path'
+
+import { expect, test } from '@jest/globals'
+import { toOutput$ } from '@pnpm/cli.default-reporter'
+import {
+  deprecationLogger,
+  hookLogger,
+  packageManifestLogger,
+  peerDependencyIssuesLogger,
+  rootLogger,
+  skippedOptionalDependencyLogger,
+  statsLogger,
+  summaryLogger,
+} from '@pnpm/core-loggers'
+import { PnpmError } from '@pnpm/error'
+import {
+  createStreamParser,
+  logger,
+} from '@pnpm/logger'
+import chalk from 'chalk'
+import normalizeNewline from 'normalize-newline'
+import { repeat } from 'ramda'
+import { firstValueFrom } from 'rxjs'
+import { map, skip, take } from 'rxjs/operators'
+
+import { formatWarn } from '../src/reporterForClient/utils/formatWarn.js'
+import type { ReporterPnpmConfig } from '../src/ReporterPnpmConfig.js'
+
+const formatErrorCode = (code: string) => chalk.bgRed.red('[') + chalk.bgRed.black(code) + chalk.bgRed.red(']')
+const formatError = (code: string, message: string) => {
+  return `${formatErrorCode(code)} ${chalk.red(message)}`
+}
+const DEPRECATED = chalk.red('deprecated')
+const versionColor = chalk.grey
+const ADD = chalk.green('+')
+const SUB = chalk.red('-')
+const h1 = chalk.cyanBright
+
+const EOL = '\n'
+
+test('prints summary (of current package only)', async () => {
+  const prefix = '/home/jane/project'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  statsLogger.debug({ added: 5, prefix: `${prefix}/packages/foo` })
+  statsLogger.debug({ removed: 1, prefix: `${prefix}/packages/foo` })
+  packageManifestLogger.debug({
+    initial: {
+      name: 'foo',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-13': '^1.0.0',
+      },
+      devDependencies: {
+        'is-negative': '^1.0.0',
+      },
+    },
+    prefix,
+  })
+  deprecationLogger.debug({
+    depth: 0,
+    pkgId: 'registry.npmjs.org/bar/2.0.0',
+    pkgName: 'bar',
+    pkgVersion: '2.0.0',
+    prefix,
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/foo/1.0.0',
+      latest: '2.0.0',
+      name: 'foo',
+      realName: 'foo',
+      version: '1.0.0',
+    },
+    prefix,
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/bar/2.0.0',
+      latest: '1.0.0', // this won't be printed in summary because latest is less than current version
+      name: 'bar',
+      realName: 'bar',
+      version: '2.0.0',
+    },
+    prefix,
+  })
+  rootLogger.debug({
+    prefix,
+    removed: {
+      dependencyType: 'prod',
+      name: 'foo',
+      version: '0.1.0',
+    },
+  })
+  rootLogger.debug({
+    prefix,
+    removed: {
+      dependencyType: 'prod',
+      name: 'no-changes',
+      version: '1.0.0',
+    },
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/no-changes/2.0.0',
+      name: 'no-changes',
+      realName: 'no-changes',
+      version: '1.0.0',
+    },
+    prefix,
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'dev',
+      id: 'registry.npmjs.org/qar/2.0.0',
+      name: 'qar',
+      realName: 'qar',
+      version: '2.0.0',
+    },
+    prefix,
+  })
+  // This log is going to be ignored because it is not in the current prefix
+  rootLogger.debug({
+    added: {
+      dependencyType: 'optional',
+      id: 'registry.npmjs.org/lala/2.0.0',
+      name: 'lala',
+      realName: 'lala',
+      version: '2.0.0',
+    },
+    prefix: `${prefix}/packages/foo`,
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'optional',
+      id: 'registry.npmjs.org/lala/1.1.0',
+      name: 'lala',
+      realName: 'lala',
+      version: '1.1.0',
+    },
+    prefix,
+  })
+  rootLogger.debug({
+    prefix,
+    removed: {
+      dependencyType: 'optional',
+      name: 'is-positive',
+    },
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'optional',
+      linkedFrom: '/src/is-linked',
+      name: 'is-linked',
+      realName: 'is-linked',
+    },
+    prefix,
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/winst0n/2.0.0',
+      latest: '1.0.0',
+      name: 'winston',
+      realName: 'winst0n',
+      version: '1.0.0',
+    },
+    prefix,
+  })
+  packageManifestLogger.debug({
+    prefix,
+    updated: {
+      dependencies: {
+        'is-negative': '^1.0.0',
+      },
+      devDependencies: {
+        'is-13': '^1.0.0',
+      },
+    },
+  })
+  rootLogger.debug({
+    added: {
+      linkedFrom: '/src/is-linked2',
+      name: 'is-linked2',
+      realName: 'is-linked2',
+    },
+    prefix,
+  })
+  summaryLogger.debug({ prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(skip(2), take(1), map(normalizeNewline)))
+  expect(output).toBe(`packages/foo                             |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}${EOL}` +
+        `${formatWarn(`${DEPRECATED} bar@2.0.0`)}${EOL}${EOL}` +
+        `\
+${h1('dependencies:')}
+${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
+${SUB} foo ${versionColor('0.1.0')}
+${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
+${SUB} is-13 ${versionColor('^1.0.0')}
+${ADD} is-negative ${versionColor('^1.0.0')}
+${ADD} winston <- winst0n ${versionColor('1.0.0')}
+
+${h1('optionalDependencies:')}
+${ADD} is-linked ${chalk.grey(`<- ${path.relative(prefix, '/src/is-linked')}`)}
+${SUB} is-positive
+${ADD} lala ${versionColor('1.1.0')}
+
+${h1('devDependencies:')}
+${ADD} is-13 ${versionColor('^1.0.0')}
+${SUB} is-negative ${versionColor('^1.0.0')}
+${ADD} qar ${versionColor('2.0.0')}
+
+${h1('node_modules:')}
+${ADD} is-linked2 ${chalk.grey(`<- ${path.relative(prefix, '/src/is-linked2')}`)}
+`)
+})
+
+test('prints summary without the filtered out entries', async () => {
+  const prefix = '/home/jane/project'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: {
+        dir: prefix,
+      } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+    filterPkgsDiff: (diff) => diff.name !== 'bar',
+  })
+
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/foo/1.0.0',
+      latest: '2.0.0',
+      name: 'foo',
+      realName: 'foo',
+      version: '1.0.0',
+    },
+    prefix,
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/bar/2.0.0',
+      latest: '1.0.0', // this won't be printed in summary because latest is less than current version
+      name: 'bar',
+      realName: 'bar',
+      version: '2.0.0',
+    },
+    prefix,
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'dev',
+      id: 'registry.npmjs.org/qar/2.0.0',
+      latest: '1.0.0', // this won't be printed in summary because latest is less than current version
+      name: 'qar',
+      realName: 'qar',
+      version: '2.0.0',
+    },
+    prefix,
+  })
+  packageManifestLogger.debug({
+    prefix,
+    updated: {
+      dependencies: {
+        'is-negative': '^1.0.0',
+      },
+      devDependencies: {
+        'is-13': '^1.0.0',
+      },
+    },
+  })
+  summaryLogger.debug({ prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(EOL + `\
+${h1('dependencies:')}
+${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
+
+${h1('devDependencies:')}
+${ADD} qar ${versionColor('2.0.0')}
+`)
+})
+
+test('does not print "(X is available)" when latest equals the installed version (policy-aware latest)', async () => {
+  // When minimumReleaseAge holds back the registry's raw latest, the resolver
+  // returns the policy-aware latest as `latest`. If that equals the picked
+  // version, the install summary must not advertise an upgrade.
+  const prefix = '/home/jane/project'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/foo/3.9.5',
+      latest: '3.9.5',
+      name: 'foo',
+      realName: 'foo',
+      version: '3.9.5',
+    },
+    prefix,
+  })
+  packageManifestLogger.debug({
+    prefix,
+    updated: {
+      dependencies: {
+        foo: '^3.0.0',
+      },
+    },
+  })
+  summaryLogger.debug({ prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(EOL + `\
+${h1('dependencies:')}
+${ADD} foo ${versionColor('3.9.5')}
+`)
+})
+
+test('does not print deprecation message when log level is set to error', async () => {
+  const prefix = '/home/jane/project'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    reportingOptions: {
+      logLevel: 'error',
+    },
+    streamParser: createStreamParser(),
+  })
+
+  peerDependencyIssuesLogger.debug({
+    issuesByProjects: {
+      '.': {
+        missing: {},
+        bad: {
+          a: [
+            {
+              parents: [
+                {
+                  name: 'b',
+                  version: '1.0.0',
+                },
+              ],
+              foundVersion: '2',
+              resolvedFrom: [],
+              optional: false,
+              wantedRange: '3',
+            },
+          ],
+        },
+        conflicts: [],
+        intersections: {},
+      },
+    },
+  })
+  deprecationLogger.debug({
+    depth: 0,
+    pkgId: 'registry.npmjs.org/bar/2.0.0',
+    pkgName: 'bar',
+    pkgVersion: '2.0.0',
+    prefix,
+  })
+  const err = new PnpmError('SOME_CODE', 'some error')
+  logger.error(err, err)
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(formatError('ERR_PNPM_SOME_CODE', 'some error'))
+})
+
+test('prints summary for global installation', async () => {
+  const prefix = '/home/jane/.nvs/node/10.0.0/x64/pnpm-global/1'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: {
+        dir: prefix,
+        global: true,
+      } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/foo/1.0.0',
+      latest: '2.0.0',
+      name: 'foo',
+      realName: 'foo',
+      version: '1.0.0',
+    },
+    prefix,
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/bar/2.0.0',
+      latest: '1.0.0', // this won't be printed in summary because latest is less than current version
+      name: 'bar',
+      realName: 'bar',
+      version: '2.0.0',
+    },
+    prefix,
+  })
+  packageManifestLogger.debug({
+    prefix,
+    updated: {
+      dependencies: {
+        'is-negative': '^1.0.0',
+      },
+      devDependencies: {
+        'is-13': '^1.0.0',
+      },
+    },
+  })
+  summaryLogger.debug({ prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(EOL + `\
+${h1('global:')}
+${ADD} bar ${versionColor('2.0.0')}
+${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
+`)
+})
+
+test('prints added peer dependency', async () => {
+  const prefix = '/home/jane/.nvs/node/10.0.0/x64/pnpm-global/1'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: {
+        dir: prefix,
+      } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  packageManifestLogger.debug({
+    initial: {},
+    prefix,
+  })
+  packageManifestLogger.debug({
+    prefix,
+    updated: {
+      devDependencies: {
+        'is-negative': '^1.0.0',
+      },
+      peerDependencies: {
+        'is-negative': '^1.0.0',
+      },
+    },
+  })
+  summaryLogger.debug({ prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(EOL + `\
+${h1('peerDependencies:')}
+${ADD} is-negative ${versionColor('^1.0.0')}
+
+${h1('devDependencies:')}
+${ADD} is-negative ${versionColor('^1.0.0')}
+`)
+})
+
+test('prints summary correctly when the same package is specified both in optional and prod dependencies', async () => {
+  const prefix = '/home/jane/.nvs/node/10.0.0/x64/pnpm-global/1'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: {
+        dir: prefix,
+      } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  packageManifestLogger.debug({
+    initial: {
+      name: 'foo',
+      version: '1.0.0',
+
+      dependencies: {
+        bar: '^2.0.0',
+        foo: '^1.0.0',
+      },
+      optionalDependencies: {
+        foo: '^1.0.0',
+      },
+    },
+    prefix,
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/bar/2.0.0',
+      name: 'bar',
+      realName: 'bar',
+      version: '2.0.0',
+    },
+    prefix,
+  })
+  packageManifestLogger.debug({
+    prefix,
+    updated: {
+      dependencies: {
+        bar: '^2.0.0',
+      },
+      optionalDependencies: {
+        foo: '^1.0.0',
+      },
+    },
+  })
+  summaryLogger.debug({ prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(EOL + `\
+${h1('dependencies:')}
+${ADD} bar ${versionColor('2.0.0')}
+`)
+})
+
+test('in the installation summary report which dependency types are skipped', async () => {
+  const prefix = '/home/jane/.nvs/node/10.0.0/x64/pnpm-global/1'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: {
+        dir: prefix,
+        production: true,
+        dev: false,
+        optional: false,
+      } as ReporterPnpmConfig,
+      env: {
+        NODE_ENV: 'production',
+      },
+    },
+    streamParser: createStreamParser(),
+  })
+
+  packageManifestLogger.debug({
+    initial: {
+      name: 'foo',
+      version: '1.0.0',
+
+      dependencies: {
+        bar: '^2.0.0',
+        foo: '^1.0.0',
+      },
+      optionalDependencies: {
+        foo: '^1.0.0',
+      },
+    },
+    prefix,
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/bar/2.0.0',
+      name: 'bar',
+      realName: 'bar',
+      version: '2.0.0',
+    },
+    prefix,
+  })
+  packageManifestLogger.debug({
+    prefix,
+    updated: {
+      dependencies: {
+        bar: '^2.0.0',
+      },
+      optionalDependencies: {
+        foo: '^1.0.0',
+      },
+    },
+  })
+  summaryLogger.debug({ prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(EOL + `\
+${h1('dependencies:')}
+${ADD} bar ${versionColor('2.0.0')}
+
+${h1('optionalDependencies:')} skipped
+
+${h1('devDependencies:')} skipped
+`)
+})
+
+test('prints summary when some packages fail', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['run'], config: { recursive: true } as ReporterPnpmConfig },
+    streamParser: createStreamParser(),
+  })
+
+  expect.assertions(1)
+
+  const err = Object.assign(new PnpmError('RECURSIVE_FAIL', '...'), {
+    failures: [
+      {
+        message: 'a failed',
+        prefix: '/a',
+      },
+      {
+        message: 'b failed',
+        prefix: '/b',
+      },
+      {
+        message: 'c failed',
+        prefix: '/c',
+      },
+      {
+        message: 'd failed',
+        prefix: '/d',
+      },
+      {
+        message: 'e failed',
+        prefix: '/e',
+      },
+      {
+        message: 'f failed',
+        prefix: '/f',
+      },
+    ],
+    passes: 7,
+  })
+
+  logger.error(err, err)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`\
+${formatError('ERR_PNPM_RECURSIVE_FAIL', '')}
+
+
+Summary: ${chalk.red('6 fails')}, 7 passes
+
+/a:
+${formatError('ERROR', 'a failed')}
+
+/b:
+${formatError('ERROR', 'b failed')}
+
+/c:
+${formatError('ERROR', 'c failed')}
+
+/d:
+${formatError('ERROR', 'd failed')}
+
+/e:
+${formatError('ERROR', 'e failed')}
+
+/f:
+${formatError('ERROR', 'f failed')}`)
+})
+
+test('prints info', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  logger.info({ message: 'info message', prefix: process.cwd() })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe('info message')
+})
+
+test('prints added/removed stats during installation', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+  const prefix = process.cwd()
+
+  statsLogger.debug({ added: 5, prefix })
+  statsLogger.debug({ removed: 1, prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.green('+5')} ${chalk.red('-1')}
+${ADD + ADD + ADD + ADD + ADD + SUB}`)
+})
+
+test('prints added/removed stats during installation when 0 removed', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+  const prefix = process.cwd()
+
+  statsLogger.debug({ added: 2, prefix })
+  statsLogger.debug({ removed: 0, prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.green('+2')}
+${ADD + ADD}`)
+})
+
+test('prints only the added stats if nothing was removed', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+  const prefix = process.cwd()
+
+  statsLogger.debug({ removed: 0, prefix })
+  statsLogger.debug({ added: 1, prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.green('+1')}
+${ADD}`)
+})
+
+test('prints only the removed stats if nothing was added', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+  const prefix = process.cwd()
+
+  statsLogger.debug({ removed: 1, prefix })
+  statsLogger.debug({ added: 0, prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.red('-1')}
+${SUB}`)
+})
+
+test('prints only the added stats if nothing was removed and a lot added', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    reportingOptions: { outputMaxWidth: 20 },
+    streamParser: createStreamParser(),
+  })
+  const prefix = process.cwd()
+
+  statsLogger.debug({ removed: 0, prefix })
+  statsLogger.debug({ added: 100, prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.green('+100')}
+${repeat(ADD, 20).join('')}`)
+})
+
+test('prints only the removed stats if nothing was added and a lot removed', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    reportingOptions: { outputMaxWidth: 20 },
+    streamParser: createStreamParser(),
+  })
+  const prefix = process.cwd()
+
+  statsLogger.debug({ removed: 100, prefix })
+  statsLogger.debug({ added: 0, prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.red('-100')}
+${repeat(SUB, 20).join('')}`)
+})
+
+test('prints at least one remove sign when removed !== 0', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    reportingOptions: { outputMaxWidth: 20 },
+    streamParser: createStreamParser(),
+  })
+  const prefix = process.cwd()
+
+  statsLogger.debug({ removed: 1, prefix })
+  statsLogger.debug({ added: 100, prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.green('+100')} ${chalk.red('-1')}
+${repeat(ADD, 19).join('') + SUB}`)
+})
+
+test('prints at least one add sign when added !== 0', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    reportingOptions: { outputMaxWidth: 20 },
+    streamParser: createStreamParser(),
+  })
+  const prefix = process.cwd()
+
+  statsLogger.debug({ removed: 100, prefix })
+  statsLogger.debug({ added: 1, prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.green('+1')} ${chalk.red('-100')}
+${ADD + repeat(SUB, 19).join('')}`)
+})
+
+test('prints just removed during uninstallation', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['remove'] },
+    streamParser: createStreamParser(),
+  })
+  const prefix = process.cwd()
+
+  statsLogger.debug({ removed: 4, prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.red('-4')}
+${SUB + SUB + SUB + SUB}`)
+})
+
+test('prints added/removed stats and warnings during recursive installation', async () => {
+  const rootPrefix = '/home/jane/repo'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: rootPrefix, recursive: true } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  logger.warn({ message: 'Some issue', prefix: '/home/jane/repo/pkg-5' })
+  logger.warn({ message: 'Some other issue', prefix: rootPrefix })
+  statsLogger.debug({ removed: 1, prefix: '/home/jane/repo' })
+  statsLogger.debug({ added: 0, prefix: '/home/jane/repo' })
+  statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/pkg-5' })
+  statsLogger.debug({ added: 0, prefix: '/home/jane/repo/pkg-5' })
+  statsLogger.debug({ added: 2, prefix: '/home/jane/repo/dir/pkg-2' })
+  statsLogger.debug({ added: 5, prefix: '/home/jane/repo/pkg-1' })
+  statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/pkg-1' })
+  deprecationLogger.debug({
+    depth: 0,
+    pkgId: 'registry.npmjs.org/bar/2.0.0',
+    pkgName: 'bar',
+    pkgVersion: '2.0.0',
+    prefix: '/home/jane/repo/dir/pkg-2',
+  })
+  statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/dir/pkg-2' })
+  // cspell:disable
+  statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong/pkg-3' })
+  statsLogger.debug({ added: 1, prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong/pkg-3' })
+  statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong-pkg-4' })
+  statsLogger.debug({ added: 0, prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong-pkg-4' })
+  // cspell:enable
+  deprecationLogger.debug({
+    depth: 0,
+    pkgId: 'registry.npmjs.org/foo/1.0.0',
+    pkgName: 'foo',
+    pkgVersion: '1.0.0',
+    prefix: rootPrefix,
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(skip(8), take(1), map(normalizeNewline)))
+  // cspell:disable
+  expect(output).toBe(`\
+pkg-5                                    | ${formatWarn('Some issue')}
+.                                        | ${formatWarn('Some other issue')}
+.                                        |   ${chalk.red('-1')} ${SUB}
+pkg-1                                    |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}
+dir/pkg-2                                | ${formatWarn(`${DEPRECATED} bar@2.0.0`)}
+dir/pkg-2                                |   ${chalk.green('+2')} ${ADD}
+.../pkg-3                                |   ${chalk.green('+1')} ${ADD}
+...ooooooooooooooooooooooooooooong-pkg-4 |   ${chalk.red('-1')} ${SUB}
+.                                        | ${formatWarn(`${DEPRECATED} foo@1.0.0`)}`)
+  // cspell:enable
+})
+
+test('recursive installation: prints only the added stats if nothing was removed and a lot added', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['recursive'],
+      config: { dir: '/home/jane/repo' } as ReporterPnpmConfig,
+    },
+    reportingOptions: { outputMaxWidth: 60 },
+    streamParser: createStreamParser(),
+  })
+
+  statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/pkg-1' })
+  statsLogger.debug({ added: 190, prefix: '/home/jane/repo/pkg-1' })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`pkg-1                                    | ${chalk.green('+190')} ${repeat(ADD, 12).join('')}`)
+})
+
+test('recursive installation: prints only the removed stats if nothing was added and a lot removed', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['recursive'],
+      config: { dir: '/home/jane/repo' } as ReporterPnpmConfig,
+    },
+    reportingOptions: { outputMaxWidth: 60 },
+    streamParser: createStreamParser(),
+  })
+
+  statsLogger.debug({ removed: 190, prefix: '/home/jane/repo/pkg-1' })
+  statsLogger.debug({ added: 0, prefix: '/home/jane/repo/pkg-1' })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`pkg-1                                    | ${chalk.red('-190')} ${repeat(SUB, 12).join('')}`)
+})
+
+test('recursive installation: prints at least one remove sign when removed !== 0', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['recursive'],
+      config: { dir: '/home/jane/repo' } as ReporterPnpmConfig,
+    },
+    reportingOptions: { outputMaxWidth: 62 },
+    streamParser: createStreamParser(),
+  })
+
+  statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/pkg-1' })
+  statsLogger.debug({ added: 100, prefix: '/home/jane/repo/pkg-1' })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`pkg-1                                    | ${chalk.green('+100')}   ${chalk.red('-1')} ${repeat(ADD, 8).join('') + SUB}`)
+})
+
+test('recursive installation: prints at least one add sign when added !== 0', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['recursive'],
+      config: { dir: '/home/jane/repo' } as ReporterPnpmConfig,
+    },
+    reportingOptions: { outputMaxWidth: 62 },
+    streamParser: createStreamParser(),
+  })
+
+  statsLogger.debug({ removed: 100, prefix: '/home/jane/repo/pkg-1' })
+  statsLogger.debug({ added: 1, prefix: '/home/jane/repo/pkg-1' })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`pkg-1                                    |   ${chalk.green('+1')} ${chalk.red('-100')} ${ADD + repeat(SUB, 8).join('')}`)
+})
+
+test('recursive uninstall: prints removed packages number', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['remove'],
+      config: { dir: '/home/jane/repo', recursive: true } as ReporterPnpmConfig,
+    },
+    reportingOptions: { outputMaxWidth: 62 },
+    streamParser: createStreamParser(),
+  })
+
+  statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/pkg-1' })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`pkg-1                                    |   ${chalk.red('-1')} ${SUB}`)
+})
+
+test('install: print hook message', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: '/home/jane/repo' } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  hookLogger.debug({
+    from: '/home/jane/repo/.pnpmfile.cjs',
+    hook: 'readPackage',
+    message: 'foo',
+    prefix: '/home/jane/repo',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`${chalk.magentaBright('readPackage')}: foo`)
+})
+
+test('recursive: print hook message', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['recursive'],
+      config: { dir: '/home/jane/repo' } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  hookLogger.debug({
+    from: '/home/jane/repo/.pnpmfile.cjs',
+    hook: 'readPackage',
+    message: 'foo',
+    prefix: '/home/jane/repo/pkg-1',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`pkg-1                                    | ${chalk.magentaBright('readPackage')}: foo`)
+})
+
+test('prints skipped optional dependency info message', async () => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  const pkgId = 'registry.npmjs.org/foo/1.0.0'
+
+  skippedOptionalDependencyLogger.debug({
+    package: {
+      id: pkgId,
+      name: 'foo',
+      version: '1.0.0',
+    },
+    parents: [],
+    prefix,
+    reason: 'unsupported_platform',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(output).toBe(`info: ${pkgId} is an optional dependency and failed compatibility check. Excluding it from installation.`)
+})
+
+test('prints info about an optional dependency that could not be resolved', async () => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  skippedOptionalDependencyLogger.debug({
+    package: {
+      bareSpecifier: '^30000.0.0',
+      name: 'foo',
+      version: '^30000.0.0',
+    },
+    parents: [],
+    prefix,
+    reason: 'resolution_failure',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(output).toBe('info: foo@^30000.0.0 is an optional dependency that could not be resolved. Excluding it from installation.')
+})
+
+test('logLevel=default', async () => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  logger.info({ message: 'Info message', prefix })
+  logger.warn({ message: 'Some issue', prefix })
+  const err = new PnpmError('SOME_CODE', 'some error')
+  logger.error(err, err)
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(skip(2), take(1)))
+  expect(output).toBe(`Info message
+${formatWarn('Some issue')}
+${formatError('ERR_PNPM_SOME_CODE', 'some error')}`)
+})
+
+test('logLevel=warn', async () => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    reportingOptions: {
+      logLevel: 'warn',
+    },
+    streamParser: createStreamParser(),
+  })
+
+  logger.info({ message: 'Info message', prefix })
+  logger.warn({ message: 'Some issue', prefix })
+  const err = new PnpmError('SOME_CODE', 'some error')
+  logger.error(err, err)
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(skip(1), take(1)))
+  expect(output).toBe(`${formatWarn('Some issue')}
+${formatError('ERR_PNPM_SOME_CODE', 'some error')}`)
+})
+
+test('logLevel=error', async () => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    reportingOptions: {
+      logLevel: 'error',
+    },
+    streamParser: createStreamParser(),
+  })
+
+  logger.info({ message: 'Info message', prefix })
+  logger.warn({ message: 'Some issue', prefix })
+  const err = new PnpmError('SOME_CODE', 'some error')
+  logger.error(err, err)
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(output).toBe(formatError('ERR_PNPM_SOME_CODE', 'some error'))
+})
+
+test('warnings are collapsed', async () => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    reportingOptions: {
+      logLevel: 'warn',
+    },
+    streamParser: createStreamParser(),
+  })
+
+  logger.warn({ message: 'Some issue 1', prefix })
+  logger.warn({ message: 'Some issue 2', prefix })
+  logger.warn({ message: 'Some issue 3', prefix })
+  logger.warn({ message: 'Some issue 4', prefix })
+  logger.warn({ message: 'Some issue 5', prefix })
+  logger.warn({ message: 'Some issue 6', prefix })
+  logger.warn({ message: 'Some issue 7', prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(skip(6), take(1)))
+  expect(output).toBe(`${formatWarn('Some issue 1')}
+${formatWarn('Some issue 2')}
+${formatWarn('Some issue 3')}
+${formatWarn('Some issue 4')}
+${formatWarn('Some issue 5')}
+${formatWarn('2 other warnings')}`)
+})
+
+test('warnings are not collapsed when append-only is true', async () => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    reportingOptions: {
+      appendOnly: true,
+      logLevel: 'warn',
+    },
+    streamParser: createStreamParser(),
+  })
+
+  logger.warn({ message: 'Some issue 1', prefix })
+  logger.warn({ message: 'Some issue 2', prefix })
+  logger.warn({ message: 'Some issue 3', prefix })
+  logger.warn({ message: 'Some issue 4', prefix })
+  logger.warn({ message: 'Some issue 5', prefix })
+  logger.warn({ message: 'Some issue 6', prefix })
+  logger.warn({ message: 'Some issue 7', prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(skip(6), take(1)))
+  expect(output).toBe(formatWarn('Some issue 7'))
+})

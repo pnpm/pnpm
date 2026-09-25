@@ -1,0 +1,61 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../__utils__/test-fixtures"
+    },
+    {
+      "path": "../../catalogs/config"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../exec/esm-node-path-loader"
+    },
+    {
+      "path": "../../hooks/pnpmfile"
+    },
+    {
+      "path": "../../network/git-utils"
+    },
+    {
+      "path": "../../pkg-manifest/utils"
+    },
+    {
+      "path": "../../text/naming-cases"
+    },
+    {
+      "path": "../../workspace/project-manifest-reader"
+    },
+    {
+      "path": "../../workspace/workspace-manifest-reader"
+    },
+    {
+      "path": "../matcher"
+    },
+    {
+      "path": "../registry-auth-key"
+    }
+  ]
+}

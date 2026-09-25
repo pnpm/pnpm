@@ -1,0 +1,55 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../__utils__/test-fixtures"
+    },
+    {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
+      "path": "../../bins/linker"
+    },
+    {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../fetching/directory-fetcher"
+    },
+    {
+      "path": "../../pkg-manifest/reader"
+    },
+    {
+      "path": "../../store/cafs-types"
+    },
+    {
+      "path": "../../store/controller-types"
+    },
+    {
+      "path": "../../workspace/task-scheduler"
+    },
+    {
+      "path": "../npm-lifecycle"
+    }
+  ]
+}

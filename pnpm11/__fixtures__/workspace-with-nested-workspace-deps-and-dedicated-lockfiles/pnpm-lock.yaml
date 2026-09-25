@@ -1,0 +1,15 @@
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      '@scope/a':
+        specifier: workspace:*
+        version: link:packages/a
+      '@scope/b':
+        specifier: workspace:*
+        version: link:packages/b
+      external:
+        specifier: link:external
+        version: link:external

@@ -1,0 +1,328 @@
+use super::super::walker::{Symlinks, walk_all_files, walk_package_files};
+use pretty_assertions::assert_eq;
+use std::{collections::BTreeMap, fs, path::Path};
+use tempfile::tempdir;
+
+fn touch(root: &Path, rel: &str) {
+    let path = root.join(rel);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    fs::write(path, "").unwrap();
+}
+
+/// Collapse `walk_*` output to a `BTreeMap<rel_path, absolute_path
+/// rendered as forward slashes relative to root>` so assertions stay
+/// readable and order-independent. The value lets us distinguish
+/// "symlink left as-is" vs "symlink resolved" without baking the
+/// tmpdir's path into the assertion.
+fn collect_rels(
+    root: &Path,
+    files: std::collections::HashMap<String, std::path::PathBuf>,
+) -> BTreeMap<String, String> {
+    files
+        .into_iter()
+        .map(|(rel, abs)| {
+            // Use `dunce::canonicalize` semantics indirectly: strip
+            // the tmp root prefix off the absolute path and report
+            // the remainder. That keeps assertions deterministic.
+            let stripped = abs
+                .strip_prefix(root)
+                .map_or_else(
+                    |_| abs.display().to_string(),
+                    |path| {
+                        path.display()
+                            .to_string()
+                            .replace('\\', "/")
+                    },
+                );
+            (rel, stripped)
+        })
+        .collect()
+}
+
+#[test]
+fn walk_all_files_recurses_and_returns_relative_paths() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "index.js");
+    touch(root, "lib/inner.js");
+    touch(root, "lib/nested/deep.js");
+
+    let out = walk_all_files(root, Symlinks::Keep, true).unwrap();
+    let rels: BTreeMap<_, _> = collect_rels(root, out);
+
+    assert_eq!(
+        rels.keys().cloned().collect::<Vec<_>>(),
+        vec![
+            "index.js".to_string(),
+            "lib/inner.js".into(),
+            "lib/nested/deep.js".into(),
+            "package.json".into(),
+        ],
+    );
+}
+
+#[test]
+fn walk_all_files_skips_node_modules_at_root_and_nested() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "index.js");
+    touch(root, "node_modules/foo/index.js");
+    touch(root, "lib/node_modules/bar/index.js");
+
+    let out = walk_all_files(root, Symlinks::Keep, true).unwrap();
+    let rels: BTreeMap<_, _> = collect_rels(root, out);
+
+    assert_eq!(rels.keys().cloned().collect::<Vec<_>>(), vec!["index.js".to_string()]);
+}
+
+#[test]
+fn walk_all_files_on_empty_directory_returns_empty_map() {
+    let dir = tempdir().unwrap();
+    let out = walk_all_files(dir.path(), Symlinks::Keep, true).unwrap();
+    assert!(out.is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn walk_all_files_terminates_on_symlink_cycle() {
+    use std::os::unix::fs::symlink;
+
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "real.txt");
+    symlink(root, root.join("loop")).unwrap();
+
+    let out = walk_all_files(root, Symlinks::Keep, true).unwrap();
+    let rels: BTreeMap<_, _> = collect_rels(root, out);
+
+    assert!(rels.contains_key("real.txt"), "direct children must still be walked: {rels:?}");
+    assert!(
+        rels.keys()
+            .all(|key| !key.starts_with("loop/")),
+        "cycle guard must short-circuit before any `loop/` descendant is recorded: {rels:?}",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn walk_all_files_skips_broken_symlink_without_resolve_symlinks() {
+    use std::os::unix::fs::symlink;
+
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "real.txt");
+    symlink(root.join("missing.txt"), root.join("dangling")).unwrap();
+
+    let out = walk_all_files(root, Symlinks::Keep, true).unwrap();
+    let rels: BTreeMap<_, _> = collect_rels(root, out);
+
+    assert_eq!(rels.keys().cloned().collect::<Vec<_>>(), vec!["real.txt".to_string()]);
+}
+
+#[cfg(unix)]
+#[test]
+fn walk_all_files_skips_broken_symlink_with_resolve_symlinks() {
+    use std::os::unix::fs::symlink;
+
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "real.txt");
+    symlink(root.join("missing.txt"), root.join("dangling")).unwrap();
+
+    let out = walk_all_files(root, Symlinks::Resolve, true).unwrap();
+    let rels: BTreeMap<_, _> = collect_rels(root, out);
+
+    assert_eq!(rels.keys().cloned().collect::<Vec<_>>(), vec!["real.txt".to_string()]);
+}
+
+#[cfg(unix)]
+#[test]
+fn walk_all_files_resolves_symlinks_when_requested() {
+    use std::os::unix::fs::symlink;
+
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let outside = tempdir().unwrap();
+    let target = outside.path().join("target.txt");
+    fs::write(&target, b"hello").unwrap();
+    symlink(&target, root.join("link.txt")).unwrap();
+
+    let out = walk_all_files(root, Symlinks::Resolve, true).unwrap();
+    assert_eq!(out.len(), 1);
+    let src = out.get("link.txt").expect("link.txt entry");
+    assert_eq!(
+        fs::canonicalize(src).unwrap(),
+        fs::canonicalize(&target).unwrap(),
+        "resolve_symlinks must return the realpath as the source",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn walk_all_files_keeps_symlink_path_without_resolve_symlinks() {
+    use std::os::unix::fs::symlink;
+
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let outside = tempdir().unwrap();
+    let target = outside.path().join("target.txt");
+    fs::write(&target, b"hello").unwrap();
+    symlink(&target, root.join("link.txt")).unwrap();
+
+    let out = walk_all_files(root, Symlinks::Keep, true).unwrap();
+    let src = out.get("link.txt").expect("link.txt entry");
+    assert_eq!(src, &root.join("link.txt"));
+}
+
+#[cfg(unix)]
+#[test]
+fn walk_all_files_rejects_symlink_escape_when_confined() {
+    use std::os::unix::fs::symlink;
+
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let outside = tempdir().unwrap();
+    touch(outside.path(), "secret.txt");
+    symlink(outside.path(), root.join("outside")).unwrap();
+
+    let err = walk_all_files(root, Symlinks::Keep, false).expect_err("outside symlink should fail");
+    assert!(
+        err.to_string().contains("resolves outside source directory"),
+        "unexpected error: {err}",
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn walk_all_files_rejects_nested_junction_escape_when_confined() {
+    let dir = tempdir().unwrap();
+    let root = dir.path().join("root");
+    let outside = dir.path().join("outside");
+    fs::create_dir_all(&root).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    touch(&outside, "secret.txt");
+    let link = root.join("outside");
+    junction::create(&outside, &link).unwrap();
+
+    let err =
+        walk_all_files(&root, Symlinks::Keep, false).expect_err("outside junction should fail");
+    pnpm_fs::remove_symlink_dir(&link).unwrap();
+    assert!(
+        err.to_string().contains("resolves outside source directory"),
+        "unexpected error: {err}",
+    );
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn walk_all_files_confines_a_linked_root_to_its_real_path() {
+    let dir = tempdir().unwrap();
+    let real_root = dir.path().join("real-root");
+    fs::create_dir_all(&real_root).unwrap();
+    touch(&real_root, "index.js");
+    let root_link = dir.path().join("root-link");
+    pnpm_fs::symlink_dir(&real_root, &root_link).unwrap();
+
+    let out = walk_all_files(&root_link, Symlinks::Keep, false).unwrap();
+    let real_root = fs::canonicalize(&real_root).unwrap();
+    let expected = BTreeMap::from([("index.js".to_string(), "index.js".to_string())]);
+    assert_eq!(collect_rels(&real_root, out), expected);
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn walk_all_files_rejects_escape_from_a_linked_root_when_confined() {
+    let dir = tempdir().unwrap();
+    let real_root = dir.path().join("real-root");
+    fs::create_dir_all(&real_root).unwrap();
+    let outside = dir.path().join("outside");
+    fs::create_dir_all(&outside).unwrap();
+    touch(&outside, "secret.txt");
+    pnpm_fs::symlink_dir(&outside, &real_root.join("outside")).unwrap();
+    let root_link = dir.path().join("root-link");
+    pnpm_fs::symlink_dir(&real_root, &root_link).unwrap();
+
+    let err =
+        walk_all_files(&root_link, Symlinks::Keep, false).expect_err("outside symlink should fail");
+    assert!(
+        err.to_string().contains("resolves outside source directory"),
+        "unexpected error: {err}",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn walk_all_files_keeps_confined_symlink_sources_only_when_preserving() {
+    use std::os::unix::fs::symlink;
+
+    let dir = tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    touch(&root, "real.txt");
+    symlink(root.join("real.txt"), root.join("link.txt")).unwrap();
+
+    let out = walk_all_files(&root, Symlinks::Preserve, false).unwrap();
+    assert_eq!(out.get("link.txt"), Some(&root.join("link.txt")));
+
+    let out_kept = walk_all_files(&root, Symlinks::Keep, false).unwrap();
+    assert_eq!(out_kept.get("link.txt"), Some(&root.join("real.txt")));
+
+    let out_resolved = walk_all_files(&root, Symlinks::Resolve, false).unwrap();
+    assert_eq!(out_resolved.get("link.txt"), Some(&root.join("real.txt")));
+}
+
+#[test]
+fn walk_package_files_applies_npm_packlist_filter() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::write(
+        root.join("package.json"),
+        r#"{ "name": "x", "version": "0.0.0", "files": ["dist/**"] }"#,
+    )
+    .unwrap();
+    touch(root, "dist/index.js");
+    touch(root, "dist/sub/inner.js");
+    touch(root, "src/internal.ts");
+
+    let out = walk_package_files(root).unwrap();
+    let mut rels: Vec<_> = out.keys().cloned().collect();
+    rels.sort();
+
+    assert_eq!(
+        rels,
+        vec!["dist/index.js".to_string(), "dist/sub/inner.js".into(), "package.json".into(),],
+    );
+}
+
+#[test]
+fn walk_package_files_works_without_a_manifest() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "index.js");
+    touch(root, ".DS_Store");
+
+    let out = walk_package_files(root).unwrap();
+    let rels: Vec<_> = out.keys().cloned().collect();
+
+    assert_eq!(rels, vec!["index.js".to_string()]);
+}
+
+#[cfg(unix)]
+#[test]
+fn walk_all_files_lists_a_preserved_directory_link_as_one_entry() {
+    use std::os::unix::fs::symlink;
+
+    let dir = tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    touch(&root, "sub/nested.txt");
+    symlink("sub", root.join("link")).unwrap();
+
+    let preserved = walk_all_files(&root, Symlinks::Preserve, false).unwrap();
+    assert_eq!(preserved.get("link"), Some(&root.join("link")));
+    assert!(!preserved.contains_key("link/nested.txt"));
+
+    let kept = walk_all_files(&root, Symlinks::Keep, false).unwrap();
+    assert!(!kept.contains_key("link"));
+}

@@ -1,0 +1,26 @@
+import type { Config, ConfigContext } from '@pnpm/config.reader'
+import type {
+  LogBase,
+  ReadPackageHook,
+} from '@pnpm/types'
+
+export type PnpmOptions = Omit<Config & ConfigContext, 'reporter' | 'pnpmfile'> & {
+  argv: {
+    cooked: string[]
+    original: string[]
+    remain: string[]
+  }
+  cliOptions: object
+  reporter?: (logObj: LogBase) => void
+  pnpmfile: string[]
+  packageManager?: {
+    name: string
+    version: string
+  }
+
+  hooks?: {
+    readPackage?: ReadPackageHook[]
+  }
+
+  ignoreFile?: (filename: string) => boolean
+}

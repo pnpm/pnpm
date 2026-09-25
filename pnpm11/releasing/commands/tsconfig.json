@@ -1,0 +1,163 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/assert-project"
+    },
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../__utils__/test-fixtures"
+    },
+    {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
+      "path": "../../bins/resolver"
+    },
+    {
+      "path": "../../catalogs/config"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
+      "path": "../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../cli/utils"
+    },
+    {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../deps/graph-sequencer"
+    },
+    {
+      "path": "../../deps/path"
+    },
+    {
+      "path": "../../engine/runtime/commands"
+    },
+    {
+      "path": "../../engine/runtime/node-resolver"
+    },
+    {
+      "path": "../../exec/lifecycle"
+    },
+    {
+      "path": "../../exec/pnpm-cli-runner"
+    },
+    {
+      "path": "../../fetching/directory-fetcher"
+    },
+    {
+      "path": "../../fetching/types"
+    },
+    {
+      "path": "../../fs/indexed-pkg-importer"
+    },
+    {
+      "path": "../../fs/is-empty-dir-or-nothing"
+    },
+    {
+      "path": "../../fs/packlist"
+    },
+    {
+      "path": "../../hooks/pnpmfile"
+    },
+    {
+      "path": "../../installing/client"
+    },
+    {
+      "path": "../../installing/commands"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/peer-edges"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../network/auth-header"
+    },
+    {
+      "path": "../../network/fetch"
+    },
+    {
+      "path": "../../network/git-utils"
+    },
+    {
+      "path": "../../network/web-auth"
+    },
+    {
+      "path": "../../resolving/npm-resolver"
+    },
+    {
+      "path": "../../resolving/registry/types"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../testing/command-defaults"
+    },
+    {
+      "path": "../../testing/registry-mock"
+    },
+    {
+      "path": "../../text/sanitize"
+    },
+    {
+      "path": "../../workspace/project-manifest-reader"
+    },
+    {
+      "path": "../../workspace/projects-filter"
+    },
+    {
+      "path": "../../workspace/projects-graph"
+    },
+    {
+      "path": "../../workspace/projects-sorter"
+    },
+    {
+      "path": "../../workspace/task-scheduler"
+    },
+    {
+      "path": "../../workspace/workspace-manifest-writer"
+    },
+    {
+      "path": "../exportable-manifest"
+    },
+    {
+      "path": "../versioning"
+    }
+  ]
+}

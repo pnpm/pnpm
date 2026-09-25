@@ -1,0 +1,368 @@
+//! Parse `<name>[@<version>[||<version>...]]` specs from
+//! `pnpm-workspace.yaml`'s `allowBuilds`, `minimumReleaseAgeExclude`,
+//! `trustPolicyExclude`, and similar policy keys.
+//!
+//! - [`expand_package_version_specs`] expands every spec into one or
+//!   more literal `name` / `name@version` strings. Used by `allowBuilds`.
+//! - [`create_package_version_policy`] returns a matcher-based policy
+//!   that evaluates a `pkg_name` against a set of rules. Used by
+//!   `minimumReleaseAgeExclude` and `trustPolicyExclude` — wildcards
+//!   in the name (`is-*`, `@scope/*`) match real package names via the
+//!   shared [`crate::matcher`].
+//!
+//! What this module supports:
+//!
+//! - Bare name → `foo`, `@scope/foo`.
+//! - Exact version → `foo@1.0.0`, `@scope/foo@1.0.0`.
+//! - Exact-version union → `foo@1.0.0 || 2.0.0`. Each version is
+//!   parsed strictly (like the `semver` npm package's `valid`);
+//!   whitespace around `||` and within versions is trimmed.
+//! - Wildcards in the name **without** a version part —
+//!   [`expand_package_version_specs`] keeps them verbatim (the literal
+//!   lands in the set and is compared by equality), and
+//!   [`create_package_version_policy`] runs them through
+//!   [`crate::matcher`] so they match real package names.
+//!
+//! Combining a `*` wildcard in the name with a version part is
+//! explicitly rejected as
+//! [`VersionPolicyError::NamePatternInVersionUnion`].
+
+use derive_more::{Display, Error};
+use miette::Diagnostic;
+use node_semver::Version;
+use pnpm_matcher::{Matcher, create_matcher};
+use std::collections::HashSet;
+
+/// Error from [`expand_package_version_specs`] or
+/// [`create_package_version_policy`].
+#[derive(Debug, Display, Error, Diagnostic)]
+pub enum VersionPolicyError {
+    /// One of the versions in a `||` union didn't parse as a valid
+    /// exact semver. Surfaced as `ERR_PNPM_INVALID_VERSION_UNION`.
+    #[display("Invalid versions union. Found: \"{pattern}\". Use exact versions only.")]
+    #[diagnostic(code(ERR_PNPM_INVALID_VERSION_UNION))]
+    InvalidVersionUnion {
+        #[error(not(source))]
+        pattern: String,
+    },
+
+    /// A `*` wildcard in the package name AND a version part were
+    /// combined. This is rejected because the resulting matcher would
+    /// have inconsistent semantics with the rest of the rule set.
+    /// Surfaced as `ERR_PNPM_NAME_PATTERN_IN_VERSION_UNION`.
+    #[display("Name patterns are not allowed with version unions. Found: \"{pattern}\"")]
+    #[diagnostic(code(ERR_PNPM_NAME_PATTERN_IN_VERSION_UNION))]
+    NamePatternInVersionUnion {
+        #[error(not(source))]
+        pattern: String,
+    },
+}
+
+/// Expand each spec into one or more `name` / `name@version` literal
+/// strings.
+///
+/// Callers feed the result into a `HashSet::contains` check, so a
+/// pattern like `is-*` lands in the set as a literal string and never
+/// matches a real package name.
+pub fn expand_package_version_specs<Iter, Spec>(
+    specs: Iter,
+) -> Result<HashSet<String>, VersionPolicyError>
+where
+    Iter: IntoIterator<Item = Spec>,
+    Spec: AsRef<str>,
+{
+    let mut out: HashSet<String> = HashSet::new();
+    for spec in specs {
+        let parsed = parse_version_policy_rule(spec.as_ref())?;
+        if parsed.exact_versions.is_empty() {
+            out.insert(parsed.package_name.to_string());
+        } else {
+            for version in parsed.exact_versions {
+                out.insert(format!("{}@{}", parsed.package_name, version));
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Merge a list of package-version-policy specs into one canonical entry per
+/// package, preserving first-seen package order. Specs for the same package
+/// are combined: a bare name/pattern absorbs any version-specific specs for
+/// that package (every version excluded); otherwise the exact versions are
+/// deduplicated, sorted by semver, and joined into a single `name@v1 || v2`
+/// entry. Keeps `minimumReleaseAgeExclude` canonical when `pnpm audit --fix`
+/// appends patched versions.
+pub fn merge_package_version_specs<Iter, Spec>(
+    specs: Iter,
+) -> Result<Vec<String>, VersionPolicyError>
+where
+    Iter: IntoIterator<Item = Spec>,
+    Spec: AsRef<str>,
+{
+    // `None` => a bare name/pattern matched (every version); `Some(vec)` =>
+    // the accumulated exact versions in first-seen order.
+    let mut by_package: indexmap::IndexMap<String, Option<Vec<String>>> = indexmap::IndexMap::new();
+    for spec in specs {
+        let parsed = parse_version_policy_rule(spec.as_ref())?;
+        absorb_spec(&mut by_package, parsed.package_name.to_string(), parsed.exact_versions);
+    }
+    Ok(by_package
+        .into_iter()
+        .map(|(name, versions)| render_merged_spec(name, versions))
+        .collect())
+}
+
+/// Fold one parsed spec into the accumulator: a bare name absorbs every
+/// version-specific spec for the same package, and exact versions accumulate
+/// in first-seen order without duplicates.
+fn absorb_spec(
+    by_package: &mut indexmap::IndexMap<String, Option<Vec<String>>>,
+    name: String,
+    exact_versions: Vec<String>,
+) {
+    let Some(slot) = by_package.get_mut(&name) else {
+        let versions = (!exact_versions.is_empty()).then_some(exact_versions);
+        by_package.insert(name, versions);
+        return;
+    };
+    if exact_versions.is_empty() {
+        *slot = None;
+        return;
+    }
+    let Some(existing) = slot else { return };
+    for version in exact_versions {
+        if !existing.contains(&version) {
+            existing.push(version);
+        }
+    }
+}
+
+/// One package's canonical entry: the bare name, or `name@v1 || v2` with the
+/// versions in semver order.
+fn render_merged_spec(name: String, versions: Option<Vec<String>>) -> String {
+    let Some(mut versions) = versions else { return name };
+    versions.sort_by(|left, right| match (Version::parse(left), Version::parse(right)) {
+        (Ok(left), Ok(right)) => left.cmp(&right),
+        _ => left.cmp(right),
+    });
+    format!("{name}@{}", versions.join(" || "))
+}
+
+/// Package name → the exact versions the freshly resolved lockfile
+/// records for it. A package resolved only from a non-semver source
+/// (git, tarball, `file:`) maps to an empty set: its presence can still
+/// be confirmed, but no exact version can. Input of
+/// [`drop_unresolved_package_version_specs`].
+pub type ResolvedPackageVersions =
+    std::collections::BTreeMap<String, std::collections::BTreeSet<String>>;
+
+/// The `minimumReleaseAgeExcludePrune` pass over a
+/// `minimumReleaseAgeExclude` list: prune every spec against `resolved`,
+/// the versions the lockfile written by the just-finished install
+/// records. Entry order is preserved.
+///
+/// - `name@v1 || v2` keeps the resolved versions only; a narrowed entry
+///   is rewritten canonically (semver-sorted, ` || `-joined) via
+///   [`merge_package_version_specs`], an emptied one is dropped.
+/// - A bare `name` (no version part, no `*`) is dropped when the
+///   lockfile no longer resolves the package at all.
+/// - Name patterns carrying `*` and specs that fail parsing are kept
+///   verbatim — the pass never rejects a hand-written entry.
+#[must_use]
+pub fn drop_unresolved_package_version_specs(
+    specs: &[String],
+    resolved: &ResolvedPackageVersions,
+) -> Vec<String> {
+    specs
+        .iter()
+        .filter_map(|spec| drop_unresolved_spec(spec, resolved))
+        .collect()
+}
+
+fn drop_unresolved_spec(spec: &str, resolved: &ResolvedPackageVersions) -> Option<String> {
+    let Ok(parsed) = parse_version_policy_rule(spec) else {
+        return Some(spec.to_string());
+    };
+    if parsed.package_name.contains('*') {
+        return Some(spec.to_string());
+    }
+    let resolved_versions = resolved.get(parsed.package_name)?;
+    if parsed.exact_versions.is_empty() {
+        return Some(spec.to_string());
+    }
+    let kept: Vec<&str> = parsed.exact_versions
+        .iter()
+        .map(String::as_str)
+        .filter(|version| resolved_versions.contains(*version))
+        .collect();
+    if kept.is_empty() {
+        return None;
+    }
+    if kept.len() == parsed.exact_versions.len() {
+        return Some(spec.to_string());
+    }
+    let narrowed = format!("{}@{}", parsed.package_name, kept.join(" || "));
+    merge_package_version_specs([&narrowed])
+        .expect("the kept versions already parsed as exact semver")
+        .into_iter()
+        .next()
+}
+
+/// Decision a [`PackageVersionPolicy`] reaches for a given package name.
+///
+/// - [`PolicyMatch::No`] — no rule matched the name.
+/// - [`PolicyMatch::AnyVersion`] — a bare-name rule matched. Every
+///   version of the package is covered.
+/// - [`PolicyMatch::ExactVersions`] — a name+version rule matched. Only
+///   the listed versions are covered.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PolicyMatch {
+    No,
+    AnyVersion,
+    ExactVersions(Vec<String>),
+}
+
+/// Matcher-based version policy built from a list of
+/// `<name-pattern>[@<version>||<version>...]` rules. See
+/// [`PackageVersionPolicy::matches`] for the evaluation semantics.
+///
+/// Used by `minimumReleaseAgeExclude` and `trustPolicyExclude`, both
+/// of which need wildcard name patterns (`is-*`, `@scope/*`) AND
+/// exact version unions (`lodash@4.17.21 || 4.17.22`) — different from
+/// `allowBuilds`, which lands as a literal set via
+/// [`expand_package_version_specs`].
+#[derive(Clone)]
+pub struct PackageVersionPolicy {
+    rules: Vec<VersionPolicyRule>,
+}
+
+impl std::fmt::Debug for PackageVersionPolicy {
+    // `Matcher` doesn't expose its compiled pattern set, so the
+    // most useful thing the debug rendering can show is the rule
+    // count and each rule's exact-versions list.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PackageVersionPolicy")
+            .field(
+                "rules",
+                &self.rules
+                    .iter()
+                    .map(|rule| &rule.exact_versions)
+                    .collect::<Vec<_>>(),
+            )
+            .finish()
+    }
+}
+
+#[derive(Clone)]
+struct VersionPolicyRule {
+    name_matcher: Matcher,
+    exact_versions: Vec<String>,
+}
+
+impl PackageVersionPolicy {
+    /// Evaluate the policy against a package name, merging the exact
+    /// versions of all matching `name@version[...]` rules.
+    ///
+    /// A bare-name or wildcard rule matches every version.
+    #[must_use]
+    pub fn matches(&self, pkg_name: &str) -> PolicyMatch {
+        let matching = self.rules
+            .iter()
+            .filter(|rule| rule.name_matcher.matches(pkg_name));
+        let mut merged: Option<(Vec<String>, HashSet<String>)> = None;
+        for rule in matching {
+            if rule.exact_versions.is_empty() {
+                return PolicyMatch::AnyVersion;
+            }
+            let (versions, seen) = merged.get_or_insert_with(|| (Vec::new(), HashSet::new()));
+            versions.extend(
+                rule.exact_versions
+                    .iter()
+                    .filter(|version| seen.insert((*version).clone()))
+                    .cloned(),
+            );
+        }
+        match merged {
+            Some((versions, _)) => PolicyMatch::ExactVersions(versions),
+            None => PolicyMatch::No,
+        }
+    }
+}
+
+/// Compile a list of `<name-pattern>[@<version>||<version>...]` rules
+/// into a [`PackageVersionPolicy`].
+pub fn create_package_version_policy<Iter, Spec>(
+    patterns: Iter,
+) -> Result<PackageVersionPolicy, VersionPolicyError>
+where
+    Iter: IntoIterator<Item = Spec>,
+    Spec: AsRef<str>,
+{
+    let mut rules: Vec<VersionPolicyRule> = Vec::new();
+    for pattern in patterns {
+        let parsed = parse_version_policy_rule(pattern.as_ref())?;
+        // [`create_matcher`] takes a slice of patterns; we pass a single
+        // entry per rule so the rule's own matcher returns true on a
+        // name hit and falls through otherwise.
+        let name_matcher = create_matcher(&[parsed.package_name.to_string()]);
+        rules.push(VersionPolicyRule { name_matcher, exact_versions: parsed.exact_versions });
+    }
+    Ok(PackageVersionPolicy { rules })
+}
+
+/// Parsed `<name>[@<version-union>]` rule. Either `exact_versions`
+/// is empty (bare name) or it contains one or more concrete semver
+/// strings. Mixing a `*` wildcard in the name with a version part
+/// is rejected by [`parse_version_policy_rule`] before this struct
+/// is returned.
+struct ParsedRule<'a> {
+    package_name: &'a str,
+    exact_versions: Vec<String>,
+}
+
+fn parse_version_policy_rule(pattern: &str) -> Result<ParsedRule<'_>, VersionPolicyError> {
+    // Scoped name (`@scope/foo`) starts with `@`, so the version
+    // separator is the *second* `@`. Otherwise the first.
+    let at_index = if pattern.starts_with('@') {
+        pattern
+            .char_indices()
+            .skip(1)
+            .find_map(|(i, c)| (c == '@').then_some(i))
+    } else {
+        pattern.find('@')
+    };
+
+    let Some(at) = at_index else {
+        return Ok(ParsedRule { package_name: pattern, exact_versions: Vec::new() });
+    };
+
+    let package_name = &pattern[..at];
+    let versions_part = &pattern[at + 1..];
+
+    let exact_versions = parse_exact_versions_union(versions_part)
+        .ok_or_else(|| VersionPolicyError::InvalidVersionUnion { pattern: pattern.to_string() })?;
+
+    if package_name.contains('*') {
+        return Err(VersionPolicyError::NamePatternInVersionUnion { pattern: pattern.to_string() });
+    }
+
+    Ok(ParsedRule { package_name, exact_versions })
+}
+
+/// Parse `v1 || v2 || …` into a list of strict semver versions.
+/// Returns `None` if any component fails to parse — the caller
+/// surfaces that as `ERR_PNPM_INVALID_VERSION_UNION`. Whitespace
+/// around `||` and around each version is trimmed before parsing
+/// (matches Node-semver's `valid()` which trims internally).
+fn parse_exact_versions_union(versions_str: &str) -> Option<Vec<String>> {
+    let mut out: Vec<String> = Vec::new();
+    for raw in versions_str.split("||") {
+        let trimmed = raw.trim();
+        let version = Version::parse(trimmed).ok()?;
+        out.push(version.to_string());
+    }
+    Some(out)
+}
+
+#[cfg(test)]
+mod tests;

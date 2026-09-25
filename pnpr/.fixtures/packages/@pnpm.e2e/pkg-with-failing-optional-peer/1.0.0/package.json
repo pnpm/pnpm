@@ -1,0 +1,12 @@
+{
+  "name": "@pnpm.e2e/pkg-with-failing-optional-peer",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm.e2e/pkg-with-failing-postinstall": "*"
+  },
+  "peerDependenciesMeta": {
+    "@pnpm.e2e/pkg-with-failing-postinstall": {
+      "optional": true
+    }
+  }
+}

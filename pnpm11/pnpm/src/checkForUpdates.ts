@@ -1,0 +1,51 @@
+import path from 'node:path'
+
+import { packageManager } from '@pnpm/cli.meta'
+import type { Config } from '@pnpm/config.reader'
+import { updateCheckLogger } from '@pnpm/core-loggers'
+import { createResolver } from '@pnpm/installing.client'
+import { loadJsonFile } from 'load-json-file'
+import { writeJsonFile } from 'write-json-file'
+
+interface State {
+  lastUpdateCheck?: string
+}
+
+const UPDATE_CHECK_FREQUENCY = 24 * 60 * 60 * 1000 // 1 day
+
+export async function checkForUpdates (config: Config): Promise<void> {
+  const stateFile = path.join(config.stateDir, 'pnpm-state.json')
+  let state: State | undefined
+  try {
+    state = await loadJsonFile(stateFile)
+  } catch {}
+
+  // A missing, unparsable, or future timestamp reads as "never checked", so
+  // a corrupted state file — or a clock that moved backwards — makes pnpm
+  // check again rather than go quiet until the recorded time comes around.
+  const sinceLastCheck = Date.now() - new Date(state?.lastUpdateCheck ?? '').valueOf()
+  if (sinceLastCheck >= 0 && sinceLastCheck < UPDATE_CHECK_FREQUENCY) return
+
+  const { resolve } = createResolver({
+    ...config,
+    configByUri: config.configByUri,
+    retry: {
+      retries: 0,
+    },
+  })
+  const resolution = await resolve({ alias: packageManager.name, bareSpecifier: 'latest' }, {
+    lockfileDir: config.lockfileDir ?? config.dir,
+    preferredVersions: {},
+    projectDir: config.dir,
+  })
+  if (resolution?.manifest?.version) {
+    updateCheckLogger.debug({
+      currentVersion: packageManager.version,
+      latestVersion: resolution?.manifest.version,
+    })
+  }
+  await writeJsonFile(stateFile, {
+    ...state,
+    lastUpdateCheck: new Date().toUTCString(),
+  })
+}

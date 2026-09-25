@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/circular-symbol",
+  "version": "3.1.1",
+  "dependencies": {
+    "@pnpm.e2e/circular-ext": "^0.10.14"
+  }
+}

@@ -1,0 +1,123 @@
+import path from 'node:path'
+
+import {
+  cacheDelete,
+  cacheList,
+  cacheListRegistries,
+  cacheView,
+} from '@pnpm/cache.api'
+import { docsUrl } from '@pnpm/cli.utils'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
+import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
+import { PnpmError } from '@pnpm/error'
+import { getStorePath } from '@pnpm/store.path'
+import { pick } from 'ramda'
+import { renderHelp } from 'render-help'
+
+export const rcOptionsTypes = cliOptionsTypes
+
+export function cliOptionsTypes (): Record<string, unknown> {
+  return {
+    ...pick([
+      'registry',
+      'store-dir',
+    ], allTypes),
+  }
+}
+
+export const commandNames = ['cache']
+
+export function help (): string {
+  return renderHelp({
+    description: 'Inspect and manage the metadata cache',
+    descriptionLists: [
+      {
+        title: 'Commands',
+
+        list: [
+          {
+            description: 'Lists the available packages metadata cache. Supports filtering by glob',
+            name: 'list',
+          },
+          {
+            description: 'Prints the path to the cache directory',
+            name: 'path',
+          },
+          {
+            description: 'Lists all registries that have their metadata cache locally',
+            name: 'list-registries',
+          },
+          {
+            description: "Views information from the specified package's cache",
+            name: 'view',
+          },
+          {
+            description: 'Deletes metadata cache for the specified package(s). Supports patterns',
+            name: 'delete',
+          },
+        ],
+      },
+    ],
+    url: docsUrl('cache'),
+    usages: ['pnpm cache <command>'],
+  })
+}
+
+export type CacheCommandOptions = Pick<Config, 'cacheDir' | 'storeDir' | 'pnpmHomeDir' | 'resolutionMode' | 'registrySupportsTimeField'> & Pick<ConfigContext, 'cliOptions'>
+
+export async function handler (opts: CacheCommandOptions, params: string[]): Promise<string | undefined> {
+  const cacheType = (opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField)
+    ? FULL_FILTERED_META_DIR
+    : ABBREVIATED_META_DIR
+  const cacheDir = path.join(opts.cacheDir, cacheType)
+  switch (params[0]) {
+    case 'path':
+      return path.resolve(opts.cacheDir)
+    case 'list-registries':
+      return cacheListRegistries({
+        ...opts,
+        cacheDir,
+      })
+    case 'list':
+      return cacheList({
+        ...opts,
+        cacheDir,
+        registry: opts.cliOptions['registry'],
+      }, params.slice(1))
+    case 'delete': {
+      // A package's metadata can be cached under any of the metadata directories
+      // depending on the resolution mode used when it was fetched.
+      const deleted = await Promise.all(
+        [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR].map((metaDir) =>
+          cacheDelete({
+            ...opts,
+            cacheDir: path.join(opts.cacheDir, metaDir),
+            registry: opts.cliOptions['registry'],
+          }, params.slice(1))
+        )
+      )
+      return [...new Set(deleted.flatMap((result) => result.split('\n')).filter(Boolean))].sort().join('\n')
+    }
+    case 'view': {
+      if (!params[1]) {
+        throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm cache view` requires the package name')
+      }
+      if (params.length > 2) {
+        throw new PnpmError('TOO_MANY_PARAMS', '`pnpm cache view` only accepts one package name')
+      }
+      const storeDir = await getStorePath({
+        pkgRoot: process.cwd(),
+        storePath: opts.storeDir,
+        pnpmHomeDir: opts.pnpmHomeDir,
+      })
+      return cacheView({
+        ...opts,
+        cacheDir,
+        storeDir,
+        registry: opts.cliOptions['registry'],
+      }, params[1])
+    }
+    default:
+      return help()
+  }
+}

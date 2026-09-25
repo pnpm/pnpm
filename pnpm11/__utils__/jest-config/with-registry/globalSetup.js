@@ -1,0 +1,244 @@
+import { spawn, spawnSync } from 'node:child_process'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { scheduler } from 'node:timers/promises'
+import { promisify } from 'node:util'
+
+import getPort from 'get-port'
+import treeKill from 'tree-kill'
+
+import { STORAGE_PREFIX } from './storagePrefix.js'
+
+const kill = promisify(treeKill)
+
+const REPO_ROOT = path.join(import.meta.dirname, '..', '..', '..', '..')
+const FIXTURE_PACKAGES = path.join(REPO_ROOT, 'pnpr', '.fixtures', 'packages')
+
+export default async () => {
+  if (!process.env.PNPM_REGISTRY_MOCK_PORT) {
+    process.env.PNPM_REGISTRY_MOCK_PORT = (await getPort({ from: 7700, to: 7800 })).toString()
+  }
+
+  const { addUser, REGISTRY_MOCK_CREDENTIALS } = await import('@pnpm/testing.registry-mock')
+
+  // Build verdaccio-shaped storage from the in-repo package fixtures. The
+  // registry mutates this storage during tests (publishes, dist-tags), so it
+  // gets its own writable copy in a temp dir, never the read-only fixtures.
+  const storage = mkdtempSync(path.join(tmpdir(), STORAGE_PREFIX))
+  const pnpmVersion = JSON.parse(readFileSync(path.join(REPO_ROOT, 'pnpm11', 'pnpm', 'package.json'), 'utf8')).version
+  buildStorage(storage, pnpmVersion)
+  process.env.PNPM_REGISTRY_MOCK_STORAGE = storage
+  // Handed to globalTeardown so it removes only the directory this run
+  // created. The storage is a couple of gigabytes, so leaking one per
+  // run fills a tmpfs /tmp and later runs start failing with ENOSPC in
+  // whichever test happens to write next.
+  global.registryMockStorage = storage
+  const config = writeTestConfig(storage)
+  const currentVersionConfig = writeCurrentVersionTestConfig(storage)
+
+  const bin = resolvePnprBin()
+
+  const server = spawn(
+    bin,
+    [
+      '--config', config,
+      '--listen', `127.0.0.1:${process.env.PNPM_REGISTRY_MOCK_PORT}`,
+      '--storage', storage,
+      '--public-url', `http://localhost:${process.env.PNPM_REGISTRY_MOCK_PORT}`,
+      // A one-year TTL so the fixture packuments (whose `time` values are
+      // static) never look stale and never trigger a re-fetch to
+      // npmjs.org that would 404.
+      '--packument-ttl-secs', '31536000',
+    ],
+    { stdio: 'inherit' }
+  )
+  const currentVersionPort = await getPort({ from: 7801, to: 7900 })
+  const currentVersionServer = spawn(
+    bin,
+    [
+      '--config', currentVersionConfig,
+      '--listen', `127.0.0.1:${currentVersionPort}`,
+      '--storage', storage,
+      '--public-url', `http://localhost:${currentVersionPort}`,
+      '--packument-ttl-secs', '31536000',
+    ],
+    { stdio: 'inherit' }
+  )
+  process.env.PNPM_CURRENT_VERSION_REGISTRY = `http://localhost:${currentVersionPort}/`
+
+  let killed = false
+  const closed = new Set()
+  const serverClosed = Promise.all([server, currentVersionServer].map((child) => new Promise((resolve) => {
+    child.on('close', () => {
+      closed.add(child)
+      if (!killed) {
+        console.log('Error: The registry server was killed!')
+        process.exit(1)
+      }
+      resolve()
+    })
+    child.on('error', (err) => {
+      console.log(err)
+    })
+  })))
+  global.killServer = async () => {
+    killed = true
+    for (const child of [server, currentVersionServer]) {
+      if (closed.has(child)) continue
+      if (child.pid != null) {
+        try {
+          await kill(child.pid)
+        } catch (err) {
+          if (!closed.has(child) && child.exitCode == null && child.signalCode == null) throw err
+        }
+      } else {
+        child.kill()
+      }
+    }
+    await Promise.race([
+      serverClosed,
+      scheduler.wait(10_000).then(() => {
+        throw new Error('Timed out waiting for pnpr to exit')
+      }),
+    ])
+  }
+
+  await Promise.all([waitForServerOnline(process.env.PNPM_REGISTRY_MOCK_PORT), waitForServerOnline(currentVersionPort)])
+
+  // Register the test user and store the auth token for bearer-based tests
+  const { token } = await addUser({
+    username: REGISTRY_MOCK_CREDENTIALS.username,
+    password: REGISTRY_MOCK_CREDENTIALS.password,
+    email: 'foo@bar.net',
+  })
+  process.env.REGISTRY_MOCK_TOKEN = token
+}
+
+function writeTestConfig (storage) {
+  const source = path.join(REPO_ROOT, 'pnpr', 'crates', 'config', 'config.yaml')
+  const bundled = readFileSync(source, 'utf8')
+  const configured = bundled.replace('max_users: -1', 'max_users: 100')
+  if (configured === bundled) {
+    throw new Error('pnpr test config could not enable test-only registration')
+  }
+  const target = path.join(storage, 'config.yaml')
+  writeFileSync(target, configured)
+  return target
+}
+
+function writeCurrentVersionTestConfig (storage) {
+  const target = path.join(storage, 'current-version-config.yaml')
+  writeFileSync(target, `storage: ${JSON.stringify(storage)}\nsecret: pnpm-registry-mock-secret-key-32\nregistries:\n  local:\n    type: hosted\n    access: $all\n    packages:\n      pnpm: {}\n      '@pnpm/exe': {}\n  npmjs:\n    type: upstream\n    url: https://registry.npmjs.org/\n    public: true\n  main:\n    type: router\n    sources: [local, npmjs]\ndefaultRegistry: main\n`)
+  return target
+}
+
+/**
+ * Build registry storage from the in-repo fixtures into `out`, replacing the
+ * current-version sentinel with `pnpmVersion`. Throws if `pnpr-prepare`
+ * cannot build the storage.
+ */
+function buildStorage (out, pnpmVersion) {
+  const bin = resolvePnprPrepareBin()
+  const result = spawnSync(bin, [
+    '--packages', FIXTURE_PACKAGES,
+    '--out', out,
+    '--substitute', `0.0.0-test-current-pnpm=${pnpmVersion}`,
+  ], { stdio: 'inherit' })
+  if (result.status !== 0) {
+    throw new Error(
+      `pnpr-prepare failed to build fixture storage (exit ${result.status ?? result.signal}).`
+    )
+  }
+}
+
+/**
+ * Locate the `pnpr-prepare` binary. Lookup order:
+ *
+ * 1. `PNPR_PREPARE_BIN` env var (set by CI, which builds it from source).
+ * 2. A locally-built `target/{release,debug}/pnpr-prepare`.
+ */
+function resolvePnprPrepareBin () {
+  return resolveRustBin('pnpr-prepare', 'PNPR_PREPARE_BIN')
+}
+
+/**
+ * Locate the `pnpr` server binary. Lookup order:
+ *
+ * 1. `PNPR_BIN` env var override.
+ * 2. A locally-built `target/{release,debug}/pnpr`.
+ *
+ * There is no published-binary fallback on purpose: running these tests
+ * already requires building `pnpr-prepare` from source (it has no npm
+ * fallback either), so the toolchain to build `pnpr` is always present,
+ * and a published `@pnpm/pnpr` could predate the server protocol the
+ * tests exercise.
+ */
+function resolvePnprBin () {
+  if (process.env.PNPR_BIN) {
+    return process.env.PNPR_BIN
+  }
+  const localBin = findRustTargetBin('pnpr')
+  if (localBin) return localBin
+  throw new Error(
+    'pnpr binary not found. Build it with `cargo build -p pnpr` or set PNPR_BIN to an absolute path.'
+  )
+}
+
+function resolveRustBin (name, envVar) {
+  if (process.env[envVar]) {
+    return process.env[envVar]
+  }
+  const localBin = findRustTargetBin(name)
+  if (localBin) return localBin
+  throw new Error(
+    `${name} binary not found. Build it with \`cargo build -p pnpr-fixtures --bin ${name}\` ` +
+    `or set ${envVar} to an absolute path.`
+  )
+}
+
+function findRustTargetBin (name) {
+  const ext = process.platform === 'win32' ? '.exe' : ''
+  for (const profile of ['release', 'debug']) {
+    const candidate = path.join(REPO_ROOT, 'target', profile, `${name}${ext}`)
+    if (existsSync(candidate)) return candidate
+  }
+  return undefined
+}
+
+const UNUSUAL_REGISTRY_STARTUP_THRESHOLD = 15 // seconds
+
+async function waitForServerOnline (port) {
+  const start = performance.now()
+
+  for (const delay of exponentialBackoff()) {
+    try {
+      await fetch(`http://localhost:${port}`, { method: 'HEAD' })
+
+      const totalWait = (performance.now() - start) / 1000
+      if (totalWait > UNUSUAL_REGISTRY_STARTUP_THRESHOLD) {
+        console.warn(`pnpr required an unusually long amount of time to start: ${totalWait} seconds`)
+      }
+
+      return
+    } catch (err) {
+      // If pnpr hasn't begun listening yet, attempts to
+      // connect to the unbound port should throw ECONNREFUSED. If a different
+      // error is observed, throw an error.
+      if (err?.cause?.code !== 'ECONNREFUSED') {
+        throw new Error('Failed to bring pnpr online:', { cause: err })
+      }
+
+      await scheduler.wait(delay)
+    }
+  }
+
+  const totalWait = (performance.now() - start) / 1000
+  throw new Error(`pnpr did not come online after waiting ${totalWait} seconds`)
+}
+
+function *exponentialBackoff (attempts = 15, base = 1.5, initialWait = 100) {
+  for (let i = 0; i < attempts; i++) {
+    yield initialWait * Math.pow(base, i)
+  }
+}

@@ -1,0 +1,561 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { packageNameFromAllowBuildKey, UNDECIDED_ALLOW_BUILD } from '@pnpm/building.policy'
+import type { Catalogs } from '@pnpm/catalogs.types'
+import { parsePkgAndParentSelector } from '@pnpm/config.parse-overrides'
+import { mergePackageVersionSpecs, parseVersionPolicyRule } from '@pnpm/config.version-policy'
+import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
+import type { ResolvedCatalogEntry } from '@pnpm/lockfile.types'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
+import type {
+  Project,
+} from '@pnpm/types'
+import { validateWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import { patchDocument } from '@pnpm/yaml.document-sync'
+import { equals } from 'ramda'
+import writeFileAtomic from 'write-file-atomic'
+import yaml from 'yaml'
+
+export type FileName =
+  | typeof GLOBAL_CONFIG_YAML_FILENAME
+  | typeof WORKSPACE_MANIFEST_FILENAME
+
+const DEFAULT_FILENAME: FileName = WORKSPACE_MANIFEST_FILENAME
+
+async function writeManifestFile (dir: string, fileName: FileName, manifest: yaml.Document): Promise<void> {
+  const manifestStr = manifest.toString({
+    lineWidth: 0, // This is setting line width to never wrap
+    singleQuote: true, // Prefer single quotes over double quotes
+  })
+  await fs.promises.mkdir(dir, { recursive: true })
+  await writeFileAtomic(path.join(dir, fileName), manifestStr)
+}
+
+async function readManifestRaw (file: string): Promise<string | undefined> {
+  try {
+    return (await fs.promises.readFile(file)).toString()
+  } catch (err) {
+    if (err != null && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
+      return undefined
+    }
+    throw err
+  }
+}
+
+export async function updateWorkspaceManifest (dir: string, opts: {
+  updatedFields?: Partial<WorkspaceManifest>
+  updatedCatalogs?: Catalogs
+  updatedOverrides?: Record<string, string>
+  /**
+   * The complete desired audit ignore list, written to whichever spelling
+   * the manifest uses — see {@link setAuditIgnoreGhsas}. An empty array
+   * removes the list.
+   */
+  updatedAuditIgnoreGhsas?: string[]
+  addedMinimumReleaseAgeExcludes?: string[]
+  deletedLegacyKeys?: string[]
+  fileName?: FileName
+  catalogPrune?: boolean
+  allProjects?: Project[]
+  /**
+   * Package name → the versions the freshly resolved lockfile records.
+   * Supplied when a freshly resolved shared lockfile is available.
+   * `minimumReleaseAgeExcludePrune` and `trustPolicyExcludePrune` gate their
+   * cleanups; `allowBuilds` cleanup runs whenever this map is present.
+   */
+  resolvedPackageVersions?: ReadonlyMap<string, ReadonlySet<string>>
+  minimumReleaseAgeExcludePrune?: boolean
+  trustPolicyExcludePrune?: boolean
+}): Promise<void> {
+  const fileName = opts.fileName ?? DEFAULT_FILENAME
+
+  const workspaceManifestStr = await readManifestRaw(path.join(dir, fileName))
+
+  const document = workspaceManifestStr != null
+    ? yaml.parseDocument(workspaceManifestStr)
+    : new yaml.Document()
+
+  let manifest = document.toJSON()
+  validateWorkspaceManifest(manifest)
+  manifest ??= {}
+
+  const originalKeyOrder = captureKeyOrder(manifest)
+
+  let shouldBeUpdated = opts.updatedCatalogs != null && addCatalogs(manifest, opts.updatedCatalogs)
+  if (opts.catalogPrune) {
+    shouldBeUpdated = removePackagesFromWorkspaceCatalog(manifest, opts.allProjects ?? []) || shouldBeUpdated
+  }
+
+  const updatedFields = { ...opts.updatedFields }
+
+  for (const [key, value] of Object.entries(updatedFields)) {
+    if (value == null) {
+      // Clearing a field the manifest never had changes nothing. Counting it as
+      // an update would take the empty-manifest branch below and try to remove a
+      // file that may not exist.
+      if (!Object.hasOwn(manifest, key)) continue
+      shouldBeUpdated = true
+      delete manifest[key as keyof WorkspaceManifest]
+      continue
+    }
+    if (equals(manifest[key as keyof WorkspaceManifest], value)) continue
+    shouldBeUpdated = true
+    manifest[key as keyof WorkspaceManifest] = value
+  }
+  const untypedManifest = manifest as Record<string, unknown>
+  for (const key of opts.deletedLegacyKeys ?? []) {
+    if (Object.hasOwn(untypedManifest, key)) {
+      delete untypedManifest[key]
+      shouldBeUpdated = true
+    }
+  }
+  if (opts.updatedOverrides) {
+    manifest.overrides ??= {}
+    for (const [key, value] of Object.entries(opts.updatedOverrides)) {
+      if (!equals(manifest.overrides[key], value)) {
+        shouldBeUpdated = true
+        manifest.overrides[key] = value
+      }
+    }
+  }
+  if (opts.updatedAuditIgnoreGhsas != null) {
+    shouldBeUpdated = setAuditIgnoreGhsas(manifest, opts.updatedAuditIgnoreGhsas) || shouldBeUpdated
+  }
+  if (opts.resolvedPackageVersions != null) {
+    if (opts.minimumReleaseAgeExcludePrune) {
+      shouldBeUpdated = pruneExcludeList(manifest, 'minimumReleaseAgeExclude', opts.resolvedPackageVersions) || shouldBeUpdated
+    }
+    if (opts.trustPolicyExcludePrune) {
+      shouldBeUpdated = pruneExcludeList(manifest, 'trustPolicyExclude', opts.resolvedPackageVersions) || shouldBeUpdated
+    }
+    shouldBeUpdated = pruneAllowBuilds(manifest, opts.resolvedPackageVersions) || shouldBeUpdated
+  }
+  // Merged after the cleanup pass so entries approved during this install
+  // are never pruned by it in the same write.
+  if (opts.addedMinimumReleaseAgeExcludes?.length) {
+    const existing = manifest.minimumReleaseAgeExclude ?? []
+    const merged = mergePackageVersionSpecs([...existing, ...opts.addedMinimumReleaseAgeExcludes])
+    if (!equals(existing, merged)) {
+      shouldBeUpdated = true
+      manifest.minimumReleaseAgeExclude = merged
+    }
+  }
+  if (!shouldBeUpdated) {
+    return
+  }
+  if (Object.keys(manifest).length === 0) {
+    await fs.promises.rm(path.join(dir, fileName))
+    return
+  }
+
+  manifest = reorderRecursive(originalKeyOrder, manifest) as Partial<WorkspaceManifest>
+
+  patchDocument(document, manifest, { preserveScalarAliases: true })
+  propagateBlankLinesToNewPairs(document, originalKeyOrder?.keys ?? [])
+
+  await writeManifestFile(dir, fileName, document)
+}
+
+export interface NewCatalogs {
+  [catalogName: string]: {
+    [dependencyName: string]: Pick<ResolvedCatalogEntry, 'specifier'>
+  }
+}
+
+function addCatalogs (manifest: Partial<WorkspaceManifest>, newCatalogs: Catalogs): boolean {
+  let shouldBeUpdated = false
+
+  for (const catalogName in newCatalogs) {
+    let targetCatalog: Record<string, string> | undefined = catalogName === 'default'
+      ? manifest.catalog ?? manifest.catalogs?.default
+      : manifest.catalogs?.[catalogName]
+    const targetCatalogWasNil = targetCatalog == null
+
+    for (const [dependencyName, specifier] of Object.entries(newCatalogs[catalogName] ?? {})) {
+      if (specifier == null) {
+        continue
+      }
+
+      targetCatalog ??= {}
+      if (targetCatalog[dependencyName] !== specifier) {
+        targetCatalog[dependencyName] = specifier
+        shouldBeUpdated = true
+      }
+    }
+
+    if (targetCatalog == null) continue
+
+    if (targetCatalogWasNil) {
+      if (catalogName === 'default') {
+        manifest.catalog = targetCatalog
+      } else {
+        manifest.catalogs ??= {}
+        manifest.catalogs[catalogName] = targetCatalog
+      }
+    }
+  }
+
+  return shouldBeUpdated
+}
+
+function removePackagesFromWorkspaceCatalog (manifest: Partial<WorkspaceManifest>, packagesJson: Project[]): boolean {
+  let shouldBeUpdated = false
+
+  if (packagesJson.length === 0 || (manifest.catalog == null && manifest.catalogs == null)) {
+    return shouldBeUpdated
+  }
+  const packageReferences: Record<string, Set<string>> = {}
+
+  for (const pkg of packagesJson) {
+    const pkgManifest = pkg.manifest
+    const dependencyTypes = [
+      pkgManifest.dependencies,
+      pkgManifest.devDependencies,
+      pkgManifest.optionalDependencies,
+      pkgManifest.peerDependencies,
+    ]
+
+    for (const deps of dependencyTypes) {
+      if (!deps) continue
+
+      for (const [pkgName, version] of Object.entries(deps)) {
+        addPackageReference(packageReferences, pkgName, version)
+      }
+    }
+  }
+
+  for (const [selector, version] of Object.entries(manifest.overrides ?? {})) {
+    if (!version.startsWith('catalog:')) {
+      continue
+    }
+    let pkgName: string
+    try {
+      pkgName = parsePkgAndParentSelector(selector).targetPkg.name
+    } catch {
+      continue
+    }
+    addPackageReference(packageReferences, pkgName, version)
+  }
+
+  if (manifest.catalog) {
+    const packagesToRemove = Object.keys(manifest.catalog).filter(pkg =>
+      !packageReferences[pkg]?.has('catalog:')
+    )
+
+    for (const pkg of packagesToRemove) {
+      delete manifest.catalog![pkg]
+      shouldBeUpdated = true
+    }
+
+    if (Object.keys(manifest.catalog).length === 0) {
+      delete manifest.catalog
+      shouldBeUpdated = true
+    }
+  }
+
+  if (manifest.catalogs) {
+    const catalogsToRemove: string[] = []
+
+    for (const [catalogName, catalog] of Object.entries(manifest.catalogs)) {
+      if (!catalog) continue
+
+      const packagesToRemove = Object.keys(catalog).filter(pkg => {
+        const references = packageReferences[pkg]
+        return !references?.has(`catalog:${catalogName}`) && !references?.has('catalog:')
+      })
+
+      for (const pkg of packagesToRemove) {
+        delete catalog[pkg]
+        shouldBeUpdated = true
+      }
+
+      if (Object.keys(catalog).length === 0) {
+        catalogsToRemove.push(catalogName)
+        shouldBeUpdated = true
+      }
+    }
+
+    for (const catalogName of catalogsToRemove) {
+      delete manifest.catalogs[catalogName]
+    }
+
+    if (Object.keys(manifest.catalogs).length === 0) {
+      delete manifest.catalogs
+      shouldBeUpdated = true
+    }
+  }
+
+  return shouldBeUpdated
+}
+
+function addPackageReference (packageReferences: Record<string, Set<string>>, pkgName: string, version: string): void {
+  if (!packageReferences[pkgName]) {
+    packageReferences[pkgName] = new Set()
+  }
+  packageReferences[pkgName].add(version)
+}
+
+type ExcludeListField = 'minimumReleaseAgeExclude' | 'trustPolicyExclude'
+
+// The `minimumReleaseAgeExcludePrune` / `trustPolicyExcludePrune` pass over
+// the exclude list `field` names. An entry is dropped when the freshly
+// resolved lockfile no longer contains what it names: exact versions that
+// were not resolved are dropped (the entry goes away once none remain), and a
+// bare-name entry goes away when the package is absent entirely. Glob patterns
+// always stay — they are forward-looking and can't be proven stale. Entries
+// that fail to parse stay untouched so cleanup never breaks an install.
+function pruneExcludeList (
+  manifest: Partial<WorkspaceManifest> & { [key in ExcludeListField]?: string[] },
+  field: ExcludeListField,
+  resolvedPackageVersions: ReadonlyMap<string, ReadonlySet<string>>
+): boolean {
+  const excludes = manifest[field]
+  if (excludes == null || excludes.length === 0) {
+    return false
+  }
+  const survivingSpecs: string[] = []
+  let changed = false
+  for (const entry of excludes) {
+    let packageName: string
+    let exactVersions: string[]
+    try {
+      const rule = parseVersionPolicyRule(entry)
+      packageName = rule.packageName
+      exactVersions = rule.exactVersions
+    } catch {
+      survivingSpecs.push(entry)
+      continue
+    }
+    if (exactVersions.length === 0) {
+      if (packageName.includes('*') || resolvedPackageVersions.has(packageName)) {
+        survivingSpecs.push(entry)
+      } else {
+        changed = true
+      }
+      continue
+    }
+    const resolved = resolvedPackageVersions.get(packageName)
+    const survivingVersions = exactVersions.filter((version) => resolved?.has(version))
+    if (survivingVersions.length === exactVersions.length) {
+      survivingSpecs.push(entry)
+    } else if (survivingVersions.length > 0) {
+      survivingSpecs.push(...mergePackageVersionSpecs([`${packageName}@${survivingVersions.join(' || ')}`]))
+      changed = true
+    } else {
+      changed = true
+    }
+  }
+  if (!changed) {
+    return false
+  }
+  if (survivingSpecs.length === 0) {
+    delete manifest[field]
+  } else {
+    manifest[field] = survivingSpecs
+  }
+  return true
+}
+
+/**
+ * Set the audit ignore list to `ghsas` (the complete desired list) in
+ * whichever spelling the manifest uses — the canonical `audit.ignore` wins
+ * over the deprecated `auditConfig.ignoreGhsas`, matching the reader's
+ * precedence, so a stale canonical list can't shadow the update on the next
+ * read. When both spellings are present, the shadowed deprecated list is
+ * removed as part of the write. `auditConfig.ignoreGhsas` is created when
+ * neither is present. An empty `ghsas` removes the list, dropping its parent
+ * block when nothing else remains in it. Returns whether anything changed.
+ */
+function setAuditIgnoreGhsas (manifest: Partial<WorkspaceManifest>, ghsas: string[]): boolean {
+  let changed = false
+  if (manifest.audit?.ignore != null) {
+    if (ghsas.length === 0) {
+      delete manifest.audit.ignore
+      if (Object.keys(manifest.audit).length === 0) {
+        delete manifest.audit
+      }
+      changed = true
+    } else if (!equals(manifest.audit.ignore, ghsas)) {
+      manifest.audit.ignore = ghsas
+      changed = true
+    }
+    if (manifest.auditConfig?.ignoreGhsas != null) {
+      changed = removeAuditConfigIgnoreGhsas(manifest) || changed
+    }
+    return changed
+  }
+  if (ghsas.length === 0) {
+    return removeAuditConfigIgnoreGhsas(manifest)
+  }
+  if (equals(manifest.auditConfig?.ignoreGhsas, ghsas)) {
+    return false
+  }
+  manifest.auditConfig = { ...manifest.auditConfig, ignoreGhsas: ghsas }
+  return true
+}
+
+function removeAuditConfigIgnoreGhsas (manifest: Partial<WorkspaceManifest>): boolean {
+  if (manifest.auditConfig?.ignoreGhsas == null) {
+    return false
+  }
+  delete manifest.auditConfig.ignoreGhsas
+  if (Object.keys(manifest.auditConfig).length === 0) {
+    delete manifest.auditConfig
+  }
+  return true
+}
+
+interface KeyOrderNode {
+  keys: string[]
+  children: Record<string, KeyOrderNode>
+}
+
+// Captures only the key order at each nested level of a plain-object value,
+// without duplicating the values themselves. Used as a lightweight snapshot of
+// the original manifest layout so `reorderRecursive` can decide where to place
+// new keys without holding a structural clone of the entire manifest.
+function captureKeyOrder (value: unknown): KeyOrderNode | null {
+  if (!isPlainObject(value)) return null
+  const children: Record<string, KeyOrderNode> = {}
+  for (const [key, child] of Object.entries(value)) {
+    const childOrder = captureKeyOrder(child)
+    if (childOrder != null) {
+      children[key] = childOrder
+    }
+  }
+  return { keys: Object.keys(value), children }
+}
+
+// Reorders the keys of `current` based on how the keys were arranged in the
+// original manifest. Two "sorted" layouts are recognized:
+//
+//   1. fully alphabetical
+//   2. a leading "packages" key followed by alphabetical
+//
+// When the original matches one of those layouts, new keys are inserted in
+// alphabetical position (preserving the leading "packages" if applicable).
+// Otherwise the existing order is preserved and new keys are appended at the
+// end. New manifests (no original keys) default to layout (2) to match the
+// pnpm convention of placing "packages" first.
+function reorderRecursive (originalOrder: KeyOrderNode | null, current: unknown): unknown {
+  if (!isPlainObject(current)) return current
+
+  const originalKeys = originalOrder?.keys ?? []
+  const originalKeySet = new Set(originalKeys)
+  const survivingOriginal = originalKeys.filter((key) => Object.hasOwn(current, key))
+  const newKeys = Object.keys(current).filter((key) => !originalKeySet.has(key))
+
+  let orderedKeys: string[]
+  if (newKeys.length === 0) {
+    orderedKeys = survivingOriginal
+  } else {
+    const layout = detectKeyLayout(originalKeys)
+    orderedKeys = layout === 'unordered'
+      ? [...survivingOriginal, ...newKeys]
+      : sortKeys([...survivingOriginal, ...newKeys], layout)
+  }
+
+  const result: Record<string, unknown> = {}
+  for (const key of orderedKeys) {
+    result[key] = reorderRecursive(originalOrder?.children[key] ?? null, current[key])
+  }
+  return result
+}
+
+type KeyLayout = 'unordered' | 'alphabetical' | 'packages-first'
+
+function detectKeyLayout (keys: string[]): KeyLayout {
+  if (keys.length === 0) return 'packages-first'
+  const packagesFirst = keys[0] === 'packages'
+  const start = packagesFirst ? 1 : 0
+  for (let i = start + 1; i < keys.length; i++) {
+    if (lexCompare(keys[i - 1], keys[i]) > 0) return 'unordered'
+  }
+  return packagesFirst ? 'packages-first' : 'alphabetical'
+}
+
+function sortKeys (keys: string[], layout: 'alphabetical' | 'packages-first'): string[] {
+  if (layout === 'packages-first' && keys.includes('packages')) {
+    return ['packages', ...keys.filter((key) => key !== 'packages').sort(lexCompare)]
+  }
+  return [...keys].sort(lexCompare)
+}
+
+function isPlainObject (value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === 'object' && !Array.isArray(value)
+}
+
+// New top-level pairs are inserted without `spaceBefore`, which glues them to
+// the preceding pair even when the document otherwise uses blank-line
+// separators between fields. Detect that style and propagate it to inserted
+// entries (including reordering-induced changes such as a new key sorting to
+// the front, which demotes the previously-first existing pair to a position
+// that should now have a blank before it).
+//
+// The yaml library reads `spaceBefore` from the pair's key node when rendering
+// block collections, not from the pair itself.
+function propagateBlankLinesToNewPairs (document: yaml.Document, originalTopLevelKeys: readonly string[]): void {
+  if (!yaml.isMap(document.contents)) return
+  const items = document.contents.items
+  const keyOf = (pair: yaml.Pair): yaml.Scalar<string> | null =>
+    yaml.isScalar(pair.key) && typeof pair.key.value === 'string'
+      ? pair.key as yaml.Scalar<string>
+      : null
+
+  const originalKeySet = new Set(originalTopLevelKeys)
+  // The originally-first pair never had `spaceBefore` set even in a
+  // blank-line-separated document — exclude it when judging the document's
+  // style so we still detect the style when that pair has been moved.
+  const originalFirstKey = originalTopLevelKeys[0] ?? null
+  let originalNonFirstCount = 0
+  let originalNonFirstWithBlank = 0
+  for (const item of items) {
+    const k = keyOf(item)
+    if (k == null || !originalKeySet.has(k.value) || k.value === originalFirstKey) continue
+    originalNonFirstCount++
+    if (k.spaceBefore) originalNonFirstWithBlank++
+  }
+  const usesBlankLineStyle =
+    originalNonFirstCount > 0 && originalNonFirstWithBlank === originalNonFirstCount
+
+  for (let i = 1; i < items.length; i++) {
+    const key = keyOf(items[i])
+    if (key == null || key.spaceBefore) continue
+    if (usesBlankLineStyle) {
+      key.spaceBefore = true
+      continue
+    }
+    if (originalKeySet.has(key.value)) continue
+    const nextKey = items[i + 1] ? keyOf(items[i + 1]) : null
+    const prevKey = items[i - 1] ? keyOf(items[i - 1]) : null
+    if (nextKey?.spaceBefore || (nextKey == null && prevKey?.spaceBefore)) {
+      key.spaceBefore = true
+    }
+  }
+}
+
+// Drops undecided placeholder entries whose package is provably absent from
+// the resolved lockfile. Explicit decisions, keys with no provable package
+// name, and entries for still-resolved packages always stay.
+function pruneAllowBuilds (
+  manifest: Partial<WorkspaceManifest>,
+  resolvedPackageVersions: ReadonlyMap<string, ReadonlySet<string>>
+): boolean {
+  const allowBuilds = manifest.allowBuilds
+  if (allowBuilds == null) {
+    return false
+  }
+  let changed = false
+  for (const [key, value] of Object.entries(allowBuilds)) {
+    if (value !== UNDECIDED_ALLOW_BUILD) continue
+    const packageName = packageNameFromAllowBuildKey(key)
+    if (packageName == null || resolvedPackageVersions.has(packageName)) continue
+    delete allowBuilds[key]
+    changed = true
+  }
+  if (changed && Object.keys(allowBuilds).length === 0) {
+    delete manifest.allowBuilds
+  }
+  return changed
+}

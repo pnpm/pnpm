@@ -1,21 +1,33 @@
 name: Audit
 
-on: [push, pull_request]
+on:
+  push:
+    # Skip the redundant run on the merge queue's temporary
+    # `gh-readonly-queue/**` branches; the pull_request run already covered it.
+    branches-ignore:
+      - 'gh-readonly-queue/**'
+  pull_request:
 
 permissions:
   contents: read # to fetch code (actions/checkout)
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   audit:
     name: Audit dependencies
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
 
     steps:
     - name: Checkout Commit
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-    - name: Install pnpm
-      uses: pnpm/action-setup@6e7bdbda5fe05107efc88b23b7ed00aa05f84ca0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
-        standalone: true
+        persist-credentials: false
+    - name: Install pnpm
+      uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+      with:
+        install: false
     - name: Audit
       run: pn audit

@@ -1,0 +1,435 @@
+// cspell:ignore checkin
+import { execSync } from 'node:child_process'
+import os from 'node:os'
+import path from 'node:path'
+
+import { PnpmError } from '@pnpm/error'
+import { globalWarn } from '@pnpm/logger'
+import type { VerifiedFileIntegrity } from '@pnpm/store.cafs'
+import type { FilesMap, PackageFilesResponse, SideEffectsDiff } from '@pnpm/store.cafs-types'
+import type { StoreIndex } from '@pnpm/store.index'
+import type { BundledManifest } from '@pnpm/types'
+import { WorkerPool } from '@rushstack/worker-pool'
+import isWindows from 'is-windows'
+import pLimit from 'p-limit'
+
+import type {
+  AddDirToStoreMessage,
+  HardLinkDirMessage,
+  LinkPkgMessage,
+  SymlinkAllModulesMessage,
+  TarballExtractMessage,
+} from './types.js'
+
+let workerPool: WorkerPool | undefined
+
+/**
+ * Store verification runs in the workers, so each one tallies the files
+ * it re-hashed and the time that took, and hands its share back with
+ * every response (see `takeVerifiedFileIntegrity` in `@pnpm/store.cafs`).
+ * This is the sum across all of them for the lifetime of the process.
+ *
+ * An install reports its own share by snapshotting this when it starts
+ * and diffing at the end. That is exact for one install at a time,
+ * which is every install except the per-project loop a recursive
+ * command with dedicated lockfiles runs at `workspaceConcurrency`:
+ * there, overlapping projects can pick up each other's hashing.
+ *
+ * Separating those would take an `AsyncLocalStorage` scope per install,
+ * which is not worth it here: constructing one costs the whole process
+ * ~5x on promise-heavy work under Node's pre-`AsyncContextFrame`
+ * implementation (44ms -> 245ms over 2M awaits, paid whether or not the
+ * scope is entered), and pnpm supports Node 22.13, where that is the
+ * implementation. Every install would pay it so that a diagnostic reads
+ * correctly in one non-default configuration. The alternative with no
+ * global cost is threading the tally through the store controller's
+ * per-request options into `readPkgFromCafs`.
+ */
+const verifiedFileIntegrity: VerifiedFileIntegrity = { files: 0, ms: 0 }
+
+export function verifiedFileIntegritySnapshot (): VerifiedFileIntegrity {
+  return { ...verifiedFileIntegrity }
+}
+
+export function verifiedFileIntegritySince (baseline: VerifiedFileIntegrity): VerifiedFileIntegrity {
+  return {
+    files: verifiedFileIntegrity.files - baseline.files,
+    ms: verifiedFileIntegrity.ms - baseline.ms,
+  }
+}
+
+function addVerifiedFileIntegrity (reported: VerifiedFileIntegrity | undefined): void {
+  if (reported == null) return
+  verifiedFileIntegrity.files += reported.files
+  verifiedFileIntegrity.ms += reported.ms
+}
+
+export async function restartWorkerPool (): Promise<void> {
+  await finishWorkers()
+  workerPool = createTarballWorkerPool()
+}
+
+export async function finishWorkers (): Promise<void> {
+  // @ts-expect-error
+  const finish = global.finishWorkers
+  // @ts-expect-error
+  global.finishWorkers = undefined
+  await finish?.()
+}
+
+function createTarballWorkerPool (): WorkerPool {
+  const maxWorkers = calcMaxWorkers()
+  const workerPool = new WorkerPool({
+    id: 'pnpm',
+    maxWorkers,
+    workerScriptPath: path.join(import.meta.dirname, 'worker.js'),
+  })
+  // @ts-expect-error
+  if (global.finishWorkers) {
+    // @ts-expect-error
+    const previous = global.finishWorkers
+    // @ts-expect-error
+    global.finishWorkers = async () => {
+      await previous()
+      await workerPool.finishAsync()
+    }
+  } else {
+    // @ts-expect-error
+    global.finishWorkers = () => workerPool.finishAsync()
+  }
+  return workerPool
+}
+
+export function calcMaxWorkers (): number {
+  if (process.env.PNPM_MAX_WORKERS) {
+    return parseInt(process.env.PNPM_MAX_WORKERS)
+  }
+  if (process.env.PNPM_WORKERS) {
+    const idleCPUs = Math.abs(parseInt(process.env.PNPM_WORKERS))
+    return Math.max(2, availableParallelism() - idleCPUs) - 1
+  }
+  return Math.max(1, availableParallelism() - 1)
+}
+
+function availableParallelism (): number {
+  return os.availableParallelism?.() ?? os.cpus().length
+}
+
+interface AddFilesResult {
+  filesMap: FilesMap
+  manifest?: BundledManifest
+  requiresBuild: boolean
+  requiresPrepare?: boolean
+  integrity?: string
+  sideEffects?: SideEffectsDiff
+}
+
+type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files' | 'appendManifest' | 'includeNodeModules' | 'requiresPrepare'> & {
+  storeIndex: StoreIndex
+}
+
+export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<AddFilesResult> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<AddFilesResult>((resolve, reject) => {
+    localWorker.once('message', ({ status, error, value, indexWrites }) => {
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError(error.code ?? 'GIT_FETCH_FAILED', error.message as string))
+        return
+      }
+      if (indexWrites) {
+        // Write immediately so that subsequent worker reads (e.g. side effects)
+        // see the committed data without waiting for nextTick.
+        // A throw must reject rather than escape the message callback, where it
+        // would surface as an uncaughtException and leave this promise pending —
+        // e.g. ReadOnlyStoreIndex refusing the write under frozenStore.
+        try {
+          opts.storeIndex.setRawMany(indexWrites)
+        } catch (err: unknown) {
+          reject(err as Error)
+          return
+        }
+      }
+      resolve(value)
+    })
+    localWorker.postMessage({
+      type: 'add-dir',
+      storeDir: opts.storeDir,
+      dir: opts.dir,
+      filesIndexFile: opts.filesIndexFile,
+      sideEffectsCacheKey: opts.sideEffectsCacheKey,
+      readManifest: opts.readManifest,
+      pkg: opts.pkg,
+      appendManifest: opts.appendManifest,
+      files: opts.files,
+      includeNodeModules: opts.includeNodeModules,
+      requiresPrepare: opts.requiresPrepare,
+    })
+  })
+}
+
+export class TarballIntegrityError extends PnpmError {
+  public readonly found: string
+  public readonly expected: string
+  public readonly algorithm: string
+  public readonly sri: string
+  public readonly url: string
+
+  constructor (opts: {
+    attempts?: number
+    found: string
+    expected: string
+    algorithm: string
+    sri: string
+    url: string
+  }) {
+    super('TARBALL_INTEGRITY',
+      `Got unexpected checksum for "${opts.url}". Wanted "${opts.expected}". Got "${opts.found}".`,
+      {
+        attempts: opts.attempts,
+        hint: `The downloaded tarball does not match the integrity recorded in the lockfile. pnpm will not silently overwrite the locked integrity — that would defeat the lockfile's protection if a registry or proxy is serving tampered content.
+
+If you trust the new content (legitimate republish, or stale local metadata cache):
+
+  - Run "pnpm store prune" and retry, in case only the metadata cache is out of date.
+  - Run "pnpm install --update-checksums" to refresh the locked integrity from the registry.
+
+If you did not expect this package to change, treat it as a potential supply-chain issue and verify the new content before re-running with --update-checksums.`,
+      }
+    )
+    this.found = opts.found
+    this.expected = opts.expected
+    this.algorithm = opts.algorithm
+    this.sri = opts.sri
+    this.url = opts.url
+  }
+}
+
+type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeDir' | 'filesIndexFile' | 'pkgId' | 'integrity' | 'readManifest' | 'pkg' | 'appendManifest' | 'ignoreFilePattern'> & {
+  storeIndex: StoreIndex
+  url: string
+}
+
+export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Promise<AddFilesResult> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<AddFilesResult>((resolve, reject) => {
+    localWorker.once('message', ({ status, error, value, indexWrites }) => {
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        if (error.type === 'integrity_validation_failed') {
+          reject(new TarballIntegrityError({
+            ...error,
+            url: opts.url,
+          }))
+          return
+        }
+        reject(new PnpmError(error.code ?? 'TARBALL_EXTRACT', `Failed to add tarball from "${opts.url}" to store: ${error.message as string}`))
+        return
+      }
+      if (indexWrites) {
+        // See addFilesFromDir: a throw must reject, not escape the callback.
+        try {
+          opts.storeIndex.queueWrites(indexWrites)
+        } catch (err: unknown) {
+          reject(err as Error)
+          return
+        }
+      }
+      resolve(value)
+    })
+    localWorker.postMessage({
+      type: 'extract',
+      buffer: opts.buffer,
+      storeDir: opts.storeDir,
+      integrity: opts.integrity,
+      filesIndexFile: opts.filesIndexFile,
+      pkgId: opts.pkgId,
+      readManifest: opts.readManifest,
+      pkg: opts.pkg,
+      appendManifest: opts.appendManifest,
+      ignoreFilePattern: opts.ignoreFilePattern,
+    } satisfies TarballExtractMessage)
+  })
+}
+
+
+export interface ReadPkgFromCafsContext {
+  storeDir: string
+  verifyStoreIntegrity: boolean
+  strictStorePkgContentCheck?: boolean
+  frozenStore?: boolean
+}
+
+export interface ReadPkgFromCafsOptions {
+  readManifest?: boolean
+  expectedPkg?: { name?: string, version?: string }
+}
+
+export interface ReadPkgFromCafsResult {
+  verified: boolean
+  files: PackageFilesResponse
+  bundledManifest?: BundledManifest
+}
+
+export async function readPkgFromCafs (
+  ctx: ReadPkgFromCafsContext,
+  filesIndexFile: string,
+  opts?: ReadPkgFromCafsOptions
+): Promise<ReadPkgFromCafsResult> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise((resolve, reject) => {
+    localWorker.once('message', ({ status, error, value, warnings, verifiedFileIntegrity }) => {
+      workerPool!.checkinWorker(localWorker)
+      addVerifiedFileIntegrity(verifiedFileIntegrity)
+      if (status === 'error') {
+        reject(new PnpmError(error.code ?? 'READ_FROM_STORE', error.message as string, { hint: error.hint }))
+        return
+      }
+      if (warnings) {
+        for (const warning of warnings) {
+          globalWarn(warning)
+        }
+      }
+      resolve(value)
+    })
+    localWorker.postMessage({
+      type: 'readPkgFromCafs',
+      filesIndexFile,
+      ...ctx,
+      ...opts,
+    })
+  })
+}
+
+// The workers are doing lots of file system operations
+// so, running them in parallel helps only to a point.
+// With local experimenting it was discovered that running 4 workers gives the best results.
+// Adding more workers actually makes installation slower.
+const limitImportingPackage = pLimit(4)
+
+export async function importPackage (
+  opts: Omit<LinkPkgMessage, 'type'>
+): Promise<{ isBuilt: boolean, importMethod: string | undefined }> {
+  return limitImportingPackage(async () => {
+    if (!workerPool) {
+      workerPool = createTarballWorkerPool()
+    }
+    const localWorker = await workerPool.checkoutWorkerAsync(true)
+    return new Promise<{ isBuilt: boolean, importMethod: string | undefined }>((resolve, reject) => {
+      localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+        workerPool!.checkinWorker(localWorker)
+        if (status === 'error') {
+          reject(new PnpmError(error.code ?? 'LINKING_FAILED', `[importPackage ${opts.targetDir}] ${error.message as string}`))
+          return
+        }
+        resolve(value)
+      })
+      localWorker.postMessage({
+        type: 'link',
+        ...opts,
+      })
+    })
+  })
+}
+
+export async function symlinkAllModules (
+  opts: Omit<SymlinkAllModulesMessage, 'type'>
+): Promise<{ isBuilt: boolean, importMethod: string | undefined }> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<{ isBuilt: boolean, importMethod: string | undefined }>((resolve, reject) => {
+    localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        const hint = opts.deps?.[0]?.modules != null ? createErrorHint(error, opts.deps[0].modules) : undefined
+        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', `[symlinkAllModules] ${error.message as string}`, { hint }))
+        return
+      }
+      resolve(value)
+    })
+    localWorker.postMessage({
+      type: 'symlinkAllModules',
+      ...opts,
+    } as SymlinkAllModulesMessage)
+  })
+}
+
+function createErrorHint (err: Error, checkedDir: string): string | undefined {
+  if ('code' in err && err.code === 'EISDIR' && isWindows()) {
+    const checkedDrive = `${checkedDir.split(':')[0]}:`
+    if (isDriveExFat(checkedDrive)) {
+      return `The "${checkedDrive}" drive is exFAT, which does not support symlinks. This will cause installation to fail. You can set the node-linker to "hoisted" to avoid this issue.`
+    }
+  }
+  return undefined
+}
+
+// In Windows system exFAT drive, symlink will result in error.
+function isDriveExFat (drive: string): boolean {
+  if (!/^[a-z]:$/i.test(drive)) {
+    throw new Error(`${drive} is not a valid disk on Windows`)
+  }
+  try {
+    // cspell:disable-next-line
+    const output = execSync(`powershell -Command "Get-Volume -DriveLetter ${drive.replace(':', '')} | Select-Object -ExpandProperty FileSystem"`).toString()
+    const lines = output.trim().split('\n')
+    const name = lines[0].trim()
+    return name === 'exFAT'
+  } catch {
+    return false
+  }
+}
+
+export async function hardLinkDir (src: string, destDirs: string[]): Promise<void> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  await new Promise<void>((resolve, reject) => {
+    localWorker.once('message', ({ status, error }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError(error.code ?? 'HARDLINK_FAILED', error.message as string))
+        return
+      }
+      resolve()
+    })
+    localWorker.postMessage({
+      type: 'hardLinkDir',
+      src,
+      destDirs,
+    } as HardLinkDirMessage)
+  })
+}
+
+export async function initStoreDir (storeDir: string): Promise<void> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<void>((resolve, reject) => {
+    localWorker.once('message', ({ status, error }) => {
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError(error.code ?? 'INIT_CAFS_FAILED', error.message as string))
+        return
+      }
+      resolve()
+    })
+    localWorker.postMessage({
+      type: 'init-store',
+      storeDir,
+    })
+  })
+}

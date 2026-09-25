@@ -1,3 +1,14 @@
 * text eol=lf
 
 *.tgz binary
+
+# Test fixtures embed package.json/lockfiles that name real packages purely as
+# test data, never as dependencies we install. Mark the fixture trees as
+# generated so GitHub's dependency graph (and therefore Dependabot alerts and
+# automatic security PRs) ignores them. This also collapses fixtures in diffs.
+# The `@pnpm/test-fixtures` helper package (__utils__/test-fixtures) is real
+# source, so it is intentionally not matched here.
+**/fixtures/** linguist-generated
+**/__fixtures__/** linguist-generated
+**/findPackages-fixtures/** linguist-generated
+pnpr/.fixtures/** linguist-generated

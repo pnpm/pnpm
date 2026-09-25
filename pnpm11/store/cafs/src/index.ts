@@ -1,0 +1,116 @@
+import crypto from 'node:crypto'
+
+import type {
+  AddToStoreResult,
+  FilesIndex,
+  FileWriteResult,
+  PackageFileInfo,
+  PackageFiles,
+  SideEffects,
+  SideEffectsDiff,
+} from '@pnpm/store.cafs-types'
+
+import { addFilesFromDir } from './addFilesFromDir.js'
+import { addFilesFromTarball } from './addFilesFromTarball.js'
+import {
+  buildFileMapsFromIndex,
+  checkPkgFilesIntegrity,
+  type Integrity,
+  type PackageFilesIndex,
+  takeVerifiedFileIntegrity,
+  type VerifiedFileIntegrity,
+  verifyFileIntegrity,
+  verifyFileIntegrityAsync,
+  type VerifyResult,
+} from './checkPkgFilesIntegrity.js'
+import {
+  contentPathFromHex,
+  type FileType,
+  getFilePathByModeInCafs,
+  modeIsExecutable,
+} from './getFilePathInCafs.js'
+import { normalizeBundledManifest } from './normalizeBundledManifest.js'
+import { parseJsonBufferSync } from './parseJson.js'
+import { writeBufferToCafs } from './writeBufferToCafs.js'
+
+export const HASH_ALGORITHM = 'sha512'
+
+export { type BundledManifest } from '@pnpm/types'
+export { normalizeBundledManifest, parseJsonBufferSync }
+
+export {
+  buildFileMapsFromIndex,
+  checkPkgFilesIntegrity,
+  contentPathFromHex,
+  type FilesIndex,
+  type FileType,
+  getFilePathByModeInCafs,
+  type Integrity,
+  type PackageFileInfo,
+  type PackageFiles,
+  type PackageFilesIndex,
+  type SideEffects,
+  type SideEffectsDiff,
+  takeVerifiedFileIntegrity,
+  type VerifiedFileIntegrity,
+  verifyFileIntegrity,
+  verifyFileIntegrityAsync,
+  type VerifyResult,
+}
+
+export type CafsLocker = Map<string, number>
+
+export interface CreateCafsOpts {
+  ignoreFile?: (filename: string) => boolean
+  cafsLocker?: CafsLocker
+}
+
+export interface CafsFunctions {
+  addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean, includeNodeModules?: boolean }) => AddToStoreResult
+  addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean, ignore?: (filename: string) => boolean) => AddToStoreResult
+  addFile: (buffer: Buffer, mode: number) => FileWriteResult
+  getFilePathByModeInCafs: (digest: string, mode: number) => string
+}
+
+export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: CreateCafsOpts = {}): CafsFunctions {
+  const _writeBufferToCafs = writeBufferToCafs.bind(null, cafsLocker ?? new Map(), storeDir)
+  const addBuffer = addBufferToCafs.bind(null, _writeBufferToCafs)
+  return {
+    addFilesFromDir: addFilesFromDir.bind(null, addBuffer),
+    addFilesFromTarball: (tarballBuffer, readManifest, callIgnore) =>
+      addFilesFromTarball(addBuffer, tarballBuffer, readManifest, combineIgnore(ignoreFile, callIgnore)),
+    addFile: addBuffer,
+    getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, storeDir),
+  }
+}
+
+function combineIgnore (
+  a?: (filename: string) => boolean,
+  b?: (filename: string) => boolean
+): ((filename: string) => boolean) | undefined {
+  if (!a) return b
+  if (!b) return a
+  return (filename) => a(filename) || b(filename)
+}
+
+type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined, integrity: Integrity) => { checkedAt: number, filePath: string }
+
+function addBufferToCafs (
+  writeBufferToCafs: WriteBufferToCafs,
+  buffer: Buffer,
+  mode: number
+): FileWriteResult {
+  // Calculating the integrity of the file is surprisingly fast.
+  // 30K files are calculated in 1 second.
+  // Hence, from a performance perspective, there is no win in fetching the package index file from the registry.
+  const digest = crypto.hash(HASH_ALGORITHM, buffer, 'hex')
+  const isExecutable = modeIsExecutable(mode)
+  const fileDest = contentPathFromHex(isExecutable ? 'exec' : 'nonexec', digest)
+  const { checkedAt, filePath } = writeBufferToCafs(
+    buffer,
+    fileDest,
+    isExecutable ? 0o755 : undefined,
+    { digest, algorithm: HASH_ALGORITHM }
+  )
+  return { checkedAt, filePath, digest }
+}

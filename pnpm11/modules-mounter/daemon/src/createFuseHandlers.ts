@@ -1,0 +1,191 @@
+// cspell:ignore ents
+import fs from 'node:fs'
+
+import { type LockfileObject, type PackageSnapshot, readWantedLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
+import {
+  nameVerFromPkgSnapshot,
+} from '@pnpm/lockfile.utils'
+import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { pickStoreIndexKey, StoreIndex } from '@pnpm/store.index'
+import type { DepPath } from '@pnpm/types'
+import Fuse from 'fuse-native'
+import schemas from 'hyperdrive-schemas'
+
+import * as cafsExplorer from './cafsExplorer.js'
+import { makeVirtualNodeModules } from './makeVirtualNodeModules.js'
+
+const TIME = new Date()
+const STAT_DEFAULT = {
+  mtime: TIME,
+  atime: TIME,
+  ctime: TIME,
+  nlink: 1,
+  uid: process.getuid ? process.getuid() : 0,
+  gid: process.getgid ? process.getgid() : 0,
+}
+
+export interface FuseHandlers {
+  open: (p: string, flags: string | number, cb: (exitCode: number, fd?: number) => void) => void
+  release: (p: string, fd: number, cb: (exitCode: number) => void) => void
+  read: (p: string, fd: number, buffer: Buffer, length: number, position: number, cb: (readBytes: number) => void) => void
+  readlink: (p: string, cb: (returnCode: number, target?: string) => void) => void
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  getattr: (p: string, cb: (returnCode: number, files?: any) => void) => void
+  readdir: (p: string, cb: (returnCode: number, files?: string[]) => void) => void
+}
+
+export async function createFuseHandlers (lockfileDir: string, storeDir: string): Promise<FuseHandlers> {
+  const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
+  if (lockfile == null) throw new Error('Cannot generate a .pnp.cjs without a lockfile')
+  return createFuseHandlersFromLockfile(lockfile, storeDir)
+}
+
+export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeDir: string): FuseHandlers {
+  const storeIndex = new StoreIndex(storeDir)
+  const pkgSnapshotCache = new Map<string, { name: string, version: string, pkgSnapshot: PackageSnapshot, index: PackageFilesIndex }>()
+  const virtualNodeModules = makeVirtualNodeModules(lockfile)
+  return {
+    open (p: string, flags: string | number, cb: (exitCode: number, fd?: number) => void) {
+      const dirEnt = getDirEnt(p)
+      if (dirEnt?.entryType !== 'index') {
+        cb(-1)
+        return
+      }
+      const fileInfo = dirEnt.index.files.get(dirEnt.subPath)
+      if (!fileInfo) {
+        cb(-1)
+        return
+      }
+      const filePathInStore = getFilePathByModeInCafs(storeDir, fileInfo.digest, fileInfo.mode)
+      fs.open(filePathInStore, flags, (err, fd) => {
+        if (err != null) {
+          cb(-1)
+          return
+        }
+        cb(0, fd)
+      })
+    },
+    release (p: string, fd: number, cb: (exitCode: number) => void) {
+      fs.close(fd, (err) => {
+        cb((err != null) ? -1 : 0)
+      })
+    },
+    read (p: string, fd: number, buffer: Buffer, length: number, position: number, cb: (readBytes: number) => void) {
+      fs.read(fd, buffer, 0, length, position, (err, bytesRead) => {
+        if (err != null) {
+          cb(-1)
+          return
+        }
+        cb(bytesRead)
+      })
+    },
+    readlink (p: string, cb: (returnCode: number, target?: string) => void) {
+      const dirEnt = getDirEnt(p)
+      if (dirEnt?.entryType !== 'symlink') {
+        cb(Fuse.ENOENT)
+        return
+      }
+      cb(0, dirEnt.target)
+    },
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+    getattr (p: string, cb: (returnCode: number, files?: any) => void) {
+      const dirEnt = getDirEnt(p)
+      if (dirEnt == null) {
+        cb(Fuse.ENOENT)
+        return
+      }
+      if (dirEnt.entryType === 'directory' || dirEnt.entryType === 'index' && !dirEnt.subPath) {
+        cb(0, schemas.Stat.directory({
+          ...STAT_DEFAULT,
+          size: 1,
+        }))
+        return
+      }
+      if (dirEnt.entryType === 'symlink') {
+        cb(0, schemas.Stat.symlink({
+          ...STAT_DEFAULT,
+          size: 1,
+        }))
+        return
+      }
+      if (dirEnt.entryType === 'index') {
+        switch (cafsExplorer.dirEntityType(dirEnt.index, dirEnt.subPath)) {
+          case 'file': {
+            const fileInfo = dirEnt.index.files.get(dirEnt.subPath)!
+            cb(0, schemas.Stat.file({
+              ...STAT_DEFAULT,
+              mode: fileInfo.mode,
+              size: fileInfo.size,
+            }))
+            return
+          }
+          case 'directory':
+            cb(0, schemas.Stat.directory({
+              ...STAT_DEFAULT,
+              size: 1,
+            }))
+            return
+          default:
+            cb(Fuse.ENOENT)
+            return
+        }
+      }
+      cb(Fuse.ENOENT)
+    },
+    readdir,
+  }
+  function readdir (p: string, cb: (returnCode: number, files?: string[]) => void) {
+    const dirEnt = getDirEnt(p)
+    if (dirEnt?.entryType === 'index') {
+      const dirEnts = cafsExplorer.readdir(dirEnt.index, dirEnt.subPath)
+      if (dirEnts.length === 0) {
+        cb(Fuse.ENOENT)
+        return
+      }
+      cb(0, dirEnts)
+      return
+    }
+    if ((dirEnt == null) || dirEnt.entryType !== 'directory') {
+      cb(Fuse.ENOENT)
+      return
+    }
+    cb(0, Object.keys(dirEnt.entries))
+  }
+  function getDirEnt (p: string) {
+    let currentDirEntry = virtualNodeModules
+    const parts = p === '/' ? [] : p.split('/')
+    parts.shift()
+    while ((parts.length > 0) && currentDirEntry && currentDirEntry.entryType === 'directory') {
+      currentDirEntry = currentDirEntry.entries[parts.shift()!]
+    }
+    if (currentDirEntry?.entryType === 'index') {
+      const pkg = getPkgInfo(currentDirEntry.depPath)
+      if (pkg == null) {
+        return null
+      }
+      return {
+        ...currentDirEntry,
+        index: pkg.index,
+        subPath: parts.join('/'),
+      }
+    }
+    return currentDirEntry
+  }
+  function getPkgInfo (depPath: string) {
+    if (!pkgSnapshotCache.has(depPath)) {
+      const pkgSnapshot = lockfile.packages?.[depPath as DepPath]
+      if (pkgSnapshot == null) return undefined
+      const nameVer = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+      const resolution = pkgSnapshot.resolution as TarballResolution
+      const pkgId = nameVer.nonSemverVersion ?? `${nameVer.name}@${nameVer.version}`
+      const pkgIndexFilePath = pickStoreIndexKey(resolution, pkgId, { built: true })
+      const pkgIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex
+      pkgSnapshotCache.set(depPath, {
+        ...nameVer,
+        pkgSnapshot,
+        index: pkgIndex,
+      })
+    }
+    return pkgSnapshotCache.get(depPath)
+  }
+}

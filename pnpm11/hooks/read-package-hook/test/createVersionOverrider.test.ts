@@ -1,0 +1,1268 @@
+import path from 'node:path'
+
+import { describe, expect, test } from '@jest/globals'
+import { parseOverrides } from '@pnpm/config.parse-overrides'
+
+import { createDependencyOverrider, createOverriddenDependencyMatcher, createVersionsOverrider } from '../src/createVersionsOverrider.js'
+
+test('createVersionsOverrider() matches sub-ranges', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+        bareSpecifier: '2',
+      },
+      newBareSpecifier: '2.12.0',
+    },
+    {
+      targetPkg: {
+        name: 'qar',
+        bareSpecifier: '>2',
+      },
+      newBareSpecifier: '1.0.0',
+    },
+  ], process.cwd())
+  expect(
+    overrider({
+      dependencies: { foo: '^2.10.0' },
+      optionalDependencies: { qar: '^4.0.0' },
+    })
+  ).toStrictEqual({
+    dependencies: { foo: '2.12.0' },
+    optionalDependencies: { qar: '1.0.0' },
+  })
+})
+
+test('createVersionsOverrider() does not fail on non-range selectors', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+        bareSpecifier: '2',
+      },
+      newBareSpecifier: '2.12.0',
+    },
+    {
+      targetPkg: {
+        name: 'bar',
+        bareSpecifier: 'github:org/bar',
+      },
+      newBareSpecifier: '2.12.0',
+    },
+  ], process.cwd())
+  expect(
+    overrider({
+      dependencies: {
+        foo: 'github:org/foo',
+        bar: 'github:org/bar',
+      },
+    })
+  ).toStrictEqual({
+    dependencies: {
+      foo: 'github:org/foo',
+      bar: '2.12.0',
+    },
+  })
+})
+
+test('createVersionsOverrider() overrides dependencies of specified packages only', () => {
+  const overrider = createVersionsOverrider([
+    {
+      parentPkg: {
+        name: 'foo',
+        bareSpecifier: '1',
+      },
+      targetPkg: {
+        name: 'bar',
+        bareSpecifier: '^1.2.0',
+      },
+      newBareSpecifier: '3.0.0',
+    },
+    {
+      parentPkg: {
+        name: 'qar',
+        bareSpecifier: '1',
+      },
+      targetPkg: {
+        name: 'bar',
+        bareSpecifier: '>4',
+      },
+      newBareSpecifier: '3.0.0',
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      bar: '^1.2.0',
+    },
+  })).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      bar: '3.0.0',
+    },
+  })
+  expect(overrider({
+    name: 'foo',
+    version: '2.0.0',
+    dependencies: {
+      bar: '^1.2.0',
+    },
+  })).toStrictEqual({
+    name: 'foo',
+    version: '2.0.0',
+    dependencies: {
+      bar: '^1.2.0',
+    },
+  })
+  expect(overrider({
+    name: 'qar',
+    version: '1.0.0',
+    dependencies: {
+      bar: '^10.0.0',
+    },
+  })).toStrictEqual({
+    name: 'qar',
+    version: '1.0.0',
+    dependencies: {
+      bar: '3.0.0',
+    },
+  })
+  expect(overrider({
+    name: 'qar',
+    version: '1.0.0',
+    dependencies: {
+      bar: '^4.0.0',
+    },
+  })).toStrictEqual({
+    name: 'qar',
+    version: '1.0.0',
+    dependencies: {
+      bar: '^4.0.0',
+    },
+  })
+})
+
+test('createVersionsOverrider() overrides all types of dependencies', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+      },
+      newBareSpecifier: '3.0.0',
+    },
+    {
+      targetPkg: {
+        name: 'bar',
+      },
+      newBareSpecifier: '3.0.0',
+    },
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: '3.0.0',
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      foo: '^1.2.0',
+    },
+    optionalDependencies: {
+      bar: '^1.2.0',
+    },
+    devDependencies: {
+      qar: '^1.2.0',
+    },
+  })).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      foo: '3.0.0',
+    },
+    optionalDependencies: {
+      bar: '3.0.0',
+    },
+    devDependencies: {
+      qar: '3.0.0',
+    },
+  })
+})
+
+test('createVersionsOverrider() overrides dependencies with links', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: 'link:../qar',
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'link:../../qar',
+    },
+  })
+})
+
+test('createVersionsOverrider() overrides dependencies with absolute links', () => {
+  const qarAbsolutePath = path.resolve(process.cwd(), './qar')
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: `link:${qarAbsolutePath}`,
+    },
+  ], process.cwd())
+
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: `link:${qarAbsolutePath}`,
+    },
+  })
+})
+
+test('createVersionsOverrider() overrides dependency of pkg matched by name and version', () => {
+  const overrider = createVersionsOverrider([
+    {
+      parentPkg: {
+        name: 'yargs',
+        bareSpecifier: '^7.1.0',
+      },
+      targetPkg: {
+        name: 'yargs-parser',
+      },
+      newBareSpecifier: '^20.0.0',
+    },
+  ], process.cwd())
+  expect(
+    overrider({
+      name: 'yargs',
+      version: '7.1.0',
+      dependencies: {
+        'yargs-parser': '19',
+      },
+    })
+  ).toStrictEqual({
+    name: 'yargs',
+    version: '7.1.0',
+    dependencies: {
+      'yargs-parser': '^20.0.0',
+    },
+  })
+})
+
+test('createVersionsOverrider() does not override dependency of pkg matched by name and version', () => {
+  const overrider = createVersionsOverrider([
+    {
+      parentPkg: {
+        name: 'yargs',
+        bareSpecifier: '^8.1.0',
+      },
+      targetPkg: {
+        name: 'yargs-parser',
+      },
+      newBareSpecifier: '^20.0.0',
+    },
+  ], process.cwd())
+  expect(
+    overrider({
+      name: 'yargs',
+      version: '7.1.0',
+      dependencies: {
+        'yargs-parser': '19',
+      },
+    })
+  ).toStrictEqual({
+    name: 'yargs',
+    version: '7.1.0',
+    dependencies: {
+      'yargs-parser': '19',
+    },
+  })
+})
+
+test('createVersionsOverrider() should work for scoped parent and unscoped child', () => {
+  const overrider = createVersionsOverrider([
+    {
+      parentPkg: {
+        name: '@scoped/package',
+      },
+      targetPkg: {
+        name: 'unscoped-package',
+      },
+      newBareSpecifier: 'workspace:*',
+    },
+  ], process.cwd())
+  expect(
+    overrider({
+      name: '@scoped/package',
+      version: '1.0.0',
+      dependencies: {
+        'unscoped-package': '1.0.0',
+      },
+    })
+  ).toStrictEqual({
+    name: '@scoped/package',
+    version: '1.0.0',
+    dependencies: {
+      'unscoped-package': 'workspace:*',
+    },
+  })
+})
+
+test('createVersionsOverrider() should work for unscoped parent and scoped child', () => {
+  const overrider = createVersionsOverrider([
+    {
+      parentPkg: {
+        name: 'unscoped-package',
+      },
+      targetPkg: {
+        name: '@scoped/package',
+      },
+      newBareSpecifier: 'workspace:*',
+    },
+  ], process.cwd())
+  expect(
+    overrider({
+      name: 'unscoped-package',
+      version: '1.0.0',
+      dependencies: {
+        '@scoped/package': '1.0.0',
+      },
+    })
+  ).toStrictEqual({
+    name: 'unscoped-package',
+    version: '1.0.0',
+    dependencies: {
+      '@scoped/package': 'workspace:*',
+    },
+  })
+})
+
+test('createVersionsOverrider() should work for scoped parent and scoped child', () => {
+  const overrider = createVersionsOverrider([
+    {
+      parentPkg: {
+        name: '@scoped/package',
+      },
+      targetPkg: {
+        name: '@scoped/package2',
+      },
+      newBareSpecifier: 'workspace:*',
+    },
+  ], process.cwd())
+  expect(
+    overrider({
+      name: '@scoped/package',
+      version: '1.0.0',
+      dependencies: {
+        '@scoped/package2': '1.0.0',
+      },
+    })
+  ).toStrictEqual({
+    name: '@scoped/package',
+    version: '1.0.0',
+    dependencies: {
+      '@scoped/package2': 'workspace:*',
+    },
+  })
+})
+
+test('createVersionsOverrider() overrides dependencies with file with relative path for root package', () => {
+  const rootDir = process.cwd()
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: 'file:../qar',
+    },
+  ], rootDir)
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, rootDir)).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'file:../qar',
+    },
+  })
+})
+
+test('createVersionsOverrider() overrides dependencies with file with relative path for workspace package', () => {
+  const rootDir = process.cwd()
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: 'file:../qar',
+    },
+  ], rootDir)
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.join(rootDir, 'packages', 'pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'file:../../../qar',
+    },
+  })
+})
+
+test('createVersionsOverrider() overrides dependencies with file specified with absolute path', () => {
+  const absolutePath = path.join(import.meta.dirname, 'qar')
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: `file:${absolutePath}`,
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: `file:${absolutePath}`,
+    },
+  })
+})
+
+test('createVersionOverride() should use the most specific rule when both override rules match the same target', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+      },
+      newBareSpecifier: '3.0.0',
+    },
+    {
+      targetPkg: {
+        name: 'foo',
+        bareSpecifier: '3',
+      },
+      newBareSpecifier: '4.0.0',
+    },
+    {
+      targetPkg: {
+        name: 'foo',
+        bareSpecifier: '2',
+      },
+      newBareSpecifier: '2.12.0',
+    },
+    {
+      parentPkg: {
+        name: 'bar',
+      },
+      targetPkg: {
+        name: 'foo',
+        bareSpecifier: '2',
+      },
+      newBareSpecifier: 'github:org/foo',
+    },
+    {
+      parentPkg: {
+        name: 'bar',
+      },
+      targetPkg: {
+        name: 'foo',
+        bareSpecifier: '3',
+      },
+      newBareSpecifier: '5.0.0',
+    },
+  ], process.cwd())
+  expect(
+    overrider({
+      dependencies: {
+        foo: '^3.0.0',
+      },
+    })
+  ).toStrictEqual({
+    dependencies: {
+      foo: '4.0.0',
+    },
+  })
+  expect(
+    overrider({
+      dependencies: {
+        foo: '^4.0.0',
+      },
+    })
+  ).toStrictEqual({
+    dependencies: {
+      foo: '3.0.0',
+    },
+  })
+  expect(
+    overrider({
+      dependencies: {
+        foo: '^2.0.0',
+      },
+    })
+  ).toStrictEqual({
+    dependencies: {
+      foo: '2.12.0',
+    },
+  })
+  expect(
+    overrider({
+      name: 'bar',
+      version: '1.0.0',
+      dependencies: {
+        foo: '^2.0.0',
+      },
+    })
+  ).toStrictEqual({
+    name: 'bar',
+    version: '1.0.0',
+    dependencies: {
+      foo: 'github:org/foo',
+    },
+  })
+  expect(
+    overrider({
+      name: 'bar',
+      version: '1.0.0',
+      dependencies: {
+        foo: '^3.0.0',
+      },
+    })
+  ).toStrictEqual({
+    name: 'bar',
+    version: '1.0.0',
+    dependencies: {
+      foo: '5.0.0',
+    },
+  })
+})
+
+test('createVersionsOverrider() matches intersections', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+        bareSpecifier: '<1.2.4',
+      },
+      newBareSpecifier: '>=1.2.4',
+    },
+  ], process.cwd())
+  expect(
+    overrider({
+      dependencies: { foo: '^1.2.3' },
+    })
+  ).toStrictEqual({
+    dependencies: { foo: '>=1.2.4' },
+  })
+})
+
+test('createVersionsOverrider() overrides peerDependencies of another dependency', () => {
+  const overrider = createVersionsOverrider([
+    {
+      parentPkg: {
+        name: 'react-dom',
+      },
+      targetPkg: {
+        name: 'react',
+      },
+      newBareSpecifier: '18.1.0',
+    },
+  ], process.cwd())
+  expect(
+    overrider({
+      name: 'react-dom',
+      version: '18.2.0',
+      peerDependencies: {
+        react: '18.2.0',
+      },
+    })
+  ).toStrictEqual({
+    name: 'react-dom',
+    version: '18.2.0',
+    dependencies: {},
+    peerDependencies: {
+      react: '18.1.0',
+    },
+  })
+})
+
+test.each(['unwanted-peer', 'my-app>unwanted-peer'])('createVersionsOverrider() removes optional peer metadata with %s', (selector) => {
+  const overrider = createVersionsOverrider(parseOverrides({ [selector]: '-' }, {}), process.cwd())
+  const manifest = {
+    name: 'my-app',
+    version: '1.0.0',
+    peerDependencies: { 'unwanted-peer': '^1.0.0', kept: '^2.0.0' },
+    peerDependenciesMeta: Object.freeze({
+      'unwanted-peer': { optional: true },
+      kept: { optional: true },
+    }),
+  }
+
+  expect(overrider(manifest)).toStrictEqual({
+    name: 'my-app',
+    version: '1.0.0',
+    dependencies: {},
+    peerDependencies: { kept: '^2.0.0' },
+    peerDependenciesMeta: { kept: { optional: true } },
+  })
+  expect(manifest.peerDependencies).toStrictEqual({ 'unwanted-peer': '^1.0.0', kept: '^2.0.0' })
+  expect(manifest.peerDependenciesMeta).toStrictEqual({
+    'unwanted-peer': { optional: true },
+    kept: { optional: true },
+  })
+})
+
+test('createVersionsOverrider() removes dependencies', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+      },
+      newBareSpecifier: '-',
+    },
+    {
+      parentPkg: {
+        name: 'bar',
+      },
+      targetPkg: {
+        name: 'baz',
+      },
+      newBareSpecifier: '-',
+    },
+    {
+      targetPkg: {
+        name: 'qux',
+        bareSpecifier: '2',
+      },
+      newBareSpecifier: '-',
+    },
+  ], process.cwd())
+  expect(
+    overrider({
+      dependencies: {
+        foo: '0.1.2',
+        bar: '1.2.3',
+        baz: '1.0.0',
+        qux: '2.1.0',
+      },
+    })
+  ).toStrictEqual({
+    dependencies: {
+      bar: '1.2.3',
+      baz: '1.0.0',
+    },
+  })
+  expect(
+    overrider({
+      name: 'bar',
+      dependencies: {
+        foo: '0.1.2',
+        bar: '1.2.3',
+        baz: '1.0.0',
+        qux: '2.1.0',
+      },
+    })
+  ).toStrictEqual({
+    name: expect.anything(),
+    dependencies: {
+      bar: '1.2.3',
+    },
+  })
+  expect(
+    overrider({
+      dependencies: {
+        foo: '0.1.2',
+        bar: '1.2.3',
+        baz: '1.0.0',
+        qux: '3.2.1',
+      },
+    })
+  ).toStrictEqual({
+    dependencies: {
+      bar: '1.2.3',
+      baz: '1.0.0',
+      qux: '3.2.1',
+    },
+  })
+})
+
+test('createVersionsOverrider() moves invalid versions from peerDependencies to dependencies', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+      },
+      newBareSpecifier: 'link:foo',
+    },
+    {
+      targetPkg: {
+        name: 'bar',
+      },
+      newBareSpecifier: 'file:bar',
+    },
+    {
+      targetPkg: {
+        name: 'baz',
+      },
+      newBareSpecifier: '7.7.7',
+    },
+  ], process.cwd())
+  expect(
+    overrider({
+      peerDependencies: {
+        foo: '^1.0.0 || ^2.0.0',
+        bar: '^1.0.0 || ^2.0.0',
+        baz: '^1.0.0 || ^2.0.0',
+        qux: '^1.0.0 || ^2.0.0',
+      },
+    })
+  ).toStrictEqual({
+    dependencies: {
+      foo: expect.stringMatching(/^link:.*foo[/\\]?$/),
+      bar: expect.stringMatching(/^file:.*bar[/\\]?$/),
+    },
+    peerDependencies: {
+      bar: '^1.0.0 || ^2.0.0',
+      baz: '7.7.7',
+      foo: '^1.0.0 || ^2.0.0',
+      qux: '^1.0.0 || ^2.0.0',
+    },
+  })
+  expect(
+    overrider({
+      dependencies: {
+        foo: '^1.0.0',
+        bar: '^2.0.0',
+        baz: '^1.2.3',
+        qux: '^2.1.0',
+      },
+      peerDependencies: {
+        foo: '^1.0.0 || ^2.0.0',
+        bar: '^1.0.0 || ^2.0.0',
+        baz: '^1.0.0 || ^2.0.0',
+        qux: '^1.0.0 || ^2.0.0',
+      },
+    })
+  ).toStrictEqual({
+    dependencies: {
+      foo: expect.stringMatching(/^link:.*foo[/\\]?$/),
+      bar: expect.stringMatching(/^file:.*bar[/\\]?$/),
+      baz: '7.7.7',
+      qux: '^2.1.0',
+    },
+    peerDependencies: {
+      bar: '^1.0.0 || ^2.0.0',
+      baz: '7.7.7',
+      foo: '^1.0.0 || ^2.0.0',
+      qux: '^1.0.0 || ^2.0.0',
+    },
+  })
+})
+
+test('createVersionsOverrider() convergence override rewrites only edges its version satisfies', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: { name: 'form-data', bareSpecifier: '' },
+      newBareSpecifier: '4.0.6',
+      converge: true,
+    },
+  ], process.cwd())
+  expect(overrider({
+    dependencies: {
+      'form-data': '^4.0.5',
+    },
+    optionalDependencies: {
+      'other-form-data': '^3.0.0',
+    },
+  })).toStrictEqual({
+    dependencies: {
+      'form-data': '4.0.6',
+    },
+    optionalDependencies: {
+      'other-form-data': '^3.0.0',
+    },
+  })
+  // Incompatible with 4.0.6, so the edge keeps its own resolution.
+  expect(overrider({
+    dependencies: {
+      'form-data': '^3.0.0',
+    },
+  })).toStrictEqual({
+    dependencies: {
+      'form-data': '^3.0.0',
+    },
+  })
+})
+
+test('createVersionsOverrider() convergence override skips non-range specifiers', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: { name: 'foo', bareSpecifier: '' },
+      newBareSpecifier: '4.0.6',
+      converge: true,
+    },
+  ], process.cwd())
+  expect(overrider({
+    dependencies: {
+      foo: 'github:org/foo',
+    },
+    devDependencies: {
+      foo: 'workspace:^',
+    },
+    optionalDependencies: {
+      foo: 'latest',
+    },
+  })).toStrictEqual({
+    dependencies: {
+      foo: 'github:org/foo',
+    },
+    devDependencies: {
+      foo: 'workspace:^',
+    },
+    optionalDependencies: {
+      foo: 'latest',
+    },
+  })
+})
+
+test('createVersionsOverrider() convergence override rewrites peer dependencies it satisfies', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: { name: 'foo', bareSpecifier: '' },
+      newBareSpecifier: '4.0.6',
+      converge: true,
+    },
+  ], process.cwd())
+  expect(overrider({
+    peerDependencies: {
+      foo: '^4.0.0',
+    },
+  })).toStrictEqual({
+    dependencies: {},
+    peerDependencies: {
+      foo: '4.0.6',
+    },
+  })
+})
+
+test('createVersionsOverrider() explicit overrides win over a convergence override', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: { name: 'foo', bareSpecifier: '^4.0.0' },
+      newBareSpecifier: '4.0.9',
+    },
+    {
+      targetPkg: { name: 'foo', bareSpecifier: '' },
+      newBareSpecifier: '4.0.6',
+      converge: true,
+    },
+  ], process.cwd())
+  expect(overrider({
+    dependencies: {
+      foo: '^4.0.5',
+      bar: '1.0.0',
+    },
+  })).toStrictEqual({
+    dependencies: {
+      foo: '4.0.9',
+      bar: '1.0.0',
+    },
+  })
+})
+
+test('createVersionsOverrider() collects declared ranges of convergence-governed packages', () => {
+  const convergeDeclaredRanges = new Map<string, Set<string>>()
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: { name: 'foo', bareSpecifier: '' },
+      newBareSpecifier: '4.0.6',
+      converge: true,
+    },
+  ], process.cwd(), { convergeDeclaredRanges })
+  overrider({
+    dependencies: {
+      foo: '^4.0.5',
+      bar: '^1.0.0',
+    },
+  })
+  overrider({
+    dependencies: {
+      foo: '^3.0.0',
+    },
+    devDependencies: {
+      foo: 'workspace:^',
+    },
+  })
+  expect(convergeDeclaredRanges).toStrictEqual(new Map([
+    ['foo', new Set(['^4.0.5', '^3.0.0'])],
+  ]))
+})
+
+test('createVersionsOverrider() does not mutate the original manifest', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+      },
+      newBareSpecifier: '2.12.0',
+    },
+    {
+      targetPkg: {
+        name: 'bar',
+      },
+      newBareSpecifier: '2.0.0',
+    },
+  ], process.cwd())
+  const originalManifest = {
+    dependencies: {
+      foo: '^1.0.0',
+    },
+    peerDependencies: {
+      bar: '^1.0.0',
+    },
+  }
+  const result = overrider(originalManifest)
+  expect(result).toStrictEqual({
+    dependencies: {
+      foo: '2.12.0',
+    },
+    peerDependencies: {
+      bar: '2.0.0',
+    },
+  })
+  expect(originalManifest.dependencies.foo).toBe('^1.0.0')
+  expect(originalManifest.peerDependencies.bar).toBe('^1.0.0')
+})
+
+describe('createDependencyOverrider()', () => {
+  test('resolves a generic override for a dependency that has no manifest', () => {
+    const overrideDependency = createDependencyOverrider(parseOverrides({
+      react: 'npm:react@19.2.0',
+      'zoo@^1': '1.0.0',
+    }), process.cwd())!
+    expect(overrideDependency('react', '^18.0.0')).toBe('npm:react@19.2.0')
+    expect(overrideDependency('zoo', '^1.5.0')).toBe('1.0.0')
+    expect(overrideDependency('zoo', '^2.0.0')).toBeUndefined()
+    expect(overrideDependency('qar', '^1.0.0')).toBeUndefined()
+  })
+
+  test('is not created for a set that cannot claim an undeclared dependency', () => {
+    expect(createDependencyOverrider([], process.cwd())).toBeUndefined()
+    expect(createDependencyOverrider(parseOverrides({
+      'foo>react': '19.2.0',
+    }), process.cwd())).toBeUndefined()
+  })
+
+  test('resolves a local override relative to the directory of the package that gets the dependency', () => {
+    const overrideDependency = createDependencyOverrider(parseOverrides({
+      qar: 'link:../qar',
+    }), process.cwd())!
+    expect(overrideDependency('qar', '^1.0.0', path.resolve('pkg'))).toBe('link:../../qar')
+  })
+
+  test('applies a convergence override only when it satisfies the range', () => {
+    const overrideDependency = createDependencyOverrider(parseOverrides({
+      'react@': '18.3.1',
+    }), process.cwd())!
+    expect(overrideDependency('react', '^18.0.0')).toBe('18.3.1')
+    expect(overrideDependency('react', '^19.0.0')).toBeUndefined()
+  })
+})
+
+describe('createOverriddenDependencyMatcher()', () => {
+  test('claims a dependency an override repeats verbatim, and no other', () => {
+    const isOverridden = createOverriddenDependencyMatcher(
+      parseOverrides({ foo: '^1.0.0' }, {}),
+      process.cwd()
+    )!({})
+    expect(isOverridden('foo', '^1.0.0')).toBe(true)
+    expect(isOverridden('bar', '^1.0.0')).toBe(false)
+  })
+
+  test('answers per declared range, so a range-scoped override claims only the declaration it matches', () => {
+    const isOverridden = createOverriddenDependencyMatcher(
+      parseOverrides({ 'foo@^2.0.0': '2.1.0' }, {}),
+      process.cwd()
+    )!({})
+    expect(isOverridden('foo', '^1.0.0')).toBe(false)
+    expect(isOverridden('foo', '^2.0.0')).toBe(true)
+  })
+
+  test('scopes a parent-qualified override to the project it names', () => {
+    const matcherFor = createOverriddenDependencyMatcher(
+      parseOverrides({ 'parent>foo': '1.0.0' }, {}),
+      process.cwd()
+    )!
+    expect(matcherFor({ name: 'parent', version: '1.0.0' })('foo', '^1.0.0')).toBe(true)
+    expect(matcherFor({ name: 'other', version: '1.0.0' })('foo', '^1.0.0')).toBe(false)
+  })
+
+  test('claims a dependency a convergence override can move, and no others', () => {
+    const isOverridden = createOverriddenDependencyMatcher(
+      parseOverrides({ 'foo@': '1.5.0' }, {}),
+      process.cwd()
+    )!({})
+    expect(isOverridden('foo', '^1.0.0')).toBe(true)
+    expect(isOverridden('foo', '^2.0.0')).toBe(false)
+    expect(isOverridden('bar', '^1.0.0')).toBe(false)
+  })
+
+  test('is undefined when no override could claim anything', () => {
+    expect(createOverriddenDependencyMatcher([], process.cwd())).toBeUndefined()
+  })
+})
+
+test('createVersionsOverrider() re-anchors a bare path override on the package it rewrites', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: '../qar',
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '../../qar',
+    },
+  })
+})
+
+// The shape pnpm/pnpm#11131 reports: a tarball reached by a path prefix lands
+// on the local resolver like any other path, so it moves with the file that
+// declared it.
+test('createVersionsOverrider() re-anchors a bare path naming a tarball', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: './tarballs/qar.tgz',
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('packages/app'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '../../tarballs/qar.tgz',
+    },
+  })
+})
+
+test('createVersionsOverrider() keeps a re-anchored bare path unambiguously local', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: './libs/qar',
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, process.cwd())).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: './libs/qar',
+    },
+  })
+})
+
+test('createVersionsOverrider() renders an override naming the package it rewrites as "."', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: './packages/app',
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('packages/app'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '.',
+    },
+  })
+})
+
+// The resolver forward-slashes a specifier before it reads the `~` prefix, so
+// the backslash spelling names the home directory too and must not be measured
+// from the workspace.
+test.each([
+  ['a forward slash', 'file:~/qar'],
+  ['a backslash', 'file:~\\qar'],
+])('createVersionsOverrider() leaves a home-relative override written with %s alone', (_label, newBareSpecifier) => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier,
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('packages/app'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: newBareSpecifier,
+    },
+  })
+})
+
+// A UNC share's leading `//` is what makes it a share rather than a path on
+// the current drive, so the run of separators survives rendering. The
+// backslash spelling is claimed on Windows alone, but the collapsing this
+// guards against is not platform-specific.
+test('createVersionsOverrider() keeps a bare UNC override on its share', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: '//server/share/qar',
+    },
+  ], 'C:/workspace')
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, undefined)).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '//server/share/qar',
+    },
+  })
+})
+
+// A transitive manifest reaches the hook with no directory, which is why the
+// target renders absolute here. A tarball's protocol is unconditional, so
+// naming it cannot change how the package materializes. A directory's turns on
+// whether the dependency is injected, which this renderer cannot see, and an
+// explicit `link:` would outrank that and reference an injected package in
+// place instead of copying it.
+test.each([
+  ['a tarball', './tarballs/qar.tgz', 'file:C:/workspace/tarballs/qar.tgz'],
+  ['a directory', './local-dep', 'C:/workspace/local-dep'],
+])('createVersionsOverrider() renders a drive-anchored bare path naming %s', (_label, newBareSpecifier, expected) => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier,
+    },
+  ], 'C:/workspace')
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, undefined)).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: expected,
+    },
+  })
+})
+
+test.each([
+  ['a hosted-git shorthand', 'user/repo'],
+  ['a tarball-shaped dist-tag', 'repo.tgz'],
+  ['a registry range', '^1.2.3'],
+  ['an npm alias', 'npm:other@^1'],
+  ['a single-letter named registry', 'c:pkg@1'],
+])('createVersionsOverrider() leaves %s alone', (_label, newBareSpecifier) => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier,
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: newBareSpecifier,
+    },
+  })
+})

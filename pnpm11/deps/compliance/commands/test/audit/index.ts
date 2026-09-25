@@ -1,0 +1,710 @@
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
+
+import { afterEach, beforeAll, beforeEach, describe, expect, test } from '@jest/globals'
+import { AuditEndpointNotExistsError } from '@pnpm/deps.compliance.audit'
+import { audit } from '@pnpm/deps.compliance.commands'
+import { install } from '@pnpm/installing.commands'
+import { fixtures } from '@pnpm/test-fixtures'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+
+import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, DEFAULT_OPTS } from './utils/options.js'
+import * as responses from './utils/responses/index.js'
+
+const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
+const SCOPED_AUDIT_REGISTRY = 'http://scope.audit.registry/'
+
+describe('plugin-commands-audit', () => {
+  const hasVulnerabilitiesDir = f.prepare('has-vulnerabilities')
+  const hasSignaturesDir = f.prepare('has-signatures')
+  beforeAll(async () => {
+    await install.handler({
+      ...DEFAULT_OPTS,
+      frozenLockfile: true,
+      dir: hasVulnerabilitiesDir,
+    })
+  })
+  beforeEach(async () => {
+    await setupMockAgent()
+  })
+  afterEach(async () => {
+    await teardownMockAgent()
+  })
+  test('audit', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, responses.ALL_VULN_RESP)
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+    })
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toMatchSnapshot()
+  })
+
+  test('audit --dev', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, responses.DEV_VULN_ONLY_RESP)
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      dev: true,
+      production: false,
+    })
+
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toMatchSnapshot()
+  })
+
+  test('audit --audit-level', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, responses.ALL_VULN_RESP)
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'moderate',
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+    })
+
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toMatchSnapshot()
+  })
+
+  test('audit reports the lowest non-deprecated published version as the patch', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        axios: [
+          {
+            id: 1,
+            title: 'vulnerability in axios',
+            severity: 'high',
+            vulnerable_versions: '<=0.18.0',
+            url: 'https://github.com/advisories/GHSA-mock-mock-mock',
+          },
+        ],
+      })
+    // 0.18.1 was never published and 0.18.2 is deprecated, so the inferred
+    // >=0.18.1 patch resolves to 0.18.3.
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/axios', method: 'GET' })
+      .reply(200, {
+        name: 'axios',
+        time: {
+          '0.18.0': '2020-01-01T00:00:00.000Z',
+          '0.18.2': '2020-02-01T00:00:00.000Z',
+          '0.18.3': '2020-03-01T00:00:00.000Z',
+        },
+        versions: {
+          '0.18.0': {},
+          '0.18.2': { deprecated: 'do not use' },
+          '0.18.3': {},
+        },
+      })
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+    })
+
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toContain('>=0.18.3')
+  })
+
+  test('audit reports no patched versions when none was published', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        axios: [
+          {
+            id: 1,
+            title: 'vulnerability in axios',
+            severity: 'high',
+            vulnerable_versions: '<=0.18.0',
+            url: 'https://github.com/advisories/GHSA-mock-mock-mock',
+          },
+        ],
+      })
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/axios', method: 'GET' })
+      .reply(200, {
+        name: 'axios',
+        time: { '0.18.0': '2020-01-01T00:00:00.000Z' },
+      })
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+    })
+
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toContain('Patched versions')
+    expect(stripAnsi(output)).toContain('None')
+    expect(stripAnsi(output)).not.toContain('(unknown)')
+  })
+
+  test('audit: no vulnerabilities', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, responses.NO_VULN_RESP)
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+    })
+
+    expect(stripAnsi(output)).toBe('No known vulnerabilities found\n')
+    expect(exitCode).toBe(0)
+  })
+
+  test('audit signatures', async () => {
+    const key = createSigningKey()
+    mockRegistryKey(AUDIT_REGISTRY, key)
+    mockRegistryKey(SCOPED_AUDIT_REGISTRY, key)
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/signed-pkg', method: 'GET' })
+      .reply(200, {
+        name: 'signed-pkg',
+        time: { '1.0.0': '2023-01-01T00:00:00.000Z' },
+        versions: {
+          '1.0.0': {
+            dist: {
+              integrity: 'sha512-test-integrity',
+              shasum: 'test-shasum',
+              signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', 'sha512-test-integrity') }],
+              tarball: `${AUDIT_REGISTRY}signed-pkg/-/signed-pkg-1.0.0.tgz`,
+            },
+            name: 'signed-pkg',
+            version: '1.0.0',
+          },
+        },
+      })
+    getMockAgent().get(SCOPED_AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: `/@scope${'%2F'}signed-pkg`, method: 'GET' })
+      .reply(200, {
+        name: '@scope/signed-pkg',
+        time: { '1.0.0': '2023-01-01T00:00:00.000Z' },
+        versions: {
+          '1.0.0': {
+            dist: {
+              integrity: 'sha512-scoped-test-integrity',
+              shasum: 'test-shasum',
+              signatures: [{ keyid: key.keyid, sig: key.sign('@scope/signed-pkg@1.0.0', 'sha512-scoped-test-integrity') }],
+              tarball: `${SCOPED_AUDIT_REGISTRY}@scope/signed-pkg/-/signed-pkg-1.0.0.tgz`,
+            },
+            name: '@scope/signed-pkg',
+            version: '1.0.0',
+          },
+        },
+      })
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasSignaturesDir,
+      registriesByScope: { ...AUDIT_REGISTRY_OPTS.registriesByScope, '@scope': SCOPED_AUDIT_REGISTRY },
+      rootProjectManifestDir: hasSignaturesDir,
+    }, ['signatures'])
+
+    expect(exitCode).toBe(0)
+    expect(stripAnsi(output)).toContain('audited 2 packages')
+    expect(stripAnsi(output)).toContain('2 packages have verified registry signatures')
+  })
+
+  test('audit rejects unknown subcommands', async () => {
+    await expect(audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasSignaturesDir,
+      rootProjectManifestDir: hasSignaturesDir,
+    }, ['unknown'])).rejects.toMatchObject({ code: 'ERR_PNPM_AUDIT_UNKNOWN_SUBCOMMAND' })
+  })
+
+  test('audit --json', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, responses.ALL_VULN_RESP)
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      json: true,
+    })
+
+    const json = JSON.parse(output)
+    expect(json.metadata).toBeTruthy()
+    expect(exitCode).toBe(1)
+  })
+
+  test('audit exits 0 when every found vulnerability is below --audit-level', async () => {
+    // Only a single moderate advisory against axios. With --audit-level=high
+    // the table is empty (so exitCode is 0), but the summary still reports
+    // the moderate vulnerability so the user knows it exists.
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        axios: [
+          {
+            id: 99000001,
+            url: 'https://github.com/advisories/GHSA-below-level-test-0001',
+            title: 'moderate axios advisory for audit-level test',
+            severity: 'moderate',
+            vulnerable_versions: '<=0.99.0',
+            cwe: [] as string[],
+          },
+        ],
+      })
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'high',
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+    })
+
+    expect(exitCode).toBe(0)
+    expect(stripAnsi(output)).toBe('1 vulnerabilities found\nSeverity: 1 moderate')
+  })
+
+  test('audit --json respects audit-level', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, responses.DEV_VULN_ONLY_RESP)
+
+    const { exitCode, output } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'critical',
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      json: true,
+      dev: true,
+    })
+
+    expect(exitCode).toBe(1)
+    const parsed = JSON.parse(output)
+    // DEV_VULN_ONLY_RESP has 2 critical advisories — only those should be
+    // included at audit-level=critical.
+    expect(Object.keys(parsed.advisories)).toHaveLength(2)
+    for (const advisory of Object.values(parsed.advisories) as Array<{ severity: string }>) {
+      expect(advisory.severity).toBe('critical')
+    }
+  })
+
+  test('audit --json filters advisories by audit-level', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, responses.DEV_VULN_ONLY_RESP)
+
+    const { exitCode, output } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'high',
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      json: true,
+      dev: true,
+    })
+
+    expect(exitCode).toBe(1)
+    const parsed = JSON.parse(output)
+    // At audit-level=high, only high/critical advisories should remain.
+    for (const advisory of Object.values(parsed.advisories) as Array<{ severity: string }>) {
+      expect(['high', 'critical']).toContain(advisory.severity)
+    }
+    expect(Object.keys(parsed.advisories).length).toBeGreaterThan(0)
+  })
+
+  test('audit does not exit with code 1 if the registry responds with a non-200 response and ignoreRegistryErrors is used', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(500, { message: 'Something bad happened' })
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      dev: true,
+      fetchRetries: 0,
+      ignoreRegistryErrors: true,
+      production: false,
+    })
+
+    expect(exitCode).toBe(0)
+    expect(stripAnsi(output)).toBe(`The audit endpoint (at ${AUDIT_REGISTRY}-/npm/v1/security/advisories/bulk) responded with 500: {"message":"Something bad happened"}`)
+  })
+
+  test('audit sends authToken', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({
+        path: '/-/npm/v1/security/advisories/bulk',
+        method: 'POST',
+        headers: { authorization: 'Bearer 123' },
+      })
+      .reply(200, responses.NO_VULN_RESP)
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      configByUri: {
+        '//audit.registry/': { '@': { authToken: '123' } },
+      },
+    })
+
+    expect(stripAnsi(output)).toBe('No known vulnerabilities found\n')
+    expect(exitCode).toBe(0)
+  })
+
+  test('audit endpoint does not exist', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(404, {})
+
+    await expect(audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      dev: true,
+      fetchRetries: 0,
+      ignoreRegistryErrors: false,
+      production: false,
+    })).rejects.toThrow(AuditEndpointNotExistsError)
+  })
+
+  test('audit: advisories in ignoreGhsas do not show up', async () => {
+    const tmp = f.prepare('has-vulnerabilities')
+
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, responses.ALL_VULN_RESP)
+
+    const { exitCode, output } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'moderate',
+      dir: tmp,
+      rootProjectManifestDir: tmp,
+      rootProjectManifest: {},
+      auditConfig: {
+        ignoreGhsas: [
+          'GHSA-42xw-2xvc-qx8m',
+          'GHSA-4w2v-q235-vp99',
+          'GHSA-cph5-m8f7-6c5x',
+          'GHSA-vh95-rmgr-6w4m',
+        ],
+      },
+    })
+
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toMatchSnapshot()
+  })
+
+  test('audit: summary is net of advisories suppressed by ignoreGhsas', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, responses.INFO_VULN_RESP)
+
+    const { exitCode, output } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'info',
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      auditConfig: {
+        ignoreGhsas: ['GHSA-info-info-info'],
+      },
+    })
+
+    expect(exitCode).toBe(0)
+    expect(stripAnsi(output)).toBe('All found vulnerabilities were already reviewed and decided to be ignored\n1 ignored: 1 info\n')
+  })
+
+  test('audit: the summary counts the advisories it prints, not the registry metadata', async () => {
+    // The registry repeated one advisory id, which the report collapses into a
+    // single entry while its metadata counts the advisory twice.
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        axios: [
+          {
+            id: 100,
+            url: 'https://github.com/advisories/GHSA-info-info-info',
+            title: 'just some info',
+            severity: 'info',
+            vulnerable_versions: '*',
+          },
+          {
+            id: 100,
+            url: 'https://github.com/advisories/GHSA-info-info-info',
+            title: 'just some info',
+            severity: 'info',
+            vulnerable_versions: '*',
+          },
+        ],
+      })
+
+    const { exitCode, output } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'info',
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      auditConfig: {
+        ignoreGhsas: ['GHSA-info-info-info'],
+      },
+    })
+
+    expect(exitCode).toBe(0)
+    expect(stripAnsi(output)).toBe('All found vulnerabilities were already reviewed and decided to be ignored\n1 ignored: 1 info\n')
+  })
+
+  test('audit: advisories outside ignoreGhsas stay counted in the summary', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        axios: [
+          {
+            id: 100,
+            url: 'https://github.com/advisories/GHSA-info-info-info',
+            title: 'just some info',
+            severity: 'info',
+            vulnerable_versions: '*',
+          },
+          {
+            id: 101,
+            url: 'https://github.com/advisories/GHSA-high-high-high',
+            title: 'something high',
+            severity: 'high',
+            vulnerable_versions: '*',
+          },
+        ],
+      })
+
+    const { exitCode, output } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'info',
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      auditConfig: {
+        ignoreGhsas: ['GHSA-info-info-info'],
+      },
+    })
+
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toBe(`┌─────────────────────┬────────────────────────────────────────────────────────┐
+│ high                │ something high                                         │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ Package             │ axios                                                  │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ Vulnerable versions │ *                                                      │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ Patched versions    │ (unknown)                                              │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ Paths               │ .>karma>log4js>axios                                   │
+│                     │                                                        │
+│                     │ .>axios                                                │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ More info           │ https://github.com/advisories/GHSA-high-high-high      │
+└─────────────────────┴────────────────────────────────────────────────────────┘
+1 vulnerabilities found
+Severity: 1 high
+1 ignored: 1 info`)
+  })
+
+  test('audit: advisories in ignoreGhsas do not show up when JSON output is used', async () => {
+    const tmp = f.prepare('has-vulnerabilities')
+
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, responses.ALL_VULN_RESP)
+
+    const { exitCode, output } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'moderate',
+      dir: tmp,
+      rootProjectManifestDir: tmp,
+      json: true,
+      rootProjectManifest: {},
+      auditConfig: {
+        ignoreGhsas: [
+          'GHSA-42xw-2xvc-qx8m',
+          'GHSA-4w2v-q235-vp99',
+          'GHSA-cph5-m8f7-6c5x',
+          'GHSA-vh95-rmgr-6w4m',
+        ],
+      },
+    })
+
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toMatchSnapshot()
+  })
+
+  test('audit --audit-level info', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, responses.INFO_VULN_RESP)
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'info',
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+    })
+
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toContain('just some info')
+    expect(stripAnsi(output)).toContain('info')
+  })
+
+  test('audit defaults to low level and ignores info', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, responses.INFO_VULN_RESP)
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+    })
+
+    expect(exitCode).toBe(0)
+    expect(stripAnsi(output)).toBe(`1 vulnerabilities found
+Severity: 1 info`)
+  })
+})
+
+describe('audit in a workspace', () => {
+  beforeEach(async () => {
+    await setupMockAgent()
+  })
+  afterEach(async () => {
+    await teardownMockAgent()
+  })
+
+  async function auditedPackageNames (filter: string[]): Promise<string[]> {
+    const workspaceDir = f.prepare('workspace-has-vulnerabilities')
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(
+      workspaceDir,
+      filter.map((namePattern) => ({ namePattern }))
+    )
+    let requestedPackageNames: string[] = []
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, ({ body }) => {
+        requestedPackageNames = Object.keys(JSON.parse(String(body)))
+        return {}
+      })
+    await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      workspaceDir,
+      rootProjectManifestDir: workspaceDir,
+      filter,
+      selectedProjectsGraph,
+    })
+    return requestedPackageNames.sort()
+  }
+
+  test('audits only the dependencies of the projects selected by --filter', async () => {
+    expect(await auditedPackageNames(['workspace-audit-b'])).toStrictEqual(['minimist'])
+  })
+
+  test('audits every project without --filter', async () => {
+    expect(await auditedPackageNames([])).toStrictEqual(['lodash', 'minimist'])
+  })
+
+  test('audit signatures checks only the projects selected by --filter', async () => {
+    const workspaceDir = f.prepare('workspace-has-vulnerabilities')
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'workspace-audit-b' }])
+    const key = createSigningKey()
+    mockRegistryKey(AUDIT_REGISTRY, key)
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/minimist', method: 'GET' })
+      .reply(200, {
+        name: 'minimist',
+        time: { '1.2.0': '2023-01-01T00:00:00.000Z' },
+        versions: {
+          '1.2.0': {
+            dist: {
+              integrity: 'sha512-test-integrity',
+              signatures: [{ keyid: key.keyid, sig: key.sign('minimist@1.2.0', 'sha512-test-integrity') }],
+              tarball: `${AUDIT_REGISTRY}minimist/-/minimist-1.2.0.tgz`,
+            },
+            name: 'minimist',
+            version: '1.2.0',
+          },
+        },
+      })
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      workspaceDir,
+      rootProjectManifestDir: workspaceDir,
+      filter: ['workspace-audit-b'],
+      selectedProjectsGraph,
+    }, ['signatures'])
+
+    expect(exitCode).toBe(0)
+    expect(stripAnsi(output)).toContain('audited 1 package')
+  })
+
+  test('fails when a selected project has no entry in the lockfile', async () => {
+    const workspaceDir = f.prepare('workspace-has-vulnerabilities')
+    fs.mkdirSync(path.join(workspaceDir, 'packages/c'))
+    fs.writeFileSync(path.join(workspaceDir, 'packages/c/package.json'), JSON.stringify({ name: 'workspace-audit-c', version: '1.0.0' }))
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'workspace-audit-c' }])
+
+    await expect(audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      workspaceDir,
+      rootProjectManifestDir: workspaceDir,
+      filter: ['workspace-audit-c'],
+      selectedProjectsGraph,
+    })).rejects.toMatchObject({ code: 'ERR_PNPM_AUDIT_MISSING_IMPORTERS' })
+  })
+})
+
+function createSigningKey (): {
+  keyid: string
+  publicKey: string
+  sign: (id: string, integrity: string) => string
+} {
+  const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+  const publicKeyPem = publicKey.export({ format: 'pem', type: 'spki' }).toString()
+  return {
+    keyid: 'SHA256:test-key',
+    publicKey: publicKeyPem.replace(/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\s/g, ''),
+    sign: (id, integrity) => {
+      const signer = crypto.createSign('SHA256')
+      signer.write(`${id}:${integrity}`)
+      signer.end()
+      return signer.sign(privateKey, 'base64')
+    },
+  }
+}
+
+function mockRegistryKey (registry: string, key: ReturnType<typeof createSigningKey>): void {
+  getMockAgent().get(registry.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/keys', method: 'GET' })
+    .reply(200, {
+      keys: [{
+        expires: null,
+        key: key.publicKey,
+        keyid: key.keyid,
+        keytype: 'ecdsa-sha2-nistp256',
+        scheme: 'ecdsa-sha2-nistp256',
+      }],
+    })
+}

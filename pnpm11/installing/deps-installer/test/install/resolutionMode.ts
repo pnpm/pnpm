@@ -1,0 +1,160 @@
+import { expect, test } from '@jest/globals'
+import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
+import { prepareEmpty } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/testing.registry-mock'
+
+import { testDefaults } from '../utils/index.js'
+
+test('time-based resolution mode', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/bravo', '@pnpm.e2e/romeo'], testDefaults({ resolutionMode: 'time-based' }))
+
+  const lockfile = project.readLockfile()
+  expect(Object.keys(lockfile.packages)).toStrictEqual([
+    '@pnpm.e2e/bravo-dep@1.0.1',
+    '@pnpm.e2e/bravo@1.0.0',
+    '@pnpm.e2e/romeo-dep@1.0.0',
+    '@pnpm.e2e/romeo@1.0.0',
+  ])
+})
+
+test('time-based resolution mode with a registry that supports the time field in abbreviated metadata', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/bravo', '@pnpm.e2e/romeo'], testDefaults({
+    registrySupportsTimeField: true,
+    resolutionMode: 'time-based',
+  }))
+
+  const lockfile = project.readLockfile()
+  expect(Object.keys(lockfile.packages)).toStrictEqual([
+    '@pnpm.e2e/bravo-dep@1.0.1',
+    '@pnpm.e2e/bravo@1.0.0',
+    '@pnpm.e2e/romeo-dep@1.0.0',
+    '@pnpm.e2e/romeo@1.0.0',
+  ])
+})
+
+test('the lowest version of a direct dependency is installed when resolution mode is time-based', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  let { updatedManifest: manifest } = await install({
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  }, testDefaults({ resolutionMode: 'time-based' }))
+
+  {
+    const lockfile = project.readLockfile()
+    expect(lockfile.packages['@pnpm.e2e/foo@100.0.0']).toBeTruthy()
+  }
+
+  manifest = (await install(manifest, testDefaults({ resolutionMode: 'time-based', update: true }))).updatedManifest
+
+  {
+    const lockfile = project.readLockfile()
+    expect(lockfile.packages['@pnpm.e2e/foo@100.1.0']).toBeTruthy()
+  }
+  expect(manifest.dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '^100.1.0',
+  })
+})
+
+test('time-based resolution mode should not fail when publishedBy date cannot be calculated', async () => {
+  prepareEmpty()
+  await install({}, testDefaults({ resolutionMode: 'time-based' }))
+})
+
+test('the lowest version of a direct dependency is installed when resolution mode is lowest-direct', async () => {
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  let { updatedManifest: manifest } = await install({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
+    },
+  }, testDefaults({ resolutionMode: 'lowest-direct' }))
+
+  {
+    const lockfile = project.readLockfile()
+    expect(lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0']).toBeTruthy()
+    expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeTruthy()
+  }
+
+  manifest = (await install(manifest, testDefaults({ resolutionMode: 'lowest-direct', update: true }))).updatedManifest
+
+  {
+    const lockfile = project.readLockfile()
+    expect(lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.1.0']).toBeTruthy()
+  }
+  expect(manifest.dependencies).toStrictEqual({
+    '@pnpm.e2e/pkg-with-1-dep': '^100.1.0',
+  })
+})
+
+test('the lowest version of a direct dependency is installed when a minimum release age is also configured', async () => {
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  // `minimumReleaseAge` narrows the versions on offer to the mature ones. It
+  // does not say which end of what is left to take — that is what
+  // `resolutionMode` says.
+  await install({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
+    },
+  }, testDefaults({ resolutionMode: 'lowest-direct', minimumReleaseAge: 1 }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.1.0']).toBeFalsy()
+})
+
+test('a hoisted peer of a transitive dependency is resolved to its highest satisfying version when resolution mode is lowest-direct', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  // A hoisted peer is not a dependency the user declared, so the direct-dep pick must not apply to it.
+  await install({
+    dependencies: {
+      '@pnpm.e2e/abc-parent-with-missing-peers': '1.0.0',
+    },
+  }, testDefaults({ resolutionMode: 'lowest-direct', autoInstallPeers: true }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.1']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.0']).toBeFalsy()
+})
+
+test('a hoisted peer of a transitive dependency is resolved to its highest satisfying version when resolution mode is time-based', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/abc-parent-with-missing-peers': '1.0.0',
+    },
+  }, testDefaults({ resolutionMode: 'time-based', autoInstallPeers: true }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.1']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.0']).toBeFalsy()
+})
+
+test('the lowest version of a direct dependency is installed in time-based mode when a minimum release age is also configured', async () => {
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
+    },
+  }, testDefaults({ resolutionMode: 'time-based', minimumReleaseAge: 1 }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.1.0']).toBeFalsy()
+})

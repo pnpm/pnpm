@@ -1,0 +1,11 @@
+import path from 'node:path'
+
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+
+export default function testDefaults (opts?: any): any & { storeDir: string } { // eslint-disable-line
+  return {
+    registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+    storeDir: path.resolve('..', '.store'),
+    ...opts,
+  }
+}

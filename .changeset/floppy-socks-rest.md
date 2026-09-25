@@ -1,6 +1,0 @@
----
-"@pnpm/deps.compliance.commands": patch
-"pnpm": patch
----
-
-Fixed `pnpm audit --json` to respect the `--audit-level` setting for both exit code and output filtering [#10540](https://github.com/pnpm/pnpm/issues/10540).

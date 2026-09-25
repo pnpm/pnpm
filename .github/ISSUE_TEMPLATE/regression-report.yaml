@@ -1,6 +1,6 @@
 name: Regression Report 🚫
 description: Report a regression in pnpm
-labels: ['type: regression']
+labels: ['regression']
 body:
   - type: input
     id: last-working-version

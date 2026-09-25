@@ -1,0 +1,258 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { expect, test } from '@jest/globals'
+import type { PnpmError } from '@pnpm/error'
+import { prepare } from '@pnpm/prepare'
+import { store } from '@pnpm/store.commands'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import { rimrafSync } from '@zkochan/rimraf'
+import { safeExeca as execa } from 'execa'
+import { temporaryDirectory } from 'tempy'
+
+const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
+
+// Use an empty config dir to ensure the subprocess is not affected by
+// the user's global pnpm config (e.g. enable-global-virtual-store).
+const cleanConfigDir = temporaryDirectory()
+const execaOpts = { env: { XDG_CONFIG_HOME: cleanConfigDir } }
+
+test('CLI fails when store status finds modified packages', async () => {
+  prepare()
+  const tmp = temporaryDirectory()
+  const cacheDir = path.join(tmp, 'cache')
+  const storeDir = path.join(tmp, 'store')
+
+  await execa('node', [
+    pnpmBin,
+    'add',
+    'is-positive@3.1.0',
+    `--store-dir=${storeDir}`,
+    `--registry=${REGISTRY}`,
+    '--verify-store-integrity',
+  ], execaOpts)
+
+  rimrafSync('node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive/index.js')
+
+  let err!: PnpmError & { modified: string[] }
+  try {
+    await store.handler({
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      configByUri: {},
+      registriesByScope: { default: REGISTRY },
+      storeDir,
+      dlxCacheMaxAge: 0,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, ['status'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.code).toBe('ERR_PNPM_MODIFIED_DEPENDENCY')
+  expect(err.modified).toHaveLength(1)
+  expect(err.modified[0]).toMatch(/is-positive/)
+})
+
+test('CLI does not fail when store status does not find modified packages', async () => {
+  prepare()
+  fs.writeFileSync('pnpm-workspace.yaml', 'allowBuilds: { "es5-ext": false, "fsevents": true }', 'utf8')
+  const tmp = temporaryDirectory()
+  const cacheDir = path.join(tmp, 'cache')
+  const storeDir = path.join(tmp, 'store')
+
+  await execa('node', [
+    pnpmBin,
+    `--store-dir=${storeDir}`,
+    `--registry=${REGISTRY}`,
+    '--verify-store-integrity',
+    'add',
+    'eslint@3.4.0',
+    'gulp@4.0.2',
+    'highcharts@5.0.10',
+    'is-positive@3.1.0',
+    'react@15.4.1',
+    'webpack@5.24.2',
+    'koorchik/node-mole-rpc',
+  ], execaOpts)
+  // store status does not fail on not installed optional dependencies
+  await execa('node', [
+    pnpmBin,
+    'add',
+    'not-compatible-with-any-os',
+    '--save-optional',
+    `--store-dir=${storeDir}`,
+    `--registry=${REGISTRY}`,
+    '--verify-store-integrity',
+  ], execaOpts)
+
+  await store.handler({
+    cacheDir,
+    dir: process.cwd(),
+    pnpmHomeDir: '',
+    configByUri: {},
+    registriesByScope: { default: REGISTRY },
+    storeDir,
+    dlxCacheMaxAge: 0,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['status'])
+})
+
+test('CLI does not fail when storeDir is relative', async () => {
+  prepare()
+  const cacheDir = path.resolve('cache')
+  const workspaceDir = process.cwd()
+  const subpackageDir = path.join(workspaceDir, 'packages', 'foo')
+  const relativeStoreDir = '../.store'
+
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - "packages/*"
+storeDir: "${relativeStoreDir}"
+`, 'utf8')
+
+  // make subpackage
+  fs.mkdirSync(subpackageDir, { recursive: true })
+  fs.writeFileSync(
+    path.join(subpackageDir, 'package.json'),
+    JSON.stringify({ name: 'foo', version: '0.0.0' })
+  )
+
+  await execa('node', [
+    pnpmBin,
+    'add',
+    'is-positive@3.1.0',
+    `--registry=${REGISTRY}`,
+    '--verify-store-integrity',
+  ], execaOpts)
+
+
+  // relativeStoreDir should resolve from workspaceDir, not dir
+  await store.handler({
+    cacheDir,
+    dir: subpackageDir,
+    workspaceDir,
+    pnpmHomeDir: '',
+    configByUri: {},
+    registriesByScope: { default: REGISTRY },
+    storeDir: relativeStoreDir,
+    dlxCacheMaxAge: 0,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['status'])
+})
+
+test('store status does not falsely report package with postinstall script as modified', async () => {
+  prepare()
+  const tmp = temporaryDirectory()
+  const cacheDir = path.join(tmp, 'cache')
+  const storeDir = path.join(tmp, 'store')
+
+  await execa('node', [
+    pnpmBin,
+    'add',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    '--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example',
+    `--store-dir=${storeDir}`,
+    `--registry=${REGISTRY}`,
+    '--verify-store-integrity',
+  ], execaOpts)
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+
+  await store.handler({
+    cacheDir,
+    dir: process.cwd(),
+    pnpmHomeDir: '',
+    configByUri: {},
+    registriesByScope: { default: REGISTRY },
+    storeDir,
+    dlxCacheMaxAge: 0,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['status'])
+})
+
+test('hardlinked built package with modified file is reported as modified', async () => {
+  prepare()
+  const tmp = temporaryDirectory()
+  const cacheDir = path.join(tmp, 'cache')
+  const storeDir = path.join(tmp, 'store')
+
+  await execa('node', [
+    pnpmBin,
+    'add',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    '--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example',
+    `--store-dir=${storeDir}`,
+    `--registry=${REGISTRY}`,
+    '--verify-store-integrity',
+  ], execaOpts)
+
+  const pkgDir = 'node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example'
+  const targetFile = path.join(pkgDir, 'package.json')
+  const externalFile = path.join(process.cwd(), 'dummy-link')
+  fs.copyFileSync(targetFile, externalFile)
+  fs.unlinkSync(targetFile)
+  fs.linkSync(externalFile, targetFile)
+  fs.writeFileSync(targetFile, '{"name": "modified"}', 'utf8')
+
+  let err!: PnpmError & { modified: string[] }
+  try {
+    await store.handler({
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      configByUri: {},
+      registriesByScope: { default: REGISTRY },
+      storeDir,
+      dlxCacheMaxAge: 0,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, ['status'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err?.code).toBe('ERR_PNPM_MODIFIED_DEPENDENCY')
+})
+
+test('symlinked package file in built package is reported as modified', async () => {
+  prepare()
+  const tmp = temporaryDirectory()
+  const cacheDir = path.join(tmp, 'cache')
+  const storeDir = path.join(tmp, 'store')
+
+  await execa('node', [
+    pnpmBin,
+    'add',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    '--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example',
+    `--store-dir=${storeDir}`,
+    `--registry=${REGISTRY}`,
+    '--verify-store-integrity',
+  ], execaOpts)
+
+  const pkgDir = 'node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example'
+  const targetFile = path.join(pkgDir, 'package.json')
+  const externalFile = path.join(process.cwd(), 'dummy-symlink-target')
+  fs.copyFileSync(targetFile, externalFile)
+  fs.unlinkSync(targetFile)
+  fs.symlinkSync(externalFile, targetFile)
+  fs.writeFileSync(externalFile, '{"name": "modified"}', 'utf8')
+
+  let err!: PnpmError & { modified: string[] }
+  try {
+    await store.handler({
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      configByUri: {},
+      registriesByScope: { default: REGISTRY },
+      storeDir,
+      dlxCacheMaxAge: 0,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, ['status'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err?.code).toBe('ERR_PNPM_MODIFIED_DEPENDENCY')
+})
+
+

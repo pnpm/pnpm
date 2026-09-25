@@ -1,0 +1,8 @@
+{
+  "name": "sbom-peer-only-pkg",
+  "version": "1.0.0",
+  "dependencies": {},
+  "peerDependencies": {
+    "is-odd": "3.0.1"
+  }
+}

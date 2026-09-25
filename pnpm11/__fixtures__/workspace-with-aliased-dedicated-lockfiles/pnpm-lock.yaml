@@ -1,0 +1,12 @@
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      alias-one:
+        specifier: workspace:@scope/c@*
+        version: link:packages/c
+      alias-two:
+        specifier: workspace:@scope/c@*
+        version: link:packages/c

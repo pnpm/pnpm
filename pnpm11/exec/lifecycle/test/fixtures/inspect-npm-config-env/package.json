@@ -1,0 +1,7 @@
+{
+  "name": "inspect-npm-config-env",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node postinstall.js | test-ipc-server-client ./test.sock"
+  }
+}

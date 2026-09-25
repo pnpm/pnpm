@@ -1,0 +1,111 @@
+// This file contains type definitions that aren't just `export = any`
+
+declare module 'cli-columns' {
+  function cliColumns (values: string[], opts?: { newline?: string, width?: number }): string
+  export = cliColumns
+}
+
+declare module 'normalize-registry-url' {
+  function normalizeRegistryUrl (registry: string): string
+  export = normalizeRegistryUrl
+}
+
+declare module 'normalize-newline' {
+  function normalizeNewline (text: string): string
+  export = normalizeNewline
+}
+
+declare module 'path-name' {
+  const pathname: string
+  export = pathname
+}
+
+declare module 'right-pad' {
+  function rightPad (txt: string, size: number): string
+  export = rightPad
+}
+
+declare module 'semver-utils' {
+  export function parseRange (range: string): Array<{
+    semver?: string
+    operator: string
+    major?: string
+    minor?: string
+    patch?: string
+  }>
+}
+
+declare module 'split-cmd' {
+  export function split (cmd: string): string[]
+  export function splitToObject (cmd: string): { command: string, args: string[] }
+}
+
+declare module 'strip-comments-strings' {
+  export interface CodeItem {
+    // What feature of the code has been found:
+    type: string
+    // The indices of the feature in the original code string:
+    index: number
+    indexEnd: number
+    // The test of the feature
+    content: string
+  }
+  export interface CodeAttributes {
+    // The remaining code text after all features have been stripped:
+    text: string
+    // The items found:
+    comments: CodeItem[]
+    regexes: CodeItem[]
+    strings: CodeItem[]
+  }
+  export function parseString (str: string): CodeAttributes
+  export type CodeItemReplacer = (item: CodeItem) => string
+  export function stripComments (
+    str: string, replacer?: CodeItemReplacer): string
+}
+
+declare module 'bin-links/lib/fix-bin.js' {
+  function fixBin (path: string, execMode: number): Promise<void>
+  export = fixBin
+}
+
+declare namespace NodeJS.Module {
+  function _nodeModulePaths (from: string): string[]
+}
+
+declare module 'npm-packlist' {
+  interface PacklistTree {
+    path: string
+    package: Record<string, unknown>
+    isProjectRoot?: boolean
+    edgesOut?: Map<string, unknown>
+    workspaces?: Map<string, string>
+  }
+  function npmPacklist (tree: PacklistTree, options?: Record<string, unknown>): Promise<string[]>
+  namespace npmPacklist {
+    interface StatOptions {
+      st: import('node:fs').Stats
+      entry: string
+      file: boolean
+      dir: boolean
+      isSymbolicLink: boolean
+    }
+    class Walker {
+      constructor (tree: PacklistTree, options?: Record<string, unknown>)
+      isPackage: boolean
+      path: string
+      requiredFiles: string[]
+      tree: PacklistTree
+      onstat (opts: StatOptions, callback: () => void): void
+      walker (entry: string, opts: Record<string, unknown>, callback: () => void): void
+      walkerOpt (entry: string, opts: Record<string, unknown>): Record<string, unknown>
+      on (event: 'done', listener: (files: string[]) => void): this
+      on (event: 'error', listener: (err: unknown) => void): this
+      start (): this
+      onReaddir (entries: string[]): void
+      injectRules (filename: string | symbol, rules: string[], callback?: () => void): void
+      processPackage (callback: () => void): void
+    }
+  }
+  export = npmPacklist
+}

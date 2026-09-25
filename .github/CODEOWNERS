@@ -1,8 +1,8 @@
 * @zkochan
-/pkg-manager/plugin-commands-installation/src/import/* @fireairforce
-/reviewing/dependencies-hierarchy/* @gluxon
-/reviewing/list/* @gluxon
-/reviewing/plugin-commands-listing/* @gluxon
-/reviewing/license-scanner/* @weyert
-/reviewing/plugin-commands-licenses/* @weyert
-/hooks/* @d3lm
+/pnpm11/pkg-manager/plugin-commands-installation/src/import/* @fireairforce
+/pnpm11/reviewing/dependencies-hierarchy/* @gluxon
+/pnpm11/reviewing/list/* @gluxon
+/pnpm11/reviewing/plugin-commands-listing/* @gluxon
+/pnpm11/reviewing/license-scanner/* @weyert
+/pnpm11/reviewing/plugin-commands-licenses/* @weyert
+/pnpm11/hooks/* @d3lm

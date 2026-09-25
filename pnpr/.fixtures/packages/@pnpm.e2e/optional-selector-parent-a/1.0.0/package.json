@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/optional-selector-parent-a",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/optional-platform-selector": "1.0.0"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "composite": true,
+    "declaration": true,
+    "erasableSyntaxOnly": true,
+    "esModuleInterop": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "preserveConstEnums": true,
+    "removeComments": false,
+    "sourceMap": true,
+    "strict": true,
+    "target": "es2022",
+    "types": ["node"],
+    "verbatimModuleSyntax": true
+  },
+  "atom": {
+    "rewriteTsconfig": true
+  }
+}

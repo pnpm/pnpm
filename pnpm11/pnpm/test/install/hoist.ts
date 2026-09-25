@@ -1,0 +1,192 @@
+import fs from 'node:fs'
+
+import { test } from '@jest/globals'
+import { prepare, preparePackages } from '@pnpm/prepare'
+import { writeYamlFileSync } from 'write-yaml-file'
+
+import { execPnpm } from '../utils/index.js'
+
+test('hoist the dependency graph', async () => {
+  const project = prepare()
+
+  await execPnpm(['install', 'express@4.16.2'])
+
+  project.has('express')
+  project.has('.pnpm/node_modules/debug')
+  project.has('.pnpm/node_modules/cookie')
+
+  await execPnpm(['uninstall', 'express'])
+
+  project.hasNot('express')
+  project.hasNot('.pnpm/node_modules/debug')
+  project.hasNot('.pnpm/node_modules/cookie')
+})
+
+test('shamefully hoist the dependency graph', async () => {
+  const project = prepare()
+
+  writeYamlFileSync('pnpm-workspace.yaml', { shamefullyHoist: true })
+
+  await execPnpm(['add', 'express@4.16.2'])
+
+  project.has('express')
+  project.has('debug')
+  project.has('cookie')
+
+  await execPnpm(['remove', 'express'])
+
+  project.hasNot('express')
+  project.hasNot('debug')
+  project.hasNot('cookie')
+})
+
+test('shamefully-hoist: applied to all the workspace projects when set to true in the root pnpm-workspace.yaml file', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+
+        dependencies: {
+          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+        },
+      },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/foobar': '100.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    shamefullyHoist: true,
+  })
+
+  await execPnpm(['install'])
+
+  projects.root.has('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  projects.root.has('@pnpm.e2e/foo')
+  projects.root.has('@pnpm.e2e/foobar')
+  projects.project.hasNot('@pnpm.e2e/foo')
+  projects.project.has('@pnpm.e2e/foobar')
+})
+
+test('shamefully-hoist: applied to all the workspace projects when set to true in the root pnpm-workspace.yaml file (with dedupe-direct-deps=true)', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+
+        dependencies: {
+          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+        },
+      },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/foobar': '100.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    shamefullyHoist: true,
+    dedupeDirectDeps: true,
+  })
+
+  await execPnpm(['install'])
+
+  projects.root.has('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  projects.root.has('@pnpm.e2e/foo')
+  projects.root.has('@pnpm.e2e/foobar')
+  projects.project.hasNot('@pnpm.e2e/foo')
+  projects.project.hasNot('@pnpm.e2e/foobar')
+})
+
+test('hoistWorkspacePackages: a workspace project added by a later install is hoisted', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+
+        dependencies: {
+          '@pnpm.e2e/foobar': '100.0.0',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    publicHoistPattern: ['*eslint*'],
+  })
+
+  await execPnpm(['install'])
+
+  projects.root.hasNot('eslint-plugin-local')
+
+  // The new project pulls in no new packages, so nothing about the dependency
+  // graph changes.
+  fs.mkdirSync('packages/eslint-plugin-local')
+  fs.writeFileSync(
+    'packages/eslint-plugin-local/package.json',
+    JSON.stringify({ name: 'eslint-plugin-local', version: '1.0.0' })
+  )
+
+  await execPnpm(['install'])
+
+  projects.root.has('eslint-plugin-local')
+})
+
+test('hoistWorkspacePackages: workspace projects are hoisted when nothing is installed from a registry', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+    {
+      location: 'app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+      },
+    },
+    {
+      location: 'eslint-plugin-local',
+      package: {
+        name: 'eslint-plugin-local',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['app', 'eslint-plugin-local'],
+    publicHoistPattern: ['*eslint*'],
+  })
+
+  await execPnpm(['install'])
+
+  projects.root.has('eslint-plugin-local')
+  projects.root.has('.pnpm/node_modules/app')
+})

@@ -1,0 +1,5 @@
+{
+  "repository": "https://github.com/pnpm/rustfmt",
+  "revision": "d6374b755f95faf8c0f90f63e6ba242b552321ab",
+  "toolchain": "nightly-2026-08-27"
+}

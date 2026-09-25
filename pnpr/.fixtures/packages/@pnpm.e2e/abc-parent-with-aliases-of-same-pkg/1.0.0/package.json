@@ -1,0 +1,10 @@
+{
+  "name": "@pnpm.e2e/abc-parent-with-aliases-of-same-pkg",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/abc": "^1.0.0",
+    "peer-c3": "npm:@pnpm.e2e/peer-c@1.0.0",
+    "peer-c2": "npm:@pnpm.e2e/peer-c@1.0.1",
+    "peer-c1": "npm:@pnpm.e2e/peer-c@2.0.0"
+  }
+}

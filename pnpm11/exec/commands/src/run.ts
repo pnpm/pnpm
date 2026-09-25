@@ -1,0 +1,558 @@
+import path from 'node:path'
+
+import type { CompletionFunc } from '@pnpm/cli.command'
+import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
+import {
+  docsUrl,
+  readProjectManifestOnly,
+  tryReadProjectManifest,
+} from '@pnpm/cli.utils'
+import { binDirOf, type Config, type ConfigContext, createProjectModulesDirResolver, getWorkspaceConcurrency, types as allTypes } from '@pnpm/config.reader'
+import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
+import { PnpmError } from '@pnpm/error'
+import { keepEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
+import {
+  makeNodePackageMapOption,
+  makeNodeRequireOption,
+  makeProjectNodePathOption,
+  runLifecycleHook,
+  type RunLifecycleHookOptions,
+} from '@pnpm/exec.lifecycle'
+import type { DependencyManifest, PackageScripts, ProjectManifest, ProjectsGraph } from '@pnpm/types'
+import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
+import pLimit from 'p-limit'
+import { pick } from 'ramda'
+import { realpathMissing } from 'realpath-missing'
+import { renderHelp } from 'render-help'
+
+import { buildCommandNotFoundHint } from './buildCommandNotFoundHint.js'
+import { handler as exec } from './exec.js'
+import { existsInDir } from './existsInDir.js'
+import { throwOrFilterHiddenScripts } from './hiddenScripts.js'
+import { runDepsStatusCheck } from './runDepsStatusCheck.js'
+import { getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand, type RecursiveRunOpts, runRecursive } from './runRecursive.js'
+
+export const IF_PRESENT_OPTION: Record<string, unknown> = {
+  'if-present': Boolean,
+}
+
+export interface DescriptionItem {
+  shortAlias?: string
+  name: string
+  description?: string
+}
+
+export const IF_PRESENT_OPTION_HELP: DescriptionItem = {
+  description: 'Avoid exiting with a non-zero exit code when the script is undefined',
+  name: '--if-present',
+}
+
+export const PARALLEL_OPTION_HELP: DescriptionItem = {
+  description: 'Completely disregard concurrency and topological sorting, \
+running a given script immediately in all matching packages \
+with prefixed streaming output. This is the preferred flag \
+for long-running processes such as watch run over many packages.',
+  name: '--parallel',
+}
+
+export const RESUME_FROM_OPTION_HELP: DescriptionItem = {
+  description: 'Command executed from given package',
+  name: '--resume-from',
+}
+
+export const SEQUENTIAL_OPTION_HELP: DescriptionItem = {
+  description: 'Run the specified scripts one by one',
+  name: '--sequential',
+  shortAlias: '-s',
+}
+
+export const REPORT_SUMMARY_OPTION_HELP: DescriptionItem = {
+  description: 'Save the execution results of every package to "pnpm-exec-summary.json". Useful to inspect the execution time and status of each package.',
+  name: '--report-summary',
+}
+
+export const REPORTER_HIDE_PREFIX_HELP: DescriptionItem = {
+  description: 'Hide project name prefix from output of running scripts. Useful when running in CI like GitHub Actions and the output from a script may create an annotation.',
+  name: '--reporter-hide-prefix',
+}
+
+export const DRY_RUN_OPTION_HELP: DescriptionItem = {
+  description: 'Print the task graph a recursive run would execute, without running anything. With "--json", prints the tasks and their resolved dependency edges as JSON',
+  name: '--dry-run',
+}
+
+export const shorthands: Record<string, string[]> = {
+  parallel: [
+    '--workspace-concurrency=Infinity',
+    '--no-sort',
+    '--stream',
+    '--recursive',
+  ],
+  s: [
+    '--sequential',
+    '--workspace-concurrency=1',
+  ],
+  sequential: [
+    '--workspace-concurrency=1',
+  ],
+}
+
+export function rcOptionsTypes (): Record<string, unknown> {
+  return {
+    ...pick([
+      'npm-path',
+      'node-experimental-package-map',
+      'node-package-map-type',
+    ], allTypes),
+  }
+}
+
+export function cliOptionsTypes (): Record<string, unknown> {
+  return {
+    ...pick([
+      'bail',
+      'sort',
+      'unsafe-perm',
+      'workspace-concurrency',
+      'scripts-prepend-node-path',
+    ], allTypes),
+    ...IF_PRESENT_OPTION,
+    'dry-run': Boolean,
+    json: Boolean,
+    recursive: Boolean,
+    reverse: Boolean,
+    'resume-from': String,
+    'report-summary': Boolean,
+    'reporter-hide-prefix': Boolean,
+    sequential: Boolean,
+  }
+}
+
+export const completion: CompletionFunc = async (cliOpts, params) => {
+  if (params.length > 0) {
+    return []
+  }
+  const manifest = await readProjectManifestOnly(cliOpts.dir as string ?? process.cwd(), cliOpts)
+  return Object.keys(manifest.scripts ?? {}).map((name) => ({ name }))
+}
+
+export const commandNames = ['run', 'run-script']
+
+export function help (): string {
+  return renderHelp({
+    aliases: ['run-script'],
+    description: 'Runs a defined package script.',
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: 'Run the defined package script in every package found in subdirectories \
+or every workspace package, when executed inside a workspace. \
+For options that may be used with `-r`, see "pnpm help recursive"',
+            name: '--recursive',
+            shortAlias: '-r',
+          },
+          {
+            description: 'Continue running the remaining scripts even if one of them fails, instead of aborting on the first failure. The command still exits with a non-zero exit code if any script failed',
+            name: '--no-bail',
+          },
+          DRY_RUN_OPTION_HELP,
+          IF_PRESENT_OPTION_HELP,
+          PARALLEL_OPTION_HELP,
+          RESUME_FROM_OPTION_HELP,
+          ...UNIVERSAL_OPTIONS,
+          SEQUENTIAL_OPTION_HELP,
+          REPORT_SUMMARY_OPTION_HELP,
+          REPORTER_HIDE_PREFIX_HELP,
+        ],
+      },
+      FILTERING,
+    ],
+    url: docsUrl('run'),
+    usages: ['pnpm run <command> [<args>...]'],
+  })
+}
+
+export type RunOpts =
+  & Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>
+  & { recursive?: boolean }
+  & Pick<Config,
+  | 'bin'
+  | 'verifyDepsBeforeRun'
+  | 'dir'
+  | 'enablePrePostScripts'
+  | 'engineStrict'
+  | 'extendNodePath'
+  | 'extraBinPaths'
+  | 'extraEnv'
+  | 'nodeOptions'
+  | 'nodeExperimentalPackageMap'
+  | 'pnpmHomeDir'
+  | 'preferSymlinkedExecutables'
+  | 'loglevel'
+  | 'reporter'
+  | 'scriptShell'
+  | 'scriptsPrependNodePath'
+  | 'shellEmulator'
+  | 'syncInjectedDepsAfterScripts'
+  | 'userAgent'
+  >
+  & Pick<ConfigContext, 'cliOptions'>
+  & (
+    | { recursive?: false } & Partial<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir'>>
+    | { recursive: true } & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir'>>
+  )
+  & {
+    argv?: {
+      original: string[]
+    }
+    fallbackCommandUsed?: boolean
+    sequential?: boolean
+  }
+  & CheckDepsStatusOptions
+
+export async function handler (
+  opts: RunOpts,
+  params: string[]
+): Promise<string | { exitCode: number } | undefined> {
+  if (opts.sequential) {
+    opts.workspaceConcurrency = 1
+  }
+  let dir: string
+  if (opts.fallbackCommandUsed && (params[0] === 't' || params[0] === 'tst')) {
+    params[0] = 'test'
+  }
+  const [scriptName, ...passedThruArgs] = params
+
+  // Before the dependency verification: an unsupported flag must fail
+  // before anything can trigger an install or a prompt.
+  if (opts.dryRun && !opts.recursive) {
+    throw new PnpmError('DRY_RUN_NOT_RECURSIVE', 'The --dry-run option is only supported with recursive runs', {
+      hint: 'Use "pnpm -r run --dry-run <script>" to print the task graph of a recursive run.',
+    })
+  }
+
+  // A dry run prints what would execute and runs nothing, so it must not
+  // let the dependency verification trigger an install either.
+  if (opts.verifyDepsBeforeRun && !opts.dryRun) {
+    await runDepsStatusCheck(opts)
+  }
+
+  if (opts.nodeOptions) {
+    opts.extraEnv = {
+      ...opts.extraEnv,
+      NODE_OPTIONS: keepEsmNodePathLoaderOption(opts.nodeOptions, opts.extraEnv?.NODE_OPTIONS),
+    }
+  }
+
+  if (opts.recursive) {
+    if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
+      if (fallsBackToExec(opts, scriptName)) {
+        // exec must not repeat the dependency verification above.
+        return exec({ implicitlyFellbackFromRun: true, ...opts, verifyDepsBeforeRun: false }, params)
+      }
+      return runRecursive(params, opts)
+    }
+    dir = Object.keys(opts.selectedProjectsGraph)[0]
+  } else {
+    dir = opts.dir
+  }
+  const manifest = await readProjectManifestOnly(dir, opts)
+  if (!scriptName) {
+    const rootManifest = opts.workspaceDir && opts.workspaceDir !== dir
+      ? (await tryReadProjectManifest(opts.workspaceDir, opts)).manifest
+      : undefined
+    return printProjectCommands(manifest, rootManifest ?? undefined)
+  }
+
+  let specifiedScripts = getSpecifiedScripts(manifest.scripts ?? {}, scriptName)
+
+  if (!process.env.npm_lifecycle_event) {
+    specifiedScripts = throwOrFilterHiddenScripts(specifiedScripts, scriptName)
+  }
+
+  if (specifiedScripts.length < 1) {
+    if (opts.ifPresent) return
+    if (opts.fallbackCommandUsed) {
+      if (opts.argv == null) throw new Error('Could not fallback because opts.argv.original was not passed to the script runner')
+      const params = opts.argv.original.slice(1)
+      while (params.length > 0 && params[0][0] === '-' && params[0] !== '--') {
+        params.shift()
+      }
+      if (params.length > 0 && params[0] === '--') {
+        params.shift()
+      }
+      if (params.length === 0) {
+        throw new PnpmError('UNEXPECTED_BEHAVIOR', 'Params should not be an empty array', {
+          hint: 'This was a bug caused by programmer error. Please report it',
+        })
+      }
+      return exec({
+        selectedProjectsGraph: {},
+        implicitlyFellbackFromRun: true,
+        ...opts,
+      }, params)
+    }
+    if (opts.workspaceDir) {
+      const { manifest: rootManifest } = await tryReadProjectManifest(opts.workspaceDir, opts)
+      if (getSpecifiedScripts(rootManifest?.scripts ?? {}, scriptName).length > 0 && specifiedScripts.length < 1) {
+        throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`, {
+          hint: `But script matched with ${scriptName} is present in the root of the workspace,
+so you may run "pnpm -w run ${scriptName}"`,
+        })
+      }
+    }
+
+    throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`, {
+      hint: buildCommandNotFoundHint(scriptName, manifest.scripts),
+    })
+  }
+  const concurrency = getWorkspaceConcurrency(opts.workspaceConcurrency)
+
+  const modulesDirFor = createProjectModulesDirResolver(opts)
+  const wdBinDir = binDirOf(dir, modulesDirFor(manifest.name))
+  const lifecycleOpts: RunLifecycleHookOptions = {
+    depPath: dir,
+    wdBinDir,
+    extraBinPaths: opts.extraBinPaths,
+    extraEnv: { ...opts.extraEnv, ...await makeProjectNodePathOption({ modulesDir: path.dirname(wdBinDir), rootDir: dir }, opts) },
+    pkgRoot: dir,
+    rootModulesDir: await realpathMissing(path.dirname(wdBinDir)),
+    scriptsPrependNodePath: opts.scriptsPrependNodePath,
+    scriptShell: opts.scriptShell,
+    silent: suppressesScriptEcho(opts),
+    shellEmulator: opts.shellEmulator,
+    stdio: (specifiedScripts.length > 1 && concurrency > 1) ? 'pipe' : 'inherit',
+    unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
+    userAgent: opts.userAgent,
+  }
+  const existsPnp = existsInDir.bind(null, '.pnp.cjs')
+  const pnpPath = (opts.workspaceDir && existsPnp(opts.workspaceDir)) ?? existsPnp(dir)
+  if (pnpPath) {
+    lifecycleOpts.extraEnv = {
+      ...lifecycleOpts.extraEnv,
+      ...makeNodeRequireOption(pnpPath, lifecycleOpts.extraEnv),
+    }
+  }
+  const existsPackageMap = existsInDir.bind(null, path.join(opts.modulesDir ?? 'node_modules', '.package-map.json'))
+  const packageMapPath = opts.nodeExperimentalPackageMap
+    ? (opts.workspaceDir && existsPackageMap(opts.workspaceDir)) ?? existsPackageMap(dir)
+    : undefined
+  if (packageMapPath) {
+    lifecycleOpts.extraEnv = {
+      ...lifecycleOpts.extraEnv,
+      ...makeNodePackageMapOption(packageMapPath, lifecycleOpts.extraEnv),
+    }
+  }
+  const limitRun = pLimit(concurrency)
+
+  const runScriptOptions: RunScriptOptions = {
+    enablePrePostScripts: opts.enablePrePostScripts ?? false,
+    syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts,
+    workspaceDir: opts.workspaceDir,
+  }
+  const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
+
+  if (opts.bail !== false) {
+    await Promise.all(specifiedScripts.map(script => limitRun(() => _runScript(script))))
+  } else {
+    const results = await Promise.allSettled(
+      specifiedScripts.map(script => limitRun(() => _runScript(script)))
+    )
+    const failures = results
+      .map((result, index) => ({ result, script: specifiedScripts[index] }))
+      .filter((entry): entry is { result: PromiseRejectedResult, script: string } => entry.result.status === 'rejected')
+    if (failures.length > 0) {
+      throw new PnpmError(
+        'RUN_FAILED',
+        `Some scripts failed: ${failures.length} of ${specifiedScripts.length}`,
+        {
+          hint: failures
+            .map(({ script, result }) => `${script}: ${result.reason?.message ?? String(result.reason)}`)
+            .join('\n'),
+        }
+      )
+    }
+  }
+  return undefined
+}
+
+const ALL_LIFECYCLE_SCRIPTS = new Set([
+  'prepublish',
+  'prepare',
+  'prepublishOnly',
+  'prepack',
+  'postpack',
+  'publish',
+  'postpublish',
+  'preinstall',
+  'install',
+  'postinstall',
+  'preuninstall',
+  'uninstall',
+  'postuninstall',
+  'preversion',
+  'version',
+  'postversion',
+  'pretest',
+  'test',
+  'posttest',
+  'prestop',
+  'stop',
+  'poststop',
+  'prestart',
+  'start',
+  'poststart',
+  'prerestart',
+  'restart',
+  'postrestart',
+  'preshrinkwrap',
+  'shrinkwrap',
+  'postshrinkwrap',
+])
+
+function printProjectCommands (
+  manifest: ProjectManifest,
+  rootManifest?: ProjectManifest
+): string {
+  const lifecycleScripts = [] as string[][]
+  const otherScripts = [] as string[][]
+
+  for (const [scriptName, script] of Object.entries(manifest.scripts ?? {})) {
+    if (scriptName.startsWith('.')) continue
+    if (ALL_LIFECYCLE_SCRIPTS.has(scriptName)) {
+      lifecycleScripts.push([scriptName, script])
+    } else {
+      otherScripts.push([scriptName, script])
+    }
+  }
+
+  if (lifecycleScripts.length === 0 && otherScripts.length === 0) {
+    return 'There are no scripts specified.'
+  }
+
+  let output = ''
+  if (lifecycleScripts.length > 0) {
+    output += `Lifecycle scripts:\n${renderCommands(lifecycleScripts)}`
+  }
+  if (otherScripts.length > 0) {
+    if (output !== '') output += '\n\n'
+    output += `Commands available via "pnpm run":\n${renderCommands(otherScripts)}`
+  }
+  if ((rootManifest?.scripts) == null) {
+    return output
+  }
+  const rootScripts = Object.entries(rootManifest.scripts)
+  if (rootScripts.length === 0) {
+    return output
+  }
+  if (output !== '') output += '\n\n'
+  output += `Commands of the root workspace project (to run them, use "pnpm -w run"):
+${renderCommands(rootScripts)}`
+  return output
+}
+
+export interface RunScriptOptions {
+  enablePrePostScripts: boolean
+  syncInjectedDepsAfterScripts: string[] | undefined
+  workspaceDir: string | undefined
+}
+
+export async function runScript (opts: {
+  manifest: ProjectManifest
+  lifecycleOpts: RunLifecycleHookOptions
+  runScriptOptions: RunScriptOptions
+  passedThruArgs: string[]
+}, scriptName: string): Promise<void> {
+  const stages = getRunScriptStages(opts.manifest, scriptName, opts.runScriptOptions.enablePrePostScripts)
+  if (stages.length === 0) {
+    await runLifecycleHook(scriptName, opts.manifest, { ...opts.lifecycleOpts, args: opts.passedThruArgs })
+  } else {
+    for (const stage of stages) {
+      await runLifecycleHook(stage.name, opts.manifest, stage.name === scriptName // eslint-disable-line no-await-in-loop
+        ? { ...opts.lifecycleOpts, args: opts.passedThruArgs }
+        : opts.lifecycleOpts)
+    }
+  }
+  if (opts.runScriptOptions.syncInjectedDepsAfterScripts?.includes(scriptName)) {
+    await syncInjectedDeps({
+      pkgName: opts.manifest.name,
+      pkgRootDir: opts.lifecycleOpts.pkgRoot,
+      workspaceDir: opts.runScriptOptions.workspaceDir,
+      // Read before the script ran, so a bin it drops can still be named.
+      manifestBeforeScripts: opts.manifest as DependencyManifest,
+    })
+  }
+}
+
+export function getRunScriptCommands (
+  manifest: ProjectManifest,
+  scriptName: string,
+  enablePrePostScripts: boolean
+): string[] {
+  return getRunScriptStages(manifest, scriptName, enablePrePostScripts).map(({ command }) => command)
+}
+
+function getRunScriptStages (
+  manifest: ProjectManifest,
+  scriptName: string,
+  enablePrePostScripts: boolean
+): Array<{ name: string, command: string }> {
+  const scripts = manifest.scripts ?? {}
+  const main = scripts[scriptName]
+  if (main == null) return []
+  const stages = [{ name: scriptName, command: main }]
+  if (!enablePrePostScripts) return stages
+  const pre = `pre${scriptName}`
+  const post = `post${scriptName}`
+  if (scripts[pre] && !main.includes(pre)) stages.unshift({ name: pre, command: scripts[pre] })
+  if (scripts[post] && !main.includes(post)) stages.push({ name: post, command: scripts[post] })
+  return stages
+}
+
+/**
+ * Whether a recursive `pnpm <command>` shorthand hands the command to `exec`,
+ * as the single-project shorthand does when no selected project has a script
+ * by that name. `test` and `start` have defaults of their own when the script
+ * is missing, so they are never handed to `exec` as binaries.
+ */
+function fallsBackToExec (opts: RunOpts & { recursive: true }, scriptName: string): boolean {
+  return Boolean(opts.fallbackCommandUsed) &&
+    scriptName !== 'test' &&
+    scriptName !== 'start' &&
+    !opts.ifPresent &&
+    !opts.dryRun &&
+    !someSelectedProjectHasScript(opts.selectedProjectsGraph, scriptName)
+}
+
+function someSelectedProjectHasScript (selectedProjectsGraph: ProjectsGraph, scriptName: string): boolean {
+  return Object.values(selectedProjectsGraph).some(({ package: { manifest } }) =>
+    getSpecifiedScriptWithoutStartCommand(manifest.scripts ?? {}, scriptName).length > 0
+  )
+}
+
+function renderCommands (commands: string[][]): string {
+  return commands.map(([scriptName, script]) => `  ${scriptName}\n    ${script}`).join('\n')
+}
+
+function getSpecifiedScripts (scripts: PackageScripts, scriptName: string): string[] {
+  const specifiedSelector = getSpecifiedScriptWithoutStartCommand(scripts, scriptName)
+
+  if (specifiedSelector.length > 0) {
+    return specifiedSelector
+  }
+
+  // if a user passes start command as scriptName, `node server.js` will be executed as a fallback, so return start command even if start command is not defined in package.json
+  if (scriptName === 'start') {
+    return [scriptName]
+  }
+
+  return []
+}
+
+/** The `$ <script>` echo is info-level output. */
+export function suppressesScriptEcho (opts: Pick<Config, 'loglevel' | 'reporter'>): boolean {
+  return opts.reporter === 'silent' || opts.loglevel === 'silent' || opts.loglevel === 'error' || opts.loglevel === 'warn'
+}

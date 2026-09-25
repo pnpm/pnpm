@@ -1,0 +1,143 @@
+/// <reference path="../../../__typings__/index.d.ts"/>
+import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
+import { createFetchFromRegistry } from '@pnpm/network.fetch'
+import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
+import type { RegistriesByScope } from '@pnpm/types'
+import { temporaryDirectory } from 'tempy'
+
+import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
+
+const registriesByScope = {
+  default: 'https://registry.npmjs.org/',
+} satisfies RegistriesByScope
+
+const fetch = createFetchFromRegistry({})
+const getAuthHeader = () => undefined
+const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
+
+afterEach(async () => {
+  await teardownMockAgent()
+})
+
+beforeEach(async () => {
+  await setupMockAgent()
+})
+
+describe('optional dependencies', () => {
+  test('optional dependencies receive full metadata with libc field', async () => {
+    // This test verifies the fix for https://github.com/pnpm/pnpm/issues/9950
+    // Optional dependencies need full metadata to get the libc field for platform compatibility checks.
+    const packageMeta = {
+      name: 'platform-pkg',
+      'dist-tags': { latest: '1.0.0' },
+      versions: {
+        '1.0.0': {
+          name: 'platform-pkg',
+          version: '1.0.0',
+          os: ['linux'],
+          cpu: ['x64'],
+          libc: ['glibc'],
+          dist: {
+            tarball: 'https://registry.npmjs.org/platform-pkg/-/platform-pkg-1.0.0.tgz',
+            integrity: 'sha512-test1234567890123456789012345678901234567890123456789012345678',
+          },
+        },
+      },
+    }
+
+    // Mock the full metadata request for optional dependency
+    getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+      .intercept({ path: '/platform-pkg', method: 'GET' })
+      .reply(200, packageMeta)
+
+    const { resolveFromNpm } = createResolveFromNpm({
+      storeDir: temporaryDirectory(),
+      cacheDir: temporaryDirectory(),
+      registriesByScope,
+    })
+
+    const result = await resolveFromNpm(
+      {
+        alias: 'platform-pkg',
+        bareSpecifier: '1.0.0',
+        optional: true,
+      },
+      {}
+    )
+
+    expect(result!.manifest!.libc).toEqual(['glibc'])
+    expect(result!.manifest!.os).toEqual(['linux'])
+    expect(result!.manifest!.cpu).toEqual(['x64'])
+  })
+
+  test('abbreviated and full metadata are cached separately', async () => {
+    // `libc` (which abbreviated metadata omits) is the observable difference
+    // between the two slots: a field like `scripts` wouldn't do because the
+    // resolver condenses every retained packument via clearMeta.
+    const abbreviatedMeta = {
+      name: 'cache-test',
+      'dist-tags': { latest: '1.0.0' },
+      versions: {
+        '1.0.0': {
+          name: 'cache-test',
+          version: '1.0.0',
+          dist: {
+            tarball: 'https://registry.npmjs.org/cache-test/-/cache-test-1.0.0.tgz',
+            integrity: 'sha512-test1234567890123456789012345678901234567890123456789012345678',
+          },
+        },
+      },
+    }
+    const fullMeta = {
+      name: 'cache-test',
+      'dist-tags': { latest: '1.0.0' },
+      versions: {
+        '1.0.0': {
+          name: 'cache-test',
+          version: '1.0.0',
+          libc: ['glibc'],
+          dist: {
+            tarball: 'https://registry.npmjs.org/cache-test/-/cache-test-1.0.0.tgz',
+            integrity: 'sha512-test1234567890123456789012345678901234567890123456789012345678',
+          },
+        },
+      },
+    }
+
+    const mockPool = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    // First request: abbreviated metadata for regular dependency (accept header prefers abbreviated)
+    mockPool.intercept({
+      path: '/cache-test',
+      method: 'GET',
+      headers: { accept: /application\/vnd\.npm\.install-v1\+json/ },
+    }).reply(200, abbreviatedMeta)
+    // Second request: full metadata for optional dependency (accept header prefers full JSON)
+    mockPool.intercept({
+      path: '/cache-test',
+      method: 'GET',
+      headers: { accept: /application\/json/ },
+    }).reply(200, fullMeta)
+
+    const cacheDir = temporaryDirectory()
+
+    const { resolveFromNpm } = createResolveFromNpm({
+      storeDir: temporaryDirectory(),
+      cacheDir,
+      registriesByScope,
+    })
+
+    // Resolve as regular dependency - should get abbreviated metadata
+    const regularResult = await resolveFromNpm(
+      { alias: 'cache-test', bareSpecifier: '1.0.0' },
+      {}
+    )
+    expect(regularResult!.manifest!.libc).toBeUndefined()
+
+    // Resolve as optional dependency - should get full metadata (separate cache entry)
+    const optionalResult = await resolveFromNpm(
+      { alias: 'cache-test', bareSpecifier: '1.0.0', optional: true },
+      {}
+    )
+    expect(optionalResult!.manifest!.libc).toEqual(['glibc'])
+  })
+})

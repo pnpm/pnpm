@@ -1,0 +1,478 @@
+import path from 'node:path'
+
+import { describe, expect, test } from '@jest/globals'
+import { config } from '@pnpm/config.commands'
+
+import { createConfigCommandOpts, getOutputString } from './utils/index.js'
+
+test('config get', async () => {
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: true,
+    authConfig: {},
+    storeDir: '~/store',
+  }), ['get', 'store-dir'])
+
+  expect(getOutputString(getResult)).toBe('~/store')
+})
+
+test('config get works with camelCase', async () => {
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: true,
+    authConfig: {},
+    storeDir: '~/store',
+  }), ['get', 'storeDir'])
+
+  expect(getOutputString(getResult)).toBe('~/store')
+})
+
+test('config get a boolean should return string format', async () => {
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: true,
+    authConfig: {},
+    updateNotifier: true,
+  }), ['get', 'update-notifier'])
+
+  expect(getOutputString(getResult)).toBe('true')
+})
+
+test('config get on array should return a comma-separated list', async () => {
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: true,
+    authConfig: {},
+    publicHoistPattern: [
+      '*eslint*',
+      '*prettier*',
+    ],
+  }), ['get', 'public-hoist-pattern'])
+
+  expect(JSON.parse(getOutputString(getResult))).toStrictEqual([
+    '*eslint*',
+    '*prettier*',
+  ])
+})
+
+test('config get on object should return a JSON string', async () => {
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: true,
+    authConfig: {},
+    catalog: {
+      react: '^19.0.0',
+    },
+  }), ['get', 'catalog'])
+
+  expect(JSON.parse(getOutputString(getResult))).toStrictEqual({ react: '^19.0.0' })
+})
+
+test('config get without key show list all settings', async () => {
+  const authConfig = {
+    'store-dir': '~/store',
+    'fetch-retries': '2',
+  }
+  const baseOpts = {
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    authConfig,
+  }
+  const getOutput = await config.handler(createConfigCommandOpts(baseOpts), ['get'])
+
+  const listOutput = await config.handler(createConfigCommandOpts(baseOpts), ['list'])
+
+  expect(getOutput).toStrictEqual(listOutput)
+})
+
+describe('config get with a property path', () => {
+  const packageExtensions = {
+    '@babel/parser': {
+      peerDependencies: {
+        '@babel/types': '*',
+      },
+    },
+    'jest-circus': {
+      dependencies: {
+        slash: '3',
+      },
+    },
+  }
+  const configData = {
+    dlxCacheMaxAge: '1234',
+    trustPolicyExclude: ['foo', 'bar'],
+    packageExtensions,
+  }
+  const baseOpts = createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: true,
+    authConfig: {},
+    ...configData,
+  })
+
+  describe('anything with --json', () => {
+    test('«»', async () => {
+      const getResult = await config.handler({
+        ...baseOpts,
+        json: true,
+      }, ['get', ''])
+
+      expect(JSON.parse(getOutputString(getResult))).toMatchObject(configData)
+    })
+
+    test.each([
+      ['dlx-cache-max-age', configData.dlxCacheMaxAge],
+      ['dlxCacheMaxAge', configData.dlxCacheMaxAge],
+      ['trust-policy-exclude', configData.trustPolicyExclude],
+      ['trustPolicyExclude', configData.trustPolicyExclude],
+      ['trustPolicyExclude[0]', configData.trustPolicyExclude[0]],
+      ['trustPolicyExclude[1]', configData.trustPolicyExclude[1]],
+      ['packageExtensions', configData.packageExtensions],
+      ['packageExtensions["@babel/parser"]', configData.packageExtensions['@babel/parser']],
+      ['packageExtensions["@babel/parser"].peerDependencies', configData.packageExtensions['@babel/parser'].peerDependencies],
+      ['packageExtensions["@babel/parser"].peerDependencies["@babel/types"]', configData.packageExtensions['@babel/parser'].peerDependencies['@babel/types']],
+      ['packageExtensions["jest-circus"]', configData.packageExtensions['jest-circus']],
+      ['packageExtensions["jest-circus"].dependencies', configData.packageExtensions['jest-circus'].dependencies],
+      ['packageExtensions["jest-circus"].dependencies.slash', configData.packageExtensions['jest-circus'].dependencies.slash],
+    ] as Array<[string, unknown]>)('«%s»', async (propertyPath, expected) => {
+      const getResult = await config.handler({
+        ...baseOpts,
+        json: true,
+      }, ['get', propertyPath])
+
+      expect(JSON.parse(getOutputString(getResult))).toStrictEqual(expected)
+    })
+  })
+
+  describe('object without --json', () => {
+    // Note: empty path returns all config including dir/global/configDir,
+    // so we use toMatchObject for the empty-path case.
+    test('«»', async () => {
+      const getResult = await config.handler(baseOpts, ['get', ''])
+      expect(JSON.parse(getOutputString(getResult))).toMatchObject(configData)
+    })
+
+    test.each([
+      ['packageExtensions', configData.packageExtensions],
+      ['packageExtensions["@babel/parser"]', configData.packageExtensions['@babel/parser']],
+      ['packageExtensions["@babel/parser"].peerDependencies', configData.packageExtensions['@babel/parser'].peerDependencies],
+      ['packageExtensions["jest-circus"]', configData.packageExtensions['jest-circus']],
+      ['packageExtensions["jest-circus"].dependencies', configData.packageExtensions['jest-circus'].dependencies],
+    ] as Array<[string, unknown]>)('«%s»', async (propertyPath, expected) => {
+      const getResult = await config.handler(baseOpts, ['get', propertyPath])
+
+      expect(JSON.parse(getOutputString(getResult))).toStrictEqual(expected)
+    })
+  })
+
+  describe('string without --json', () => {
+    test.each([
+      ['dlx-cache-max-age', configData.dlxCacheMaxAge],
+      ['dlxCacheMaxAge', configData.dlxCacheMaxAge],
+      ['trustPolicyExclude[0]', configData.trustPolicyExclude[0]],
+      ['trustPolicyExclude[1]', configData.trustPolicyExclude[1]],
+      ['packageExtensions["@babel/parser"].peerDependencies["@babel/types"]', configData.packageExtensions['@babel/parser'].peerDependencies['@babel/types']],
+      ['packageExtensions["jest-circus"].dependencies.slash', configData.packageExtensions['jest-circus'].dependencies.slash],
+    ] as Array<[string, string]>)('«%s»', async (propertyPath, expected) => {
+      const getResult = await config.handler(baseOpts, ['get', propertyPath])
+
+      expect(getOutputString(getResult)).toStrictEqual(expected)
+    })
+  })
+
+  describe('non-rc kebab-case keys', () => {
+    test('«package-extensions» resolves to packageExtensions on Config', async () => {
+      const getResult = await config.handler(baseOpts, ['get', 'package-extensions'])
+
+      expect(JSON.parse(getOutputString(getResult))).toStrictEqual(configData.packageExtensions)
+    })
+
+    test('unknown kebab-case key returns undefined', async () => {
+      const getResult = await config.handler(baseOpts, ['get', 'no-such-setting'])
+
+      expect(getOutputString(getResult)).toBe('undefined')
+    })
+  })
+})
+
+test('config get with scoped registry key (global: false)', async () => {
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {
+      '@scope:registry': 'https://custom-registry.example.com/',
+    },
+  }), ['get', '@scope:registry'])
+
+  expect(getOutputString(getResult)).toBe('https://custom-registry.example.com/')
+})
+
+test('config get with scoped registry key (global: true)', async () => {
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: true,
+    authConfig: {
+      '@scope:registry': 'https://custom-registry.example.com/',
+    },
+  }), ['get', '@scope:registry'])
+
+  expect(getOutputString(getResult)).toBe('https://custom-registry.example.com/')
+})
+
+test('config get with scoped registry returns the merged value from pnpm-workspace.yaml (#11492)', async () => {
+  // .npmrc set the scope to one URL, but pnpm-workspace.yaml's `registries`
+  // block overrides it. `pnpm config get` must report the URL that
+  // resolvers/publish actually use, not the raw .npmrc value.
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {
+      '@scope:registry': 'https://from-npmrc.example.com/',
+    },
+    registriesByScope: {
+      default: 'https://registry.npmjs.org/',
+      '@scope': 'https://from-workspace-yaml.example.com/',
+    },
+  }), ['get', '@scope:registry'])
+
+  expect(getOutputString(getResult)).toBe('https://from-workspace-yaml.example.com/')
+})
+
+test('config get registries returns the registries the CLI resolves from', async () => {
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    registriesByScope: {
+      default: 'https://registry.example.com/',
+      '@jsr': 'https://npm.jsr.io/',
+      '@corp': 'https://work.example.com/',
+    },
+    registriesByPrefix: {
+      work: 'https://work.example.com/',
+    },
+    registryOptionsByUrl: {
+      'https://work.example.com/': { serverType: 'artifactory' },
+    },
+  }), ['get', 'registries'])
+
+  expect(JSON.parse(getOutputString(getResult))).toStrictEqual({
+    'https://npm.jsr.io/': { scopes: ['@jsr'] },
+    'https://npm.pkg.github.com/': { prefix: 'gh' },
+    'https://registry.example.com/': { scopes: ['@'] },
+    'https://registry.npmjs.org/': { prefix: 'npmjs' },
+    'https://work.example.com/': {
+      serverType: 'artifactory',
+      scopes: ['@corp'],
+      prefix: 'work',
+    },
+  })
+})
+
+test('config list re-joins the registry lookups under `registries`', async () => {
+  const listResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    registriesByScope: {
+      default: 'https://registry.example.com/',
+    },
+    registryOptionsByUrl: {
+      'https://registry.example.com/': { supportsTimeField: true },
+    },
+  }), ['list'])
+
+  const record = JSON.parse(getOutputString(listResult))
+  expect(record.registries).toStrictEqual({
+    'https://npm.jsr.io/': { scopes: ['@jsr'] },
+    'https://npm.pkg.github.com/': { prefix: 'gh' },
+    'https://registry.example.com/': {
+      supportsTimeField: true,
+      scopes: ['@'],
+    },
+    'https://registry.npmjs.org/': { prefix: 'npmjs' },
+  })
+  expect(record).not.toHaveProperty('registriesByScope')
+  expect(record).not.toHaveProperty('registryOptionsByUrl')
+  // The npm-compat row agrees with the resolved view.
+  expect(record.registry).toBe('https://registry.example.com/')
+})
+
+test('config get registry and @jsr:registry answer the merged routes', async () => {
+  const baseOpts = {
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {
+      registry: 'https://from-npmrc.example.com/',
+    },
+    registriesByScope: {
+      default: 'https://from-workspace-yaml.example.com/',
+      '@jsr': 'https://npm.jsr.io/',
+    },
+  }
+
+  // The resolved default — wherever it was routed from — wins over a raw
+  // `.npmrc` row, so `get` and `list` cannot contradict the `registries`
+  // view.
+  const registryResult = await config.handler(createConfigCommandOpts(baseOpts), ['get', 'registry'])
+  expect(getOutputString(registryResult)).toBe('https://from-workspace-yaml.example.com/')
+  const jsrResult = await config.handler(createConfigCommandOpts(baseOpts), ['get', '@jsr:registry'])
+  expect(getOutputString(jsrResult)).toBe('https://npm.jsr.io/')
+  const listResult = await config.handler(createConfigCommandOpts(baseOpts), ['list'])
+  const record = JSON.parse(getOutputString(listResult))
+  expect(record.registry).toBe('https://from-workspace-yaml.example.com/')
+  expect(record['@jsr:registry']).toBe('https://npm.jsr.io/')
+})
+
+test('config get audit-level still answers the deprecated types key', async () => {
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    auditLevel: 'high',
+  }), ['get', 'audit-level'])
+  expect(getOutputString(getResult)).toBe('high')
+})
+
+test('config get catalogs prints the resolved catalog set, whichever spelling declared it', async () => {
+  // The reader merges the singular `catalog` block into `catalogs` as its
+  // `default` entry; the record shows that merged set, named catalogs
+  // preserved.
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    catalog: { react: '^19.0.0' },
+    catalogs: { default: { react: '^19.0.0' }, react17: { react: '^17.0.0' } },
+  }), ['get', 'catalogs'])
+  expect(JSON.parse(getOutputString(getResult))).toStrictEqual({
+    default: { react: '^19.0.0' },
+    react17: { react: '^17.0.0' },
+  })
+
+  // A catalogs map holding no catalog reads as unset.
+  const emptyResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    catalogs: { default: undefined },
+  }), ['get', 'catalogs'])
+  expect(getOutputString(emptyResult)).toBe('undefined')
+})
+
+test('config get update and audit return the settings the CLI acts on, under the documented names', async () => {
+  const baseOpts = {
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    updateConfig: {
+      ignoreDependencies: ['webpack'],
+      changeset: true,
+    },
+    auditConfig: {
+      ignoreGhsas: ['GHSA-xxxx-yyyy-zzzz'],
+    },
+    auditLevel: 'high',
+  }
+
+  const updateResult = await config.handler(createConfigCommandOpts(baseOpts), ['get', 'update'])
+  expect(JSON.parse(getOutputString(updateResult))).toStrictEqual({
+    ignoreDeps: ['webpack'],
+    changeset: true,
+  })
+
+  const auditResult = await config.handler(createConfigCommandOpts(baseOpts), ['get', 'audit'])
+  expect(JSON.parse(getOutputString(auditResult))).toStrictEqual({
+    level: 'high',
+    ignore: ['GHSA-xxxx-yyyy-zzzz'],
+  })
+
+  // The deprecated internal spellings are no longer part of the record.
+  const deprecatedResults = await Promise.all(['updateConfig', 'auditConfig'].map(
+    async (deprecatedKey) => config.handler(createConfigCommandOpts(baseOpts), ['get', deprecatedKey])
+  ))
+  for (const result of deprecatedResults) {
+    expect(getOutputString(result)).toBe('undefined')
+  }
+  const listResult = await config.handler(createConfigCommandOpts(baseOpts), ['list'])
+  expect(JSON.parse(getOutputString(listResult))).not.toHaveProperty('auditLevel')
+})
+
+test('config get with scoped registry key that does not exist', async () => {
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+  }), ['get', '@scope:registry'])
+
+  expect(getOutputString(getResult)).toBe('undefined')
+})
+
+test('config get globalconfig returns the global config.yaml path', async () => {
+  const configDir = path.join(process.cwd(), 'global-config')
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    global: true,
+    authConfig: {},
+  }), ['get', 'globalconfig'])
+
+  expect(getOutputString(getResult)).toBe(path.join(configDir, 'config.yaml'))
+})
+
+describe('does not traverse the prototype chain (#10296)', () => {
+  test.each([
+    'constructor',
+    'hasOwnProperty',
+    'isPrototypeOf',
+    'toString',
+    'valueOf',
+    '__proto__',
+  ])('%s', async key => {
+    const getResult = await config.handler(createConfigCommandOpts({
+      dir: process.cwd(),
+      cliOptions: {},
+      configDir: process.cwd(),
+      global: true,
+      authConfig: {},
+    }), ['get', key])
+
+    expect(getOutputString(getResult)).toBe('undefined')
+  })
+})

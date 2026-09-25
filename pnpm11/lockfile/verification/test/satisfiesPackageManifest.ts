@@ -1,0 +1,530 @@
+import { expect, test } from '@jest/globals'
+import { satisfiesPackageManifest } from '@pnpm/lockfile.verification'
+
+const DEFAULT_PKG_FIELDS = {
+  name: 'project',
+  version: '1.0.0',
+}
+
+test('satisfiesPackageManifest()', () => {
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: { foo: '1.0.0' },
+      specifiers: { foo: '^1.0.0' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: { foo: '^1.0.0' },
+    }
+  )).toStrictEqual({ satisfies: true })
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: { foo: '1.0.0' },
+      devDependencies: {},
+      specifiers: { foo: '^1.0.0' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: { foo: '^1.0.0' },
+    }
+  )).toStrictEqual({ satisfies: true })
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      devDependencies: { foo: '1.0.0' },
+      specifiers: { foo: '^1.0.0' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      devDependencies: { foo: '^1.0.0' },
+    }
+  )).toStrictEqual({ satisfies: true })
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      optionalDependencies: { foo: '1.0.0' },
+      specifiers: { foo: '^1.0.0' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      optionalDependencies: { foo: '^1.0.0' },
+    }
+  )).toStrictEqual({ satisfies: true })
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: { foo: '1.0.0' },
+      specifiers: { foo: '^1.0.0' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      optionalDependencies: { foo: '^1.0.0' },
+    }
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: '"optionalDependencies" in the lockfile ({}) doesn\'t match the same field in package.json ({"foo":"^1.0.0"})',
+  })
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: { foo: '1.0.0' },
+      specifiers: { foo: '^1.0.0' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: { foo: '^1.1.0' },
+    }
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: `specifiers in the lockfile don't match specifiers in package.json:
+* 1 dependencies are mismatched:
+  - foo (lockfile: ^1.0.0, manifest: ^1.1.0)
+`,
+  })
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: { foo: '1.0.0' },
+      specifiers: { foo: '^1.0.0' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: { foo: '^1.0.0', bar: '2.0.0' },
+    }
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: `specifiers in the lockfile don't match specifiers in package.json:
+* 1 dependencies were added: bar@2.0.0
+`,
+  })
+
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: { foo: '1.0.0' },
+      specifiers: { foo: '^1.0.0', bar: '2.0.0' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: { foo: '^1.0.0', bar: '2.0.0' },
+    }
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: '"dependencies" in the lockfile ({"foo":"1.0.0"}) doesn\'t match the same field in package.json ({"foo":"^1.0.0","bar":"2.0.0"})',
+  })
+
+  {
+    const importer = {
+      dependencies: {
+        foo: '1.0.0',
+      },
+      optionalDependencies: {
+        bar: '2.0.0',
+      },
+      specifiers: {
+        bar: '2.0.0',
+        foo: '^1.0.0',
+      },
+    }
+    const pkg = {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: {
+        bar: '2.0.0',
+        foo: '^1.0.0',
+      },
+      optionalDependencies: {
+        bar: '2.0.0',
+      },
+    }
+    expect(satisfiesPackageManifest({}, importer, pkg)).toStrictEqual({ satisfies: true })
+  }
+
+  {
+    const importer = {
+      dependencies: {
+        bar: '2.0.0',
+        qar: '1.0.0',
+      },
+      specifiers: {
+        bar: '2.0.0',
+        qar: '^1.0.0',
+      },
+    }
+    const pkg = {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: {
+        bar: '2.0.0',
+      },
+    }
+    expect(satisfiesPackageManifest({}, importer, pkg)).toStrictEqual({
+      satisfies: false,
+      detailedReason: `specifiers in the lockfile don't match specifiers in package.json:
+* 1 dependencies were removed: qar@^1.0.0
+`,
+    })
+  }
+
+  {
+    const importer = {
+      dependencies: {
+        bar: '2.0.0',
+        qar: '1.0.0',
+      },
+      specifiers: {
+        bar: '2.0.0',
+      },
+    }
+    const pkg = {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: {
+        bar: '2.0.0',
+      },
+    }
+    expect(satisfiesPackageManifest({}, importer, pkg)).toStrictEqual({
+      satisfies: false,
+      detailedReason: '"dependencies" in the lockfile ({"bar":"2.0.0","qar":"1.0.0"}) doesn\'t match the same field in package.json ({"bar":"2.0.0"})',
+    })
+  }
+
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: { foo: '1.0.0', linked: 'link:../linked' },
+      specifiers: { foo: '^1.0.0' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: { foo: '^1.0.0' },
+    }
+  )).toStrictEqual({ satisfies: true })
+
+  expect(satisfiesPackageManifest(
+    {},
+    undefined,
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: { foo: '^1.0.0' },
+    }
+  )).toStrictEqual({ satisfies: false, detailedReason: 'no importer' })
+
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: {
+        foo: '1.0.0',
+      },
+      specifiers: {
+        foo: '1.0.0',
+      },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: {
+        foo: '1.0.0',
+      },
+      devDependencies: {
+        foo: '1.0.0',
+      },
+    }
+  )).toStrictEqual({ satisfies: true })
+
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: {
+        foo: '1.0.0',
+      },
+      specifiers: {
+        foo: '1.0.0',
+      },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: {
+        foo: '1.0.0',
+      },
+      devDependencies: {
+        foo: '1.0.0',
+      },
+      dependenciesMeta: {},
+    }
+  )).toStrictEqual({ satisfies: true })
+
+  expect(satisfiesPackageManifest(
+    { autoInstallPeers: true },
+    {
+      dependencies: {
+        foo: '1.0.0',
+        bar: '1.0.0',
+      },
+      specifiers: {
+        foo: '1.0.0',
+        bar: '^1.0.0',
+      },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: {
+        foo: '1.0.0',
+      },
+      peerDependencies: {
+        bar: '^1.0.0',
+      },
+    }
+  )).toStrictEqual({ satisfies: true })
+
+  expect(satisfiesPackageManifest(
+    { autoInstallPeers: true },
+    {
+      dependencies: {
+        qar: '1.0.0',
+      },
+      optionalDependencies: {
+        bar: '1.0.0',
+      },
+      devDependencies: {
+        foo: '1.0.0',
+      },
+      specifiers: {
+        foo: '1.0.0',
+        bar: '1.0.0',
+        qar: '1.0.0',
+      },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: {
+        qar: '1.0.0',
+      },
+      optionalDependencies: {
+        bar: '1.0.0',
+      },
+      devDependencies: {
+        foo: '1.0.0',
+      },
+      peerDependencies: {
+        foo: '^1.0.0',
+        bar: '^1.0.0',
+        qar: '^1.0.0',
+      },
+    }
+  )).toStrictEqual({ satisfies: true })
+
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: {
+        foo: '1.0.0',
+      },
+      specifiers: {
+        foo: '1.0.0',
+      },
+      publishDirectory: 'dist',
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: {
+        foo: '1.0.0',
+      },
+      publishConfig: {
+        directory: 'dist',
+      },
+    }
+  )).toStrictEqual({ satisfies: true })
+
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: {
+        foo: '1.0.0',
+      },
+      specifiers: {
+        foo: '1.0.0',
+      },
+      publishDirectory: 'dist',
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: {
+        foo: '1.0.0',
+      },
+      publishConfig: {
+        directory: 'lib',
+      },
+    }
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: '"publishDirectory" in the lockfile (dist) doesn\'t match "publishConfig.directory" in package.json (lib)',
+  })
+
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      specifiers: {},
+      publishDirectory: 'dist',
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      publishConfig: {
+        directory: 'dist',
+        linkDirectory: false,
+      },
+    }
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: '"linkDirectory" in the lockfile (true) doesn\'t match "publishConfig.linkDirectory" in package.json (false)',
+  })
+
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      specifiers: {},
+      publishDirectory: 'dist',
+      linkDirectory: false,
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      publishConfig: {
+        directory: 'dist',
+      },
+    }
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: '"linkDirectory" in the lockfile (false) doesn\'t match "publishConfig.linkDirectory" in package.json (true)',
+  })
+
+  expect(satisfiesPackageManifest(
+    {
+      excludeLinksFromLockfile: true,
+    },
+    {
+      dependencies: {
+        foo: '1.0.0',
+      },
+      specifiers: {
+        foo: '1.0.0',
+      },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: {
+        foo: '1.0.0',
+        bar: 'link:../bar',
+      },
+    }
+  )).toStrictEqual({ satisfies: true })
+
+  expect(satisfiesPackageManifest({}, {
+    dependencies: {
+      '@apollo/client': '3.13.8(@types/react@18.3.23)(graphql@15.8.0)(react-dom@17.0.2(react@17.0.2))(react@17.0.2)(subscriptions-transport-ws@0.11.0(graphql@15.8.0))',
+    },
+    specifiers: {
+      '@apollo/client': '3.3.7',
+    },
+  }, {
+    dependencies: {
+      '@apollo/client': '3.3.7',
+    },
+  })).toStrictEqual({
+    satisfies: false,
+    detailedReason: 'The importer resolution is broken at dependency "@apollo/client": version "3.13.8" doesn\'t satisfy range "3.3.7"',
+  })
+
+  // Equivalent Git specifiers (the lockfile records the canonical
+  // `git+https://….git#<sha>` form pnpm writes, the manifest keeps `git://…`)
+  // must satisfy. https://github.com/pnpm/pnpm/issues/13039
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: { 'is-positive': 'git+https://github.com/kevva/is-positive.git#97edff6' },
+      specifiers: { 'is-positive': 'git+https://github.com/kevva/is-positive.git#97edff6' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: { 'is-positive': 'git://github.com/kevva/is-positive.git#97edff6' },
+    }
+  )).toStrictEqual({ satisfies: true })
+
+  // A different Git repository/ref stays stale.
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: { 'is-positive': 'git+https://github.com/kevva/is-positive.git#97edff6' },
+      specifiers: { 'is-positive': 'git+https://github.com/kevva/is-positive.git#97edff6' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: { 'is-positive': 'git+https://github.com/kevva/different.git#97edff6' },
+    }
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: `specifiers in the lockfile don't match specifiers in package.json:
+* 1 dependencies are mismatched:
+  - is-positive (lockfile: git+https://github.com/kevva/is-positive.git#97edff6, manifest: git+https://github.com/kevva/different.git#97edff6)
+`,
+  })
+})
+
+test('satisfiesPackageManifest() ignores configured optional dependencies', () => {
+  expect(satisfiesPackageManifest(
+    {
+      ignoredOptionalDependencies: ['@ignored/*', 'foo'],
+    },
+    {
+      dependencies: {
+        required: '1.0.0',
+      },
+      specifiers: {
+        required: '1.0.0',
+      },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: {
+        foo: '1.0.0',
+        required: '1.0.0',
+      },
+      optionalDependencies: {
+        '@ignored/pkg': '1.0.0',
+        foo: '1.0.0',
+      },
+    }
+  )).toStrictEqual({ satisfies: true })
+})
+
+test('satisfiesPackageManifest() accepts an optional dependency the lockfile left out only when allowed to', () => {
+  const importer = {
+    dependencies: {
+      required: '1.0.0',
+    },
+    specifiers: {
+      required: '1.0.0',
+    },
+  }
+  const pkg = {
+    ...DEFAULT_PKG_FIELDS,
+    dependencies: {
+      required: '1.0.0',
+    },
+    optionalDependencies: {
+      unresolvable: '^30000.0.0',
+    },
+  }
+  expect(satisfiesPackageManifest({}, importer, pkg)).toStrictEqual({
+    satisfies: false,
+    detailedReason: 'specifiers in the lockfile don\'t match specifiers in package.json:\n* 1 dependencies were added: unresolvable@^30000.0.0\n',
+  })
+  expect(satisfiesPackageManifest({ allowUnresolvedOptionalDependencies: true }, importer, pkg)).toStrictEqual({ satisfies: true })
+  expect(satisfiesPackageManifest({ allowUnresolvedOptionalDependencies: true }, importer, {
+    ...pkg,
+    dependencies: {
+      ...pkg.dependencies,
+      added: '1.0.0',
+    },
+  })).toStrictEqual({
+    satisfies: false,
+    detailedReason: 'specifiers in the lockfile don\'t match specifiers in package.json:\n* 1 dependencies were added: added@1.0.0\n',
+  })
+})

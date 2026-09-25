@@ -1,0 +1,423 @@
+mod restore;
+use restore::{clone_file, invalidate_fingerprints};
+
+use super::paths::{check_ancestors, validate_relative_path};
+use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_from_file};
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::BTreeMap,
+    env, fs,
+    fs::{File, OpenOptions},
+    io,
+    path::{Path, PathBuf},
+    process::Command,
+};
+
+const INPUT_RECORD: &str = ".pnpm-cargo-inputs-v1";
+
+pub(super) struct CargoCache {
+    pub target: PathBuf,
+    _lock: File,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Snapshot {
+    key: String,
+    files: Vec<SnapshotFile>,
+    local_packages: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct SnapshotFile {
+    path: PathBuf,
+    hash: String,
+}
+
+impl CargoCache {
+    pub fn open(project: &Path, directory: &str) -> io::Result<Self> {
+        let relative = Path::new(directory);
+        validate_relative_path(relative)?;
+        let ignored = Command::new("git")
+            .args(["check-ignore", "--quiet", "--"])
+            .arg(format!("{directory}/"))
+            .current_dir(project)
+            .status()?;
+        if !ignored.success() {
+            return Err(io::Error::other(format!(
+                "Cargo target directory must be ignored by Git: {directory}",
+            )));
+        }
+        let project = dunce::canonicalize(project)?;
+        let target = project.join(relative);
+        check_ancestors(&project, relative)?;
+        let parent = target.parent().expect("relative target has a parent");
+        fs::create_dir_all(parent)?;
+        let common = canonical_git_path(
+            &["rev-parse", "--path-format=absolute", "--git-common-dir"],
+            &project,
+            &BTreeMap::new(),
+        )?;
+        let locks = common.join("pnpm-cargo-locks");
+        fs::create_dir_all(&locks)?;
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(locks.join(create_hex_hash(&target.to_string_lossy())))?;
+        lock.lock()?;
+        check_ancestors(&project, relative)?;
+        Ok(Self { target, _lock: lock })
+    }
+
+    /// Restores only an absent target. Every task still runs, including a hit.
+    pub fn restore(&self, entry: &Path, key: &str) -> io::Result<bool> {
+        self.check_snapshot_location(entry)?;
+        if self.target.try_exists()? {
+            return Ok(false);
+        }
+        let snapshot: Snapshot = serde_json::from_slice(&fs::read(entry.join("manifest.json"))?)?;
+        if snapshot.key != key {
+            return Err(io::Error::other("Cargo snapshot input identity differs"));
+        }
+        let staging = tempfile::Builder::new()
+            .prefix(".pnpm-cargo-restore-")
+            .tempdir_in(self.target.parent().expect("target parent"))?;
+        for file in snapshot.files {
+            validate_relative_path(&file.path)?;
+            check_ancestors(entry, &Path::new("files").join(&file.path))?;
+            let source = entry.join("files").join(&file.path);
+            let target = staging.path().join(&file.path);
+            clone_file(&source, &target)?;
+            if create_hex_hash_from_file(&target)? != file.hash {
+                return Err(io::Error::other(format!(
+                    "Cargo snapshot file failed integrity: {}",
+                    file.path.display(),
+                )));
+            }
+        }
+        invalidate_fingerprints(staging.path(), Some(&snapshot.local_packages))?;
+        fs::write(staging.path().join(INPUT_RECORD), key)?;
+        // Cooperating pipeline writers hold the target lock outside the cache.
+        // Cache eviction can remove a source, but never this private staging tree.
+        fs::rename(staging.path(), &self.target)?;
+        Ok(true)
+    }
+
+    pub fn prepare(&self, key: &str) -> io::Result<()> {
+        if self.target.try_exists()?
+            && fs::read_to_string(self.target.join(INPUT_RECORD)).ok().as_deref() != Some(key)
+        {
+            invalidate_fingerprints(&self.target, None)?;
+        }
+        Ok(())
+    }
+
+    pub fn publish(&self, entry: &Path, key: &str, local_packages: &[String]) -> io::Result<()> {
+        self.check_snapshot_location(entry)?;
+        fs::write(self.target.join(INPUT_RECORD), key)?;
+        if entry.try_exists()? {
+            return Ok(());
+        }
+        let parent = entry.parent().expect("snapshot entry has a parent");
+        fs::create_dir_all(parent)?;
+        let staging = tempfile::Builder::new().prefix(".publish-").tempdir_in(parent)?;
+        let mut files = self.clone_target_into(staging.path())?;
+        files.sort_by(|left, right| left.path.cmp(&right.path));
+        fs::write(
+            staging.path().join("manifest.json"),
+            serde_json::to_vec(&Snapshot {
+                key: key.to_string(),
+                files,
+                local_packages: local_packages.to_vec(),
+            })?,
+        )?;
+        match fs::rename(staging.path(), entry) {
+            Ok(()) => Ok(()),
+            Err(_) if entry.is_dir() => Ok(()),
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Copy every file of the build directory into the staging area,
+    /// returning what the snapshot manifest records for them.
+    fn clone_target_into(&self, staging: &Path) -> io::Result<Vec<SnapshotFile>> {
+        let mut files = Vec::new();
+        let mut pending = vec![PathBuf::new()];
+        while let Some(relative) = pending.pop() {
+            for item in fs::read_dir(self.target.join(&relative))? {
+                Self::clone_entry(&item?, &relative, staging, &mut pending, &mut files)?;
+            }
+        }
+        Ok(files)
+    }
+
+    /// Clone one build-directory entry into the staging area, queueing a
+    /// directory for its own walk.
+    fn clone_entry(
+        item: &fs::DirEntry,
+        parent: &Path,
+        staging: &Path,
+        pending: &mut Vec<PathBuf>,
+        files: &mut Vec<SnapshotFile>,
+    ) -> io::Result<()> {
+        let relative = parent.join(item.file_name());
+        if relative == Path::new(INPUT_RECORD) {
+            return Ok(());
+        }
+        let kind = item.file_type()?;
+        if kind.is_dir() {
+            pending.push(relative);
+            return Ok(());
+        }
+        if !kind.is_file() {
+            return Err(io::Error::other(format!(
+                "Cargo snapshot contains a non-regular file: {}",
+                item.path().display(),
+            )));
+        }
+        let destination = staging.join("files").join(&relative);
+        clone_file(&item.path(), &destination)?;
+        files.push(SnapshotFile { path: relative, hash: create_hex_hash_from_file(&destination)? });
+        Ok(())
+    }
+
+    fn check_snapshot_location(&self, entry: &Path) -> io::Result<()> {
+        let target = pnpm_fs::realpath_missing(&self.target)?;
+        let entry = pnpm_fs::realpath_missing(entry)?;
+        if entry.starts_with(&target) || target.starts_with(&entry) {
+            return Err(io::Error::other(format!(
+                "Cargo snapshot {} overlaps the build directory {}",
+                entry.display(),
+                target.display(),
+            )));
+        }
+        Ok(())
+    }
+}
+
+pub(super) fn snapshot_entry(
+    cache_dir: &Path,
+    project: &Path,
+    task_key: &str,
+    environment: &BTreeMap<String, String>,
+) -> io::Result<(PathBuf, String, Vec<String>)> {
+    let cache_dir = pnpm_fs::realpath_missing(cache_dir)?;
+    let project = dunce::canonicalize(project)?;
+    let repo = canonical_git_path(&["rev-parse", "--show-toplevel"], &project, environment)?;
+    let common = canonical_git_path(
+        &["rev-parse", "--path-format=absolute", "--git-common-dir"],
+        &project,
+        environment,
+    )?;
+    let mut inputs = vec!["pnpm-cargo-state:v1".to_string(), task_key.to_string()];
+    inputs.push(command_output("rustc", &["-vV"], &project, environment)?);
+    inputs.push(command_output("cargo", &["-vV"], &project, environment)?);
+    let metadata: serde_json::Value = serde_json::from_str(&command_output(
+        "cargo",
+        &["metadata", "--format-version=1", "--locked", "--offline"],
+        &project,
+        environment,
+    )?)?;
+    let local_packages = local_packages_in_repo(&metadata, &repo)?;
+    inputs.push(serde_json::to_string(environment)?);
+    add_repository_inputs(&repo, environment, &mut inputs)?;
+    add_config_inputs(&project, environment, &mut inputs)?;
+    let key = create_hex_hash(&serde_json::to_string(&inputs)?);
+    let scope = create_hex_hash(&common.to_string_lossy());
+    Ok((
+        cache_dir
+            .join("cargo-build/v1")
+            .join(scope)
+            .join(&key),
+        key,
+        local_packages,
+    ))
+}
+
+fn add_repository_inputs(
+    repo: &Path,
+    environment: &BTreeMap<String, String>,
+    inputs: &mut Vec<String>,
+) -> io::Result<()> {
+    let paths = command_output(
+        "git",
+        &["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        repo,
+        environment,
+    )?;
+    let mut paths: Vec<_> = paths
+        .split('\0')
+        .filter(|path| !path.is_empty())
+        .collect();
+    paths.sort_unstable();
+    paths.dedup();
+    for path in paths {
+        add_tracked_file_input(repo, path, inputs)?;
+    }
+    Ok(())
+}
+
+/// Every Cargo config file the build reads: `.cargo/config[.toml]` in each
+/// ancestor of the project, then the Cargo home's.
+fn add_config_inputs(
+    project: &Path,
+    environment: &BTreeMap<String, String>,
+    inputs: &mut Vec<String>,
+) -> io::Result<()> {
+    for ancestor in project.ancestors() {
+        for name in ["config", "config.toml"] {
+            add_config(&ancestor.join(".cargo").join(name), project, inputs)?;
+        }
+    }
+    let cargo_home = environment
+        .get("CARGO_HOME")
+        .map(PathBuf::from)
+        .or_else(|| home::home_dir().map(|home| home.join(".cargo")));
+    if let Some(cargo_home) = cargo_home {
+        for name in ["config", "config.toml"] {
+            add_config(&cargo_home.join(name), project, inputs)?;
+        }
+    }
+    Ok(())
+}
+
+/// The workspace's own packages, and the guarantee that each one's
+/// manifest lives inside the repository — a path dependency outside it
+/// is an input the cache key cannot cover.
+fn local_packages_in_repo(metadata: &serde_json::Value, repo: &Path) -> io::Result<Vec<String>> {
+    let canonical_repo = dunce::canonicalize(repo)?;
+    let mut local_packages = Vec::new();
+    let packages = metadata["packages"]
+        .as_array()
+        .ok_or_else(|| io::Error::other("Cargo metadata has no packages"))?;
+    for package in packages
+        .iter()
+        .filter(|package| package["source"].is_null())
+    {
+        local_packages.push(
+            package["name"]
+                .as_str()
+                .ok_or_else(|| io::Error::other("Cargo package has no name"))?
+                .to_string(),
+        );
+        let manifest = package["manifest_path"]
+            .as_str()
+            .ok_or_else(|| io::Error::other("Cargo metadata has no manifest path"))?;
+        if !dunce::canonicalize(manifest)?.starts_with(&canonical_repo) {
+            return Err(io::Error::other(format!(
+                "Cargo path dependency is outside the repository: {manifest}",
+            )));
+        }
+    }
+    Ok(local_packages)
+}
+
+/// Add one tracked file's contents to the cache key. A path git lists
+/// but that is gone is simply not an input; anything that is not a
+/// regular file is one the hash cannot describe.
+fn add_tracked_file_input(repo: &Path, path: &str, inputs: &mut Vec<String>) -> io::Result<()> {
+    check_ancestors(repo, Path::new(path))?;
+    let absolute = repo.join(path);
+    match fs::symlink_metadata(&absolute) {
+        Ok(metadata) if metadata.is_file() => {
+            inputs.push(format!("{path}:{}", create_hex_hash_from_file(&absolute)?));
+            Ok(())
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Ok(_) => Err(io::Error::other(format!(
+            "Cargo cache input is not a regular file: {}",
+            absolute.display(),
+        ))),
+        Err(error) => Err(error),
+    }
+}
+
+pub(super) fn cache_environment(
+    extra: &std::collections::HashMap<String, String>,
+    declared: &[String],
+) -> BTreeMap<String, String> {
+    let declared: Vec<String> = declared
+        .iter()
+        .cloned()
+        .map(env_key)
+        .collect();
+    env::vars()
+        .chain(
+            extra
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone())),
+        )
+        .map(|(key, value)| (env_key(key), value))
+        .filter(|(key, _)| {
+            key.starts_with("CARGO_")
+                || key.starts_with("RUST")
+                || key.starts_with("CC")
+                || key.starts_with("CXX")
+                || key.starts_with("AR")
+                || key.starts_with("CFLAGS")
+                || key.starts_with("CPPFLAGS")
+                || key.starts_with("LDFLAGS")
+                || key.starts_with("PKG_CONFIG")
+                || key == "PATH"
+                || key == "SDKROOT"
+                || key == "MACOSX_DEPLOYMENT_TARGET"
+                || declared.contains(key)
+        })
+        .filter(|(key, _)| key != "CARGO_TARGET_DIR" && key != "CARGO_BUILD_BUILD_DIR")
+        .collect()
+}
+
+/// The name under which the platform matches an environment variable.
+/// Windows matches names without regard to case, so a build environment
+/// that spells a variable two ways across runs still hashes the same.
+/// POSIX names are case-sensitive, where folding the case would merge
+/// variables a build keeps apart.
+fn env_key(key: String) -> String {
+    if cfg!(windows) { key.to_ascii_uppercase() } else { key }
+}
+
+fn add_config(path: &Path, project: &Path, inputs: &mut Vec<String>) -> io::Result<()> {
+    match create_hex_hash_from_file(path) {
+        Ok(hash) => {
+            let relative =
+                pathdiff::diff_paths(path, project).unwrap_or_else(|| path.to_path_buf());
+            inputs.push(format!("cargo-config:{}:{hash}", relative.display()));
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    Ok(())
+}
+
+fn canonical_git_path(
+    args: &[&str],
+    project: &Path,
+    environment: &BTreeMap<String, String>,
+) -> io::Result<PathBuf> {
+    dunce::canonicalize(command_output("git", args, project, environment)?.trim())
+}
+
+fn command_output(
+    program: &str,
+    args: &[&str],
+    project: &Path,
+    environment: &BTreeMap<String, String>,
+) -> io::Result<String> {
+    let output = Command::new(program)
+        .args(args)
+        .current_dir(project)
+        .envs(environment)
+        .output()?;
+    if !output.status.success() {
+        return Err(io::Error::other(format!(
+            "{program} {}: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr),
+        )));
+    }
+    String::from_utf8(output.stdout).map_err(io::Error::other)
+}
+
+#[cfg(test)]
+mod tests;

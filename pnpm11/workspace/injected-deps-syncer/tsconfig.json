@@ -1,0 +1,52 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../bins/linker"
+    },
+    {
+      "path": "../../bins/remover"
+    },
+    {
+      "path": "../../bins/resolver"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../fetching/directory-fetcher"
+    },
+    {
+      "path": "../../fs/graceful-fs"
+    },
+    {
+      "path": "../../installing/modules-yaml"
+    },
+    {
+      "path": "../../pkg-manifest/reader"
+    },
+    {
+      "path": "../../text/ordinal-comparator"
+    },
+    {
+      "path": "../projects-reader"
+    }
+  ]
+}

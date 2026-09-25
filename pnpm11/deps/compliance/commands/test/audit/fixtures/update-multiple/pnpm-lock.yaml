@@ -1,0 +1,37 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@pnpm.e2e/audit-multi-version':
+        specifier: ^1.0.0
+        version: 1.0.0
+      '@pnpm.e2e/audit-multi-version-parent':
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages:
+
+  '@pnpm.e2e/audit-multi-version-parent@1.0.0':
+    resolution: {integrity: sha512-gO5VA8aEtZaPk9etwzqD4dXdqV1Xvuc27mxvNLEeeCp5zEvqR3UCcLHBw8urtkvsRa7uXbikHCOByw8UOklyzA==}
+
+  '@pnpm.e2e/audit-multi-version@1.0.0':
+    resolution: {integrity: sha512-ZT3uj9WrqNH/DUxBGyX4JNmiLUjFi9fmzSvzjF6K4K7yZVDvK1am1/O6SZpsBXl4uy+jyW5x4tYESfKI/OTxUg==}
+
+  '@pnpm.e2e/audit-multi-version@2.0.0':
+    resolution: {integrity: sha512-IhWPJJlf6u8/ic4Loixgtf4KhJO3DInUXLNUxO3FlltXcGhgbek87Lr0CQqx9IQzPfInd/bFrxUnMVg6oE3Zog==}
+
+snapshots:
+
+  '@pnpm.e2e/audit-multi-version-parent@1.0.0':
+    dependencies:
+      '@pnpm.e2e/audit-multi-version': 2.0.0
+
+  '@pnpm.e2e/audit-multi-version@1.0.0': {}
+
+  '@pnpm.e2e/audit-multi-version@2.0.0': {}

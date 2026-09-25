@@ -1,0 +1,268 @@
+//! Error types for the npm verifier's network / parsing surface.
+
+use derive_more::{Display, Error};
+use miette::Diagnostic;
+use pnpm_network::{redact_and_sanitize, walk_reqwest_chain};
+
+/// Failure to fetch a registry metadata document. Used by
+/// [`crate::fetch_full_metadata()`] and
+/// [`crate::fetch_full_metadata_cached()`]. A transient failure
+/// ([`Self::is_transient`]) is retried. It is never a
+/// `minimumReleaseAge` or `trustPolicy` verdict: those codes are only
+/// produced after a successful fetch shows a real violation.
+///
+/// Every URL-bearing variant stores a credential-redacted `url` (the
+/// fetchers pass it through [`pnpm_network::redact_url_credentials`]
+/// at construction), so a registry configured with inline
+/// `user:pass@host` basic-auth can't leak into the `Display` /
+/// `Diagnostic` message — which reaches the terminal, CI logs, and
+/// reporters whenever the resolver surfaces the error.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum FetchMetadataError {
+    #[display("Failed to resolve {pkg_name} in package mirror {}", pkg_mirror.display())]
+    #[diagnostic(code(ERR_PNPM_NO_OFFLINE_META))]
+    NoOfflineMeta {
+        #[error(not(source))]
+        pkg_name: String,
+        #[error(not(source))]
+        pkg_mirror: std::path::PathBuf,
+    },
+
+    /// The deployment's route policy refuses this origin. Only a server
+    /// with an [`UpstreamRouteHook`](pnpm_network::UpstreamRouteHook)
+    /// raises it: the CLI fetches as the user and reaches whatever the user
+    /// configured.
+    #[display(
+        "{url} is not allowed by this pnpr server; the operator must declare its registry as a public route or an upstream"
+    )]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_OFF_ALLOWLIST))]
+    OffAllowlist {
+        #[error(not(source))]
+        url: String,
+    },
+
+    #[display("Failed to fetch metadata from {url}: {}", walk_reqwest_chain(error))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR))]
+    Network {
+        url: String,
+        #[error(source)]
+        error: reqwest::Error,
+    },
+
+    /// Reading the response body failed *after* the registry returned
+    /// a `2xx` — a connection reset or truncated transfer mid-stream,
+    /// reqwest's "error decoding response body". Distinct from
+    /// [`FetchMetadataError::Network`] so the message names the body
+    /// read. Both are retried by [`FetchMetadataError::is_transient`].
+    #[display("Failed to read metadata response body from {url}: {}", walk_reqwest_chain(error))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_BODY_READ_ERROR))]
+    BodyRead {
+        url: String,
+        #[error(source)]
+        error: reqwest::Error,
+    },
+
+    #[display("Failed to decode metadata from {url}: {error}")]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_DECODE_ERROR))]
+    Decode {
+        url: String,
+        #[error(source)]
+        error: serde_json::Error,
+    },
+
+    /// Filtering a parsed packument down to the fields pnpm keeps
+    /// (`clear_meta`, the `filterMetadata` path) failed. Unlike a body
+    /// read or the top-level parse, this runs on an already-parsed,
+    /// complete `Package`, so it is deterministic — a fresh re-fetch
+    /// would feed `clear_meta` the same structure and fail identically.
+    /// Kept out of [`FetchMetadataError::is_transient`] for that
+    /// reason.
+    #[display("Failed to filter metadata from {url}: {error}")]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_FILTER_METADATA_ERROR))]
+    FilterMetadata {
+        url: String,
+        #[error(source)]
+        error: serde_json::Error,
+    },
+
+    /// `ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE`. Surfaces when a registry
+    /// repeats an unsolicited 304 after a cache-bypassing retry, leaving no
+    /// body and no validator that could have justified the response.
+    #[display("Registry returned 304 for {pkg_name} without an existing cache to refresh.")]
+    #[diagnostic(code(ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE))]
+    NotModifiedWithoutCache {
+        #[error(not(source))]
+        pkg_name: String,
+    },
+
+    /// The blocking task that deserializes a packument body panicked
+    /// or was cancelled by runtime shutdown.
+    #[display("Failed to parse metadata from {url}: {error}")]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_PARSE_TASK))]
+    ParseTask {
+        url: String,
+        #[error(source)]
+        error: tokio::task::JoinError,
+    },
+}
+
+impl FetchMetadataError {
+    /// Whether another attempt could succeed. Timeouts, connection
+    /// failures, "error sending request", "error decoding response
+    /// body", retryable HTTP statuses, and broken JSON are transient.
+    /// An access denial or a bad TLS certificate is not: retrying
+    /// cannot change the verdict, and neither is a `trustPolicy` or
+    /// `minimumReleaseAge` violation.
+    ///
+    /// The metadata fetchers hand this to [`pnpm_network::retry_async`]
+    /// and issue each attempt once. [`pnpm_network::send_with_retry`]
+    /// must not also spend the same budget, or one flake is retried twice.
+    #[must_use]
+    pub fn is_transient(&self) -> bool {
+        match self {
+            FetchMetadataError::BodyRead { .. } | FetchMetadataError::Decode { .. } => true,
+            FetchMetadataError::Network { error, .. } => {
+                if pnpm_network::is_certificate_error(error) || self.is_access_denied() {
+                    return false;
+                }
+                match error.status() {
+                    None => true,
+                    Some(status) => pnpm_network::should_retry_status(status),
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether this failure is a hard access/existence denial — HTTP
+    /// `401`, `403`, or `404` — rather than a transport failure
+    /// (`5xx`/timeout/connection reset).
+    ///
+    /// A private-scope metadata fetch must **fail closed** on a denial:
+    /// never fall back to a cached mirror (stale-or-broader namespace),
+    /// because a revoked credential or a hidden private `404` would
+    /// otherwise keep serving the last private packument. A transport
+    /// failure may still fall back, but only within the same namespace.
+    /// Public-scope fetches keep their existing disk fallback regardless.
+    #[must_use]
+    pub fn is_access_denied(&self) -> bool {
+        match self {
+            FetchMetadataError::Network { error, .. } => matches!(
+                error.status(),
+                Some(
+                    reqwest::StatusCode::UNAUTHORIZED
+                        | reqwest::StatusCode::FORBIDDEN
+                        | reqwest::StatusCode::NOT_FOUND
+                ),
+            ),
+            _ => false,
+        }
+    }
+}
+
+/// Raised when an external `PackageVersionGuard` rejects every
+/// version of a package that matched the request, leaving the picker no
+/// acceptable candidate. Distinct from "spec not supported": the spec is
+/// fine, but a policy (e.g. a vulnerability guard) blocked all matches.
+/// `reason` carries the guard's message for the last rejection.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Every version of {name} matching the request was rejected by the resolver guard ({reason})."
+)]
+#[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_ALL_VERSIONS_BLOCKED))]
+pub struct AllVersionsBlockedError {
+    #[error(not(source))]
+    pub name: String,
+    pub reason: String,
+}
+
+/// Raised when the resolver-time guard rejected so many candidates for a
+/// package that the re-pick safety limit was hit. Distinct from
+/// [`AllVersionsBlockedError`]: the picker stopped at the cap rather than
+/// proving every matching version is blocked.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Resolving {name} hit the resolver guard's {limit}-version re-pick limit; too many candidates were rejected ({reason})."
+)]
+#[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_GUARD_REPICK_LIMIT))]
+pub struct GuardRepickLimitError {
+    #[error(not(source))]
+    pub name: String,
+    pub limit: usize,
+    pub reason: String,
+}
+
+/// Raised when a registry version carries no `dist.integrity` and its
+/// `dist.shasum` is not a hex digest, so no SRI string can be derived
+/// from it.
+///
+/// Both fields are quoted registry metadata, so [`Self::new`] redacts
+/// and sanitizes them — see [`FetchMetadataError`] for why.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(r#"Tarball "{tarball}" has invalid shasum specified in its metadata: {shasum}"#)]
+#[diagnostic(code(ERR_PNPM_INVALID_TARBALL_INTEGRITY))]
+pub struct InvalidTarballIntegrityError {
+    #[error(not(source))]
+    pub tarball: String,
+    pub shasum: String,
+}
+
+/// Raised when a registry marks a tarball as a replacement revision but its
+/// revision number or integrity-addressed URL violates the metadata contract.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Tarball \"{tarball}\" has invalid revision metadata: {reason}")]
+#[diagnostic(code(ERR_PNPM_MALFORMED_METADATA))]
+pub struct InvalidTarballRevisionMetadataError {
+    #[error(not(source))]
+    pub tarball: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Invalid registry revision in version specifier \"{specifier}\"")]
+#[diagnostic(code(ERR_PNPM_INVALID_REVISION_SPEC))]
+pub struct InvalidRevisionSpecifierError {
+    #[error(not(source))]
+    pub specifier: String,
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("No revision {revision} is advertised for {name}@{version}")]
+#[diagnostic(code(ERR_PNPM_NO_MATCHING_REVISION))]
+pub struct NoMatchingRevisionError {
+    #[error(not(source))]
+    pub name: String,
+    pub version: String,
+    pub revision: u64,
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("The revision history for {name}@{version} is invalid: {reason}.")]
+#[diagnostic(code(ERR_PNPM_MALFORMED_METADATA))]
+pub struct MalformedRevisionHistoryError {
+    #[error(not(source))]
+    pub name: String,
+    pub version: String,
+    pub reason: String,
+}
+
+impl InvalidTarballRevisionMetadataError {
+    #[must_use]
+    pub fn new(tarball: &str, reason: impl Into<String>) -> Self {
+        Self { tarball: redact_and_sanitize(tarball), reason: reason.into() }
+    }
+}
+
+impl InvalidTarballIntegrityError {
+    #[must_use]
+    pub fn new(tarball: &str, shasum: &str) -> Self {
+        InvalidTarballIntegrityError {
+            tarball: redact_and_sanitize(tarball),
+            shasum: redact_and_sanitize(shasum),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

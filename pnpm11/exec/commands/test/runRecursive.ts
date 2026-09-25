@@ -1,0 +1,1565 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { expect, test } from '@jest/globals'
+import type { PnpmError } from '@pnpm/error'
+import { run } from '@pnpm/exec.commands'
+import { preparePackages } from '@pnpm/prepare'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjects } from '@pnpm/workspace.projects-filter'
+import { safeExeca as execa } from 'execa'
+import { writeYamlFileSync } from 'write-yaml-file'
+
+import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
+
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
+
+test('pnpm recursive run', async () => {
+  await using server1 = await createTestIpcServer()
+  await using server2 = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      scripts: {
+        build: `${server1.sendLineScript('project-1')} && ${server2.sendLineScript('project-1')}`,
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+      scripts: {
+        build: server1.sendLineScript('project-2'),
+        postbuild: server1.sendLineScript('project-2-postbuild'),
+        prebuild: server1.sendLineScript('project-2-prebuild'),
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+      scripts: {
+        build: server2.sendLineScript('project-3'),
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+
+      dependencies: {},
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  expect(server1.getLines()).toStrictEqual(['project-1', 'project-2'])
+  expect(server2.getLines()).toStrictEqual(['project-1', 'project-3'])
+})
+
+test('pnpm recursive run with enable-pre-post-scripts', async () => {
+  await using server1 = await createTestIpcServer()
+  await using server2 = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      scripts: {
+        build: `${server1.sendLineScript('project-1')} && ${server2.sendLineScript('project-1')}`,
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+      scripts: {
+        build: server1.sendLineScript('project-2'),
+        postbuild: server1.sendLineScript('project-2-postbuild'),
+        prebuild: server1.sendLineScript('project-2-prebuild'),
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+      scripts: {
+        build: server2.sendLineScript('project-3'),
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+
+      dependencies: {},
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    enablePrePostScripts: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  expect(server1.getLines()).toStrictEqual(['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
+  expect(server2.getLines()).toStrictEqual(['project-1', 'project-3'])
+})
+
+test('pnpm recursive run reversed', async () => {
+  await using server1 = await createTestIpcServer()
+  await using server2 = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      scripts: {
+        build: `${server1.sendLineScript('project-1')} && ${server2.sendLineScript('project-1')}`,
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+      scripts: {
+        build: server1.sendLineScript('project-2'),
+        postbuild: server1.sendLineScript('project-2-postbuild'),
+        prebuild: server1.sendLineScript('project-2-prebuild'),
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+      scripts: {
+        build: server2.sendLineScript('project-3'),
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+
+      dependencies: {},
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    reverse: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  expect(server1.getLines()).toStrictEqual(['project-2', 'project-1'])
+  expect(server2.getLines()).toStrictEqual(['project-3', 'project-1'])
+})
+
+test('pnpm recursive run concurrently', async () => {
+  await using server1 = await createTestIpcServer()
+  await using server2 = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      scripts: {
+        build: `node -e "let i = 20;setInterval(() => {if (!--i) process.exit(0); console.log(Date.now());},50)" | ${server1.generateSendStdinScript()}`,
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      scripts: {
+        build: `node -e "let i = 40;setInterval(() => {if (!--i) process.exit(0); console.log(Date.now());},25)" | ${server2.generateSendStdinScript()}`,
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  const outputs1 = server1.getLines().map(x => Number.parseInt(x))
+  const outputs2 = server2.getLines().map(x => Number.parseInt(x))
+
+  expect(Math.max(outputs1[0], outputs2[0]) < Math.min(outputs1[outputs1.length - 1], outputs2[outputs2.length - 1])).toBeTruthy()
+})
+
+test('`pnpm recursive run` fails when run without filters and no package has the desired command, unless if-present is set', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+
+  console.log('recursive run does not fail when if-present is true')
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    ifPresent: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['this-command-does-not-exist'])
+
+  let err!: PnpmError
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    }, ['this-command-does-not-exist'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
+})
+
+test('`pnpm recursive run` fails when run with a filter that includes all packages and no package has the desired command, unless if-present is set', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+    },
+  ])
+
+  console.log('recursive run does not fail when if-present is true')
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
+    dir: process.cwd(),
+    ifPresent: true,
+    recursive: true,
+    workspaceDir: process.cwd(),
+  }, ['this-command-does-not-exist'])
+
+  let err!: PnpmError
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
+      dir: process.cwd(),
+      recursive: true,
+      workspaceDir: process.cwd(),
+    }, ['this-command-does-not-exist'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
+})
+
+test('`pnpm recursive run` fails when run against a subset of packages and no package has the desired command, unless if-present is set', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(
+    allProjects,
+    [{ namePattern: 'project-1' }],
+    { workspaceDir: process.cwd() }
+  )
+
+  // Recursive run does not fail when if-present is true
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    ifPresent: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['this-command-does-not-exist'])
+
+  await expect(
+    run.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    }, ['this-command-does-not-exist'])
+  ).rejects.toThrow(/None of the selected packages has a/)
+})
+
+test('"pnpm --filter <pkg> <command>" runs the command in the selected projects when none of them has a script by that name', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(
+    allProjects,
+    [{ namePattern: 'project-1' }, { namePattern: 'project-2' }],
+    { workspaceDir: process.cwd() }
+  )
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    fallbackCommandUsed: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['node', '-e', 'require("fs").writeFileSync("output.txt", process.argv[1])', 'ran'])
+
+  expect(fs.readFileSync('project-1/output.txt', 'utf8')).toBe('ran')
+  expect(fs.readFileSync('project-2/output.txt', 'utf8')).toBe('ran')
+  expect(fs.existsSync('project-3/output.txt')).toBeFalsy()
+})
+
+test('"pnpm -r t" does not fall back to a "test" command when no selected project has a test script', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+  await expect(run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    fallbackCommandUsed: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['t'])).resolves.toBeUndefined()
+})
+
+test('"pnpm -r start" reports the missing start script instead of running a "start" command', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+  await expect(run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    fallbackCommandUsed: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['start'])).rejects.toThrow('None of the packages has a "start" script')
+})
+
+test('"pnpm run --filter <pkg>" without specifying the script name', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      scripts: {
+        foo: 'echo hi',
+        test: 'ts-node test',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+
+  console.log('prints the list of available commands if a single project is selected')
+  {
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(
+      allProjects,
+      [{ namePattern: 'project-1' }],
+      { workspaceDir: process.cwd() }
+    )
+    const output = await run.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    }, [])
+
+    expect(output).toBe(`\
+Lifecycle scripts:
+  test
+    ts-node test
+
+Commands available via "pnpm run":
+  foo
+    echo hi`)
+  }
+  console.log('throws an error if several projects are selected')
+  {
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(
+      allProjects,
+      [{ includeDependents: true, namePattern: 'project-1' }],
+      { workspaceDir: process.cwd() }
+    )
+
+    let err!: PnpmError
+    try {
+      await run.handler({
+        ...DEFAULT_OPTS,
+        allProjects,
+        dir: process.cwd(),
+        recursive: true,
+        selectedProjectsGraph,
+        workspaceDir: process.cwd(),
+      }, [])
+    } catch (_err: any) { // eslint-disable-line
+      err = _err
+    }
+
+    expect(err).toBeTruthy()
+    expect(err.code).toBe('ERR_PNPM_SCRIPT_NAME_IS_REQUIRED')
+    expect(err.message).toBe('You must specify the script you want to run')
+  }
+})
+
+test('testing the bail config with "pnpm recursive run"', async () => {
+  await using server = await createTestIpcServer()
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      scripts: {
+        build: server.sendLineScript('project-1'),
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+      scripts: {
+        build: `exit 1 && ${server.sendLineScript('project-2')}`,
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+      scripts: {
+        build: server.sendLineScript('project-3'),
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+
+  let err1!: PnpmError
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+      bail: false,
+    }, ['build'])
+  } catch (_err: any) { // eslint-disable-line
+    err1 = _err
+  }
+  expect(err1.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
+
+  expect(server.getLines()).toStrictEqual(['project-1', 'project-3'])
+
+  let err2!: PnpmError
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    }, ['build'])
+  } catch (_err: any) { // eslint-disable-line
+    err2 = _err
+  }
+
+  expect(err2.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
+})
+
+test('pnpm recursive run with filtering', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      scripts: {
+        build: server.sendLineScript('project-1'),
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+      scripts: {
+        build: server.sendLineScript('project-2'),
+        postbuild: server.sendLineScript('project-2-postbuild'),
+        prebuild: server.sendLineScript('project-2-prebuild'),
+      },
+    },
+  ])
+
+  const { allProjects } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(
+    allProjects,
+    [{ namePattern: 'project-1' }],
+    { workspaceDir: process.cwd() }
+  )
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  expect(server.getLines()).toStrictEqual(['project-1'])
+})
+
+test('pnpm recursive run orders selected projects connected only through an unselected project', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-b': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('project-a'),
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-c': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('project-b'),
+      },
+    },
+    {
+      name: 'project-c',
+      version: '1.0.0',
+
+      scripts: {
+        build: `node -e "setTimeout(() => {}, 500)" && ${server.sendLineScript('project-c')}`,
+      },
+    },
+  ])
+
+  const { allProjects, allProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(
+    allProjects,
+    [{ namePattern: 'project-a' }, { namePattern: 'project-c' }],
+    { workspaceDir: process.cwd() }
+  )
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceConcurrency: 4,
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  // project-c is a transitive dependency of project-a through the unselected
+  // project-b, so its build must complete before project-a's.
+  expect(server.getLines()).toStrictEqual(['project-c', 'project-a'])
+})
+
+test('pnpm recursive run with a prod-only filter orders selected projects by their transitive prod dependencies', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-b': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('project-a'),
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-c': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('project-b'),
+      },
+    },
+    {
+      name: 'project-c',
+      version: '1.0.0',
+
+      scripts: {
+        build: `node -e "setTimeout(() => {}, 500)" && ${server.sendLineScript('project-c')}`,
+      },
+    },
+  ])
+
+  const { allProjects, allProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const { selectedProjectsGraph, prodAllProjectsGraph, prodOnlySelectedProjectDirs } = await filterProjectsBySelectorObjects(
+    allProjects,
+    [
+      { namePattern: 'project-a', followProdDepsOnly: true },
+      { namePattern: 'project-c', followProdDepsOnly: true },
+    ],
+    { workspaceDir: process.cwd() }
+  )
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    prodAllProjectsGraph,
+    prodOnlySelectedProjectDirs,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceConcurrency: 4,
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  // project-c is a transitive prod dependency of project-a through the unselected
+  // project-b, so a prod-only filter must still build it before project-a.
+  expect(server.getLines()).toStrictEqual(['project-c', 'project-a'])
+})
+
+test('pnpm recursive run keeps a regular filter\'s transitive order when an unrelated prod-only filter is present', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-b': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('project-a'),
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-c': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('project-b'),
+      },
+    },
+    {
+      name: 'project-c',
+      version: '1.0.0',
+
+      scripts: {
+        build: `node -e "setTimeout(() => {}, 500)" && ${server.sendLineScript('project-c')}`,
+      },
+    },
+    {
+      name: 'project-d',
+      version: '1.0.0',
+
+      scripts: {
+        build: server.sendLineScript('project-d'),
+      },
+    },
+  ])
+
+  const { allProjects, allProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const { selectedProjectsGraph, prodAllProjectsGraph, prodOnlySelectedProjectDirs } = await filterProjectsBySelectorObjects(
+    allProjects,
+    [
+      { namePattern: 'project-a' },
+      { namePattern: 'project-c' },
+      { namePattern: 'project-d', followProdDepsOnly: true },
+    ],
+    { workspaceDir: process.cwd() }
+  )
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    prodAllProjectsGraph,
+    prodOnlySelectedProjectDirs,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceConcurrency: 4,
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  // The unrelated prod-only filter on project-d must not stop the regular filter
+  // from building project-c (a transitive dep of project-a via the unselected
+  // project-b) before project-a. project-d is independent and runs first.
+  expect(server.getLines()).toStrictEqual(['project-d', 'project-c', 'project-a'])
+})
+
+test('`pnpm recursive run` should always trust the scripts', async () => {
+  await using server = await createTestIpcServer()
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+
+      scripts: {
+        build: server.sendLineScript('project'),
+      },
+    },
+  ])
+
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+
+  process.env['pnpm_config_unsafe_perm'] = 'false'
+  await run.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    recursive: true,
+    workspaceDir: process.cwd(),
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+  }, ['build'])
+  delete process.env.pnpm_config_unsafe_perm
+
+  expect(server.getLines()).toStrictEqual(['project'])
+})
+
+test('`pnpm run -r` should avoid infinite recursion', async () => {
+  await using server1 = await createTestIpcServer()
+  await using server2 = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      scripts: {
+        build: `node ${pnpmBin} run -r build`,
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      scripts: {
+        build: server1.sendLineScript('project-2'),
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      scripts: {
+        build: server2.sendLineScript('project-3'),
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**'],
+  })
+
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: path.resolve('project-1'),
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  expect(server1.getLines()).toStrictEqual(['project-2'])
+  expect(server2.getLines()).toStrictEqual(['project-3'])
+})
+
+test('`pnpm recursive run` should fail when no script in package with requiredScripts', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      scripts: {
+        build: 'echo 2',
+      },
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+  ])
+
+  let err!: PnpmError
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
+      dir: process.cwd(),
+      recursive: true,
+      requiredScripts: ['build'],
+      rootProjectManifest: {
+        name: 'test-workspaces',
+        private: true,
+      },
+      workspaceDir: process.cwd(),
+    }, ['build'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.message).toContain('Missing script "build" in packages: project-1, project-3')
+  expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
+})
+
+test('`pnpm -r --resume-from run` should executed from given package', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      scripts: {
+        build: server.sendLineScript('project-1'),
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      scripts: {
+        build: server.sendLineScript('project-2'),
+      },
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      scripts: {
+        build: server.sendLineScript('project-3'),
+      },
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+  ])
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
+    dir: process.cwd(),
+    recursive: true,
+    resumeFrom: 'project-3',
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  expect(server.getLines().sort()).toEqual(['project-2', 'project-3'])
+})
+
+test('recursive run resumes from exactly the tasks that passed before a failure', async () => {
+  preparePackages([
+    {
+      name: 'dependency',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "const fs = require(\'fs\'); fs.appendFileSync(\'../order.log\', \'dependency\\n\'); if (fs.existsSync(\'../fail\')) process.exit(1)"',
+      },
+    },
+    {
+      name: 'anchor',
+      version: '1.0.0',
+      dependencies: {
+        dependency: '1',
+      },
+      scripts: {
+        build: 'node -e "require(\'fs\').appendFileSync(\'../order.log\', \'anchor\\n\')"',
+      },
+    },
+    {
+      name: 'completed',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "require(\'fs\').appendFileSync(\'../order.log\', \'completed\\n\')"',
+      },
+    },
+  ])
+  await fs.promises.writeFile('fail', '')
+  const selection = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const opts = {
+    ...DEFAULT_OPTS,
+    ...selection,
+    bail: false,
+    dir: process.cwd(),
+    recursive: true,
+    workspaceConcurrency: 1,
+    workspaceDir: process.cwd(),
+  }
+
+  await expect(run.handler(opts, ['build'])).rejects.toMatchObject({ code: 'ERR_PNPM_RECURSIVE_FAIL' })
+  const firstRun = (await fs.promises.readFile('order.log', 'utf8')).trim().split('\n')
+  expect([...firstRun].sort()).toStrictEqual(['completed', 'dependency'])
+
+  await fs.promises.rm('fail')
+  await run.handler({ ...opts, bail: true, resumeFrom: 'anchor' }, ['build'])
+
+  expect((await fs.promises.readFile('order.log', 'utf8')).trim().split('\n')).toStrictEqual([
+    ...firstRun,
+    'dependency',
+    'anchor',
+  ])
+  const stateDir = path.join('node_modules', '.pnpm-task-run-state-v1')
+  const latest = JSON.parse(await fs.promises.readFile(path.join(stateDir, 'latest.json'), 'utf8')) as { invocation: string, run: string }
+  await expect(fs.promises.access(path.join(stateDir, `${latest.invocation}.${latest.run}.jsonl`))).rejects.toMatchObject({ code: 'ENOENT' })
+})
+
+test('recursive run does not persist a task skipped by the lifecycle recursion guard', async () => {
+  preparePackages([
+    {
+      name: 'origin',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "require(\'fs\').appendFileSync(\'../order.log\', \'origin\\n\')"',
+      },
+    },
+    {
+      name: 'anchor',
+      version: '1.0.0',
+      dependencies: {
+        origin: '1',
+      },
+      scripts: {
+        build: 'node -e "require(\'fs\').appendFileSync(\'../order.log\', \'anchor\\n\')"',
+      },
+    },
+    {
+      name: 'failure',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "const fs = require(\'fs\'); fs.appendFileSync(\'../order.log\', \'failure\\n\'); if (fs.existsSync(\'../fail\')) process.exit(1)"',
+      },
+    },
+  ])
+  await fs.promises.writeFile('fail', '')
+  const selection = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const opts = {
+    ...DEFAULT_OPTS,
+    ...selection,
+    bail: false,
+    dir: process.cwd(),
+    recursive: true,
+    workspaceConcurrency: 1,
+    workspaceDir: process.cwd(),
+  }
+  const previousLifecycleEvent = process.env.npm_lifecycle_event
+  const previousScriptSrcDir = process.env.PNPM_SCRIPT_SRC_DIR
+  try {
+    process.env.npm_lifecycle_event = 'build'
+    process.env.PNPM_SCRIPT_SRC_DIR = path.join(process.cwd(), 'origin')
+    await expect(run.handler(opts, ['build'])).rejects.toMatchObject({ code: 'ERR_PNPM_RECURSIVE_FAIL' })
+  } finally {
+    restoreEnv('npm_lifecycle_event', previousLifecycleEvent)
+    restoreEnv('PNPM_SCRIPT_SRC_DIR', previousScriptSrcDir)
+  }
+  expect((await fs.promises.readFile('order.log', 'utf8')).split('\n')).not.toContain('origin')
+
+  await fs.promises.rm('fail')
+  await run.handler({ ...opts, bail: true, resumeFrom: 'anchor' }, ['build'])
+
+  const order = (await fs.promises.readFile('order.log', 'utf8')).trim().split('\n')
+  expect(order.filter((task) => task === 'origin')).toHaveLength(1)
+  const stateDir = path.join('node_modules', '.pnpm-task-run-state-v1')
+  const latest = JSON.parse(await fs.promises.readFile(path.join(stateDir, 'latest.json'), 'utf8')) as { invocation: string, run: string }
+  await expect(fs.promises.access(path.join(stateDir, `${latest.invocation}.${latest.run}.jsonl`))).rejects.toMatchObject({ code: 'ENOENT' })
+})
+
+test('pnpm run with RegExp script selector should work on recursive', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      scripts: {
+        'build:a': 'node -e "require(\'fs\').writeFileSync(\'../output-build-1-a.txt\', \'1-a\', \'utf8\')"',
+        'build:b': 'node -e "require(\'fs\').writeFileSync(\'../output-build-1-b.txt\', \'1-b\', \'utf8\')"',
+        'build:c': 'node -e "require(\'fs\').writeFileSync(\'../output-build-1-c.txt\', \'1-c\', \'utf8\')"',
+        build: 'node -e "require(\'fs\').writeFileSync(\'../output-build-1-a.txt\', \'should not run\', \'utf8\')"',
+        'lint:a': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-1-a.txt\', \'1-a\', \'utf8\')"',
+        'lint:b': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-1-b.txt\', \'1-b\', \'utf8\')"',
+        'lint:c': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-1-c.txt\', \'1-c\', \'utf8\')"',
+        lint: 'node -e "require(\'fs\').writeFileSync(\'../output-lint-1-a.txt\', \'should not run\', \'utf8\')"',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      scripts: {
+        'build:a': 'node -e "require(\'fs\').writeFileSync(\'../output-build-2-a.txt\', \'2-a\', \'utf8\')"',
+        'build:b': 'node -e "require(\'fs\').writeFileSync(\'../output-build-2-b.txt\', \'2-b\', \'utf8\')"',
+        'build:c': 'node -e "require(\'fs\').writeFileSync(\'../output-build-2-c.txt\', \'2-c\', \'utf8\')"',
+        build: 'node -e "require(\'fs\').writeFileSync(\'../output-build-2-a.txt\', \'should not run\', \'utf8\')"',
+        'lint:a': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-2-a.txt\', \'2-a\', \'utf8\')"',
+        'lint:b': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-2-b.txt\', \'2-b\', \'utf8\')"',
+        'lint:c': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-2-c.txt\', \'2-c\', \'utf8\')"',
+        lint: 'node -e "require(\'fs\').writeFileSync(\'../output-lint-2-a.txt\', \'should not run\', \'utf8\')"',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      scripts: {
+        'build:a': 'node -e "require(\'fs\').writeFileSync(\'../output-build-3-a.txt\', \'3-a\', \'utf8\')"',
+        'build:b': 'node -e "require(\'fs\').writeFileSync(\'../output-build-3-b.txt\', \'3-b\', \'utf8\')"',
+        'build:c': 'node -e "require(\'fs\').writeFileSync(\'../output-build-3-c.txt\', \'3-c\', \'utf8\')"',
+        build: 'node -e "require(\'fs\').writeFileSync(\'../output-build-3-a.txt\', \'should not run\', \'utf8\')"',
+        'lint:a': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-3-a.txt\', \'3-a\', \'utf8\')"',
+        'lint:b': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-3-b.txt\', \'3-b\', \'utf8\')"',
+        'lint:c': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-3-c.txt\', \'3-c\', \'utf8\')"',
+        lint: 'node -e "require(\'fs\').writeFileSync(\'../output-lint-3-a.txt\', \'should not run\', \'utf8\')"',
+      },
+    },
+  ])
+
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
+    dir: process.cwd(),
+    recursive: true,
+    rootProjectManifest: {
+      name: 'test-workspaces',
+      private: true,
+    },
+    workspaceDir: process.cwd(),
+  }, ['/^(lint|build):.*/'])
+  expect(fs.readFileSync('output-build-1-a.txt', { encoding: 'utf-8' })).toBe('1-a')
+  expect(fs.readFileSync('output-build-1-b.txt', { encoding: 'utf-8' })).toBe('1-b')
+  expect(fs.readFileSync('output-build-1-c.txt', { encoding: 'utf-8' })).toBe('1-c')
+  expect(fs.readFileSync('output-build-2-a.txt', { encoding: 'utf-8' })).toBe('2-a')
+  expect(fs.readFileSync('output-build-2-b.txt', { encoding: 'utf-8' })).toBe('2-b')
+  expect(fs.readFileSync('output-build-2-c.txt', { encoding: 'utf-8' })).toBe('2-c')
+  expect(fs.readFileSync('output-build-3-a.txt', { encoding: 'utf-8' })).toBe('3-a')
+  expect(fs.readFileSync('output-build-3-b.txt', { encoding: 'utf-8' })).toBe('3-b')
+  expect(fs.readFileSync('output-build-3-c.txt', { encoding: 'utf-8' })).toBe('3-c')
+
+  expect(fs.readFileSync('output-lint-1-a.txt', { encoding: 'utf-8' })).toBe('1-a')
+  expect(fs.readFileSync('output-lint-1-b.txt', { encoding: 'utf-8' })).toBe('1-b')
+  expect(fs.readFileSync('output-lint-1-c.txt', { encoding: 'utf-8' })).toBe('1-c')
+  expect(fs.readFileSync('output-lint-2-a.txt', { encoding: 'utf-8' })).toBe('2-a')
+  expect(fs.readFileSync('output-lint-2-b.txt', { encoding: 'utf-8' })).toBe('2-b')
+  expect(fs.readFileSync('output-lint-2-c.txt', { encoding: 'utf-8' })).toBe('2-c')
+  expect(fs.readFileSync('output-lint-3-a.txt', { encoding: 'utf-8' })).toBe('3-a')
+  expect(fs.readFileSync('output-lint-3-b.txt', { encoding: 'utf-8' })).toBe('3-b')
+  expect(fs.readFileSync('output-lint-3-c.txt', { encoding: 'utf-8' })).toBe('3-c')
+})
+
+test('pnpm recursive run report summary', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "setTimeout(() => console.log(\'project-1\'), 1000)"',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      scripts: {
+        build: 'exit 1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "setTimeout(() => console.log(\'project-3\'), 1000)"',
+      },
+    },
+    {
+      name: 'project-4',
+      version: '1.0.0',
+      scripts: {
+        build: 'exit 1',
+      },
+    },
+    {
+      name: 'project-5',
+      version: '1.0.0',
+    },
+  ])
+  let error
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
+      dir: process.cwd(),
+      recursive: true,
+      reportSummary: true,
+      workspaceDir: process.cwd(),
+    }, ['build'])
+  } catch (err: any) { // eslint-disable-line
+    error = err
+  }
+  expect(error.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
+
+  const { default: { executionStatus } } = (await import(path.resolve('pnpm-exec-summary.json')))
+  expect(executionStatus[path.resolve('project-1')].status).toBe('passed')
+  expect(executionStatus[path.resolve('project-1')].duration).not.toBeFalsy()
+  expect(executionStatus[path.resolve('project-2')].status).toBe('failure')
+  expect(executionStatus[path.resolve('project-2')].duration).not.toBeFalsy()
+  expect(executionStatus[path.resolve('project-3')].status).toBe('passed')
+  expect(executionStatus[path.resolve('project-3')].duration).not.toBeFalsy()
+  expect(executionStatus[path.resolve('project-4')].status).toBe('failure')
+  expect(executionStatus[path.resolve('project-4')].duration).not.toBeFalsy()
+  expect(executionStatus[path.resolve('project-5')].status).toBe('skipped')
+})
+
+test('pnpm recursive run report summary with --bail', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "setTimeout(() => console.log(\'project-1\'), 1000)"',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      scripts: {
+        build: 'exit 1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "setTimeout(() => console.log(\'project-3\'), 1000)"',
+      },
+    },
+    {
+      name: 'project-4',
+      version: '1.0.0',
+      scripts: {
+        build: 'exit 1',
+      },
+    },
+    {
+      name: 'project-5',
+      version: '1.0.0',
+    },
+  ])
+  let error
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
+      dir: process.cwd(),
+      recursive: true,
+      reportSummary: true,
+      workspaceDir: process.cwd(),
+      bail: true,
+      workspaceConcurrency: 3,
+    }, ['build'])
+  } catch (err: any) { // eslint-disable-line
+    error = err
+  }
+  expect(error.code).toBe('ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL')
+
+  const { default: { executionStatus } } = (await import(path.resolve('pnpm-exec-summary.json')))
+
+  // The first failure ends the run at once: scripts still running are
+  // reported as such (the exit path terminates them), and a script still
+  // queued behind the concurrency limit is never started.
+  expect(executionStatus[path.resolve('project-1')].status).toBe('running')
+  expect(executionStatus[path.resolve('project-2')].status).toBe('failure')
+  expect(executionStatus[path.resolve('project-2')].duration).not.toBeFalsy()
+  expect(executionStatus[path.resolve('project-3')].status).toBe('running')
+  expect(executionStatus[path.resolve('project-4')].status).toBe('queued')
+  expect(executionStatus[path.resolve('project-5')].status).toBe('skipped')
+})
+
+test('pnpm recursive run with custom node-options', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "assert.strictEqual(process.env.NODE_OPTIONS, \'--max-old-space-size=1200\')"',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    nodeOptions: '--max-old-space-size=1200',
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['build'])
+})
+
+test('pnpm recursive run with a regex selector keeps a failure when a later matched script passes', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      scripts: {
+        // The selector matches both, and they run one after the other
+        // (see workspaceConcurrency below), so `check:b` both starts and
+        // settles after `check:a` has failed — the ordering in which its
+        // 'running' and 'passed' writes would each erase that failure.
+        'check:a': 'exit 1',
+        'check:b': 'exit 0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+  let err!: PnpmError
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+      bail: false,
+      workspaceConcurrency: 1,
+    }, ['/^check:/'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  expect(err?.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
+})
+
+function restoreEnv (name: string, value: string | undefined): void {
+  if (value == null) {
+    delete process.env[name]
+  } else {
+    process.env[name] = value
+  }
+}

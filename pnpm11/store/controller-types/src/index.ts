@@ -1,0 +1,264 @@
+import type {
+  BinaryFetcher,
+  DirectoryFetcher,
+  FetchFunction,
+  GitFetcher,
+} from '@pnpm/fetching.fetcher-base'
+import type {
+  DirectoryResolution,
+  NonDeprecatedAlternative,
+  PkgResolutionId,
+  PreferredVersions,
+  Resolution,
+  ResolutionPolicyViolation,
+  WantedDependency,
+  WorkspacePackages,
+} from '@pnpm/resolving.resolver-base'
+import type {
+  FilesMap,
+  FileWriteResult,
+  ImportPackageFunction,
+  ImportPackageFunctionAsync,
+  PackageFileInfo,
+  PackageFilesResponse,
+  RemoteSideEffectsOrigin,
+  ResolvedFrom,
+  SideEffectsDiff,
+} from '@pnpm/store.cafs-types'
+import type {
+  AllowBuild,
+  BundledManifest,
+  PackageManifest,
+  PackageVersionPolicy,
+  RangeSpecStyle,
+  ReadPackageHook,
+  SupportedArchitectures,
+  TrustPolicy,
+} from '@pnpm/types'
+
+export type { FilesMap, ImportPackageFunction, ImportPackageFunctionAsync, PackageFileInfo, PackageFilesResponse, RemoteSideEffectsOrigin, ResolvedFrom, SideEffectsDiff }
+
+export * from '@pnpm/resolving.resolver-base'
+export type { BundledManifest }
+
+export interface UploadPkgToStoreOpts {
+  filesIndexFile: string
+  sideEffectsCacheKey: string
+}
+
+export interface UploadPkgToStoreResult {
+  filesMap: FilesMap
+  sideEffects?: SideEffectsDiff
+}
+
+export type UploadPkgToStore = (builtPkgLocation: string, opts: UploadPkgToStoreOpts) => Promise<UploadPkgToStoreResult>
+
+export interface StoreController {
+  requestPackage: RequestPackageFunction
+  fetchPackage: FetchPackageToStoreFunction | FetchPackageToStoreFunctionAsync
+  getFilesIndexFilePath: GetFilesIndexFilePath
+  importPackage: ImportPackageFunctionAsync
+  close: () => Promise<void>
+  prune: (removeAlienFiles?: boolean) => Promise<void>
+  upload: UploadPkgToStore
+  addFileToStore?: (buffer: Buffer, mode: number) => FileWriteResult
+  /**
+   * Path of the file the store already holds for this content, or `undefined`
+   * when it holds none.
+   *
+   * Lets a caller that would otherwise fetch content the store already has —
+   * a remote side-effects artifact whose files are shared with the package's
+   * own, or with another artifact — skip the transfer. `mode` matters because
+   * the store keeps executable and non-executable content apart.
+   */
+  locateFileInStore?: (hexDigest: string, mode: number) => Promise<string | undefined>
+  persistRemoteSideEffects?: (opts: {
+    filesIndexFile: string
+    sideEffectsCacheKey: string
+    sideEffects: SideEffectsDiff
+  }) => boolean
+  quarantineRemoteSideEffects?: (opts: {
+    channel: string
+    envelopeDigest: string
+    filesIndexFile: string
+  }) => boolean
+  clearResolutionCache: () => void
+}
+
+export interface PkgRequestFetchResult {
+  bundledManifest?: BundledManifest
+  files: PackageFilesResponse
+  integrity?: string
+}
+
+export interface FetchResponse {
+  filesIndexFile: string
+  fetching: () => Promise<PkgRequestFetchResult>
+}
+
+export type FetchPackageToStoreFunction = (opts: FetchPackageToStoreOptions) => FetchResponse
+
+export type FetchPackageToStoreFunctionAsync = (opts: FetchPackageToStoreOptions) => Promise<FetchResponse>
+
+type SelectedFetcher = FetchFunction | DirectoryFetcher | GitFetcher | BinaryFetcher
+
+export type GetFilesIndexFilePath = (opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>) => {
+  filesIndexFile: string
+  target: string
+}
+
+export interface PkgNameVersion {
+  name?: string
+  version?: string
+}
+
+export interface FetchPackageToStoreOptions {
+  allowBuild?: AllowBuild
+  fetchRawManifest?: boolean
+  force: boolean
+  /**
+   * The resolution can't be completed without a fresh download (e.g. a registry tarball
+   * whose integrity must be computed from the bytes), so the store copy must not be
+   * reused. Determined by the fetcher's `resolutionNeedsFetch`.
+   */
+  populateMissingIntegrity?: boolean
+  /**
+   * In-process callers may pass the fetcher they already selected for this resolution.
+   * Omitted when the fetcher has to be selected at fetch time, such as `variations`.
+   */
+  pickedFetcher?: SelectedFetcher
+  ignoreScripts?: boolean
+  lockfileDir: string
+  pkg: PkgNameVersion & {
+    id: string
+    resolution: Resolution
+  }
+  onFetchError?: OnFetchError
+  supportedArchitectures?: SupportedArchitectures
+}
+
+export type OnFetchError = (error: Error) => Error
+
+export type RequestPackageFunction = (
+  wantedDependency: WantedDependency & { optional?: boolean },
+  options: RequestPackageOptions
+) => Promise<PackageResponse>
+
+export interface RequestPackageOptions {
+  allowBuild?: AllowBuild
+  alwaysTryWorkspacePackages?: boolean
+  currentPkg?: {
+    id?: PkgResolutionId
+    name?: string
+    resolution?: Resolution
+    version?: string
+    publishedAt?: string
+  }
+  /**
+   * Expected package is the package name and version that are found in the lockfile.
+   */
+  expectedPkg?: PkgNameVersion
+  defaultTag?: string
+  pickLowestVersion?: boolean
+  publishedBy?: Date
+  publishedByExclude?: PackageVersionPolicy
+  downloadPriority: number
+  ignoreScripts?: boolean
+  projectDir: string
+  lockfileDir: string
+  /**
+   * The Node.js version this package's engines are checked against. Defaults
+   * to the one the store controller was created with.
+   */
+  nodeVersion?: string
+  preferredVersions: PreferredVersions
+  preferWorkspacePackages?: boolean
+  sideEffectsCache?: boolean
+  skipFetch?: boolean
+  update?: false | 'compatible' | 'latest'
+  updatePatches?: boolean
+  /**
+   * True only when this specific package matches the user's update target
+   * (e.g. `pnpm up <name>`). Unlike `update`, this is false for unrelated
+   * packages that get re-resolved as a side effect of an update, so the
+   * resolver can bypass preferred-version propagation for the targeted
+   * package without forcing unrelated transitives to jump to their latest.
+   */
+  updateRequested?: boolean
+  updateChecksums?: boolean
+  workspacePackages?: WorkspacePackages
+  forceResolve?: boolean
+  supportedArchitectures?: SupportedArchitectures
+  onFetchError?: OnFetchError
+  injectWorkspacePackages?: boolean
+  calcSpecifier?: boolean
+  rangeSpecStyle?: RangeSpecStyle
+  trustPolicy?: TrustPolicy
+  trustPolicyExclude?: PackageVersionPolicy
+  trustPolicyIgnoreAfter?: number
+  readPackageHook?: ReadPackageHook
+}
+
+export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
+
+export interface PackageResponse {
+  fetching?: () => Promise<PkgRequestFetchResult>
+  filesIndexFile?: string
+  /**
+   * The resolution can't be completed without awaiting `fetching` — e.g. a registry
+   * tarball whose integrity is computed from the downloaded bytes. Set by the fetcher's
+   * `resolutionNeedsFetch`. Callers that read the resolution before fetching (the lockfile
+   * snapshot, virtual-store paths) must await `fetching` first for these.
+   */
+  resolutionNeedsFetch?: boolean
+  body: {
+    isLocal: boolean
+    isInstallable?: boolean
+    resolution: Resolution
+    manifest?: PackageManifest
+    id: PkgResolutionId
+    normalizedBareSpecifier?: string
+    updated: boolean
+    publishedAt?: string
+    resolvedVia?: string
+    // This is useful for recommending updates.
+    // If latest does not equal the version of the
+    // resolved package, it is out-of-date.
+    latest?: string
+    /**
+     * Forwarded from the resolver's `ResolveResult.nonDeprecatedAlternative`,
+     * so the deprecation warning can name a version to move to. Set only for a
+     * deprecated pick that the resolver worked out from a packument.
+     */
+    nonDeprecatedAlternative?: NonDeprecatedAlternative
+    alias?: string
+    /**
+     * Forwarded from the resolver's `ResolveResult.policyViolation`.
+     * The caller (deps-resolver) aggregates these per-pick into a
+     * single set the install command can react to — see
+     * `ResolutionPolicyViolation` in `@pnpm/resolving.resolver-base`.
+     */
+    policyViolation?: ResolutionPolicyViolation
+    hooked?: boolean
+  } & (
+    {
+      isLocal: true
+      resolution: DirectoryResolution
+    } | {
+      isLocal: false
+    }
+  )
+}
+
+export interface ImportOptions {
+  disableRelinkLocalDirDeps?: boolean
+  filesMap: FilesMap
+  force: boolean
+  resolvedFrom: ResolvedFrom
+  keepModulesDir?: boolean
+  safeToSkip?: boolean
+}
+
+export type ImportIndexedPackage = (to: string, opts: ImportOptions) => string | undefined
+
+export type ImportIndexedPackageAsync = (to: string, opts: ImportOptions) => Promise<string | undefined>

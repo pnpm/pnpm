@@ -1,0 +1,461 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { expect, test } from '@jest/globals'
+import { prepare } from '@pnpm/prepare'
+import isWindows from 'is-windows'
+import PATH_NAME from 'path-name'
+import { writeJsonFileSync } from 'write-json-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
+import { execPnpmSync } from './utils/index.js'
+
+test('switch to the pnpm version specified in the packageManager field of package.json', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+
+  const { stdout } = execPnpmSync(['help'], { env })
+
+  expect(stdout.toString()).toContain('Version 9.3.0')
+})
+
+test('switch to the pinned pnpm version although a task setting is only known to it', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    tasks: { build: { concurrencyGroup: 'cargo' } },
+  })
+
+  const { stdout } = execPnpmSync(['help'], { env, expectSuccess: true })
+
+  expect(stdout.toString()).toContain('Version 9.3.0')
+})
+
+test('child pnpm processes select the version for their own directory', () => {
+  prepare()
+  const rootDir = process.cwd()
+  const projectADir = path.join(rootDir, 'a')
+  const projectBDir = path.join(rootDir, 'b')
+  const pnpmHome = path.join(rootDir, 'pnpm')
+  fs.mkdirSync(projectADir)
+  fs.mkdirSync(projectBDir)
+  writeJsonFileSync(path.join(projectADir, 'package.json'), {
+    packageManager: 'pnpm@9.3.0',
+  })
+  writeJsonFileSync(path.join(projectBDir, 'package.json'), {
+    packageManager: 'pnpm@9.1.3',
+  })
+
+  const versionScript = path.join(rootDir, 'child-versions.cjs')
+  fs.writeFileSync(versionScript, `
+    const { spawnSync } = require('node:child_process')
+    const versionAt = (dir) => {
+      const result = spawnSync('pnpm', ['--version'], { cwd: dir, encoding: 'utf8' })
+      if (result.status !== 0) throw new Error(result.stderr)
+      return result.stdout.trim()
+    }
+    process.stdout.write(JSON.stringify({
+      projectB: versionAt(process.argv[2]),
+      unpinned: versionAt(process.argv[3]),
+    }))
+  `)
+  const result = execPnpmSync(['exec', 'node', versionScript, projectBDir, rootDir], {
+    cwd: projectADir,
+    env: { PNPM_HOME: pnpmHome },
+    expectSuccess: true,
+  })
+
+  const versions = JSON.parse(result.stdout.toString()) as { projectB: string, unpinned: string }
+  expect(versions.projectB).toBe('9.1.3')
+  expect(versions.unpinned).not.toBe('9.3.0')
+})
+
+test('packageManager field does not write pnpm resolution info to pnpm-lock.yaml', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+
+  const { stdout } = execPnpmSync(['help'], { env })
+  expect(stdout.toString()).toContain('Version 9.3.0')
+
+  // The legacy packageManager field already pins an exact version in the
+  // manifest itself, so pnpm resolution info must not leak into the lockfile.
+  // This keeps the v10 -> v11 transition quiet.
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
+})
+
+test('do not switch to the pnpm version specified in the packageManager field of package.json, if pmOnFail is set to ignore', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    pmOnFail: 'ignore',
+  })
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+
+  const { stdout } = execPnpmSync(['help'], { env })
+
+  expect(stdout.toString()).not.toContain('Version 9.3.0')
+})
+
+test('do not switch to pnpm version that is specified not with a semver version', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@kevva/is-positive',
+  })
+
+  const { stderr } = execPnpmSync(['help'], { env })
+
+  expect(stderr.toString()).toContain('"kevva/is-positive" is not a valid exact version')
+})
+
+test('do not switch to pnpm version that is specified starting with v', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@v9.15.5',
+  })
+
+  const { stderr } = execPnpmSync(['help'], { env })
+
+  expect(stderr.toString()).toContain('you need to specify the version as "9.15.5"')
+})
+
+test('do not switch to pnpm version when a range is specified in packageManager field', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@^9.3.0',
+  })
+
+  const { stderr } = execPnpmSync(['help'], { env })
+
+  expect(stderr.toString()).toContain('not a valid exact version')
+})
+
+test('switch to the pnpm version resolved from devEngines.packageManager with onFail=download', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '9.3.0',
+        onFail: 'download',
+      },
+    },
+  })
+
+  const { stdout } = execPnpmSync(['help'], { env })
+
+  expect(stdout.toString()).toContain('Version 9.3.0')
+})
+
+test('switch to the pnpm version resolved from devEngines.packageManager with a range', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=9.1.0 <9.1.4',
+        onFail: 'download',
+      },
+    },
+  })
+
+  const { stdout } = execPnpmSync(['help'], { env })
+
+  // Should resolve to the highest version in the range (9.1.3, not 9.1.0)
+  expect(stdout.toString()).toContain('Version 9.1.3')
+})
+
+test('devEngines.packageManager with onFail=download reuses resolved version from env lockfile', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=9.1.0 <9.1.4',
+        onFail: 'download',
+      },
+    },
+  })
+
+  // First run: resolves and writes env lockfile
+  const firstRun = execPnpmSync(['help'], { env })
+  expect(firstRun.stdout.toString()).toContain('Version 9.1.3')
+
+  // Second run: should reuse the resolved version from env lockfile
+  const secondRun = execPnpmSync(['help'], { env })
+  expect(secondRun.stdout.toString()).toContain('Version 9.1.3')
+
+  // Verify env lockfile was written
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(true)
+})
+
+test('devEngines.packageManager re-resolves when locked version no longer satisfies updated range', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+
+  // First run: seed the lockfile with 9.1.1
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=9.1.0 <9.1.2',
+        onFail: 'download',
+      },
+    },
+  })
+  const firstRun = execPnpmSync(['help'], { env })
+  expect(firstRun.stdout.toString()).toContain('Version 9.1.1')
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(true)
+
+  // Update range so the previously locked 9.1.1 no longer satisfies it
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=9.1.2 <9.1.4',
+        onFail: 'download',
+      },
+    },
+  })
+
+  // Should re-resolve and switch to 9.1.3
+  const secondRun = execPnpmSync(['help'], { env })
+  expect(secondRun.stdout.toString()).toContain('Version 9.1.3')
+})
+
+// https://github.com/pnpm/pnpm/issues/14009: a frozen install used to record
+// the bumped pin and carry on, hiding a lockfile that no longer matched the
+// manifest from every CI job that relies on the flag.
+test('devEngines.packageManager is not re-resolved under --frozen-lockfile', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=9.1.0 <9.1.2',
+        onFail: 'download',
+      },
+    },
+  })
+  expect(execPnpmSync(['help'], { env }).stdout.toString()).toContain('Version 9.1.1')
+  const lockfile = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=9.1.2 <9.1.4',
+        onFail: 'download',
+      },
+    },
+  })
+
+  const { status, stderr } = execPnpmSync(['install', '--frozen-lockfile'], { env })
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('Cannot update packageManagerDependencies with "frozen-lockfile" because the lockfile is not up to date')
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfile)
+})
+
+// https://github.com/pnpm/pnpm/issues/14124: entries whose resolutions the
+// bootstrap refuses to read are discarded and resolved afresh. The repair
+// records the version the lockfile already pins, so a frozen lockfile has
+// nothing to reject: the command runs that pnpm and the lockfile is left as
+// it is.
+test('devEngines.packageManager entries with a tarball resolution are repaired under --frozen-lockfile', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=9.1.0 <9.1.2',
+        onFail: 'download',
+      },
+    },
+  })
+  expect(execPnpmSync(['help'], { env }).stdout.toString()).toContain('Version 9.1.1')
+
+  // A resolution carrying a tarball URL: the bootstrap accepts integrity-only
+  // resolutions, so this one sends the pin through the repair.
+  const seeded = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+  const resolutionEnd = seeded.indexOf('}', seeded.indexOf('resolution: {integrity: '))
+  const lockfile = [
+    seeded.slice(0, resolutionEnd),
+    ', tarball: https://registry.npmjs.org/pnpm/-/pnpm-9.1.1.tgz',
+    seeded.slice(resolutionEnd),
+  ].join('')
+  fs.writeFileSync('pnpm-lock.yaml', lockfile)
+  // A range the locked 9.1.1 still satisfies, and which 9.1.3 satisfies too:
+  // a repair that resolved the range instead of the locked version would
+  // switch to 9.1.3 without recording it.
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=9.1.0 <9.1.4',
+        onFail: 'download',
+      },
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { frozenLockfile: true })
+
+  const { stdout } = execPnpmSync(['help'], { env })
+
+  expect(stdout.toString()).toContain('Version 9.1.1')
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfile)
+})
+
+test('devEngines.packageManager with onFail=download writes no lockfile when lockfile is disabled (#14728)', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '9.3.0',
+        onFail: 'download',
+      },
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { lockfile: false })
+
+  const { stdout } = execPnpmSync(['help'], { env })
+
+  expect(stdout.toString()).toContain('Version 9.3.0')
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
+})
+
+test('a global command does not switch to the pnpm version pinned by the project (#14531)', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const globalBinDir = path.join(pnpmHome, 'bin')
+  const env = {
+    PNPM_HOME: pnpmHome,
+    [PATH_NAME]: `${globalBinDir}${path.delimiter}${process.env[PATH_NAME]}`,
+  }
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '9.3.0',
+        onFail: 'download',
+      },
+    },
+  })
+
+  const { status, stdout, stderr } = execPnpmSync(['bin', '--global'], { env })
+
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe(globalBinDir)
+  expect(stderr.toString()).toContain('Using --global skips the package manager check for this project')
+})
+
+test('devEngines.packageManager without onFail=download does not switch version', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '9.3.0',
+        onFail: 'error',
+      },
+    },
+  })
+
+  const { status, stdout } = execPnpmSync(['help'], { env })
+
+  expect(status).not.toBe(0)
+  expect(stdout.toString()).not.toContain('Version 9.3.0')
+})
+
+test('pnpm fetch installs the pnpm the lockfile pins, so an offline command can switch to it (pnpm/pnpm#11808)', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const manifest = {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '9.3.0',
+        onFail: 'download',
+      },
+    },
+  }
+  writeJsonFileSync('package.json', manifest)
+  execPnpmSync(['help'], { env: { PNPM_HOME: pnpmHome }, expectSuccess: true })
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toContain('packageManagerDependencies')
+
+  // The lockfile-only stage of a Docker build, with a store of its own.
+  fs.rmSync('package.json')
+  const env = { PNPM_HOME: pnpmHome, pnpm_config_store_dir: path.resolve('fetched-store') }
+  execPnpmSync(['fetch'], { env, expectSuccess: true })
+
+  writeJsonFileSync('package.json', manifest)
+  const { stdout } = execPnpmSync(['help'], { env: { ...env, pnpm_config_offline: 'true' }, expectSuccess: true })
+  expect(stdout.toString()).toContain('Version 9.3.0')
+})
+
+test('throws error if pnpm binary in store is corrupt', () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const storeDir = path.resolve('store')
+  const env = { PNPM_HOME: pnpmHome, pnpm_config_store_dir: storeDir }
+  const version = '9.3.0'
+
+  writeJsonFileSync('package.json', {
+    packageManager: `pnpm@${version}`,
+  })
+
+  // Run pnpm once to ensure pnpm is installed to the store.
+  execPnpmSync(['help'], { env })
+
+  // Find the pnpm binary in the global virtual store and corrupt it.
+  const entries = fs.readdirSync(storeDir, { recursive: true }) as string[]
+  const pnpmBinEntry = entries.find(e => {
+    const normalized = e.replace(/\\/g, '/')
+    return normalized.endsWith('/bin/pnpm') && !normalized.includes('node_modules')
+  })
+  if (!pnpmBinEntry) throw new Error('Could not find pnpm binary in store')
+  fs.rmSync(path.join(storeDir, pnpmBinEntry))
+  if (isWindows()) {
+    fs.rmSync(path.join(storeDir, pnpmBinEntry + '.cmd'))
+  }
+
+  const { stderr } = execPnpmSync(['help'], { env })
+  expect(stderr.toString()).toContain('Failed to switch pnpm to v9.3.0. Looks like pnpm CLI is missing')
+})

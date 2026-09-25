@@ -1,0 +1,119 @@
+import { setTimeout } from 'node:timers/promises'
+
+import { expect, test } from '@jest/globals'
+import { toOutput$ } from '@pnpm/cli.default-reporter'
+import { contextLogger, packageImportMethodLogger, reportPackageImported } from '@pnpm/core-loggers'
+import {
+  createStreamParser,
+} from '@pnpm/logger'
+import { firstValueFrom } from 'rxjs'
+
+const NO_OUTPUT = Symbol('test should not log anything')
+
+test('print context and import method info', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+    },
+    streamParser: createStreamParser(),
+  })
+
+  contextLogger.debug({
+    currentLockfileExists: false,
+    storeDir: '~/.pnpm-store/v3',
+    virtualStoreDir: 'node_modules/.pnpm',
+  })
+  packageImportMethodLogger.debug({
+    method: 'hardlink',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(output).toBe(`\
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: ~/.pnpm-store/v3
+  Virtual store is at:             node_modules/.pnpm`)
+})
+
+test('do not print info if not fresh install', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+    },
+    streamParser: createStreamParser(),
+  })
+
+  contextLogger.debug({
+    currentLockfileExists: true,
+    storeDir: '~/.pnpm-store/v3',
+    virtualStoreDir: 'node_modules/.pnpm',
+  })
+  packageImportMethodLogger.debug({
+    method: 'hardlink',
+  })
+
+  const output = await Promise.race([
+    firstValueFrom(output$),
+    setTimeout(10).then(() => NO_OUTPUT),
+  ])
+
+  expect(output).toEqual(NO_OUTPUT)
+})
+
+test('do not print info if dlx is the executed command', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['dlx'],
+    },
+    streamParser: createStreamParser(),
+  })
+
+  contextLogger.debug({
+    currentLockfileExists: false,
+    storeDir: '~/.pnpm-store/v3',
+    virtualStoreDir: 'node_modules/.pnpm',
+  })
+  packageImportMethodLogger.debug({
+    method: 'hardlink',
+  })
+
+  const output = await Promise.race([
+    firstValueFrom(output$),
+    setTimeout(10).then(() => NO_OUTPUT),
+  ])
+
+  expect(output).toEqual(NO_OUTPUT)
+})
+
+// The import itself runs in a worker thread whose loggers never reach the
+// reporter, so the store block only appears if the main process re-emits
+// the method the worker reported back. This drives the reporter through
+// `reportPackageImported`, the call the linking code actually makes.
+test('print context and import method info reported from the linker', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+    },
+    streamParser: createStreamParser(),
+  })
+
+  contextLogger.debug({
+    currentLockfileExists: false,
+    storeDir: '~/.pnpm-store/v3',
+    virtualStoreDir: 'node_modules/.pnpm',
+  })
+  reportPackageImported({
+    method: 'clone',
+    requester: '/repo',
+    to: '/repo/node_modules/.pnpm/foo@1.0.0/node_modules/foo',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(output).toBe(`\
+Packages are cloned from the content-addressable store to the virtual store.
+  Content-addressable store is at: ~/.pnpm-store/v3
+  Virtual store is at:             node_modules/.pnpm`)
+})

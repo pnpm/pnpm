@@ -1,0 +1,7 @@
+{
+  "name": "@dedicated-lockfile-test/peer-lib",
+  "version": "1.0.0",
+  "dependencies": {
+    "is-negative": "1.0.0"
+  }
+}

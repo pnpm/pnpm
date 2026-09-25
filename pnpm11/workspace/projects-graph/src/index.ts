@@ -1,0 +1,165 @@
+import path from 'node:path'
+
+import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import type { Catalogs } from '@pnpm/catalogs.types'
+import npa from '@pnpm/npm-package-arg'
+import { parseBareSpecifier, workspacePrefToNpm } from '@pnpm/resolving.npm-resolver'
+import type { BaseManifest, ProjectRootDir } from '@pnpm/types'
+import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
+import { map as mapValues } from 'ramda'
+
+export interface BaseProject {
+  manifest: BaseManifest
+  rootDir: ProjectRootDir
+}
+
+export interface ProjectGraphNode<Pkg extends BaseProject> {
+  package: Pkg
+  dependencies: ProjectRootDir[]
+}
+
+export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], opts?: {
+  catalogs?: Catalogs
+  ignoreDevDeps?: boolean
+  linkWorkspacePackages?: boolean
+}): {
+  graph: Record<ProjectRootDir, ProjectGraphNode<Pkg>>
+  unmatched: Array<{ pkgName: string, range: string }>
+} {
+  const projectMap = createProjectMap(projects)
+  const projectMapValues = Object.values(projectMap)
+  let projectMapByManifestName: Record<string, BaseProject[] | undefined> | undefined
+  let projectMapByDir: Record<string, BaseProject | undefined> | undefined
+  const unmatched: Array<{ pkgName: string, range: string }> = []
+  const graph = mapValues((project) => ({
+    dependencies: createNode(project),
+    package: project,
+  }), projectMap) as Record<ProjectRootDir, ProjectGraphNode<Pkg>>
+  return { graph, unmatched }
+
+  function createNode (project: BaseProject): string[] {
+    const dependencies = {
+      ...project.manifest.peerDependencies,
+      ...(!opts?.ignoreDevDeps && project.manifest.devDependencies),
+      ...project.manifest.optionalDependencies,
+      ...project.manifest.dependencies,
+    }
+
+    return Object.entries(dependencies)
+      .map(([depName, rawSpec]) => {
+        let spec!: { fetchSpec: string, type: string }
+        const catalogResolution = resolveFromCatalog(opts?.catalogs ?? {}, { alias: depName, bareSpecifier: rawSpec })
+        if (catalogResolution.type === 'found') {
+          rawSpec = catalogResolution.resolution.specifier
+        }
+        const isWorkspaceSpec = rawSpec.startsWith('workspace:')
+        try {
+          if (isWorkspaceSpec) {
+            const npmSpec = workspacePrefToNpm(rawSpec)
+            if (isRelativePathSpec(npmSpec)) {
+              // workspace:../foo / workspace:./foo aren't bare specifiers;
+              // resolve them as directory dependencies below.
+              rawSpec = npmSpec
+            } else {
+              ({ depName, rawSpec } = parseRegistrySpec(depName, npmSpec))
+            }
+          } else if (rawSpec.startsWith('npm:')) {
+            ({ depName, rawSpec } = parseRegistrySpec(depName, rawSpec))
+          }
+          spec = npa.resolve(depName, rawSpec, project.rootDir)
+        } catch {
+          return ''
+        }
+
+        if (spec.type === 'directory') {
+          projectMapByDir ??= getProjectMapByDir(projectMapValues)
+          const resolvedPath = path.resolve(project.rootDir, spec.fetchSpec)
+          const found = projectMapByDir[resolvedPath]
+          if (found) {
+            return found.rootDir
+          }
+
+          // Slow path; only needed when there are case mismatches on case-insensitive filesystems.
+          const matchedProject = projectMapValues.find(p => path.relative(p.rootDir, spec.fetchSpec) === '')
+          if (matchedProject == null) {
+            return ''
+          }
+          projectMapByDir[resolvedPath] = matchedProject
+          return matchedProject.rootDir
+        }
+
+        if (spec.type !== 'version' && spec.type !== 'range') return ''
+
+        projectMapByManifestName ??= getProjectMapByManifestName(projectMapValues)
+        const candidates = projectMapByManifestName[depName]
+        if (!candidates || candidates.length === 0) return ''
+        const versions = candidates.filter(({ manifest }) => manifest.version)
+          .map(p => p.manifest.version) as string[]
+
+        // explicitly check if false, backwards-compatibility (can be undefined)
+        const strictWorkspaceMatching = opts?.linkWorkspacePackages === false && !isWorkspaceSpec
+        if (strictWorkspaceMatching) {
+          unmatched.push({ pkgName: depName, range: rawSpec })
+          return ''
+        }
+        if (isWorkspaceSpec && versions.length === 0) {
+          const matchedProject = candidates.find(p => p.manifest.name === depName)
+          return matchedProject!.rootDir
+        }
+        if (versions.includes(rawSpec)) {
+          const matchedProject = candidates.find(p => p.manifest.name === depName && p.manifest.version === rawSpec)
+          return matchedProject!.rootDir
+        }
+        const matched = resolveWorkspaceRange(rawSpec, versions)
+        if (!matched) {
+          unmatched.push({ pkgName: depName, range: rawSpec })
+          return ''
+        }
+        const matchedProject = candidates.find(p => p.manifest.name === depName && p.manifest.version === matched)
+        return matchedProject!.rootDir
+      })
+      .filter(Boolean)
+  }
+}
+
+/**
+ * The package an `npm:` alias points at and the selector it asks for, read
+ * the way the npm resolver reads them. A spec the resolver does not claim
+ * comes back with `depName` and the spec unchanged. Throws what
+ * `parseBareSpecifier` throws, such as for a registry revision the resolver
+ * rejects.
+ */
+function parseRegistrySpec (depName: string, npmSpec: string): { depName: string, rawSpec: string } {
+  const parsed = parseBareSpecifier(npmSpec, depName, 'latest', '')
+  return parsed ? { depName: parsed.name, rawSpec: parsed.fetchSpec } : { depName, rawSpec: npmSpec }
+}
+
+function isRelativePathSpec (spec: string): boolean {
+  return spec === '.' || spec === '..' || spec.startsWith('./') || spec.startsWith('../')
+}
+
+function createProjectMap (projects: BaseProject[]): Record<ProjectRootDir, BaseProject> {
+  const projectMap: Record<ProjectRootDir, BaseProject> = {}
+  for (const project of projects) {
+    projectMap[project.rootDir] = project
+  }
+  return projectMap
+}
+
+function getProjectMapByManifestName (projectMapValues: BaseProject[]): Record<string, BaseProject[] | undefined> {
+  const projectMapByManifestName: Record<string, BaseProject[] | undefined> = {}
+  for (const project of projectMapValues) {
+    if (project.manifest.name) {
+      (projectMapByManifestName[project.manifest.name] ??= []).push(project)
+    }
+  }
+  return projectMapByManifestName
+}
+
+function getProjectMapByDir (projectMapValues: BaseProject[]): Record<string, BaseProject | undefined> {
+  const projectMapByDir: Record<string, BaseProject | undefined> = {}
+  for (const project of projectMapValues) {
+    projectMapByDir[path.resolve(project.rootDir)] = project
+  }
+  return projectMapByDir
+}

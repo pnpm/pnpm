@@ -1,0 +1,366 @@
+import { writeFile } from 'node:fs/promises'
+import path from 'node:path'
+
+import { expect, jest, test } from '@jest/globals'
+import type { DepPath, ProjectId } from '@pnpm/types'
+import yaml from 'js-yaml'
+import { temporaryDirectory } from 'tempy'
+
+jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))
+
+const { getCurrentBranch } = await import('@pnpm/network.git-utils')
+const {
+  existsNonEmptyWantedLockfile,
+  readCurrentLockfile,
+  readWantedLockfile,
+  writeCurrentLockfile,
+  writeWantedLockfile,
+} = await import('@pnpm/lockfile.fs')
+
+process.chdir(import.meta.dirname)
+
+test('readWantedLockfile()', async () => {
+  {
+    const lockfile = await readWantedLockfile(path.join('fixtures', '2'), {
+      ignoreIncompatible: false,
+    })
+    expect(lockfile?.lockfileVersion).toBe('9.0')
+    expect(lockfile?.importers).toStrictEqual({
+      '.': {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        devDependencies: undefined,
+        optionalDependencies: undefined,
+        specifiers: {
+          foo: '1',
+        },
+        dependenciesMeta: {
+          foo: { injected: true },
+        },
+      },
+    })
+  }
+
+  await expect(
+    readWantedLockfile(path.join('fixtures', '3'), {
+      ignoreIncompatible: false,
+      wantedVersions: ['3'],
+    })
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE' })
+})
+
+test('readWantedLockfile() reports the incompatible and supported lockfile versions', async () => {
+  const projectPath = temporaryDirectory()
+  await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), 'lockfileVersion: \'6.0\'\nimporters:\n  .:\n    specifiers: {}\n')
+
+  const error = await readWantedLockfile(projectPath, {
+    ignoreIncompatible: false,
+    wantedVersions: ['9.0'],
+  }).catch((err: unknown) => err)
+
+  expect(error).toMatchObject({ code: 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE' })
+  expect((error as Error).message).toBe(`Lockfile ${path.join(projectPath, 'pnpm-lock.yaml')} not compatible with current pnpm: it was generated with lockfileVersion 6.0, but the current pnpm version supports lockfileVersion 9.x`)
+})
+
+test('readWantedLockfile() keeps the legacy message when the lockfile has no lockfileVersion', async () => {
+  const projectPath = temporaryDirectory()
+  await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), 'importers:\n  .:\n    specifiers: {}\n')
+
+  const error = await readWantedLockfile(projectPath, {
+    ignoreIncompatible: false,
+    wantedVersions: ['9.0'],
+  }).catch((err: unknown) => err)
+
+  expect(error).toMatchObject({ code: 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE' })
+  expect((error as Error).message).toBe(`Lockfile ${path.join(projectPath, 'pnpm-lock.yaml')} not compatible with current pnpm`)
+})
+
+test('readWantedLockfile() does not include lockfile content in parse errors', async () => {
+  const projectPath = temporaryDirectory()
+  const secret = 'aws_secret_access_key = marker-secret'
+  await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), `[default]\n${secret}\n`)
+
+  const error = await readWantedLockfile(projectPath, { ignoreIncompatible: false }).catch((err: unknown) => err)
+
+  expect(error).toMatchObject({
+    code: 'ERR_PNPM_BROKEN_LOCKFILE',
+    message: expect.stringContaining(`The lockfile at "${path.join(projectPath, 'pnpm-lock.yaml')}" is broken:`),
+  })
+  expect(error).toMatchObject({ message: expect.stringContaining('(2:1)') })
+  expect(error).toMatchObject({ message: expect.not.stringContaining(secret) })
+})
+
+test('readWantedLockfile() does not use a YAML exception message when its reason is missing', async () => {
+  const projectPath = temporaryDirectory()
+  const secret = 'aws_secret_access_key = marker-secret'
+  await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), 'broken')
+  jest.spyOn(yaml, 'load').mockImplementationOnce(() => {
+    throw {
+      name: 'YAMLException',
+      message: `Unable to parse YAML\n${secret}`,
+      mark: { line: 1, column: 2 },
+    }
+  })
+
+  await expect(readWantedLockfile(projectPath, { ignoreIncompatible: false })).rejects.toMatchObject({
+    code: 'ERR_PNPM_BROKEN_LOCKFILE',
+    message: `The lockfile at "${path.join(projectPath, 'pnpm-lock.yaml')}" is broken: Unable to parse YAML (2:3)`,
+  })
+})
+
+test('readWantedLockfile() when lockfileVersion is a string', async () => {
+  {
+    const lockfile = await readWantedLockfile(path.join('fixtures', '4'), {
+      ignoreIncompatible: false,
+      wantedVersions: ['3'],
+    })
+    expect(lockfile!.lockfileVersion).toBe('v3')
+  }
+
+  {
+    const lockfile = await readWantedLockfile(path.join('fixtures', '5'), {
+      ignoreIncompatible: false,
+      wantedVersions: ['3'],
+    })
+    expect(lockfile!.lockfileVersion).toBe('3')
+  }
+})
+
+test('readCurrentLockfile()', async () => {
+  const lockfile = await readCurrentLockfile('fixtures/2/node_modules/.pnpm', {
+    ignoreIncompatible: false,
+  })
+  expect(lockfile!.lockfileVersion).toBe('6.0')
+})
+
+test('writeWantedLockfile()', async () => {
+  const projectPath = temporaryDirectory()
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          'is-negative': '1.0.0',
+          'is-positive': '1.0.0',
+        },
+        specifiers: {
+          'is-negative': '^1.0.0',
+          'is-positive': '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: '9.0',
+    packages: {
+      'is-negative@1.0.0': {
+        dependencies: {
+          'is-positive': '2.0.0',
+        },
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+      'is-positive@1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+      'is-positive@2.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+    registry: 'https://registry.npmjs.org',
+  }
+  await writeWantedLockfile(projectPath, wantedLockfile)
+  expect(await readCurrentLockfile(projectPath, { ignoreIncompatible: false })).toBeNull()
+  expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
+})
+
+test('writeCurrentLockfile()', async () => {
+  const projectPath = temporaryDirectory()
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          'is-negative': '1.0.0',
+          'is-positive': '1.0.0',
+        },
+        specifiers: {
+          'is-negative': '^1.0.0',
+          'is-positive': '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: '9.0',
+    packages: {
+      'is-negative@1.0.0': {
+        dependencies: {
+          'is-positive': '2.0.0',
+        },
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+      'is-positive@1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+      'is-positive@2.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+    registry: 'https://registry.npmjs.org',
+  }
+  await writeCurrentLockfile(projectPath, wantedLockfile)
+  expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toBeNull()
+  expect(await readCurrentLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
+})
+
+test('existsNonEmptyWantedLockfile()', async () => {
+  const projectPath = temporaryDirectory()
+  expect(await existsNonEmptyWantedLockfile(projectPath)).toBe(false)
+  await writeWantedLockfile(projectPath, {
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: {
+          'is-negative': '1.0.0',
+          'is-positive': '1.0.0',
+        },
+        specifiers: {
+          'is-negative': '^1.0.0',
+          'is-positive': '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: '3',
+    packages: {
+      ['is-negative/1.0.0' as DepPath]: {
+        dependencies: {
+          'is-positive': '2.0.0',
+        },
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+      ['is-positive/1.0.0' as DepPath]: {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+      ['is-positive/2.0.0' as DepPath]: {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+  })
+  expect(await existsNonEmptyWantedLockfile(projectPath)).toBe(true)
+})
+
+test('readWantedLockfile() when useGitBranchLockfile', async () => {
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('branch'))
+  const lockfile = await readWantedLockfile(path.join('fixtures', '6'), {
+    ignoreIncompatible: false,
+  })
+  expect(lockfile?.importers).toEqual({
+    '.': {
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+      specifiers: {
+        'is-positive': '1.0.0',
+      },
+    },
+  })
+  expect(lockfile?.packages).toStrictEqual({
+    'is-positive@1.0.0': {
+      resolution: {
+        integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+      },
+    },
+  })
+
+  const gitBranchLockfile = await readWantedLockfile(path.join('fixtures', '6'), {
+    ignoreIncompatible: false,
+    useGitBranchLockfile: true,
+  })
+  expect(gitBranchLockfile?.importers).toEqual({
+    '.': {
+      dependencies: {
+        'is-positive': '2.0.0',
+      },
+      specifiers: {
+        'is-positive': '2.0.0',
+      },
+    },
+  })
+  expect(gitBranchLockfile?.packages).toStrictEqual({
+    'is-positive@2.0.0': {
+      resolution: {
+        integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+      },
+    },
+  })
+})
+
+test('readWantedLockfile() when useGitBranchLockfile and mergeGitBranchLockfiles', async () => {
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('branch'))
+  const lockfile = await readWantedLockfile(path.join('fixtures', '6'), {
+    ignoreIncompatible: false,
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+  })
+  expect(lockfile?.importers).toEqual({
+    '.': {
+      dependencies: {
+        'is-positive': '2.0.0',
+      },
+      specifiers: {
+        'is-positive': '2.0.0',
+      },
+    },
+  })
+  expect(lockfile?.packages).toStrictEqual({
+    'is-positive@1.0.0': {
+      resolution: {
+        integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+      },
+    },
+    'is-positive@2.0.0': {
+      resolution: {
+        integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+      },
+    },
+  })
+})
+
+test('readWantedLockfile() with inlineSpecifiersFormat', async () => {
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+        specifiers: {
+          'is-positive': '^1.0.0',
+        },
+      },
+    },
+    packages: {
+      'is-positive@1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+    registry: 'https://registry.npmjs.org',
+  }
+
+  const lockfile = await readWantedLockfile(path.join('fixtures', '7'), { ignoreIncompatible: false })
+  expect(lockfile?.importers).toEqual(wantedLockfile.importers)
+  expect(lockfile?.packages).toEqual(wantedLockfile.packages)
+})

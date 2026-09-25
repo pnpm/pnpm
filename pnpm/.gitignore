@@ -1,5 +1,7 @@
-bin/nodes
-dist-spnpm
-
-# Used by bundle-deps.ts
-/temp-deploy
+/target
+.pacquet
+node_modules
+.npmrc
+/bench-work-env
+*.tmp
+.claude

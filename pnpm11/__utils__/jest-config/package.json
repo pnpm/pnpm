@@ -1,0 +1,35 @@
+{
+  "name": "@pnpm/jest-config",
+  "version": "1100.0.22",
+  "private": true,
+  "main": "jest-preset.js",
+  "type": "module",
+  "dependencies": {
+    "@babel/core": "catalog:",
+    "@babel/plugin-transform-explicit-resource-management": "catalog:",
+    "@pnpm/testing.registry-mock": "workspace:*",
+    "@pnpm/worker": "workspace:*",
+    "amaro": "catalog:",
+    "get-port": "catalog:",
+    "tree-kill": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/jest-config": "workspace:*",
+    "cross-env": "catalog:",
+    "pnpm": "workspace:*",
+    "ts-jest-resolver": "catalog:"
+  },
+  "keywords": [
+    "pnpm",
+    "pnpm11"
+  ],
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/__utils__/jest-config",
+  "scripts": {
+    "test": "pn .test",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

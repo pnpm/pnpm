@@ -1,0 +1,79 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../bins/linker"
+    },
+    {
+      "path": "../../bins/remover"
+    },
+    {
+      "path": "../../bins/resolver"
+    },
+    {
+      "path": "../../cli/command"
+    },
+    {
+      "path": "../../cli/utils"
+    },
+    {
+      "path": "../../config/matcher"
+    },
+    {
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../deps/inspection/list"
+    },
+    {
+      "path": "../../installing/deps-installer"
+    },
+    {
+      "path": "../../installing/modules-yaml"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../pkg-manifest/reader"
+    },
+    {
+      "path": "../../pkg-manifest/utils"
+    },
+    {
+      "path": "../../resolving/local-resolver"
+    },
+    {
+      "path": "../../resolving/parse-wanted-dependency"
+    },
+    {
+      "path": "../../store/connection-manager"
+    },
+    {
+      "path": "../../text/ordinal-comparator"
+    },
+    {
+      "path": "../packages"
+    }
+  ]
+}

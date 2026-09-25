@@ -1,0 +1,65 @@
+name: Notify Discord on Regression
+
+# Posts a message to Discord whenever an issue is labeled `regression` (applied
+# by the Oz triage agent or a maintainer). The `labeled` event fires each time
+# the label is added, so the job only runs for that specific label.
+#
+# Setup:
+#   - The DISCORD_WEBHOOK_REGRESSION repository secret must hold the target
+#     channel webhook. When it is unset, the job is skipped (no failure).
+
+on:
+  issues:
+    types: [labeled]
+
+# Coalesce genuine duplicate fires for the same issue+label. The label must be
+# part of the key: this workflow triggers on every `labeled` event, so keying on
+# the issue number alone would let a newer non-regression label event on the same
+# issue evict a still-pending regression run and drop its notification.
+concurrency:
+  group: notify-regression-${{ github.event.issue.number }}-${{ github.event.label.name }}
+  cancel-in-progress: false
+
+jobs:
+  announce:
+    name: Announce regression on Discord
+    if: github.event.label.name == 'regression'
+    runs-on: ubuntu-latest
+    # No repo contents or issue writes are needed; the event payload carries the
+    # issue data and the only outbound call is the Discord webhook.
+    permissions: {}
+    # Defined at job level, not step level: a step's own `if` is evaluated before
+    # its step-level env exists, so the gate must live here to be visible to `if`.
+    env:
+      HAS_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_REGRESSION != '' }}
+    steps:
+      - name: Announce on Discord
+        # The webhook is optional; skip the step when it is unset.
+        if: env.HAS_WEBHOOK == 'true'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_REGRESSION }}
+          # Issue fields are passed as env, never inlined into the script, so a
+          # title like "$(rm -rf)" cannot be interpreted as shell code.
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+        run: |
+          # Fields are read as data via jq --arg. allowed_mentions parse:[] stops
+          # a title like "@everyone" from pinging the Discord server.
+          payload="$(jq -n \
+            --arg n "$ISSUE_NUMBER" \
+            --arg t "$ISSUE_TITLE" \
+            --arg u "$ISSUE_URL" \
+            '{content: ("🚫 New regression reported in pnpm — issue #" + $n + ": " + $t + "\n" + $u), allowed_mentions: {parse: []}}')"
+          # --retry (without --retry-all-errors) recovers from transient
+          # failures (connection errors, timeouts, 429/5xx) only. Retrying on
+          # *every* error risks re-POSTing after Discord already accepted the
+          # message, which would duplicate the notification.
+          curl -fsS \
+            --connect-timeout 5 \
+            --max-time 20 \
+            --retry 3 \
+            --retry-delay 2 \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            "$DISCORD_WEBHOOK"

@@ -1,0 +1,939 @@
+use super::{
+    VerifiedFileIntegrity, VerifiedFilesCache, build_file_maps_from_index,
+    check_pkg_files_integrity, defer_pkg_files_integrity, package_dir_matches_index,
+};
+use crate::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreDir};
+use pretty_assertions::assert_eq;
+use sha2::{Digest, Sha512};
+use std::{
+    collections::HashMap,
+    fs,
+    io::Write,
+    path::PathBuf,
+    sync::Mutex,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+use tempfile::tempdir;
+
+/// Write `content` to the correct CAFS path under `store_dir` for
+/// the given hex digest. Returns the path.
+fn plant_cafs_file(store_dir: &StoreDir, digest: &str, mode: u32, content: &[u8]) -> PathBuf {
+    let path = store_dir.cas_file_path_by_mode(digest, mode).expect("valid digest");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let mut file = fs::File::create(&path).unwrap();
+    file.write_all(content).unwrap();
+    let _ = file.sync_all();
+    path
+}
+
+fn sha512_hex(bytes: &[u8]) -> String {
+    format!("{:x}", Sha512::digest(bytes))
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64
+}
+
+fn index_with(algo: &str, info: Vec<(&str, CafsFileInfo)>) -> PackageFilesIndex {
+    PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        requires_prepare: None,
+        algo: algo.to_string(),
+        files: info
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect(),
+        side_effects: None,
+        remote_side_effects_quarantine: None,
+    }
+}
+
+fn info(digest: &str, size: u64, mode: u32, checked_at: Option<u64>) -> CafsFileInfo {
+    CafsFileInfo { checked_at, digest: digest.to_string(), mode, size }
+}
+
+#[test]
+fn fast_path_skips_filesystem_checks() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let digest = sha512_hex(b"dummy");
+    let entry = index_with("sha512", vec![("index.js", info(&digest, 5, 0o644, None))]);
+    let result = build_file_maps_from_index(&store_dir, entry);
+    dbg!(&result);
+    assert!(result.passed, "fast path passes for a valid digest without touching the disk");
+    let path = result.files_map.get("index.js").expect("path inserted");
+    eprintln!("path={path:?} exists={}", path.exists());
+    assert!(!path.exists(), "no file was planted — fast path didn't care");
+}
+
+#[test]
+fn deferred_check_builds_the_maps_first_and_stats_only_when_run() {
+    let _guard = TALLY.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"deferred";
+    let digest = sha512_hex(content);
+    // No `checked_at`, so a run of the check has to hash the file.
+    let entry =
+        index_with("sha512", vec![("index.js", info(&digest, content.len() as u64, 0o644, None))]);
+    let (result, pending) = defer_pkg_files_integrity(&store_dir, entry);
+    dbg!(&result);
+    assert!(result.passed, "a well-formed row passes before its files are checked");
+    let path = result.files_map.get("index.js").expect("path inserted");
+    let cache = VerifiedFilesCache::new();
+    assert!(!pending.verify(&store_dir, &cache), "the file was never planted");
+    assert!(cache.is_empty(), "a failed file is not cached as verified");
+
+    plant_cafs_file(&store_dir, &digest, 0o644, content);
+    let (_, pending) = defer_pkg_files_integrity(
+        &store_dir,
+        index_with("sha512", vec![("index.js", info(&digest, content.len() as u64, 0o644, None))]),
+    );
+    assert!(pending.verify(&store_dir, &cache), "the planted file verifies");
+    assert!(cache.contains(path), "a verified file is cached for later rows");
+}
+
+/// We can't easily set `mtime` from the standard library, but
+/// `checked_at` in the row is caller-controlled, so setting it
+/// above the real `mtime` is enough to exercise the trust path.
+#[test]
+fn careful_path_trusts_file_when_mtime_is_within_slack() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"hello, cafs";
+    let digest = sha512_hex(content);
+    let _path = plant_cafs_file(&store_dir, &digest, 0o644, content);
+    let future = now_ms() + 3_600_000; // one hour from now
+    let entry = index_with(
+        "sha512",
+        vec![("index.js", info(&digest, content.len() as u64, 0o644, Some(future)))],
+    );
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    dbg!(&result);
+    assert!(result.passed);
+    assert_eq!(result.files_map.len(), 1);
+}
+
+#[test]
+fn careful_path_fails_on_missing_cafs_file() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let digest = sha512_hex(b"nope");
+    let entry = index_with("sha512", vec![("README", info(&digest, 4, 0o644, None))]);
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    dbg!(&result);
+    assert!(!result.passed, "missing file → fail");
+    assert_eq!(result.files_map.len(), 1);
+}
+
+/// `checked_at = 0` makes the mtime-slack delta "definitely > 100 ms",
+/// forcing a re-hash.
+#[test]
+fn careful_path_fails_but_keeps_file_whose_content_hash_mismatches() {
+    let _guard = TALLY.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let fake_digest = sha512_hex(b"claimed content");
+    let actual = b"actual bytes!!!";
+    let path = plant_cafs_file(&store_dir, &fake_digest, 0o644, actual);
+    let entry = index_with(
+        "sha512",
+        vec![("whatever", info(&fake_digest, actual.len() as u64, 0o644, Some(0)))],
+    );
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    dbg!(&result);
+    assert!(!result.passed, "bad hash → fail");
+    eprintln!("path={path:?} exists={}", path.exists());
+    assert!(
+        path.exists(),
+        "the mismatched file stays: the re-fetch replaces it atomically, and a concurrent \
+         install sharing the store may be importing from this path right now",
+    );
+}
+
+/// `checked_at = 0` puts us firmly in the "modified" branch (mtime now
+/// > 100 ms past 0), so the size check runs.
+#[test]
+fn careful_path_fails_but_keeps_file_whose_size_mismatches_after_touch() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"actual content";
+    let digest = sha512_hex(content);
+    let path = plant_cafs_file(&store_dir, &digest, 0o644, content);
+    let entry = index_with("sha512", vec![("mismatch", info(&digest, 999, 0o644, Some(0)))]);
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    dbg!(&result);
+    assert!(!result.passed);
+    eprintln!("path={path:?} exists={}", path.exists());
+    assert!(
+        path.exists(),
+        "the mismatched file stays: the re-fetch replaces it atomically, and a concurrent \
+         install sharing the store may be importing from this path right now",
+    );
+}
+
+#[test]
+fn careful_path_dedups_by_digest_within_a_single_entry() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"shared blob";
+    let digest = sha512_hex(content);
+    let _path = plant_cafs_file(&store_dir, &digest, 0o644, content);
+    let future = now_ms() + 3_600_000;
+    let info_shared = info(&digest, content.len() as u64, 0o644, Some(future));
+    let entry = index_with(
+        "sha512",
+        vec![("a.txt", info_shared.clone_for_test()), ("b.txt", info_shared.clone_for_test())],
+    );
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    dbg!(&result);
+    assert!(result.passed);
+    assert_eq!(result.files_map.len(), 2);
+}
+
+/// The proof: plant the file, run a successful first verify against
+/// it (populates the cache), then *delete* the file and run a
+/// second verify. If the cache short-circuits the second call, it
+/// returns `passed: true` despite the missing file — that's the
+/// observable signal that the stat was skipped. Real installs
+/// don't delete files mid-install, so this artificial setup is
+/// purely a test handle for the dedup behaviour.
+#[test]
+fn careful_path_dedups_across_calls_via_shared_cache() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"shared-across-packages";
+    let digest = sha512_hex(content);
+    let path = plant_cafs_file(&store_dir, &digest, 0o644, content);
+    let future = now_ms() + 3_600_000;
+    let info_shared = info(&digest, content.len() as u64, 0o644, Some(future));
+
+    let cache = VerifiedFilesCache::new();
+
+    let entry_a = index_with("sha512", vec![("a-pkg/index.js", info_shared.clone_for_test())]);
+    let result_a = check_pkg_files_integrity(&store_dir, entry_a, &cache);
+    dbg!(&result_a);
+    assert!(result_a.passed, "first call verifies the live file");
+    eprintln!("cache.contains(&path)={}", cache.contains(&path));
+    assert!(cache.contains(&path), "successful verify populates the shared cache");
+
+    std::fs::remove_file(&path).unwrap();
+    let entry_b = index_with("sha512", vec![("b-pkg/index.js", info_shared.clone_for_test())]);
+    let result_b = check_pkg_files_integrity(&store_dir, entry_b, &cache);
+    dbg!(&result_b);
+    assert!(
+        result_b.passed,
+        "second call should short-circuit via the shared cache and skip the now-missing file",
+    );
+}
+
+/// Same digest with different `mode` resolves to two distinct CAFS
+/// paths (`<hex>` vs `<hex>-exec`), so keying dedup by digest alone
+/// would skip verifying the second path.
+#[test]
+fn careful_path_dedups_per_resolved_path_not_per_digest() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"polymode";
+    let digest = sha512_hex(content);
+    let non_exec_path = plant_cafs_file(&store_dir, &digest, 0o644, content);
+    let exec_path = store_dir.cas_file_path_by_mode(&digest, 0o755).unwrap();
+    eprintln!(
+        "non_exec_path={non_exec_path:?} exec_path={exec_path:?} exec_exists={}",
+        exec_path.exists(),
+    );
+    assert!(!exec_path.exists());
+    assert_ne!(non_exec_path, exec_path);
+
+    let future = now_ms() + 3_600_000;
+    let entry = index_with(
+        "sha512",
+        vec![
+            ("lib.js", info(&digest, content.len() as u64, 0o644, Some(future))),
+            ("bin/app", info(&digest, content.len() as u64, 0o755, Some(future))),
+        ],
+    );
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    dbg!(&result);
+    assert!(
+        !result.passed,
+        "same digest + different mode = different CAFS path; missing exec blob must fail",
+    );
+}
+
+/// `checked_at = 0` forces the re-hash path so the unknown algo is
+/// actually exercised rather than skipped on the mtime fast path.
+#[test]
+fn careful_path_fails_unknown_algo_as_verification_failure() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"bytes";
+    let digest = sha512_hex(content);
+    let path = plant_cafs_file(&store_dir, &digest, 0o644, content);
+    let entry =
+        index_with("sha256", vec![("x", info(&digest, content.len() as u64, 0o644, Some(0)))]);
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    dbg!(&result);
+    assert!(!result.passed);
+    eprintln!("path={path:?} exists={}", path.exists());
+    assert!(
+        path.exists(),
+        "an unverifiable file is no evidence of corruption; it stays for the re-fetch to replace",
+    );
+}
+
+/// A symlink at a blob path fails verification (its target's bytes are
+/// not the store's), but only a *directory* may be scrubbed — the
+/// symlink itself must survive, like every other non-directory dirent.
+#[test]
+#[cfg(unix)]
+fn careful_path_fails_but_keeps_symlink_at_cafs_path() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"claimed content";
+    let digest = sha512_hex(content);
+    let target = tmp.path().join("elsewhere");
+    fs::write(&target, b"other bytes!!!!").unwrap();
+    let link = store_dir.cas_file_path_by_mode(&digest, 0o644).unwrap();
+    fs::create_dir_all(link.parent().unwrap()).unwrap();
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+    let entry =
+        index_with("sha512", vec![("x", info(&digest, content.len() as u64, 0o644, Some(0)))]);
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    dbg!(&result);
+    assert!(!result.passed);
+    assert!(
+        fs::symlink_metadata(&link).is_ok(),
+        "a symlink at the blob path is not a directory and must not be scrubbed",
+    );
+}
+
+/// A blob the verifier cannot open reports a miss like a mismatch
+/// would, and the failure may be transient — so the file must survive
+/// for the concurrent installs that may be importing from it.
+#[test]
+#[cfg(unix)]
+fn careful_path_fails_but_keeps_unreadable_file() {
+    use std::os::unix::fs::PermissionsExt;
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"guarded content";
+    let digest = sha512_hex(content);
+    let path = plant_cafs_file(&store_dir, &digest, 0o644, content);
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o000)).unwrap();
+    let entry =
+        index_with("sha512", vec![("x", info(&digest, content.len() as u64, 0o644, Some(0)))]);
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+    dbg!(&result);
+    assert!(!result.passed, "an unreadable blob is a verification miss");
+    assert!(
+        path.exists(),
+        "a read failure is no evidence of corruption; the blob must survive for concurrent readers",
+    );
+}
+
+/// The tally is process-wide, so a test measuring a delta across it has
+/// to be the only one hashing at the time. Every test that hashes holds
+/// this for its duration; without it, a sibling's re-hash lands between
+/// two snapshots and the delta is off by its work.
+static TALLY: Mutex<()> = Mutex::new(());
+
+/// The tally feeds the "this might have caused installation to take
+/// longer" report at the end of an install, so a re-hash that isn't
+/// tallied makes a slow install look unexplained.
+#[test]
+fn re_hashing_a_file_is_tallied() {
+    let _guard = TALLY.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"counted bytes";
+    let digest = sha512_hex(content);
+    plant_cafs_file(&store_dir, &digest, 0o644, content);
+    // `checked_at = 0` puts the file in the "modified" branch, which is
+    // the only one that hashes.
+    let entry = index_with(
+        "sha512",
+        vec![("counted", info(&digest, content.len() as u64, 0o644, Some(0)))],
+    );
+
+    let before = VerifiedFileIntegrity::snapshot();
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    let this_call = VerifiedFileIntegrity::snapshot().since(before);
+    dbg!(&result, before, this_call);
+
+    assert!(result.passed);
+    assert_eq!(this_call.files, 1, "the re-hashed file must land in the tally exactly once");
+    assert!(this_call.duration > Duration::ZERO, "the re-hash must advance the time tally");
+}
+
+/// Only hashing is tallied. A file the index says is untouched never
+/// opens, and an entry no verifier can hash — unknown algo, missing
+/// file — must not land in a tally the install reports as time spent
+/// hashing.
+#[test]
+fn the_tally_covers_hashing_only() {
+    let _guard = TALLY.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"untouched bytes";
+    let digest = sha512_hex(content);
+    plant_cafs_file(&store_dir, &digest, 0o644, content);
+    let future = now_ms() + 3_600_000;
+
+    let before = VerifiedFileIntegrity::snapshot();
+
+    let trusted = index_with(
+        "sha512",
+        vec![("trusted", info(&digest, content.len() as u64, 0o644, Some(future)))],
+    );
+    assert!(check_pkg_files_integrity(&store_dir, trusted, &VerifiedFilesCache::new()).passed);
+
+    let unknown_algo = index_with(
+        "sha256",
+        vec![("unknown-algo", info(&digest, content.len() as u64, 0o644, Some(0)))],
+    );
+    assert!(
+        !check_pkg_files_integrity(&store_dir, unknown_algo, &VerifiedFilesCache::new()).passed,
+    );
+
+    let missing =
+        index_with("sha512", vec![("missing", info(&sha512_hex(b"absent"), 6, 0o644, Some(0)))]);
+    assert!(!check_pkg_files_integrity(&store_dir, missing, &VerifiedFilesCache::new()).passed);
+
+    let recorded = VerifiedFileIntegrity::snapshot().since(before);
+    dbg!(recorded);
+    assert_eq!(recorded, VerifiedFileIntegrity { files: 0, duration: Duration::ZERO });
+}
+
+/// Plants a directory where a CAFS blob belongs (store corruption —
+/// stray `mkdir -p` or interrupted write) to exercise
+/// `scrub_directory_at_cafs_path`: a directory is the one dirent the
+/// re-fetch's rename cannot replace, so the verifier removes it.
+#[test]
+fn careful_path_removes_directory_at_cafs_path() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let digest = "c".repeat(128);
+    let cafs_path = store_dir.cas_file_path_by_mode(&digest, 0o644).unwrap();
+    fs::create_dir_all(&cafs_path).unwrap();
+    let entry = index_with("sha512", vec![("impostor", info(&digest, 1_000_000, 0o644, Some(0)))]);
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    dbg!(&result);
+    assert!(!result.passed);
+    eprintln!("cafs_path={cafs_path:?} exists={}", cafs_path.exists());
+    assert!(
+        !cafs_path.exists(),
+        "a directory at the CAFS path must be scrubbed like a file so the next install re-fetches",
+    );
+}
+
+/// Silently dropping an unresolvable entry would give the caller a
+/// partial `files_map` and a cache hit with missing files.
+#[test]
+fn fast_path_fails_when_digest_is_malformed() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let entry = index_with("sha512", vec![("bad-digest", info("not-hex", 10, 0o644, None))]);
+    let result = build_file_maps_from_index(&store_dir, entry);
+    dbg!(&result);
+    assert!(!result.passed, "malformed digest → whole entry fails so caller re-fetches");
+    assert_eq!(result.files_map.len(), 0);
+}
+
+// `CafsFileInfo` is `!Clone` in production (no need there). Give
+// the tests an explicit helper so each assertion builds its own
+// copy without implying a production `Clone` impl.
+impl CafsFileInfo {
+    fn clone_for_test(&self) -> Self {
+        Self {
+            checked_at: self.checked_at,
+            digest: self.digest.clone(),
+            mode: self.mode,
+            size: self.size,
+        }
+    }
+}
+
+/// `None` distinguishes "this package never had a cache entry written"
+/// from "cache configured but empty for this key" — the importer treats
+/// the former as a regular non-built import.
+#[test]
+fn no_side_effects_yields_none() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let digest = sha512_hex(b"x");
+    let entry = index_with("sha512", vec![("a", info(&digest, 1, 0o644, None))]);
+    let result = build_file_maps_from_index(&store_dir, entry);
+    assert!(result.side_effects_maps.is_none());
+}
+
+/// An empty row is a build whose whole effect landed outside the package
+/// directory. See `overlay_for` for why it must not count as a cache hit.
+///
+/// Regression for <https://github.com/pnpm/pnpm/issues/14717>.
+#[test]
+fn side_effects_overlay_with_nothing_to_restore_drops_cache_key_entry() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let base_digest = sha512_hex(b"base");
+    let entry = PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        requires_prepare: None,
+        algo: "sha512".into(),
+        files: HashMap::from([("a.js".to_string(), info(&base_digest, 4, 0o644, None))]),
+        side_effects: Some(HashMap::from([(
+            "k1".to_string(),
+            SideEffectsDiff { added: None, deleted: None, remote_origin: None },
+        )])),
+        remote_side_effects_quarantine: None,
+    };
+    let result = build_file_maps_from_index(&store_dir, entry);
+    let maps = result.side_effects_maps.expect("a configured cache stays `Some`");
+    assert!(!maps.contains_key("k1"), "an empty row is not a build to restore: {maps:?}");
+}
+
+/// The empty-row drop keys off having nothing to restore, not off `added`
+/// alone: a build that only removes files is still reproducible from its row.
+#[test]
+fn side_effects_overlay_with_only_deletions_keeps_cache_key_entry() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let base_digest = sha512_hex(b"base");
+    let entry = PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        requires_prepare: None,
+        algo: "sha512".into(),
+        files: HashMap::from([
+            ("a.js".to_string(), info(&base_digest, 4, 0o644, None)),
+            ("gone.js".to_string(), info(&base_digest, 4, 0o644, None)),
+        ]),
+        side_effects: Some(HashMap::from([(
+            "k1".to_string(),
+            SideEffectsDiff {
+                added: None,
+                deleted: Some(vec!["gone.js".to_string()]),
+                remote_origin: None,
+            },
+        )])),
+        remote_side_effects_quarantine: None,
+    };
+    let result = build_file_maps_from_index(&store_dir, entry);
+    let overlay = result.side_effects_maps
+        .unwrap()
+        .remove("k1")
+        .expect("entry survives");
+    assert!(overlay.contains_key("a.js"), "base survives: {overlay:?}");
+    assert!(!overlay.contains_key("gone.js"), "deleted drops: {overlay:?}");
+}
+
+#[test]
+fn side_effects_overlay_adds_and_drops_correctly() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let base_digest = sha512_hex(b"base");
+    let added_digest = sha512_hex(b"added");
+    let mut side_effects = HashMap::new();
+    let mut added = HashMap::new();
+    added.insert("c.js".to_string(), info(&added_digest, 5, 0o644, None));
+    side_effects.insert(
+        "darwin;arm64;node20;deps=fake".to_string(),
+        SideEffectsDiff {
+            added: Some(added),
+            deleted: Some(vec!["b.js".to_string()]),
+            remote_origin: None,
+        },
+    );
+    let entry = PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        requires_prepare: None,
+        algo: "sha512".into(),
+        files: HashMap::from([
+            ("a.js".to_string(), info(&base_digest, 4, 0o644, None)),
+            ("b.js".to_string(), info(&base_digest, 4, 0o644, None)),
+        ]),
+        side_effects: Some(side_effects),
+        remote_side_effects_quarantine: None,
+    };
+    let result = build_file_maps_from_index(&store_dir, entry);
+    let maps = result.side_effects_maps.expect("populated");
+    let overlay = maps.get("darwin;arm64;node20;deps=fake").expect("entry exists");
+    assert!(overlay.contains_key("a.js"), "base survives: {overlay:?}");
+    assert!(overlay.contains_key("c.js"), "added overlays: {overlay:?}");
+    assert!(!overlay.contains_key("b.js"), "deleted drops: {overlay:?}");
+    assert_eq!(overlay.len(), 2);
+}
+
+#[test]
+fn side_effects_overlay_added_shadows_base_on_collision() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let base_digest = sha512_hex(b"base");
+    let overlay_digest = sha512_hex(b"overlay-shadow");
+    let mut added = HashMap::new();
+    added.insert("collide.js".to_string(), info(&overlay_digest, 16, 0o644, None));
+    let mut side_effects = HashMap::new();
+    side_effects.insert(
+        "k1".to_string(),
+        SideEffectsDiff { added: Some(added), deleted: None, remote_origin: None },
+    );
+    let entry = PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        requires_prepare: None,
+        algo: "sha512".into(),
+        files: HashMap::from([("collide.js".to_string(), info(&base_digest, 4, 0o644, None))]),
+        side_effects: Some(side_effects),
+        remote_side_effects_quarantine: None,
+    };
+    let result = build_file_maps_from_index(&store_dir, entry);
+    let overlay = result.side_effects_maps
+        .unwrap()
+        .remove("k1")
+        .unwrap();
+    let path = overlay.get("collide.js").expect("collide.js present");
+    // CAFS layout splits the digest as `<2-char prefix>/<rest>`, so the
+    // path won't contain the digest as a single contiguous substring.
+    // Verify by checking that the overlay digest's tail (post-prefix
+    // hex) appears in the path, and that the base digest's tail does
+    // NOT.
+    let path_str = path.to_string_lossy();
+    assert!(
+        path_str.contains(&overlay_digest[2..]),
+        "overlay digest tail should appear in CAFS path: {path:?}",
+    );
+    assert!(
+        !path_str.contains(&base_digest[2..]),
+        "base digest tail must NOT appear (shadowed): {path:?}",
+    );
+}
+
+/// A partial overlay would otherwise turn a future `is_built = true`
+/// decision into a silent corruption (build skipped, required artifact
+/// missing).
+#[test]
+fn side_effects_overlay_malformed_added_digest_drops_cache_key_entry() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let base_digest = sha512_hex(b"base");
+    let good_digest = sha512_hex(b"good-added");
+
+    let mut k_bad_added = HashMap::new();
+    k_bad_added.insert("good.js".to_string(), info(&good_digest, 4, 0o644, None));
+    k_bad_added.insert("bad.js".to_string(), info("not-hex", 4, 0o644, None));
+
+    let mut k_good_added = HashMap::new();
+    k_good_added.insert("ok.js".to_string(), info(&good_digest, 4, 0o644, None));
+
+    let mut side_effects = HashMap::new();
+    side_effects.insert(
+        "k-bad".to_string(),
+        SideEffectsDiff { added: Some(k_bad_added), deleted: None, remote_origin: None },
+    );
+    side_effects.insert(
+        "k-good".to_string(),
+        SideEffectsDiff { added: Some(k_good_added), deleted: None, remote_origin: None },
+    );
+
+    let entry = PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        requires_prepare: None,
+        algo: "sha512".into(),
+        files: HashMap::from([("base.js".to_string(), info(&base_digest, 4, 0o644, None))]),
+        side_effects: Some(side_effects),
+        remote_side_effects_quarantine: None,
+    };
+    let result = build_file_maps_from_index(&store_dir, entry);
+    let maps = result.side_effects_maps.expect("populated");
+    assert!(!maps.contains_key("k-bad"), "k-bad must drop entirely on malformed digest");
+    assert!(maps.contains_key("k-good"), "k-good must survive: {maps:?}");
+}
+
+/// Guards against the importer being tricked into writing outside the
+/// package slot from a poisoned/corrupted index row (store integrity is
+/// not a tamper boundary).
+#[test]
+fn side_effects_overlay_unsafe_added_path_drops_cache_key_entry() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let base_digest = sha512_hex(b"base");
+    let good_digest = sha512_hex(b"good-added");
+
+    let mut side_effects = HashMap::new();
+    for (key, unsafe_name) in
+        [("k-parent", "../evil.js"), ("k-abs", "/etc/evil"), ("k-backslash", r"..\evil")]
+    {
+        side_effects.insert(
+            key.to_string(),
+            SideEffectsDiff {
+                added: Some(HashMap::from([
+                    ("ok.js".to_string(), info(&good_digest, 4, 0o644, None)),
+                    (unsafe_name.to_string(), info(&good_digest, 4, 0o644, None)),
+                ])),
+                deleted: None,
+                remote_origin: None,
+            },
+        );
+    }
+    side_effects.insert(
+        "k-good".to_string(),
+        SideEffectsDiff {
+            added: Some(HashMap::from([(
+                "nested/ok.js".to_string(),
+                info(&good_digest, 4, 0o644, None),
+            )])),
+            deleted: None,
+            remote_origin: None,
+        },
+    );
+
+    let entry = PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        requires_prepare: None,
+        algo: "sha512".into(),
+        files: HashMap::from([("base.js".to_string(), info(&base_digest, 4, 0o644, None))]),
+        side_effects: Some(side_effects),
+        remote_side_effects_quarantine: None,
+    };
+    let result = build_file_maps_from_index(&store_dir, entry);
+    let maps = result.side_effects_maps.expect("populated");
+    for key in ["k-parent", "k-abs", "k-backslash"] {
+        assert!(!maps.contains_key(key), "{key} must drop entirely on an unsafe overlay path");
+    }
+    assert!(maps.contains_key("k-good"), "a safe nested path must survive: {maps:?}");
+}
+
+#[test]
+fn side_effects_overlay_keys_are_independent() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let base_digest = sha512_hex(b"base");
+    let added_k1 = sha512_hex(b"k1-added");
+    let added_k2 = sha512_hex(b"k2-added");
+    let mut side_effects = HashMap::new();
+    side_effects.insert(
+        "k1".to_string(),
+        SideEffectsDiff {
+            added: Some(HashMap::from([("a.js".to_string(), info(&added_k1, 1, 0o644, None))])),
+            deleted: None,
+            remote_origin: None,
+        },
+    );
+    side_effects.insert(
+        "k2".to_string(),
+        SideEffectsDiff {
+            added: Some(HashMap::from([("b.js".to_string(), info(&added_k2, 1, 0o644, None))])),
+            deleted: None,
+            remote_origin: None,
+        },
+    );
+    let entry = PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        requires_prepare: None,
+        algo: "sha512".into(),
+        files: HashMap::from([("base.js".to_string(), info(&base_digest, 4, 0o644, None))]),
+        side_effects: Some(side_effects),
+        remote_side_effects_quarantine: None,
+    };
+    let result = build_file_maps_from_index(&store_dir, entry);
+    let maps = result.side_effects_maps.unwrap();
+    let k1 = maps.get("k1").unwrap();
+    let k2 = maps.get("k2").unwrap();
+    assert!(k1.contains_key("a.js") && !k1.contains_key("b.js"), "k1: {k1:?}");
+    assert!(k2.contains_key("b.js") && !k2.contains_key("a.js"), "k2: {k2:?}");
+    assert!(k1.contains_key("base.js"));
+    assert!(k2.contains_key("base.js"));
+}
+
+/// A one-file index whose single entry is recorded under `path`.
+fn index_with_one_file(path: &str, content: &[u8]) -> PackageFilesIndex {
+    PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        requires_prepare: None,
+        algo: "sha512".to_string(),
+        files: HashMap::from([(
+            path.to_string(),
+            CafsFileInfo {
+                digest: sha512_hex(content),
+                mode: 0o644,
+                size: content.len() as u64,
+                checked_at: None,
+            },
+        )]),
+        side_effects: None,
+        remote_side_effects_quarantine: None,
+    }
+}
+
+#[test]
+fn a_package_matches_its_index_while_its_files_are_untouched() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+    fs::write(package.join("index.js"), b"module.exports = 1\n").unwrap();
+
+    let index = index_with_one_file("index.js", b"module.exports = 1\n");
+    assert!(package_dir_matches_index(&package, &index));
+
+    fs::write(package.join("index.js"), b"module.exports = 2\n").unwrap();
+    assert!(!package_dir_matches_index(&package, &index));
+
+    fs::remove_file(package.join("index.js")).unwrap();
+    assert!(!package_dir_matches_index(&package, &index), "a missing file counts as mutated");
+}
+
+/// Archive extraction rejects a leading separator and `..`, but a recorded
+/// path still has to be treated as untrusted here: `Path::join` discards
+/// its base for an absolute or drive-prefixed argument, which would point
+/// the hash outside the package.
+#[test]
+fn a_recorded_path_that_is_not_a_plain_relative_path_never_matches() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+    let outside = dir.path().join("outside.txt");
+    fs::write(&outside, b"secret\n").unwrap();
+
+    for escape in ["../outside.txt", "/etc/passwd", r"C:\Windows\System32\drivers\etc\hosts"] {
+        assert!(
+            !package_dir_matches_index(&package, &index_with_one_file(escape, b"secret\n")),
+            "{escape} must not be joined onto the package directory",
+        );
+    }
+}
+
+#[test]
+fn built_package_with_postinstall_modifications_is_not_reported_as_modified() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+    fs::write(package.join("index.js"), b"modified by postinstall\n").unwrap();
+    fs::write(package.join("generated.js"), b"created by postinstall\n").unwrap();
+
+    let mut index = index_with_one_file("index.js", b"original content\n");
+    index.requires_build = Some(true);
+    assert!(package_dir_matches_index(&package, &index));
+}
+
+#[test]
+fn built_package_with_manifest_script_is_not_reported_as_modified() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+    fs::write(package.join("index.js"), b"modified by postinstall\n").unwrap();
+
+    let mut index = index_with_one_file("index.js", b"original content\n");
+    index.manifest = Some(serde_json::json!({
+        "scripts": {
+            "postinstall": "node build.js"
+        }
+    }));
+    assert!(package_dir_matches_index(&package, &index));
+}
+
+#[test]
+fn missing_directory_fails_even_for_built_package() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("nonexistent");
+
+    let mut index = index_with_one_file("index.js", b"original content\n");
+    index.requires_build = Some(true);
+    assert!(!package_dir_matches_index(&package, &index));
+}
+
+#[test]
+fn side_effects_diff_overlay_matches() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+    fs::write(package.join("index.js"), b"module.exports = 1\n").unwrap();
+    fs::write(package.join("addon.node"), b"binary\n").unwrap();
+
+    let mut index = index_with_one_file("index.js", b"module.exports = 1\n");
+    let addon_digest = sha512_hex(b"binary\n");
+    let mut added = HashMap::new();
+    added.insert("addon.node".to_string(), info(&addon_digest, 7, 0o755, None));
+    let mut side_effects = HashMap::new();
+    side_effects.insert(
+        "linux-x64".to_string(),
+        SideEffectsDiff { added: Some(added), deleted: None, remote_origin: None },
+    );
+    index.side_effects = Some(side_effects);
+
+    assert!(package_dir_matches_index(&package, &index));
+
+    // If an index file is modified, and the package does not declare build scripts:
+    fs::write(package.join("index.js"), b"corrupted\n").unwrap();
+    assert!(!package_dir_matches_index(&package, &index));
+}
+
+#[test]
+fn hardlinked_built_package_with_modifications_is_reported_as_modified() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+
+    let cas_file = dir.path().join("cas_file");
+    fs::write(&cas_file, b"corrupted\n").unwrap();
+    fs::hard_link(&cas_file, package.join("index.js")).unwrap();
+
+    let mut index = index_with_one_file("index.js", b"original content\n");
+    index.requires_build = Some(true);
+    assert!(!package_dir_matches_index(&package, &index));
+}
+
+#[test]
+fn unrelated_package_with_added_binding_gyp_is_reported_as_modified() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+    fs::write(package.join("index.js"), b"corrupted\n").unwrap();
+    fs::write(package.join("binding.gyp"), b"{}\n").unwrap();
+
+    let index = index_with_one_file("index.js", b"original content\n");
+    assert!(!package_dir_matches_index(&package, &index));
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinked_file_in_built_package_is_reported_as_modified() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+
+    let external_blob = dir.path().join("external_blob");
+    fs::write(&external_blob, b"corrupted\n").unwrap();
+    std::os::unix::fs::symlink(&external_blob, package.join("index.js")).unwrap();
+
+    let mut index = index_with_one_file("index.js", b"original content\n");
+    index.requires_build = Some(true);
+    assert!(!package_dir_matches_index(&package, &index));
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinked_parent_dir_in_built_package_is_reported_as_modified() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+
+    let external_dir = dir.path().join("external_dir");
+    fs::create_dir_all(&external_dir).unwrap();
+    fs::write(external_dir.join("index.js"), b"corrupted\n").unwrap();
+    std::os::unix::fs::symlink(&external_dir, package.join("nested")).unwrap();
+
+    let mut index = index_with_one_file("nested/index.js", b"original content\n");
+    index.requires_build = Some(true);
+    assert!(!package_dir_matches_index(&package, &index));
+}

@@ -1,0 +1,6 @@
+{
+  "name": "@pnpm.e2e/has-different-licenses",
+  "version": "2.0.0",
+  "license": "ISC",
+  "author": "Some Author"
+}

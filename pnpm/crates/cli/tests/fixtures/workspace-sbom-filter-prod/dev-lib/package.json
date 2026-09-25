@@ -1,0 +1,7 @@
+{
+  "name": "dev-lib",
+  "version": "1.0.0",
+  "dependencies": {
+    "is-negative": "2.1.0"
+  }
+}

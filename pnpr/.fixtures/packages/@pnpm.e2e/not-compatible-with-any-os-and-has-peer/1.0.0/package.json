@@ -1,0 +1,13 @@
+{
+  "name": "@pnpm.e2e/not-compatible-with-any-os-and-has-peer",
+  "version": "1.0.0",
+  "os": [
+    "this-os-does-not-exist"
+  ],
+  "dependencies": {
+    "@pnpm.e2e/dep-of-optional-pkg": "1.0.0"
+  },
+  "peerDependencies": {
+    "@pnpm.e2e/peer-c": "*"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "dev-tool",
+  "version": "0.5.0",
+  "dependencies": {
+    "is-negative": "2.1.0"
+  }
+}

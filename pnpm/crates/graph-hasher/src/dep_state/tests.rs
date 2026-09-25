@@ -1,0 +1,429 @@
+use super::{
+    CalcDepStateOptions, DepsGraphNode, build_required_dep_paths, calc_dep_graph_hash,
+    calc_dep_state, calc_dep_state_input_key, warm_deps_state_cache,
+};
+use crate::hash_object;
+use indexmap::IndexMap;
+use pretty_assertions::assert_eq;
+use std::collections::{HashMap, HashSet};
+
+#[test]
+fn engine_only_key() {
+    let graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
+    let mut cache = HashMap::new();
+    let result = calc_dep_state(
+        &graph,
+        &mut cache,
+        &"foo@1.0.0".to_string(),
+        &CalcDepStateOptions {
+            engine_name: "darwin;arm64;node20",
+            patch_file_hash: None,
+            include_dep_graph_hash: false,
+        },
+    );
+    assert_eq!(result, "darwin;arm64;node20");
+}
+
+#[test]
+fn patch_appended_without_dep_graph_hash() {
+    let graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
+    let mut cache = HashMap::new();
+    let result = calc_dep_state(
+        &graph,
+        &mut cache,
+        &"foo@1.0.0".to_string(),
+        &CalcDepStateOptions {
+            engine_name: "linux;x64;node22",
+            patch_file_hash: Some("sha256-abc"),
+            include_dep_graph_hash: false,
+        },
+    );
+    assert_eq!(result, "linux;x64;node22;patch=sha256-abc");
+}
+
+#[test]
+fn dep_graph_hash_for_leaf_uses_id_and_empty_deps() {
+    let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
+    graph.insert(
+        "leaf@1.0.0".to_string(),
+        DepsGraphNode {
+            full_pkg_id: "leaf@1.0.0:sha512-leaf".to_string(),
+            children: IndexMap::new(),
+        },
+    );
+    let mut cache = HashMap::new();
+    let result = calc_dep_state(
+        &graph,
+        &mut cache,
+        &"leaf@1.0.0".to_string(),
+        &CalcDepStateOptions {
+            engine_name: "darwin;arm64;node20",
+            patch_file_hash: None,
+            include_dep_graph_hash: true,
+        },
+    );
+    let parts: Vec<&str> = result.split(';').collect();
+    assert!(parts.len() == 4, "expected `<plat>;<arch>;node<n>;deps=<hash>`, got {result:?}");
+    assert!(parts[3].starts_with("deps="), "fourth segment must be `deps=...`: {result:?}");
+    assert!(parts[3][5..].len() >= 40, "hash payload must be non-trivial: {result:?}");
+}
+
+#[test]
+fn cache_makes_repeat_calls_byte_equal() {
+    let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
+    graph.insert(
+        "leaf@1.0.0".to_string(),
+        DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
+    );
+    let mut cache = HashMap::new();
+    let opts = CalcDepStateOptions {
+        engine_name: "darwin;arm64;node20",
+        patch_file_hash: None,
+        include_dep_graph_hash: true,
+    };
+    let first = calc_dep_state(&graph, &mut cache, &"leaf@1.0.0".to_string(), &opts);
+    let second = calc_dep_state(&graph, &mut cache, &"leaf@1.0.0".to_string(), &opts);
+    assert_eq!(first, second);
+    assert_eq!(cache.len(), 1, "cache must hold exactly the one leaf entry");
+}
+
+#[test]
+fn diamond_graph_resolves_consistently() {
+    let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
+    let mut root_children = IndexMap::new();
+    root_children.insert("a".to_string(), "a@1.0.0".to_string());
+    root_children.insert("b".to_string(), "b@1.0.0".to_string());
+    graph.insert(
+        "root@1.0.0".to_string(),
+        DepsGraphNode {
+            full_pkg_id: "root@1.0.0:sha512-root".to_string(),
+            children: root_children,
+        },
+    );
+    let mut a_children = IndexMap::new();
+    a_children.insert("c".to_string(), "c@1.0.0".to_string());
+    graph.insert(
+        "a@1.0.0".to_string(),
+        DepsGraphNode { full_pkg_id: "a@1.0.0:sha512-a".to_string(), children: a_children },
+    );
+    let mut b_children = IndexMap::new();
+    b_children.insert("c".to_string(), "c@1.0.0".to_string());
+    graph.insert(
+        "b@1.0.0".to_string(),
+        DepsGraphNode { full_pkg_id: "b@1.0.0:sha512-b".to_string(), children: b_children },
+    );
+    graph.insert(
+        "c@1.0.0".to_string(),
+        DepsGraphNode { full_pkg_id: "c@1.0.0:sha512-c".to_string(), children: IndexMap::new() },
+    );
+    let mut cache = HashMap::new();
+    let result = calc_dep_state(
+        &graph,
+        &mut cache,
+        &"root@1.0.0".to_string(),
+        &CalcDepStateOptions {
+            engine_name: "darwin;arm64;node20",
+            patch_file_hash: None,
+            include_dep_graph_hash: true,
+        },
+    );
+    assert_eq!(cache.len(), 4, "expected 4 cache entries for diamond, got {cache:#?}");
+    assert!(result.contains(";deps="), "result must include deps section: {result:?}");
+}
+
+#[test]
+fn cyclic_graph_terminates_and_is_stable() {
+    let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
+    let mut a_children = IndexMap::new();
+    a_children.insert("b".to_string(), "b@1.0.0".to_string());
+    graph.insert(
+        "a@1.0.0".to_string(),
+        DepsGraphNode { full_pkg_id: "a@1.0.0:sha512-a".to_string(), children: a_children },
+    );
+    let mut b_children = IndexMap::new();
+    b_children.insert("a".to_string(), "a@1.0.0".to_string());
+    graph.insert(
+        "b@1.0.0".to_string(),
+        DepsGraphNode { full_pkg_id: "b@1.0.0:sha512-b".to_string(), children: b_children },
+    );
+    let mut cache = HashMap::new();
+    let opts = CalcDepStateOptions {
+        engine_name: "darwin;arm64;node20",
+        patch_file_hash: None,
+        include_dep_graph_hash: true,
+    };
+    let h1 = calc_dep_state(&graph, &mut cache, &"a@1.0.0".to_string(), &opts);
+    let h2 = calc_dep_state(&graph, &mut cache, &"a@1.0.0".to_string(), &opts);
+    assert_eq!(h1, h2);
+}
+
+#[test]
+fn dep_graph_and_patch_concatenate_in_upstream_order() {
+    let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
+    graph.insert(
+        "x@1.0.0".to_string(),
+        DepsGraphNode { full_pkg_id: "x@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
+    );
+    let mut cache = HashMap::new();
+    let result = calc_dep_state(
+        &graph,
+        &mut cache,
+        &"x@1.0.0".to_string(),
+        &CalcDepStateOptions {
+            engine_name: "darwin;arm64;node20",
+            patch_file_hash: Some("patchhex"),
+            include_dep_graph_hash: true,
+        },
+    );
+    let deps_pos = result.find(";deps=").expect("deps section present");
+    let patch_pos = result.find(";patch=").expect("patch section present");
+    assert!(deps_pos < patch_pos, "deps must come before patch in {result:?}");
+}
+
+#[test]
+fn shared_input_key_excludes_engine_and_includes_patch() {
+    let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
+    graph.insert(
+        "x@1.0.0".to_string(),
+        DepsGraphNode { full_pkg_id: "x@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
+    );
+    let key = calc_dep_state_input_key(&graph, &"x@1.0.0".to_string(), Some("patchhex"));
+    let deps_hash = hash_object(&serde_json::json!({
+        "id": "x@1.0.0:sha512-x",
+        "deps": {},
+    }));
+    assert_eq!(key, format!("dependency-side-effects:v1:deps={deps_hash};patch=patchhex"));
+}
+
+#[test]
+#[should_panic(expected = "input-key root is not present")]
+fn shared_input_key_rejects_a_missing_root() {
+    calc_dep_state_input_key(
+        &HashMap::<String, DepsGraphNode<String>>::new(),
+        &"missing@1.0.0".to_string(),
+        None,
+    );
+}
+
+#[test]
+fn shared_input_keys_isolate_cyclic_roots() {
+    let mut graph = HashMap::new();
+    graph.insert(
+        "a@1.0.0".to_string(),
+        DepsGraphNode {
+            full_pkg_id: "a@1.0.0:sha512-a".to_string(),
+            children: IndexMap::from([("b".to_string(), "b@1.0.0".to_string())]),
+        },
+    );
+    graph.insert(
+        "b@1.0.0".to_string(),
+        DepsGraphNode {
+            full_pkg_id: "b@1.0.0:sha512-b".to_string(),
+            children: IndexMap::from([("a".to_string(), "a@1.0.0".to_string())]),
+        },
+    );
+
+    let truncated_a = hash_object(&serde_json::json!({
+        "id": "a@1.0.0:sha512-a",
+        "deps": {},
+    }));
+    let nested_b = hash_object(&serde_json::json!({
+        "id": "b@1.0.0:sha512-b",
+        "deps": { "a": truncated_a },
+    }));
+    let root_a = hash_object(&serde_json::json!({
+        "id": "a@1.0.0:sha512-a",
+        "deps": { "b": nested_b },
+    }));
+    let truncated_b = hash_object(&serde_json::json!({
+        "id": "b@1.0.0:sha512-b",
+        "deps": {},
+    }));
+    let nested_a = hash_object(&serde_json::json!({
+        "id": "a@1.0.0:sha512-a",
+        "deps": { "b": truncated_b },
+    }));
+    let root_b = hash_object(&serde_json::json!({
+        "id": "b@1.0.0:sha512-b",
+        "deps": { "a": nested_a },
+    }));
+
+    assert_eq!(
+        calc_dep_state_input_key(&graph, &"a@1.0.0".to_string(), None),
+        format!("dependency-side-effects:v1:deps={root_a}"),
+    );
+    assert_eq!(
+        calc_dep_state_input_key(&graph, &"b@1.0.0".to_string(), None),
+        format!("dependency-side-effects:v1:deps={root_b}"),
+    );
+}
+
+#[test]
+fn build_required_dep_paths_reaches_every_parent_across_a_cycle() {
+    let graph = HashMap::from([
+        (
+            "a".to_string(),
+            DepsGraphNode {
+                full_pkg_id: "a".to_string(),
+                children: IndexMap::from([
+                    ("b".to_string(), "b".to_string()),
+                    ("builder".to_string(), "builder".to_string()),
+                ]),
+            },
+        ),
+        (
+            "b".to_string(),
+            DepsGraphNode {
+                full_pkg_id: "b".to_string(),
+                children: IndexMap::from([("a".to_string(), "a".to_string())]),
+            },
+        ),
+        (
+            "builder".to_string(),
+            DepsGraphNode { full_pkg_id: "builder".to_string(), children: IndexMap::new() },
+        ),
+        (
+            "unrelated".to_string(),
+            DepsGraphNode { full_pkg_id: "unrelated".to_string(), children: IndexMap::new() },
+        ),
+    ]);
+
+    assert_eq!(
+        build_required_dep_paths(&graph, &HashSet::from(["builder".to_string()])),
+        HashSet::from(["a".to_string(), "b".to_string(), "builder".to_string()]),
+    );
+}
+
+#[test]
+fn build_required_dep_paths_handles_empty_and_missing_builders() {
+    let graph = HashMap::from([(
+        "root".to_string(),
+        DepsGraphNode {
+            full_pkg_id: "root".to_string(),
+            children: IndexMap::from([("missing".to_string(), "missing".to_string())]),
+        },
+    )]);
+
+    assert!(build_required_dep_paths(&graph, &HashSet::new()).is_empty());
+    assert_eq!(
+        build_required_dep_paths(&graph, &HashSet::from(["missing".to_string()])),
+        HashSet::from(["root".to_string(), "missing".to_string()]),
+    );
+}
+
+/// `a` sits in two cycles at once — `a` ↔ `b` and `a` ↔ `m` — so the
+/// digest each member settles on depends on which entry point the walk
+/// started from.
+fn entry_order_sensitive_graph() -> HashMap<String, DepsGraphNode<String>> {
+    fn node(id: &str, children: &[(&str, &str)]) -> DepsGraphNode<String> {
+        DepsGraphNode {
+            full_pkg_id: format!("{id}@1.0.0:sha512-{id}"),
+            children: children
+                .iter()
+                .map(|(alias, key)| ((*alias).to_string(), (*key).to_string()))
+                .collect(),
+        }
+    }
+    HashMap::from([
+        ("a".to_string(), node("a", &[("m", "m"), ("z", "z"), ("b", "b")])),
+        ("b".to_string(), node("b", &[("a", "a")])),
+        ("m".to_string(), node("m", &[("a", "a")])),
+        ("z".to_string(), node("z", &[])),
+    ])
+}
+
+fn dep_states(
+    graph: &HashMap<String, DepsGraphNode<String>>,
+    cache: &mut HashMap<String, String>,
+    query_order: &[&str],
+) -> Vec<(String, String)> {
+    let opts = CalcDepStateOptions {
+        engine_name: "darwin;arm64;node20",
+        patch_file_hash: None,
+        include_dep_graph_hash: true,
+    };
+    let mut states: Vec<(String, String)> = query_order
+        .iter()
+        .map(|key| ((*key).to_string(), calc_dep_state(graph, cache, &(*key).to_string(), &opts)))
+        .collect();
+    states.sort();
+    states
+}
+
+#[test]
+fn query_order_alone_decides_cyclic_dep_states() {
+    let graph = entry_order_sensitive_graph();
+    let forward = dep_states(&graph, &mut HashMap::new(), &["a", "b", "m", "z"]);
+    let backward = dep_states(&graph, &mut HashMap::new(), &["z", "m", "b", "a"]);
+    assert_ne!(forward, backward, "the cache is what `warm_deps_state_cache` exists to pin");
+}
+
+#[test]
+fn warming_makes_cyclic_dep_states_independent_of_query_order() {
+    let graph = entry_order_sensitive_graph();
+    let keys = ["a".to_string(), "b".to_string(), "m".to_string(), "z".to_string()];
+
+    let mut forward_cache = HashMap::new();
+    warm_deps_state_cache(&graph, &mut forward_cache, &keys);
+    let forward = dep_states(&graph, &mut forward_cache, &["a", "b", "m", "z"]);
+
+    let mut backward_cache = HashMap::new();
+    warm_deps_state_cache(&graph, &mut backward_cache, &keys);
+    let backward = dep_states(&graph, &mut backward_cache, &["z", "m", "b", "a"]);
+
+    assert_eq!(forward, backward);
+
+    // The warm-up threads one `parents` set through every walk; that is
+    // only sound while each walk leaves it empty again, so hold it
+    // against walks that each start from a fresh set.
+    let mut per_key_cache = HashMap::new();
+    for key in &keys {
+        calc_dep_graph_hash(&graph, &mut per_key_cache, &mut HashSet::new(), key);
+    }
+    assert_eq!(forward_cache, per_key_cache);
+}
+
+/// The digest is a store-layout contract: it names the directory a
+/// global-virtual-store slot lives in, so a change to the bytes fed to
+/// SHA-256 relocates every package in every store.
+/// `calc_dep_graph_hash` writes those bytes itself instead of building
+/// the `serde_json` value [`hash_object`] would serialize, and only
+/// this test holds the two to the same output.
+///
+/// The fixture covers what the hand-written serializer has to get
+/// right: aliases in an order the sort has to correct, a child the
+/// graph has no node for, and a node with no children at all.
+#[test]
+fn dep_graph_hash_matches_the_object_hash_of_the_value_it_models() {
+    fn node(id: &str, children: &[(&str, &str)]) -> DepsGraphNode<String> {
+        DepsGraphNode {
+            full_pkg_id: format!("{id}@1.0.0:sha512-{id}"),
+            children: children
+                .iter()
+                .map(|(alias, key)| ((*alias).to_string(), (*key).to_string()))
+                .collect(),
+        }
+    }
+    let graph: HashMap<String, DepsGraphNode<String>> = HashMap::from([
+        ("root".to_string(), node("root", &[("z", "leaf"), ("a", "mid"), ("m", "absent")])),
+        ("mid".to_string(), node("mid", &[("leaf", "leaf")])),
+        ("leaf".to_string(), node("leaf", &[])),
+    ]);
+
+    let mut cache = HashMap::new();
+    for dep_path in ["root", "mid", "leaf"] {
+        let dep_path = dep_path.to_string();
+        let actual = calc_dep_graph_hash(&graph, &mut cache, &mut HashSet::new(), &dep_path);
+        let node = &graph[&dep_path];
+        let mut deps = serde_json::Map::new();
+        for (alias, child_key) in &node.children {
+            let child = calc_dep_graph_hash(&graph, &mut cache, &mut HashSet::new(), child_key);
+            deps.insert(alias.clone(), serde_json::Value::String(child));
+        }
+        let expected = hash_object(&serde_json::json!({
+            "id": node.full_pkg_id.clone(),
+            "deps": serde_json::Value::Object(deps),
+        }));
+        assert_eq!(actual, expected, "dep-graph hash diverged for {dep_path:?}");
+    }
+}

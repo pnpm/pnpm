@@ -1,0 +1,36 @@
+import { expect, test } from '@jest/globals'
+import { toOutput$ } from '@pnpm/cli.default-reporter'
+import { requestRetryLogger } from '@pnpm/core-loggers'
+import {
+  createStreamParser,
+} from '@pnpm/logger'
+import { firstValueFrom } from 'rxjs'
+
+import { formatWarn } from '../src/reporterForClient/utils/formatWarn.js'
+
+test('print warning about request retry', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+    },
+    streamParser: createStreamParser(),
+  })
+
+  requestRetryLogger.debug({
+    attempt: 2,
+    error: {
+      name: 'Error',
+      message: 'Connection failed',
+      code: 'ECONNREFUSED',
+    },
+    maxRetries: 5,
+    method: 'GET',
+    timeout: 12500,
+    url: 'https://foo.bar/qar',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(output).toBe(formatWarn('GET https://foo.bar/qar error (ECONNREFUSED). Will retry in 12.5 seconds. 4 retries left.'))
+})

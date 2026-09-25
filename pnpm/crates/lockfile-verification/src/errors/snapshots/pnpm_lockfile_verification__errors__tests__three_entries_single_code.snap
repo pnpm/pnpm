@@ -1,0 +1,9 @@
+---
+source: pnpm/crates/lockfile-verification/src/errors/tests.rs
+assertion_line: 156
+expression: err.to_string()
+---
+3 lockfile entries failed verification:
+  acme@1.0.0 was published at 2025-11-30T22:00:00.000Z, within the minimumReleaseAge cutoff (2025-11-30T00:00:00.000Z)
+  bravo@2.0.0 was published at 2025-11-30T22:30:00.000Z, within the minimumReleaseAge cutoff (2025-11-30T00:00:00.000Z)
+  charlie@3.0.0 was published at 2025-11-30T23:00:00.000Z, within the minimumReleaseAge cutoff (2025-11-30T00:00:00.000Z)

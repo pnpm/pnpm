@@ -1,0 +1,487 @@
+import { spawn } from 'node:child_process'
+import fs from 'node:fs'
+import { createRequire } from 'node:module'
+import path from 'node:path'
+import readline from 'node:readline'
+import type { Writable } from 'node:stream'
+
+import { PnpmError } from '@pnpm/error'
+import { logger, streamParser } from '@pnpm/logger'
+import chalk from 'chalk'
+import { familySync as getLibcFamilySync, MUSL } from 'detect-libc'
+
+// The runtime `streamParser` is a `Transform` stream (split2 + JSON.parse).
+// Its public typing only exposes `on`/`removeListener`, so we narrow to the
+// writable side here to feed pacquet's NDJSON lines back through the same
+// parser that `@pnpm/cli.default-reporter` listens on.
+const streamParserWritable = streamParser as unknown as Writable
+
+export interface MakeRunPacquetOpts {
+  lockfileDir: string
+  /**
+   * Effective pnpm config value. Forwarded through `PNPM_CONFIG_*` so
+   * pacquet writes the same `.modules.yaml` and virtual-store paths as
+   * the pnpm process that delegated to it, including Windows' shorter
+   * default.
+   */
+  virtualStoreDirMaxLength: number
+  /**
+   * Effective pnpm config value, forwarded through `PNPM_CONFIG_*` so a
+   * delegated `--force` install applies pnpm's default for the setting
+   * rather than pacquet's.
+   */
+  forceIgnoresPlatform: boolean
+  /**
+   * Which `configDependencies` entry installed pacquet: either the
+   * original unscoped `pacquet` or the official scoped
+   * `@pnpm/pacquet` mirror. Drives the directory we look in under
+   * `node_modules/.pnpm-config/<packageName>/`. Both packages ship
+   * the same shim and the same `@pacquet/<plat>-<arch>` binary
+   * sub-packages, so the rest of the lookup is identical.
+   */
+  packageName: 'pacquet' | '@pnpm/pacquet'
+  /**
+   * The parsed pnpm argv from `@pnpm/cli.parse-cli-args` — `original`
+   * preserves the user's exact tokens (so `--key=value` stays joined,
+   * which pacquet's `--config.<key>=<value>` parser requires), and
+   * `remain` lists the positionals (the `install`/`i` command token
+   * among them). When `isInstallCommand` is true we forward
+   * `original` minus positionals to pacquet's own `install`
+   * subcommand; otherwise we only inspect it to warn about flags
+   * pacquet won't see.
+   */
+  argv: {
+    original: string[]
+    remain: string[]
+  }
+  /**
+   * `true` when the user invoked `pnpm install` (or `pnpm i`). Gates
+   * flag forwarding: pacquet's `install` subcommand mirrors pnpm's
+   * surface closely enough that the user's flags are safe to pass
+   * along on that command, but not from `add`/`update`/`dedupe` (whose
+   * own flag surface doesn't line up with pacquet's `install`).
+   */
+  isInstallCommand: boolean
+}
+
+/** Args the deps-installer passes per pacquet invocation. */
+export interface RunPacquetCallOpts {
+  /**
+   * `true` when pnpm has already run a lockfileOnly resolve pass and
+   * the reporter has already accumulated one `pnpm:progress
+   * status:resolved` per package. Pacquet's own `resolved` events
+   * (emitted for wire-format parity as it walks the lockfile) are
+   * dropped on the way back through the reader so the reporter
+   * doesn't double-count. The frozen-install path passes `false`:
+   * pnpm did no resolution there, so pacquet's events are the only
+   * source.
+   */
+  filterResolvedProgress?: boolean
+  /**
+   * `true` to let pacquet perform the resolution itself rather than
+   * materialize an already-resolved lockfile. Drops the injected
+   * `--frozen-lockfile`, so pacquet resolves the manifests, writes
+   * `pnpm-lock.yaml`, and materializes in a single pass. Only valid
+   * when {@link PacquetEngine.supportsResolution} is `true` (pacquet
+   * >= 0.11.7).
+   */
+  resolve?: boolean
+  /**
+   * `true` when pnpm already ran the root project's `preinstall`, or was
+   * eligible to and the project defines no `preinstall`, so pacquet skips
+   * that one stage for the root, early and after linking, and still runs
+   * the root's later stages after linking. `false` when the command runs
+   * no root script on pnpm's side (a `pnpm add` at a workspace root), so
+   * pacquet still owes the `preinstall`.
+   */
+  rootProjectPreinstallRan?: boolean
+}
+
+/**
+ * Handle to the pacquet install engine: its capabilities plus the
+ * callback `mutateModules` invokes to run it.
+ */
+export interface PacquetEngine {
+  /**
+   * `true` when the installed pacquet is new enough (>= 0.11.7) to
+   * perform dependency resolution itself. When `false`, pacquet can
+   * only materialize an already-resolved lockfile, so the deps-installer
+   * runs its own resolve pass first and hands the written lockfile to
+   * pacquet.
+   */
+  supportsResolution: boolean
+  run: (callOpts?: RunPacquetCallOpts) => Promise<void>
+}
+
+/**
+ * Build the pacquet install engine `mutateModules` delegates to when
+ * `configDependencies` declares pacquet.
+ *
+ * `run` spawns the pacquet binary installed under
+ * `node_modules/.pnpm-config/pacquet`. From `pnpm install`/`pnpm i` it
+ * forwards the user's own pnpm CLI flags to pacquet's `install`
+ * subcommand; from `add`/`update`/`dedupe` it doesn't forward (warning
+ * instead). Pacquet's NDJSON stderr is parsed line-by-line and the
+ * valid JSON records are re-emitted on pnpm's global `streamParser` so
+ * `@pnpm/cli.default-reporter` renders pacquet's events the same way it
+ * renders pnpm's own. Non-JSON stderr lines (panic backtraces,
+ * unexpected diagnostics) are forwarded to the real stderr verbatim so
+ * they reach the user.
+ */
+export function makeRunPacquet (opts: MakeRunPacquetOpts): PacquetEngine {
+  return {
+    supportsResolution: pacquetSupportsResolution(resolvePacquetVersion(opts.lockfileDir, opts.packageName)),
+    run: makeRun(opts),
+  }
+}
+
+function makeRun (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => Promise<void> {
+  return async (callOpts) => {
+    const pacquetBin = resolvePacquetBin(opts.lockfileDir, opts.packageName)
+    // From `pnpm install`/`pnpm i` we forward the user's flags through to
+    // pacquet's own `install` subcommand verbatim — pacquet mirrors pnpm's
+    // surface closely enough on that command that they're safe to pass
+    // along. From `add`/`update`/`dedupe` we don't forward anything: those
+    // commands carry flags pacquet's `install` doesn't recognize
+    // (`--save-dev`, `--save-peer`, etc.) which clap would reject.
+    const forwardedFlags = opts.isInstallCommand ? collectForwardedFlags(opts.argv) : []
+    // In resolve mode pacquet does the resolution itself, so it must not
+    // be pinned to the existing lockfile — drop both injected flags.
+    //
+    // Otherwise (frozen materialization) inject `--frozen-lockfile` plus
+    // `--ignore-manifest-check`. The latter tells pacquet to skip its
+    // per-importer `package.json` ↔ `pnpm-lock.yaml` freshness gate:
+    // pnpm just resolved and wrote the lockfile itself; on `pnpm up` /
+    // `add` / `remove` the manifest on disk is still the pre-mutation
+    // copy (pnpm writes it after `mutateModules` returns), so pacquet's
+    // own check would always fire here. See
+    // https://github.com/pnpm/pnpm/issues/11797. The flag is narrow
+    // (only the manifest check); settings drift like `overrides` is
+    // still enforced and was already re-validated by pnpm.
+    const frozenArgs = callOpts?.resolve === true ? [] : ['--frozen-lockfile', '--ignore-manifest-check']
+    const args = ['--reporter=ndjson', 'install', ...frozenArgs, ...forwardedFlags]
+    const droppedFlags = opts.isInstallCommand ? [] : collectDroppedFlags(opts.argv)
+    if (droppedFlags.length > 0) {
+      logger.warn({
+        message: `The following CLI flags are not forwarded to pacquet and may not be honored: ${droppedFlags.join(' ')}. Move the equivalent settings into pnpm-workspace.yaml (or .npmrc for auth/registry) if pacquet needs them.`,
+        prefix: opts.lockfileDir,
+      })
+    }
+    // Banner so users can tell at a glance their install is going
+    // through the Rust engine rather than the JS path. Chalk is the
+    // same dependency the default reporter uses for the "+ pkg
+    // version" summary, so colorization respects the user's TTY
+    // settings consistently.
+    const banner = [
+      chalk.magentaBright('▶ Using pacquet for this install'),
+      chalk.gray('  pacquet is pnpm\'s Rust install engine (preview); declared in configDependencies.'),
+    ].join('\n')
+    logger.info({ message: banner, prefix: opts.lockfileDir })
+    const child = spawn(pacquetBin, args, {
+      cwd: opts.lockfileDir,
+      env: makePacquetEnv(opts, callOpts),
+      stdio: ['ignore', 'inherit', 'pipe'],
+    })
+    const filterResolved = callOpts?.filterResolvedProgress === true
+    const rl = readline.createInterface({ input: child.stderr!, crlfDelay: Infinity })
+    rl.on('line', (line) => {
+      if (!line) return
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(line)
+      } catch {
+        process.stderr.write(`${line}\n`)
+        return
+      }
+      if (
+        filterResolved &&
+        typeof parsed === 'object' && parsed !== null &&
+        (parsed as { name?: string }).name === 'pnpm:progress' &&
+        (parsed as { status?: string }).status === 'resolved'
+      ) {
+        return
+      }
+      streamParserWritable.write(`${line}\n`)
+    })
+    await new Promise<void>((resolve, reject) => {
+      child.once('error', reject)
+      child.once('close', (code) => {
+        rl.close()
+        if (code === 0) {
+          resolve()
+          return
+        }
+        reject(new PnpmError('PACQUET_INSTALL_FAILED', `pacquet exited with code ${code ?? 'null'}`))
+      })
+    })
+  }
+}
+
+/**
+ * Tells pacquet that pnpm already ran the root project's
+ * `pnpm:devPreinstall`, so it must not run it a second time.
+ *
+ * Only resolve mode needs it. A frozen materialization is given
+ * `--ignore-manifest-check`, which pacquet's own gate for this hook
+ * already reads as "the caller ran it" — so it is suppressed there
+ * without a marker. Pacquet invoked directly by a user has no earlier
+ * run to deduplicate against.
+ *
+ * Deliberately outside the `PNPM_CONFIG_*` namespace: this is a private
+ * handshake between the two stacks for the lifetime of one delegated
+ * install, not a setting a user may set.
+ */
+export const DEV_PREINSTALL_ALREADY_RAN_ENV = 'PNPM_INTERNAL_DEV_PREINSTALL_ALREADY_RAN'
+
+/**
+ * Tells pacquet that pnpm already ran the root project's `preinstall`.
+ * Set on every delegation shape, since whether pnpm ran the hook
+ * depends on the command rather than the shape; see
+ * {@link RunPacquetCallOpts.rootProjectPreinstallRan}. Private like its
+ * sibling above.
+ */
+export const ROOT_PREINSTALL_ALREADY_RAN_ENV = 'PNPM_INTERNAL_ROOT_PREINSTALL_ALREADY_RAN'
+
+export function makePacquetEnv (opts: MakeRunPacquetOpts, callOpts?: RunPacquetCallOpts): NodeJS.ProcessEnv {
+  const env = { ...process.env }
+  for (const key of Object.keys(env)) {
+    if (
+      key.toLowerCase() === 'pnpm_config_virtual_store_dir_max_length' ||
+      key.toLowerCase() === 'pnpm_config_force_ignores_platform'
+    ) {
+      delete env[key]
+    }
+    // Case-insensitively, like the key above: Windows treats env names
+    // that way, so a differently-cased inherited copy would otherwise
+    // survive into the child and read as a delegation marker there.
+    if (
+      key.toLowerCase() === DEV_PREINSTALL_ALREADY_RAN_ENV.toLowerCase() ||
+      key.toLowerCase() === ROOT_PREINSTALL_ALREADY_RAN_ENV.toLowerCase()
+    ) {
+      delete env[key]
+    }
+  }
+  env.PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH = String(opts.virtualStoreDirMaxLength)
+  env.PNPM_CONFIG_FORCE_IGNORES_PLATFORM = String(opts.forceIgnoresPlatform)
+  if (callOpts?.resolve === true) {
+    env[DEV_PREINSTALL_ALREADY_RAN_ENV] = 'true'
+  }
+  if (callOpts?.rootProjectPreinstallRan === true) {
+    env[ROOT_PREINSTALL_ALREADY_RAN_ENV] = 'true'
+  }
+  return env
+}
+
+/**
+ * Path of the platform-specific native pacquet binary for the host. The
+ * pacquet npm package declares the `@pacquet/<platform>-<arch>` binary as
+ * an `optionalDependency`, so it lands as a *sibling* of pacquet, not
+ * inside its own `node_modules` (pacquet's own `node_modules` is empty
+ * after configDependencies install). Resolve it directly here rather than
+ * through pacquet's `bin/pacquet`, which is only a placeholder until the
+ * package's preinstall relinks it to the native binary — a step that does
+ * not run for configDependencies. Use Node's resolver rooted at pacquet's
+ * own `package.json` so we find the same sibling package.
+ *
+ * The `realpathSync` is required: `.pnpm-config/pacquet` is a symlink
+ * into the global virtual store, and Node's `createRequire` builds its
+ * search paths from the *literal* ancestors of the path it's given —
+ * it won't follow the symlink up into the store dir where the
+ * `@pacquet/<plat>-<arch>` sibling actually lives.
+ */
+function resolvePacquetBin (lockfileDir: string, packageName: 'pacquet' | '@pnpm/pacquet'): string {
+  const ext = process.platform === 'win32' ? '.exe' : ''
+  const pacquetPkg = fs.realpathSync(path.join(lockfileDir, 'node_modules/.pnpm-config', packageName, 'package.json'))
+  return createRequire(pacquetPkg).resolve(`${pacquetPlatformPkgName()}/pacquet${ext}`)
+}
+
+/**
+ * Name of the `@pacquet/<platform>-<arch>[-musl]` package that holds the
+ * native pacquet binary for the host. On linux the binary packages are
+ * split by libc and only the matching one is installed, so spawning and
+ * signature verification must agree on this exact name.
+ */
+export function pacquetPlatformPkgName (): string {
+  const libc = process.platform === 'linux' && getLibcFamilySync() === MUSL ? '-musl' : ''
+  return `@pacquet/${process.platform}-${process.arch}${libc}`
+}
+
+/**
+ * Read the installed pacquet's version from its `package.json` under
+ * `node_modules/.pnpm-config/<packageName>`. Returns `undefined` if it
+ * can't be read — callers treat that as "assume the older,
+ * materialization-only pacquet" so a missing/garbled manifest degrades
+ * to the safe path rather than failing the install.
+ */
+function resolvePacquetVersion (lockfileDir: string, packageName: 'pacquet' | '@pnpm/pacquet'): string | undefined {
+  try {
+    const pacquetPkg = fs.realpathSync(path.join(lockfileDir, 'node_modules/.pnpm-config', packageName, 'package.json'))
+    const { version } = JSON.parse(fs.readFileSync(pacquetPkg, 'utf8')) as { version?: string }
+    return version
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * pacquet gained full resolving installs in 0.11.7; earlier releases
+ * stay on pnpm's resolve-then-materialize path. Pre-release builds of
+ * 0.11.7 (e.g. `0.11.7-rc.1`) count as supporting it.
+ */
+function pacquetSupportsResolution (version: string | undefined): boolean {
+  if (version == null) return false
+  const [major, minor, patch] = version.split('.', 3).map((part) => parseInt(part, 10))
+  if (Number.isNaN(major) || Number.isNaN(minor) || Number.isNaN(patch)) return false
+  return major > 0 || (major === 0 && (minor > 11 || (minor === 11 && patch >= 7)))
+}
+
+/**
+ * From `pnpm install`/`pnpm i`, return everything in argv that should
+ * ride along to pacquet's own `install` subcommand. Drops the
+ * positionals nopt classified (`install` / `i`, plus anything users
+ * typed positionally) since pacquet's `install` doesn't accept any —
+ * leaving them in produces `error: unexpected argument 'install'
+ * found`. Pacquet's clap parser walks the same `--prod`, `--dev`,
+ * `--no-optional`, `--no-runtime`, `--node-linker`, `--offline`,
+ * `--prefer-offline`, `--cpu`, `--os`, `--libc`, `--frozen-lockfile`
+ * surface pnpm itself accepts on `install`, so the flags don't need
+ * reshaping.
+ *
+ * Flags we manage ourselves (`--frozen-lockfile`,
+ * `--ignore-manifest-check`) are dropped in every form the user can
+ * type them — positive (`--frozen-lockfile`), negated
+ * (`--no-frozen-lockfile`), and any `=value` form. pnpm resolves the
+ * frozen-lockfile setting itself and encodes the decision in the mode
+ * it hands pacquet: a resolving install (pacquet resolves and writes
+ * the lockfile, no `--frozen-lockfile` injected) or a frozen
+ * materialization (pacquet is pinned to the lockfile via an injected
+ * `--frozen-lockfile`) — see `frozenArgs` in `makeRun`. Forwarding the
+ * user's own token would contradict that choice: pacquet accepts a
+ * `--no-<flag>` negation for every boolean flag with last-one-wins
+ * override semantics, so a user `--no-frozen-lockfile` sitting next to
+ * our injected `--frozen-lockfile` would flip the pinning back off.
+ *
+ * Reporting flags are stripped too; see {@link translateReportingFlag}.
+ */
+function collectForwardedFlags (argv: { original: string[], remain: string[] }): string[] {
+  const result: string[] = []
+  // `argv.remain` is the ordered subsequence of positionals nopt
+  // extracted from `original`. Match by index rather than by value so
+  // an option's value that happens to equal a positional (e.g.
+  // `--node-linker install`) isn't mistaken for the positional itself.
+  let positionalIdx = 0
+  for (let i = 0; i < argv.original.length; i++) {
+    const arg = argv.original[i]
+    if (positionalIdx < argv.remain.length && arg === argv.remain[positionalIdx]) {
+      positionalIdx++
+      continue
+    }
+    if (isAlwaysInjected(arg)) continue
+    const translated = translateReportingFlag(argv.original, i)
+    if (translated != null) {
+      if (translated.replacement != null) result.push(translated.replacement)
+      i += translated.width - 1
+      continue
+    }
+    result.push(arg)
+  }
+  return result
+}
+
+const ALWAYS_INJECTED_FLAGS = ['frozen-lockfile', 'ignore-manifest-check'] as const
+
+function isAlwaysInjected (arg: string): boolean {
+  for (const name of ALWAYS_INJECTED_FLAGS) {
+    if (arg === `--${name}` || arg === `--no-${name}`) return true
+    if (arg.startsWith(`--${name}=`) || arg.startsWith(`--no-${name}=`)) return true
+  }
+  return false
+}
+
+/**
+ * From a non-install command (`add`, `update`, `dedupe`, ...), pull the
+ * CLI flags out of pnpm's argv so we can warn that pacquet won't see
+ * them. They're still handled by pnpm itself before delegation
+ * (`--save-dev` rewrites `package.json`, `--filter` selects projects,
+ * etc.) so listing them to the user makes the "not forwarded" surface
+ * concrete.
+ *
+ * Flags pnpm itself honors before delegation are filtered out —
+ * warning about them would be misleading: `--frozen-lockfile` and
+ * `--ignore-manifest-check` in every shape (positive / negated /
+ * `=value`); the reporting flags of {@link translateReportingFlag}; and
+ * `--config.*` (configures pnpm's runtime, not the install engine).
+ */
+function collectDroppedFlags (argv: { original: string[] }): string[] {
+  const result: string[] = []
+  for (let i = 0; i < argv.original.length; i++) {
+    const arg = argv.original[i]
+    if (!arg.startsWith('-')) continue
+    if (isAlwaysInjected(arg)) continue
+    if (arg.startsWith('--config.')) continue
+    const translated = translateReportingFlag(argv.original, i)
+    if (translated != null) {
+      if (translated.replacement != null) result.push(translated.replacement)
+      i += translated.width - 1
+      continue
+    }
+    result.push(arg)
+  }
+  return result
+}
+
+const REPORTING_LONG_FLAGS = new Set(['--silent', '--verbose', '--quiet'])
+const REPORTING_SHORTHANDS = new Set(['s', 'd', 'q'])
+// The single-letter keys of pnpm's universal and `install` shorthand
+// tables. nopt splits a single-dash token into letters only when every
+// letter is one of them.
+const SINGLE_LETTER_SHORTHANDS = new Set([
+  's', 'd', 'L', 'r', 'q', 'h', 'H', '?', 'v', 'f', 'l', 'p', 'g', 'S', 'D', 'P', 'E', 'O', 'C', 'w', 'i', 'F', 'y',
+])
+// pnpm's multi-letter shorthands that apply to an install, with the
+// pacquet flag each one stands for, or `undefined` for a reporting flag.
+// nopt expands these before it tries to split a token into letters.
+const NAMED_SHORTHANDS = new Map<string, string | undefined>([
+  ['-silent', undefined],
+  ['-verbose', undefined],
+  ['-quiet', undefined],
+  ['-prod', '--prod'],
+  ['-development', '--dev'],
+])
+
+interface TranslatedFlag {
+  width: number
+  replacement?: string
+}
+
+/**
+ * Match the token at `index` against the flags that select pnpm's
+ * reporter or log level, and against pnpm's shorthands that contain them.
+ * Returns `undefined` for any other token. Otherwise returns how many
+ * tokens the flag spans, counting a separate value (`--reporter foo`),
+ * and the token pacquet gets in its place, if any: a cluster of
+ * single-letter shorthands (`-sP`) without its reporting letters, or the
+ * pacquet flag a named shorthand (`-prod`) stands for.
+ *
+ * pnpm's own reporter renders the NDJSON events pacquet emits, so these
+ * flags are pnpm's alone. The published pacquet releases reject
+ * `--silent`, `-s` and `--loglevel`, and a forwarded `--reporter` would
+ * override the injected `--reporter=ndjson`, since pacquet's clap parser
+ * takes the last value.
+ */
+function translateReportingFlag (argv: string[], index: number): TranslatedFlag | undefined {
+  const arg = argv[index]
+  if (REPORTING_LONG_FLAGS.has(arg)) return { width: 1 }
+  if (arg.startsWith('--reporter=') || arg.startsWith('--loglevel=')) return { width: 1 }
+  const value = argv[index + 1]
+  // nopt takes the next token as the value of a string option only when it
+  // is not an option itself, but always takes it for an enum like `loglevel`.
+  if (arg === '--reporter') return { width: value == null || value.startsWith('-') ? 1 : 2 }
+  if (arg === '--loglevel') return { width: value == null ? 1 : 2 }
+  if (NAMED_SHORTHANDS.has(arg)) return { width: 1, replacement: NAMED_SHORTHANDS.get(arg) }
+  if (arg.length < 2 || arg[0] !== '-' || arg[1] === '-') return undefined
+  const letters = [...arg.slice(1)]
+  if (!letters.every((letter) => SINGLE_LETTER_SHORTHANDS.has(letter)) || !letters.some((letter) => REPORTING_SHORTHANDS.has(letter))) return undefined
+  const kept = letters.filter((letter) => !REPORTING_SHORTHANDS.has(letter)).join('')
+  return { width: 1, replacement: kept === '' ? undefined : `-${kept}` }
+}

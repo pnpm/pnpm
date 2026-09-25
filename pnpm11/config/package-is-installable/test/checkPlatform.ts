@@ -1,0 +1,198 @@
+import { afterEach, expect, jest, test } from '@jest/globals'
+import type * as DetectLibc from 'detect-libc'
+
+const packageId = 'registry.npmjs.org/foo/1.0.0'
+
+jest.mock('detect-libc', () => {
+  const original = jest.requireActual<typeof DetectLibc>('detect-libc')
+  return {
+    ...original,
+    familySync: () => 'musl',
+  }
+})
+
+const { checkPlatform } = await import('../lib/checkPlatform.js')
+
+const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
+
+function setPlatform (platform: NodeJS.Platform): void {
+  Object.defineProperty(process, 'platform', { ...originalPlatform, value: platform })
+}
+
+function setArch (arch: NodeJS.Architecture): void {
+  Object.defineProperty(process, 'arch', { ...originalArch, value: arch })
+}
+
+afterEach(() => {
+  Object.defineProperty(process, 'platform', originalPlatform)
+  Object.defineProperty(process, 'arch', originalArch)
+})
+
+test('target cpu wrong', () => {
+  const target = {
+    cpu: 'enten-cpu',
+    os: 'any',
+    libc: 'any',
+  }
+  const err = checkPlatform(packageId, target)
+  expect(err).toBeTruthy()
+  expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
+})
+
+test('os wrong', () => {
+  const target = {
+    cpu: 'any',
+    os: 'enten-os',
+    libc: 'any',
+  }
+  const err = checkPlatform(packageId, target)
+  expect(err).toBeTruthy()
+  expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
+})
+
+test('libc wrong', () => {
+  const target = {
+    cpu: 'any',
+    os: 'any',
+    libc: 'enten-libc',
+  }
+  const err = checkPlatform(packageId, target)
+  expect(err).toBeTruthy()
+  expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
+})
+
+test('cpu null', () => {
+  const target = {
+    cpu: [null] as unknown as string[], // Casting since this is technically invalid by the pnpm spec.
+    os: 'any',
+    libc: 'any',
+  }
+  expect(checkPlatform(packageId, target)).toBeFalsy()
+})
+
+test('os null', () => {
+  const target = {
+    cpu: 'any',
+    os: [null] as unknown as string[], // Casting since this is technically invalid by the pnpm spec.
+    libc: 'any',
+  }
+  expect(checkPlatform(packageId, target)).toBeFalsy()
+})
+
+test('libc null', () => {
+  const target = {
+    cpu: 'any',
+    os: 'any',
+    libc: [null] as unknown as string[], // Casting since this is technically invalid by the pnpm spec.
+  }
+  expect(checkPlatform(packageId, target)).toBeFalsy()
+})
+
+test('nothing wrong', () => {
+  const target = {
+    cpu: 'any',
+    os: 'any',
+    libc: 'any',
+  }
+  expect(checkPlatform(packageId, target)).toBeFalsy()
+})
+
+test('only target cpu wrong', () => {
+  const err = checkPlatform(packageId, { cpu: 'enten-cpu', os: 'any', libc: 'any' })
+  expect(err).toBeTruthy()
+  expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
+})
+
+test('only os wrong', () => {
+  const err = checkPlatform(packageId, { cpu: 'any', os: 'enten-os', libc: 'any' })
+  expect(err).toBeTruthy()
+  expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
+})
+
+test('everything wrong w/arrays', () => {
+  const err = checkPlatform(packageId, { cpu: ['enten-cpu'], os: ['enten-os'], libc: ['enten-libc'] })
+  expect(err).toBeTruthy()
+  expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
+})
+
+test('os wrong (negation)', () => {
+  const err = checkPlatform(packageId, { cpu: 'any', os: `!${process.platform}`, libc: 'any' })
+  expect(err).toBeTruthy()
+  expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
+})
+
+test('nothing wrong (negation)', () => {
+  expect(checkPlatform(packageId, { cpu: '!enten-cpu', os: '!enten-os', libc: '!enten-libc' })).toBeNull()
+})
+
+test('override OS', () => {
+  expect(checkPlatform(packageId, { cpu: 'any', os: 'win32', libc: 'any' }, {
+    os: ['win32'],
+    cpu: ['current'],
+    libc: ['current'],
+  })).toBeNull()
+})
+
+test('accept another CPU', () => {
+  expect(checkPlatform(packageId, { cpu: 'x64', os: 'any', libc: 'any' }, {
+    os: ['current'],
+    cpu: ['current', 'x64'],
+    libc: ['current'],
+  })).toBeNull()
+})
+
+test('fail when CPU is different', () => {
+  const err = checkPlatform(packageId, { cpu: 'x64', os: 'any', libc: 'any' }, {
+    os: ['current'],
+    cpu: ['arm64'],
+    libc: ['current'],
+  })
+  expect(err).toBeTruthy()
+  expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
+})
+
+test('override libc', () => {
+  expect(checkPlatform(packageId, { cpu: 'any', os: 'any', libc: 'glibc' }, {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['glibc'],
+  })).toBeNull()
+})
+
+test('accept another libc', () => {
+  expect(checkPlatform(packageId, { cpu: 'any', os: 'any', libc: 'glibc' }, {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current', 'glibc'],
+  })).toBeNull()
+})
+
+test('accept negated os with multi-valued supportedArchitectures', () => {
+  setPlatform('linux')
+  expect(checkPlatform(packageId, { cpu: 'any', os: ['!win32'], libc: 'any' }, {
+    os: ['linux', 'current'],
+    cpu: ['current'],
+    libc: ['current'],
+  })).toBeNull()
+})
+
+test('accept negated cpu with multi-valued supportedArchitectures', () => {
+  setArch('x64')
+  expect(checkPlatform(packageId, { cpu: ['!ia32'], os: 'any', libc: 'any' }, {
+    os: ['current'],
+    cpu: ['x64', 'current'],
+    libc: ['current'],
+  })).toBeNull()
+})
+
+test('reject negated os when any supported value matches the negation', () => {
+  setPlatform('darwin')
+  const err = checkPlatform(packageId, { cpu: 'any', os: ['!win32'], libc: 'any' }, {
+    os: ['win32', 'current'],
+    cpu: ['current'],
+    libc: ['current'],
+  })
+  expect(err).toBeTruthy()
+  expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
+})

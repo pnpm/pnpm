@@ -1,0 +1,246 @@
+import { expect, test } from '@jest/globals'
+import type { PnpmError } from '@pnpm/error'
+import { remove } from '@pnpm/installing.commands'
+import { prepare } from '@pnpm/prepare'
+import type { Project, ProjectRootDir, ProjectRootDirRealPath, ProjectsGraph } from '@pnpm/types'
+
+import { DEFAULT_OPTS } from '../utils/index.js'
+
+test('remove should fail if no dependency is specified for removal', async () => {
+  prepare()
+
+  let err!: PnpmError
+  try {
+    await remove.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    }, [])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.code).toBe('ERR_PNPM_MUST_REMOVE_SOMETHING')
+  expect(err.message).toBe('At least one dependency name should be specified for removal')
+})
+
+test('remove should fail if the project has no dependencies at all', async () => {
+  prepare()
+
+  {
+    let err!: PnpmError
+    try {
+      await remove.handler({
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+      }, ['express'])
+    } catch (_err: any) { // eslint-disable-line
+      err = _err
+    }
+    expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+    expect(err.message).toBe("Cannot remove 'express': project has no dependencies of any kind")
+  }
+  {
+    let err!: PnpmError
+    try {
+      await remove.handler({
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        saveProd: true,
+      }, ['express'])
+    } catch (_err: any) { // eslint-disable-line
+      err = _err
+    }
+    expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+    expect(err.message).toBe("Cannot remove 'express': project has no 'dependencies'")
+  }
+  {
+    let err!: PnpmError
+    try {
+      await remove.handler({
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        saveDev: true,
+      }, ['express'])
+    } catch (_err: any) { // eslint-disable-line
+      err = _err
+    }
+    expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+    expect(err.message).toBe("Cannot remove 'express': project has no 'devDependencies'")
+  }
+  {
+    let err!: PnpmError
+    try {
+      await remove.handler({
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        saveOptional: true,
+      }, ['express'])
+    } catch (_err: any) { // eslint-disable-line
+      err = _err
+    }
+    expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+    expect(err.message).toBe("Cannot remove 'express': project has no 'optionalDependencies'")
+  }
+})
+
+test('remove should fail if the project does not have one of the removed dependencies', async () => {
+  prepare({
+    dependencies: {
+      'prod-dep-1': '1.0.0',
+      'prod-dep-2': '1.0.0',
+    },
+    devDependencies: {
+      'dev-dep-1': '1.0.0',
+      'dev-dep-2': '1.0.0',
+    },
+    optionalDependencies: {
+      'optional-dep-1': '1.0.0',
+      'optional-dep-2': '1.0.0',
+    },
+  })
+
+  {
+    let err!: PnpmError
+    try {
+      await remove.handler({
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        saveProd: true,
+      }, ['prod-dep-1', 'dev-dep-1', 'optional-dep-1'])
+    } catch (_err: any) { // eslint-disable-line
+      err = _err
+    }
+    expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+    expect(err.message).toBe('Cannot remove \'dev-dep-1\', \'optional-dep-1\': \
+no such dependencies found in \'dependencies\'')
+    expect(err.hint).toBe('Available dependencies: prod-dep-1, prod-dep-2')
+  }
+  {
+    let err!: PnpmError
+    try {
+      await remove.handler({
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        saveDev: true,
+      }, ['prod-dep-1', 'dev-dep-1', 'optional-dep-1'])
+    } catch (_err: any) { // eslint-disable-line
+      err = _err
+    }
+    expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+    expect(err.message).toBe('Cannot remove \'prod-dep-1\', \'optional-dep-1\': \
+no such dependencies found in \'devDependencies\'')
+    expect(err.hint).toBe('Available dependencies: dev-dep-1, dev-dep-2')
+  }
+  {
+    let err!: PnpmError
+    try {
+      await remove.handler({
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        saveOptional: true,
+      }, ['prod-dep-1', 'dev-dep-1', 'optional-dep-1'])
+    } catch (_err: any) { // eslint-disable-line
+      err = _err
+    }
+    expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+    expect(err.message).toBe('Cannot remove \'prod-dep-1\', \'dev-dep-1\': \
+no such dependencies found in \'optionalDependencies\'')
+    expect(err.hint).toBe('Available dependencies: optional-dep-1, optional-dep-2')
+  }
+  {
+    let err!: PnpmError
+    try {
+      await remove.handler({
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+      }, ['express', 'prod-dep-1', 'dev-dep-1', 'optional-dep-1'])
+    } catch (_err: any) { // eslint-disable-line
+      err = _err
+    }
+    expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+    expect(err.message).toBe("Cannot remove 'express': no such dependency found")
+    expect(err.hint).toBe('Available dependencies: dev-dep-1, dev-dep-2, \
+prod-dep-1, prod-dep-2, optional-dep-1, optional-dep-2')
+  }
+})
+
+test('cliOptionsTypes registers the supply-chain policy options', () => {
+  // `cliOptionsTypes` is what the argv parser is fed, so it — not the
+  // `rcOptionsTypes` it happens to spread — is the contract that decides
+  // whether `pnpm remove --trust-lockfile` is rejected as an unknown option.
+  const optionTypes = remove.cliOptionsTypes()
+
+  expect(optionTypes).toHaveProperty('trust-lockfile')
+  expect(optionTypes).toHaveProperty('trust-policy')
+  expect(optionTypes).toHaveProperty('trust-policy-exclude')
+  expect(optionTypes).toHaveProperty('trust-policy-ignore-after')
+})
+
+test('cliOptionsTypes registers unsafe-perm', () => {
+  expect(remove.cliOptionsTypes()).toHaveProperty('unsafe-perm')
+})
+
+test('recursive remove should fail if none of the workspace projects have the dependency', async () => {
+  prepare()
+  const workspaceDir = process.cwd()
+  const allProjects: Project[] = [
+    {
+      rootDir: `${workspaceDir}/project-1` as ProjectRootDir,
+      rootDirRealPath: `${workspaceDir}/project-1` as ProjectRootDirRealPath,
+      manifest: {
+        name: 'project-1',
+        dependencies: {
+          'dep-1': '1.0.0',
+        },
+      },
+      writeProjectManifest: async () => {},
+    },
+    {
+      rootDir: `${workspaceDir}/project-2` as ProjectRootDir,
+      rootDirRealPath: `${workspaceDir}/project-2` as ProjectRootDirRealPath,
+      manifest: {
+        name: 'project-2',
+        dependencies: {
+          'dep-2': '1.0.0',
+        },
+      },
+      writeProjectManifest: async () => {},
+    },
+  ]
+  const selectedProjectsGraph: ProjectsGraph = {
+    [`${workspaceDir}/project-1` as ProjectRootDir]: { dependencies: [], package: allProjects[0] },
+    [`${workspaceDir}/project-2` as ProjectRootDir]: { dependencies: [], package: allProjects[1] },
+  }
+
+  let err!: PnpmError
+  try {
+    await remove.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph: selectedProjectsGraph,
+      dir: workspaceDir,
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir,
+    }, ['non-existent-dep'])
+  } catch (_err: unknown) {
+    err = _err as PnpmError
+  }
+  expect(err).toBeTruthy()
+  expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+  expect(err.message).toBe("Cannot remove 'non-existent-dep': no such dependency found")
+})
+
+test('recursive remove does nothing when the selected project graph is empty', async () => {
+  prepare()
+  const workspaceDir = process.cwd()
+
+  await expect(remove.handler({
+    ...DEFAULT_OPTS,
+    allProjects: [],
+    allProjectsGraph: {},
+    dir: workspaceDir,
+    recursive: true,
+    selectedProjectsGraph: {},
+    workspaceDir,
+  }, ['non-existent-dep'])).resolves.toBeUndefined()
+})

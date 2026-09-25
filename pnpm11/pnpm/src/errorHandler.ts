@@ -1,0 +1,104 @@
+import { promisify } from 'node:util'
+
+import { killTrackedProcessTrees } from '@pnpm/exec.lifecycle'
+import { logger } from '@pnpm/logger'
+import { canonicalHttpUrl } from '@pnpm/network.web-auth'
+import pidTree from 'pidtree'
+
+import { exit } from './exit.js'
+import { type Global, REPORTER_INITIALIZED } from './main.js'
+
+declare const global: Global
+
+const getDescendentProcesses = promisify((pid: number, callback: (error: Error | undefined, result: number[]) => void) => {
+  pidTree(pid, { root: false }, callback)
+})
+
+export async function errorHandler (error: Error & { code?: string }): Promise<void> {
+  if (error.name != null && error.name !== 'pnpm' && !error.name.startsWith('pnpm:')) {
+    try {
+      error.name = 'pnpm'
+    } catch {
+      // Sometimes the name property is read-only
+    }
+  }
+
+  if (!global[REPORTER_INITIALIZED]) {
+    // print parseable error on unhandled exception
+    console.log(JSON.stringify({
+      error: {
+        code: error.code ?? error.name,
+        message: error.message,
+        ...getWebAuthUrls(error),
+      },
+    }, null, 2))
+  } else if (global[REPORTER_INITIALIZED] !== 'silent') {
+    // bole passes only the name, message and stack of an error
+    // that is why we pass error as a message as well, to pass
+    // any additional info
+    logger.error(error, error)
+
+    // Deferring exit. Otherwise, the reporter wouldn't show the error
+    await new Promise<void>((resolve) => setTimeout(() => {
+      resolve()
+    }, 0))
+  }
+  await killProcesses(
+    error && typeof error === 'object' && 'errno' in error && typeof error.errno === 'number'
+      ? error.errno
+      : 1
+  )
+}
+
+// Enumerating descendant processes shells out to the OS process list (one
+// `ps` call, tens of milliseconds), which normally returns well within this
+// budget. Bound the lookup so a pathologically slow enumeration can't stall
+// the exit; `exit()` calls `process.exit`, which abandons the still-running
+// query (a harmless read-only process listing). The trade-off is that on a
+// machine where the lookup can't finish in time, orphaned children aren't
+// killed.
+const DESCENDANT_LOOKUP_TIMEOUT = 500
+
+async function killProcesses (status: number): Promise<void> {
+  if (process.platform === 'win32') {
+    // Enumerating descendant processes on Windows shells out to `wmic` — or,
+    // where wmic has been removed, a PowerShell `Get-CimInstance` fallback —
+    // which can take tens of seconds. Instead of enumerating, kill the
+    // process trees of the still-running child processes whose PIDs were
+    // recorded at their spawn sites.
+    await killTrackedProcessTrees()
+  } else {
+    try {
+      const descendentProcesses = await Promise.race([
+        getDescendentProcesses(process.pid).catch(() => [] as number[]),
+        new Promise<number[]>((resolve) => {
+          setTimeout(() => resolve([]), DESCENDANT_LOOKUP_TIMEOUT).unref()
+        }),
+      ])
+      for (const pid of descendentProcesses) {
+        try {
+          process.kill(pid)
+        } catch {
+          // ignore error here
+        }
+      }
+    } catch {
+      // ignore error here
+    }
+  }
+  await exit(status)
+}
+
+function getWebAuthUrls (error: Error & { code?: string, authUrl?: unknown, doneUrl?: unknown }): { authUrl?: string, doneUrl?: string } | undefined {
+  if (error.code !== 'ERR_PNPM_OTP_NON_INTERACTIVE') return undefined
+  const urls: { authUrl?: string, doneUrl?: string } = {}
+  const authUrl = canonicalHttpUrl(error.authUrl)
+  if (authUrl != null) {
+    urls.authUrl = authUrl
+  }
+  const doneUrl = canonicalHttpUrl(error.doneUrl)
+  if (doneUrl != null) {
+    urls.doneUrl = doneUrl
+  }
+  return urls
+}

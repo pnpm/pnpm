@@ -1,0 +1,9 @@
+{
+  "name": "count-to-10",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node postinstall",
+    "signal-abrt": "echo 'signal-abrt script' && kill -s ABRT $$",
+    "signal-int": "echo 'signal-int script' && kill -s INT $$"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "with-conflicting-peers",
+  "version": "1.0.0",
+  "dependencies": {
+    "needs-react-17": "1.0.0",
+    "needs-react-18": "1.0.0"
+  }
+}

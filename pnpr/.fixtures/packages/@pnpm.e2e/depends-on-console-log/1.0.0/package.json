@@ -1,0 +1,9 @@
+{
+  "name": "@pnpm.e2e/depends-on-console-log",
+  "version": "1.0.0",
+  "dependencies": {
+    "console-log-1": "npm:@pnpm.e2e/console-log@1.0.0",
+    "console-log-2": "npm:@pnpm.e2e/console-log@2.0.0",
+    "console-log-3": "npm:@pnpm.e2e/console-log@3.0.0"
+  }
+}

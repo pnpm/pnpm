@@ -1,0 +1,426 @@
+use super::{
+    CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
+};
+use pnpm_catalogs_types::{Catalog, Catalogs};
+use serde_json::{Value, json};
+use std::{collections::BTreeMap, fs, path::Path};
+use tempfile::tempdir;
+
+fn empty_catalogs() -> Catalogs {
+    BTreeMap::new()
+}
+
+fn build(dir: &Path, manifest: &Value, opts: &CreateExportableManifestOptions<'_>) -> Value {
+    create_exportable_manifest(dir, manifest, opts).unwrap()
+}
+
+fn default_opts(catalogs: &Catalogs) -> CreateExportableManifestOptions<'_> {
+    CreateExportableManifestOptions {
+        catalogs,
+        workspace_dir: None,
+        modules_dir: None,
+        skip_manifest_obfuscation: false,
+        embed_readme: false,
+        workspace_packages: None,
+    }
+}
+
+/// Write a dependency's installed `package.json` under
+/// `<dir>/node_modules/<name>/` so workspace-protocol rewriting can
+/// resolve it.
+fn install_dep(dir: &Path, name: &str, version: &str) {
+    let dep_dir = dir.join("node_modules").join(name);
+    fs::create_dir_all(&dep_dir).unwrap();
+    fs::write(
+        dep_dir.join("package.json"),
+        serde_json::to_string(&json!({ "name": name, "version": version })).unwrap(),
+    )
+    .unwrap();
+}
+
+#[test]
+fn obfuscation_strips_pnpm_internal_fields() {
+    let dir = tempdir().unwrap();
+    let catalogs = empty_catalogs();
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "packageManager": "pnpm@9.0.0",
+            "pnpm": { "overrides": {} },
+            "scripts": { "build": "tsc", "prepack": "x", "prepare": "y", "test": "jest" },
+        }),
+        &default_opts(&catalogs),
+    );
+    assert!(out.get("packageManager").is_none());
+    assert!(out.get("pnpm").is_none());
+    // Publish-lifecycle scripts are stripped; ordinary scripts stay.
+    assert_eq!(out["scripts"], json!({ "build": "tsc", "test": "jest" }));
+}
+
+#[test]
+fn skip_obfuscation_keeps_scripts_and_package_manager() {
+    let dir = tempdir().unwrap();
+    let catalogs = empty_catalogs();
+    let opts = CreateExportableManifestOptions {
+        catalogs: &catalogs,
+        workspace_dir: None,
+        modules_dir: None,
+        skip_manifest_obfuscation: true,
+        embed_readme: false,
+        workspace_packages: None,
+    };
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "packageManager": "pnpm@9.0.0",
+            "pnpm": { "overrides": {} },
+            "scripts": { "prepack": "x", "build": "tsc" },
+        }),
+        &opts,
+    );
+    assert_eq!(out["packageManager"], json!("pnpm@9.0.0"));
+    // Only the pnpm field is dropped under skip_manifest_obfuscation.
+    assert!(out.get("pnpm").is_none());
+    assert_eq!(out["scripts"], json!({ "prepack": "x", "build": "tsc" }));
+}
+
+#[test]
+fn workspace_protocol_dependency_is_rewritten_to_installed_version() {
+    let dir = tempdir().unwrap();
+    install_dep(dir.path(), "bar", "2.3.4");
+    let catalogs = empty_catalogs();
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "dependencies": { "bar": "workspace:^" },
+        }),
+        &default_opts(&catalogs),
+    );
+    assert_eq!(out["dependencies"], json!({ "bar": "^2.3.4" }));
+}
+
+#[test]
+fn catalog_protocol_dependency_is_resolved() {
+    let dir = tempdir().unwrap();
+    let mut catalog = Catalog::new();
+    catalog.insert("bar".to_string(), "^3.0.0".to_string());
+    let mut catalogs = empty_catalogs();
+    catalogs.insert("default".to_string(), catalog);
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "dependencies": { "bar": "catalog:" },
+        }),
+        &default_opts(&catalogs),
+    );
+    assert_eq!(out["dependencies"], json!({ "bar": "^3.0.0" }));
+}
+
+#[test]
+fn workspace_protocol_from_catalog_is_rewritten_to_installed_version() {
+    let dir = tempdir().unwrap();
+    install_dep(dir.path(), "bar", "2.3.4");
+    let mut catalog = Catalog::new();
+    catalog.insert("bar".to_string(), "workspace:^".to_string());
+    let mut catalogs = empty_catalogs();
+    catalogs.insert("default".to_string(), catalog);
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "dependencies": { "bar": "catalog:" },
+        }),
+        &default_opts(&catalogs),
+    );
+    assert_eq!(out["dependencies"], json!({ "bar": "^2.3.4" }));
+}
+
+#[test]
+fn peer_workspace_aliases_and_paths_from_catalog_are_rewritten() {
+    let dir = tempdir().unwrap();
+    let project = dir.path().join("node_modules/project");
+    fs::create_dir_all(&project).unwrap();
+    install_dep(dir.path(), "xerox", "4.5.6");
+
+    let mut alias_catalog = Catalog::new();
+    alias_catalog.insert("garply".to_string(), "workspace:plugh@2.0.0".to_string());
+    alias_catalog.insert("sentinel".to_string(), "workspace:plugh@^".to_string());
+    alias_catalog.insert("range".to_string(), "workspace:plugh@>=1 <3".to_string());
+    alias_catalog.insert("union".to_string(), "workspace:plugh@^1 || ^2".to_string());
+    let mut path_catalog = Catalog::new();
+    path_catalog.insert("xeroxAlias".to_string(), "workspace:../xerox".to_string());
+    let mut catalogs = empty_catalogs();
+    catalogs.insert("alias".to_string(), alias_catalog);
+    catalogs.insert("path".to_string(), path_catalog);
+
+    let out = build(
+        &project,
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "peerDependencies": {
+                "garply": "catalog:alias",
+                "sentinel": "catalog:alias",
+                "range": "catalog:alias",
+                "union": "catalog:alias",
+                "xeroxAlias": "catalog:path",
+            },
+        }),
+        &default_opts(&catalogs),
+    );
+    assert_eq!(
+        out["peerDependencies"],
+        json!({
+            "garply": "npm:plugh@2.0.0",
+            "sentinel": "npm:plugh@*",
+            "range": "npm:plugh@>=1 <3",
+            "union": "npm:plugh@^1 || ^2",
+            "xeroxAlias": "npm:xerox@4.5.6",
+        }),
+    );
+}
+
+#[test]
+fn jsr_protocol_dependency_becomes_npm_alias() {
+    let dir = tempdir().unwrap();
+    let catalogs = empty_catalogs();
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "dependencies": { "@foo/bar": "jsr:^1.2.3" },
+        }),
+        &default_opts(&catalogs),
+    );
+    assert_eq!(out["dependencies"], json!({ "@foo/bar": "npm:@jsr/foo__bar@^1.2.3" }));
+}
+
+#[test]
+fn jsr_dependency_without_version_selector_becomes_bare_npm_alias() {
+    let dir = tempdir().unwrap();
+    let catalogs = empty_catalogs();
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "dependencies": { "@foo/bar": "jsr:@foo/bar" },
+        }),
+        &default_opts(&catalogs),
+    );
+    assert_eq!(out["dependencies"], json!({ "@foo/bar": "npm:@jsr/foo__bar" }));
+}
+
+#[test]
+fn peer_workspace_protocol_dependency_is_rewritten() {
+    let dir = tempdir().unwrap();
+    install_dep(dir.path(), "bar", "3.0.0");
+    let catalogs = empty_catalogs();
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "peerDependencies": { "bar": "workspace:^" },
+        }),
+        &default_opts(&catalogs),
+    );
+    assert_eq!(out["peerDependencies"], json!({ "bar": "^3.0.0" }));
+}
+
+#[test]
+fn publish_config_whitelisted_keys_are_hoisted() {
+    let dir = tempdir().unwrap();
+    let catalogs = empty_catalogs();
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "main": "src/index.ts",
+            "publishConfig": { "main": "dist/index.js", "access": "public" },
+        }),
+        &default_opts(&catalogs),
+    );
+    // Whitelisted `main` overrides the root; non-whitelisted `access`
+    // stays in a trimmed publishConfig.
+    assert_eq!(out["main"], json!("dist/index.js"));
+    assert_eq!(out["publishConfig"], json!({ "access": "public" }));
+}
+
+#[test]
+fn publish_config_name_renames_the_published_package() {
+    let dir = tempdir().unwrap();
+    let catalogs = empty_catalogs();
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "pacquet",
+            "version": "1.0.0",
+            "publishConfig": { "name": "pnpm" },
+        }),
+        &default_opts(&catalogs),
+    );
+    assert_eq!(out["name"], json!("pnpm"));
+    assert_eq!(out.get("publishConfig"), None);
+}
+
+#[test]
+fn publish_config_is_removed_when_emptied() {
+    let dir = tempdir().unwrap();
+    let catalogs = empty_catalogs();
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "publishConfig": { "types": "dist/index.d.ts" },
+        }),
+        &default_opts(&catalogs),
+    );
+    assert_eq!(out["types"], json!("dist/index.d.ts"));
+    assert!(out.get("publishConfig").is_none());
+}
+
+#[test]
+fn readme_is_embedded_when_requested() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("README.md"), "# Hello").unwrap();
+    let catalogs = empty_catalogs();
+    let opts = CreateExportableManifestOptions {
+        catalogs: &catalogs,
+        workspace_dir: None,
+        modules_dir: None,
+        skip_manifest_obfuscation: false,
+        embed_readme: true,
+        workspace_packages: None,
+    };
+    let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
+    assert_eq!(out["readme"], json!("# Hello"));
+}
+
+#[test]
+fn readme_is_not_embedded_without_opt_in() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("README.md"), "# Hello").unwrap();
+    let catalogs = empty_catalogs();
+    let out =
+        build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &default_opts(&catalogs));
+    assert!(out.get("readme").is_none());
+}
+
+#[cfg(unix)]
+#[test]
+fn readme_symlink_is_not_embedded() {
+    // A symlinked README could point outside the project; it must be skipped so its
+    // target's contents can't be leaked into the published manifest.
+    let dir = tempdir().unwrap();
+    let secret = tempdir().unwrap();
+    fs::write(secret.path().join("secret"), "TOP SECRET").unwrap();
+    std::os::unix::fs::symlink(secret.path().join("secret"), dir.path().join("README.md")).unwrap();
+    let catalogs = empty_catalogs();
+    let opts = CreateExportableManifestOptions {
+        catalogs: &catalogs,
+        workspace_dir: None,
+        modules_dir: None,
+        skip_manifest_obfuscation: false,
+        embed_readme: true,
+        workspace_packages: None,
+    };
+    let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
+    assert!(out.get("readme").is_none());
+}
+
+#[test]
+fn missing_name_surfaces_transform_error() {
+    let dir = tempdir().unwrap();
+    let catalogs = empty_catalogs();
+    let err = create_exportable_manifest(
+        dir.path(),
+        &json!({ "version": "1.0.0" }),
+        &default_opts(&catalogs),
+    )
+    .unwrap_err();
+    assert!(matches!(err, CreateExportableManifestError::Transform(_)));
+}
+
+/// A catalog measures a relative path from `pnpm-workspace.yaml`, while
+/// the exported manifest is read from the package's own directory, so
+/// the two have to name the same place.
+#[test]
+fn local_catalog_entry_is_reanchored_on_the_exported_package() {
+    let workspace = tempdir().unwrap();
+    let package_dir = workspace.path().join("packages/foo");
+    std::fs::create_dir_all(&package_dir).unwrap();
+    let catalogs = Catalogs::from([(
+        "default".to_string(),
+        Catalog::from([
+            ("from-tarball".to_string(), "file:./tarballs/from-tarball-1.0.0.tgz".to_string()),
+            ("local-lib".to_string(), "link:./libs/local-lib".to_string()),
+        ]),
+    )]);
+    let opts = CreateExportableManifestOptions {
+        catalogs: &catalogs,
+        workspace_dir: Some(workspace.path()),
+        modules_dir: None,
+        skip_manifest_obfuscation: false,
+        embed_readme: false,
+        workspace_packages: None,
+    };
+
+    let out = build(
+        &package_dir,
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "dependencies": { "from-tarball": "catalog:", "local-lib": "catalog:" },
+        }),
+        &opts,
+    );
+
+    assert_eq!(
+        out["dependencies"],
+        json!({
+            "from-tarball": "file:../../tarballs/from-tarball-1.0.0.tgz",
+            "local-lib": "link:../../libs/local-lib",
+        }),
+    );
+}
+
+/// Without a workspace directory there is no anchor to measure from, so
+/// the entry is emitted as the catalog wrote it.
+#[test]
+fn local_catalog_entry_without_a_workspace_dir_is_emitted_as_written() {
+    let dir = tempdir().unwrap();
+    let catalogs = Catalogs::from([(
+        "default".to_string(),
+        Catalog::from([(
+            "from-tarball".to_string(),
+            "file:./tarballs/from-tarball-1.0.0.tgz".to_string(),
+        )]),
+    )]);
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "dependencies": { "from-tarball": "catalog:" },
+        }),
+        &default_opts(&catalogs),
+    );
+
+    assert_eq!(
+        out["dependencies"],
+        json!({ "from-tarball": "file:./tarballs/from-tarball-1.0.0.tgz" }),
+    );
+}

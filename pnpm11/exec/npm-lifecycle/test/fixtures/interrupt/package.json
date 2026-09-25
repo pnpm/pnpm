@@ -1,0 +1,8 @@
+{
+  "name": "interrupt",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "exec node dev.js",
+    "dev-behind-shell": "node dev.js"
+  }
+}

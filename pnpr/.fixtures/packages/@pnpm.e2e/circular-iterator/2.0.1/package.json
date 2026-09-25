@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/circular-iterator",
+  "version": "2.0.1",
+  "main": "index.js",
+  "dependencies": {
+    "@pnpm.e2e/circular-ext": "^0.10.14"
+  }
+}

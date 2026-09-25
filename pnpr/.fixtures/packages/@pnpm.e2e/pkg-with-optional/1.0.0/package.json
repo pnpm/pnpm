@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/pkg-with-optional",
+  "version": "1.0.0",
+  "optionalDependencies": {
+    "@pnpm.e2e/not-compatible-with-any-os": "^1.0.0"
+  }
+}

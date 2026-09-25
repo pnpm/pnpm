@@ -1,0 +1,39 @@
+import type { IgnoredScriptsLog } from '@pnpm/core-loggers'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
+import boxen from 'boxen'
+import * as Rx from 'rxjs'
+import { map } from 'rxjs/operators'
+
+import type { ReporterPnpmConfig } from '../ReporterPnpmConfig.js'
+
+export function reportIgnoredBuilds (
+  log$: {
+    ignoredScripts: Rx.Observable<IgnoredScriptsLog>
+  },
+  opts: {
+    appendOnly?: boolean
+    pnpmConfig?: ReporterPnpmConfig
+    // This is used by Bit CLI
+    approveBuildsInstructionText?: string
+  }
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
+  return log$.ignoredScripts.pipe(
+    map((ignoredScripts) => {
+      if (ignoredScripts.packageNames && ignoredScripts.packageNames.length > 0 && !opts.pnpmConfig?.strictDepBuilds) {
+        const text = `Ignored build scripts: ${Array.from(ignoredScripts.packageNames).sort(lexCompare).join(', ')}.
+${opts.approveBuildsInstructionText ?? `Run "pnpm approve-builds${opts.pnpmConfig?.cliOptions?.global ? ' -g' : ''}" to pick which dependencies should be allowed to run scripts.`}`
+        const msg = opts.appendOnly
+          ? text
+          : boxen(text, {
+            title: 'Warning',
+            padding: 1,
+            margin: 0,
+            borderStyle: 'round',
+            borderColor: 'yellow',
+          })
+        return Rx.of({ msg })
+      }
+      return Rx.NEVER
+    })
+  )
+}

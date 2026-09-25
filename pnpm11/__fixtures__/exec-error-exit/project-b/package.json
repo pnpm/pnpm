@@ -1,0 +1,9 @@
+{
+  "name": "project-b",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node script.js"
+  }
+}

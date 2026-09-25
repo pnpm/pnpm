@@ -1,0 +1,11 @@
+{
+  "name": "@pnpm.e2e/peer-diamond-bundle",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/peer-diamond-plugin": "1.0.0",
+    "@pnpm.e2e/peer-diamond-parser": "1.0.0"
+  },
+  "peerDependencies": {
+    "@pnpm.e2e/peer-diamond-ts": "*"
+  }
+}

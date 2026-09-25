@@ -1,0 +1,5 @@
+{
+  "name": "@pnpm.e2e/has-cpu-specified",
+  "version": "1.0.0",
+  "cpu": ["x64", "ia32"]
+}

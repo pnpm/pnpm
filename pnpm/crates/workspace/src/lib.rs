@@ -1,0 +1,45 @@
+//! Workspace discovery and project enumeration.
+//!
+//! Three responsibilities, kept in separate private modules while
+//! keeping the public surface flat:
+//!
+//! - `root_finder` — locate the workspace dir (`pnpm-workspace.yaml`).
+//!   Public entry point: [`find_workspace_dir`].
+//! - `manifest`    — parse `packages:` (plus catalog skeletons).
+//!   Public entry point: [`read_workspace_manifest`].
+//! - `projects`    — glob-expand `packages:` into [`Project`]s.
+//!   Public entry point: [`find_workspace_projects`].
+
+pub use api::{EnvVarOs, Host};
+pub use importer_id::importer_id_from_root_dir;
+pub use inventory::{FindWorkspaceInventoryError, WorkspaceInventory, find_workspace_inventory};
+pub use manifest::{
+    InvalidWorkspaceManifestError, ReadWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceManifest, parse_workspace_manifest, read_workspace_manifest,
+    workspace_package_patterns,
+};
+pub use project_manifest::{
+    ReadProjectManifestError, ReadProjectManifestOnlyError, project_manifest_path,
+    read_exact_project_manifest, read_project_manifest_only, read_project_name,
+    safe_read_project_manifest_only, try_read_project_manifest,
+};
+pub use projects::{
+    FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, Project, belongs_to_workspace,
+    find_workspace_projects, find_workspace_projects_no_check, is_workspace_project_dir,
+    needs_package_patterns,
+};
+pub use projects_graph_view::GraphPkg;
+pub use root_finder::{
+    BadWorkspaceManifestNameError, FindWorkspaceDirError, find_workspace_dir,
+    find_workspace_dir_from_env,
+};
+
+mod api;
+mod directory_patterns;
+mod importer_id;
+mod inventory;
+mod manifest;
+mod project_manifest;
+mod projects;
+mod projects_graph_view;
+mod root_finder;

@@ -1,0 +1,1466 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
+import { assertProject } from '@pnpm/assert-project'
+import { install } from '@pnpm/installing.commands'
+import { preparePackages } from '@pnpm/prepare'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { loadJsonFileSync } from 'load-json-file'
+
+import { DEFAULT_OPTS } from './utils/index.js'
+
+const original = await import('@pnpm/logger')
+const warn = jest.fn()
+jest.unstable_mockModule('@pnpm/logger', () => {
+  const logger = {
+    ...original.logger,
+    warn,
+  }
+  return {
+    ...original,
+    globalWarn: jest.fn(),
+    logger: Object.assign(() => logger, logger),
+  }
+})
+const { globalWarn } = await import('@pnpm/logger')
+const { deploy } = await import('@pnpm/releasing.commands')
+const testOnNonWindows = process.platform === 'win32' ? test.skip : test
+
+beforeEach(async () => {
+  jest.mocked(globalWarn).mockClear()
+})
+
+afterEach(() => {
+  jest.restoreAllMocks()
+})
+
+test('deploy without existing lockfile', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'project-2': 'workspace:*',
+        'is-positive': '1.0.0',
+      },
+      devDependencies: {
+        'project-3': 'workspace:*',
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-odd': '1.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '2.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-odd': '1.0.0',
+      },
+    },
+  ])
+
+  for (const name of ['project-1', 'project-2', 'project-3']) {
+    fs.writeFileSync(`${name}/test.js`, '', 'utf8')
+    fs.writeFileSync(`${name}/index.js`, '', 'utf8')
+  }
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  expect(globalWarn).toHaveBeenCalledWith('Shared lockfile not found. Falling back to installing without a lockfile.')
+
+  const project = assertProject(path.resolve('deploy'))
+  project.has('project-2')
+  project.has('is-positive')
+  project.hasNot('project-3')
+  project.hasNot('is-negative')
+  expect(fs.existsSync('deploy/index.js')).toBeTruthy()
+  expect(fs.existsSync('deploy/test.js')).toBeFalsy()
+  expect(fs.existsSync('deploy/node_modules/.modules.yaml')).toBeTruthy()
+  expect(fs.existsSync('deploy/node_modules/.pnpm/project-2@file+project-2/node_modules/project-2/index.js')).toBeTruthy()
+  expect(fs.existsSync('deploy/node_modules/.pnpm/project-2@file+project-2/node_modules/project-2/test.js')).toBeFalsy()
+  expect(fs.existsSync('deploy/node_modules/.pnpm/project-3@file+project-3/node_modules/project-3/index.js')).toBeTruthy()
+  expect(fs.existsSync('deploy/node_modules/.pnpm/project-3@file+project-3/node_modules/project-3/test.js')).toBeFalsy()
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/13754
+test('legacy deploy injects workspace dependencies that the shared lockfile links', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: true,
+    injectWorkspacePackages: false,
+    production: true,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+  expect(assertProject(process.cwd()).readLockfile().importers['project-1'].dependencies!['project-2'].version).toBe('link:../project-2')
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    forceLegacyDeploy: true,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const deployDir = path.resolve('deploy')
+  expect(fs.realpathSync(path.join(deployDir, 'node_modules/project-2'))).toBe(
+    path.join(deployDir, 'node_modules/.pnpm/project-2@file+project-2/node_modules/project-2')
+  )
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/15352
+test('legacy deploy leaves the workspace state of the source workspace untouched', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+  ])
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+  const workspaceStatePath = path.resolve('node_modules/.pnpm-workspace-state-v1.json')
+  const workspaceStateBeforeDeploy = fs.readFileSync(workspaceStatePath, 'utf8')
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    forceLegacyDeploy: true,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  expect(fs.existsSync('deploy/node_modules/project-2')).toBeTruthy()
+  expect(fs.readFileSync(workspaceStatePath, 'utf8')).toBe(workspaceStateBeforeDeploy)
+})
+
+test('native deploy creates a dedicated lockfile from linked workspace dependencies', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  })
+  expect(assertProject(process.cwd()).readLockfile().importers['project-1'].dependencies!['project-2'].version).toBe('link:../project-2')
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const deployDir = path.resolve('deploy')
+  const virtualStoreDir = `${path.join(deployDir, 'node_modules/.pnpm')}${path.sep}`
+  expect(assertProject(deployDir).readLockfile().importers['.'].dependencies!['project-2'].version).toMatch(/^project-2@file:/)
+
+  const deployedDependencyDir = fs.realpathSync(path.join(deployDir, 'node_modules/project-2'))
+  expect(deployedDependencyDir.startsWith(virtualStoreDir)).toBeTruthy()
+  const deployedDependencyModulesDir = path.dirname(deployedDependencyDir)
+  expect(fs.existsSync(path.join(deployedDependencyModulesDir, 'is-positive'))).toBeTruthy()
+  expect(fs.realpathSync(path.join(deployedDependencyModulesDir, 'project-3')).startsWith(virtualStoreDir)).toBeTruthy()
+})
+
+test('native deploy binds a linked workspace package peer to the deployed resolution', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+    {
+      // The workspace resolves this peer from project-2's own devDependencies,
+      // which the production deploy leaves behind.
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': '*',
+      },
+      devDependencies: {
+        '@pnpm.e2e/peer-a': '1.0.1',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const deployDir = path.resolve('deploy')
+  const deployedDependencyDir = fs.realpathSync(path.join(deployDir, 'node_modules/project-2'))
+  const peerDir = path.join(path.dirname(deployedDependencyDir), '@pnpm.e2e/peer-a')
+  expect(fs.existsSync(peerDir)).toBeTruthy()
+  expect(loadJsonFileSync<{ version: string }>(path.join(peerDir, 'package.json')).version).toBe('1.0.0')
+})
+
+// Deploy does not adjudicate peer ranges. Injecting the package binds the
+// consumer's version even when it falls outside the declared range - pnpm
+// treats that as a resolution-time warning - so the non-injected path binds it
+// too rather than inventing a stricter rule for linked packages.
+test('native deploy binds a linked workspace package peer that falls outside the declared range', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': '1.0.1',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const deployDir = path.resolve('deploy')
+  const deployedDependencyDir = fs.realpathSync(path.join(deployDir, 'node_modules/project-2'))
+  const peerDir = path.join(path.dirname(deployedDependencyDir), '@pnpm.e2e/peer-a')
+  expect(loadJsonFileSync<{ version: string }>(path.join(peerDir, 'package.json')).version).toBe('1.0.0')
+})
+
+test('native deploy refuses a linked workspace package whose peer resolves to more than one version', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        'project-3': 'workspace:*',
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': '*',
+      },
+    },
+    {
+      // Puts a second resolution of the peer into the deployed graph.
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/peer-a': '1.0.1',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  // The rendered wording is shared with pacquet's ERR_PNPM_DEPLOY_AMBIGUOUS_PEER;
+  // keep the two in step.
+  await expect(
+    deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_DEPLOY_AMBIGUOUS_PEER',
+    message: expect.stringMatching(/Workspace package 'project-2' declares a peer dependency on '@pnpm\.e2e\/peer-a'.*more than one version \(1\.0\.0, 1\.0\.1\)/),
+    hint: expect.stringContaining('Pin \'@pnpm.e2e/peer-a\' to a single version with an "overrides" entry'),
+  })
+})
+
+// A peer that the package also declares as an optional dependency is already
+// bound. Re-binding it would copy it into the required map and quietly promote
+// it, changing what --no-optional and a failed fetch mean for it.
+test('native deploy keeps an optional peer of a linked workspace package optional', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': '*',
+      },
+      optionalDependencies: {
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const snapshots = assertProject(path.resolve('deploy')).readLockfile().snapshots
+  const [, lib] = Object.entries(snapshots).find(([key]) => key.startsWith('project-2@file:'))!
+  expect(lib.optionalDependencies?.['@pnpm.e2e/peer-a']).toBeDefined()
+  expect(lib.dependencies?.['@pnpm.e2e/peer-a']).toBeUndefined()
+})
+
+test('deploy --prod preserves optional dependencies of referenced workspace dependencies even when declared as devDependencies elsewhere (pnpm/pnpm#8269)', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+      },
+      devDependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      optionalDependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      devDependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dev: true,
+    dir: process.cwd(),
+    production: true,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await deploy.handler({ ...opts, dev: false, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const project = assertProject(path.resolve('deploy'))
+  project.has('project-2')
+  project.hasNot('is-negative')
+  const p2Real = fs.realpathSync(path.resolve('deploy/node_modules/project-2'))
+  expect(fs.existsSync(path.join(path.dirname(p2Real), 'is-positive'))).toBe(true)
+  const pnpmDir = fs.readdirSync(path.resolve('deploy/node_modules/.pnpm'))
+  expect(pnpmDir.some((dir) => dir.includes('is-positive'))).toBe(true)
+})
+
+// --no-optional clears the optional map before the binding step, so the binder
+// cannot see that the peer was already bound by an optional edge. Re-binding it
+// there would resurrect a dependency the flag excluded.
+test('native deploy does not resurrect an optional peer excluded by --no-optional', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': '*',
+      },
+      optionalDependencies: {
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await deploy.handler({ ...opts, optional: false, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const snapshots = assertProject(path.resolve('deploy')).readLockfile().snapshots
+  const [, lib] = Object.entries(snapshots).find(([key]) => key.startsWith('project-2@file:'))!
+  expect(lib.dependencies?.['@pnpm.e2e/peer-a']).toBeUndefined()
+})
+
+// The remedy ERR_PNPM_DEPLOY_AMBIGUOUS_PEER suggests: collapsing the peer to one
+// version makes the binding unambiguous, so the deploy goes through without
+// injecting the workspace or falling back to the legacy implementation.
+test('an override collapsing the peer unblocks a non-injected deploy', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        'project-3': 'workspace:*',
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': '*',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/peer-a': '1.0.1',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    overrides: { '@pnpm.e2e/peer-a': '1.0.0' },
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const deployDir = path.resolve('deploy')
+  const deployedDependencyDir = fs.realpathSync(path.join(deployDir, 'node_modules/project-2'))
+  const peerDir = path.join(path.dirname(deployedDependencyDir), '@pnpm.e2e/peer-a')
+  expect(loadJsonFileSync<{ version: string }>(path.join(peerDir, 'package.json')).version).toBe('1.0.0')
+})
+
+test('deploy in workspace with shared-workspace-lockfile=false', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'project-2': 'workspace:*',
+        'is-positive': '1.0.0',
+      },
+      devDependencies: {
+        'project-3': 'workspace:*',
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-odd': '1.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '2.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-odd': '1.0.0',
+      },
+    },
+  ])
+
+  for (const name of ['project-1', 'project-2', 'project-3']) {
+    fs.writeFileSync(`${name}/test.js`, '', 'utf8')
+    fs.writeFileSync(`${name}/index.js`, '', 'utf8')
+  }
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: false,
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const project = assertProject(path.resolve('deploy'))
+  project.has('project-2')
+  project.has('is-positive')
+  project.hasNot('project-3')
+  project.hasNot('is-negative')
+  expect(fs.existsSync('deploy/index.js')).toBeTruthy()
+  expect(fs.existsSync('deploy/test.js')).toBeFalsy()
+  expect(fs.existsSync('deploy/node_modules/.modules.yaml')).toBeTruthy()
+  expect(fs.existsSync('deploy/node_modules/.pnpm/project-2@file+..+project-2/node_modules/project-2/index.js')).toBeTruthy()
+  expect(fs.existsSync('deploy/node_modules/.pnpm/project-2@file+..+project-2/node_modules/project-2/test.js')).toBeFalsy()
+  expect(fs.existsSync('deploy/node_modules/.pnpm/project-3@file+..+project-3/node_modules/project-3/index.js')).toBeTruthy()
+  expect(fs.existsSync('deploy/node_modules/.pnpm/project-3@file+..+project-3/node_modules/project-3/test.js')).toBeFalsy()
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
+})
+
+test('deploy with node-linker=hoisted', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'project-2': 'workspace:*',
+        'is-positive': '1.0.0',
+      },
+      devDependencies: {
+        'project-3': 'workspace:*',
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-odd': '1.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '2.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-odd': '1.0.0',
+      },
+    },
+  ])
+
+  ; ['project-1', 'project-2', 'project-3'].forEach(name => {
+    fs.writeFileSync(`${name}/test.js`, '', 'utf8')
+    fs.writeFileSync(`${name}/index.js`, '', 'utf8')
+  })
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    nodeLinker: 'hoisted',
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['dist'])
+
+  const project = assertProject(path.resolve('dist'))
+  project.has('project-2')
+  project.has('is-positive')
+  project.has('project-3')
+  project.hasNot('is-negative')
+  expect(fs.existsSync('dist/index.js')).toBeTruthy()
+  expect(fs.existsSync('dist/test.js')).toBeFalsy()
+  expect(fs.existsSync('dist/node_modules/.modules.yaml')).toBeTruthy()
+  expect(fs.existsSync('dist/node_modules/project-2/index.js')).toBeTruthy()
+  expect(fs.existsSync('dist/node_modules/project-2/test.js')).toBeFalsy()
+  expect(fs.existsSync('dist/node_modules/project-3/index.js')).toBeTruthy()
+  expect(fs.existsSync('dist/node_modules/project-3/test.js')).toBeFalsy()
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
+})
+
+// https://github.com/pnpm/pnpm/issues/9671
+test('legacy deploy with node-linker=hoisted puts the direct dependency versions at the top level', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/has-peer-c-in-deps': '1.0.0',
+        '@pnpm.e2e/peer-c': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    forceLegacyDeploy: true,
+    recursive: true,
+    selectedProjectsGraph,
+    nodeLinker: 'hoisted',
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  expect(loadJsonFileSync<{ version: string }>('deploy/node_modules/@pnpm.e2e/peer-c/package.json').version).toBe('1.0.0')
+  expect(loadJsonFileSync<{ version: string }>('deploy/node_modules/@pnpm.e2e/has-peer-c-in-deps/node_modules/@pnpm.e2e/peer-c/package.json').version).toBe('2.0.0')
+  expect(fs.existsSync('project-1/node_modules')).toBeFalsy()
+})
+
+// Similar to the test above making sure pnpm deploy works with
+// node-linker=hoisted, but we should also make sure not to link projects not in
+// the dependency graph of the deployed package.
+//
+// Let's check node-linker=isolated as well for good measure.
+test.each(['isolated', 'hoisted'] as const)(
+  'deploy does not link unnecessary workspace packages when node-linker=%p',
+  async (nodeLinker) => {
+    preparePackages([
+      {
+        location: '.',
+        package: {
+          name: 'root',
+        },
+      },
+      {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: {
+          'project-2': 'workspace:*',
+          'is-positive': '1.0.0',
+        },
+      },
+      {
+        name: 'project-2',
+        version: '2.0.0',
+      },
+      {
+        name: 'project-3',
+        version: '2.0.0',
+        dependencies: {
+          'is-odd': '1.0.0',
+        },
+      },
+    ])
+
+    const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+    await deploy.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      dev: false,
+      production: true,
+      recursive: true,
+      selectedProjectsGraph,
+      nodeLinker,
+      sharedWorkspaceLockfile: true,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+    }, ['dist'])
+
+    const project = assertProject(path.resolve('dist'))
+
+    project.has('project-2')
+    project.has('is-positive')
+
+    // project-3 should not be deployed since it's not in the dependency graph of
+    // project-1. "is-odd" should not be deployed either since it's only a
+    // dependency of project-3.
+    project.hasNot('project-3')
+    project.hasNot('is-odd')
+  }
+)
+
+test('deploy fails when the destination directory exists and is not empty', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+      files: ['index.js'],
+      dependencies: {},
+      devDependencies: {},
+    },
+  ])
+  fs.writeFileSync('project/index.js', '', 'utf8')
+
+  const deployPath = 'deploy'
+  fs.writeFileSync(deployPath, 'aaa', 'utf8')
+  const deployFullPath = path.resolve(deployPath)
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
+
+  await expect(() =>
+    deploy.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      dev: false,
+      production: true,
+      recursive: true,
+      selectedProjectsGraph,
+      sharedWorkspaceLockfile: true,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+    }, [deployPath])).rejects.toThrow(`Deploy path ${deployFullPath} is not empty`)
+
+  expect(fs.existsSync(`${deployPath}/index.js`)).toBeFalsy() // no changes to the deploy path are made
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
+})
+
+test('forced deploy succeeds with a warning when destination directory exists and is not empty', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+      devDependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+  fs.writeFileSync('project/index.js', '', 'utf8')
+
+  const deployPath = 'deploy'
+  fs.writeFileSync(deployPath, 'aaa', 'utf8')
+  const deployFullPath = path.resolve(deployPath)
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    force: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, [deployPath])
+
+  expect(warn).toHaveBeenCalledWith({
+    message: expect.stringMatching(/^using --force, deleting deploy pat/),
+    prefix: deployFullPath,
+  })
+
+  // deployed successfully
+  const project = assertProject(deployFullPath)
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(fs.existsSync('deploy/index.js')).toBeTruthy()
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
+
+  warn.mockRestore()
+})
+
+test('forced deploy rejects target outside the workspace', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+      files: ['index.js'],
+      dependencies: {},
+      devDependencies: {},
+    },
+  ])
+  fs.writeFileSync('project/index.js', '', 'utf8')
+  const outside = path.resolve('..', 'outside-deploy')
+  fs.mkdirSync(outside, { recursive: true })
+  fs.writeFileSync(path.join(outside, 'keep.txt'), 'keep', 'utf8')
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
+
+  await expect(() =>
+    deploy.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      dev: false,
+      force: true,
+      production: true,
+      recursive: true,
+      selectedProjectsGraph,
+      sharedWorkspaceLockfile: true,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+    }, [outside])).rejects.toThrow(`Refusing to deploy to unsafe target ${outside}: target is outside the workspace`)
+
+  expect(fs.readFileSync(path.join(outside, 'keep.txt'), 'utf8')).toBe('keep')
+})
+
+test('forced deploy accepts workspace child target with dot-dot prefix', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+      files: ['index.js'],
+      dependencies: {},
+      devDependencies: {},
+    },
+  ])
+  fs.writeFileSync('project/index.js', '', 'utf8')
+  fs.mkdirSync('..deploy')
+  fs.writeFileSync(path.join('..deploy', 'stale.txt'), 'stale', 'utf8')
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    force: true,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['..deploy'])
+
+  expect(fs.existsSync(path.join('..deploy', 'index.js'))).toBeTruthy()
+  expect(fs.existsSync(path.join('..deploy', 'stale.txt'))).toBeFalsy()
+})
+
+testOnNonWindows('deploy rejects symlinked target parent', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+      files: ['index.js'],
+      dependencies: {},
+      devDependencies: {},
+    },
+  ])
+  fs.writeFileSync('project/index.js', '', 'utf8')
+  const outside = path.resolve('..', 'outside-target')
+  fs.mkdirSync(outside, { recursive: true })
+  fs.symlinkSync(outside, 'out', 'dir')
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
+
+  await expect(() =>
+    deploy.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      dev: false,
+      force: true,
+      production: true,
+      recursive: true,
+      selectedProjectsGraph,
+      sharedWorkspaceLockfile: true,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+    }, ['out/deploy'])).rejects.toThrow(`Refusing to deploy to unsafe target ${path.resolve('out')}: target path contains a symlink`)
+
+  expect(fs.existsSync(path.join(outside, 'deploy'))).toBeFalsy()
+})
+
+test('deploy with dedupePeerDependents=true ignores the value of dedupePeerDependents', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      location: './sub-dir/project-2',
+      package: {
+        name: 'project-2',
+        version: '2.0.0',
+        dependencies: {
+          'is-odd': '1.0.0',
+        },
+      },
+    },
+    {
+      name: 'project-3',
+      version: '2.0.0',
+      dependencies: {
+        'is-number': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph, allProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+    dedupePeerDependents: true, // This is ignored by deploy
+  }, ['deploy'])
+  const project = assertProject(path.resolve('deploy'))
+  project.has('is-positive')
+  expect(fs.existsSync('sub-dir/deploy')).toBe(false)
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/8297 (pnpm deploy doesn't replace catalog: protocol)
+test('deploy works when workspace packages use catalog protocol', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      dependencies: {
+        'project-2': 'workspace:*',
+        'is-positive': 'catalog:',
+      },
+    },
+    {
+      name: 'project-2',
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-positive': 'catalog:',
+      },
+    },
+    {
+      name: 'project-3',
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-positive': 'catalog:',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const catalogs = {
+    default: {
+      'is-positive': '1.0.0',
+    },
+  }
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    catalogs,
+    dir: process.cwd(),
+    dev: true,
+    production: true,
+    lockfileOnly: true,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    catalogs,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  // Make sure the is-positive cataloged dependency was actually installed.
+  expect(fs.existsSync('deploy/node_modules/is-positive')).toBeTruthy()
+  expect(assertProject(path.resolve('deploy')).readLockfile()).not.toHaveProperty('catalogs')
+})
+
+test('deploy does not preserve the inject workspace packages settings in the lockfile', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+      devDependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'unused',
+      version: '1.0.0',
+      dependencies: {
+        'is-odd': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: true,
+    production: true,
+    lockfileOnly: true,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['dist'])
+
+  const project = assertProject(path.resolve('dist'))
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  const lockfile = project.readLockfile()
+  const packageKeys = Object.keys(lockfile.packages)
+  expect(packageKeys.some((key) => key.startsWith('is-positive@'))).toBeTruthy()
+  expect(packageKeys.some((key) => key.startsWith('is-negative@'))).toBeFalsy()
+  expect(packageKeys.some((key) => key.startsWith('is-odd@'))).toBeFalsy()
+  expect(lockfile.settings).not.toHaveProperty('injectWorkspacePackages')
+})
+
+test('deploy: preserves internal symlinks in deployed package', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        private: true,
+      },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+
+  fs.writeFileSync('project/real-file.txt', 'hello from real file')
+  fs.mkdirSync('project/sub')
+  fs.writeFileSync('project/sub/nested.txt', 'nested content')
+  fs.symlinkSync('real-file.txt', 'project/symlink-file.txt', 'file')
+  fs.symlinkSync('sub', 'project/symlink-dir', 'dir')
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: false,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['dist'])
+
+  expect(fs.lstatSync('dist/symlink-file.txt').isSymbolicLink()).toBe(true)
+  expect(path.resolve('dist', fs.readlinkSync('dist/symlink-file.txt'))).toBe(path.resolve('dist', 'real-file.txt'))
+  expect(fs.readFileSync('dist/symlink-file.txt', 'utf8')).toBe('hello from real file')
+
+  expect(fs.lstatSync('dist/symlink-dir').isSymbolicLink()).toBe(true)
+  expect(path.resolve('dist', fs.readlinkSync('dist/symlink-dir'))).toBe(path.resolve('dist', 'sub'))
+  expect(fs.readFileSync('dist/symlink-dir/nested.txt', 'utf8')).toBe('nested content')
+})
+
+test.each([
+  { mode: 'native', forceLegacyDeploy: false },
+  { mode: 'legacy', forceLegacyDeploy: true },
+])('$mode deploy copies the package manager pin of the workspace root', async ({ forceLegacyDeploy }) => {
+  const workspaceRootManifest = {
+    name: 'root',
+    version: '1.0.0',
+    private: true,
+    packageManager: 'pnpm@10.18.0',
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '^10.18.0', onFail: 'download' as const },
+    },
+  }
+  preparePackages([
+    {
+      location: '.',
+      package: workspaceRootManifest,
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+      },
+      devEngines: {
+        runtime: { name: 'node', version: '*' },
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    rootProjectManifest: { name: 'root', version: '1.0.0', private: true },
+    enginePinManifest: workspaceRootManifest,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler({ ...opts, dev: true, production: true })
+  await deploy.handler({ ...opts, dev: false, forceLegacyDeploy, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const deployedManifest = loadJsonFileSync<Record<string, unknown>>(path.resolve('deploy/package.json'))
+  expect(deployedManifest.packageManager).toBe('pnpm@10.18.0')
+  expect(deployedManifest.devEngines).toStrictEqual({
+    packageManager: { name: 'pnpm', version: '^10.18.0', onFail: 'download' },
+    runtime: { name: 'node', version: '*' },
+  })
+})
+
+test.each([
+  { mode: 'native', forceLegacyDeploy: false },
+  { mode: 'legacy', forceLegacyDeploy: true },
+])('$mode deploy keeps the package manager pin of the deployed project', async ({ forceLegacyDeploy }) => {
+  const rootProjectManifest = {
+    name: 'root',
+    version: '1.0.0',
+    private: true,
+    packageManager: 'pnpm@10.18.0',
+  }
+  preparePackages([
+    {
+      location: '.',
+      package: rootProjectManifest,
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      devEngines: {
+        packageManager: { name: 'pnpm', version: '^11.0.0' },
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    rootProjectManifest,
+    enginePinManifest: rootProjectManifest,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler({ ...opts, dev: true, production: true })
+  await deploy.handler({ ...opts, dev: false, forceLegacyDeploy, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const deployedManifest = loadJsonFileSync<Record<string, unknown>>(path.resolve('deploy/package.json'))
+  expect(deployedManifest.packageManager).toBeUndefined()
+  expect(deployedManifest.devEngines).toStrictEqual({
+    packageManager: { name: 'pnpm', version: '^11.0.0' },
+  })
+})

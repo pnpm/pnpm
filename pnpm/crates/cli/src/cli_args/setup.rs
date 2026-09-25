@@ -1,0 +1,373 @@
+//! `pacquet setup` — make pnpm available for global use.
+//!
+//! The CLI is installed into the global packages directory, the `pn` /
+//! `pnpx` / `pnx` alias scripts are written into `$PNPM_HOME/bin`, and
+//! `PNPM_HOME` plus `$PNPM_HOME/bin` are added to the user's environment
+//! (the shell rc file on POSIX, the registry on Windows).
+
+mod gh_actions_env;
+mod path_extender;
+
+use clap::Args;
+use miette::{Context, IntoDiagnostic};
+use path_extender::{
+    AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderReport,
+};
+use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir};
+use pnpm_fs::write_atomic;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use std::{fs, path::Path, process::Command};
+
+#[derive(Debug, Args)]
+pub struct SetupArgs {
+    /// Override the `PNPM_HOME` env variable in case it already exists.
+    // `help` carries the verbatim pnpm wording (un-backticked) for `--help`,
+    // while the doc comment keeps backticks for rustdoc.
+    #[clap(
+        long,
+        short = 'f',
+        help = "Override the PNPM_HOME env variable in case it already exists"
+    )]
+    pub force: bool,
+}
+
+impl SetupArgs {
+    pub async fn run<Reporter: self::Reporter + 'static>(self, dir: &Path) -> miette::Result<()> {
+        let output = handler::<Reporter>(self.force, dir)?;
+        println!("{output}");
+        Ok(())
+    }
+}
+
+fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miette::Result<String> {
+    let pnpm_home_dir = default_pnpm_home_dir::<Host>().ok_or_else(|| {
+        miette::miette!(
+            "Could not determine the pnpm home directory. Set the PNPM_HOME environment variable."
+        )
+    })?;
+    // Validate before any side effect: an unsafe `PNPM_HOME` must not reach
+    // the self-install subprocess's `PATH` or the alias-script writes.
+    path_extender::validate_pnpm_home_dir(&pnpm_home_dir)?;
+    let bin_dir = pnpm_home_dir.join("bin");
+    gh_actions_env::validate_gh_actions_env_file_values::<Host>(&pnpm_home_dir, &bin_dir)?;
+
+    let exec_path = std::env::current_exe()
+        .into_diagnostic()
+        .wrap_err("determine the path to the pnpm executable")?;
+    // pacquet is always a native executable (never a `.js` entrypoint), so
+    // pnpm's single-executable branch always applies: install the CLI
+    // globally and write the alias scripts.
+    install_cli_globally::<Reporter>(&exec_path, &pnpm_home_dir, dir)?;
+    {
+        let _global_bin_lock = super::global_bin_lock::acquire_global_bin_lock(&bin_dir)?;
+        create_alias_scripts(&bin_dir)
+            .into_diagnostic()
+            .wrap_err("create the pnpm alias scripts")?;
+    }
+
+    let report = path_extender::add_dir_to_env_path(
+        &pnpm_home_dir,
+        &AddDirToEnvPathOpts {
+            config_section_name: "pnpm",
+            proxy_var_name: Some("PNPM_HOME"),
+            proxy_var_sub_dir: Some("bin"),
+            overwrite: force,
+            position: AddingPosition::Start,
+        },
+    )?;
+    gh_actions_env::write_gh_actions_env_files::<Reporter, Host>(dir, &pnpm_home_dir, &bin_dir);
+    remove_legacy_homedir_shims(&pnpm_home_dir);
+    Ok(render_setup_output(&report))
+}
+
+/// Install the CLI as a global package using `pnpm add -g file:<dir>`,
+/// placing it in the standard global directory alongside other globally
+/// installed packages.
+fn install_cli_globally<Reporter: self::Reporter + 'static>(
+    exec_path: &Path,
+    pnpm_home_dir: &Path,
+    prefix_dir: &Path,
+) -> miette::Result<()> {
+    let exec_dir = exec_path
+        .parent()
+        .ok_or_else(|| miette::miette!("the pnpm executable has no parent directory"))?;
+    let exec_name = exec_path
+        .file_name()
+        .ok_or_else(|| miette::miette!("the pnpm executable has no file name"))?
+        .to_string_lossy()
+        .into_owned();
+    let pkg_json_path = exec_dir.join("package.json");
+
+    // Write a package.json if one doesn't already exist. (Updated tarballs
+    // ship with package.json already.)
+    let created_pkg_json = !pkg_json_path.exists();
+    if created_pkg_json {
+        fs::write(&pkg_json_path, standalone_manifest(&exec_name).to_string())
+            .into_diagnostic()
+            .wrap_err("write the temporary package.json next to the pnpm executable")?;
+    }
+
+    info::<Reporter>(
+        &prefix_dir.to_string_lossy(),
+        &format!("Installing pnpm CLI globally from {}", exec_dir.display()),
+    );
+
+    // The published `pnpm` package ships a preinstall/postinstall pair that
+    // hardlinks the platform-specific binary out of its optional platform
+    // packages. None of that applies here: this `file:` dependency is the
+    // standalone executable itself, the platform packages aren't installed
+    // alongside it, and the host may have no `node` to run the scripts.
+    // Skipping them also avoids a build-approval prompt for pnpm's own
+    // install.
+    let separator = if cfg!(windows) { ";" } else { ":" };
+    // Build `PATH` as an `OsString` so a non-UTF-8 ambient `PATH` is
+    // preserved verbatim rather than lost to a lossy string conversion.
+    let mut path_value = pnpm_home_dir.join("bin").into_os_string();
+    path_value.push(separator);
+    if let Some(existing) = std::env::var_os("PATH") {
+        path_value.push(existing);
+    }
+    let status = Command::new(exec_path)
+        .args(["add", "-g", "--ignore-scripts", &format!("file:{}", exec_dir.display())])
+        .env("PNPM_HOME", pnpm_home_dir)
+        .env("PATH", path_value)
+        .status();
+
+    // Always attempt the cleanup, but let the install error take precedence
+    // over a cleanup error.
+    let cleanup = if created_pkg_json { fs::remove_file(&pkg_json_path) } else { Ok(()) };
+
+    let status = status.into_diagnostic().wrap_err("run the global pnpm install")?;
+    if !status.success() {
+        let code = status.code().map_or_else(|| "unknown".to_string(), |code| code.to_string());
+        return Err(miette::miette!("Failed to install pnpm globally (exit code {code})"));
+    }
+    cleanup
+        .into_diagnostic()
+        .wrap_err("remove the temporary package.json next to the pnpm executable")?;
+    Ok(())
+}
+
+/// The manifest `pnpm setup` writes next to a standalone executable that ships
+/// without one, so the global install has a package to install.
+///
+/// The package is `pnpm`, the name `pnpm self-update` installs the engine
+/// under, so both link the same shims (see `wants_powershell_shim` in the
+/// cmd-shim crate).
+///
+/// `type: module` matters even though nothing here is imported as a package:
+/// without it Node.js reparses the ESM files shipped alongside the executable
+/// as `CommonJS` first and warns on every spawn.
+fn standalone_manifest(exec_name: &str) -> serde_json::Value {
+    serde_json::json!({
+        "name": "pnpm",
+        "version": PNPM_VERSION,
+        "type": "module",
+        "bin": { "pnpm": exec_name, "pn": exec_name },
+        "files": [exec_name, "dist/"],
+    })
+}
+
+/// Write the `pn` / `pnpx` / `pnx` wrapper scripts into `$PNPM_HOME/bin`.
+///
+/// Script files are used instead of shell aliases because aliases don't work
+/// across all shells (Windows `cmd`, POSIX `sh`) or environments
+/// (non-interactive, CI), can't be located with `which` / `where`, and
+/// editing rc files is more error-prone than writing files.
+fn create_alias_scripts(target_dir: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(target_dir)?;
+    create_shell_script(target_dir, "pn", "")?;
+    create_shell_script(target_dir, "pnpx", " dlx")?;
+    create_shell_script(target_dir, "pnx", " dlx")?;
+    Ok(())
+}
+
+/// Write one alias, `subcommand` being the shell text it appends to the pnpm
+/// call (`" dlx"` for `pnpx` and `pnx`).
+///
+/// The sibling each form reaches is the bin `pnpm add -g` linked for the CLI this
+/// command just installed: a `pnpm` shim and, on Windows, its `pnpm.cmd` twin.
+/// `link_bins` writes a bare `pnpm.exe` only for the `node` bin name, so each
+/// form has exactly one sibling to name.
+fn create_shell_script(target_dir: &Path, name: &str, subcommand: &str) -> std::io::Result<()> {
+    // Windows can also run shell scripts via mingw / cygwin, so write the
+    // POSIX script unconditionally.
+    let script_path = target_dir.join(name);
+    // Replaced by a rename, never truncated: the name can already be a hardlink
+    // of the running pnpm executable, and Linux refuses that open with ETXTBSY.
+    write_atomic(&script_path, posix_alias_script(name, subcommand).as_bytes())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755))?;
+    }
+
+    if cfg!(windows) {
+        write_windows_alias_wrappers(target_dir, name, subcommand)?;
+    }
+    Ok(())
+}
+
+/// The `sh` form of an alias, which reaches the sibling `pnpm` shim.
+fn posix_alias_script(name: &str, subcommand: &str) -> String {
+    format!(
+        r#"#!/bin/sh
+# `{name}` hands over to the pnpm installed beside it, found relative to this
+# file: a `PATH` lookup would run whatever other pnpm comes first there, and
+# would find nothing at all when the directory holding these bins is not on it.
+{RESOLVE_SELF}
+# The walk has to end at a regular file. Running out of hops leaves $self a
+# symlink; a chain that changed under us can leave it dangling or a directory, and
+# a failed readlink leaves a trailing slash. Each case would take `pnpm` from the
+# wrong directory — the substitution this script exists to prevent.
+if [ -L "$self" ] || [ ! -f "$self" ]; then
+  echo "{name}: could not resolve $0 to a regular file within 40 symlink hops." >&2
+  exit 1
+fi
+
+exec "${{self%/*}}/pnpm"{subcommand} "$@"
+"#,
+    )
+}
+
+/// The shell that walks `$0` to the alias's own file, shared by all three
+/// aliases because nothing in it depends on which one is being written.
+const RESOLVE_SELF: &str = r#"# $0 is whatever shim or symlink the alias was launched through, so walk to the
+# file itself before looking beside it. The hop cap matches the kernel's ELOOP
+# limit, so a cycle cannot hang the script. Directories come from `${self%/*}`
+# and `readlink` runs through `command -p`, so the caller's `PATH` decides
+# nothing here.
+#
+# Where no default path is compiled in, as on Nix, `command -p` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=${PATH+set}
+caller_path=${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=${rest%%:*}
+  rest=${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=${helper_path:-/}
+self=$0
+# MSYS and Cygwin can launch this with a native Windows path, which has no slash
+# for `${self%/*}` to strip. Only a drive letter or a UNC prefix marks one; a
+# backslash anywhere else is an ordinary character in a Unix file name, so the
+# path is left alone. The separators are swapped in the shell rather than through
+# `echo`, which mangles a `\t` or `\b` in a path under dash.
+case $self in
+  [A-Za-z]:\\*|\\\\*)
+    while :; do
+      case $self in
+        *\\*) self=${self%%\\*}/${self#*\\} ;;
+        *) break ;;
+      esac
+    done
+    ;;
+esac
+# `${self%/*}` needs a slash to strip. A bare name came from a `PATH` lookup
+# and stands for a file in the current directory.
+case $self in
+  */*) ;;
+  *) self=./$self ;;
+esac
+hops=0
+while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops + 1))
+  link=$(command -p readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=${self%/*}/$link ;;
+  esac
+done
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi"#;
+
+/// The `cmd.exe` and PowerShell forms of an alias, each reaching the sibling
+/// shim written for its own shell.
+fn write_windows_alias_wrappers(
+    target_dir: &Path,
+    name: &str,
+    subcommand: &str,
+) -> std::io::Result<()> {
+    // The sibling is invoked directly, the way the generated `.cmd` shims invoke
+    // theirs. Through `call` the forwarded arguments would take a second round of
+    // `%`-expansion, and the exit code is the shim's either way, since this is the
+    // last command this script runs. `%~dp0` already ends in a backslash.
+    write_atomic(
+        &target_dir.join(format!("{name}.cmd")),
+        format!("@echo off\r\n\"%~dp0pnpm.cmd\"{subcommand} %*\r\n").as_bytes(),
+    )?;
+    // Also `pnpm.cmd`, not `pnpm.ps1`: the bin linker omits the PowerShell shim
+    // for a package named `pnpm` (see `wants_powershell_shim`), so the sibling
+    // `.ps1` may not exist while the `.cmd` always does. `$basedir` is spelled the
+    // way the generated `.ps1` shims spell it, so this works on PowerShell 2.0.
+    write_atomic(
+        &target_dir.join(format!("{name}.ps1")),
+        format!(
+            "$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n\
+             & \"$basedir\\pnpm.cmd\"{subcommand} @args\n\
+             exit $LastExitCode\n",
+        )
+        .as_bytes(),
+    )
+}
+
+/// v10-layout shim names that v11 writes under `pnpm_home_dir/bin` instead.
+const LEGACY_HOME_DIR_SHIM_NAMES: &[&str] = &[
+    "pnpm", "pnpm.cmd", "pnpm.ps1", "pn", "pn.cmd", "pn.ps1", "pnpx", "pnpx.cmd", "pnpx.ps1",
+    "pnx", "pnx.cmd", "pnx.ps1",
+];
+
+fn remove_legacy_homedir_shims(pnpm_home_dir: &Path) {
+    for name in LEGACY_HOME_DIR_SHIM_NAMES {
+        // A leftover shim is harmless once PATH points at bin/, so failure here is fine.
+        let _ = fs::remove_file(pnpm_home_dir.join(name));
+    }
+}
+
+/// Render the user-facing summary of what changed.
+fn render_setup_output(report: &PathExtenderReport) -> String {
+    if report.old_settings == report.new_settings {
+        return "No changes to the environment were made. Everything is already up to date."
+            .to_string();
+    }
+    let mut output = Vec::new();
+    if let Some(config_file) = &report.config_file {
+        output.push(report_config_change(config_file));
+    }
+    output.push(format!("The following configuration changes were made:\n{}", report.new_settings));
+    match &report.config_file {
+        None => output.push("Setup complete. Open a new terminal to start using pnpm.".to_string()),
+        Some(config_file) if config_file.change_type != ConfigFileChangeType::Skipped => output
+            .push(format!("To start using pnpm, run:\nsource {}\n", config_file.path.display())),
+        Some(_) => {}
+    }
+    output.join("\n\n")
+}
+
+fn report_config_change(config_report: &ConfigReport) -> String {
+    let path = config_report.path.display();
+    match config_report.change_type {
+        ConfigFileChangeType::Created => format!("Created {path}"),
+        ConfigFileChangeType::Appended => format!("Appended new lines to {path}"),
+        ConfigFileChangeType::Modified => format!("Replaced configuration in {path}"),
+        ConfigFileChangeType::Skipped => format!("Configuration already up to date in {path}"),
+    }
+}
+
+fn info<Reporter: self::Reporter>(prefix: &str, message: &str) {
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Info,
+        message: message.to_string(),
+        prefix: prefix.to_string(),
+    }));
+}
+
+#[cfg(test)]
+mod tests;

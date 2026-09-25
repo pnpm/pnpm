@@ -1,0 +1,31 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../pkg-manifest/utils"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../utils"
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+import path from 'node:path'
+
+import { beforeEach, expect, jest, test } from '@jest/globals'
+import { prepareEmpty } from '@pnpm/prepare'
+
+import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
+
+jest.unstable_mockModule('execa', () => ({
+  // The handler registers the returned subprocess with the child process
+  // tracker, so the mock returns a minimal subprocess-like object.
+  safeExeca: jest.fn(() => ({ pid: undefined, once: jest.fn() })),
+  sync: jest.fn(),
+}))
+
+const { safeExeca: execa } = await import('execa')
+const { dlx } = await import('@pnpm/exec.commands')
+
+beforeEach(() => {
+  jest.mocked(execa).mockClear()
+})
+
+test('dlx should work with scoped packages', async () => {
+  prepareEmpty()
+  const userAgent = 'pnpm/0.0.0'
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    userAgent,
+  }, ['@foo/touch-file-one-bin'])
+
+  expect(execa).toHaveBeenCalledWith('touch-file-one-bin', [], expect.objectContaining({
+    env: expect.objectContaining({
+      npm_config_user_agent: userAgent,
+      // Jest, not pnpm, is the entry here, so scripts get the pnpm on PATH.
+      npm_execpath: expect.stringMatching(/pnpm(?:\.\w+)?$/i),
+      INIT_CWD: process.cwd(),
+      npm_node_execpath: process.env.NODE || process.execPath,
+      NODE: process.env.NODE || process.execPath,
+    }),
+  }))
+})
+
+test('dlx should work with versioned packages', async () => {
+  prepareEmpty()
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+  }, ['@foo/touch-file-one-bin@latest'])
+
+  expect(execa).toHaveBeenCalledWith('touch-file-one-bin', [], expect.anything())
+})

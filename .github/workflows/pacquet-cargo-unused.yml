@@ -1,0 +1,70 @@
+# Run `cargo-unused-features` for finding out unused features
+# NOTE: this is broken for now, see https://github.com/TimonPost/cargo-unused-features/pull/10
+
+name: Pacquet Cargo Unused Features
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bloat:
+    name: Cargo Unused Features
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust Toolchain
+        uses: $/.github/actions/rustup
+
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+
+      - name: Install cargo-unused-features
+        uses: taiki-e/install-action@9983c65e42da123ff25d1f78505eb6de315aa172 # v2.87.20
+        with:
+          tool: cargo-unused-features
+
+      - name: Run
+        run: unused-features analyze
+
+  check-dependencies:
+    name: Check Unused Dependencies
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: |
+            src:
+              - 'Cargo.lock'
+
+      - name: Install Rust Toolchain
+        if: steps.filter.outputs.src == 'true'
+        uses: $/.github/actions/rustup
+
+      - name: Install crates
+        if: steps.filter.outputs.src == 'true'
+        uses: $/.github/actions/install-crates
+
+      - name: Install cargo-udeps
+        if: steps.filter.outputs.src == 'true'
+        uses: taiki-e/install-action@9983c65e42da123ff25d1f78505eb6de315aa172 # v2.87.20
+        with:
+          tool: cargo-udeps
+
+      - if: steps.filter.outputs.src == 'true'
+        run: cargo udeps

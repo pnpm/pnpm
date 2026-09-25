@@ -1,0 +1,234 @@
+import { PnpmError } from '@pnpm/error'
+import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
+import { parseNpmTarballUrl } from 'parse-npm-tarball-url'
+import semver from 'semver'
+import validateNpmPackageName from 'validate-npm-package-name'
+import getVersionSelectorType from 'version-selector-type'
+
+export interface RegistryPackageSpec {
+  type: 'tag' | 'version' | 'range'
+  name: string
+  fetchSpec: string
+  revision?: number
+  normalizedBareSpecifier?: string
+}
+
+interface VersionSelector {
+  type: RegistryPackageSpec['type']
+  normalized: string
+}
+
+export interface NpmAliasTarget {
+  /** The real package the alias points at. */
+  name: string
+  /** The selector declared for it, or undefined when the alias names none. */
+  versionSelector?: string
+}
+
+/**
+ * Split an `npm:` specifier into the package it names and the version selector
+ * declared for it. `npm:<name>@<selector>` points at `<name>`;
+ * `npm:<selector>` paired with a package alias points at the alias itself,
+ * mirroring the named-registry shape (e.g. `gh:^1.0.0`). That fallback is
+ * restricted to semver ranges and versions so unscoped package names like
+ * `npm:is-positive` keep their npm package-aliasing meaning. Returns null when
+ * the specifier is not an npm alias.
+ */
+export function parseNpmAliasTarget (bareSpecifier: string, alias: string | undefined): NpmAliasTarget | null {
+  if (!bareSpecifier.startsWith('npm:')) return null
+  const body = bareSpecifier.slice('npm:'.length)
+  if (alias && semver.validRange(body) != null) {
+    return { name: alias, versionSelector: body }
+  }
+  const versionDelimiter = body.lastIndexOf('@')
+  if (versionDelimiter < 1) return { name: body }
+  return {
+    name: body.slice(0, versionDelimiter),
+    versionSelector: body.slice(versionDelimiter + 1),
+  }
+}
+
+export function parseBareSpecifier (
+  bareSpecifier: string,
+  alias: string | undefined,
+  defaultTag: string,
+  registry: string
+): RegistryPackageSpec | null {
+  let name = alias
+  const npmAliasTarget = parseNpmAliasTarget(bareSpecifier, alias)
+  if (npmAliasTarget != null) {
+    name = npmAliasTarget.name
+    bareSpecifier = npmAliasTarget.versionSelector ?? defaultTag
+  }
+  if (name && !firstMemberHasColon(bareSpecifier)) {
+    const selector = getVersionSelectorType(bareSpecifier)
+    if (selector != null) {
+      return {
+        ...parseRevisionSelector(selector, bareSpecifier),
+        name,
+      }
+    }
+  }
+  if (bareSpecifier.startsWith(registry)) {
+    const pkg = parseNpmTarballUrl(bareSpecifier)
+    if (pkg != null) {
+      return {
+        fetchSpec: pkg.version,
+        name: pkg.name,
+        normalizedBareSpecifier: bareSpecifier,
+        type: 'version',
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Whether the first member of a version selector contains a colon, as a
+ * protocol-prefixed selector like `runtime:^22.0.0 || ^24.0.0` does. No npm
+ * version, range, or dist-tag contains one.
+ *
+ * Loose semver parsing drops a union member it cannot parse, so it reads that
+ * example as the npm range `^24.0.0`. A colon in a later member does not
+ * count, because merged peer ranges are joined with `||` and
+ * `^1.0.0 || workspace:^2.0.0` still resolves `^1.0.0` from the registry.
+ */
+function firstMemberHasColon (selector: string): boolean {
+  const colon = selector.indexOf(':')
+  return colon !== -1 && !/[\s|]/.test(selector.slice(0, colon))
+}
+
+export interface JsrRegistryPackageSpec extends RegistryPackageSpec {
+  jsrPkgName: string
+}
+
+export function parseJsrSpecifierToRegistryPackageSpec (
+  rawSpecifier: string,
+  alias: string | undefined,
+  defaultTag: string
+): JsrRegistryPackageSpec | null {
+  const spec = parseJsrSpecifier(rawSpecifier, alias)
+  if (!spec?.npmPkgName) return null
+
+  const selector = getVersionSelectorType(spec.versionSelector ?? defaultTag)
+  if (selector == null) return null
+
+  return {
+    ...parseRevisionSelector(selector, spec.versionSelector ?? defaultTag),
+    name: spec.npmPkgName,
+    jsrPkgName: spec.jsrPkgName,
+  }
+}
+
+export { BUILTIN_REGISTRIES_BY_PREFIX } from '@pnpm/constants'
+
+export interface NamedRegistryPackageSpec extends RegistryPackageSpec {
+  registryName: string
+}
+
+// Parses a named-registry specifier of the shape `<alias>:<body>` into a
+// RegistryPackageSpec. Returns `null` when the specifier does not use one of
+// the configured aliases, so the caller can fall through to other resolvers.
+// Throws INVALID_NAMED_REGISTRY_PACKAGE_NAME when the alias matches but the
+// package name is malformed (missing or empty scope/name segments, path
+// separators inside the name).
+// Supported shapes:
+// - `<alias>:[@<owner>/]<name>[@<version_selector>]`
+// - `<alias>:<version_selector>` paired with a package alias
+export function parseNamedRegistrySpecifierToRegistryPackageSpec (
+  rawSpecifier: string,
+  knownRegistryNames: ReadonlySet<string>,
+  packageAlias: string | undefined,
+  defaultTag: string
+): NamedRegistryPackageSpec | null {
+  const colon = rawSpecifier.indexOf(':')
+  if (colon <= 0) return null
+  const registryName = rawSpecifier.substring(0, colon)
+  if (!knownRegistryNames.has(registryName)) return null
+
+  const body = rawSpecifier.substring(colon + 1)
+  let pkgName: string
+  let versionSelector: string | undefined
+
+  if (semver.validRange(body) != null) {
+    // `<alias>:<version_selector>` — fall back to the dependency alias as
+    // the package name. Unresolvable without one.
+    if (!packageAlias) return null
+    pkgName = packageAlias
+    versionSelector = body
+  } else if (body[0] === '@') {
+    // `<alias>:@<owner>/<name>[@<version_selector>]` — scoped package.
+    const index = body.lastIndexOf('@')
+    if (index === 0) {
+      pkgName = body
+    } else {
+      pkgName = body.substring(0, index)
+      versionSelector = body.substring(index + '@'.length)
+    }
+  } else if (packageAlias?.startsWith('@')) {
+    // `<alias>:<tag>` paired with a scoped alias — body is a version
+    // selector (tag/dist-tag). Mirrors GitHub Packages, where the package
+    // is always scoped and a bare body is a tag.
+    pkgName = packageAlias
+    versionSelector = body
+  } else {
+    // `<alias>:<name>[@<version_selector>]` — unscoped package in body.
+    const index = body.lastIndexOf('@')
+    if (index < 1) {
+      pkgName = body
+    } else {
+      pkgName = body.substring(0, index)
+      versionSelector = body.substring(index + '@'.length)
+    }
+    if (!pkgName) return null
+  }
+
+  // The name is used in registry URLs and metadata cache file paths, so
+  // anything that is not a valid npm package name must never make it through.
+  if (!validateNpmPackageName(pkgName).validForOldPackages) {
+    throw new PnpmError(
+      'INVALID_NAMED_REGISTRY_PACKAGE_NAME',
+      `The package name '${pkgName}' in named registry '${registryName}:' is invalid`
+    )
+  }
+
+  const selector = getVersionSelectorType(versionSelector ?? defaultTag)
+  if (selector == null) return null
+
+  return {
+    ...parseRevisionSelector(selector, versionSelector ?? defaultTag),
+    name: pkgName,
+    registryName,
+  }
+}
+
+function parseRevisionSelector (
+  selector: VersionSelector,
+  rawSelector: string
+): Pick<RegistryPackageSpec, 'fetchSpec' | 'revision' | 'type'> {
+  if (selector.type !== 'version') {
+    return { fetchSpec: selector.normalized, type: selector.type }
+  }
+  const normalizedInput = rawSelector.trim()
+  const buildIndex = normalizedInput.indexOf('+')
+  if (buildIndex === -1) {
+    return { fetchSpec: selector.normalized, type: selector.type }
+  }
+  const build = normalizedInput.slice(buildIndex + 1)
+  if (build.length < 2 || build[0] !== 'r' || build.includes('.')) {
+    return { fetchSpec: selector.normalized, type: selector.type }
+  }
+  const digits = build.slice(1)
+  if (![...digits].every((char) => char >= '0' && char <= '9')) {
+    return { fetchSpec: selector.normalized, type: selector.type }
+  }
+  const revision = Number(digits)
+  if ((digits.length > 1 && digits[0] === '0') || !Number.isSafeInteger(revision)) {
+    throw new PnpmError('INVALID_REVISION_SPEC', `Invalid registry revision in version specifier "${rawSelector}"`)
+  }
+  return {
+    fetchSpec: selector.normalized,
+    revision,
+    type: selector.type,
+  }
+}

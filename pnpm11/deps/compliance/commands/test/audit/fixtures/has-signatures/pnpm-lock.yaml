@@ -1,0 +1,30 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@scope/signed-pkg':
+        specifier: 1.0.0
+        version: 1.0.0
+      signed-pkg:
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages:
+
+  '@scope/signed-pkg@1.0.0':
+    resolution: {integrity: sha512-scoped-test-integrity}
+
+  signed-pkg@1.0.0:
+    resolution: {integrity: sha512-test-integrity}
+
+snapshots:
+
+  '@scope/signed-pkg@1.0.0': {}
+
+  signed-pkg@1.0.0: {}

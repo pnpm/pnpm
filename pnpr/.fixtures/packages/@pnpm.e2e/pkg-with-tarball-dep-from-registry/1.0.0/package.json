@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/pkg-with-tarball-dep-from-registry",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/dep-of-pkg-with-1-dep": "http://localhost:7769/@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz"
+  }
+}

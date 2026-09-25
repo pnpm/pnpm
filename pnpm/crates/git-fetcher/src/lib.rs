@@ -1,0 +1,44 @@
+//! Fetchers for git-hosted dependencies, plus the `preparePackage`
+//! port both fetchers delegate to.
+//!
+//! Two fetcher entry points, sharing `prepare_package` / `packlist` /
+//! the CAS-import helpers:
+//!
+//! - [`GitFetcher`] handles `LockfileResolution::Git` — shells out to
+//!   the system `git` binary.
+//! - [`GitHostedTarballFetcher`] handles
+//!   `TarballResolution { gitHosted: true }` — picks up a tarball the
+//!   pacquet HTTP path has already downloaded into the CAS, materializes
+//!   it into a temp dir, and runs the same `prepare_package` + packlist
+//!   passes.
+//!
+//! `prepare_package` lives in this crate rather than a sibling because
+//! both fetchers above are its only consumers.
+
+pub use error::{GitFetcherError, PreparePackageError};
+pub use fetcher::{
+    CheckoutOptions, GitFetchOutput, GitFetcher, GitManifestQuery, cache_checkout_bundles,
+    checkout_cached_bundles, checkout_commit, checkout_existing_revision, checkout_revision,
+    checkout_submodules, checkout_submodules_offline, read_git_manifest,
+};
+pub use options::{GitSource, GitStoreContext, PrepareScriptOptions};
+pub use pnpm_fs_packlist::{PacklistError, packlist};
+pub use preferred_pm::{PreferredPm, WantedPm, detect_preferred_pm, detect_wanted_pm};
+pub use prepare_package::{
+    PreparePackageOptions, PreparedPackage, prepare_package, resolve_package_build_permission,
+};
+pub use protocols::{SUPPORTED_GIT_PROTOCOLS, read_allowed_git_protocols};
+pub use source_cache::GitSourceCache;
+pub use tarball_fetcher::GitHostedTarballFetcher;
+
+mod cas_io;
+mod error;
+mod fetcher;
+mod pm_shims;
+mod preferred_pm;
+mod prepare_package;
+mod protocols;
+mod source_cache;
+mod tarball_fetcher;
+
+mod options;

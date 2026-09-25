@@ -1,0 +1,131 @@
+use super::{
+    RunScript, ScriptOutput, build_command, parsed_by_windows_shell, posix_quote, run_script,
+};
+use crate::{extend_path::ScriptsPrependNodePath, script_exit::ScriptExit};
+use std::{collections::HashMap, fs, path::Path};
+use tempfile::tempdir;
+
+#[test]
+fn posix_quote_leaves_safe_strings_unquoted() {
+    assert_eq!(posix_quote("hello-world"), "hello-world");
+    assert_eq!(posix_quote("a_b@1.0.0/path:to,thing"), "a_b@1.0.0/path:to,thing");
+}
+
+#[test]
+fn posix_quote_wraps_unsafe_strings() {
+    assert_eq!(posix_quote(""), "''");
+    assert_eq!(posix_quote("a b"), "'a b'");
+    assert_eq!(posix_quote("two words"), "'two words'");
+}
+
+#[test]
+fn posix_quote_escapes_embedded_single_quotes() {
+    assert_eq!(posix_quote("it's"), r#"'it'"'"'s'"#);
+}
+
+#[test]
+fn build_command_without_args_returns_script_unchanged() {
+    for windows_shell in [false, true] {
+        assert_eq!(build_command("tsc --build", &[], windows_shell), "tsc --build");
+    }
+}
+
+#[test]
+fn build_command_appends_posix_quoted_args() {
+    let args = ["plain".to_string(), "needs quoting".to_string()];
+    assert_eq!(build_command("echo", &args, false), "echo plain 'needs quoting'");
+}
+
+#[test]
+fn build_command_appends_json_quoted_args_for_the_windows_shell() {
+    let args =
+        [r"C:\dir\".to_string(), String::new(), r#"a"b"#.to_string(), "line\nbreak".to_string()];
+    let expected = r#"echo "C:\\dir\\" "" "a\"b" "line\nbreak""#;
+    assert_eq!(build_command("echo", &args, true), expected);
+}
+
+#[test]
+fn only_a_native_windows_run_is_parsed_by_the_windows_shell() {
+    assert!(parsed_by_windows_shell(true, false));
+    assert!(!parsed_by_windows_shell(true, true));
+    assert!(!parsed_by_windows_shell(false, false));
+    assert!(!parsed_by_windows_shell(false, true));
+}
+
+fn manifest() -> serde_json::Value {
+    serde_json::json!({ "name": "t", "version": "1.0.0" })
+}
+
+fn run(pkg_root: &Path, stage: &str, script: &str, args: &[String]) -> ScriptExit {
+    let extra_env = HashMap::new();
+    run_script(&RunScript {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &[],
+            node_gyp_bin: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+            wd_bin_dir: None,
+        },
+        invocation: crate::ScriptInvocation { stage, script, args },
+        manifest: &manifest(),
+
+        pkg_root,
+
+        silent: true,
+        output: ScriptOutput::Inherit,
+        process_tracker: None,
+    })
+    .expect("run the script")
+}
+
+#[test]
+#[cfg_attr(target_os = "windows", ignore = "uses a POSIX shell script body")]
+fn run_script_stamps_npm_lifecycle_event() {
+    let dir = tempdir().expect("temp dir");
+    let marker = dir.path().join("stage.txt");
+    let script = format!(r#"printf %s "$npm_lifecycle_event" > "{}""#, marker.display());
+
+    let status = run(dir.path(), "build", &script, &[]);
+    assert!(status.success(), "the script should exit cleanly");
+    let written = fs::read_to_string(&marker).expect("read marker");
+    assert_eq!(written, "build");
+}
+
+#[test]
+#[cfg_attr(target_os = "windows", ignore = "uses a POSIX shell script body")]
+fn run_script_prepends_node_modules_bin_to_path() {
+    let dir = tempdir().expect("temp dir");
+    let marker = dir.path().join("path.txt");
+    let script = format!(r#"printf %s "$PATH" > "{}""#, marker.display());
+
+    run(dir.path(), "build", &script, &[]);
+    let written = fs::read_to_string(&marker).expect("read marker");
+    let expected_bin = dir
+        .path()
+        .join("node_modules")
+        .join(".bin");
+    eprintln!("PATH:\n{written}\n");
+    assert!(
+        written
+            .split(':')
+            .any(|entry| Path::new(entry) == expected_bin),
+        "PATH should contain the project's node_modules/.bin",
+    );
+}
+
+#[test]
+#[cfg_attr(target_os = "windows", ignore = "uses a POSIX shell script body")]
+fn run_script_returns_the_scripts_exit_status() {
+    let dir = tempdir().expect("temp dir");
+    let status = run(dir.path(), "build", "exit 7", &[]);
+    assert_eq!(status.code(), Some(7));
+}

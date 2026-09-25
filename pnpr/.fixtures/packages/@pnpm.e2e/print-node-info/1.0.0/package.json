@@ -1,0 +1,6 @@
+{
+  "name": "@pnpm.e2e/print-node-info",
+  "version": "1.0.0",
+  "main": "index.js",
+  "bin": "index.js"
+}

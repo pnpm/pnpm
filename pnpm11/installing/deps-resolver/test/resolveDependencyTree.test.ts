@@ -1,0 +1,690 @@
+import { Buffer } from 'node:buffer'
+
+import { expect, test } from '@jest/globals'
+import type { LockfileObject } from '@pnpm/lockfile.types'
+import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
+import type { PackageResponse, StoreController } from '@pnpm/store.controller-types'
+import type { DepPath, PackageManifest, PkgResolutionId, ProjectId, ProjectRootDir } from '@pnpm/types'
+
+import { type ImporterToResolveGeneric, type ResolveDependenciesOptions, resolveDependencyTree } from '../lib/resolveDependencyTree.js'
+
+test('shared package children are resolved from the deterministic shallowest context', async () => {
+  const requestLog: Array<{
+    alias: string
+    bareSpecifier: string
+    resolvedId: string
+  }> = []
+  const storeController = createStoreController(async (wantedDependency, options) => {
+    if (wantedDependency.alias === 'shared' && !hasPreferredVersion(options.preferredVersions, 'provider', '1.0.0')) {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    const alias = wantedDependency.alias!
+    const bareSpecifier = wantedDependency.bareSpecifier!
+    const version = pickVersion(alias, bareSpecifier, options.preferredVersions)
+    const resolvedId = `${alias}@${version}`
+    requestLog.push({
+      alias,
+      bareSpecifier,
+      resolvedId,
+    })
+    return createPackageResponse(resolvedId)
+  })
+  const lockfile = createLockfile()
+
+  const result = await resolveDependencyTree([
+    {
+      id: '.' as ProjectId,
+      manifest: {
+        name: 'root',
+        version: '0.0.0',
+        dependencies: {
+          a: '1.0.0',
+          c: '1.0.0',
+        },
+      },
+      modulesDir: '/project/node_modules',
+      rootDir: '/project' as ProjectRootDir,
+      updatePackageManifest: false,
+      wantedDependencies: [
+        {
+          alias: 'a',
+          bareSpecifier: '1.0.0',
+          dev: false,
+          optional: false,
+          updateDepth: 0,
+        },
+        {
+          alias: 'c',
+          bareSpecifier: '1.0.0',
+          dev: false,
+          optional: false,
+          updateDepth: 0,
+        },
+      ],
+    } satisfies ImporterToResolveGeneric<object>,
+  ], {
+    allowedDeprecatedVersions: {},
+    allowUnusedPatches: false,
+    currentLockfile: lockfile,
+    dryRun: false,
+    engineStrict: false,
+    force: false,
+    forceFullResolution: false,
+    hooks: {},
+    lockfileDir: '/project',
+    pnpmVersion: '0.0.0',
+    registriesByScope: {
+      default: 'https://registry.npmjs.org/',
+    },
+    storeController,
+    tag: 'latest',
+    virtualStoreDir: '/project/node_modules/.pnpm',
+    globalVirtualStoreDir: '/project/node_modules/.pnpm/global',
+    virtualStoreDirMaxLength: 120,
+    wantedLockfile: lockfile,
+    workspacePackages: new Map(),
+    peersSuffixMaxLength: 1000,
+    dedupePeerDependents: true,
+  } satisfies ResolveDependenciesOptions)
+
+  expect(requestLog
+    .filter(({ alias, bareSpecifier }) => alias === 'provider' && bareSpecifier === '*')
+    .map(({ resolvedId }) => resolvedId)
+  ).toStrictEqual(['provider@2.0.0'])
+
+  const sharedChildren = Array.from(result.dependenciesTree.values())
+    .filter(({ resolvedPackage }) => resolvedPackage.name === 'shared')
+    .map((node) => typeof node.children === 'function' ? node.children() : node.children)
+
+  expect(sharedChildren).toHaveLength(2)
+  expect(sharedChildren.map(({ provider }) => provider)).toStrictEqual([
+    'provider@2.0.0',
+    'provider@2.0.0',
+  ])
+})
+
+test('a targeted update keeps down-chain preferred-version propagation, so it dedupes exactly like a fresh install, while updateRequested is threaded per wanted-dependency', async () => {
+  // The `updateRequested` flag must be scoped per wanted-dependency: true
+  // only for the user's update target (where the resolver drops the
+  // target's lockfile-derived pins), false for every other package on the
+  // chain. Down-chain propagation — a level's resolved versions joining
+  // the next level's preferred map — applies during a fresh install, so
+  // it must keep applying during an update too: the update's result has
+  // to match what a fresh install would produce. The fixture nests an
+  // exact-pin carrier above a caret consumer in a single dep chain.
+  const requestLog: Array<{
+    alias: string | undefined
+    bareSpecifier: string | undefined
+    updateRequested: boolean | undefined
+    hadPreferredT100: boolean
+    resolvedId: string
+  }> = []
+  const storeController = createStoreController(async (wantedDependency, options) => {
+    const alias = wantedDependency.alias!
+    const bareSpecifier = wantedDependency.bareSpecifier!
+    const version = pickVersion(alias, bareSpecifier, options.preferredVersions)
+    const resolvedId = `${alias}@${version}`
+    requestLog.push({
+      alias,
+      bareSpecifier,
+      updateRequested: options.updateRequested,
+      // Snapshot at call time: `options.preferredVersions` is a live
+      // object whose later mutations could otherwise make the sanity
+      // assertion below pass even if the value was absent here.
+      hadPreferredT100: Boolean(options.preferredVersions.t?.['1.0.0']),
+      resolvedId,
+    })
+    return createPackageResponse(resolvedId)
+  })
+  const lockfile = createLockfileWithTPinning()
+
+  await resolveDependencyTree([
+    {
+      id: '.' as ProjectId,
+      manifest: {
+        name: 'root',
+        version: '0.0.0',
+        dependencies: {
+          // Carrier that pins `t` exactly AND pulls in `inner`, whose
+          // own manifest consumes `t` via caret. The exact-pin becomes
+          // a depth-1 sibling of `inner`, so its resolved version
+          // propagates down to `inner`'s depth-2 caret re-resolution.
+          multi: '1.0.0',
+        },
+      },
+      modulesDir: '/project/node_modules',
+      rootDir: '/project' as ProjectRootDir,
+      updatePackageManifest: false,
+      // Mirror `pnpm up -r t`: target t by name.
+      updateMatching: (name: string) => name === 't',
+      wantedDependencies: [
+        {
+          alias: 'multi',
+          bareSpecifier: '1.0.0',
+          dev: false,
+          optional: false,
+          // Mirror `pnpm up -r`'s default depth (Infinity) so the
+          // targeted update propagates through transitives.
+          updateDepth: Number.POSITIVE_INFINITY,
+        },
+      ],
+    } satisfies ImporterToResolveGeneric<object>,
+  ], {
+    allowedDeprecatedVersions: {},
+    allowUnusedPatches: false,
+    currentLockfile: lockfile,
+    dryRun: false,
+    engineStrict: false,
+    force: false,
+    forceFullResolution: false,
+    hooks: {},
+    lockfileDir: '/project',
+    pnpmVersion: '0.0.0',
+    registriesByScope: {
+      default: 'https://registry.npmjs.org/',
+    },
+    storeController,
+    tag: 'latest',
+    virtualStoreDir: '/project/node_modules/.pnpm',
+    globalVirtualStoreDir: '/project/node_modules/.pnpm/global',
+    virtualStoreDirMaxLength: 120,
+    wantedLockfile: lockfile,
+    workspacePackages: new Map(),
+    peersSuffixMaxLength: 1000,
+    dedupePeerDependents: true,
+  } satisfies ResolveDependenciesOptions)
+
+  const tResolutions = requestLog.filter(({ alias }) => alias === 't')
+  // Two resolutions of t reach requestPackage: multi's depth-1 exact
+  // pin and inner's depth-2 caret consumer.
+  expect(tResolutions).toHaveLength(2)
+
+  const caretResolution = tResolutions.find(({ bareSpecifier }) => bareSpecifier === '^1.0.0')
+  const exactResolution = tResolutions.find(({ bareSpecifier }) => bareSpecifier === '1.0.0')
+
+  // Primary contract: the caret consumer (inner's transitive t@^1.0.0)
+  // dedupes onto the version propagated down the chain from multi's
+  // exact-pin (1.0.0) — exactly what a fresh install of the same
+  // manifests produces. A `t@1.0.1` here would mean the update
+  // installed a duplicate version of t that a reinstall from scratch
+  // would not reproduce.
+  expect(caretResolution?.resolvedId).toBe('t@1.0.0')
+
+  // Sanity check that the topology exercises propagation: the caret
+  // consumer's preferredVersions must contain t/1.0.0 (propagated from
+  // multi's exact-pin). If this fails, the primary assertion above is
+  // meaningless.
+  expect(caretResolution?.hadPreferredT100).toBe(true)
+
+  // Companion outcome: the exact-pin resolves to 1.0.0 (range admits
+  // nothing else).
+  expect(exactResolution?.resolvedId).toBe('t@1.0.0')
+
+  // Plumbing diagnostics: the targeted package's resolutions must
+  // carry `updateRequested: true` so the npm picker drops the target's
+  // lockfile-derived pins. The carriers (re-resolved because of the
+  // broad `update` flag, but NOT the user's target) must carry
+  // `updateRequested: false` — this per-package discrimination is the
+  // core distinction over the broad `update` flag.
+  for (const resolution of tResolutions) {
+    expect(resolution.updateRequested).toBe(true)
+  }
+  // Assert every carrier resolution (not just the first) stays
+  // `updateRequested: false`, so a stray re-resolution can't slip the
+  // broad `update` flag through for a non-targeted package.
+  const multiResolutions = requestLog.filter(({ alias }) => alias === 'multi')
+  expect(multiResolutions.length).toBeGreaterThan(0)
+  for (const resolution of multiResolutions) {
+    expect(resolution.updateRequested).toBe(false)
+  }
+  const innerResolutions = requestLog.filter(({ alias }) => alias === 'inner')
+  expect(innerResolutions.length).toBeGreaterThan(0)
+  for (const resolution of innerResolutions) {
+    expect(resolution.updateRequested).toBe(false)
+  }
+})
+
+test('a revision refresh pins direct and transitive versions while preserving an explicit revision selector', async () => {
+  const requests: Array<{ alias?: string, bareSpecifier?: string, updatePatches?: boolean }> = []
+  const storeController = createStoreController(async (wantedDependency, options) => {
+    requests.push({
+      alias: wantedDependency.alias,
+      bareSpecifier: wantedDependency.bareSpecifier,
+      updatePatches: options.updatePatches,
+    })
+    const version = wantedDependency.alias === 'revision-root' ? '1.0.0' : '2.0.0'
+    return createPackageResponse(`${wantedDependency.alias}@${version}`)
+  })
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { 'revision-root': '^1.0.0' },
+        dependencies: { 'revision-root': '1.0.0' },
+      },
+    },
+    packages: {
+      ['revision-root@1.0.0' as DepPath]: {
+        id: 'revision-root@1.0.0',
+        name: 'revision-root',
+        version: '1.0.0',
+        resolution: {
+          integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+          revision: 1,
+        },
+        dependencies: { 'revision-child': '2.0.0' },
+      },
+      ['revision-child@2.0.0' as DepPath]: {
+        id: 'revision-child@2.0.0',
+        name: 'revision-child',
+        version: '2.0.0',
+        resolution: {
+          integrity: `sha512-${Buffer.alloc(64, 2).toString('base64')}`,
+          revision: 1,
+        },
+      },
+    },
+  }
+
+  await resolveDependencyTree([{
+    id: '.' as ProjectId,
+    manifest: {
+      name: 'root',
+      version: '0.0.0',
+      dependencies: { 'revision-root': '^1.0.0' },
+    },
+    modulesDir: '/project/node_modules',
+    rootDir: '/project' as ProjectRootDir,
+    updatePackageManifest: false,
+    updatePatches: true,
+    wantedDependencies: [{
+      alias: 'revision-root',
+      bareSpecifier: '^1.0.0',
+      dev: false,
+      optional: false,
+      updateDepth: Number.POSITIVE_INFINITY,
+    }],
+  } satisfies ImporterToResolveGeneric<object>], {
+    allowedDeprecatedVersions: {},
+    allowUnusedPatches: false,
+    currentLockfile: lockfile,
+    dryRun: false,
+    engineStrict: false,
+    force: false,
+    forceFullResolution: true,
+    hooks: {},
+    lockfileDir: '/project',
+    pnpmVersion: '0.0.0',
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    storeController,
+    tag: 'latest',
+    virtualStoreDir: '/project/node_modules/.pnpm',
+    globalVirtualStoreDir: '/project/node_modules/.pnpm/global',
+    virtualStoreDirMaxLength: 120,
+    wantedLockfile: lockfile,
+    workspacePackages: new Map(),
+    peersSuffixMaxLength: 1000,
+    dedupePeerDependents: true,
+  } satisfies ResolveDependenciesOptions)
+
+  expect(requests).toEqual([
+    { alias: 'revision-root', bareSpecifier: '1.0.0', updatePatches: true },
+    { alias: 'revision-child', bareSpecifier: '2.0.0+r1', updatePatches: true },
+  ])
+})
+
+test('updateRequested matches an npm-alias dependency without a lockfile reference by its real package name', async () => {
+  // An edge with no lockfile reference (fresh dep, or a specifier changed
+  // right before resolution — e.g. `pnpm audit --fix` widening a vulnerable
+  // pin) falls back to matching the update target against the wanted
+  // dependency itself. For `aliased@npm:t@^1.0.0` the real package name is
+  // `t`, not the local alias, so a target of `t` must match — and an alias
+  // of a non-targeted package must not.
+  const requestLog: Array<{
+    alias: string | undefined
+    updateRequested: boolean | undefined
+  }> = []
+  const storeController = createStoreController(async (wantedDependency, options) => {
+    const alias = wantedDependency.alias!
+    const bareSpecifier = wantedDependency.bareSpecifier!
+    const version = bareSpecifier.startsWith('npm:') ? '1.0.1' : pickVersion(alias, bareSpecifier, options.preferredVersions)
+    requestLog.push({ alias, updateRequested: options.updateRequested })
+    return createPackageResponse(`${alias}@${version}`)
+  })
+  const lockfile = createLockfile()
+
+  await resolveDependencyTree([
+    {
+      id: '.' as ProjectId,
+      manifest: {
+        name: 'root',
+        version: '0.0.0',
+        dependencies: {
+          aliased: 'npm:t@^1.0.0',
+          other: 'npm:u@^1.0.0',
+        },
+      },
+      modulesDir: '/project/node_modules',
+      rootDir: '/project' as ProjectRootDir,
+      updatePackageManifest: false,
+      updateMatching: (name: string) => name === 't',
+      wantedDependencies: [
+        {
+          alias: 'aliased',
+          bareSpecifier: 'npm:t@^1.0.0',
+          dev: false,
+          optional: false,
+          updateDepth: Number.POSITIVE_INFINITY,
+        },
+        {
+          alias: 'other',
+          bareSpecifier: 'npm:u@^1.0.0',
+          dev: false,
+          optional: false,
+          updateDepth: Number.POSITIVE_INFINITY,
+        },
+      ],
+    } satisfies ImporterToResolveGeneric<object>,
+  ], {
+    allowedDeprecatedVersions: {},
+    allowUnusedPatches: false,
+    currentLockfile: lockfile,
+    dryRun: false,
+    engineStrict: false,
+    force: false,
+    forceFullResolution: false,
+    hooks: {},
+    lockfileDir: '/project',
+    pnpmVersion: '0.0.0',
+    registriesByScope: {
+      default: 'https://registry.npmjs.org/',
+    },
+    storeController,
+    tag: 'latest',
+    virtualStoreDir: '/project/node_modules/.pnpm',
+    globalVirtualStoreDir: '/project/node_modules/.pnpm/global',
+    virtualStoreDirMaxLength: 120,
+    wantedLockfile: lockfile,
+    workspacePackages: new Map(),
+    peersSuffixMaxLength: 1000,
+    dedupePeerDependents: true,
+  } satisfies ResolveDependenciesOptions)
+
+  const aliasedResolution = requestLog.find(({ alias }) => alias === 'aliased')
+  expect(aliasedResolution?.updateRequested).toBe(true)
+  const otherResolution = requestLog.find(({ alias }) => alias === 'other')
+  expect(otherResolution?.updateRequested).toBe(false)
+})
+
+test('a dependency can opt out of resolving past its own specifier', async () => {
+  const updates: Array<false | 'compatible' | 'latest' | undefined> = []
+  const storeController = createStoreController(async (wantedDependency, options) => {
+    updates.push(options.update)
+    return createPackageResponse(`${wantedDependency.alias}@1.0.0`)
+  })
+  const lockfile = createLockfile()
+
+  await resolveDependencyTree([
+    {
+      id: '.' as ProjectId,
+      manifest: {
+        dependencies: {
+          t: '1.0.0',
+        },
+      },
+      modulesDir: '/project/node_modules',
+      rootDir: '/project' as ProjectRootDir,
+      updatePackageManifest: false,
+      updateToLatest: true,
+      wantedDependencies: [{
+        alias: 't',
+        bareSpecifier: '1.0.0',
+        dev: false,
+        optional: false,
+        updateDepth: Number.POSITIVE_INFINITY,
+        updateToLatestAllowed: false,
+      }],
+    } satisfies ImporterToResolveGeneric<object>,
+  ], {
+    allowedDeprecatedVersions: {},
+    allowUnusedPatches: false,
+    currentLockfile: lockfile,
+    dryRun: false,
+    engineStrict: false,
+    force: false,
+    forceFullResolution: false,
+    hooks: {},
+    lockfileDir: '/project',
+    pnpmVersion: '0.0.0',
+    registriesByScope: {
+      default: 'https://registry.npmjs.org/',
+    },
+    storeController,
+    tag: 'latest',
+    virtualStoreDir: '/project/node_modules/.pnpm',
+    globalVirtualStoreDir: '/project/node_modules/.pnpm/global',
+    virtualStoreDirMaxLength: 120,
+    wantedLockfile: lockfile,
+    workspacePackages: new Map(),
+    peersSuffixMaxLength: 1000,
+    dedupePeerDependents: true,
+  } satisfies ResolveDependenciesOptions)
+
+  // `updateToLatest` would resolve the latest dist tag, which the dependency's own `1.0.0` does
+  // not admit. It resolves compatibly instead, rather than not at all.
+  expect(updates).toStrictEqual(['compatible'])
+})
+
+function hasPreferredVersion (preferredVersions: PreferredVersions, alias: string, version: string): boolean {
+  return Boolean(preferredVersions[alias]?.[version])
+}
+
+function pickVersion (alias: string, bareSpecifier: string, preferredVersions: PreferredVersions): string {
+  if (alias === 'provider' && bareSpecifier === '*') {
+    return hasPreferredVersion(preferredVersions, alias, '1.0.0') ? '1.0.0' : '2.0.0'
+  }
+  if (alias === 't') {
+    // An exact specifier admits only itself.
+    if (bareSpecifier === '1.0.0') return '1.0.0'
+    // Caret admits 1.0.0 and 1.0.1 (latest). Model the npm-picker
+    // contract from `resolving/npm-resolver/src/index.ts`: propagated
+    // (plain) preferred versions are honored regardless of
+    // `updateRequested` — only the target's lockfile-derived pins are
+    // stripped, and this fixture threads none of those.
+    if (bareSpecifier === '^1.0.0') {
+      return hasPreferredVersion(preferredVersions, 't', '1.0.0') ? '1.0.0' : '1.0.1'
+    }
+  }
+  return bareSpecifier
+}
+
+function createLockfile (): LockfileObject {
+  return {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: {},
+      },
+    },
+    packages: {},
+  }
+}
+
+/**
+ * Mirror `pnpm up -r t`'s starting state. The prior lockfile records
+ * `multi@1.0.0` (the carrier whose manifest pins t at 1.0.0 and pulls
+ * in `inner`), `inner@1.0.0` (whose own manifest consumes t via caret
+ * `^1.0.0`), and `t@1.0.0` (the version both branches resolved to
+ * under the older `latest` dist-tag). `infoFromLockfile` is only
+ * populated when the package is recorded here — without it the
+ * deps-resolver never invokes `updateMatching`.
+ */
+function createLockfileWithTPinning (): LockfileObject {
+  return {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: {
+          multi: '1.0.0',
+        },
+        dependencies: {
+          multi: '1.0.0',
+        },
+      },
+    },
+    packages: {
+      ['multi@1.0.0' as DepPath]: {
+        id: 'multi@1.0.0',
+        name: 'multi',
+        version: '1.0.0',
+        resolution: { type: 'directory', directory: '/dev/null' },
+        dependencies: { t: '1.0.0', inner: '1.0.0' },
+      },
+      ['inner@1.0.0' as DepPath]: {
+        id: 'inner@1.0.0',
+        name: 'inner',
+        version: '1.0.0',
+        resolution: { type: 'directory', directory: '/dev/null' },
+        dependencies: { t: '1.0.0' },
+      },
+      ['t@1.0.0' as DepPath]: {
+        id: 't@1.0.0',
+        name: 't',
+        version: '1.0.0',
+        resolution: { type: 'directory', directory: '/dev/null' },
+      },
+    },
+  }
+}
+
+function createPackageResponse (pkgId: string): PackageResponse {
+  const manifest = manifests[pkgId]
+  return {
+    body: {
+      id: pkgId as PkgResolutionId,
+      isLocal: false,
+      manifest,
+      resolution: {
+        tarball: `https://registry.npmjs.org/${manifest.name}/-/${manifest.name}-${manifest.version}.tgz`,
+      },
+      updated: false,
+    },
+    fetching: async () => ({
+      files: {
+        filesMap: new Map(),
+        requiresBuild: false,
+        resolvedFrom: 'remote',
+      },
+    }),
+    filesIndexFile: `${pkgId}-index.json`,
+  }
+}
+
+function createStoreController (
+  requestPackage: StoreController['requestPackage']
+): StoreController {
+  return {
+    requestPackage,
+    fetchPackage: () => {
+      throw new Error('fetchPackage should not be called')
+    },
+    getFilesIndexFilePath: () => ({
+      filesIndexFile: '',
+      target: '',
+    }),
+    importPackage: async () => ({ isBuilt: false, importMethod: undefined }),
+    close: async () => undefined,
+    prune: async () => undefined,
+    upload: async () => ({ filesMap: new Map() }),
+    clearResolutionCache: () => undefined,
+  }
+}
+
+const manifests: Record<string, PackageManifest> = {
+  'revision-root@1.0.0': {
+    name: 'revision-root',
+    version: '1.0.0',
+    dependencies: {
+      'revision-child': '2.0.0+r1',
+    },
+  },
+  'revision-child@2.0.0': {
+    name: 'revision-child',
+    version: '2.0.0',
+  },
+  'a@1.0.0': {
+    name: 'a',
+    version: '1.0.0',
+    dependencies: {
+      provider: '1.0.0',
+      b: '1.0.0',
+    },
+  },
+  'b@1.0.0': {
+    name: 'b',
+    version: '1.0.0',
+    dependencies: {
+      shared: '1.0.0',
+    },
+  },
+  'c@1.0.0': {
+    name: 'c',
+    version: '1.0.0',
+    dependencies: {
+      shared: '1.0.0',
+    },
+  },
+  'provider@1.0.0': {
+    name: 'provider',
+    version: '1.0.0',
+  },
+  'provider@2.0.0': {
+    name: 'provider',
+    version: '2.0.0',
+  },
+  'shared@1.0.0': {
+    name: 'shared',
+    version: '1.0.0',
+    dependencies: {
+      provider: '*',
+    },
+  },
+  't@1.0.0': {
+    name: 't',
+    version: '1.0.0',
+  },
+  't@1.0.1': {
+    name: 't',
+    version: '1.0.1',
+  },
+  'multi@1.0.0': {
+    name: 'multi',
+    version: '1.0.0',
+    dependencies: {
+      // Shallower exact pin on t (nx → form-data@4.0.5 role).
+      t: '1.0.0',
+      // Sub-carrier whose own manifest consumes t via caret (axios →
+      // form-data@^4.0.5 role).
+      inner: '1.0.0',
+    },
+  },
+  'inner@1.0.0': {
+    name: 'inner',
+    version: '1.0.0',
+    dependencies: {
+      // Caret consumer — admits 1.0.0 (initial) and 1.0.1 (after the
+      // dist-tag bump that `pnpm up -r t` reacts to).
+      t: '^1.0.0',
+    },
+  },
+  // npm-alias targets: the alias is the local install name; the manifest
+  // carries the real package name.
+  'aliased@1.0.1': {
+    name: 't',
+    version: '1.0.1',
+  },
+  'other@1.0.1': {
+    name: 'u',
+    version: '1.0.1',
+  },
+}

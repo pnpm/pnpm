@@ -1,0 +1,8 @@
+{
+  "name": "with-loose-peer-range",
+  "version": "1.0.0",
+  "dependencies": {
+    "@gorhom/bottom-sheet": "5.2.14",
+    "react-native-reanimated": "4.4.0"
+  }
+}

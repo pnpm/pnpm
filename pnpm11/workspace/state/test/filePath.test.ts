@@ -1,0 +1,15 @@
+import path from 'node:path'
+
+import { expect, test } from '@jest/globals'
+import { prepareEmpty } from '@pnpm/prepare'
+
+import { getFilePath } from '../src/filePath.js'
+
+test('getFilePath()', () => {
+  prepareEmpty()
+  expect(
+    getFilePath(process.cwd())
+  ).toStrictEqual(
+    path.resolve(path.resolve('node_modules/.pnpm-workspace-state-v1.json'))
+  )
+})

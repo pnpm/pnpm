@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/audit-multi-version-parent",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/audit-multi-version": "^2.0.0"
+  }
+}

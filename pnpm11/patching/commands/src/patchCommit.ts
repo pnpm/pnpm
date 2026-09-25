@@ -1,0 +1,360 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+
+import { docsUrl } from '@pnpm/cli.utils'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
+import { createShortHash } from '@pnpm/crypto.hash'
+import { PnpmError } from '@pnpm/error'
+import { packlist } from '@pnpm/fs.packlist'
+import { install } from '@pnpm/installing.commands'
+import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
+import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { globalWarn } from '@pnpm/logger'
+import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import { parseWantedDependency, type ParseWantedDependencyResult } from '@pnpm/resolving.parse-wanted-dependency'
+import { getStorePath } from '@pnpm/store.path'
+import type { PackageManifest, ProjectRootDir } from '@pnpm/types'
+import escapeStringRegexp from 'escape-string-regexp'
+import { makeEmptyDir } from 'make-empty-dir'
+import normalizePath from 'normalize-path'
+import { equals, pick } from 'ramda'
+import { renderHelp } from 'render-help'
+import { safeExeca as execa } from 'safe-execa'
+import { glob } from 'tinyglobby'
+
+import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency.js'
+import { resolvePatchDir } from './resolvePatchDir.js'
+import { updatePatchedDependencies } from './updatePatchedDependencies.js'
+import { writePackage, type WritePackageOptions } from './writePackage.js'
+
+export const rcOptionsTypes = cliOptionsTypes
+
+export function cliOptionsTypes (): Record<string, unknown> {
+  return pick(['patches-dir'], allTypes)
+}
+
+export const commandNames = ['patch-commit']
+
+export const recursiveByDefault = true
+
+export function help (): string {
+  return renderHelp({
+    description: 'Generate a patch out of a directory',
+    descriptionLists: [{
+      title: 'Options',
+      list: [
+        {
+          description: 'The generated patch file will be saved to this directory',
+          name: '--patches-dir',
+        },
+      ],
+    }],
+    url: docsUrl('patch-commit'),
+    usages: ['pnpm patch-commit <patchDir>'],
+  })
+}
+
+type PatchCommitCommandOptions = install.InstallCommandOptions &
+  Pick<Config, 'patchesDir' | 'patchedDependencies'> &
+  Partial<Pick<Config, 'useGitBranchLockfile' | 'mergeGitBranchLockfiles'>> &
+  Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'>
+
+export async function handler (opts: PatchCommitCommandOptions, params: string[]): Promise<string | undefined> {
+  if (!params[0]) {
+    throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm patch-commit` requires the patch directory or package name')
+  }
+  const userParam = params[0]
+  const lockfileDir = (opts.lockfileDir ?? opts.dir ?? process.cwd()) as ProjectRootDir
+  const modulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
+  const { editDir, stateValue } = await resolvePatchDir(userParam, {
+    dir: opts.dir,
+    lockfileDir,
+    modulesDir,
+  })
+  const patchesDirName = normalizePath(path.normalize(opts.patchesDir ?? 'patches'))
+  const patchesDir = path.join(lockfileDir, patchesDirName)
+  const patchedPkgManifest = await readPackageJsonFromDir(editDir)
+  const { applyToAll } = stateValue
+  const nameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
+  const patchKey = applyToAll ? patchedPkgManifest.name : nameAndVersion
+  let gitTarballUrl: string | undefined
+  if (!applyToAll) {
+    gitTarballUrl = await getGitTarballUrlFromLockfile({
+      alias: patchedPkgManifest.name,
+      bareSpecifier: patchedPkgManifest.version || undefined,
+    }, {
+      lockfileDir,
+      modulesDir: opts.modulesDir,
+      virtualStoreDir: opts.virtualStoreDir,
+    })
+  }
+  const patchedPkg = parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : nameAndVersion)
+  const patchedPkgDir = await preparePkgFilesForDiff(editDir)
+  const patchContent = await getPatchContent({
+    patchedPkg,
+    patchedPkgDir,
+    tmpName: createShortHash(editDir),
+  }, opts)
+  if (patchedPkgDir !== editDir) {
+    fs.rmSync(patchedPkgDir, { recursive: true })
+  }
+
+  if (!patchContent.length) {
+    return `No changes were found to the following directory: ${editDir}`
+  }
+  await fs.promises.mkdir(patchesDir, { recursive: true })
+
+  const patchFileName = patchKey.replace('/', '__')
+  await fs.promises.writeFile(path.join(patchesDir, `${patchFileName}.patch`), patchContent, 'utf8')
+
+  const patchedDependencies = {
+    ...opts.patchedDependencies,
+    [patchKey]: `${patchesDirName}/${patchFileName}.patch`,
+  }
+  await updatePatchedDependencies(patchedDependencies, {
+    ...opts,
+    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+  })
+
+  await updateLockfileSnapshots({
+    lockfileDir,
+    patchedPkgManifest,
+    applyToAll,
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+  })
+
+  await install.handler({
+    ...opts,
+    patchedDependencies,
+    frozenLockfile: false,
+  })
+  return undefined
+}
+
+interface UpdateLockfileSnapshotsOptions {
+  lockfileDir: string
+  patchedPkgManifest: PackageManifest
+  applyToAll: boolean
+  useGitBranchLockfile?: boolean
+  mergeGitBranchLockfiles?: boolean
+}
+
+async function updateLockfileSnapshots ({
+  lockfileDir,
+  patchedPkgManifest,
+  applyToAll,
+  useGitBranchLockfile,
+  mergeGitBranchLockfiles,
+}: UpdateLockfileSnapshotsOptions): Promise<void> {
+  const lockfile = await readWantedLockfile(lockfileDir, {
+    ignoreIncompatible: true,
+    useGitBranchLockfile,
+    mergeGitBranchLockfiles,
+  })
+  if (!lockfile?.packages) return
+
+  let lockfileChanged = false
+  for (const [depPath, snapshot] of Object.entries(lockfile.packages)) {
+    const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
+    if (name === patchedPkgManifest.name && (applyToAll || version === patchedPkgManifest.version)) {
+      if (snapshot.dependencies != null) {
+        const declaredDeps = {
+          ...patchedPkgManifest.peerDependencies,
+          ...patchedPkgManifest.optionalDependencies,
+          ...patchedPkgManifest.dependencies,
+        }
+        for (const depName of Object.keys(snapshot.dependencies)) {
+          if (!Object.prototype.hasOwnProperty.call(declaredDeps, depName)) {
+            delete snapshot.dependencies[depName]
+            lockfileChanged = true
+          }
+        }
+        if (Object.keys(snapshot.dependencies).length === 0) {
+          delete snapshot.dependencies
+        }
+      }
+      if (snapshot.optionalDependencies != null) {
+        const declaredOptDeps = patchedPkgManifest.optionalDependencies ?? {}
+        for (const depName of Object.keys(snapshot.optionalDependencies)) {
+          if (!Object.prototype.hasOwnProperty.call(declaredOptDeps, depName)) {
+            delete snapshot.optionalDependencies[depName]
+            lockfileChanged = true
+          }
+        }
+        if (Object.keys(snapshot.optionalDependencies).length === 0) {
+          delete snapshot.optionalDependencies
+        }
+      }
+      if (snapshot.peerDependencies != null) {
+        const declaredPeerDeps = patchedPkgManifest.peerDependencies ?? {}
+        for (const peerName of Object.keys(snapshot.peerDependencies)) {
+          if (!Object.prototype.hasOwnProperty.call(declaredPeerDeps, peerName)) {
+            delete snapshot.peerDependencies[peerName]
+            lockfileChanged = true
+          }
+        }
+        if (Object.keys(snapshot.peerDependencies).length === 0) {
+          delete snapshot.peerDependencies
+        }
+      }
+    }
+  }
+
+  if (lockfileChanged) {
+    const prunedLockfile = pruneSharedLockfile(lockfile)
+    await writeWantedLockfile(lockfileDir, prunedLockfile, {
+      useGitBranchLockfile,
+      mergeGitBranchLockfiles,
+    })
+  }
+}
+
+interface GetPatchContentContext {
+  patchedPkg: ParseWantedDependencyResult
+  patchedPkgDir: string
+  tmpName: string
+}
+
+type GetPatchContentOptions = Pick<PatchCommitCommandOptions, 'dir' | 'pnpmHomeDir' | 'storeDir'> & WritePackageOptions
+
+async function getPatchContent (ctx: GetPatchContentContext, opts: GetPatchContentOptions): Promise<string> {
+  const storeDir = await getStorePath({
+    pkgRoot: opts.dir,
+    storePath: opts.storeDir,
+    pnpmHomeDir: opts.pnpmHomeDir,
+  })
+  const srcDir = path.join(storeDir, 'tmp', 'patch-commit', ctx.tmpName)
+  await writePackage(ctx.patchedPkg, srcDir, opts)
+  const patchContent = await diffFolders(srcDir, ctx.patchedPkgDir)
+  try {
+    fs.rmSync(srcDir, { recursive: true })
+  } catch (error) {
+    globalWarn(`Failed to clean up temporary directory at ${srcDir} with error: ${String(error)}`)
+  }
+  return patchContent
+}
+
+async function diffFolders (folderA: string, folderB: string): Promise<string> {
+  const folderAN = folderA.replace(/\\/g, '/')
+  const folderBN = folderB.replace(/\\/g, '/')
+  let stdout!: string
+  let stderr!: string
+
+  try {
+    const result = await execa('git', ['-c', 'core.safecrlf=false', '-c', 'core.quotePath=false', 'diff', '--src-prefix=a/', '--dst-prefix=b/', '--ignore-cr-at-eol', '--irreversible-delete', '--full-index', '--no-index', '--text', '--no-ext-diff', '--no-color', '--', folderAN, folderBN], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        // #region Predictable output
+        // These variables aim to ignore the global git config so we get predictable output
+        // https://git-scm.com/docs/git#Documentation/git.txt-codeGITCONFIGNOSYSTEMcode
+        GIT_CONFIG_NOSYSTEM: '1',
+        // Redirect the global git config to /dev/null instead of setting
+        // HOME to an empty string. An empty HOME causes git to resolve '~' as
+        // '/' (root), which triggers a "Permission denied" warning when git
+        // tries to access '/.config/git/attributes', making pnpm throw an
+        // error because any stderr output is treated as a failure.
+        // We do not set XDG_CONFIG_HOME to avoid the same issue: an empty
+        // value would make git resolve paths like /git/config and /git/attributes.
+        // We use '/dev/null' literally instead of os.devNull because on Windows
+        // os.devNull is '\\.\nul', which git cannot open as a config file path
+        // (fatal: unable to access '\\.\nul': Invalid argument). Git for Windows
+        // translates '/dev/null' correctly via its MSYS2 layer.
+        GIT_CONFIG_GLOBAL: '/dev/null',
+        // #endregion
+      },
+      stripFinalNewline: false,
+    })
+    stdout = result.stdout as string
+    stderr = result.stderr as string
+  } catch (err: any) { // eslint-disable-line
+    stdout = err.stdout as string
+    stderr = err.stderr as string
+  }
+  // we cannot rely on exit code, because --no-index implies --exit-code
+  // i.e. git diff will exit with 1 if there were differences
+  if (stderr.length > 0)
+    throw new Error(`Unable to diff directories. Make sure you have a recent version of 'git' available in PATH.\nThe following error was reported by 'git':\n${stderr}`)
+
+  return stdout
+    .replace(new RegExp(`(a|b)(${escapeStringRegexp(`/${removeTrailingAndLeadingSlash(folderAN)}/`)})`, 'g'), '$1/')
+    .replace(new RegExp(`(a|b)${escapeStringRegexp(`/${removeTrailingAndLeadingSlash(folderBN)}/`)}`, 'g'), '$1/')
+    .replace(new RegExp(escapeStringRegexp(`${folderAN}/`), 'g'), '')
+    .replace(new RegExp(escapeStringRegexp(`${folderBN}/`), 'g'), '')
+    .replace(/\n\\ No newline at end of file\n$/, '\n')
+    .replace(/^diff --git a\/.*\.DS_Store b\/.*\.DS_Store[\s\S]+?(?=^diff --git)/gm, '')
+    .replace(/^diff --git a\/.*\.DS_Store b\/.*\.DS_Store[\s\S]*$/gm, '')
+}
+
+function removeTrailingAndLeadingSlash (p: string): string {
+  if (p[0] === '/' || p.endsWith('/')) {
+    return p.replace(/^\/|\/$/g, '')
+  }
+  return p
+}
+
+/**
+ * Link files from the source directory to a new temporary directory,
+ * but only if not all files in the source directory should be included in the package.
+ * If all files should be included, return the original source directory without creating any links.
+ * This is required in order for the diff to not include files that are not part of the package.
+ */
+export async function preparePkgFilesForDiff (src: string, packageFiles?: string[]): Promise<string> {
+  const files = packageFiles ?? Array.from(new Set((await packlist(src)).map((f) => path.join(f))))
+  // If there are no extra files in the source directories, then there is no reason
+  // to copy.
+  if (await areAllFilesInPkg(files, src)) {
+    return src
+  }
+  const dest = `${src}_tmp`
+  await makeEmptyDir(dest)
+  await Promise.all(
+    files.map(async (file) => {
+      const srcFile = path.join(src, file)
+      const destFile = path.join(dest, file)
+      const destDir = path.dirname(destFile)
+      await fs.promises.mkdir(destDir, { recursive: true })
+      try {
+        await fs.promises.link(srcFile, destFile)
+      } catch (err: unknown) {
+        if (isUnsupportedLinkError(err)) {
+          const stat = await fs.promises.lstat(srcFile)
+          if (stat.isSymbolicLink()) {
+            const target = await fs.promises.readlink(srcFile)
+            await fs.promises.symlink(target, destFile)
+          } else {
+            await fs.promises.copyFile(srcFile, destFile)
+          }
+        } else {
+          throw err
+        }
+      }
+    })
+  )
+  return dest
+}
+
+function isUnsupportedLinkError (err: unknown): boolean {
+  return (
+    util.types.isNativeError(err) &&
+    'code' in err &&
+    typeof err.code === 'string' &&
+    ['EXDEV', 'EPERM', 'EACCES', 'ENOTSUP', 'EOPNOTSUPP'].includes(err.code)
+  )
+}
+
+async function areAllFilesInPkg (files: string[], basePath: string): Promise<boolean> {
+  const allFiles = await glob('**', {
+    cwd: basePath,
+    expandDirectories: false,
+  })
+  return equals(allFiles.sort(), files.sort())
+}
+
+async function getGitTarballUrlFromLockfile (dep: ParseWantedDependencyResult, opts: GetPatchedDependencyOptions): Promise<string | undefined> {
+  const { preferredVersions } = await getVersionsFromLockfile(dep, opts)
+  return preferredVersions[0]?.gitTarballUrl
+}

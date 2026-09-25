@@ -1,0 +1,139 @@
+import { expect, test } from '@jest/globals'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
+import type { DepPath, ProjectId } from '@pnpm/types'
+
+import { convertToLockfileFile } from '../lib/lockfileFormatConverters.js'
+
+test('empty overrides are removed during lockfile normalization', () => {
+  expect(convertToLockfileFile({
+    lockfileVersion: LOCKFILE_VERSION,
+    overrides: {},
+    patchedDependencies: {},
+    packages: {},
+    importers: {
+      ['foo' as ProjectId]: {
+        dependencies: {
+          bar: 'link:../bar',
+        },
+        specifiers: {
+          bar: 'link:../bar',
+        },
+      },
+    },
+  })).toStrictEqual({
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      foo: {
+        dependencies: {
+          bar: {
+            version: 'link:../bar',
+            specifier: 'link:../bar',
+          },
+        },
+      },
+    },
+  })
+})
+
+test('linkDirectory false is preserved during lockfile normalization', () => {
+  expect(convertToLockfileFile({
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      ['foo' as ProjectId]: {
+        linkDirectory: false,
+        publishDirectory: 'dist',
+        specifiers: {},
+      },
+    },
+  })).toStrictEqual({
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      foo: {
+        publishDirectory: 'dist',
+        linkDirectory: false,
+      },
+    },
+  })
+})
+
+test('redundant fields are removed from "time"', () => {
+  expect(convertToLockfileFile({
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {},
+    importers: {
+      ['foo' as ProjectId]: {
+        dependencies: {
+          bar: '1.0.0',
+        },
+        devDependencies: {
+          foo: '1.0.0(react@18.0.0)',
+        },
+        optionalDependencies: {
+          qar: '1.0.0',
+        },
+        specifiers: {
+          bar: '1.0.0',
+          foo: '1.0.0',
+          qar: '1.0.0',
+        },
+      },
+    },
+    time: {
+      'bar@1.0.0': '2021-02-11T22:54:29.120Z',
+      'foo@1.0.0': '2021-02-11T22:54:29.120Z',
+      'qar@1.0.0': '2021-02-11T22:54:29.120Z',
+      'zoo@1.0.0': '2021-02-11T22:54:29.120Z',
+    },
+  })).toStrictEqual({
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      foo: {
+        dependencies: {
+          bar: {
+            version: '1.0.0',
+            specifier: '1.0.0',
+          },
+        },
+        devDependencies: {
+          foo: {
+            version: '1.0.0(react@18.0.0)',
+            specifier: '1.0.0',
+          },
+        },
+        optionalDependencies: {
+          qar: {
+            version: '1.0.0',
+            specifier: '1.0.0',
+          },
+        },
+      },
+    },
+    time: {
+      'bar@1.0.0': '2021-02-11T22:54:29.120Z',
+      'foo@1.0.0': '2021-02-11T22:54:29.120Z',
+      'qar@1.0.0': '2021-02-11T22:54:29.120Z',
+    },
+  })
+})
+
+test('a registry-qualified package key leaves the lockfile version alone', () => {
+  const withQualifiedKey = convertToLockfileFile({
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { foo: 'work:1.0.0' },
+        specifiers: { foo: 'work:^1.0.0' },
+      },
+    },
+    packages: {
+      ['foo@work:1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-AAAA' },
+      },
+    },
+  })
+
+  // The key is additive, so it must not move the format: readers gate on the
+  // major, and anything outside 9.x is rejected outright by an older pnpm.
+  expect(withQualifiedKey.lockfileVersion).toBe(LOCKFILE_VERSION)
+  expect(Object.keys(withQualifiedKey.packages ?? {})).toStrictEqual(['foo@work:1.0.0'])
+})

@@ -1,0 +1,778 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import { createGzip } from 'node:zlib'
+
+import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
+import type { Catalogs } from '@pnpm/catalogs.types'
+import { FILTERING } from '@pnpm/cli.common-cli-options-help'
+import { readProjectManifest } from '@pnpm/cli.utils'
+import { type Config, type ConfigContext, getDefaultWorkspaceConcurrency, getWorkspaceConcurrency, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
+import { graphSequencer } from '@pnpm/deps.graph-sequencer'
+import { PnpmError } from '@pnpm/error'
+import { packlistWithSources } from '@pnpm/fs.packlist'
+import type { Hooks } from '@pnpm/hooks.pnpmfile'
+import { logger } from '@pnpm/logger'
+import { createExportableManifest, type ExportedManifest, readReadmeFile, type WorkspacePackageLookup } from '@pnpm/releasing.exportable-manifest'
+import { changelogStorage, readPendingChangelog, renderChangelog } from '@pnpm/releasing.versioning'
+import type { DependencyManifest, Project, ProjectManifest, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
+import { filteredProjectsDependencies } from '@pnpm/workspace.projects-sorter'
+import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
+import chalk from 'chalk'
+import { pick } from 'ramda'
+import { realpathMissing } from 'realpath-missing'
+import { renderHelp } from 'render-help'
+import tar from 'tar-stream'
+import { glob } from 'tinyglobby'
+import validateNpmPackageName from 'validate-npm-package-name'
+
+import { normalizePackageName } from '../tarball/safeTarballFilename.js'
+import { fetchPreviousChangelog, type PreviousChangelogOptions } from './previousChangelog.js'
+import { runScriptsIfPresent } from './publish.js'
+
+const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
+
+export function rcOptionsTypes (): Record<string, unknown> {
+  return {
+    ...cliOptionsTypes(),
+    ...pick([
+      'npm-path',
+      'skip-manifest-obfuscation',
+    ], allTypes),
+  }
+}
+
+export function cliOptionsTypes (): Record<string, unknown> {
+  return {
+    out: String,
+    recursive: Boolean,
+    ...pick([
+      'dry-run',
+      'pack-destination',
+      'pack-gzip-level',
+      'json',
+      'skip-manifest-obfuscation',
+      'workspace-concurrency',
+    ], allTypes),
+  }
+}
+
+export const commandNames = ['pack']
+
+export function help (): string {
+  return renderHelp({
+    description: 'Create a tarball from a package',
+    usages: ['pnpm pack'],
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: 'Does everything `pnpm pack` would do except actually writing the tarball to disk.',
+            name: '--dry-run',
+          },
+          {
+            description: 'Directory in which `pnpm pack` will save tarballs. The default is the current working directory.',
+            name: '--pack-destination <dir>',
+          },
+          {
+            description: 'Prints the packed tarball and contents in the json format.',
+            name: '--json',
+          },
+          {
+            description: 'Customizes the output path for the tarball. Use `%s` and `%v` to include the package name and version, e.g., `%s.tgz` or `some-dir/%s-%v.tgz`. By default, the tarball is saved in the current working directory with the name `<package-name>-<version>.tgz`.',
+            name: '--out <path>',
+          },
+          {
+            description: 'Pack all packages from the workspace',
+            name: '--recursive',
+            shortAlias: '-r',
+          },
+          {
+            description: 'Skip pnpm\'s manifest obfuscation: keep the original `packageManager` field and publish lifecycle scripts in the packed manifest instead of stripping them. The pnpm-specific `pnpm` field is still omitted.',
+            name: '--skip-manifest-obfuscation',
+          },
+          {
+            description: `Set the maximum number of concurrency. Default is ${getDefaultWorkspaceConcurrency()}. For unlimited concurrency use Infinity.`,
+            name: '--workspace-concurrency <number>',
+          },
+        ],
+      },
+      FILTERING,
+    ],
+  })
+}
+
+export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs'
+| 'ignoreScripts'
+| 'embedReadme'
+| 'packGzipLevel'
+| 'nodeLinker'
+| 'skipManifestObfuscation'
+| 'userAgent'
+> & Partial<Pick<Config, 'extraBinPaths'
+| 'extraEnv'
+| 'recursive'
+| 'workspaceConcurrency'
+| 'workspaceDir'
+// Registry-storage changelog composition (see `injectChangelog`): the
+// registry to read the previous version's tarball from, plus the network
+// config `createFetchFromRegistry` needs.
+| 'versioning'
+| 'registriesByScope'
+| 'configByUri'
+| 'fetchRetries'
+| 'fetchRetryFactor'
+| 'fetchRetryMaxtimeout'
+| 'fetchRetryMintimeout'
+| 'fetchTimeout'
+| 'ca'
+| 'cert'
+| 'key'
+| 'strictSsl'
+| 'httpProxy'
+| 'httpsProxy'
+| 'noProxy'
+| 'localAddress'
+>> & Partial<Pick<ConfigContext,
+| 'hooks'
+| 'allProjects'
+| 'selectedProjectsGraph'
+| 'allProjectsGraph'
+| 'prodAllProjectsGraph'
+| 'prodOnlySelectedProjectDirs'
+>> & {
+  argv: {
+    original: string[]
+  }
+  dryRun?: boolean
+  engineStrict?: boolean
+  packDestination?: string
+  out?: string
+  packDestinationLocker?: PackDestinationLocker
+  json?: boolean
+  unicode?: boolean
+}
+
+export interface PackResultJson {
+  name: string
+  version: string
+  filename: string
+  files: Array<{ path: string }>
+}
+
+export async function handler (opts: PackOptions): Promise<string> {
+  const packedPackages: PackResultJson[] = []
+
+  if (opts.recursive) {
+    const selectedProjectsGraph = opts.selectedProjectsGraph as ProjectsGraph
+    const pkgsToPack: Project[] = []
+    for (const { package: pkg } of Object.values(selectedProjectsGraph)) {
+      if (pkg.manifest.name && pkg.manifest.version) {
+        pkgsToPack.push(pkg)
+      }
+    }
+    const packedPkgDirs = new Set<ProjectRootDir>(pkgsToPack.map(({ rootDir }) => rootDir))
+
+    if (packedPkgDirs.size === 0) {
+      logger.info({
+        message: 'There are no packages that should be packed',
+        prefix: opts.dir,
+      })
+    }
+
+    const projectDependencies = filteredProjectsDependencies({
+      selectedProjectsGraph,
+      allProjectsGraph: opts.allProjectsGraph,
+      prodAllProjectsGraph: opts.prodAllProjectsGraph,
+      prodOnlySelectedProjectDirs: opts.prodOnlySelectedProjectDirs,
+    })
+
+    const resolvedOpts = { ...opts }
+    if (opts.out) {
+      resolvedOpts.out = path.resolve(opts.dir, opts.out)
+    } else if (opts.packDestination) {
+      resolvedOpts.packDestination = path.resolve(opts.dir, opts.packDestination)
+    } else {
+      resolvedOpts.packDestination = path.resolve(opts.dir)
+    }
+    const packOrder = serializeSharedPackDestinations({
+      opts: resolvedOpts,
+      packedPkgDirs,
+      projectDependencies,
+      projectsGraph: selectedProjectsGraph,
+    })
+    resolvedOpts.packDestinationLocker = createPackDestinationLocker()
+    let firstError: unknown
+    const packedByDir = new Map<ProjectRootDir, PackResultJson>()
+    await scheduleGraph(projectDependencies, {
+      bail: true,
+      concurrency: getWorkspaceConcurrency(opts.workspaceConcurrency),
+      runNode: async (pkgDir): Promise<TaskCompletion> => {
+        try {
+          if (!packedPkgDirs.has(pkgDir)) return 'passed'
+          const pkg = selectedProjectsGraph[pkgDir].package
+          const packResult = await api({
+            ...resolvedOpts,
+            dir: pkg.rootDir,
+          })
+          packedByDir.set(pkgDir, toPackResultJson(packResult))
+          return 'passed'
+        } catch (error: unknown) {
+          firstError ??= error
+          return 'aborted'
+        }
+      },
+      onNodeSkipped: () => {},
+    })
+    if (firstError != null) throw firstError
+    for (const pkgDir of packOrder) {
+      const result = packedByDir.get(pkgDir)
+      if (result != null) packedPackages.push(result)
+    }
+  } else {
+    const packResult = await api(opts)
+    packedPackages.push(toPackResultJson(packResult))
+  }
+
+  if (opts.json) {
+    return JSON.stringify(packedPackages.length > 1 ? packedPackages : packedPackages[0], null, 2)
+  }
+
+  return packedPackages.map(
+    ({ name, version, filename, files }) => `${opts.unicode ? '📦 ' : 'package:'} ${name}@${version}
+${chalk.blueBright('Tarball Contents')}
+${files.map(({ path }) => path).join('\n')}
+${chalk.blueBright('Tarball Details')}
+${filename}`
+  ).join('\n\n')
+}
+
+function serializeSharedPackDestinations (
+  params: {
+    opts: PackOptions
+    packedPkgDirs: Set<ProjectRootDir>
+    projectDependencies: Map<ProjectRootDir, ProjectRootDir[]>
+    projectsGraph: ProjectsGraph
+  }
+): ProjectRootDir[] {
+  const { opts, packedPkgDirs, projectDependencies, projectsGraph } = params
+  const order = graphSequencer(projectDependencies).order
+  const outputCanChangeWhilePacking = opts.hooks?.beforePacking != null || order.some((pkgDir) => {
+    const manifest = projectsGraph[pkgDir].package.manifest
+    return manifest.publishConfig?.directory != null || (!opts.ignoreScripts &&
+      ['prepack', 'prepare'].some((script) => Boolean(manifest.scripts?.[script])))
+  })
+  const outputIsLiteral = opts.out != null && !opts.out.includes('%s') && !opts.out.includes('%v')
+  if (outputCanChangeWhilePacking && !outputIsLiteral) return order
+  const previousByOutput = new Map<string, ProjectRootDir>()
+  for (const pkgDir of order) {
+    if (!packedPkgDirs.has(pkgDir)) continue
+    const pkg = projectsGraph[pkgDir].package
+    const output = packOutputPath(opts, pkg)
+    const predecessor = output == null ? undefined : previousByOutput.get(output)
+    if (output != null) previousByOutput.set(output, pkgDir)
+    if (predecessor != null && !projectDependencies.get(pkgDir)!.includes(predecessor)) {
+      projectDependencies.get(pkgDir)!.push(predecessor)
+    }
+  }
+  return order
+}
+
+type PackDestinationLocker = (destination: string, write: () => Promise<void>) => Promise<void>
+
+function createPackDestinationLocker (): PackDestinationLocker {
+  const pending = new Map<string, Promise<void>>()
+  return async (destination, write) => {
+    const previous = pending.get(destination)
+    let release!: () => void
+    const current = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    pending.set(destination, current)
+    await previous
+    try {
+      await write()
+    } finally {
+      release()
+      if (pending.get(destination) === current) pending.delete(destination)
+    }
+  }
+}
+
+function packOutputPath (opts: PackOptions, pkg: Project): string | undefined {
+  const publishedName = pkg.manifest.publishConfig?.name ?? pkg.manifest.name
+  const publishedVersion = pkg.manifest.version
+  if (publishedName == null || publishedVersion == null) return undefined
+  return resolvePackOutput({
+    dir: pkg.rootDir,
+    out: opts.out,
+    packDestination: opts.packDestination,
+    publishedName,
+    publishedVersion,
+  }).outputPath
+}
+
+export function resolvePackOutput (
+  params: {
+    dir: string
+    out?: string
+    packDestination?: string
+    publishedName: string
+    publishedVersion: string
+  }
+): { destDir: string, outputPath: string, tarballName: string } {
+  const { dir, out, packDestination, publishedName } = params
+  const normalizedName = normalizePackageName(publishedName)
+  const publishedVersion = stripBuildMetadata(params.publishedVersion)
+  let tarballName: string
+  let destination: string | undefined
+  if (out) {
+    if (packDestination) {
+      throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
+    }
+    const preparedOut = out.replaceAll('%s', normalizedName).replaceAll('%v', publishedVersion)
+    const parsedOut = path.parse(preparedOut)
+    destination = parsedOut.dir || packDestination
+    tarballName = parsedOut.base
+  } else {
+    destination = packDestination
+    tarballName = `${normalizedName}-${publishedVersion}.tgz`
+  }
+  const destDir = destination
+    ? (path.isAbsolute(destination) ? destination : path.join(dir, destination))
+    : dir
+  return { destDir, outputPath: path.join(destDir, tarballName), tarballName }
+}
+
+export async function api (opts: PackOptions): Promise<PackResult> {
+  const { manifest: entryManifest, fileName: manifestFileName } = await readProjectManifest(opts.dir, opts)
+  preventBundledDependenciesWithPnpNodeLinker(opts.nodeLinker, entryManifest)
+  const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
+    depPath: opts.dir,
+    extraBinPaths: opts.extraBinPaths,
+    extraEnv: opts.extraEnv,
+    pkgRoot: opts.dir,
+    rootModulesDir: await realpathMissing(path.join(opts.dir, 'node_modules')),
+    stdio: 'inherit',
+    unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
+    userAgent: opts.userAgent,
+  })
+  if (!opts.ignoreScripts) {
+    await _runScriptsIfPresent([
+      'prepack',
+      'prepare',
+    ], entryManifest)
+  }
+  const dir = entryManifest.publishConfig?.directory
+    ? path.join(opts.dir, entryManifest.publishConfig.directory)
+    : opts.dir
+  // always read the latest manifest, as "prepack" or "prepare" script may modify package manifest.
+  const { manifest, fileName: selectedManifestFileName } = await readProjectManifest(dir, opts)
+  preventBundledDependenciesWithPnpNodeLinker(opts.nodeLinker, manifest)
+  if (!manifest.name) {
+    throw new PnpmError('PACKAGE_NAME_NOT_FOUND', `Package name is not defined in the ${manifestFileName}.`)
+  }
+  if (!validateNpmPackageName(manifest.name).validForOldPackages) {
+    throw new PnpmError('INVALID_PACKAGE_NAME', `Invalid package name "${manifest.name}".`)
+  }
+  if (!manifest.version) {
+    throw new PnpmError('PACKAGE_VERSION_NOT_FOUND', `Package version is not defined in the ${manifestFileName}.`)
+  }
+  let workspacePackages: WorkspacePackageLookup | undefined = opts.allProjects ??
+    (opts.selectedProjectsGraph ? Object.values(opts.selectedProjectsGraph).map((p) => p.package) : undefined) ??
+    (opts.allProjectsGraph ? Object.values(opts.allProjectsGraph).map((p) => p.package) : undefined)
+  if (!workspacePackages && opts.workspaceDir) {
+    const { filterProjectsBySelectorObjectsFromDir } = await import('@pnpm/workspace.projects-filter')
+    const result = await filterProjectsBySelectorObjectsFromDir(opts.workspaceDir, [])
+    workspacePackages = result.allProjects
+  }
+  const publishManifest = await createPublishManifest({
+    projectDir: dir,
+    modulesDir: path.join(opts.dir, 'node_modules'),
+    manifest,
+    embedReadme: opts.embedReadme,
+    catalogs: opts.catalogs ?? {},
+    hooks: opts.hooks,
+    skipManifestObfuscation: opts.skipManifestObfuscation,
+    workspacePackages,
+  })
+  // Strip semver build metadata (the `+<build>` segment) from the published version so that
+  // the tarball, the manifest packed inside it, and the metadata sent to the registry all agree.
+  // libnpmpublish runs `semver.clean()` on `manifest.version` before computing the provenance
+  // subject, which removes build metadata. Leaving it in here would mismatch the version embedded
+  // in the tarball's package.json and cause the registry to reject the publish with a 422 when
+  // verifying the sigstore provenance bundle. See https://github.com/pnpm/pnpm/issues/11518.
+  publishManifest.version = stripBuildMetadata(publishManifest.version!)
+  // Read back off the publish manifest so a `publishConfig.name` rename reaches
+  // the filename too — the tarball name, the packed manifest, and the registry
+  // metadata all name one artifact. The rename never went through the check on
+  // `manifest.name` above, so it is validated here: it lands in the tarball
+  // filename, where a separator would smuggle path components into the join and
+  // write outside the pack destination.
+  const publishedName = publishManifest.name || manifest.name
+  if (!validateNpmPackageName(publishedName).validForOldPackages) {
+    throw new PnpmError('INVALID_PACKAGE_NAME', `Invalid package name "${publishedName}".`)
+  }
+  const { destDir, outputPath, tarballName } = resolvePackOutput({
+    dir,
+    out: opts.out,
+    packDestination: opts.packDestination,
+    publishedName,
+    publishedVersion: publishManifest.version,
+  })
+  const sources = await packlistWithSources(dir, {
+    manifest: publishManifest as Record<string, unknown>,
+    workspaceDir: opts.workspaceDir,
+    bundledDependenciesDir: opts.dir,
+  })
+  const files = Array.from(sources.keys())
+  const filesMap = Object.fromEntries(Array.from(sources, ([file, source]) => [`package/${file}`, source]))
+  for (const name of Object.keys(filesMap)) {
+    if (isManifestEntry(name)) delete filesMap[name]
+  }
+  filesMap['package/package.json'] = path.join(dir, selectedManifestFileName)
+  const binPaths = [
+    ...(await getBinsFromPackageManifest(publishManifest as DependencyManifest, dir)).map(({ path }) => path),
+    ...(manifest.publishConfig?.executableFiles ?? [])
+      .map((executableFile) => path.join(dir, executableFile)),
+  ]
+  await checkPackedBinsForCrlf(filesMap, binPaths)
+  // cspell:disable-next-line
+  if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /^LICEN[CS]E(?:\..+)?$/i.test(path.basename(file)))) {
+    const { workspaceDir } = opts
+    const licenses = await glob([LICENSE_GLOB], { cwd: workspaceDir, expandDirectories: false })
+    await Promise.all(licenses.map(async (license) => {
+      const licensePath = path.join(workspaceDir, license)
+      // Only inject a regular file. A symlink could point outside the workspace and leak its
+      // target's bytes into the published tarball, so `lstat()` (which does not follow symlinks)
+      // rejects it — matching pacquet's inject_workspace_license.
+      const stats = await fs.promises.lstat(licensePath)
+      if (stats.isFile()) {
+        filesMap[`package/${license}`] = licensePath
+      }
+    }))
+  }
+  // In `registry` changelog storage the package carries no committed
+  // CHANGELOG.md; its section was parked at `pnpm version -r` time and is
+  // composed here on top of the previously published version's changelog and
+  // packed in. A composed entry supersedes any stale committed CHANGELOG.md.
+  const injectedEntries: Record<string, string> = {}
+  const composedChangelog = await composeRegistryChangelog(opts, manifest.name, publishedName, manifest.version)
+  if (composedChangelog != null) {
+    delete filesMap['package/CHANGELOG.md']
+    injectedEntries['package/CHANGELOG.md'] = composedChangelog
+  }
+  if (!opts.dryRun) {
+    await fs.promises.mkdir(destDir, { recursive: true })
+  }
+  // Derive `contents` and `unpackedSize` from `filesMap` (the full set of tar entries) rather than
+  // from `files` (the packlist subset) so that:
+  //   - workspace LICENSE files appended to `filesMap` after the packlist call are included; and
+  //   - `package.yaml` / `package.json5` entries are reported under the name they actually have in
+  //     the tar (`package.json`), since `packPkg()` rewrites them.
+  // The `stat()` pass must run before `postpack`, which may delete prepack-generated files that
+  // were packed. See https://github.com/pnpm/pnpm/issues/12775.
+  const sizes = await Promise.all(Object.entries(filesMap).map(async ([name, source]) => {
+    if (isManifestEntry(name)) {
+      return Buffer.byteLength(JSON.stringify(publishManifest, null, 2))
+    }
+    const stat = await fs.promises.lstat(source)
+    return stat.isSymbolicLink() ? 0 : stat.size
+  }))
+  const injectedSize = Object.values(injectedEntries).reduce((acc, content) => acc + Buffer.byteLength(content), 0)
+  const unpackedSize = sizes.reduce((acc, size) => acc + size, 0) + injectedSize
+  const packedContents = Array.from(new Set([
+    ...Object.keys(filesMap).map((name) =>
+      isManifestEntry(name)
+        ? 'package.json'
+        : name.replace(/^package\//, '')
+    ),
+    ...Object.keys(injectedEntries).map((name) => name.replace(/^package\//, '')),
+  ])).sort((a, b) => a.localeCompare(b, 'en'))
+  if (!opts.dryRun) {
+    const packAndRunPostpack = async (): Promise<void> => {
+      await packPkg({
+        destFile: outputPath,
+        filesMap,
+        injectedEntries,
+        modulesDir: path.join(opts.dir, 'node_modules'),
+        packGzipLevel: opts.packGzipLevel,
+        manifest: publishManifest,
+        bins: binPaths,
+      })
+      if (!opts.ignoreScripts) {
+        await _runScriptsIfPresent(['postpack'], entryManifest)
+      }
+    }
+    const destination = path.resolve(outputPath)
+    if (opts.packDestinationLocker == null) {
+      await packAndRunPostpack()
+    } else {
+      await opts.packDestinationLocker(destination, packAndRunPostpack)
+    }
+  }
+  let packedTarballPath
+  if (opts.dir !== destDir) {
+    packedTarballPath = path.join(destDir, tarballName)
+  } else {
+    packedTarballPath = path.relative(opts.dir, path.join(dir, tarballName))
+  }
+  return {
+    publishedManifest: await withRegistryReadme(publishManifest, dir),
+    contents: packedContents,
+    tarballPath: packedTarballPath,
+    unpackedSize,
+  }
+}
+
+/**
+ * The readme is always sent to the registry as package metadata, matching the npm CLI, so that
+ * registries can render it on the package page. The `embed-readme` setting only controls whether
+ * the readme is additionally written into the `package.json` inside the tarball (via
+ * `createExportableManifest`), which is why it is added to the returned manifest here rather than
+ * to the packed one.
+ */
+async function withRegistryReadme (manifest: ExportedManifest, projectDir: string): Promise<ExportedManifest> {
+  if (manifest.readme != null) return manifest
+  const readme = await readReadmeFile(projectDir)
+  if (readme == null) return manifest
+  return { ...manifest, readme }
+}
+
+export interface PackResult {
+  publishedManifest: ExportedManifest
+  contents: string[]
+  tarballPath: string
+  /** Total uncompressed size of all files in the tarball, in bytes. */
+  unpackedSize: number
+}
+
+// True when a `package/<path>` tar key names the package manifest, which is
+// packed as a single serialized `package/package.json` entry and reported as
+// `package.json` in the contents listing regardless of the source file name.
+function isManifestEntry (name: string): boolean {
+  return name === 'package/package.json' || name === 'package/package.json5' || name === 'package/package.yaml'
+}
+
+/**
+ * The CHANGELOG.md to pack for a `registry`-storage release: its parked
+ * section (written at `pnpm version -r` time) rendered on top of the
+ * previously published version's changelog. `undefined` when storage is
+ * `repository`, there is no workspace, or the release has no parked section
+ * (an ordinary `pnpm pack` of a package that is not mid-release).
+ */
+/**
+ * `pkgName` keys the parked section — the workspace, the ledger, and every
+ * intent address the project by its manifest name. `publishedName` is the only
+ * name the registry knows, so it selects the previous changelog to build on and
+ * titles the composed one.
+ */
+async function composeRegistryChangelog (opts: PackOptions, pkgName: string, publishedName: string, version: string): Promise<string | undefined> {
+  if (changelogStorage(opts.versioning) !== 'registry' || opts.workspaceDir == null) return undefined
+  const section = await readPendingChangelog(opts.workspaceDir, pkgName, version)
+  if (section == null) return undefined
+  const previous = opts.registriesByScope != null
+    ? await fetchPreviousChangelog(opts as PreviousChangelogOptions, publishedName, version)
+    : undefined
+  return renderChangelog(previous ?? null, publishedName, section)
+}
+
+function stripBuildMetadata (version: string): string {
+  const plusIndex = version.indexOf('+')
+  return plusIndex === -1 ? version : version.slice(0, plusIndex)
+}
+
+function preventBundledDependenciesWithPnpNodeLinker (nodeLinker: Config['nodeLinker'], manifest: ProjectManifest): void {
+  if (nodeLinker !== 'pnp') return
+  for (const key of ['bundledDependencies', 'bundleDependencies'] as const) {
+    const bundledDependencies = manifest[key]
+    if (bundledDependencies) {
+      throw new PnpmError('BUNDLED_DEPENDENCIES_WITHOUT_HOISTED', `${key} does not work with "nodeLinker: ${nodeLinker}"`, {
+        hint: `Set "nodeLinker: isolated" or "nodeLinker: hoisted" in pnpm-workspace.yaml or delete ${key} from the root package.json to resolve this error`,
+      })
+    }
+  }
+}
+
+async function packPkg (opts: {
+  destFile: string
+  filesMap: Record<string, string>
+  /** In-memory tar entries (name → contents) with no file on disk, e.g. the composed CHANGELOG.md. */
+  injectedEntries?: Record<string, string>
+  modulesDir: string
+  packGzipLevel?: number
+  bins: string[]
+  manifest: ExportedManifest
+}): Promise<void> {
+  const {
+    destFile,
+    filesMap,
+    injectedEntries,
+    bins,
+    manifest,
+  } = opts
+  const mtime = new Date('1985-10-26T08:15:00.000Z')
+  const pack = tar.pack()
+  for (const entry of compressionOrderedEntries(filesMap, injectedEntries)) {
+    if ('content' in entry) {
+      pack.entry({ mode: 0o644, mtime, name: entry.name }, entry.content)
+      continue
+    }
+    if (!isManifestEntry(entry.name) && fs.lstatSync(entry.source).isSymbolicLink()) {
+      let linkname = fs.readlinkSync(entry.source)
+      if (path.isAbsolute(linkname)) {
+        linkname = path.relative(path.dirname(entry.source), linkname)
+      }
+      if (process.platform === 'win32') {
+        linkname = linkname.replace(/\\/g, '/')
+      }
+      const archiveDir = path.posix.dirname(entry.name)
+      const posixTarget = linkname.replace(/\\/g, '/')
+      if (path.posix.isAbsolute(posixTarget)) {
+        continue
+      }
+      const resolvedArchive = path.posix.normalize(path.posix.join(archiveDir, posixTarget))
+      if (resolvedArchive !== 'package' && !resolvedArchive.startsWith('package/')) {
+        continue
+      }
+      pack.entry({ mode: 0o777, mtime, name: entry.name, type: 'symlink', linkname })
+      continue
+    }
+    const isExecutable = bins.some((bin) => path.relative(bin, entry.source) === '') || isFileExecutable(entry.source)
+    const mode = isExecutable ? 0o755 : 0o644
+    const content = isManifestEntry(entry.name)
+      ? JSON.stringify(manifest, null, 2)
+      : fs.readFileSync(entry.source)
+    pack.entry({ mode, mtime, name: entry.name }, content)
+  }
+  const tarball = fs.createWriteStream(destFile)
+  pack.pipe(createGzip({ level: opts.packGzipLevel })).pipe(tarball)
+  pack.finalize()
+  return new Promise((resolve, reject) => {
+    tarball.on('close', () => {
+      resolve()
+    }).on('error', reject)
+  })
+}
+
+type PackedEntry =
+  | { name: string, source: string }
+  | { name: string, content: string }
+
+/**
+ * Every tar entry under the name it is packed as, ordered for compression.
+ * `packlist()` already returns its own files that way; sorting here also
+ * places the entries added afterwards, such as a workspace LICENSE or a
+ * composed CHANGELOG.md.
+ */
+function compressionOrderedEntries (filesMap: Record<string, string>, injectedEntries?: Record<string, string>): PackedEntry[] {
+  const entries: PackedEntry[] = [
+    ...Object.entries(filesMap).map(([name, source]) => ({
+      name: isManifestEntry(name) ? 'package/package.json' : name,
+      source,
+    })),
+    ...Object.entries(injectedEntries ?? {}).map(([name, content]) => ({ name, content })),
+  ]
+  return entries.sort((entry1, entry2) => compareForCompression(entry1.name, entry2.name))
+}
+
+function compareForCompression (path1: string, path2: string): number {
+  return path.extname(path1).toLowerCase().localeCompare(path.extname(path2).toLowerCase(), 'en') ||
+    path.basename(path1).toLowerCase().localeCompare(path.basename(path2).toLowerCase(), 'en') ||
+    path1.localeCompare(path2, 'en')
+}
+
+async function createPublishManifest (opts: {
+  projectDir: string
+  embedReadme?: boolean
+  modulesDir: string
+  manifest: ProjectManifest
+  catalogs: Catalogs
+  hooks?: Hooks
+  skipManifestObfuscation?: boolean
+  workspacePackages?: WorkspacePackageLookup
+}): Promise<ExportedManifest> {
+  const { projectDir, embedReadme, modulesDir, manifest, catalogs, hooks, skipManifestObfuscation, workspacePackages } = opts
+  return createExportableManifest(projectDir, manifest, {
+    catalogs,
+    hooks,
+    embedReadme,
+    modulesDir,
+    skipManifestObfuscation,
+    workspacePackages,
+  })
+}
+
+function toPackResultJson (packResult: PackResult): PackResultJson {
+  const { publishedManifest, contents, tarballPath } = packResult
+  return {
+    name: publishedManifest.name as string,
+    version: publishedManifest.version as string,
+    filename: tarballPath,
+    files: contents.map((file) => ({ path: file })),
+  }
+}
+
+function isFileExecutable (file: string): boolean {
+  try {
+    return (fs.statSync(file).mode & 0o111) !== 0
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return false
+    }
+    throw err
+  }
+}
+
+async function checkPackedBinsForCrlf (
+  filesMap: Record<string, string>,
+  bins: string[]
+): Promise<void> {
+  const binSet = new Set(bins.map((bin) => path.resolve(bin)))
+  const packedBins = Object.entries(filesMap)
+    .filter(([name, source]) => !isManifestEntry(name) && binSet.has(path.resolve(source)))
+  await Promise.all(packedBins.map(async ([name, source]) => {
+    if (await hasShebangWithCrlf(source)) {
+      const relativePath = name.replace(/^package\//, '')
+      throw new PnpmError(
+        'BIN_CRLF',
+        `The bin file "${relativePath}" has a shebang line ending with CRLF (\\r\\n).`,
+        {
+          hint: `CRLF line endings on the shebang line break execution on Unix systems (/usr/bin/env: 'node\\r': No such file or directory). Convert line endings of "${relativePath}" to LF (\\n).`,
+        }
+      )
+    }
+  }))
+}
+
+async function hasShebangWithCrlf (filePath: string): Promise<boolean> {
+  let fileHandle: fs.promises.FileHandle | undefined
+  try {
+    fileHandle = await fs.promises.open(filePath, 'r')
+    const buffer = Buffer.alloc(4096)
+    const { bytesRead } = await fileHandle.read(buffer, 0, buffer.length, 0)
+    return bufferHasShebangWithCrlf(buffer.subarray(0, bytesRead))
+  } finally {
+    await fileHandle?.close()
+  }
+}
+
+function bufferHasShebangWithCrlf (buf: Buffer | Uint8Array): boolean {
+  let start = 0
+  if (buf.length >= 3 && buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) {
+    start = 3
+  }
+  if (buf.length < start + 2 || buf[start] !== 0x23 || buf[start + 1] !== 0x21) {
+    return false
+  }
+  for (let i = start + 2; i < buf.length; i++) {
+    if (buf[i] === 0x0D) {
+      return true
+    }
+    if (buf[i] === 0x0A) {
+      return false
+    }
+  }
+  return false
+}

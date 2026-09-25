@@ -1,0 +1,11 @@
+{
+  "name": "preact-particles",
+  "version": "2.3.3",
+  "dependencies": {
+    "fast-deep-equal": "^3.1.3",
+    "tsparticles-engine": "^2.3.3"
+  },
+  "peerDependencies": {
+    "preact": ">=10"
+  }
+}

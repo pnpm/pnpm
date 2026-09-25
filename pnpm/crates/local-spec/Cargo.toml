@@ -1,0 +1,20 @@
+[package]
+name = "pnpm-local-spec"
+description = "Recognizing specifiers that name a local path, and re-anchoring them between the directory they are written in and the directory that consumes them"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+pnpm-fs = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+
+[lints]
+workspace = true

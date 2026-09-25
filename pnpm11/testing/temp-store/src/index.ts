@@ -1,0 +1,65 @@
+import * as path from 'node:path'
+
+import { type ClientOptions, createClient } from '@pnpm/installing.client'
+import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+import { createPackageStore, type CreatePackageStoreOptions } from '@pnpm/store.controller'
+import type { StoreController } from '@pnpm/store.controller-types'
+import { StoreIndex } from '@pnpm/store.index'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
+
+export interface CreateTempStoreResult {
+  storeController: StoreController
+  storeDir: string
+  cacheDir: string
+  resolutionVerifiers: ResolutionVerifier[]
+}
+
+export function createTempStore (opts?: {
+  fastUnpack?: boolean
+  storeDir?: string
+  clientOptions?: Partial<ClientOptions>
+  storeOptions?: Partial<CreatePackageStoreOptions>
+}): CreateTempStoreResult {
+  const configByUri: ClientOptions['configByUri'] = {}
+  const cacheDir = path.resolve('cache')
+  const storeDir = opts?.storeDir ?? path.resolve('.store')
+  const storeIndex = new StoreIndex(storeDir)
+  const { resolve, fetchers, clearResolutionCache, resolutionVerifiers } = createClient({
+    configByUri,
+    retry: {
+      retries: 4,
+      factor: 10,
+      maxTimeout: 60_000,
+      minTimeout: 10_000,
+    },
+    cacheDir,
+    storeDir,
+    storeIndex,
+    registriesByScope: {
+      default: registry,
+    },
+    ...opts?.clientOptions,
+  })
+  const storeController = createPackageStore(
+    resolve,
+    fetchers,
+    {
+      cacheDir,
+      ignoreFile: opts?.fastUnpack === false ? undefined : (filename) => filename !== 'package.json',
+      storeDir,
+      storeIndex,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+      clearResolutionCache,
+      ...opts?.storeOptions,
+    }
+  )
+  return {
+    storeController,
+    storeDir,
+    cacheDir,
+    resolutionVerifiers,
+  }
+}

@@ -1,0 +1,1514 @@
+import { createHash } from 'node:crypto'
+import fs from 'node:fs'
+import http from 'node:http'
+import path from 'node:path'
+
+import { expect, test } from '@jest/globals'
+import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import { prepare, preparePackages } from '@pnpm/prepare'
+import { bravoDepMatureUpTo101MinimumReleaseAge } from '@pnpm/testing.registry-mock'
+import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
+import {
+  addDistTag,
+  execPnpm,
+  execPnpmSync,
+} from './utils/index.js'
+
+test('update --patches refreshes a registry revision without changing the version', async () => {
+  const storage = process.env.PNPM_REGISTRY_MOCK_STORAGE
+  if (storage == null) throw new Error('PNPM_REGISTRY_MOCK_STORAGE is required')
+  const firstTarball = fs.readFileSync(path.join(storage, 'ajv-keywords', 'ajv-keywords-1.5.0.tgz'))
+  const secondTarball = Buffer.from(firstTarball)
+  secondTarball[9] = firstTarball[9] === 0xff ? 0x03 : 0xff
+  const firstIntegrity = `sha512-${createHash('sha512').update(firstTarball).digest('base64')}`
+  const secondIntegrity = `sha512-${createHash('sha512').update(secondTarball).digest('base64')}`
+
+  let revision = 1
+  let registry = ''
+  const server = http.createServer((request, response) => {
+    const artifacts = [firstTarball, secondTarball].map((tarball, index) => {
+      const digest = createHash('sha512').update(tarball).digest()
+      return {
+        integrity: `sha512-${digest.toString('base64')}`,
+        manifest: {},
+        revision: index + 1,
+        tarball: `${registry}-/tarballs/sha512/${digest.toString('base64url')}`,
+        bytes: tarball,
+      }
+    })
+    if (request.url === '/ajv-keywords') {
+      const current = artifacts[revision - 1]
+      response.writeHead(200, { 'Content-Type': 'application/json' })
+      response.end(JSON.stringify({
+        name: 'ajv-keywords',
+        'dist-tags': { latest: '1.5.0' },
+        versions: {
+          '1.5.0': {
+            name: 'ajv-keywords',
+            version: '1.5.0',
+            dist: {
+              integrity: current.integrity,
+              revision,
+              revisions: artifacts.slice(0, revision).map((artifact) => ({
+                integrity: artifact.integrity,
+                manifest: artifact.manifest,
+                revision: artifact.revision,
+                tarball: artifact.tarball,
+              })),
+              tarball: current.tarball,
+            },
+          },
+        },
+      }))
+      return
+    }
+    const artifact = artifacts.find(({ tarball }) => request.url === new URL(tarball).pathname)
+    if (artifact != null) {
+      response.writeHead(200, { 'Content-Type': 'application/octet-stream' })
+      response.end(artifact.bytes)
+      return
+    }
+    response.writeHead(404).end()
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  registry = `http://127.0.0.1:${(server.address() as { port: number }).port}/`
+
+  try {
+    const project = prepare({ dependencies: { 'ajv-keywords': '^1.5.0' } })
+    await execPnpm(['install', `--registry=${registry}`])
+    expect(project.readLockfile().packages['ajv-keywords@1.5.0'].resolution).toStrictEqual({
+      integrity: firstIntegrity,
+      revision: 1,
+    })
+    const manifest = await readPackageJsonFromDir('.')
+
+    revision = 2
+    await execPnpm(['update', '--patches', `--registry=${registry}`])
+
+    expect(await readPackageJsonFromDir('.')).toStrictEqual(manifest)
+    expect(project.readLockfile().packages['ajv-keywords@1.5.0'].resolution).toStrictEqual({
+      integrity: secondIntegrity,
+      revision: 2,
+    })
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => error == null ? resolve() : reject(error))
+    })
+  }
+})
+
+test('update --patches preserves an implicit workspace dependency', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+      dependencies: { 'workspace-only': '^1.0.0' },
+    },
+    {
+      name: 'workspace-only',
+      version: '1.0.0',
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    linkWorkspacePackages: true,
+    packages: ['**', '!store/**'],
+  })
+  await execPnpm(['recursive', 'install'])
+
+  process.chdir('project')
+  const manifest = await readPackageJsonFromDir('.')
+  await execPnpm(['update', '--patches'])
+
+  expect(await readPackageJsonFromDir('.')).toStrictEqual(manifest)
+  expect(fs.realpathSync('node_modules/workspace-only')).toBe(fs.realpathSync('../workspace-only'))
+  const lockfile = readYamlFileSync<any>('../pnpm-lock.yaml') // eslint-disable-line
+  expect(lockfile.importers.project.dependencies['workspace-only'].version).toBe('link:../workspace-only')
+})
+
+test('update <dep>', async () => {
+  const project = prepare()
+
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest')
+
+  await execPnpm(['install', '@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0'])
+
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+
+  await execPnpm(['update', '@pnpm.e2e/dep-of-pkg-with-1-dep@latest'])
+
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0')
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
+
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  expect(pkg.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('^101.0.0')
+})
+
+test('update <pkg>@<version> updates only the selected package', async () => {
+  await Promise.all([
+    addDistTag('@pnpm.e2e/pkg-with-1-dep', '100.0.0', 'latest'),
+    addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest'),
+  ])
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--lockfile-only'])
+
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await execPnpm(['update', '--no-save', '@pnpm.e2e/pkg-with-1-dep@100.0.0', '--lockfile-only'])
+
+  expect(Object.keys(project.readLockfile().packages ?? {})).toStrictEqual([
+    '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+    '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+  ])
+})
+
+test('update <alias>@npm:<pkg>@<version> updates the aliased package', async () => {
+  await addDistTag('@pnpm.e2e/qar', '100.0.0', 'latest')
+
+  const project = prepare({
+    dependencies: {
+      alias: 'npm:@pnpm.e2e/qar@^100.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--lockfile-only'])
+
+  await addDistTag('@pnpm.e2e/qar', '100.1.0', 'latest')
+
+  await execPnpm(['update', 'alias@npm:@pnpm.e2e/qar@^100.0.0', '--lockfile-only'])
+
+  expect(Object.keys(project.readLockfile().packages ?? {})).toStrictEqual(['@pnpm.e2e/qar@100.1.0'])
+})
+
+test('an ignored <alias>@npm:<pkg> selector keeps the aliased package too', async () => {
+  await Promise.all([
+    addDistTag('@pnpm.e2e/qar', '100.0.0', 'latest'),
+    addDistTag('@pnpm.e2e/foo', '100.0.0', 'latest'),
+  ])
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+      alias: 'npm:@pnpm.e2e/qar@^100.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--lockfile-only'])
+
+  await Promise.all([
+    addDistTag('@pnpm.e2e/qar', '100.1.0', 'latest'),
+    addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest'),
+  ])
+
+  await execPnpm(['update', '--no-save', '*', '!alias@npm:@pnpm.e2e/qar@^100.0.0', '--lockfile-only'])
+
+  expect(Object.keys(project.readLockfile().packages ?? {})).toStrictEqual([
+    '@pnpm.e2e/foo@100.1.0',
+    '@pnpm.e2e/qar@100.0.0',
+  ])
+})
+
+test('update --no-save', async () => {
+  await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  })
+
+  await execPnpm(['update', '--no-save'])
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/foo@100.1.0'])
+
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.0.0')
+})
+
+test('update', async () => {
+  await addDistTag('@pnpm.e2e/foo', '100.0.0', 'latest')
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--lockfile-only'])
+
+  await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
+
+  await execPnpm(['update'])
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/foo@100.1.0'])
+
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
+})
+
+test('recursive update --no-save', async () => {
+  await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
+  preparePackages([
+    {
+      location: 'project',
+      package: {
+        dependencies: {
+          '@pnpm.e2e/foo': '^100.0.0',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['recursive', 'update', '--no-save'])
+
+  const lockfile = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/foo@100.1.0'])
+
+  const pkg = await readPackageJsonFromDir(path.resolve('project'))
+  expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.0.0')
+})
+
+test('recursive update <pkg>@<version> --lockfile-only --no-save does not leak across major lines for transitive targets', async () => {
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['recursive', 'install', '--lockfile-only'])
+
+  const lockfileBefore = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
+  const project2VersionBefore = lockfileBefore.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version
+
+  const result = execPnpmSync(['recursive', 'update', '--lockfile-only', '--no-save', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(result.status).toBe(0)
+
+  // project-2 declares the package at 101.0.0, which `--no-save` keeps, so the
+  // requested version is rejected there rather than dragging that line down.
+  expect(result.stdout.toString()).toContain('Skipping "@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0": it doesn\'t satisfy "101.0.0"')
+
+  const lockfile = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
+  const depKeys = Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@'))
+
+  expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe(project2VersionBefore)
+  expect(depKeys.filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@101.'))).toStrictEqual([`@pnpm.e2e/dep-of-pkg-with-1-dep@${project2VersionBefore}`])
+  // project-1's transitive copy resolves to what a fresh install would pick
+  // within `^100.0.0`, and the 101.x line stays out of it.
+  expect(depKeys).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0')
+})
+
+test('recursive update <pkg>@<version> reports that a transitive-only version is ignored', async () => {
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        // Depends on `@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0` transitively;
+        // no project in the workspace declares it directly.
+        '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['recursive', 'install', '--lockfile-only'])
+
+  const result = execPnpmSync(['recursive', 'update', '--lockfile-only', '--no-save', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+
+  expect(result.status).toBe(1)
+  const output = result.stdout.toString() + result.stderr.toString()
+  expect(output).toContain('ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP')
+  expect(output).toContain('"@pnpm.e2e/dep-of-pkg-with-1-dep" (requested "100.1.0") is not a direct dependency')
+  expect(output).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@<declared range>: 100.1.0')
+
+  // The lockfile is left exactly as the install wrote it.
+  const lockfile = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
+  const depKeys = Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@'))
+  expect(depKeys).toStrictEqual(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+})
+
+test('update <pkg>@<version> fails when the package is not a direct dependency', async () => {
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--lockfile-only'])
+
+  const result = execPnpmSync(['update', '--lockfile-only', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+
+  expect(result.status).toBe(1)
+  const output = result.stdout.toString() + result.stderr.toString()
+  expect(output).toContain('ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP')
+  // Dropping the version is the in-range update the message points at.
+  expect(output).toContain('pnpm update @pnpm.e2e/dep-of-pkg-with-1-dep')
+})
+
+test('update <pkg> without a version still updates a transitive dependency', async () => {
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--lockfile-only'])
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await execPnpm(['update', '--lockfile-only', '@pnpm.e2e/dep-of-pkg-with-1-dep'])
+
+  const lockfile = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
+  expect(Object.keys(lockfile.packages ?? {})).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+})
+
+test('recursive update --latest reports the spec ban before judging whether a selector is direct', async () => {
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        // Declares `@pnpm.e2e/dep-of-pkg-with-1-dep` transitively only, so the
+        // selector below would be rejected by the indirect-version check too.
+        '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['recursive', 'install', '--lockfile-only'])
+
+  const result = execPnpmSync(['recursive', 'update', '--latest', '--lockfile-only', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+
+  expect(result.status).toBe(1)
+  const output = result.stdout.toString() + result.stderr.toString()
+  expect(output).toContain('ERR_PNPM_LATEST_WITH_SPEC')
+  expect(output).not.toContain('ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP')
+})
+
+test('recursive update alias@npm:<pkg>@<version> --lockfile-only --no-save scopes by version line', async () => {
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        alias: 'npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['recursive', 'install', '--lockfile-only'])
+
+  const lockfileBefore = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
+  const project2VersionBefore = lockfileBefore.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version
+
+  const result = execPnpmSync(['recursive', 'update', '--lockfile-only', '--no-save', 'alias@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(result.status).toBe(0)
+
+  // `alias` is a direct dependency, so the manifest — which `--no-save` keeps —
+  // decides: `^100.0.0` supersedes the requested 100.1.0.
+  expect(result.stdout.toString()).toContain('the manifest keeps "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0" when updating without saving')
+
+  const lockfile = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
+  const depKeys = Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@'))
+
+  expect(lockfile.importers['project-1'].dependencies['alias'].version).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0')
+  // project-2's 101.x dependency must remain unchanged
+  expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe(project2VersionBefore)
+  expect(depKeys.filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@101.'))).toStrictEqual([`@pnpm.e2e/dep-of-pkg-with-1-dep@${project2VersionBefore}`])
+
+  const project1Manifest = await readPackageJsonFromDir(path.resolve('project-1'))
+  expect(project1Manifest.dependencies?.['alias']).toBe('npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0')
+
+  const project2Manifest = await readPackageJsonFromDir(path.resolve('project-2'))
+  expect(project2Manifest.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('101.0.0')
+})
+
+test('recursive update', async () => {
+  await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
+  preparePackages([
+    {
+      location: 'project',
+      package: {
+        dependencies: {
+          '@pnpm.e2e/foo': '^100.0.0',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['recursive', 'update'])
+
+  const lockfile = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/foo@100.1.0'])
+
+  const pkg = await readPackageJsonFromDir(path.resolve('project'))
+  expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
+})
+
+test('recursive update --no-shared-workspace-lockfile', async function () {
+  await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
+  const projects = preparePackages([
+    {
+      location: 'project',
+      package: {
+        name: 'project',
+
+        dependencies: {
+          '@pnpm.e2e/foo': '^100.0.0',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['recursive', 'update', '--no-shared-workspace-lockfile'])
+
+  const lockfile = projects['project'].readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/foo@100.1.0'])
+
+  const pkg = await readPackageJsonFromDir(path.resolve('project'))
+  expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
+})
+
+test('update --latest', async function () {
+  const project = prepare()
+
+  await Promise.all([
+    addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
+    addDistTag('@pnpm.e2e/bar', '100.1.0', 'latest'),
+    addDistTag('@pnpm.e2e/qar', '100.1.0', 'latest'),
+  ])
+
+  await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0', '@pnpm.e2e/bar@^100.0.0', 'alias@npm:@pnpm.e2e/qar@^100.0.0', 'kevva/is-negative'])
+
+  await execPnpm(['update', '--latest'])
+
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0')
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/bar'].version).toBe('100.1.0')
+  expect(lockfile.importers['.'].dependencies?.['alias'].version).toBe('@pnpm.e2e/qar@100.1.0')
+
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  expect(pkg.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('^101.0.0')
+  expect(pkg.dependencies?.['@pnpm.e2e/bar']).toBe('^100.1.0')
+  expect(pkg.dependencies?.['alias']).toBe('npm:@pnpm.e2e/qar@^100.1.0')
+  expect(pkg.dependencies?.['is-negative']).toBe('github:kevva/is-negative')
+})
+
+test('update --latest --save-exact', async function () {
+  const project = prepare()
+
+  await Promise.all([
+    addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
+    addDistTag('@pnpm.e2e/bar', '100.1.0', 'latest'),
+    addDistTag('@pnpm.e2e/qar', '100.1.0', 'latest'),
+  ])
+
+  await execPnpm(['install', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', '@pnpm.e2e/bar@100.0.0', 'alias@npm:@pnpm.e2e/qar@100.0.0', 'kevva/is-negative'])
+
+  await execPnpm(['update', '--latest', '--save-exact'])
+
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0')
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/bar'].version).toBe('100.1.0')
+  expect(lockfile.importers['.'].dependencies?.['alias'].version).toBe('@pnpm.e2e/qar@100.1.0')
+
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  expect(pkg.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('101.0.0')
+  expect(pkg.dependencies?.['@pnpm.e2e/bar']).toBe('100.1.0')
+  expect(pkg.dependencies?.['alias']).toBe('npm:@pnpm.e2e/qar@100.1.0')
+  expect(pkg.dependencies?.['is-negative']).toBe('github:kevva/is-negative')
+})
+
+test('update --latest specific dependency', async function () {
+  const project = prepare()
+
+  await Promise.all([
+    addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
+    addDistTag('@pnpm.e2e/bar', '100.1.0', 'latest'),
+    addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest'),
+    addDistTag('@pnpm.e2e/qar', '100.1.0', 'latest'),
+  ])
+
+  await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', '@pnpm.e2e/bar@^100.0.0', '@pnpm.e2e/foo@100.0.0', 'alias@npm:@pnpm.e2e/qar@^100.0.0', 'kevva/is-negative'])
+
+  await execPnpm(['update', '-L', '@pnpm.e2e/bar', 'alias', 'is-negative'])
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/bar'].version).toBe('100.1.0')
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/foo'].version).toBe('100.0.0')
+  expect(lockfile.importers['.'].dependencies?.['alias'].version).toBe('@pnpm.e2e/qar@100.1.0')
+
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  expect(pkg.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
+  expect(pkg.dependencies?.['@pnpm.e2e/bar']).toBe('^100.1.0')
+  expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('100.0.0')
+  expect(pkg.dependencies?.['alias']).toBe('npm:@pnpm.e2e/qar@^100.1.0')
+  expect(pkg.dependencies?.['is-negative']).toBe('github:kevva/is-negative')
+})
+
+test('update --latest --prod', async function () {
+  const project = prepare()
+
+  await Promise.all([
+    addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
+    addDistTag('@pnpm.e2e/bar', '100.1.0', 'latest'),
+  ])
+
+  await execPnpm(['add', '-D', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  await execPnpm(['add', '-P', '@pnpm.e2e/bar@^100.0.0'])
+
+  await execPnpm(['update', '--latest', '--prod'])
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].devDependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/bar'].version).toBe('100.1.0')
+
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  expect(pkg.devDependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
+  expect(pkg.dependencies?.['@pnpm.e2e/bar']).toBe('^100.1.0')
+
+  project.has('@pnpm.e2e/dep-of-pkg-with-1-dep') // not pruned
+})
+
+test('recursive update --latest on projects that do not share a lockfile', async () => {
+  await Promise.all([
+    addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
+    addDistTag('@pnpm.e2e/bar', '100.1.0', 'latest'),
+    addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest'),
+  ])
+
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+        '@pnpm.e2e/foo': '100.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/bar': '100.0.0',
+        '@pnpm.e2e/foo': '100.0.0',
+      },
+    },
+  ])
+
+  await execPnpm(['recursive', 'install'])
+
+  await execPnpm(['recursive', 'update', '--latest'])
+
+  const manifest1 = await readPackageJsonFromDir(path.resolve('project-1'))
+  expect(manifest1.dependencies).toStrictEqual({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+    '@pnpm.e2e/foo': '100.1.0',
+  })
+
+  const lockfile1 = projects['project-1'].readLockfile()
+  expect(lockfile1.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
+  expect(lockfile1.importers['.'].dependencies?.['@pnpm.e2e/foo'].version).toBe('100.1.0')
+
+  const manifest2 = await readPackageJsonFromDir(path.resolve('project-2'))
+  expect(manifest2.dependencies).toStrictEqual({
+    '@pnpm.e2e/bar': '100.1.0',
+    '@pnpm.e2e/foo': '100.1.0',
+  })
+
+  const lockfile2 = projects['project-2'].readLockfile()
+  expect(lockfile2.importers['.'].dependencies?.['@pnpm.e2e/bar'].version).toBe('100.1.0')
+  expect(lockfile2.importers['.'].dependencies?.['@pnpm.e2e/foo'].version).toBe('100.1.0')
+})
+
+test('recursive update --latest --prod on projects that do not share a lockfile', async () => {
+  await Promise.all([
+    addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
+    addDistTag('@pnpm.e2e/bar', '100.1.0', 'latest'),
+    addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest'),
+  ])
+
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+      },
+      devDependencies: {
+        '@pnpm.e2e/foo': '100.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/foo': '100.0.0',
+      },
+      devDependencies: {
+        '@pnpm.e2e/bar': '100.0.0',
+      },
+    },
+  ])
+
+  await execPnpm(['-r', 'install'])
+
+  await execPnpm(['-r', 'update', '--latest', '--prod'])
+
+  const manifest1 = await readPackageJsonFromDir(path.resolve('project-1'))
+  expect(manifest1.dependencies).toStrictEqual({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+  })
+  expect(manifest1.devDependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '100.0.0',
+  })
+
+  const lockfile1 = projects['project-1'].readLockfile()
+  expect(lockfile1.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
+  expect(lockfile1.importers['.'].devDependencies?.['@pnpm.e2e/foo'].version).toBe('100.0.0')
+
+  projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  projects['project-1'].has('@pnpm.e2e/foo')
+
+  const manifest2 = await readPackageJsonFromDir(path.resolve('project-2'))
+  expect(manifest2.dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '100.1.0',
+  })
+  expect(manifest2.devDependencies).toStrictEqual({
+    '@pnpm.e2e/bar': '100.0.0',
+  })
+
+  const lockfile2 = projects['project-2'].readLockfile()
+  expect(lockfile2.importers['.'].devDependencies?.['@pnpm.e2e/bar'].version).toBe('100.0.0')
+  expect(lockfile2.importers['.'].dependencies?.['@pnpm.e2e/foo'].version).toBe('100.1.0')
+
+  projects['project-2'].has('@pnpm.e2e/bar')
+  projects['project-2'].has('@pnpm.e2e/foo')
+})
+
+test('recursive update --latest specific dependency on projects that do not share a lockfile', async () => {
+  await Promise.all([
+    addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
+    addDistTag('@pnpm.e2e/bar', '100.1.0', 'latest'),
+    addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest'),
+    addDistTag('@pnpm.e2e/qar', '100.1.0', 'latest'),
+  ])
+
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        alias: 'npm:@pnpm.e2e/qar@100.0.0',
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+        '@pnpm.e2e/foo': '^100.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/bar': '100.0.0',
+        '@pnpm.e2e/foo': '^100.0.0',
+      },
+    },
+  ])
+
+  await execPnpm(['-r', 'install'])
+
+  await execPnpm(['-r', 'update', '--latest', '@pnpm.e2e/foo', 'alias'])
+
+  const manifest1 = await readPackageJsonFromDir(path.resolve('project-1'))
+  expect(manifest1.dependencies).toStrictEqual({
+    alias: 'npm:@pnpm.e2e/qar@100.1.0',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+    '@pnpm.e2e/foo': '^100.1.0',
+  })
+
+  const lockfile1 = projects['project-1'].readLockfile()
+  expect(lockfile1.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
+  expect(lockfile1.importers['.'].dependencies?.['@pnpm.e2e/foo'].version).toBe('100.1.0')
+  expect(lockfile1.importers['.'].dependencies?.['alias'].version).toBe('@pnpm.e2e/qar@100.1.0')
+
+  const manifest2 = await readPackageJsonFromDir(path.resolve('project-2'))
+  expect(manifest2.dependencies).toStrictEqual({
+    '@pnpm.e2e/bar': '100.0.0',
+    '@pnpm.e2e/foo': '^100.1.0',
+  })
+
+  const lockfile2 = projects['project-2'].readLockfile()
+  expect(lockfile2.importers['.'].dependencies?.['@pnpm.e2e/bar'].version).toBe('100.0.0')
+  expect(lockfile2.importers['.'].dependencies?.['@pnpm.e2e/foo'].version).toBe('100.1.0')
+})
+
+test('recursive update --latest on projects with a shared a lockfile', async () => {
+  await Promise.all([
+    addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
+    addDistTag('@pnpm.e2e/bar', '100.1.0', 'latest'),
+    addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest'),
+  ])
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+        '@pnpm.e2e/foo': '100.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/bar': '100.0.0',
+        '@pnpm.e2e/foo': '100.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['recursive', 'install'])
+
+  await execPnpm(['recursive', 'update', '--latest'])
+
+  const manifest1 = await readPackageJsonFromDir(path.resolve('project-1'))
+  expect(manifest1.dependencies).toStrictEqual({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+    '@pnpm.e2e/foo': '100.1.0',
+  })
+
+  const manifest2 = await readPackageJsonFromDir(path.resolve('project-2'))
+  expect(manifest2.dependencies).toStrictEqual({
+    '@pnpm.e2e/bar': '100.1.0',
+    '@pnpm.e2e/foo': '100.1.0',
+  })
+
+  const lockfile = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
+  expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
+  expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/foo'].version).toBe('100.1.0')
+  expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/bar'].version).toBe('100.1.0')
+  expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/foo'].version).toBe('100.1.0')
+})
+
+test('recursive update --latest --prod on projects with a shared a lockfile', async () => {
+  await Promise.all([
+    addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
+    addDistTag('@pnpm.e2e/bar', '100.1.0', 'latest'),
+    addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest'),
+  ])
+
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+      },
+      devDependencies: {
+        '@pnpm.e2e/foo': '100.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/foo': '100.0.0',
+      },
+      devDependencies: {
+        '@pnpm.e2e/bar': '100.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['recursive', 'install'])
+
+  await execPnpm(['recursive', 'update', '--latest', '--prod'])
+
+  const manifest1 = await readPackageJsonFromDir(path.resolve('project-1'))
+  expect(manifest1.dependencies).toStrictEqual({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+  })
+  expect(manifest1.devDependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '100.0.0',
+  })
+
+  const manifest2 = await readPackageJsonFromDir(path.resolve('project-2'))
+  expect(manifest2.dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '100.1.0',
+  })
+  expect(manifest2.devDependencies).toStrictEqual({
+    '@pnpm.e2e/bar': '100.0.0',
+  })
+
+  const lockfile = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
+  expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
+  expect(lockfile.importers['project-1'].devDependencies['@pnpm.e2e/foo'].version).toBe('100.0.0')
+  expect(lockfile.importers['project-2'].devDependencies['@pnpm.e2e/bar'].version).toBe('100.0.0')
+  expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/foo'].version).toBe('100.1.0')
+
+  projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  projects['project-1'].has('@pnpm.e2e/foo')
+  projects['project-2'].has('@pnpm.e2e/foo')
+  projects['project-2'].has('@pnpm.e2e/bar')
+})
+
+test('recursive update --latest specific dependency on projects with a shared a lockfile', async () => {
+  await Promise.all([
+    addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
+    addDistTag('@pnpm.e2e/bar', '100.1.0', 'latest'),
+    addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest'),
+    addDistTag('@pnpm.e2e/qar', '100.1.0', 'latest'),
+  ])
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        alias: 'npm:@pnpm.e2e/qar@100.0.0',
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+        '@pnpm.e2e/foo': '100.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/bar': '100.0.0',
+        '@pnpm.e2e/foo': '100.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['recursive', 'install'])
+
+  await execPnpm(['recursive', 'update', '--latest', '@pnpm.e2e/foo', 'alias'])
+
+  const manifest1 = await readPackageJsonFromDir(path.resolve('project-1'))
+  expect(manifest1.dependencies).toStrictEqual({
+    alias: 'npm:@pnpm.e2e/qar@100.1.0',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+    '@pnpm.e2e/foo': '100.1.0',
+  })
+
+  const manifest2 = await readPackageJsonFromDir(path.resolve('project-2'))
+  expect(manifest2.dependencies).toStrictEqual({
+    '@pnpm.e2e/bar': '100.0.0',
+    '@pnpm.e2e/foo': '100.1.0',
+  })
+
+  const lockfile = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
+  expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
+  expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/foo'].version).toBe('100.1.0')
+  expect(lockfile.importers['project-1'].dependencies['alias'].version).toBe('@pnpm.e2e/qar@100.1.0')
+  expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/bar'].version).toBe('100.0.0')
+  expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/foo'].version).toBe('100.1.0')
+})
+
+test('deep update', async function () {
+  const project = prepare()
+
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  await execPnpm(['add', '@pnpm.e2e/pkg-with-1-dep'])
+
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await execPnpm(['update', '--depth', '1'])
+
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
+})
+
+test('update to latest without downgrading already defined prerelease (#7436)', async function () {
+  prepare()
+
+  await addDistTag('@pnpm.e2e/has-prerelease', '2.0.0', 'latest')
+  await execPnpm(['add', '@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+
+  const manifest1 = await readPackageJsonFromDir('.')
+  expect(manifest1).toMatchObject({
+    dependencies: {
+      '@pnpm.e2e/has-prerelease': '3.0.0-rc.0',
+    },
+  })
+
+  const lockfile1 = readYamlFileSync('pnpm-lock.yaml')
+  expect(lockfile1).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+  expect(lockfile1).not.toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@2.0.0'])
+
+  await execPnpm(['update', '--latest'])
+
+  const manifest2 = await readPackageJsonFromDir('.')
+  expect(manifest2).toMatchObject({
+    dependencies: {
+      '@pnpm.e2e/has-prerelease': '3.0.0-rc.0',
+    },
+  })
+
+  const lockfile2 = readYamlFileSync('pnpm-lock.yaml')
+  expect(lockfile2).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+  expect(lockfile2).not.toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@2.0.0'])
+
+  await execPnpm(['update', '-r', '--latest'])
+
+  const manifest3 = await readPackageJsonFromDir('.')
+  expect(manifest3).toMatchObject({
+    dependencies: {
+      '@pnpm.e2e/has-prerelease': '3.0.0-rc.0',
+    },
+  })
+
+  const lockfile3 = readYamlFileSync('pnpm-lock.yaml')
+  expect(lockfile3).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+  expect(lockfile3).not.toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@2.0.0'])
+})
+
+test('update preserves an existing prerelease range operator', async function () {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/has-prerelease': '3.0.0-rc.0',
+    },
+  })
+
+  await execPnpm(['install'])
+  project.storeHas('@pnpm.e2e/has-prerelease', '3.0.0-rc.0')
+
+  project.writePackageJson({
+    dependencies: {
+      '@pnpm.e2e/has-prerelease': '^3.0.0-rc.0',
+    },
+  })
+  await execPnpm(['update'])
+
+  project.storeHas('@pnpm.e2e/has-prerelease', '3.0.0-rc.1')
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/has-prerelease'].version).toBe('3.0.0-rc.1')
+  const manifest = await readPackageJsonFromDir('.')
+  expect(manifest.dependencies?.['@pnpm.e2e/has-prerelease']).toBe('^3.0.0-rc.1')
+  await execPnpm(['install', '--frozen-lockfile'])
+})
+
+test('update keeps a range whose shape no save prefix describes', async function () {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '<= 1.2.5',
+    },
+  })
+
+  await execPnpm(['install'])
+  project.storeHas('@pnpm.e2e/foo', '1.2.0')
+
+  await execPnpm(['update'])
+
+  expect((await readPackageJsonFromDir('.')).dependencies?.['@pnpm.e2e/foo']).toBe('<= 1.2.5')
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '<= 1.2.5',
+    version: '1.2.0',
+  })
+  await execPnpm(['install', '--frozen-lockfile'])
+
+  await execPnpm(['update', '--latest'])
+
+  expect((await readPackageJsonFromDir('.')).dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
+})
+
+test('update <pkg>@<tag> replaces a range whose shape no save prefix describes', async function () {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '<= 1.2.5',
+    },
+  })
+
+  await execPnpm(['install'])
+  await addDistTag('@pnpm.e2e/foo', '1.1.0', 'stable')
+
+  await execPnpm(['update', '@pnpm.e2e/foo@stable'])
+
+  expect((await readPackageJsonFromDir('.')).dependencies?.['@pnpm.e2e/foo']).toBe('^1.1.0')
+  expect(project.readLockfile().packages).toHaveProperty(['@pnpm.e2e/foo@1.1.0'])
+})
+
+test('update with tag @latest will downgrade prerelease', async function () {
+  prepare()
+
+  await addDistTag('@pnpm.e2e/has-prerelease', '2.0.0', 'latest')
+  await execPnpm(['add', '@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+
+  const manifest1 = await readPackageJsonFromDir('.')
+  expect(manifest1).toMatchObject({
+    dependencies: {
+      '@pnpm.e2e/has-prerelease': '3.0.0-rc.0',
+    },
+  })
+
+  const lockfile1 = readYamlFileSync('pnpm-lock.yaml')
+  expect(lockfile1).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+  expect(lockfile1).not.toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@2.0.0'])
+
+  await execPnpm(['update', '@pnpm.e2e/has-prerelease@latest'])
+
+  const manifest2 = await readPackageJsonFromDir('.')
+  expect(manifest2).toMatchObject({
+    dependencies: {
+      '@pnpm.e2e/has-prerelease': '2.0.0',
+    },
+  })
+
+  const lockfile2 = readYamlFileSync('pnpm-lock.yaml')
+  expect(lockfile2).not.toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+  expect(lockfile2).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@2.0.0'])
+})
+
+test('update indirect dependency should not update package.json', async function () {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
+    },
+  })
+
+  // Ensure the initial versions
+  await addDistTag('@pnpm.e2e/pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  await execPnpm(['install'])
+
+  const pkg1 = await readPackageJsonFromDir(process.cwd())
+  expect(pkg1.dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBe('^100.0.0')
+
+  const lockfile1 = project.readLockfile()
+  expect(lockfile1.importers['.'].dependencies?.['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
+
+  // Now publish a new version of the direct dependency and update the indirect dependency
+  await addDistTag('@pnpm.e2e/pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  // Update the indirect dependency only
+  await execPnpm(['update', '@pnpm.e2e/dep-of-pkg-with-1-dep@latest'])
+
+  // The direct dependency in package.json should remain unchanged at ^100.0.0
+  const pkg2 = await readPackageJsonFromDir(process.cwd())
+  expect(pkg2.dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBe('^100.0.0')
+
+  // But the lockfile should have the updated indirect dependency
+  const lockfile2 = project.readLockfile()
+  expect(Object.keys(lockfile2.packages ?? {})).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+
+  // The direct dependency should remain at 100.0.0 in the lockfile (not upgraded to 100.1.0)
+  expect(lockfile2.importers['.'].dependencies?.['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
+})
+
+test('update to latest recursive workspace (outdated, updated, prerelease, outdated)', async function () {
+  await addDistTag('@pnpm.e2e/has-prerelease', '2.0.0', 'latest')
+
+  preparePackages([
+    {
+      name: 'project-1',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '2.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '3.0.0-rc.0',
+      },
+    },
+    {
+      name: 'project-4',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['install', '-r'])
+
+  const lockfile1 = readYamlFileSync('pnpm-lock.yaml')
+  expect(lockfile1).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@1.0.0'])
+  expect(lockfile1).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@2.0.0'])
+  expect(lockfile1).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+
+  await execPnpm(['update', '-r', '--latest'])
+
+  const manifests = {
+    'project-1': await readPackageJsonFromDir('project-1'),
+    'project-2': await readPackageJsonFromDir('project-2'),
+    'project-3': await readPackageJsonFromDir('project-3'),
+    'project-4': await readPackageJsonFromDir('project-4'),
+  }
+  expect(manifests).toMatchObject({
+    'project-1': {
+      name: 'project-1',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '2.0.0',
+      },
+    },
+    'project-2': {
+      name: 'project-2',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '2.0.0',
+      },
+    },
+    'project-3': {
+      name: 'project-3',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '3.0.0-rc.0',
+      },
+    },
+    'project-4': {
+      name: 'project-4',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '2.0.0',
+      },
+    },
+  })
+
+  const lockfile2 = readYamlFileSync('pnpm-lock.yaml')
+  expect(lockfile2).not.toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@1.0.0'])
+  expect(lockfile2).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@2.0.0'])
+  expect(lockfile2).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+})
+
+test('update to latest recursive workspace (prerelease, outdated)', async function () {
+  await addDistTag('@pnpm.e2e/has-prerelease', '2.0.0', 'latest')
+
+  preparePackages([
+    {
+      name: 'project-1',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '3.0.0-rc.0',
+      },
+    },
+    {
+      name: 'project-2',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['install', '-r'])
+
+  const lockfile1 = readYamlFileSync('pnpm-lock.yaml')
+  expect(lockfile1).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@1.0.0'])
+  expect(lockfile1).not.toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@2.0.0'])
+  expect(lockfile1).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+
+  await execPnpm(['update', '-r', '--latest'])
+
+  const manifests = {
+    'project-1': await readPackageJsonFromDir('project-1'),
+    'project-2': await readPackageJsonFromDir('project-2'),
+  }
+  expect(manifests).toMatchObject({
+    'project-1': {
+      name: 'project-1',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '3.0.0-rc.0',
+      },
+    },
+    'project-2': {
+      name: 'project-2',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '2.0.0',
+      },
+    },
+  })
+
+  const lockfile2 = readYamlFileSync('pnpm-lock.yaml')
+  expect(lockfile2).not.toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@1.0.0'])
+  expect(lockfile2).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@2.0.0'])
+  expect(lockfile2).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/11165: update must resolve to
+// the newest version that satisfies minimumReleaseAge instead of failing
+// when the newest release is too recent. minimumReleaseAgeStrict is left
+// unset so the config reader's auto-strict default applies, as it does for
+// a user who only set minimumReleaseAge.
+
+test('update respects minimumReleaseAge, picking the newest mature version in range', async () => {
+  const project = prepare()
+
+  await execPnpm(['add', '@pnpm.e2e/bravo-dep@1.0.0'])
+
+  project.writePackageJson({
+    dependencies: {
+      '@pnpm.e2e/bravo-dep': '^1.0.0',
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    minimumReleaseAge: bravoDepMatureUpTo101MinimumReleaseAge(),
+  })
+
+  execPnpmSync(['update'], {
+    omitEnvDefaults: ['pnpm_config_minimum_release_age'],
+    expectSuccess: true,
+  })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.0.1')
+})
+
+test('update --latest respects minimumReleaseAge, picking the newest mature version', async () => {
+  const project = prepare()
+
+  await execPnpm(['add', '@pnpm.e2e/bravo-dep@1.0.0'])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    minimumReleaseAge: bravoDepMatureUpTo101MinimumReleaseAge(),
+  })
+
+  execPnpmSync(['update', '--latest'], {
+    omitEnvDefaults: ['pnpm_config_minimum_release_age'],
+    expectSuccess: true,
+  })
+
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  expect(pkg.dependencies?.['@pnpm.e2e/bravo-dep']).toBe('1.0.1')
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.0.1')
+})
+
+test('update --prod does not install devDependencies when installed with --prod', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--prod'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+
+  await execPnpm(['update', '--prod', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+
+  await execPnpm(['update', 'is-positive', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+})
+
+test('update --prod does not install devDependencies in fresh project without prior install', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['update', '--prod', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+})
+
+test('update --prod --dev installs devDependencies in prod install', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--prod'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+
+  await execPnpm(['update', '--prod', '--dev', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+})
+
+test('update --dev expands layout and persists devDependencies: true in .modules.yaml', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--prod'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+
+  await execPnpm(['update', '--dev', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+  const modulesManifest = project.readModulesManifest()
+  expect(modulesManifest?.included.devDependencies).toBe(true)
+
+  await execPnpm(['update', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+})
+
+test('update preserves optionalDependencies: false from prior install', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    optionalDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--no-optional'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(false)
+
+  await execPnpm(['update', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(false)
+
+  await execPnpm(['update', '--optional', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(true)
+})
+
+test('update --prod --peer preserves devDependencies: false from prior install', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+    peerDependencies: {
+      'is-odd': '^0.1.0',
+    },
+  })
+
+  await execPnpm(['install', '--prod'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.devDependencies).toBe(false)
+
+  await execPnpm(['update', '--prod', '--peer', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.devDependencies).toBe(false)
+})
+
+test('plain update honors optional=false from configuration', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    optionalDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { optional: false })
+
+  await execPnpm(['update', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(false)
+
+  await execPnpm(['update', '--optional', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(true)
+})

@@ -1,0 +1,10 @@
+{
+  "name": "@pnpm.e2e/abc-optional-peers-parent",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/abc-optional-peers": "1.0.0",
+    "@pnpm.e2e/peer-a": "^1.0.0",
+    "@pnpm.e2e/peer-b": "^1.0.0",
+    "@pnpm.e2e/peer-c": "^1.0.0"
+  }
+}

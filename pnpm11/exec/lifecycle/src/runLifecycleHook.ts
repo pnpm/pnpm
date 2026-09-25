@@ -1,0 +1,215 @@
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+
+import { lifecycleLogger } from '@pnpm/core-loggers'
+import { PnpmError } from '@pnpm/error'
+import { lifecycle } from '@pnpm/exec.npm-lifecycle'
+import { globalWarn } from '@pnpm/logger'
+import type { DependencyManifest, PackageScripts, ProjectManifest } from '@pnpm/types'
+import chalk from 'chalk'
+import isWindows from 'is-windows'
+import { join as shellQuote } from 'shlex'
+
+import { trackChildProcess } from './trackChildProcess.js'
+
+function noop () {} // eslint-disable-line:no-empty
+
+export interface RunLifecycleHookOptions {
+  args?: string[]
+  depPath: string
+  extraBinPaths?: string[]
+  extraEnv?: Record<string, string>
+  initCwd?: string
+  optional?: boolean
+  pkgRoot: string
+  raiseOnInterrupt?: boolean
+  rootModulesDir: string
+  /**
+   * The `.bin` holding `pkgRoot`'s own executables, when `modulesDir` puts
+   * them somewhere other than `<pkgRoot>/node_modules/.bin`.
+   */
+  wdBinDir?: string
+  scriptShell?: string
+  silent?: boolean
+  scriptsPrependNodePath?: boolean | 'warn-only'
+  shellEmulator?: boolean
+  stdio?: 'inherit' | 'pipe'
+  unsafePerm: boolean
+  userAgent?: string
+}
+
+export async function runLifecycleHook (
+  stage: string,
+  manifest: ProjectManifest | DependencyManifest,
+  opts: RunLifecycleHookOptions
+): Promise<boolean> {
+  const optional = opts.optional === true
+
+  // To remediate CVE_2024_27980, Node.js does not allow .bat or .cmd files to
+  // be spawned without the "shell: true" option.
+  //
+  // https://nodejs.org/api/child_process.html#spawning-bat-and-cmd-files-on-windows
+  //
+  // Unfortunately, setting spawn's shell option also causes arguments to be
+  // evaluated before they're passed to the shell, resulting in a surprising
+  // behavior difference only with .bat/.cmd files.
+  //
+  // Instead of showing a "spawn EINVAL" error, let's throw a clearer error that
+  // this isn't supported.
+  //
+  // If this behavior needs to be supported in the future, the arguments would
+  // need to be escaped before they're passed to the .bat/.cmd file. For
+  // example, scripts such as "echo %PATH%" should be passed verbatim rather
+  // than expanded. This is difficult to do correctly. Other open source tools
+  // (e.g. Rust) attempted and introduced bugs. The Rust blog has a good
+  // high-level explanation of the same security vulnerability Node.js patched.
+  //
+  // https://blog.rust-lang.org/2024/04/09/cve-2024-24576.html#overview
+  //
+  // Note that npm (as of version 10.5.0) doesn't support setting script-shell
+  // to a .bat or .cmd file either.
+  if (opts.scriptShell != null && typeof opts.scriptShell === 'string' && isWindowsBatchFile(opts.scriptShell)) {
+    throw new PnpmError('ERR_PNPM_INVALID_SCRIPT_SHELL_WINDOWS', 'Cannot spawn .bat or .cmd as a script shell.', {
+      hint: `\
+The pnpm-workspace.yaml scriptShell option was configured to a .bat or .cmd file. These cannot be used as a script shell reliably.
+
+Please unset the scriptShell option, or configure it to a .exe instead.
+`,
+    })
+  }
+
+  const m = { _id: getId(manifest), ...manifest }
+  m.scripts = { ...m.scripts }
+
+  switch (stage) {
+    case 'start':
+      if (!m.scripts.start) {
+        if (!existsSync('server.js')) {
+          throw new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js')
+        }
+        m.scripts.start = 'node server.js'
+      }
+      break
+    case 'install':
+      if (!m.scripts.install && !m.scripts.preinstall && m.gypfile !== false) {
+        checkBindingGyp(opts.pkgRoot, m.scripts)
+      }
+      break
+  }
+  if (opts.args?.length && m.scripts?.[stage]) {
+    // It is impossible to quote a command line argument that contains newline for Windows cmd.
+    const escapedArgs = isWindows() && !opts.shellEmulator
+      ? opts.args.map((arg) => JSON.stringify(arg)).join(' ')
+      : shellQuote(opts.args)
+    m.scripts[stage] = `${m.scripts[stage]} ${escapedArgs}`
+  }
+  // This script is used to prevent the usage of npm or Yarn.
+  // It does nothing, when pnpm is used, so we may skip its execution.
+  if (m.scripts[stage] === 'npx only-allow pnpm' || !m.scripts[stage]) return false
+  if (opts.stdio !== 'inherit') {
+    lifecycleLogger.debug({
+      depPath: opts.depPath,
+      optional,
+      script: m.scripts[stage],
+      stage,
+      wd: opts.pkgRoot,
+    })
+  } else if (!opts.silent) {
+    process.stderr.write(chalk.dim(`$ ${m.scripts[stage]}`) + '\n')
+  }
+  const logLevel = (opts.stdio !== 'inherit' || opts.silent)
+    ? 'silent'
+    : undefined
+  await lifecycle(m, stage, opts.pkgRoot, {
+    dir: opts.rootModulesDir,
+    wdBinDir: opts.wdBinDir,
+    extraBinPaths: opts.extraBinPaths,
+    extraEnv: {
+      ...opts.extraEnv,
+      INIT_CWD: opts.initCwd ?? process.cwd(),
+      PNPM_SCRIPT_SRC_DIR: opts.pkgRoot,
+      ...(opts.userAgent ? { npm_config_user_agent: opts.userAgent } : {}),
+    },
+    log: {
+      clearProgress: noop,
+      info: noop,
+      level: logLevel,
+      pause: noop,
+      resume: noop,
+      showProgress: noop,
+      silly: npmLog,
+      verbose: npmLog,
+      warn: (...msg: string[]) => {
+        globalWarn(msg.join(' '))
+      },
+    },
+    onSpawn: trackChildProcess,
+    raiseOnInterrupt: opts.raiseOnInterrupt,
+    runConcurrently: true,
+    scriptsPrependNodePath: opts.scriptsPrependNodePath,
+    scriptShell: opts.scriptShell,
+    shellEmulator: opts.shellEmulator,
+    stdio: opts.stdio ?? 'pipe',
+    unsafePerm: opts.unsafePerm,
+  })
+  return true
+
+  function npmLog (prefix: string, logId: string, stdtype: string, line?: number): void {
+    switch (stdtype) {
+      case 'stdout':
+      case 'stderr':
+        lifecycleLogger.debug({
+          depPath: opts.depPath,
+          line: (line ?? 0).toString(),
+          stage,
+          stdio: stdtype,
+          wd: opts.pkgRoot,
+        })
+        return
+      case 'Returned: code:': {
+        if (opts.stdio === 'inherit') {
+          // Preventing the pnpm reporter from overriding the project's script output
+          return
+        }
+        const code = line ?? 1
+        lifecycleLogger.debug({
+          depPath: opts.depPath,
+          exitCode: code,
+          optional,
+          stage,
+          wd: opts.pkgRoot,
+        })
+      }
+    }
+  }
+}
+
+/**
+ * Set `scripts.install` to `node-gyp rebuild` when `root` holds a binding.gyp.
+ *
+ * The caller decides whether the synthesized script applies: only when the
+ * manifest declares no `install` or `preinstall` script and does not opt out
+ * with `gypfile: false` (see `npm help scripts` and
+ * https://docs.npmjs.com/cli/v12/configuring-npm/package-json#gypfile).
+ */
+function checkBindingGyp (
+  root: string,
+  scripts: PackageScripts
+) {
+  if (existsSync(path.join(root, 'binding.gyp'))) {
+    scripts.install = 'node-gyp rebuild'
+  }
+}
+
+function getId (manifest: ProjectManifest | DependencyManifest): string {
+  return `${manifest.name ?? ''}@${manifest.version ?? ''}`
+}
+
+function isWindowsBatchFile (scriptShell: string) {
+  // Node.js performs a similar check to determine whether it should throw
+  // EINVAL when spawning a .cmd/.bat file.
+  //
+  // https://github.com/nodejs/node/commit/6627222409#diff-1e725bfa950eda4d4b5c0c00a2bb6be3e5b83d819872a1adf2ef87c658273903
+  const scriptShellLower = scriptShell.toLowerCase()
+  return isWindows() && (scriptShellLower.endsWith('.cmd') || scriptShellLower.endsWith('.bat'))
+}

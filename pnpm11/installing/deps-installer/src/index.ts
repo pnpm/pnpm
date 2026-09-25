@@ -1,0 +1,17 @@
+export * from './api.js'
+export { UnexpectedStoreError } from './install/checkCompatibility/UnexpectedStoreError.js'
+export { UnexpectedVirtualStoreDirError } from './install/checkCompatibility/UnexpectedVirtualStoreDirError.js'
+export type { InstallOptions } from './install/extendInstallOptions.js'
+export { reportVerifiedFileIntegrity } from './install/reportVerifiedFileIntegrity.js'
+export { type ProjectOptions } from '@pnpm/installing.context'
+export type { UpdateMatchingFunction } from '@pnpm/installing.deps-resolver'
+export type { HoistingLimits } from '@pnpm/installing.deps-restorer'
+export type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
+export type {
+  BadPeerDependencyIssue,
+  MissingPeerDependencyIssue,
+  MissingPeerIssuesByPeerName,
+  PackageManifest,
+  PeerDependencyIssues,
+  PeerDependencyIssuesByProjects,
+} from '@pnpm/types'

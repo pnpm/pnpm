@@ -1,0 +1,1345 @@
+import { expect, jest, test } from '@jest/globals'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
+import type { ResolveLatestDispatcher } from '@pnpm/installing.client'
+import type { DependenciesField, DepPath, PackageManifest, ProjectId } from '@pnpm/types'
+
+import { outdated } from '../lib/outdated.js'
+
+type ManifestGetter = (packageName: string) => Promise<PackageManifest | null>
+
+// Test stand-in for the real dispatcher: route by protocol shape, look up
+// "latest" through the per-test mock. Resolvers for non-latest protocols
+// (git, tarball) return `{}` to claim the dep with no latest available;
+// local refs return undefined so the dispatcher falls through and skips.
+function makeResolveLatest (getLatest: ManifestGetter): ResolveLatestDispatcher {
+  return async (query) => {
+    const { alias, bareSpecifier } = query.wantedDependency
+    if (bareSpecifier?.startsWith('file:') || bareSpecifier?.startsWith('link:') || bareSpecifier?.startsWith('workspace:')) {
+      return undefined
+    }
+    if (bareSpecifier?.startsWith('runtime:') && (alias === 'node' || alias === 'bun' || alias === 'deno')) {
+      const latestManifest = await getLatest(alias)
+      return { latestManifest: latestManifest ?? undefined }
+    }
+    if (
+      bareSpecifier?.startsWith('http://') || bareSpecifier?.startsWith('https://') ||
+      bareSpecifier?.startsWith('github:') || bareSpecifier?.startsWith('git+') || bareSpecifier?.startsWith('git:')
+    ) {
+      return {}
+    }
+    let pkgName = alias ?? ''
+    if (bareSpecifier?.startsWith('npm:')) {
+      const inner = bareSpecifier.slice(4)
+      const atIdx = inner.lastIndexOf('@')
+      pkgName = (atIdx > 0 ? inner.slice(0, atIdx) : inner) || pkgName
+    }
+    const latestManifest = await getLatest(pkgName)
+    return { latestManifest: latestManifest ?? undefined }
+  }
+}
+
+async function getLatestManifest (packageName: string): Promise<PackageManifest | null> {
+  return ({
+    'deprecated-pkg': {
+      deprecated: 'This package is deprecated',
+      name: 'deprecated-pkg',
+      version: '1.0.0',
+    },
+    'is-negative': {
+      name: 'is-negative',
+      version: '2.1.0',
+    },
+    'is-positive': {
+      name: 'is-positive',
+      version: '3.1.0',
+    },
+    'pkg-with-1-dep': {
+      name: 'pkg-with-1-dep',
+      version: '1.0.0',
+    },
+  } as Record<string, PackageManifest>)[packageName] ?? null
+}
+
+const resolveLatest = makeResolveLatest(getLatestManifest)
+
+test('outdated() includes peer-only dependencies when requested', async () => {
+  const importer = {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    specifiers: {
+      'is-positive': '^1.0.0',
+    },
+  }
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: { ['.' as ProjectId]: importer },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    include: {
+      dependencies: false,
+      devDependencies: false,
+      optionalDependencies: false,
+      peerDependencies: true,
+    },
+    resolveLatest,
+    lockfileDir: 'project',
+    manifest: {
+      name: 'peer-only-project',
+      peerDependencies: {
+        'is-positive': '^1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: { ['.' as ProjectId]: importer },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+  })
+
+  expect(outdatedPkgs).toStrictEqual([{
+    alias: 'is-positive',
+    belongsTo: 'peerDependencies',
+    current: '1.0.0',
+    latestManifest: {
+      name: 'is-positive',
+      version: '3.1.0',
+    },
+    packageName: 'is-positive',
+    wanted: '1.0.0',
+    workspace: 'peer-only-project',
+  }])
+})
+
+test.each<DependenciesField>([
+  'devDependencies',
+  'optionalDependencies',
+])('outdated() uses the peer range and the installed %s version for a shared alias', async (dependencyType) => {
+  const resolveLatest = jest.fn<ResolveLatestDispatcher>(async ({ wantedDependency }) => {
+    expect(wantedDependency).toStrictEqual({
+      alias: 'is-positive',
+      bareSpecifier: '^1.0.0',
+    })
+    return {
+      latestManifest: {
+        name: 'is-positive',
+        version: '1.1.0',
+      },
+    }
+  })
+  const importer = {
+    [dependencyType]: {
+      'is-positive': '1.0.0',
+    },
+    specifiers: {
+      'is-positive': '^1.0.0',
+    },
+  }
+
+  const outdatedPkgs = await outdated({
+    compatible: true,
+    currentLockfile: {
+      importers: { ['.' as ProjectId]: importer },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    include: {
+      dependencies: false,
+      devDependencies: false,
+      optionalDependencies: false,
+      peerDependencies: true,
+    },
+    resolveLatest,
+    lockfileDir: 'project',
+    manifest: {
+      [dependencyType]: {
+        'is-positive': '^3.0.0',
+      },
+      peerDependencies: {
+        'is-positive': '^1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: { ['.' as ProjectId]: importer },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+  })
+
+  expect(outdatedPkgs).toHaveLength(1)
+  expect(outdatedPkgs[0]).toMatchObject({
+    alias: 'is-positive',
+    belongsTo: 'peerDependencies',
+    wanted: '1.0.0',
+  })
+  expect(resolveLatest).toHaveBeenCalledTimes(1)
+})
+
+test('outdated() skips dependencies resolved from local refs', async () => {
+  const resolveLatest = jest.fn<ResolveLatestDispatcher>(async () => {
+    throw new Error('local dependency should not resolve latest from the registry')
+  })
+
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'private-workspace-pkg': 'link:../private-workspace-pkg',
+          },
+          specifiers: {
+            'private-workspace-pkg': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    resolveLatest,
+    lockfileDir: 'project',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
+      devDependencies: {
+        'private-workspace-pkg': '^1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'private-workspace-pkg': 'link:../private-workspace-pkg',
+          },
+          specifiers: {
+            'private-workspace-pkg': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+  })
+
+  expect(outdatedPkgs).toStrictEqual([])
+  expect(resolveLatest).not.toHaveBeenCalled()
+})
+
+test('outdated() still checks the registry when only the current ref is local', async () => {
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'is-positive': 'link:../is-positive',
+          },
+          specifiers: {
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    resolveLatest,
+    lockfileDir: 'project',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
+      devDependencies: {
+        'is-positive': '^1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'is-positive': '1.0.0',
+          },
+          specifiers: {
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-positive@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+          },
+        },
+      },
+    },
+  })
+
+  expect(outdatedPkgs).toStrictEqual([
+    {
+      alias: 'is-positive',
+      belongsTo: 'devDependencies',
+      current: 'link:../is-positive',
+      latestManifest: {
+        name: 'is-positive',
+        version: '3.1.0',
+      },
+      packageName: 'is-positive',
+      wanted: '1.0.0',
+      workspace: 'wanted-shrinkwrap',
+    },
+  ])
+})
+
+test('outdated()', async () => {
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            'from-github': 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+          },
+          devDependencies: {
+            'is-negative': '1.0.0',
+            'is-positive': '1.0.0',
+          },
+          optionalDependencies: {
+            'linked-1': 'link:../linked-1',
+            'linked-2': 'file:../linked-2',
+          },
+          specifiers: {
+            'from-github': 'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+            'is-negative': '^2.1.0',
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-negative@2.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+          },
+        },
+        ['is-positive@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+          },
+        },
+        ['from-github@https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b4' as DepPath]: {
+          version: '1.1.0',
+
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+      },
+    },
+    resolveLatest,
+    lockfileDir: 'project',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
+      dependencies: {
+        'from-github': 'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+        'from-github-2': 'github:blabla/from-github-2#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+      },
+      devDependencies: {
+        'is-negative': '^2.1.0',
+        'is-positive': '^3.1.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            'from-github': 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            'from-github-2': 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+          devDependencies: {
+            'is-negative': '1.1.0',
+            'is-positive': '3.1.0',
+          },
+          optionalDependencies: {
+            'linked-1': 'link:../linked-1',
+            'linked-2': 'file:../linked-2',
+          },
+          specifiers: {
+            'from-github': 'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+            'from-github-2': 'github:blabla/from-github-2#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+            'is-negative': '^2.1.0',
+            'is-positive': '^3.1.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-negative@1.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+          },
+        },
+        ['is-positive@3.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
+          },
+        },
+        ['from-github-2@https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3' as DepPath]: {
+          version: '1.0.0',
+
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+        ['from-github@https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3' as DepPath]: {
+          version: '1.0.0',
+
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+      },
+    },
+  })
+  expect(outdatedPkgs).toStrictEqual([
+    {
+      alias: 'from-github',
+      belongsTo: 'dependencies',
+      current: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+      latestManifest: undefined,
+      packageName: 'from-github',
+      wanted: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+      workspace: 'wanted-shrinkwrap',
+    },
+    {
+      alias: 'from-github-2',
+      belongsTo: 'dependencies',
+      current: undefined,
+      latestManifest: undefined,
+      packageName: 'from-github-2',
+      wanted: 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+      workspace: 'wanted-shrinkwrap',
+    },
+    {
+      alias: 'is-negative',
+      belongsTo: 'devDependencies',
+      current: '1.0.0',
+      latestManifest: {
+        name: 'is-negative',
+        version: '2.1.0',
+      },
+      packageName: 'is-negative',
+      wanted: '1.1.0',
+      workspace: 'wanted-shrinkwrap',
+    },
+    {
+      alias: 'is-positive',
+      belongsTo: 'devDependencies',
+      current: '1.0.0',
+      latestManifest: {
+        name: 'is-positive',
+        version: '3.1.0',
+      },
+      packageName: 'is-positive',
+      wanted: '3.1.0',
+      workspace: 'wanted-shrinkwrap',
+    },
+  ])
+})
+
+test('outdated() should return deprecated package even if its current version is latest', async () => {
+  const lockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          'deprecated-pkg': '1.0.0',
+        },
+        specifiers: {
+          'deprecated-pkg': '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      'deprecated-pkg@1.0.0': {
+        resolution: {
+          integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+        },
+      },
+    },
+  }
+  const outdatedPkgs = await outdated({
+    currentLockfile: lockfile,
+    resolveLatest,
+    lockfileDir: 'project',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
+
+      dependencies: {
+        'deprecated-pkg': '1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: lockfile,
+  })
+  expect(outdatedPkgs).toStrictEqual([
+    {
+      alias: 'deprecated-pkg',
+      belongsTo: 'dependencies',
+      current: '1.0.0',
+      latestManifest: {
+        deprecated: 'This package is deprecated',
+        name: 'deprecated-pkg',
+        version: '1.0.0',
+      },
+      packageName: 'deprecated-pkg',
+      wanted: '1.0.0',
+      workspace: 'wanted-shrinkwrap',
+    },
+  ])
+})
+
+test('outdated() with minimumReleaseAge', async () => {
+  const getLatestManifestForMinimumAge = async (packageName: string) => {
+    // Simulate packages where 'is-negative' 2.1.0 is filtered out due to minimumReleaseAge
+    // and returns 2.0.0 instead
+    return ({
+      'is-negative': {
+        name: 'is-negative',
+        version: '2.0.0', // older version within the age limit
+      },
+      'is-positive': {
+        name: 'is-positive',
+        version: '3.1.0',
+      },
+    })[packageName] ?? null
+  }
+
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'is-negative': '1.0.0',
+            'is-positive': '1.0.0',
+          },
+          specifiers: {
+            'is-negative': '^2.1.0',
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-negative@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-xxx',
+          },
+        },
+        ['is-positive@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-yyy',
+          },
+        },
+      },
+    },
+    resolveLatest: makeResolveLatest(getLatestManifestForMinimumAge),
+    lockfileDir: 'project',
+    manifest: {
+      name: 'with-min-age',
+      version: '1.0.0',
+      devDependencies: {
+        'is-negative': '^2.1.0',
+        'is-positive': '^1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'is-negative': '2.1.0',
+            'is-positive': '3.1.0',
+          },
+          specifiers: {
+            'is-negative': '^2.1.0',
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-negative@2.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-xxx',
+          },
+        },
+        ['is-positive@3.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-zzz',
+          },
+        },
+      },
+    },
+    minimumReleaseAge: 10080,
+  })
+
+  expect(outdatedPkgs).toStrictEqual([
+    {
+      alias: 'is-negative',
+      belongsTo: 'devDependencies',
+      current: '1.0.0',
+      latestManifest: {
+        name: 'is-negative',
+        version: '2.0.0', // older version returned due to minimumReleaseAge
+      },
+      packageName: 'is-negative',
+      wanted: '2.1.0',
+      workspace: 'with-min-age',
+    },
+    {
+      alias: 'is-positive',
+      belongsTo: 'devDependencies',
+      current: '1.0.0',
+      latestManifest: {
+        name: 'is-positive',
+        version: '3.1.0',
+      },
+      packageName: 'is-positive',
+      wanted: '3.1.0',
+      workspace: 'with-min-age',
+    },
+  ])
+})
+
+test('outdated() with minimumReleaseAgeExclude', async () => {
+  const getLatestManifestWithExclude = async (packageName: string) => {
+    // Simulate that 'is-negative' is excluded from minimumReleaseAge
+    // so it returns the real latest version
+    return ({
+      'is-negative': {
+        name: 'is-negative',
+        version: '2.1.0', // latest version (excluded from age filter)
+      },
+      'is-positive': {
+        name: 'is-positive',
+        version: '3.0.0', // older version (age filter applied)
+      },
+    })[packageName] ?? null
+  }
+
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'is-negative': '1.0.0',
+            'is-positive': '1.0.0',
+          },
+          specifiers: {
+            'is-negative': '^2.1.0',
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-negative@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-xxx',
+          },
+        },
+        ['is-positive@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-yyy',
+          },
+        },
+      },
+    },
+    resolveLatest: makeResolveLatest(getLatestManifestWithExclude),
+    lockfileDir: 'project',
+    manifest: {
+      name: 'with-exclude',
+      version: '1.0.0',
+      devDependencies: {
+        'is-negative': '^2.1.0',
+        'is-positive': '^1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'is-negative': '2.1.0',
+            'is-positive': '3.1.0',
+          },
+          specifiers: {
+            'is-negative': '^2.1.0',
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-negative@2.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-xxx',
+          },
+        },
+        ['is-positive@3.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-zzz',
+          },
+        },
+      },
+    },
+    minimumReleaseAge: 10080,
+    minimumReleaseAgeExclude: ['is-negative'],
+  })
+
+  expect(outdatedPkgs).toStrictEqual([
+    {
+      alias: 'is-negative',
+      belongsTo: 'devDependencies',
+      current: '1.0.0',
+      latestManifest: {
+        name: 'is-negative',
+        version: '2.1.0', // latest version (excluded from age filter)
+      },
+      packageName: 'is-negative',
+      wanted: '2.1.0',
+      workspace: 'with-exclude',
+    },
+    {
+      alias: 'is-positive',
+      belongsTo: 'devDependencies',
+      current: '1.0.0',
+      latestManifest: {
+        name: 'is-positive',
+        version: '3.0.0', // older version (age filter applied)
+      },
+      packageName: 'is-positive',
+      wanted: '3.1.0',
+      workspace: 'with-exclude',
+    },
+  ])
+})
+
+test('using a matcher', async () => {
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+            'is-negative': '1.0.0',
+            'is-positive': '1.0.0',
+            'linked-1': 'link:../linked-1',
+            'linked-2': 'file:../linked-2',
+          },
+          specifiers: {
+            'is-negative': '^2.1.0',
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-negative@2.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+          },
+        },
+        ['is-positive@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+          },
+        },
+        ['github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4' as DepPath]: {
+          name: 'from-github',
+          version: '1.1.0',
+
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+      },
+    },
+    resolveLatest,
+    lockfileDir: 'wanted-shrinkwrap',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '^2.1.0',
+        'is-positive': '^3.1.0',
+      },
+    },
+    match: (dependencyName) => dependencyName === 'is-negative',
+    prefix: 'wanted-shrinkwrap',
+    wantedLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            'from-github-2': 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            'is-negative': '1.1.0',
+            'is-positive': '3.1.0',
+            'linked-1': 'link:../linked-1',
+            'linked-2': 'file:../linked-2',
+          },
+          specifiers: {
+            'is-negative': '^2.1.0',
+            'is-positive': '^3.1.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-negative@1.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+          },
+        },
+        ['is-positive@3.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
+          },
+        },
+        ['github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3' as DepPath]: {
+          name: 'from-github-2',
+          version: '1.0.0',
+
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+        ['github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3' as DepPath]: {
+          name: 'from-github',
+          version: '1.0.0',
+
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+      },
+    },
+  })
+  expect(outdatedPkgs).toStrictEqual([
+    {
+      alias: 'is-negative',
+      belongsTo: 'dependencies',
+      current: '1.0.0',
+      latestManifest: {
+        name: 'is-negative',
+        version: '2.1.0',
+      },
+      packageName: 'is-negative',
+      wanted: '1.1.0',
+      workspace: 'wanted-shrinkwrap',
+    },
+  ])
+})
+
+test('outdated() aliased dependency', async () => {
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            positive: 'is-positive@1.0.0',
+          },
+          specifiers: {
+            positive: 'npm:is-positive@^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-positive@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+          },
+        },
+      },
+    },
+    resolveLatest,
+    lockfileDir: 'project',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
+
+      dependencies: {
+        positive: 'npm:is-positive@^3.1.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            positive: 'is-positive@3.1.0',
+          },
+          specifiers: {
+            positive: 'npm:is-positive@^3.1.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-positive@3.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
+          },
+        },
+      },
+    },
+  })
+  expect(outdatedPkgs).toStrictEqual([
+    {
+      alias: 'positive',
+      belongsTo: 'dependencies',
+      current: '1.0.0',
+      latestManifest: {
+        name: 'is-positive',
+        version: '3.1.0',
+      },
+      packageName: 'is-positive',
+      wanted: '3.1.0',
+      workspace: 'wanted-shrinkwrap',
+    },
+  ])
+})
+
+test('a dependency is not outdated if it is newer than the latest version', async () => {
+  const lockfile = {
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: {
+          foo: '1.0.0',
+          foo2: '2.0.0-0',
+          foo3: '2.0.0',
+        },
+        specifiers: {
+          foo: '^1.0.0',
+          foo2: '2.0.0-0',
+          foo3: '2.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      'foo@1.0.0': {
+        resolution: {
+          integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+        },
+      },
+      'foo2@2.0.0-0': {
+        resolution: {
+          integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+        },
+      },
+      'foo3@2.0.0': {
+        resolution: {
+          integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+        },
+      },
+    },
+  }
+  const outdatedPkgs = await outdated({
+    currentLockfile: lockfile,
+    resolveLatest: makeResolveLatest( async (packageName) => {
+      switch (packageName) {
+        case 'foo':
+          return {
+            name: 'foo',
+            version: '0.1.0',
+          }
+        case 'foo2':
+          return {
+            name: 'foo2',
+            version: '1.0.0',
+          }
+        case 'foo3':
+          return {
+            name: 'foo3',
+            version: '2.0.0',
+          }
+      }
+      return null
+    }),
+    lockfileDir: 'project',
+    manifest: {
+      name: 'pkg',
+      version: '1.0.0',
+
+      dependencies: {
+        foo: '^1.0.0',
+        foo2: '2.0.0-0',
+        foo3: '2.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: lockfile,
+  })
+  expect(outdatedPkgs).toStrictEqual([])
+})
+
+test('outdated() should [] when there is no dependency', async () => {
+  const outdatedPkgs = await outdated({
+    currentLockfile: null,
+    resolveLatest: makeResolveLatest( async () => {
+      return null
+    }),
+    lockfileDir: 'project',
+    manifest: {
+      name: 'pkg',
+      version: '1.0.0',
+    },
+    prefix: 'project',
+    wantedLockfile: null,
+  })
+  expect(outdatedPkgs).toStrictEqual([])
+})
+
+test('should ignore dependencies as expected', async () => {
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+          },
+          devDependencies: {
+            'is-negative': '1.0.0',
+            'is-positive': '1.0.0',
+          },
+          optionalDependencies: {
+            'linked-1': 'link:../linked-1',
+            'linked-2': 'file:../linked-2',
+          },
+          specifiers: {
+            'from-github': 'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+            'is-negative': '^2.1.0',
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-negative@2.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+          },
+        },
+        ['is-positive@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+          },
+        },
+        ['github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4' as DepPath]: {
+          name: 'from-github',
+          version: '1.1.0',
+
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+      },
+    },
+    resolveLatest,
+    lockfileDir: 'project',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
+      dependencies: {
+        'from-github': 'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+        'from-github-2': 'github:blabla/from-github-2#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+      },
+      devDependencies: {
+        'is-negative': '^2.1.0',
+        'is-positive': '^3.1.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            'from-github': 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            'from-github-2': 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+          devDependencies: {
+            'is-negative': '1.1.0',
+            'is-positive': '3.1.0',
+          },
+          optionalDependencies: {
+            'linked-1': 'link:../linked-1',
+            'linked-2': 'file:../linked-2',
+          },
+          specifiers: {
+            'from-github': 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            'from-github-2': 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            'is-negative': '^2.1.0',
+            'is-positive': '^3.1.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-negative@1.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+          },
+        },
+        ['is-positive@3.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
+          },
+        },
+        ['from-github-2@https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3' as DepPath]: {
+          version: '1.0.0',
+
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+        ['from-github@https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3' as DepPath]: {
+          version: '1.0.0',
+
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+      },
+    },
+    ignoreDependencies: [
+      'from-*',
+      'is-negative',
+    ],
+  })
+  expect(outdatedPkgs).toStrictEqual([
+    {
+      alias: 'is-positive',
+      belongsTo: 'devDependencies',
+      current: '1.0.0',
+      latestManifest: {
+        name: 'is-positive',
+        version: '3.1.0',
+      },
+      packageName: 'is-positive',
+      wanted: '3.1.0',
+      workspace: 'wanted-shrinkwrap',
+    },
+  ])
+})
+
+test('outdated() lists outdated runtimes (node, deno, bun)', async () => {
+  const runtimeLatestManifest = async (packageName: string) => {
+    return ({
+      node: { name: 'node', version: '23.0.0' },
+      deno: { name: 'deno', version: '2.5.0' },
+      bun: { name: 'bun', version: '1.1.42' },
+    } as Record<string, PackageManifest>)[packageName] ?? null
+  }
+
+  const lockfile = {
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: {
+          node: 'runtime:22.0.0',
+          deno: 'runtime:2.4.2',
+        },
+        devDependencies: {
+          bun: 'runtime:1.1.40',
+        },
+        specifiers: {
+          node: 'runtime:^22.0.0',
+          deno: 'runtime:2.4.2',
+          bun: 'runtime:^1.1.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      ['node@runtime:22.0.0' as DepPath]: {
+        version: '22.0.0',
+        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      },
+      ['deno@runtime:2.4.2' as DepPath]: {
+        version: '2.4.2',
+        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      },
+      ['bun@runtime:1.1.40' as DepPath]: {
+        version: '1.1.40',
+        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      },
+    },
+  }
+
+  const outdatedPkgs = await outdated({
+    currentLockfile: lockfile,
+    resolveLatest: makeResolveLatest(runtimeLatestManifest),
+    lockfileDir: 'project',
+    manifest: {
+      name: 'has-runtimes',
+      version: '1.0.0',
+      dependencies: {
+        node: 'runtime:^22.0.0',
+        deno: 'runtime:2.4.2',
+      },
+      devDependencies: {
+        bun: 'runtime:^1.1.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: lockfile,
+  })
+
+  expect(outdatedPkgs).toStrictEqual([
+    {
+      alias: 'bun',
+      belongsTo: 'devDependencies',
+      current: '1.1.40',
+      latestManifest: { name: 'bun', version: '1.1.42' },
+      packageName: 'bun',
+      wanted: '1.1.40',
+      workspace: 'has-runtimes',
+    },
+    {
+      alias: 'deno',
+      belongsTo: 'dependencies',
+      current: '2.4.2',
+      latestManifest: { name: 'deno', version: '2.5.0' },
+      packageName: 'deno',
+      wanted: '2.4.2',
+      workspace: 'has-runtimes',
+    },
+    {
+      alias: 'node',
+      belongsTo: 'dependencies',
+      current: '22.0.0',
+      latestManifest: { name: 'node', version: '23.0.0' },
+      packageName: 'node',
+      wanted: '22.0.0',
+      workspace: 'has-runtimes',
+    },
+  ])
+})
+
+test('outdated() runtime in --compatible mode resolves within the declared range', async () => {
+  const getLatestForCompat = async (packageName: string): Promise<PackageManifest | null> => {
+    expect(packageName).toBe('node')
+    return { name: 'node', version: '22.5.0' }
+  }
+
+  const lockfile = {
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { node: 'runtime:22.0.0' },
+        specifiers: { node: 'runtime:^22.0.0' },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      ['node@runtime:22.0.0' as DepPath]: {
+        version: '22.0.0',
+        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      },
+    },
+  }
+
+  const outdatedPkgs = await outdated({
+    compatible: true,
+    currentLockfile: lockfile,
+    resolveLatest: makeResolveLatest(getLatestForCompat),
+    lockfileDir: 'project',
+    manifest: {
+      name: 'with-runtime-range',
+      version: '1.0.0',
+      dependencies: { node: 'runtime:^22.0.0' },
+    },
+    prefix: 'project',
+    wantedLockfile: lockfile,
+  })
+
+  expect(outdatedPkgs).toStrictEqual([
+    {
+      alias: 'node',
+      belongsTo: 'dependencies',
+      current: '22.0.0',
+      latestManifest: { name: 'node', version: '22.5.0' },
+      packageName: 'node',
+      wanted: '22.0.0',
+      workspace: 'with-runtime-range',
+    },
+  ])
+})
+
+test('outdated() does not list runtime that is already up to date', async () => {
+  const getLatestManifestUpToDate = async (packageName: string) => {
+    return packageName === 'node' ? { name: 'node', version: '22.0.0' } : null
+  }
+
+  const lockfile = {
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { node: 'runtime:22.0.0' },
+        specifiers: { node: 'runtime:22.0.0' },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      ['node@runtime:22.0.0' as DepPath]: {
+        version: '22.0.0',
+        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      },
+    },
+  }
+
+  const outdatedPkgs = await outdated({
+    currentLockfile: lockfile,
+    resolveLatest: makeResolveLatest(getLatestManifestUpToDate),
+    lockfileDir: 'project',
+    manifest: {
+      name: 'up-to-date',
+      version: '1.0.0',
+      dependencies: { node: 'runtime:22.0.0' },
+    },
+    prefix: 'project',
+    wantedLockfile: lockfile,
+  })
+
+  expect(outdatedPkgs).toStrictEqual([])
+})
+
+test.each([
+  ['absent', undefined],
+  ['empty', ''],
+  ['whitespace-only', '   '],
+])('outdated() labels a project with an %s name by its importer path', async (_case, name) => {
+  const lockfile = {
+    importers: {
+      ['packages/a' as ProjectId]: {
+        dependencies: { 'is-positive': '1.0.0' },
+        specifiers: { 'is-positive': '^1.0.0' },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+  }
+
+  const outdatedPkgs = await outdated({
+    currentLockfile: lockfile,
+    resolveLatest,
+    lockfileDir: 'project',
+    manifest: {
+      name,
+      version: '1.0.0',
+      dependencies: { 'is-positive': '^1.0.0' },
+    },
+    prefix: 'project/packages/a',
+    wantedLockfile: lockfile,
+  })
+
+  // Blank would leave two such projects indistinguishable in the
+  // interactive update list, so the lockfile importer path stands in.
+  expect(outdatedPkgs.map((pkg) => pkg.workspace)).toStrictEqual(['packages/a'])
+})

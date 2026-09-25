@@ -1,56 +1,188 @@
 packages:
   - .meta-updater
-  - __typecheck__
-  - __typings__
-  - __utils__/*
-  - '!__utils__/build-artifacts'
-  - auth/*
-  - building/*
-  - cache/*
-  - catalogs/*
-  - cli/*
-  - config/*
-  - crypto/*
-  - installing/dedupe/*
-  - deps/*
-  - deps/compliance/*
-  - deps/inspection/*
-  - engine/*
-  - engine/pm/*
-  - engine/runtime/*
-  - exec/*
-  - fetching/*
-  - fs/*
-  - global/*
-  - hooks/*
-  - lockfile/*
-  - network/*
-  - modules-mounter/*
-  - object/*
-  - core/*
-  - bins/*
-  - installing/*
-  - installing/linking/*
-  - pkg-manifest/*
-  - patching/*
-  - pnpm
-  - pnpm/dev
-  - testing/*
-  - worker
-  - pnpm/artifacts/*
-  - releasing/*
-  - resolving/*
-  - resolving/registry/*
-  - shell/*
-  - store/*
-  - text/*
-  - workspace/*
-  - yaml/*
+  - pnpm11/__typecheck__
+  - pnpm11/__typings__
+  - pnpm11/__utils__/*
+  - '!pnpm11/__utils__/build-artifacts'
+  - pnpm11/auth/*
+  - pnpm11/building/*
+  - pnpm11/cache/*
+  - pnpm11/catalogs/*
+  - pnpm11/cli/*
+  - pnpm11/config/*
+  - pnpm11/crypto/*
+  - pnpm11/installing/dedupe/*
+  - pnpm11/deps/*
+  - pnpm11/deps/compliance/*
+  - pnpm11/deps/inspection/*
+  - pnpm11/deps/security/*
+  - pnpm11/engine/*
+  - pnpm11/engine/pm/*
+  - pnpm11/engine/runtime/*
+  - pnpm11/exec/*
+  - pnpm11/fetching/*
+  - pnpm11/fs/*
+  - pnpm11/global/*
+  - pnpm11/hooks/*
+  - pnpm11/lockfile/*
+  - pnpm11/network/*
+  - pnpm11/modules-mounter/*
+  - pnpm11/object/*
+  - pnpm11/core/*
+  - pnpm11/bins/*
+  - pnpm11/installing/*
+  - pnpm11/installing/linking/*
+  - pnpm11/pkg-manifest/*
+  - pnpm11/patching/*
+  - pnpm11/pnpm
+  - pnpm11/pnpm/dev
+  - pnpm11/testing/*
+  - pnpm11/worker
+  - pnpm11/pnpm/artifacts/*
+  - pnpr/client
+  - pnpm11/registry-access/*
+  - pnpm11/releasing/*
+  - pnpm11/resolving/*
+  - pnpm11/resolving/registry/*
+  - pnpm11/shell/*
+  - pnpm11/store/*
+  - pnpm11/text/*
+  - pnpm11/workspace/*
+  - pnpm11/yaml/*
+  - pnpm/npm/napi
+  - pnpm/npm/pnpm
+  - pnpm/tasks/registry-mock
+  - pnpr/npm/pnpr
   - '!**/example/**'
   - '!**/test/**'
-  - '!resolving/local-resolver/example-package/**'
+  - '!pnpm11/resolving/local-resolver/example-package/**'
+
+# Every `ci:*` script lives in the root manifest only, so the workflows run
+# these pipelines with `--include-workspace-root --full`; the test runners do
+# their own package selection and file sharding. The workflows also pass
+# `--no-cache`: no task declares `outputs`, so none is cacheable today, and the
+# flag keeps a check from being skipped if one ever does.
+pipelines:
+  ts-check: [ci:compile, ci:lint]
+  # Named after the scripts they run: the test workflow passes one value as both
+  # the pipeline name and the `TEST_SCRIPT` the chunk runner re-runs.
+  ci:test-all: [ci:test-all]
+  ci:test-branch: [ci:test-branch]
+  ts-test-chunk: [ci:test-chunk]
+  rust-test: [ci:rust-test]
+  pnpr-test: [ci:pnpr-test]
+  rust-clippy: [ci:rust-clippy]
+  rust-doc: [ci:rust-doc]
+  rust-deny: [ci:rust-deny]
+  rust-format: [ci:rust-fmt, ci:toml-fmt]
+  rust-dylint: [ci:rust-dylint]
+  build-pnpr: [ci:build-pnpr]
+
+# Every entry names a script the root manifest alone defines. A name a
+# workspace package also defines must not appear here: the entry would drop
+# that task's default `dependsOn: ['^<name>']` ordering, and each project's
+# run of it would take a slot of the group, serializing a recursive run.
+tasks:
+  ci:compile:
+    concurrencyGroup: typescript
+  ci:lint:
+    dependsOn: [ci:compile]
+    concurrencyGroup: typescript
+  ci:test-all:
+    concurrencyGroup: typescript
+  ci:test-branch:
+    concurrencyGroup: typescript
+  ci:test-chunk:
+    concurrencyGroup: typescript
+  test-all:
+    concurrencyGroup: typescript
+  test-branch:
+    concurrencyGroup: typescript
+  test-pkgs-all:
+    concurrencyGroup: typescript
+  test-pkgs-all-report-summary:
+    concurrencyGroup: typescript
+  test-pkgs-branch:
+    concurrencyGroup: typescript
+  build:pnpm:
+    concurrencyGroup: cargo
+  check:rust:
+    concurrencyGroup: cargo
+  fix:rust:
+    concurrencyGroup: cargo
+  lint:rust:
+    concurrencyGroup: cargo
+  pre-push:rust:
+    concurrencyGroup: cargo
+    priority: 10
+  ready:rust:
+    concurrencyGroup: cargo
+  test:rust:
+    concurrencyGroup: cargo
+  test:rust-affected:
+    concurrencyGroup: cargo
+  test:rust-smoke:
+    concurrencyGroup: cargo
+  ci:build-pnpr:
+    concurrencyGroup: cargo
+  ci:pnpr-test:
+    concurrencyGroup: cargo
+  ci:rust-clippy:
+    concurrencyGroup: cargo
+  ci:rust-doc:
+    concurrencyGroup: cargo
+  ci:rust-dylint:
+    concurrencyGroup: cargo
+  ci:rust-test:
+    concurrencyGroup: cargo
+
+# The repository is checked out into many worktrees at once, and a second
+# Rust build or TypeScript test run on the same machine only takes cores and
+# memory from the first. The TypeScript test scripts also share the
+# `../pnpm_tmp` scratch directory across worktrees, which one of them wipes
+# on startup. A task past the limit waits for a slot instead of starting.
+concurrencyGroups:
+  cargo: 1
+  typescript: 1
+
+# Native workspace release management (consumed by `pnpm change` / `pnpm version -r`).
+# The Rust CLI wrapper is the workspace package `pacquet` (published to npm as
+# `pnpm`); generate-packages.mjs rewrites the name at pack time.
+versioning:
+  # @pnpm/logger is a workspace package, but every consumer depends on the
+  # published one through the `^1100.0.0` catalog entry (a `catalog:` peer, kept
+  # deliberately so Jest loads the published CJS-bole logger — see the `bole`
+  # note in the catalog). The release engine would otherwise reject those
+  # catalog: peers as internal ranges that must use the workspace: protocol, so
+  # freeze @pnpm/logger from the automated release: it is bumped out of band.
+  ignore:
+    - '@pnpm/logger'
+  # Groups that always release together at one shared version:
+  #   - the Rust CLI wrapper and its NAPI addon;
+  #   - the pnpm CLI with its prebuilt executable (@pnpm/exe) and the
+  #     per-platform binary packages under pnpm11/pnpm/artifacts/. Those ship the
+  #     same build and must carry the CLI's exact version.
+  fixed:
+    - [ 'pacquet', '@pnpm/napi' ]
+    - [ 'pnpm', '@pnpm/exe', '@pnpm/macos-arm64', '@pnpm/linux-arm64', '@pnpm/linuxstatic-arm64', '@pnpm/linux-x64', '@pnpm/linuxstatic-x64', '@pnpm/win-arm64', '@pnpm/win-x64' ]
+  # The TypeScript CLI (`pnpm`) leads an epic that bands every library package
+  # under pnpm11/ to the CLI's major: while `pnpm` is on major 11 the libraries
+  # live in majors 1100-1199. Members move independently inside the band (patch,
+  # minor, and an in-band major); the release engine rejects a bump that would
+  # carry one past the band ceiling, and re-bases every member to the next band
+  # floor when the CLI crosses to a new stable major. The built release
+  # artifacts under pnpm11/pnpm/artifacts/ are excluded from the band — they ride
+  # the CLI's exact version through the fixed group above.
+  epics:
+    - lead: pnpm
+      packages:
+        - './pnpm11/**'
+        - '!./pnpm11/pnpm/artifacts/**'
+  lanes:
+    '@pnpm/pnpr': alpha
 
 allowBuilds:
+  '@parcel/watcher': false
   core-js: false
   esbuild: true
   fuse-native: true
@@ -59,48 +191,57 @@ allowBuilds:
   unrs-resolver: true
 
 auditConfig:
-  ignoreCves:
-    - CVE-2025-56200
   ignoreGhsas:
     - GHSA-2g4f-4pwh-qvx6
     - GHSA-76c9-3jph-rj3q
     - GHSA-ffrw-9mx8-89p8
     - GHSA-mh29-5h37-fv8m
+    - GHSA-w5hq-g745-h8pq
+    # GHSA-vwc7-r8mq-g2x9: adm-zip follows pre-existing destination symlinks during
+    # extraction. No patched adm-zip release exists. @pnpm/fetching.binary-fetcher
+    # extracts into a freshly created randomly named directory, so there is no
+    # predictable path at which a symlink can be planted.
+    - GHSA-vwc7-r8mq-g2x9
+    # GHSA-h67p-54hq-rp68: js-yaml quadratic-complexity DoS in merge key handling.
+    # Patched only in >=4.1.2 with no v3 fix; @yarnpkg/parsers requires the js-yaml 3
+    # API (yaml.safeLoad), so its transitive js-yaml cannot be upgraded.
+    - GHSA-h67p-54hq-rp68
+
+cargo:
+  enabled: true
 
 catalog:
-  '@babel/core': ^7.28.3
-  '@babel/plugin-transform-explicit-resource-management': ^7.27.1
-  '@changesets/cli': ^2.29.8
-  '@commitlint/cli': ^20.5.0
-  '@commitlint/config-conventional': ^20.5.0
-  '@commitlint/prompt-cli': ^20.5.0
-  '@cyclonedx/cyclonedx-library': 10.0.0
+  # @babel/core 8.x (and its plugins) require Node.js ^22.18.0 || >=24.11.0,
+  # above pnpm's supported floor of Node.js >=22.13.
+  '@babel/core': ^7.29.7
+  '@babel/plugin-transform-explicit-resource-management': ^7.29.7
+  '@commitlint/cli': ^21.2.3
+  '@commitlint/config-conventional': ^21.2.3
+  '@commitlint/prompt-cli': ^21.2.3
+  '@cyclonedx/cyclonedx-library': 10.3.0
   '@eslint/js': ^10.0.1
-  '@jest/globals': 30.3.0
+  '@inquirer/prompts': ^8.7.2
+  # Jest 30.5.0 breaks ESM package imports in the Jest runtime.
+  '@jest/globals': 30.4.1
   '@npm/types': ^2.1.0
   '@pnpm/byline': ^1.0.0
-  '@pnpm/colorize-semver-diff': ^1.0.1
-  '@pnpm/config.env-replace': ^3.0.2
-  '@pnpm/config.nerf-dart': ^1.0.0
-  '@pnpm/exec': ^2.0.0
-  '@pnpm/log.group': 3.0.2
-  '@pnpm/logger': '>=1001.0.0 <1002.0.0'
+  '@pnpm/colorize-semver-diff': ^2.0.0
+  '@pnpm/config.env-replace': ^4.1.0
+  '@pnpm/exec': ^4.0.0
+  '@pnpm/log.group': 4.0.1
+  '@pnpm/logger': '^1100.0.0'
   '@pnpm/meta-updater': 2.0.6
   '@pnpm/nopt': ^0.3.1
-  '@pnpm/npm-conf': 3.0.2
-  '@pnpm/npm-lifecycle': 1100.0.0-1
   '@pnpm/npm-package-arg': ^2.0.0
-  '@pnpm/os.env.path-extender': ^3.0.0
+  '@pnpm/os.env.path-extender': ^3.0.1
   '@pnpm/patch-package': 0.0.1
-  '@pnpm/registry-mock': 5.2.4
-  '@pnpm/semver-diff': ^1.1.0
+  '@pnpm/semver-diff': ^2.0.0
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
-  '@pnpm/util.lex-comparator': ^3.0.2
   '@reflink/reflink': 0.1.19
-  '@rushstack/worker-pool': 0.7.7
+  '@rushstack/worker-pool': 0.7.28
   '@stylistic/eslint-plugin': ^5.10.0
-  '@types/adm-zip': ^0.5.7
+  '@types/adm-zip': ^0.5.8
   '@types/archy': 0.0.36
   '@types/cross-spawn': ^6.0.6
   '@types/fs-extra': ^11.0.4
@@ -112,153 +253,176 @@ catalog:
   '@types/isexe': 2.0.4
   '@types/jest': ^30.0.0
   '@types/js-yaml': ^4.0.9
-  '@types/libnpmpublish': ^9.0.1
+  '@types/libnpmpublish': ^11.2.0
   '@types/lodash.kebabcase': 4.1.9
   '@types/lodash.throttle': 4.1.9
-  '@types/micromatch': ^4.0.9
-  '@types/node': ^22.19.15
+  '@types/micromatch': ^4.0.10
+  # Kept on 22.x to match pnpm's minimum supported Node.js version (>=22.13);
+  # newer majors would type APIs that don't exist on the supported floor.
+  '@types/node': ^22.19.19
   '@types/normalize-package-data': ^2.4.4
   '@types/normalize-path': ^3.0.2
+  '@types/npm-registry-fetch': ^8.0.9
   '@types/object-hash': 3.0.6
-  '@types/parse-json': ^4.0.2
-  '@types/picomatch': ^4.0.2
+  '@types/parse-json': ^7.0.0
+  '@types/picomatch': ^4.0.3
   '@types/pnpm__byline': npm:@types/byline@^4.2.36
   '@types/proxyquire': ^1.3.31
   '@types/qrcode-terminal': ^0.12.2
-  '@types/ramda': 0.31.1
+  '@types/ramda': 0.32.0
   '@types/retry': ^0.12.5
-  '@types/semver': 7.7.1
+  '@types/semver': 7.8.0
+  '@types/spdx-expression-parse': 4.0.0
   '@types/ssri': ^7.1.5
-  '@types/tar': ^7.0.87
   '@types/tar-stream': ^3.1.4
   '@types/touch': ^3.1.5
   '@types/validate-npm-package-name': ^4.0.2
   '@types/which': ^3.0.4
   '@types/write-file-atomic': ^4.0.3
   '@types/yarnpkg__lockfile': ^1.1.9
-  '@types/zkochan__table': npm:@types/table@6.0.0
-  '@typescript-eslint/utils': ^8.57.1
-  # Newer tsgo dev builds have a regression where @types/node can't be resolved,
-  # causing all node built-in types (path, url, stream, process, etc.) to fail.
-  '@typescript/native-preview': 7.0.0-dev.20260216.1
-  '@yarnpkg/core': 4.5.0
-  '@yarnpkg/extensions': 2.0.6
+  '@types/zkochan__table': npm:@types/table@6.3.2
+  '@typescript-eslint/utils': ^8.70.1
+  '@typescript/native-preview': 7.0.0-dev.20260707.2
+  '@yarnpkg/core': 4.9.1
+  '@yarnpkg/extensions': 2.0.7
+  '@yarnpkg/fslib': ^3.1.5
   '@yarnpkg/lockfile': ^1.1.0
-  '@yarnpkg/nm': 4.0.7
-  '@yarnpkg/parsers': 3.0.3
-  '@yarnpkg/pnp': ^4.0.8
-  '@zkochan/cmd-shim': ^9.0.0
+  '@yarnpkg/nm': 4.1.1
+  '@yarnpkg/pnp': ^4.1.7
+  '@yarnpkg/shell': 4.1.3
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
-  adm-zip: ^0.5.16
+  adm-zip: ^0.6.1
+  amaro: ^1.2.1
   ansi-diff: ^1.2.0
   archy: ^1.0.0
   better-path-resolve: 2.0.0
-  bin-links: ^6.0.0
-  bole: ^5.0.17
+  # bin-links 7.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above pnpm's
+  # supported floor of Node.js >=22.13.
+  bin-links: ^6.0.2
+  # bole 6 is ESM-only. Under Jest, the workspace logger's ESM bole and the
+  # published @pnpm/logger's CJS bole 5 land in different realms, so the
+  # globalThis.$$bole output registry is no longer shared and log events
+  # emitted through one logger copy never reach the other's streamParser.
+  # Keep bole 5 until the published @pnpm/logger ships with bole 6.
+  bole: ^5.0.29
   boxen: npm:@zkochan/boxen@5.1.2
-  c8: ^11.0.0
+  bz2: 1.0.1
+  c8: ^12.0.0
   camelcase: ^9.0.0
-  camelcase-keys: ^10.0.1
+  camelcase-keys: ^10.0.3
   can-link: ^3.0.0
   can-write-to-dir: ^2.0.0
-  chalk: ^5.6.0
-  ci-info: ^4.3.0
-  cli-truncate: ^5.2.0
+  chalk: ^6.0.0
+  ci-info: ^4.4.0
+  cli-truncate: ^6.1.1
   cmd-extension: ^2.0.0
   comver-to-semver: ^2.0.0
-  concurrently: 9.2.1
   cross-env: ^10.1.0
   cross-spawn: ^7.0.6
-  cspell: 9.7.0
+  # cspell 10.x requires Node.js >=22.18.0, above pnpm's supported floor of
+  # Node.js >=22.13.
+  cspell: 9.8.0
   deep-require-cwd: 1.0.0
   delay: ^7.0.0
   detect-indent: 7.0.2
-  detect-libc: ^2.0.3
+  detect-libc: ^2.1.2
   didyoumean2: ^7.0.4
   dint: ^5.1.0
   dir-is-case-sensitive: ^3.0.0
-  encode-registry: ^3.0.1
-  enquirer: ^2.4.1
-  esbuild: ^0.27.4
+  empathic: ^2.1.0
+  esbuild: ^0.28.2
   escape-string-regexp: ^5.0.0
-  eslint: ^10.0.3
-  eslint-plugin-import-x: ^4.16.2
-  eslint-plugin-jest: ^29.12.1
-  eslint-plugin-n: ^17.23.2
-  eslint-plugin-promise: ^7.2.1
-  eslint-plugin-regexp: ^3.1.0
-  eslint-plugin-simple-import-sort: ^12.1.1
+  eslint: ^10.11.0
+  eslint-plugin-import-x: ^4.17.1
+  eslint-plugin-jest: ^29.16.6
+  eslint-plugin-n: ^18.3.0
+  eslint-plugin-promise: ^7.3.0
+  eslint-plugin-regexp: ^3.1.1
+  eslint-plugin-simple-import-sort: ^14.0.0
   execa: npm:safe-execa@0.3.0
   exists-link: 2.0.0
   fast-deep-equal: ^3.1.3
   fast-glob: ^3.3.3
-  filenamify: ^7.0.1
-  find-up: ^8.0.0
-  fs-extra: ^11.3.1
+  fs-extra: ^11.4.1
   fuse-native: ^2.2.6
-  get-npm-tarball-url: ^2.1.0
-  get-port: ^7.1.0
+  # Bundled into the pnpm 12 wrapper's dist/ payload, where the Corepack entry
+  # point loads it from; see pnpm/npm/pnpm/bin/pnpm.mjs.
+  get-pnpm: ^0.0.5
+  get-port: ^7.2.0
   ghooks: 2.0.4
   graceful-fs: ^4.2.11
-  graceful-git: ^5.0.0
   graph-cycles: 3.0.0
   hosted-git-info: npm:@pnpm/hosted-git-info@1.0.0
   https-proxy-server-express: 0.1.2
   husky: ^9.1.7
   hyperdrive-schemas: ^2.0.0
+  # ini 7.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above pnpm's
+  # supported floor of Node.js >=22.13.
   ini: 6.0.0
   is-gzip: 2.0.0
   is-inner-link: ^5.0.0
   is-subdir: ^2.0.0
   is-windows: ^1.0.2
   isexe: 4.0.0
-  jest: ^30.3.0
-  jest-diff: ^30.3.0
+  jest: 30.4.2
+  jest-diff: 30.4.1
+  human-id: ^4.2.1
   js-yaml: npm:@zkochan/js-yaml@0.0.11
   json5: ^2.2.3
   keyv: 5.6.0
-  lcov-result-merger: ^5.0.1
-  libnpmpublish: ^11.1.3
+  lcov-result-merger: ^6.0.0
+  # libnpmpublish 12.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above
+  # pnpm's supported floor of Node.js >=22.13.
+  libnpmpublish: ^11.2.0
   load-json-file: ^7.0.1
   lodash.kebabcase: ^4.1.1
   lodash.throttle: 4.1.1
   loud-rejection: ^2.2.0
-  lru-cache: ^11.2.7
+  lru-cache: ^11.5.3
   make-empty-dir: ^4.0.0
   mdast-util-to-string: ^4.0.0
-  memoize: ^10.2.0
+  memfs: ^4.79.0
+  memoize: ^11.0.0
   micromatch: ^4.0.8
-  # msgpackr 1.11.9 has broken type definitions (uses Iterable/Iterator without
-  # required type arguments), incompatible with TypeScript 5.9.
-  msgpackr: 1.11.8
-  nock: 13.3.4
+  msgpackr: 2.1.0
   nm-prune: ^5.0.0
+  # node-gyp 13 (with its nopt 10 and which 7 dependencies) requires Node.js
+  # ^22.22.2 || ^24.15.0 || >=26.0.0, above pnpm's supported floor of >=22.13.
+  node-gyp: ^12.3.0
   normalize-newline: 5.0.0
+  # normalize-package-data 9.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0,
+  # above pnpm's supported floor of Node.js >=22.13.
   normalize-package-data: ^8.0.0
   normalize-path: ^3.0.0
   normalize-registry-url: 2.0.1
+  # npm-packlist 11.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above
+  # pnpm's supported floor of Node.js >=22.13.
   npm-packlist: 10.0.4
+  # npm-registry-fetch 20.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0,
+  # above pnpm's supported floor of Node.js >=22.13.
+  npm-registry-fetch: ^19.0.0
   object-hash: 3.0.0
+  open: ^11.0.4
+  openpgp: ^6.3.1
+  '@openpgp/web-stream-tools': 0.3.1
   p-defer: ^4.0.1
   p-every: ^2.0.0
   p-filter: ^4.1.0
-  p-limit: ^7.1.0
-  p-map-values: ^0.1.0
-  p-memoize: 8.0.0
-  p-queue: ^9.1.0
+  p-limit: ^7.3.3
+  p-queue: ^9.3.3
   parse-json: ^8.3.0
-  parse-npm-tarball-url: ^4.0.0
+  parse-npm-tarball-url: ^5.0.0
   path-absolute: ^2.0.0
   path-exists: ^5.0.0
   path-name: ^1.0.0
   path-temp: ^3.0.0
-  pidtree: ^0.6.0
+  pidtree: ^1.0.0
   preferred-pm: ^5.0.0
-  pretty-bytes: ^7.1.0
-  pretty-ms: ^9.2.0
-  promise-share: ^2.0.0
+  pretty-bytes: ^7.1.3
+  pretty-ms: ^9.3.1
+  promise-share: ^2.0.1
   proxyquire: ^2.1.3
   ps-list: ^9.0.0
   qrcode-terminal: ^0.12.0
@@ -271,133 +435,131 @@ catalog:
   rename-overwrite: ^7.0.1
   render-help: ^2.0.0
   resolve-link-target: ^3.0.0
-  rimraf: ^6.1.2
+  rimraf: ^6.1.3
   root-link-target: ^4.0.0
-  run-groups: ^5.0.0
   rxjs: ^7.8.2
   safe-buffer: 5.2.1
   safe-execa: ^0.3.0
   safe-promise-defer: ^2.0.0
-  sanitize-filename: ^1.6.3
-  semver: ^7.7.2
+  sanitize-filename: ^1.6.4
+  semver: ^7.8.5
   semver-range-intersect: ^0.3.1
   semver-utils: ^1.1.4
   shlex: ^3.0.0
   shx: ^0.4.0
-  socks: ^2.8.1
-  sort-keys: ^6.0.0
+  signal-exit: ^4.1.0
+  socks: ^2.8.10
+  sort-keys: ^6.0.1
+  spdx-expression-parse: 5.0.0
   split-cmd: ^1.1.0
   split2: ^4.2.0
+  # ssri 14.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above pnpm's
+  # supported floor of Node.js >=22.13.
   ssri: 13.0.1
   stacktracey: ^2.2.0
   string-length: ^7.0.1
+  string-width: ^8.2.2
   strip-bom: ^5.0.0
   strip-comments-strings: 1.2.0
-  symlink-dir: ^10.0.1
-  tar: ^7.5.10
-  tar-stream: ^3.1.7
+  symlink-dir: ^10.0.3
+  tar: ^7.5.22
+  tar-stream: ^3.2.1
   # tempy >=3.1.0 uses temp-dir 3.x which has an async fs.realpath() in its
   # module init. When esbuild bundles this into its __esm lazy-init pattern,
   # the async operation deadlocks and the pnpm binary hangs on startup.
   tempy: 3.0.0
   terminal-link: ^5.0.0
-  tinyglobby: ^0.2.14
+  tinyglobby: ^0.2.17
   touch: 3.1.1
   tree-kill: ^1.2.2
   ts-jest-resolver: 2.0.1
-  typescript: 5.9.3
-  typescript-eslint: ^8.57.1
-  undici: ^7.2.0
+  # Kept on 6.x because typescript-eslint does not support the TypeScript 7.0 API
+  # yet (https://github.com/typescript-eslint/typescript-eslint/issues/10940); the
+  # 7.x compiler ships separately as @typescript/native-preview (tsgo).
+  typescript: 6.0.3
+  typescript-eslint: ^8.70.1
+  uid-number: 0.0.6
+  # undici 8.x requires Node.js >=22.19.0, above pnpm's supported floor of
+  # Node.js >=22.13.
+  undici: ^7.29.0
   unified: ^11.0.5
+  # validate-npm-package-name 8.x requires Node.js ^22.22.2 || ^24.15.0 ||
+  # >=26.0.0, above pnpm's supported floor of Node.js >=22.13.
   validate-npm-package-name: 7.0.2
-  verdaccio: 6.3.2
   version-selector-type: ^3.0.0
-  vfile: ^6.0.0
+  vfile: ^6.0.3
   which: npm:@pnpm/which@^3.0.1
-  write-file-atomic: ^7.0.0
+  # write-file-atomic 8.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0,
+  # above pnpm's supported floor of Node.js >=22.13.
+  write-file-atomic: ^7.0.1
   write-ini-file: 5.0.0
   write-json-file: ^7.0.0
   write-json5-file: ^4.0.0
   write-package: 7.2.0
   write-yaml-file: ^6.0.0
-  yaml: ^2.8.3
+  yaml: ^2.9.1
   yaml-tag: 1.1.0
 
 catalogMode: strict
 
-cleanupUnusedCatalogs: true
-
-enableGlobalVirtualStore: true
+catalogPrune: true
 
 enablePrePostScripts: false
 
-engineStrict: true
+engineStrict: false
 
 gitChecks: false
 
 hoistPattern:
   - jest-runner
 
-managePackageManagerVersions: true
-
 minimumReleaseAge: 1440 # At least a day
 
 minimumReleaseAgeExclude:
   - '@pnpm/*'
-  - '@rushstack/worker-pool@0.7.7'
   - '@zkochan/*'
-  - '@zkochan/cmd-shim@9.0.0'
   - better-path-resolve
-  - body-parser@2.2.1
   - can-link
   - can-write-to-dir
   - cmd-extension
   - comver-to-semver
   - dir-is-case-sensitive
-  - express@4.22.1
+  - '@esbuild/*'
   - glob@11.1.0
-  - graceful-git
-  - handlebars@4.7.9
   - is-inner-link
   - is-subdir
-  - jws@3.2.3
-  - lodash@4.17.23
   - make-empty-dir
   - normalize-registry-url
-  - p-map-values
-  - parse-npm-tarball-url@4.0.0
+  - parse-npm-tarball-url@5.0.0
   - path-absolute
   - path-temp
   - pnpm
   - preferred-pm
   - promise-share
-  - qs@6.14.2
   - read-ini-file
-  - read-json5-file
   - read-yaml-file
   - realpath-missing
   - rename-overwrite
   - render-help
   - resolve-link-target
   - root-link-target
-  - run-groups
   - safe-execa
   - safe-promise-defer
   - symlink-dir
-  - tar@7.5.10
   - which-pm
-  - which-pm-runs
   - write-ini-file
   - write-json5-file
   - write-yaml-file
+  - http-proxy-middleware@3.0.7
+
+minimumReleaseAgeExcludePrune: true
 
 nodeVersion: 22.13.0
-
-optimisticRepeatInstall: true
 
 overrides:
   '@cypress/request@3.0.9>qs': ^6.14.1
   '@yarnpkg/fslib@2': '3'
+  adm-zip@<0.6.0: ^0.6.0
   ajv@>=7.0.0-alpha.0 <8.18.0: '>=8.18.0'
   body-parser@<2.2.1: '^2.2.1'
   brace-expansion@<5.0.5: '>=5.0.5'
@@ -412,40 +574,48 @@ overrides:
   glob@>=10.3.7 <=11.0.3: '^11.1.0'
   handlebars@>=4.0.0 <4.7.9: '>=4.7.9'
   hosted-git-info@1: 'catalog:'
-  http-proxy-middleware@<2.0.7: ^2.0.7
   istanbul-reports: npm:@zkochan/istanbul-reports
   js-yaml@<3.14.2: '^3.14.2'
   js-yaml@^4.0.0: 'catalog:'
   json5@<2.2.2: 'catalog:'
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   jws@<3.2.3: '^3.2.3'
+  lodash@<=4.17.23: '>=4.18.0'
   lodash@>=4.0.0 <=4.17.22: '^4.17.23'
+  lodash@>=4.0.0 <=4.17.23: '>=4.18.0'
   minimatch@>=7.0.0 <7.4.7: '^7.4.7'
   minimatch@>=9.0.0 <10.0.0: '>=10.2.4'
   nopt@5: npm:@pnpm/nopt@^0.2.1
   on-headers@<1.1.0: '>=1.1.0'
-  path-to-regexp@<0.1.12: ^0.1.12
+  path-to-regexp@<0.1.13: ^0.1.13
   path-to-regexp@>=4.0.0 <6.3.0: '>=6.3.0'
   path-to-regexp@>=7.0.0 <8.0.0: '>=8.0.0'
   postman-request>qs: ^6.14.1
+  qs@>=6.11.1 <=6.15.1: ^6.15.2
   request: npm:postman-request@2.88.1-postman.40
   semver@<7.5.2: 'catalog:'
   send@<0.19.0: ^0.19.0
+  shell-quote@<1.8.4: '>=1.8.4'
   serve-static@<1.16.0: ^1.16.0
+  # GHSA-w7jw-789q-3m8p / CVE-2026-9277: 1.8.4 patches critical shell-quote vulnerabilities in <=1.8.3.
+  shell-quote: 1.8.4
   socks@2: ^2.8.1
   tar@<=7.5.9: '>=7.5.10'
   tmp@<=0.2.3: '>=0.2.4'
   tough-cookie@<4.1.3: '>=4.1.3'
   validator@<13.15.22: '>=13.15.22'
   yaml@<2.2.2: '>=2.2.2'
+  http-proxy-middleware@>=0.16.0 <3.0.6: ^3.0.6
+  deepmerge-ts@<8.0.0: ^8.0.0
 
 packageExtensions:
   '@babel/parser':
     peerDependencies:
       '@babel/types': '*'
-  '@verdaccio/auth':
-    peerDependencies:
-      express: '*'
+  # The shell's declarations import micromatch's, which it does not depend on.
+  '@yarnpkg/shell':
+    dependencies:
+      '@types/micromatch': ^4.0.10
   jest-circus:
     dependencies:
       slash: '3'
@@ -462,6 +632,7 @@ packageExtensions:
 
 patchedDependencies:
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
+  normalize-registry-url@2.0.1: __patches__/normalize-registry-url@2.0.1.patch
 
 patchesDir: __patches__
 
@@ -471,16 +642,48 @@ resolutionMode: lowest-direct
 
 savePrefix: ''
 
-sharedWorkspaceLockfile: true
-
 trustPolicy: no-downgrade
 
 trustPolicyExclude:
+  - '@pnpm/*'
   - '@yarnpkg/libzip@3.2.2'
+  - pnpm
   - rxjs@7.8.2
   - undici-types@6.21.0
-  - '@pnpm/*'
+
+trustPolicyExcludePrune: true
 
 trustPolicyIgnoreAfter: 10080 # 1 week
 
-verifyDepsBeforeRun: install
+# Dependencies deliberately held back, which `pnpm update --latest` (run by the
+# update-lockfile workflow) would otherwise bump. Most of them are packages
+# whose newer versions require a Node.js version above pnpm's supported floor
+# (>=22.13); the comment at each catalog entry above records the reason.
+# typescript is held on 6.x because typescript-eslint does not support the
+# TypeScript 7.0 API yet.
+update:
+  ignoreDeps:
+    - '@babel/core'
+    - '@babel/plugin-transform-explicit-resource-management'
+    - '@jest/globals'
+    - '@types/node'
+    - bin-links
+    - bole
+    - cspell
+    - eslint-plugin-regexp
+    - ini
+    - jest
+    - jest-diff
+    - libnpmpublish
+    - node-gyp
+    - normalize-package-data
+    - npm-packlist
+    - npm-registry-fetch
+    - ssri
+    - tempy
+    - typescript
+    - undici
+    - validate-npm-package-name
+    - write-file-atomic
+
+virtualStoreType: global

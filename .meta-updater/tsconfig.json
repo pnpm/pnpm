@@ -11,22 +11,22 @@
   ],
   "references": [
     {
-      "path": "../core/logger"
+      "path": "../pnpm11/core/logger"
     },
     {
-      "path": "../core/types"
+      "path": "../pnpm11/core/types"
     },
     {
-      "path": "../lockfile/fs"
+      "path": "../pnpm11/lockfile/fs"
     },
     {
-      "path": "../object/key-sorting"
+      "path": "../pnpm11/object/key-sorting"
     },
     {
-      "path": "../workspace/projects-reader"
+      "path": "../pnpm11/workspace/projects-reader"
     },
     {
-      "path": "../workspace/workspace-manifest-reader"
+      "path": "../pnpm11/workspace/workspace-manifest-reader"
     }
   ]
 }

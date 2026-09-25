@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/abc-grand-parent",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/abc-parent-with-ab": "^1.0.0"
+  }
+}

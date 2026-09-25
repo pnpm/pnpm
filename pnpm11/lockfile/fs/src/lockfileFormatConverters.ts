@@ -1,0 +1,270 @@
+import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { parse, refToRelative, removeSuffix } from '@pnpm/deps.path'
+import type {
+  LockfileFile,
+  LockfileFileProjectResolvedDependencies,
+  LockfileFileProjectSnapshot,
+  LockfileObject,
+  LockfilePackageInfo,
+  LockfilePackageSnapshot,
+  PackageSnapshots,
+  ProjectSnapshot,
+  ResolvedDependencies,
+  TarballResolution,
+} from '@pnpm/lockfile.types'
+import { isGitHostedTarballUrl } from '@pnpm/lockfile.utils'
+import { DEPENDENCIES_FIELDS, type DepPath } from '@pnpm/types'
+import { isEmpty, omit, pick, pickBy } from 'ramda'
+
+export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
+  const packages: Record<string, LockfilePackageInfo> = {}
+  const snapshots: Record<string, LockfilePackageSnapshot> = {}
+  for (const [depPath, pkg] of Object.entries(lockfile.packages ?? {})) {
+    setOwnProperty(snapshots, depPath, pick([
+      'dependencies',
+      'optionalDependencies',
+      'transitivePeerDependencies',
+      'optional',
+      'id',
+    ], pkg))
+    const pkgId = removeSuffix(depPath)
+    if (!Object.hasOwn(packages, pkgId)) {
+      setOwnProperty(packages, pkgId, pick([
+        'bundledDependencies',
+        'cpu',
+        'deprecated',
+        'engines',
+        'hasBin',
+        'libc',
+        'name',
+        'os',
+        'peerDependencies',
+        'peerDependenciesMeta',
+        'resolution',
+        'version',
+      ], pkg))
+    }
+  }
+  const newLockfile = {
+    ...lockfile,
+    snapshots,
+    packages,
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: mapValues(lockfile.importers, convertProjectSnapshotToInlineSpecifiersFormat),
+  }
+  if (newLockfile.settings?.peersSuffixMaxLength === 1000) {
+    newLockfile.settings = omit(['peersSuffixMaxLength'], newLockfile.settings)
+  }
+  if (newLockfile.settings?.injectWorkspacePackages === false) {
+    newLockfile.settings = omit(['injectWorkspacePackages'], newLockfile.settings)
+  }
+  return normalizeLockfile(newLockfile)
+}
+
+function normalizeLockfile (lockfile: LockfileFile): LockfileFile {
+  const lockfileToSave = {
+    ...lockfile,
+    importers: mapValues(lockfile.importers ?? {}, (importer) => {
+      const normalizedImporter: Partial<LockfileFileProjectSnapshot> = {}
+      if (importer.dependenciesMeta != null && !isEmpty(importer.dependenciesMeta)) {
+        normalizedImporter.dependenciesMeta = importer.dependenciesMeta
+      }
+      for (const depType of DEPENDENCIES_FIELDS) {
+        if (!isEmpty(importer[depType] ?? {})) {
+          normalizedImporter[depType] = importer[depType]
+        }
+      }
+      if (importer.publishDirectory) {
+        normalizedImporter.publishDirectory = importer.publishDirectory
+      }
+      if (importer.linkDirectory === false) {
+        normalizedImporter.linkDirectory = false
+      }
+      return normalizedImporter as LockfileFileProjectSnapshot
+    }),
+  }
+  if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
+    delete lockfileToSave.packages
+  }
+  if (isEmpty((lockfileToSave as LockfileFile).snapshots) || ((lockfileToSave as LockfileFile).snapshots == null)) {
+    delete (lockfileToSave as LockfileFile).snapshots
+  }
+  if (lockfileToSave.time) {
+    lockfileToSave.time = pruneTimeInLockfile(lockfileToSave.time, lockfile.importers ?? {})
+  }
+  if ((lockfileToSave.catalogs != null) && isEmpty(lockfileToSave.catalogs)) {
+    delete lockfileToSave.catalogs
+  }
+  if ((lockfileToSave.overrides != null) && isEmpty(lockfileToSave.overrides)) {
+    delete lockfileToSave.overrides
+  }
+  if ((lockfileToSave.patchedDependencies != null) && isEmpty(lockfileToSave.patchedDependencies)) {
+    delete lockfileToSave.patchedDependencies
+  }
+  if (!lockfileToSave.packageExtensionsChecksum) {
+    delete lockfileToSave.packageExtensionsChecksum
+  }
+  if (!lockfileToSave.ignoredOptionalDependencies?.length) {
+    delete lockfileToSave.ignoredOptionalDependencies
+  }
+  if (!lockfileToSave.pnpmfileChecksum) {
+    delete lockfileToSave.pnpmfileChecksum
+  }
+  return lockfileToSave
+}
+
+function pruneTimeInLockfile (time: Record<string, string>, importers: Record<string, LockfileFileProjectSnapshot>): Record<string, string> {
+  const rootDepPaths = new Set<string>()
+  for (const importer of Object.values(importers)) {
+    for (const depType of DEPENDENCIES_FIELDS) {
+      for (const [depName, ref] of Object.entries(importer[depType] ?? {})) {
+        const suffixStart = ref.version.indexOf('(')
+        const refWithoutPeerDepGraphHash = suffixStart === -1 ? ref.version : ref.version.slice(0, suffixStart)
+        const depPath = refToRelative(refWithoutPeerDepGraphHash, depName)
+        if (!depPath) continue
+        rootDepPaths.add(depPath)
+      }
+    }
+  }
+  return pickBy((_, depPath) => rootDepPaths.has(depPath), time)
+}
+
+// Mirrors `isFilename` in `resolving/local-resolver/src/parseBareSpecifier.ts`
+// so the directory-vs-tarball boundary applied at lockfile load time
+// matches the resolver's at resolve time.
+const LOCAL_TARBALL_RE = /\.(?:tgz|tar\.gz|tar|tar\.bz2|tbz2|tbz)$/i
+
+export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject {
+  const { importers, ...rest } = lockfile
+
+  const packages: PackageSnapshots = {}
+  for (const [depPath, pkg] of Object.entries(lockfile.snapshots ?? {})) {
+    const pkgId = removeSuffix(depPath)
+    // Spread rather than `Object.assign()`, so a `__proto__` key read from the
+    // lockfile is copied as an own property instead of replacing the prototype.
+    const snapshot = { ...pkg, ...lockfile.packages?.[pkgId] }
+    // Defense-in-depth for pruned lockfiles (older `turbo prune --docker`,
+    // pre vercel/turborepo#12825): a peer-variant injected workspace
+    // snapshot whose base `packages:` entry was dropped now has a null
+    // `resolution`. Reconstruct it from the `file:` depPath — same value
+    // pnpm's writer emits — so every downstream reader sees a complete
+    // snapshot without per-reader guards.
+    if (snapshot.resolution == null) {
+      const ref = parse(depPath).nonSemverVersion
+      if (ref != null && ref.startsWith('file:') && !LOCAL_TARBALL_RE.test(ref)) {
+        snapshot.resolution = { directory: ref.slice('file:'.length), type: 'directory' }
+      }
+    }
+    setOwnProperty(packages, depPath as DepPath, snapshot)
+    enrichGitHostedFlag(snapshot.resolution as TarballResolution | undefined)
+  }
+  return {
+    ...omit(['snapshots'], rest),
+    patchedDependencies: migratePatchedDependencies(rest.patchedDependencies),
+    packages,
+    importers: mapValues(importers ?? {}, revertProjectSnapshot),
+  }
+}
+
+// Backfill the `gitHosted` flag for tarball resolutions written by older
+// pnpm versions. Doing it once at load time lets every downstream reader
+// rely on the typed field instead of repeating URL prefix matches.
+function enrichGitHostedFlag (resolution: TarballResolution | undefined): void {
+  if (resolution == null) return
+  if (resolution.type !== undefined) return
+  if (resolution.gitHosted != null) return
+  if (resolution.tarball != null && isGitHostedTarballUrl(resolution.tarball)) {
+    resolution.gitHosted = true
+  }
+}
+
+function migratePatchedDependencies (patchedDependencies: Record<string, string | { hash: string }> | undefined): Record<string, string> | undefined {
+  if (!patchedDependencies) return undefined
+  const result: Record<string, string> = {}
+  for (const [key, value] of Object.entries(patchedDependencies)) {
+    setOwnProperty(result, key, typeof value === 'string' ? value : value.hash)
+  }
+  return result
+}
+
+function convertProjectSnapshotToInlineSpecifiersFormat (
+  projectSnapshot: ProjectSnapshot
+): LockfileFileProjectSnapshot {
+  const { specifiers, ...rest } = projectSnapshot
+  if (specifiers == null) return projectSnapshot as LockfileFileProjectSnapshot
+  const convertBlock = (block?: ResolvedDependencies) =>
+    block != null
+      ? convertResolvedDependenciesToInlineSpecifiersFormat(block, { specifiers })
+      : block
+  return {
+    ...rest,
+    dependencies: convertBlock(projectSnapshot.dependencies ?? {}),
+    optionalDependencies: convertBlock(projectSnapshot.optionalDependencies ?? {}),
+    devDependencies: convertBlock(projectSnapshot.devDependencies ?? {}),
+  }
+}
+
+function convertResolvedDependenciesToInlineSpecifiersFormat (
+  resolvedDependencies: ResolvedDependencies,
+  { specifiers }: { specifiers: ResolvedDependencies }
+): LockfileFileProjectResolvedDependencies {
+  return mapValues(resolvedDependencies, (version, depName) => ({
+    specifier: specifiers[depName],
+    version,
+  }))
+}
+
+function revertProjectSnapshot (from: LockfileFileProjectSnapshot): ProjectSnapshot {
+  const specifiers: ResolvedDependencies = {}
+
+  function moveSpecifiers (from: LockfileFileProjectResolvedDependencies): ResolvedDependencies {
+    const resolvedDependencies: ResolvedDependencies = {}
+    for (const [depName, { specifier, version }] of Object.entries(from)) {
+      const existingValue = Object.hasOwn(specifiers, depName) ? specifiers[depName] : undefined
+      if (existingValue != null && existingValue !== specifier) {
+        throw new Error(`Project snapshot lists the same dependency more than once with conflicting versions: ${depName}`)
+      }
+
+      setOwnProperty(specifiers, depName, specifier)
+      setOwnProperty(resolvedDependencies, depName, version)
+    }
+    return resolvedDependencies
+  }
+
+  const dependencies = from.dependencies == null
+    ? from.dependencies
+    : moveSpecifiers(from.dependencies)
+  const devDependencies = from.devDependencies == null
+    ? from.devDependencies
+    : moveSpecifiers(from.devDependencies)
+  const optionalDependencies = from.optionalDependencies == null
+    ? from.optionalDependencies
+    : moveSpecifiers(from.optionalDependencies)
+
+  return {
+    ...from,
+    specifiers,
+    dependencies,
+    devDependencies,
+    optionalDependencies,
+  }
+}
+
+function mapValues<T, U> (obj: Record<string, T>, mapper: (val: T, key: string) => U): Record<string, U> {
+  const result: Record<string, U> = {}
+  for (const [key, value] of Object.entries(obj)) {
+    setOwnProperty(result, key, mapper(value, key))
+  }
+  return result
+}
+
+// Keys in these records come from the lockfile. A plain assignment of the key
+// `__proto__` would invoke the prototype setter, so that key is defined as an
+// own property instead.
+function setOwnProperty<K extends string, V> (obj: Record<K, V>, key: K, value: V): void {
+  if (key === '__proto__') {
+    Object.defineProperty(obj, key, { value, writable: true, enumerable: true, configurable: true })
+  } else {
+    obj[key] = value
+  }
+}

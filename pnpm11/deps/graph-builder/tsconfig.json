@@ -1,0 +1,61 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../config/normalize-registries"
+    },
+    {
+      "path": "../../config/package-is-installable"
+    },
+    {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../fs/symlink-dependency"
+    },
+    {
+      "path": "../../hooks/types"
+    },
+    {
+      "path": "../../installing/modules-yaml"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../patching/config"
+    },
+    {
+      "path": "../../patching/types"
+    },
+    {
+      "path": "../../store/controller-types"
+    },
+    {
+      "path": "../graph-hasher"
+    },
+    {
+      "path": "../path"
+    }
+  ]
+}

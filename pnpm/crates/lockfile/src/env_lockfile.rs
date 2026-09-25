@@ -1,0 +1,182 @@
+//! The *env lockfile* — the first YAML document of `pnpm-lock.yaml`.
+//!
+//! Pnpm v11 records configurational dependencies (and the
+//! `packageManager`/`devEngines` bootstrap deps) in a separate YAML
+//! document written ahead of the regular project lockfile. The
+//! `pnpm-env-installer` crate resolves config deps into this
+//! document; the main install path preserves it verbatim when it
+//! rewrites the wanted lockfile (see [`crate::save_value_to_path`]).
+//!
+//! The `packages:` and `snapshots:` maps reuse the same
+//! [`PackageMetadata`] / [`SnapshotEntry`] types as the main lockfile, so
+//! the env document inherits the main lockfile's byte-for-byte
+//! serialization parity.
+
+use crate::{
+    LoadLockfileError, Lockfile, PackageKey, PackageMetadata, SaveLockfileError, SnapshotEntry,
+    extract_main_document,
+    git_merge_file::{ParsedWantedFile, parse_wanted_file},
+    merge_env_lockfile_changes,
+    save_lockfile::ensure_lockfile_is_not_symlink,
+    serialize_yaml,
+    yaml_documents::{
+        YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, normalize_lockfile_content,
+        read_first_yaml_document,
+    },
+};
+use pnpm_fs::write_atomic;
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fs::{self, File},
+    io::{self, ErrorKind},
+    path::Path,
+};
+
+/// The resolved `{ specifier, version }` pair recorded for each config
+/// (or package-manager) dependency under an importer.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpecifierAndResolution {
+    pub specifier: String,
+    pub version: String,
+}
+
+/// Per-importer entry of the env lockfile. Only the root importer
+/// (`.`) is ever populated.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnvImporterSnapshot {
+    /// Always serialized — the key is seeded even when empty, so the env
+    /// document always carries it.
+    #[serde(default)]
+    pub config_dependencies: BTreeMap<String, SpecifierAndResolution>,
+    /// The `packageManager` / `devEngines` bootstrap deps. Omitted when
+    /// absent so a config-deps-only env document round-trips identically.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package_manager_dependencies: Option<BTreeMap<String, SpecifierAndResolution>>,
+}
+
+/// The env lockfile document.
+///
+/// Field declaration order is the serialized root-key order
+/// (`lockfileVersion`, `importers`, `packages`, `snapshots`), the subset
+/// of the lockfile root-key order that an env document uses.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnvLockfile {
+    /// A plain string (not the numeric [`crate::LockfileVersion`]): the
+    /// env document records `lockfileVersion` as a string.
+    pub lockfile_version: String,
+
+    #[serde(default, serialize_with = "crate::serialize_yaml::sorted_map")]
+    pub importers: HashMap<String, EnvImporterSnapshot>,
+
+    #[serde(default, serialize_with = "crate::serialize_yaml::sorted_map")]
+    pub packages: HashMap<PackageKey, PackageMetadata>,
+
+    #[serde(default, serialize_with = "crate::serialize_yaml::sorted_map")]
+    pub snapshots: HashMap<PackageKey, SnapshotEntry>,
+}
+
+impl EnvLockfile {
+    /// The key used to refer to the root project inside `importers`.
+    pub const ROOT_IMPORTER_KEY: &str = ".";
+
+    /// A fresh, empty env lockfile with the root importer seeded.
+    #[must_use]
+    pub fn create() -> Self {
+        let mut importers = HashMap::new();
+        importers.insert(Self::ROOT_IMPORTER_KEY.to_string(), EnvImporterSnapshot::default());
+        EnvLockfile {
+            // Seeds the `lockfileVersion` "9.0" string.
+            lockfile_version: "9.0".to_string(),
+            importers,
+            packages: HashMap::new(),
+            snapshots: HashMap::new(),
+        }
+    }
+
+    /// Convenience accessor for the root importer's snapshot, creating
+    /// it if absent. The env-installer always operates on `.`.
+    pub fn root_importer_mut(&mut self) -> &mut EnvImporterSnapshot {
+        self.importers.entry(Self::ROOT_IMPORTER_KEY.to_string()).or_default()
+    }
+
+    /// Read the env document (first YAML document) from
+    /// `<root_dir>/pnpm-lock.yaml`:
+    ///
+    /// - Returns `Ok(None)` when the lockfile is absent, or carries no
+    ///   leading env document.
+    /// - Otherwise parses the env document and guarantees the root
+    ///   importer (and its `configDependencies` map) exists.
+    ///
+    /// Only the leading document is read: the dependency graph that
+    /// follows it never reaches memory.
+    ///
+    /// Two branches that each added a config dependency conflict inside
+    /// this document, where the main lockfile's own recovery never looks,
+    /// so the same merge runs here.
+    pub fn read(root_dir: &Path) -> Result<Option<Self>, LoadLockfileError> {
+        let path = root_dir.join(Lockfile::FILE_NAME);
+        let Some(env_doc) = read_env_document(&path).map_err(LoadLockfileError::ReadFile)? else {
+            return Ok(None);
+        };
+        Ok(Self::parse_conflicted_document(&env_doc, &path)?.value)
+    }
+
+    /// [`Self::read`]'s parse of one env document, with the number of
+    /// files its Git conflict markers had to be merged out of — 1 or 0,
+    /// since it is handed a single document.
+    pub(crate) fn parse_conflicted_document(
+        env_doc: &str,
+        path: &Path,
+    ) -> Result<ParsedWantedFile<Self>, LoadLockfileError> {
+        parse_wanted_file(env_doc, path, Self::parse_document, merge_env_lockfile_changes)
+    }
+
+    fn parse_document(env_doc: &str, path: &Path) -> Result<Option<Self>, LoadLockfileError> {
+        let mut env: EnvLockfile = serde_saphyr::from_str(env_doc)
+            .map_err(|source| LoadLockfileError::parse_yaml(path, &source))?;
+        env.root_importer_mut();
+        Ok(Some(env))
+    }
+
+    /// Write this env document as the first YAML document of
+    /// `<root_dir>/pnpm-lock.yaml`, preserving any existing main
+    /// document. Emits `---\n${envYaml}\n---\n${mainDoc}`. An unchanged
+    /// document is not rewritten.
+    pub fn write(&self, root_dir: &Path) -> Result<(), SaveLockfileError> {
+        let path = root_dir.join(Lockfile::FILE_NAME);
+        let env_yaml = serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)?;
+        let raw = match fs::read_to_string(&path) {
+            Ok(raw) => Some(raw),
+            Err(error) if error.kind() == ErrorKind::NotFound => None,
+            Err(error) => return Err(SaveLockfileError::WriteFile(error)),
+        };
+        let existing = raw.as_deref().map(normalize_lockfile_content);
+        let main_doc = existing
+            .as_deref()
+            .map(extract_main_document)
+            .unwrap_or_default();
+        let combined =
+            format!("{YAML_DOCUMENT_START}{env_yaml}{YAML_DOCUMENT_SEPARATOR}{main_doc}");
+        if existing.as_deref() == Some(combined.as_str()) {
+            return Ok(());
+        }
+        ensure_lockfile_is_not_symlink(&path).map_err(SaveLockfileError::WriteFile)?;
+        write_atomic(&path, combined.as_bytes()).map_err(SaveLockfileError::WriteFile)
+    }
+}
+
+/// Reads the leading env document, following a symlink;
+/// [`ensure_lockfile_is_not_symlink`] covers why only writes refuse one.
+fn read_env_document(path: &Path) -> io::Result<Option<String>> {
+    match File::open(path) {
+        Ok(file) => read_first_yaml_document(file),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+#[cfg(test)]
+mod tests;

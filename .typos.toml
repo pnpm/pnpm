@@ -1,0 +1,18 @@
+# https://github.com/crate-ci/typos
+# cargo install typos-cli
+# typos
+
+[files]
+extend-exclude = [
+  "pnpm/crates/crypto-shasums-file/src/node_release_keys/*.asc",
+  "pnpm/tasks/micro-benchmark/fixtures/lodash.json",
+]
+
+[default.extend-words]
+cafs   = "cafs"
+ect    = "ect"
+intoto = "intoto"
+pn     = "pn"
+
+[default.extend-identifiers]
+PnP = "PnP"

@@ -1,0 +1,395 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { confirm } from '@inquirer/prompts'
+import { linkBins } from '@pnpm/bins.linker'
+import { isExecutedByCorepack, packageManager, standaloneInstallCommand } from '@pnpm/cli.meta'
+import { docsUrl } from '@pnpm/cli.utils'
+import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, type PackageManagerBootstrapConfig, parsePackageManager, shouldPersistLockfile, types as allTypes } from '@pnpm/config.reader'
+import { PnpmError } from '@pnpm/error'
+import { policyViolationToError, type ResolutionPolicyViolation } from '@pnpm/installing.client'
+import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
+import { readEnvLockfile } from '@pnpm/lockfile.fs'
+import { globalInfo, globalWarn } from '@pnpm/logger'
+import { inferRangeSpecStyle, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
+import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
+import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
+import { isCI } from 'ci-info'
+import { pick } from 'ramda'
+import { renderHelp } from 'render-help'
+import semver from 'semver'
+
+import { assertReleaseIsInstallable, findGlobalPnpmInstallDir, installPnpm, pnpmPackageNameToInstall, unlinkReplacedPnpmInstalls } from './installPnpm.js'
+import { resolvePnpmVersion } from './resolvePnpmVersion.js'
+
+export function rcOptionsTypes (): Record<string, unknown> {
+  return pick([], allTypes)
+}
+
+export function cliOptionsTypes (): Record<string, unknown> {
+  return {
+    ...rcOptionsTypes(),
+  }
+}
+
+export const commandNames = ['self-update']
+
+// Migration guidance printed once when `pnpm self-update` crosses a major
+// boundary. Add an entry here for each future major that ships breaking
+// changes users need to act on.
+const MAJOR_UPGRADE_HINTS: Record<number, string> = {
+  11:
+    'pnpm v11 removed or renamed several v10 settings. ' +
+    'See https://pnpm.io/11.x/migration for migration instructions.',
+}
+
+export const skipPackageManagerCheck = true
+
+export function help (): string {
+  return renderHelp({
+    description: 'Updates pnpm to the latest version (or the one specified)',
+    descriptionLists: [],
+    url: docsUrl('self-update'),
+    usages: [
+      'pnpm self-update',
+      'pnpm self-update 9',
+      'pnpm self-update next-10',
+      'pnpm self-update 9.10.0',
+    ],
+  })
+}
+
+export type SelfUpdateCommandOptions = CreateStoreControllerOptions & Partial<Pick<Config, 'ci'>> & Pick<Config,
+| 'globalPkgDir'
+| 'lockfileDir'
+| 'minimumReleaseAge'
+| 'minimumReleaseAgeExclude'
+| 'minimumReleaseAgeIgnoreMissingTime'
+| 'minimumReleaseAgeStrict'
+| 'modulesDir'
+| 'packageManagerNetworkConfig'
+| 'packageManagerRegistries'
+| 'pnpmHomeDir'
+> & Pick<ConfigContext,
+| 'rootProjectManifestDir'
+| 'wantedPackageManager'
+>
+
+export async function handler (
+  opts: SelfUpdateCommandOptions,
+  params: string[]
+): Promise<undefined | string> {
+  if (isExecutedByCorepack()) {
+    throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'pnpm cannot update itself when it is executed by Corepack', {
+      hint: `Install pnpm with the standalone script instead: ${standaloneInstallCommand()}`,
+    })
+  }
+  globalInfo('Checking for updates...')
+  const bootstrapConfig = getPackageManagerBootstrapConfig(opts)
+  // `pnpm self-update` (no args) defaults to the `latest` dist-tag, but we
+  // refuse to downgrade in that case — `latest` on the registry can lag the
+  // installed version when a new major has shipped without being tagged.
+  // `pnpm self-update latest` (explicit) bypasses the guard so users can
+  // still force a downgrade when they want one.
+  const isImplicitLatest = params.length === 0
+  const bareSpecifier = params[0] ?? 'latest'
+  const resolved = await resolvePnpmVersion(opts, bareSpecifier)
+  if (resolved == null) {
+    throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot find "${bareSpecifier}" version of pnpm`)
+  }
+  await enforceResolutionPolicy(resolved.policyViolation, opts)
+  const targetVersion = resolved.version
+  // Before the pin below is written, not just before the install: the pin is
+  // shared, so a release this wrapper survives can still break a teammate's.
+  assertReleaseIsInstallable(targetVersion)
+
+  // Determine the "previous" pnpm version being upgraded FROM. If the
+  // project pins pnpm via `packageManager`/`devEngines.packageManager`,
+  // the pin is the source of truth — the running pnpm binary may already
+  // be at a newer major (e.g. a globally-installed v11 operating on a
+  // project still pinned to v10). Otherwise fall back to the running
+  // binary. Skip the hint entirely on a no-op (target === previous).
+  let previousVersion: string | undefined
+  if (opts.wantedPackageManager?.name === packageManager.name) {
+    if (opts.wantedPackageManager.version !== targetVersion) {
+      previousVersion = opts.wantedPackageManager.version
+    }
+  } else if (packageManager.version !== targetVersion) {
+    previousVersion = packageManager.version
+  }
+  const previousMajor = previousVersion != null
+    ? semver.coerce(previousVersion)?.major
+    : undefined
+  const targetMajor = semver.major(targetVersion)
+  if (previousMajor != null && targetMajor > previousMajor) {
+    const hint = MAJOR_UPGRADE_HINTS[targetMajor]
+    if (hint) globalWarn(hint)
+  }
+
+  const pinsPnpm = opts.wantedPackageManager?.name === packageManager.name
+  if (pinsPnpm && isImplicitLatest && opts.wantedPackageManager?.version !== targetVersion) {
+    // Prefer the lockfile-pinned version when available — for range
+    // specs like `>=8.0.0`, the spec's lower bound understates the
+    // version that was actually installed (see #11418 review).
+    const projectCurrentVersion = await readProjectPinnedPnpmVersion(opts.rootProjectManifestDir, opts.wantedPackageManager?.version)
+    if (projectCurrentVersion != null && semver.lt(targetVersion, projectCurrentVersion)) {
+      return `The current project is set to use pnpm v${projectCurrentVersion}, which is newer than the "latest" version on the registry (v${targetVersion}). No update performed. Run "pnpm self-update latest" to downgrade.`
+    }
+  }
+
+  // The global install moves forward even when the project pins pnpm, or the
+  // machine never holds a pnpm that reaches the pin (pnpm/pnpm#14747). The pin
+  // is written last so a failed switch leaves the project as it was.
+  const globalMessage = await switchGlobalPnpm(opts, { bareSpecifier, bootstrapConfig, isImplicitLatest, targetVersion })
+  if (!pinsPnpm) return globalMessage
+  const projectPinMessage = await updateProjectPin(opts, targetVersion, bootstrapConfig)
+  return `${projectPinMessage}\n${globalMessage}`
+}
+
+async function switchGlobalPnpm (
+  opts: SelfUpdateCommandOptions,
+  { bareSpecifier, bootstrapConfig, isImplicitLatest, targetVersion }: {
+    bareSpecifier: string
+    bootstrapConfig: PackageManagerBootstrapConfig
+    isImplicitLatest: boolean
+    targetVersion: string
+  }
+): Promise<string> {
+  // Version equality with the running binary alone must not skip the
+  // update: a removed global install can be recovered by running a local
+  // pnpm of the same version (see pnpm/pnpm#12877).
+  if (
+    targetVersion === packageManager.version &&
+    await findGlobalPnpmInstallDir(opts.globalPkgDir, pnpmPackageNameToInstall(targetVersion), targetVersion) != null
+  ) {
+    return `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
+  }
+
+  if (isImplicitLatest && semver.lt(targetVersion, packageManager.version)) {
+    return `The currently active ${packageManager.name} v${packageManager.version} is newer than the "latest" version on the registry (v${targetVersion}). No update performed. Run "pnpm self-update latest" to downgrade.`
+  }
+
+  globalInfo(`Switching pnpm from v${packageManager.version} to v${targetVersion}...`)
+  const store = await createStoreController({ ...opts, ...bootstrapConfig })
+
+  // Resolve integrities and write env lockfile to pnpm-lock.yaml
+  const envLockfile = await resolvePackageManagerIntegrities(targetVersion, {
+    registriesByScope: bootstrapConfig.registriesByScope,
+    rootDir: opts.pnpmHomeDir,
+    storeController: store.ctrl,
+    storeDir: store.dir,
+  })
+
+  const { baseDir, alreadyExisted } = await installPnpm(targetVersion, {
+    ...opts,
+    ...bootstrapConfig,
+    envLockfile,
+    storeController: store.ctrl,
+    storeDir: store.dir,
+  })
+
+  // Link bins to pnpmHomeDir/bin so the updated pnpm is the active global binary
+  await linkBins(path.join(baseDir, 'node_modules'), path.join(opts.pnpmHomeDir, 'bin'), { warn: globalWarn })
+  await unlinkReplacedPnpmInstalls(opts.globalPkgDir, baseDir)
+
+  // pnpm v10 setup linked bins directly into pnpmHomeDir and added that
+  // directory to PATH (instead of pnpmHomeDir/bin as v11 does). When a v10
+  // user upgrades to v11 the legacy shims at pnpmHomeDir keep pointing into
+  // the old `.tools/<version>` install — so PATH still resolves `pnpm` to the
+  // pre-update version. Detect that case and refresh the legacy shims so the
+  // upgrade actually takes effect, then warn the user to run `pnpm setup`
+  // for a clean migration to the v11 layout. See pnpm/pnpm#11464.
+  if (hasLegacyHomeDirShim(opts.pnpmHomeDir)) {
+    await linkBins(path.join(baseDir, 'node_modules'), opts.pnpmHomeDir, { warn: globalWarn })
+    globalWarn(
+      'Detected a pnpm v10 installation layout at PNPM_HOME. The pnpm shims ' +
+      'at PNPM_HOME have been refreshed so the new version is active, but ' +
+      'pnpm v11 expects bins in PNPM_HOME/bin. Run "pnpm setup" to migrate ' +
+      'your PATH to the v11 layout.'
+    )
+  }
+
+  return alreadyExisted
+    ? `The ${bareSpecifier} version, v${targetVersion}, is already present on the system. It was activated by linking it from ${baseDir}.`
+    : `Successfully updated pnpm to v${targetVersion}`
+}
+
+async function updateProjectPin (
+  opts: SelfUpdateCommandOptions,
+  targetVersion: string,
+  bootstrapConfig: PackageManagerBootstrapConfig
+): Promise<string> {
+  if (opts.wantedPackageManager?.version === targetVersion) {
+    return `The current project is already set to use pnpm v${targetVersion}`
+  }
+  const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
+  if (manifest.devEngines?.packageManager) {
+    let manifestChanged = false
+    // If "packageManager" pins pnpm, treat both fields as the user's
+    // single source of truth for the active pnpm version: rewrite both
+    // to the new exact version (dropping any range operator in
+    // devEngines and any integrity hash on the legacy field). When only
+    // devEngines is set, preserve the user's range style and let the
+    // lockfile pin the exact version.
+    const legacyPm = manifest.packageManager != null
+      ? parsePackageManager(manifest.packageManager)
+      : undefined
+    const legacyPinsPnpm = legacyPm?.name === 'pnpm' && legacyPm.version != null
+    const devEnginesPm = manifest.devEngines.packageManager
+    const pnpmEntry = Array.isArray(devEnginesPm)
+      ? devEnginesPm.find((e) => e.name === 'pnpm')
+      : devEnginesPm.name === 'pnpm' ? devEnginesPm : undefined
+    if (pnpmEntry) {
+      const updated = legacyPinsPnpm
+        ? targetVersion
+        : updateVersionConstraint(pnpmEntry.version, targetVersion)
+      if (updated !== pnpmEntry.version) {
+        pnpmEntry.version = updated
+        manifestChanged = true
+      }
+    }
+    if (legacyPinsPnpm) {
+      const newLegacy = `pnpm@${targetVersion}`
+      if (manifest.packageManager !== newLegacy) {
+        manifest.packageManager = newLegacy
+        manifestChanged = true
+      }
+    }
+    if (manifestChanged) await writeProjectManifest(manifest)
+    if (shouldPersistLockfile({ ...opts.wantedPackageManager, fromDevEngines: true })) {
+      const store = await createStoreController({ ...opts, ...bootstrapConfig })
+      await resolvePackageManagerIntegrities(targetVersion, {
+        registriesByScope: bootstrapConfig.registriesByScope,
+        rootDir: opts.rootProjectManifestDir,
+        storeController: store.ctrl,
+        storeDir: store.dir,
+      })
+    }
+  } else {
+    manifest.packageManager = `pnpm@${targetVersion}`
+    await writeProjectManifest(manifest)
+  }
+  return `The current project has been updated to use pnpm v${targetVersion}`
+}
+
+/**
+ * Act on a policy violation the resolver attached to self-update's pick.
+ *
+ * A `minimumReleaseAge` cutoff exists so a freshly published pnpm cannot reach
+ * the machine before anyone has had a chance to notice it is malicious, and
+ * pnpm itself is the most valuable thing on the machine to compromise — so
+ * under strict mode an immature pick is refused. An interactive run may still
+ * confirm it: naming a version on the command line is a deliberate act by the
+ * person at the keyboard, unlike a dependency drifting onto a new release. CI
+ * and other non-interactive runs always fail closed.
+ *
+ * Neither the cutoff nor the `ci` flag gating the prompt comes from the
+ * project (see the config reader's `SELF_UPDATE_SKIPPED_SETTINGS`), so the
+ * only thing to confirm here is the user's own policy.
+ *
+ * A `trustPolicy` violation is not negotiable — it means the release's trust
+ * evidence weakened relative to the installed version — so it keeps failing
+ * with the same error {@link makeResolutionStrict} would have raised.
+ */
+async function enforceResolutionPolicy (
+  violation: ResolutionPolicyViolation | undefined,
+  opts: Pick<SelfUpdateCommandOptions, 'ci' | 'minimumReleaseAge' | 'minimumReleaseAgeStrict'>
+): Promise<void> {
+  if (violation == null) return
+  if (violation.code !== MINIMUM_RELEASE_AGE_VIOLATION_CODE) {
+    throw policyViolationToError(violation)
+  }
+  if (!opts.minimumReleaseAge || opts.minimumReleaseAgeStrict !== true) return
+  const message = `${violation.name}@${violation.version} ${violation.reason}.`
+  const canPrompt = !(opts.ci ?? isCI) && Boolean(process.stdin.isTTY)
+  if (!canPrompt) {
+    throw new PnpmError('NO_MATURE_MATCHING_VERSION', message, {
+      hint: 'Wait for the release to mature past the cutoff, or set PNPM_CONFIG_MINIMUM_RELEASE_AGE=0 to update anyway.',
+    })
+  }
+  let confirmed: boolean
+  try {
+    confirmed = await confirm({ message: `${message}\nUpdate anyway?`, default: false })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'ExitPromptError') {
+      confirmed = false
+    } else {
+      throw err
+    }
+  }
+  if (!confirmed) {
+    throw new PnpmError('MINIMUM_RELEASE_AGE_DENIED', 'Aborted: the immature pnpm version was not approved.')
+  }
+}
+
+// A leftover shim whose install target was garbage-collected is dead weight,
+// not a real v10 layout — treat it as absent so the warning below stays
+// accurate. The marker only exists on the POSIX sh shim, so introspect that;
+// fall back to .cmd existence only when the sh shim is absent.
+// See pnpm/pnpm#12496.
+function hasLegacyHomeDirShim (pnpmHomeDir: string): boolean {
+  const shShim = path.join(pnpmHomeDir, 'pnpm')
+  if (fs.existsSync(shShim)) {
+    const target = readShimTarget(shShim)
+    // Old-format shim we can't introspect → treat as real.
+    if (target === undefined) return true
+    // Dangling → treat as absent.
+    return fs.existsSync(path.resolve(path.dirname(shShim), target))
+  }
+  return fs.existsSync(path.join(pnpmHomeDir, 'pnpm.cmd'))
+}
+
+// The marker is absent when the shim is not from cmd-shim or pre-dates it.
+function readShimTarget (shimPath: string): string | undefined {
+  try {
+    return fs.readFileSync(shimPath, 'utf8').match(/^#\s*cmd-shim-target=(.+)$/m)?.[1]
+  } catch {}
+  return undefined
+}
+
+/**
+ * Returns the updated version constraint for devEngines.packageManager.
+ * - Exact versions and simple ranges (^, ~) are rewritten to the new version,
+ *   preserving the range operator — matching `pnpm update` and `pnpm runtime set`.
+ * - Complex ranges (>=x <y, etc.) that still satisfy the new version are left
+ *   unchanged (the exact version is pinned in the lockfile instead).
+ * - Complex ranges that no longer satisfy the new version fall back to a caret
+ *   range with the new version (`^${newVersion}`).
+ */
+function updateVersionConstraint (current: string | undefined, newVersion: string): string | undefined {
+  if (current == null) return newVersion
+  const rangeSpecStyle = inferRangeSpecStyle(current)
+  if (rangeSpecStyle != null) {
+    return versionWithRangeSpecStyle(newVersion, rangeSpecStyle)
+  }
+  if (semver.satisfies(newVersion, current, { includePrerelease: true })) return current
+  return `^${newVersion}`
+}
+
+async function readProjectPinnedPnpmVersion (rootProjectManifestDir: string, spec: string | undefined): Promise<string | undefined> {
+  // The env lockfile is the most accurate source for the actually-installed
+  // pnpm version when the spec is a range. Fall back to the spec's minimum
+  // version when there's no lockfile entry (e.g. exact `packageManager` pins
+  // below v12 don't write to the lockfile). Take the max of the two so we
+  // pick whichever signal is more restrictive.
+  let lockfilePinned: string | undefined
+  try {
+    const envLockfile = await readEnvLockfile(rootProjectManifestDir)
+    lockfilePinned = envLockfile?.importers['.'].packageManagerDependencies?.pnpm?.version
+  } catch {
+    // ignore — fall through to spec min version
+  }
+  let specMin: string | undefined
+  if (spec != null) {
+    try {
+      specMin = semver.minVersion(spec)?.version
+    } catch {
+      // invalid range — ignore
+    }
+  }
+  if (lockfilePinned != null && specMin != null) {
+    return semver.gt(lockfilePinned, specMin) ? lockfilePinned : specMin
+  }
+  return lockfilePinned ?? specMin
+}

@@ -1,0 +1,56 @@
+{
+  "name": "@pnpm/lockfile.settings-checker",
+  "version": "1100.2.8",
+  "description": "Utilities to check if lockfile settings are out-of-date",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "base32",
+    "crypto",
+    "hash"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/lockfile/settings-checker",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/lockfile/settings-checker#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "tsgo --build",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/config.parse-overrides": "workspace:*",
+    "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.verification": "workspace:*",
+    "ramda": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/lockfile.settings-checker": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@types/ramda": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

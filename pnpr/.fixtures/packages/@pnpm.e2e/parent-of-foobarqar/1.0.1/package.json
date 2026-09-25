@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/parent-of-foobarqar",
+  "version": "1.0.1",
+  "dependencies": {
+    "@pnpm.e2e/foobarqar": "1.0.0",
+    "@pnpm.e2e/qar": "100.0.0"
+  }
+}

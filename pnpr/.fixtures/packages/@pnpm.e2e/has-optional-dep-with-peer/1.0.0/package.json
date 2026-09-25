@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/has-optional-dep-with-peer",
+  "version": "1.0.0",
+  "optionalDependencies": {
+    "@pnpm.e2e/not-compatible-with-any-os-and-has-peer": "1.0.0",
+    "@pnpm.e2e/peer-c": "1.0.0"
+  }
+}

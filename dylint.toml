@@ -1,0 +1,141 @@
+# Dylint configuration. cargo-dylint reads `[workspace.metadata.dylint]`
+# from this file (or, equivalently, from `Cargo.toml`). Keeping the table
+# here keeps the workspace `Cargo.toml` focused on cargo-native metadata
+# and makes the cache key for CI easy to compute (see the `dylint` job
+# in `.github/workflows/ci.yml`).
+#
+# Run with: `cargo dylint --all -- --all-targets --workspace`
+# or via the `just dylint` recipe.
+[workspace.metadata.dylint]
+libraries = [
+    { git = "https://github.com/KSXGitHub/perfectionist", rev = "fba7de2e475558969909e6ffaceb9b626a813b6b" },
+]
+
+# Project-local DSL / test macros that perfectionist's exactly-once
+# heuristic cannot peer through. perfectionist's built-in allow set already
+# covers `concat!`, `json!`, and the `assert_*_snapshot!` family, so they
+# do not need to be repeated here.
+["perfectionist::impure_macro_arguments"]
+ignore = [
+    # `pnpm_testing_utils::allow_known_failure!` binds its argument
+    # to a `let` internally before the match, so the expression is
+    # evaluated exactly once. The rule cannot peer through the macro
+    # body to see that.
+    "allow_known_failure",
+    # Test-local `static_env!` (in `npmrc_auth/tests.rs`) generates an
+    # `EnvVar` impl. The `&[(...)]` slice expression it receives binds
+    # to a local inside the impl, evaluated once on each `var(name)`
+    # call.
+    "static_env",
+    # Test-local `case!` (in `pkg_*_*/tests.rs`) takes
+    # `$input:expr, $message:expr, $variant:pat`. The lint sees the
+    # `$variant` slot's token stream as a non-trivial expression even
+    # though it's parsed as a pattern. The macro binds `$input` to a
+    # local on entry, so the exactly-once contract holds.
+    "case",
+    # `rusqlite::params!` is a DSL macro that wraps each arg as a
+    # `&dyn ToSql` reference. Args carry no side effects (they are
+    # already references / borrows that the macro forwards once);
+    # hoisting to a `let` is purely noise.
+    "params",
+]
+
+[perfectionist]
+enable = ["unordered_derives", "core_instead_of_std", "overly_long_method_chain"]
+disable = ["needless_borrowed_parameters"]
+
+# Code spans read fine in `--help` and stay useful as `cargo doc` docs, so
+# keep them; links and HTML remain forbidden and are cleaned from help text.
+["perfectionist::clap_help_markdown"]
+ignore_constructs = ["code_span"]
+
+# The codebase collapses imports to one `use` per crate root (shared
+# prefixes in nested braces) — the same granularity rustfmt spells
+# `imports_granularity = "Crate"` and perfectionist spells `"crate"`. Pin
+# the rule to it; its default `module` style would flag every such import.
+["perfectionist::import_granularity_mismatch"]
+style = "crate"
+
+# Every unit test lives in an external file (shorter production files,
+# less churn). Flag any inline test item, not just the ones over a line
+# budget.
+["perfectionist::excessive_inline_tests"]
+inline_style = "external_only"
+
+# Don't rely on the doc-comment-only default: a bare `#NNN` is just as
+# ambiguous in a plain `//` comment, so lint those too.
+["perfectionist::bare_issue_reference"]
+include_plain_comments = true
+
+# Narrowed to names that resolve in the documenting item's own module,
+# multi-word only. Widening tracked in
+# <https://github.com/pnpm/pnpm/issues/12716>.
+["perfectionist::bare_identifier_reference"]
+reference_scope = "own_module"
+min_words = 2
+
+# Scan comments only: forge URLs in string literals are test data, not
+# citations. `allow_version_patterns` accepts version-shaped release-tag
+# citations without requiring a SHA.
+["perfectionist::unpinned_repo_ref"]
+scan_string_literals = false
+allow_version_patterns = true
+
+["perfectionist::unordered_derives"]
+style = "prefix_then_alphabetical"
+prefix = [
+    "Debug",
+    "Default",
+    "Display",
+    "Error",
+    "Diagnostic",
+    "Clone",
+    "Copy",
+    "PartialEq",
+    "Eq",
+    "PartialOrd",
+    "Ord",
+    "Hash",
+    "Serialize",
+    "Deserialize",
+]
+
+["perfectionist::excessive_cognitive_complexity"]
+max_complexity = 10
+
+# A guard that rejects an input lists every disqualifying clause in one
+# `if`, and the list is the predicate: naming halves of it hides which
+# clauses a reader has to check. Five clauses is as far as that reads;
+# past it the condition is two predicates the author did not name.
+["perfectionist::overly_complex_condition"]
+max_operators = 5
+
+# A test binds its fixtures by nature, and splitting that setup into
+# helpers hides what the assertions read. The cap is for production
+# bodies that grew into several unmarked steps.
+["perfectionist::too_many_local_bindings"]
+max_bindings = 12
+exempt_tests = true
+
+["perfectionist::overly_long_function"]
+max_lines = 40
+exempt_tests = true
+
+["perfectionist::excessive_nesting"]
+max_depth = 3
+exempt_tests = false
+
+# A test file holds one scenario per test, so it grows with the number
+# of scenarios rather than with the number of concerns; the guide caps
+# it at 800 lines on its own.
+["perfectionist::overly_long_file"]
+max_lines = 400
+exempt_tests = true
+
+["perfectionist::too_many_struct_fields"]
+max_fields = 8
+exempt_tests = false
+
+["perfectionist::overly_long_method_chain"]
+max_calls = 9
+exempt_tests = true

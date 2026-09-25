@@ -1,0 +1,67 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
+      "path": "../../config/parse-overrides"
+    },
+    {
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../crypto/object-hasher"
+    },
+    {
+      "path": "../../installing/context"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/settings-checker"
+    },
+    {
+      "path": "../../lockfile/verification"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../workspace/project-manifest-writer"
+    },
+    {
+      "path": "../../workspace/projects-reader"
+    },
+    {
+      "path": "../../workspace/state"
+    },
+    {
+      "path": "../../workspace/workspace-manifest-reader"
+    }
+  ]
+}

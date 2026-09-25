@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/touch-file-good-bin-name",
+  "version": "1.0.0",
+  "bin": {
+    "touch-file-good-bin-name": "cli.js",
+    "tt": "cli.js"
+  }
+}

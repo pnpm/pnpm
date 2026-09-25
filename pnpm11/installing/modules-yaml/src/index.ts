@@ -1,0 +1,149 @@
+import path from 'node:path'
+
+import fs from '@pnpm/fs.graceful-fs'
+import type {
+  DependenciesField,
+  DepPath,
+  HoistedDependencies,
+  IgnoredBuilds,
+} from '@pnpm/types'
+import isWindows from 'is-windows'
+import { map as mapValues } from 'ramda'
+import { readYamlFile } from 'read-yaml-file'
+
+// The dot prefix is needed because otherwise `npm shrinkwrap`
+// thinks that it is an extraneous package.
+const MODULES_FILENAME = '.modules.yaml'
+
+export type IncludedDependencies = {
+  [dependenciesField in DependenciesField]: boolean
+}
+
+interface ModulesRaw {
+  hoistedAliases?: { [depPath: DepPath]: string[] } // for backward compatibility
+  hoistedDependencies: HoistedDependencies
+  hoistPattern?: string[]
+  included: IncludedDependencies
+  layoutVersion: number
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+  packageManager: string
+  pendingBuilds: string[]
+  ignoredBuilds?: DepPath[]
+  prunedAt: string
+  shamefullyHoist?: boolean // for backward compatibility
+  publicHoistPattern?: string[]
+  skipped: string[]
+  storeDir: string
+  virtualStoreDir: string
+  virtualStoreDirMaxLength: number
+  injectedDeps?: Record<string, string[]>
+  hoistedLocations?: Record<string, string[]>
+  allowBuilds?: Record<string, boolean | string>
+  // True when the modules dir was populated by a virtualStoreOnly install
+  // (e.g. `pnpm fetch`) — the recorded hoist patterns are forced empty
+  // and must not be compared against user config on the next install.
+  virtualStoreOnly?: boolean
+}
+
+export type Modules = Omit<ModulesRaw, 'ignoredBuilds'> & {
+  ignoredBuilds?: IgnoredBuilds
+}
+
+export async function readModulesManifest (modulesDir: string): Promise<Modules | null> {
+  const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
+  let modulesRaw!: ModulesRaw
+  try {
+    const rawManifest = await fs.readFile(modulesYamlPath, 'utf8')
+    try {
+      modulesRaw = JSON.parse(rawManifest) as ModulesRaw
+    } catch {
+      // Manifests written by old pnpm versions are YAML.
+      modulesRaw = await readYamlFile<ModulesRaw>(modulesYamlPath)
+    }
+    if (!modulesRaw) return modulesRaw
+  } catch (err: any) { // eslint-disable-line
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw err
+    }
+    return null
+  }
+  const modules = {
+    ...modulesRaw,
+    ignoredBuilds: modulesRaw.ignoredBuilds ? new Set<DepPath>(modulesRaw.ignoredBuilds) : undefined,
+  }
+  if (!modules.virtualStoreDir) {
+    modules.virtualStoreDir = path.join(modulesDir, '.pnpm')
+  } else if (!path.isAbsolute(modules.virtualStoreDir)) {
+    modules.virtualStoreDir = path.join(modulesDir, modules.virtualStoreDir)
+  }
+  switch (modules.shamefullyHoist) {
+    case true:
+      if (modules.publicHoistPattern == null) {
+        modules.publicHoistPattern = ['*']
+      }
+      if ((modules.hoistedAliases != null) && !modules.hoistedDependencies) {
+        modules.hoistedDependencies = mapValues(
+          (aliases) => Object.fromEntries(aliases.map((alias) => [alias, 'public' as const])),
+          modules.hoistedAliases
+        )
+      }
+      break
+    case false:
+      if (modules.publicHoistPattern == null) {
+        modules.publicHoistPattern = []
+      }
+      if ((modules.hoistedAliases != null) && !modules.hoistedDependencies) {
+        modules.hoistedDependencies = {}
+        for (const depPath of Object.keys(modules.hoistedAliases)) {
+          modules.hoistedDependencies[depPath as DepPath] = {}
+          for (const alias of modules.hoistedAliases[depPath as DepPath]) {
+            modules.hoistedDependencies[depPath as DepPath][alias] = 'private'
+          }
+        }
+      }
+      break
+  }
+  if (!modules.prunedAt) {
+    modules.prunedAt = new Date().toUTCString()
+  }
+  if (!modules.virtualStoreDirMaxLength) {
+    modules.virtualStoreDirMaxLength = 120
+  }
+  return modules
+}
+
+export async function writeModulesManifest (
+  modulesDir: string,
+  modules: Modules
+): Promise<void> {
+  const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
+  const saveModules = { ...modules, ignoredBuilds: modules.ignoredBuilds ? Array.from(modules.ignoredBuilds) : undefined }
+  if (saveModules.skipped) saveModules.skipped.sort()
+
+  if (saveModules.hoistPattern == null || (saveModules.hoistPattern as unknown) === '') {
+    // Because the YAML writer fails on undefined fields
+    delete saveModules.hoistPattern
+  }
+  if (saveModules.publicHoistPattern == null) {
+    delete saveModules.publicHoistPattern
+  }
+  if (!saveModules.virtualStoreOnly) {
+    delete saveModules.virtualStoreOnly
+  }
+  if ((saveModules.hoistedAliases == null) || (saveModules.hoistPattern == null) && (saveModules.publicHoistPattern == null)) {
+    delete saveModules.hoistedAliases
+  }
+  // pnpm 11 and older recorded the registries the last install resolved from.
+  // They are read from the project's config now, so a file that still carries
+  // them loses them on the first rewrite rather than keeping a stale copy.
+  delete (saveModules as { registries?: unknown }).registries
+  // We should store the absolute virtual store directory path on Windows
+  // because junctions are used on Windows. Junctions will break even if
+  // the relative path to the virtual store remains the same after moving
+  // a project.
+  if (!isWindows()) {
+    saveModules.virtualStoreDir = path.relative(modulesDir, saveModules.virtualStoreDir)
+  }
+  await fs.mkdir(modulesDir, { recursive: true })
+  await fs.writeFile(modulesYamlPath, JSON.stringify(saveModules, null, 2))
+}

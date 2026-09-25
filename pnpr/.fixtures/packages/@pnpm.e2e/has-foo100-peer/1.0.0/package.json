@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/has-foo100-peer",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm.e2e/foo": "100"
+  }
+}

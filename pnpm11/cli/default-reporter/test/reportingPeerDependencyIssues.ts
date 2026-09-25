@@ -1,0 +1,92 @@
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
+
+import { expect, test } from '@jest/globals'
+import { toOutput$ } from '@pnpm/cli.default-reporter'
+import { peerDependencyIssuesLogger } from '@pnpm/core-loggers'
+import {
+  createStreamParser,
+  logger,
+} from '@pnpm/logger'
+import { firstValueFrom } from 'rxjs'
+
+test('print peer dependency issues warning', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+    },
+    streamParser: createStreamParser(),
+  })
+
+  peerDependencyIssuesLogger.debug({
+    issuesByProjects: {
+      '.': {
+        missing: {},
+        bad: {
+          a: [
+            {
+              parents: [
+                {
+                  name: 'b',
+                  version: '1.0.0',
+                },
+              ],
+              foundVersion: '2',
+              resolvedFrom: [],
+              optional: false,
+              wantedRange: '3',
+            },
+          ],
+        },
+        conflicts: [],
+        intersections: {},
+      },
+    },
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(stripAnsi(output)).toContain('pnpm peers check')
+})
+
+test('print peer dependency issues error', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  const err = Object.assign(new Error('some error'), {
+    code: 'ERR_PNPM_PEER_DEP_ISSUES',
+    issuesByProjects: {
+      '.': {
+        missing: {},
+        bad: {
+          a: [
+            {
+              foundVersion: '2',
+              parents: [
+                {
+                  name: 'b',
+                  version: '1.0.0',
+                },
+              ],
+              optional: false,
+              resolvedFrom: [],
+              wantedRange: '3',
+            },
+          ],
+        },
+        conflicts: [],
+        intersections: {},
+      },
+    },
+  })
+  logger.error(err, err)
+
+  expect.assertions(3)
+
+  const output = stripAnsi(await firstValueFrom(output$))
+  expect(output).toContain('unmet peer a')
+  expect(output).toContain('Installed: 2')
+  expect(output).toContain('b@1.0.0')
+})

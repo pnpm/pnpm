@@ -1,0 +1,12 @@
+{
+  "name": "@pnpm.e2e/generate-node-info-during-install",
+  "version": "1.0.0",
+  "description": "Write a file that contains specs of the Node.js runtime that was used to install this package",
+  "scripts": {
+    "install": "node generate-node-info.js"
+  },
+  "index": "read-generated-node-info.js",
+  "bin": {
+    "print-generated-node-info": "print-generated-node-info.js"
+  }
+}

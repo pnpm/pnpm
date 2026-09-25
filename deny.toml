@@ -1,0 +1,236 @@
+# Configuration for cargo-deny (https://embarkstudios.github.io/cargo-deny/).
+# The schema evolves fast; fields follow the 0.19+ format.
+
+# --- Graph ---------------------------------------------------------------
+[graph]
+targets = []
+all-features = false
+no-default-features = false
+
+# --- Output --------------------------------------------------------------
+[output]
+feature-depth = 1
+
+# --- Advisories ----------------------------------------------------------
+# https://embarkstudios.github.io/cargo-deny/checks/advisories/cfg.html
+[advisories]
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# Scope for RUSTSEC unmaintained advisories.
+# One of "all", "workspace", "transitive", "none".
+unmaintained = "workspace"
+# yanked-crates check: "deny" | "warn" | "allow"
+yanked = "warn"
+ignore = [
+  # `pgp` pulls in `rsa` to verify OpenPGP signatures made by RSA Node.js
+  # release keys. `openidconnect` also uses it to verify pnpr OIDC tokens.
+  # Production code only performs public-key verification in both paths;
+  # the private-key timing side channel is not reachable.
+  { id = "RUSTSEC-2023-0071", reason = "Only public-key verification is performed for Node.js OpenPGP release signatures and pnpr OIDC tokens; no RSA private-key operation is exposed." },
+  # quick-xml DoS advisories (quadratic duplicate-attribute check, unbounded
+  # namespace-declaration allocation). quick-xml is reached only through
+  # object_store's S3 XML response parsing in pnpr, so the XML comes from the
+  # operator-configured S3-compatible storage backend, not from untrusted
+  # clients. Both fixes ship only in quick-xml 0.41.0, which no object_store
+  # release can resolve yet: object_store 0.13 requires ^0.39 and 0.14
+  # requires ^0.40.1. Revisit when object_store consumes quick-xml 0.41+.
+  { id = "RUSTSEC-2026-0194", reason = "Temporary risk acceptance: XML parsed by quick-xml comes only from the operator-configured S3 backend via object_store; no object_store release consumes the patched quick-xml 0.41 yet." },
+  { id = "RUSTSEC-2026-0195", reason = "Temporary risk acceptance: XML parsed by quick-xml comes only from the operator-configured S3 backend via object_store; no object_store release consumes the patched quick-xml 0.41 yet." },
+  # Unbounded queueing of empty HTTP/2 DATA frames (low-severity DoS). Only the
+  # `h2` 0.3 line is left unpatched here: pnpr's own HTTP/2 server surface runs
+  # on axum 0.8 -> hyper 1.x, which is on the fixed h2 0.4.16. The 0.3 copy is
+  # reached solely through libsql's gRPC client stack, whose `tonic` 0.11 and
+  # `hyper` 0.14 both depend on it directly. pnpr uses that client to talk out
+  # to the operator-configured libsql/sqld backend, so the frames it queues
+  # come from that backend rather than from untrusted registry clients. The fix
+  # ships only in h2 0.4.16 and 0.3.27 is the final 0.3 release, so no upgrade
+  # is reachable while the newest stable libsql (0.9.30) is pinned to tonic
+  # 0.11. Revisit when libsql 0.10 leaves prerelease.
+  #
+  # cargo-deny scopes an ignore to an advisory id, never to a version, so this
+  # entry would also silence the advisory on the 0.4 line. The `h2` bans below
+  # hold that line instead.
+  { id = "RUSTSEC-2026-0258", reason = "Temporary risk acceptance: the unpatched h2 0.3 copy is reached only by libsql's outbound gRPC client to the operator-configured backend; pnpr's own server is on the patched h2 0.4.16, and no stable libsql release moves off tonic 0.11." },
+]
+
+# --- Licenses ------------------------------------------------------------
+# https://embarkstudios.github.io/cargo-deny/checks/licenses/cfg.html
+[licenses]
+allow = [
+  "MIT",
+  "MPL-2.0", # required by mockito, used by crates/tarball tests and tasks/micro-benchmark
+  "Apache-2.0",
+  "Unicode-3.0", # newer ICU crates switched from Unicode-DFS-2016 to this
+  "Unicode-DFS-2016",
+  "BSD-3-Clause",
+  "BSL-1.0",
+  "CDLA-Permissive-2.0", # `webpki-root-certs`, pulled in by reqwest's `rustls` feature
+  "ISC",
+  "Zlib", # required by foldhash, a transitive dep of rusqlite
+]
+confidence-threshold = 0.8
+exceptions = [
+  # `cap-primitives` uses winx for descriptor-relative traversal on Windows.
+  { name = "winx", allow = ["Apache-2.0 WITH LLVM-exception"] },
+  # The first-party `pnpr*` crates are licensed under PolyForm Shield (see
+  # `pnpr/LICENSE.md`), not the MIT used by the rest of the workspace.
+  # cargo-deny only recognizes the PolyForm-Noncommercial identifier for this
+  # license text, so allow that id for just these crates (the clarify entries
+  # below pin it by file hash). Every new `pnpr-*` crate needs an entry here
+  # and a matching clarify block, or `Cargo Deny` fails it as unlicensed.
+  { name = "pnpr", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-pipeline-runs", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-shared-artifacts", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-search", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-oci", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-osv", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-auth", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-cargo", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-pypi", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-config", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-error", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-fixtures", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-package-name", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-policy", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-registry", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-route", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-storage", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-upstream", allow = ["PolyForm-Noncommercial-1.0.0"] },
+]
+
+[[licenses.clarify]]
+name = "pnpr"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-fixtures"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-auth"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-cargo"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-pypi"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-route"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-oci"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-osv"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-pipeline-runs"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-search"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-shared-artifacts"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-storage"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-upstream"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-config"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-error"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-package-name"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-policy"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-registry"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "ring"
+version = "*"
+expression = "MIT AND ISC AND OpenSSL"
+license-files = [
+  { path = "LICENSE", hash = 0xbd0eed23 },
+]
+
+[licenses.private]
+ignore = false
+registries = []
+
+# --- Bans ----------------------------------------------------------------
+# https://embarkstudios.github.io/cargo-deny/checks/bans/cfg.html
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
+allow = []
+deny = [
+  # RUSTSEC-2026-0258 is ignored above, and cargo-deny can only ignore an
+  # advisory for the whole workspace. These two bans keep that ignore from
+  # covering more than the one copy it was accepted for: a vulnerable `h2` on
+  # the 0.4 line is refused outright, and the unpatched 0.3 line stays reachable
+  # only from libsql's gRPC stack, whose `tonic` and `hyper` are its sole direct
+  # dependents. Drop both once libsql moves off tonic 0.11 and the ignore goes.
+  { name = "h2", version = ">=0.4, <0.4.16" },
+  { name = "h2", version = "<0.4", wrappers = ["hyper", "tonic"] },
+]
+skip = []
+skip-tree = []
+
+# --- Sources -------------------------------------------------------------
+# https://embarkstudios.github.io/cargo-deny/checks/sources/cfg.html
+[sources]
+unknown-registry = "warn"
+unknown-git = "warn"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = ["https://github.com/pnpm/node-semver-rs"]
+
+[sources.allow-org]
+github = []
+gitlab = []
+bitbucket = []
