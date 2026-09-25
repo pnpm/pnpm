@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals'
 import type { LockfileFile } from '@pnpm/lockfile.types'
-import type { DepPath } from '@pnpm/types'
+import type { DepPath, ProjectId } from '@pnpm/types'
 import yaml from 'js-yaml'
 
 import { convertToLockfileFile, convertToLockfileObject } from '../lib/lockfileFormatConverters.js'
@@ -233,7 +233,7 @@ snapshots:
   constructor@0.0.6: {}
 `) as LockfileFile
   const lockfile = convertToLockfileObject(lockfileFile)
-  expect(lockfile.importers['.']).toStrictEqual({
+  expect(lockfile.importers['.' as ProjectId]).toStrictEqual({
     specifiers: { constructor: '^0.0.6' },
     dependencies: { constructor: '0.0.6' },
     devDependencies: undefined,
