@@ -1,9 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import type { DatabaseSync } from 'node:sqlite'
 import util from 'node:util'
 
 import { expect, test } from '@jest/globals'
-import { ReadOnlyStoreIndex, StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { packForStorage, ReadOnlyStoreIndex, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { temporaryDirectory } from 'tempy'
 
 test('StoreIndex round-trips data via SQLite key', () => {
@@ -188,4 +189,152 @@ function nodeSupportsImmutableSqliteUri (): boolean {
   if (major === 22) return minor >= 15
   if (major === 23) return minor >= 11
   return true
+}
+
+test('StoreIndex keeps using DatabaseSync.exec when the host provides it', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const idx = new TracingPrepareStoreIndex(storeDir)
+  try {
+    const preparedSql = preparedSqlOf(idx)
+    expect(preparedSql.some(sql => /^\s*(?:pragma|create table)/i.test(sql))).toBe(false)
+    expect(preparedSql).toHaveLength(6)
+    expect(fs.existsSync(path.join(storeDir, 'index.fallback'))).toBe(false)
+  } finally {
+    idx.close()
+  }
+})
+
+test('StoreIndex runs SQL through prepared statements when DatabaseSync.exec is missing', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const idx = new MissingExecStoreIndex(storeDir)
+  try {
+    const preparedSql = preparedSqlOf(idx)
+    expect(preparedSql.some(sql => /^\s*pragma/i.test(sql))).toBe(true)
+    expect(preparedSql.some(sql => /create table/i.test(sql))).toBe(true)
+    const key = storeIndexKey('sha512-abc', 'pkg@1.0.0')
+    idx.set(key, { n: 1 })
+    idx.setRawMany([
+      { key, buffer: packForStorage({ n: 2 }) },
+      { key: 'other', buffer: packForStorage({ n: 3 }) },
+    ])
+    expect(idx.get(key)).toEqual({ n: 2 })
+    expect(idx.update('other', (value) => ({ n: (value as { n: number }).n + 1 }))).toBe(true)
+    expect(idx.get('other')).toEqual({ n: 4 })
+    idx.deleteMany([key, 'other'])
+    expect(idx.has(key)).toBe(false)
+    idx.checkpoint()
+    expect(fs.existsSync(path.join(storeDir, 'index.db'))).toBe(true)
+    expect(fs.existsSync(path.join(storeDir, 'index.fallback'))).toBe(false)
+  } finally {
+    idx.close()
+  }
+})
+
+test('StoreIndex falls back to a file when node:sqlite cannot prepare statements', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const key = storeIndexKey('sha512-file', 'pkg@1.0.0')
+  const data = { algo: 'sha512', files: new Map([['index.js', { digest: 'abc', size: 100, mode: 0o644 }]]) }
+  const writer = new IncompleteSqliteStoreIndex(storeDir)
+  const reader = new IncompleteSqliteStoreIndex(storeDir)
+  try {
+    writer.set(key, data)
+    expect(reader.get(key)).toEqual(data)
+    writer.setRawMany([
+      { key: 'a', buffer: packForStorage({ a: 1 }) },
+      { key: 'b', buffer: packForStorage({ b: 2 }) },
+    ])
+    expect(reader.get('a')).toEqual({ a: 1 })
+    expect([...reader.keys()]).toEqual(expect.arrayContaining([key, 'a', 'b']))
+    expect([...reader.entries()].map(([entryKey]) => entryKey)).toEqual(expect.arrayContaining([key, 'a', 'b']))
+    expect(writer.update('missing', () => ({ created: true }))).toBe(false)
+    expect(writer.update('a', (value) => ({ a: (value as { a: number }).a + 1 }))).toBe(true)
+    expect(reader.get('a')).toEqual({ a: 2 })
+    expect(() => {
+      writer.update('a', () => {
+        throw new Error('boom')
+      })
+    }).toThrow('boom')
+    expect(reader.get('a')).toEqual({ a: 2 })
+    expect(writer.delete(key)).toBe(true)
+    expect(reader.has(key)).toBe(false)
+    expect(writer.delete('missing')).toBe(false)
+    writer.deleteMany(['a', 'b'])
+    expect(reader.has('a')).toBe(false)
+    writer.checkpoint()
+    expect(fs.existsSync(path.join(storeDir, 'index.fallback'))).toBe(true)
+  } finally {
+    writer.close()
+    reader.close()
+  }
+})
+
+test('StoreIndex falls back to a file when prepared statements cannot run', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const idx = new StatementRunMissingStoreIndex(storeDir)
+  try {
+    idx.set('k', { n: 1 })
+    expect(idx.get('k')).toEqual({ n: 1 })
+    expect(fs.existsSync(path.join(storeDir, 'index.fallback'))).toBe(true)
+  } finally {
+    idx.close()
+  }
+})
+
+// openConnection runs inside the base constructor, before subclass fields exist.
+const preparedSqlByIndex = new WeakMap<StoreIndex, string[]>()
+
+function preparedSqlOf (idx: StoreIndex): string[] {
+  const preparedSql = preparedSqlByIndex.get(idx)
+  if (preparedSql == null) {
+    throw new Error('Missing prepared SQL trace')
+  }
+  return preparedSql
+}
+
+class TracingPrepareStoreIndex extends StoreIndex {
+  protected override openConnection (storeDir: string): DatabaseSync {
+    return tracePrepare(this, super.openConnection(storeDir))
+  }
+}
+
+class MissingExecStoreIndex extends StoreIndex {
+  protected override openConnection (storeDir: string): DatabaseSync {
+    const db = tracePrepare(this, super.openConnection(storeDir))
+    ;(db as { exec?: unknown }).exec = undefined
+    return db
+  }
+}
+
+function tracePrepare (idx: StoreIndex, db: DatabaseSync): DatabaseSync {
+  const preparedSql: string[] = []
+  preparedSqlByIndex.set(idx, preparedSql)
+  const prepare = db.prepare.bind(db)
+  db.prepare = (sql: string) => {
+    preparedSql.push(sql)
+    return prepare(sql)
+  }
+  return db
+}
+
+class IncompleteSqliteStoreIndex extends StoreIndex {
+  protected override openConnection (_storeDir: string): DatabaseSync {
+    return {
+      close () {},
+    } as unknown as DatabaseSync
+  }
+}
+
+class StatementRunMissingStoreIndex extends StoreIndex {
+  protected override openConnection (_storeDir: string): DatabaseSync {
+    return {
+      prepare () {
+        return {
+          run () {
+            throw new TypeError('stmt.run is not a function')
+          },
+        }
+      },
+      close () {},
+    } as unknown as DatabaseSync
+  }
 }
