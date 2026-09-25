@@ -5,7 +5,9 @@
 //! writes new inodes, which the copies do not share, so after such a
 //! script the copies have to be diffed against the source and patched
 //! in place. `syncInjectedDepsAfterScripts` names the scripts that
-//! should trigger it.
+//! should trigger it. While one of those scripts is still running,
+//! the copies are refreshed as independent files so a watcher on the
+//! injected package sees each write.
 
 pub use dir_patcher::{
     Change, DirDiff, DirPatcher, FileId, InodeMap, PatchError, Value, apply_patch, diff_dir,
@@ -28,6 +30,12 @@ use pnpm_workspace::FindWorkspaceProjectsError;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread::{self, JoinHandle},
+    time::{Duration, SystemTime},
 };
 
 /// Error type for [`sync_injected_deps`].
@@ -284,6 +292,96 @@ fn resolved_injected_targets(
             .map(|target_dir| workspace_dir.join(target_dir))
             .collect(),
     )
+}
+
+/// The source directory and injected copies a running script should publish.
+///
+/// `None` when the package has no name, no workspace, or no injected copies.
+/// Errors are the same failures [`sync_injected_deps`] reports for a missing
+/// modules manifest.
+pub fn injected_edit_dirs(
+    opts: &SyncInjectedDeps<'_>,
+) -> Result<Option<(PathBuf, Vec<PathBuf>)>, SyncInjectedDepsError> {
+    if opts.pkg_name.is_none() {
+        return Ok(None);
+    }
+    let Some(workspace_dir) = opts.workspace_dir else {
+        return Ok(None);
+    };
+    let pkg_root_dir = workspace_dir.join(opts.pkg_root_dir);
+    let modules = read_workspace_modules(opts.workspace_modules_dir)?;
+    let Some(targets) =
+        resolved_injected_targets(opts, workspace_dir, &pkg_root_dir, modules.as_ref())
+    else {
+        return Ok(None);
+    };
+    Ok(Some((pkg_root_dir, targets)))
+}
+
+/// Polls injected copies until [`InjectedEditWatch::stop`] or drop.
+///
+/// The thread joins on stop, so the end-of-script hardlink sync does not
+/// run beside a publish.
+pub struct InjectedEditWatch {
+    stop: Arc<AtomicBool>,
+    thread: Option<JoinHandle<()>>,
+}
+
+impl InjectedEditWatch {
+    pub fn stop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+impl Drop for InjectedEditWatch {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
+/// Publish injected copies on a short interval for as long as the watch lives.
+///
+/// `edited_since` stays fixed at two seconds before the watch starts, which
+/// covers a filesystem's one-second modification-time resolution. An
+/// already-copied file is not republished: its inode differs and its
+/// modification time was preserved.
+#[must_use]
+pub fn watch_injected_edits(source: PathBuf, targets: Vec<PathBuf>) -> InjectedEditWatch {
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop_flag = Arc::clone(&stop);
+    let thread = thread::spawn(move || {
+        let edited_since = SystemTime::now()
+            .checked_sub(Duration::from_secs(2))
+            .unwrap_or(SystemTime::UNIX_EPOCH);
+        let mut slices_until_publish = 0u8;
+        loop {
+            if stop_flag.load(Ordering::Relaxed) {
+                break;
+            }
+            if slices_until_publish == 0 {
+                for target in &targets {
+                    if let Err(error) = dir_patcher::publish_edits(&source, target, edited_since) {
+                        tracing::debug!(
+                            target: "pacquet::sync_injected_deps",
+                            source = ?source,
+                            target = ?target,
+                            "Failed to publish an injected dependency while its script is running: {error}",
+                        );
+                    }
+                }
+                slices_until_publish = 4;
+            }
+            if stop_flag.load(Ordering::Relaxed) {
+                break;
+            }
+            slices_until_publish -= 1;
+            thread::sleep(Duration::from_millis(50));
+        }
+    });
+    InjectedEditWatch { stop, thread: Some(thread) }
 }
 
 fn read_workspace_modules(

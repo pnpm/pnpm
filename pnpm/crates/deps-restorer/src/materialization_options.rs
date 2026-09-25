@@ -53,9 +53,7 @@ pub struct SlotImportSource<'a> {
     pub build_marker: Option<&'a Path>,
     /// Whether a lifecycle script or a patch will still write this slot's
     /// files after the import. Such a slot must not share inodes with its
-    /// source, so it ignores [`PackageImportOptions::method`] and imports
-    /// with `clone-or-copy`. See
-    /// [`fn@crate::create_virtual_dir_by_snapshot::effective_import_method`].
+    /// source. See [`fn@crate::effective_import_method`].
     pub needs_build: bool,
 }
 

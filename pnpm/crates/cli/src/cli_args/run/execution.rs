@@ -9,6 +9,7 @@ use super::{
 use crate::cli_args::concurrency_group::{
     SlotOutcome, acquire_concurrency_group_slot, with_held_group,
 };
+use pnpm_injected_deps_syncer::{InjectedEditWatch, injected_edit_dirs, watch_injected_edits};
 use pnpm_reporter::LogEvent;
 
 /// Shared inputs for running a script, threaded through
@@ -341,6 +342,8 @@ fn run_script_stages(
     main_body: &str,
     args: &[String],
 ) -> miette::Result<ScriptExit> {
+    // Joined before the hardlink sync below, including when a stage fails.
+    let watch = start_injected_edit_watch(ctx, name)?;
     let mut main_status = None;
     for (stage, script) in
         get_run_script_stages(ctx.manifest, name, main_body, ctx.config.enable_pre_post_scripts)
@@ -353,6 +356,7 @@ fn run_script_stages(
         // A failing stage stops the script, and its status is the
         // script's.
         if !status.success() {
+            drop(watch);
             return Ok(status);
         }
         if is_main {
@@ -363,27 +367,49 @@ fn run_script_stages(
         "caller validated main_body is neither empty nor the args-less `npx only-allow pnpm` no-op",
     );
 
-    if ctx.config.sync_injected_deps_after_scripts
-        .iter()
-        .any(|script| script == name)
-    {
-        sync_injected_deps(&SyncInjectedDeps {
-            pkg_name: ctx.manifest
-                .value()
-                .get("name")
-                .and_then(Value::as_str),
-            pkg_root_dir: ctx.dir,
-            workspace_dir: ctx.config.workspace_dir.as_deref(),
-            modules_dir_name: ctx.config.modules_dir_name(),
-            workspace_modules_dir: &ctx.config.modules_dir,
-            extend_node_path: ctx.config.extend_node_path,
-            // Read before the script ran, so a bin it drops can still be named.
-            manifest_before_scripts: Some(ctx.manifest.value()),
-            ignored_directories: ctx.config.managed_directories(),
-        })?;
+    drop(watch);
+    if syncs_injected_deps_after(ctx, name) {
+        sync_injected_deps(&injected_sync_opts(ctx))?;
     }
 
     Ok(main_status)
+}
+
+fn syncs_injected_deps_after(ctx: &RunContext<'_>, name: &str) -> bool {
+    ctx.config.sync_injected_deps_after_scripts
+        .iter()
+        .any(|script| script == name)
+}
+
+fn injected_sync_opts<'a>(ctx: &'a RunContext<'_>) -> SyncInjectedDeps<'a> {
+    SyncInjectedDeps {
+        pkg_name: ctx.manifest
+            .value()
+            .get("name")
+            .and_then(Value::as_str),
+        pkg_root_dir: ctx.dir,
+        workspace_dir: ctx.config.workspace_dir.as_deref(),
+        modules_dir_name: ctx.config.modules_dir_name(),
+        workspace_modules_dir: &ctx.config.modules_dir,
+        extend_node_path: ctx.config.extend_node_path,
+        // Read before the script ran, so a bin it drops can still be named.
+        manifest_before_scripts: Some(ctx.manifest.value()),
+        ignored_directories: ctx.config.managed_directories(),
+    }
+}
+
+fn start_injected_edit_watch(
+    ctx: &RunContext<'_>,
+    name: &str,
+) -> miette::Result<Option<InjectedEditWatch>> {
+    if !syncs_injected_deps_after(ctx, name) {
+        return Ok(None);
+    }
+    let opts = injected_sync_opts(ctx);
+    let Some((source, targets)) = injected_edit_dirs(&opts)? else {
+        return Ok(None);
+    };
+    Ok(Some(watch_injected_edits(source, targets)))
 }
 
 pub(in super::super) fn get_run_script_commands(

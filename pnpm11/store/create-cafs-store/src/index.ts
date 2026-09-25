@@ -31,12 +31,8 @@ export function createPackageImporterAsync (
   const gfm = getFlatMap.bind(null, opts.storeDir)
   return async (to, opts) => {
     const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
-    const willBeBuilt = !isBuilt && opts.requiresBuild
-    const pkgImportMethod = willBeBuilt
-      ? (packageImportMethod === 'copy' ? 'copy' : 'clone-or-copy')
-      : (packageImportMethod && packageImportMethod !== 'auto'
-        ? packageImportMethod
-        : (opts.filesResponse.packageImportMethod ?? packageImportMethod))
+    const willBeBuilt = !isBuilt && opts.requiresBuild === true
+    const pkgImportMethod = selectPackageImportMethod(packageImportMethod, willBeBuilt, opts.filesResponse)
     const impPkg = cachedImporterCreator(pkgImportMethod)
     const importMethod = await impPkg(to, {
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
@@ -65,12 +61,8 @@ function createPackageImporter (
   const gfm = getFlatMap.bind(null, opts.storeDir)
   return (to, opts) => {
     const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
-    const willBeBuilt = !isBuilt && opts.requiresBuild
-    const pkgImportMethod = willBeBuilt
-      ? (packageImportMethod === 'copy' ? 'copy' : 'clone-or-copy')
-      : (packageImportMethod && packageImportMethod !== 'auto'
-        ? packageImportMethod
-        : (opts.filesResponse.packageImportMethod ?? packageImportMethod))
+    const willBeBuilt = !isBuilt && opts.requiresBuild === true
+    const pkgImportMethod = selectPackageImportMethod(packageImportMethod, willBeBuilt, opts.filesResponse)
     const impPkg = cachedImporterCreator(pkgImportMethod)
     const importMethod = impPkg(to, {
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
@@ -83,6 +75,29 @@ function createPackageImporter (
     })
     return { importMethod, isBuilt }
   }
+}
+
+type ConfiguredImportMethod = 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+
+/**
+ * A `local-dir` package is a workspace tree a watcher may be reading through
+ * an injected copy. Hardlink it when nothing will build it, and copy it when
+ * something will, so a copy-on-write clone does not hide later writes.
+ */
+function selectPackageImportMethod (
+  configured: ConfiguredImportMethod | undefined,
+  willBeBuilt: boolean,
+  filesResponse: { packageImportMethod?: ConfiguredImportMethod, resolvedFrom?: string },
+): ConfiguredImportMethod | undefined {
+  if (filesResponse.resolvedFrom === 'local-dir') {
+    if (willBeBuilt) return 'copy'
+    if (configured == null || configured === 'auto' || configured === 'clone' || configured === 'clone-or-copy') {
+      return 'hardlink'
+    }
+  }
+  if (willBeBuilt) return configured === 'copy' ? 'copy' : 'clone-or-copy'
+  if (configured != null && configured !== 'auto') return configured
+  return filesResponse.packageImportMethod ?? configured
 }
 
 function getFlatMap (
