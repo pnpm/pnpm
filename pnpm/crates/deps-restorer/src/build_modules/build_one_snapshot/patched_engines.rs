@@ -1,7 +1,4 @@
-use super::{
-    super::{BuildModulesError, discard_failed_global_virtual_store_slot},
-    BuildCandidate, BuildOneSnapshot, PackageKey,
-};
+use super::{super::BuildModulesError, BuildCandidate, BuildOneSnapshot, PackageKey};
 use pnpm_reporter::{
     LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
     SkippedOptionalReason,
@@ -29,7 +26,6 @@ pub(super) fn skip_incompatible_optional<EventReporter: Reporter>(
         reason: SkippedOptionalReason::UnsupportedEngine,
     }));
     remove_linked_copies(context, snapshot_key);
-    discard_failed_global_virtual_store_slot(context.directories.layout, snapshot_key);
     Ok(true)
 }
 
