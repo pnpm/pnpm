@@ -6,6 +6,7 @@
 //! (the shell rc file on POSIX, the registry on Windows).
 
 mod gh_actions_env;
+mod legacy_migration;
 mod path_extender;
 
 use clap::Args;
@@ -13,12 +14,14 @@ use miette::{Context, IntoDiagnostic};
 use path_extender::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderReport,
 };
-use pnpm_config::{GLOBAL_LAYOUT_VERSION, Host, PNPM_VERSION, default_pnpm_home_dir};
+use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir};
 use pnpm_fs::write_atomic;
-use pnpm_global::scan_global_packages;
-use pnpm_local_spec::LocalSpec;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 #[derive(Debug, Args)]
 pub struct SetupArgs {
@@ -41,15 +44,18 @@ impl SetupArgs {
     }
 }
 
-fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miette::Result<String> {
+fn resolve_pnpm_home_dir() -> miette::Result<PathBuf> {
     let pnpm_home_dir = default_pnpm_home_dir::<Host>().ok_or_else(|| {
         miette::miette!(
             "Could not determine the pnpm home directory. Set the PNPM_HOME environment variable."
         )
     })?;
-    // Validate before any side effect: an unsafe `PNPM_HOME` must not reach
-    // the self-install subprocess's `PATH` or the alias-script writes.
     path_extender::validate_pnpm_home_dir(&pnpm_home_dir)?;
+    Ok(pnpm_home_dir)
+}
+
+fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miette::Result<String> {
+    let pnpm_home_dir = resolve_pnpm_home_dir()?;
     let bin_dir = pnpm_home_dir.join("bin");
     gh_actions_env::validate_gh_actions_env_file_values::<Host>(&pnpm_home_dir, &bin_dir)?;
 
@@ -60,9 +66,13 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
     // pnpm's single-executable branch always applies: install the CLI
     // globally and write the alias scripts.
     install_cli_globally::<Reporter>(&exec_path, &pnpm_home_dir, dir)?;
-    finish_legacy_migration::<Reporter>(
+    legacy_migration::finish_legacy_migration::<Reporter>(
         dir,
-        migrate_legacy_global_packages::<Reporter>(&exec_path, &pnpm_home_dir, dir),
+        legacy_migration::migrate_legacy_global_packages::<Reporter>(
+            &exec_path,
+            &pnpm_home_dir,
+            dir,
+        ),
     );
     {
         let _global_bin_lock = super::global_bin_lock::acquire_global_bin_lock(&bin_dir)?;
@@ -86,6 +96,17 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
     Ok(render_setup_output(&report))
 }
 
+fn ensure_temporary_manifest(exec_dir: &Path, exec_name: &str) -> miette::Result<bool> {
+    let pkg_json_path = exec_dir.join("package.json");
+    if pkg_json_path.exists() {
+        return Ok(false);
+    }
+    fs::write(&pkg_json_path, standalone_manifest(exec_name).to_string())
+        .into_diagnostic()
+        .wrap_err("write the temporary package.json next to the pnpm executable")?;
+    Ok(true)
+}
+
 /// Install the CLI as a global package using `pnpm add -g file:<dir>`,
 /// placing it in the standard global directory alongside other globally
 /// installed packages.
@@ -103,44 +124,18 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
         .to_string_lossy()
         .into_owned();
     let pkg_json_path = exec_dir.join("package.json");
-
-    // Write a package.json if one doesn't already exist. (Updated tarballs
-    // ship with package.json already.)
-    let created_pkg_json = !pkg_json_path.exists();
-    if created_pkg_json {
-        fs::write(&pkg_json_path, standalone_manifest(&exec_name).to_string())
-            .into_diagnostic()
-            .wrap_err("write the temporary package.json next to the pnpm executable")?;
-    }
+    let created_pkg_json = ensure_temporary_manifest(exec_dir, &exec_name)?;
 
     info::<Reporter>(
         &prefix_dir.to_string_lossy(),
         &format!("Installing pnpm CLI globally from {}", exec_dir.display()),
     );
-
-    // The published `pnpm` package ships a preinstall/postinstall pair that
-    // hardlinks the platform-specific binary out of its optional platform
-    // packages. None of that applies here: this `file:` dependency is the
-    // standalone executable itself, the platform packages aren't installed
-    // alongside it, and the host may have no `node` to run the scripts.
-    // Skipping them also avoids a build-approval prompt for pnpm's own
-    // install.
-    let separator = if cfg!(windows) { ";" } else { ":" };
-    // Build `PATH` as an `OsString` so a non-UTF-8 ambient `PATH` is
-    // preserved verbatim rather than lost to a lossy string conversion.
-    let mut path_value = pnpm_home_dir.join("bin").into_os_string();
-    path_value.push(separator);
-    if let Some(existing) = std::env::var_os("PATH") {
-        path_value.push(existing);
-    }
     let status = Command::new(exec_path)
         .args(["add", "-g", "--ignore-scripts", &format!("file:{}", exec_dir.display())])
         .env("PNPM_HOME", pnpm_home_dir)
-        .env("PATH", path_value)
+        .env("PATH", bin_prepended_path(pnpm_home_dir))
         .status();
 
-    // Always attempt the cleanup, but let the install error take precedence
-    // over a cleanup error.
     let cleanup = if created_pkg_json { fs::remove_file(&pkg_json_path) } else { Ok(()) };
 
     let status = status.into_diagnostic().wrap_err("run the global pnpm install")?;
@@ -324,64 +319,7 @@ fn write_windows_alias_wrappers(
     )
 }
 
-/// Previous global layout, before bins moved under `PNPM_HOME/bin`.
-const LEGACY_GLOBAL_LAYOUT: &str = "5";
-
-/// `pnpm add -g` specs for dependencies recorded by the previous global layout.
-/// pnpm itself is installed by setup separately, and names already present in
-/// the current global directory are left alone.
-pub(crate) fn legacy_global_add_specs(
-    dependencies: &serde_json::Map<String, serde_json::Value>,
-    already_installed: &std::collections::BTreeSet<String>,
-    manifest_dir: Option<&Path>,
-) -> Vec<String> {
-    let mut specs = Vec::new();
-    for (name, spec) in dependencies {
-        if name == "pnpm" || name == "@pnpm/exe" || already_installed.contains(name) {
-            continue;
-        }
-        let Some(spec) = spec
-            .as_str()
-            .filter(|spec| !spec.is_empty())
-        else {
-            continue;
-        };
-        let spec = match manifest_dir {
-            Some(dir) => LocalSpec::parse_filesystem(spec, dir)
-                .map_or_else(|| spec.to_string(), |local| local.render(None)),
-            None => spec.to_string(),
-        };
-        specs.push(format!("{name}@{spec}"));
-    }
-    specs.sort();
-    specs
-}
-
-fn installed_global_aliases(pnpm_home_dir: &Path) -> std::collections::BTreeSet<String> {
-    let global_dir = pnpm_home_dir.join("global").join(GLOBAL_LAYOUT_VERSION);
-    scan_global_packages(&global_dir)
-        .unwrap_or_default()
-        .into_iter()
-        .flat_map(|package| package.aliases())
-        .collect()
-}
-
-fn legacy_global_dependencies(
-    pnpm_home_dir: &Path,
-) -> Option<serde_json::Map<String, serde_json::Value>> {
-    let manifest_path = pnpm_home_dir
-        .join("global")
-        .join(LEGACY_GLOBAL_LAYOUT)
-        .join("package.json");
-    let bytes = fs::read(manifest_path).ok()?;
-    let manifest = serde_json::from_slice::<serde_json::Value>(&bytes).ok()?;
-    manifest
-        .get("dependencies")
-        .and_then(serde_json::Value::as_object)
-        .cloned()
-}
-
-fn bin_prepended_path(pnpm_home_dir: &Path) -> std::ffi::OsString {
+pub(crate) fn bin_prepended_path(pnpm_home_dir: &Path) -> std::ffi::OsString {
     let separator = if cfg!(windows) { ";" } else { ":" };
     let mut path_value = pnpm_home_dir.join("bin").into_os_string();
     path_value.push(separator);
@@ -389,49 +327,6 @@ fn bin_prepended_path(pnpm_home_dir: &Path) -> std::ffi::OsString {
         path_value.push(existing);
     }
     path_value
-}
-
-/// Reinstall packages from `<PNPM_HOME>/global/5` into the current global
-/// directory. Setup points PATH at `bin/`, so binaries left in the previous
-/// layout are no longer on PATH and do not show up in `pnpm list -g`.
-fn migrate_legacy_global_packages<Reporter: self::Reporter + 'static>(
-    exec_path: &Path,
-    pnpm_home_dir: &Path,
-    prefix_dir: &Path,
-) -> miette::Result<()> {
-    let manifest_path = pnpm_home_dir
-        .join("global")
-        .join(LEGACY_GLOBAL_LAYOUT)
-        .join("package.json");
-    let Some(dependencies) = legacy_global_dependencies(pnpm_home_dir) else {
-        return Ok(());
-    };
-    let specs = legacy_global_add_specs(
-        &dependencies,
-        &installed_global_aliases(pnpm_home_dir),
-        manifest_path.parent(),
-    );
-    if specs.is_empty() {
-        return Ok(());
-    }
-    info::<Reporter>(
-        &prefix_dir.to_string_lossy(),
-        &format!("Migrating global packages from the previous pnpm layout: {}", specs.join(" ")),
-    );
-    let status = Command::new(exec_path)
-        .arg("add")
-        .arg("-g")
-        .args(&specs)
-        .env("PNPM_HOME", pnpm_home_dir)
-        .env("PATH", bin_prepended_path(pnpm_home_dir))
-        .status()
-        .into_diagnostic()
-        .wrap_err("run the global package migration")?;
-    if !status.success() {
-        let code = status.code().map_or_else(|| "unknown".to_string(), |code| code.to_string());
-        return Err(miette::miette!("Failed to migrate global packages (exit code {code})"));
-    }
-    Ok(())
 }
 
 /// v10-layout shim names that v11 writes under `pnpm_home_dir/bin` instead.
@@ -477,28 +372,9 @@ fn report_config_change(config_report: &ConfigReport) -> String {
     }
 }
 
-/// A failed reinstall is reported and setup continues. The packages can be
-/// migrated again once the recorded specs can be installed.
-fn finish_legacy_migration<Reporter: self::Reporter>(dir: &Path, migrated: miette::Result<()>) {
-    if let Err(error) = migrated {
-        warn::<Reporter>(
-            &dir.to_string_lossy(),
-            &format!("Failed to migrate global packages: {error}"),
-        );
-    }
-}
-
 fn info<Reporter: self::Reporter>(prefix: &str, message: &str) {
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Info,
-        message: message.to_string(),
-        prefix: prefix.to_string(),
-    }));
-}
-
-fn warn<Reporter: self::Reporter>(prefix: &str, message: &str) {
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Warn,
         message: message.to_string(),
         prefix: prefix.to_string(),
     }));
