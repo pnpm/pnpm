@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/requires-node-24-1",
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=24.1.0"
+  }
+}

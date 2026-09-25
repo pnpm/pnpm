@@ -143,6 +143,44 @@ test('optional dependencies are checked against the Node.js version locked for a
   expect(project.readModulesManifest()?.skipped).toStrictEqual([])
 })
 
+test('a resolving install checks optional dependencies against the Node.js version resolved for a devEngines.runtime range', async () => {
+  const project = prepare({
+    optionalDependencies: {
+      '@pnpm.e2e/requires-node-24-1': '1.0.0',
+    },
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '^24.0.0',
+        onFail: 'download',
+      },
+    },
+  })
+
+  await execPnpm(['install', '--no-runtime'])
+
+  expect(project.readModulesManifest()?.skipped).toStrictEqual([])
+  project.has('@pnpm.e2e/requires-node-24-1')
+})
+
+test('pnpm add checks optional dependencies against the Node.js version locked for a devEngines.runtime range', async () => {
+  const project = prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '^24.0.0',
+        onFail: 'download',
+      },
+    },
+  })
+
+  await execPnpm(['install', '--lockfile-only'])
+  await execPnpm(['add', '--save-optional', '--config.runtime=false', '@pnpm.e2e/requires-node-24-1@1.0.0'])
+
+  expect(project.readModulesManifest()?.skipped).toStrictEqual([])
+  project.has('@pnpm.e2e/requires-node-24-1')
+})
+
 test('an explicit nodeVersion takes priority over the Node.js version locked for devEngines.runtime', async () => {
   const project = prepare({
     dependencies: {

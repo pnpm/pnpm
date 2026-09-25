@@ -4,6 +4,7 @@ import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import * as dp from '@pnpm/deps.path'
 import type { LockfileObject } from '@pnpm/lockfile.types'
+import { findLockedRootNodeRuntime } from '@pnpm/lockfile.utils'
 import { globalWarn } from '@pnpm/logger'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
 import { BUILTIN_REGISTRIES_BY_PREFIX } from '@pnpm/resolving.npm-resolver'
@@ -131,6 +132,12 @@ export interface ResolveDependenciesOptions extends RegistryContext {
   }
   overrideBareSpecifier?: (name: string, bareSpecifier: string, dir?: string) => string | undefined
   nodeVersion?: string
+  /**
+   * Check engines against the Node.js version the root project's `node`
+   * runtime dependency resolves to, when it has one. Set when the user did not
+   * configure `nodeVersion`.
+   */
+  checkEnginesAgainstRootRuntime?: boolean
   patchedDependencies?: PatchGroupRecord
   pnpmVersion: string
   preferredVersions?: PreferredVersions
@@ -248,6 +255,10 @@ export async function resolveDependencyTree<T> (
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
     blockExoticSubdeps: opts.blockExoticSubdeps,
     resolutionPolicyViolations: [],
+  }
+
+  if (opts.checkEnginesAgainstRootRuntime === true) {
+    ctx.nodeVersion = await resolveRootRuntimeNodeVersion(importers, opts) ?? opts.nodeVersion
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
@@ -415,4 +426,33 @@ function getLockedDepPathByPkgId (lockfile: LockfileObject): Map<PkgResolutionId
     }
   }
   return lockedDepPathByPkgId
+}
+
+/**
+ * The Node.js version the root project's `node` runtime dependency resolves
+ * to in this install. It is resolved ahead of the other dependencies because
+ * each package's engines are checked when the package is requested.
+ */
+async function resolveRootRuntimeNodeVersion<T> (
+  importers: Array<ImporterToResolveGeneric<T>>,
+  opts: Pick<ResolveDependenciesOptions, 'lockfileDir' | 'storeController' | 'wantedLockfile'>
+): Promise<string | undefined> {
+  const locked = findLockedRootNodeRuntime(opts.wantedLockfile)
+  const rootImporter = importers.find(({ id }) => id === '.')
+  if (rootImporter == null) return locked?.version
+  const wantedNode = rootImporter.wantedDependencies.find(({ alias, bareSpecifier }) =>
+    alias === 'node' && bareSpecifier.startsWith('runtime:'))
+  if (wantedNode == null) return undefined
+  const updateRequested = wantedNode.updateDepth >= 0 && (rootImporter.updateMatching?.('node', locked?.version) ?? true)
+  if (locked != null && locked.specifier === wantedNode.bareSpecifier && !updateRequested) {
+    return locked.version
+  }
+  const { body } = await opts.storeController.requestPackage(wantedNode, {
+    downloadPriority: 0,
+    lockfileDir: opts.lockfileDir,
+    preferredVersions: {},
+    projectDir: rootImporter.rootDir,
+    skipFetch: true,
+  })
+  return body.manifest?.version
 }

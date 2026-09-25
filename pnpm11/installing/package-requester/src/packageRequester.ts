@@ -280,7 +280,7 @@ async function resolveAndFetch (
         : packageIsInstallable(id, manifest, {
           engineStrict,
           lockfileDir: options.lockfileDir,
-          nodeVersion: ctx.nodeVersion,
+          nodeVersion: options.nodeVersion ?? ctx.nodeVersion,
           optional: wantedDependency.optional === true,
           supportedArchitectures: options.supportedArchitectures,
         })
@@ -388,7 +388,7 @@ async function resolveAndFetch (
     isInstallable = packageIsInstallable(id, manifest, {
       engineStrict,
       lockfileDir: options.lockfileDir,
-      nodeVersion: ctx.nodeVersion,
+      nodeVersion: options.nodeVersion ?? ctx.nodeVersion,
       optional: wantedDependency.optional === true,
       supportedArchitectures: options.supportedArchitectures,
     })
