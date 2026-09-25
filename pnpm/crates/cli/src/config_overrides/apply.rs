@@ -103,6 +103,7 @@ pub(crate) fn apply_registry_override(config: &mut Config, registry: &str) {
     config.registries_by_scope.insert("default".to_string(), registry.clone());
     config.package_manager_bootstrap.registry.clone_from(&registry);
     config.package_manager_bootstrap.registries.insert("default".to_string(), registry);
+    config.cli_settings.insert("registry".to_string());
 }
 
 pub(super) fn normalize_registry_url(registry: &str) -> String {
@@ -116,7 +117,22 @@ impl ConfigOverrides {
     ///
     /// `dir` is the canonicalized `--dir`, the fallback base for a
     /// relative path-valued setting outside a workspace.
+    fn record_cli_settings(&self, config: &mut Config) {
+        config.cli_settings.extend(
+            self.settings
+                .iter()
+                .map(|key| {
+                    if super::tokens::scoped_registry_key(key).is_some() {
+                        key.clone()
+                    } else {
+                        pnpm_config::naming_cases::to_camel_case(key)
+                    }
+                }),
+        );
+    }
+
     pub fn apply(&self, config: &mut Config, dir: &Path) {
+        self.record_cli_settings(config);
         config.apply_proxy_cli_overrides(
             self.https_proxy.as_deref(),
             self.http_proxy.as_deref(),
@@ -142,13 +158,11 @@ impl ConfigOverrides {
             shell_emulator,
             skip_manifest_obfuscation,
             sort,
-            use_beta_cli
+            use_beta_cli,
+            deploy_all_files,
+            force_legacy_deploy,
         );
         self.apply_registry_overrides(config);
-        copy_overrides!(self, config, deploy_all_files, force_legacy_deploy);
-        // `pnpm config get ignore-scripts` answers from the explicitly-set
-        // settings, so a CLI-set value has to be recorded there to be
-        // reported as set while it suppresses the scripts.
         record_overrides!(self, config, ignore_scripts => "ignoreScripts");
         copy_overrides!(self, config, inject_workspace_packages);
         self.apply_socket_and_release_age_overrides(config);
