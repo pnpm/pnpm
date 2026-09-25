@@ -421,12 +421,13 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
 /// projects' `node_modules` entries importing the same CAS blob — are
 /// healed by the same write (pnpm/pnpm#3445).
 ///
-/// The caller must have already rejected non-regular dirents via
-/// `symlink_metadata`; on Unix the open additionally uses `O_NOFOLLOW`
-/// so a symlink swapped in after that check is refused rather than
-/// followed, and `O_NONBLOCK` so a FIFO cannot hold the open. Windows
-/// has neither flag, so the residual swap race there is accepted: the
-/// caller's rename fallback replaces the dirent on the next attempt.
+/// The path is rejected unless it is a regular file, and the opened
+/// handle is verified to be that same file before a byte is written:
+/// on Unix the open uses `O_NOFOLLOW`, so a symlink swapped in after
+/// the metadata check is refused rather than followed, but Windows has
+/// no such flag, so the descriptor itself is compared against the
+/// checked dirent's identity. `O_NONBLOCK` keeps a FIFO from holding
+/// the open.
 ///
 /// Returns `false` when in-place overwrite is refused and the caller
 /// should fall back to an atomic temp+rename: the target is not a
@@ -443,6 +444,10 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
 /// the trade is a brief torn-read window for healing every hard-linked
 /// copy at once.
 pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> bool {
+    let expected = match fs::symlink_metadata(file_path) {
+        Ok(meta) if meta.file_type().is_file() => meta,
+        _ => return false,
+    };
     let mut options = OpenOptions::new();
     options.write(true).truncate(true);
     #[cfg(unix)]
@@ -453,13 +458,35 @@ pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> b
     let Some((mut file, restore_permissions)) = open_for_overwrite(file_path, &options) else {
         return false;
     };
-    let written = io::copy(reader, &mut file).is_ok();
+    let handle_matches = file.metadata().is_ok_and(|meta| same_file(&meta, &expected));
+    let written = handle_matches && io::copy(reader, &mut file).is_ok();
     drop(file);
     if let Some(permissions) = restore_permissions {
         // Best-effort restore; the next repair retries.
         let _ = fs::set_permissions(file_path, permissions);
     }
     written
+}
+
+/// Whether the opened handle is the same regular file `expected`
+/// describes — the guard against a symlink swapped into the path
+/// between the metadata check and the open, which a write open would
+/// otherwise follow into a file the store does not own.
+#[cfg(unix)]
+fn same_file(handle_meta: &fs::Metadata, expected: &fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    handle_meta.file_type().is_file()
+        && handle_meta.dev() == expected.dev()
+        && handle_meta.ino() == expected.ino()
+}
+
+#[cfg(windows)]
+fn same_file(handle_meta: &fs::Metadata, expected: &fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    handle_meta.file_type().is_file()
+        && handle_meta.volume_serial_number() == expected.volume_serial_number()
+        && handle_meta.file_index().is_some()
+        && handle_meta.file_index() == expected.file_index()
 }
 
 /// Open a store blob for truncate-and-rewrite, returning the handle and

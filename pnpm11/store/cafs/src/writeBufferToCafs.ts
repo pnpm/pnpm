@@ -123,7 +123,7 @@ function overwriteFileInPlace (
 ): boolean {
   const stats = withFileLockRetry(() => fs.lstatSync(fileDest, { throwIfNoEntry: false }))
   if (!stats?.isFile()) return false
-  const opened = openForOverwrite(fileDest, stats.mode)
+  const opened = openForOverwrite(fileDest, stats)
   if (opened == null) return false
   try {
     fs.writeFileSync(opened.fd, buffer)
@@ -167,31 +167,57 @@ function overwriteFileInPlace (
  */
 function openForOverwrite (
   fileDest: string,
-  mode: number
+  stats: fs.Stats
 ): { fd: number, modeToRestore?: number } | null {
+  const firstTry = openSameFile(fileDest, stats, (stats.mode & 0o200) === 0)
+  if (firstTry != null) return { fd: firstTry }
+  if ((stats.mode & 0o200) !== 0) return null
   try {
-    return {
-      fd:
-        (mode & 0o200) === 0
-          ? fs.openSync(fileDest, IN_PLACE_OPEN)
-          : withFileLockRetry(() => fs.openSync(fileDest, IN_PLACE_OPEN)),
-    }
+    fs.chmodSync(fileDest, stats.mode | 0o200)
   } catch {
-    if ((mode & 0o200) !== 0) return null
+    return null
   }
-  let fd: number
-  try {
-    fs.chmodSync(fileDest, mode | 0o200)
-    fd = withFileLockRetry(() => fs.openSync(fileDest, IN_PLACE_OPEN))
-  } catch {
+  const secondTry = openSameFile(fileDest, stats, false)
+  if (secondTry == null) {
     try {
-      fs.chmodSync(fileDest, mode)
+      fs.chmodSync(fileDest, stats.mode)
     } catch {
       // Best-effort restore; the repair falls back to temp+rename either way.
     }
     return null
   }
-  return { fd, modeToRestore: mode }
+  return { fd: secondTry, modeToRestore: stats.mode }
+}
+
+/**
+ * Opens `fileDest` for truncate-and-rewrite and verifies the opened
+ * handle is the same regular file `stats` described, closing it and
+ * returning null otherwise. The lstat-then-open window would let a
+ * symlink swapped in between be followed into a file the store does
+ * not own — O_NOFOLLOW covers that on POSIX, but Windows has no such
+ * flag, so the check is bound to the descriptor actually opened.
+ * `bypassLockRetry` makes the open fail fast, for files whose missing
+ * owner-write bit already says the refusal is not a transient lock.
+ */
+function openSameFile (fileDest: string, stats: fs.Stats, bypassLockRetry: boolean): number | null {
+  let fd: number
+  try {
+    fd = bypassLockRetry
+      ? fs.openSync(fileDest, IN_PLACE_OPEN)
+      : withFileLockRetry(() => fs.openSync(fileDest, IN_PLACE_OPEN))
+  } catch {
+    return null
+  }
+  const fdStats = fs.fstatSync(fd)
+  if (!fdStats.isFile() || fdStats.dev !== stats.dev || fdStats.ino !== stats.ino) {
+    try {
+      fs.closeSync(fd)
+    } catch {
+      // Best-effort close; the caller falls back to temp+rename.
+    }
+    return null
+  }
+  return fd
 }
 
 export function optimisticRenameOverwrite (temp: string, fileDest: string): void {
