@@ -101,12 +101,15 @@ fn installing_a_package_manager_globally_records_the_opt_in() {
     let dir = tempdir().unwrap();
     let config = Config { config_dir: Some(dir.path().to_path_buf()), ..Config::default() };
 
-    let added = record_package_manager_shims(&config, ["yarn", "typescript"]).expect("record");
+    let added =
+        record_package_manager_shims(&config, ["yarn", "typescript", "pnpm"]).expect("record");
     assert_eq!(added.into_iter().collect::<Vec<_>>(), ["yarn"]);
     let entries = recorded_entries(dir.path()).expect("read back");
     assert_eq!(entries.get("yarn"), Some(&ShimPolicyValue::Named(NamedShimPolicy::Auto)));
     // A package that is not a package manager is left to `pnpm shim add`.
     assert_eq!(entries.get("typescript"), None);
+    // pnpm's own global install, which `pnpm setup` makes, keeps a direct bin.
+    assert_eq!(entries.get("pnpm"), None);
 
     // A decision already on record wins over the default.
     super::set_policy(&config, "npm", Some(ShimPolicyValue::Toggle(false))).expect("opt out");

@@ -54,7 +54,7 @@ fn standalone_manifest_declares_package_files() {
     assert_eq!(
         standalone_manifest("pnpm.exe"),
         serde_json::json!({
-            "name": "@pnpm/exe",
+            "name": "pnpm",
             "version": PNPM_VERSION,
             "type": "module",
             "bin": { "pnpm": "pnpm.exe", "pn": "pnpm.exe" },
