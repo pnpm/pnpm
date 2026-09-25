@@ -130,6 +130,10 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     PreResolutionLifecycleScript(#[error(source)] LifecycleScriptError),
 
+    /// Re-reading `.npmrc` after `pnpm:devPreinstall` failed.
+    #[diagnostic(transparent)]
+    ReloadAuth(#[error(source)] pnpm_config::LoadWorkspaceYamlError),
+
     /// A workspace project's own lifecycle script
     /// (preinstall/install/postinstall/preprepare/prepare/postprepare)
     /// exited non-zero. Unlike a dependency build failure — which

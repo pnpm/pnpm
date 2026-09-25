@@ -254,4 +254,41 @@ impl Config {
                     .or_else(|| read_npm_env::<Sys>("userconfig", "USERCONFIG").map(PathBuf::from))
             })
     }
+
+    /// Re-read `.npmrc` / `auth.ini` and swap the shared [`Config::auth_headers`]
+    /// map. Called after `pnpm:devPreinstall`, which may have written a new
+    /// registry token into the user npmrc. Fetchers already hold an `Arc` of
+    /// the map, so the swap is in place. `tokenHelper` commands stay lazy.
+    pub fn reload_auth_headers<Sys>(&self, project_dir: &Path) -> Result<(), LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        let global_settings = self.load_global_settings::<Sys>()?;
+        let user_npmrc_path = self.user_npmrc_path::<Sys>(global_settings.as_ref());
+        let project_npmrc_dir = self.workspace_dir.as_deref().unwrap_or(project_dir);
+        let project_source =
+            project_auth_source::<Sys>(project_npmrc_dir, user_npmrc_path.as_deref());
+        let auth_ini = auth_ini_source::<Sys>(self.config_dir.as_deref());
+        let user_source = user_auth_source::<Sys>(user_npmrc_path.as_deref());
+        let env_scoped_source = env_scoped_auth_source::<Sys>();
+        let env_json_source = env_json_auth_source::<Sys>(global_settings.as_ref())?;
+        let trusted_sources = [
+            env_json_source.clone(),
+            env_scoped_source.clone(),
+            auth_ini.clone(),
+            user_source.clone(),
+        ];
+        let npmrc_auth = merge_auth_sources([
+            env_json_source,
+            env_scoped_source,
+            project_source,
+            auth_ini,
+            user_source,
+        ]);
+        let trusted_auth = merge_auth_sources(trusted_sources);
+        crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth)?;
+        let headers = npmrc_auth.into_auth_headers()?;
+        self.auth_headers.replace_credentials(headers);
+        Ok(())
+    }
 }

@@ -727,6 +727,21 @@ fn redact_and_sanitize_multiline_keeps_line_breaks() {
 }
 
 #[test]
+fn replace_credentials_updates_shared_lookups() {
+    let headers = Arc::new(AuthHeaders::from_creds_map([(
+        "//reg.example/".to_owned(),
+        "Bearer stale".to_owned(),
+    )]));
+    let shared = Arc::clone(&headers);
+    assert_eq!(shared.for_url("https://reg.example/pkg"), Some("Bearer stale".to_owned()));
+    headers.replace_credentials(AuthHeaders::from_creds_map([(
+        "//reg.example/".to_owned(),
+        "Bearer fresh".to_owned(),
+    )]));
+    assert_eq!(shared.for_url("https://reg.example/pkg"), Some("Bearer fresh".to_owned()));
+}
+
+#[test]
 fn redact_and_sanitize_multiline_collapses_when_a_newline_splits_credentials() {
     // Redacting each line on its own would leave "user:pass" readable, so the
     // collapsed form wins over the more readable one.

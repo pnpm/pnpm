@@ -61,6 +61,12 @@ struct AuthTables {
     registry_creds: HashMap<String, BTreeMap<String, RegistryCreds>>,
 }
 
+struct CompiledAuth {
+    headers: AuthHeaders,
+    auth_tokens: HashMap<String, String>,
+    registry_creds: HashMap<String, BTreeMap<String, RegistryCreds>>,
+}
+
 impl AuthTables {
     /// Record the credential `raw` names for `scope` at `uri`.
     fn record(
@@ -326,6 +332,20 @@ impl NpmrcAuth {
     /// [`LoadWorkspaceYamlError::TokenHelperUnsupportedCharacter`] if a
     /// honored helper's value contains a reserved character.
     pub fn build_auth_headers(self, config: &mut Config) -> Result<(), LoadWorkspaceYamlError> {
+        let compiled = self.compile_auth()?;
+        config.auth_tokens_by_uri = compiled.auth_tokens;
+        config.registry_creds_by_uri = compiled.registry_creds;
+        config.auth_headers = Arc::new(compiled.headers);
+        Ok(())
+    }
+
+    /// The request-facing headers for these credentials, without writing them
+    /// onto a [`Config`]. `tokenHelper` commands stay un-executed.
+    pub(crate) fn into_auth_headers(self) -> Result<AuthHeaders, LoadWorkspaceYamlError> {
+        Ok(self.compile_auth()?.headers)
+    }
+
+    fn compile_auth(self) -> Result<CompiledAuth, LoadWorkspaceYamlError> {
         debug_assert!(
             self.default_creds.is_empty(),
             "rescope_unscoped must pin unscoped credentials before headers are built",
@@ -336,15 +356,16 @@ impl NpmrcAuth {
                 tables.record(&uri, scope, &raw)?;
             }
         }
-        config.auth_tokens_by_uri = tables.auth_tokens;
-        config.registry_creds_by_uri = tables.registry_creds;
-        config.auth_headers = Arc::new(AuthHeaders::from_parts_with_token_helpers(
-            tables.auth_headers,
-            tables.scoped_auth_headers,
-            tables.token_helpers,
-            tables.scoped_token_helpers,
-        ));
-        Ok(())
+        Ok(CompiledAuth {
+            headers: AuthHeaders::from_parts_with_token_helpers(
+                tables.auth_headers,
+                tables.scoped_auth_headers,
+                tables.token_helpers,
+                tables.scoped_token_helpers,
+            ),
+            auth_tokens: tables.auth_tokens,
+            registry_creds: tables.registry_creds,
+        })
     }
 
     /// Pin this source file's **unscoped** per-registry settings

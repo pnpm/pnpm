@@ -144,6 +144,7 @@ import {
 export type { BeforeLifecycleScriptsResult }
 import { getStaleOverrideTargets, omitPackagesNamed } from './getStaleOverrideTargets.js'
 import { linkPackages } from './link.js'
+import { reloadAuthAfterDevPreinstall } from './reloadAuthAfterDevPreinstall.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { reportVerifiedFileIntegrity } from './reportVerifiedFileIntegrity.js'
 import { type AddedManifests, tryAddLockedVersions } from './tryAddLockedVersions.js'
@@ -538,6 +539,7 @@ export async function mutateModules (
   }
   if (installRunsDevPreinstall(opts) && rootProjectManifest?.scripts?.[DEV_PREINSTALL]) {
     await runLifecycleHook(DEV_PREINSTALL, rootProjectManifest, rootHookOpts)
+    reloadAuthAfterDevPreinstall(opts)
   }
   // The root project's `preinstall` runs before any dependency is resolved
   // or linked, so a guard such as `npx only-allow yarn` can still stop the
@@ -4034,6 +4036,7 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
     }
     if (installRunsDevPreinstall(opts) && rootProjectManifest?.scripts?.[DEV_PREINSTALL]) {
       await runLifecycleHook(DEV_PREINSTALL, rootProjectManifest, rootHookOpts)
+      reloadAuthAfterDevPreinstall(opts)
     }
     if (rootProjectPreinstallRan && rootProjectManifest?.scripts?.preinstall) {
       await runLifecycleHook('preinstall', rootProjectManifest, rootHookOpts)

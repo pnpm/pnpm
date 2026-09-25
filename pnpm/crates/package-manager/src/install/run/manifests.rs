@@ -235,6 +235,12 @@ pub(super) fn run_root_hooks<Reporter: self::Reporter>(
             scope.workspace_root,
             pnpm_executor::run_dev_preinstall_hook::<Reporter>,
         )?;
+        // The script may have written a new registry token into the user
+        // npmrc. Fetchers share `config.auth_headers`, so swap that map
+        // before resolution and downloads.
+        scope.config
+            .reload_auth_headers::<pnpm_config::Host>(scope.workspace_root)
+            .map_err(InstallError::ReloadAuth)?;
     }
     if root_preinstall_already_ran() {
         return Ok(true);

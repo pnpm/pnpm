@@ -5988,6 +5988,9 @@ importers:
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../../config/matcher
+      '@pnpm/config.reader':
+        specifier: workspace:*
+        version: link:../../config/reader
       '@pnpm/config.normalize-registries':
         specifier: workspace:*
         version: link:../../config/normalize-registries
