@@ -370,6 +370,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     } else if (stat.isFile() && stat.size < CMD_SHIM_MAX_SIZE) {
       const content = await fs.readFile(externalBinPath, 'utf8')
       isCorrectlyLinked = isShimPointingAt(content, cmd.path) && isShimHardened(content) &&
+        (!IS_WINDOWS || existsSync(`${externalBinPath}.cmd`)) &&
         (!isShimForMissingTarget(content) || await isMissing(cmd.path)) &&
         (
           (opts?.extraNodePaths == null && opts?.projectModulesDir == null) ||

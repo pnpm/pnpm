@@ -20,7 +20,10 @@ test('auto-installed peer bins are linked at the workspace root after frozen rei
   await execPnpm(['install', '--frozen-lockfile'])
   project.isExecutable('.bin/peer-with-bin')
 
-  fs.rmSync(`node_modules/.bin/peer-with-bin${process.platform === 'win32' ? '.cmd' : ''}`)
+  fs.rmSync('node_modules/.bin/peer-with-bin', { force: true })
+  if (process.platform === 'win32') {
+    fs.rmSync('node_modules/.bin/peer-with-bin.cmd', { force: true })
+  }
   fs.writeFileSync('packages/app/package.json', JSON.stringify({
     name: 'app',
     version: '1.0.0',
