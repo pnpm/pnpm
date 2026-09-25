@@ -410,10 +410,10 @@ fn is_shell_safe_host(hostname: &str) -> bool {
         })
 }
 
-/// Host and numeric port of an SSH authority's host[:port] portion.
+/// Host and numeric port of an SSH authority.
 ///
 /// A bracketed IPv6 literal keeps its brackets. A non-numeric tail after the
-/// colon is not a port: SCP-style references are rejected before this runs.
+/// colon is not a port. SCP-style references are rejected before this runs.
 fn ssh_host_and_port(hostport: &str) -> Option<(String, &str)> {
     let (hostname, port) = match hostport.split_once(']') {
         Some((address, after)) if hostport.starts_with('[') => {
