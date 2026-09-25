@@ -22,7 +22,7 @@ pub struct CleanArgs {
 /// alongside the regular package directories. Any other dotfile (e.g.
 /// `.cache`) is left in place.
 const PNPM_HIDDEN_ENTRIES: &[&str] =
-    &[".bin", ".modules.yaml", ".pnpm", ".pnpm-workspace-state-v1.json"];
+    &[".bin", ".bin-symlinks", ".modules.yaml", ".pnpm", ".pnpm-workspace-state-v1.json"];
 
 /// Remove `node_modules` contents and (optionally) lockfiles from the
 /// current project or every workspace project.

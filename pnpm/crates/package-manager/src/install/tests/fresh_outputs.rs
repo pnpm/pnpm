@@ -764,6 +764,37 @@ fn included_drift_alone_does_not_make_the_layout_inconsistent() {
         pnpm_config::NodeLinker::Isolated,
     ));
 }
+#[test]
+fn preserve_bin_name_drift_matches_the_platform() {
+    let dir = tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.preserve_bin_name = true;
+    let config = config.leak();
+    let seed = Modules {
+        layout_version: Some(LayoutVersion),
+        node_linker: Some(NodeLinker::Isolated),
+        hoist_pattern: config.hoist_pattern.clone(),
+        public_hoist_pattern: config.public_hoist_pattern.clone(),
+        store_dir: config.store_dir.display().to_string(),
+        virtual_store_dir: config
+            .effective_virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
+        ..Default::default()
+    };
+    write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
+
+    assert_eq!(
+        !is_modules_yaml_layout_consistent(&modules_dir, config, pnpm_config::NodeLinker::Isolated,),
+        cfg!(unix)
+    );
+}
+
 /// A real layout setting (here `nodeLinker`) drifting still makes the
 /// layout inconsistent, so the purge that recreates `node_modules` runs —
 /// the included guard above must not suppress genuine layout rebuilds.

@@ -16,8 +16,8 @@ use serde_json::json;
 
 use super::{
     ConvertCtx, ProjectInfo, ProjectPathKey, SelectedProject, convert_package_key,
-    convert_package_metadata, create_deploy_files, create_file_url_key, index_projects,
-    validate_lockfile_local_path,
+    convert_package_metadata, create_deploy_files, create_file_url_key, deploy_workspace_manifest,
+    index_projects, validate_lockfile_local_path,
 };
 #[cfg(unix)]
 use super::{DeployFiles, DeployWorkspaceConfig, write_deploy_files};
@@ -41,6 +41,17 @@ fn split_local_payload_preserves_parentheses_in_path_before_patch_suffix() {
         split_local_payload("../local(foo)/pkg(patch_hash=abc)(peer@1.0.0)"),
         ("../local(foo)/pkg", "(patch_hash=abc)(peer@1.0.0)"),
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn deploy_workspace_manifest_preserves_bin_name_setting() {
+    let mut config = Config::new();
+    config.preserve_bin_name = true;
+
+    let manifest = deploy_workspace_manifest(&config);
+
+    assert_eq!(manifest.get("preserveBinName"), Some(&json!(true)));
 }
 
 #[test]

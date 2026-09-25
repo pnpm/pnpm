@@ -1,9 +1,11 @@
+#[cfg(unix)]
+use super::alias_dir::AliasDirectory;
 use super::{
     DirCreation, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable, FsWrite,
     LinkBinsError, LinkBinsOptions, Path, PathBuf, ScriptRuntime, ShimTargetCache,
     chmod_tolerating_removal, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, io,
     is_node_bin_name, is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at,
-    link_node_bin, link_symlinked_executable, linking_paths::LinkingPaths,
+    link_bin_alias, link_node_bin, link_symlinked_executable, linking_paths::LinkingPaths,
     symlink_already_points_at, target_requires_shim,
 };
 
@@ -23,41 +25,56 @@ use super::{
 /// they are no-ops (Windows has no equivalent permission concept), so
 /// the call sites stay portable and don't need their own
 /// `#[cfg(unix)]` gating.
+/// What one shim body is written from: the `NODE_PATH` entries it carries and
+/// the linking settings they come from.
+#[derive(Clone, Copy)]
+pub(super) struct ShimLayout<'a> {
+    pub(super) node_path: &'a [String],
+    pub(super) options: &'a LinkBinsOptions,
+}
+
 /// The per-bin inputs one [`write_shim`] call consumes.
 #[derive(Clone, Copy)]
 pub(super) struct ShimSpec<'a> {
     /// The bin file the shim executes. Relocatable linking resolves its
     /// parent directory while retaining the final dirent.
     pub(super) target_path: &'a Path,
+    /// The sibling alias the shim executes instead of `target_path` when
+    /// `preserve_bin_name` keeps the command name in `process.argv[1]`.
+    pub(super) alias_path: Option<&'a Path>,
     /// [`target_path`](Self::target_path) with the package symlink
     /// resolved, used for the per-target probes (script runtime,
     /// executable bits) and as their [`ShimTargetCache`] key.
     pub(super) probe_path: &'a Path,
     pub(super) shim_path: &'a Path,
-    pub(super) node_path: &'a [String],
-    pub(super) options: &'a LinkBinsOptions,
     pub(super) make_powershell_shim: bool,
     pub(super) paths: &'a LinkingPaths<'a>,
     /// Whether this run created the bin directory. Read by
     /// [`read_or_create_shim`], which documents what it is worth.
     pub(super) bin_dir: DirCreation,
+    pub(super) layout: ShimLayout<'a>,
 }
 
 impl ShimSpec<'_> {
     fn installed_modules_dir(&self) -> Option<&Path> {
-        self.options.installed_modules_dir.as_deref()
+        self.layout.options.installed_modules_dir.as_deref()
     }
 
     fn relocatable_root(&self) -> Option<&Path> {
         self.paths.relocatable_root.as_deref()
     }
 
+    fn shim_target_path(&self) -> &Path {
+        self.alias_path.unwrap_or(self.target_path)
+    }
+
     fn sh_body(&self, runtime: Option<&ScriptRuntime>) -> Result<String, LinkBinsError> {
+        let target = self.shim_target_path();
         Ok(generate_sh_shim(
-            self.target_path,
-            &self.paths.sh_shim_path(self.target_path, self.shim_path)?,
+            target,
+            &self.paths.sh_shim_path(target, self.shim_path)?,
             runtime,
-            self.node_path,
+            self.layout.node_path,
             self.relocatable_root(),
         ))
     }
@@ -70,31 +87,113 @@ pub(super) fn write_shim<Sys>(
 where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
 {
-    // Not writing a `.ps1` is not enough to keep one out of the bin
-    // dir: an install that did want one leaves it there, and
-    // PowerShell keeps preferring it over the `.cmd` sibling. Delete
-    // it up front, above the short-circuits below — they all return
-    // without touching the Windows siblings.
-    if !spec.make_powershell_shim {
-        remove_stale_bin(&with_extension_appended(spec.shim_path, "ps1"))?;
+    remove_suppressed_powershell_shim(&spec)?;
+    let preserved_runtime = probe_preserved_runtime::<Sys>(&spec, cache)?;
+    if let Some(alias_path) = spec.alias_path {
+        link_bin_alias(spec.target_path, alias_path, spec.relocatable_root())?;
     }
+    let result = write_shim_body::<Sys>(&spec, cache, preserved_runtime);
+    if result.is_ok() && spec.alias_path.is_none() && spec.paths.cleanup_aliases {
+        remove_bin_alias(spec.shim_path)
+            .map_err(|error| LinkBinsError::RemoveStaleBin {
+                path: spec.shim_path.to_path_buf(),
+                error,
+            })?;
+    }
+    result
+}
 
-    let existing_shim = match read_or_create_shim::<Sys>(&spec, cache)? {
+/// Not writing a `.ps1` is not enough to keep one out of the bin dir: an
+/// install that did want one leaves it there, and PowerShell keeps preferring
+/// it over the `.cmd` sibling. Delete it up front, above the short-circuits in
+/// [`write_shim_body`], which all return without touching the Windows siblings.
+fn remove_suppressed_powershell_shim(spec: &ShimSpec<'_>) -> Result<(), LinkBinsError> {
+    if spec.make_powershell_shim {
+        return Ok(());
+    }
+    remove_stale_bin(&with_extension_appended(spec.shim_path, "ps1"))
+}
+
+/// The script runtime a shim generated for this bin will carry, probed before
+/// the alias link goes down so a failed probe leaves no alias behind. A bin
+/// without an alias probes on the path that reaches the shim write, so `None`
+/// here says no probe has happened yet.
+fn probe_preserved_runtime<Sys: FsReadHead>(
+    spec: &ShimSpec<'_>,
+    cache: &ShimTargetCache,
+) -> Result<Option<Option<ScriptRuntime>>, LinkBinsError> {
+    if spec.alias_path.is_none() {
+        return Ok(None);
+    }
+    runtime_for::<Sys>(spec, cache).map(Some)
+}
+
+fn runtime_for<Sys: FsReadHead>(
+    spec: &ShimSpec<'_>,
+    cache: &ShimTargetCache,
+) -> Result<Option<ScriptRuntime>, LinkBinsError> {
+    cache
+        .runtime_for::<Sys>(spec.probe_path)
+        .map_err(|error| LinkBinsError::ProbeShimSource {
+            path: spec.probe_path.to_path_buf(),
+            error,
+        })
+}
+
+/// Write the shim for this bin, unless the bin is already linked in a form
+/// that needs none.
+fn write_shim_body<Sys>(
+    spec: &ShimSpec<'_>,
+    cache: &ShimTargetCache,
+    preserved_runtime: Option<Option<ScriptRuntime>>,
+) -> Result<(), LinkBinsError>
+where
+    Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
+{
+    let existing_shim = match read_or_create_shim::<Sys>(spec, cache)? {
         ExistingShim::Written => return Ok(()),
         ExistingShim::Present(existing) => Some(existing),
         ExistingShim::Absent => None,
     };
+    if link_without_shim::<Sys>(spec, cache)? {
+        return Ok(());
+    }
+    let runtime = match preserved_runtime {
+        Some(runtime) => runtime,
+        None => runtime_for::<Sys>(spec, cache)?,
+    };
+    let sh_body = spec.sh_body(runtime.as_ref())?;
+    let windows_shims = windows_shim_bodies(spec, runtime.as_ref());
 
+    let current = shim_body_matches(existing_shim.as_deref(), &sh_body, spec)
+        && windows_shims_match::<Sys>(windows_shims.as_ref());
+    if !current {
+        replace_shims::<Sys>(spec.shim_path, &sh_body, windows_shims.as_ref())?;
+    }
+    chmod_tolerating_removal(spec.shim_path, Sys::set_executable)?;
+    cache.ensure_target_executable_once::<Sys>(spec.probe_path, spec.installed_modules_dir())
+}
+
+/// Whether the bin ends up linked without a shim, which is all
+/// [`write_shim_body`] then has left to do.
+fn link_without_shim<Sys>(
+    spec: &ShimSpec<'_>,
+    cache: &ShimTargetCache,
+) -> Result<bool, LinkBinsError>
+where
+    Sys: FsReadToString + FsReadHead + FsEnsureExecutableBits,
+{
     // pnpm's warm-install short-circuit: an existing symlink that
     // already resolves to a directly executable target can
     // stay regardless of `preferSymlinkedExecutables`, so a relink pass that doesn't
     // carry the setting (the injected-deps syncer's workspace-wide
     // relink, for one) leaves symlinked bins alone instead of
     // rewriting them into shims.
-    if symlink_already_points_at(spec.shim_path, spec.target_path, spec.relocatable_root())
-        && prepare_direct_target::<Sys>(&spec, cache)?
+    if spec.alias_path.is_none()
+        && symlink_already_points_at(spec.shim_path, spec.target_path, spec.relocatable_root())
+        && prepare_direct_target::<Sys>(spec, cache)?
     {
-        return Ok(());
+        return Ok(true);
     }
 
     // The node runtime binary is special: never wrap it in a shell
@@ -119,7 +218,7 @@ where
     if is_node_bin_name(spec.shim_path)
         && link_node_bin(spec.target_path, spec.shim_path, spec.relocatable_root())?
     {
-        return Ok(());
+        return Ok(true);
     }
 
     // pnpm's `preferSymlinkedExecutables`: link the bin file directly
@@ -127,32 +226,11 @@ where
     // half returns `false` so bins keep their shims there, like pnpm.
     // Stays below the node-runtime special case, which links `node`
     // regardless of the setting.
-    if spec.options.prefer_symlinked_executables
+    Ok(spec.alias_path.is_none()
+        && spec.layout.options.prefer_symlinked_executables
         && cfg!(unix)
-        && prepare_direct_target::<Sys>(&spec, cache)?
-        && link_symlinked_executable::<Sys>(spec.target_path, spec.shim_path)?
-    {
-        return Ok(());
-    }
-
-    let runtime = cache
-        .runtime_for::<Sys>(spec.probe_path)
-        .map_err(|error| LinkBinsError::ProbeShimSource {
-            path: spec.probe_path.to_path_buf(),
-            error,
-        })?;
-
-    let sh_body = spec.sh_body(runtime.as_ref())?;
-    let windows_shims = windows_shim_bodies(&spec, runtime.as_ref());
-
-    let current = shim_body_matches(existing_shim.as_deref(), &sh_body, &spec)
-        && windows_shims_match::<Sys>(windows_shims.as_ref());
-    if !current {
-        replace_shims::<Sys>(spec.shim_path, &sh_body, windows_shims.as_ref())?;
-    }
-
-    chmod_tolerating_removal(spec.shim_path, Sys::set_executable)?;
-    cache.ensure_target_executable_once::<Sys>(spec.probe_path, spec.installed_modules_dir())
+        && prepare_direct_target::<Sys>(spec, cache)?
+        && link_symlinked_executable::<Sys>(spec.target_path, spec.shim_path)?)
 }
 
 fn prepare_direct_target<Sys>(
@@ -216,7 +294,10 @@ where
 /// runtime is linked rather than shimmed, and
 /// `preferSymlinkedExecutables` links every bin on Unix.
 fn fresh_write_applies(spec: &ShimSpec<'_>) -> bool {
-    !(is_node_bin_name(spec.shim_path) || (spec.options.prefer_symlinked_executables && cfg!(unix)))
+    !(is_node_bin_name(spec.shim_path)
+        || (spec.alias_path.is_none()
+            && spec.layout.options.prefer_symlinked_executables
+            && cfg!(unix)))
 }
 
 /// The Windows sibling shims a write produces.
@@ -235,10 +316,12 @@ fn windows_shim_bodies(
 ) -> Option<WindowsShims> {
     cfg!(windows).then(|| {
         let cmd_path = with_extension_appended(spec.shim_path, "cmd");
-        let cmd_body = generate_cmd_shim(spec.target_path, &cmd_path, runtime, spec.node_path);
+        let cmd_body =
+            generate_cmd_shim(spec.target_path, &cmd_path, runtime, spec.layout.node_path);
         let powershell = spec.make_powershell_shim.then(|| {
             let ps1_path = with_extension_appended(spec.shim_path, "ps1");
-            let ps1_body = generate_pwsh_shim(spec.target_path, &ps1_path, runtime, spec.node_path);
+            let ps1_body =
+                generate_pwsh_shim(spec.target_path, &ps1_path, runtime, spec.layout.node_path);
             (ps1_path, ps1_body)
         });
         WindowsShims { cmd_path, cmd_body, powershell }
@@ -265,10 +348,10 @@ fn shim_body_matches(existing: Option<&str>, sh_body: &str, spec: &ShimSpec<'_>)
     let Some(existing) = existing else {
         return false;
     };
-    if !spec.node_path.is_empty() || spec.relocatable_root().is_some() {
+    if !spec.layout.node_path.is_empty() || spec.relocatable_root().is_some() {
         return existing == sh_body;
     }
-    is_shim_pointing_at(existing, spec.shim_path, spec.target_path)
+    is_shim_pointing_at(existing, spec.shim_path, spec.shim_target_path())
         && is_sh_shim_hardened(existing)
         && is_sh_shim_basedir_anchor_current(existing, sh_body)
         && !existing.contains("export NODE_PATH=")
@@ -337,16 +420,11 @@ where
         target_path,
         probe_path,
         shim_path,
-        node_path,
         make_powershell_shim,
+        layout: ShimLayout { node_path, .. },
         ..
     } = spec;
-    let runtime = cache
-        .runtime_for::<Sys>(probe_path)
-        .map_err(|error| LinkBinsError::ProbeShimSource {
-            path: probe_path.to_path_buf(),
-            error,
-        })?;
+    let runtime = runtime_for::<Sys>(spec, cache)?;
     let sh_body = spec.sh_body(runtime.as_ref())?;
     // Any failure — a lost race, a dangling symlink squatting on the
     // path, a `Sys` without exclusive creation — goes to the general
@@ -414,6 +492,38 @@ pub(super) fn with_extension_appended(path: &Path, ext: &str) -> PathBuf {
     result.into()
 }
 
+/// Remove the alias of a bin in a `.bin` directory, if one is there. A path
+/// outside a `.bin` directory has no alias, and a missing entry is not an
+/// error, so a default linking pass that never wrote one costs a name check.
+#[cfg(unix)]
+pub(super) fn remove_bin_alias(bin_path: &Path) -> io::Result<()> {
+    let Some(bin_dir) = bin_path.parent() else {
+        return Ok(());
+    };
+    if bin_dir.file_name().and_then(|name| name.to_str()) != Some(".bin") {
+        return Ok(());
+    }
+    let Ok(relative) = bin_path.strip_prefix(bin_dir) else {
+        return Ok(());
+    };
+    let Some(name) = relative
+        .file_name()
+        .filter(|_| !relative.as_os_str().is_empty() && relative.components().count() == 1)
+    else {
+        return Ok(());
+    };
+    let alias_dir = bin_dir.with_file_name(".bin-symlinks");
+    let Some(directory) = AliasDirectory::open(&alias_dir, false)? else {
+        return Ok(());
+    };
+    directory.remove_entry(name)
+}
+
+#[cfg(not(unix))]
+pub(super) fn remove_bin_alias(_bin_path: &Path) -> io::Result<()> {
+    Ok(())
+}
+
 /// Remove a bin shim previously written by [`link_bins_of_packages`](super::link_bins_of_packages).
 ///
 /// Deletes `<name>`, plus the `<name>.ps1`, `<name>.cmd`, and `<name>.exe`
@@ -424,6 +534,7 @@ pub(super) fn with_extension_appended(path: &Path, ext: &str) -> PathBuf {
 /// not an error (rimraf-style).
 pub fn remove_bin(bin_path: &Path) -> io::Result<()> {
     remove_if_exists(bin_path)?;
+    remove_bin_alias(bin_path)?;
     if cfg!(windows) {
         remove_if_exists(&with_extension_appended(bin_path, "ps1"))?;
         remove_if_exists(&with_extension_appended(bin_path, "cmd"))?;

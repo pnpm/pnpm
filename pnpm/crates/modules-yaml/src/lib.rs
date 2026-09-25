@@ -130,6 +130,9 @@ pub struct Modules {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_hoist_pattern: Option<Vec<String>>,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preserve_bin_name: Option<bool>,
+
     #[serde(default)]
     pub skipped: Vec<String>,
 
@@ -203,6 +206,10 @@ pub struct ModulesLayout {
     pub pruned_at: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_hoist_pattern: Option<Vec<String>>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preserve_bin_name: Option<bool>,
+
     /// Legacy: the v5-era flag used to mean "hoist everything publicly."
     /// Needed by [`read_modules_layout`] to apply the same normalization as
     /// [`read_modules_manifest`] and avoid false-positive layout mismatches.

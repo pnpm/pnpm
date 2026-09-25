@@ -380,6 +380,7 @@ fn run_script_stages(
             // Read before the script ran, so a bin it drops can still be named.
             manifest_before_scripts: Some(ctx.manifest.value()),
             ignored_directories: ctx.config.managed_directories(),
+            link_options: pnpm_deps_restorer::shim_link_options(ctx.config, ctx.config.node_linker),
         })?;
     }
 

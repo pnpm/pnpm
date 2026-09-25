@@ -20,12 +20,52 @@ pub fn bin_dir_is_relocatable(bin_dir: &Path, root: &Path) -> bool {
     if !is_subdir(&root, &bin_dir) {
         return false;
     }
-    match fs::read_dir(&bin_dir) {
+    let bins_are_relocatable = match fs::read_dir(&bin_dir) {
         Ok(mut entries) => entries.all(|entry| {
             entry.is_ok_and(|entry| is_relocatable_bin(&entry, &bin_dir, &root))
         }),
         Err(error) => error.kind() == io::ErrorKind::NotFound,
+    };
+    bins_are_relocatable && alias_dir_is_relocatable(&bin_dir, &root)
+}
+
+fn alias_dir_is_relocatable(bin_dir: &Path, root: &Path) -> bool {
+    if !cfg!(unix) {
+        return true;
     }
+    let Some(parent) = bin_dir.parent() else {
+        return false;
+    };
+    let alias_dir = parent.join(".bin-symlinks");
+    match fs::symlink_metadata(&alias_dir) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => false,
+        Ok(_) => alias_entries_are_relocatable(&alias_dir, root),
+        Err(error) => error.kind() == io::ErrorKind::NotFound,
+    }
+}
+
+fn alias_entries_are_relocatable(alias_dir: &Path, root: &Path) -> bool {
+    match fs::read_dir(alias_dir) {
+        Ok(mut entries) => entries.all(|entry| {
+            entry.is_ok_and(|entry| {
+                entry
+                    .file_type()
+                    .is_ok_and(|file_type| {
+                        file_type.is_symlink() && is_relocatable_alias(&entry, alias_dir, root)
+                    })
+            })
+        }),
+        Err(error) => error.kind() == io::ErrorKind::NotFound,
+    }
+}
+
+fn is_relocatable_alias(entry: &DirEntry, alias_dir: &Path, root: &Path) -> bool {
+    fs::read_link(entry.path())
+        .is_ok_and(|link| {
+            link.is_relative()
+                && realpath_missing(&alias_dir.join(link))
+                    .is_ok_and(|target| is_subdir(root, &target))
+        })
 }
 
 fn is_relocatable_bin(entry: &DirEntry, bin_dir: &Path, root: &Path) -> bool {

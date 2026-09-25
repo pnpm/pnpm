@@ -350,6 +350,7 @@ fn sync_injected_deps_if_configured(
         extend_node_path: config.extend_node_path,
         manifest_before_scripts: Some(manifest),
         ignored_directories: config.managed_directories(),
+        link_options: pnpm_deps_restorer::shim_link_options(config, config.node_linker),
     })?;
     Ok(())
 }

@@ -34,9 +34,21 @@ pub(super) fn map_node_linker(linker: NodeLinker) -> ModulesNodeLinker {
     }
 }
 
+fn preserve_bin_name_enabled(config: &Config) -> bool {
+    cfg!(unix) && config.preserve_bin_name
+}
+
+pub(super) fn preserve_bin_name_diff(
+    modules: &pnpm_modules_yaml::ModulesLayout,
+    config: &Config,
+) -> bool {
+    modules.preserve_bin_name.unwrap_or(false) != preserve_bin_name_enabled(config)
+}
+
 /// Whether a parsed `.modules.yaml` records the same layout settings
 /// (`nodeLinker`, hoist patterns, store / virtual-store paths,
-/// `virtualStoreDirMaxLength`, included dep groups, layout version) the
+/// `virtualStoreDirMaxLength`, `preserveBinName`, included dep groups,
+/// layout version) the
 /// current install would produce. A mismatch disqualifies the no-op
 /// short-circuit.
 ///
@@ -178,6 +190,9 @@ pub(super) fn check_modules_settings_diff(
     if modules.virtual_store_dir_max_length != config.virtual_store_dir_max_length {
         return Err(InstallError::VirtualStoreDirMaxLengthDiff);
     }
+    if preserve_bin_name_diff(modules, config) {
+        return Err(InstallError::PreserveBinNameDiff);
+    }
     if normalized_pattern(modules.public_hoist_pattern.as_deref())
         != normalized_pattern(config.public_hoist_pattern.as_deref())
     {
@@ -235,6 +250,7 @@ pub(crate) fn modules_layout_consistent_with(
                 == normalized_pattern(config.public_hoist_pattern.as_deref()));
     modules.layout_version == Some(LayoutVersion)
         && modules.node_linker == Some(map_node_linker(node_linker))
+        && !preserve_bin_name_diff(modules, config)
         && hoist_patterns_match
         && modules.virtual_store_dir_max_length == config.virtual_store_dir_max_length
         && modules.store_dir == config.store_dir.display().to_string()
@@ -423,6 +439,7 @@ pub(super) fn build_modules_manifest(
         package_manager: format!("pnpm@{PNPM_VERSION}"),
         pending_builds,
         public_hoist_pattern: config.public_hoist_pattern.clone(),
+        preserve_bin_name: preserve_bin_name_enabled(config).then_some(true),
         // RFC 1123 / `toUTCString()` format. The caller decides whether
         // this is a fresh timestamp (a prune ran or first install) or the
         // preserved prior value.

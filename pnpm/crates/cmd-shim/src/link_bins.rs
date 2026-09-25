@@ -220,6 +220,14 @@ pub enum LinkBinsError {
         error: io::Error,
     },
 
+    #[display("Failed to create bin alias directory at {dir:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_CMD_SHIM_CREATE_ALIAS_DIR))]
+    CreateAliasDir {
+        dir: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
     #[display("Failed to symlink executable {src:?} -> {dst:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_CMD_SHIM_SYMLINK_BIN))]
     SymlinkBin {
@@ -309,6 +317,9 @@ pub struct LinkBinsOptions {
     /// shim. Inert on Windows, where bins always get shims. The node
     /// runtime binary is symlinked regardless of this setting.
     pub prefer_symlinked_executables: bool,
+    /// On Unix, keep shell shims while executing a sibling alias symlink so
+    /// Node sees the command name in `process.argv[1]`.
+    pub preserve_bin_name: bool,
     /// Bins written inside this directory name the paths inside it relative
     /// to themselves: the shim target marker, the shim `NODE_PATH` entries,
     /// and the node runtime symlink. `None` writes absolute paths. Inert on
@@ -326,6 +337,26 @@ pub struct LinkBinsOptions {
     /// hoisted linker. Bin targets inside it get their executable bits the
     /// way targets under `node_modules` do.
     pub installed_modules_dir: Option<PathBuf>,
+}
+
+#[must_use]
+pub fn bin_layout_fingerprint(options: &LinkBinsOptions) -> String {
+    let extra_node_paths =
+        options.extra_node_paths
+            .iter()
+            .map(|path| {
+                if Path::new(path).is_absolute() { "<absolute>".to_string() } else { path.clone() }
+            })
+            .collect::<Vec<_>>();
+    serde_json::to_string(&serde_json::json!({
+        "extraNodePaths": extra_node_paths,
+        "preferSymlinkedExecutables": options.prefer_symlinked_executables && cfg!(unix),
+        "preserveBinName": options.preserve_bin_name && cfg!(unix),
+        "relocatableRoot": options.relocatable_root.is_some(),
+        "projectModulesDirName": options.project_modules_dir_name.as_ref().map(|name| name.to_string_lossy()),
+        "installedModulesDir": options.installed_modules_dir.is_some(),
+    }))
+    .expect("serialize bin layout fingerprint")
 }
 
 /// Read `<location>/package.json` for each entry under `modules_dir` and link
@@ -462,22 +493,25 @@ where
             // On Unix the symlink branch never writes a shim, so no bin
             // needs a NODE_PATH — skip `shim_node_path`'s per-package
             // canonicalize entirely.
-            let node_path = if options.prefer_symlinked_executables && cfg!(unix) {
-                Vec::new()
-            } else {
-                shim_node_path(pkg, paths.project_node_path.as_deref(), &paths.extra_node_paths)
-            };
+            let node_path =
+                if !options.preserve_bin_name && options.prefer_symlinked_executables && cfg!(unix)
+                {
+                    Vec::new()
+                } else {
+                    shim_node_path(pkg, paths.project_node_path.as_deref(), &paths.extra_node_paths)
+                };
+            let alias_path = paths.alias_path(&command.name);
             let pkg_name = package_name(pkg);
             write_shim::<Sys>(
                 ShimSpec {
                     target_path: &paths.target(&command.path, options.relocatable_root.as_deref())?,
+                    alias_path: alias_path.as_deref(),
                     probe_path: &target_probe_path(pkg, &command.path),
                     shim_path: &paths.bins_dir.join(&command.name),
-                    node_path: &node_path,
-                    options,
                     make_powershell_shim: wants_powershell_shim(pkg_name),
                     paths: &paths,
                     bin_dir,
+                    layout: ShimLayout { node_path: &node_path, options },
                 },
                 cache,
             )
@@ -564,13 +598,17 @@ fn package_version(pkg: &PackageBinSource) -> Option<Version> {
 #[cfg(test)]
 mod tests;
 
+#[cfg(unix)]
+mod alias_dir;
+
 mod shim_writer;
-use shim_writer::{ShimSpec, remove_stale_bin, write_shim};
+use shim_writer::{ShimLayout, ShimSpec, remove_stale_bin, write_shim};
 
 mod executable;
 use executable::{
     bin_node_paths, chmod_tolerating_removal, ensure_target_executable, is_node_bin_name,
-    link_node_bin, link_symlinked_executable, symlink_already_points_at, target_requires_shim,
+    link_bin_alias, link_node_bin, link_symlinked_executable, symlink_already_points_at,
+    target_requires_shim,
 };
 
 mod discovery;

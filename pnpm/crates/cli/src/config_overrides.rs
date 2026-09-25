@@ -98,6 +98,7 @@ pub struct ConfigOverrides {
     offline: Option<bool>,
     prefer_frozen_lockfile: Option<bool>,
     prefer_offline: Option<bool>,
+    preserve_bin_name: Option<bool>,
     /// The raw `modulesDir` / `virtualStoreDir` spellings, kept unresolved
     /// so [`Config::anchor_lockfile_paths`] can re-resolve them against
     /// whichever directory ends up anchoring the install.
@@ -281,6 +282,7 @@ impl ConfigOverrides {
             "package-lock" => self.package_lock = parse_bool(value),
             "prefer-frozen-lockfile" => self.prefer_frozen_lockfile = parse_bool(value),
             "prefer-offline" => self.prefer_offline = parse_bool(value),
+            "preserve-bin-name" => self.preserve_bin_name = parse_bool(value),
             "save-workspace-protocol" => {
                 self.save_workspace_protocol = parse_bool_or_enum(value);
             }

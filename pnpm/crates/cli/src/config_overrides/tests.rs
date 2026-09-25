@@ -274,6 +274,29 @@ fn extract_applies_allow_unused_patches_override() {
 }
 
 #[test]
+fn preserve_bin_name_accepts_every_boolean_override_spelling() {
+    for (flag, expected) in [
+        ("--preserve-bin-name", true),
+        ("--preserve-bin-name=true", true),
+        ("--preserve-bin-name=false", false),
+        ("--config.preserve-bin-name=true", true),
+        ("--config.preserve-bin-name=false", false),
+        ("--no-preserve-bin-name", false),
+    ] {
+        let (overrides, remaining) = ConfigOverrides::extract(argv(["pacquet", flag, "install"]));
+        assert_eq!(remaining, argv(["pacquet", "install"]));
+
+        let mut config = Config { preserve_bin_name: !expected, ..Config::default() };
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert_eq!(config.preserve_bin_name, expected);
+        assert_eq!(
+            config.explicit_settings.get("preserveBinName"),
+            Some(&serde_json::Value::Bool(expected)),
+        );
+    }
+}
+
+#[test]
 fn extract_leaves_invalid_allow_unused_patches_values_for_clap() {
     for flag in [
         "--allow-unused-patches=yes",

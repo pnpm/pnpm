@@ -30,6 +30,9 @@ fn deploy_workspace_manifest(config: &Config) -> Map<String, Value> {
         ),
         ("virtualStoreType".to_string(), Value::String("project".to_string())),
     ]);
+    if cfg!(unix) && config.preserve_bin_name {
+        manifest.insert("preserveBinName".to_string(), Value::Bool(true));
+    }
     if let Some(virtual_store_dir) = configured_virtual_store_dir(config) {
         manifest.insert(
             "virtualStoreDir".to_string(),

@@ -1,4 +1,5 @@
 use crate::{SyncInjectedDeps, sync_injected_deps, sync_injected_deps_of_modules_dir};
+use pnpm_cmd_shim::LinkBinsOptions;
 use pretty_assertions::assert_eq;
 use std::{collections::HashSet, ffi::OsStr, fs, path::Path};
 use tempfile::TempDir;
@@ -56,6 +57,7 @@ fn sync_leaves_an_injected_copy_alone_when_its_publish_directory_is_missing() {
         extend_node_path: false,
         manifest_before_scripts: Some(&manifest),
         ignored_directories: Vec::new(),
+        link_options: LinkBinsOptions::default(),
     })
     .expect("sync should not fail when the publish directory is missing");
 
@@ -175,6 +177,7 @@ fn sync_removes_a_stale_bin_shim_the_publish_directory_no_longer_declares() {
         extend_node_path: false,
         manifest_before_scripts: Some(&manifest),
         ignored_directories: Vec::new(),
+        link_options: LinkBinsOptions::default(),
     })
     .expect("sync should not fail");
 

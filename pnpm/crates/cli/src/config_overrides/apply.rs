@@ -209,6 +209,7 @@ impl ConfigOverrides {
             offline => "offline",
             prefer_frozen_lockfile => "preferFrozenLockfile",
             prefer_offline => "preferOffline",
+            preserve_bin_name => "preserveBinName",
         );
         record_enum_overrides!(self, config, save_workspace_protocol => "saveWorkspaceProtocol");
         record_overrides!(self, config, verify_store_integrity => "verifyStoreIntegrity");

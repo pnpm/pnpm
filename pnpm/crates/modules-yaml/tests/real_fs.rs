@@ -247,3 +247,27 @@ fn absent_hoisted_locations_is_omitted_on_write() {
         .expect("parse raw .modules.yaml");
     assert!(raw.get("hoistedLocations").is_none(), "hoistedLocations was emitted when None: {raw}");
 }
+
+#[test]
+fn preserve_bin_name_round_trips() {
+    let temp_dir = tempfile::tempdir().expect("create temporary directory");
+    let modules_dir = temp_dir.path();
+    let manifest = manifest_from_json(json!({
+        "layoutVersion": 5,
+        "preserveBinName": true,
+    }));
+
+    write_modules_manifest::<Host>(modules_dir, manifest).expect("write manifest");
+    let actual = read_modules_manifest::<Host>(modules_dir)
+        .expect("read manifest")
+        .expect("manifest exists");
+    let raw: Value = modules_dir
+        .join(".modules.yaml")
+        .pipe(fs::read_to_string)
+        .expect("read raw .modules.yaml")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse raw .modules.yaml");
+
+    assert_eq!(actual.preserve_bin_name, Some(true));
+    assert_eq!(raw["preserveBinName"], json!(true));
+}

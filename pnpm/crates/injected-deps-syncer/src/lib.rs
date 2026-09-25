@@ -18,10 +18,10 @@ mod dir_patcher;
 #[cfg(test)]
 mod tests;
 
-use bin_links::{SyncBinLinks, bin_names, sync_bin_links};
+use bin_links::{LinkLayout, SyncBinLinks, bin_names, sync_bin_links};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_cmd_shim::LinkBinsError;
+use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
 use pnpm_modules_yaml::{ReadModulesError, read_modules_manifest};
 use pnpm_package_manifest::{PackageManifestError, safe_read_project_manifest_from_dir};
 use pnpm_workspace::FindWorkspaceProjectsError;
@@ -95,6 +95,7 @@ pub struct SyncInjectedDeps<'a> {
     /// Passed to [`pnpm_workspace::FindWorkspaceProjectsOpts::ignored_directories`] when
     /// discovering the projects whose bins are relinked.
     pub ignored_directories: Vec<PathBuf>,
+    pub link_options: LinkBinsOptions,
 }
 
 /// Bring every injected copy of `pkg_root_dir` back in step with it.
@@ -188,8 +189,11 @@ fn sync_injected_deps_from_source(
         previous_bin_names: &previous_bin_names,
         hoisted_bin_dir,
         ignored_directories: &opts.ignored_directories,
-        modules_dir_name: opts.modules_dir_name,
-        extend_node_path: opts.extend_node_path,
+        link_options: &opts.link_options,
+        layout: LinkLayout {
+            modules_dir_name: opts.modules_dir_name,
+            extend_node_path: opts.extend_node_path,
+        },
     })
 }
 
