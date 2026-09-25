@@ -203,4 +203,13 @@ pub enum LoadWorkspaceYamlError {
         )
     )]
     WorkspaceRemoteSideEffectsTrust { path: PathBuf, prefix: &'static str, field: &'static str },
+
+    /// A directory environment variable still contains a Windows `%VAR%`
+    /// reference after expansion.
+    #[display("{variable} contains an unexpanded environment variable: {reference}")]
+    #[diagnostic(
+        code(ERR_PNPM_UNEXPANDED_ENV_IN_PATH),
+        help("Set the referenced variable, or remove the %VAR% reference from this path.")
+    )]
+    UnexpandedEnvInPath { variable: String, reference: String },
 }

@@ -24,6 +24,7 @@ pub use crate::{
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
     npmrc_auth::{BasicAuth, RegistryCreds, is_json_auth_scope, validate_json_auth_registry},
     store_path::StoreRelocation,
+    windows_path_env::{UnexpandedWindowsEnvVar, ensure_windows_dir_envs},
 };
 pub use pnpm_matcher as matcher;
 pub use setting_types::{
@@ -59,6 +60,7 @@ mod global_bin_check;
 mod npmrc_auth;
 mod override_version_references;
 mod store_path;
+mod windows_path_env;
 mod workspace_yaml;
 
 use crate::{
