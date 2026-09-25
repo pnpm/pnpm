@@ -5,6 +5,7 @@ use super::{
     sh::{
         SH_SHIM_CYGPATH_LINE, SH_SHIM_HARDENED_HELPER_LINE, SH_SHIM_HELPER_PATH_FILTER_LINE,
         SH_SHIM_PATH_PRINTF_LINE, SH_SHIM_WSLPATH_LINE, escape_msys_cmd_switches, strip_exe_suffix,
+        write_sh_node_path,
     },
 };
 use crate::{
@@ -1040,4 +1041,95 @@ fn shim_execution_skips_node_modules_and_relative_path_entries_when_command_p_se
         "hijacked",
         "the shim took a helper from the current directory",
     );
+}
+
+/// A shim generated on Windows runs under both MSYS/Cygwin and WSL, which
+/// read different path forms, so the install shell must not pick one. MSYS
+/// moves a `/mnt/c/...` value under its own install directory before the
+/// native `node` sees it (pnpm/pnpm#3360).
+#[cfg(unix)]
+#[test]
+fn a_windows_sh_shim_picks_the_node_path_form_when_it_runs() {
+    let node_path = [
+        r"C:\proj\node_modules\.pnpm\node_modules".to_owned(),
+        "D:/it's/node_modules".to_owned(),
+        r"E:\hostile$(touch pwned)`touch pwned`".to_owned(),
+    ];
+    let mut block = String::new();
+    write_sh_node_path(&mut block, &node_path, true);
+
+    let run = |msys: &str, inherited: Option<&str>| {
+        let mut command = std::process::Command::new("/bin/sh");
+        command
+            .arg("-c")
+            .arg(format!(r#"{block}printf '%s' "$NODE_PATH""#))
+            .env("msys", msys)
+            .env_remove("NODE_PATH");
+        if let Some(inherited) = inherited {
+            command.env("NODE_PATH", inherited);
+        }
+        let output = command.output().expect("run the NODE_PATH block");
+        assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+        String::from_utf8(output.stdout).unwrap()
+    };
+
+    assert_eq!(
+        run("true", None),
+        r"C:\proj\node_modules\.pnpm\node_modules;D:\it's\node_modules;E:\hostile$(touch pwned)`touch pwned`",
+    );
+    assert_eq!(
+        run("true", Some(r"E:\global")),
+        r"C:\proj\node_modules\.pnpm\node_modules;D:\it's\node_modules;E:\hostile$(touch pwned)`touch pwned`;E:\global",
+    );
+    assert_eq!(
+        run("", None),
+        "/mnt/c/proj/node_modules/.pnpm/node_modules:/mnt/d/it's/node_modules:/mnt/e/hostile$(touch pwned)`touch pwned`",
+    );
+    assert_eq!(
+        run("", Some("/usr/lib/node")),
+        "/mnt/c/proj/node_modules/.pnpm/node_modules:/mnt/d/it's/node_modules:/mnt/e/hostile$(touch pwned)`touch pwned`:/usr/lib/node",
+    );
+    assert!(!std::path::Path::new("pwned").exists());
+}
+
+#[test]
+fn a_unix_sh_shim_keeps_its_node_path_block() {
+    let mut block = String::new();
+    write_sh_node_path(&mut block, &["/proj/node_modules/.pnpm/node_modules".to_owned()], false);
+    assert_eq!(
+        block,
+        "if [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH=\"/proj/node_modules/.pnpm/node_modules\"\nelse\n  export NODE_PATH=\"/proj/node_modules/.pnpm/node_modules:$NODE_PATH\"\nfi\n",
+    );
+}
+
+/// Git Bash starts the native Windows `node`, so a shim must hand it the
+/// Windows form of `NODE_PATH`, not a `/mnt/c/...` path MSYS moves under the
+/// Git install directory (pnpm/pnpm#3360).
+#[cfg(windows)]
+#[test]
+fn a_shim_run_from_git_bash_hands_node_the_windows_node_path() {
+    let program_files = std::env::var_os("ProgramFiles").expect("ProgramFiles is set on Windows");
+    let bash = Path::new(&program_files).join(r"Git\bin\bash.exe");
+    let tmp = tempfile::tempdir().unwrap();
+    let target = tmp.path().join("print.js");
+    std::fs::write(&target, "process.stdout.write(process.env.NODE_PATH)\n").unwrap();
+    let shim = tmp.path().join("print");
+    let node_path = tmp
+        .path()
+        .join("node_modules")
+        .to_string_lossy()
+        .into_owned();
+    let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
+    let body =
+        generate_sh_shim(&target, &shim, Some(&runtime), std::slice::from_ref(&node_path), None);
+    std::fs::write(&shim, body).unwrap();
+
+    let output = std::process::Command::new(&bash)
+        .args(["--noprofile", "--norc"])
+        .arg(&shim)
+        .env_remove("NODE_PATH")
+        .output()
+        .expect("run the shim under Git Bash");
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), node_path);
 }

@@ -90,7 +90,6 @@ interface ShimGenExtTuple {
 }
 
 const isWindows = process.platform === 'win32'
-const isCygwin = () => isWindows && (process.env.TERM === 'CYGWIN' || process.env.MSYSTEM !== undefined)
 
 
 // Interpreter paths may contain whitespace other than spaces and tabs.
@@ -185,18 +184,51 @@ const TARGET_MISSING_MARKER = '# cmd-shim-missing-target'
 export function isShimNodePath (shimContent: string, expected: { first?: string, last?: string[] }): boolean {
   const first = expected.first == null ? '' : normalizePathEnvVar([expected.first]).posix
   const last = normalizePathEnvVar(expected.last).posix
-  const start = shimContent.indexOf(SH_NODE_PATH_EXPORT)
-  if (start === -1) return first === '' && last === ''
-  const valueStart = start + SH_NODE_PATH_EXPORT.length
-  const value = shimContent.slice(valueStart, shimContent.indexOf('"', valueStart))
+  const value = readShNodePath(shimContent)
+  if (value == null) return first === '' && last === ''
   return (first !== '' || last !== '') &&
     (first === '' || value === first || value.startsWith(`${first}:`)) &&
     (last === '' || value === last || value.endsWith(`:${last}`))
 }
 
-// The branch that runs when the caller has no NODE_PATH of its own, so its
-// value is exactly the shim's entries.
-const SH_NODE_PATH_EXPORT = '  export NODE_PATH="'
+/**
+ * The posix form of the shim's own `NODE_PATH` entries. A shim written on
+ * Windows assigns it to `new_node_path` and picks a form when it runs, so a
+ * Windows shim that exports it directly came from an older version and reads
+ * as empty. Any other shim exports it in the branch that runs when the caller
+ * has no `NODE_PATH` of its own.
+ */
+export function readShNodePath (shimContent: string): string | undefined {
+  const winStart = shimContent.indexOf('\nelse\n  new_node_path=')
+  if (winStart !== -1) {
+    const valueStart = winStart + '\nelse\n  new_node_path='.length
+    const lineEnd = shimContent.indexOf('\n', valueStart)
+    const raw = lineEnd === -1 ? shimContent.slice(valueStart) : shimContent.slice(valueStart, lineEnd)
+    return unquoteSh(raw)
+  }
+  if (isWindows) {
+    return shimContent.includes(SH_NODE_PATH_EXPORT) ? '' : undefined
+  }
+  const start = shimContent.indexOf(SH_NODE_PATH_EXPORT)
+  if (start === -1) return undefined
+  const valueStart = start + SH_NODE_PATH_EXPORT.length
+  const lineEnd = shimContent.indexOf('\n', valueStart)
+  const raw = lineEnd === -1 ? shimContent.slice(valueStart) : shimContent.slice(valueStart, lineEnd)
+  return unquoteSh(raw)
+}
+
+function unquoteSh (raw: string): string {
+  const trimmed = raw.trim()
+  if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
+    return trimmed.slice(1, -1).replaceAll("'\\''", "'")
+  }
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1).replaceAll('\\"', '"').replaceAll('\\\\', '\\')
+  }
+  return trimmed
+}
+
+const SH_NODE_PATH_EXPORT = '\n  export NODE_PATH='
 
 /**
  * Try to unlink, but ignore errors.
@@ -534,7 +566,26 @@ if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 export PATH="${opts.prependToPath}:$PATH"
 `
   }
-  if (shNodePath) {
+  if (shNodePath && isWindows) {
+    // Cygwin and MSYS start the native Windows node, which reads the win32
+    // form; MSYS would move a /mnt/c path under its own install directory.
+    // WSL reads the /mnt form. The shim picks one when it runs, so the result
+    // doesn't depend on the shell that installed it.
+    sh += `\
+if [ -n "$msys" ]; then
+  new_node_path=${shSingleQuote(normalizePathEnvVar(opts.nodePath).win32)}
+  node_path_sep=';'
+else
+  new_node_path=${shSingleQuote(shNodePath)}
+  node_path_sep=':'
+fi
+if [ -z "$NODE_PATH" ]; then
+  export NODE_PATH="$new_node_path"
+else
+  export NODE_PATH="$new_node_path$node_path_sep$NODE_PATH"
+fi
+`
+  } else if (shNodePath) {
     sh += `\
 if [ -z "$NODE_PATH" ]; then
   export NODE_PATH="${shNodePath}"
@@ -742,7 +793,7 @@ function normalizePathEnvVar (nodePath: undefined | string | string[]): Normaliz
   let result = {} as NormalizedPathEnvVar
   for (let i = 0; i < split.length; i++) {
     const win32 = split[i].split('/').join('\\')
-    const posix = isWindows ? split[i].split('\\').join('/').replace(/^([^:\\/]*):/, (_, $1) => `${isCygwin() ? '/proc/cygdrive' : '/mnt'}/${$1.toLowerCase()}`) : split[i]
+    const posix = isWindows ? split[i].split('\\').join('/').replace(/^([^:\\/]*):/, (_, $1) => `/mnt/${$1.toLowerCase()}`) : split[i]
 
     result.win32 = result.win32 ? `${result.win32};${win32}` : win32
     result.posix = result.posix ? `${result.posix}:${posix}` : posix
@@ -750,6 +801,10 @@ function normalizePathEnvVar (nodePath: undefined | string | string[]): Normaliz
     result[i] = {win32, posix}
   }
   return result
+}
+
+function shSingleQuote (text: string): string {
+  return `'${text.replaceAll("'", "'\\''")}'`
 }
 
 function shimTarget (src: string): string {

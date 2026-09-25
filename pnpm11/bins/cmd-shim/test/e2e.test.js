@@ -59,6 +59,38 @@ describeOnWindows('sh shim wrapping a .cmd target invoked from Git Bash', () => 
   })
 })
 
+describeOnWindows('sh shim NODE_PATH invoked from Git Bash', () => {
+  // Regression for pnpm/pnpm#3360: a shim written outside MSYS used to bake
+  // NODE_PATH as /mnt/c/..., which MSYS turns into a path under the Git
+  // install directory before node starts. The shim now passes the Windows form.
+  const bash = process.env.PROGRAMFILES
+    ? path.join(process.env.PROGRAMFILES, 'Git', 'bin', 'bash.exe')
+    : 'bash'
+  const runShim = async (inheritedNodePath) => {
+    const tempDir = temporaryDirectory()
+    const target = path.join(tempDir, 'print.js')
+    fs.writeFileSync(target, '#!/usr/bin/env node\nprocess.stdout.write(process.env.NODE_PATH)\n', 'utf8')
+    const nodePath = path.join(tempDir, 'node_modules')
+    const shim = path.join(tempDir, 'shim')
+    await cmdShim(target, shim, { nodePath: [nodePath] })
+    const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => name.toUpperCase() !== 'NODE_PATH'))
+    if (inheritedNodePath != null) env.NODE_PATH = inheritedNodePath
+    const r = spawnSync(bash, ['--noprofile', '--norc', shim], { encoding: 'utf8', env })
+    assert.equal(r.status, 0, `bash exited ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`)
+    return { nodePath, stdout: r.stdout }
+  }
+
+  test('passes the Windows form of the shim entries to node', async () => {
+    const { nodePath, stdout } = await runShim()
+    assert.equal(stdout, nodePath)
+  })
+
+  test('prepends the shim entries to an inherited NODE_PATH with a semicolon', async () => {
+    const { nodePath, stdout } = await runShim('C:\\inherited\\node_modules')
+    assert.equal(stdout, `${nodePath};C:\\inherited\\node_modules`)
+  })
+})
+
 describeOnPosix('sh shim binstub uses exec', () => {
   // Regression for the binstub bug: without `exec`, the shell process
   // wraps the wrapped binary, so signals sent to the shim do not reach

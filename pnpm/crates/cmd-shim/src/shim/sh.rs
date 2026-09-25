@@ -1,9 +1,10 @@
 use super::{
-    Path, ScriptRuntime, normalize_node_path_env_var, relative_target,
+    NodePathEnvVar, Path, ScriptRuntime, normalize_node_path_env_var, relative_target,
     relocatable::{
         BASEDIR_ABS_PRELUDE, is_within_root, marker_target, sh_node_path_entries,
         shim_target_markers,
     },
+    sh_single_quote,
 };
 use std::fmt::Write as _;
 
@@ -29,7 +30,11 @@ pub fn generate_sh_shim(
     if physical_basedir {
         sh.push_str(BASEDIR_ABS_PRELUDE);
     }
-    write_sh_node_path(&mut sh, &sh_node_path_entries(node_path, shim_dir, relocatable_root));
+    write_sh_node_path(
+        &mut sh,
+        &sh_node_path_entries(node_path, shim_dir, relocatable_root),
+        cfg!(windows),
+    );
 
     let sh_target = relative_target(target_path, shim_path);
     let absolute = Path::new(&sh_target).is_absolute();
@@ -76,14 +81,30 @@ struct QuotedTarget {
 
 /// Prepend the shim's own `node_modules` directories to `NODE_PATH`, when the
 /// linker asked for any.
-fn write_sh_node_path(sh: &mut String, node_path: &[String]) {
-    let sh_node_path = normalize_node_path_env_var(node_path).posix;
-    if sh_node_path.is_empty() {
+///
+/// A shim generated on Windows (`windows_host`) runs under shells that disagree
+/// on the path form, so it picks one when it runs: Cygwin and MSYS start the
+/// native Windows `node`, which reads `;`-separated Windows paths (MSYS would
+/// otherwise move `/mnt/c/...` under its own install directory), while WSL
+/// reads the `/mnt` form.
+pub(super) fn write_sh_node_path(sh: &mut String, node_path: &[String], windows_host: bool) {
+    let NodePathEnvVar { win32, posix } = normalize_node_path_env_var(node_path, windows_host);
+    if posix.is_empty() {
         return;
     }
+    if !windows_host {
+        writeln!(
+            sh,
+            "if [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH=\"{posix}\"\nelse\n  export NODE_PATH=\"{posix}:$NODE_PATH\"\nfi",
+        )
+        .unwrap();
+        return;
+    }
+    let win32 = sh_single_quote(&win32);
+    let posix = sh_single_quote(&posix);
     writeln!(
         sh,
-        "if [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH=\"{sh_node_path}\"\nelse\n  export NODE_PATH=\"{sh_node_path}:$NODE_PATH\"\nfi",
+        "if [ -n \"$msys\" ]; then\n  new_node_path={win32}\n  node_path_sep=';'\nelse\n  new_node_path={posix}\n  node_path_sep=':'\nfi\nif [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH=\"$new_node_path\"\nelse\n  export NODE_PATH=\"$new_node_path$node_path_sep$NODE_PATH\"\nfi",
     )
     .unwrap();
 }

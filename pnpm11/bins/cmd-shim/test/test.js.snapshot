@@ -396,6 +396,109 @@ exit $ret
 
 `;
 
+exports[`env shebang with NODE_PATH > shim files > env.shim (windows) 1`] = `
+
+#!/bin/sh
+# Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+link="$0"
+# \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir="\${basedir%/*}"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
+esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+
+if [ -n "$msys" ]; then
+  new_node_path='\\john\\src\\node_modules;\\bin\\node\\node_modules'
+  node_path_sep=';'
+else
+  new_node_path='/john/src/node_modules:/bin/node/node_modules'
+  node_path_sep=':'
+fi
+if [ -z "$NODE_PATH" ]; then
+  export NODE_PATH="$new_node_path"
+else
+  export NODE_PATH="$new_node_path$node_path_sep$NODE_PATH"
+fi
+if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
+  exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
+elif [ -x "$basedir/node" ]; then
+  exec "$basedir/node"  "$basedir/src.env" "$@"
+elif command -v node >/dev/null 2>&1; then
+  exec node  "$basedir/src.env" "$@"
+elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
+  exec node.exe  "$basedir_win/src.env" "$@"
+else
+  exec node  "$basedir/src.env" "$@"
+fi
+
+`;
+
 exports[`env shebang with NODE_PATH > shim files > env.shim 1`] = `
 
 #!/bin/sh
