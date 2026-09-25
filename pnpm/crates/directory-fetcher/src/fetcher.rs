@@ -51,6 +51,18 @@ pub struct DirectoryFetchOutput {
     pub files_map: HashMap<String, PathBuf>,
     pub manifest: Option<serde_json::Value>,
     pub requires_build: bool,
+    /// Whether `directory` was there to walk. `false` only for the
+    /// not-yet-built injected-dependency case above, where `files_map` is
+    /// empty because there was nothing to read, not because the directory
+    /// is genuinely empty. A caller that would otherwise force-reimport a
+    /// mutable source (a directory dependency's content can change without
+    /// the lockfile changing, so it re-imports on every install) must not
+    /// do so from this empty, nonexistent-directory result: that would
+    /// overwrite an already-materialized copy with nothing. Reimporting
+    /// an existing, genuinely empty directory is still correct, so this
+    /// flag, not `files_map.is_empty()`, is what the caller must branch
+    /// on.
+    pub exists: bool,
 }
 
 impl DirectoryFetcher {
@@ -74,6 +86,7 @@ impl DirectoryFetcher {
                 files_map: HashMap::new(),
                 manifest,
                 requires_build: false,
+                exists: false,
             });
         }
 
@@ -98,7 +111,7 @@ impl DirectoryFetcher {
         // from the published tarball — uncommon, but a real gap.
         // Revisit when a real package surfaces it.
         let requires_build = pkg_requires_build(&self.directory);
-        Ok(DirectoryFetchOutput { files_map, manifest, requires_build })
+        Ok(DirectoryFetchOutput { files_map, manifest, requires_build, exists: true })
     }
 
     fn symlinks(&self) -> Symlinks {

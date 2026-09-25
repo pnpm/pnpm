@@ -2234,3 +2234,183 @@ test('inject local package that publishes from a directory built by prepare', as
   expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/index.js'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/dist'))).toBeFalsy()
 })
+
+test('inject local package that publishes from a directory built by prepare, alongside a file: dependency on its root', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    scripts: {
+      prepare: 'mkdir -p dist && cp package.json dist/ && echo "// built" > dist/index.js',
+    },
+    publishConfig: {
+      directory: 'dist',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'workspace:1.0.0',
+    },
+    dependenciesMeta: {
+      'project-1': {
+        injected: true,
+      },
+    },
+  }
+  // A `file:` dependency bypasses the `workspace:` protocol's publish-directory
+  // redirect, so this copy is injected from project-1's root, not its dist/.
+  const project3Manifest = {
+    name: 'project-3',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'file:../project-1',
+    },
+    dependenciesMeta: {
+      'project-1': {
+        injected: true,
+      },
+    },
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'project-2',
+      package: project2Manifest,
+    },
+    {
+      location: 'project-3',
+      package: project3Manifest,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-3') as ProjectRootDir,
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: project3Manifest,
+      rootDir: path.resolve('project-3') as ProjectRootDir,
+    },
+  ]
+
+  await mutateModules(importers, testDefaults({
+    autoInstallPeers: false,
+    allProjects,
+  }))
+
+  // The `workspace:` dependency's copy is packed from the publish directory.
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/index.js'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/dist'))).toBeFalsy()
+  // The `file:` dependency's copy is packed from the project root, unaffected
+  // by the publish-directory redirect.
+  expect(fs.existsSync(path.resolve('project-3/node_modules/project-1/dist/index.js'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-3/node_modules/project-1/index.js'))).toBeFalsy()
+})
+
+// The directory fetcher tolerates a missing publish directory and returns an
+// empty files map, so `prepare` can build it after the injected copy is in
+// place. Reinstalling a consumer while that directory is transiently missing
+// must not treat the resulting empty files map as a reason to overwrite an
+// already-materialized injected copy with nothing.
+test('reinstalling after the publish directory is deleted does not wipe the injected copy', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    scripts: {
+      prepare: 'mkdir -p dist && cp package.json dist/ && echo "// built" > dist/index.js',
+    },
+    publishConfig: {
+      directory: 'dist',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'workspace:1.0.0',
+    },
+    dependenciesMeta: {
+      'project-1': {
+        injected: true,
+      },
+    },
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'project-2',
+      package: project2Manifest,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+
+  await mutateModules(importers, testDefaults({
+    autoInstallPeers: false,
+    allProjects,
+  }))
+
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/index.js'))).toBeTruthy()
+
+  rimrafSync(path.resolve('project-1/dist'))
+
+  // Reinstall only project-2, so project-1's `prepare` does not rerun and
+  // rebuild the deleted publish directory before the injected copy is
+  // refreshed from it.
+  await mutateModules([importers[1]], testDefaults({
+    autoInstallPeers: false,
+    allProjects,
+  }))
+
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/index.js'))).toBeTruthy()
+})

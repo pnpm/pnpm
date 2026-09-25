@@ -48,9 +48,13 @@ export function createDirectoryFetcher (
         packageImportMethod: 'hardlink',
         manifest,
         requiresBuild: false,
+        sourceExists: false,
       }
     }
-    return fetchFromDir(dir)
+    return {
+      ...await fetchFromDir(dir),
+      sourceExists: true,
+    }
   }
 
   return {

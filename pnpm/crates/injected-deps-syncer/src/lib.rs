@@ -14,6 +14,9 @@ pub use dir_patcher::{
 
 mod dir_patcher;
 
+#[cfg(test)]
+mod tests;
+
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{
@@ -133,26 +136,57 @@ fn sync_workspace_injected_deps(
     // under that publish directory, not its own root: the resolver names
     // the dependency `file:<publishDir>` (see `resolve_workspace_package_dir`
     // in `pnpm-resolving-npm-resolver`), and `.modules.yaml` keys
-    // `injectedDeps` off that same resolved directory.
+    // `injectedDeps` off that same resolved directory. A `file:` dependency
+    // on this project bypasses that redirect, so it is tracked under the
+    // project root instead, and its copy has to be patched from there.
     let content_source_dir = publish_source_dir(&pkg_root_dir, opts.manifest_before_scripts);
     let modules = read_workspace_modules(opts.workspace_modules_dir)?;
+    let hoisted_bin_dir = hoisted_bin_path(workspace_dir, modules.as_ref());
+
+    let mut source_dirs = vec![content_source_dir.clone()];
+    if content_source_dir != pkg_root_dir {
+        source_dirs.push(pkg_root_dir);
+    }
+    for source_dir in &source_dirs {
+        sync_injected_deps_from_source(
+            opts,
+            workspace_dir,
+            source_dir,
+            modules.as_ref(),
+            hoisted_bin_dir.as_deref(),
+        )?;
+    }
+    Ok(())
+}
+
+/// Patch every injected copy of `source_dir` and relink its bins.
+fn sync_injected_deps_from_source(
+    opts: &SyncInjectedDeps<'_>,
+    workspace_dir: &Path,
+    source_dir: &Path,
+    modules: Option<&pnpm_modules_yaml::Modules>,
+    hoisted_bin_dir: Option<&Path>,
+) -> Result<(), SyncInjectedDepsError> {
     let Some(resolved_targets) =
-        resolved_injected_targets(opts, workspace_dir, &content_source_dir, modules.as_ref())
+        resolved_injected_targets(opts, workspace_dir, source_dir, modules)
     else {
         return Ok(());
     };
-    patch_targets(&content_source_dir, &resolved_targets)?;
+    if source_not_yet_built(source_dir)? {
+        return Ok(());
+    }
+    patch_targets(source_dir, &resolved_targets)?;
 
     let previous_bin_names = opts.manifest_before_scripts.map_or_else(Vec::new, |manifest| {
-        bin_names(manifest, &content_source_dir)
+        bin_names(manifest, source_dir)
     });
     // The install hoists bins into the virtual store's own `.bin` as well.
     sync_bin_links(&SyncBinLinks {
-        pkg_root_dir: &content_source_dir,
+        pkg_root_dir: source_dir,
         resolved_targets: &resolved_targets,
         workspace_dir,
         previous_bin_names: &previous_bin_names,
-        hoisted_bin_dir: hoisted_bin_path(workspace_dir, modules.as_ref()).as_deref(),
+        hoisted_bin_dir,
         ignored_directories: &opts.ignored_directories,
         modules_dir_name: opts.modules_dir_name,
         extend_node_path: opts.extend_node_path,
@@ -182,6 +216,9 @@ pub fn sync_injected_deps_of_modules_dir(
         if target_dirs.is_empty() || !source_dirs.contains(&source_dir) {
             continue;
         }
+        if source_not_yet_built(&source_dir)? {
+            continue;
+        }
         let resolved_targets: Vec<PathBuf> = target_dirs
             .iter()
             .map(|target_dir| lockfile_dir.join(target_dir))
@@ -196,7 +233,7 @@ pub fn sync_injected_deps_of_modules_dir(
 fn resolved_injected_targets(
     opts: &SyncInjectedDeps<'_>,
     workspace_dir: &Path,
-    content_source_dir: &Path,
+    source_dir: &Path,
     modules: Option<&pnpm_modules_yaml::Modules>,
 ) -> Option<Vec<PathBuf>> {
     let Some(injected_deps) = modules.and_then(|modules| modules.injected_deps.as_ref()) else {
@@ -208,7 +245,7 @@ fn resolved_injected_targets(
     };
 
     let Some(target_dirs) = injected_deps
-        .get(&injected_dep_key(workspace_dir, content_source_dir))
+        .get(&injected_dep_key(workspace_dir, source_dir))
         .filter(|dirs| !dirs.is_empty())
     else {
         tracing::debug!(
@@ -250,7 +287,7 @@ fn hoisted_bin_path(
 /// that publishes from `publishConfig.directory` is injected as the built
 /// output of that directory, not its project root, so a copy is patched
 /// from there once the script that builds it has run.
-fn publish_source_dir(pkg_root_dir: &Path, manifest: Option<&serde_json::Value>) -> PathBuf {
+pub fn publish_source_dir(pkg_root_dir: &Path, manifest: Option<&serde_json::Value>) -> PathBuf {
     let publish_config = manifest.and_then(|manifest| manifest.get("publishConfig"));
     let publish_dir = publish_config
         .and_then(|config| config.get("directory"))
@@ -262,6 +299,30 @@ fn publish_source_dir(pkg_root_dir: &Path, manifest: Option<&serde_json::Value>)
         Some(publish_dir) if link_directory != Some(false) => pkg_root_dir.join(publish_dir),
         _ => pkg_root_dir.to_path_buf(),
     }
+}
+
+/// A publish directory that has not been built yet reads back empty from
+/// `DirectoryFetcher` (so the fetch-time bootstrap in
+/// `pnpm-directory-fetcher` can tolerate it too), which would otherwise diff
+/// as "the target holds everything the source doesn't" and delete the
+/// injected copy's content. Leave the copy alone until the source actually
+/// exists; an existing-but-empty source is still synced, since that means
+/// the build genuinely produced nothing.
+fn source_not_yet_built(source_dir: &Path) -> Result<bool, SyncInjectedDepsError> {
+    let exists = source_dir
+        .try_exists()
+        .map_err(|error| {
+            SyncInjectedDepsError::Patch(PatchError::Stat { path: source_dir.to_path_buf(), error })
+        })?;
+    if exists {
+        return Ok(false);
+    }
+    tracing::debug!(
+        target: "pacquet::sync_injected_deps",
+        source_dir = ?source_dir,
+        "Skipping sync because the source directory does not exist yet",
+    );
+    Ok(true)
 }
 
 fn patch_targets(

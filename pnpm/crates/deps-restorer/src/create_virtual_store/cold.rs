@@ -32,6 +32,8 @@ pub(super) struct ColdCapture<'a> {
     pub(super) cas_paths: HashMap<String, PathBuf>,
     pub(super) requires_build: bool,
     pub(super) source_is_mutable: bool,
+    /// See [`crate::SlotImportSource::source_exists`].
+    pub(super) source_exists: bool,
     pub(super) force_import: bool,
 }
 pub(super) fn add_cold_cas_paths(map: &mut CasPathsByPkgId, cold_cas_paths: Vec<ColdCapture<'_>>) {
@@ -149,7 +151,11 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
             return failure;
         }
     };
-    let crate::InstalledPackage { cas_paths, source_is_mutable } = installed;
+    let crate::InstalledPackage {
+        cas_paths,
+        source_is_mutable,
+        source_exists,
+    } = installed;
     Ok((
         None,
         Some(ColdCapture {
@@ -158,6 +164,7 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
             requires_build: requires_build_from_cas_paths(&cas_paths),
             cas_paths,
             source_is_mutable,
+            source_exists,
             force_import: batch.reuse.must_replace(snapshot_key),
         }),
     ))

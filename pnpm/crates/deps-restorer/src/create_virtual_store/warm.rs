@@ -186,6 +186,7 @@ pub(super) fn link_warm_batch<Reporter: self::Reporter>(
             SlotLink {
                 source: crate::SlotImportSource {
                     is_mutable: false,
+                    source_exists: true,
                     force: force_import,
                     build_marker: needs_build_marker
                         .then_some(batch.needs_build_marker_source)

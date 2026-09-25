@@ -2,10 +2,11 @@ mod spec;
 
 use super::manifest::ImporterSatisfactionCheck;
 use crate::install::lockfile_freshness::FreshnessCheckError;
+use pnpm_injected_deps_syncer::publish_source_dir;
 use pnpm_lockfile::StalenessReason;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use spec::spec_satisfies_snapshot_dep;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 struct LocalDepContext<'a> {
     name: &'a str,
@@ -155,7 +156,7 @@ fn workspace_manifest_for_unbuilt_publish_dir(
     loop {
         if let Some(manifest) =
             pnpm_workspace::safe_read_project_manifest_only(candidate).ok().flatten()
-            && pnpm_fs::lexical_normalize(&publish_source_dir(candidate, manifest.value()))
+            && pnpm_fs::lexical_normalize(&publish_source_dir(candidate, Some(manifest.value())))
                 == target
         {
             return Some(manifest);
@@ -164,25 +165,6 @@ fn workspace_manifest_for_unbuilt_publish_dir(
             return None;
         }
         candidate = candidate.parent()?;
-    }
-}
-
-/// The directory a workspace project at `pkg_root_dir` is injected as:
-/// `publishConfig.directory` resolved against its root when set and
-/// `publishConfig.linkDirectory` isn't `false`, its root otherwise. Mirrors
-/// `resolve_workspace_package_dir` in `pnpm-resolving-npm-resolver`, which
-/// computes the same directory when the dependency is first resolved.
-fn publish_source_dir(pkg_root_dir: &Path, manifest: &serde_json::Value) -> PathBuf {
-    let publish_config = manifest.get("publishConfig");
-    let publish_dir = publish_config
-        .and_then(|config| config.get("directory"))
-        .and_then(serde_json::Value::as_str);
-    let link_directory = publish_config
-        .and_then(|config| config.get("linkDirectory"))
-        .and_then(serde_json::Value::as_bool);
-    match publish_dir {
-        Some(publish_dir) if link_directory != Some(false) => pkg_root_dir.join(publish_dir),
-        _ => pkg_root_dir.to_path_buf(),
     }
 }
 

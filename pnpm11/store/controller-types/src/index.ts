@@ -260,6 +260,8 @@ export interface ImportOptions {
   filesMap: FilesMap
   force: boolean
   resolvedFrom: ResolvedFrom
+  /** See `PackageFilesResponse['sourceExists']`. */
+  sourceExists?: boolean
   keepModulesDir?: boolean
   safeToSkip?: boolean
 }
