@@ -753,23 +753,27 @@ const workspaceLockfile: LockfileObject = {
 
 test('writePnpFile resolves a workspace dependency from a nested workspace package', async () => {
   const lockfileDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'to-pnp-')))
-  for (const [dir, name] of [['packages/a', 'a'], ['packages/b', 'b']]) {
-    fs.mkdirSync(path.join(lockfileDir, dir), { recursive: true })
-    fs.writeFileSync(path.join(lockfileDir, dir, 'package.json'), JSON.stringify({ name, version: '1.0.0' }))
-    fs.writeFileSync(path.join(lockfileDir, dir, 'index.js'), '')
-  }
-  await writePnpFile(workspaceLockfile, {
-    importerNames: { 'packages/a': 'a', 'packages/b': 'b' },
-    lockfileDir,
-    registriesByScope: { default: 'https://registry.npmjs.org/' },
-    virtualStoreDir: path.join(lockfileDir, 'node_modules/.pnpm'),
-    virtualStoreDirMaxLength: 120,
-  })
-  const pnpPath = path.join(lockfileDir, '.pnp.cjs')
-  const pnpApi = createRequire(pnpPath)(pnpPath) as { resolveRequest: (request: string, issuer: string) => string | null }
+  try {
+    for (const [dir, name] of [['packages/a', 'a'], ['packages/b', 'b']]) {
+      fs.mkdirSync(path.join(lockfileDir, dir), { recursive: true })
+      fs.writeFileSync(path.join(lockfileDir, dir, 'package.json'), JSON.stringify({ name, version: '1.0.0' }))
+      fs.writeFileSync(path.join(lockfileDir, dir, 'index.js'), '')
+    }
+    await writePnpFile(workspaceLockfile, {
+      importerNames: { 'packages/a': 'a', 'packages/b': 'b' },
+      lockfileDir,
+      registriesByScope: { default: 'https://registry.npmjs.org/' },
+      virtualStoreDir: path.join(lockfileDir, 'node_modules/.pnpm'),
+      virtualStoreDirMaxLength: 120,
+    })
+    const pnpPath = path.join(lockfileDir, '.pnp.cjs')
+    const pnpApi = createRequire(pnpPath)(pnpPath) as { resolveRequest: (request: string, issuer: string) => string | null }
 
-  expect(pnpApi.resolveRequest('b', path.join(lockfileDir, 'packages/a/index.js')))
-    .toBe(path.join(lockfileDir, 'packages/b/index.js'))
+    expect(pnpApi.resolveRequest('b', path.join(lockfileDir, 'packages/a/index.js')))
+      .toBe(path.join(lockfileDir, 'packages/b/index.js'))
+  } finally {
+    fs.rmSync(lockfileDir, { recursive: true, force: true })
+  }
 })
 
 test('lockfileToPackageRegistry writes workspace dependency locators with forward slashes', () => {
