@@ -269,16 +269,18 @@ impl Config {
 
     /// The modules directory an install gives the project at
     /// `project_dir`: the `packageConfigs` entry naming it, else the
-    /// configured `modulesDir`, resolved against `project_dir`. Unlike
-    /// [`Self::modules_dir_name_for`] it keeps a multi-component or
-    /// absolute setting whole, as pnpm's `pathAbsolute` does.
+    /// configured `modulesDir`, resolved against `project_dir` and
+    /// lexically normalized. Unlike [`Self::modules_dir_name_for`] it
+    /// keeps a multi-component or absolute setting whole, as pnpm's
+    /// `pathAbsolute` does.
     #[must_use]
     pub fn project_modules_dir(
         &self,
         project_dir: &Path,
         project_name: Option<&str>,
     ) -> std::path::PathBuf {
-        self.applies_package_configs()
+        let modules_dir = self
+            .applies_package_configs()
             .then(|| {
                 self.package_configs
                     .as_ref()?
@@ -292,7 +294,8 @@ impl Config {
                     .and_then(serde_json::Value::as_str)
                     .unwrap_or("node_modules");
                 project_dir.join(raw)
-            })
+            });
+        pnpm_fs::lexical_normalize(&modules_dir)
     }
 
     /// Put `<project_dir>/<modules_dir_name>` first on the `NODE_PATH` of
