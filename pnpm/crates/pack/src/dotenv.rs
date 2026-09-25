@@ -6,6 +6,7 @@
 use super::{LogEvent, LogLevel, Path, PathBuf, Reporter, Value};
 use pnpm_fs_packlist::build_files_matcher;
 use pnpm_reporter::PnpmLog;
+use pnpm_text_sanitize::sanitize_inline;
 
 /// Dotenv files that document variables rather than hold their values.
 const DOTENV_TEMPLATES: &[&str] = &[".env.example", ".env.sample", ".env.template"];
@@ -30,7 +31,11 @@ pub(super) fn warn_about_unlisted_dotenv_files<Reporter: self::Reporter>(
     if unlisted.is_empty() {
         return;
     }
-    let listing = unlisted.join("\n  ");
+    let listing = unlisted
+        .iter()
+        .map(|path| sanitize_inline(path))
+        .collect::<Vec<_>>()
+        .join("\n  ");
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Warn,
         message: format!(
@@ -49,17 +54,21 @@ pub(super) fn is_dotenv_file(path: &str) -> bool {
     basename == ".env" || (basename.starts_with(".env.") && !DOTENV_TEMPLATES.contains(&basename))
 }
 
-/// Whether a `files` entry whose last segment starts with `.env` matches
-/// the packed path, with the packlist's own `files` semantics. A
-/// directory entry such as `dist` that merely contains the file does not
-/// count, and neither does a dotenv glob rooted elsewhere.
+/// Whether the `files` entries whose last segment starts with `.env`,
+/// negations included, match the packed path with the packlist's own
+/// `files` semantics. A directory entry such as `dist` that merely
+/// contains the file does not count, and neither does a dotenv glob
+/// rooted elsewhere.
 pub(super) fn named_in_files(pkg_dir: &Path, files_field: &[Value]) -> impl Fn(&str) -> bool {
     let dotenv_entries: Vec<Value> = files_field
         .iter()
         .filter(|entry| {
             entry
                 .as_str()
-                .is_some_and(|entry| basename(entry.trim_end_matches('/')).starts_with(".env"))
+                .is_some_and(|entry| {
+                    basename(entry.trim_start_matches('!').trim_end_matches('/'))
+                        .starts_with(".env")
+                })
         })
         .cloned()
         .collect();

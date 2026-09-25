@@ -45,6 +45,29 @@ fn warns_about_packed_dotenv_files_without_dropping_them() {
     assert!(!warnings[0].contains(".env.example"), "{}", warnings[0]);
 }
 
+#[cfg(unix)]
+#[test]
+fn control_characters_in_packed_paths_are_stripped_from_the_warning() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
+        }
+    }
+    let (dir, opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
+    touch(dir.path(), "a\u{1b}[2J\nWARN forged/.env", "SECRET=1\n");
+
+    api::<RecordingReporter, Host>(&opts).unwrap();
+
+    let warnings = warnings(&EVENTS);
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains("\n  a[2JWARN forged/.env\n"), "{:?}", warnings[0]);
+}
+
 #[test]
 fn dotenv_files_named_in_files_are_packed_without_a_warning() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -99,4 +122,6 @@ fn only_entries_that_name_the_dotenv_file_count_as_listing_it() {
     assert!(!is_named_in_files("config/.env", &[".env"]));
     assert!(!is_named_in_files(".env", &["dist/.env*"]));
     assert!(!is_named_in_files("node_modules/dep/.env", &["dist/.env*"]));
+    assert!(is_named_in_files(".env.local", &[".env*", "!.env.production"]));
+    assert!(!is_named_in_files(".env.production", &[".env*", "!.env.production"]));
 }
