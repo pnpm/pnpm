@@ -32,7 +32,11 @@ const POWER_SHELL_IS_SUPPORTED = IS_WINDOWS
 // A POSIX shim written on Windows lists NODE_PATH in two forms and can pass 4 KiB.
 const CMD_SHIM_MAX_SIZE = 64 * 1024
 
-/** The directory holding the `node` executable of a Node.js runtime package. */
+/**
+ * The directory holding the `node` executable of the Node.js runtime package
+ * installed at `nodeDir`: `nodeDir` itself on Windows, its `bin` directory
+ * elsewhere.
+ */
 export function nodeRuntimeBinDir (nodeDir: string): string {
   return IS_WINDOWS ? nodeDir : path.join(nodeDir, 'bin')
 }

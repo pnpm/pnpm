@@ -458,14 +458,6 @@ async function lockSlotForBuild<T extends string> (depNode: DependenciesGraphNod
 }
 
 /**
- * Takes the lock that serializes writes into one global virtual store slot
- * across processes: builds, and re-imports of a slot that still carries its
- * `.pnpm-needs-build` marker. `slotModulesDir` is the slot's `node_modules`.
- * Resolves to `undefined` when the lock cannot be taken, and the caller then
- * writes without it: the lock avoids a race, and a race lost is better than
- * an install that refuses to run.
- */
-/**
  * A global virtual store slot is shared by every project whose graph hashes
  * the same, and the hash does not record the workspace root's bins. Its
  * build scripts get only the root project's runtime `node`, whose version the
@@ -483,6 +475,14 @@ function globalVirtualStoreScriptBinPaths<T extends string> (
   return runtimeNode == null ? [] : [nodeRuntimeBinDir(runtimeNode.dir)]
 }
 
+/**
+ * Takes the lock that serializes writes into one global virtual store slot
+ * across processes: builds, and re-imports of a slot that still carries its
+ * `.pnpm-needs-build` marker. `slotModulesDir` is the slot's `node_modules`.
+ * Resolves to `undefined` when the lock cannot be taken, and the caller then
+ * writes without it: the lock avoids a race, and a race lost is better than
+ * an install that refuses to run.
+ */
 export async function lockGlobalVirtualStoreSlot (slotModulesDir: string): Promise<DirLock | undefined> {
   const lockPath = path.join(path.dirname(slotModulesDir), SLOT_LOCK_DIR)
   try {
