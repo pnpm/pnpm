@@ -614,7 +614,7 @@ async function symlinkHoistedDependency (
   }
   let existingSymlink!: string
   try {
-    existingSymlink = await resolveLinkTarget(dest)
+    existingSymlink = await withFileLockRetryAsync(() => resolveLinkTarget(dest))
   } catch {
     hoistLogger.debug({
       skipped: dest,
@@ -635,10 +635,35 @@ async function symlinkHoistedDependency (
   } catch (err: unknown) {
     if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
   }
-  try {
-    await symlinkDir(depLocation, dest, { overwrite: false })
-  } catch (err: unknown) {
-    if (!util.types.isNativeError(err) || !('code' in err) || (err.code !== 'EEXIST' && err.code !== 'EISDIR')) throw err
+  while (true) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await symlinkDir(depLocation, dest, { overwrite: false })
+      break
+    } catch (err: unknown) {
+      if (!util.types.isNativeError(err) || !('code' in err) || (err.code !== 'EEXIST' && err.code !== 'EISDIR')) throw err
+      let winningTarget: string
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        winningTarget = await withFileLockRetryAsync(() => resolveLinkTarget(dest))
+      } catch (readError: unknown) {
+        if (util.types.isNativeError(readError) && 'code' in readError) {
+          if (readError.code === 'ENOENT') continue
+          if (readError.code === 'EINVAL') {
+            // macOS can report EINVAL when a concurrent unlink interrupts readlink.
+            try {
+              // eslint-disable-next-line no-await-in-loop
+              if ((await fs.promises.lstat(dest)).isSymbolicLink()) continue
+            } catch (statError: unknown) {
+              if (util.types.isNativeError(statError) && 'code' in statError && statError.code === 'ENOENT') continue
+            }
+          }
+        }
+        throw err
+      }
+      if (path.relative(depLocation, winningTarget) !== '') throw err
+      break
+    }
   }
   linkLogger.debug({ target: dest, link: depLocation })
 }

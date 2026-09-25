@@ -68,7 +68,8 @@ fn cache_expired(pruned_at: &str, max_age_minutes: u64, now: SystemTime) -> bool
 ///
 /// The needed set is `node_modules` plus one
 /// [`PkgNameVerPeer::to_virtual_store_name`] per non-skipped snapshot
-/// key; any other on-disk entry is surplus and removed.
+/// key; any other directory or symlink is surplus and removed. Regular files
+/// are preserved because they may belong to concurrent lockfile writers.
 ///
 /// `snapshot_keys` are the wanted lockfile's `snapshots:` keys — the
 /// peer-suffixed dep paths that name the per-package subdirectories of
@@ -166,7 +167,7 @@ fn needed_virtual_store_names<'a>(
     needed
 }
 
-/// List the immediate entry names of the virtual store directory.
+/// List the immediate directory and symlink names in the virtual store.
 /// A missing directory yields an empty list (a first install has
 /// nothing to prune). Any other read error returns `None` so the sweep
 /// can't delete packages it failed to enumerate, and the caller knows
@@ -187,6 +188,11 @@ fn read_virtual_store_dir(virtual_store_dir: &Path) -> Option<Vec<String>> {
     Some(
         entries
             .filter_map(Result::ok)
+            .filter(|entry| {
+                entry
+                    .file_type()
+                    .is_ok_and(|kind| kind.is_dir() || kind.is_symlink())
+            })
             .map(|entry| {
                 entry
                     .file_name()

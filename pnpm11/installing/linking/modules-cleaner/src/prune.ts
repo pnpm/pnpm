@@ -205,7 +205,9 @@ function getScopeFromPackageName (pkgName: string): string | undefined {
 
 async function readVirtualStoreDir (virtualStoreDir: string, lockfileDir: string): Promise<string[]> {
   try {
-    return await fs.readdir(virtualStoreDir)
+    const entries = await fs.readdir(virtualStoreDir, { withFileTypes: true })
+    // Regular files may belong to concurrent lockfile writers.
+    return entries.filter(entry => entry.isDirectory() || entry.isSymbolicLink()).map(entry => entry.name)
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') {
       logger.warn({

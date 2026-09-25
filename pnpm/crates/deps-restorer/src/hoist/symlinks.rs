@@ -3,8 +3,8 @@ use pnpm_lockfile::PackageKey;
 use pnpm_modules_yaml::HoistKind;
 use std::{collections::HashMap, path::PathBuf};
 
-#[cfg(test)]
-mod tests;
+mod stale;
+pub(super) use stale::update_stale_hoist_symlink;
 
 /// Create the hoist symlinks.
 ///
@@ -438,62 +438,4 @@ fn normalized_components(path: &std::path::Path) -> Vec<String> {
                 .to_lowercase()
         })
         .collect()
-}
-
-/// Read the existing symlink at `dest` and decide whether it should
-/// be replaced. If it already points at `dep_dir`, leave it untouched.
-/// If it points inside `package_store_dir` or `internal_pnpm_dir`
-/// (a pnpm-internal symlink — e.g., a stale link from a prior non-GVS
-/// install), remove it and create a new symlink to `dep_dir`. External
-/// symlinks (and non-symlink occupants) are left in place.
-///
-/// The already-correct fast path skips the unlink + recreate churn (and
-/// the transient missing-link window it opens) on warm reinstalls, the
-/// same way [`pnpm_fs::force_symlink_dir`] does — see its
-/// `existing_symlink_up_to_date` helper.
-pub(super) fn update_stale_hoist_symlink(
-    dep_dir: &std::path::Path,
-    dest: &std::path::Path,
-    package_store_dir: &std::path::Path,
-    internal_pnpm_dir: &std::path::Path,
-) -> Result<(), crate::SymlinkPackageError> {
-    let Ok(existing_raw) = pnpm_fs::read_symlink_dir(dest) else {
-        return Ok(());
-    };
-    let existing = if existing_raw.is_relative() {
-        dest.parent()
-            .unwrap_or_else(|| std::path::Path::new(""))
-            .join(&existing_raw)
-    } else {
-        existing_raw
-    };
-    if pnpm_fs::lexical_normalize(&existing) == pnpm_fs::lexical_normalize(dep_dir) {
-        return Ok(());
-    }
-    if !pnpm_fs::is_subdir(package_store_dir, &existing)
-        && !pnpm_fs::is_subdir(internal_pnpm_dir, &existing)
-    {
-        return Ok(());
-    }
-    replace_stale_hoist_symlink(dep_dir, dest)
-        .map_err(|error| crate::SymlinkPackageError::SymlinkDir {
-            symlink_target: dep_dir.to_path_buf(),
-            symlink_path: dest.to_path_buf(),
-            error,
-        })
-}
-
-fn replace_stale_hoist_symlink(
-    dep_dir: &std::path::Path,
-    dest: &std::path::Path,
-) -> std::io::Result<()> {
-    match pnpm_fs::remove_symlink_dir(dest) {
-        Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(error),
-        _ => {}
-    }
-    // Once the stale link is removed, a collision belongs to another installer.
-    match pnpm_fs::symlink_dir(dep_dir, dest) {
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
-        result => result,
-    }
 }

@@ -2,13 +2,107 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { afterEach, expect, jest, test } from '@jest/globals'
 import { hoist } from '@pnpm/installing.linking.hoist'
 import type { DepPath, ProjectId } from '@pnpm/types'
 import { resolveLinkTarget } from 'resolve-link-target'
 import { symlinkDir } from 'symlink-dir'
 
+const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
+
+afterEach(() => {
+  jest.restoreAllMocks()
+  Object.defineProperty(process, 'platform', platform)
+})
+
 test.each(Array.from({ length: 100 }, (_, round) => round + 1))('concurrent hoists can replace the same stale dependency link (round %i)', async () => {
+  const { root, link, target, opts } = await prepareStaleHoist()
+  try {
+    const results = await Promise.allSettled(Array.from({ length: 32 }, () => hoist(opts)))
+    expect(results.filter(result => result.status === 'rejected')).toStrictEqual([])
+    expect(await resolveLinkTarget(link)).toBe(target)
+    expect(fs.readFileSync(path.join(link, 'index.js'), 'utf8')).toBe('module.exports = 2')
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('retries a Windows lock when inspecting a stale hoist link owner', async () => {
+  const { root, link, target, opts } = await prepareStaleHoist()
+  Object.defineProperty(process, 'platform', { value: 'win32' })
+  const readlink = fs.promises.readlink
+  let reads = 0
+  jest.spyOn(fs.promises, 'readlink').mockImplementation(async (...args) => {
+    if (args[0] === link && ++reads === 2) {
+      throw Object.assign(new Error('access denied'), { code: 'EPERM' })
+    }
+    return readlink(...args)
+  })
+  try {
+    await hoist(opts)
+    expect(await resolveLinkTarget(link)).toBe(target)
+    expect(fs.readFileSync(path.join(link, 'index.js'), 'utf8')).toBe('module.exports = 2')
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test.each(['same', 'different', 'directory'])('checks a %s replacement created by another installer', async (replacement) => {
+  const { root, link, target, opts } = await prepareStaleHoist()
+  const winner = replacement === 'same' ? target : path.join(root, 'external')
+  fs.mkdirSync(winner, { recursive: true })
+  const unlink = fs.promises.unlink
+  jest.spyOn(fs.promises, 'unlink').mockImplementationOnce(async (dest) => {
+    await unlink(dest)
+    if (replacement === 'directory') {
+      fs.mkdirSync(link)
+      fs.writeFileSync(path.join(link, 'sentinel'), 'keep')
+    } else {
+      await symlinkDir(winner, link)
+    }
+  })
+  try {
+    if (replacement === 'same') {
+      await hoist(opts)
+    } else {
+      await expect(hoist(opts)).rejects.toMatchObject({ code: expect.stringMatching(/^(?:EEXIST|EISDIR)$/) })
+    }
+    if (replacement === 'directory') {
+      expect(fs.lstatSync(link).isSymbolicLink()).toBe(false)
+      expect(fs.readFileSync(path.join(link, 'sentinel'), 'utf8')).toBe('keep')
+    } else {
+      expect(await resolveLinkTarget(link)).toBe(winner)
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test.each(['ENOENT', 'EINVAL'])('rechecks a winning link after readlink reports %s', async (code) => {
+  const { root, link, target, opts } = await prepareStaleHoist()
+  const unlink = fs.promises.unlink
+  const readlink = fs.promises.readlink
+  jest.spyOn(fs.promises, 'unlink').mockImplementationOnce(async (dest) => {
+    await unlink(dest)
+    await symlinkDir(target, link)
+    let failures = 0
+    jest.spyOn(fs.promises, 'readlink').mockImplementation(async (...args) => {
+      if (args[0] === link && failures++ < 2) {
+        throw Object.assign(new Error('concurrent unlink'), { code })
+      }
+      return readlink(...args)
+    })
+  })
+  try {
+    await hoist(opts)
+    expect(await resolveLinkTarget(link)).toBe(target)
+    expect(fs.readFileSync(path.join(link, 'index.js'), 'utf8')).toBe('module.exports = 2')
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+async function prepareStaleHoist () {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-concurrent-hoist-'))
   const modulesDir = path.join(root, 'node_modules')
   const virtualStoreDir = path.join(modulesDir, '.pnpm')
@@ -49,12 +143,5 @@ test.each(Array.from({ length: 100 }, (_, round) => round + 1))('concurrent hois
     virtualStoreDir,
     virtualStoreDirMaxLength: 120,
   }
-  try {
-    const results = await Promise.allSettled(Array.from({ length: 32 }, () => hoist(opts)))
-    expect(results.filter(result => result.status === 'rejected')).toStrictEqual([])
-    expect(await resolveLinkTarget(link)).toBe(target)
-    expect(fs.readFileSync(path.join(link, 'index.js'), 'utf8')).toBe('module.exports = 2')
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true })
-  }
-})
+  return { root, link, target, opts }
+}

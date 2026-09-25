@@ -173,7 +173,13 @@ pub fn remove_symlink_dir(link: &Path) -> io::Result<()> {
 /// backticks rather than an intra-doc link because the `junction`
 /// crate is only in scope on Windows targets — a link would
 /// break the Linux doc build.)
+///
+/// Target inspection follows the retry policy of [`crate::rename_with_retry`].
 pub fn read_symlink_dir(link: &Path) -> io::Result<PathBuf> {
+    retry_transient_file_locks(|| read_symlink_dir_once(link))
+}
+
+fn read_symlink_dir_once(link: &Path) -> io::Result<PathBuf> {
     #[cfg(unix)]
     return std::fs::read_link(link);
     #[cfg(windows)]
@@ -259,11 +265,7 @@ fn force_symlink_inner(
         _ => return Err(initial_err),
     }
 
-    // The read waits out a refusal: on Windows a link another installer
-    // created moments ago can refuse it while a handle on it is open. A real
-    // file or directory refuses for a reason that is not a lock, so it
-    // answers at once.
-    let Ok(existing) = retry_transient_file_locks(|| read_symlink_dir(link)) else {
+    let Ok(existing) = read_symlink_dir(link) else {
         return replace_unreadable_occupant(target, link, tried, create_symlink, initial_err);
     };
     if existing_symlink_up_to_date(target, link, &existing) {

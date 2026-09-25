@@ -37,3 +37,39 @@ fn concurrent_hoists_replace_the_same_stale_dependency_link() {
         assert_eq!(std::fs::read_to_string(link.join("index.js")).unwrap(), "module.exports = 2");
     }
 }
+
+#[test]
+fn accepts_only_a_replacement_link_to_the_requested_dependency() {
+    let root = tempfile::tempdir().unwrap();
+    let target = root.path().join("target");
+    let other = root.path().join("other");
+    std::fs::create_dir(&target).unwrap();
+    std::fs::create_dir(&other).unwrap();
+    for (name, winner) in [("same", &target), ("different", &other)] {
+        let link = root.path().join(name);
+        pnpm_fs::symlink_dir(winner, &link).unwrap();
+        let result = super::create_hoist_symlink(&target, &link);
+        if winner == &target {
+            result.unwrap();
+        } else {
+            assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::AlreadyExists);
+        }
+        assert_eq!(std::fs::canonicalize(&link).unwrap(), std::fs::canonicalize(winner).unwrap());
+    }
+}
+
+#[test]
+fn preserves_a_directory_created_by_another_writer() {
+    let root = tempfile::tempdir().unwrap();
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    std::fs::create_dir(&target).unwrap();
+    std::fs::create_dir(&link).unwrap();
+    std::fs::write(link.join("sentinel"), "keep").unwrap();
+    assert_eq!(
+        super::create_hoist_symlink(&target, &link).unwrap_err().kind(),
+        std::io::ErrorKind::AlreadyExists,
+    );
+    assert!(!pnpm_fs::is_symlink_or_junction(&link).unwrap());
+    assert_eq!(std::fs::read_to_string(link.join("sentinel")).unwrap(), "keep");
+}
