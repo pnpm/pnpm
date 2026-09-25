@@ -748,4 +748,105 @@ fn workspace_npmrc_registry_is_effective_for_package_publish() {
     mock.assert();
 }
 
+#[test]
+fn new_version_flag_sets_the_manifest_version_and_publishes_it() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-new-version", "version": "1.0.0" }),
+    );
+
+    let mock = server
+        .mock("PUT", "/test-publish-new-version")
+        .match_body(Matcher::AllOf(vec![
+            Matcher::PartialJsonString(
+                r#"{"versions":{"2.0.0-alpha.1":{"version":"2.0.0-alpha.1"}}}"#.to_owned(),
+            ),
+            Matcher::PartialJsonString(r#"{"dist-tags":{"alpha":"2.0.0-alpha.1"}}"#.to_owned()),
+        ]))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    assert_success(&publish(dir.path(), &["--new-version", "2.0.0-alpha.1", "--tag", "alpha"]));
+    mock.assert();
+
+    let manifest: Value =
+        serde_json::from_str(&fs::read_to_string(dir.path().join("package.json")).expect("read"))
+            .expect("parse package.json");
+    assert_eq!(manifest["version"], "2.0.0-alpha.1", "--new-version must update package.json");
+    assert_eq!(manifest["name"], "test-publish-new-version");
+}
+
+/// The version write is part of what `publish --new-version` does; `--dry-run`
+/// only suppresses the upload.
+#[test]
+fn new_version_with_dry_run_updates_the_manifest_but_uploads_nothing() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-new-version-dry", "version": "1.0.0" }),
+    );
+    let mock = server
+        .mock("PUT", Matcher::Any)
+        .expect(0)
+        .create();
+
+    assert_success(&publish(dir.path(), &["--dry-run", "--new-version", "2.0.0"]));
+    mock.assert();
+
+    let manifest: Value =
+        serde_json::from_str(&fs::read_to_string(dir.path().join("package.json")).expect("read"))
+            .expect("parse package.json");
+    assert_eq!(manifest["version"], "2.0.0");
+}
+
+#[test]
+fn new_version_flag_rejects_an_invalid_version() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-bad-version", "version": "1.0.0" }),
+    );
+    let mock = server
+        .mock("PUT", Matcher::Any)
+        .expect(0)
+        .create();
+
+    let output = publish(dir.path(), &["--new-version", "not-a-version"]);
+    assert!(!output.status.success(), "an invalid --new-version must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_INVALID_VERSION_BUMP"), "stderr: {stderr}");
+    mock.assert();
+
+    let manifest: Value =
+        serde_json::from_str(&fs::read_to_string(dir.path().join("package.json")).expect("read"))
+            .expect("parse package.json");
+    assert_eq!(manifest["version"], "1.0.0", "a rejected run must not touch package.json");
+}
+
+#[test]
+fn new_version_flag_rejects_a_tarball_argument() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let registry = "https://registry.example/";
+    fs::write(dir.path().join(".npmrc"), format!("registry={registry}\n")).expect("write .npmrc");
+    fs::write(dir.path().join("package.json"), r#"{"name":"pkg","version":"1.0.0"}"#)
+        .expect("write package.json");
+
+    let output = publish(dir.path(), &["pkg-1.0.0.tgz", "--new-version", "2.0.0"]);
+    assert!(!output.status.success(), "--new-version with a tarball must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_NEW_VERSION_WITH_TARBALL"), "stderr: {stderr}");
+}
+
 mod wait;

@@ -20,6 +20,10 @@ pub struct PublishRegistryArgs {
 
 #[derive(Debug, Clone, clap::Args)]
 pub struct PublishManifestArgs {
+    /// Set the version in the package manifest to this value before
+    /// publishing.
+    #[clap(long = "new-version", value_name = "VERSION")]
+    pub new_version: Option<String>,
     /// Embed the README contents in the published manifest.
     #[clap(long = "embed-readme", overrides_with = "no_embed_readme")]
     pub embed_readme: bool,

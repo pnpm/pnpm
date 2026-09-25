@@ -8,15 +8,15 @@ use serde_json::json;
 
 /// A `PublishArgs` with every flag at its default; a test overrides only the
 /// field it exercises.
-fn publish_args() -> PublishArgs {
+pub(super) fn publish_args() -> PublishArgs {
     PublishArgs { package: None, flags: publish_flags() }
 }
 
-fn publish_args_with(flags: PublishFlags) -> PublishArgs {
+pub(super) fn publish_args_with(flags: PublishFlags) -> PublishArgs {
     PublishArgs { package: None, flags }
 }
 
-fn publish_flags() -> PublishFlags {
+pub(super) fn publish_flags() -> PublishFlags {
     PublishFlags {
         dry_run: false,
         ignore_scripts: false,
@@ -30,6 +30,7 @@ fn publish_flags() -> PublishFlags {
             publish_wait_timeout: None,
         },
         manifest: crate::cli_args::publish::PublishManifestArgs {
+            new_version: None,
             embed_readme: false,
             no_embed_readme: false,
             skip_manifest_obfuscation: false,
