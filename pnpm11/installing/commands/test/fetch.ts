@@ -182,6 +182,7 @@ test('fetch only dev dependencies includes the optional dependencies of devDepen
     ...DEFAULT_OPTIONS,
     cacheDir: path.resolve('cache'),
     dir: process.cwd(),
+    linkWorkspacePackages: true,
     lockfileOnly: true,
     storeDir,
   })
