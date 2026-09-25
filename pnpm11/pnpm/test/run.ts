@@ -185,6 +185,7 @@ test.each(['silent', 'warn', 'error'])('run with --loglevel=%s prints neither th
   })
 
   const result = execPnpmSync([`--loglevel=${loglevel}`, 'run', 'hi'], {
+    env: { XDG_CONFIG_HOME: path.resolve('.config') },
     expectSuccess: true,
     omitEnvDefaults: ['pnpm_config_silent'],
   })
@@ -207,6 +208,7 @@ test('recursive run with loglevel: error in pnpm-workspace.yaml does not print t
   })
 
   const result = execPnpmSync(['-r', '--workspace-concurrency=1', '--config.verify-deps-before-run=false', 'run', 'hi'], {
+    env: { XDG_CONFIG_HOME: path.resolve('.config') },
     expectSuccess: true,
     omitEnvDefaults: ['pnpm_config_silent'],
   })
