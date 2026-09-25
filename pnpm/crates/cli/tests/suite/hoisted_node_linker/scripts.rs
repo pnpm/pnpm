@@ -134,9 +134,7 @@ fn loose_package_map_allows_undeclared_hoisted_dependencies_at_runtime() {
 
 /// The hoisted linker builds its package map from the real
 /// `node_modules` layout rather than the virtual store, so it writes
-/// the file from its own linker instead of the shared gate. Both
-/// answer `nodeExperimentalPackageMap`, and nothing reads the map
-/// without it.
+/// the file from its own linker instead of the shared gate.
 #[test]
 fn hoisted_install_writes_no_package_map_unless_the_setting_is_on() {
     let CommandTempCwd {
@@ -158,7 +156,45 @@ fn hoisted_install_writes_no_package_map_unless_the_setting_is_on() {
 
     assert!(
         !workspace.join("node_modules/.package-map.json").exists(),
-        "a hoisted install must not write a map nothing will read",
+        "a hoisted install must not write a map without either setting",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn write_package_map_does_not_enable_node_package_map_resolver() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\nwritePackageMap: true\n");
+    pacquet
+        .with_args(["install"])
+        .assert()
+        .success();
+
+    let package_map = workspace.join("node_modules/.package-map.json");
+    assert!(package_map.is_file(), "writePackageMap must write the metadata");
+    let contents: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(package_map).expect("read map"))
+            .expect("parse map");
+    assert!(contents["packages"]["."].is_object(), "map must describe the root");
+
+    let output = pacquet_at(&workspace)
+        .with_args(["exec", "node", "-e", "process.stdout.write(process.env.NODE_OPTIONS || '')"])
+        .output()
+        .expect("run node through pnpm exec");
+    assert!(output.status.success(), "pnpm exec failed: {output:?}");
+    assert!(
+        !String::from_utf8_lossy(&output.stdout).contains("--experimental-package-map"),
+        "writePackageMap must not enable Node's resolver",
     );
 
     drop((root, mock_instance));

@@ -222,6 +222,7 @@ pub struct WorkspaceSettings {
     pub modules_dir: Option<String>,
     pub node_linker: Option<NodeLinker>,
     pub node_experimental_package_map: Option<bool>,
+    pub write_package_map: Option<bool>,
     pub node_package_map_type: Option<NodePackageMapType>,
     pub symlink: Option<bool>,
     pub virtual_store_dir: Option<String>,

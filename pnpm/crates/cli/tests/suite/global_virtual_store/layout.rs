@@ -482,3 +482,25 @@ fn an_isolated_install_clears_a_package_map_it_stops_maintaining() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn an_isolated_install_writes_package_map_without_node_resolver() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+    set_gvs_workspace_yaml(&workspace, "writePackageMap: true\n");
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let package_map = workspace.join("node_modules/.package-map.json");
+    let contents: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(package_map).expect("read map"))
+            .expect("parse map");
+    assert!(contents["packages"]["."].is_object(), "map must describe the root");
+
+    drop((root, mock_instance));
+}

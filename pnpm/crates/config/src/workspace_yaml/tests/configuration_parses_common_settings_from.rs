@@ -18,6 +18,7 @@ autoDedupe: true
 preferWorkspacePackages: true
 nodeLinker: hoisted
 nodeExperimentalPackageMap: true
+writePackageMap: true
 nodePackageMapType: loose
 packages:
   - packages/*
@@ -32,6 +33,7 @@ packages:
     assert_eq!(settings.prefer_workspace_packages, Some(true));
     assert!(matches!(settings.node_linker, Some(NodeLinker::Hoisted)));
     assert_eq!(settings.node_experimental_package_map, Some(true));
+    assert_eq!(settings.write_package_map, Some(true));
     assert_eq!(settings.node_package_map_type, Some(NodePackageMapType::Loose));
 }
 
