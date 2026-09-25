@@ -205,6 +205,48 @@ test('update to latest should not touch the automatically installed peer depende
   expect(lockfile.packages['@pnpm.e2e/peer-c@1.0.1']).toBeFalsy()
 })
 
+// https://github.com/pnpm/pnpm/issues/10486
+test.each([undefined, 100])('update re-resolves an automatically installed transitive peer dependency with --depth=%p', async (depth) => {
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/abc-parent-with-ab': '1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  expect(project.readLockfile().packages['@pnpm.e2e/peer-c@1.0.0']).toBeTruthy()
+
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.1', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    depth,
+    dir: process.cwd(),
+  }, ['@pnpm.e2e/peer-c'])
+
+  const lockfile = project.readLockfile()
+  expect(Object.keys(lockfile.packages).filter((depPath) => depPath.startsWith('@pnpm.e2e/peer-c@'))).toStrictEqual([
+    '@pnpm.e2e/peer-c@1.0.1',
+  ])
+  expect(lockfile.importers['.']).toStrictEqual({
+    dependencies: {
+      '@pnpm.e2e/abc-parent-with-ab': {
+        specifier: '1.0.0',
+        version: '1.0.0(@pnpm.e2e/peer-c@1.0.1)',
+      },
+    },
+  })
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toStrictEqual({
+    '@pnpm.e2e/abc-parent-with-ab': '1.0.0',
+  })
+})
+
 test('vulnerability updates do not save dependencies added by packageExtensions', async () => {
   const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
   const packageExtensions = {
