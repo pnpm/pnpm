@@ -526,6 +526,49 @@ describe('login', () => {
     expect(globalInfo.mock.calls).toEqual([['Logged in as john']])
   })
 
+  // https://github.com/pnpm/pnpm/issues/12055
+  it('should log in to an existing user in classic login by sending the credentials as basic auth', async () => {
+    const globalInfo = jest.fn()
+    let savedSettings: Record<string, unknown> = {}
+    const context = createMockContext({
+      globalInfo,
+      readIniFile: async () => ({}),
+      writeIniFile: async (_configPath, settings) => {
+        savedSettings = settings
+      },
+      fetch: async (url, init) => {
+        if (url === 'https://example.org/-/v1/login') {
+          return createMockResponse({ ok: false, status: 404, text: 'Not Found' })
+        }
+        if (url === 'https://example.org/-/user/org.couchdb.user:john') {
+          if (init?.headers?.authorization !== `Basic ${Buffer.from('john:secret', 'utf8').toString('base64')}`) {
+            return createMockResponse({ ok: false, status: 409, text: '{"error":"username is already registered"}' })
+          }
+          return createMockResponse({ ok: true, status: 201, json: { ok: true, token: 'existing-user-token' } })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
+      enquirer: {
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return 'john'
+          if (opts.message === 'Email (this IS public):') return 'john@example.com'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'secret'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
+        },
+      },
+    })
+    const opts = { configDir: '/other/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
+    const result = await login({ context, opts })
+    expect(result).toBe('Logged in on https://example.org/')
+    expect(savedSettings).toStrictEqual({
+      '//example.org/:_authToken': 'existing-user-token',
+    })
+    expect(globalInfo.mock.calls).toEqual([['Logged in as john']])
+  })
+
   it('should handle classic OTP challenge during login', async () => {
     let putCallCount = 0
     const globalInfo = jest.fn()

@@ -100,7 +100,9 @@ struct Credentials<'a> {
 }
 
 /// Register a user via `PUT -/user/org.couchdb.user:<name>`, returning the
-/// granted token. `otp` populates the `npm-otp` header on the retry pass.
+/// granted token. The credentials also go in a `Basic` `Authorization` header,
+/// which registries such as verdaccio require to log in an existing user.
+/// `otp` populates the `npm-otp` header on the retry pass.
 async fn add_user(
     http_client: &ThrottledClient,
     registry: &str,
@@ -119,6 +121,7 @@ async fn add_user(
         .header("content-type", "application/json")
         .header("accept", "application/json")
         .header("npm-auth-type", "web")
+        .basic_auth(credentials.username, Some(credentials.password))
         .body(add_user_document(&credentials));
     if let Some(otp) = otp {
         request = request.header("npm-otp", otp);
