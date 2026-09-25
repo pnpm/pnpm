@@ -22,7 +22,7 @@ fn default_opts(catalogs: &Catalogs) -> CreateExportableManifestOptions<'_> {
         skip_manifest_obfuscation: false,
         embed_readme: false,
         workspace_packages: None,
-        prefer_workspace_packages: false,
+        bumped_workspace_packages: None,
     }
 }
 
@@ -71,7 +71,7 @@ fn skip_obfuscation_keeps_scripts_and_package_manager() {
         skip_manifest_obfuscation: true,
         embed_readme: false,
         workspace_packages: None,
-        prefer_workspace_packages: false,
+        bumped_workspace_packages: None,
     };
     let out = build(
         dir.path(),
@@ -306,7 +306,7 @@ fn readme_is_embedded_when_requested() {
         skip_manifest_obfuscation: false,
         embed_readme: true,
         workspace_packages: None,
-        prefer_workspace_packages: false,
+        bumped_workspace_packages: None,
     };
     let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
     assert_eq!(out["readme"], json!("# Hello"));
@@ -339,7 +339,7 @@ fn readme_symlink_is_not_embedded() {
         skip_manifest_obfuscation: false,
         embed_readme: true,
         workspace_packages: None,
-        prefer_workspace_packages: false,
+        bumped_workspace_packages: None,
     };
     let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
     assert!(out.get("readme").is_none());
@@ -380,7 +380,7 @@ fn local_catalog_entry_is_reanchored_on_the_exported_package() {
         skip_manifest_obfuscation: false,
         embed_readme: false,
         workspace_packages: None,
-        prefer_workspace_packages: false,
+        bumped_workspace_packages: None,
     };
 
     let out = build(

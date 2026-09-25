@@ -43,7 +43,7 @@ fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
             skip_obfuscation: false,
             before_packing_hooks: Vec::new(),
             workspace_packages: None,
-            prefer_workspace_packages: false,
+            bumped_workspace_packages: None,
         },
         output: crate::PackOutputOptions {
             gzip_level: None,
@@ -747,7 +747,7 @@ fn workspace_license_is_injected_into_a_sub_package() {
             skip_obfuscation: false,
             before_packing_hooks: Vec::new(),
             workspace_packages: None,
-            prefer_workspace_packages: false,
+            bumped_workspace_packages: None,
         },
         output: crate::PackOutputOptions {
             gzip_level: None,
@@ -810,7 +810,7 @@ fn symlinked_workspace_license_is_not_injected() {
             skip_obfuscation: false,
             before_packing_hooks: Vec::new(),
             workspace_packages: None,
-            prefer_workspace_packages: false,
+            bumped_workspace_packages: None,
         },
         output: crate::PackOutputOptions {
             gzip_level: None,
@@ -863,7 +863,7 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
             skip_obfuscation: false,
             before_packing_hooks: Vec::new(),
             workspace_packages: None,
-            prefer_workspace_packages: false,
+            bumped_workspace_packages: None,
         },
         output: crate::PackOutputOptions {
             gzip_level: None,

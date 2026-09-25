@@ -14,7 +14,7 @@ use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_publish::is_tarball_path;
 use serde_json::Value;
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
 
 /// Errors of the `--new-version` flag.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -45,29 +45,37 @@ impl PublishArgs {
     /// in recursive mode) so the pack and the already-published probe see the
     /// new version. Runs after the git checks: like
     /// `pnpm version --no-git-tag-version`, the rewrite leaves the working tree
-    /// dirty on purpose.
+    /// dirty on purpose. Returns the names of the packages whose manifest was
+    /// rewritten — the only workspace dependencies that may resolve from the
+    /// workspace manifests rather than the installed copies at pack time.
     pub(super) fn apply_new_version(
         &self,
         dir: &Path,
         config: &Config,
         recursive: bool,
-    ) -> miette::Result<()> {
-        let Some(raw) = &self.flags.manifest.new_version else { return Ok(()) };
+    ) -> miette::Result<Option<HashSet<String>>> {
+        let Some(raw) = &self.flags.manifest.new_version else { return Ok(None) };
         let new_version = parse_new_version(raw)?;
+        let mut bumped = HashSet::new();
         if !recursive {
             let project_dir = self.package
                 .as_deref()
                 .map_or_else(|| dir.to_path_buf(), |path| dir.join(path));
-            return set_package_version(&project_dir, &new_version);
+            if let Some(name) = set_package_version(&project_dir, &new_version)? {
+                bumped.insert(name);
+            }
+            return Ok(Some(bumped));
         }
         let base = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
         let (projects, _) = discover_workspace_projects(&base, config)?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         for pkg_dir in selection.selected.keys() {
-            set_package_version(pkg_dir, &new_version)?;
+            if let Some(name) = set_package_version(pkg_dir, &new_version)? {
+                bumped.insert(name);
+            }
         }
-        Ok(())
+        Ok(Some(bumped))
     }
 }
 
@@ -79,24 +87,24 @@ fn parse_new_version(raw: &str) -> miette::Result<String> {
         .map_err(|_| NewVersionError::InvalidVersion { raw: raw.to_owned() }.into())
 }
 
-/// Set `version` in the manifest at `pkg_dir`. A directory without a manifest
-/// is left for the pack to report; a nameless manifest is skipped, as
+/// Set `version` in the manifest at `pkg_dir`, returning the package's name
+/// when the version was written. A directory without a manifest is left for
+/// the pack to report; a nameless manifest is skipped, as
 /// `pnpm version` skips it.
-fn set_package_version(pkg_dir: &Path, new_version: &str) -> miette::Result<()> {
+fn set_package_version(pkg_dir: &Path, new_version: &str) -> miette::Result<Option<String>> {
     let manifest_path = pnpm_workspace::project_manifest_path(pkg_dir);
     if !manifest_path.exists() {
-        return Ok(());
+        return Ok(None);
     }
     let mut manifest = PackageManifest::from_path(manifest_path.clone())
         .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;
-    let named = manifest
+    let name = manifest
         .value()
         .get("name")
         .and_then(Value::as_str)
-        .is_some_and(|name| !name.is_empty());
-    if !named {
-        return Ok(());
-    }
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned);
+    let Some(name) = name else { return Ok(None) };
     manifest
         .value_mut()
         .as_object_mut()
@@ -104,7 +112,8 @@ fn set_package_version(pkg_dir: &Path, new_version: &str) -> miette::Result<()> 
         .insert("version".to_owned(), Value::String(new_version.to_owned()));
     manifest
         .save()
-        .wrap_err_with(|| format!("saving {}", manifest_path.display()))
+        .wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
+    Ok(Some(name))
 }
 
 #[cfg(test)]

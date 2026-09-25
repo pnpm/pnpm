@@ -12,7 +12,7 @@
 //!   round-trips correctly.
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt,
     path::{Path, PathBuf},
 };
@@ -118,7 +118,7 @@ pub fn replace_workspace_protocol(
             dep_name,
             dep_name,
             &dir.join(relative),
-            WorkspacePackageLookup { prefer_workspace: false, ..lookup },
+            WorkspacePackageLookup { prefer_workspace_for: None, ..lookup },
         )?;
         return Ok(published_spec(dep_name, &manifest, ""));
     }
@@ -231,7 +231,8 @@ fn read_and_check_manifest(
     lookup: WorkspacePackageLookup<'_>,
 ) -> Result<WorkspacePackageManifest, ReplaceWorkspaceProtocolError> {
     let workspace_manifest = lookup.packages.and_then(|pkgs| pkgs.get(target_pkg_name));
-    if lookup.prefer_workspace
+    if let Some(preferred) = lookup.prefer_workspace_for
+        && preferred.contains(target_pkg_name)
         && let Some(manifest) = workspace_manifest
         && manifest.is_complete()
     {
@@ -307,27 +308,30 @@ pub struct WorkspacePackageManifest {
 }
 
 /// How a workspace dependency's manifest is resolved at publish time: the
-/// packages discovered in the workspace, and whether they take precedence
+/// packages discovered in the workspace, and which of them take precedence
 /// over the copies installed in `node_modules`.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct WorkspacePackageLookup<'a> {
     /// Workspace packages by manifest name, consulted when the dependency
-    /// is not installed — or first, when [`Self::prefer_workspace`] is set.
+    /// is not installed — or first, when [`Self::prefer_workspace_for`]
+    /// names it.
     pub packages: Option<&'a HashMap<String, WorkspacePackageManifest>>,
-    /// Resolve from the workspace manifests before the installed copies.
-    /// Recursive `publish --new-version` sets this: it rewrites the
-    /// workspace manifests before packing, while `node_modules` can still
-    /// hold the pre-bump copies. Applies only to specs resolved by name; a
-    /// relative-path spec always reads the manifest at its target path
-    /// first.
-    pub prefer_workspace: bool,
+    /// Resolve from the workspace manifests before the installed copies,
+    /// but only for the packages named here. `publish --new-version` sets
+    /// this to the packages whose version it rewrote: those manifests carry
+    /// the new version while `node_modules` can still hold the pre-bump
+    /// copies, and every other dependency keeps the installed-copy-first
+    /// resolution a plain publish uses. Applies only to specs resolved by
+    /// name; a relative-path spec always reads the manifest at its target
+    /// path first.
+    pub prefer_workspace_for: Option<&'a HashSet<String>>,
 }
 
 impl<'a> From<Option<&'a HashMap<String, WorkspacePackageManifest>>>
     for WorkspacePackageLookup<'a>
 {
     fn from(packages: Option<&'a HashMap<String, WorkspacePackageManifest>>) -> Self {
-        WorkspacePackageLookup { packages, prefer_workspace: false }
+        WorkspacePackageLookup { packages, prefer_workspace_for: None }
     }
 }
 

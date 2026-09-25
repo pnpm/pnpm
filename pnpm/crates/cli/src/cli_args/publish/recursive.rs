@@ -5,7 +5,7 @@
 //! publishes the rest in dependency order, optionally
 //! writing `pnpm-publish-summary.json`.
 
-use super::PublishArgs;
+use super::{PublishArgs, WorkspacePackingInputs};
 use crate::cli_args::{
     changelog::published_name,
     recursive::{
@@ -51,6 +51,7 @@ struct RecursivePublishContext<'a> {
     project_dependencies: &'a indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
     workspace_packages:
         &'a Arc<std::collections::HashMap<String, pnpm_pack::WorkspacePackageManifest>>,
+    bumped: Option<&'a HashSet<String>>,
 }
 
 fn order_publish_roots(
@@ -80,11 +81,15 @@ impl PublishArgs {
     ) -> Result<Vec<PublishSummary>, RecursivePublishError> {
         let mut packed = Vec::with_capacity(ctx.to_publish.len());
         for root in order_publish_roots(ctx.project_dependencies, ctx.to_publish) {
+            let packing = WorkspacePackingInputs {
+                packages: Some(ctx.workspace_packages),
+                bumped: ctx.bumped,
+            };
             let pkg = self.pack_directory::<Reporter>(
                 &root,
                 ctx.config,
                 ctx.before_packing_hooks,
-                Some(ctx.workspace_packages),
+                packing,
             )
             .await?;
             packed.push(pkg);
@@ -141,6 +146,7 @@ impl PublishArgs {
         config: &Config,
         stage: bool,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
+        bumped: Option<&HashSet<String>>,
     ) -> miette::Result<Vec<PublishSummary>> {
         let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
         // `publish` is not in pnpm's root-auto-exclusion command set
@@ -181,6 +187,7 @@ impl PublishArgs {
             to_publish: &to_publish,
             project_dependencies: &project_dependencies,
             workspace_packages: &workspace_packages,
+            bumped,
         };
         let published = self.publish_selected::<Reporter>(&ctx).await;
         self.finish_recursive_publish(workspace_root, &opts, published)
@@ -242,13 +249,17 @@ impl PublishArgs {
                 if !ctx.to_publish.contains(&root) {
                     return TaskCompletion::Passed;
                 }
+                let packing = WorkspacePackingInputs {
+                    packages: Some(ctx.workspace_packages),
+                    bumped: ctx.bumped,
+                };
                 let result = self.publish_directory::<Reporter>(
                     &root,
                     ctx.config,
                     ctx.opts,
                     ctx.network,
                     ctx.before_packing_hooks,
-                    Some(ctx.workspace_packages),
+                    packing,
                 )
                 .await;
                 record_publish_outcome(published, first_error, result)

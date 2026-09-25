@@ -43,7 +43,11 @@ use pnpm_catalogs_resolver::{
 use pnpm_catalogs_types::Catalogs;
 use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
 use serde_json::{Map, Value};
-use std::{collections::HashMap, fs, io, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    fs, io,
+    path::Path,
+};
 
 /// Lifecycle scripts removed from the published manifest's `scripts`
 /// map during obfuscation, so they don't re-run when the package is
@@ -101,11 +105,14 @@ pub struct CreateExportableManifestOptions<'a> {
     pub embed_readme: bool,
     /// Workspace packages lookup used when a dependency is not in `node_modules`.
     pub workspace_packages: Option<&'a HashMap<String, WorkspacePackageManifest>>,
-    /// Resolve workspace dependencies from `workspace_packages` before the
-    /// copies installed in `node_modules`. Recursive `publish --new-version`
-    /// sets this: the workspace manifests carry the new version while
-    /// `node_modules` can still hold the pre-bump copies.
-    pub prefer_workspace_packages: bool,
+    /// Resolve the named packages' workspace dependencies from
+    /// `workspace_packages` before the copies installed in `node_modules`.
+    /// `publish --new-version` names the packages whose version it
+    /// rewrote: the workspace manifests carry the new version while
+    /// `node_modules` can still hold the pre-bump copies, and every other
+    /// dependency keeps the installed-copy-first resolution a plain
+    /// publish uses.
+    pub bumped_workspace_packages: Option<&'a HashSet<String>>,
 }
 
 /// Failures from [`create_exportable_manifest`].
@@ -240,7 +247,7 @@ fn convert_dependency_for_publish(
     let after_catalog = replace_catalog_protocol(dep_name, spec, dir, opts)?;
     let lookup = WorkspacePackageLookup {
         packages: opts.workspace_packages,
-        prefer_workspace: opts.prefer_workspace_packages,
+        prefer_workspace_for: opts.bumped_workspace_packages,
     };
     let after_workspace = match kind {
         DependencyKind::Regular => {

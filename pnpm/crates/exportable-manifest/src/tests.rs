@@ -4,7 +4,7 @@
 //! `tempfile::TempDir` so they exercise `replace_workspace_protocol`
 //! and `replace_workspace_protocol_peer_dependency` in isolation.
 
-use std::{fs, path::Path};
+use std::{collections::HashSet, fs, path::Path};
 
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
@@ -345,7 +345,7 @@ fn published_dependencies_keep_declaration_order() {
             skip_manifest_obfuscation: false,
             embed_readme: false,
             workspace_packages: None,
-            prefer_workspace_packages: false,
+            bumped_workspace_packages: None,
         },
     )
     .expect("manifest is exportable");
@@ -414,9 +414,9 @@ fn resolves_workspace_protocol_from_workspace_packages_when_node_modules_is_abse
     assert_eq!(res, "^1.2.3");
 }
 
-/// The lookup prefers the installed copy by default; `prefer_workspace`
-/// flips the order so a bumped workspace manifest wins over a stale
-/// `node_modules` copy.
+/// The lookup prefers the installed copy by default; `prefer_workspace_for`
+/// flips the order for the named package, so a bumped workspace manifest
+/// wins over a stale `node_modules` copy.
 #[test]
 fn prefer_workspace_resolves_from_the_workspace_manifest_first() {
     let fixture = TempDir::new().unwrap();
@@ -428,7 +428,11 @@ fn prefer_workspace_resolves_from_the_workspace_manifest_first() {
         WorkspacePackageManifest { name: "dep-a".to_string(), version: "3.0.0".to_string() },
     );
 
-    let lookup = super::WorkspacePackageLookup { packages: Some(&ws_pkgs), prefer_workspace: true };
+    let bumped = HashSet::from(["dep-a".to_string()]);
+    let lookup = super::WorkspacePackageLookup {
+        packages: Some(&ws_pkgs),
+        prefer_workspace_for: Some(&bumped),
+    };
     let res = replace_workspace_protocol("dep-a", "workspace:^", dir, None, lookup)
         .expect("resolves from the workspace manifest");
     assert_eq!(res, "^3.0.0");
@@ -443,8 +447,8 @@ fn prefer_workspace_resolves_from_the_workspace_manifest_first() {
 }
 
 /// A relative spec names its target by path, so the manifest at that path
-/// stays authoritative under `prefer_workspace`: the name-keyed lookup must
-/// not hijack it when another workspace package owns the dependency name.
+/// stays authoritative under `prefer_workspace_for`: the name-keyed lookup
+/// must not hijack it when another workspace package owns the name.
 #[test]
 fn prefer_workspace_does_not_override_relative_path_specs() {
     let fixture = TempDir::new().unwrap();
@@ -456,7 +460,11 @@ fn prefer_workspace_does_not_override_relative_path_specs() {
         "foo".to_string(),
         WorkspacePackageManifest { name: "foo".to_string(), version: "9.9.9".to_string() },
     );
-    let lookup = super::WorkspacePackageLookup { packages: Some(&ws_pkgs), prefer_workspace: true };
+    let bumped = HashSet::from(["foo".to_string()]);
+    let lookup = super::WorkspacePackageLookup {
+        packages: Some(&ws_pkgs),
+        prefer_workspace_for: Some(&bumped),
+    };
 
     let res = replace_workspace_protocol("foo", "workspace:../bar", &project, None, lookup)
         .expect("the relative spec reads the manifest at its target path");

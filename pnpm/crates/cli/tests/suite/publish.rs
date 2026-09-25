@@ -849,4 +849,59 @@ fn new_version_flag_rejects_a_tarball_argument() {
     assert!(stderr.contains("ERR_PNPM_NEW_VERSION_WITH_TARBALL"), "stderr: {stderr}");
 }
 
+/// `--new-version` bumps only the published package: an unbumped workspace
+/// dependency keeps the installed-copy-first resolution a plain publish
+/// uses, even when the workspace source manifest disagrees with what
+/// `node_modules` holds.
+#[test]
+fn publish_new_version_keeps_installed_workspace_dep_versions() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+
+    // A workspace of two: the package being published, and the dependency
+    // it consumes over the workspace protocol.
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - pkg\n  - dep\n")
+        .expect("write pnpm-workspace.yaml");
+    // A workspace reads its registry from the root .npmrc, not the
+    // publishing project's.
+    fs::write(dir.path().join(".npmrc"), format!("registry={registry}\n"))
+        .expect("write the workspace .npmrc");
+    fs::create_dir_all(dir.path().join("dep")).expect("create the dep dir");
+    fs::create_dir_all(dir.path().join("pkg")).expect("create the pkg dir");
+    write_project(
+        &dir.path().join("dep"),
+        &registry,
+        &json!({ "name": "dep", "version": "2.0.0" }),
+    );
+    write_project(
+        &dir.path().join("pkg"),
+        &registry,
+        &json!({
+            "name": "test-publish-ws-pkg",
+            "version": "1.0.0",
+            "dependencies": { "dep": "workspace:*" },
+        }),
+    );
+    // The installed copy predates the dependency's source manifest.
+    let installed = dir.path().join("pkg/node_modules/dep");
+    fs::create_dir_all(&installed).expect("create the installed copy");
+    fs::write(installed.join("package.json"), r#"{"name":"dep","version":"1.0.0"}"#)
+        .expect("write the stale installed manifest");
+
+    let mock = server
+        .mock("PUT", "/test-publish-ws-pkg")
+        .match_body(Matcher::PartialJsonString(
+            r#"{"versions":{"3.0.0":{"dependencies":{"dep":"1.0.0"}}}}"#.to_owned(),
+        ))
+        .with_status(200)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+
+    let pkg = dir.path().join("pkg");
+    assert_success(&publish(&pkg, &["--new-version", "3.0.0"]));
+    mock.assert();
+}
+
 mod wait;
