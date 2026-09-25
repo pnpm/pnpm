@@ -405,12 +405,8 @@ fn gvs_install_waits_for_another_install_building_the_same_slot() {
     );
 
     drop(lock);
-    assert!(
-        install
-            .wait()
-            .expect("wait for the install")
-            .success()
-    );
+    let status = install.wait().expect("wait for the install");
+    assert!(status.success(), "the install must finish once the slot lock is released");
     assert!(pkg.join("generated-by-postinstall.js").exists());
     assert!(!pkg.join(".pnpm-needs-build").exists());
 
