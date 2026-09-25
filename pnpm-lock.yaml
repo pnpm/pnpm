@@ -6247,6 +6247,9 @@ importers:
       '@pnpm/config.normalize-registries':
         specifier: workspace:*
         version: link:../../config/normalize-registries
+      '@pnpm/config.parse-overrides':
+        specifier: workspace:*
+        version: link:../../config/parse-overrides
       '@pnpm/config.version-policy':
         specifier: workspace:*
         version: link:../../config/version-policy

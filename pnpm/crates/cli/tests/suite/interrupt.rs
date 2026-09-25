@@ -466,11 +466,16 @@ fn signal_group(process: &Child, signal: libc::c_int) {
 
 /// The process id a fixture script wrote to `path`.
 fn read_pid(path: &Path) -> libc::pid_t {
-    fs::read_to_string(path)
-        .expect("read the recorded pid")
-        .trim()
-        .parse()
-        .expect("the fixture recorded its pid")
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while Instant::now() < deadline {
+        if let Ok(content) = fs::read_to_string(path)
+            && let Ok(pid) = content.trim().parse()
+        {
+            return pid;
+        }
+        sleep(Duration::from_millis(20));
+    }
+    panic!("the fixture did not record its pid before the deadline");
 }
 
 /// Whether `pid` still names a live process. One the kernel no longer

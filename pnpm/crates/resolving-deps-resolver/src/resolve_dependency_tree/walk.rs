@@ -44,8 +44,7 @@ use pipe_trait::Pipe;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, SnapshotEntry, TarballRevision};
 use pnpm_resolving_resolver_base::{
-    CurrentPkg, GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay,
-    RegistryResponseError, ResolveError, ResolveOptions, Resolver, UpdateBehavior,
+    CurrentPkg, PreferredVersionsOverlay, ResolveOptions, Resolver, UpdateBehavior,
     WantedDependency,
 };
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
