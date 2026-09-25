@@ -68,6 +68,39 @@ fn a_released_watchdog_leaves_the_group_alone() {
     let _ = leader.wait();
 }
 
+#[test]
+fn cancellation_leaves_untracked_children_alone() {
+    let tracker = ProcessTracker::foreground();
+    let mut command = Command::new("sleep");
+    command.arg("30");
+    let mut tracked = spawn_child(&mut command, Some(&tracker)).expect("spawn tracked child");
+
+    let mut untracked = Command::new("sleep")
+        .arg("30")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn untracked child");
+
+    tracker.cancel();
+
+    assert!(
+        !tracked
+            .wait()
+            .expect("wait for cancelled child")
+            .success(),
+        "tracked child should be terminated by cancellation",
+    );
+    assert!(
+        !exits_within(&mut untracked, Duration::from_millis(500)),
+        "untracked child should remain running after tracker cancellation",
+    );
+
+    let _ = untracked.kill();
+    let _ = untracked.wait();
+}
+
 /// A `sleep` leading a process group of its own, as a child of
 /// [`spawn_child`] does.
 fn spawn_group_leader() -> Child {
