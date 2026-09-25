@@ -1,9 +1,10 @@
 use super::{
-    Config, ExecutionStatus, GraphPkg, HashMap, IndexMap, IntoDiagnostic, Mutex, Path,
-    PipelineInvocation, PipelineResults, ProjectGraph, Status, TaskCache, TaskCompletion,
+    Config, ExecutionStatus, GraphPkg, HashMap, HashSet, IndexMap, IntoDiagnostic, Mutex, Path,
+    PathBuf, PipelineInvocation, PipelineResults, ProjectGraph, Status, TaskCache, TaskCompletion,
     TaskGraph, TaskKey, TaskNode, Value, cache, format_task, render_task_graph_dry_run,
     task_environment, task_graph_to_json,
 };
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
 
 pub(super) struct StatusCounts {
     pub(super) failed: usize,
@@ -79,8 +80,10 @@ pub(super) fn compute_task_keys(
     graph: &ProjectGraph<GraphPkg<'_>>,
     cache: &TaskCache,
     config: &Config,
+    emit: fn(&LogEvent),
 ) -> miette::Result<HashMap<TaskKey, Option<String>>> {
     let mut keys: HashMap<TaskKey, Option<String>> = HashMap::with_capacity(task_graph.len());
+    let mut warned_projects: HashSet<PathBuf> = HashSet::new();
     for key in sequenced_tasks {
         let node = &task_graph[key];
         let manifest = graph[node.project.as_path()].package.project.manifest.value();
@@ -105,9 +108,35 @@ pub(super) fn compute_task_keys(
                 &config.extra_env_with_node_options(),
             ),
         })?;
+        if task_key.is_none() {
+            warn_without_git_inputs(cache, &node.project, &mut warned_projects, emit);
+        }
         keys.insert(key.clone(), task_key);
     }
     Ok(keys)
+}
+
+/// Explain a task that runs without a cache key because git cannot
+/// enumerate its project, once per project.
+fn warn_without_git_inputs(
+    cache: &TaskCache,
+    project: &Path,
+    warned_projects: &mut HashSet<PathBuf>,
+    emit: fn(&LogEvent),
+) {
+    let unavailable = cache.inputs_unavailable(project);
+    if !matches!(unavailable, Some(cache::InputsUnavailable::NoGit))
+        || !warned_projects.insert(project.to_path_buf())
+    {
+        return;
+    }
+    emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
+        message: "Cannot enumerate the tracked files of the project with git; running its tasks \
+                  without a cache key."
+            .to_string(),
+        prefix: project.to_string_lossy().into_owned(),
+    }));
 }
 
 fn task_script_bodies(
