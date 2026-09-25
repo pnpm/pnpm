@@ -12,7 +12,9 @@ use super::{
     Arc, ArchiveStoreProjection, HashMap, IntoParallelIterator, PackageContentCheck,
     ParallelIterator, PathBuf, TarballError,
 };
-use pnpm_package_manifest::files_build_triggers;
+use pnpm_package_manifest::{
+    files_build_triggers, requires_build_from_cas_paths, stored_build_may_predate_gypfile,
+};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use pnpm_store_dir::{
     PackageFilesIndex, PendingFilesCheck, PkgContentMismatch, SharedReadonlyStoreIndex,
@@ -348,23 +350,17 @@ where
     triggers.requires_build()
 }
 
-fn resolve_row_requires_build<Filenames, Filename>(
+fn resolve_row_requires_build(
     stored: Option<bool>,
     manifest: Option<&serde_json::Value>,
-    filenames: Filenames,
-) -> bool
-where
-    Filenames: IntoIterator<Item = Filename>,
-    Filename: AsRef<str>,
-{
+    cas_paths: &HashMap<String, PathBuf>,
+) -> bool {
     match stored {
-        Some(true)
-            if manifest.is_some_and(pnpm_package_manifest::manifest_opts_out_of_gyp_build) =>
-        {
-            row_requires_build(manifest, filenames)
+        Some(true) if stored_build_may_predate_gypfile(manifest, cas_paths.keys()) => {
+            requires_build_from_cas_paths(cas_paths)
         }
         Some(stored) => stored,
-        None => row_requires_build(manifest, filenames),
+        None => row_requires_build(manifest, cas_paths.keys()),
     }
 }
 
@@ -393,7 +389,7 @@ fn collect_prefetch_result(decoded: Vec<DecodedPrefetchRow>) -> PrefetchResult {
         let calculated_requires_build = resolve_row_requires_build(
             stored_requires_build,
             manifest.as_deref(),
-            verify_result.files_map.keys(),
+            &verify_result.files_map,
         );
         if let Some(manifest) = manifest {
             result.manifests.insert(cache_key.clone(), manifest);

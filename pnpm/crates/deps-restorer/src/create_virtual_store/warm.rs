@@ -10,7 +10,7 @@ use super::{
 use crate::{CasPathsByPkgId, InstallPackageBySnapshotError};
 use pnpm_git_fetcher::{GitFetcherError, resolve_package_build_permission};
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName};
-use pnpm_package_manifest::{files_build_triggers, parse_manifest};
+use pnpm_package_manifest::parse_manifest;
 use pnpm_reporter::Reporter;
 use pnpm_tarball::PrefetchResult;
 use std::{
@@ -112,20 +112,6 @@ pub(super) fn is_git_hosted_resolution(resolution: &LockfileResolution) -> bool 
         LockfileResolution::Tarball(tarball) => tarball.is_git_hosted(),
         _ => false,
     }
-}
-/// Whether a package's own files ask for a build: a `binding.gyp` (unless
-/// opted out with `gypfile: false`) or `.hooks/` entry, or an install
-/// script in its `package.json`.
-#[must_use]
-pub fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
-    let mut triggers = files_build_triggers(cas_paths.keys());
-    if let Some(package_json) = cas_paths.get("package.json")
-        && let Ok(contents) = fs::read_to_string(package_json)
-        && let Ok(manifest) = parse_manifest(&contents)
-    {
-        triggers.read_manifest(&manifest);
-    }
-    triggers.requires_build()
 }
 pub(super) fn snapshot_needs_build_marker(snapshot_key: &PackageKey, requires_build: bool) -> bool {
     requires_build || crate::snapshot_has_patch(snapshot_key)

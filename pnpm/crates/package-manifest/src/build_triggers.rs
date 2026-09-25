@@ -1,6 +1,10 @@
-use crate::{is_truthy, safe_read_package_json_from_dir};
+use crate::{is_truthy, parse_manifest, safe_read_package_json_from_dir};
 use serde_json::Value;
-use std::path::Path;
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+};
 
 /// The file a package ships to have `node-gyp` build it.
 pub const BINDING_GYP: &str = "binding.gyp";
@@ -155,6 +159,48 @@ where
         triggers.add_file(filename.as_ref());
     }
     triggers
+}
+
+/// Whether a package's own files ask for a build: a `binding.gyp` (unless
+/// opted out with `gypfile: false`) or `.hooks/` entry, or an install
+/// script in its `package.json`.
+#[must_use]
+pub fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
+    let mut triggers = files_build_triggers(cas_paths.keys());
+    if let Some(package_json) = cas_paths.get("package.json")
+        && let Ok(contents) = fs::read_to_string(package_json)
+        && let Ok(manifest) = parse_manifest(&contents)
+    {
+        triggers.read_manifest(&manifest);
+    }
+    triggers.requires_build()
+}
+
+/// Whether a store-index row's stored `requiresBuild: true` can be stale
+/// because of `gypfile`, so only the package's own `package.json` can
+/// confirm it.
+///
+/// Rows written before pnpm read `gypfile` recorded a `binding.gyp` as build
+/// work regardless, and their bundled manifest dropped the field. A row whose
+/// bundled manifest carries no `gypfile` and whose only trigger is a
+/// [`BINDING_GYP`] may be one of them. Every other stored `true` still holds.
+#[must_use]
+pub fn stored_build_may_predate_gypfile<Filenames, Filename>(
+    manifest: Option<&Value>,
+    filenames: Filenames,
+) -> bool
+where
+    Filenames: IntoIterator<Item = Filename>,
+    Filename: AsRef<str>,
+{
+    if manifest.is_some_and(|manifest| manifest.get("gypfile").is_some()) {
+        return false;
+    }
+    let mut triggers = files_build_triggers(filenames);
+    if let Some(manifest) = manifest {
+        triggers.read_manifest(manifest);
+    }
+    triggers.binding_gyp && !triggers.hooks && !triggers.manifest_scripts
 }
 
 /// Decide whether store-index file keys imply build hooks, without consulting

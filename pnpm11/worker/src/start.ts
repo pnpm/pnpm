@@ -4,7 +4,7 @@ import path from 'node:path'
 import util from 'node:util'
 import { parentPort } from 'node:worker_threads'
 
-import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
+import { pkgRequiresBuild, storedBuildMayPredateGypfile } from '@pnpm/building.pkg-requires-build'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import { PnpmError } from '@pnpm/error'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
@@ -145,7 +145,7 @@ async function handleMessage (
           verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex)
         }
         const bundledManifest = pkgFilesIndex.manifest
-        const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(bundledManifest, verifyResult.filesMap)
+        const requiresBuild = resolveRequiresBuild(pkgFilesIndex.requiresBuild, bundledManifest, verifyResult.filesMap)
 
         parentPort!.postMessage({
           status: 'success',
@@ -193,6 +193,30 @@ async function handleMessage (
         hint: e.hint,
       },
     })
+  }
+}
+
+function resolveRequiresBuild (
+  stored: boolean | undefined,
+  bundledManifest: BundledManifest | undefined,
+  filesMap: FilesMap
+): boolean {
+  if (stored == null) return pkgRequiresBuild(bundledManifest, filesMap)
+  if (!stored || !storedBuildMayPredateGypfile(bundledManifest, filesMap)) return stored
+  const manifest = readManifestFromCafs(filesMap)
+  return manifest == null ? stored : pkgRequiresBuild(manifest, filesMap)
+}
+
+function readManifestFromCafs (filesMap: FilesMap): DependencyManifest | undefined {
+  const manifestPath = filesMap.get('package.json')
+  if (manifestPath == null) return undefined
+  try {
+    return JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  } catch (err: unknown) {
+    if (err instanceof SyntaxError || (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
+      return undefined
+    }
+    throw err
   }
 }
 

@@ -18,6 +18,26 @@ export function pkgRequiresBuild (manifest: Partial<DependencyManifest> | undefi
 }
 
 /**
+ * Whether a store index row's stored `requiresBuild: true` can be stale because
+ * of `gypfile`, so only the package's own `package.json` can confirm it.
+ *
+ * Rows written before pnpm read `gypfile` recorded a `binding.gyp` as build
+ * work regardless, and their bundled manifest dropped the field. A row whose
+ * bundled manifest carries no `gypfile` and whose only trigger is a
+ * `binding.gyp` may be one of them. Every other stored `true` still holds.
+ */
+export function storedBuildMayPredateGypfile (manifest: Partial<DependencyManifest> | undefined, filesIndex: FilesIndexArg): boolean {
+  if (manifest != null && 'gypfile' in manifest) return false
+  const hasBindingGyp = filesIndex instanceof Map ? filesIndex.has('binding.gyp') : Object.hasOwn(filesIndex, 'binding.gyp')
+  return hasBindingGyp && !pkgRequiresBuild(manifest, withoutBindingGyp(filesIndex))
+}
+
+function withoutBindingGyp (filesIndex: FilesIndexArg): Map<string, unknown> {
+  const entries = filesIndex instanceof Map ? filesIndex.entries() : Object.entries(filesIndex)
+  return new Map(Array.from(entries).filter(([filename]) => filename !== 'binding.gyp'))
+}
+
+/**
  * `gypBuildOptedOut` silences the `binding.gyp` trigger only. `gypfile` speaks
  * for the synthesized `node-gyp rebuild` alone, so a `.hooks/` entry is build
  * work either way.

@@ -3,6 +3,7 @@
 "@pnpm/exec.lifecycle": patch
 "@pnpm/store.cafs": patch
 "@pnpm/types": patch
+"@pnpm/worker": patch
 "pnpm": patch
 "pacquet": patch
 ---
