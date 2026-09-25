@@ -119,7 +119,8 @@ export async function findDependencyLicenses (opts: {
     : null
 
   const nodeLinker = opts.nodeLinker ?? modulesManifest?.nodeLinker
-  const shamefullyHoist = opts.shamefullyHoist ?? modulesManifest?.shamefullyHoist ?? Boolean(modulesManifest?.publicHoistPattern?.includes('*'))
+  const shamefullyHoist = opts.shamefullyHoist ??
+    (modulesManifest?.shamefullyHoist === true || Boolean(modulesManifest?.publicHoistPattern?.includes('*')))
   const hoistedLocations = opts.hoistedLocations ?? (nodeLinker === 'hoisted' ? modulesManifest?.hoistedLocations : undefined)
 
   const licenseNodeTree = await lockfileToLicenseNodeTree(opts.wantedLockfile, {
