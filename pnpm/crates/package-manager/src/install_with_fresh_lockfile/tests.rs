@@ -83,16 +83,18 @@ fn builtin_compatibility_extensions_do_not_apply_to_importer_manifests() {
     );
     let importer_manifests = std::collections::BTreeMap::from([(".".to_string(), &manifest)]);
 
+    let config = config_with_extensions(&[("vue-loader", &[("test-dependency", "1.0.0")])]);
     let transforms = build_manifest_transforms(
-        &Config::new(),
+        &config,
         &Catalogs::default(),
         dir.path(),
         &importer_manifests,
         false,
     )
     .unwrap();
-    let effective_manifest = transforms.effective_importer_manifests.get(".").unwrap_or(&manifest);
+    let effective_manifest = transforms.effective_importer_manifests.get(".").unwrap();
 
+    assert_eq!(effective_manifest.value()["dependencies"]["test-dependency"], "1.0.0");
     assert_eq!(effective_manifest.value().get("peerDependencies"), None);
 }
 
