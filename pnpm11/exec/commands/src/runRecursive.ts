@@ -180,7 +180,7 @@ function buildRunTaskGraph (scriptName: string, opts: RecursiveRunOpts): TaskGra
   let taskGraph = buildTaskGraph({
     projectDependencies,
     scriptsByProject: (project) => opts.selectedProjectsGraph[project].package.manifest.scripts ?? {},
-    selectScripts: getSpecifiedScripts,
+    selectScripts: (scripts, scriptName) => getSpecifiedScripts(scripts, scriptName, !opts.sequential),
     taskName: scriptName,
     tasks: runTasks(opts),
     isSelectorTaskName: isRegExpSelector,
@@ -191,17 +191,16 @@ function buildRunTaskGraph (scriptName: string, opts: RecursiveRunOpts): TaskGra
   return taskGraph
 }
 
-export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string): string[] {
-  // if scripts in package.json has script which is equal to scriptName a user passes, return it.
+export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string, sort: boolean = true): string[] {
   if (scripts[scriptName]) {
     return [scriptName]
   }
 
   const scriptSelector = tryBuildRegExpFromCommand(scriptName)
 
-  // if scriptName which a user passes is RegExp (like /build:.*/), multiple scripts to execute will be selected with RegExp
   if (scriptSelector) {
-    return Object.keys(scripts).filter(script => Boolean(scripts[script]) && scriptSelector.test(script))
+    const matched = Object.keys(scripts).filter(script => Boolean(scripts[script]) && scriptSelector.test(script))
+    return sort ? matched.sort() : matched
   }
 
   return []
