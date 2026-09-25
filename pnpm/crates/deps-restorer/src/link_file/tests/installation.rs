@@ -207,6 +207,75 @@ fn clone_tier_aligns_modes_to_the_current_umask() {
         }
     }
 }
+
+/// Recovery adopts a hardlink that already carries the current process's desired mode.
+#[test]
+#[cfg(unix)]
+fn recover_from_concurrent_import_preserves_hardlink_with_desired_mode() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "1b59d9", b"data\n");
+    let dst = tmp.path().join("dst");
+
+    let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+    fs::set_permissions(&src, fs::Permissions::from_mode(desired)).unwrap();
+    fs::hard_link(&src, &dst).unwrap();
+
+    let result =
+        recover_from_concurrent_import(io::Error::from(io::ErrorKind::AlreadyExists), &src, &dst);
+    result.expect("recover_from_concurrent_import should succeed");
+
+    assert_eq!(super::inode(&src), super::inode(&dst), "hardlink is preserved when mode matches");
+    let actual_mode = fs::metadata(&dst)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(actual_mode, desired);
+}
+
+/// Recovery replaces a hardlink whose shared store inode has a mode different from
+/// the current process's desired mode (e.g. populated under a different umask)
+/// with an independent file carrying the desired mode, leaving the store inode untouched.
+#[test]
+#[cfg(unix)]
+fn recover_from_concurrent_import_replaces_hardlink_with_mismatched_mode() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "1b59d9", b"data\n");
+    let dst = tmp.path().join("dst");
+
+    let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+    let mismatched = desired ^ 0o001;
+
+    fs::hard_link(&src, &dst).unwrap();
+    fs::set_permissions(&src, fs::Permissions::from_mode(mismatched)).unwrap();
+
+    let result =
+        recover_from_concurrent_import(io::Error::from(io::ErrorKind::AlreadyExists), &src, &dst);
+    result.expect("recover_from_concurrent_import should succeed");
+
+    assert_ne!(
+        super::inode(&src),
+        super::inode(&dst),
+        "hardlink with mismatched mode is replaced with an independent file",
+    );
+    let dst_mode = fs::metadata(&dst)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(dst_mode, desired, "replaced file receives desired mode");
+
+    let src_mode = fs::metadata(&src)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(src_mode, mismatched, "shared store inode is not chmodded");
+}
 /// Driven through `Hardlink` for a deterministic EEXIST without needing
 /// reflink support on the test filesystem.
 #[test]

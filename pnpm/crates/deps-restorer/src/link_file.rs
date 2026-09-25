@@ -248,6 +248,24 @@ pub fn import_into_fresh_target<Reporter: self::Reporter>(
 /// A symlink squatting at the target is left exactly as pnpm leaves it:
 /// no writer materialized it, and the alignment would only fail on it.
 /// Every other error is the caller's to surface.
+fn is_placed_concurrently(error: &io::Error, source_file: &Path, target_link: &Path) -> bool {
+    error.kind() == io::ErrorKind::AlreadyExists
+        || (error.kind() == io::ErrorKind::NotFound
+            && fs::metadata(target_link).is_ok_and(|m| m.is_file())
+            && fs::metadata(source_file).is_ok())
+}
+
+/// Materialize an independent copy of `source_file` over `target_link`
+/// carrying the current process's [`desired_mode`], leaving `source_file`
+/// untouched.
+fn replace_shared_inode_with_copy(source_file: &Path, target_link: &Path) -> io::Result<()> {
+    pnpm_fs::copy_file_atomic_with_permissions(
+        source_file,
+        target_link,
+        &desired_permissions(source_file)?,
+    )
+}
+
 fn recover_from_concurrent_import(
     error: io::Error,
     source_file: &Path,
@@ -258,22 +276,17 @@ fn recover_from_concurrent_import(
         to: target_link.to_path_buf(),
         error,
     };
-    let placed_concurrently = match error.kind() {
-        io::ErrorKind::AlreadyExists => true,
-        io::ErrorKind::NotFound => {
-            fs::metadata(target_link).is_ok_and(|meta| meta.is_file())
-                && fs::metadata(source_file).is_ok()
-        }
-        _ => false,
-    };
-    if !placed_concurrently {
+    if !is_placed_concurrently(&error, source_file, target_link) {
         return Err(import_error(error));
     }
     if fs::symlink_metadata(target_link).is_ok_and(|meta| meta.file_type().is_symlink()) {
         return Ok(());
     }
     if same_inode(source_file, target_link) {
-        return Ok(());
+        if source_has_desired_mode(source_file).map_err(import_error)? {
+            return Ok(());
+        }
+        return replace_shared_inode_with_copy(source_file, target_link).map_err(import_error);
     }
     match align_target_mode(source_file, target_link) {
         Ok(()) => Ok(()),
@@ -422,16 +435,23 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
 /// [`recover_from_concurrent_import`], where every tier sends one. A
 /// partial file it removes on failure would otherwise be adopted by a
 /// later import as a concurrent writer's finished work.
-fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
+fn desired_permissions(source_file: &Path) -> io::Result<fs::Permissions> {
     #[cfg(unix)]
-    let permissions = {
+    {
         use std::os::unix::fs::PermissionsExt;
-        fs::Permissions::from_mode(desired_mode(source_file))
-    };
+        Ok(fs::Permissions::from_mode(desired_mode(source_file)))
+    }
     #[cfg(not(unix))]
-    let permissions = fs::File::open(source_file)?.metadata()?.permissions();
+    fs::File::open(source_file)?.metadata().map(|meta| meta.permissions())
+}
 
-    pnpm_fs::copy_file_exclusive(source_file, target_link, &permissions, |_| Ok(()))
+fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
+    pnpm_fs::copy_file_exclusive(
+        source_file,
+        target_link,
+        &desired_permissions(source_file)?,
+        |_| Ok(()),
+    )
 }
 
 /// [`FsReflink::reflink`] for the explicit `Clone` method, then
@@ -551,6 +571,16 @@ fn is_call_error(err: &io::Error) -> bool {
 /// downgrade the cached state; other errors propagate immediately so a
 /// one-off `NotFound` on a single file doesn't permanently disable a
 /// tier for the rest of the process.
+fn copy_and_log<Reporter: self::Reporter>(
+    logged: &AtomicU8,
+    source: &Path,
+    target: &Path,
+) -> io::Result<WireImportMethod> {
+    copy_file(source, target)?;
+    log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+    Ok(WireImportMethod::Copy)
+}
+
 fn auto_link<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
     logged: &AtomicU8,
     state: &AtomicU8,
@@ -571,13 +601,7 @@ fn auto_link<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
                 }
                 downgrade_auto_tier(state, LINK_STATE_HARDLINK);
             }
-            _ => {
-                return copy_file(source, target)
-                    .inspect(|()| {
-                        log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-                    })
-                    .map(|()| WireImportMethod::Copy);
-            }
+            _ => return copy_and_log::<Reporter>(logged, source, target),
         }
     }
 }
@@ -625,20 +649,14 @@ fn hardlink_tier<Reporter: self::Reporter, Sys: FsHardLink>(
                 log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
                 Ok(Some(WireImportMethod::Hardlink))
             }
-            Err(err) if is_too_many_links(&err) => copy_file(source, target)
-                .inspect(|()| {
-                    log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-                })
-                .map(|()| Some(WireImportMethod::Copy)),
+            Err(err) if is_too_many_links(&err) => {
+                copy_and_log::<Reporter>(logged, source, target).map(Some)
+            }
             Err(err) if is_call_error(&err) => Err(err),
             Err(_) => Ok(None),
         }
     } else {
-        copy_file(source, target)
-            .inspect(|()| {
-                log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-            })
-            .map(|()| Some(WireImportMethod::Copy))
+        copy_and_log::<Reporter>(logged, source, target).map(Some)
     }
 }
 
@@ -662,13 +680,7 @@ fn clone_or_copy_link<Reporter: self::Reporter, Sys: FsReflink>(
                 }
                 state.fetch_max(LINK_STATE_COPY, Ordering::Relaxed);
             }
-            _ => {
-                return copy_file(source, target)
-                    .inspect(|()| {
-                        log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-                    })
-                    .map(|()| WireImportMethod::Copy);
-            }
+            _ => return copy_and_log::<Reporter>(logged, source, target),
         }
     }
 }
