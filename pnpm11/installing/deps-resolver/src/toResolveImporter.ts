@@ -2,6 +2,7 @@ import { logger } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import type {
   PreferredVersions,
+  VersionSelectors,
   WorkspacePackages,
 } from '@pnpm/resolving.resolver-base'
 import type { Dependencies, ProjectManifest } from '@pnpm/types'
@@ -26,6 +27,7 @@ export async function toResolveImporter (
     defaultUpdateDepth: number
     hideAlienModules: boolean
     preferredVersions?: PreferredVersions
+    preferredVersionsByImporterId?: Record<string, PreferredVersions>
     virtualStoreDir: string
     globalVirtualStoreDir: string
     workspacePackages: WorkspacePackages
@@ -90,10 +92,14 @@ export async function toResolveImporter (
       ),
     ]
   }
+  const sharedPreferredVersions = opts.preferredVersions ?? (project.manifest && getPreferredVersionsFromPackage(project.manifest)) ?? {}
+  const projectPins = opts.preferredVersionsByImporterId?.[project.id]
   return {
     ...project,
     hasRemovedDependencies: Boolean(project.removePackages?.length),
-    preferredVersions: opts.preferredVersions ?? (project.manifest && getPreferredVersionsFromPackage(project.manifest)) ?? {},
+    preferredVersions: projectPins == null
+      ? sharedPreferredVersions
+      : overlayProjectVersionPins(sharedPreferredVersions, projectPins),
     wantedDependencies,
   }
 }
@@ -144,6 +150,31 @@ async function partitionLinkedPackages (
     }
   }))
   return nonLinkedDependencies
+}
+
+// A project's own pins replace shared concrete versions for names that the
+// project's lockfile records, so an older pin stays selected when a shared
+// pin also satisfies the range.
+function overlayProjectVersionPins (
+  shared: PreferredVersions,
+  projectPins: PreferredVersions
+): PreferredVersions {
+  const preferredVersions: PreferredVersions = Object.assign(Object.create(null), shared)
+  for (const name of Object.keys(preferredVersions)) {
+    preferredVersions[name] = Object.assign(Object.create(null), preferredVersions[name])
+  }
+  for (const [name, pins] of Object.entries(projectPins)) {
+    const selectors: VersionSelectors = Object.assign(Object.create(null), preferredVersions[name])
+    for (const [selector, info] of Object.entries(selectors)) {
+      const selectorType = typeof info === 'string' ? info : info.selectorType
+      if (selectorType === 'version') {
+        delete selectors[selector]
+      }
+    }
+    Object.assign(selectors, pins)
+    preferredVersions[name] = selectors
+  }
+  return preferredVersions
 }
 
 function getPreferredVersionsFromPackage (

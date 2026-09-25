@@ -428,6 +428,7 @@ export interface ProcessedInstallOptions extends StrictInstallOptions {
    * `mutateModules` adds its own for a catalog entry it moves.
    */
   preferredVersions?: PreferredVersions
+  preferredVersionsByImporterId?: Record<string, PreferredVersions>
   parsedOverrides: VersionOverride[]
   /**
    * Present when the overrides contain convergence entries (`"pkg@"`). The

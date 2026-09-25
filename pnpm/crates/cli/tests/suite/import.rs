@@ -955,6 +955,46 @@ fn import_keeps_the_root_on_its_yarn_lock_pin_when_another_member_allows_newer()
 }
 
 #[test]
+fn import_keeps_the_version_pinned_by_a_nested_yarn_lock() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    append_workspace_yaml_key(&workspace, "packages", r#"["packages/*"]"#);
+    write_file(
+        &workspace,
+        "package.json",
+        r#"{"name":"root","version":"1.0.0","dependencies":{"@pnpm.e2e/bravo-dep":"^1.0.0"}}"#,
+    );
+    write_file(&workspace, "yarn.lock", "\"@pnpm.e2e/bravo-dep@^1.0.0\":\n  version \"1.0.0\"\n");
+    write_file(
+        &workspace,
+        "packages/foo/package.json",
+        r#"{"name":"foo","version":"1.0.0","dependencies":{"@pnpm.e2e/bravo-dep":"^1.0.1"}}"#,
+    );
+    write_file(
+        &workspace,
+        "packages/foo/yarn.lock",
+        "\"@pnpm.e2e/bravo-dep@^1.0.1\":\n  version \"1.0.1\"\n",
+    );
+
+    pacquet
+        .with_arg("import")
+        .assert()
+        .success();
+
+    assert_eq!(importer_version(&workspace, ".", "@pnpm.e2e/bravo-dep"), "1.0.0");
+    assert_eq!(importer_version(&workspace, "packages/foo", "@pnpm.e2e/bravo-dep"), "1.0.1");
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn import_deduplicates_compatible_locked_versions_from_package_lock_json() {
     let CommandTempCwd {
         pacquet,

@@ -175,6 +175,7 @@ export async function resolveDependencies (
     defaultUpdateDepth: opts.defaultUpdateDepth,
     hideAlienModules: !opts.dryRun || opts.hideAlienModules === true,
     preferredVersions: opts.preferredVersions,
+    preferredVersionsByImporterId: opts.preferredVersionsByImporterId,
     virtualStoreDir: opts.virtualStoreDir,
     globalVirtualStoreDir: opts.globalVirtualStoreDir,
     workspacePackages: opts.workspacePackages,

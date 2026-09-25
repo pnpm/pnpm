@@ -142,6 +142,7 @@ export interface ResolveDependenciesOptions extends RegistryContext {
   patchedDependencies?: PatchGroupRecord
   pnpmVersion: string
   preferredVersions?: PreferredVersions
+  preferredVersionsByImporterId?: Record<string, PreferredVersions>
   preferWorkspacePackages?: boolean
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   resolvePeersFromWorkspaceRoot?: boolean

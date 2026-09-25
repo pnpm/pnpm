@@ -144,7 +144,7 @@ pub(super) fn add_install<'i>(
     } else {
         UpdateSeedPolicy::KeepAll
     };
-    install.resolution.preferred_versions_override = Some(seed.preferred_versions_override);
+    install.resolution.preferred_versions_override = Some(seed.preferred_versions_override.into());
     install.context.emit_initial_manifest = false;
     install.context.lockfile_path = add.lockfile.path;
     install.projects.supported_architectures = owned.supported_architectures;

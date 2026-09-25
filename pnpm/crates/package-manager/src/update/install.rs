@@ -166,7 +166,7 @@ pub(super) fn update_install<'i>(
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: seed.policy,
-            preferred_versions_override: Some(seed.preferred_versions_override),
+            preferred_versions_override: Some(seed.preferred_versions_override.into()),
             auth_override: None,
             observer: owned.resolution_observer,
             peer_issues_sink: None,
