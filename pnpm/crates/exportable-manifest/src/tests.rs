@@ -50,11 +50,12 @@ fn write_dep(dir: &Path, name: &str, version: &str) {
 }
 
 fn rewrite(dep_name: &str, dep_spec: &str, dir: &Path) -> String {
-    replace_workspace_protocol(dep_name, dep_spec, dir, None, None).expect("replace succeeds")
+    replace_workspace_protocol(dep_name, dep_spec, dir, None, None.into())
+        .expect("replace succeeds")
 }
 
 fn rewrite_peer(dep_name: &str, dep_spec: &str, dir: &Path) -> String {
-    replace_workspace_protocol_peer_dependency(dep_name, dep_spec, dir, None, None)
+    replace_workspace_protocol_peer_dependency(dep_name, dep_spec, dir, None, None.into())
         .expect("replace succeeds")
 }
 
@@ -119,7 +120,8 @@ fn missing_dependency_surfaces_cannot_resolve_error() {
     let dir = fixture.path();
     fs::create_dir_all(dir.join("node_modules")).unwrap();
 
-    let err = replace_workspace_protocol("ghost", "workspace:*", dir, None, None).unwrap_err();
+    let err =
+        replace_workspace_protocol("ghost", "workspace:*", dir, None, None.into()).unwrap_err();
     assert!(matches!(
         err,
         ReplaceWorkspaceProtocolError::CannotResolve(CannotResolveWorkspaceProtocolError {
@@ -136,8 +138,9 @@ fn missing_dependency_surfaces_cannot_resolve_error_for_peer() {
     let dir = fixture.path();
     fs::create_dir_all(dir.join("node_modules")).unwrap();
 
-    let err = replace_workspace_protocol_peer_dependency("ghost", "workspace:^", dir, None, None)
-        .unwrap_err();
+    let err =
+        replace_workspace_protocol_peer_dependency("ghost", "workspace:^", dir, None, None.into())
+            .unwrap_err();
     assert!(matches!(
         err,
         ReplaceWorkspaceProtocolError::CannotResolve(CannotResolveWorkspaceProtocolError {
@@ -156,7 +159,8 @@ fn missing_version_on_dependency_is_not_reported_as_not_installed() {
     fs::create_dir_all(&dep_dir).unwrap();
     fs::write(dep_dir.join("package.json"), r#"{ "name": "pkg-b" }"#).unwrap();
 
-    let err = replace_workspace_protocol("pkg-b", "workspace:*", dir, None, None).unwrap_err();
+    let err =
+        replace_workspace_protocol("pkg-b", "workspace:*", dir, None, None.into()).unwrap_err();
     match err {
         ReplaceWorkspaceProtocolError::CannotResolve(CannotResolveWorkspaceProtocolError {
             dep_name,
@@ -166,8 +170,9 @@ fn missing_version_on_dependency_is_not_reported_as_not_installed() {
         other => panic!("expected MissingVersion, got {other:?}"),
     }
 
-    let err = replace_workspace_protocol_peer_dependency("pkg-b", "workspace:*", dir, None, None)
-        .unwrap_err();
+    let err =
+        replace_workspace_protocol_peer_dependency("pkg-b", "workspace:*", dir, None, None.into())
+            .unwrap_err();
     assert!(matches!(
         err,
         ReplaceWorkspaceProtocolError::CannotResolve(CannotResolveWorkspaceProtocolError {
@@ -195,7 +200,7 @@ fn scoped_peer_workspace_spec_resolves_from_workspace_packages() {
         "workspace:*",
         dir.path(),
         None,
-        Some(&ws_pkgs),
+        Some(&ws_pkgs).into(),
     )
     .expect("resolves scoped peer from workspace_packages");
     assert_eq!(res, "2.0.0");
@@ -218,7 +223,7 @@ fn workspace_package_without_version_reports_missing_version() {
         "workspace:~",
         dir.path(),
         None,
-        Some(&ws_pkgs),
+        Some(&ws_pkgs).into(),
     )
     .unwrap_err();
     assert!(matches!(
@@ -254,9 +259,14 @@ fn missing_version_help_uses_the_workspace_package_name() {
         WorkspacePackageManifest { name: "pkg-b".to_string(), version: String::new() },
     );
 
-    let err =
-        replace_workspace_protocol("alias", "workspace:pkg-b@*", dir.path(), None, Some(&ws_pkgs))
-            .unwrap_err();
+    let err = replace_workspace_protocol(
+        "alias",
+        "workspace:pkg-b@*",
+        dir.path(),
+        None,
+        Some(&ws_pkgs).into(),
+    )
+    .unwrap_err();
     let ReplaceWorkspaceProtocolError::CannotResolve(err) = err else {
         panic!("expected CannotResolveWorkspaceProtocolError");
     };
@@ -281,8 +291,9 @@ fn installed_manifest_without_name_keeps_the_missing_name_reason() {
         WorkspacePackageManifest { name: "pkg-b".to_string(), version: String::new() },
     );
 
-    let err = replace_workspace_protocol("pkg-b", "workspace:*", dir.path(), None, Some(&ws_pkgs))
-        .unwrap_err();
+    let err =
+        replace_workspace_protocol("pkg-b", "workspace:*", dir.path(), None, Some(&ws_pkgs).into())
+            .unwrap_err();
     assert!(matches!(
         err,
         ReplaceWorkspaceProtocolError::CannotResolve(CannotResolveWorkspaceProtocolError {
@@ -334,6 +345,7 @@ fn published_dependencies_keep_declaration_order() {
             skip_manifest_obfuscation: false,
             embed_readme: false,
             workspace_packages: None,
+            prefer_workspace_packages: false,
         },
     )
     .expect("manifest is exportable");
@@ -366,8 +378,9 @@ fn resolves_workspace_protocol_from_workspace_packages_when_node_modules_is_abse
         WorkspacePackageManifest { name: "dep-b".to_string(), version: "2.3.4".to_string() },
     );
 
-    let res = replace_workspace_protocol("dep-a", "workspace:^", dir.path(), None, Some(&ws_pkgs))
-        .expect("resolves from workspace_packages");
+    let res =
+        replace_workspace_protocol("dep-a", "workspace:^", dir.path(), None, Some(&ws_pkgs).into())
+            .expect("resolves from workspace_packages");
     assert_eq!(res, "^1.2.3");
 
     let res = replace_workspace_protocol(
@@ -375,7 +388,7 @@ fn resolves_workspace_protocol_from_workspace_packages_when_node_modules_is_abse
         "workspace:dep-b@~",
         dir.path(),
         None,
-        Some(&ws_pkgs),
+        Some(&ws_pkgs).into(),
     )
     .expect("resolves aliased dep from workspace_packages");
     assert_eq!(res, "npm:dep-b@~2.3.4");
@@ -385,7 +398,7 @@ fn resolves_workspace_protocol_from_workspace_packages_when_node_modules_is_abse
         "workspace:>=1.0.0",
         dir.path(),
         None,
-        Some(&ws_pkgs),
+        Some(&ws_pkgs).into(),
     )
     .expect("resolves peer dep");
     assert_eq!(res, ">=1.0.0");
@@ -395,8 +408,36 @@ fn resolves_workspace_protocol_from_workspace_packages_when_node_modules_is_abse
         "workspace:^",
         dir.path(),
         None,
-        Some(&ws_pkgs),
+        Some(&ws_pkgs).into(),
     )
     .expect("resolves peer dep with sentinel");
     assert_eq!(res, "^1.2.3");
+}
+
+/// The lookup prefers the installed copy by default; `prefer_workspace`
+/// flips the order so a bumped workspace manifest wins over a stale
+/// `node_modules` copy.
+#[test]
+fn prefer_workspace_resolves_from_the_workspace_manifest_first() {
+    let fixture = TempDir::new().unwrap();
+    let dir = fixture.path();
+    write_dep(&dir.join("node_modules/dep-a"), "dep-a", "1.0.0");
+    let mut ws_pkgs = std::collections::HashMap::new();
+    ws_pkgs.insert(
+        "dep-a".to_string(),
+        WorkspacePackageManifest { name: "dep-a".to_string(), version: "3.0.0".to_string() },
+    );
+
+    let lookup = super::WorkspacePackageLookup { packages: Some(&ws_pkgs), prefer_workspace: true };
+    let res = replace_workspace_protocol("dep-a", "workspace:^", dir, None, lookup)
+        .expect("resolves from the workspace manifest");
+    assert_eq!(res, "^3.0.0");
+
+    let res = replace_workspace_protocol_peer_dependency("dep-a", "workspace:^", dir, None, lookup)
+        .expect("resolves the peer from the workspace manifest");
+    assert_eq!(res, "^3.0.0");
+
+    let res = replace_workspace_protocol("dep-a", "workspace:^", dir, None, Some(&ws_pkgs).into())
+        .expect("the default lookup prefers the installed copy");
+    assert_eq!(res, "^1.0.0");
 }

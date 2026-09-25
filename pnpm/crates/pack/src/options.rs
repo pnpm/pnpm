@@ -56,6 +56,11 @@ pub struct PackManifestOptions {
     pub before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     /// Workspace packages lookup used when a dependency is not installed in `node_modules`.
     pub workspace_packages: Option<Arc<HashMap<String, WorkspacePackageManifest>>>,
+    /// Resolve workspace dependencies from `workspace_packages` before the
+    /// copies installed in `node_modules`. Recursive `publish --new-version`
+    /// sets this: the workspace manifests carry the new version while
+    /// `node_modules` can still hold the pre-bump copies.
+    pub prefer_workspace_packages: bool,
 }
 
 pub struct PackOutputOptions {

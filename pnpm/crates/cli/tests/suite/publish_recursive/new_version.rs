@@ -119,3 +119,69 @@ fn recursive_new_version_bumps_but_skips_private_packages() {
 
     drop(root);
 }
+
+/// A dependency installed before the bump sits in `node_modules` with the old
+/// version. The packed manifest must still reference the bumped workspace
+/// version, not the stale installed copy.
+#[test]
+fn recursive_new_version_packs_workspace_deps_at_the_bumped_version() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", public_pkg("project-1")),
+            (
+                "project-2",
+                serde_json::json!({
+                    "name": "project-2",
+                    "version": "1.0.0",
+                    "dependencies": { "project-1": "workspace:*" },
+                }),
+            ),
+        ],
+    );
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
+    let installed = workspace.join("project-2/node_modules/project-1");
+    fs::create_dir_all(&installed).expect("create the installed copy");
+    fs::write(installed.join("package.json"), r#"{"name":"project-1","version":"1.0.0"}"#)
+        .expect("write the stale installed manifest");
+
+    server
+        .mock("GET", "/project-1")
+        .with_status(404)
+        .create();
+    server
+        .mock("GET", "/project-2")
+        .with_status(404)
+        .create();
+    let put_1 = server
+        .mock("PUT", "/project-1")
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+    let put_2 = server
+        .mock("PUT", "/project-2")
+        .match_body(Matcher::PartialJsonString(
+            r#"{"versions":{"3.0.0":{"dependencies":{"project-1":"3.0.0"}}}}"#.to_owned(),
+        ))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    clear_ci(pacquet)
+        .with_arg("-r")
+        .with_arg("publish")
+        .with_arg("--new-version")
+        .with_arg("3.0.0")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+
+    put_1.assert();
+    put_2.assert();
+
+    drop(root);
+}
