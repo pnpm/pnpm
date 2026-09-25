@@ -1,5 +1,5 @@
 import { expect, test } from '@jest/globals'
-import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import { createGetAuthHeaderByURI, reloadAuthHeaders } from '@pnpm/network.auth-header'
 
 const configByUri = {
   '//reg.com/': { '@': { authToken: 'abc123' } },
@@ -101,6 +101,17 @@ test('getAuthHeaderByURI() keeps registry path when matching package scope auth'
   expect(getAuthHeaderByURI('https://reg.com/npm/', { pkgName: '@orgA/pkg' })).toBe('Bearer org-a-token')
   expect(getAuthHeaderByURI('https://reg.com/npm/pkg/-/pkg-1.0.0.tgz', { pkgName: '@orgA/pkg' })).toBe('Bearer org-a-token')
   expect(getAuthHeaderByURI('https://reg.com/npm/', { pkgName: '@orgB/pkg' })).toBe('Bearer registry-token')
+})
+
+test('reloadAuthHeaders() picks up a token written after the lookup was created', () => {
+  const configByUri = {
+    '//reg.com/': { '@': { authToken: 'stale-token' } },
+  }
+  const getAuthHeaderByURI = createGetAuthHeaderByURI(configByUri)
+  expect(getAuthHeaderByURI('https://reg.com/pkg')).toBe('Bearer stale-token')
+  configByUri['//reg.com/'] = { '@': { authToken: 'good-token' } }
+  reloadAuthHeaders(configByUri)
+  expect(getAuthHeaderByURI('https://reg.com/pkg')).toBe('Bearer good-token')
 })
 
 test('getAuthHeaderByURI() basic auth in URL overrides package scope auth', () => {

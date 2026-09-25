@@ -61,7 +61,8 @@ export { types }
 
 export { binDirOf, modulesDirOf } from './binDir.js'
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
-export { getGlobalConfigPath } from './dirs.js'
+export { getConfigDir, getGlobalConfigPath } from './dirs.js'
+export { loadNpmrcConfig } from './loadNpmrcFiles.js'
 export { getDefaultCreds, getNetworkConfigs, type NetworkConfigs } from './getNetworkConfigs.js'
 export { getOptionsFromPnpmSettings, type OptionsFromRootManifest, toAuditSettings, toUpdateSettings } from './getOptionsFromRootManifest.js'
 export {

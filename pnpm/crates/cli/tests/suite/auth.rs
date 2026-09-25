@@ -109,6 +109,92 @@ fn assert_authenticated_install(
     tarballs.assert();
 }
 
+/// `pnpm:devPreinstall` can refresh a token in the user npmrc. The same
+/// install must send that token, not the one read before the script.
+#[test]
+fn dev_preinstall_user_npmrc_token_is_used_for_the_same_install() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let registry_url = registry.url();
+    let authority = registry_url.strip_prefix("http://").expect("mock registry is HTTP");
+    write_project_config(root.path(), &workspace, &registry_url, "");
+
+    let home = root.path().join("home");
+    fs::create_dir_all(&home).expect("create home");
+    let user_npmrc = home.join(".npmrc");
+    fs::write(&user_npmrc, format!("//{authority}/:_authToken=stale-token\n"))
+        .expect("write stale user npmrc");
+    let user_npmrc_literal = serde_json::to_string(&user_npmrc).expect("encode npmrc path");
+    fs::write(
+        workspace.join("refresh-auth.js"),
+        format!(
+            "require('fs').writeFileSync({user_npmrc_literal}, \"//{authority}/:_authToken=good-token\\n\")\n"
+        ),
+    )
+    .expect("write refresh script");
+    let refresh = "node refresh-auth.js";
+
+    let package = "private-pkg";
+    let tarball = minimal_tarball(package, "1.0.0");
+    let integrity = sha512_integrity(&tarball);
+    let tarball_path = "/private-pkg-1.0.0.tgz";
+    let packument_path = format!("/{}", package);
+    let packument = serde_json::json!({
+        "name": package,
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": package,
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": integrity,
+                    "tarball": format!("{registry_url}{tarball_path}"),
+                },
+            },
+        },
+    });
+    let metadata = registry
+        .mock("GET", packument_path.as_str())
+        .match_header("authorization", "Bearer good-token")
+        .with_status(200)
+        .with_header("content-type", "application/vnd.npm.install-v1+json")
+        .with_body(packument.to_string())
+        .expect_at_least(1)
+        .create();
+    let tarballs = registry
+        .mock("GET", tarball_path)
+        .match_header("authorization", "Bearer good-token")
+        .with_status(200)
+        .with_body(tarball)
+        .expect_at_least(1)
+        .create();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { (package): "1.0.0" },
+            "scripts": { "pnpm:devPreinstall": refresh },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    install_command(&workspace, root.path())
+        .with_env("HOME", &home)
+        .with_env("USERPROFILE", &home)
+        .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", &user_npmrc)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        workspace
+            .join("node_modules")
+            .join(package)
+            .exists()
+    );
+    metadata.assert();
+    tarballs.assert();
+}
+
 #[test]
 fn bearer_auth_is_used_for_metadata_tarballs_and_cold_frozen_reinstall() {
     assert_authenticated_install(

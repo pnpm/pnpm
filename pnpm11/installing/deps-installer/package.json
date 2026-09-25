@@ -69,6 +69,7 @@
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.matcher": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
     "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/config.package-is-installable": "workspace:*",
     "@pnpm/config.parse-overrides": "workspace:*",

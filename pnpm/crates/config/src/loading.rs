@@ -171,7 +171,7 @@ impl Config {
         npmrc_auth.tls.apply_tls_and_local_address(self);
     }
 
-    pub(super) fn load_global_settings<Sys: EnvVar>(
+    pub(crate) fn load_global_settings<Sys: EnvVar>(
         &self,
     ) -> Result<Option<WorkspaceSettings>, LoadWorkspaceYamlError> {
         let mut global_settings = self.config_dir
