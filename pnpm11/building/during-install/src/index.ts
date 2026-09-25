@@ -1,4 +1,5 @@
 import assert from 'node:assert'
+import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import util from 'node:util'
@@ -589,19 +590,27 @@ async function linksTo (target: string, modulesDirs: string[]): Promise<string[]
   return matches.filter((match): match is string => match != null)
 }
 
+/**
+ * The links in a `node_modules` directory, including those inside scope
+ * directories. A scope directory that is itself a link is not followed.
+ */
 async function listModulesDirEntries (modulesDir: string): Promise<string[]> {
   const entries = await readdirOrEmpty(modulesDir)
-  const nested = await Promise.all(entries.map(async (entry) =>
-    entry.startsWith('@')
-      ? (await readdirOrEmpty(path.join(modulesDir, entry))).map((name) => path.join(modulesDir, entry, name))
-      : [path.join(modulesDir, entry)]
-  ))
+  const nested = await Promise.all(entries.map(async (entry) => {
+    const entryPath = path.join(modulesDir, entry.name)
+    if (entry.name.startsWith('@') && entry.isDirectory()) {
+      return (await readdirOrEmpty(entryPath))
+        .filter((scoped) => scoped.isSymbolicLink())
+        .map((scoped) => path.join(entryPath, scoped.name))
+    }
+    return entry.isSymbolicLink() ? [entryPath] : []
+  }))
   return nested.flat()
 }
 
-async function readdirOrEmpty (dir: string): Promise<string[]> {
+async function readdirOrEmpty (dir: string): Promise<Dirent[]> {
   try {
-    return await fs.readdir(dir)
+    return await fs.readdir(dir, { withFileTypes: true })
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return []
     throw err

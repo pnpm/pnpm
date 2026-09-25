@@ -85,7 +85,9 @@ fn unlink_children(dir: &std::path::Path, dirs: &[std::path::PathBuf]) {
 
 fn unlink_scope(path: &std::path::Path, dirs: &[std::path::PathBuf]) {
     let Some(name) = path.file_name().and_then(|name| name.to_str()) else { return };
-    if !name.starts_with('@') {
+    let is_real_dir = std::fs::symlink_metadata(path)
+        .is_ok_and(|metadata| metadata.is_dir() && !metadata.file_type().is_symlink());
+    if !name.starts_with('@') || !is_real_dir {
         return;
     }
     let Ok(entries) = std::fs::read_dir(path) else { return };
