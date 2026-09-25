@@ -88,8 +88,8 @@ test('errors on invalid version range', async () => {
 
 test('groups a package named after an Object.prototype member under its own name', () => {
   const hash = '00000000000000000000000000000000'
-  const groups = groupPatchedDependencies({ constructor: hash, 'toString@1.0.0': hash })
-  expect(groups.constructor.all).toStrictEqual({ key: 'constructor', hash })
-  expect(groups.toString.exact['1.0.0']).toStrictEqual({ key: 'toString@1.0.0', hash })
+  const groups = new Map(Object.entries(groupPatchedDependencies({ constructor: hash, 'toString@1.0.0': hash })))
+  expect(groups.get('constructor')?.all).toStrictEqual({ key: 'constructor', hash })
+  expect(groups.get('toString')?.exact['1.0.0']).toStrictEqual({ key: 'toString@1.0.0', hash })
   expect(Object.hasOwn(Object, 'all')).toBe(false)
 })
