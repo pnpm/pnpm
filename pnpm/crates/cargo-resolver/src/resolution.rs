@@ -25,7 +25,8 @@ struct Discovered {
     versions: BTreeSet<Version>,
 }
 
-/// Sparse-index package names still needed to resolve `metadata` against `source`.
+/// Return sparse-index package names still needed to resolve `metadata`
+/// against the registry identified by `source`.
 pub fn missing_index_names(
     metadata: &str,
     index_files: &BTreeMap<String, String>,
@@ -36,30 +37,52 @@ pub fn missing_index_names(
     discovery.missing_names()
 }
 
-/// Incremental sparse-index package discovery across fetch waves.
+/// Which sparse-index files a resolve still needs, kept across fetch waves.
+///
+/// Edges reaching the same package are unified the way resolution unifies
+/// them, and a package is walked again whenever that union grows. Feature
+/// activation is not monotone across edges, so a union can reach a crate no
+/// single edge reaches.
+///
+/// Each index file is parsed once, when it is added, and each call to
+/// [`IndexDiscovery::missing_names`] walks only the edges that stopped at a
+/// package missing on the previous call, so a graph fetched in W waves costs
+/// one walk rather than W.
 pub struct IndexDiscovery {
-    root_dependencies: Vec<RegistryDependency>,
     registry: Registry,
+    pending: VecDeque<RegistryDependency>,
+    discovered: BTreeMap<PackageKey, Discovered>,
+    visited: BTreeSet<VisitKey>,
+    blocked: BTreeMap<VisitKey, RegistryDependency>,
 }
+
+type VisitKey = (String, String, bool, BTreeSet<String>);
 
 impl IndexDiscovery {
     pub fn new(metadata: &str, source: &str) -> Result<Self> {
-        let parsed = parse_metadata(metadata)?;
-        let root_dependencies = root_dependencies(&parsed)?;
-        Ok(Self { root_dependencies, registry: Registry::empty(source) })
+        let metadata = parse_metadata(metadata)?;
+        Ok(Self {
+            registry: Registry::empty(source),
+            pending: VecDeque::from(root_dependencies(&metadata)?),
+            discovered: BTreeMap::new(),
+            visited: BTreeSet::new(),
+            blocked: BTreeMap::new(),
+        })
     }
 
+    /// Parse and add index files. An entry replaces one already added under
+    /// the same crate name, but edges walked against the replaced entry are
+    /// not walked again, so add only names [`IndexDiscovery::missing_names`]
+    /// reported.
     pub fn add_entries(&mut self, index_files: &BTreeMap<String, String>) -> Result<()> {
         self.registry.add_entries(index_files)
     }
 
-    pub fn missing_names(&self) -> Result<Vec<String>> {
-        let mut pending = VecDeque::from(self.root_dependencies.clone());
-        let mut discovered = BTreeMap::<PackageKey, Discovered>::new();
-        let mut visited = BTreeSet::new();
-        let mut missing = BTreeSet::new();
+    /// Names still missing after walking every edge the added entries unblock.
+    pub fn missing_names(&mut self) -> Result<Vec<String>> {
+        self.pending.extend(std::mem::take(&mut self.blocked).into_values());
 
-        while let Some(dependency) = pending.pop_front() {
+        while let Some(dependency) = self.pending.pop_front() {
             self.registry.validate_dependency_source(dependency.registry.as_deref())?;
             let visit_key = (
                 dependency.name.clone(),
@@ -67,21 +90,29 @@ impl IndexDiscovery {
                 dependency.default_features,
                 dependency.features.clone(),
             );
-            if !visited.insert(visit_key) {
+            if self.visited.contains(&visit_key) {
                 continue;
             }
             let Some(versions) = self.registry.versions(&dependency.name) else {
-                missing.insert(dependency.name);
+                self.blocked.insert(visit_key, dependency);
                 continue;
             };
-            pending.extend(unified_dependencies(&mut discovered, &dependency, versions)?);
+            self.visited.insert(visit_key);
+            self.pending.extend(unified_dependencies(&mut self.discovered, &dependency, versions)?);
         }
 
+        let missing = self.blocked
+            .values()
+            .map(|dependency| dependency.name.clone())
+            .collect::<BTreeSet<_>>();
         Ok(missing.into_iter().collect())
     }
 }
 
-/// Dependencies of every version brought into range or affected by feature growth.
+/// Fold what `dependency` asks of its package into what discovery already
+/// knows, and return the dependencies of every version that now needs
+/// walking: the ones this edge brings into range, or all of them when the
+/// unified feature selection grew.
 fn unified_dependencies(
     discovered: &mut BTreeMap<PackageKey, Discovered>,
     dependency: &RegistryDependency,

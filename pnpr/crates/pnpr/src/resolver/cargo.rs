@@ -160,7 +160,7 @@ fn init_discovery(
     metadata: &str,
     source: &str,
 ) -> Result<(pnpm_cargo_resolver::IndexDiscovery, Vec<String>), String> {
-    let discovery = pnpm_cargo_resolver::IndexDiscovery::new(metadata, source)
+    let mut discovery = pnpm_cargo_resolver::IndexDiscovery::new(metadata, source)
         .map_err(|err| report_message(&err))?;
     let names = discovery.missing_names().map_err(|err| report_message(&err))?;
     Ok((discovery, names))
@@ -216,7 +216,10 @@ impl IndexFetcher {
         }
     }
 
-    /// Every index file `metadata`'s dependency graph reaches, fetched in waves.
+    /// Every index file `metadata`'s dependency graph reaches, fetched in
+    /// waves: each wave asks discovery which names are still missing,
+    /// fetches those, and repeats until nothing is missing. Discovery is
+    /// CPU-bound, so it runs off the runtime's worker threads.
     async fn fetch_for(&self, metadata: &str) -> Result<BTreeMap<String, String>, String> {
         let mut index_files = BTreeMap::new();
         let source = pnpm_cargo_resolver::registry_source(&self.registry);
@@ -253,19 +256,31 @@ impl IndexFetcher {
     }
 
     /// One crate's index file, from the cache when it is still fresh.
+    ///
+    /// A miss is taken under the stripe of the entry's cache path: whoever
+    /// holds it fetches and caches the entry while the rest wait and read
+    /// what it stored.
     async fn index_file(&self, name: &str) -> Result<String, String> {
         let canonical_name =
             pnpr_package_name::CanonicalPackageName::parse(name, pnpr_registry::Ecosystem::Cargo)
                 .map_err(|err| err.to_string())?;
         let relative_path = pnpr_cargo::sparse_index_path(name);
         let url = format!("{}/{relative_path}", self.registry);
+        // The route policy classifies a fetch by the crate it is for, as the
+        // Cargo registry surface does, so an upstream's per-crate rules
+        // decide the credential and the cache namespace here too. Both
+        // surfaces match rules against the lowercased crate name.
         let auth = self.auth_for(canonical_name.as_str());
         let cache_path = self.cache_path(&auth, &url, &relative_path);
         if let Some(cached) = self.cached(&cache_path).await {
             return self.hold(name, cached);
         }
+        // Keyed by the cache path, not the URL: it carries the route scope
+        // that decides which callers can read each other's entry, so two
+        // callers on different private scopes fetch in parallel rather than
+        // queueing for a result neither could reuse.
         let _fetching = self.locks.lock(&cache_path.to_string_lossy()).await;
-        if let Some(cached) = Self::cached_with_ttl(&cache_path, self.ttl).await {
+        if let Some(cached) = Self::cached_or_evict(&cache_path, self.ttl).await {
             return self.hold(name, cached);
         }
         self.fetch_and_store(name, &url, &auth, cache_path).await
@@ -278,9 +293,14 @@ impl IndexFetcher {
         auth: &AuthHeaders,
         cache_path: PathBuf,
     ) -> Result<String, String> {
+        // Nothing more is fetched once the budget is spent, so the entries
+        // still in flight bound how far past it the resolve can reach.
         if !index_budget_has_room(self.bytes_held.load(Ordering::Relaxed)) {
             return Err(index_budget_exhausted(name));
         }
+        // The route policy decides what this deployment may reach at all;
+        // a registry a caller merely names is refused here rather than
+        // fetched (SSRF boundary).
         if !auth.allows_fetch(url) {
             return Err(format!(
                 "{url:?} is not allowed by this pnpr server; the operator must declare its \
@@ -288,6 +308,8 @@ impl IndexFetcher {
             ));
         }
         let contents = self.fetch_index_contents(name, url, auth).await?;
+        // Charged before it is cached, so an entry that spends the last of
+        // the budget is not left behind for the next resolve to read.
         let contents = self.hold(name, contents)?;
         Self::store(cache_path, contents.clone()).await;
         Ok(contents)
@@ -362,11 +384,17 @@ impl IndexFetcher {
         Self::cached_entry(path, self.ttl, false).await
     }
 
-    /// Read the cached index file if fresh, deleting it when stale.
-    async fn cached_with_ttl(path: &Path, ttl: Duration) -> Option<String> {
+    /// [`Self::cached_entry`], removing a stale entry so resolving the same
+    /// crates past their TTL replaces entries instead of accumulating them.
+    /// Only the holder of the entry's fetch lock may call this, or it could
+    /// remove an entry another caller has just refreshed.
+    async fn cached_or_evict(path: &Path, ttl: Duration) -> Option<String> {
         Self::cached_entry(path, ttl, true).await
     }
 
+    /// The cached index file when it is younger than the TTL. Every failure
+    /// (absent, unreadable, stale) is a miss: the registry is the source of
+    /// truth and refetching is always correct.
     async fn cached_entry(path: &Path, ttl: Duration, delete_stale: bool) -> Option<String> {
         let metadata = tokio::fs::metadata(path).await.ok()?;
         let age = SystemTime::now()
