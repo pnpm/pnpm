@@ -26,3 +26,23 @@ pub fn walk_reqwest_chain(error: &reqwest::Error) -> String {
     }
     out
 }
+
+/// Whether the server's TLS certificate failed verification. Retrying
+/// cannot change the verdict, so the retry loops fail such a request at
+/// once (<https://github.com/pnpm/pnpm/issues/9134>).
+#[must_use]
+pub fn is_certificate_error(error: &reqwest::Error) -> bool {
+    let mut source = std::error::Error::source(error);
+    while let Some(error) = source {
+        if let Some(rustls::Error::InvalidCertificate(_)) = error.downcast_ref::<rustls::Error>() {
+            return true;
+        }
+        // `io::Error::source()` skips its boxed error itself, which is
+        // where the TLS stream keeps the rustls error.
+        source = match error.downcast_ref::<std::io::Error>().and_then(std::io::Error::get_ref) {
+            Some(inner) => Some(inner),
+            None => error.source(),
+        };
+    }
+    false
+}

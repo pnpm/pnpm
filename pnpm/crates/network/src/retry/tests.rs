@@ -9,8 +9,9 @@ use tokio::{io::AsyncReadExt, net::TcpStream};
 use super::{RetryOpts, SecureAttemptError, get_secure_bytes, retry_async, should_retry_status};
 use crate::{
     AuthHeaders, PerRegistryTls, ProxyConfig, SecureAuthResponse, ThrottledClient, TlsConfig,
-    nerf_dart,
+    is_certificate_error, nerf_dart,
 };
+use pnpm_testing_utils::untrusted_tls_server::UntrustedTlsServer;
 
 /// `RetryOpts` whose backoff is effectively instant, so retry-loop
 /// tests don't sleep.
@@ -89,6 +90,30 @@ async fn authenticated_metadata_errors_remove_urls_after_retry_exhaustion() {
     for secret in ["password", "token", "secret", "fragment"] {
         assert!(!error.to_string().contains(secret));
     }
+}
+
+/// <https://github.com/pnpm/pnpm/issues/9134>
+#[tokio::test]
+async fn untrusted_certificates_are_not_retried() {
+    let server = UntrustedTlsServer::start();
+    let url = format!("{}/metadata", server.url);
+    let client = ThrottledClient::default();
+
+    let error =
+        crate::send_with_retry(&client, &url, instant_retry_opts(2), |client| client.get(&url))
+            .await
+            .err()
+            .expect("an untrusted certificate must fail the request");
+    assert!(is_certificate_error(&error), "error={error:?}");
+    assert_eq!(server.connections(), 1);
+
+    let error =
+        get_secure_bytes(&client, &url, &AuthHeaders::default(), None, instant_retry_opts(2), 1024)
+            .await
+            .err()
+            .expect("an untrusted certificate must fail the request");
+    assert!(is_certificate_error(&error), "error={error:?}");
+    assert_eq!(server.connections(), 2);
 }
 
 #[tokio::test]

@@ -1,3 +1,5 @@
+import util from 'node:util'
+
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { redactUrlForDisplay } from '@pnpm/error'
 import { operation, type RetryTimeoutOptions } from '@zkochan/retry'
@@ -9,10 +11,31 @@ interface URLLike {
   href: string
 }
 
+// Errors that fail the same way on every attempt: a TLS certificate that fails
+// verification, or a CA option that holds no certificate.
 const NO_RETRY_ERROR_CODES = new Set([
-  'SELF_SIGNED_CERT_IN_CHAIN',
+  'CERT_HAS_EXPIRED',
+  'CERT_NOT_YET_VALID',
+  'CERT_REJECTED',
+  'CERT_REVOKED',
+  'CERT_SIGNATURE_FAILURE',
+  'CERT_UNTRUSTED',
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
   'ERR_OSSL_PEM_NO_START_LINE',
+  'ERR_TLS_CERT_ALTNAME_INVALID',
+  'HOSTNAME_MISMATCH',
+  'INVALID_CA',
+  'SELF_SIGNED_CERT_IN_CHAIN',
+  'UNABLE_TO_GET_ISSUER_CERT',
+  'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
 ])
+
+export function isNonRetryableError (error: unknown): boolean {
+  const err = error as { code?: unknown, cause?: { code?: unknown } } | undefined
+  const errorCode = err?.code ?? err?.cause?.code
+  return typeof errorCode === 'string' && NO_RETRY_ERROR_CODES.has(errorCode)
+}
 
 const REDIRECT_CODES = new Set([301, 302, 303, 307, 308])
 
@@ -65,17 +88,14 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
             resolve(res)
           }
         } catch (error: unknown) {
-          // Undici errors may not pass isNativeError check, so we handle them more carefully
-          const err = error as Error & { code?: string, cause?: { code?: string } }
-          // Check error code in both error.code and error.cause.code (undici wraps errors)
-          const errorCode = err?.code ?? err?.cause?.code
-          if (
-            typeof errorCode === 'string' &&
-            NO_RETRY_ERROR_CODES.has(errorCode)
-          ) {
-            reject(error)
+          if (isNonRetryableError(error)) {
+            // undici's "fetch failed" wrapper hides the TLS reason.
+            const cause = (error as { cause?: unknown }).cause
+            reject(util.types.isNativeError(cause) && isNonRetryableError(cause) ? cause : error)
             return
           }
+          // Undici errors may not pass isNativeError check, so we handle them more carefully
+          const err = error as Error & { code?: string, cause?: { code?: string } }
           const retryTimeout = op.retry(err)
           if (retryTimeout === false) {
             reject(op.mainError())

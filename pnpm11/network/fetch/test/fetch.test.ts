@@ -1,10 +1,17 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import fs from 'node:fs'
+import https from 'node:https'
+import type { AddressInfo } from 'node:net'
+import path from 'node:path'
+
 import { afterEach, describe, expect, jest, test } from '@jest/globals'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { clearDispatcherCache, fetch } from '@pnpm/network.fetch'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
 import { startServer } from './utils/trickleServer.js'
+
+const CERTS_DIR = path.join(import.meta.dirname, '__certs__')
 
 test('metadata retry logs redact signed URL parameters', async () => {
   const originalDispatcher = getGlobalDispatcher()
@@ -77,6 +84,32 @@ test('fetch rejects, and does not hang, on a non-retryable error code', async ()
   } finally {
     await mockAgent.close()
     setGlobalDispatcher(originalDispatcher)
+  }
+})
+
+// https://github.com/pnpm/pnpm/issues/9134
+test('fetch does not retry a request to a server with an untrusted certificate', async () => {
+  const server = https.createServer({
+    key: fs.readFileSync(path.join(CERTS_DIR, 'server-key.pem')),
+    cert: fs.readFileSync(path.join(CERTS_DIR, 'server-crt.pem')),
+  })
+  let connections = 0
+  server.on('connection', () => {
+    connections++
+  })
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const { port } = server.address() as AddressInfo
+  try {
+    const err = await fetch(`https://localhost:${port}/is-positive`, {
+      retry: { retries: 2, minTimeout: 1, maxTimeout: 1 },
+    }).then(() => undefined, (error: unknown) => error)
+    expect(err).toHaveProperty('code', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE')
+    expect(connections).toBe(1)
+  } finally {
+    server.closeAllConnections()
+    await new Promise((resolve) => server.close(resolve))
   }
 })
 

@@ -19,7 +19,8 @@ use super::{
 use crate::{extract::BodyChunkSender, extraction_task::spawn_extraction};
 use futures_util::{Stream, StreamExt};
 use pnpm_network::{
-    AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient, redact_url_for_display,
+    AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient, is_certificate_error,
+    redact_url_for_display,
 };
 use pnpm_reporter::{
     FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
@@ -265,6 +266,7 @@ pub(crate) fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetry
 pub(crate) fn is_transient_error(err: &TarballError) -> bool {
     match err {
         TarballError::HttpStatus(http) => !matches!(http.status, 401 | 403 | 404),
+        TarballError::FetchTarball(network) => !is_certificate_error(&network.error),
         TarballError::ReadLocalTarball { .. } => false,
         // A route policy does not change between attempts.
         TarballError::OffAllowlist { .. } => false,

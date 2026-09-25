@@ -17,6 +17,7 @@ futures-util = { workspace = true }
 miette = { workspace = true }
 pipe-trait = { workspace = true }
 reqwest = { workspace = true }
+rustls = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
 tracing = { workspace = true }
 webpki-root-certs = { workspace = true }
@@ -30,7 +31,6 @@ security-framework-sys = { workspace = true }
 mockito = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 pretty_assertions = { workspace = true }
-rustls = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
