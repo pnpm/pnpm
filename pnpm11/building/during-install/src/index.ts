@@ -450,7 +450,7 @@ export async function lockGlobalVirtualStoreSlot (slotModulesDir: string): Promi
 async function isStartedBuildMarker (markerPath: string): Promise<boolean> {
   try {
     const content = await fs.readFile(markerPath, 'utf8')
-    return content.trim() === STARTED_BUILD_MARKER_CONTENT
+    return content === STARTED_BUILD_MARKER_CONTENT
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err

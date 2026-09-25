@@ -72,7 +72,7 @@ const STARTED_BUILD_MARKER: &str = "started";
 /// the slot's state is then unknown.
 pub(crate) fn is_started_build_marker(marker: &Path) -> std::io::Result<bool> {
     match std::fs::read(marker) {
-        Ok(content) => Ok(content.trim_ascii() == STARTED_BUILD_MARKER.as_bytes()),
+        Ok(content) => Ok(content == STARTED_BUILD_MARKER.as_bytes()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
         Err(error) => Err(error),
     }
