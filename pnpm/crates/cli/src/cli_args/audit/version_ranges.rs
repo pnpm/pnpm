@@ -76,11 +76,7 @@ pub(crate) fn last_upper_bound(input: &str) -> Option<(&str, &str)> {
     matches!(operator, "<" | "<=").then_some((operator, last))
 }
 
-/// The minimum patched version saved with the operator of `style`, mirroring
-/// pnpm's `patchedRangeForStyle`: `^X.Y.Z` (the default) keeps the resolver
-/// within the same major the user pinned to, where a bare `>=X.Y.Z` could
-/// silently promote a dep to a later breaking major. `patched` is always
-/// pacquet's inferred `>=V` form, so its minimum is the version after `>=`.
+/// The minimum patched version saved with the operator of `style`.
 pub(crate) fn patched_range_for_style(patched: &str, style: RangeSpecStyle) -> String {
     patched
         .strip_prefix(">=")
@@ -89,6 +85,7 @@ pub(crate) fn patched_range_for_style(patched: &str, style: RangeSpecStyle) -> S
 }
 
 /// [`patched_range_for_style`] at pnpm's default caret style.
+#[allow(dead_code, reason = "called by remediation tests and caret-default convenience")]
 pub(crate) fn caret_range_for_patched(patched: &str) -> String {
     patched_range_for_style(patched, RangeSpecStyle::Major)
 }

@@ -12,8 +12,8 @@ use super::{
     Arc, AuditAdvisory, AuditError, AuditReport, BTreeMap, Config, ConfigAuditLevel, DateTime,
     DependencyGroup, Deserialize, HashMap, HashSet, IntoDiagnostic, Lockfile, MultiSelect,
     PackageVersionGuard, Range, RangeSpecStyle, Reporter, ResolutionObserver, State, Update, Utc,
-    Version, blue, caret_range_for_patched, color_severity, encode_package_name, green,
-    normalize_ghsa_id, normalize_registry, parse_packument_timestamp, red, redact_url_userinfo,
+    Version, blue, color_severity, encode_package_name, green, normalize_ghsa_id,
+    normalize_registry, parse_packument_timestamp, red, redact_url_userinfo,
     retry_opts_from_config, satisfies_including_prerelease, send_with_retry, severity_name,
     severity_number,
 };
@@ -389,8 +389,9 @@ fn unfixable_ghsa_ids(report: &AuditReport) -> miette::Result<Vec<String>> {
 /// severity-grouped table.
 pub(crate) fn interactive_select(
     advisories: BTreeMap<String, AuditAdvisory>,
+    range_spec_style: RangeSpecStyle,
 ) -> miette::Result<Option<BTreeMap<String, AuditAdvisory>>> {
-    let (keys, labels) = advisory_choices(&advisories);
+    let (keys, labels) = advisory_choices(&advisories, range_spec_style);
 
     // Nothing fixable: mirror pnpm returning the report unchanged (the fix
     // method then makes no changes).
