@@ -59,7 +59,9 @@ async function findGlobalNodeGroup (globalDir: string): Promise<GlobalNodeGroup 
       .map(async (entry) => {
         const linkPath = path.join(globalDir, entry.name)
         try {
-          const installDir = await fs.promises.realpath(linkPath)
+          // The JS realpath, like scanGlobalPackages, keeps Windows 8.3 short
+          // names, so the install dir still lies under the configured global dir.
+          const installDir = fs.realpathSync(linkPath)
           let groupPkg: unknown
           try {
             groupPkg = JSON.parse(await fs.promises.readFile(path.join(installDir, 'package.json'), 'utf8'))
