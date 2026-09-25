@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
-import { expect, test } from '@jest/globals'
+import { describe, expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import type { ProjectRootDir } from '@pnpm/types'
 import { filterProjectsBySelectorObjects, filterWorkspaceProjects, type ProjectGraph } from '@pnpm/workspace.projects-filter'
@@ -384,6 +384,29 @@ test('select by parentDir with no glob', async () => {
   ], { workspaceDir: process.cwd(), useGlobDirFiltering: true })
 
   expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/project-5'])
+})
+
+describe('select by parentDir using glob when the cwd has a lowercase drive letter (Windows)', () => {
+  const winDir = (...segments: string[]) => path.win32.join('C:\\', 'ws', ...segments) as ProjectRootDir
+  const WIN_PROJECTS_GRAPH: ProjectGraph<BaseProject> = Object.fromEntries(
+    [winDir(), winDir('packages', 'a'), winDir('packages', 'b')].map((rootDir) => [rootDir, {
+      dependencies: [],
+      package: { rootDir, manifest: { name: path.win32.basename(rootDir), version: '1.0.0' } },
+    }])
+  )
+
+  test.each([
+    ['packages/*', [winDir('packages', 'a'), winDir('packages', 'b')]],
+    ['packages/**', [winDir('packages', 'a'), winDir('packages', 'b')]],
+    ['packages/a', [winDir('packages', 'a')]],
+  ])('%s', async (selector, expected) => {
+    const { selectedProjectsGraph, unmatchedFilters } = await filterWorkspaceProjects(WIN_PROJECTS_GRAPH, [
+      { excludeSelf: false, parentDir: path.win32.join('c:\\ws', selector) },
+    ], { workspaceDir: winDir(), useGlobDirFiltering: true })
+
+    expect(unmatchedFilters).toStrictEqual([])
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual(expected)
+  })
 })
 
 test('select changed packages', async () => {
