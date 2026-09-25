@@ -61,6 +61,15 @@ test('a legacy prod-only record is copied to both dependencies and devDependenci
   ])).toBe(false)
 })
 
+test('falls back to resolution when an importer has a specifier but no recorded dependency reference', async () => {
+  const subject = lockfile()
+  delete subject.importers['.' as ProjectId].dependencies!.foo
+
+  expect(await tryFastUpdateImporters(subject, [
+    project({ dependencies: { foo: '^1.0.0', bar: '^2.0.0' } }),
+  ])).toBe(false)
+})
+
 test('a move into optionalDependencies marks the subtree optional', async () => {
   const subject = lockfile()
 

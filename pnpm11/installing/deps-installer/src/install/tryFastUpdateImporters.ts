@@ -123,30 +123,29 @@ export function tryFastUpdateImporters (
       const groupsChanged = recordedGroups.length !== targetGroups.length ||
         targetGroups.some((g) => !recordedGroups.includes(g))
       if (groupsChanged || specifierChanged) {
-        if (recordedGroups.length > 0) {
-          const ref = specifierChanged
-            ? importer[recordedGroups[0]]![alias]
-            : targetGroups
-              .map((group) => importer[group]?.[alias])
-              .find((reference): reference is string => reference != null) ??
-              importer[recordedGroups[0]]![alias]
-          for (const targetGroup of targetGroups) {
-            (importer[targetGroup] ??= {})[alias] = ref
-          }
-          for (const recordedGroup of recordedGroups) {
-            if (!targetGroups.includes(recordedGroup)) {
-              delete importer[recordedGroup]![alias]
-            }
-          }
-          if (
-            recordedGroups.includes('optionalDependencies') !==
-            targetGroups.includes('optionalDependencies')
-          ) {
-            edits.optionalFlagsAreStale = true
-          }
-          editedGroups = true
-          changed = true
+        if (recordedGroups.length === 0) return false
+        const ref = specifierChanged
+          ? importer[recordedGroups[0]]![alias]
+          : targetGroups
+            .map((group) => importer[group]?.[alias])
+            .find((reference): reference is string => reference != null) ??
+            importer[recordedGroups[0]]![alias]
+        for (const targetGroup of targetGroups) {
+          (importer[targetGroup] ??= {})[alias] = ref
         }
+        for (const recordedGroup of recordedGroups) {
+          if (!targetGroups.includes(recordedGroup)) {
+            delete importer[recordedGroup]![alias]
+          }
+        }
+        if (
+          recordedGroups.includes('optionalDependencies') !==
+          targetGroups.includes('optionalDependencies')
+        ) {
+          edits.optionalFlagsAreStale = true
+        }
+        editedGroups = true
+        changed = true
       }
     }
     for (const alias of Object.keys(importer.specifiers)) {
