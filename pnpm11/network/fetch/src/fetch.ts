@@ -11,8 +11,8 @@ interface URLLike {
   href: string
 }
 
-// Errors that fail the same way on every attempt: a TLS certificate that fails
-// verification, or a CA option that holds no certificate.
+// Errors that fail the same way on every attempt: an exhausted local disk,
+// a TLS certificate that fails verification, or a CA option with no certificate.
 const NO_RETRY_ERROR_CODES = new Set([
   'CERT_CHAIN_TOO_LONG',
   'CERT_HAS_EXPIRED',
@@ -22,7 +22,9 @@ const NO_RETRY_ERROR_CODES = new Set([
   'CERT_SIGNATURE_FAILURE',
   'CERT_UNTRUSTED',
   'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'ENOSPC',
   'ERR_OSSL_PEM_NO_START_LINE',
+  'ERR_PNPM_ENOSPC',
   'ERR_TLS_CERT_ALTNAME_INVALID',
   'HOSTNAME_MISMATCH',
   'INVALID_CA',

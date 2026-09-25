@@ -73,10 +73,9 @@ pub struct ArchiveFetchOptions<'a> {
     /// different host than the registry still picks up its own header.
     pub auth_headers: &'a AuthHeaders,
     /// Per-attempt retry budget for the tarball pipeline, driven by
-    /// pnpm's `fetch-retries*` knobs: every failure retries except
-    /// HTTP 401, 403, 404 — including arbitrary 4xx / 5xx, network
-    /// resets, timeouts, mid-stream body errors, integrity mismatches,
-    /// and gzip / tar parse failures ([#259]).
+    /// pnpm's `fetch-retries*` knobs. Network resets, timeouts, integrity
+    /// mismatches, and archive decode errors retry ([#259]). HTTP 401,
+    /// 403, 404, untrusted certificates, and a full local store do not.
     ///
     /// [#259]: https://github.com/pnpm/pacquet/issues/259
     pub retry_opts: RetryOpts,

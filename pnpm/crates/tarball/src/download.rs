@@ -268,10 +268,25 @@ pub(crate) fn is_transient_error(err: &TarballError) -> bool {
         TarballError::HttpStatus(http) => !matches!(http.status, 401 | 403 | 404),
         TarballError::FetchTarball(network) => !is_certificate_error(&network.error),
         TarballError::ReadLocalTarball { .. } => false,
+        TarballError::WriteCasFile(write) => !is_storage_full(write),
         // A route policy does not change between attempts.
         TarballError::OffAllowlist { .. } => false,
         _ => true,
     }
+}
+
+fn is_storage_full(error: &(dyn std::error::Error + 'static)) -> bool {
+    let mut source = Some(error);
+    while let Some(error) = source {
+        if error
+            .downcast_ref::<std::io::Error>()
+            .is_some_and(|io| io.kind() == std::io::ErrorKind::StorageFull)
+        {
+            return true;
+        }
+        source = error.source();
+    }
+    false
 }
 
 pub(crate) async fn extract_tarball_buffer(
@@ -401,10 +416,9 @@ impl<'a> BodyProgress<'a> {
 }
 
 /// Run [`fetch_and_extract_once`] under pnpm's retry policy. Permanent
-/// errors (HTTP 401 / 403 / 404 — see [`is_transient_error`]) fail on
-/// the first attempt; everything else sleeps with exponential backoff
-/// and tries again until the budget is exhausted, surfacing the most
-/// recent error.
+/// errors (see [`is_transient_error`]) fail on the first attempt;
+/// transient errors sleep with exponential backoff until the retry
+/// budget is exhausted, surfacing the most recent error.
 ///
 /// On retry, CAFS writes from a previous attempt that may have made it
 /// part-way through extraction stay on disk. That's safe: the CAFS is

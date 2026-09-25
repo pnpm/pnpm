@@ -1,8 +1,9 @@
 use super::{build_zip, fast_retry_opts, gzipped_tar, tempdir_with_leaked_path};
 use crate::{ArchiveStoreProjection, IngestTarballToStore, IngestZipArchiveToStore, TarballError};
+use pnpm_fs::EnsureFileError;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
-use pnpm_store_dir::{StoreIndex, StoreIndexWriter};
+use pnpm_store_dir::{StoreIndex, StoreIndexWriter, WriteCasFileError};
 use ssri::Integrity;
 use std::{
     collections::HashMap,
@@ -108,6 +109,32 @@ async fn archive_retry_redacts_secrets_and_accepts_the_maximum_retry_budget() {
     }
     failed.assert_async().await;
     success.assert_async().await;
+}
+
+#[tokio::test]
+async fn archive_store_write_out_of_space_fails_without_retry() {
+    let mut attempts = 0;
+    let result = crate::archive_retry::retry_archive::<SilentReporter, _, _>(
+        "https://example.test/pkg.tgz",
+        "fixture",
+        "test",
+        None,
+        fast_retry_opts(),
+        |_| {
+            attempts += 1;
+            async {
+                Err::<(), _>(TarballError::WriteCasFile(WriteCasFileError::WriteFile(
+                    EnsureFileError::WriteFile {
+                        file_path: PathBuf::from("store/file"),
+                        error: std::io::Error::from(std::io::ErrorKind::StorageFull),
+                    },
+                )))
+            }
+        },
+    )
+    .await;
+    assert!(matches!(result, Err(TarballError::WriteCasFile(_))));
+    assert_eq!(attempts, 1);
 }
 
 #[tokio::test]
