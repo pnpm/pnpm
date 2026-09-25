@@ -61,7 +61,7 @@ impl StreamedScript<'_> {
     }
 
     /// Drain `child`'s piped stdout and stderr into one event per line,
-    /// then wait for it. The pumps get [`OUTPUT_DRAIN_AFTER_EXIT`] after
+    /// then wait for it. The pumps get `OUTPUT_DRAIN_AFTER_EXIT` after
     /// the child exits to reach the end of its output, so every line the
     /// child wrote is emitted before the caller's [`Self::finished`] — the
     /// ordering pnpm's reporter renders against. Whatever reaches the pipes
@@ -191,11 +191,13 @@ impl PumpLink {
         (Self { _running: running, open: Arc::new(Mutex::new(true)) }, done)
     }
 
-    /// Emit `line` unless the gate has closed, reporting whether it was open.
+    /// Emit and clear `line` unless the gate has closed, reporting whether
+    /// it was open.
     fn emit(&self, target: &StreamedScript<'_>, stdio: LifecycleStdio, line: &mut Vec<u8>) -> bool {
         let open = self.open.lock().expect("output gate lock is not poisoned");
         if *open {
             target.emit_bytes_line(stdio, line);
+            line.clear();
         }
         *open
     }
@@ -223,11 +225,8 @@ fn pump_lines(
         }
         let (consumed, line_finished) = take_streamed_chunk(buffered, &mut line);
         reader.consume(consumed);
-        if line_finished {
-            if !link.emit(target, stdio, &mut line) {
-                break;
-            }
-            line.clear();
+        if line_finished && !link.emit(target, stdio, &mut line) {
+            break;
         }
     }
 }
