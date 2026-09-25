@@ -699,7 +699,7 @@ fn generate_cmd_shim_escapes_percent_in_prog() {
         body.contains(r#"@IF EXIST "%~dp0\/50%%OS%%bin/sh.exe""#),
         "the long prog must escape `%`, body:\n{body}",
     );
-    assert!(body.contains("  /50%%OS%%bin/sh  "), "the prog must escape `%`, body:\n{body}",);
+    assert!(body.contains("  /50%%OS%%bin/sh  "), "the prog must escape `%`, body:\n{body}");
 }
 
 #[test]
