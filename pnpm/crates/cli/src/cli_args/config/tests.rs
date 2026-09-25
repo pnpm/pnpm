@@ -253,6 +253,62 @@ fn set_pnpm_key_project_writes_workspace_yaml() {
     );
 }
 
+/// <https://github.com/pnpm/pnpm/issues/13757>
+#[test]
+fn set_pnpm_key_project_from_sub_package_writes_workspace_root_yaml() {
+    let tmp = TempDir::new().unwrap();
+    std::fs::write(tmp.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+    let sub_package_dir = tmp.path().join("packages/a");
+    std::fs::create_dir_all(&sub_package_dir).unwrap();
+    let config = Config {
+        workspace_dir: Some(tmp.path().to_path_buf()),
+        ..config_with_dir(&tmp.path().join("global-config"))
+    };
+
+    config_set(
+        &config,
+        &sub_package_dir,
+        flags(false, Some(ConfigLocation::Project), false),
+        "virtual-store-dir",
+        Some(".pnpm".into()),
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_yaml(&tmp.path().join("pnpm-workspace.yaml")).unwrap(),
+        json!({ "packages": ["packages/*"], "virtualStoreDir": ".pnpm" }),
+    );
+    assert!(!sub_package_dir.join("pnpm-workspace.yaml").exists());
+}
+
+/// <https://github.com/pnpm/pnpm/issues/13757>
+#[test]
+fn set_ini_key_project_from_sub_package_keeps_npmrc_in_current_dir() {
+    let tmp = TempDir::new().unwrap();
+    std::fs::write(tmp.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+    let sub_package_dir = tmp.path().join("packages/a");
+    std::fs::create_dir_all(&sub_package_dir).unwrap();
+    let config = Config {
+        workspace_dir: Some(tmp.path().to_path_buf()),
+        ..config_with_dir(&tmp.path().join("global-config"))
+    };
+
+    config_set(
+        &config,
+        &sub_package_dir,
+        flags(false, Some(ConfigLocation::Project), false),
+        "registry",
+        Some("https://npm-registry.example.com/".into()),
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_ini(&sub_package_dir.join(".npmrc")).get("registry").map(String::as_str),
+        Some("https://npm-registry.example.com/"),
+    );
+    assert!(!sub_package_dir.join("pnpm-workspace.yaml").exists());
+}
+
 #[test]
 fn set_global_https_proxy_writes_config_yaml_not_auth_ini() {
     let tmp = TempDir::new().unwrap();
