@@ -313,7 +313,10 @@ fn legacy_global_add_specs_skips_pnpm_and_packages_already_installed() {
 fn legacy_global_add_specs_resolves_relative_file_dependencies_against_the_manifest_dir() {
     let dependencies = serde_json::json!({
         "my-cli": "file:../packages/cli",
+        "bare": "../packages/other",
         "abs": "file:/tmp/pkg",
+        "typescript": "^5.4.0",
+        "hosted": "user/repo",
     });
     let dependencies = dependencies.as_object().expect("object");
     let manifest_dir = PathBuf::from("/home/user/.local/share/pnpm/global/5");
@@ -322,9 +325,17 @@ fn legacy_global_add_specs_resolves_relative_file_dependencies_against_the_manif
         &std::collections::BTreeSet::new(),
         Some(&manifest_dir),
     );
-    let expected_local =
-        LocalSpec::parse("file:../packages/cli", &manifest_dir).expect("local spec").render(None);
-    let expected = vec!["abs@file:/tmp/pkg".to_string(), format!("my-cli@{expected_local}")];
+    let anchored = |spec: &str| {
+        LocalSpec::parse_filesystem(spec, &manifest_dir).expect("local spec").render(None)
+    };
+    let mut expected = vec![
+        "abs@file:/tmp/pkg".to_string(),
+        format!("bare@{}", anchored("../packages/other")),
+        "hosted@user/repo".to_string(),
+        format!("my-cli@{}", anchored("file:../packages/cli")),
+        "typescript@^5.4.0".to_string(),
+    ];
+    expected.sort();
     assert_eq!(specs, expected);
 }
 

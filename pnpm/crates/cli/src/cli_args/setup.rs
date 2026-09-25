@@ -350,7 +350,7 @@ pub(crate) fn legacy_global_add_specs(
             continue;
         };
         let spec = match manifest_dir {
-            Some(dir) => LocalSpec::parse(spec, dir)
+            Some(dir) => LocalSpec::parse_filesystem(spec, dir)
                 .map_or_else(|| spec.to_string(), |local| local.render(None)),
             None => spec.to_string(),
         };

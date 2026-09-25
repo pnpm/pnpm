@@ -242,6 +242,18 @@ const PNPM_PACKAGE_NAMES = new Set(['pnpm', '@pnpm/exe'])
  * pnpm itself is installed by setup separately, and names already present in
  * the current global directory are left alone.
  */
+function isDriveLetterPrefix (spec: string): boolean {
+  return /^[a-zA-Z]:/.test(spec)
+}
+
+/** Same gate as `LocalSpec::parse_filesystem`: a path prefix, not a drive letter. */
+function isUnambiguousLocalPath (spec: string): boolean {
+  if (isDriveLetterPrefix(spec)) return false
+  const first = spec[0]
+  if (first === '.' || first === '/' || first === '\\') return true
+  return first === '~' && (spec[1] === '/' || spec[1] === '\\')
+}
+
 function normalizeLegacyGlobalSpec (spec: string, manifestDir?: string): string {
   if (manifestDir == null) return spec
   const protocol = spec.startsWith('file:')
@@ -249,17 +261,18 @@ function normalizeLegacyGlobalSpec (spec: string, manifestDir?: string): string 
     : spec.startsWith('link:')
       ? 'link:'
       : null
-  if (protocol == null) return spec
-  const localPath = spec.slice(protocol.length)
+  const localPath = protocol == null ? spec : spec.slice(protocol.length)
   if (
     localPath === '' ||
+    !isUnambiguousLocalPath(localPath) ||
     path.isAbsolute(localPath) ||
     localPath.startsWith('~/') ||
     localPath.startsWith('~\\')
   ) {
     return spec
   }
-  return `${protocol}${path.resolve(manifestDir, localPath)}`
+  const resolved = path.resolve(manifestDir, localPath)
+  return protocol == null ? resolved : `${protocol}${resolved}`
 }
 
 export function legacyGlobalAddSpecs (

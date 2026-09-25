@@ -362,14 +362,20 @@ test('legacy global migration skips pnpm and packages already installed', () => 
   }, new Set(['prettier']))).toEqual(['typescript@^5.4.0'])
 })
 
-test('legacy global migration resolves relative file dependencies against the legacy manifest directory', () => {
+test('legacy global migration resolves relative local paths against the legacy manifest directory', () => {
   const manifestDir = path.join('/home/user', '.local', 'share', 'pnpm', 'global', '5')
   expect(legacyGlobalAddSpecs({
     'my-cli': 'file:../packages/cli',
+    bare: '../packages/other',
     abs: 'file:/tmp/pkg',
+    typescript: '^5.4.0',
+    hosted: 'user/repo',
   }, new Set(), manifestDir)).toEqual([
     'abs@file:/tmp/pkg',
+    `bare@${path.resolve(manifestDir, '../packages/other')}`,
+    'hosted@user/repo',
     `my-cli@file:${path.resolve(manifestDir, '../packages/cli')}`,
+    'typescript@^5.4.0',
   ])
 })
 
