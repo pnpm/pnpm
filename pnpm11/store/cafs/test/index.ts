@@ -393,6 +393,29 @@ function createTarballWithEntry (entryPath: string, content: string): Buffer {
 }
 
 // Related issue: https://github.com/pnpm/pnpm/issues/7120
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+
+testOnPosix('files added to a group-writable store keep group write and a second add keeps the inode', () => {
+  const parent = temporaryDirectory()
+  fs.chmodSync(parent, 0o2775)
+  const storeDir = path.join(parent, 'store')
+  const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')
+  const first = createCafs(storeDir).addFilesFromDir(srcDir)
+  const info = first.filesIndex.get('foo.txt')!
+  const filePath = getFilePathByModeInCafs(storeDir, info.digest, info.mode)
+  const stat = fs.statSync(filePath)
+  expect(stat.mode & 0o020).not.toBe(0)
+  expect(stat.gid).toBe(fs.statSync(parent).gid)
+
+  const second = createCafs(storeDir).addFilesFromDir(srcDir)
+  const again = second.filesIndex.get('foo.txt')!
+  const after = fs.statSync(getFilePathByModeInCafs(storeDir, again.digest, again.mode))
+  expect(after.ino).toBe(stat.ino)
+  expect(after.uid).toBe(stat.uid)
+  expect(after.gid).toBe(stat.gid)
+  expect(after.mode & 0o777).toBe(stat.mode & 0o777)
+})
+
 test('unpack should not fail when the tarball format seems to be not USTAR or GNU TAR', () => {
   const dest = temporaryDirectory()
   const cafs = createCafs(dest)
