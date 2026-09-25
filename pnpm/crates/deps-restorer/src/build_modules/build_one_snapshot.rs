@@ -82,7 +82,7 @@ fn build_candidate<Reporter: self::Reporter>(
     cache_key: Option<&str>,
     optional: bool,
 ) -> Result<(), BuildModulesError> {
-    let Some((pkg_dir, _slot_lock)) = slot_to_build(context, snapshot_key, candidate)? else {
+    let Some((pkg_dir, slot_lock)) = slot_to_build(context, snapshot_key, candidate)? else {
         return Ok(());
     };
 
@@ -103,6 +103,7 @@ fn build_candidate<Reporter: self::Reporter>(
         snapshot_key,
         &pkg_dir,
         &extra_bin_paths,
+        slot_lock.as_ref(),
         (candidate.should_run_scripts, optional, &candidate.name, &candidate.version),
     )?
     else {
@@ -342,6 +343,7 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
     snapshot_key: &PackageKey,
     pkg_dir: &Path,
     extra_bin_paths: &[PathBuf],
+    slot_lock: Option<&pnpm_fs::DirLock>,
     run: (bool, bool, &str, &str),
 ) -> Result<Option<bool>, BuildModulesError> {
     let (should_run_scripts, optional, name, version) = run;
@@ -357,11 +359,13 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
             if !optional {
                 return Err(BuildModulesError::LifecycleScript(err));
             }
-            // A rebuild may re-run the scripts of a global virtual store
-            // slot that other projects use with a working build, so a failed
-            // rebuild keeps the slot.
-            if context.rebuild.is_none()
-                || !context.directories.layout.enable_global_virtual_store()
+            // A global virtual store slot is removed only by an install that
+            // holds its lock. A rebuild may re-run the scripts of a slot other
+            // projects use with a working build, and without the lock another
+            // install may be writing into the slot. A kept slot stays marked
+            // for the next install to rebuild.
+            if !context.directories.layout.enable_global_virtual_store()
+                || (context.rebuild.is_none() && slot_lock.is_some())
             {
                 discard_skipped_optional_dependency(
                     context.pkg_roots(),

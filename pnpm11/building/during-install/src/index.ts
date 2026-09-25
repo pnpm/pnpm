@@ -414,7 +414,11 @@ async function buildDependency<T extends string> (
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
     if (depNode.optional) {
-      await removeSkippedOptionalDependency(depNode, opts)
+      // Without the lock another install may be writing into the shared
+      // slot, so the slot is kept, marked for the next install to rebuild.
+      if (!opts.enableGlobalVirtualStore || slotLock != null) {
+        await removeSkippedOptionalDependency(depNode, opts)
+      }
       // TODO: add parents field to the log
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),

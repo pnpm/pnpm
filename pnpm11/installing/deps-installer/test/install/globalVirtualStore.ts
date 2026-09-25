@@ -430,7 +430,7 @@ test('GVS removes an optional dependency whose build failed from its slot', asyn
   const failedVersionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-failing-postinstall/1.0.0')
   const parentVersionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-failing-optional-dependency/1.0.0')
 
-  // A repeat install, which finds the package missing and builds it again, removes it again.
+  // A repeat install leaves the package removed.
   for (let i = 0; i < 2; i++) {
     // eslint-disable-next-line no-await-in-loop
     await install(manifest, opts)
