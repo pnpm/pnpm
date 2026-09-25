@@ -81,6 +81,15 @@ test('resolve workspace directory', async () => {
   expect((resolveResult!.resolution as DirectoryResolution).type).toBe('directory')
 })
 
+test('resolve workspace directory with injectWorkspacePackages', async () => {
+  const resolveResult = await resolveFromLocalScheme({}, { bareSpecifier: 'workspace:..' }, { projectDir: import.meta.dirname, injectWorkspacePackages: true })
+  expect(resolveResult!.id).toBe('file:..')
+  expect(resolveResult!.normalizedBareSpecifier).toBe('file:..')
+  expect(resolveResult!['manifest']!.name).toBe('@pnpm/resolving.local-resolver')
+  expect((resolveResult!.resolution as DirectoryResolution).directory).toBe('..')
+  expect((resolveResult!.resolution as DirectoryResolution).type).toBe('directory')
+})
+
 test('resolve directory specified using the file: protocol', async () => {
   const resolveResult = await resolveFromLocalScheme({}, { bareSpecifier: 'file:..' }, { projectDir: import.meta.dirname })
   expect(resolveResult!.id).toBe('file:..')

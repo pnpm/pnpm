@@ -218,6 +218,7 @@ fn local_options(opts: &ResolveOptions) -> LocalResolverOptions {
             UpdateBehavior::Compatible | UpdateBehavior::Latest => LocalResolverUpdate::On,
             UpdateBehavior::Off | UpdateBehavior::Patches => LocalResolverUpdate::Off,
         },
+        inject_workspace_packages: opts.project.inject_workspace_packages,
     }
 }
 

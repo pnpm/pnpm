@@ -36,6 +36,7 @@ fn opts(project_dir: &Path) -> LocalResolverOptions {
         lockfile_dir: None,
         current_pkg: None,
         update: LocalResolverUpdate::Off,
+        inject_workspace_packages: false,
     }
 }
 
@@ -169,6 +170,20 @@ async fn resolve_workspace_directory() {
 
     assert_eq!(result.id.as_str(), "link:..");
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("link:.."));
+}
+
+#[tokio::test]
+async fn resolve_workspace_directory_with_inject_workspace_packages() {
+    let (_tmp, project_dir) = fixture();
+    let wd = WantedLocalDependency { bare_specifier: "workspace:..".to_string(), injected: false };
+    let opts = LocalResolverOptions { inject_workspace_packages: true, ..opts(&project_dir) };
+
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts).await
+        .expect("resolve")
+        .expect("claims");
+
+    assert_eq!(result.id.as_str(), "file:..");
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("file:.."));
 }
 
 #[tokio::test]
