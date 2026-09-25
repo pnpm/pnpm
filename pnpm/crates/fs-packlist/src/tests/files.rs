@@ -432,6 +432,50 @@ fn files_field_keeps_explicitly_deep_patterns() {
     assert_eq!(out, vec!["lib/index.js".to_string(), "package.json".into()]);
 }
 
+// A `files` entry that matches every file must not put back the files an
+// exclusion reaches: npm-packlist prunes the excluded directory instead of
+// descending into it, so a package that excludes its test directory publishes
+// no test files even with `**` listed.
+#[test]
+fn files_field_exclusion_drops_the_subtree_a_broad_entry_matches() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "src/a.js");
+    touch(root, "src/test/c.js");
+    touch(root, "test/b.js");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["**", "!**/test"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(out, vec!["package.json".to_string(), "src/a.js".into()]);
+}
+
+#[test]
+fn files_field_exclusion_keeps_a_file_the_field_names_inside_it() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "src/a.js");
+    touch(root, "test/d.js");
+    touch(root, "test/e.js");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["**", "!test", "test/d.js"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(out, vec!["package.json".to_string(), "src/a.js".into(), "test/d.js".into()],);
+}
+
 #[test]
 fn files_field_exclusions_are_not_anchored() {
     let dir = tempdir().unwrap();
