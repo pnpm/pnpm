@@ -37,6 +37,7 @@
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.parse-overrides": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",
     "ramda": "catalog:"

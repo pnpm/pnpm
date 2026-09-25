@@ -10,6 +10,10 @@ use std::{
 /// Error reading a patch file from disk during hashing.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum CalcPatchHashError {
+    #[display("Patch file not found: {}", path.display())]
+    #[diagnostic(code(ERR_PNPM_PATCH_NOT_FOUND))]
+    PatchNotFound { path: PathBuf },
+
     #[display("Failed to read patch file {}: {source}", path.display())]
     ReadFile {
         path: PathBuf,
@@ -21,7 +25,12 @@ pub enum CalcPatchHashError {
 /// SHA-256 hex digest of one patch file, with CRLF normalized to LF.
 pub fn create_hex_hash_from_file(path: &Path) -> Result<String, CalcPatchHashError> {
     let bytes = fs::read(path)
-        .map_err(|source| CalcPatchHashError::ReadFile { path: path.to_path_buf(), source })?;
+        .map_err(|source| match source.kind() {
+            io::ErrorKind::NotFound => {
+                CalcPatchHashError::PatchNotFound { path: path.to_path_buf() }
+            }
+            _ => CalcPatchHashError::ReadFile { path: path.to_path_buf(), source },
+        })?;
     let text = String::from_utf8_lossy(&bytes);
     let normalized = text.replace("\r\n", "\n");
     let mut hasher = Sha256::new();

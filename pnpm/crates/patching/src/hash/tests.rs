@@ -53,13 +53,11 @@ fn maps_keys_to_hashes() {
 }
 
 #[test]
-fn missing_file_errors() {
+fn missing_file_errors_patch_not_found() {
     let dir = tempdir().unwrap();
     let missing = dir.path().join("nope.patch");
     let err = create_hex_hash_from_file(&missing).unwrap_err();
-    // Just confirm the error variant; `io::Error` formatting is
-    // platform-specific.
-    assert!(matches!(err, super::CalcPatchHashError::ReadFile { .. }), "got: {err:?}");
+    assert!(matches!(err, super::CalcPatchHashError::PatchNotFound { .. }), "got: {err:?}");
 }
 
 /// Invalid UTF-8 bytes are replaced with U+FFFD rather than
