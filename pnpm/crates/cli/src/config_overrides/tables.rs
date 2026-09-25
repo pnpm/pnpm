@@ -70,6 +70,7 @@ impl ConfigOverrides {
             "node-experimental-package-map" => {
                 self.node_experimental_package_map = parse_bool(value);
             }
+            "write-package-map" => self.write_package_map = parse_bool(value),
             "pending" => self.pending = parse_bool(value),
             "progress" => self.progress = parse_bool(value),
             "recursive-install" => self.recursive_install = parse_bool(value),

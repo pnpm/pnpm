@@ -95,6 +95,7 @@ pub struct ConfigOverrides {
     minimum_release_age_strict: Option<bool>,
     merge_git_branch_lockfiles: Option<bool>,
     node_experimental_package_map: Option<bool>,
+    write_package_map: Option<bool>,
     offline: Option<bool>,
     prefer_frozen_lockfile: Option<bool>,
     prefer_offline: Option<bool>,

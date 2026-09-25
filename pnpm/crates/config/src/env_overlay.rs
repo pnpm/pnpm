@@ -189,6 +189,7 @@ impl WorkspaceSettings {
             node_experimental_package_map,
             "NODE_EXPERIMENTAL_PACKAGE_MAP"
         );
+        json_field!(settings, reader, write_package_map, "WRITE_PACKAGE_MAP");
         enum_field!(
             settings,
             reader,
