@@ -267,7 +267,7 @@ fn publish_leaves_a_hardlink_that_was_not_edited_in_this_watch() {
     fs::create_dir_all(&target).expect("create target");
     fs::hard_link(source.join("index.js"), target.join("index.js")).expect("hardlink");
     let edited_since = SystemTime::now()
-        .checked_add(Duration::from_secs(86_400))
+        .checked_add(Duration::from_hours(24))
         .expect("a deadline past every current mtime");
 
     publish_edits(&source, &target, edited_since).expect("publish");
