@@ -556,6 +556,7 @@ function containedNodeModulesLink (dir: string, alias: string): string | undefin
  * so a consumer that probes for it finds it absent rather than half-built.
  * The next install finds the directory missing and retries the build.
  * A hoisted location outside the lockfile directory is never removed.
+ * Rejects if a removal fails, so the package is not reported as skipped.
  */
 async function removeSkippedOptionalDependency<T extends string> (
   depNode: DependenciesGraphNode<T>,

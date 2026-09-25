@@ -365,6 +365,39 @@ fn gvs_build_failure_keeps_the_slot_marked_for_a_rebuild() {
     drop((root, mock_instance));
 }
 
+/// An optional dependency whose build fails is skipped, but its GVS slot
+/// stays for the same reason as [`gvs_build_failure_keeps_the_slot_marked_for_a_rebuild`]:
+/// other projects may link it.
+#[test]
+fn gvs_optional_build_failure_keeps_the_slot() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    let manifest = serde_json::json!({
+        "optionalDependencies": { "@pnpm.e2e/failing-postinstall": "1.0.0" },
+    });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+    set_gvs_workspace_yaml(
+        &workspace,
+        &allow_builds_yaml(&[("@pnpm.e2e/failing-postinstall", true)]),
+    );
+
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/failing-postinstall", "1.0.0");
+    let pkg = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/failing-postinstall");
+    assert!(
+        pkg.join("package.json").exists(),
+        "the failed optional build's slot must stay in place",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// <https://github.com/pnpm/pnpm/issues/15568>: installs sharing a GVS slot
 /// must not write into it while another install builds it.
 #[test]
