@@ -61,6 +61,19 @@ test('recursive remove does nothing when no projects match the filter', async ()
   expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
 })
 
+test('recursive remove accepts dependency glob patterns', async () => {
+  prepareRemovalWorkspace()
+
+  await execPnpm(['remove', '-r', '--lockfile-only', 'is-*'])
+
+  for (const name of ['project-1', 'project-2']) {
+    const manifest = JSON.parse(fs.readFileSync(`${name}/package.json`, 'utf8'))
+    expect(manifest.dependencies ?? {}).toEqual({})
+    expect(manifest.devDependencies ?? {}).toEqual({})
+  }
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(true)
+})
+
 function prepareRemovalWorkspace (fields: DependenciesOrPeersField[] = ['dependencies', 'devDependencies']): void {
   preparePackages([
     { name: 'project-1', version: '1.0.0', [fields[0]]: { 'is-positive': '1.0.0' } },
