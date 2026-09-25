@@ -29,7 +29,7 @@ use pnpm_config::Config;
 use pnpm_deps_path::get_pkg_id_with_patch_hash;
 use pnpm_lockfile::{
     LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName,
-    PkgNameVerPeer, SnapshotEntry,
+    PkgNameVerPeer, ProjectSnapshot, SnapshotEntry,
 };
 use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndex};
 use pnpm_tarball::{PrefetchIntegrityCheck, PrefetchResult, prefetch_cas_paths};
@@ -245,6 +245,9 @@ pub struct CreateVirtualStore<'a> {
     /// `<virtual_store_dir>/lock.yaml`. Used for reuse decisions and child-link
     /// cleanup, including under `--force`. Empty on a first install.
     pub current_entries: LockfileEntries<'a>,
+    /// The wanted lockfile's importers. The root project's runtime pin
+    /// picks the Node.js major of the remote side-effects artifacts.
+    pub importers: &'a HashMap<String, ProjectSnapshot>,
     /// macOS directory-clone materialization cache
     /// ([`crate::dir_clone_cache`]), built by the install entry points
     /// when [`crate::DirCloneCache::eligible`] holds. Threaded into

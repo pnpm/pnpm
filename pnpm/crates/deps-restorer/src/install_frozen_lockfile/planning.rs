@@ -135,6 +135,7 @@ impl<'a> FrozenInputs<'a> {
 
             entries: install.entries(),
             current_entries: install.lockfiles.current_entries,
+            importers: install.importers(),
 
             dir_clone_cache,
 
@@ -216,6 +217,10 @@ impl<'a> FrozenInputs<'a> {
 
     pub(super) fn entries(&self) -> LockfileEntries<'a> {
         LockfileEntries::from(self.lockfiles.wanted)
+    }
+
+    pub(super) fn importers(&self) -> &'a HashMap<String, pnpm_lockfile::ProjectSnapshot> {
+        &self.lockfiles.wanted.importers
     }
 }
 /// What [`InstallFrozenLockfile::build`](crate::InstallFrozenLockfile::build) reads from the phases before it.
@@ -421,9 +426,9 @@ impl EngineNamePlan {
 ///   by both the cache read-gate and the write-gate; when `None`, both
 ///   gates close and the cache is bypassed.
 ///
-/// An `engines.runtime` / `devEngines.runtime` pin that reached the
-/// lockfile wins: the runtime resolver writes the chosen Node as a
-/// `node@runtime:<version>` snapshot, and anchoring the GVS hash and the
+/// The root project's `engines.runtime` / `devEngines.runtime` pin wins:
+/// the runtime resolver writes the chosen Node as the root importer's
+/// `node: runtime:<version>` dependency, and anchoring the GVS hash and the
 /// side-effects-cache key prefix to that pinned Node is what keeps
 /// pinned and non-pinned installs on one host from splitting the shared
 /// store. Otherwise the name is derived from the host — synchronously
@@ -436,11 +441,11 @@ impl EngineNamePlan {
 pub(super) async fn plan_engine_name(
     config: &pnpm_config::Config,
     host_detection: &crate::materialization_plan::HostDetection,
-    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    importers: &HashMap<String, pnpm_lockfile::ProjectSnapshot>,
 ) -> EngineNamePlan {
     let host = match host_detection {
         crate::materialization_plan::HostDetection::Pending { .. } => {
-            let name = crate::materialization_plan::engine_name_from_runtime_pin(snapshots);
+            let name = crate::materialization_plan::engine_name_from_runtime_pin(importers);
             if name.is_some() {
                 return EngineNamePlan { name, deferred: None, pending_slot: None };
             }
@@ -455,7 +460,7 @@ pub(super) async fn plan_engine_name(
     let host_node = host.as_ref().map(crate::materialization_plan::HostNode::from);
     let (name, deferred) = crate::materialization_plan::resolve_engine_name(
         config.enable_global_virtual_store,
-        snapshots,
+        importers,
         host_node.as_ref(),
     )
     .await;

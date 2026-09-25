@@ -11,7 +11,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, iterateHashedGraphNodes, iteratePkgMeta, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, iterateHashedGraphNodes, iteratePkgMeta, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -24,6 +24,7 @@ import { getContext, type PnpmContext } from '@pnpm/installing.context'
 import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import type { TarballResolution } from '@pnpm/lockfile.types'
 import {
+  findLockedRootNodeRuntime,
   type LockfileObject,
   nameVerFromPkgSnapshot,
   packageIsIndependent,
@@ -311,11 +312,11 @@ async function _rebuild (
 ): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: IgnoredBuilds }> {
   const depGraph = lockfileToDepGraph(ctx.currentLockfile, opts.supportedArchitectures)
   const depsStateCache: DepsStateCache = {}
-  // Resolved `engines.runtime` Node version (when one is pinned) —
-  // every side-effects-cache key computed below is anchored to it so
+  // The root project's `engines.runtime` Node version (when one is
+  // pinned) anchors every side-effects-cache key computed below, so
   // the prefix tracks the script-runner Node rather than pnpm's own
   // `process.version`.
-  const nodeVersion = findRuntimeNodeVersion(Object.keys(depGraph))
+  const nodeVersion = findLockedRootNodeRuntime(ctx.currentLockfile)?.version
   const pkgsThatWereRebuilt = new Set<string>()
   const graph = new Map<DepPath, DepPath[]>()
   const pkgSnapshots: PackageSnapshots = ctx.currentLockfile.packages ?? {}

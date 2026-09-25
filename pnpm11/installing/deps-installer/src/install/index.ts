@@ -82,6 +82,7 @@ import {
   resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, removePackageMap, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
+import { findLockedRootNodeRuntime } from '@pnpm/lockfile.utils'
 import {
   allProjectsAreUpToDate,
   catalogResolutionIsStale,
@@ -2905,6 +2906,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           extraEnv,
           ignoreScripts: opts.ignoreScripts,
           lockfileDir: ctx.lockfileDir,
+          nodeVersion: findLockedRootNodeRuntime(newLockfile)?.version,
           optional: opts.include.optionalDependencies,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           rootModulesDir: ctx.virtualStoreDir,

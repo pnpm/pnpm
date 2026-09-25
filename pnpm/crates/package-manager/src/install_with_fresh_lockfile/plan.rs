@@ -135,7 +135,7 @@ pub(super) async fn plan_fresh_materialization<'l, 'a: 'l, Reporter: self::Repor
     let (engine_name, deferred_engine_name) =
         pnpm_deps_restorer::materialization_plan::resolve_engine_name(
             install.drivers.config.enable_global_virtual_store,
-            lockfiles.initial.snapshots.as_ref(),
+            &lockfiles.initial.importers,
             host_node.as_ref(),
         )
         .await;

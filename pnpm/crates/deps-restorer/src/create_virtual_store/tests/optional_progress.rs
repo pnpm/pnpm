@@ -113,6 +113,7 @@ async fn install_unfetchable_optional_dependency(progress_reported: &SharedRepor
 
         entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
         current_entries: LockfileEntries::default(),
+        importers: &HashMap::new(),
 
         dir_clone_cache: None,
 

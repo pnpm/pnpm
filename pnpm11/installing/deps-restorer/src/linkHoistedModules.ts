@@ -13,7 +13,7 @@ import type {
   DependenciesGraph,
   DepHierarchy,
 } from '@pnpm/deps.graph-builder'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import { logger } from '@pnpm/logger'
 import { createRemoteSideEffectsRestorer, type RemoteSideEffectsRestorer } from '@pnpm/pnpr.client'
 import type {
@@ -47,6 +47,11 @@ export async function linkHoistedModules (
     holdBackMissingBins: boolean
     ignoreScripts: boolean
     lockfileDir: string
+    /**
+     * The root project's `engines.runtime` Node version, which keys the
+     * side-effects cache of every package that does not pin its own.
+     */
+    nodeVersion?: string
     preferSymlinkedExecutables?: boolean
     sideEffectsCacheRead: boolean
     remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
@@ -67,22 +72,13 @@ export async function linkHoistedModules (
   // We should avoid removing unnecessary directories while simultaneously adding new ones.
   // Doing so can sometimes lead to a race condition when linking commands to `node_modules/.bin`.
   await Promise.all(dirsToRemove.map((dir) => tryRemoveDir(dir)))
-  // Resolve the project's pinned runtime Node version once, before
-  // the recursive walk. The graph is keyed by install directory in
-  // this module, so scanning `Object.keys(graph)` would miss every
-  // `node@runtime:<version>` entry — pull the depPath off each
-  // node instead. Threading it down via `opts` also avoids a
-  // re-scan at every recursion level.
-  const nodeVersion = findRuntimeNodeVersion(
-    Object.values(graph).map((node) => node.depPath)
-  )
   const restorer = createRemoteSideEffectsRestorer({
     allowBuild: opts.allowBuild,
     configByUri: opts.configByUri,
     depsGraph: graph,
     depsStateCache: opts.depsStateCache,
     ignoreScripts: opts.ignoreScripts,
-    nodeVersion,
+    nodeVersion: opts.nodeVersion,
     pnprServer: opts.pnprServer,
     settings: opts.remoteSideEffectsCache,
     sideEffectsCacheRead: opts.sideEffectsCacheRead,
@@ -104,7 +100,7 @@ export async function linkHoistedModules (
           ...opts,
           holdBackMissingTargets: opts.holdBackMissingBins,
           nestedHeldBackBinsDirs: heldBackBinsDirs,
-          nodeVersion,
+          nodeVersion: opts.nodeVersion,
           restorer,
           warn,
         })

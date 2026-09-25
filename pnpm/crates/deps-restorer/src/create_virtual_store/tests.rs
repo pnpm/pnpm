@@ -245,6 +245,7 @@ impl SeededStoreInstall {
                 snapshots: Some(&self.snapshots),
             },
             current_entries: LockfileEntries::default(),
+            importers: &HashMap::new(),
 
             dir_clone_cache: None,
 

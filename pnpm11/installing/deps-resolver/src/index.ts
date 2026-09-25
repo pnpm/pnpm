@@ -5,7 +5,7 @@ import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
-import { findRuntimeNodeVersion, iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
+import { iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
 import { isRuntimeDepPath, parse as parseDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
@@ -13,7 +13,7 @@ import type {
   LockfileObject,
   ProjectSnapshot,
 } from '@pnpm/lockfile.types'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { findLockedRootNodeRuntime, nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { getPatchInfo, type PatchGroupRecord, verifyPatches } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import {
@@ -665,19 +665,19 @@ function extendGraph (
     enableGlobalVirtualStore?: boolean
     lockfileDir: string
     supportedArchitectures?: SupportedArchitectures
+    wantedLockfile: LockfileObject
   }
 ): DependenciesGraph {
   const pkgMetaIter = iterateGraphPkgMetaEntries(graph, !opts.enableGlobalVirtualStore)
   // Only use allowBuild for engine-agnostic hash optimization when GVS is on
   const allowBuild = opts.enableGlobalVirtualStore ? opts.allowBuild : undefined
-  // Anchor every snapshot's engine hash to the project-pinned Node
-  // version (from `engines.runtime` / `devEngines.runtime`) when the
-  // resolver produced one — the graph carries it as a
-  // `node@runtime:<version>` key. Without this, GVS slots for
-  // approved-build packages would hash under the runner's
-  // `process.version` instead of the script-runner Node, splitting
-  // the cache between pinned and non-pinned installs on the same host.
-  const nodeVersion = findRuntimeNodeVersion(Object.keys(graph))
+  // Anchor every snapshot's engine hash to the root project's pinned
+  // Node version (from `engines.runtime` / `devEngines.runtime`).
+  // Without this, GVS slots for approved-build packages would hash
+  // under the runner's `process.version` instead of the script-runner
+  // Node, splitting the cache between pinned and non-pinned installs
+  // on the same host.
+  const nodeVersion = findLockedRootNodeRuntime(opts.wantedLockfile)?.version
   for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, {
     allowBuild,
     supportedArchitectures: opts.supportedArchitectures,

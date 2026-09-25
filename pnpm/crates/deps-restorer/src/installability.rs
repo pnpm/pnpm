@@ -579,7 +579,9 @@ pub fn find_root_runtime_node_key<'a>(
         .find(|key| key.name.scope.is_none() && key.name.bare == "node" && key.suffix == *ver_peer)
 }
 
-fn root_runtime_node_ver_peer(importers: &HashMap<String, ProjectSnapshot>) -> Option<&PkgVerPeer> {
+pub(crate) fn root_runtime_node_ver_peer(
+    importers: &HashMap<String, ProjectSnapshot>,
+) -> Option<&PkgVerPeer> {
     importers
         .get(Lockfile::ROOT_IMPORTER_KEY)?
         .dependencies_by_groups([
