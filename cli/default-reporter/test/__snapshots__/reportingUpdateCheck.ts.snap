@@ -25,19 +25,7 @@ exports[`print update notification for Corepack on Windows 1`] = `
 "
 `;
 
-exports[`print update notification for the standalone build when pnpm was not installed by the standalone script 1`] = `
-"
-   ╭─────────────────────────────────────────╮
-   │                                         │
-   │   Update available! 10.0.0 → 12.0.0.    │
-   │   Changelog: https://pnpm.io/v/12.0.0   │
-   │    To update, run: pnpm self-update     │
-   │                                         │
-   ╰─────────────────────────────────────────╯
-"
-`;
-
-exports[`print update notification if the latest version is greater than the current 1`] = `
+exports[`print update notification when PNPM_HOME manages the pnpm in use 1`] = `
 "
    ╭─────────────────────────────────────────╮
    │                                         │
@@ -49,14 +37,14 @@ exports[`print update notification if the latest version is greater than the cur
 "
 `;
 
-exports[`print update notification that suggests to use the standalone scripts for the upgrade 1`] = `
+exports[`print update notification when pnpm was installed by another package manager 1`] = `
 "
-   ╭─────────────────────────────────────────╮
-   │                                         │
-   │   Update available! 10.0.0 → 11.0.0.    │
-   │   Changelog: https://pnpm.io/v/11.0.0   │
-   │    To update, run: pnpm self-update     │
-   │                                         │
-   ╰─────────────────────────────────────────╯
+   ╭──────────────────────────────────────────────────────────────────────╮
+   │                                                                      │
+   │                  Update available! 10.0.0 → 11.0.0.                  │
+   │                 Changelog: https://pnpm.io/v/11.0.0                  │
+   │   To update, run: curl -fsSL https://get.pnpm.io/install.sh | sh -   │
+   │                                                                      │
+   ╰──────────────────────────────────────────────────────────────────────╯
 "
 `;
