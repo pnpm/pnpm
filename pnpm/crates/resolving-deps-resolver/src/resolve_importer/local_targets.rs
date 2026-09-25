@@ -1,7 +1,9 @@
 use super::{
-    BTreeMap, DirectDep, HashSet, PackageManifestError, Path, ResolvedTree, Version,
-    WorkspaceRootDep, io, safe_read_package_json_from_dir, unwrap_package_name,
+    BTreeMap, DirectDep, HashSet, Path, ResolvedTree, WorkspaceRootDep, io,
+    safe_read_package_json_from_dir, unwrap_package_name,
 };
+use node_semver::Version;
+use pnpm_package_manifest::PackageManifestError;
 
 /// `link:` / `file:` and the path form of `workspace:` name a directory
 /// relative to the project that declares them, so the root's specifier
