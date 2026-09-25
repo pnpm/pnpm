@@ -2,6 +2,7 @@ use super::{PublishArgs, parse_new_version, set_package_version};
 use crate::cli_args::publish::tests::{publish_args, publish_args_with, publish_flags};
 use pnpm_config::Config;
 use serde_json::{Value, json};
+use std::collections::HashSet;
 
 fn args_with_new_version(new_version: &str) -> PublishArgs {
     publish_args_with(crate::cli_args::publish::PublishFlags {
@@ -63,9 +64,10 @@ fn apply_new_version_rewrites_the_project_manifest() {
     std::fs::write(&manifest_path, r#"{"name":"pkg","version":"1.0.0"}"#)
         .expect("write package.json");
 
-    args_with_new_version("2.0.0-alpha.1")
+    let bumped = args_with_new_version("2.0.0-alpha.1")
         .apply_new_version(dir.path(), &Config::default(), false)
         .expect("the version is applied");
+    assert_eq!(bumped, Some(HashSet::from(["pkg".to_string()])));
 
     let written: Value =
         serde_json::from_str(&std::fs::read_to_string(&manifest_path).expect("read package.json"))
