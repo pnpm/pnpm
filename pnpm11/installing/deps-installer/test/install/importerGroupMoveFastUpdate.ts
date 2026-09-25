@@ -126,6 +126,31 @@ test('prunes all orphaned packages when stale importer with duplicated alias is 
   expect(subject.packages!['bar@2.0.0' as DepPath]).toBeUndefined()
 })
 
+test('prunes orphaned package when duplicate group with differing version moves to a new version', async () => {
+  const subject = lockfile()
+  const importer = subject.importers['.' as ProjectId]
+  importer.devDependencies = {
+    bar: '2.1.0',
+  }
+  subject.packages!['bar@2.1.0' as DepPath] = {
+    resolution: { integrity: 'sha512-bar21' },
+  }
+  subject.packages!['bar@2.2.0' as DepPath] = {
+    resolution: { integrity: 'sha512-bar22' },
+  }
+
+  expect(await tryFastUpdateImporters(subject, [
+    project({
+      dependencies: { foo: '^1.0.0', bar: '^2.2.0' },
+      devDependencies: { bar: '^2.2.0' },
+    }),
+  ])).toBe(true)
+
+  expect(subject.packages!['bar@2.1.0' as DepPath]).toBeUndefined()
+  expect(subject.packages!['bar@2.0.0' as DepPath]).toBeUndefined()
+  expect(subject.packages!['bar@2.2.0' as DepPath]).toBeDefined()
+})
+
 test('a move into optionalDependencies marks the subtree optional', async () => {
   const subject = lockfile()
 

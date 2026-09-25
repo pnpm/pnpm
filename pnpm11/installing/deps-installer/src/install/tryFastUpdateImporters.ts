@@ -111,9 +111,9 @@ export function tryFastUpdateImporters (
         if (wanted !== version) {
           if (reference !== version) return false
           for (const group of recordedGroups) {
+            recordDroppedEdge(edits.dropped, alias, importer[group]![alias])
             importer[group]![alias] = wanted
           }
-          recordDroppedEdge(edits.dropped, alias, reference)
         }
         importer.specifiers[alias] = specifier
         specifierChanged = true

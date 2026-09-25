@@ -424,6 +424,76 @@ snapshots:
 }
 
 #[test]
+fn prunes_orphaned_package_when_duplicate_group_with_differing_version_is_retargeted() {
+    let subject = parsed_lockfile(
+        "lockfileVersion: '9.0'
+importers:
+  .:
+    specifiers:
+      foo: ^1.0.0
+      bar: ^2.0.0
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.1.0
+      bar:
+        specifier: ^2.0.0
+        version: 2.0.0
+    devDependencies:
+      bar:
+        specifier: ^2.0.0
+        version: 2.1.0
+packages:
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-foo
+  bar@2.0.0:
+    resolution:
+      integrity: sha512-bar20
+  bar@2.1.0:
+    resolution:
+      integrity: sha512-bar21
+  bar@2.2.0:
+    resolution:
+      integrity: sha512-bar22
+snapshots:
+  foo@1.1.0: {}
+  bar@2.0.0: {}
+  bar@2.1.0: {}
+  bar@2.2.0: {}
+",
+    );
+
+    let manifest = manifest_from(json!({
+        "dependencies": { "foo": "^1.0.0", "bar": "^2.2.0" },
+        "devDependencies": { "bar": "^2.2.0" },
+    }));
+
+    let updated = try_fast_update_importers(&subject, &[(".".to_string(), &manifest)])
+        .expect("retargeting duplicate groups needs no resolution");
+
+    let packages = updated.packages.as_ref().expect("packages");
+    assert!(
+        !packages
+            .keys()
+            .any(|k| k.to_string() == "bar@2.1.0"),
+        "bar@2.1.0 should be pruned from packages",
+    );
+    assert!(
+        !packages
+            .keys()
+            .any(|k| k.to_string() == "bar@2.0.0"),
+        "bar@2.0.0 should be pruned from packages",
+    );
+    assert!(
+        packages
+            .keys()
+            .any(|k| k.to_string() == "bar@2.2.0"),
+        "bar@2.2.0 should be kept in packages",
+    );
+}
+
+#[test]
 fn synchronizes_duplicate_records_after_retarget() {
     let mut subject = parsed_lockfile(WITH_TWO_LOCKED_VERSIONS);
     let importer = subject.importers.get_mut(".").expect("importer");
