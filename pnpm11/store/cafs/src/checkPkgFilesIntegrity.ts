@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
-import gfs from '@pnpm/fs.graceful-fs'
+import gfs, { withFileLockRetry } from '@pnpm/fs.graceful-fs'
 import type { FilesMap, PackageFileInfo, PackageFiles, RemoteSideEffectsQuarantine, SideEffects } from '@pnpm/store.cafs-types'
 import type { BundledManifest } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
@@ -360,7 +360,10 @@ export async function verifyFileIntegrityAsync (
 /** The file's content, or `null` if it is no longer there. */
 function readFileForIntegrity (filename: string): Buffer | null {
   try {
-    return gfs.readFileSync(filename)
+    // A concurrent repair replacing this very path leaves it briefly
+    // delete-pending on Windows, where a read open answers EPERM; the
+    // lock-retry policy rides that out instead of crashing the worker.
+    return withFileLockRetry(() => gfs.readFileSync(filename))
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
@@ -386,7 +389,7 @@ function hashMatches (data: Buffer, integrity: Integrity): boolean | null {
 
 function checkFile (filename: string, checkedAt?: number): { isModified: boolean, size: number } | null {
   try {
-    const { mtimeMs, size } = fs.statSync(filename)
+    const { mtimeMs, size } = withFileLockRetry(() => fs.statSync(filename))
     return {
       isModified: (mtimeMs - (checkedAt ?? 0)) > 100,
       size,
