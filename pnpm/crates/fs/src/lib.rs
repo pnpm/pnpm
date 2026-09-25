@@ -4,7 +4,9 @@ pub mod test_support;
 pub use background_drop::background_drop;
 pub use capabilities::*;
 pub use copy_dirent::{copy_dir_contents, copy_dirent, create_symlink};
-pub use copy_file_exclusive::{copy_file_atomic, copy_file_exclusive};
+pub use copy_file_exclusive::{
+    copy_file_atomic, copy_file_atomic_with_permissions, copy_file_exclusive,
+};
 pub use cross_device::is_cross_device;
 pub use dir_lock::DirLock;
 pub use ensure_file::*;

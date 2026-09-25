@@ -99,6 +99,27 @@ impl FsReflink for EaccesHardLink {
     }
 }
 
+/// A reflink onto a fresh inode that carries the source's mode, which is
+/// what a real one does: `clonefile` copies the source's attributes, and
+/// the reflink tier sets them explicitly on Linux.
+#[cfg(unix)]
+struct FreshClone;
+
+#[cfg(unix)]
+impl FsHardLink for FreshClone {
+    fn hard_link(_source: &Path, _target: &Path) -> io::Result<()> {
+        unreachable!("the clone tier materializes the file, so no hardlink tier follows it")
+    }
+}
+
+#[cfg(unix)]
+impl FsReflink for FreshClone {
+    fn reflink(source: &Path, target: &Path) -> io::Result<()> {
+        fs::write(target, fs::read(source)?)?;
+        fs::set_permissions(target, fs::metadata(source)?.permissions())
+    }
+}
+
 #[cfg(unix)]
 fn inode(path: &Path) -> u64 {
     use std::os::unix::fs::MetadataExt;

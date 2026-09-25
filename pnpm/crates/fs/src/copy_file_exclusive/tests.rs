@@ -1,8 +1,16 @@
 #[cfg(unix)]
 use super::path_still_names;
 use super::{copy_file_atomic, copy_file_exclusive};
-use std::{fs, io};
+use std::{fs, io, path::Path};
 use tempfile::TempDir;
+
+fn source_permissions(path: &Path) -> fs::Permissions {
+    fs::File::open(path)
+        .unwrap()
+        .metadata()
+        .unwrap()
+        .permissions()
+}
 
 #[test]
 fn copies_the_bytes_into_a_new_file() {
@@ -10,21 +18,22 @@ fn copies_the_bytes_into_a_new_file() {
     let (source, target) = (dir.path().join("source"), dir.path().join("target"));
     fs::write(&source, "content").unwrap();
 
-    copy_file_exclusive(&source, &target, |_| Ok(())).unwrap();
+    let permissions = source_permissions(&source);
+    copy_file_exclusive(&source, &target, &permissions, |_| Ok(())).unwrap();
 
     assert_eq!(fs::read_to_string(&target).unwrap(), "content");
 }
 
 #[test]
 #[cfg(unix)]
-fn carries_the_source_mode() {
+fn carries_the_supplied_mode() {
     use std::os::unix::fs::PermissionsExt;
     let dir = TempDir::new().unwrap();
     let (source, target) = (dir.path().join("source"), dir.path().join("target"));
     fs::write(&source, "content").unwrap();
-    fs::set_permissions(&source, fs::Permissions::from_mode(0o750)).unwrap();
+    let permissions = fs::Permissions::from_mode(0o750);
 
-    copy_file_exclusive(&source, &target, |_| Ok(())).unwrap();
+    copy_file_exclusive(&source, &target, &permissions, |_| Ok(())).unwrap();
 
     assert_eq!(
         fs::metadata(&target)
@@ -46,7 +55,8 @@ fn refuses_an_occupied_target_without_following_its_symlink() {
     fs::write(&victim, "untouched").unwrap();
     std::os::unix::fs::symlink(&victim, &target).unwrap();
 
-    let error = copy_file_exclusive(&source, &target, |_| Ok(())).unwrap_err();
+    let error = copy_file_exclusive(&source, &target, &source_permissions(&source), |_| Ok(()))
+        .unwrap_err();
 
     assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
     assert_eq!(fs::read_to_string(&victim).unwrap(), "untouched");
@@ -58,8 +68,11 @@ fn removes_the_partial_file_when_finishing_fails() {
     let (source, target) = (dir.path().join("source"), dir.path().join("target"));
     fs::write(&source, "content").unwrap();
 
-    let error = copy_file_exclusive(&source, &target, |_| Err(io::Error::other("finish failed")))
-        .unwrap_err();
+    let permissions = source_permissions(&source);
+    let error = copy_file_exclusive(&source, &target, &permissions, |_| {
+        Err(io::Error::other("finish failed"))
+    })
+    .unwrap_err();
 
     assert_eq!(error.to_string(), "finish failed");
     assert!(!target.exists(), "the partial file is removed");

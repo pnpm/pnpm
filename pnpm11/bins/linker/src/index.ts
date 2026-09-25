@@ -387,7 +387,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     // the store, but we won't necessarily have reapplied the executable bit -
     // so apply it here.
     if (EXECUTABLE_SHEBANG_SUPPORTED) {
-      await ensureExecutableIfNeeded(cmd.path, 0o755, { allowMissing: true })
+      await ensureExecutableIfNeeded(cmd.path, { allowMissing: true })
     }
     return
   }
@@ -431,7 +431,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null && await canSymlinkExecutable(cmd.path)) {
     try {
       await symlinkDir(cmd.path, externalBinPath)
-      await ensureExecutableIfNeeded(cmd.path, 0o755, { allowMissing: true })
+      await ensureExecutableIfNeeded(cmd.path, { allowMissing: true })
     } catch (err: any) { // eslint-disable-line
       if (err.code !== 'ENOENT' && err.code !== 'EISDIR') {
         throw err
@@ -472,7 +472,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // ensure that bin are executable and not containing
   // windows line-endings(CRLF) on the hashbang line
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
-    await ensureExecutableIfNeeded(cmd.path, 0o755, { allowMissing: true })
+    await ensureExecutableIfNeeded(cmd.path, { allowMissing: true })
   }
 }
 
@@ -612,26 +612,28 @@ async function canSymlinkExecutable (file: string): Promise<boolean> {
   }
 }
 
-async function ensureExecutableIfNeeded (file: string, mode: number, opts?: { allowMissing?: boolean }): Promise<void> {
+async function ensureExecutableIfNeeded (file: string, opts?: { allowMissing?: boolean }): Promise<void> {
   const stat = await fs.stat(file).catch((err: any) => { // eslint-disable-line
     if (opts?.allowMissing && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return undefined
     throw err
   })
   if (stat == null) return
   if ((stat.mode & 0o111) !== 0o111 || await hasWindowsShebang(file)) {
-    await ensureExecutable(file, mode)
+    await ensureExecutable(file)
   }
 }
 
 // Only installed package files may be repaired. Resolve symlinks before checking
 // because workspace and link: dependencies also appear under node_modules.
-async function ensureExecutable (file: string, mode: number): Promise<void> {
+async function ensureExecutable (file: string): Promise<void> {
   const realFile = await fs.realpath(file)
   if (!path.dirname(realFile).split(path.sep).includes('node_modules')) return
   const stat = await fs.stat(realFile)
   if ((stat.mode & 0o111) === 0o111 && !(await hasWindowsShebang(realFile))) return
   try {
-    await fixBin(realFile, mode)
+    // Add only the execute bits the target lacks, so a bin imported under a
+    // strict umask keeps the read and write bits that umask gave it (pnpm/pnpm#3807).
+    await fixBin(realFile, (stat.mode & 0o777) | 0o111)
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EROFS') {
       const stat = await fs.stat(realFile).catch(() => undefined)

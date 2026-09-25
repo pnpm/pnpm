@@ -21,21 +21,17 @@ use std::{
 };
 use tempfile::tempdir;
 
-/// A dangling symlink squatting at an executable entry's path must
-/// keep failing the import: the syscall reports EEXIST for the dirent,
-/// the exec-bit re-assertion opens through the symlink and gets
-/// `NotFound`, and no concurrent writer will ever heal it — unlike a
-/// target that truly vanished, whose remover writes an equivalent file.
+/// A symlink squatting at an executable entry's path is left alone, as
+/// at a plain one: no writer materialized it, and pnpm's `linkOrCopy`
+/// returns on `EEXIST` without touching whatever occupies the path.
 #[test]
 #[cfg(unix)]
-fn eexist_recovery_rejects_a_dangling_symlink_target() {
-    use std::os::unix::fs::PermissionsExt;
-
+fn eexist_recovery_leaves_a_dangling_symlink_target() {
     let tmp = tempdir().unwrap();
     let src = write_source(tmp.path(), "1b59d9-exec", b"#!/usr/bin/env node\n");
-    fs::set_permissions(&src, fs::Permissions::from_mode(0o755)).unwrap();
+    let dangling_target = tmp.path().join("missing-target");
     let dst = tmp.path().join("dst");
-    std::os::unix::fs::symlink(tmp.path().join("missing-target"), &dst).unwrap();
+    std::os::unix::fs::symlink(&dangling_target, &dst).unwrap();
 
     import_into_fresh_target::<SilentReporter>(
         &AtomicU8::new(0),
@@ -43,7 +39,13 @@ fn eexist_recovery_rejects_a_dangling_symlink_target() {
         &src,
         &dst,
     )
-    .expect_err("a dangling symlink at the target is corruption, not a concurrent writer");
+    .expect("a symlink at the target is left for its owner to resolve");
+
+    assert_eq!(
+        std::fs::read_link(&dst).unwrap(),
+        dangling_target,
+        "the symlink survives an EEXIST it cannot own",
+    );
 }
 /// A dangling symlink at either path also opens as `NotFound` for the
 /// copy tier, and no concurrent importer will ever heal it.
@@ -274,12 +276,15 @@ fn eacces_from_hard_link_downgrades_the_auto_ladder() {
 }
 #[test]
 #[cfg(unix)]
-fn eacces_from_both_link_tiers_copies_and_restores_exec_bits() {
+fn eacces_from_both_link_tiers_copies_at_the_store_entry_mode() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = tempdir().unwrap();
     let src = write_source(tmp.path(), "source-exec", b"executable");
-    fs::set_permissions(&src, fs::Permissions::from_mode(0o644)).unwrap();
+    // A mode-matching source is what drives the link attempt (and its
+    // EACCES); the store-entry mode is what the copy tier then lands.
+    let expected = pnpm_fs::file_mode::store_entry_mode(true, pnpm_fs::file_mode::current_umask());
+    fs::set_permissions(&src, fs::Permissions::from_mode(expected)).unwrap();
 
     for first_tier in [LINK_STATE_CLONE, LINK_STATE_HARDLINK] {
         let state = AtomicU8::new(first_tier);
@@ -297,8 +302,9 @@ fn eacces_from_both_link_tiers_copies_and_restores_exec_bits() {
                 .unwrap()
                 .permissions()
                 .mode()
-                & 0o111,
-            0o111,
+                & 0o777,
+            expected,
+            "the copy carries the umask's executable store-entry mode",
         );
         assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_COPY);
         assert_eq!(logged.load(Ordering::Relaxed), super::super::LOG_FLAG_COPY);
