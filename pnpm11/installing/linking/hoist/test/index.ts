@@ -160,6 +160,30 @@ test.each(['ENOENT', 'EINVAL'])('rechecks a winning link after readlink reports 
   }
 })
 
+test('waits for a Windows junction another installer is creating', async () => {
+  const { root, link, target, opts } = await prepareStaleHoist()
+  Object.defineProperty(process, 'platform', { value: 'win32' })
+  const unlink = fs.promises.unlink
+  let junctionCreated!: Promise<void>
+  jest.spyOn(fs.promises, 'unlink').mockImplementationOnce(async (dest) => {
+    await unlink(dest)
+    // A junction is an empty directory until its reparse point is set.
+    fs.mkdirSync(link)
+    junctionCreated = (async () => {
+      await new Promise(resolve => setTimeout(resolve, 20))
+      fs.rmdirSync(link)
+      await symlinkDir(target, link)
+    })()
+  })
+  try {
+    await hoist(opts)
+    await junctionCreated
+    expect(await resolveLinkTarget(link)).toBe(target)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('stops retrying when a competing link stays unreadable', async () => {
   const { root, link, target, opts } = await prepareStaleHoist()
   const unlink = fs.promises.unlink

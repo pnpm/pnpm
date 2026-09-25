@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import util from 'node:util'
 
 import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/bins.linker'
@@ -671,7 +672,13 @@ async function createHoistedDependencyLink (depLocation: string, dest: string): 
             // macOS can report EINVAL when a concurrent unlink interrupts readlink.
             try {
               // eslint-disable-next-line no-await-in-loop
-              if ((await fs.promises.lstat(dest)).isSymbolicLink() && retries <= 100) continue
+              const stat = await fs.promises.lstat(dest)
+              // eslint-disable-next-line no-await-in-loop
+              if ((stat.isSymbolicLink() || await mayBeJunctionInCreation(dest, stat)) && retries <= 100) {
+                // eslint-disable-next-line no-await-in-loop
+                await delay(1)
+                continue
+              }
             } catch (statError: unknown) {
               if (util.types.isNativeError(statError) && 'code' in statError && statError.code === 'ENOENT' && retries <= 100) continue
             }
@@ -684,6 +691,15 @@ async function createHoistedDependencyLink (depLocation: string, dest: string): 
     }
   }
   linkLogger.debug({ target: dest, link: depLocation })
+}
+
+/**
+ * A junction is created as an empty directory that gets its reparse point
+ * afterwards, so a concurrent hoist can find an empty plain directory in its
+ * place for a moment.
+ */
+async function mayBeJunctionInCreation (dest: string, stat: fs.Stats): Promise<boolean> {
+  return process.platform === 'win32' && stat.isDirectory() && (await fs.promises.readdir(dest)).length === 0
 }
 
 export function graphWalker<T extends string> (
