@@ -21,7 +21,7 @@ pub(crate) use resolution_result::{RegistryResolutionSource, ResolvedSpecifier};
 pub(crate) use package_revision::validate_revision_selector;
 
 pub(crate) use guarded_pick::{
-    CandidateChecks, PickFromRegistryOptions, PickedFromRegistry, RegistryPick,
+    CandidateChecks, LatestTagOptions, PickFromRegistryOptions, PickedFromRegistry, RegistryPick,
     pick_from_registry_with_guard, warn_once_on_trust_downgrade_fallback,
 };
 
@@ -413,7 +413,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 spec,
                 preferred_version_selectors: base_selectors,
                 pick_lowest_version: opts.version.pick_lowest_version,
-                include_latest_tag: opts.refresh.update == UpdateBehavior::Latest,
+                latest_tag: LatestTagOptions::for_resolve_options(opts),
                 checks: crate::npm_resolver::CandidateChecks::new(&opts.policy, trust_check),
                 policy: crate::PackagePickPolicy {
                     published_by: opts.policy.published_by,
@@ -462,6 +462,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let mut resolve_opts = opts.clone();
         if !query.compatible {
             resolve_opts.refresh.update = UpdateBehavior::Latest;
+            resolve_opts.refresh.current_version.clone_from(&query.current_version);
         }
         let result = match self.resolve_impl(&wanted, &resolve_opts).await {
             Ok(result) => result,

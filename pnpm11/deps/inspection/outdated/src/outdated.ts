@@ -161,14 +161,15 @@ export async function outdated (
 
           const bareSpecifier = _replaceCatalogProtocolIfNecessary({ alias, bareSpecifier: declaredSpecifier })
 
+          const wanted = displayVersion(wantedRef, wantedRelative, wantedSnapshot?.version)
+          const current = currentRef ? displayVersion(currentRef, currentRelative, currentSnapshot?.version) : undefined
+
           const info = await opts.resolveLatest(
-            { wantedDependency: { alias, bareSpecifier }, compatible: opts.compatible },
+            { wantedDependency: { alias, bareSpecifier }, compatible: opts.compatible, currentVersion: current },
             resolveOpts
           )
           if (info == null) return // resolver doesn't claim this dep — skip silently
 
-          const wanted = displayVersion(wantedRef, wantedRelative, wantedSnapshot?.version)
-          const current = currentRef ? displayVersion(currentRef, currentRelative, currentSnapshot?.version) : undefined
           const { latestManifest } = info
 
           // Compare the parsed `wanted` / `current` rather than raw refs.

@@ -133,6 +133,7 @@ impl<'a> LatestPicker<'a> {
             pick_lowest_version: false,
             // The spec already is the `latest` tag.
             include_latest_tag: false,
+            current_version: None,
             blocked_versions: None,
             policy: pnpm_resolving_npm_resolver::PackagePickPolicy {
                 published_by: self.policy.published_by,

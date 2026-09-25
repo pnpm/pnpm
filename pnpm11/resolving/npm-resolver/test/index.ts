@@ -90,6 +90,48 @@ test('resolveFromNpm()', async () => {
   expect(meta['dist-tags']).toBeTruthy()
 })
 
+test('resolveLatestFromNpm() follows a prerelease-channel dist-tag', async () => {
+  const name = 'prerelease-channel'
+  const manifest = (version: string) => ({
+    name,
+    version,
+    dist: {
+      integrity: ORIGINAL_INTEGRITY,
+      tarball: `${registriesByScope.default}${name}/-/${name}-${version}.tgz`,
+    },
+  })
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: `/${name}`, method: 'GET' })
+    .reply(200, {
+      name,
+      'dist-tags': {
+        latest: '1.0.0',
+        next: '0.0.0-next-2',
+      },
+      versions: {
+        '0.0.0-next-1': manifest('0.0.0-next-1'),
+        '0.0.0-next-2': manifest('0.0.0-next-2'),
+        '1.0.0': manifest('1.0.0'),
+      },
+    })
+
+  const { resolveLatestFromNpm } = createResolveFromNpm({
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const info = await resolveLatestFromNpm({
+    wantedDependency: { alias: name, bareSpecifier: '0.0.0-next-1' },
+    compatible: false,
+    currentVersion: '0.0.0-next-1',
+  }, {
+    lockfileDir: temporaryDirectory(),
+    preferredVersions: {},
+    projectDir: temporaryDirectory(),
+  })
+
+  expect(info?.latestManifest?.version).toBe('0.0.0-next-2')
+})
+
 test('resolveFromNpm() validates and preserves a registry tarball revision', async () => {
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })

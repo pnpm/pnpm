@@ -12,10 +12,17 @@ const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const FOO: &str = "@pnpm.e2e/foo";
 const DEPRECATED: &str = "@pnpm.e2e/deprecated";
 const BRAVO_DEP: &str = "@pnpm.e2e/bravo-dep";
+const HAS_PRERELEASE: &str = "@pnpm.e2e/has-prerelease";
 
 fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
+    (root, workspace, npmrc_info)
+}
+
+fn setup_with_own_registry_storage() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
     (root, workspace, npmrc_info)
 }
 
@@ -135,6 +142,29 @@ fn outdated_json_format() {
     assert_eq!(entry["current"], "100.1.0");
     assert_eq!(entry["latest"], "101.0.0");
     assert_eq!(entry["dependencyType"], "dependencies");
+
+    drop((root, anchor));
+}
+
+#[test]
+fn outdated_follows_the_dist_tag_on_the_installed_prerelease_channel() {
+    let (root, workspace, anchor) = setup_with_own_registry_storage();
+
+    write_manifest(&workspace, &format!(r#"{{ "{HAS_PRERELEASE}": "3.0.0-rc.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    anchor.set_dist_tag(HAS_PRERELEASE, "2.0.0", "latest");
+    anchor.set_dist_tag(HAS_PRERELEASE, "3.0.0-rc.1", "next");
+
+    let output = pacquet(&workspace, ["outdated", "--format", "json"])
+        .output()
+        .expect("run pacquet outdated");
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let value: serde_json::Value =
+        serde_json::from_str(stdout.trim()).expect("outdated --format json should emit valid JSON");
+    let entry = &value[HAS_PRERELEASE];
+    assert_eq!(entry["current"], "3.0.0-rc.0");
+    assert_eq!(entry["latest"], "3.0.0-rc.1");
 
     drop((root, anchor));
 }

@@ -24,8 +24,8 @@ use pnpm_resolving_resolver_base::{
 
 use crate::{
     npm_resolver::{
-        PickFromRegistryOptions, RegistryPick, no_matching_version, pick_from_registry_with_guard,
-        swallowed_as_no_latest, validate_revision_selector,
+        LatestTagOptions, PickFromRegistryOptions, RegistryPick, no_matching_version,
+        pick_from_registry_with_guard, swallowed_as_no_latest, validate_revision_selector,
     },
     parse_bare_specifier::{
         NamedRegistryPackageSpec, parse_named_registry_specifier_to_registry_package_spec,
@@ -164,6 +164,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         let mut resolve_opts = opts.clone();
         if !query.compatible {
             resolve_opts.refresh.update = UpdateBehavior::Latest;
+            resolve_opts.refresh.current_version.clone_from(&query.current_version);
         }
         let result = match self.resolve_impl(&wanted, &resolve_opts).await {
             Ok(result) => result,
@@ -205,7 +206,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
                 spec,
                 preferred_version_selectors: base_selectors,
                 pick_lowest_version: opts.version.pick_lowest_version,
-                include_latest_tag: opts.refresh.update == UpdateBehavior::Latest,
+                latest_tag: LatestTagOptions::for_resolve_options(opts),
                 checks: crate::npm_resolver::CandidateChecks::new(&opts.policy, None),
                 policy: crate::PackagePickPolicy {
                     published_by: opts.policy.published_by,

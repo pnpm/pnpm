@@ -144,6 +144,7 @@ async fn resolve_latest_claims_http_specifiers() {
             ..WantedDependency::default()
         },
         compatible: false,
+        current_version: None,
     };
     let info = resolver
         .resolve_latest(&query, &ResolveOptions::default())
@@ -163,6 +164,7 @@ async fn resolve_latest_returns_none_for_non_http_specifiers() {
             ..WantedDependency::default()
         },
         compatible: false,
+        current_version: None,
     };
     let info = resolver
         .resolve_latest(&query, &ResolveOptions::default())

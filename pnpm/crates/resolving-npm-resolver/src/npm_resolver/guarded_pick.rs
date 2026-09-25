@@ -32,10 +32,25 @@ pub(crate) struct PickFromRegistryOptions<'a> {
     pub spec: &'a RegistryPackageSpec,
     pub preferred_version_selectors: Option<&'a pnpm_resolving_resolver_base::VersionSelectors>,
     pub pick_lowest_version: bool,
-    pub include_latest_tag: bool,
+    pub latest_tag: Option<LatestTagOptions<'a>>,
     pub checks: CandidateChecks<'a>,
     pub policy: crate::PackagePickPolicy<'a>,
     pub request: crate::MetadataPickRequest,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct LatestTagOptions<'a> {
+    pub current_version: Option<&'a node_semver::Version>,
+}
+
+impl<'a> LatestTagOptions<'a> {
+    pub(crate) fn for_resolve_options(
+        opts: &'a pnpm_resolving_resolver_base::ResolveOptions,
+    ) -> Option<Self> {
+        (opts.refresh.update == pnpm_resolving_resolver_base::UpdateBehavior::Latest).then_some(
+            Self { current_version: opts.refresh.current_version.as_ref() },
+        )
+    }
 }
 
 /// Checks that can set a picked candidate aside so the picker tries the
@@ -75,7 +90,8 @@ pub(super) fn pick_options<'o>(
         registry: opts.registry,
         preferred_version_selectors: opts.preferred_version_selectors,
         pick_lowest_version: opts.pick_lowest_version,
-        include_latest_tag: opts.include_latest_tag,
+        include_latest_tag: opts.latest_tag.is_some(),
+        current_version: opts.latest_tag.and_then(|latest_tag| latest_tag.current_version),
         blocked_versions: (!blocked_versions.is_empty()).then_some(blocked_versions),
         policy: opts.policy,
         request: opts.request,

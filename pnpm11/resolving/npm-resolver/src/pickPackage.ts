@@ -85,6 +85,7 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   registry: string
   dryRun: boolean
   includeLatestTag?: boolean
+  currentVersion?: string
   optional?: boolean
   trustPolicy?: TrustPolicy
   /**
@@ -103,6 +104,7 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
 interface PickerOptions extends PickPackageFromMetaOptions {
   pickLowestVersion?: boolean
   includeLatestTag?: boolean
+  currentVersion?: string
   ignoreMissingTimeField?: boolean
 }
 
@@ -119,17 +121,33 @@ function canReuseStableCachedRange (
   )
 }
 
-// When includeLatestTag is set, the "latest" dist-tag is added as a candidate
-// alongside the requested spec, and the higher-versioned pick wins.
+// When includeLatestTag is set, add either the current prerelease channel's
+// dist-tag or `latest` as a candidate alongside the requested spec.
 function runPicker (
   pickerOpts: PickerOptions,
+  meta: PackageMeta,
   spec: RegistryPackageSpec,
   pickOne: (targetSpec: RegistryPackageSpec) => PackageInRegistry | null
 ): PackageInRegistry | null {
   const currentPkg = pickOne(spec)
   if (!pickerOpts.includeLatestTag) return currentPkg
-  const latestPkg = pickOne({ ...spec, type: 'tag', fetchSpec: 'latest' })
-  return pickMax(latestPkg, currentPkg)
+  const tag = pickPrereleaseTag(meta, pickerOpts.currentVersion) ?? 'latest'
+  const taggedPkg = pickOne({ ...spec, type: 'tag', fetchSpec: tag })
+  return pickMax(taggedPkg, currentPkg)
+}
+
+function pickPrereleaseTag (meta: PackageMeta, currentVersion: string | undefined): string | undefined {
+  const channel = currentVersion == null ? undefined : prereleaseChannel(currentVersion)
+  if (channel == null) return undefined
+  return Object.entries(meta['dist-tags'])
+    .filter(([, version]) => prereleaseChannel(version) === channel)
+    .sort(([, version1], [, version2]) => semver.rcompare(version1, version2, true))[0]?.[0]
+}
+
+function prereleaseChannel (version: string): string | undefined {
+  const prerelease = semver.prerelease(version, true)
+  if (prerelease == null) return undefined
+  return prerelease.join('.').replace(/[.-]?\d+(?:[.-]\d+)*$/, '') || undefined
 }
 
 // Returns whichever pick has the higher version, treating null as "no match".
@@ -155,7 +173,7 @@ function pickRespectingMinReleaseAge (
   spec: RegistryPackageSpec,
   meta: PackageMeta
 ): PackageInRegistry | null {
-  return runPicker(pickerOpts, spec, (targetSpec) => {
+  return runPicker(pickerOpts, meta, spec, (targetSpec) => {
     const pickMature = pickerOpts.pickLowestVersion ? pickLowest : pickHighest
     const mature = pickMature(pickerOpts, meta, targetSpec)
     if (mature) return mature
@@ -172,7 +190,7 @@ function pickIgnoringReleaseAge (
   meta: PackageMeta
 ): PackageInRegistry | null {
   const pickVersion = pickerOpts.pickLowestVersion ? pickLowest : pickHighest
-  return runPicker(pickerOpts, spec, (targetSpec) => pickVersion(pickerOpts, meta, targetSpec))
+  return runPicker(pickerOpts, meta, spec, (targetSpec) => pickVersion(pickerOpts, meta, targetSpec))
 }
 
 // Used in shortcut/fall-through paths: if it fails (including with
@@ -260,6 +278,7 @@ function toPickerOptions (
     publishedByExclude: opts.publishedByExclude,
     pickLowestVersion: opts.pickLowestVersion,
     includeLatestTag: opts.includeLatestTag,
+    currentVersion: opts.currentVersion,
     ignoreMissingTimeField: ctx.ignoreMissingTimeField,
   }
 }

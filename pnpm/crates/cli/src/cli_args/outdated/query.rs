@@ -51,8 +51,8 @@ impl OutdatedRun {
 /// whether it is outdated.
 #[derive(Debug, Clone, Copy)]
 pub enum TargetVersion {
-    /// The `latest` dist-tag — the absolute newest published version.
-    /// pnpm's default for `outdated`.
+    /// The current prerelease channel's dist-tag, or `latest` for a stable dependency.
+    /// This is pnpm's default for `outdated`.
     Latest,
     /// The highest version satisfying the manifest range. pnpm's
     /// `outdated --compatible`, and the version an in-range `update`
@@ -352,6 +352,7 @@ async fn resolve_outdated_target(
                     ..ResolverWantedDependency::default()
                 },
                 compatible: matches!(query.target_version, TargetVersion::WithinRange),
+                current_version: Some(candidate.current.clone()),
             },
             &run.resolve_options,
         )

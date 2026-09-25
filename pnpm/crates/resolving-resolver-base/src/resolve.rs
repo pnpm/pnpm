@@ -398,6 +398,9 @@ pub struct VersionSelectionOptions {
 pub struct ResolutionRefreshOptions {
     /// Previously-resolved lockfile entry. The `currentPkg` field.
     pub current_pkg: Option<CurrentPkg>,
+    /// Installed version considered by `resolve_latest`. When it is a
+    /// prerelease, registry resolvers compare against the matching dist-tag.
+    pub current_version: Option<node_semver::Version>,
     pub update: UpdateBehavior,
     /// True only when this specific package matches the user's update
     /// target (e.g. `pnpm up <name>`). Unlike `update`, this is false for
@@ -579,6 +582,8 @@ pub struct NonDeprecatedAlternative {
 pub struct LatestQuery {
     pub wanted_dependency: WantedDependency,
     pub compatible: bool,
+    /// Lockfile-resolved version used to keep prereleases on their dist-tag channel.
+    pub current_version: Option<node_semver::Version>,
 }
 
 /// Result of [`Resolver::resolve_latest`].

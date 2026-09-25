@@ -149,6 +149,7 @@ pub(super) fn explicit_registry_pick_options<'a>(
         preferred_version_selectors,
         pick_lowest_version: policy.pick_lowest_direct,
         include_latest_tag: false,
+        current_version: None,
         blocked_versions: None,
         policy: pnpm_resolving_npm_resolver::PackagePickPolicy {
             published_by: policy.published_by,

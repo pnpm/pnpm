@@ -7,10 +7,13 @@ import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { outdated } from '@pnpm/deps.inspection.commands'
 import type { PnpmError } from '@pnpm/error'
+import { install } from '@pnpm/installing.commands'
 import { prepare, tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { symlinkDirSync } from 'symlink-dir'
+
+import { DEFAULT_OPTS } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
@@ -247,6 +250,34 @@ test('pnpm outdated: format json when there are no outdated dependencies', async
 
   expect(exitCode).toBe(0)
   expect(stripAnsi(output)).toBe('{}')
+})
+
+test('pnpm outdated follows the dist-tag on the installed prerelease channel', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/has-prerelease': '3.0.0-rc.0',
+    },
+  })
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+  await addDistTag({ package: '@pnpm.e2e/has-prerelease', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/has-prerelease', version: '3.0.0-rc.1', distTag: 'next' })
+
+  const { output, exitCode } = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    dir: process.cwd(),
+    format: 'json',
+  })
+
+  expect(exitCode).toBe(1)
+  expect(JSON.parse(stripAnsi(output))).toMatchObject({
+    '@pnpm.e2e/has-prerelease': {
+      current: '3.0.0-rc.0',
+      latest: '3.0.0-rc.1',
+    },
+  })
 })
 
 test('pnpm outdated: only current lockfile is available', async () => {

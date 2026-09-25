@@ -261,6 +261,21 @@ struct PickState<'a> {
     use_mem_cache: bool,
 }
 
+fn picker_opts<'a, Cache: PackageMetaCache>(
+    ctx: &PickPackageContext<'_, Cache>,
+    opts: &PickPackageOptions<'a>,
+) -> PickerOpts<'a> {
+    PickerOpts {
+        preferred_version_selectors: opts.preferred_version_selectors,
+        published_by: opts.policy.published_by,
+        published_by_exclude: opts.policy.published_by_exclude,
+        pick_lowest_version: opts.pick_lowest_version,
+        include_latest_tag: opts.include_latest_tag,
+        current_version: opts.current_version,
+        ignore_missing_time_field: ctx.cache_policy.ignore_missing_time_field,
+    }
+}
+
 impl<'a> PickState<'a> {
     fn new<Cache: PackageMetaCache>(
         ctx: &PickPackageContext<'_, Cache>,
@@ -312,14 +327,7 @@ impl<'a> PickState<'a> {
         });
 
         PickState {
-            picker_opts: PickerOpts {
-                preferred_version_selectors: opts.preferred_version_selectors,
-                published_by: opts.policy.published_by,
-                published_by_exclude: opts.policy.published_by_exclude,
-                pick_lowest_version: opts.pick_lowest_version,
-                include_latest_tag: opts.include_latest_tag,
-                ignore_missing_time_field: ctx.cache_policy.ignore_missing_time_field,
-            },
+            picker_opts: picker_opts(ctx, opts),
             cache_key: metadata_cache_key(
                 &scope,
                 opts.registry,
