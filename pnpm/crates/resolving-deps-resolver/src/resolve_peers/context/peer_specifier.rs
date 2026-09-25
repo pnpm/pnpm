@@ -179,7 +179,7 @@ pub(in super::super) fn peer_segment_names(dep_path: &DepPath) -> Option<Vec<Str
 
 /// Splits a peer suffix into its segment bodies. `None` when the suffix is
 /// anything but a flat run of balanced parenthesised groups.
-pub(super) fn split_peer_suffix_segments(suffix: &str) -> Option<Vec<String>> {
+pub(crate) fn split_peer_suffix_segments(suffix: &str) -> Option<Vec<String>> {
     let mut split = PeerSuffixSplit::default();
     for (idx, byte) in suffix.as_bytes().iter().enumerate() {
         split.push_byte(suffix, idx, *byte)?;
