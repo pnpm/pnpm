@@ -1222,6 +1222,38 @@ fn read_package_rejects_non_object_manifest() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn read_package_throw_reports_pnpmfile_fail() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } }).to_string(
+        ),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"module.exports = { hooks: { readPackage (pkg) {
+  if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') throw new Error('hook failed');
+  return pkg;
+} } };",
+    )
+    .expect("write pnpmfile");
+
+    let output = pacquet_in(&workspace)
+        .with_arg("install")
+        .output()
+        .expect("run install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "STDERR:\n{stderr}");
+    assert!(stderr.contains("ERR_PNPM_PNPMFILE_FAIL"), "STDERR:\n{stderr}");
+    assert!(stderr.contains("hook failed"), "STDERR:\n{stderr}");
+
+    drop((root, mock_instance));
+}
+
 /// Deleting the property is how a hook removes a dependency, so an entry the
 /// map no longer carries is not the non-string range the check above rejects.
 #[test]
