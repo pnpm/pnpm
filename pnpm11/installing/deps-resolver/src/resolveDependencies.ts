@@ -510,13 +510,8 @@ export async function resolveRootDependencies (
     }))
     let hasNewMissingPeers = false
     const getCandidatePeerRanges = createCandidatePeerRangesLookup(ctx)
-    if (rootImporterIndex !== -1) {
-      rootDepVersions = getDirectDepVersions(
-        ctx.resolvedPkgsById,
-        pkgAddressesByImportersWithoutPeers[rootImporterIndex].pkgAddresses
-      )
-    }
-    await Promise.all(allMissingOptionalPeersByImporters.map(async (allMissingOptionalPeers, index) => {
+    const hoistOptionalForImporter = async (index: number) => {
+      const allMissingOptionalPeers = allMissingOptionalPeersByImporters[index]
       const { preferredVersions, parentPkgAliases, options } = importers[index]
       if (Object.keys(allMissingOptionalPeers).length && ctx.allPreferredVersions) {
         // A hoisted provider resolves its own peers from the importer's direct
@@ -556,7 +551,24 @@ export async function resolveRootDependencies (
           )
         }
       }
-    }))
+    }
+    if (rootImporterIndex !== -1) {
+      rootDepVersions = getDirectDepVersions(
+        ctx.resolvedPkgsById,
+        pkgAddressesByImportersWithoutPeers[rootImporterIndex].pkgAddresses
+      )
+      await hoistOptionalForImporter(rootImporterIndex)
+      rootDepVersions = getDirectDepVersions(
+        ctx.resolvedPkgsById,
+        pkgAddressesByImportersWithoutPeers[rootImporterIndex].pkgAddresses
+      )
+    }
+    await Promise.all(
+      allMissingOptionalPeersByImporters.map(async (_, index) => {
+        if (index === rootImporterIndex) return
+        return hoistOptionalForImporter(index)
+      })
+    )
     if (!hasNewMissingPeers) break
   }
   /* eslint-enable no-await-in-loop */
