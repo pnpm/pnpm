@@ -107,6 +107,13 @@ export type CliOptions = Record<string, unknown> & SupportedArchitecturesCliOpti
 
 export async function getConfig (opts: {
   globalDirShouldAllowWrite?: boolean
+  /**
+   * Skip creating the global bin directory and checking that it is on `PATH`.
+   * `pnpm env remove` deletes Node copies pnpm stored for itself and must
+   * run when that directory is absent or not on `PATH`.
+   * Commands that link executables into the global bin still create it and check it.
+   */
+  skipGlobalBinDirCheck?: boolean
   cliOptions: CliOptions
   packageManager: {
     name: string
@@ -471,7 +478,7 @@ export async function getConfig (opts: {
   if (cliOptions['global']) {
     delete pnpmConfig.workspaceDir
     pnpmConfig.bin = pnpmConfig.globalBinDir ?? path.join(pnpmConfig.pnpmHomeDir, 'bin')
-    if (pnpmConfig.bin) {
+    if (pnpmConfig.bin && !opts.skipGlobalBinDirCheck) {
       fs.mkdirSync(pnpmConfig.bin, { recursive: true })
       await checkGlobalBinDir(pnpmConfig.bin, { env, shouldAllowWrite: opts.globalDirShouldAllowWrite })
     }

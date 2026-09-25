@@ -12,7 +12,9 @@ pub use check_bin_conflicts::{
     CheckGlobalBinConflictsError, GlobalBinConflictError, bin_slot_exists,
     check_global_bin_conflicts,
 };
-pub use global_package_dir::{create_install_dir, get_hash_link, resolve_install_dir};
+pub use global_package_dir::{
+    create_install_dir, get_hash_link, is_global_install_subdir, resolve_install_dir,
+};
 pub use list::{ListReportAs, find_global_install_dirs, list_global_packages};
 pub use scan::{
     GlobalPackageInfo, InstalledGlobalPackage, clean_orphaned_install_dirs, find_global_package,

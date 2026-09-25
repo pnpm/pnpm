@@ -112,6 +112,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     ;({ config, context } = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
+      skipGlobalBinDirCheck: envSubcommandSkipsGlobalBinCheck(cmd, cliParams),
       workspaceDir,
       onlyInheritDlxSettingsFromLocal: isDlxOrCreateCommand,
       forSelfUpdate: cmd === 'self-update',
@@ -495,6 +496,26 @@ function shouldSkipPmHandling (cmd: string | null, cliParams: string[], location
   if (skipPackageManagerCheckForCommand.has(cmd)) return true
   if (cmd === 'help' && cliParams[0] != null && skipPackageManagerCheckForCommand.has(cliParams[0])) return true
   return false
+}
+
+/**
+ * `env remove` and `env list` do not link a Node.js executable into the global
+ * bin directory. They have to run when that directory is absent from `PATH`,
+ * which is how pnpm looks when another tool installed it.
+ */
+function envSubcommandSkipsGlobalBinCheck (cmd: string | null, cliParams: string[]): boolean {
+  if (cmd !== 'env') return false
+  switch (cliParams[0]) {
+    case 'remove':
+    case 'rm':
+    case 'uninstall':
+    case 'un':
+    case 'list':
+    case 'ls':
+      return true
+    default:
+      return false
+  }
 }
 
 function isRunningPnpmPinned (pm: EngineDependency): boolean {

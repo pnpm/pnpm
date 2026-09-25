@@ -3,7 +3,8 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
-import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
+import { removeGlobalGroups } from '@pnpm/global.commands'
+import { scanGlobalPackages } from '@pnpm/global.packages'
 import { globalWarn } from '@pnpm/logger'
 
 import type { NvmNodeCommandOptions } from './node.js'
@@ -36,9 +37,13 @@ function manifestDeclaresNode (manifest: unknown): boolean {
   return false
 }
 
-async function getGlobalNodeInstalledVersion (globalPkgDir?: string, pnpmHomeDir?: string): Promise<string | null> {
-  const globalDir = globalPkgDir ?? (pnpmHomeDir ? path.join(pnpmHomeDir, 'global', 'v11') : undefined)
-  if (!globalDir) return null
+interface GlobalNodeGroup {
+  hash: string
+  installDir: string
+  version: string
+}
+
+async function findGlobalNodeGroup (globalDir: string): Promise<GlobalNodeGroup | null> {
   let entries: fs.Dirent[]
   try {
     entries = await fs.promises.readdir(globalDir, { withFileTypes: true })
@@ -48,7 +53,7 @@ async function getGlobalNodeInstalledVersion (globalPkgDir?: string, pnpmHomeDir
     }
     throw err
   }
-  const versions = await Promise.all(
+  const groups = await Promise.all(
     entries
       .filter((entry) => entry.isSymbolicLink())
       .map(async (entry) => {
@@ -67,7 +72,8 @@ async function getGlobalNodeInstalledVersion (globalPkgDir?: string, pnpmHomeDir
           if (!manifestDeclaresNode(groupPkg)) return null
           const nodePkgJson = path.join(installDir, 'node_modules', 'node', 'package.json')
           const pkg = JSON.parse(await fs.promises.readFile(nodePkgJson, 'utf8'))
-          return (pkg.version as string | undefined) ?? null
+          const version = pkg.version as string | undefined
+          return version ? { hash: entry.name, installDir, version } : null
         } catch (err) {
           if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
             return null
@@ -76,7 +82,7 @@ async function getGlobalNodeInstalledVersion (globalPkgDir?: string, pnpmHomeDir
         }
       })
   )
-  return versions.find(Boolean) ?? null
+  return groups.find((group) => group != null) ?? null
 }
 
 async function isDanglingSymlink (filePath: string): Promise<boolean> {
@@ -127,17 +133,18 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
   let removedSomething = false
   const removedNames = new Set<string>()
 
-  const installedGlobalNodeVersion = await getGlobalNodeInstalledVersion(opts.globalPkgDir, opts.pnpmHomeDir)
-  const activeVersionMatches = installedGlobalNodeVersion != null &&
-    versions.some((v) => matchesNodeVersion(installedGlobalNodeVersion, v))
-
-  if (activeVersionMatches) {
-    const args = ['remove', '--global', 'node']
-    if (opts.bin) args.push('--global-bin-dir', opts.bin)
-    if (opts.storeDir) args.push('--store-dir', opts.storeDir)
-    if (opts.cacheDir) args.push('--cache-dir', opts.cacheDir)
-    if (opts.globalDir) args.push('--global-dir', opts.globalDir)
-    runPnpmCli(args, { cwd: opts.pnpmHomeDir })
+  const globalPkgDir = opts.globalPkgDir ?? (opts.pnpmHomeDir ? path.join(opts.pnpmHomeDir, 'global', 'v11') : undefined)
+  const globalNode = globalPkgDir ? await findGlobalNodeGroup(globalPkgDir) : null
+  if (globalPkgDir && globalNode && versions.some((v) => matchesNodeVersion(globalNode.version, v))) {
+    // In-process rather than through `pnpm remove --global`, which refuses to
+    // run when the global bin directory is not on PATH.
+    // The group may hold other packages, whose bins go with its install dir.
+    const group = scanGlobalPackages(globalPkgDir).find(({ hash }) => hash === globalNode.hash)
+    await removeGlobalGroups({ globalPkgDir, bin: opts.bin }, [{
+      hash: globalNode.hash,
+      installDir: globalNode.installDir,
+      dependencies: { ...group?.dependencies, node: globalNode.version },
+    }])
     removedSomething = true
   }
 
