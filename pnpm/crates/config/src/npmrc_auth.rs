@@ -384,6 +384,7 @@ impl NpmrcProxy {
             proxy: env_pair::<Sys>("PROXY", "proxy"),
             no_proxy: env_pair::<Sys>("NO_PROXY", "no_proxy"),
         };
+        keys.os = crate::os_proxy::discover_os_proxy();
         config.proxy = config.proxy_keys.resolve();
     }
 }
