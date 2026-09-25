@@ -878,6 +878,110 @@ fn set_dependency_author(workspace: &Path, author_name: &str) {
     .expect("write the package manifest");
 }
 
+fn write_populated_workspace_root(workspace: &Path) {
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "workspace-root",
+            "version": "1.0.0",
+            "author": "Acme Engineering",
+            "description": "The workspace root",
+            "license": "MIT",
+            "repository": "https://github.com/acme/workspace",
+            "bugs": { "url": "https://github.com/acme/workspace/issues" },
+        })
+        .to_string(),
+    )
+    .expect("write the root manifest");
+}
+
+fn write_app_a_manifest(workspace: &Path, manifest: &serde_json::Value) {
+    fs::write(workspace.join("app-a/package.json"), manifest.to_string())
+        .expect("write the app-a manifest");
+}
+
+#[test]
+fn sbom_filtered_single_project_inherits_workspace_root_metadata() {
+    let tmp = copy_fixture("workspace-sbom-populated");
+    write_populated_workspace_root(tmp.path());
+    write_app_a_manifest(
+        tmp.path(),
+        &serde_json::json!({ "name": "@test/app-a", "version": "2.0.0" }),
+    );
+
+    let cyclonedx = run_sbom_json(tmp.path(), "cyclonedx", &["--filter", "app-a"]);
+    let root = &cyclonedx["metadata"]["component"];
+    assert_eq!(root["name"], "app-a");
+    assert_eq!(root["version"], "2.0.0");
+    assert_eq!(root["authors"][0]["name"], "Acme Engineering");
+    assert_eq!(root["description"], "The workspace root");
+    assert_eq!(root["licenses"][0]["license"]["id"], "MIT");
+    let ext_refs = root["externalReferences"].as_array().expect("externalReferences");
+    dbg!(ext_refs);
+    assert!(ext_refs.contains(&serde_json::json!({
+        "type": "vcs",
+        "url": "https://github.com/acme/workspace",
+    })));
+    assert!(ext_refs.contains(&serde_json::json!({
+        "type": "issue-tracker",
+        "url": "https://github.com/acme/workspace/issues",
+    })));
+
+    let spdx = run_sbom_json(tmp.path(), "spdx", &["--filter", "app-a"]);
+    let spdx_root = spdx_package(&spdx, "@test/app-a");
+    assert_eq!(spdx_root["supplier"], "Person: Acme Engineering");
+    assert_eq!(spdx_root["description"], "The workspace root");
+    assert_eq!(spdx_root["homepage"], "https://github.com/acme/workspace");
+    assert_eq!(spdx_root["licenseConcluded"], "MIT");
+    assert_eq!(spdx_root["licenseDeclared"], "MIT");
+}
+
+#[test]
+fn sbom_filtered_single_project_does_not_inherit_over_its_own_declarations() {
+    let tmp = copy_fixture("workspace-sbom-populated");
+    write_populated_workspace_root(tmp.path());
+
+    let blank_fields = serde_json::json!({
+        "name": "@test/app-a",
+        "version": "2.0.0",
+        "author": "",
+        "description": "",
+        "license": "",
+        "repository": { "type": "git", "url": "" },
+        "bugs": { "url": "" },
+    });
+    let null_fields = serde_json::json!({
+        "name": "@test/app-a",
+        "version": "2.0.0",
+        "author": null,
+        "description": null,
+        "license": null,
+        "repository": null,
+        "bugs": null,
+    });
+
+    for declared in [blank_fields, null_fields] {
+        write_app_a_manifest(tmp.path(), &declared);
+
+        let cyclonedx = run_sbom_json(tmp.path(), "cyclonedx", &["--filter", "app-a"]);
+        let root = &cyclonedx["metadata"]["component"];
+        dbg!(&declared, root);
+        assert!(root.get("authors").is_none());
+        assert!(root.get("description").is_none());
+        assert!(root.get("licenses").is_none());
+        assert!(root.get("externalReferences").is_none());
+
+        let spdx = run_sbom_json(tmp.path(), "spdx", &["--filter", "app-a"]);
+        let spdx_root = spdx_package(&spdx, "@test/app-a");
+        dbg!(spdx_root);
+        assert!(spdx_root.get("supplier").is_none());
+        assert!(spdx_root.get("description").is_none());
+        assert!(spdx_root.get("homepage").is_none());
+        assert_eq!(spdx_root["licenseConcluded"], "NOASSERTION");
+        assert_eq!(spdx_root["licenseDeclared"], "NOASSERTION");
+    }
+}
+
 fn cyclonedx_component<'a>(bom: &'a serde_json::Value, name: &str) -> &'a serde_json::Value {
     bom["components"]
         .as_array()
