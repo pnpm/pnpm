@@ -57,6 +57,7 @@ mod defaults;
 mod env_overlay;
 mod global_bin_check;
 mod npmrc_auth;
+mod os_proxy;
 mod override_version_references;
 mod store_path;
 mod workspace_yaml;
