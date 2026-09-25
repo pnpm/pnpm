@@ -91,6 +91,7 @@
     "@pnpm/cli.parse-cli-args": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/config.commands": "workspace:*",
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",

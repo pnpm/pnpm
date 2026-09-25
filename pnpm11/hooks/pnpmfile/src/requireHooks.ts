@@ -204,10 +204,7 @@ export async function requireHooks (
       const updateConfig = fileHooks.updateConfig
       cookedHooks.updateConfig.push((config: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
         const updated = updateConfig(config)
-        if (updated == null) {
-          throw new PnpmError('CONFIG_IS_UNDEFINED', 'The updateConfig hook returned undefined')
-        }
-        return updated
+        return updated instanceof Promise ? updated.then(assertConfigIsDefined) : assertConfigIsDefined(updated)
       })
     }
 
@@ -275,4 +272,11 @@ function createPreResolutionHookLogger (prefix: string): PreResolutionHookLogger
       hookLogger.warn({ message, prefix, hook, from } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     },
   }
+}
+
+function assertConfigIsDefined<T> (config: T): T {
+  if (config == null) {
+    throw new PnpmError('CONFIG_IS_UNDEFINED', 'The updateConfig hook returned undefined')
+  }
+  return config
 }
