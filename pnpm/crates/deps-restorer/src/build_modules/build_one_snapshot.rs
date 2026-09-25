@@ -13,7 +13,7 @@ use super::{
     PackageKey, Path, PathBuf, PkgRoots, RebuildOptions, Reporter, RunPostinstallHooks,
     SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
     allow_build_key_from_ignored_build, apply_patch_to_dir, bin_dirs_in_all_parent_dirs,
-    discard_failed_global_virtual_store_slot, get_pkg_id_with_patch_hash,
+    get_pkg_id_with_patch_hash, mark_failed_global_virtual_store_build,
     parse_name_version_from_key, run_postinstall_hooks, slot_carries_overlay,
 };
 
@@ -83,6 +83,11 @@ fn build_candidate<Reporter: self::Reporter>(
     if !pkg_dir.exists() {
         return Ok(());
     }
+    let SlotBuild::Pending(_slot_lock) =
+        lock_slot_for_build(context, snapshot_key, candidate, &pkg_dir)
+    else {
+        return Ok(());
+    };
 
     let extra_bin_paths = snapshot_extra_bin_paths(context, &pkg_dir);
 
@@ -139,6 +144,39 @@ fn snapshot_extra_bin_paths(context: &BuildOneSnapshot<'_>, pkg_dir: &Path) -> V
     };
     extra_bin_paths.extend(context.runtime_node_bin_dir.map(Path::to_path_buf));
     extra_bin_paths
+}
+
+/// Whether this install still has to build a slot other installs may share.
+enum SlotBuild {
+    /// Build it, holding the slot's lock when one could be taken.
+    Pending(Option<pnpm_fs::DirLock>),
+    /// Another install built the slot while this one waited for its lock.
+    BuiltElsewhere,
+}
+
+/// Serialize a build into an isolated global-virtual-store slot with every
+/// other install's build of it.
+fn lock_slot_for_build(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    candidate: &BuildCandidate<'_>,
+    pkg_dir: &Path,
+) -> SlotBuild {
+    if context.directories.pkg_roots_by_key.is_some()
+        || !(candidate.patch.is_some() || candidate.should_run_scripts)
+    {
+        return SlotBuild::Pending(None);
+    }
+    let marker = pkg_dir.join(NEEDS_BUILD_MARKER);
+    let awaiting_build = marker.is_file();
+    let lock = crate::gvs_slot_lock::lock_global_virtual_store_slot(
+        context.directories.layout,
+        snapshot_key,
+    );
+    if awaiting_build && !marker.is_file() {
+        return SlotBuild::BuiltElsewhere;
+    }
+    SlotBuild::Pending(lock)
 }
 
 /// A snapshot whose build scripts or patch this install applies, with
@@ -299,7 +337,7 @@ fn apply_configured_patch(
         }
         apply_patch_to_dir(&patched_dir, patch_file_path)
             .inspect_err(|_| {
-                discard_failed_global_virtual_store_slot(context.directories.layout, snapshot_key);
+                mark_failed_global_virtual_store_build(context.pkg_roots(), snapshot_key);
             })
             .map_err(BuildModulesError::PatchApply)?;
     }
@@ -339,8 +377,8 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
         Ok(ran) => Ok(Some(ran)),
         Err(err) => {
             // Before the optional-skip return, so a failed optional build
-            // leaves no half-built slot behind either.
-            discard_failed_global_virtual_store_slot(context.directories.layout, snapshot_key);
+            // is retried by the next install too.
+            mark_failed_global_virtual_store_build(context.pkg_roots(), snapshot_key);
             if !optional {
                 return Err(BuildModulesError::LifecycleScript(err));
             }

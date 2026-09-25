@@ -106,7 +106,18 @@ impl CreateVirtualDirBySnapshot<'_> {
             self.link_concurrency_probe.map(tests::LinkConcurrencyProbe::enter);
 
         let slot = SlotPaths::create(self.layout, self.dependencies.package_key)?;
-        let interrupted_build = slot.save_path.join(NEEDS_BUILD_MARKER).is_file();
+        let marker = slot.save_path.join(NEEDS_BUILD_MARKER);
+        // The marker is also there while another install builds the slot,
+        // which a forced re-import would clobber.
+        let _slot_lock = marker
+            .is_file()
+            .then(|| {
+                crate::gvs_slot_lock::lock_global_virtual_store_slot(
+                    self.layout,
+                    self.dependencies.package_key,
+                )
+            });
+        let interrupted_build = marker.is_file();
         let marked_cas_paths = cas_paths_with_build_marker(
             self.cas_paths,
             &slot.save_path,

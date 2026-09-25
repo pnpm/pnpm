@@ -61,69 +61,31 @@ pub(crate) fn slot_carries_overlay(pkg_dir: &Path, overlay: &HashMap<String, Pat
             .all(|relative| pkg_dir.join(relative).exists())
 }
 
-/// Whether `slot_dir` is a strict descendant of `root` reached only
-/// through `..`-free path components.
+/// Mark a snapshot's global-virtual-store slot as still needing its build
+/// after its patch application or build script failed.
 ///
-/// The gate for [`discard_failed_global_virtual_store_slot`]'s recursive
-/// delete: `slot_dir` is derived from a lockfile-controlled package
-/// name, so a crafted `..` segment must not let the delete escape the
-/// store root.
-pub(crate) fn is_contained_descendant(root: &Path, slot_dir: &Path) -> bool {
-    slot_dir
-        .strip_prefix(root)
-        .is_ok_and(|suffix| {
-            let mut components = suffix.components().peekable();
-            components.peek().is_some()
-                && components.all(|component| matches!(component, std::path::Component::Normal(_)))
-        })
-}
-
-/// Remove a snapshot's whole global-virtual-store hash directory after
-/// its patch application or build script failed.
+/// The slot stays in place: other projects whose dependency graph hashes
+/// to it may already link it. The marker makes the next install that
+/// reaches the slot re-import its pristine files and build it again.
 ///
-/// The hash directory is shared across every project that resolves to
-/// the same dependency graph, so leaving a half-built one behind would
-/// serve broken files to all of them: the next install finds the
-/// directory present, takes the warm fast path, and never re-fetches.
-/// Removing it restores the cold path.
-///
-/// No-op when the global virtual store is off — a project-local
-/// `node_modules/.pnpm` slot is rebuilt from scratch by the next
-/// install anyway. Removal failures are logged and swallowed; the build
-/// error the caller is already returning is the one worth surfacing.
-pub(crate) fn discard_failed_global_virtual_store_slot(
-    layout: &crate::VirtualStoreLayout,
-    key: &PackageKey,
-) {
-    if !layout.enable_global_virtual_store() {
+/// No-op outside the isolated global virtual store: the next install
+/// rebuilds a project-local slot from scratch anyway. A failed write is
+/// logged and swallowed; the build error the caller is already returning
+/// is the one worth surfacing.
+pub(crate) fn mark_failed_global_virtual_store_build(pkg_roots: PkgRoots<'_>, key: &PackageKey) {
+    if !pkg_roots.layout.enable_global_virtual_store() || pkg_roots.by_key.is_some() {
         return;
     }
-    let slot_dir = layout.slot_dir(key);
-    // Defense-in-depth: the slot path is built from a lockfile-controlled
-    // package name, which is not validated against `..` segments. Refuse
-    // to recurse-delete anything that isn't a plain descendant of the GVS
-    // root, so a crafted name can't turn cleanup into a path traversal
-    // that removes directories outside the store.
-    let root = layout.package_store_dir();
-    if !is_contained_descendant(root, &slot_dir) {
-        tracing::warn!(
-            target: "pacquet::build",
-            dep_path = %key,
-            slot_dir = %slot_dir.display(),
-            store_root = %root.display(),
-            "refusing to remove a build slot outside the store root",
-        );
-        return;
-    }
-    if let Err(err) = std::fs::remove_dir_all(&slot_dir)
-        && err.kind() != std::io::ErrorKind::NotFound
+    let marker = virtual_store_dir_for_key(pkg_roots.layout, key).join(NEEDS_BUILD_MARKER);
+    if let Err(error) = std::fs::write(&marker, "")
+        && error.kind() != std::io::ErrorKind::NotFound
     {
         tracing::warn!(
             target: "pacquet::build",
-            ?err,
+            ?error,
             dep_path = %key,
-            slot_dir = %slot_dir.display(),
-            "failed to remove the global virtual store slot of a failed build",
+            marker = %marker.display(),
+            "failed to mark the global virtual store slot of a failed build",
         );
     }
 }

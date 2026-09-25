@@ -10,7 +10,7 @@ pub(crate) use build_requirements::deferred_builds;
 pub use build_requirements::{ScheduledBuilds, ScheduledBuildsInputs};
 pub use slots::parse_name_version_from_key;
 pub(crate) use slots::{
-    PkgRoots, bin_dirs_in_all_parent_dirs, discard_failed_global_virtual_store_slot,
+    PkgRoots, bin_dirs_in_all_parent_dirs, mark_failed_global_virtual_store_build,
     materialize_side_effects, slot_carries_overlay,
 };
 

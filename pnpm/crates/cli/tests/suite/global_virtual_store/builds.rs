@@ -6,6 +6,8 @@ use super::{
     pkg_version_dir, read_modules_manifest, set_gvs_workspace_yaml, sole_hash_dir, write_manifest,
 };
 use assert_cmd::assert::OutputAssertExt;
+use pnpm_fs::DirLock;
+use std::{process::Stdio, thread, time::Duration};
 
 /// TS: `GVS hashes are engine-agnostic for packages not in allowBuilds`
 /// (`globalVirtualStore.ts:132`).
@@ -323,14 +325,14 @@ fn gvs_approve_builds_scenario_moves_artifacts_to_a_new_hash_dir() {
     drop((root, mock_instance));
 }
 
-/// TS: `GVS build failure cleans up broken package directory`
+/// TS: `GVS build failure keeps the slot and marks it for a rebuild`
 /// (`globalVirtualStore.ts:338`).
 ///
 /// A GVS hash directory is shared by every project whose dependency graph
-/// hashes to it, so a half-built one must not survive a failed build — the
-/// next install would take the warm path into broken files.
+/// hashes to it, so a failed build must not remove a slot other projects
+/// may already link: <https://github.com/pnpm/pnpm/issues/15568>.
 #[test]
-fn gvs_build_failure_cleans_up_broken_package_directory() {
+fn gvs_build_failure_keeps_the_slot_marked_for_a_rebuild() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
@@ -348,16 +350,69 @@ fn gvs_build_failure_cleans_up_broken_package_directory() {
         .failure();
 
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/failing-postinstall", "1.0.0");
-    if version_dir.exists() {
-        for hash in hash_dirs(&version_dir) {
-            let pkg = pkg_in_slot(&version_dir.join(&hash), "@pnpm.e2e/failing-postinstall");
-            assert!(
-                !pkg.exists(),
-                "the failed build's slot must be removed so the next install re-fetches; \
-                 {pkg:?} survived",
-            );
-        }
-    }
+    let pkg = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/failing-postinstall");
+    assert!(pkg.join("package.json").exists(), "the failed build's slot must stay in place");
+    assert!(
+        pkg.join(".pnpm-needs-build").is_file(),
+        "the failed build's slot must be marked for a rebuild",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// <https://github.com/pnpm/pnpm/issues/15568>: installs sharing a GVS slot
+/// must not write into it while another install builds it.
+#[test]
+fn gvs_install_waits_for_another_install_building_the_same_slot() {
+    const PKG: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, &serde_json::json!({ PKG: "1.0.0" }));
+    set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[(PKG, true)]));
+    pacquet(&workspace)
+        .with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
+
+    let hash_dir = sole_hash_dir(&pkg_version_dir(&store_dir, PKG, "1.0.0"));
+    let pkg = pkg_in_slot(&hash_dir, PKG);
+    assert!(pkg.join(".pnpm-needs-build").is_file(), "the deferred build must leave its marker");
+
+    let lock = DirLock::acquire(
+        hash_dir.join(".pnpm-build.lock"),
+        Duration::ZERO,
+        Duration::from_mins(30),
+    )
+    .expect("take the slot lock")
+    .expect("the slot lock is free");
+    let mut install = pacquet(&workspace)
+        .with_arg("install")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn the install");
+
+    thread::sleep(Duration::from_secs(3));
+    let exited = install.try_wait().expect("poll the install");
+    eprintln!("install exit status while the slot lock was held: {exited:?}");
+    assert!(exited.is_none(), "the install must wait for the slot lock");
+    assert!(
+        !pkg.join("generated-by-postinstall.js").exists(),
+        "the install must not build the slot while another install holds its lock",
+    );
+
+    drop(lock);
+    assert!(
+        install
+            .wait()
+            .expect("wait for the install")
+            .success()
+    );
+    assert!(pkg.join("generated-by-postinstall.js").exists());
+    assert!(!pkg.join(".pnpm-needs-build").exists());
 
     drop((root, mock_instance));
 }

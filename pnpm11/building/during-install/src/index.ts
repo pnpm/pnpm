@@ -11,6 +11,7 @@ import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm
 import { isRuntimeDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/exec.lifecycle'
+import { DirLock } from '@pnpm/fs.dir-lock'
 import { logger } from '@pnpm/logger'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
@@ -28,11 +29,18 @@ import type {
 import { hardLinkDir } from '@pnpm/worker'
 import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 import pDefer, { type DeferredPromise } from 'p-defer'
+import { pathExists } from 'path-exists'
 import { pickBy } from 'ramda'
 
 import { buildGraph, type DependenciesGraph, type DependenciesGraphNode } from './buildGraph.js'
 
 export type { DepsStateCache }
+
+const NEEDS_BUILD_MARKER = '.pnpm-needs-build'
+const SLOT_LOCK_DIR = '.pnpm-build.lock'
+const SLOT_LOCK_WAIT_MS = 10 * 60_000
+// Comfortably above how long a build can take, so a live holder never has its lock stolen mid-build.
+const SLOT_LOCK_ABANDONED_MS = 30 * 60_000
 
 export async function buildModules<T extends string> (
   depGraph: DependenciesGraph<T>,
@@ -251,7 +259,13 @@ async function buildDependency<T extends string> (
     opts.builtHoistedDeps[depNode.depPath] = pDefer()
   }
   let buildSucceeded = false
+  let slotLock: DirLock | undefined
   try {
+    if (opts.enableGlobalVirtualStore && (depNode.patch != null || !opts.ignoreScripts)) {
+      const slotBuild = await lockSlotForBuild(depNode)
+      if (slotBuild == null) return
+      slotLock = slotBuild.lock
+    }
     await linkBinsOfDependencies(depNode, depGraph, opts)
     let isPatched = false
     if (depNode.patch) {
@@ -295,7 +309,7 @@ async function buildDependency<T extends string> (
     // Remove the .pnpm-needs-build marker before uploading side effects,
     // so it doesn't get cached as part of the package's side effects diff.
     if (opts.enableGlobalVirtualStore) {
-      await fs.unlink(path.join(depNode.dir, '.pnpm-needs-build')).catch(() => {})
+      await fs.unlink(path.join(depNode.dir, NEEDS_BUILD_MARKER)).catch(() => {})
     }
     // frozenStore opens the store read-only, so the side-effects cache (which
     // lives in the store) cannot be written. extendInstallOptions already forces
@@ -350,15 +364,10 @@ async function buildDependency<T extends string> (
     buildSucceeded = true
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
-    // In GVS mode, remove the entire hash directory so the next install
-    // sees the directory is absent, re-fetches, and re-builds.
+    // Other projects may already link the shared slot, so it stays in place.
+    // The marker makes the next install that reaches it re-import and re-build it.
     if (opts.enableGlobalVirtualStore) {
-      // `depNode.modules` is `<hashDir>/node_modules`, so its parent is the
-      // hash directory for scoped and unscoped names alike. Deriving it from
-      // `depNode.dir` instead would land on `node_modules` for a scoped name,
-      // whose extra path segment makes `../..` one level short.
-      const hashDir = path.dirname(depNode.modules)
-      await fs.rm(hashDir, { recursive: true, force: true })
+      await markFailedBuild(depNode, opts.lockfileDir)
     }
     if (depNode.optional) {
       // TODO: add parents field to the log
@@ -376,6 +385,7 @@ async function buildDependency<T extends string> (
     }
     throw err
   } finally {
+    await slotLock?.release()
     if (buildSucceeded) {
       const hoistedLocationsOfDep = opts.hoistedLocations?.[depNode.depPath]
       if (hoistedLocationsOfDep) {
@@ -394,6 +404,44 @@ async function buildDependency<T extends string> (
     if (opts.builtHoistedDeps) {
       opts.builtHoistedDeps[depNode.depPath].resolve()
     }
+  }
+}
+
+/**
+ * Serializes builds into one global virtual store slot across processes.
+ * Resolves to `undefined` when another install built the slot while this one
+ * waited for its lock.
+ */
+async function lockSlotForBuild<T extends string> (depNode: DependenciesGraphNode<T>): Promise<{ lock?: DirLock } | undefined> {
+  const marker = path.join(depNode.dir, NEEDS_BUILD_MARKER)
+  const awaitingBuild = await pathExists(marker)
+  // `depNode.modules` is `<hashDir>/node_modules`, so its parent is the
+  // hash directory for scoped and unscoped names alike.
+  const lockPath = path.join(path.dirname(depNode.modules), SLOT_LOCK_DIR)
+  let lock: DirLock | undefined
+  try {
+    lock = await DirLock.acquire(lockPath, { waitMs: SLOT_LOCK_WAIT_MS, abandonedMs: SLOT_LOCK_ABANDONED_MS })
+  } catch (err: unknown) {
+    logger.debug({ message: `Failed to lock ${lockPath}`, error: err })
+  }
+  if (awaitingBuild && !await pathExists(marker)) {
+    await lock?.release()
+    return undefined
+  }
+  return { lock }
+}
+
+async function markFailedBuild<T extends string> (depNode: DependenciesGraphNode<T>, lockfileDir: string): Promise<void> {
+  try {
+    await fs.writeFile(path.join(depNode.dir, NEEDS_BUILD_MARKER), '')
+  } catch (err: unknown) {
+    assert(util.types.isNativeError(err))
+    if ('code' in err && err.code === 'ENOENT') return
+    logger.warn({
+      error: err,
+      message: `Failed to mark ${depNode.dir} for a rebuild`,
+      prefix: lockfileDir,
+    })
   }
 }
 
