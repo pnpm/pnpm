@@ -351,7 +351,10 @@ fn frozen_install_refuses_a_remote_tarball_without_integrity() {
             && unwrapped.contains(
                 r#"has no "integrity" field, so its downloaded tarball cannot be verified"#
             )
-            && unwrapped.contains(r#"run "pnpm clean --lockfile""#),
+            && unwrapped.contains(r#"run "pnpm clean --lockfile""#)
+            && unwrapped.contains(
+                "If the fresh resolution still fails and you trust the affected packages, relax the policy that flagged them."
+            ),
         "the verification gate must name the error code, the entry, and the way out; got:\n{stderr}",
     );
     head_mock.assert();
