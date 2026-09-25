@@ -38,6 +38,12 @@ test('recursive JSON combines projects with separate lockfiles', async () => {
     },
   ])
 
+  const questionMark = execPnpmSync(['-r', '--filter', 'project-?', 'list', '--json', '--depth', '-1'], { expectSuccess: true })
+  expect(JSON.parse(questionMark.stdout.toString())).toMatchObject([
+    { name: 'project-1' },
+    { name: 'project-2' },
+  ])
+
   const projectOnly = execPnpmSync(['-r', '--filter', 'project-*', 'list', '--json', '--depth', '-1'], { expectSuccess: true })
   expect(JSON.parse(projectOnly.stdout.toString())).toStrictEqual([
     { name: 'project-1', version: '1.0.0', path: fs.realpathSync('packages/project-1'), private: false },
