@@ -170,6 +170,7 @@ export async function resolveDependencies (
   }
 ): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
+    autoInstallPeers: opts.autoInstallPeers,
     defaultUpdateDepth: opts.defaultUpdateDepth,
     hideAlienModules: !opts.dryRun || opts.hideAlienModules === true,
     preferredVersions: opts.preferredVersions,
