@@ -1,6 +1,7 @@
-use super::{host, no_importers, snapshot_key, synthetic_metadata};
+use super::{host, no_importers, root_importer, snapshot_key, synthetic_metadata};
 use crate::installability::{
     InstallabilityHost, SkippedSnapshots, any_installability_constraint, compute_skipped_snapshots,
+    find_root_runtime_node_key,
 };
 use pnpm_lockfile::SnapshotEntry;
 use pnpm_reporter::{LogEvent, SkippedOptionalReason};
@@ -80,4 +81,21 @@ fn detect_with_overrides_node_version_and_engine_strict() {
 
     // Without a version override, `engine_strict` still layers on detection.
     assert!(InstallabilityHost::detect_with(true, None).engine_strict);
+}
+
+/// A dependency's own `engines.runtime` pin adds a second `node@runtime:`
+/// snapshot. Only the root project's pin is returned, whichever of the two
+/// the snapshot map yields first.
+#[test]
+fn find_root_runtime_node_key_ignores_dependency_runtime_pins() {
+    let snapshots: HashMap<_, _> = ["node@runtime:22.0.0", "node@runtime:24.0.0", "dep@1.0.0"]
+        .into_iter()
+        .map(|key| (snapshot_key(key), SnapshotEntry::default()))
+        .collect();
+
+    for pinned in ["node@runtime:22.0.0", "node@runtime:24.0.0"] {
+        let importers = root_importer(&[pinned, "dep@1.0.0"], &[]);
+        assert_eq!(find_root_runtime_node_key(&importers, &snapshots), Some(&snapshot_key(pinned)));
+    }
+    assert_eq!(find_root_runtime_node_key(&root_importer(&["dep@1.0.0"], &[]), &snapshots), None);
 }

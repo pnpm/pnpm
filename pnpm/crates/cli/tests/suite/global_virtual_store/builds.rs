@@ -643,3 +643,63 @@ fn approve_builds_updates_gvs_symlinks_and_runs_builds_at_the_new_hash_dir() {
 
     drop((root, mock_instance));
 }
+
+/// A slot's hash does not record the workspace root's bins, so a build
+/// that another project reuses must not depend on them. Only the pinned
+/// runtime's `node` reaches the script, which the engine part of the hash
+/// does record.
+#[test]
+fn gvs_dependency_build_scripts_do_not_see_the_workspace_root_bins() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    fs::create_dir_all(workspace.join("tool")).expect("mkdir tool");
+    fs::write(
+        workspace.join("tool/package.json"),
+        serde_json::json!({
+            "name": "tool",
+            "version": "1.0.0",
+            "bin": { "gvs-root-tool": "cli.js" },
+        })
+        .to_string(),
+    )
+    .expect("write tool/package.json");
+    fs::write(
+        workspace.join("tool/cli.js"),
+        "#!/usr/bin/env node\nrequire('fs').writeFileSync('root-tool-ran', '')\n",
+    )
+    .expect("write tool/cli.js");
+
+    fs::create_dir_all(workspace.join("dep")).expect("mkdir dep");
+    fs::write(
+        workspace.join("dep/package.json"),
+        serde_json::json!({
+            "name": "dep",
+            "version": "1.0.0",
+            "scripts": {
+                "postinstall": r#"gvs-root-tool || node -e "require('fs').writeFileSync('root-tool-missing', '')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write dep/package.json");
+
+    write_manifest(&workspace, &serde_json::json!({ "tool": "file:tool", "dep": "file:dep" }));
+    set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[("dep@file:dep", true)]));
+
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let slot = sole_hash_dir(&pkg_version_dir(&store_dir, "@/dep", "directory"));
+    let dep_dir = pkg_in_slot(&slot, "dep");
+    assert!(dep_dir.join("root-tool-missing").exists(), "the postinstall script did not run");
+    assert!(
+        !dep_dir.join("root-tool-ran").exists(),
+        "the postinstall script ran a bin from the workspace root's node_modules/.bin",
+    );
+
+    drop((root, mock_instance));
+}

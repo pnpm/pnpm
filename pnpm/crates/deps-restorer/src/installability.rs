@@ -27,7 +27,7 @@ use platform::manifest_from_metadata;
 use std::collections::{HashMap, HashSet};
 
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageKey, PackageMetadata, Prefix, ProjectSnapshot,
+    Lockfile, LockfileResolution, PackageKey, PackageMetadata, PkgVerPeer, Prefix, ProjectSnapshot,
     SnapshotEntry,
 };
 use pnpm_package_is_installable::{InstallabilityError, InstallabilityOptions, SkipReason};
@@ -561,6 +561,25 @@ fn add_runtime_skips_from(
 pub fn find_root_runtime_node_version(
     importers: &HashMap<String, ProjectSnapshot>,
 ) -> Option<String> {
+    root_runtime_node_ver_peer(importers)?.version_semver().map(ToString::to_string)
+}
+
+/// The snapshot of the root project's `node` runtime dependency, the one
+/// [`find_root_runtime_node_version`] reads the version of. A dependency's
+/// own `engines.runtime` pin adds another `node@runtime:` snapshot, which
+/// this never returns.
+#[must_use]
+pub fn find_root_runtime_node_key<'a>(
+    importers: &HashMap<String, ProjectSnapshot>,
+    snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+) -> Option<&'a PackageKey> {
+    let ver_peer = root_runtime_node_ver_peer(importers)?;
+    snapshots
+        .keys()
+        .find(|key| key.name.scope.is_none() && key.name.bare == "node" && key.suffix == *ver_peer)
+}
+
+fn root_runtime_node_ver_peer(importers: &HashMap<String, ProjectSnapshot>) -> Option<&PkgVerPeer> {
     importers
         .get(Lockfile::ROOT_IMPORTER_KEY)?
         .dependencies_by_groups([
@@ -570,8 +589,7 @@ pub fn find_root_runtime_node_version(
         ])
         .filter(|(alias, _)| alias.scope.is_none() && alias.bare == "node")
         .filter_map(|(_, spec)| spec.version.ver_peer())
-        .filter(|ver_peer| ver_peer.prefix() == Prefix::Runtime)
-        .find_map(|ver_peer| ver_peer.version_semver().map(ToString::to_string))
+        .find(|ver_peer| ver_peer.prefix() == Prefix::Runtime)
 }
 
 /// `None` = compatible. `Some(err)` = incompatible, with the

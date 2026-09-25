@@ -24,7 +24,7 @@ use build_requirements::{
 use crate::{
     ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, SkippedSnapshots,
     build_graph::build_graph,
-    import_indexed_dir, store_index_key_for_resolution,
+    find_root_runtime_node_key, import_indexed_dir, store_index_key_for_resolution,
     version_policy::{VersionPolicyError, expand_package_version_specs},
 };
 
@@ -255,6 +255,7 @@ impl BuildModules<'_> {
         // `Mutex` for the same parallelism reason as the dep-state cache.
         let ignored_builds: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
         let slot_mutations = std::sync::atomic::AtomicBool::new(false);
+        let runtime_node_bin_dir = self.runtime_node_bin_dir(snapshots);
         schedule_builds::<Reporter>(
             &build_graph,
             &self.snapshot_context(
@@ -263,6 +264,7 @@ impl BuildModules<'_> {
                 &dep_states,
                 &ignored_builds,
                 &slot_mutations,
+                runtime_node_bin_dir.as_deref(),
             ),
             self.child_concurrency,
         )?;
@@ -299,6 +301,27 @@ impl BuildModules<'_> {
         })
     }
 
+    /// The directory holding the `node` binary of the root project's
+    /// `node@runtime:` dependency. The runtime pin keys the engine part of
+    /// every built slot's hash, so dependency build scripts get that `node`
+    /// even when their slot has no `node_modules` ancestor inside the
+    /// project, as in the global virtual store. Nothing else from the
+    /// project's `node_modules/.bin` is exposed, because the slot hash does
+    /// not record it. `None` when `--no-runtime` skipped the runtime.
+    fn runtime_node_bin_dir(
+        &self,
+        snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    ) -> Option<PathBuf> {
+        let runtime_key = find_root_runtime_node_key(self.graph.importers, snapshots)?;
+        if self.skipped.contains(runtime_key) {
+            return None;
+        }
+        let pkg_dir =
+            PkgRoots { layout: self.directories.layout, by_key: self.directories.pkg_roots_by_key }
+                .canonical(runtime_key)?;
+        Some(if cfg!(windows) { pkg_dir } else { pkg_dir.join("bin") })
+    }
+
     fn snapshot_context<'a>(
         &'a self,
         snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
@@ -306,6 +329,7 @@ impl BuildModules<'_> {
         dep_states: &'a DepStates,
         ignored_builds: &'a Mutex<BTreeSet<String>>,
         slot_mutations: &'a std::sync::atomic::AtomicBool,
+        runtime_node_bin_dir: Option<&'a Path>,
     ) -> build_one_snapshot::BuildOneSnapshot<'a> {
         build_one_snapshot::BuildOneSnapshot {
             cache: self.cache,
@@ -323,6 +347,7 @@ impl BuildModules<'_> {
                 slot_mutations,
             },
             scripts: self.scripts,
+            runtime_node_bin_dir,
 
             allow_build_policy: self.allow_build_policy,
 
