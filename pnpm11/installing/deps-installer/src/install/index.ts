@@ -3018,7 +3018,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }))
 
     const injectionTargetsByDepPath = getInjectionTargetsByDepPath(newLockfile, dependenciesGraph)
-    const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath)
+    const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath, opts.lockfileDir)
     const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
     await Promise.all([
       opts.useLockfile && opts.saveLockfile
@@ -3619,6 +3619,7 @@ function getInjectionTargetsByDepPath (
   dependenciesGraph: DependenciesGraph
 ): Map<string, string[]> {
   const injectionTargetsByDepPath = new Map<string, string[]>()
+
   if (lockfile.packages) {
     for (const [depPath, { resolution }] of Object.entries(lockfile.packages)) {
       if (resolution?.type === 'directory') {

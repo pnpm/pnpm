@@ -3,23 +3,46 @@ import path from 'node:path'
 import { parse as parseDepPath } from '@pnpm/deps.path'
 import type { ProjectId } from '@pnpm/types'
 
-export function extendProjectsWithTargetDirs<T> (
+interface ProjectLike {
+  id: ProjectId
+  rootDir: string
+  manifest?: { publishConfig?: { directory?: string, linkDirectory?: boolean } }
+}
+
+export function extendProjectsWithTargetDirs<T extends ProjectLike> (
   projects: Array<T & { id: ProjectId }>,
-  injectionTargetsByDepPath: Map<string, string[]>
+  injectionTargetsByDepPath: Map<string, string[]>,
+  lockfileDir: string
 ): Array<T & { id: ProjectId, stages: string[], targetDirs: string[] }> {
-  const projectsById: Record<ProjectId, T & { id: ProjectId, targetDirs: string[], stages?: string[] }> =
+  const projectsById: Record<ProjectId, T & { id: ProjectId, stages?: string[], targetDirs: string[] }> =
     Object.fromEntries(projects.map((project) => [project.id, { ...project, targetDirs: [] as string[] }]))
+
+  // A project whose `publishConfig.directory` is injected resolves as its own
+  // `file:` dependency path (`a@file:packages/a/dist`), so a dep path may name
+  // a project's publish directory rather than any project root.
+  const projectsBySourceDir = new Map<string, T & { id: ProjectId }>()
+  for (const project of projects) {
+    const publishDir = project.manifest?.publishConfig?.directory
+    if (publishDir == null || project.manifest?.publishConfig?.linkDirectory === false) continue
+    const sourceDir = path.resolve(project.rootDir, publishDir)
+    if (sourceDir !== project.rootDir) {
+      projectsBySourceDir.set(sourceDir, project)
+    }
+  }
 
   for (const [depPath, locations] of injectionTargetsByDepPath) {
     const importerId = getInjectedSourceId(depPath)
-    if (importerId == null || projectsById[importerId] == null) continue
+    if (importerId == null) continue
+    const project = projectsById[importerId] ?? projectsBySourceDir.get(path.resolve(lockfileDir, importerId))
+    if (project == null) continue
+    const projectWithTargets = projectsById[project.id]
     // Dedupe: only add locations that aren't already tracked
     for (const location of locations) {
-      if (!projectsById[importerId].targetDirs.includes(location)) {
-        projectsById[importerId].targetDirs.push(location)
+      if (!projectWithTargets.targetDirs.includes(location)) {
+        projectWithTargets.targetDirs.push(location)
       }
     }
-    projectsById[importerId].stages = ['preinstall', 'install', 'postinstall', 'prepare', 'prepublishOnly']
+    projectWithTargets.stages = ['preinstall', 'install', 'postinstall', 'prepare', 'prepublishOnly']
   }
 
   return Object.values(projectsById) as Array<T & { id: ProjectId, stages: string[], targetDirs: string[] }>

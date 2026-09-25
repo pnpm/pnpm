@@ -76,6 +76,12 @@ export async function runLifecycleHooksConcurrently (
     concurrency: childConcurrency,
     runNode: async (rootDir): Promise<TaskCompletion> => {
       const { manifest, modulesDir, stages: importerStages, targetDirs } = importersByRootDir.get(rootDir)!
+
+      // A project that publishes from `publishConfig.directory` injects the
+      // built content of that directory, not of the project root.
+      const publishDir = manifest.publishConfig?.directory != null && manifest.publishConfig?.linkDirectory !== false
+        ? path.resolve(rootDir, manifest.publishConfig.directory)
+        : undefined
       try {
         const binsDir = path.join(modulesDir, '.bin')
         if (!skipBinLinking) {
@@ -119,7 +125,8 @@ export async function runLifecycleHooksConcurrently (
         // workaround (#4299) that the fast path then wiped, causing ENOENT
         // on .bin/<tool>. Stays on storeController.importPackage so source
         // files keep their hardlinks (no copy-loop).
-        const filesResponse = await fetchFromDir(rootDir, { resolveSymlinks: opts.resolveSymlinksInInjectedDirs })
+
+        const filesResponse = await fetchFromDir(publishDir ?? rootDir, { resolveSymlinks: opts.resolveSymlinksInInjectedDirs })
         await Promise.all(
           targetDirs.map(async (targetDir) =>
             opts.storeController.importPackage(targetDir, {

@@ -8,7 +8,7 @@ import { packlist } from '@pnpm/fs.packlist'
 import { logger } from '@pnpm/logger'
 import type { FilesMap } from '@pnpm/store.cafs-types'
 import type { DependencyManifest } from '@pnpm/types'
-import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+import { safeReadProjectManifestOnly, safeReadPublishManifest } from '@pnpm/workspace.project-manifest-reader'
 
 const directoryFetcherLogger = logger('directory-fetcher')
 
@@ -23,11 +23,33 @@ export function createDirectoryFetcher (
   const readFileStat: ReadFileStat = opts?.resolveSymlinks === true ? realFileStat : fileStat
   const fetchFromDir = opts?.includeOnlyPackageFiles ? fetchPackageFilesFromDir : fetchAllFilesFromDir.bind(null, readFileStat)
 
-  const directoryFetcher: DirectoryFetcher = (cafs, resolution, opts) => {
+  const directoryFetcher: DirectoryFetcher = async (cafs, resolution, opts) => {
     // Use path.resolve so absolute directories (e.g. cross-drive Windows paths
     // stored by `file:` deps) are respected instead of being concatenated
     // onto lockfileDir.
     const dir = path.resolve(opts.lockfileDir, resolution.directory)
+    // An injected dependency whose packed content is the output of its own
+    // lifecycle scripts (a project with `publishConfig.directory` built by
+    // `prepare`) has no source directory on a fresh install: the scripts run
+    // after linking, and the built output is imported afterwards. Inject an
+    // empty copy so the install can proceed instead of failing on the
+    // not-yet-built directory.
+    let dirStat: Stats | null = null
+    try {
+      dirStat = await fs.stat(dir)
+    } catch (err: unknown) {
+      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+    }
+    if (!dirStat?.isDirectory()) {
+      const manifest = await safeReadPublishManifest(dir) as DependencyManifest ?? undefined
+      return {
+        local: true,
+        filesMap: new Map(),
+        packageImportMethod: 'hardlink',
+        manifest,
+        requiresBuild: false,
+      }
+    }
     return fetchFromDir(dir)
   }
 

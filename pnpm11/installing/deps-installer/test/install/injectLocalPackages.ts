@@ -2161,3 +2161,76 @@ test('injectWorkspacePackages injects a workspace dependency declared with a rel
   expect(fs.lstatSync(path.resolve('project-2/node_modules/project-1')).isSymbolicLink()).toBe(true)
   expect(fs.realpathSync('project-2/node_modules/project-1')).toBe(path.resolve('node_modules/.pnpm/project-1@file+project-1/node_modules/project-1'))
 })
+
+test('inject local package that publishes from a directory built by prepare', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    scripts: {
+      // The publish directory does not exist until `prepare` creates it, so a
+      // fresh install used to fail with ERR_PNPM_FS_PACKLIST_IO while linking
+      // the injected copy (pnpm/pnpm#7811).
+      prepare: 'pwd > prepare-cwd.txt && mkdir -p dist && cp package.json dist/ && echo "// built" > dist/index.js',
+    },
+    publishConfig: {
+      directory: 'dist',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'workspace:1.0.0',
+    },
+    dependenciesMeta: {
+      'project-1': {
+        injected: true,
+      },
+    },
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'project-2',
+      package: project2Manifest,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+
+  await mutateModules(importers, testDefaults({
+    autoInstallPeers: false,
+    allProjects,
+  }))
+
+  // prepare ran in project-1 and built the publish directory.
+  expect(fs.existsSync(path.resolve('project-1/dist/index.js'))).toBeTruthy()
+  // The injected copy is packed from the publish directory, so the built
+  // file is at the copy's root and dist/ is not nested inside it.
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/index.js'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/dist'))).toBeFalsy()
+})

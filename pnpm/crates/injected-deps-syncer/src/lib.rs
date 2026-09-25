@@ -129,6 +129,12 @@ fn sync_workspace_injected_deps(
     workspace_dir: &Path,
 ) -> Result<(), SyncInjectedDepsError> {
     let pkg_root_dir = workspace_dir.join(opts.pkg_root_dir);
+    // A project whose `publishConfig.directory` is injected is tracked
+    // under that publish directory, not its own root: the resolver names
+    // the dependency `file:<publishDir>` (see `resolve_workspace_package_dir`
+    // in `pnpm-resolving-npm-resolver`), and `.modules.yaml` keys
+    // `injectedDeps` off that same resolved directory.
+    let content_source_dir = publish_source_dir(&pkg_root_dir, opts.manifest_before_scripts);
     let modules = read_workspace_modules(opts.workspace_modules_dir)?;
     let Some(injected_deps) =
         modules.as_ref().and_then(|modules| modules.injected_deps.as_ref())
@@ -141,7 +147,7 @@ fn sync_workspace_injected_deps(
     };
 
     let Some(target_dirs) = injected_deps
-        .get(&injected_dep_key(workspace_dir, &pkg_root_dir))
+        .get(&injected_dep_key(workspace_dir, &content_source_dir))
         .filter(|dirs| !dirs.is_empty())
     else {
         tracing::debug!(
@@ -156,14 +162,14 @@ fn sync_workspace_injected_deps(
         .iter()
         .map(|target_dir| workspace_dir.join(target_dir))
         .collect();
-    patch_targets(&pkg_root_dir, &resolved_targets)?;
+    patch_targets(&content_source_dir, &resolved_targets)?;
 
     let previous_bin_names = opts.manifest_before_scripts.map_or_else(Vec::new, |manifest| {
-        bin_names(manifest, &pkg_root_dir)
+        bin_names(manifest, &content_source_dir)
     });
     // The install hoists bins into the virtual store's own `.bin` as well.
     sync_bin_links(&SyncBinLinks {
-        pkg_root_dir: &pkg_root_dir,
+        pkg_root_dir: &content_source_dir,
         resolved_targets: &resolved_targets,
         workspace_dir,
         previous_bin_names: &previous_bin_names,
@@ -223,6 +229,24 @@ fn hoisted_bin_path(
             .join("node_modules")
             .join(".bin")
     })
+}
+
+/// The directory an injected copy's content is diffed against: a package
+/// that publishes from `publishConfig.directory` is injected as the built
+/// output of that directory, not its project root, so a copy is patched
+/// from there once the script that builds it has run.
+fn publish_source_dir(pkg_root_dir: &Path, manifest: Option<&serde_json::Value>) -> PathBuf {
+    let publish_config = manifest.and_then(|manifest| manifest.get("publishConfig"));
+    let publish_dir = publish_config
+        .and_then(|config| config.get("directory"))
+        .and_then(serde_json::Value::as_str);
+    let link_directory = publish_config
+        .and_then(|config| config.get("linkDirectory"))
+        .and_then(serde_json::Value::as_bool);
+    match publish_dir {
+        Some(publish_dir) if link_directory != Some(false) => pkg_root_dir.join(publish_dir),
+        _ => pkg_root_dir.to_path_buf(),
+    }
 }
 
 fn patch_targets(

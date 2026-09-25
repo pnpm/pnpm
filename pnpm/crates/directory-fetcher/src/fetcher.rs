@@ -55,6 +55,28 @@ pub struct DirectoryFetchOutput {
 
 impl DirectoryFetcher {
     pub fn run(&self) -> Result<DirectoryFetchOutput, DirectoryFetcherError> {
+        // An injected dependency whose packed content is the output of its
+        // own lifecycle scripts (a project with `publishConfig.directory`
+        // built by `prepare`) has no source directory on a fresh install:
+        // the scripts run after linking, and the built output is imported
+        // afterwards. Tolerate the not-yet-built directory here instead of
+        // failing the walk, so the install can proceed to run the script.
+        let exists = self.directory
+            .try_exists()
+            .map_err(|source| DirectoryFetcherError::Io {
+                dir: self.directory.display().to_string(),
+                source,
+            })?;
+        if !exists {
+            let manifest = safe_read_package_json_from_dir(&self.directory)
+                .map_err(DirectoryFetcherError::ReadManifest)?;
+            return Ok(DirectoryFetchOutput {
+                files_map: HashMap::new(),
+                manifest,
+                requires_build: false,
+            });
+        }
+
         let symlinks = self.symlinks();
         let files_map = if self.include_only_package_files {
             let mut files_map = walker::walk_package_files(&self.directory)?;
