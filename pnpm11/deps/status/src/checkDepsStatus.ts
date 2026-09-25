@@ -4,7 +4,7 @@ import util from 'node:util'
 
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
-import { parseOverrides } from '@pnpm/config.parse-overrides'
+import { isIntersectingRange, parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import { type Config, type ConfigContext, createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
@@ -192,6 +192,9 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   // (the only one setting this flag) "up-to-date" would skip the install
   // and break the local-file-deps guarantee.
   if (opts.treatLocalFileDepsAsOutdated) {
+    const overrides = opts.overrides != null && !isEmpty(opts.overrides)
+      ? parseOverrides(opts.overrides, catalogs)
+      : []
     const manifests = allProjects?.map(({ manifest }) => manifest) ?? []
     // `rootProjectManifest` is tracked separately from `allProjects` and the
     // recursive project list can omit the workspace root (for example when
@@ -200,7 +203,8 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     if (rootProjectManifest != null && !allProjects?.some(({ rootDir }) => rootDir === rootProjectManifestDir)) {
       manifests.push(rootProjectManifest)
     }
-    const localFileDep = findLocalFileDep(manifests, opts.include, catalogs)
+    const localFileDepContext: LocalFileDepSearchContext = { include: opts.include, catalogs, overrides }
+    const localFileDep = findLocalFileDep(manifests, localFileDepContext)
     if (localFileDep != null) {
       return {
         upToDate: false,
@@ -222,7 +226,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         workspaceState,
       }
     }
-    const localFileOverride = findLocalFileOverride(opts.overrides, catalogs)
+    const localFileOverride = findLocalFileOverride(overrides)
     if (localFileOverride != null) {
       return {
         upToDate: false,
@@ -230,7 +234,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         workspaceState,
       }
     }
-    const localFileExtension = findLocalFilePackageExtension(opts.packageExtensions, opts.include, catalogs)
+    const localFileExtension = findLocalFilePackageExtension(opts.packageExtensions, localFileDepContext)
     if (localFileExtension != null) {
       return {
         upToDate: false,
@@ -810,11 +814,27 @@ async function assertWantedLockfileUpToDate (
  * still hold a bare local path (`../lib`, `vendor/pkg.tgz`) that resolves to
  * a local file dependency.
  */
-function findLocalFileDep (manifests: ProjectManifest[], include?: IncludedDependencies, catalogs?: Catalogs): string | undefined {
+interface LocalFileDepSearchContext {
+  include?: IncludedDependencies
+  catalogs?: Catalogs
+  overrides: VersionOverride[]
+}
+
+/**
+ * Returns the name of the first dependency declared with a local file
+ * specifier in any of the given manifests, or `undefined` when there is none.
+ *
+ * Dependencies declared with a local file specifier disable the repeat-install
+ * fast path because nothing the check stats covers the directory's contents.
+ * `catalog:` specs are dereferenced through the catalogs config.
+ * Dependencies replaced by a generic override are skipped because the
+ * override target is installed instead.
+ */
+function findLocalFileDep (manifests: ProjectManifest[], ctx: LocalFileDepSearchContext): string | undefined {
   for (const manifest of manifests) {
     for (const depField of DEPENDENCIES_FIELDS) {
-      if (include?.[depField] === false) continue
-      const depName = findLocalFileDepInRecord(manifest[depField], catalogs)
+      if (ctx.include?.[depField] === false) continue
+      const depName = findLocalFileDepInRecord(manifest[depField], ctx)
       if (depName != null) return depName
     }
   }
@@ -823,59 +843,63 @@ function findLocalFileDep (manifests: ProjectManifest[], include?: IncludedDepen
 
 /**
  * Returns the name of the first dependency in `deps` declared with (or
- * resolving through a catalog to) a local file specifier, or `undefined`.
+ * resolving through a catalog to) a local file specifier and not replaced by
+ * an override, or `undefined`.
  */
-function findLocalFileDepInRecord (deps: Record<string, string> | undefined, catalogs?: Catalogs): string | undefined {
+function findLocalFileDepInRecord (deps: Record<string, string> | undefined, { catalogs, overrides }: LocalFileDepSearchContext): string | undefined {
   if (deps == null) return undefined
   for (const [depName, spec] of Object.entries(deps)) {
-    // A malformed manifest may carry a non-string spec; skip it rather
-    // than throw — checkDepsStatus() must never crash.
     if (typeof spec !== 'string') continue
-    if (isLocalFileSpec(spec)) return depName
-    // Only catalog: specs consult the catalogs, so skip the lookup for
-    // everything else to keep the optimistic fast path cheap.
-    if (!spec.startsWith('catalog:')) continue
-    const catalogResult = resolveFromCatalog(catalogs ?? {}, { alias: depName, bareSpecifier: spec })
-    if (catalogResult.type === 'found' && isLocalFileSpec(catalogResult.resolution.specifier)) return depName
+    if (!isEffectiveLocalFileSpec(depName, spec, catalogs)) continue
+    if (isDepReplacedByOverride(depName, spec, overrides)) continue
+    return depName
   }
   return undefined
 }
 
 /**
- * Returns the selector of the first `packageExtensions` entry that injects a
- * local file dependency, or `undefined` when there is none. Package
- * extensions are merged into matching packages' manifests by a read-package
- * hook during install, so a `file:`/local-path/tarball spec added there has
- * the same content-change blind spot as a direct local file dependency
- * without appearing in any project manifest. Only `dependencies` and
- * `optionalDependencies` are scanned: peer dependencies are resolved from the
- * graph rather than fetched, so a local spec there is never installed.
+ * Whether the dependency's specifier is (or resolves through a catalog to) a
+ * local file specifier.
  */
-function findLocalFilePackageExtension (packageExtensions: CheckDepsStatusOptions['packageExtensions'], include?: IncludedDependencies, catalogs?: Catalogs): string | undefined {
+function isEffectiveLocalFileSpec (depName: string, spec: string, catalogs?: Catalogs): boolean {
+  if (isLocalFileSpec(spec)) return true
+  if (!spec.startsWith('catalog:')) return false
+  const catalogResult = resolveFromCatalog(catalogs ?? {}, { alias: depName, bareSpecifier: spec })
+  return catalogResult.type === 'found' && isLocalFileSpec(catalogResult.resolution.specifier)
+}
+
+/**
+ * Whether an override replaces the dependency.
+ * Overrides with a parent selector (`parent>dep`) never match here: whether
+ * they apply depends on which package declares the dependency. Convergence
+ * overrides (`pkg@`) never match either: they apply only to plain semver
+ * ranges, so they never replace a local file dependency.
+ */
+function isDepReplacedByOverride (depName: string, spec: string, overrides: VersionOverride[]): boolean {
+  return overrides.some(({ parentPkg, targetPkg, converge }) =>
+    !converge && parentPkg == null && targetPkg.name === depName && isIntersectingRange(targetPkg.bareSpecifier, spec))
+}
+
+/**
+ * Returns the selector of the first `packageExtensions` entry that injects a
+ * local file dependency, or `undefined` when there is none.
+ */
+function findLocalFilePackageExtension (packageExtensions: CheckDepsStatusOptions['packageExtensions'], ctx: LocalFileDepSearchContext): string | undefined {
   if (packageExtensions == null) return undefined
   for (const [selector, extension] of Object.entries(packageExtensions)) {
-    if (findLocalFileDepInRecord(extension.dependencies, catalogs) != null) return selector
-    if (include?.optionalDependencies === false) continue
-    if (findLocalFileDepInRecord(extension.optionalDependencies, catalogs) != null) return selector
+    if (findLocalFileDepInRecord(extension.dependencies, ctx) != null) return selector
+    if (ctx.include?.optionalDependencies === false) continue
+    if (findLocalFileDepInRecord(extension.optionalDependencies, ctx) != null) return selector
   }
   return undefined
 }
 
 /**
  * Returns the selector of the first override that maps to a local file
- * specifier, or `undefined` when there is none. An override redirects every
- * matching dependency in the graph to its specifier, so a local file override
- * makes the installed contents depend on that directory or tarball the same
- * way a direct local file dependency does. Overrides are run through
- * `parseOverrides` so `catalog:` specs are dereferenced before the check.
- * `parseOverrides` throws on a misconfigured catalog or invalid selector;
- * that propagates to the outer catch in `checkDepsStatus`, which reports
- * not-up-to-date, and the resulting full install surfaces the same error.
+ * specifier, or `undefined` when there is none.
  */
-function findLocalFileOverride (overrides: Record<string, string> | undefined, catalogs?: Catalogs): string | undefined {
-  if (overrides == null || isEmpty(overrides)) return undefined
-  return parseOverrides(overrides, catalogs)
-    .find(({ newBareSpecifier }) => isLocalFileSpec(newBareSpecifier))?.selector
+function findLocalFileOverride (overrides: VersionOverride[]): string | undefined {
+  return overrides.find(({ newBareSpecifier }) => isLocalFileSpec(newBareSpecifier))?.selector
 }
 
 const LOCAL_PATH_PREFIX = /^(?:[./\\]|~[/\\]|[a-z]:)/i

@@ -14,10 +14,10 @@
 //! happens through [`pnpm_package_manifest::PackageManifest::value_mut`]
 //! on the in-memory `Value` only.
 
-pub(crate) use selectors::parse_declared_range;
+pub(crate) use selectors::{matches_target, parse_declared_range};
 
 mod selectors;
-use selectors::{matches_target, semver_satisfies, sort_by_specificity};
+use selectors::{semver_satisfies, sort_by_specificity};
 
 use node_semver::{Range, Version};
 use pnpm_config_parse_overrides::{PackageSelector, VersionOverride};

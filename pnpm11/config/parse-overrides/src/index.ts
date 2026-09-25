@@ -95,3 +95,5 @@ function parsePkgSelector (selector: string): PackageSelector {
     bareSpecifier: wantedDep.bareSpecifier,
   }
 }
+
+export { isIntersectingRange } from './isIntersectingRange.js'
