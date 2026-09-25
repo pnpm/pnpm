@@ -16,19 +16,21 @@ const ENV_WRITER: &str = "@pnpm.e2e/write-lifecycle-env";
 
 #[test]
 fn a_cached_build_reaches_a_project_that_builds_in_another_environment() {
-    assert_eq!(second_project_build_flavor(&Layout::default()), "first");
+    assert_eq!(build_flavors(&Layout::default()), ["first", "first"]);
 }
 
 #[test]
 fn an_excluded_package_is_built_in_every_project() {
     let layout = Layout { exclude: true, ..Layout::default() };
-    assert_eq!(second_project_build_flavor(&layout), "second");
+    assert_eq!(build_flavors(&layout), ["first", "second"]);
 }
 
+/// The first project's flavor is checked after the second install too: a
+/// second build into a slot the two projects shared would overwrite it.
 #[test]
 fn an_excluded_package_is_built_in_every_project_under_the_global_virtual_store() {
     let layout = Layout { exclude: true, global_virtual_store: true };
-    assert_eq!(second_project_build_flavor(&layout), "second");
+    assert_eq!(build_flavors(&layout), ["first", "second"]);
 }
 
 #[derive(Default)]
@@ -39,8 +41,8 @@ struct Layout {
 
 /// Install [`ENV_WRITER`] in two projects that share one store, with
 /// `BUILD_FLAVOR` set to `first` and then `second`, and return the
-/// flavor the second project's build output records.
-fn second_project_build_flavor(layout: &Layout) -> String {
+/// flavor each project's build output records once both are installed.
+fn build_flavors(layout: &Layout) -> [String; 2] {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -54,10 +56,10 @@ fn second_project_build_flavor(layout: &Layout) -> String {
     install(&workspace, "first");
     assert_eq!(build_flavor(&workspace), "first");
     install(&second, "second");
-    let flavor = build_flavor(&second);
+    let flavors = [build_flavor(&workspace), build_flavor(&second)];
 
     drop((root, mock_instance));
-    flavor
+    flavors
 }
 
 fn configure(workspace: &Path, layout: &Layout) {
